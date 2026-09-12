@@ -10,7 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jakob/btu-scraper/internal/analytics"
+	"github.com/jakob/btu-scraper/internal/logger"
 	"github.com/jakob/btu-scraper/internal/provider"
+	"github.com/jakob/btu-scraper/internal/refresher"
 	"github.com/jakob/btu-scraper/internal/storage"
 )
 
@@ -21,13 +24,35 @@ var contentFS embed.FS
 type Server struct {
 	store     *storage.Storage
 	eventProv *provider.BTUEventProvider
+	tracker   *analytics.Tracker
+	refresher *refresher.Refresher
+	logger    *logger.Logger
+	startTime time.Time
 	templates *template.Template
 	mux       *http.ServeMux
 	server    *http.Server
 }
 
+// ServerOption configures optional services for Server.
+type ServerOption func(*Server)
+
+// WithTracker configures the anonymous analytics tracker.
+func WithTracker(t *analytics.Tracker) ServerOption {
+	return func(s *Server) { s.tracker = t }
+}
+
+// WithRefresher configures the background polite crawler refresher.
+func WithRefresher(r *refresher.Refresher) ServerOption {
+	return func(s *Server) { s.refresher = r }
+}
+
+// WithLogger configures the system logger.
+func WithLogger(l *logger.Logger) ServerOption {
+	return func(s *Server) { s.logger = l }
+}
+
 // NewServer initializes the web server and parses templates.
-func NewServer(store *storage.Storage, eventProv *provider.BTUEventProvider) (*Server, error) {
+func NewServer(store *storage.Storage, eventProv *provider.BTUEventProvider, opts ...ServerOption) (*Server, error) {
 	tmplFuncs := template.FuncMap{
 		"stringsJoin":     strings.Join,
 		"stringsContains": strings.Contains,
@@ -66,8 +91,13 @@ func NewServer(store *storage.Storage, eventProv *provider.BTUEventProvider) (*S
 	s := &Server{
 		store:     store,
 		eventProv: eventProv,
+		startTime: time.Now(),
 		templates: tmpl,
 		mux:       http.NewServeMux(),
+	}
+
+	for _, opt := range opts {
+		opt(s)
 	}
 
 	s.routes()
@@ -82,13 +112,42 @@ func (s *Server) routes() {
 	}
 
 	// Main routes
-	s.mux.HandleFunc("/", s.handleIndex)
-	s.mux.HandleFunc("/modules", s.handleModules)
-	s.mux.HandleFunc("/modules/", s.handleModuleModal)
-	s.mux.HandleFunc("/api/programs", s.handleProgramsAPI)
-	s.mux.HandleFunc("/api/suggestions", s.handleSuggestionsAPI)
-	s.mux.HandleFunc("/api/stats", s.handleStatsAPI)
+	s.mux.HandleFunc("/", s.wrap(s.handleIndex))
+	s.mux.HandleFunc("/modules", s.wrap(s.handleModules))
+	s.mux.HandleFunc("/modules/", s.wrap(s.handleModuleModal))
+	s.mux.HandleFunc("/stats", s.wrap(s.handleStatsPage))
+	s.mux.HandleFunc("/api/programs", s.wrap(s.handleProgramsAPI))
+	s.mux.HandleFunc("/api/suggestions", s.wrap(s.handleSuggestionsAPI))
+	s.mux.HandleFunc("/api/stats", s.wrap(s.handleStatsAPI))
+	s.mux.HandleFunc("/api/track", s.wrap(s.handleTrackAPI))
+	s.mux.HandleFunc("/api/logs", s.wrap(s.handleLogsAPI))
 }
+
+// wrap provides latency and error rate load monitoring
+func (s *Server) wrap(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &statusResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		handler(rw, r)
+		duration := time.Since(start)
+
+		if s.logger != nil {
+			isErr := rw.statusCode >= 500
+			s.logger.RecordHTTPRequest(duration, isErr)
+		}
+	}
+}
+
+type statusResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *statusResponseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
 
 // Start runs the HTTP server listening on the specified port.
 func (s *Server) Start(port string) error {

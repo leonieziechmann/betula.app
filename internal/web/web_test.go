@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jakob/btu-scraper/internal/model"
@@ -136,6 +137,74 @@ func TestModuleModal(t *testing.T) {
 	body := rec.Body.String()
 	if !stringsContains(body, "Lineare Algebra I") {
 		t.Errorf("expected modal to contain module title")
+	}
+}
+
+func TestStatsEndpoint(t *testing.T) {
+	srv, store := setupTestServer(t)
+	defer store.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats", nil)
+	rec := httptest.NewRecorder()
+
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !stringsContains(body, "total_modules") {
+		t.Errorf("expected JSON to contain total_modules, got %s", body)
+	}
+}
+
+func TestStatsHTMLPage(t *testing.T) {
+	srv, store := setupTestServer(t)
+	defer store.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+	rec := httptest.NewRecorder()
+
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !stringsContains(body, "Telemetrie Dashboard") || !stringsContains(body, "DSGVO") {
+		t.Errorf("expected HTML to contain dashboard title and DSGVO notice")
+	}
+}
+
+func TestTrackingEndpoint(t *testing.T) {
+	srv, store := setupTestServer(t)
+	defer store.Close()
+
+	payload := `{"type":"module_click","target_id":"11101"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/track", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204 No Content, got %d", rec.Code)
+	}
+}
+
+func TestLogsEndpoint(t *testing.T) {
+	srv, store := setupTestServer(t)
+	defer store.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+	rec := httptest.NewRecorder()
+
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 }
 

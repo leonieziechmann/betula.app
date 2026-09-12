@@ -5,12 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
+	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jakob/btu-scraper/internal/analytics"
+	"github.com/jakob/btu-scraper/internal/logger"
 	"github.com/jakob/btu-scraper/internal/model"
+	"github.com/jakob/btu-scraper/internal/refresher"
 	"github.com/jakob/btu-scraper/internal/storage"
 )
 
@@ -135,6 +141,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
+	}
+
+	if s.tracker != nil {
+		s.tracker.TrackPageView()
 	}
 
 	programs, _ := s.store.GetAllStudyPrograms()
@@ -296,6 +306,9 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 				programName = p.ShortTitle
 				break
 			}
+		}
+		if s.tracker != nil && offset == 0 {
+			s.tracker.TrackProgramSelect(programID, programName)
 		}
 	}
 
@@ -508,8 +521,29 @@ func (s *Server) handleModuleModal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Anonymous GDPR-compliant telemetry
+	if s.tracker != nil {
+		s.tracker.TrackModuleClick(id)
+	}
+
 	detail, err := s.store.GetModule(id)
-	if err != nil {
+	// Cache miss detection: module not in DB or details not yet scraped
+	if err != nil || detail == nil || (detail.Contents == "" && detail.LearningOutcomes == "") {
+		if s.refresher != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			fetched, fetchErr := s.refresher.FetchModuleNow(ctx, id)
+			cancel()
+			if fetchErr == nil && fetched != nil {
+				detail = fetched
+				err = nil
+			} else {
+				// Queue for polite background crawler
+				s.refresher.EnqueueCacheMiss(id)
+			}
+		}
+	}
+
+	if err != nil || detail == nil {
 		http.Error(w, "Module not found", http.StatusNotFound)
 		return
 	}
@@ -723,12 +757,150 @@ func (s *Server) handleProgramsAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleStatsAPI(w http.ResponseWriter, r *http.Request) {
-	count, _ := s.store.Count()
-	progs, _ := s.store.GetAllStudyPrograms()
-	res := map[string]interface{}{
-		"total_modules":  count,
-		"study_programs": len(progs),
+	data := s.collectStatsData()
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(data)
+}
+
+func (s *Server) handleStatsPage(w http.ResponseWriter, r *http.Request) {
+	data := s.collectStatsData()
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "stats.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) handleTrackAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.tracker == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	var payload struct {
+		Type       analytics.EventType `json:"type"`
+		TargetID   string              `json:"target_id"`
+		TargetName string              `json:"target_name"`
+	}
+
+	// Strictly limit payload size to avoid memory abuse
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&payload); err != nil {
+		http.Error(w, "Invalid tracking payload", http.StatusBadRequest)
+		return
+	}
+
+	// Anonymous GDPR-compliant event: No client IP, no user agent, no cookies stored
+	s.tracker.Track(analytics.Event{
+		Type:       payload.Type,
+		TargetID:   payload.TargetID,
+		TargetName: payload.TargetName,
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleLogsAPI(w http.ResponseWriter, r *http.Request) {
+	var logs []logger.LogEntry
+	if s.logger != nil {
+		logs = s.logger.GetRecentLogs(100, logger.LevelDebug)
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(res)
+	_ = json.NewEncoder(w).Encode(logs)
+}
+
+// StatsViewData bundles data for the /stats HTML dashboard and /api/stats JSON.
+type StatsViewData struct {
+	Catalog struct {
+		TotalModules  int `json:"total_modules"`
+		FUESModules   int `json:"fues_modules"`
+		TotalPrograms int `json:"total_programs"`
+		TotalEvents   int `json:"total_events"`
+	} `json:"catalog"`
+	Analytics analytics.Summary `json:"analytics"`
+	Health    struct {
+		ConsecutiveErrors uint64 `json:"consecutive_scrape_errors"`
+		TotalScrapeErrors uint64 `json:"total_scrape_errors"`
+		TotalRequests     uint64 `json:"total_http_requests"`
+		TotalReqErrors    uint64 `json:"total_http_errors"`
+	} `json:"health"`
+	Refresher refresher.Status `json:"refresher"`
+	System    struct {
+		Uptime          string `json:"uptime"`
+		Goroutines      int    `json:"goroutines"`
+		AllocMB         string `json:"alloc_mb"`
+		MainDBSize      string `json:"main_db_size"`
+		AnalyticsDBSize string `json:"analytics_db_size"`
+	} `json:"system"`
+	Logs []logger.LogEntry `json:"logs,omitempty"`
+}
+
+func (s *Server) collectStatsData() StatsViewData {
+	var data StatsViewData
+
+	// 1. Catalog metrics
+	count, _ := s.store.Count()
+	data.Catalog.TotalModules = count
+	progs, _ := s.store.GetAllStudyPrograms()
+	data.Catalog.TotalPrograms = len(progs)
+
+	fuesCount := 0
+	_ = s.store.DB().QueryRow("SELECT COUNT(*) FROM modules WHERE is_fues = 1 OR cross_disciplinary = 1").Scan(&fuesCount)
+	data.Catalog.FUESModules = fuesCount
+
+	var eventCount int
+	_ = s.store.DB().QueryRow("SELECT COUNT(*) FROM events").Scan(&eventCount)
+	data.Catalog.TotalEvents = eventCount
+
+	// 2. Analytics metrics
+	if s.tracker != nil {
+		summary, _ := s.tracker.GetSummary()
+		// Enrich top modules with titles from store
+		for i := range summary.TopModules {
+			if mod, err := s.store.GetModule(summary.TopModules[i].ModuleID); err == nil && mod != nil {
+				summary.TopModules[i].Title = mod.TitleDE
+			}
+		}
+		data.Analytics = summary
+	}
+
+	// 3. Logger / Health metrics
+	if s.logger != nil {
+		h := s.logger.GetHealthStats()
+		data.Health.ConsecutiveErrors = h["consecutive_scrape_errors"].(uint64)
+		data.Health.TotalScrapeErrors = h["total_scrape_errors"].(uint64)
+		data.Health.TotalRequests = h["total_http_requests"].(uint64)
+		data.Health.TotalReqErrors = h["total_http_errors"].(uint64)
+		data.Logs = s.logger.GetRecentLogs(100, logger.LevelDebug)
+	}
+
+	// 4. Refresher status
+	if s.refresher != nil {
+		data.Refresher = s.refresher.GetStatus()
+	}
+
+	// 5. System metrics
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	data.System.Goroutines = runtime.NumGoroutine()
+	data.System.AllocMB = fmt.Sprintf("%.1f", float64(mem.Alloc)/(1024*1024))
+	data.System.Uptime = time.Since(s.startTime).Round(time.Second).String()
+	data.System.MainDBSize = getFileSize("btu_modules.db")
+	data.System.AnalyticsDBSize = getFileSize("btu_analytics.db")
+
+	return data
+}
+
+func getFileSize(path string) string {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "N/A"
+	}
+	mb := float64(fi.Size()) / (1024 * 1024)
+	if mb < 1.0 {
+		return fmt.Sprintf("%.1f KB", float64(fi.Size())/1024)
+	}
+	return fmt.Sprintf("%.2f MB", mb)
 }

@@ -15,9 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jakob/btu-scraper/internal/analytics"
 	"github.com/jakob/btu-scraper/internal/cache"
+	"github.com/jakob/btu-scraper/internal/logger"
 	"github.com/jakob/btu-scraper/internal/model"
 	"github.com/jakob/btu-scraper/internal/provider"
+	"github.com/jakob/btu-scraper/internal/refresher"
 	"github.com/jakob/btu-scraper/internal/storage"
 	"github.com/jakob/btu-scraper/internal/web"
 )
@@ -81,7 +84,9 @@ Usage:
   scraper <command> [arguments]
 
 Commands:
-  serve [--port 8080]        Start the interactive HTMX-based Smart Module Catalog web app
+  serve                      Start the interactive HTMX-based Smart Module Catalog web app
+                             [--port 8080] [--analytics-db btu_analytics.db] [--auto-refresh]
+                             [--offpeak-start 1] [--offpeak-end 6] [--log-file btu_scraper.log]
   catalog                    Discover all modules from b-tu.de/modul and store summaries in SQLite
   detail <module-id>         Scrape full details for a specific module ID (e.g. 11101)
   all                        Scrape catalog and all module details with rate-limiting and caching
@@ -99,7 +104,9 @@ Commands:
 
 Global Flags:
   --db <path>                SQLite database file (default: btu_modules.db)
+  --analytics-db <path>      Anonymous analytics SQLite database (default: btu_analytics.db)
   --cache-dir <path>         Local cache directory (default: .cache)
+  --log-file <path>          Scraper and system log file (default: btu_scraper.log)
   --refresh                  Bypass cache and force re-fetching from source
 `)
 }
@@ -895,18 +902,71 @@ func runProgramModules(ctx context.Context, args []string) {
 func runServe(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	dbPath := fs.String("db", "btu_modules.db", "SQLite database path")
+	analyticsDB := fs.String("analytics-db", "btu_analytics.db", "Analytics SQLite database path")
+	logFile := fs.String("log-file", "btu_scraper.log", "Log file path")
 	port := fs.String("port", "8080", "HTTP port to listen on (default 8080)")
+	autoRefresh := fs.Bool("auto-refresh", true, "Enable background polite scheduled data refreshing")
+	offpeakStart := fs.Int("offpeak-start", 1, "Off-peak scraping window start hour (24h)")
+	offpeakEnd := fs.Int("offpeak-end", 6, "Off-peak scraping window end hour (24h)")
 	_ = fs.Parse(reorderFlags(args))
 
+	// 1. Initialize logger
+	sysLog, err := logger.NewLogger(logger.Options{
+		MinLevel:   logger.LevelInfo,
+		FilePath:   *logFile,
+		BufferSize: 300,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to initialize log file (%s): %v\n", *logFile, err)
+		sysLog = logger.Default()
+	}
+	defer sysLog.Close()
+
+	// 2. Initialize app and main SQLite storage
 	store, _, reg := setupApp(*dbPath, ".cache")
 	defer store.Close()
+
+	// 3. Initialize separate anonymous analytics DB (GDPR-compliant)
+	tracker, err := analytics.NewTracker(*analyticsDB)
+	if err != nil {
+		sysLog.Warn("ANALYTICS", "Failed to initialize analytics DB (%s): %v", *analyticsDB, err)
+	} else {
+		defer tracker.Close()
+	}
 
 	var eventProv *provider.BTUEventProvider
 	if p, ok := reg.Get(provider.EventProviderName); ok {
 		eventProv = p.(*provider.BTUEventProvider)
 	}
 
-	srv, err := web.NewServer(store, eventProv)
+	var catProv *provider.BTUModuleCatalogProvider
+	if p, ok := reg.Get(provider.CatalogProviderName); ok {
+		catProv = p.(*provider.BTUModuleCatalogProvider)
+	}
+
+	var detProv *provider.BTUModuleDetailProvider
+	if p, ok := reg.Get(provider.DetailProviderName); ok {
+		detProv = p.(*provider.BTUModuleDetailProvider)
+	}
+
+	// 4. Initialize polite refresher service
+	var ref *refresher.Refresher
+	if *autoRefresh {
+		refCfg := refresher.DefaultConfig()
+		refCfg.OffPeakStartHour = *offpeakStart
+		refCfg.OffPeakEndHour = *offpeakEnd
+		ref = refresher.NewRefresher(refCfg, store, catProv, detProv, eventProv, sysLog)
+		go ref.Start(ctx)
+	}
+
+	// 5. Initialize web server
+	srv, err := web.NewServer(
+		store,
+		eventProv,
+		web.WithTracker(tracker),
+		web.WithRefresher(ref),
+		web.WithLogger(sysLog),
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing web server: %v\n", err)
 		os.Exit(1)
@@ -1088,7 +1148,7 @@ func reorderFlags(args []string) []string {
 			if !strings.Contains(arg, "=") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				flagName := strings.TrimLeft(arg, "-")
 				switch flagName {
-				case "db", "cache-dir", "search", "dept", "min-credits", "max-credits", "limit", "offset", "workers", "delay", "name", "degree":
+				case "db", "cache-dir", "search", "dept", "min-credits", "max-credits", "limit", "offset", "workers", "delay", "name", "degree", "port", "analytics-db", "log-file", "offpeak-start", "offpeak-end":
 					i++
 					flags = append(flags, args[i])
 				}

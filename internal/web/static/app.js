@@ -70,9 +70,33 @@ window.toggleBookmark = function(moduleId, event) {
   refreshModules();
 };
 
+// Anonymous GDPR-compliant telemetry helper (discards all personal info)
+function trackAnonymousEvent(type, targetId, targetName) {
+  try {
+    const payload = JSON.stringify({
+      type: type,
+      target_id: targetId || '',
+      target_name: targetName || ''
+    });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/track', new Blob([payload], { type: 'application/json' }));
+    } else {
+      fetch('/api/track', {
+        method: 'POST',
+        body: payload,
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true
+      }).catch(() => {});
+    }
+  } catch (e) {
+    // Graceful error ignore
+  }
+}
+
 // Modal functions with background scroll locking
 window.openModal = function(moduleId) {
   document.body.classList.add('modal-open');
+  trackAnonymousEvent('module_click', moduleId);
   htmx.ajax('GET', `/modules/${moduleId}`, '#modal-container');
 };
 
@@ -325,6 +349,10 @@ window.selectStudyProgram = function(id, title) {
 
   localStorage.setItem(STORAGE_KEYS.PROGRAM, id);
   localStorage.setItem(STORAGE_KEYS.PROGRAM_TITLE, title || '');
+
+  if (id) {
+    trackAnonymousEvent('program_select', id, title);
+  }
 
   // Close dropdown
   const dropdown = document.getElementById('combobox-dropdown');
@@ -732,6 +760,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Update initial badges
   updateBadges();
+
+  // Track initial anonymous page view
+  trackAnonymousEvent('view');
 
   // Trigger initial fetch
   refreshModules();
