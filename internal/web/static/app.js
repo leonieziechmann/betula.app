@@ -9,6 +9,8 @@ const STORAGE_KEYS = {
   CAMPUSES: 'btu_campuses',
   CAMPUS_STRICT: 'btu_campus_strict',
   LIMITATION: 'btu_limitation',
+  FUES: 'btu_fues',
+  INSTRUCTORS: 'btu_whitelisted_instructors',
   LANG_DE: 'btu_lang_de',
   LANG_EN: 'btu_lang_en',
   COMPLETED: 'btu_completed_modules',
@@ -220,8 +222,7 @@ function updateActiveFilterCount() {
   const prog = document.getElementById('filter-program');
   if (prog && prog.value) count++;
 
-  const turnus = document.getElementById('filter-turnus');
-  if (turnus && turnus.value && turnus.value !== 'all') count++;
+  if (typeof selectedTurnuses !== 'undefined' && selectedTurnuses.length > 0) count++;
 
   const credits = document.getElementById('filter-min-credits');
   if (credits && parseFloat(credits.value) > 0) count++;
@@ -236,7 +237,11 @@ function updateActiveFilterCount() {
   if (limit && limit.value && limit.value !== 'ja') count++;
 
   const fues = document.getElementById('filter-fues');
-  if (fues && fues.checked) count++;
+  if (fues && fues.value && fues.value !== 'inkl') count++;
+
+  if (typeof selectedInstructors !== 'undefined' && selectedInstructors.length > 0) {
+    count += selectedInstructors.length;
+  }
 
   const phaseOut = document.getElementById('filter-hide-phaseout');
   if (phaseOut && !phaseOut.checked) count++;
@@ -286,6 +291,8 @@ document.addEventListener('keydown', function(evt) {
     toggleSidebar(false);
     const suggestions = document.getElementById('search-suggestions');
     if (suggestions) suggestions.style.display = 'none';
+    const profMenu = document.getElementById('prof-dropdown-menu');
+    if (profMenu) profMenu.style.display = 'none';
   }
 });
 
@@ -300,7 +307,7 @@ window.addEventListener('resize', function() {
   }
 });
 
-// Click outside to close combobox and search suggestions
+// Click outside to close combobox, search suggestions, and prof dropdown
 document.addEventListener('click', function(evt) {
   const combobox = document.getElementById('combobox-dropdown');
   const comboboxWrap = document.querySelector('.combobox-container');
@@ -314,6 +321,12 @@ document.addEventListener('click', function(evt) {
   const searchWrap = document.querySelector('.nav-search');
   if (suggestions && searchWrap && !searchWrap.contains(evt.target)) {
     suggestions.style.display = 'none';
+  }
+
+  const profMenu = document.getElementById('prof-dropdown-menu');
+  const profWrap = document.querySelector('.prof-search-wrapper');
+  if (profMenu && profWrap && !profWrap.contains(evt.target)) {
+    profMenu.style.display = 'none';
   }
 });
 
@@ -454,8 +467,9 @@ window.selectStudyProgramGroup = function(groupKey, title, preferredPoId, should
           if (!targetPoId) targetPoId = po.id;
         });
 
-        if (preferredPoId && grp.pos.some(p => p.id === preferredPoId)) {
-          poSelect.value = preferredPoId;
+        const preferredMatch = preferredPoId ? grp.pos.find(p => p.id === preferredPoId || (p.related_ids && p.related_ids.includes(preferredPoId))) : null;
+        if (preferredMatch) {
+          poSelect.value = preferredMatch.id;
         } else if (targetPoId) {
           poSelect.value = targetPoId;
         }
@@ -517,36 +531,118 @@ window.clearStudyProgram = function(event) {
   selectStudyProgramGroup('', '');
 };
 
-// Semester Turnus selection and Accordion logic
-window.selectSemesterTurnus = function(val, shouldRefresh = true) {
-  const hidden = document.getElementById('filter-turnus');
-  if (hidden) hidden.value = val;
-  localStorage.setItem(STORAGE_KEYS.TURNUS, val);
+// Multi-select Semester Turnus logic
+let selectedTurnuses = []; // e.g. ['sose_even', 'wise_odd', 'sporadic']
 
-  const btnAll = document.getElementById('btn-semester-all');
-  const btnNext = document.getElementById('btn-semester-next');
-  if (btnAll) btnAll.classList.toggle('active', val === 'all');
-  if (btnNext) btnNext.classList.toggle('active', val === 'next');
+function renderTurnusButtons() {
+  const hiddenContainer = document.getElementById('turnus-hidden-inputs');
+  const clearBtn = document.getElementById('btn-clear-turnus');
 
-  // Extended turnus pills
-  document.querySelectorAll('.turnus-pill').forEach(pill => {
-    const tVal = pill.getAttribute('data-turnus');
-    pill.classList.toggle('active', tVal === val);
-  });
+  // Update hidden inputs for form serialization
+  if (hiddenContainer) {
+    hiddenContainer.innerHTML = '';
+    selectedTurnuses.forEach(t => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'turnus';
+      input.value = t;
+      hiddenContainer.appendChild(input);
+    });
+  }
+
+  // Update button active states
+  const hasSoseEven = selectedTurnuses.includes('sose_even');
+  const hasSoseOdd = selectedTurnuses.includes('sose_odd');
+  const hasWiseEven = selectedTurnuses.includes('wise_even');
+  const hasWiseOdd = selectedTurnuses.includes('wise_odd');
+  const hasSporadic = selectedTurnuses.includes('sporadic');
+
+  const btnSose = document.getElementById('btn-turnus-sose');
+  const btnSoseEven = document.getElementById('btn-turnus-sose_even');
+  const btnSoseOdd = document.getElementById('btn-turnus-sose_odd');
+
+  const btnWise = document.getElementById('btn-turnus-wise');
+  const btnWiseEven = document.getElementById('btn-turnus-wise_even');
+  const btnWiseOdd = document.getElementById('btn-turnus-wise_odd');
+
+  const btnSporadic = document.getElementById('btn-turnus-sporadic');
+
+  if (btnSoseEven) btnSoseEven.classList.toggle('active', hasSoseEven);
+  if (btnSoseOdd) btnSoseOdd.classList.toggle('active', hasSoseOdd);
+  if (btnSose) {
+    btnSose.classList.toggle('active', hasSoseEven && hasSoseOdd);
+  }
+
+  if (btnWiseEven) btnWiseEven.classList.toggle('active', hasWiseEven);
+  if (btnWiseOdd) btnWiseOdd.classList.toggle('active', hasWiseOdd);
+  if (btnWise) {
+    btnWise.classList.toggle('active', hasWiseEven && hasWiseOdd);
+  }
+
+  if (btnSporadic) btnSporadic.classList.toggle('active', hasSporadic);
+
+  if (clearBtn) {
+    clearBtn.style.display = selectedTurnuses.length > 0 ? 'inline-block' : 'none';
+  }
+
+  updateActiveFilterCount();
+}
+
+window.toggleTurnusToken = function(token, shouldRefresh = true) {
+  const idx = selectedTurnuses.indexOf(token);
+  if (idx > -1) {
+    selectedTurnuses.splice(idx, 1);
+  } else {
+    selectedTurnuses.push(token);
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.TURNUS, JSON.stringify(selectedTurnuses));
+  } catch(e) {}
+
+  renderTurnusButtons();
 
   if (shouldRefresh) {
     refreshModules();
   }
 };
 
-window.toggleSemesterAccordion = function(event) {
-  if (event) event.stopPropagation();
-  const acc = document.getElementById('semester-accordion');
-  const icon = document.getElementById('semester-ext-icon');
-  if (!acc) return;
-  const isOpen = acc.style.display !== 'none';
-  acc.style.display = isOpen ? 'none' : 'block';
-  if (icon) icon.textContent = isOpen ? '▾' : '▴';
+window.toggleTurnusMain = function(category, shouldRefresh = true) {
+  const tokens = category === 'sose' ? ['sose_even', 'sose_odd'] : ['wise_even', 'wise_odd'];
+  const allActive = tokens.every(t => selectedTurnuses.includes(t));
+
+  if (allActive) {
+    selectedTurnuses = selectedTurnuses.filter(t => !tokens.includes(t));
+  } else {
+    tokens.forEach(t => {
+      if (!selectedTurnuses.includes(t)) {
+        selectedTurnuses.push(t);
+      }
+    });
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.TURNUS, JSON.stringify(selectedTurnuses));
+  } catch(e) {}
+
+  renderTurnusButtons();
+
+  if (shouldRefresh) {
+    refreshModules();
+  }
+};
+
+window.clearTurnusFilter = function(shouldRefresh = true) {
+  selectedTurnuses = [];
+  try {
+    localStorage.removeItem(STORAGE_KEYS.TURNUS);
+  } catch(e) {}
+
+  renderTurnusButtons();
+
+  if (shouldRefresh) {
+    refreshModules();
+  }
 };
 
 // Limitation segmented control helper
@@ -561,6 +657,230 @@ window.setLimitationFilter = function(val, shouldRefresh = true) {
 
   if (shouldRefresh) {
     refreshModules();
+  }
+};
+
+// FÜS 3-way segmented control helper (exkl, inkl, nur)
+window.setFUESFilter = function(val, shouldRefresh = true) {
+  const hidden = document.getElementById('filter-fues');
+  if (hidden) hidden.value = val;
+  localStorage.setItem(STORAGE_KEYS.FUES, val);
+
+  document.querySelectorAll('#fues-control .segmented-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.val === val);
+  });
+
+  if (shouldRefresh) {
+    refreshModules();
+  }
+};
+
+// Dozierende (Professoren) Whitelist Filter
+let allInstructors = [];
+let selectedInstructors = [];
+let highlightedProfIndex = -1;
+
+function initInstructors() {
+  try {
+    const el = document.getElementById('instructors-data');
+    if (!el) return;
+    let raw = el.textContent ? el.textContent.trim() : '';
+    let parsed = JSON.parse(raw || '[]');
+    if (typeof parsed === 'string') {
+      parsed = JSON.parse(parsed);
+    }
+    allInstructors = Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error("Failed to parse instructors:", e);
+    allInstructors = [];
+  }
+}
+
+function renderSelectedProfChips() {
+  const chipsContainer = document.getElementById('prof-selected-chips');
+  const hiddenContainer = document.getElementById('prof-hidden-inputs');
+  const clearBtn = document.getElementById('btn-clear-profs');
+
+  if (hiddenContainer) {
+    hiddenContainer.innerHTML = '';
+    selectedInstructors.forEach(name => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'instructor';
+      input.value = name;
+      hiddenContainer.appendChild(input);
+    });
+  }
+
+  if (chipsContainer) {
+    chipsContainer.innerHTML = '';
+    selectedInstructors.forEach(name => {
+      const inst = allInstructors.find(i => i.name === name);
+      const title = inst ? inst.title : '';
+
+      const chip = document.createElement('div');
+      chip.className = 'prof-chip';
+      chip.title = inst ? inst.fullname : name;
+
+      const nameSpan = document.createElement('div');
+      nameSpan.className = 'prof-chip-name';
+      if (title) {
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'prof-chip-title';
+        titleSpan.textContent = title;
+        nameSpan.appendChild(titleSpan);
+      }
+      const textSpan = document.createElement('span');
+      textSpan.className = 'prof-chip-text';
+      textSpan.textContent = name;
+      nameSpan.appendChild(textSpan);
+      chip.appendChild(nameSpan);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'prof-chip-remove';
+      removeBtn.setAttribute('aria-label', `${name} entfernen`);
+      removeBtn.title = `${name} entfernen`;
+      removeBtn.innerHTML = '&times;';
+      removeBtn.onclick = function(e) {
+        e.stopPropagation();
+        window.removeInstructor(name);
+      };
+      chip.appendChild(removeBtn);
+
+      chipsContainer.appendChild(chip);
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.style.display = selectedInstructors.length > 0 ? 'inline-block' : 'none';
+  }
+
+  updateActiveFilterCount();
+}
+
+window.addInstructor = function(name, shouldRefresh = true) {
+  if (!name) return;
+  if (!selectedInstructors.includes(name)) {
+    selectedInstructors.push(name);
+    try {
+      localStorage.setItem(STORAGE_KEYS.INSTRUCTORS, JSON.stringify(selectedInstructors));
+    } catch(e) {}
+    renderSelectedProfChips();
+  }
+
+  const input = document.getElementById('prof-search-input');
+  if (input) input.value = '';
+  hideProfDropdown();
+
+  if (shouldRefresh) {
+    refreshModules();
+  }
+};
+
+window.removeInstructor = function(name) {
+  selectedInstructors = selectedInstructors.filter(n => n !== name);
+  try {
+    localStorage.setItem(STORAGE_KEYS.INSTRUCTORS, JSON.stringify(selectedInstructors));
+  } catch(e) {}
+  renderSelectedProfChips();
+  refreshModules();
+};
+
+window.clearProfWhitelist = function() {
+  selectedInstructors = [];
+  try {
+    localStorage.removeItem(STORAGE_KEYS.INSTRUCTORS);
+  } catch(e) {}
+  renderSelectedProfChips();
+  refreshModules();
+};
+
+function getVisibleProfItems() {
+  return Array.from(document.querySelectorAll('#prof-dropdown-menu .prof-dropdown-item'));
+}
+
+function updateHighlightedProf(visibleItems) {
+  visibleItems.forEach((item, idx) => {
+    if (idx === highlightedProfIndex) {
+      item.classList.add('highlighted');
+      item.scrollIntoView({ block: 'nearest' });
+    } else {
+      item.classList.remove('highlighted');
+    }
+  });
+}
+
+function hideProfDropdown() {
+  const menu = document.getElementById('prof-dropdown-menu');
+  if (menu) menu.style.display = 'none';
+  highlightedProfIndex = -1;
+}
+
+window.onProfSearchInput = function(query) {
+  const menu = document.getElementById('prof-dropdown-menu');
+  if (!menu) return;
+  const q = (query || '').trim().toLowerCase();
+  if (q.length < 1) {
+    hideProfDropdown();
+    return;
+  }
+
+  if (allInstructors.length === 0) initInstructors();
+
+  const matches = allInstructors.filter(inst => {
+    if (selectedInstructors.includes(inst.name)) return false;
+    const nameLow = (inst.name || '').toLowerCase();
+    const fullLow = (inst.fullname || '').toLowerCase();
+    const titleLow = (inst.title || '').toLowerCase();
+    return nameLow.includes(q) || fullLow.includes(q) || titleLow.includes(q);
+  }).slice(0, 15);
+
+  if (matches.length === 0) {
+    menu.innerHTML = '<div class="suggestion-empty" style="padding:0.6rem;">Keine Dozierenden gefunden</div>';
+    menu.style.display = 'flex';
+    highlightedProfIndex = -1;
+    return;
+  }
+
+  menu.innerHTML = '';
+  matches.forEach((inst, idx) => {
+    const item = document.createElement('div');
+    item.className = 'prof-dropdown-item';
+    item.dataset.name = inst.name;
+    item.dataset.index = idx;
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'prof-dropdown-name';
+    nameEl.textContent = inst.name;
+    item.appendChild(nameEl);
+
+    if (inst.title) {
+      const titleEl = document.createElement('div');
+      titleEl.className = 'prof-dropdown-title';
+      titleEl.textContent = inst.title;
+      item.appendChild(titleEl);
+    }
+
+    item.onmouseenter = function() {
+      highlightedProfIndex = idx;
+      updateHighlightedProf(getVisibleProfItems());
+    };
+    item.onclick = function() {
+      window.addInstructor(inst.name);
+    };
+
+    menu.appendChild(item);
+  });
+
+  menu.style.display = 'flex';
+  highlightedProfIndex = -1;
+};
+
+window.onProfSearchFocus = function() {
+  const input = document.getElementById('prof-search-input');
+  if (input && input.value.trim().length > 0) {
+    window.onProfSearchInput(input.value);
   }
 };
 
@@ -591,6 +911,8 @@ window.resetAllFilters = function() {
   localStorage.removeItem(STORAGE_KEYS.CAMPUSES);
   localStorage.removeItem(STORAGE_KEYS.CAMPUS_STRICT);
   localStorage.removeItem(STORAGE_KEYS.LIMITATION);
+  localStorage.removeItem(STORAGE_KEYS.FUES);
+  localStorage.removeItem(STORAGE_KEYS.INSTRUCTORS);
   localStorage.removeItem(STORAGE_KEYS.LANG_DE);
   localStorage.removeItem(STORAGE_KEYS.LANG_EN);
   localStorage.removeItem(STORAGE_KEYS.ONLY_FUES);
@@ -601,7 +923,8 @@ window.resetAllFilters = function() {
   selectStudyProgramGroup('', '', '', false);
 
   // Reset Turnus
-  selectSemesterTurnus('all', false);
+  selectedTurnuses = [];
+  renderTurnusButtons();
 
   // Reset Credits
   const creditsSlider = document.getElementById('filter-min-credits');
@@ -623,10 +946,14 @@ window.resetAllFilters = function() {
   // Reset Limitation
   setLimitationFilter('ja', false);
 
-  // Reset Toggles
-  const fuesCheck = document.getElementById('filter-fues');
-  if (fuesCheck) fuesCheck.checked = false;
+  // Reset FÜS
+  setFUESFilter('inkl', false);
 
+  // Reset Professoren Whitelist
+  selectedInstructors = [];
+  renderSelectedProfChips();
+
+  // Reset Toggles
   const phaseOutCheck = document.getElementById('filter-hide-phaseout');
   if (phaseOutCheck) phaseOutCheck.checked = true;
 
@@ -650,6 +977,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (!form) return;
 
   initProgramGroups();
+  initInstructors();
 
   // Restore Program & PO (without refresh during init)
   const savedGroup = localStorage.getItem(STORAGE_KEYS.PROGRAM_GROUP) || '';
@@ -716,8 +1044,27 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Restore Turnus (without refresh during init)
-  const savedTurnus = localStorage.getItem(STORAGE_KEYS.TURNUS) || 'all';
-  selectSemesterTurnus(savedTurnus, false);
+  try {
+    const savedTurnusRaw = localStorage.getItem(STORAGE_KEYS.TURNUS);
+    if (savedTurnusRaw) {
+      let parsed = JSON.parse(savedTurnusRaw);
+      if (Array.isArray(parsed)) {
+        selectedTurnuses = parsed;
+      } else if (typeof parsed === 'string' && parsed !== 'all') {
+        selectedTurnuses = [parsed];
+      }
+    } else {
+      selectedTurnuses = [];
+    }
+  } catch(e) {
+    const savedTurnusRaw = localStorage.getItem(STORAGE_KEYS.TURNUS);
+    if (savedTurnusRaw && savedTurnusRaw !== 'all') {
+      selectedTurnuses = [savedTurnusRaw];
+    } else {
+      selectedTurnuses = [];
+    }
+  }
+  renderTurnusButtons();
 
   // Restore Campuses
   try {
@@ -784,16 +1131,64 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   updateLanguageChips();
 
-  // Restore Only FÜS
-  const savedFUES = localStorage.getItem(STORAGE_KEYS.ONLY_FUES);
-  const fuesCheck = document.getElementById('filter-fues');
-  if (savedFUES !== null && fuesCheck) {
-    fuesCheck.checked = savedFUES === 'true';
+  // Restore FÜS Filter
+  let savedFUES = localStorage.getItem(STORAGE_KEYS.FUES);
+  if (!savedFUES) {
+    if (localStorage.getItem(STORAGE_KEYS.ONLY_FUES) === 'true') {
+      savedFUES = 'nur';
+    } else {
+      savedFUES = 'inkl';
+    }
   }
-  if (fuesCheck) {
-    fuesCheck.addEventListener('change', () => {
-      localStorage.setItem(STORAGE_KEYS.ONLY_FUES, fuesCheck.checked);
-      refreshModules();
+  setFUESFilter(savedFUES, false);
+
+  // Restore Whitelisted Instructors
+  try {
+    const savedProfs = JSON.parse(localStorage.getItem(STORAGE_KEYS.INSTRUCTORS) || '[]');
+    if (Array.isArray(savedProfs)) {
+      selectedInstructors = savedProfs;
+    }
+  } catch(e) {
+    selectedInstructors = [];
+  }
+  renderSelectedProfChips();
+
+  // Keyboard navigation on prof search input
+  const profSearch = document.getElementById('prof-search-input');
+  if (profSearch) {
+    profSearch.addEventListener('keydown', function(evt) {
+      const items = getVisibleProfItems();
+      const isMenuVisible = document.getElementById('prof-dropdown-menu')?.style.display !== 'none' && items.length > 0;
+
+      if (evt.key === 'ArrowDown') {
+        if (!isMenuVisible) return;
+        evt.preventDefault();
+        if (highlightedProfIndex < items.length - 1) {
+          highlightedProfIndex++;
+        } else {
+          highlightedProfIndex = 0;
+        }
+        updateHighlightedProf(items);
+      } else if (evt.key === 'ArrowUp') {
+        if (!isMenuVisible) return;
+        evt.preventDefault();
+        if (highlightedProfIndex > 0) {
+          highlightedProfIndex--;
+        } else if (highlightedProfIndex === 0) {
+          highlightedProfIndex = -1;
+        } else {
+          highlightedProfIndex = items.length - 1;
+        }
+        updateHighlightedProf(items);
+      } else if (evt.key === 'Enter') {
+        if (isMenuVisible && highlightedProfIndex >= 0 && items[highlightedProfIndex]) {
+          evt.preventDefault();
+          const profName = items[highlightedProfIndex].dataset.name;
+          window.addInstructor(profName);
+        }
+      } else if (evt.key === 'Escape') {
+        hideProfDropdown();
+      }
     });
   }
 

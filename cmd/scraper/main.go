@@ -1118,7 +1118,9 @@ func setupApp(dbPath, cacheDir string) (*storage.Storage, cache.Cache, *provider
 func printModuleCard(d *model.ModuleDetail) {
 	fmt.Println(strings.Repeat("=", 80))
 	phaseOutTag := ""
-	if d.IsPhaseOut {
+	if d.IsNotOffered {
+		phaseOutTag = " [NICHT MEHR IM ANGEBOT]"
+	} else if d.IsPhaseOut {
 		phaseOutTag = " [PHASE-OUT]"
 	}
 	fmt.Printf("MODULE %s: %s%s\n", d.ID, d.TitleDE, phaseOutTag)
@@ -1131,7 +1133,14 @@ func printModuleCard(d *model.ModuleDetail) {
 		fmt.Printf("Department:      %s\n", d.Department)
 	}
 	if len(d.ResponsiblePersons) > 0 {
-		fmt.Printf("Responsible:     %s\n", strings.Join(d.ResponsiblePersons, ", "))
+		var respNames []string
+		for _, rp := range d.ResponsiblePersons {
+			respNames = append(respNames, rp.FullName())
+		}
+		fmt.Printf("Responsible:     %s\n", strings.Join(respNames, ", "))
+	}
+	if len(d.SuccessorModules) > 0 {
+		fmt.Printf("Successor:       %s\n", strings.Join(d.SuccessorModules, ", "))
 	}
 	if d.Language != "" {
 		fmt.Printf("Language:        %s\n", d.Language)

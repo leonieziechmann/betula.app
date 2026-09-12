@@ -71,9 +71,70 @@ func NewServer(store *storage.Storage, eventProv *provider.BTUEventProvider, opt
 		},
 		"formatCredits": func(raw string, c float64) string {
 			if raw != "" {
-				return raw
+				r := strings.TrimSpace(raw)
+				if strings.HasSuffix(r, ".0") {
+					return strings.TrimSuffix(r, ".0")
+				}
+				return r
+			}
+			if c == float64(int(c)) {
+				return fmt.Sprintf("%d", int(c))
 			}
 			return fmt.Sprintf("%.1f", c)
+		},
+		"formatTurnusShort": func(t string) string {
+			low := strings.ToLower(strings.TrimSpace(t))
+			if low == "" {
+				return "k. A."
+			}
+			if strings.Contains(low, "jedes semester") || strings.Contains(low, "every semester") {
+				return "🔄 Jedes Sem."
+			}
+			if strings.Contains(low, "winter") {
+				if strings.Contains(low, "gerad") || strings.Contains(low, "even") {
+					return "❄️ WiSe (ger.)"
+				}
+				if strings.Contains(low, "ungerad") || strings.Contains(low, "odd") {
+					return "❄️ WiSe (ung.)"
+				}
+				return "❄️ WiSe"
+			}
+			if strings.Contains(low, "sommer") || strings.Contains(low, "summer") {
+				if strings.Contains(low, "gerad") || strings.Contains(low, "even") {
+					return "☀️ SoSe (ger.)"
+				}
+				if strings.Contains(low, "ungerad") || strings.Contains(low, "odd") {
+					return "☀️ SoSe (ung.)"
+				}
+				return "☀️ SoSe"
+			}
+			if strings.Contains(low, "sporadisch") || strings.Contains(low, "ankündigung") || strings.Contains(low, "announcement") {
+				return "🎲 Sporadisch"
+			}
+			return t
+		},
+		"formatLangBadge": func(l string) string {
+			low := strings.ToLower(strings.TrimSpace(l))
+			if strings.Contains(low, "deutsch") && strings.Contains(low, "engl") {
+				return "🇩🇪/🇬🇧"
+			}
+			if strings.Contains(low, "engl") {
+				return "🇬🇧"
+			}
+			if strings.Contains(low, "deutsch") {
+				return "🇩🇪"
+			}
+			if low == "" {
+				return "🇩🇪"
+			}
+			return l
+		},
+		"cleanDept": func(d string) string {
+			d = strings.TrimSpace(d)
+			if idx := strings.LastIndex(d, "/"); idx != -1 && idx < len(d)-1 {
+				return strings.TrimSpace(d[idx+1:])
+			}
+			return d
 		},
 		"add": func(a, b int) int {
 			return a + b

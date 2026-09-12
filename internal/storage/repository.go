@@ -69,10 +69,15 @@ func (s *Storage) UpsertModuleDetail(d *model.ModuleDetail) error {
 	spJSON, _ := json.Marshal(d.StudyPrograms)
 	coursesJSON, _ := json.Marshal(d.AssociatedCourses)
 	eventsJSON, _ := json.Marshal(d.CurrentSemesterEvents)
+	succJSON, _ := json.Marshal(d.SuccessorModules)
 
 	isPhaseOutInt := 0
 	if d.IsPhaseOut {
 		isPhaseOutInt = 1
+	}
+	isNotOfferedInt := 0
+	if d.IsNotOffered {
+		isNotOfferedInt = 1
 	}
 	crossDiscInt := 0
 	if d.CrossDisciplinary {
@@ -87,15 +92,15 @@ func (s *Storage) UpsertModuleDetail(d *model.ModuleDetail) error {
 
 	query := `
 		INSERT INTO modules (
-			id, code, title_de, title_en, is_phase_out, department,
-			responsible_persons, language, duration, turnus, credits, credits_raw,
+			id, code, title_de, title_en, is_phase_out, is_not_offered, department,
+			responsible_persons, successor_modules, language, duration, turnus, credits, credits_raw,
 			learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory,
 			teaching_forms, literature, exam_type, exam_details, grading, limitation,
 			study_programs, remarks, associated_courses, current_semester_events,
 			cross_disciplinary, is_fues, raw_url, last_scraped_at, updated_at
 		) VALUES (
-			?, ?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?, ?,
+			?, ?, ?, ?, ?, ?, ?,
+			?, ?, ?, ?, ?, ?, ?,
 			?, ?, ?, ?,
 			?, ?, ?, ?, ?, ?,
 			?, ?, ?, ?,
@@ -106,8 +111,10 @@ func (s *Storage) UpsertModuleDetail(d *model.ModuleDetail) error {
 			title_de = CASE WHEN excluded.title_de != '' THEN excluded.title_de ELSE modules.title_de END,
 			title_en = CASE WHEN excluded.title_en != '' THEN excluded.title_en ELSE modules.title_en END,
 			is_phase_out = excluded.is_phase_out,
+			is_not_offered = excluded.is_not_offered,
 			department = excluded.department,
 			responsible_persons = excluded.responsible_persons,
+			successor_modules = excluded.successor_modules,
 			language = excluded.language,
 			duration = excluded.duration,
 			turnus = excluded.turnus,
@@ -135,8 +142,8 @@ func (s *Storage) UpsertModuleDetail(d *model.ModuleDetail) error {
 	`
 
 	_, err := s.db.Exec(query,
-		d.ID, d.Code, d.TitleDE, d.TitleEN, isPhaseOutInt, d.Department,
-		string(respJSON), d.Language, d.Duration, d.Turnus, d.Credits, d.CreditsRaw,
+		d.ID, d.Code, d.TitleDE, d.TitleEN, isPhaseOutInt, isNotOfferedInt, d.Department,
+		string(respJSON), string(succJSON), d.Language, d.Duration, d.Turnus, d.Credits, d.CreditsRaw,
 		d.LearningOutcomes, d.Contents, d.PrerequisitesRecommended, d.PrerequisitesMandatory,
 		string(tfJSON), string(litJSON), d.ExamType, d.ExamDetails, d.Grading, d.Limitation,
 		string(spJSON), d.Remarks, string(coursesJSON), string(eventsJSON),
@@ -149,8 +156,8 @@ func (s *Storage) UpsertModuleDetail(d *model.ModuleDetail) error {
 func (s *Storage) GetModule(id string) (*model.ModuleDetail, error) {
 	row := s.db.QueryRow(`
 		SELECT
-			id, code, title_de, title_en, is_phase_out, department,
-			responsible_persons, language, duration, turnus, credits, credits_raw,
+			id, code, title_de, title_en, is_phase_out, is_not_offered, department,
+			responsible_persons, successor_modules, language, duration, turnus, credits, credits_raw,
 			learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory,
 			teaching_forms, literature, exam_type, exam_details, grading, limitation,
 			study_programs, remarks, associated_courses, current_semester_events,
@@ -161,8 +168,9 @@ func (s *Storage) GetModule(id string) (*model.ModuleDetail, error) {
 
 	var (
 		d                                              model.ModuleDetail
-		isPhaseOutInt, crossDiscInt, isFuesInt         int
-		respJSON, tfJSON, litJSON, spJSON              sql.NullString
+		isPhaseOutInt, isNotOfferedInt                 int
+		crossDiscInt, isFuesInt                        int
+		respJSON, succJSON, tfJSON, litJSON, spJSON    sql.NullString
 		coursesJSON, eventsJSON                        sql.NullString
 		scrapedAtStr                                   sql.NullString
 		titleEN, dept, lang, dur, turnus, credRaw      sql.NullString
@@ -171,8 +179,8 @@ func (s *Storage) GetModule(id string) (*model.ModuleDetail, error) {
 	)
 
 	err := row.Scan(
-		&d.ID, &d.Code, &d.TitleDE, &titleEN, &isPhaseOutInt, &dept,
-		&respJSON, &lang, &dur, &turnus, &d.Credits, &credRaw,
+		&d.ID, &d.Code, &d.TitleDE, &titleEN, &isPhaseOutInt, &isNotOfferedInt, &dept,
+		&respJSON, &succJSON, &lang, &dur, &turnus, &d.Credits, &credRaw,
 		&learnOut, &contents, &prereqRec, &prereqMand,
 		&tfJSON, &litJSON, &examType, &examDet, &grading, &limit,
 		&spJSON, &remarks, &coursesJSON, &eventsJSON,
@@ -186,6 +194,7 @@ func (s *Storage) GetModule(id string) (*model.ModuleDetail, error) {
 	}
 
 	d.IsPhaseOut = isPhaseOutInt == 1
+	d.IsNotOffered = isNotOfferedInt == 1
 	d.CrossDisciplinary = crossDiscInt == 1
 	d.IsFUES = isFuesInt == 1
 	d.TitleEN = titleEN.String
@@ -207,6 +216,9 @@ func (s *Storage) GetModule(id string) (*model.ModuleDetail, error) {
 
 	if respJSON.Valid && respJSON.String != "" {
 		_ = json.Unmarshal([]byte(respJSON.String), &d.ResponsiblePersons)
+	}
+	if succJSON.Valid && succJSON.String != "" {
+		_ = json.Unmarshal([]byte(succJSON.String), &d.SuccessorModules)
 	}
 	if tfJSON.Valid && tfJSON.String != "" {
 		_ = json.Unmarshal([]byte(tfJSON.String), &d.TeachingForms)
@@ -704,8 +716,8 @@ func (s *Storage) ListMajors() ([]string, error) {
 func (s *Storage) GetFUESForMajor(major string, minCredits float64) ([]model.ModuleDetail, error) {
 	query := `
 		SELECT
-			id, code, title_de, title_en, is_phase_out, department,
-			responsible_persons, language, duration, turnus, credits, credits_raw,
+			id, code, title_de, title_en, is_phase_out, is_not_offered, department,
+			responsible_persons, successor_modules, language, duration, turnus, credits, credits_raw,
 			learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory,
 			teaching_forms, literature, exam_type, exam_details, grading, limitation,
 			study_programs, remarks, associated_courses, current_semester_events,
@@ -732,8 +744,9 @@ func (s *Storage) GetFUESForMajor(major string, minCredits float64) ([]model.Mod
 	for rows.Next() {
 		var (
 			d                                              model.ModuleDetail
-			isPhaseOutInt, crossDiscInt, isFuesInt         int
-			respJSON, tfJSON, litJSON, spJSON              sql.NullString
+			isPhaseOutInt, isNotOfferedInt                 int
+			crossDiscInt, isFuesInt                        int
+			respJSON, succJSON, tfJSON, litJSON, spJSON    sql.NullString
 			coursesJSON, eventsJSON                        sql.NullString
 			scrapedAtStr                                   sql.NullString
 			titleEN, dept, lang, dur, turnus, credRaw      sql.NullString
@@ -742,8 +755,8 @@ func (s *Storage) GetFUESForMajor(major string, minCredits float64) ([]model.Mod
 		)
 
 		err := rows.Scan(
-			&d.ID, &d.Code, &d.TitleDE, &titleEN, &isPhaseOutInt, &dept,
-			&respJSON, &lang, &dur, &turnus, &d.Credits, &credRaw,
+			&d.ID, &d.Code, &d.TitleDE, &titleEN, &isPhaseOutInt, &isNotOfferedInt, &dept,
+			&respJSON, &succJSON, &lang, &dur, &turnus, &d.Credits, &credRaw,
 			&learnOut, &contents, &prereqRec, &prereqMand,
 			&tfJSON, &litJSON, &examType, &examDet, &grading, &limit,
 			&spJSON, &remarks, &coursesJSON, &eventsJSON,
@@ -754,6 +767,7 @@ func (s *Storage) GetFUESForMajor(major string, minCredits float64) ([]model.Mod
 		}
 
 		d.IsPhaseOut = isPhaseOutInt == 1
+		d.IsNotOffered = isNotOfferedInt == 1
 		d.CrossDisciplinary = crossDiscInt == 1
 		d.IsFUES = isFuesInt == 1
 		d.TitleEN = titleEN.String
@@ -775,6 +789,9 @@ func (s *Storage) GetFUESForMajor(major string, minCredits float64) ([]model.Mod
 
 		if respJSON.Valid && respJSON.String != "" {
 			_ = json.Unmarshal([]byte(respJSON.String), &d.ResponsiblePersons)
+		}
+		if succJSON.Valid && succJSON.String != "" {
+			_ = json.Unmarshal([]byte(succJSON.String), &d.SuccessorModules)
 		}
 		if tfJSON.Valid && tfJSON.String != "" {
 			_ = json.Unmarshal([]byte(tfJSON.String), &d.TeachingForms)
@@ -1117,6 +1134,10 @@ func (s *Storage) FindOfficialProgram(name, degree, regulation string) (*model.O
 	}
 
 	normDegree := strings.TrimSpace(degree)
+	if strings.EqualFold(normDegree, "abschluss im ausland") || strings.Contains(strings.ToLower(normDegree), "ausland") {
+		return nil, ErrNotFound
+	}
+
 	cleanReg := strings.TrimPrefix(strings.TrimSpace(regulation), "PO ")
 
 	// 1. Exact match on program name and degree and regulation
@@ -1145,26 +1166,49 @@ func (s *Storage) FindOfficialProgram(name, degree, regulation string) (*model.O
 		}
 	}
 
-	// 3. Match on program name alone
-	row := s.db.QueryRow(`
-		SELECT id, program_name, program_code, degree, degree_code, po_version, qis_node_id, qis_url, documents, scraped_at
-		FROM official_study_programs
-		WHERE LOWER(program_name) = LOWER(?)
-		ORDER BY po_version DESC LIMIT 1
-	`, normName)
-	if p, err := scanOfficialProgram(row); err == nil {
-		return p, nil
+	// 2b. Match on program name and normalized short degree (e.g. Bachelor vs Bachelor (universitär))
+	if normDegree != "" {
+		shortDeg := FormatDegreeShort(normDegree)
+		rows, err := s.db.Query(`
+			SELECT id, program_name, program_code, degree, degree_code, po_version, qis_node_id, qis_url, documents, scraped_at
+			FROM official_study_programs
+			WHERE LOWER(program_name) = LOWER(?)
+			ORDER BY po_version DESC
+		`, normName)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				if p, err := scanOfficialProgram(rows); err == nil {
+					if FormatDegreeShort(p.Degree) == shortDeg {
+						return p, nil
+					}
+				}
+			}
+		}
 	}
 
-	// 4. Case-insensitive substring match
-	row = s.db.QueryRow(`
-		SELECT id, program_name, program_code, degree, degree_code, po_version, qis_node_id, qis_url, documents, scraped_at
-		FROM official_study_programs
-		WHERE LOWER(program_name) LIKE ?
-		ORDER BY po_version DESC LIMIT 1
-	`, "%"+strings.ToLower(normName)+"%")
-	if p, err := scanOfficialProgram(row); err == nil {
-		return p, nil
+	// 3. Match on program name alone ONLY if degree was not specified
+	if normDegree == "" {
+		row := s.db.QueryRow(`
+			SELECT id, program_name, program_code, degree, degree_code, po_version, qis_node_id, qis_url, documents, scraped_at
+			FROM official_study_programs
+			WHERE LOWER(program_name) = LOWER(?)
+			ORDER BY po_version DESC LIMIT 1
+		`, normName)
+		if p, err := scanOfficialProgram(row); err == nil {
+			return p, nil
+		}
+
+		// 4. Case-insensitive substring match
+		row = s.db.QueryRow(`
+			SELECT id, program_name, program_code, degree, degree_code, po_version, qis_node_id, qis_url, documents, scraped_at
+			FROM official_study_programs
+			WHERE LOWER(program_name) LIKE ?
+			ORDER BY po_version DESC LIMIT 1
+		`, "%"+strings.ToLower(normName)+"%")
+		if p, err := scanOfficialProgram(row); err == nil {
+			return p, nil
+		}
 	}
 
 	return nil, ErrNotFound
@@ -1208,7 +1252,8 @@ type AdvancedFilter struct {
 	Query            string   // searches title_de, title_en, code, id, responsible_persons
 	ProgramID        string   // matches module_study_programs.program_id
 	ProgramName      string   // matches module_study_programs.program_name
-	SemesterTurnus   string   // "all", "next", "sose", "sose_even", "sose_odd", "wise", "wise_even", "wise_odd", "sporadic"
+	SemesterTurnus   string   // legacy / single turnus: "all", "next", "sose", "sose_even", "sose_odd", "wise", "wise_even", "wise_odd", "sporadic"
+	SemesterTurnuses []string // multi-select turnuses: e.g. ["wise_odd", "sose_even", "sporadic"]
 	MinCredits       float64
 	MaxCredits       float64
 	Language         string   // legacy / single language query
@@ -1216,7 +1261,9 @@ type AdvancedFilter struct {
 	Campuses         []string // ["hauptcampus", "sachsendorf", "senftenberg"]
 	CampusStrict     bool     // if true, all events must strictly be at the selected campus(es)
 	Limitation       string   // "ja" (all), "nein" (unlimited only), "nur" (limited only)
-	OnlyFUES         bool
+	OnlyFUES         bool     // legacy flag: equivalent to FUESFilter = "nur"
+	FUESFilter       string   // "inkl", "exkl", "nur"
+	Instructors      []string // whitelist of professors/instructors (matches responsible_persons)
 	ExcludePhaseOut  bool     // excludes modules where is_phase_out = 1
 	NonAdjacentMajor string   // excludes modules where major is in study_programs
 	Limit            int
@@ -1225,45 +1272,83 @@ type AdvancedFilter struct {
 
 // ModuleCardItem represents a module card rendered in the web catalog.
 type ModuleCardItem struct {
-	ID                       string   `json:"id"`
-	Code                     string   `json:"code"`
-	TitleDE                  string   `json:"title_de"`
-	TitleEN                  string   `json:"title_en"`
-	Credits                  float64  `json:"credits"`
-	CreditsRaw               string   `json:"credits_raw"`
-	Language                 string   `json:"language"`
-	Department               string   `json:"department"`
-	Turnus                   string   `json:"turnus"`
-	ExamType                 string   `json:"exam_type"`
-	IsPhaseOut               bool     `json:"is_phase_out"`
-	IsFUES                   bool     `json:"is_fues"`
-	PrerequisitesMandatory   string   `json:"prerequisites_mandatory"`
-	PrerequisitesRecommended string   `json:"prerequisites_recommended"`
-	MandatoryPrereqIDs       []string `json:"mandatory_prereq_ids"`
-	RecommendedPrereqIDs     []string `json:"recommended_prereq_ids"`
-	ResponsiblePersons       []string `json:"responsible_persons"`
-	EventsCount              int      `json:"events_count"`
-	RawURL                   string   `json:"raw_url"`
+	ID                       string                    `json:"id"`
+	Code                     string                    `json:"code"`
+	TitleDE                  string                    `json:"title_de"`
+	TitleEN                  string                    `json:"title_en"`
+	Credits                  float64                   `json:"credits"`
+	CreditsRaw               string                    `json:"credits_raw"`
+	Language                 string                    `json:"language"`
+	Department               string                    `json:"department"`
+	Turnus                   string                    `json:"turnus"`
+	Limitation               string                    `json:"limitation"`
+	ExamType                 string                    `json:"exam_type"`
+	IsPhaseOut               bool                      `json:"is_phase_out"`
+	IsNotOffered             bool                      `json:"is_not_offered"`
+	SuccessorModules         []string                  `json:"successor_modules,omitempty"`
+	IsFUES                   bool                      `json:"is_fues"`
+	PrerequisitesMandatory   string                    `json:"prerequisites_mandatory"`
+	PrerequisitesRecommended string                    `json:"prerequisites_recommended"`
+	MandatoryPrereqIDs       []string                  `json:"mandatory_prereq_ids"`
+	RecommendedPrereqIDs     []string                  `json:"recommended_prereq_ids"`
+	ResponsiblePersons       []model.ResponsiblePerson `json:"responsible_persons"`
+	EventsCount              int                       `json:"events_count"`
+	RawURL                   string                    `json:"raw_url"`
 }
 
 // StudyProgramOption represents a selectable study program in the UI.
 type StudyProgramOption struct {
-	ID          string `json:"id"`
-	ProgramName string `json:"program_name"`
-	Degree      string `json:"degree"`
-	ShortTitle  string `json:"short_title"` // e.g. "Informatik (Bachelor)"
-	POVersion   string `json:"po_version"`
-	Count       int    `json:"count"` // number of linked modules
+	ID          string   `json:"id"`
+	RelatedIDs  []string `json:"related_ids,omitempty"`
+	ProgramName string   `json:"program_name"`
+	Degree      string   `json:"degree"`
+	ShortTitle  string   `json:"short_title"` // e.g. "Informatik (Bachelor)"
+	POVersion   string   `json:"po_version"`
+	Count       int      `json:"count"` // number of linked modules
+}
+
+// isVariantDegree returns true if the degree specifies a track qualifier/modifier
+// such as "- Doppelabschluss", "- erweiterte Fachsemester", "- Duales Studium", etc.
+func isVariantDegree(degree string) bool {
+	low := strings.ToLower(degree)
+	return strings.Contains(low, " - ") ||
+		strings.Contains(low, "doppelabschluss") ||
+		strings.Contains(low, "erweiterte fachsemester") ||
+		strings.Contains(low, "verringerte fachsemester") ||
+		strings.Contains(low, "teilzeitstudium") ||
+		strings.Contains(low, "praxisintegrierend") ||
+		strings.Contains(low, "fernstudium")
 }
 
 var rePrereqID = regexp.MustCompile(`\b\d{5}\b`)
 
 // ExtractPrereqIDs parses a prerequisite text and extracts all referenced 5-digit module IDs.
 func ExtractPrereqIDs(text string) []string {
-	if text == "" || strings.EqualFold(strings.TrimSpace(text), "keine") {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" || strings.EqualFold(trimmed, "keine") || trimmed == "-" || strings.EqualFold(trimmed, "none") {
 		return nil
 	}
-	matches := rePrereqID.FindAllString(text, -1)
+	// Filter out negative prerequisite lines ("Keine erfolgreiche Teilnahme an...")
+	var cleanLines []string
+	lines := strings.Split(text, "\n")
+	inExclusion := false
+	for _, l := range lines {
+		low := strings.ToLower(l)
+		if strings.Contains(low, "keine erfolgreiche teilnahme") || strings.Contains(low, "ausschluss") {
+			inExclusion = true
+			continue
+		}
+		if inExclusion {
+			if strings.HasPrefix(strings.TrimSpace(l), "•") || strings.HasPrefix(strings.TrimSpace(l), "-") {
+				continue
+			}
+			inExclusion = false
+		}
+		cleanLines = append(cleanLines, l)
+	}
+
+	searchContent := strings.Join(cleanLines, "\n")
+	matches := rePrereqID.FindAllString(searchContent, -1)
 	if len(matches) == 0 {
 		return nil
 	}
@@ -1287,10 +1372,24 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 	if f.ProgramID != "" || f.ProgramName != "" {
 		joins = append(joins, "INNER JOIN module_study_programs msp ON msp.module_id = m.id")
 		if f.ProgramID != "" {
-			whereClauses = append(whereClauses, "msp.program_id = ?")
-			args = append(args, f.ProgramID)
+			relatedIDs := s.GetRelatedProgramIDs(f.ProgramID)
+			if len(relatedIDs) <= 1 {
+				whereClauses = append(whereClauses, "msp.program_id = ? AND msp.degree != 'Abschluss im Ausland'")
+				if len(relatedIDs) == 1 {
+					args = append(args, relatedIDs[0])
+				} else {
+					args = append(args, f.ProgramID)
+				}
+			} else {
+				placeholders := make([]string, len(relatedIDs))
+				for i, id := range relatedIDs {
+					placeholders[i] = "?"
+					args = append(args, id)
+				}
+				whereClauses = append(whereClauses, fmt.Sprintf("msp.program_id IN (%s) AND msp.degree != 'Abschluss im Ausland'", strings.Join(placeholders, ",")))
+			}
 		} else {
-			whereClauses = append(whereClauses, "(LOWER(msp.program_name) = LOWER(?) OR LOWER(msp.program_name) LIKE ?)")
+			whereClauses = append(whereClauses, "(LOWER(msp.program_name) = LOWER(?) OR LOWER(msp.program_name) LIKE ?) AND msp.degree != 'Abschluss im Ausland'")
 			args = append(args, f.ProgramName, "%"+strings.ToLower(f.ProgramName)+"%")
 		}
 	}
@@ -1301,42 +1400,52 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 		args = append(args, q, q, q, q, q, q)
 	}
 
-	turnus := strings.ToLower(strings.TrimSpace(f.SemesterTurnus))
-	if turnus == "next" {
-		now := time.Now()
-		month := now.Month()
-		year := now.Year()
-		// Switch in middle of semester: Months 1-6 -> SoSe, Months 7-12 -> WiSe
-		if month >= 1 && month <= 6 {
-			if year%2 == 0 {
-				turnus = "sose_even"
+	var turnusClauses []string
+	turnusList := f.SemesterTurnuses
+	if len(turnusList) == 0 && f.SemesterTurnus != "" && f.SemesterTurnus != "all" {
+		turnusList = []string{f.SemesterTurnus}
+	}
+
+	for _, t := range turnusList {
+		t = strings.ToLower(strings.TrimSpace(t))
+		switch t {
+		case "next":
+			now := time.Now()
+			month := now.Month()
+			year := now.Year()
+			// Switch in middle of semester: Months 1-6 -> SoSe, Months 7-12 -> WiSe
+			if month >= 1 && month <= 6 {
+				if year%2 == 0 {
+					turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%gerad%' OR LOWER(m.turnus) LIKE '%summer%even%')")
+				} else {
+					turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%ungerad%' OR LOWER(m.turnus) LIKE '%summer%odd%')")
+				}
 			} else {
-				turnus = "sose_odd"
+				if year%2 == 0 {
+					turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes wintersemester' OR LOWER(m.turnus) = 'every winter semester' OR LOWER(m.turnus) LIKE '%winter%gerad%' OR LOWER(m.turnus) LIKE '%winter%even%')")
+				} else {
+					turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes wintersemester' OR LOWER(m.turnus) = 'every winter semester' OR LOWER(m.turnus) LIKE '%winter%ungerad%' OR LOWER(m.turnus) LIKE '%winter%odd%')")
+				}
 			}
-		} else {
-			if year%2 == 0 {
-				turnus = "wise_even"
-			} else {
-				turnus = "wise_odd"
-			}
+		case "wise":
+			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%winter%' OR LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%')")
+		case "wise_even":
+			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes wintersemester' OR LOWER(m.turnus) = 'every winter semester' OR LOWER(m.turnus) LIKE '%winter%gerad%' OR LOWER(m.turnus) LIKE '%winter%even%')")
+		case "wise_odd":
+			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes wintersemester' OR LOWER(m.turnus) = 'every winter semester' OR LOWER(m.turnus) LIKE '%winter%ungerad%' OR LOWER(m.turnus) LIKE '%winter%odd%')")
+		case "sose":
+			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%sommer%' OR LOWER(m.turnus) LIKE '%summer%' OR LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%')")
+		case "sose_even":
+			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%gerad%' OR LOWER(m.turnus) LIKE '%summer%even%')")
+		case "sose_odd":
+			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%ungerad%' OR LOWER(m.turnus) LIKE '%summer%odd%')")
+		case "sporadic":
+			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%sporadisch%' OR LOWER(m.turnus) LIKE '%ankündigung%' OR LOWER(m.turnus) LIKE '%announcement%')")
 		}
 	}
 
-	switch turnus {
-	case "wise":
-		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%winter%' OR LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%')")
-	case "wise_even":
-		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes wintersemester' OR LOWER(m.turnus) = 'every winter semester' OR LOWER(m.turnus) LIKE '%winter%gerad%' OR LOWER(m.turnus) LIKE '%winter%even%')")
-	case "wise_odd":
-		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes wintersemester' OR LOWER(m.turnus) = 'every winter semester' OR LOWER(m.turnus) LIKE '%winter%ungerad%' OR LOWER(m.turnus) LIKE '%winter%odd%')")
-	case "sose":
-		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%sommer%' OR LOWER(m.turnus) LIKE '%summer%' OR LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%')")
-	case "sose_even":
-		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%gerad%' OR LOWER(m.turnus) LIKE '%summer%even%')")
-	case "sose_odd":
-		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%ungerad%' OR LOWER(m.turnus) LIKE '%summer%odd%')")
-	case "sporadic":
-		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%sporadisch%' OR LOWER(m.turnus) LIKE '%ankündigung%' OR LOWER(m.turnus) LIKE '%announcement%')")
+	if len(turnusClauses) > 0 {
+		whereClauses = append(whereClauses, "("+strings.Join(turnusClauses, " OR ")+")")
 	}
 
 	switch strings.ToLower(strings.TrimSpace(f.Limitation)) {
@@ -1346,8 +1455,29 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 		whereClauses = append(whereClauses, "(m.limitation IS NOT NULL AND m.limitation != '' AND LOWER(m.limitation) != 'keine')")
 	}
 
-	if f.OnlyFUES {
+	fuesMode := strings.ToLower(strings.TrimSpace(f.FUESFilter))
+	if fuesMode == "" && f.OnlyFUES {
+		fuesMode = "nur"
+	}
+	switch fuesMode {
+	case "exkl":
+		whereClauses = append(whereClauses, "m.is_fues = 0")
+	case "nur":
 		whereClauses = append(whereClauses, "m.is_fues = 1")
+	}
+
+	if len(f.Instructors) > 0 {
+		var instClauses []string
+		for _, inst := range f.Instructors {
+			inst = strings.TrimSpace(inst)
+			if inst != "" {
+				instClauses = append(instClauses, "LOWER(m.responsible_persons) LIKE ?")
+				args = append(args, "%"+strings.ToLower(inst)+"%")
+			}
+		}
+		if len(instClauses) > 0 {
+			whereClauses = append(whereClauses, "("+strings.Join(instClauses, " OR ")+")")
+		}
 	}
 
 	if f.ExcludePhaseOut {
@@ -1454,10 +1584,10 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 
 	selectQuery := fmt.Sprintf(`
 		SELECT DISTINCT
-			m.id, m.code, m.title_de, m.title_en, m.is_phase_out, m.department,
-			m.responsible_persons, m.language, m.turnus, m.credits, m.credits_raw,
+			m.id, m.code, m.title_de, m.title_en, m.is_phase_out, m.is_not_offered, m.department,
+			m.responsible_persons, m.successor_modules, m.language, m.turnus, m.credits, m.credits_raw,
 			m.prerequisites_recommended, m.prerequisites_mandatory, m.exam_type,
-			m.is_fues, m.current_semester_events, m.raw_url
+			m.is_fues, m.current_semester_events, m.raw_url, m.limitation
 		FROM modules m
 		%s
 		%s
@@ -1476,26 +1606,28 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 	for rows.Next() {
 		var (
 			item                                                  ModuleCardItem
-			isPhaseOutInt, isFuesInt                              int
+			isPhaseOutInt, isNotOfferedInt, isFuesInt             int
 			titleEN, dept, lang, turnus, credRaw                  sql.NullString
 			prereqRec, prereqMand, examType, urlStr               sql.NullString
-			respJSON, eventsJSON                                  sql.NullString
+			respJSON, succJSON, eventsJSON, limitationStr         sql.NullString
 		)
 		if err := rows.Scan(
-			&item.ID, &item.Code, &item.TitleDE, &titleEN, &isPhaseOutInt, &dept,
-			&respJSON, &lang, &turnus, &item.Credits, &credRaw,
+			&item.ID, &item.Code, &item.TitleDE, &titleEN, &isPhaseOutInt, &isNotOfferedInt, &dept,
+			&respJSON, &succJSON, &lang, &turnus, &item.Credits, &credRaw,
 			&prereqRec, &prereqMand, &examType,
-			&isFuesInt, &eventsJSON, &urlStr,
+			&isFuesInt, &eventsJSON, &urlStr, &limitationStr,
 		); err != nil {
 			return nil, 0, err
 		}
 
 		item.TitleEN = titleEN.String
 		item.IsPhaseOut = isPhaseOutInt == 1
+		item.IsNotOffered = isNotOfferedInt == 1
 		item.IsFUES = isFuesInt == 1
 		item.Department = dept.String
 		item.Language = lang.String
 		item.Turnus = turnus.String
+		item.Limitation = limitationStr.String
 		item.CreditsRaw = credRaw.String
 		item.PrerequisitesRecommended = prereqRec.String
 		item.PrerequisitesMandatory = prereqMand.String
@@ -1504,6 +1636,9 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 
 		if respJSON.Valid && respJSON.String != "" {
 			_ = json.Unmarshal([]byte(respJSON.String), &item.ResponsiblePersons)
+		}
+		if succJSON.Valid && succJSON.String != "" {
+			_ = json.Unmarshal([]byte(succJSON.String), &item.SuccessorModules)
 		}
 		if eventsJSON.Valid && eventsJSON.String != "" {
 			var events []model.ModuleEvent
@@ -1568,7 +1703,7 @@ func (s *Storage) GetAllStudyPrograms() ([]StudyProgramOption, error) {
 	query := `
 		SELECT 
 			p.id, p.program_name, p.degree, p.po_version,
-			(SELECT COUNT(DISTINCT msp.module_id) FROM module_study_programs msp WHERE msp.program_id = p.id) as mod_count
+			(SELECT COUNT(DISTINCT msp.module_id) FROM module_study_programs msp WHERE msp.program_id = p.id AND msp.degree != 'Abschluss im Ausland') as mod_count
 		FROM official_study_programs p
 		ORDER BY p.program_name ASC, p.degree ASC, p.po_version DESC
 	`
@@ -1579,7 +1714,7 @@ func (s *Storage) GetAllStudyPrograms() ([]StudyProgramOption, error) {
 	defer rows.Close()
 
 	var options []StudyProgramOption
-	seenTitles := make(map[string]int)
+	seenTitles := make(map[string]map[string]bool)
 
 	for rows.Next() {
 		var opt StudyProgramOption
@@ -1587,13 +1722,18 @@ func (s *Storage) GetAllStudyPrograms() ([]StudyProgramOption, error) {
 			return nil, err
 		}
 		opt.ShortTitle = FormatProgramShort(opt.ProgramName, opt.Degree)
-		seenTitles[opt.ShortTitle]++
+		if seenTitles[opt.ShortTitle] == nil {
+			seenTitles[opt.ShortTitle] = make(map[string]bool)
+		}
+		if opt.POVersion != "" {
+			seenTitles[opt.ShortTitle][opt.POVersion] = true
+		}
 		options = append(options, opt)
 	}
 
-	// Disambiguate if multiple PO versions exist for the same ShortTitle
+	// Disambiguate if multiple distinct PO versions exist for the same ShortTitle
 	for i := range options {
-		if seenTitles[options[i].ShortTitle] > 1 && options[i].POVersion != "" {
+		if len(seenTitles[options[i].ShortTitle]) > 1 && options[i].POVersion != "" {
 			options[i].ShortTitle = fmt.Sprintf("%s - PO %s", options[i].ShortTitle, options[i].POVersion)
 		}
 	}
@@ -1625,12 +1765,11 @@ type StudyProgramGroup struct {
 	POs         []StudyProgramOption `json:"pos"`
 }
 
-// GetGroupedStudyPrograms returns study programs grouped by base title with their PO versions.
+// GetGroupedStudyPrograms returns study programs grouped by base title with deduplicated PO versions.
 func (s *Storage) GetGroupedStudyPrograms() ([]StudyProgramGroup, error) {
 	query := `
 		SELECT 
-			p.id, p.program_name, p.degree, p.po_version,
-			(SELECT COUNT(DISTINCT msp.module_id) FROM module_study_programs msp WHERE msp.program_id = p.id) as mod_count
+			p.id, p.program_name, p.degree, p.po_version
 		FROM official_study_programs p
 		ORDER BY p.program_name ASC, p.degree ASC, p.po_version DESC
 	`
@@ -1642,10 +1781,11 @@ func (s *Storage) GetGroupedStudyPrograms() ([]StudyProgramGroup, error) {
 
 	groupMap := make(map[string]*StudyProgramGroup)
 	var groupOrder []string
+	poIndexMap := make(map[string]map[string]int)
 
 	for rows.Next() {
 		var opt StudyProgramOption
-		if err := rows.Scan(&opt.ID, &opt.ProgramName, &opt.Degree, &opt.POVersion, &opt.Count); err != nil {
+		if err := rows.Scan(&opt.ID, &opt.ProgramName, &opt.Degree, &opt.POVersion); err != nil {
 			return nil, err
 		}
 		opt.ShortTitle = FormatProgramShort(opt.ProgramName, opt.Degree)
@@ -1662,10 +1802,46 @@ func (s *Storage) GetGroupedStudyPrograms() ([]StudyProgramGroup, error) {
 			}
 			groupMap[key] = grp
 			groupOrder = append(groupOrder, key)
+			poIndexMap[key] = make(map[string]int)
 		}
-		grp.POs = append(grp.POs, opt)
-		if opt.Count > grp.TotalCount {
-			grp.TotalCount = opt.Count
+
+		if idx, poExists := poIndexMap[key][opt.POVersion]; poExists {
+			// Merge duplicate PO entry
+			existing := &grp.POs[idx]
+			existing.RelatedIDs = append(existing.RelatedIDs, opt.ID)
+			// Prefer non-variant degree as canonical ID and degree
+			if isVariantDegree(existing.Degree) && !isVariantDegree(opt.Degree) {
+				existing.ID = opt.ID
+				existing.Degree = opt.Degree
+			}
+		} else {
+			opt.RelatedIDs = []string{opt.ID}
+			poIndexMap[key][opt.POVersion] = len(grp.POs)
+			grp.POs = append(grp.POs, opt)
+		}
+	}
+
+	// Calculate distinct module counts for each deduplicated PO
+	for _, grp := range groupMap {
+		for i := range grp.POs {
+			po := &grp.POs[i]
+			placeholders := make([]string, len(po.RelatedIDs))
+			args := make([]interface{}, len(po.RelatedIDs))
+			for j, id := range po.RelatedIDs {
+				placeholders[j] = "?"
+				args[j] = id
+			}
+			q := fmt.Sprintf(`
+				SELECT COUNT(DISTINCT module_id) 
+				FROM module_study_programs 
+				WHERE program_id IN (%s) AND degree != 'Abschluss im Ausland'
+			`, strings.Join(placeholders, ","))
+			var count int
+			_ = s.db.QueryRow(q, args...).Scan(&count)
+			po.Count = count
+			if count > grp.TotalCount {
+				grp.TotalCount = count
+			}
 		}
 	}
 
@@ -1676,6 +1852,42 @@ func (s *Storage) GetGroupedStudyPrograms() ([]StudyProgramGroup, error) {
 	return result, rows.Err()
 }
 
+// GetRelatedProgramIDs returns all official study program IDs that share the same program name,
+// simplified degree (e.g. Master), and PO version.
+func (s *Storage) GetRelatedProgramIDs(programID string) []string {
+	if programID == "" {
+		return nil
+	}
+	var progName, degree, poVersion string
+	err := s.db.QueryRow("SELECT program_name, degree, po_version FROM official_study_programs WHERE id = ?", programID).Scan(&progName, &degree, &poVersion)
+	if err != nil {
+		return []string{programID}
+	}
+	shortDeg := FormatDegreeShort(degree)
+	rows, err := s.db.Query(`
+		SELECT id, degree FROM official_study_programs 
+		WHERE program_name = ? AND po_version = ?
+	`, progName, poVersion)
+	if err != nil {
+		return []string{programID}
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id, d string
+		if err := rows.Scan(&id, &d); err == nil {
+			if FormatDegreeShort(d) == shortDeg {
+				ids = append(ids, id)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return []string{programID}
+	}
+	return ids
+}
+
 // GetProgramTotalModules returns the total count of modules assigned to a program, or total in catalog if programID is empty.
 func (s *Storage) GetProgramTotalModules(programID string) (int, error) {
 	if programID == "" {
@@ -1683,8 +1895,20 @@ func (s *Storage) GetProgramTotalModules(programID string) (int, error) {
 		err := s.db.QueryRow("SELECT COUNT(*) FROM modules").Scan(&total)
 		return total, err
 	}
+	relatedIDs := s.GetRelatedProgramIDs(programID)
+	placeholders := make([]string, len(relatedIDs))
+	args := make([]interface{}, len(relatedIDs))
+	for i, id := range relatedIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	q := fmt.Sprintf(`
+		SELECT COUNT(DISTINCT module_id) 
+		FROM module_study_programs 
+		WHERE program_id IN (%s) AND degree != 'Abschluss im Ausland'
+	`, strings.Join(placeholders, ","))
 	var total int
-	err := s.db.QueryRow("SELECT COUNT(DISTINCT module_id) FROM module_study_programs WHERE program_id = ?", programID).Scan(&total)
+	err := s.db.QueryRow(q, args...).Scan(&total)
 	return total, err
 }
 
@@ -1850,5 +2074,55 @@ func parseEventIDFromURL(rawURL string) string {
 		return sub
 	}
 	return ""
+}
+
+// InstructorItem represents a distinct course instructor or coordinator.
+type InstructorItem struct {
+	Name     string `json:"name"`     // e.g. "Köhler, Ekkehard"
+	Title    string `json:"title"`    // e.g. "Prof. Dr. rer. nat. habil."
+	FullName string `json:"fullname"` // e.g. "Prof. Dr. rer. nat. habil. Köhler, Ekkehard"
+}
+
+// GetAllInstructors returns all unique instructors across all modules, sorted alphabetically by name.
+func (s *Storage) GetAllInstructors() ([]InstructorItem, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT responsible_persons FROM modules WHERE responsible_persons IS NOT NULL AND responsible_persons != '' AND responsible_persons != '[]'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	seen := make(map[string]InstructorItem)
+	for rows.Next() {
+		var rawJSON string
+		if err := rows.Scan(&rawJSON); err == nil {
+			var persons []model.ResponsiblePerson
+			if err := json.Unmarshal([]byte(rawJSON), &persons); err == nil {
+				for _, p := range persons {
+					name := strings.TrimSpace(p.Name)
+					if name == "" {
+						name = strings.TrimSpace(p.Raw)
+					}
+					if name != "" {
+						if existing, ok := seen[name]; !ok || (p.Title != "" && existing.Title == "") {
+							seen[name] = InstructorItem{
+								Name:     name,
+								Title:    strings.TrimSpace(p.Title),
+								FullName: strings.TrimSpace(p.FullName()),
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	result := make([]InstructorItem, 0, len(seen))
+	for _, item := range seen {
+		result = append(result, item)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return strings.ToLower(result[i].Name) < strings.ToLower(result[j].Name)
+	})
+	return result, nil
 }
 

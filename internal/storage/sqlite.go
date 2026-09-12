@@ -78,6 +78,8 @@ func (s *Storage) migrate() error {
 		current_semester_events TEXT,
 		cross_disciplinary INTEGER DEFAULT 0,
 		is_fues INTEGER DEFAULT 0,
+		is_not_offered INTEGER DEFAULT 0,
+		successor_modules TEXT,
 		raw_url TEXT,
 		last_scraped_at DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -185,5 +187,8 @@ func (s *Storage) migrate() error {
 	}
 	_, _ = s.db.Exec("ALTER TABLE modules ADD COLUMN is_fues INTEGER DEFAULT 0")
 	_, _ = s.db.Exec("CREATE INDEX IF NOT EXISTS idx_modules_is_fues ON modules(is_fues)")
+	_, _ = s.db.Exec("ALTER TABLE modules ADD COLUMN is_not_offered INTEGER DEFAULT 0")
+	_, _ = s.db.Exec("ALTER TABLE modules ADD COLUMN successor_modules TEXT")
+	_, _ = s.db.Exec("DELETE FROM module_study_programs WHERE degree = 'Abschluss im Ausland'")
 	return nil
 }

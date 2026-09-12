@@ -28,6 +28,7 @@ type ModuleCardViewModel struct {
 	MissingRecommended  []string `json:"missing_recommended"`
 	IsCompleted         bool     `json:"is_completed"`
 	IsBookmarked        bool     `json:"is_bookmarked"`
+	IsLimited           bool     `json:"is_limited"`
 }
 
 // IndexPageData holds data passed to index.html template.
@@ -35,6 +36,8 @@ type IndexPageData struct {
 	Programs          []storage.StudyProgramOption
 	ProgramGroups     []storage.StudyProgramGroup
 	ProgramGroupsJSON template.HTML
+	Instructors       []storage.InstructorItem
+	InstructorsJSON   template.HTML
 	CurrentSemester   string
 	DefaultTurnus     string
 	NextSemesterTag   string
@@ -136,6 +139,31 @@ func parseIDList(val string) map[string]bool {
 	return set
 }
 
+func evalPrereqStatus(mandIDs, recIDs []string, completedSet map[string]bool) (status string, missingMand, missingRec []string) {
+	for _, reqID := range mandIDs {
+		if !completedSet[reqID] {
+			missingMand = append(missingMand, reqID)
+		}
+	}
+	for _, recID := range recIDs {
+		if !completedSet[recID] {
+			missingRec = append(missingRec, recID)
+		}
+	}
+
+	hadPrereqs := len(mandIDs) > 0 || len(recIDs) > 0
+	if len(missingMand) > 0 {
+		return "missing", missingMand, missingRec
+	}
+	if len(missingRec) > 0 {
+		return "recommended_missing", missingMand, missingRec
+	}
+	if hadPrereqs {
+		return "met", missingMand, missingRec
+	}
+	return "none", missingMand, missingRec
+}
+
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -149,6 +177,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	programs, _ := s.store.GetAllStudyPrograms()
 	groups, _ := s.store.GetGroupedStudyPrograms()
 	groupsJSON, _ := json.Marshal(groups)
+	instructors, _ := s.store.GetAllInstructors()
+	instructorsJSON, _ := json.Marshal(instructors)
 	total, _ := s.store.Count()
 	_, currentSem, nextTag := detectNextSemester()
 
@@ -156,6 +186,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		Programs:          programs,
 		ProgramGroups:     groups,
 		ProgramGroupsJSON: template.HTML(groupsJSON),
+		Instructors:       instructors,
+		InstructorsJSON:   template.HTML(instructorsJSON),
 		CurrentSemester:   currentSem,
 		DefaultTurnus:     "all", // Default as requested: "Alle"
 		NextSemesterTag:   nextTag,
@@ -171,8 +203,62 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	programID := r.URL.Query().Get("program_id")
-	turnus := r.URL.Query().Get("turnus")
-	onlyFUES := r.URL.Query().Get("only_fues") == "true" || r.URL.Query().Get("only_fues") == "1"
+	var turnuses []string
+	if tList := r.URL.Query()["turnus"]; len(tList) > 0 {
+		for _, t := range tList {
+			t = strings.TrimSpace(t)
+			if t != "" && t != "all" {
+				turnuses = append(turnuses, t)
+			}
+		}
+	}
+	if len(turnuses) == 0 {
+		if tStr := r.URL.Query().Get("turnuses"); tStr != "" {
+			for _, part := range strings.Split(tStr, ",") {
+				part = strings.TrimSpace(part)
+				if part != "" && part != "all" {
+					turnuses = append(turnuses, part)
+				}
+			}
+		}
+	}
+	
+	// FÜS filter: "inkl" (default), "exkl", "nur"
+	fues := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("fues")))
+	if fues == "" {
+		if r.URL.Query().Get("only_fues") == "true" || r.URL.Query().Get("only_fues") == "1" {
+			fues = "nur"
+		} else {
+			fues = "inkl"
+		}
+	}
+	switch fues {
+	case "exkl", "nur":
+	default:
+		fues = "inkl"
+	}
+
+	// Whitelist Instructors filter
+	var instructors []string
+	if insts := r.URL.Query()["instructor"]; len(insts) > 0 {
+		for _, inst := range insts {
+			inst = strings.TrimSpace(inst)
+			if inst != "" {
+				instructors = append(instructors, inst)
+			}
+		}
+	}
+	if len(instructors) == 0 {
+		if insts := r.URL.Query().Get("instructors"); insts != "" {
+			for _, part := range strings.Split(insts, ",") {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					instructors = append(instructors, part)
+				}
+			}
+		}
+	}
+
 	onlyPrereqsMet := r.URL.Query().Get("only_prereqs_met") == "true" || r.URL.Query().Get("only_prereqs_met") == "1"
 	onlyBookmarked := r.URL.Query().Get("only_bookmarked") == "true" || r.URL.Query().Get("only_bookmarked") == "1"
 	onlyCompleted := r.URL.Query().Get("only_completed") == "true" || r.URL.Query().Get("only_completed") == "1"
@@ -232,29 +318,51 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 	}
 	bookmarkedSet := parseIDList(bookmarksRaw)
 
+	// Resolve study program info
+	programName := ""
+	if programID != "" {
+		progs, _ := s.store.GetAllStudyPrograms()
+		for _, p := range progs {
+			if p.ID == programID {
+				programName = p.ShortTitle
+				break
+			}
+		}
+		if s.tracker != nil && offset == 0 {
+			s.tracker.TrackProgramSelect(programID, programName)
+		}
+	}
+
 	// Special views override regular filters to show all saved/passed items
-	activeTurnus := turnus
+	activeTurnuses := turnuses
 	activeProg := programID
+	var nonAdjacentMajor string
 	if onlyBookmarked || onlyCompleted {
-		activeTurnus = "all"
+		activeTurnuses = nil
 		activeProg = ""
+	} else if fues == "nur" && programID != "" {
+		// When "nur FÜS" is active with a chosen study program, we query non-adjacent FÜS electives
+		activeProg = ""
+		nonAdjacentMajor = strings.TrimSpace(strings.Split(programName, "(")[0])
 	}
 
 	filter := storage.AdvancedFilter{
-		Query:           q,
-		ProgramID:       activeProg,
-		SemesterTurnus:  activeTurnus,
-		MinCredits:      minCredits,
-		MaxCredits:      maxCredits,
-		Language:        language,
-		Languages:       languages,
-		Campuses:        campuses,
-		CampusStrict:    campusStrict,
-		Limitation:      limitation,
-		OnlyFUES:        onlyFUES,
-		ExcludePhaseOut: hidePhaseOut,
-		Limit:           limit,
-		Offset:          offset,
+		Query:            q,
+		ProgramID:        activeProg,
+		NonAdjacentMajor: nonAdjacentMajor,
+		SemesterTurnuses: activeTurnuses,
+		MinCredits:       minCredits,
+		MaxCredits:       maxCredits,
+		Language:         language,
+		Languages:        languages,
+		Campuses:         campuses,
+		CampusStrict:     campusStrict,
+		Limitation:       limitation,
+		FUESFilter:       fues,
+		Instructors:      instructors,
+		ExcludePhaseOut:  hidePhaseOut,
+		Limit:            limit,
+		Offset:           offset,
 	}
 
 	items, total, err := s.store.SearchModulesAdvanced(filter)
@@ -271,6 +379,7 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 			ModuleCardItem: it,
 			IsCompleted:    completedSet[it.ID],
 			IsBookmarked:   bookmarkedSet[it.ID],
+			IsLimited:      it.Limitation != "" && !strings.EqualFold(strings.TrimSpace(it.Limitation), "keine"),
 		}
 
 		if vm.IsCompleted {
@@ -288,35 +397,7 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Evaluate Prerequisites
-		var missingMand []string
-		for _, reqID := range it.MandatoryPrereqIDs {
-			if !completedSet[reqID] {
-				missingMand = append(missingMand, reqID)
-			}
-		}
-
-		var missingRec []string
-		for _, recID := range it.RecommendedPrereqIDs {
-			if !completedSet[recID] {
-				missingRec = append(missingRec, recID)
-			}
-		}
-
-		vm.MissingMandatory = missingMand
-		vm.MissingRecommended = missingRec
-
-		hasPrereqsText := (it.PrerequisitesMandatory != "" && !strings.EqualFold(strings.TrimSpace(it.PrerequisitesMandatory), "keine")) ||
-			(it.PrerequisitesRecommended != "" && !strings.EqualFold(strings.TrimSpace(it.PrerequisitesRecommended), "keine"))
-
-		if len(missingMand) > 0 {
-			vm.PrereqStatus = "missing"
-		} else if len(missingRec) > 0 {
-			vm.PrereqStatus = "recommended_missing"
-		} else if hasPrereqsText {
-			vm.PrereqStatus = "met"
-		} else {
-			vm.PrereqStatus = "none"
-		}
+		vm.PrereqStatus, vm.MissingMandatory, vm.MissingRecommended = evalPrereqStatus(it.MandatoryPrereqIDs, it.RecommendedPrereqIDs, completedSet)
 
 		// If user only wants modules whose prerequisites are satisfied, skip missing ones
 		if onlyPrereqsMet && vm.PrereqStatus == "missing" {
@@ -329,31 +410,18 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 	// Calculate total modules in program
 	totalInProgram, _ := s.store.GetProgramTotalModules(programID)
 
-	programName := ""
-	if programID != "" {
-		progs, _ := s.store.GetAllStudyPrograms()
-		for _, p := range progs {
-			if p.ID == programID {
-				programName = p.ShortTitle
-				break
-			}
-		}
-		if s.tracker != nil && offset == 0 {
-			s.tracker.TrackProgramSelect(programID, programName)
-		}
-	}
-
 	var regularModules []ModuleCardViewModel
 	var fuesModules []ModuleCardViewModel
 	hasFUESDivider := false
 
 	// Requirement 5: Abgrenzung von Modulen, die zum Studiengang gehören, und darunter die FÜS-Module
-	if programID != "" && !onlyBookmarked && !onlyCompleted && !onlyFUES && offset == 0 {
+	// Only display the FÜS divider when "inkl. FÜS" is active and we are on page 1 of a program
+	if programID != "" && !onlyBookmarked && !onlyCompleted && fues == "inkl" && offset == 0 {
 		programMajor := strings.TrimSpace(strings.Split(programName, "(")[0])
 		fuesFilter := storage.AdvancedFilter{
-			OnlyFUES:         true,
+			FUESFilter:       "nur",
 			NonAdjacentMajor: programMajor,
-			SemesterTurnus:   activeTurnus,
+			SemesterTurnuses: activeTurnuses,
 			MinCredits:       minCredits,
 			MaxCredits:       maxCredits,
 			Language:         language,
@@ -361,6 +429,7 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 			Campuses:         campuses,
 			CampusStrict:     campusStrict,
 			Limitation:       limitation,
+			Instructors:      instructors,
 			ExcludePhaseOut:  hidePhaseOut,
 			Limit:            100,
 		}
@@ -375,33 +444,7 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 				completedCreditsSum += it.Credits
 			}
 			// Evaluate prerequisites for FÜS module
-			var missingMand []string
-			for _, reqID := range it.MandatoryPrereqIDs {
-				if !completedSet[reqID] {
-					missingMand = append(missingMand, reqID)
-				}
-			}
-			var missingRec []string
-			for _, recID := range it.RecommendedPrereqIDs {
-				if !completedSet[recID] {
-					missingRec = append(missingRec, recID)
-				}
-			}
-			fvm.MissingMandatory = missingMand
-			fvm.MissingRecommended = missingRec
-
-			hasPrereqsText := (it.PrerequisitesMandatory != "" && !strings.EqualFold(strings.TrimSpace(it.PrerequisitesMandatory), "keine")) ||
-				(it.PrerequisitesRecommended != "" && !strings.EqualFold(strings.TrimSpace(it.PrerequisitesRecommended), "keine"))
-
-			if len(missingMand) > 0 {
-				fvm.PrereqStatus = "missing"
-			} else if len(missingRec) > 0 {
-				fvm.PrereqStatus = "recommended_missing"
-			} else if hasPrereqsText {
-				fvm.PrereqStatus = "met"
-			} else {
-				fvm.PrereqStatus = "none"
-			}
+			fvm.PrereqStatus, fvm.MissingMandatory, fvm.MissingRecommended = evalPrereqStatus(it.MandatoryPrereqIDs, it.RecommendedPrereqIDs, completedSet)
 
 			if onlyPrereqsMet && fvm.PrereqStatus == "missing" {
 				continue
@@ -620,30 +663,7 @@ func (s *Server) handleModuleModal(w http.ResponseWriter, r *http.Request) {
 	mandIDs := storage.ExtractPrereqIDs(detail.PrerequisitesMandatory)
 	recIDs := storage.ExtractPrereqIDs(detail.PrerequisitesRecommended)
 
-	var missingMand []string
-	for _, reqID := range mandIDs {
-		if !completedSet[reqID] {
-			missingMand = append(missingMand, reqID)
-		}
-	}
-	var missingRec []string
-	for _, recID := range recIDs {
-		if !completedSet[recID] {
-			missingRec = append(missingRec, recID)
-		}
-	}
-
-	status := "none"
-	hasText := (detail.PrerequisitesMandatory != "" && !strings.EqualFold(strings.TrimSpace(detail.PrerequisitesMandatory), "keine")) ||
-		(detail.PrerequisitesRecommended != "" && !strings.EqualFold(strings.TrimSpace(detail.PrerequisitesRecommended), "keine"))
-
-	if len(missingMand) > 0 {
-		status = "missing"
-	} else if len(missingRec) > 0 {
-		status = "recommended_missing"
-	} else if hasText {
-		status = "met"
-	}
+	status, missingMand, missingRec := evalPrereqStatus(mandIDs, recIDs, completedSet)
 
 	// Fetch module events and extract recurring schedules for weekly calendar
 	events, _ := s.store.GetEventsForModule(id)

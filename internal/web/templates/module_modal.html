@@ -10,7 +10,9 @@
           {{if .Module.IsFUES}}
             <span class="badge badge-fues">Fachübergreifendes Studium (FÜS)</span>
           {{end}}
-          {{if .Module.IsPhaseOut}}
+          {{if .Module.IsNotOffered}}
+            <span class="badge" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-weight: 700;">Nicht mehr im Angebot</span>
+          {{else if .Module.IsPhaseOut}}
             <span class="badge badge-phaseout">Auslaufend</span>
           {{end}}
         </div>
@@ -39,7 +41,14 @@
         </div>
         <div>
           <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Modulverantwortliche</span>
-          <div style="font-weight: 600; font-size: 0.88rem;">{{if .Module.ResponsiblePersons}}{{stringsJoin .Module.ResponsiblePersons ", "}}{{else}}-{{end}}</div>
+          <div style="font-weight: 600; font-size: 0.88rem;">
+            {{if .Module.ResponsiblePersons}}
+              {{range $idx, $p := .Module.ResponsiblePersons}}
+                {{if $idx}}, {{end}}
+                {{if $p.Title}}<span class="academic-title" style="font-size: 0.78em; color: var(--text-muted); font-weight: 500;">{{$p.Title}}</span> {{end}}<span>{{$p.Name}}</span>
+              {{end}}
+            {{else}}-{{end}}
+          </div>
         </div>
         <div>
           <span style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Turnus & Dauer</span>
@@ -50,6 +59,22 @@
           <div style="font-weight: 600; font-size: 0.88rem;">{{if .Module.Language}}{{.Module.Language}}{{else}}Deutsch{{end}} • {{if .Module.ExamType}}{{.Module.ExamType}}{{else}}-{{end}}</div>
         </div>
       </div>
+
+      <!-- Nachfolgemodul(e) Banner -->
+      {{if .Module.SuccessorModules}}
+        <div class="successor-banner" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin-bottom: 0.75rem;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: #1e40af; text-transform: uppercase; margin-bottom: 0.35rem;">
+            ➡️ Nachfolgemodul / Nachfolge
+          </div>
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            {{range .Module.SuccessorModules}}
+              <button type="button" class="btn-check" style="background: #2563eb; color: white; border-color: #1d4ed8; font-size: 0.85rem;" onclick="openModal('{{.}}');">
+                Modul {{.}} ansehen ↗
+              </button>
+            {{end}}
+          </div>
+        </div>
+      {{end}}
 
       <!-- 2. Voraussetzungen Alert Box -->
       {{if eq .PrereqStatus "met"}}
@@ -81,21 +106,26 @@
       {{end}}
 
       <!-- 2. Voraussetzungen im Detail -->
-      {{if or .Module.PrerequisitesMandatory .Module.PrerequisitesRecommended}}
+      {{if or (and .Module.PrerequisitesMandatory (ne .Module.PrerequisitesMandatory "-")) (and .Module.PrerequisitesRecommended (ne .Module.PrerequisitesRecommended "-"))}}
         <div>
           <h4 class="modal-section-title">Voraussetzungen</h4>
-          {{if .Module.PrerequisitesMandatory}}
+          {{if and .Module.PrerequisitesMandatory (ne .Module.PrerequisitesMandatory "-")}}
             <div style="margin-bottom: 0.5rem;">
               <strong style="font-size: 0.85rem; color: #dc2626;">Zwingend erforderlich:</strong>
               <div style="font-size: 0.88rem; color: #334155; margin-top: 0.2rem; white-space: pre-wrap;">{{.Module.PrerequisitesMandatory}}</div>
             </div>
           {{end}}
-          {{if .Module.PrerequisitesRecommended}}
+          {{if and .Module.PrerequisitesRecommended (ne .Module.PrerequisitesRecommended "-")}}
             <div>
               <strong style="font-size: 0.85rem; color: #ca8a04;">Empfohlene Vorkenntnisse:</strong>
               <div style="font-size: 0.88rem; color: #334155; margin-top: 0.2rem; white-space: pre-wrap;">{{.Module.PrerequisitesRecommended}}</div>
             </div>
           {{end}}
+        </div>
+      {{else}}
+        <div style="margin-bottom: 0.5rem;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Voraussetzungen:</span>
+          <span style="font-size: 0.85rem; color: var(--text-muted); margin-left: 0.35rem;">-</span>
         </div>
       {{end}}
 

@@ -84,33 +84,55 @@
             </div>
             <!-- JSON Data for program groups & POs -->
             <script id="program-groups-data" type="application/json">{{.ProgramGroupsJSON}}</script>
+            <script id="instructors-data" type="application/json">{{.InstructorsJSON}}</script>
           </div>
 
           <!-- Card 2: Semester Turnus -->
           <div class="filter-card">
             <div class="filter-card-header">
               <span class="card-title">📅 Semester Turnus</span>
+              <button type="button" class="btn-clear-sub" id="btn-clear-turnus" onclick="clearTurnusFilter();" style="display: none;" title="Semester-Auswahl zurücksetzen">Alle</button>
             </div>
-            <div class="semester-quick-buttons">
-              <button type="button" class="btn-semester active" id="btn-semester-all" onclick="selectSemesterTurnus('all');">Alle</button>
-              <button type="button" class="btn-semester" id="btn-semester-next" onclick="selectSemesterTurnus('next');">⚡ Nächstes ({{.NextSemesterTag}})</button>
-            </div>
-            <button type="button" class="btn-semester-ext-toggle" id="btn-semester-toggle" onclick="toggleSemesterAccordion(event);">
-              <span>Erweiterte Optionen</span> <span id="semester-ext-icon">▾</span>
-            </button>
-            <input type="hidden" name="turnus" id="filter-turnus" value="all">
-
-            <!-- Accordion for extended options -->
-            <div class="semester-accordion" id="semester-accordion" style="display: none;">
-              <div class="semester-ext-grid">
-                <button type="button" class="turnus-pill" data-turnus="sose" onclick="selectSemesterTurnus('sose');">☀️ Sommersemester</button>
-                <button type="button" class="turnus-pill" data-turnus="sose_even" onclick="selectSemesterTurnus('sose_even');">☀️ SoSe Gerade</button>
-                <button type="button" class="turnus-pill" data-turnus="sose_odd" onclick="selectSemesterTurnus('sose_odd');">☀️ SoSe Ungerade</button>
-                <button type="button" class="turnus-pill" data-turnus="wise" onclick="selectSemesterTurnus('wise');">❄️ Wintersemester</button>
-                <button type="button" class="turnus-pill" data-turnus="wise_even" onclick="selectSemesterTurnus('wise_even');">❄️ WiSe Gerade</button>
-                <button type="button" class="turnus-pill" data-turnus="wise_odd" onclick="selectSemesterTurnus('wise_odd');">❄️ WiSe Ungerade</button>
-                <button type="button" class="turnus-pill" data-turnus="sporadic" onclick="selectSemesterTurnus('sporadic');">🎲 Sporadisch</button>
+            <div class="turnus-filter-group">
+              <!-- SoSe Row -->
+              <div class="turnus-row">
+                <button type="button" class="btn-turnus-main" id="btn-turnus-sose" onclick="toggleTurnusMain('sose');" title="Alle Sommersemester">
+                  ☀️ SoSe
+                </button>
+                <div class="turnus-sub-group">
+                  <button type="button" class="btn-turnus-sub" id="btn-turnus-sose_even" onclick="toggleTurnusToken('sose_even');" title="Sommersemester in geraden Jahren (z.B. 2024, 2026)">
+                    Gerade
+                  </button>
+                  <button type="button" class="btn-turnus-sub" id="btn-turnus-sose_odd" onclick="toggleTurnusToken('sose_odd');" title="Sommersemester in ungeraden Jahren (z.B. 2025, 2027)">
+                    Ungerade
+                  </button>
+                </div>
               </div>
+
+              <!-- WiSe Row -->
+              <div class="turnus-row">
+                <button type="button" class="btn-turnus-main" id="btn-turnus-wise" onclick="toggleTurnusMain('wise');" title="Alle Wintersemester">
+                  ❄️ WiSe
+                </button>
+                <div class="turnus-sub-group">
+                  <button type="button" class="btn-turnus-sub" id="btn-turnus-wise_even" onclick="toggleTurnusToken('wise_even');" title="Wintersemester in geraden Jahren (z.B. 2024/25, 2026/27)">
+                    Gerade
+                  </button>
+                  <button type="button" class="btn-turnus-sub" id="btn-turnus-wise_odd" onclick="toggleTurnusToken('wise_odd');" title="Wintersemester in ungeraden Jahren (z.B. 2025/26, 2027/28)">
+                    Ungerade
+                  </button>
+                </div>
+              </div>
+
+              <!-- Sporadisch Row -->
+              <div class="turnus-row turnus-row-single">
+                <button type="button" class="btn-turnus-single" id="btn-turnus-sporadic" onclick="toggleTurnusToken('sporadic');" title="Sporadisch nach Ankündigung">
+                  🎲 Sporadisch
+                </button>
+              </div>
+
+              <!-- Hidden inputs container for form serialization -->
+              <div id="turnus-hidden-inputs"></div>
             </div>
           </div>
 
@@ -171,7 +193,31 @@
             </div>
           </div>
 
-          <!-- Card 5: Kriterien & Filter -->
+          <!-- Card 5: Dozent:innen -->
+          <div class="filter-card">
+            <div class="filter-card-header">
+              <span class="card-title">👨‍🏫 Dozent:innen</span>
+              <button type="button" class="btn-clear-sub" id="btn-clear-profs" onclick="clearProfWhitelist();" style="display: none;" title="Alle ausgewählten Dozierenden entfernen">Leeren</button>
+            </div>
+            <div class="prof-whitelist-container">
+              <div class="prof-search-wrapper">
+                <input 
+                  type="text" 
+                  id="prof-search-input" 
+                  class="prof-search-input" 
+                  placeholder="Dozent/in suchen..." 
+                  autocomplete="off"
+                  oninput="onProfSearchInput(this.value);"
+                  onfocus="onProfSearchFocus();"
+                >
+                <div id="prof-dropdown-menu" class="prof-dropdown-menu" style="display: none;"></div>
+              </div>
+              <div id="prof-selected-chips" class="prof-selected-chips"></div>
+              <div id="prof-hidden-inputs"></div>
+            </div>
+          </div>
+
+          <!-- Card 6: Kriterien & Filter -->
           <div class="filter-card">
             <div class="filter-card-header">
               <span class="card-title">⚙️ Sonstige Kriterien</span>
@@ -187,15 +233,17 @@
               <input type="hidden" name="limitation" id="filter-limitation" value="ja">
             </div>
 
-            <div class="filter-toggles-group">
-              <label class="toggle-item">
-                <span>🎓 Nur FÜS (fachfremd)</span>
-                <div class="switch">
-                  <input type="checkbox" name="only_fues" id="filter-fues" value="true">
-                  <span class="slider"></span>
-                </div>
-              </label>
+            <div class="filter-subitem">
+              <span class="subitem-title">Fachübergreifendes Studium (FÜS)</span>
+              <div class="segmented-control" id="fues-control">
+                <button type="button" class="segmented-btn" data-val="exkl" onclick="setFUESFilter('exkl');">Ohne FÜS</button>
+                <button type="button" class="segmented-btn active" data-val="inkl" onclick="setFUESFilter('inkl');">Alle</button>
+                <button type="button" class="segmented-btn" data-val="nur" onclick="setFUESFilter('nur');">Nur FÜS</button>
+              </div>
+              <input type="hidden" name="fues" id="filter-fues" value="inkl">
+            </div>
 
+            <div class="filter-toggles-group">
               <label class="toggle-item">
                 <span>⏳ Auslaufmodule ausblenden</span>
                 <div class="switch">

@@ -15,6 +15,8 @@ import (
 
 var (
 	creditNumberRegex = regexp.MustCompile(`([0-9]+(?:[\.,][0-9]+)?)`)
+	reModuleID        = regexp.MustCompile(`\b\d{5}\b`)
+	reNachfolge       = regexp.MustCompile(`(?i)Nachfolge(?:modul(?:e)?)?[^\d\n]{0,50}(\d{5})`)
 )
 
 // DetailParser parses a BTU course detail page (b-tu.de/modul/<id>).
@@ -33,16 +35,23 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 	}
 
 	detail := &model.ModuleDetail{
-		ID:            fallbackID,
-		Code:          fallbackID,
-		RawURL:        pageURL,
-		LastScrapedAt: time.Now().UTC(),
+		ID:                       fallbackID,
+		Code:                     fallbackID,
+		RawURL:                   pageURL,
+		LastScrapedAt:            time.Now().UTC(),
+		PrerequisitesRecommended: "-",
+		PrerequisitesMandatory:   "-",
 	}
 
 	// 1. Extract H1 header if present: "11101 - Lineare Algebra und analytische Geometrie I"
 	h1 := FindFirstByTag(doc, atom.H1)
 	if h1 != nil {
 		h1Text := CleanSingleLine(NodeText(h1))
+		if containsNotOffered(h1Text) {
+			detail.IsNotOffered = true
+			detail.IsPhaseOut = true
+		}
+
 		// Remove sub-tags like <small>Modulübersicht</small> from title if needed
 		if idx := strings.Index(strings.ToLower(h1Text), "modulübersicht"); idx != -1 {
 			h1Text = strings.TrimSpace(h1Text[:idx])
@@ -93,6 +102,10 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 					strings.Contains(strings.ToLower(singleTxt), "cross-disciplinary") {
 					detail.CrossDisciplinary = true
 				}
+				if containsNotOffered(singleTxt) {
+					detail.IsNotOffered = true
+					detail.IsPhaseOut = true
+				}
 			}
 			continue
 		}
@@ -101,6 +114,11 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 		valNode := tds[1]
 		valText := CleanText(valNode)
 		valSingle := CleanSingleLine(NodeText(valNode))
+
+		if containsNotOffered(valSingle) || containsNotOffered(rawKey) {
+			detail.IsNotOffered = true
+			detail.IsPhaseOut = true
+		}
 
 		normKey := normalizeKey(rawKey)
 
@@ -127,8 +145,12 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 		case "modulenumber":
 			lowVal := strings.ToLower(valSingle)
 			if strings.Contains(lowVal, "phase-out") ||
-				strings.Contains(lowVal, "auslauf") {
+				strings.Contains(lowVal, "auslauf") ||
+				containsNotOffered(lowVal) {
 				detail.IsPhaseOut = true
+			}
+			if containsNotOffered(lowVal) {
+				detail.IsNotOffered = true
 			}
 			// Extract clean module number
 			cleanNum := strings.TrimSpace(strings.Split(valSingle, "-")[0])
@@ -149,11 +171,15 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 
 		case "responsible":
 			items := ExtractListItems(valNode)
+			var respList []model.ResponsiblePerson
 			if len(items) > 0 {
-				detail.ResponsiblePersons = items
+				for _, it := range items {
+					respList = append(respList, model.SplitResponsiblePerson(it))
+				}
 			} else if valSingle != "" {
-				detail.ResponsiblePersons = []string{valSingle}
+				respList = append(respList, model.SplitResponsiblePerson(valSingle))
 			}
+			detail.ResponsiblePersons = respList
 
 		case "language":
 			detail.Language = valSingle
@@ -163,6 +189,10 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 
 		case "turnus":
 			detail.Turnus = valSingle
+			if containsNotOffered(valSingle) {
+				detail.IsNotOffered = true
+				detail.IsPhaseOut = true
+			}
 
 		case "credits":
 			detail.CreditsRaw = valSingle
@@ -175,10 +205,10 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 			detail.Contents = valText
 
 		case "prerequisitesrecommended":
-			detail.PrerequisitesRecommended = valText
+			detail.PrerequisitesRecommended = normalizePrereqText(valText)
 
 		case "prerequisitesmandatory":
-			detail.PrerequisitesMandatory = valText
+			detail.PrerequisitesMandatory = normalizePrereqText(valText)
 
 		case "teachingforms":
 			items := ExtractListItems(valNode)
@@ -223,12 +253,40 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 
 		case "remarks":
 			detail.Remarks = valText
-			if strings.Contains(strings.ToLower(valText), "auslaufmodul") || strings.Contains(strings.ToLower(valText), "phase-out module") {
+			lowRemarks := strings.ToLower(valText)
+			if strings.Contains(lowRemarks, "auslaufmodul") || strings.Contains(lowRemarks, "phase-out module") || containsNotOffered(lowRemarks) {
 				detail.IsPhaseOut = true
+			}
+			if containsNotOffered(lowRemarks) {
+				detail.IsNotOffered = true
+			}
+			if strings.Contains(lowRemarks, "nachfolge") {
+				detail.IsPhaseOut = true
+				matches := reNachfolge.FindAllStringSubmatch(valText, -1)
+				for _, m := range matches {
+					if len(m) >= 2 && m[1] != detail.ID {
+						detail.SuccessorModules = appendUnique(detail.SuccessorModules, m[1])
+					}
+				}
 			}
 
 		case "nachfolgemodul":
 			detail.IsPhaseOut = true
+			// Check links in valNode
+			links := FindAllByTag(valNode, atom.A)
+			for _, l := range links {
+				href := GetAttr(l, "href")
+				if m := reModuleID.FindString(href); m != "" && m != detail.ID {
+					detail.SuccessorModules = appendUnique(detail.SuccessorModules, m)
+				}
+			}
+			// Also check text
+			matches := reModuleID.FindAllString(valText, -1)
+			for _, m := range matches {
+				if m != detail.ID {
+					detail.SuccessorModules = appendUnique(detail.SuccessorModules, m)
+				}
+			}
 
 		case "courses":
 			items := ExtractListItems(valNode)
@@ -239,27 +297,95 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 			}
 
 		case "currentevents":
+			lowVal := strings.ToLower(valSingle)
+			if strings.Contains(lowVal, "keine zuordnung vorhanden") || strings.Contains(lowVal, "no assignment available") {
+				// Explicitly no event
+				break
+			}
+
 			lis := FindAllByTag(valNode, atom.Li)
 			for _, li := range lis {
 				a := FindFirstByTag(li, atom.A)
-				evt := model.ModuleEvent{
-					Title: CleanSingleLine(NodeText(li)),
+				if a == nil {
+					// "If there are no links to qis then you can assume there is no event"
+					continue
 				}
-				if a != nil {
-					evt.URL = GetAttr(a, "href")
-					aText := CleanSingleLine(NodeText(a))
-					if aText != "" {
-						evt.Title = aText
+				href := GetAttr(a, "href")
+				if href == "" || href == "#" {
+					continue
+				}
+				aText := CleanSingleLine(NodeText(a))
+				if aText == "" {
+					aText = CleanSingleLine(NodeText(li))
+				}
+				lowText := strings.ToLower(aText)
+				if strings.Contains(lowText, "keine zuordnung vorhanden") || strings.Contains(lowText, "no assignment available") {
+					continue
+				}
+				detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, model.ModuleEvent{
+					Title: aText,
+					URL:   href,
+				})
+			}
+
+			// If no <li> found, check if there are <a> tags directly in valNode
+			if len(detail.CurrentSemesterEvents) == 0 {
+				aNodes := FindAllByTag(valNode, atom.A)
+				for _, a := range aNodes {
+					href := GetAttr(a, "href")
+					if href == "" || href == "#" {
+						continue
 					}
-				}
-				if evt.Title != "" {
-					detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, evt)
+					aText := CleanSingleLine(NodeText(a))
+					lowText := strings.ToLower(aText)
+					if aText != "" && !strings.Contains(lowText, "keine zuordnung vorhanden") && !strings.Contains(lowText, "no assignment available") {
+						detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, model.ModuleEvent{
+							Title: aText,
+							URL:   href,
+						})
+					}
 				}
 			}
 		}
 	}
 
+	// Final normalization for prerequisites if not set
+	if detail.PrerequisitesRecommended == "" {
+		detail.PrerequisitesRecommended = "-"
+	}
+	if detail.PrerequisitesMandatory == "" {
+		detail.PrerequisitesMandatory = "-"
+	}
+
 	return detail, nil
+}
+
+func containsNotOffered(s string) bool {
+	low := strings.ToLower(s)
+	return strings.Contains(low, "nicht mehr im angebot") ||
+		strings.Contains(low, "kein lehrangebot mehr") ||
+		strings.Contains(low, "kein angebot mehr") ||
+		strings.Contains(low, "vorerst kein lehrangebot") ||
+		strings.Contains(low, "derzeit kein lehrangebot") ||
+		strings.Contains(low, "no longer offered")
+}
+
+func normalizePrereqText(s string) string {
+	trimmed := strings.TrimSpace(s)
+	low := strings.ToLower(trimmed)
+	if trimmed == "" || low == "keine" || low == "none" || low == "-" || low == "entfällt" || low == "k.a." || low == "keine." || low == "nein" {
+		return "-"
+	}
+	return trimmed
+}
+
+func appendUnique(slice []string, val string) []string {
+	for _, s := range slice {
+		if s == val {
+			return slice
+		}
+	}
+	return append(slice, val)
 }
 
 func normalizeKey(raw string) string {
@@ -293,9 +419,11 @@ func normalizeKey(raw string) string {
 		return "learningoutcomes"
 	case strings.Contains(k, "inhalte") || strings.Contains(k, "contents"):
 		return "contents"
-	case strings.Contains(k, "empfohlenevoraussetzungen") || strings.Contains(k, "recommendedprerequisites"):
+	case strings.Contains(k, "empfohlenevoraussetzungen") || strings.Contains(k, "empfohlenen") || strings.Contains(k, "empfohlenevorkenntnisse") || strings.Contains(k, "inhaltlichevoraussetzungen") || strings.Contains(k, "vorkenntnisse") || strings.Contains(k, "recommendedprerequisites") || strings.Contains(k, "recommended"):
 		return "prerequisitesrecommended"
-	case strings.Contains(k, "zwingendevoraussetzungen") || strings.Contains(k, "mandatoryprerequisites"):
+	case strings.Contains(k, "zwingendevoraussetzungen") || strings.Contains(k, "zwingenden") || strings.Contains(k, "formalevoraussetzungen") || strings.Contains(k, "verpflichtendevoraussetzungen") || strings.Contains(k, "mandatoryprerequisites") || strings.Contains(k, "mandatory"):
+		return "prerequisitesmandatory"
+	case strings.Contains(k, "voraussetzungen") || strings.Contains(k, "prerequisites"):
 		return "prerequisitesmandatory"
 	case strings.Contains(k, "lehrformen") || strings.Contains(k, "formsofteaching"):
 		return "teachingforms"
@@ -349,3 +477,4 @@ func parseStudyProgram(raw string) model.StudyProgram {
 	}
 	return sp
 }
+

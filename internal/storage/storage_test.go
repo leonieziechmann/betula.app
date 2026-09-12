@@ -45,7 +45,9 @@ func TestStorage(t *testing.T) {
 		TitleDE:            "Mathematik I (Vertieft)",
 		TitleEN:            "Mathematics I",
 		Department:         "Fakultät 1",
-		ResponsiblePersons: []string{"Prof. Euler"},
+		ResponsiblePersons: []model.ResponsiblePerson{{Title: "Prof.", Name: "Euler", Raw: "Prof. Euler"}},
+		IsNotOffered:       true,
+		SuccessorModules:   []string{"1002"},
 		Language:           "Deutsch",
 		Credits:            6.0,
 		CreditsRaw:         "6",
@@ -76,6 +78,15 @@ func TestStorage(t *testing.T) {
 	}
 	if retrieved.Credits != 6.0 {
 		t.Errorf("expected credits 6.0, got %f", retrieved.Credits)
+	}
+	if !retrieved.IsNotOffered {
+		t.Errorf("expected IsNotOffered to be true")
+	}
+	if len(retrieved.SuccessorModules) != 1 || retrieved.SuccessorModules[0] != "1002" {
+		t.Errorf("unexpected successor modules: %v", retrieved.SuccessorModules)
+	}
+	if len(retrieved.ResponsiblePersons) != 1 || retrieved.ResponsiblePersons[0].Name != "Euler" || retrieved.ResponsiblePersons[0].Title != "Prof." {
+		t.Errorf("unexpected responsible persons: %+v", retrieved.ResponsiblePersons)
 	}
 	if len(retrieved.TeachingForms) != 1 || retrieved.TeachingForms[0].Type != "Vorlesung" {
 		t.Errorf("unexpected teaching forms: %+v", retrieved.TeachingForms)
@@ -340,6 +351,9 @@ func TestAdvancedFiltersAndGroupedPrograms(t *testing.T) {
 			Turnus:     "jedes Sommersemester gerader Jahre",
 			Limitation: "keine",
 			Credits:    6.0,
+			ResponsiblePersons: []model.ResponsiblePerson{
+				{Name: "Köhler, Ekkehard", Title: "Prof. Dr."},
+			},
 		},
 		{
 			ID:         "M2",
@@ -349,6 +363,9 @@ func TestAdvancedFiltersAndGroupedPrograms(t *testing.T) {
 			Turnus:     "jedes Wintersemester ungerader Jahre",
 			Limitation: "25",
 			Credits:    6.0,
+			ResponsiblePersons: []model.ResponsiblePerson{
+				{Name: "Borchers, Wolfgang", Title: "Dr."},
+			},
 		},
 		{
 			ID:         "M3",
@@ -358,6 +375,10 @@ func TestAdvancedFiltersAndGroupedPrograms(t *testing.T) {
 			Turnus:     "sporadisch nach Ankündigung",
 			Limitation: "",
 			Credits:    3.0,
+			IsFUES:     true,
+			ResponsiblePersons: []model.ResponsiblePerson{
+				{Name: "Köhler, Ekkehard", Title: "Prof. Dr."},
+			},
 		},
 	}
 
@@ -412,6 +433,22 @@ func TestAdvancedFiltersAndGroupedPrograms(t *testing.T) {
 		t.Errorf("expected 1 module for sporadic, got %d, err=%v", totalSporadic, err)
 	}
 
+	// Multi-select turnuses: WiSe Ungerade + SoSe Gerade + Sporadisch
+	_, totalCombo, err := store.SearchModulesAdvanced(AdvancedFilter{
+		SemesterTurnuses: []string{"wise_odd", "sose_even", "sporadic"},
+	})
+	if err != nil || totalCombo != 3 {
+		t.Errorf("expected 3 modules for wise_odd + sose_even + sporadic, got %d, err=%v", totalCombo, err)
+	}
+
+	// Just WiSe Ungerade + Sporadisch
+	_, totalTwo, err := store.SearchModulesAdvanced(AdvancedFilter{
+		SemesterTurnuses: []string{"wise_odd", "sporadic"},
+	})
+	if err != nil || totalTwo != 2 {
+		t.Errorf("expected 2 modules for wise_odd + sporadic, got %d, err=%v", totalTwo, err)
+	}
+
 	// 2. Test Limitation
 	// "nein": unbeschränkt (M1 with "keine" and M3 with "")
 	_, totalUnlim, err := store.SearchModulesAdvanced(AdvancedFilter{Limitation: "nein"})
@@ -447,7 +484,37 @@ func TestAdvancedFiltersAndGroupedPrograms(t *testing.T) {
 		t.Errorf("expected 1 module strictly at senftenberg, got %d, err=%v", totalSFB, err)
 	}
 
-	// 5. Test StudyProgramGroup and GetGroupedStudyPrograms
+	// 5. Test FUESFilter
+	_, totalFuesInkl, err := store.SearchModulesAdvanced(AdvancedFilter{FUESFilter: "inkl"})
+	if err != nil || totalFuesInkl != 3 {
+		t.Errorf("expected 3 modules for fues inkl, got %d, err=%v", totalFuesInkl, err)
+	}
+	_, totalFuesExkl, err := store.SearchModulesAdvanced(AdvancedFilter{FUESFilter: "exkl"})
+	if err != nil || totalFuesExkl != 2 {
+		t.Errorf("expected 2 modules for fues exkl, got %d, err=%v", totalFuesExkl, err)
+	}
+	_, totalFuesNur, err := store.SearchModulesAdvanced(AdvancedFilter{FUESFilter: "nur"})
+	if err != nil || totalFuesNur != 1 {
+		t.Errorf("expected 1 module for fues nur, got %d, err=%v", totalFuesNur, err)
+	}
+
+	// 6. Test Instructors Whitelist
+	_, totalProfKoehler, err := store.SearchModulesAdvanced(AdvancedFilter{Instructors: []string{"Köhler, Ekkehard"}})
+	if err != nil || totalProfKoehler != 2 {
+		t.Errorf("expected 2 modules for Köhler, got %d, err=%v", totalProfKoehler, err)
+	}
+	_, totalProfBoth, err := store.SearchModulesAdvanced(AdvancedFilter{Instructors: []string{"Köhler, Ekkehard", "Borchers, Wolfgang"}})
+	if err != nil || totalProfBoth != 3 {
+		t.Errorf("expected 3 modules for Köhler OR Borchers, got %d, err=%v", totalProfBoth, err)
+	}
+
+	// 7. Test GetAllInstructors
+	allInsts, err := store.GetAllInstructors()
+	if err != nil || len(allInsts) != 2 {
+		t.Errorf("expected 2 instructors from GetAllInstructors, got %d, err=%v", len(allInsts), err)
+	}
+
+	// 8. Test StudyProgramGroup and GetGroupedStudyPrograms
 	p1 := model.OfficialStudyProgram{
 		ID:          "stg1_po2024",
 		ProgramName: "Informatik",
@@ -463,14 +530,125 @@ func TestAdvancedFiltersAndGroupedPrograms(t *testing.T) {
 	_ = store.UpsertOfficialProgram(&p1)
 	_ = store.UpsertOfficialProgram(&p2)
 
+	// p3 has the same POVersion (2024) but is an erweiterte Fachsemester variant degree
+	p3 := model.OfficialStudyProgram{
+		ID:          "stg1_po2024_erweitert",
+		ProgramName: "Informatik",
+		Degree:      "Bachelor (universitär) - erweiterte Fachsemester",
+		POVersion:   "2024",
+	}
+	_ = store.UpsertOfficialProgram(&p3)
+
+	// Architecture Master with Doppelabschluss variant sharing PO 2022 - 1. SÄ 2023
+	arch1 := model.OfficialStudyProgram{
+		ID:          "arch_master_std",
+		ProgramName: "Architektur",
+		Degree:      "Master (universitär)",
+		POVersion:   "2022 - 1. SÄ 2023",
+	}
+	arch2 := model.OfficialStudyProgram{
+		ID:          "arch_master_doppel",
+		ProgramName: "Architektur",
+		Degree:      "Master (universitär) - Doppelabschluss",
+		POVersion:   "2022 - 1. SÄ 2023",
+	}
+	_ = store.UpsertOfficialProgram(&arch1)
+	_ = store.UpsertOfficialProgram(&arch2)
+
+	_ = store.LinkModuleToStudyProgram("M1", arch1.ID, arch1.ProgramName, arch1.Degree, arch1.POVersion)
+	_ = store.LinkModuleToStudyProgram("M2", arch2.ID, arch2.ProgramName, arch2.Degree, arch2.POVersion)
+
 	groups, err := store.GetGroupedStudyPrograms()
 	if err != nil {
 		t.Fatalf("GetGroupedStudyPrograms failed: %v", err)
 	}
-	if len(groups) != 1 {
-		t.Fatalf("expected 1 grouped study program, got %d", len(groups))
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 grouped study programs, got %d", len(groups))
 	}
-	if len(groups[0].POs) != 2 {
-		t.Errorf("expected 2 POs in Informatik group, got %d", len(groups[0].POs))
+
+	var infoGroup, archGroup *StudyProgramGroup
+	for i := range groups {
+		if groups[i].Key == "Informatik (Bachelor)" {
+			infoGroup = &groups[i]
+		} else if groups[i].Key == "Architektur (Master)" {
+			archGroup = &groups[i]
+		}
+	}
+
+	if infoGroup == nil {
+		t.Fatalf("Informatik group missing")
+	}
+	if len(infoGroup.POs) != 2 {
+		t.Errorf("expected 2 deduplicated POs in Informatik group, got %d", len(infoGroup.POs))
+	}
+	// Check that canonical ID is preferred (stg1_po2024 instead of stg1_po2024_dual)
+	for _, po := range infoGroup.POs {
+		if po.POVersion == "2024" {
+			if po.ID != "stg1_po2024" {
+				t.Errorf("expected canonical ID stg1_po2024, got %s", po.ID)
+			}
+			if len(po.RelatedIDs) != 2 {
+				t.Errorf("expected 2 related IDs for PO 2024, got %v", po.RelatedIDs)
+			}
+		}
+	}
+
+	if archGroup == nil {
+		t.Fatalf("Architektur group missing")
+	}
+	if len(archGroup.POs) != 1 {
+		t.Errorf("expected exactly 1 deduplicated PO in Architektur Master, got %d", len(archGroup.POs))
+	} else {
+		if archGroup.POs[0].POVersion != "2022 - 1. SÄ 2023" {
+			t.Errorf("expected PO '2022 - 1. SÄ 2023', got %s", archGroup.POs[0].POVersion)
+		}
+		if archGroup.POs[0].ID != "arch_master_std" {
+			t.Errorf("expected canonical ID arch_master_std, got %s", archGroup.POs[0].ID)
+		}
+		if archGroup.POs[0].Count != 2 {
+			t.Errorf("expected 2 linked modules across both variants for Architektur Master, got %d", archGroup.POs[0].Count)
+		}
+	}
+
+	// Test SearchModulesAdvanced matching across related IDs
+	_, totalArch, err := store.SearchModulesAdvanced(AdvancedFilter{ProgramID: "arch_master_std"})
+	if err != nil || totalArch != 2 {
+		t.Errorf("expected 2 modules when searching with arch_master_std, got %d, err=%v", totalArch, err)
 	}
 }
+
+func TestRealDBNoDuplicatePOs(t *testing.T) {
+	dbPath := "../../btu_modules.db"
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		t.Skip("btu_modules.db not found, skipping real db test")
+	}
+
+	store, err := NewStorage(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open real db: %v", err)
+	}
+	defer store.Close()
+
+	groups, err := store.GetGroupedStudyPrograms()
+	if err != nil {
+		t.Fatalf("failed to get grouped study programs: %v", err)
+	}
+
+	for _, g := range groups {
+		seen := make(map[string]int)
+		for _, po := range g.POs {
+			seen[po.POVersion]++
+			if seen[po.POVersion] > 1 {
+				t.Errorf("group %q has duplicate PO version %q", g.ShortTitle, po.POVersion)
+			}
+		}
+		if g.ShortTitle == "Architektur (Master)" {
+			if len(g.POs) != 1 {
+				t.Errorf("expected Architektur (Master) to have exactly 1 PO, got %d", len(g.POs))
+			} else if g.POs[0].POVersion != "2022 - 1. SÄ 2023" {
+				t.Errorf("expected Architektur (Master) PO to be '2022 - 1. SÄ 2023', got %q", g.POs[0].POVersion)
+			}
+		}
+	}
+}
+

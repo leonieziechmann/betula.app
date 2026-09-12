@@ -3,6 +3,8 @@ package parser
 import (
 	"strings"
 	"testing"
+
+	"github.com/jakob/btu-scraper/internal/model"
 )
 
 func TestDetailParser_German(t *testing.T) {
@@ -125,8 +127,17 @@ func TestDetailParser_German(t *testing.T) {
 	if detail.Department != "Fakultät 1 - MINT" {
 		t.Errorf("expected Department 'Fakultät 1 - MINT', got %s", detail.Department)
 	}
-	if len(detail.ResponsiblePersons) != 1 || detail.ResponsiblePersons[0] != "Prof. Dr. Köhler, Ekkehard" {
-		t.Errorf("unexpected responsible persons: %v", detail.ResponsiblePersons)
+	if len(detail.ResponsiblePersons) != 1 {
+		t.Fatalf("unexpected responsible persons length: %d", len(detail.ResponsiblePersons))
+	}
+	if detail.ResponsiblePersons[0].Title != "Prof. Dr." || detail.ResponsiblePersons[0].Name != "Köhler, Ekkehard" {
+		t.Errorf("unexpected responsible person: %+v", detail.ResponsiblePersons[0])
+	}
+	if detail.PrerequisitesMandatory != "-" {
+		t.Errorf("expected PrerequisitesMandatory '-', got %q", detail.PrerequisitesMandatory)
+	}
+	if detail.PrerequisitesRecommended != "Schulmathematik" {
+		t.Errorf("expected PrerequisitesRecommended 'Schulmathematik', got %q", detail.PrerequisitesRecommended)
 	}
 	if detail.Credits != 8.0 {
 		t.Errorf("expected Credits 8.0, got %f", detail.Credits)
@@ -211,3 +222,136 @@ func TestDetailParser_EnglishAndPhaseOut(t *testing.T) {
 		t.Errorf("expected Language English, got %s", detail.Language)
 	}
 }
+
+func TestDetailParser_NotOffered_Successors_Events_Titles(t *testing.T) {
+	htmlSnippet := `
+	<!DOCTYPE html>
+	<html>
+	<body>
+		<div class="tx-btusysteme">
+			<h1>12345 - Ausgelaufene Vorlesung <small>Modulübersicht</small></h1>
+			<table>
+				<tr>
+					<td>Modulnummer:</td>
+					<td><b>12345 - Modul nicht mehr im Angebot</b></td>
+				</tr>
+				<tr>
+					<td>Modultitel:</td>
+					<td><b>Ausgelaufene Vorlesung</b></td>
+				</tr>
+				<tr>
+					<td>Verantwortlich:</td>
+					<td><ul>
+						<li>Schmid, Reiner , Prof. Dr. rer. nat.</li>
+						<li>Glemser, Wolfgang, Prof.</li>
+					</ul></td>
+				</tr>
+				<tr>
+					<td>Angebotsturnus:</td>
+					<td>kein Lehrangebot mehr</td>
+				</tr>
+				<tr>
+					<td>Empfohlene Voraussetzungen:</td>
+					<td>keine</td>
+				</tr>
+				<tr>
+					<td>Zwingende Voraussetzungen:</td>
+					<td></td>
+				</tr>
+				<tr>
+					<td>Nachfolgemodul:</td>
+					<td>12938</td>
+				</tr>
+				<tr>
+					<td>Bemerkungen:</td>
+					<td>Das Modul wird ersetzt durch Nachfolgemodul 12939.</td>
+				</tr>
+				<tr>
+					<td>Veranstaltungen im aktuellen Semester:</td>
+					<td>keine Zuordnung vorhanden</td>
+				</tr>
+			</table>
+		</div>
+	</body>
+	</html>
+	`
+
+	p := NewDetailParser()
+	detail, err := p.Parse(strings.NewReader(htmlSnippet), "12345", "https://www.b-tu.de/modul/12345")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !detail.IsNotOffered {
+		t.Errorf("expected IsNotOffered to be true")
+	}
+	if !detail.IsPhaseOut {
+		t.Errorf("expected IsPhaseOut to be true")
+	}
+
+	// Responsible persons parsing
+	if len(detail.ResponsiblePersons) != 2 {
+		t.Fatalf("expected 2 responsible persons, got %d", len(detail.ResponsiblePersons))
+	}
+	if detail.ResponsiblePersons[0].Name != "Schmid, Reiner" || detail.ResponsiblePersons[0].Title != "Prof. Dr. rer. nat." {
+		t.Errorf("unexpected responsible person 0: %+v", detail.ResponsiblePersons[0])
+	}
+	if detail.ResponsiblePersons[1].Name != "Glemser, Wolfgang" || detail.ResponsiblePersons[1].Title != "Prof." {
+		t.Errorf("unexpected responsible person 1: %+v", detail.ResponsiblePersons[1])
+	}
+
+	// Prerequisites defaults
+	if detail.PrerequisitesRecommended != "-" {
+		t.Errorf("expected PrerequisitesRecommended '-', got %q", detail.PrerequisitesRecommended)
+	}
+	if detail.PrerequisitesMandatory != "-" {
+		t.Errorf("expected PrerequisitesMandatory '-', got %q", detail.PrerequisitesMandatory)
+	}
+
+	// Successor modules from both row and remarks
+	if len(detail.SuccessorModules) != 2 {
+		t.Fatalf("expected 2 successor modules, got %d: %v", len(detail.SuccessorModules), detail.SuccessorModules)
+	}
+	if detail.SuccessorModules[0] != "12938" || detail.SuccessorModules[1] != "12939" {
+		t.Errorf("unexpected successor modules: %v", detail.SuccessorModules)
+	}
+
+	// Current semester events should be empty due to "keine Zuordnung vorhanden" and lack of <a> tags
+	if len(detail.CurrentSemesterEvents) != 0 {
+		t.Errorf("expected 0 current semester events, got %d: %+v", len(detail.CurrentSemesterEvents), detail.CurrentSemesterEvents)
+	}
+}
+
+func TestSplitResponsiblePerson_ComplexTitles(t *testing.T) {
+	tests := []struct {
+		input     string
+		wantTitle string
+		wantName  string
+	}{
+		{"apl. Prof. Dr. rer. nat. habil. Felgenhauer, Ursula", "apl. Prof. Dr. rer. nat. habil.", "Felgenhauer, Ursula"},
+		{"nat. habil. Müller, Peter", "nat. habil.", "Müller, Peter"},
+		{"Prof. Dr. rer. publ . Dr. h. c. Knopp, Lothar", "Prof. Dr. rer. publ. Dr. h. c.", "Knopp, Lothar"},
+		{"apl. Prof. PD Dr. rer. nat. habil. Schaaf, Wolfgang", "apl. Prof. PD Dr. rer. nat. habil.", "Schaaf, Wolfgang"},
+		{"Prof. Dr. -Ing. Woll, Ralf", "Prof. Dr.-Ing.", "Woll, Ralf"},
+		{"Prof. Dr. Dr.h.c. (NMU, UA) Schmidt, Michael", "Prof. Dr. Dr.h.c. (NMU, UA)", "Schmidt, Michael"},
+		{"apl. Prof. Dr. sc. nat. Kittler, Martin", "apl. Prof. Dr. sc. nat.", "Kittler, Martin"},
+		{"Prof. Dr. -Ing. habil. König, Hartmut", "Prof. Dr.-Ing. habil.", "König, Hartmut"},
+		{"PD Dr. -Ing. Müller, Hans", "PD Dr.-Ing.", "Müller, Hans"},
+		{"Gastprofessor Dr.-Ing. Wagener-Lohse, Georg", "Gastprofessor Dr.-Ing.", "Wagener-Lohse, Georg"},
+		{"Dr. rer. nat . Will, Andreas", "Dr. rer. nat.", "Will, Andreas"},
+		{"Prof. Dipl.-Ing. Nagler, Heinz", "Prof. Dipl.-Ing.", "Nagler, Heinz"},
+		{"Prof. Dr. rer. nat. habil Meer, Klaus", "Prof. Dr. rer. nat. habil", "Meer, Klaus"},
+		{"Prof.Dr.rer.nat.habil.Dr.h.c. Sigmund, Ernst", "Prof.Dr.rer.nat.habil.Dr.h.c.", "Sigmund, Ernst"},
+	}
+
+	for _, tc := range tests {
+		got := model.SplitResponsiblePerson(tc.input)
+		if got.Title != tc.wantTitle {
+			t.Errorf("input %q: expected Title %q, got %q", tc.input, tc.wantTitle, got.Title)
+		}
+		if got.Name != tc.wantName {
+			t.Errorf("input %q: expected Name %q, got %q", tc.input, tc.wantName, got.Name)
+		}
+	}
+}
+
