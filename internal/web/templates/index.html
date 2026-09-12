@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTU Smart Modulkatalog</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
+</head>
+<body>
+
+  <div class="app-layout">
+    
+    <!-- Docked Left Sidebar (Spans entire height from top to bottom) -->
+    <aside class="sidebar" id="sidebar">
+      <!-- Branding inside Sidebar Header -->
+      <div class="sidebar-header">
+        <a href="/" class="sidebar-brand">
+          <span class="brand-badge">BTU</span>
+          <span class="brand-title">Smart Modulkatalog</span>
+        </a>
+        <button type="button" class="btn-sidebar-close" onclick="toggleSidebar();" aria-label="Filter schließen" title="Filter schließen">&times;</button>
+      </div>
+
+      <div class="sidebar-body">
+        <form id="filter-form" hx-get="/modules" hx-target="#modules-view" hx-trigger="change, submit">
+          <input type="hidden" name="view" id="filter-view" value="grid">
+          <input type="hidden" name="offset" id="filter-offset" value="0">
+          <input type="hidden" name="program_id" id="filter-program" value="">
+
+        <!-- Study Program Searchable Combobox -->
+        <div class="filter-group">
+          <label class="filter-label">
+            <span>Dein Studiengang</span>
+          </label>
+          <div class="combobox-container">
+            <div class="combobox-display" id="combobox-display" onclick="toggleCombobox(event);" tabindex="0" onkeydown="if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') { event.preventDefault(); toggleCombobox(event); }">
+              <span id="combobox-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                Alle Studiengänge (Gesamtkatalog)
+              </span>
+              <div style="display: flex; align-items: center; gap: 0.3rem;">
+                <button type="button" class="btn-clear-prog" id="btn-clear-program" onclick="clearStudyProgram(event);" title="Auswahl aufheben" style="display: none;">&times;</button>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">▼</span>
+              </div>
+            </div>
+
+            <div class="combobox-dropdown" id="combobox-dropdown">
+              <div class="combobox-search-wrap">
+                <input 
+                  type="text" 
+                  id="combobox-search" 
+                  class="combobox-search-input" 
+                  placeholder="Studiengang suchen (z. B. Informatik)..." 
+                  autocomplete="off"
+                  oninput="filterComboboxOptions(this.value);"
+                  onclick="event.stopPropagation();"
+                >
+              </div>
+              <div class="combobox-options" id="combobox-options-list">
+                <div class="combobox-option" data-id="" data-title="Alle Studiengänge (Gesamtkatalog)" onmouseenter="setHighlightedComboboxOption(this);" onclick="selectStudyProgram('', 'Alle Studiengänge (Gesamtkatalog)');">
+                  <span>Alle Studiengänge (Gesamtkatalog)</span>
+                  <span class="badge badge-id">{{.TotalModules}}</span>
+                </div>
+                {{range .Programs}}
+                  <div class="combobox-option" data-id="{{.ID}}" data-title="{{.ShortTitle}}" onmouseenter="setHighlightedComboboxOption(this);" onclick="selectStudyProgram('{{.ID}}', '{{.ShortTitle}}');">
+                    <span>{{.ShortTitle}}</span>
+                    <span class="badge badge-id">{{.Count}}</span>
+                  </div>
+                {{end}}
+              </div>
+            </div>
+          </div>
+          <small style="color: var(--text-muted); font-size: 0.75rem;">Wird dauerhaft in deinem Browser gespeichert.</small>
+        </div>
+
+        <!-- Semester Turnus -->
+        <div class="filter-group">
+          <label class="filter-label">
+            <span>Angeboten im Semester</span>
+          </label>
+          <div class="pill-selector">
+            <label class="pill-option">
+              <input type="radio" name="turnus" value="{{.DefaultTurnus}}" checked>
+              <span class="pill-label">⚡ Nächstes ({{.NextSemesterTag}})</span>
+            </label>
+            <label class="pill-option">
+              <input type="radio" name="turnus" value="all">
+              <span class="pill-label">🔄 Alle</span>
+            </label>
+            <label class="pill-option">
+              <input type="radio" name="turnus" value="wise">
+              <span class="pill-label">❄️ Nur WiSe</span>
+            </label>
+            <label class="pill-option">
+              <input type="radio" name="turnus" value="sose">
+              <span class="pill-label">☀️ Nur SoSe</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Minimale ECTS Range Slider -->
+        <div class="filter-group">
+          <label class="filter-label">
+            <span>Minimale ECTS</span>
+            <span id="credits-val-badge" class="slider-val-badge">0 ECTS (Alle)</span>
+          </label>
+          <div class="slider-container">
+            <input 
+              type="range" 
+              id="filter-min-credits" 
+              name="min_credits" 
+              min="0" 
+              max="30" 
+              step="1" 
+              value="0" 
+              class="range-input" 
+              oninput="updateCreditsLabel(this.value);" 
+              onchange="refreshModules();"
+            >
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted);">
+              <span>0</span>
+              <span>6</span>
+              <span>12</span>
+              <span>18</span>
+              <span>24</span>
+              <span>30</span>
+            </div>
+          </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border);">
+
+        <!-- Smart Toggles -->
+        <div class="filter-group">
+          <label class="filter-label">Smarte Kriterien</label>
+          
+          <label class="toggle-item">
+            <span>Voraussetzungen erfüllt</span>
+            <div class="switch">
+              <input type="checkbox" name="only_prereqs_met" id="filter-prereqs" value="true">
+              <span class="slider"></span>
+            </div>
+          </label>
+
+          <label class="toggle-item">
+            <span>Nur FÜS (fachfremd)</span>
+            <div class="switch">
+              <input type="checkbox" name="only_fues" id="filter-fues" value="true">
+              <span class="slider"></span>
+            </div>
+          </label>
+
+          <label class="toggle-item">
+            <span>Auslaufmodule ausblenden</span>
+            <div class="switch">
+              <input type="checkbox" name="hide_phase_out" id="filter-hide-phaseout" value="true" checked>
+              <span class="slider"></span>
+            </div>
+          </label>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border);">
+
+        <div class="filter-group">
+          <label class="filter-label" for="filter-language">Unterrichtssprache</label>
+          <select name="language" id="filter-language" class="select-input">
+            <option value="all">Alle Sprachen</option>
+            <option value="Deutsch">Nur Deutsch</option>
+            <option value="Englisch">Nur Englisch</option>
+          </select>
+        </div>
+
+        <!-- Reset Button -->
+        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+          <button type="button" class="btn-icon-text" style="flex: 1; justify-content: center;" onclick="localStorage.clear(); window.location.reload();">
+            🗑 Filter zurücksetzen
+          </button>
+        </div>
+      </form>
+    </div>
+  </aside>
+
+  <!-- Mobile Drawer Backdrop Overlay -->
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar();"></div>
+
+  <!-- Main Area: Header starts right of the sidebar, content follows below -->
+  <div class="main-wrapper">
+    
+    <!-- Top Navbar (starts right of the docked sidebar) -->
+    <header class="navbar">
+      <div class="navbar-left">
+        <!-- Mobile Sidebar Drawer Toggle Button -->
+        <button type="button" class="btn-sidebar-toggle" onclick="toggleSidebar();" aria-label="Filter öffnen" title="Filter öffnen">
+          <span class="toggle-icon">☰</span>
+          <span class="toggle-label">Filter</span>
+        </button>
+
+        <!-- Compact Brand Icon for mobile when sidebar is tucked away -->
+        <a href="/" class="mobile-brand">
+          <span class="brand-badge">BTU</span>
+          <span class="brand-mobile-title">Modulkatalog</span>
+        </a>
+      </div>
+
+      <!-- Live Search with Autocomplete Dropdown - Updates on Enter -->
+      <div class="nav-search">
+        <span class="search-icon">🔍</span>
+        <input 
+          type="search" 
+          name="q" 
+          id="search-input" 
+          class="search-input" 
+          placeholder="Modulname, Modulnummer (z. B. 11101), Dozent oder Stichwort..." 
+          autocomplete="off"
+        >
+        <div id="search-suggestions" class="search-suggestions-dropdown"></div>
+      </div>
+
+      <div class="nav-actions">
+        <button type="button" class="btn-icon-text" id="nav-btn-bookmarks" onclick="showBookmarksView();" title="Alle gemerkten Module anzeigen">
+          <span>⭐ <span class="nav-action-label">Gemerkt</span></span>
+          <span class="badge-count" id="bookmarked-count">0</span>
+        </button>
+
+        <button type="button" class="btn-icon-text" id="nav-btn-completed" onclick="showCompletedView();" title="Alle bestandenen Module anzeigen">
+          <span>✓ <span class="nav-action-label">Bestanden</span></span>
+          <span class="badge-count" id="completed-count">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <div id="modules-view">
+        <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+          Module werden geladen...
+        </div>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<!-- Modal Target Container -->
+<div id="modal-container"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
