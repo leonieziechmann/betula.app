@@ -17,6 +17,7 @@ import (
 
 	"github.com/jakob/btu-scraper/internal/analytics"
 	"github.com/jakob/btu-scraper/internal/cache"
+	"github.com/jakob/btu-scraper/internal/config"
 	"github.com/jakob/btu-scraper/internal/logger"
 	"github.com/jakob/btu-scraper/internal/model"
 	"github.com/jakob/btu-scraper/internal/provider"
@@ -900,21 +901,55 @@ func runProgramModules(ctx context.Context, args []string) {
 }
 
 func runServe(ctx context.Context, args []string) {
-	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	dbPath := fs.String("db", "btu_modules.db", "SQLite database path")
-	analyticsDB := fs.String("analytics-db", "btu_analytics.db", "Analytics SQLite database path")
-	logFile := fs.String("log-file", "btu_scraper.log", "Log file path")
-	port := fs.String("port", "8080", "HTTP port to listen on (default 8080)")
-	autoRefresh := fs.Bool("auto-refresh", true, "Enable background polite scheduled data refreshing")
-	offpeakStart := fs.Int("offpeak-start", 1, "Off-peak scraping window start hour (24h)")
-	offpeakEnd := fs.Int("offpeak-end", 6, "Off-peak scraping window end hour (24h)")
-	_ = fs.Parse(reorderFlags(args))
+	// 1. Detect if a custom --config was specified in args
+	configArg := ""
+	for i, a := range args {
+		if (a == "--config" || a == "-config") && i+1 < len(args) {
+			configArg = args[i+1]
+		} else if strings.HasPrefix(a, "--config=") || strings.HasPrefix(a, "-config=") {
+			parts := strings.SplitN(a, "=", 2)
+			if len(parts) == 2 {
+				configArg = parts[1]
+			}
+		}
+	}
 
-	// 1. Initialize logger
+	// 2. Load configuration: Config file > Environment variables > Defaults
+	cfg, cfgPath, err := config.Load(configArg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load config (%s): %v. Using defaults.\n", configArg, err)
+	} else if cfgPath != "" {
+		fmt.Printf("[+] Configuration loaded from: %s\n", cfgPath)
+	}
+
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	configFlag := fs.String("config", configArg, "Configuration file path (YAML or JSON)")
+	dbPath := fs.String("db", cfg.Storage.DBPath, "SQLite database path")
+	analyticsDB := fs.String("analytics-db", cfg.Storage.AnalyticsDBPath, "Analytics SQLite database path")
+	cacheDir := fs.String("cache-dir", cfg.Storage.CacheDir, "Cache directory")
+	logFile := fs.String("log-file", cfg.Logging.LogFile, "Log file path")
+	port := fs.String("port", cfg.Server.Port, "HTTP port to listen on (default 8080)")
+	autoRefresh := fs.Bool("auto-refresh", cfg.Refresher.AutoRefresh, "Enable background polite scheduled data refreshing")
+	offpeakStart := fs.Int("offpeak-start", cfg.Refresher.OffPeakStartHour, "Off-peak scraping window start hour (24h)")
+	offpeakEnd := fs.Int("offpeak-end", cfg.Refresher.OffPeakEndHour, "Off-peak scraping window end hour (24h)")
+	_ = fs.Parse(reorderFlags(args))
+	_ = configFlag
+
+	// 3. Initialize logger
+	minLvl := logger.LevelInfo
+	switch strings.ToUpper(cfg.Logging.MinLevel) {
+	case "DEBUG":
+		minLvl = logger.LevelDebug
+	case "WARN":
+		minLvl = logger.LevelWarn
+	case "ERROR":
+		minLvl = logger.LevelError
+	}
+
 	sysLog, err := logger.NewLogger(logger.Options{
-		MinLevel:   logger.LevelInfo,
+		MinLevel:   minLvl,
 		FilePath:   *logFile,
-		BufferSize: 300,
+		BufferSize: cfg.Logging.BufferSize,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to initialize log file (%s): %v\n", *logFile, err)
@@ -922,11 +957,11 @@ func runServe(ctx context.Context, args []string) {
 	}
 	defer sysLog.Close()
 
-	// 2. Initialize app and main SQLite storage
-	store, _, reg := setupApp(*dbPath, ".cache")
+	// 4. Initialize app and main SQLite storage
+	store, _, reg := setupApp(*dbPath, *cacheDir)
 	defer store.Close()
 
-	// 3. Initialize separate anonymous analytics DB (GDPR-compliant)
+	// 5. Initialize separate anonymous analytics DB (GDPR-compliant)
 	tracker, err := analytics.NewTracker(*analyticsDB)
 	if err != nil {
 		sysLog.Warn("ANALYTICS", "Failed to initialize analytics DB (%s): %v", *analyticsDB, err)
@@ -949,17 +984,21 @@ func runServe(ctx context.Context, args []string) {
 		detProv = p.(*provider.BTUModuleDetailProvider)
 	}
 
-	// 4. Initialize polite refresher service
+	// 6. Initialize polite refresher service worker (active by default)
 	var ref *refresher.Refresher
 	if *autoRefresh {
 		refCfg := refresher.DefaultConfig()
 		refCfg.OffPeakStartHour = *offpeakStart
 		refCfg.OffPeakEndHour = *offpeakEnd
+		refCfg.ModuleDetailDelay = cfg.Refresher.ModuleDelayDuration()
+		refCfg.QISDelay = cfg.Refresher.QISDelayDuration()
+		refCfg.CatalogInterval = cfg.Refresher.CatalogIntervalDuration()
+
 		ref = refresher.NewRefresher(refCfg, store, catProv, detProv, eventProv, sysLog)
 		go ref.Start(ctx)
 	}
 
-	// 5. Initialize web server
+	// 7. Initialize web server
 	srv, err := web.NewServer(
 		store,
 		eventProv,
@@ -1148,7 +1187,7 @@ func reorderFlags(args []string) []string {
 			if !strings.Contains(arg, "=") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				flagName := strings.TrimLeft(arg, "-")
 				switch flagName {
-				case "db", "cache-dir", "search", "dept", "min-credits", "max-credits", "limit", "offset", "workers", "delay", "name", "degree", "port", "analytics-db", "log-file", "offpeak-start", "offpeak-end":
+				case "db", "cache-dir", "config", "search", "dept", "min-credits", "max-credits", "limit", "offset", "workers", "delay", "name", "degree", "port", "analytics-db", "log-file", "offpeak-start", "offpeak-end":
 					i++
 					flags = append(flags, args[i])
 				}

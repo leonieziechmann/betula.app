@@ -1,0 +1,47 @@
+# BTU Smart Modulkatalog & Scraper Konfiguration
+# Hierarchie: Konfigurationsdatei > Umgebungsvariablen (Env) > Standardwerte (Defaults)
+
+server:
+  # HTTP Port des Webservers
+  port: "8080"
+
+storage:
+  # SQLite Datenbank für Modul- und Studiengangsdaten
+  db_path: "btu_modules.db"
+
+  # SQLite Datenbank für rein anonyme DSGVO-konforme Telemetrie (strikt getrennt von Moduldaten)
+  analytics_db_path: "btu_analytics.db"
+
+  # Lokales Cache-Verzeichnis für HTML-Downloads
+  cache_dir: ".cache"
+
+refresher:
+  # Automatische Hintergrund-Aktualisierung (Service Worker) bei 'scraper serve'
+  # true = Worker laufen automatisch im Hintergrund (Standard)
+  # false = keine Hintergrundaktualisierungen
+  auto_refresh: true
+
+  # Zeitfenster für schonendes Rescraping in verkehrsarmen Zeiten (24-Stunden-Format)
+  # Standard: 01:00 bis 06:00 Uhr nachts
+  offpeak_start_hour: 1
+  offpeak_end_hour: 6
+
+  # Höfliche Verzögerungen (Polite Crawling) mit automatischer ±30% Zufallsstreuung (Jitter)
+  # Verzögerung zwischen Moduldetail-Seiten (b-tu.de/modul/<id>) in Millisekunden
+  module_delay_ms: 1500
+
+  # Sehr schonende Verzögerung für empfindliche QIS-Seiten (Veranstaltungen/FÜS) in Millisekunden
+  qis_delay_ms: 4500
+
+  # Intervall in Stunden, nach dem der Gesamtkatalog auf neu hinzugefügte Module geprüft wird
+  catalog_interval_hours: 12
+
+logging:
+  # Zieldatei für das strukturierte System- und Scraper-Log
+  log_file: "btu_scraper.log"
+
+  # Minimales Log-Level: DEBUG, INFO, WARN, ERROR
+  min_level: "INFO"
+
+  # Größe des Ringspeichers für Live-Logs im Web-Dashboard (/stats)
+  buffer_size: 300
