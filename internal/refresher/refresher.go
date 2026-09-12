@@ -42,18 +42,30 @@ func DefaultConfig() Config {
 	}
 }
 
+// EventScrapeJob represents an item in the QIS event scraping queue.
+type EventScrapeJob struct {
+	EventID  string `json:"event_id"`
+	PageURL  string `json:"page_url"`
+	ModuleID string `json:"module_id"`
+	Title    string `json:"title"`
+}
+
 // Status represents the current state of the refresher service.
 type Status struct {
-	State              string    `json:"state"` // "idle", "off_peak_refresh", "catalog_scan", "backing_off"
-	IsOffPeak          bool      `json:"is_off_peak"`
-	PriorityQueueLen   int       `json:"priority_queue_len"`
-	StandardQueueLen   int       `json:"standard_queue_len"`
-	TotalDiscovered    uint64    `json:"total_discovered"`
-	TotalRefreshed     uint64    `json:"total_refreshed"`
-	TotalErrors        uint64    `json:"total_errors"`
-	LastCatalogScan    time.Time `json:"last_catalog_scan"`
-	LastRefresh        time.Time `json:"last_refresh"`
-	BackoffUntil       time.Time `json:"backoff_until,omitempty"`
+	State              string                 `json:"state"` // "idle", "off_peak_refresh", "qis_event_scrape", "catalog_scan", "backing_off"
+	ActiveJob          string                 `json:"active_job"`
+	IsOffPeak          bool                   `json:"is_off_peak"`
+	PriorityQueueLen   int                    `json:"priority_queue_len"`
+	EventQueueLen      int                    `json:"event_queue_len"`
+	StandardQueueLen   int                    `json:"standard_queue_len"`
+	TotalDiscovered    uint64                 `json:"total_discovered"`
+	TotalRefreshed     uint64                 `json:"total_refreshed"`
+	TotalEventsScraped uint64                 `json:"total_events_scraped"`
+	TotalErrors        uint64                 `json:"total_errors"`
+	LastCatalogScan    time.Time              `json:"last_catalog_scan"`
+	LastRefresh        time.Time              `json:"last_refresh"`
+	BackoffUntil       time.Time              `json:"backoff_until,omitempty"`
+	Freshness          storage.FreshnessStats `json:"freshness"`
 }
 
 // Refresher coordinates hierarchical, polite, off-peak scheduled rescraping.
@@ -64,19 +76,24 @@ type Refresher struct {
 	detProvider  *provider.BTUModuleDetailProvider
 	evtProvider  *provider.BTUEventProvider
 	log          *logger.Logger
-	priorityChan chan string // Module IDs with urgent / cache-miss priority
+	priorityChan chan string         // Module IDs with urgent / cache-miss priority
+	eventQueue   chan EventScrapeJob // QIS events queue for sequential gentle crawl
 	wakeChan     chan struct{}
 
-	mu               sync.RWMutex
-	state            string
-	backoffUntil     time.Time
-	lastCatalogScan  time.Time
-	lastRefresh      time.Time
-	totalDiscovered  uint64
-	totalRefreshed   uint64
-	totalErrors      uint64
-	queuedPriority   map[string]bool
-	queuedPriorityMu sync.Mutex
+	mu                 sync.RWMutex
+	state              string
+	activeJob          string
+	backoffUntil       time.Time
+	lastCatalogScan    time.Time
+	lastRefresh        time.Time
+	totalDiscovered    uint64
+	totalRefreshed     uint64
+	totalEventsScraped uint64
+	totalErrors        uint64
+	queuedPriority     map[string]bool
+	queuedPriorityMu   sync.Mutex
+	queuedEvents       map[string]bool
+	queuedEventsMu     sync.Mutex
 }
 
 // NewRefresher creates a new refresher service.
@@ -100,9 +117,11 @@ func NewRefresher(
 		evtProvider:    evtProvider,
 		log:            log,
 		priorityChan:   make(chan string, 1000),
+		eventQueue:     make(chan EventScrapeJob, 10000),
 		wakeChan:       make(chan struct{}, 1),
 		state:          "idle",
 		queuedPriority: make(map[string]bool),
+		queuedEvents:   make(map[string]bool),
 	}
 }
 
@@ -139,6 +158,62 @@ func (r *Refresher) EnqueueCacheMiss(moduleID string) {
 	}
 }
 
+// EnqueueEvent adds a QIS event to the event scraping queue.
+func (r *Refresher) EnqueueEvent(job EventScrapeJob) {
+	if job.EventID == "" && job.PageURL == "" {
+		return
+	}
+	key := job.EventID
+	if key == "" {
+		key = job.PageURL
+	}
+
+	r.queuedEventsMu.Lock()
+	if r.queuedEvents[key] {
+		r.queuedEventsMu.Unlock()
+		return
+	}
+	r.queuedEvents[key] = true
+	r.queuedEventsMu.Unlock()
+
+	select {
+	case r.eventQueue <- job:
+		r.log.Debug("REFRESHER", "Enqueued QIS event scrape job: %s (%s)", job.EventID, job.Title)
+		r.wake()
+	default:
+		r.log.Warn("REFRESHER", "Event queue full, dropped event %s", job.EventID)
+	}
+}
+
+// SyncDiscoveredEvents scans all modules in SQLite for discovered QIS events and queues those not yet scraped.
+func (r *Refresher) SyncDiscoveredEvents(ctx context.Context) {
+	if r.store == nil {
+		return
+	}
+
+	discovered, err := r.store.GetDiscoveredEventRefs()
+	if err != nil {
+		r.log.Warn("REFRESHER", "Failed to retrieve discovered events from storage: %v", err)
+		return
+	}
+
+	enqueued := 0
+	for _, d := range discovered {
+		if !d.IsScraped {
+			r.EnqueueEvent(EventScrapeJob{
+				EventID:  d.EventID,
+				PageURL:  d.URL,
+				ModuleID: d.ModuleID,
+				Title:    d.Title,
+			})
+			enqueued++
+		}
+	}
+
+	r.log.Info("REFRESHER", "Discovered %d total events referenced across modules (%d unscraped queued for gentle QIS crawl)",
+		len(discovered), enqueued)
+}
+
 func (r *Refresher) wake() {
 	select {
 	case r.wakeChan <- struct{}{}:
@@ -162,7 +237,21 @@ func (r *Refresher) FetchModuleNow(ctx context.Context, moduleID string) (*model
 	r.recordSuccess()
 	atomic.AddUint64(&r.totalRefreshed, 1)
 
-	return r.store.GetModule(moduleID)
+	detail, err := r.store.GetModule(moduleID)
+	if err == nil && detail != nil {
+		// Automatically enqueue any newly discovered events
+		for _, me := range detail.CurrentSemesterEvents {
+			eid := provider.ExtractIDFromURL(me.URL)
+			r.EnqueueEvent(EventScrapeJob{
+				EventID:  eid,
+				PageURL:  me.URL,
+				ModuleID: moduleID,
+				Title:    me.Title,
+			})
+		}
+	}
+
+	return detail, err
 }
 
 // Start runs the background scheduling loop until context is canceled.
@@ -173,13 +262,15 @@ func (r *Refresher) Start(ctx context.Context) {
 	catalogTicker := time.NewTicker(r.config.CatalogInterval)
 	defer catalogTicker.Stop()
 
-	// Initial catalog discovery check in background
+	// 1. Initial discovery pass in background
 	go func() {
+		time.Sleep(2 * time.Second)
+		r.SyncDiscoveredEvents(ctx)
 		time.Sleep(3 * time.Second)
 		r.runCatalogDiscovery(ctx)
 	}()
 
-	workerTicker := time.NewTicker(30 * time.Second)
+	workerTicker := time.NewTicker(15 * time.Second)
 	defer workerTicker.Stop()
 
 	for {
@@ -195,6 +286,17 @@ func (r *Refresher) Start(ctx context.Context) {
 			r.queuedPriorityMu.Unlock()
 
 			r.processPriorityModule(ctx, modID)
+
+		case evtJob := <-r.eventQueue:
+			r.queuedEventsMu.Lock()
+			k := evtJob.EventID
+			if k == "" {
+				k = evtJob.PageURL
+			}
+			delete(r.queuedEvents, k)
+			r.queuedEventsMu.Unlock()
+
+			r.processEventJob(ctx, evtJob)
 
 		case <-catalogTicker.C:
 			r.runCatalogDiscovery(ctx)
@@ -213,14 +315,19 @@ func (r *Refresher) checkAndRunScheduled(ctx context.Context) {
 		return
 	}
 
-	// If background refresh is off-peak only, verify current time
+	// Priority queue or event queue takes precedence
+	if len(r.priorityChan) > 0 || len(r.eventQueue) > 0 {
+		return
+	}
+
+	// If background module refresh is off-peak only, verify current time
 	if r.config.OffPeakOnlyBackground && !r.IsOffPeak() {
 		r.setState("idle (daytime standby)")
 		return
 	}
 
 	r.setState("off_peak_refresh")
-	r.runSlowModuleBatch(ctx, 10)
+	r.runSlowModuleBatch(ctx, 5)
 }
 
 // runCatalogDiscovery scans b-tu.de/modul to discover newly added modules and enqueues them.
@@ -271,6 +378,7 @@ func (r *Refresher) processPriorityModule(ctx context.Context, moduleID string) 
 		return
 	}
 
+	r.setActiveJob(fmt.Sprintf("Modul %s (High-Prio)", moduleID))
 	r.setState("priority_refresh")
 	r.log.Info("REFRESHER", "Processing priority module scrape: %s", moduleID)
 
@@ -283,10 +391,57 @@ func (r *Refresher) processPriorityModule(ctx context.Context, moduleID string) 
 		r.mu.Lock()
 		r.lastRefresh = time.Now()
 		r.mu.Unlock()
+
+		// Automatically discover and enqueue any linked QIS semester events
+		if detail, err := r.store.GetModule(moduleID); err == nil && detail != nil {
+			for _, me := range detail.CurrentSemesterEvents {
+				eid := provider.ExtractIDFromURL(me.URL)
+				r.EnqueueEvent(EventScrapeJob{
+					EventID:  eid,
+					PageURL:  me.URL,
+					ModuleID: moduleID,
+					Title:    me.Title,
+				})
+			}
+		}
 	}
 
 	// Polite jitter delay even on priority jobs
 	r.sleepWithJitter(ctx, r.config.ModuleDetailDelay)
+	r.setActiveJob("")
+	r.setState("idle")
+}
+
+func (r *Refresher) processEventJob(ctx context.Context, job EventScrapeJob) {
+	if r.evtProvider == nil || r.isBackingOff() {
+		return
+	}
+
+	desc := job.Title
+	if desc == "" {
+		desc = job.EventID
+	}
+	r.setActiveJob(fmt.Sprintf("QIS Event %s: %s", job.EventID, desc))
+	r.setState("qis_event_scrape")
+	r.log.Info("REFRESHER", "Gently scraping QIS event %s (%s)...", job.EventID, desc)
+
+	eventDetail, err := r.evtProvider.ScrapeEvent(ctx, job.EventID, job.PageURL, false)
+	if err != nil {
+		r.recordError("QIS_EVENT", job.EventID, err)
+	} else {
+		r.recordSuccess()
+		atomic.AddUint64(&r.totalEventsScraped, 1)
+		if job.ModuleID != "" && eventDetail != nil {
+			_ = r.store.LinkModuleEvent(job.ModuleID, eventDetail.ID)
+		}
+		r.mu.Lock()
+		r.lastRefresh = time.Now()
+		r.mu.Unlock()
+	}
+
+	// Strictly gentle delay for fragile QIS portal
+	r.sleepWithJitter(ctx, r.config.QISDelay)
+	r.setActiveJob("")
 	r.setState("idle")
 }
 
@@ -339,6 +494,7 @@ func (r *Refresher) runSlowModuleBatch(ctx context.Context, batchSize int) {
 		default:
 		}
 
+		r.setActiveJob(fmt.Sprintf("Modul %s (Slow Refresh)", id))
 		err := r.detProvider.ScrapeModule(ctx, id, true)
 		if err != nil {
 			r.recordError("MODULE_DETAIL", id, err)
@@ -348,11 +504,26 @@ func (r *Refresher) runSlowModuleBatch(ctx context.Context, batchSize int) {
 			r.mu.Lock()
 			r.lastRefresh = time.Now()
 			r.mu.Unlock()
+
+			// Enqueue any discovered events on this module
+			if detail, err := r.store.GetModule(id); err == nil && detail != nil {
+				for _, me := range detail.CurrentSemesterEvents {
+					eid := provider.ExtractIDFromURL(me.URL)
+					r.EnqueueEvent(EventScrapeJob{
+						EventID:  eid,
+						PageURL:  me.URL,
+						ModuleID: id,
+						Title:    me.Title,
+					})
+				}
+			}
 		}
 
 		// Strictly polite jittered sleep
 		r.sleepWithJitter(ctx, r.config.ModuleDetailDelay)
 	}
+
+	r.setActiveJob("")
 }
 
 func (r *Refresher) sleepWithJitter(ctx context.Context, baseDelay time.Duration) {
@@ -411,26 +582,45 @@ func (r *Refresher) setState(s string) {
 	r.state = s
 }
 
-// GetStatus returns the current live state of the refresher service.
+func (r *Refresher) setActiveJob(job string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.activeJob = job
+}
+
+// GetStatus returns the current live state of the refresher service including data freshness stats.
 func (r *Refresher) GetStatus() Status {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	state := r.state
+	active := r.activeJob
+	lastCat := r.lastCatalogScan
+	lastRef := r.lastRefresh
+	backoff := r.backoffUntil
+	r.mu.RUnlock()
+
+	var fresh storage.FreshnessStats
+	if r.store != nil {
+		fresh, _ = r.store.GetFreshnessStats()
+	}
 
 	return Status{
-		State:            r.state,
-		IsOffPeak:        r.IsOffPeak(),
-		PriorityQueueLen: len(r.priorityChan),
-		TotalDiscovered:  atomic.LoadUint64(&r.totalDiscovered),
-		TotalRefreshed:   atomic.LoadUint64(&r.totalRefreshed),
-		TotalErrors:      atomic.LoadUint64(&r.totalErrors),
-		LastCatalogScan:  r.lastCatalogScan,
-		LastRefresh:      r.lastRefresh,
-		BackoffUntil:     r.backoffUntil,
+		State:              state,
+		ActiveJob:          active,
+		IsOffPeak:          r.IsOffPeak(),
+		PriorityQueueLen:   len(r.priorityChan),
+		EventQueueLen:      len(r.eventQueue),
+		TotalDiscovered:    atomic.LoadUint64(&r.totalDiscovered),
+		TotalRefreshed:     atomic.LoadUint64(&r.totalRefreshed),
+		TotalEventsScraped: atomic.LoadUint64(&r.totalEventsScraped),
+		TotalErrors:        atomic.LoadUint64(&r.totalErrors),
+		LastCatalogScan:    lastCat,
+		LastRefresh:        lastRef,
+		BackoffUntil:       backoff,
+		Freshness:          fresh,
 	}
 }
 
 func isRateLimitOrServerDown(err string) bool {
-	// Checks for 429 Too Many Requests, 503 Service Unavailable, 502, connection refused
 	return len(err) > 0 && (contains(err, "429") || contains(err, "503") || contains(err, "502") || contains(err, "connection refused") || contains(err, "timeout"))
 }
 

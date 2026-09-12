@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>System & Telemetrie - BTU Smart Modulkatalog</title>
+  <title>System, Telemetrie &amp; Datenquellen - BTU Smart Modulkatalog</title>
   <link rel="stylesheet" href="/static/app.css">
   <style>
     .stats-container {
-      max-width: 1200px;
+      max-width: 1240px;
       margin: 0 auto;
       padding: 2rem 1.5rem;
     }
@@ -65,11 +65,13 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-sm);
     }
     .section-card h2 {
-      font-size: 1.15rem;
+      font-size: 1.25rem;
       margin-top: 0;
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -105,40 +107,104 @@
     .log-entry-ERROR { color: #f87171; font-weight: bold; }
     .log-entry-INFO { color: #93c5fd; }
     .log-entry-DEBUG { color: #94a3b8; }
-    .badge-status-ok { background: #10b981; color: white; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
-    .badge-status-warn { background: #f59e0b; color: white; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
-    .badge-status-alert { background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
-    .badge-offpeak { background: #6366f1; color: white; padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; }
-    .chart-bar-container {
+    .badge-status-ok { background: #10b981; color: white; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-status-warn { background: #f59e0b; color: white; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-status-alert { background: #ef4444; color: white; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-offpeak { background: #6366f1; color: white; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; }
+
+    /* Progress Meters */
+    .progress-bar-wrap {
+      background: #e2e8f0;
+      border-radius: 8px;
+      height: 16px;
+      overflow: hidden;
       display: flex;
-      align-items: flex-end;
-      gap: 0.5rem;
-      height: 120px;
-      padding-top: 1rem;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 1rem;
+      margin: 0.75rem 0;
     }
-    .chart-bar-wrap {
-      flex: 1;
+    .progress-seg {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .seg-green { background: #10b981; }
+    .seg-yellow { background: #f59e0b; }
+    .seg-orange { background: #f97316; }
+    .seg-gray { background: #cbd5e1; }
+    .legend-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* Queue & Data Sources Cards */
+    .queue-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .queue-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
+    }
+    .queue-card-header {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      height: 100%;
-      justify-content: flex-end;
+      margin-bottom: 0.75rem;
     }
-    .chart-bar {
-      width: 100%;
-      background: var(--primary, #005596);
-      border-radius: 3px 3px 0 0;
-      min-height: 4px;
-      transition: height 0.3s ease;
+    .source-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.25rem;
     }
-    .chart-bar-label {
-      font-size: 0.65rem;
-      color: var(--text-muted);
-      margin-top: 0.35rem;
-      transform: rotate(-35deg);
-      white-space: nowrap;
+    .source-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+    }
+    .source-card-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .pulsing-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse 1.6s infinite;
+      margin-right: 0.35rem;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
   </style>
 </head>
@@ -148,10 +214,10 @@
     <div class="stats-header">
       <div>
         <h1 style="margin: 0; font-size: 1.75rem; display: flex; align-items: center; gap: 0.5rem;">
-          📊 <span>System & Telemetrie Dashboard</span>
+          📊 <span>System &amp; Telemetrie Dashboard</span>
         </h1>
         <p style="margin: 0.35rem 0 0 0; color: var(--text-muted); font-size: 0.85rem;">
-          Echtzeit-Statistiken, anonyme Aufrufe (DSGVO-konform) &amp; Scraper-Systemzustand
+          Echtzeit-Statistiken, anonyme Aufrufe (DSGVO-konform) &amp; Datenquellen-Pipeline
         </p>
       </div>
       <div>
@@ -163,10 +229,215 @@
 
     <!-- GDPR Note -->
     <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 2rem; font-size: 0.85rem; color: #1e40af;">
-      🔒 <strong>Datenschutz &amp; DSGVO konform:</strong> Es werden keinerlei IP-Adressen, Cookies, Fingerprints oder personenbezogene Daten gespeichert. Alle Statistiken beruhen auf rein anonymen Zählern in einer isolierten Datenbank (<code>btu_analytics.db</code>).
+      🔒 <strong>Datenschutz &amp; DSGVO konform:</strong> Es werden keinerlei IP-Adressen, Cookies, Fingerprints oder personenbezogene Daten gespeichert. Alle Telemetriedaten werden in einer strikt isolierten Datenbank (<code>btu_analytics.db</code>) aggregiert.
     </div>
 
-    <!-- Metric Grid -->
+    <!-- ========================================================= -->
+    <!-- NEUE SECTION: DATENQUELLEN & SCRAPING-PIPELINE             -->
+    <!-- ========================================================= -->
+    <div class="section-card" style="border-left: 5px solid var(--primary, #005596);">
+      <h2>
+        <span>🌐 Datenquellen &amp; Scraping-Pipeline (Data Sources)</span>
+        <span style="font-size: 0.8rem; font-weight: normal;">
+          {{if .Refresher.ActiveJob}}
+            <span class="pulsing-dot"></span>
+            <strong>Aktiv:</strong> {{.Refresher.ActiveJob}}
+          {{else}}
+            <span style="color: var(--text-muted);">💤 Worker bereit</span>
+          {{end}}
+        </span>
+      </h2>
+
+      <!-- Live Queue State -->
+      <div class="queue-grid">
+        <!-- High Priority Queue -->
+        <div class="queue-card" style="border-top: 3px solid #ef4444;">
+          <div>
+            <div class="queue-card-header">
+              <span style="font-weight: 700; color: #b91c1c;">⚡ High-Priority Queue</span>
+              {{if gt .Refresher.PriorityQueueLen 0}}
+                <span class="badge-status-alert">{{.Refresher.PriorityQueueLen}} wartend</span>
+              {{else}}
+                <span class="badge-status-ok">0 (Leer)</span>
+              {{end}}
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.5rem 0;">
+              Cache-Misses &amp; sofortige Nutzerabfragen. Werden mit höchster Priorität abgearbeitet.
+            </p>
+          </div>
+          <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">
+            {{if gt .Refresher.PriorityQueueLen 0}}
+              Status: {{.Refresher.PriorityQueueLen}} Module in Bearbeitung
+            {{else}}
+              Status: Bereit für Cache-Misses
+            {{end}}
+          </div>
+        </div>
+
+        <!-- QIS Event Queue -->
+        <div class="queue-card" style="border-top: 3px solid #f97316;">
+          <div>
+            <div class="queue-card-header">
+              <span style="font-weight: 700; color: #c2410c;">🐢 QIS Vorlesungs-Queue</span>
+              {{if gt .Refresher.EventQueueLen 0}}
+                <span class="badge-status-warn">{{.Refresher.EventQueueLen}} in Warteschlange</span>
+              {{else}}
+                <span class="badge-status-ok">Alle erfasst</span>
+              {{end}}
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.5rem 0;">
+              Automatisch aus Modulen entdeckte QIS-Termine. Einzel-Worker, 4.5s Taktung.
+            </p>
+          </div>
+          <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">
+            Bereits lokal erfasst: {{.Refresher.Freshness.EventsScraped}} / {{.Refresher.Freshness.EventsTotalDiscovered}} Termine
+          </div>
+        </div>
+
+        <!-- Catalog Auto-Sync -->
+        <div class="queue-card" style="border-top: 3px solid #3b82f6;">
+          <div>
+            <div class="queue-card-header">
+              <span style="font-weight: 700; color: #1d4ed8;">🔄 Katalog-Entdeckung</span>
+              <span class="badge-status-ok">Aktiv (12h Takt)</span>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.5rem 0;">
+              Prüft b-tu.de/modul auf neue oder ausgelaufene Module.
+            </p>
+          </div>
+          <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">
+            Letzter Scan: {{if .Refresher.LastCatalogScan.IsZero}}Initial{{else}}{{.Refresher.LastCatalogScan.Format "15:04:05"}}{{end}}
+          </div>
+        </div>
+      </div>
+
+      <!-- Freshness Visualizers (Progress Bars) -->
+      <div style="margin-top: 1.5rem;">
+        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">📊 Datenfrische &amp; Aktualitätsstand</h3>
+
+        <!-- Modules Freshness -->
+        <div style="background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600;">
+            <span>Modulbeschreibungen (b-tu.de/modul)</span>
+            <span>{{.Refresher.Freshness.ModulesTotal}} Module erfasst</span>
+          </div>
+
+          <!-- Multi-Segment Bar -->
+          <div class="progress-bar-wrap">
+            <div class="progress-seg seg-green" style="width: {{.Refresher.Freshness.ModulesFreshPct}}%;" title="Frisch (< 7 Tage): {{.Refresher.Freshness.ModulesFresh}}"></div>
+            <div class="progress-seg seg-yellow" style="width: {{sub 100 .Refresher.Freshness.ModulesFreshPct}}%;" title="Stale / Re-Scan fällig: {{.Refresher.Freshness.ModulesStale}}"></div>
+          </div>
+
+          <div class="legend-row">
+            <div class="legend-item">
+              <span class="legend-dot seg-green"></span>
+              <span>Frisch (&lt; 7 Tage): <strong>{{.Refresher.Freshness.ModulesFresh}}</strong></span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot seg-yellow"></span>
+              <span>Re-Scan fällig (&gt; 7 Tage): <strong>{{.Refresher.Freshness.ModulesStale}}</strong></span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot seg-gray"></span>
+              <span>Noch ohne Volltext: <strong>{{.Refresher.Freshness.ModulesUnscraped}}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Events Freshness -->
+        <div style="background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600;">
+            <span>QIS Semester-Veranstaltungen (qisserver3)</span>
+            <span>{{.Refresher.Freshness.EventsTotalDiscovered}} Termine entdeckt</span>
+          </div>
+
+          <!-- Multi-Segment Bar -->
+          <div class="progress-bar-wrap">
+            <div class="progress-seg seg-green" style="width: {{.Refresher.Freshness.EventsFreshPct}}%;" title="Lokal gescraped: {{.Refresher.Freshness.EventsScraped}}"></div>
+            <div class="progress-seg seg-orange" style="width: {{sub 100 .Refresher.Freshness.EventsFreshPct}}%;" title="Ausstehend in Queue: {{.Refresher.Freshness.EventsPending}}"></div>
+          </div>
+
+          <div class="legend-row">
+            <div class="legend-item">
+              <span class="legend-dot seg-green"></span>
+              <span>Lokal gesichert (Termine &amp; Räume): <strong>{{.Refresher.Freshness.EventsScraped}}</strong></span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot seg-orange"></span>
+              <span>In QIS-Warteschlange (ausstehend): <strong>{{.Refresher.Freshness.EventsPending}}</strong></span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot" style="background: #3b82f6;"></span>
+              <span>Einzeltermine / Wochenblöcke: <strong>{{.Refresher.Freshness.SchedulesTotal}}</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Source Hierarchy Breakdown -->
+      <div class="source-grid">
+        <div class="source-card">
+          <div class="source-card-title">
+            <span>b-tu.de/modul</span>
+            <span class="badge-status-ok" style="font-size: 0.7rem;">Capable (Schnell)</span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            • Typ: BTU Hauptmodulkatalog<br>
+            • Scan-Intervall: Alle 12h<br>
+            • Zweck: Discovery neuer Modul-IDs<br>
+            • Status: {{.Catalog.TotalModules}} Module
+          </div>
+        </div>
+
+        <div class="source-card">
+          <div class="source-card-title">
+            <span>b-tu.de/modul/&lt;id&gt;</span>
+            <span class="badge-status-ok" style="font-size: 0.7rem;">Höflich (1.5s)</span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            • Typ: Moduldetailseiten &amp; POs<br>
+            • Drosselung: 1.5s ± 30% Jitter<br>
+            • Cache-Miss: Auto-Fetch aktiv<br>
+            • Status: {{.Refresher.Freshness.ModulesFreshPct}}% frische Daten
+          </div>
+        </div>
+
+        <div class="source-card">
+          <div class="source-card-title">
+            <span>qisserver3 (QIS)</span>
+            <span class="badge-status-warn" style="font-size: 0.7rem;">Fragil (Schonend)</span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            • Typ: Vorlesungsverzeichnis BTU<br>
+            • Drosselung: 4.5s (Single-Worker)<br>
+            • Schutz: Auto-Backoff bei 429/503<br>
+            • Status: {{.Refresher.Freshness.EventsScraped}} / {{.Refresher.Freshness.EventsTotalDiscovered}} gesichert
+          </div>
+        </div>
+      </div>
+
+      <!-- Crawler Schedule & Activity Banner -->
+      <div style="margin-top: 1.25rem; background: #f1f5f9; border-radius: var(--radius-md); padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+        <div>
+          🌙 <strong>Off-Peak Fenster:</strong> 01:00 - 06:00 Uhr
+          <span style="margin-left: 0.75rem; color: var(--text-muted);">
+            ({{if .Refresher.IsOffPeak}}Off-Peak aktiv: Intensiv-Modus{{else}}Tagbetrieb: Schonender Standby-Modus{{end}})
+          </span>
+        </div>
+        <div>
+          {{if .Refresher.BackoffUntil.IsZero}}
+            <span class="badge-status-ok">Server-Antwort normal</span>
+          {{else}}
+            <span class="badge-status-alert">Backoff aktiv bis {{.Refresher.BackoffUntil.Format "15:04:05"}}</span>
+          {{end}}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- ÜBERSICHTS-KARTEN (HIGH LEVEL STATS)                      -->
+    <!-- ========================================================= -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Gesamte Seitenaufrufe</div>
@@ -181,63 +452,19 @@
       </div>
 
       <div class="stat-card">
-        <div class="stat-label">Module im Katalog</div>
-        <div class="stat-value">{{.Catalog.TotalModules}}</div>
+        <div class="stat-label">Studiengänge erfasst</div>
+        <div class="stat-value">{{.Catalog.TotalPrograms}}</div>
         <div class="stat-sub">{{.Catalog.FUESModules}} FÜS Module</div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-label">Studiengänge erfasst</div>
-        <div class="stat-value">{{.Catalog.TotalPrograms}}</div>
-        <div class="stat-sub">{{.Catalog.TotalEvents}} QIS Lehrveranstaltungen</div>
-      </div>
-    </div>
-
-    <!-- Scraper Health & Server Telemetry Grid -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Scraper Zustand</div>
-        <div class="stat-value" style="font-size: 1.3rem;">
-          {{if eq .Health.ConsecutiveErrors 0}}
-            <span class="badge-status-ok">Normal (OK)</span>
-          {{else if lt .Health.ConsecutiveErrors 5}}
-            <span class="badge-status-warn">{{.Health.ConsecutiveErrors}} Fehler</span>
-          {{else}}
-            <span class="badge-status-alert">Achtung: {{.Health.ConsecutiveErrors}} Fehler</span>
-          {{end}}
-        </div>
-        <div class="stat-sub">
-          Status: <code>{{.Refresher.State}}</code>
-          {{if .Refresher.IsOffPeak}}
-            <span class="badge-offpeak">Off-Peak aktiv</span>
-          {{end}}
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-label">Hintergrund-Refresher</div>
-        <div class="stat-value" style="font-size: 1.3rem;">
-          {{.Refresher.TotalRefreshed}} aktualisiert
-        </div>
-        <div class="stat-sub">
-          Prioritäts-Warteschlange: <strong>{{.Refresher.PriorityQueueLen}}</strong> Module
-        </div>
-      </div>
-
-      <div class="stat-card">
         <div class="stat-label">Server Uptime</div>
-        <div class="stat-value" style="font-size: 1.3rem;">{{.System.Uptime}}</div>
-        <div class="stat-sub">{{.System.Goroutines}} Goroutinen aktiv</div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-label">Speichernutzung</div>
-        <div class="stat-value" style="font-size: 1.3rem;">{{.System.AllocMB}} MB</div>
-        <div class="stat-sub">DB: {{.System.MainDBSize}} | Analytics: {{.System.AnalyticsDBSize}}</div>
+        <div class="stat-value">{{.System.Uptime}}</div>
+        <div class="stat-sub">RAM: {{.System.AllocMB}} MB ({{.System.Goroutines}} Goroutinen)</div>
       </div>
     </div>
 
-    <!-- Two-Column Breakdown -->
+    <!-- Two-Column Breakdown (Module Clicks & Program Selections) -->
     <div class="stats-columns">
       <!-- Most Clicked Modules -->
       <div class="section-card">

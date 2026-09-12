@@ -178,3 +178,8 @@ func extractIDFromURL(rawURL string) string {
 	}
 	return u.Query().Get("veranstid")
 }
+
+// ExtractIDFromURL extracts the veranstid parameter from a QIS event URL.
+func ExtractIDFromURL(rawURL string) string {
+	return extractIDFromURL(rawURL)
+}

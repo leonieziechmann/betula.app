@@ -876,9 +876,11 @@ func (s *Server) collectStatsData() StatsViewData {
 		data.Logs = s.logger.GetRecentLogs(100, logger.LevelDebug)
 	}
 
-	// 4. Refresher status
+	// 4. Refresher status & Data Freshness
 	if s.refresher != nil {
 		data.Refresher = s.refresher.GetStatus()
+	} else if s.store != nil {
+		data.Refresher.Freshness, _ = s.store.GetFreshnessStats()
 	}
 
 	// 5. System metrics

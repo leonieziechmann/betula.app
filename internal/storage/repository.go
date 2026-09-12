@@ -1517,3 +1517,167 @@ func (s *Storage) GetProgramTotalModules(programID string) (int, error) {
 	return total, err
 }
 
+// FreshnessStats aggregates data freshness and queue discovery information.
+type FreshnessStats struct {
+	ModulesTotal          int `json:"modules_total"`
+	ModulesFresh          int `json:"modules_fresh"`          // Scraped within last 7 days
+	ModulesStale          int `json:"modules_stale"`          // Scraped > 7 days ago
+	ModulesUnscraped      int `json:"modules_unscraped"`      // Missing detailed contents
+	ModulesFreshPct       int `json:"modules_fresh_pct"`
+	EventsTotalDiscovered int `json:"events_total_discovered"` // Unique events referenced by modules
+	EventsScraped         int `json:"events_scraped"`         // Stored in events table
+	EventsFresh           int `json:"events_fresh"`           // Scraped within last 7 days
+	EventsStale           int `json:"events_stale"`           // Scraped > 7 days ago
+	EventsPending         int `json:"events_pending"`         // Discovered but not yet scraped into events table
+	EventsFreshPct        int `json:"events_fresh_pct"`
+	SchedulesTotal        int `json:"schedules_total"`
+	ProgramsTotal         int `json:"programs_total"`
+}
+
+// DiscoveredEventRef represents an event reference discovered from a module's current semester events.
+type DiscoveredEventRef struct {
+	EventID   string `json:"event_id"`
+	Title     string `json:"title"`
+	URL       string `json:"url"`
+	ModuleID  string `json:"module_id"`
+	IsScraped bool   `json:"is_scraped"`
+}
+
+// GetDiscoveredEventRefs scans all module current_semester_events and returns unique discovered events.
+func (s *Storage) GetDiscoveredEventRefs() ([]DiscoveredEventRef, error) {
+	rows, err := s.db.Query(`
+		SELECT id, current_semester_events
+		FROM modules
+		WHERE current_semester_events IS NOT NULL
+		  AND current_semester_events != ''
+		  AND current_semester_events != '[]'
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Get set of already scraped event IDs
+	scrapedRows, err := s.db.Query("SELECT id FROM events")
+	scrapedMap := make(map[string]bool)
+	if err == nil {
+		defer scrapedRows.Close()
+		for scrapedRows.Next() {
+			var eid string
+			if err := scrapedRows.Scan(&eid); err == nil {
+				scrapedMap[eid] = true
+			}
+		}
+	}
+
+	seenEvent := make(map[string]bool)
+	var result []DiscoveredEventRef
+
+	for rows.Next() {
+		var modID string
+		var eventsJSON string
+		if err := rows.Scan(&modID, &eventsJSON); err != nil {
+			continue
+		}
+
+		var events []model.ModuleEvent
+		if err := json.Unmarshal([]byte(eventsJSON), &events); err != nil {
+			continue
+		}
+
+		for _, evt := range events {
+			evtID := parseEventIDFromURL(evt.URL)
+			key := evtID
+			if key == "" {
+				key = evt.URL
+			}
+			if key == "" || seenEvent[key] {
+				continue
+			}
+			seenEvent[key] = true
+
+			result = append(result, DiscoveredEventRef{
+				EventID:   evtID,
+				Title:     evt.Title,
+				URL:       evt.URL,
+				ModuleID:  modID,
+				IsScraped: scrapedMap[evtID],
+			})
+		}
+	}
+
+	return result, nil
+}
+
+// GetFreshnessStats returns aggregated metrics on data freshness and queue discovery status.
+func (s *Storage) GetFreshnessStats() (FreshnessStats, error) {
+	var st FreshnessStats
+
+	// 1. Module counts
+	_ = s.db.QueryRow("SELECT COUNT(*) FROM modules").Scan(&st.ModulesTotal)
+	_ = s.db.QueryRow(`
+		SELECT COUNT(*) FROM modules 
+		WHERE last_scraped_at >= datetime('now', '-7 days')
+		  AND contents IS NOT NULL AND contents != ''
+	`).Scan(&st.ModulesFresh)
+	_ = s.db.QueryRow(`
+		SELECT COUNT(*) FROM modules 
+		WHERE last_scraped_at < datetime('now', '-7 days')
+		  AND contents IS NOT NULL AND contents != ''
+	`).Scan(&st.ModulesStale)
+	_ = s.db.QueryRow(`
+		SELECT COUNT(*) FROM modules 
+		WHERE contents IS NULL OR contents = ''
+	`).Scan(&st.ModulesUnscraped)
+
+	if st.ModulesTotal > 0 {
+		st.ModulesFreshPct = int(float64(st.ModulesFresh) / float64(st.ModulesTotal) * 100)
+	}
+
+	// 2. Events & Schedules counts
+	_ = s.db.QueryRow("SELECT COUNT(*) FROM events").Scan(&st.EventsScraped)
+	_ = s.db.QueryRow(`
+		SELECT COUNT(*) FROM events 
+		WHERE last_scraped_at >= datetime('now', '-7 days')
+	`).Scan(&st.EventsFresh)
+	_ = s.db.QueryRow(`
+		SELECT COUNT(*) FROM events 
+		WHERE last_scraped_at < datetime('now', '-7 days')
+	`).Scan(&st.EventsStale)
+	_ = s.db.QueryRow("SELECT COUNT(*) FROM event_schedules").Scan(&st.SchedulesTotal)
+
+	// 3. Discovered events from modules
+	discovered, _ := s.GetDiscoveredEventRefs()
+	st.EventsTotalDiscovered = len(discovered)
+	pending := 0
+	for _, d := range discovered {
+		if !d.IsScraped {
+			pending++
+		}
+	}
+	st.EventsPending = pending
+
+	if st.EventsTotalDiscovered > 0 {
+		st.EventsFreshPct = int(float64(st.EventsScraped) / float64(st.EventsTotalDiscovered) * 100)
+	}
+
+	// 4. Programs count
+	_ = s.db.QueryRow("SELECT COUNT(*) FROM official_study_programs").Scan(&st.ProgramsTotal)
+
+	return st, nil
+}
+
+func parseEventIDFromURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	if idx := strings.Index(rawURL, "veranstid="); idx != -1 {
+		sub := rawURL[idx+len("veranstid="):]
+		if amp := strings.Index(sub, "&"); amp != -1 {
+			return sub[:amp]
+		}
+		return sub
+	}
+	return ""
+}
+

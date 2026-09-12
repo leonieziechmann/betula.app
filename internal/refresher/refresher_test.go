@@ -51,3 +51,18 @@ func TestRefresherBackoff(t *testing.T) {
 		t.Errorf("expected BackoffUntil to be in future, got %v", status.BackoffUntil)
 	}
 }
+
+func TestRefresherEventQueue(t *testing.T) {
+	cfg := DefaultConfig()
+	r := NewRefresher(cfg, nil, nil, nil, nil, nil)
+
+	r.EnqueueEvent(EventScrapeJob{EventID: "101", PageURL: "https://example.com/101", Title: "Vorlesung A"})
+	r.EnqueueEvent(EventScrapeJob{EventID: "101", PageURL: "https://example.com/101", Title: "Vorlesung A"}) // duplicate ignored
+	r.EnqueueEvent(EventScrapeJob{EventID: "102", PageURL: "https://example.com/102", Title: "Übung B"})
+
+	status := r.GetStatus()
+	if status.EventQueueLen != 2 {
+		t.Errorf("expected 2 items in event queue, got %d", status.EventQueueLen)
+	}
+}
+
