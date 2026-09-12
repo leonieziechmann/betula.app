@@ -18,7 +18,9 @@ const STORAGE_KEYS = {
   ONLY_FUES: 'btu_only_fues',
   HIDE_PHASE_OUT: 'btu_hide_phase_out',
   VIEW_MODE: 'btu_view_mode',
-  MIN_CREDITS: 'btu_min_credits'
+  MIN_CREDITS: 'btu_min_credits',
+  MAX_CREDITS: 'btu_max_credits',
+  PREREQS_MET: 'btu_prereqs_met'
 };
 
 let activeSpecialView = null; // null | 'bookmarks' | 'completed'
@@ -171,16 +173,61 @@ window.exitSpecialView = function() {
   refreshModules();
 };
 
-// Range slider helper
-window.updateCreditsLabel = function(val) {
+// Dual range slider helpers
+window.updateCreditsDisplay = function(minVal, maxVal) {
+  const min = parseInt(minVal, 10) || 0;
+  const max = (maxVal !== undefined && maxVal !== null && maxVal !== '') ? parseInt(maxVal, 10) : 30;
+
+  const minEl = document.getElementById('filter-min-credits');
+  const maxEl = document.getElementById('filter-max-credits');
+  if (minEl) minEl.value = min;
+  if (maxEl) maxEl.value = max;
+
   const badge = document.getElementById('credits-val-badge');
-  if (!badge) return;
-  if (val <= 0) {
-    badge.textContent = '0 ECTS (Alle)';
-  } else {
-    badge.textContent = `mind. ${val} ECTS`;
+  if (badge) {
+    if (min <= 0 && max >= 30) {
+      badge.textContent = '0 – 30 ECTS (Alle)';
+    } else if (min === max) {
+      badge.textContent = `${min} ECTS`;
+    } else {
+      badge.textContent = `${min} – ${max} ECTS`;
+    }
   }
-  localStorage.setItem(STORAGE_KEYS.MIN_CREDITS, val);
+
+  // Update visual fill bar between thumbs
+  const track = document.getElementById('dual-slider-track');
+  if (track) {
+    const minPercent = (min / 30) * 100;
+    const maxPercent = (max / 30) * 100;
+    track.style.background = `linear-gradient(to right, #e2e8f0 ${minPercent}%, var(--primary) ${minPercent}%, var(--primary) ${maxPercent}%, #e2e8f0 ${maxPercent}%)`;
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.MIN_CREDITS, min);
+    localStorage.setItem(STORAGE_KEYS.MAX_CREDITS, max);
+  } catch(e) {}
+  updateActiveFilterCount();
+};
+
+window.onCreditsSliderInput = function() {
+  const minEl = document.getElementById('filter-min-credits');
+  const maxEl = document.getElementById('filter-max-credits');
+  if (!minEl || !maxEl) return;
+
+  let min = parseInt(minEl.value, 10) || 0;
+  let max = parseInt(maxEl.value, 10) || 30;
+
+  if (min > max) {
+    if (event && event.target === minEl) {
+      max = min;
+      maxEl.value = max;
+    } else {
+      min = max;
+      minEl.value = min;
+    }
+  }
+
+  updateCreditsDisplay(min, max);
 };
 
 window.toggleAccordion = function(id) {
@@ -191,6 +238,80 @@ window.toggleAccordion = function(id) {
   if (btn) {
     btn.setAttribute('aria-expanded', String(!isCollapsed));
   }
+};
+
+window.sortTable = function(th, columnKey) {
+  const table = th.closest('table');
+  if (!table) return;
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+
+  const currentDir = th.dataset.sortDir || 'none';
+  const newDir = currentDir === 'asc' ? 'desc' : 'asc';
+
+  // Reset all other sortable headers in this table
+  table.querySelectorAll('th.th-sortable').forEach(header => {
+    header.classList.remove('sorted-asc', 'sorted-desc');
+    header.dataset.sortDir = 'none';
+    header.removeAttribute('aria-sort');
+    const ind = header.querySelector('.sort-indicator');
+    if (ind) ind.textContent = '↕';
+  });
+
+  // Apply new sort direction to clicked header
+  th.classList.add(newDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+  th.dataset.sortDir = newDir;
+  th.setAttribute('aria-sort', newDir === 'asc' ? 'ascending' : 'descending');
+  const indicator = th.querySelector('.sort-indicator');
+  if (indicator) {
+    indicator.textContent = newDir === 'asc' ? '▲' : '▼';
+  }
+
+  // Find all regular module rows (exclude empty state row)
+  const rows = Array.from(tbody.querySelectorAll('tr.table-row'));
+  if (rows.length === 0) return;
+
+  rows.sort((a, b) => {
+    let cmp = 0;
+    switch (columnKey) {
+      case 'id': {
+        const idA = a.dataset.id || '';
+        const idB = b.dataset.id || '';
+        const numA = parseInt(idA, 10);
+        const numB = parseInt(idB, 10);
+        if (!isNaN(numA) && !isNaN(numB)) {
+          cmp = numA - numB;
+        } else {
+          cmp = idA.localeCompare(idB);
+        }
+        break;
+      }
+      case 'title': {
+        const titleA = (a.dataset.title || '').trim();
+        const titleB = (b.dataset.title || '').trim();
+        cmp = titleA.localeCompare(titleB, 'de', { sensitivity: 'base' });
+        break;
+      }
+      case 'ects': {
+        const ectsA = parseFloat(a.dataset.ects) || 0;
+        const ectsB = parseFloat(b.dataset.ects) || 0;
+        cmp = ectsA - ectsB;
+        break;
+      }
+      case 'events': {
+        const evA = parseInt(a.dataset.events, 10) || 0;
+        const evB = parseInt(b.dataset.events, 10) || 0;
+        cmp = evA - evB;
+        break;
+      }
+      default:
+        cmp = 0;
+    }
+    return newDir === 'asc' ? cmp : -cmp;
+  });
+
+  // Re-append sorted rows to tbody
+  rows.forEach(row => tbody.appendChild(row));
 };
 
 window.setViewMode = function(mode) {
@@ -226,8 +347,11 @@ function updateActiveFilterCount() {
 
   if (typeof selectedTurnuses !== 'undefined' && selectedTurnuses.length > 0) count++;
 
-  const credits = document.getElementById('filter-min-credits');
-  if (credits && parseFloat(credits.value) > 0) count++;
+  const minCredits = document.getElementById('filter-min-credits');
+  const maxCredits = document.getElementById('filter-max-credits');
+  const minVal = minCredits ? parseFloat(minCredits.value) : 0;
+  const maxVal = maxCredits ? parseFloat(maxCredits.value) : 30;
+  if (minVal > 0 || maxVal < 30) count++;
 
   const checkedCampuses = document.querySelectorAll('input[name="campus"]:checked');
   if (checkedCampuses.length > 0) count += checkedCampuses.length;
@@ -247,6 +371,9 @@ function updateActiveFilterCount() {
 
   const phaseOut = document.getElementById('filter-hide-phaseout');
   if (phaseOut && !phaseOut.checked) count++;
+
+  const prereq = document.getElementById('filter-prereqs');
+  if (prereq && prereq.checked) count++;
 
   const de = document.getElementById('filter-lang-de');
   const en = document.getElementById('filter-lang-en');
@@ -394,11 +521,82 @@ window.toggleCombobox = function(event) {
   }
 };
 
+// Initials & Acronym Matching Engine
+function getInitialsVariants(text) {
+  if (!text) return [];
+  const raw = String(text).trim();
+  if (!raw) return [];
+
+  // 1. All capital letters (including German umlauts)
+  const upperMatches = raw.match(/[A-ZÄÖÜ]/g);
+  const upperStr = upperMatches ? upperMatches.map(c => c.toLowerCase()).join('') : '';
+
+  // 2. All words split by spaces, hyphens, slashes, punctuation
+  const words = raw.split(/[\s+\-_/.,()]+/).filter(Boolean);
+  const stopWords = new Set([
+    'und', 'oder', 'der', 'die', 'das', 'des', 'dem', 'den', 'in', 'im',
+    'für', 'von', 'vom', 'mit', 'zu', 'zur', 'zum', 'an', 'am', 'auf', 'aus', 'bei',
+    'and', 'or', 'the', 'of', 'for', 'with', 'to', 'at', 'in', 'on', 'by'
+  ]);
+
+  const allInitials = [];
+  const sigInitials = [];
+
+  for (const w of words) {
+    const clean = w.replace(/^[^a-zA-Z0-9äöüÄÖÜß]+/, '');
+    if (clean.length > 0) {
+      const ch = clean[0].toLowerCase();
+      allInitials.push(ch);
+      if (!stopWords.has(clean.toLowerCase())) {
+        sigInitials.push(ch);
+      }
+    }
+  }
+
+  const variants = new Set();
+  if (upperStr && upperStr.length >= 2) variants.add(upperStr);
+  if (sigInitials.length >= 2) variants.add(sigInitials.join(''));
+  if (allInitials.length >= 2) variants.add(allInitials.join(''));
+  return Array.from(variants);
+}
+
+function scoreInitials(text, qNorm) {
+  if (!text || !qNorm || qNorm.length < 2) return 0;
+  const variants = getInitialsVariants(text);
+  let best = 0;
+
+  for (const v of variants) {
+    if (v === qNorm) {
+      return 5500; // Exact match of initials
+    }
+    if (v.startsWith(qNorm)) {
+      best = Math.max(best, 4200 + (qNorm.length / v.length) * 600);
+      continue;
+    }
+    // Check if query is an ordered subsequence of initials
+    let qIdx = 0;
+    for (let i = 0; i < v.length && qIdx < qNorm.length; i++) {
+      if (v[i] === qNorm[qIdx]) {
+        qIdx++;
+      }
+    }
+    if (qIdx === qNorm.length) {
+      best = Math.max(best, 3200 + (qNorm.length / v.length) * 500);
+    }
+  }
+  return best;
+}
+
 window.filterComboboxOptions = function(query) {
-  const q = query.toLowerCase();
+  const q = (query || '').trim().toLowerCase();
   document.querySelectorAll('#combobox-options-list .combobox-option').forEach(opt => {
-    const text = (opt.dataset.title || '').toLowerCase();
-    opt.style.display = text.includes(q) ? 'flex' : 'none';
+    const rawTitle = opt.dataset.title || '';
+    const text = rawTitle.toLowerCase();
+    let matches = text.includes(q);
+    if (!matches && q.length >= 2) {
+      matches = scoreInitials(rawTitle, q) > 0;
+    }
+    opt.style.display = (matches || q === '') ? 'flex' : 'none';
     opt.classList.remove('highlighted');
   });
   highlightedComboboxIndex = -1;
@@ -534,11 +732,17 @@ window.clearStudyProgram = function(event) {
 };
 
 // Multi-select Semester Turnus logic
-let selectedTurnuses = []; // e.g. ['sose_even', 'wise_odd', 'sporadic']
+let selectedTurnuses = []; // e.g. ['next'] or ['sose_even', 'wise_odd', 'sporadic'] or [] (Alle)
+
+window.toggleTurnusAccordion = function() {
+  const acc = document.getElementById('turnus-accordion');
+  if (acc) {
+    acc.classList.toggle('open');
+  }
+};
 
 function renderTurnusButtons() {
   const hiddenContainer = document.getElementById('turnus-hidden-inputs');
-  const clearBtn = document.getElementById('btn-clear-turnus');
 
   // Update hidden inputs for form serialization
   if (hiddenContainer) {
@@ -552,45 +756,63 @@ function renderTurnusButtons() {
     });
   }
 
-  // Update button active states
+  // Active flags
+  const isAll = selectedTurnuses.length === 0;
+  const hasNext = selectedTurnuses.includes('next');
   const hasSoseEven = selectedTurnuses.includes('sose_even');
   const hasSoseOdd = selectedTurnuses.includes('sose_odd');
   const hasWiseEven = selectedTurnuses.includes('wise_even');
   const hasWiseOdd = selectedTurnuses.includes('wise_odd');
   const hasSporadic = selectedTurnuses.includes('sporadic');
 
-  const btnSose = document.getElementById('btn-turnus-sose');
-  const btnSoseEven = document.getElementById('btn-turnus-sose_even');
-  const btnSoseOdd = document.getElementById('btn-turnus-sose_odd');
-
+  const btnAll = document.getElementById('btn-turnus-all');
+  const btnNext = document.getElementById('btn-turnus-next');
   const btnWise = document.getElementById('btn-turnus-wise');
-  const btnWiseEven = document.getElementById('btn-turnus-wise_even');
-  const btnWiseOdd = document.getElementById('btn-turnus-wise_odd');
+  const btnSose = document.getElementById('btn-turnus-sose');
 
-  const btnSporadic = document.getElementById('btn-turnus-sporadic');
+  if (btnAll) btnAll.classList.toggle('active', isAll);
+  if (btnNext) btnNext.classList.toggle('active', hasNext);
+  if (btnWise) btnWise.classList.toggle('active', hasWiseEven && hasWiseOdd);
+  if (btnSose) btnSose.classList.toggle('active', hasSoseEven && hasSoseOdd);
 
-  if (btnSoseEven) btnSoseEven.classList.toggle('active', hasSoseEven);
-  if (btnSoseOdd) btnSoseOdd.classList.toggle('active', hasSoseOdd);
-  if (btnSose) {
-    btnSose.classList.toggle('active', hasSoseEven && hasSoseOdd);
-  }
+  // Checkboxes in matrix
+  const chkWiseEven = document.getElementById('chk-turnus-wise_even');
+  const chkWiseOdd = document.getElementById('chk-turnus-wise_odd');
+  const chkSoseEven = document.getElementById('chk-turnus-sose_even');
+  const chkSoseOdd = document.getElementById('chk-turnus-sose_odd');
+  const chkSporadic = document.getElementById('chk-turnus-sporadic');
 
-  if (btnWiseEven) btnWiseEven.classList.toggle('active', hasWiseEven);
-  if (btnWiseOdd) btnWiseOdd.classList.toggle('active', hasWiseOdd);
-  if (btnWise) {
-    btnWise.classList.toggle('active', hasWiseEven && hasWiseOdd);
-  }
-
-  if (btnSporadic) btnSporadic.classList.toggle('active', hasSporadic);
-
-  if (clearBtn) {
-    clearBtn.style.display = selectedTurnuses.length > 0 ? 'inline-block' : 'none';
-  }
+  if (chkWiseEven) chkWiseEven.checked = hasWiseEven;
+  if (chkWiseOdd) chkWiseOdd.checked = hasWiseOdd;
+  if (chkSoseEven) chkSoseEven.checked = hasSoseEven;
+  if (chkSoseOdd) chkSoseOdd.checked = hasSoseOdd;
+  if (chkSporadic) chkSporadic.checked = hasSporadic;
 
   updateActiveFilterCount();
 }
 
-window.toggleTurnusToken = function(token, shouldRefresh = true) {
+window.toggleTurnusNext = function(shouldRefresh = true) {
+  if (selectedTurnuses.includes('next')) {
+    selectedTurnuses = [];
+  } else {
+    selectedTurnuses = ['next'];
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.TURNUS, JSON.stringify(selectedTurnuses));
+  } catch(e) {}
+
+  renderTurnusButtons();
+
+  if (shouldRefresh) {
+    refreshModules();
+  }
+};
+
+window.toggleTurnusCheckbox = function(token, shouldRefresh = true) {
+  // If next semester was chosen, clear it to switch to custom token selection
+  selectedTurnuses = selectedTurnuses.filter(t => t !== 'next');
+
   const idx = selectedTurnuses.indexOf(token);
   if (idx > -1) {
     selectedTurnuses.splice(idx, 1);
@@ -609,7 +831,12 @@ window.toggleTurnusToken = function(token, shouldRefresh = true) {
   }
 };
 
+window.toggleTurnusToken = function(token, shouldRefresh = true) {
+  window.toggleTurnusCheckbox(token, shouldRefresh);
+};
+
 window.toggleTurnusMain = function(category, shouldRefresh = true) {
+  selectedTurnuses = selectedTurnuses.filter(t => t !== 'next');
   const tokens = category === 'sose' ? ['sose_even', 'sose_odd'] : ['wise_even', 'wise_odd'];
   const allActive = tokens.every(t => selectedTurnuses.includes(t));
 
@@ -835,7 +1062,11 @@ window.onProfSearchInput = function(query) {
     const nameLow = (inst.name || '').toLowerCase();
     const fullLow = (inst.fullname || '').toLowerCase();
     const titleLow = (inst.title || '').toLowerCase();
-    return nameLow.includes(q) || fullLow.includes(q) || titleLow.includes(q);
+    if (nameLow.includes(q) || fullLow.includes(q) || titleLow.includes(q)) return true;
+    if (q.length >= 2) {
+      if (scoreInitials(inst.name, q) > 0 || scoreInitials(inst.fullname, q) > 0) return true;
+    }
+    return false;
   }).slice(0, 15);
 
   if (matches.length === 0) {
@@ -919,7 +1150,9 @@ window.resetAllFilters = function() {
   localStorage.removeItem(STORAGE_KEYS.LANG_EN);
   localStorage.removeItem(STORAGE_KEYS.ONLY_FUES);
   localStorage.removeItem(STORAGE_KEYS.HIDE_PHASE_OUT);
+  localStorage.removeItem(STORAGE_KEYS.PREREQS_MET);
   localStorage.removeItem(STORAGE_KEYS.MIN_CREDITS);
+  localStorage.removeItem(STORAGE_KEYS.MAX_CREDITS);
 
   // Reset Program & PO
   selectStudyProgramGroup('', '', '', false);
@@ -928,12 +1161,8 @@ window.resetAllFilters = function() {
   selectedTurnuses = [];
   renderTurnusButtons();
 
-  // Reset Credits
-  const creditsSlider = document.getElementById('filter-min-credits');
-  if (creditsSlider) {
-    creditsSlider.value = '0';
-    updateCreditsLabel('0');
-  }
+  // Reset Credits Dual Slider
+  updateCreditsDisplay(0, 30);
 
   // Reset Campuses
   document.querySelectorAll('input[name="campus"]').forEach(chk => {
@@ -958,6 +1187,9 @@ window.resetAllFilters = function() {
   // Reset Toggles
   const phaseOutCheck = document.getElementById('filter-hide-phaseout');
   if (phaseOutCheck) phaseOutCheck.checked = true;
+
+  const prereqCheck = document.getElementById('filter-prereqs');
+  if (prereqCheck) prereqCheck.checked = false;
 
   // Reset Languages
   const deCheck = document.getElementById('filter-lang-de');
@@ -1220,31 +1452,40 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Restore Min Credits Slider
-  const savedCredits = localStorage.getItem(STORAGE_KEYS.MIN_CREDITS);
-  const creditsSlider = document.getElementById('filter-min-credits');
-  if (savedCredits !== null && creditsSlider) {
-    creditsSlider.value = savedCredits;
-    updateCreditsLabel(savedCredits);
-  }
-  if (creditsSlider) {
-    creditsSlider.addEventListener('change', () => {
-      refreshModules();
-    });
-  }
+  // Restore ECTS Range Slider
+  const savedMinCredits = localStorage.getItem(STORAGE_KEYS.MIN_CREDITS) || 0;
+  const savedMaxCredits = localStorage.getItem(STORAGE_KEYS.MAX_CREDITS) || 30;
+  updateCreditsDisplay(savedMinCredits, savedMaxCredits);
 
   // View mode is permanently table
   const viewInput = document.getElementById('filter-view');
   if (viewInput) viewInput.value = 'table';
 
-  // Synchronize active filtered modules from the server response
+  // Load complete module catalog once on startup for global live autocomplete (Requirement 1)
+  window.allCatalogModules = [];
+  fetch('/api/modules-autocomplete')
+    .then(r => r.json())
+    .then(data => {
+      window.allCatalogModules = data;
+    })
+    .catch(err => console.error('Failed to load module catalog autocomplete:', err));
+
+  // Synchronize active filter module IDs from the server response (Requirement 2 & 3)
+  window.activeFilterModuleIDs = new Set();
   function syncFilterModules() {
-    const dataEl = document.getElementById('current-filter-modules-data');
+    const dataEl = document.getElementById('current-filter-module-ids') || document.getElementById('current-filter-modules-data');
     if (dataEl) {
       try {
-        window.activeFilterModules = JSON.parse(dataEl.textContent);
+        const raw = JSON.parse(dataEl.textContent);
+        if (Array.isArray(raw)) {
+          if (raw.length > 0 && typeof raw[0] === 'object') {
+            window.activeFilterModuleIDs = new Set(raw.map(m => m.id));
+          } else {
+            window.activeFilterModuleIDs = new Set(raw);
+          }
+        }
       } catch(e) {
-        window.activeFilterModules = [];
+        window.activeFilterModuleIDs = new Set();
       }
     }
   }
@@ -1261,37 +1502,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const titleDENorm = (item.title_de || '').toLowerCase();
     const titleENNorm = (item.title_en || '').toLowerCase();
 
-    if (idNorm === queryNorm) return 10000;
-    if (idNorm.startsWith(queryNorm)) return 6000 + (queryNorm.length / idNorm.length) * 1000;
-    if (idNorm.includes(queryNorm)) return 4500;
-    if (titleDENorm === queryNorm) return 4000;
-    if (titleDENorm.startsWith(queryNorm)) return 3000 + (queryNorm.length / titleDENorm.length) * 500;
+    if (idNorm === queryNorm) return 20000;
+    if (idNorm.startsWith(queryNorm)) return 10000 + (queryNorm.length / idNorm.length) * 1000;
+    if (idNorm.includes(queryNorm)) return 7000;
+    if (titleDENorm === queryNorm) return 5000;
+    if (titleDENorm.startsWith(queryNorm)) return 4000 + (queryNorm.length / titleDENorm.length) * 500;
 
     let score = 0;
     const words = titleDENorm.split(/[\s+\-/.,()]+/);
     for (const w of words) {
       if (w === queryNorm) {
-        score = Math.max(score, 2500);
+        score = Math.max(score, 3000);
       } else if (w.startsWith(queryNorm)) {
-        score = Math.max(score, 2000 + (queryNorm.length / w.length) * 400);
+        score = Math.max(score, 2400 + (queryNorm.length / w.length) * 400);
       }
     }
 
     const subIdx = titleDENorm.indexOf(queryNorm);
     if (subIdx > -1) {
-      score = Math.max(score, 1200 - Math.min(subIdx, 40) * 10);
+      score = Math.max(score, 1500 - Math.min(subIdx, 40) * 10);
     }
 
     if (titleENNorm.startsWith(queryNorm)) {
-      score = Math.max(score, 1500);
+      score = Math.max(score, 1800);
     } else if (titleENNorm.includes(queryNorm)) {
-      score = Math.max(score, 800);
+      score = Math.max(score, 1000);
     }
 
     const tokens = queryNorm.split(/\s+/).filter(Boolean);
     if (tokens.length > 1) {
       let allMatched = true;
-      let tokenScore = 1500;
+      let tokenScore = 1800;
       for (const t of tokens) {
         if (titleDENorm.includes(t) || idNorm.includes(t) || titleENNorm.includes(t)) {
           tokenScore += 300;
@@ -1310,8 +1551,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
       if (tIdx === queryNorm.length) {
-        score = Math.max(score, 600 + (matchCount / titleDENorm.length) * 200);
+        score = Math.max(score, 800 + (matchCount / titleDENorm.length) * 200);
       }
+    }
+
+    // Fuzzy initials / acronym matching (e.g. "LAAG", "HM", "BS", "WHS")
+    const initScoreDE = scoreInitials(item.title_de, queryNorm);
+    const initScoreEN = scoreInitials(item.title_en, queryNorm);
+    const maxInitScore = Math.max(initScoreDE, initScoreEN);
+    if (maxInitScore > 0) {
+      score = Math.max(score, maxInitScore);
     }
 
     return score;
@@ -1352,7 +1601,7 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   if (searchInput && suggestionsBox) {
-    // Typing only updates the live autocomplete preview without modifying the main module list
+    // Typing searches the complete catalog with boost for active filters (Requirement 1, 2, 3)
     searchInput.addEventListener('input', function() {
       const rawVal = searchInput.value.trim();
       highlightedSuggestionIndex = -1;
@@ -1363,18 +1612,27 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       const qNorm = rawVal.toLowerCase();
-      const modules = window.activeFilterModules || [];
+      // 1. Search through complete module catalog (Requirement 1)
+      const modules = (window.allCatalogModules && window.allCatalogModules.length > 0)
+        ? window.allCatalogModules
+        : (window.activeFilterModules || []);
+
       if (modules.length === 0) {
-        suggestionsBox.innerHTML = '<div class="suggestion-empty">Keine Module in den aktiven Filtern vorhanden</div>';
+        suggestionsBox.innerHTML = '<div class="suggestion-empty">Modulkatalog wird geladen...</div>';
         suggestionsBox.style.display = 'block';
         return;
       }
 
+      const activeIDs = window.activeFilterModuleIDs;
       const scored = [];
+
       for (const m of modules) {
-        const sc = scoreModule(m, qNorm);
-        if (sc > 0) {
-          scored.push({ item: m, score: sc });
+        const baseScore = scoreModule(m, qNorm);
+        if (baseScore > 0) {
+          // Subtle multiplier boost (1.3x) if module matches active sidebar filters (e.g. study program)
+          const isFilterMatch = activeIDs ? activeIDs.has(m.id) : false;
+          const finalScore = isFilterMatch ? baseScore * 1.3 : baseScore;
+          scored.push({ item: m, score: finalScore });
         }
       }
 
@@ -1382,7 +1640,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const topResults = scored.slice(0, 8);
 
       if (topResults.length === 0) {
-        suggestionsBox.innerHTML = '<div class="suggestion-empty">Keine passenden Module in deinen Filtern</div>';
+        suggestionsBox.innerHTML = '<div class="suggestion-empty">Keine passenden Module im Katalog gefunden</div>';
         suggestionsBox.style.display = 'block';
         return;
       }
@@ -1398,7 +1656,7 @@ document.addEventListener('DOMContentLoaded', function() {
         html += `
           <div class="suggestion-item" data-id="${it.id}" data-index="${idx}" onmouseenter="setHighlightedSuggestion(${idx});" onclick="selectSuggestionItem('${it.id}');">
             <div class="suggestion-main">
-              <span class="badge badge-id">${it.id}</span>
+              <span class="badge badge-id">#${it.id}</span>
               <strong class="suggestion-title">${escapeHTML(it.title_de || '')}</strong>
               ${fuesBadge}
               ${phaseBadge}

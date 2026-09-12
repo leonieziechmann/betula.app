@@ -178,6 +178,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/modules/", s.wrap(s.handleModuleModal))
 	s.mux.HandleFunc("/stats", s.wrap(s.handleStatsPage))
 	s.mux.HandleFunc("/api/programs", s.wrap(s.handleProgramsAPI))
+	s.mux.HandleFunc("/api/modules-autocomplete", s.wrap(s.handleAllAutocompleteAPI))
 	s.mux.HandleFunc("/api/suggestions", s.wrap(s.handleSuggestionsAPI))
 	s.mux.HandleFunc("/api/stats", s.wrap(s.handleStatsAPI))
 	s.mux.HandleFunc("/api/track", s.wrap(s.handleTrackAPI))

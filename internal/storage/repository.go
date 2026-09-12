@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/jakob/btu-scraper/internal/model"
 )
@@ -1363,10 +1364,120 @@ func ExtractPrereqIDs(text string) []string {
 	return unique
 }
 
-// SearchModulesAdvanced executes an advanced query with smart filters and pagination.
-func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int, error) {
+var stopWordsMap = map[string]bool{
+	"und": true, "oder": true, "der": true, "die": true, "das": true, "des": true, "dem": true, "den": true,
+	"in": true, "im": true, "für": true, "von": true, "vom": true, "mit": true, "zu": true, "zur": true,
+	"zum": true, "an": true, "am": true, "auf": true, "aus": true, "bei": true, "and": true, "or": true,
+	"the": true, "of": true, "for": true, "with": true, "to": true, "at": true,
+}
+
+func getInitialsVariantsGo(text string) []string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	var uppers []rune
+	for _, r := range text {
+		if unicode.IsUpper(r) {
+			uppers = append(uppers, unicode.ToLower(r))
+		}
+	}
+
+	fields := strings.FieldsFunc(text, func(r rune) bool {
+		return unicode.IsSpace(r) || r == '-' || r == '_' || r == '/' || r == '.' || r == ',' || r == '(' || r == ')'
+	})
+
+	var allInits []rune
+	var sigInits []rune
+	for _, f := range fields {
+		clean := strings.TrimFunc(f, func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+		})
+		if len(clean) > 0 {
+			first := []rune(clean)[0]
+			allInits = append(allInits, unicode.ToLower(first))
+			if !stopWordsMap[strings.ToLower(clean)] {
+				sigInits = append(sigInits, unicode.ToLower(first))
+			}
+		}
+	}
+
+	seen := make(map[string]bool)
+	var variants []string
+	add := func(s string) {
+		if len(s) >= 2 && !seen[s] {
+			seen[s] = true
+			variants = append(variants, s)
+		}
+	}
+
+	if len(uppers) >= 2 {
+		add(string(uppers))
+	}
+	if len(sigInits) >= 2 {
+		add(string(sigInits))
+	}
+	if len(allInits) >= 2 {
+		add(string(allInits))
+	}
+	return variants
+}
+
+func matchInitialsGo(title string, query string) bool {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if len(q) < 2 {
+		return false
+	}
+	variants := getInitialsVariantsGo(title)
+	for _, v := range variants {
+		if v == q || strings.HasPrefix(v, q) {
+			return true
+		}
+		qRunes := []rune(q)
+		vRunes := []rune(v)
+		qIdx := 0
+		for i := 0; i < len(vRunes) && qIdx < len(qRunes); i++ {
+			if vRunes[i] == qRunes[qIdx] {
+				qIdx++
+			}
+		}
+		if qIdx == len(qRunes) {
+			return true
+		}
+	}
+	return false
+}
+
+// FindModuleIDsByInitials finds all module IDs whose title initials match the query.
+func (s *Storage) FindModuleIDsByInitials(query string) []string {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if len(q) < 2 || len(q) > 8 {
+		return nil
+	}
+
+	rows, err := s.db.Query("SELECT id, title_de, title_en FROM modules")
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var matchingIDs []string
+	for rows.Next() {
+		var id, titleDE string
+		var titleEN sql.NullString
+		if err := rows.Scan(&id, &titleDE, &titleEN); err != nil {
+			continue
+		}
+		if matchInitialsGo(titleDE, q) || (titleEN.Valid && matchInitialsGo(titleEN.String, q)) {
+			matchingIDs = append(matchingIDs, id)
+		}
+	}
+	return matchingIDs
+}
+
+// buildFilterClauses constructs the JOIN and WHERE clauses along with query args for an AdvancedFilter.
+func (s *Storage) buildFilterClauses(f AdvancedFilter) (joinSQL string, whereSQL string, args []interface{}) {
 	var whereClauses []string
-	var args []interface{}
 	var joins []string
 
 	if f.ProgramID != "" || f.ProgramName != "" {
@@ -1396,8 +1507,27 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 
 	if f.Query != "" {
 		q := "%" + strings.ToLower(f.Query) + "%"
-		whereClauses = append(whereClauses, "(m.id LIKE ? OR m.code LIKE ? OR LOWER(m.title_de) LIKE ? OR LOWER(m.title_en) LIKE ? OR LOWER(m.department) LIKE ? OR LOWER(m.responsible_persons) LIKE ?)")
+		subClauses := []string{
+			"m.id LIKE ?",
+			"m.code LIKE ?",
+			"LOWER(m.title_de) LIKE ?",
+			"LOWER(m.title_en) LIKE ?",
+			"LOWER(m.department) LIKE ?",
+			"LOWER(m.responsible_persons) LIKE ?",
+		}
 		args = append(args, q, q, q, q, q, q)
+
+		initialsIDs := s.FindModuleIDsByInitials(f.Query)
+		if len(initialsIDs) > 0 {
+			placeholders := make([]string, len(initialsIDs))
+			for i, id := range initialsIDs {
+				placeholders[i] = "?"
+				args = append(args, id)
+			}
+			subClauses = append(subClauses, fmt.Sprintf("m.id IN (%s)", strings.Join(placeholders, ",")))
+		}
+
+		whereClauses = append(whereClauses, "("+strings.Join(subClauses, " OR ")+")")
 	}
 
 	var turnusClauses []string
@@ -1439,8 +1569,8 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%gerad%' OR LOWER(m.turnus) LIKE '%summer%even%')")
 		case "sose_odd":
 			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%ungerad%' OR LOWER(m.turnus) LIKE '%summer%odd%')")
-		case "sporadic":
-			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%sporadisch%' OR LOWER(m.turnus) LIKE '%ankündigung%' OR LOWER(m.turnus) LIKE '%announcement%')")
+		case "sporadic", "sporadisch":
+			turnusClauses = append(turnusClauses, "(LOWER(m.turnus) LIKE '%sporadisch%' OR LOWER(m.turnus) LIKE '%unregelm%' OR LOWER(m.turnus) LIKE '%ankündigung%' OR LOWER(m.turnus) LIKE '%announcement%' OR LOWER(m.turnus) LIKE '%nach bedarf%' OR LOWER(m.turnus) LIKE '%irregular%' OR LOWER(m.turnus) LIKE '%on demand%')")
 		}
 	}
 
@@ -1449,21 +1579,17 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 	}
 
 	switch strings.ToLower(strings.TrimSpace(f.Limitation)) {
-	case "nein":
+	case "nein", "unlimited":
 		whereClauses = append(whereClauses, "(m.limitation IS NULL OR m.limitation = '' OR LOWER(m.limitation) = 'keine')")
-	case "nur":
+	case "nur", "limited":
 		whereClauses = append(whereClauses, "(m.limitation IS NOT NULL AND m.limitation != '' AND LOWER(m.limitation) != 'keine')")
 	}
 
-	fuesMode := strings.ToLower(strings.TrimSpace(f.FUESFilter))
-	if fuesMode == "" && f.OnlyFUES {
-		fuesMode = "nur"
-	}
-	switch fuesMode {
-	case "exkl":
-		whereClauses = append(whereClauses, "m.is_fues = 0")
+	switch f.FUESFilter {
 	case "nur":
-		whereClauses = append(whereClauses, "m.is_fues = 1")
+		whereClauses = append(whereClauses, "(m.is_fues = 1 OR m.cross_disciplinary = 1)")
+	case "exkl":
+		whereClauses = append(whereClauses, "m.is_fues = 0 AND m.cross_disciplinary = 0")
 	}
 
 	if len(f.Instructors) > 0 {
@@ -1538,7 +1664,7 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 		if hasDE && !hasEN {
 			whereClauses = append(whereClauses, "LOWER(m.language) LIKE '%deutsch%'")
 		} else if hasEN && !hasDE {
-			whereClauses = append(whereClauses, "(LOWER(m.language) LIKE '%english%' OR LOWER(m.language) LIKE '%englisch%')")
+			whereClauses = append(whereClauses, "(LOWER(m.language) LIKE '%englisch%' OR LOWER(m.language) LIKE '%english%')")
 		} else if hasDE && hasEN {
 			whereClauses = append(whereClauses, "(LOWER(m.language) LIKE '%deutsch%' OR LOWER(m.language) LIKE '%english%' OR LOWER(m.language) LIKE '%englisch%')")
 		}
@@ -1556,11 +1682,82 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 		args = append(args, f.MaxCredits)
 	}
 
-	joinSQL := strings.Join(joins, " ")
-	whereSQL := ""
+	joinSQL = strings.Join(joins, " ")
+	whereSQL = ""
 	if len(whereClauses) > 0 {
 		whereSQL = "WHERE " + strings.Join(whereClauses, " AND ")
 	}
+	return joinSQL, whereSQL, args
+}
+
+// SearchModuleIDs returns distinct module IDs matching the filter without pagination.
+func (s *Storage) SearchModuleIDs(f AdvancedFilter) ([]string, error) {
+	joinSQL, whereSQL, args := s.buildFilterClauses(f)
+	query := fmt.Sprintf("SELECT DISTINCT m.id FROM modules m %s %s ORDER BY CAST(m.id AS INTEGER), m.id ASC", joinSQL, whereSQL)
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+// AutocompleteItem represents a lightweight module for live fuzzy autocomplete search.
+type AutocompleteItem struct {
+	ID      string  `json:"id"`
+	TitleDE string  `json:"title_de"`
+	TitleEN string  `json:"title_en,omitempty"`
+	Credits float64 `json:"credits"`
+	Turnus  string  `json:"turnus,omitempty"`
+	IsFUES  bool    `json:"is_fues,omitempty"`
+	IsPhase bool    `json:"is_phase,omitempty"`
+}
+
+// GetAllAutocompleteModules returns lightweight representations of all catalog modules for fuzzy search.
+func (s *Storage) GetAllAutocompleteModules() ([]AutocompleteItem, error) {
+	query := `SELECT id, title_de, title_en, credits, turnus, is_fues, cross_disciplinary, is_phase_out
+	          FROM modules
+	          ORDER BY CAST(id AS INTEGER), id ASC`
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []AutocompleteItem
+	for rows.Next() {
+		var (
+			it AutocompleteItem
+			titleEN, turnus sql.NullString
+			isFues, crossDisc, phaseOut int
+		)
+		if err := rows.Scan(&it.ID, &it.TitleDE, &titleEN, &it.Credits, &turnus, &isFues, &crossDisc, &phaseOut); err != nil {
+			continue
+		}
+		if titleEN.Valid {
+			it.TitleEN = titleEN.String
+		}
+		if turnus.Valid {
+			it.Turnus = turnus.String
+		}
+		it.IsFUES = isFues == 1 || crossDisc == 1
+		it.IsPhase = phaseOut == 1
+		items = append(items, it)
+	}
+	return items, nil
+}
+
+// SearchModulesAdvanced executes an advanced query with smart filters and pagination.
+func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int, error) {
+	joinSQL, whereSQL, args := s.buildFilterClauses(f)
 
 	// 1. Get total count
 	countQuery := fmt.Sprintf("SELECT COUNT(DISTINCT m.id) FROM modules m %s %s", joinSQL, whereSQL)

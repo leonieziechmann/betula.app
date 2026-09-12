@@ -652,3 +652,20 @@ func TestRealDBNoDuplicatePOs(t *testing.T) {
 	}
 }
 
+func TestInitialsMatching(t *testing.T) {
+	if !matchInitialsGo("Lineare Algebra und Analytische Geometrie I", "laag") {
+		t.Errorf("expected laag to match 'Lineare Algebra und Analytische Geometrie I'")
+	}
+	if !matchInitialsGo("Lineare Algebra und Analytische Geometrie I", "lag") {
+		t.Errorf("expected lag to match 'Lineare Algebra und Analytische Geometrie I'")
+	}
+	if !matchInitialsGo("Höhere Mathematik - T1", "hm") {
+		t.Errorf("expected hm to match 'Höhere Mathematik - T1'")
+	}
+	if !matchInitialsGo("World Heritage Studies", "whs") {
+		t.Errorf("expected whs to match 'World Heritage Studies'")
+	}
+	if matchInitialsGo("Lineare Algebra", "xyz") {
+		t.Errorf("expected xyz not to match 'Lineare Algebra'")
+	}
+}

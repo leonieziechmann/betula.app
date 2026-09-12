@@ -1,7 +1,7 @@
 {{if not .IsAppend}}
-  {{if .FilterModulesJSON}}
-    <script id="current-filter-modules-data" type="application/json">
-      {{safeJS .FilterModulesJSON}}
+  {{if .FilterModuleIDsJSON}}
+    <script id="current-filter-module-ids" type="application/json">
+      {{safeJS .FilterModuleIDsJSON}}
     </script>
   {{end}}
 
@@ -65,13 +65,21 @@
             <thead>
               <tr>
                 <th style="width: 68px; text-align: center;">Status</th>
-                <th style="width: 75px;">ID</th>
-                <th>Modulname &amp; Lehrveranstaltung</th>
-                <th style="width: 85px; text-align: center;">ECTS</th>
+                <th class="th-sortable" onclick="sortTable(this, 'id');" style="width: 75px;" title="Nach ID sortieren (aufsteigend/absteigend)">
+                  <div class="th-content">ID <span class="sort-indicator">↕</span></div>
+                </th>
+                <th class="th-sortable" onclick="sortTable(this, 'title');" title="Nach Modulname sortieren (A-Z/Z-A)">
+                  <div class="th-content">Modulname &amp; Lehrveranstaltung <span class="sort-indicator">↕</span></div>
+                </th>
+                <th class="th-sortable" onclick="sortTable(this, 'ects');" style="width: 85px; text-align: center;" title="Nach ECTS sortieren">
+                  <div class="th-content th-content-center">ECTS <span class="sort-indicator">↕</span></div>
+                </th>
                 <th style="width: 120px;">Turnus</th>
                 <th style="width: 65px; text-align: center;">Sprache</th>
                 <th style="width: 140px;">Voraussetzungen</th>
-                <th style="width: 90px;">Termine</th>
+                <th class="th-sortable" onclick="sortTable(this, 'events');" style="width: 90px; text-align: center;" title="Nach Terminen sortieren">
+                  <div class="th-content th-content-center">Termine <span class="sort-indicator">↕</span></div>
+                </th>
                 <th style="width: 36px;"></th>
               </tr>
             </thead>
@@ -83,6 +91,10 @@
               {{else}}
                 {{range .RegularModules}}
                   <tr class="table-row {{if .IsCompleted}}is-completed{{end}} {{if .IsBookmarked}}is-bookmarked{{end}}"
+                      data-id="{{.ID}}"
+                      data-title="{{.TitleDE}}"
+                      data-ects="{{.Credits}}"
+                      data-events="{{.EventsCount}}"
                       onclick="openModal('{{.ID}}');">
                     <td style="text-align: center;" onclick="event.stopPropagation();">
                       <div class="table-actions">
@@ -146,13 +158,21 @@
             <thead>
               <tr>
                 <th style="width: 68px; text-align: center;">Status</th>
-                <th style="width: 75px;">ID</th>
-                <th>Modulname &amp; Lehrveranstaltung</th>
-                <th style="width: 85px; text-align: center;">ECTS</th>
+                <th class="th-sortable" onclick="sortTable(this, 'id');" style="width: 75px;" title="Nach ID sortieren (aufsteigend/absteigend)">
+                  <div class="th-content">ID <span class="sort-indicator">↕</span></div>
+                </th>
+                <th class="th-sortable" onclick="sortTable(this, 'title');" title="Nach Modulname sortieren (A-Z/Z-A)">
+                  <div class="th-content">Modulname &amp; Lehrveranstaltung <span class="sort-indicator">↕</span></div>
+                </th>
+                <th class="th-sortable" onclick="sortTable(this, 'ects');" style="width: 85px; text-align: center;" title="Nach ECTS sortieren">
+                  <div class="th-content th-content-center">ECTS <span class="sort-indicator">↕</span></div>
+                </th>
                 <th style="width: 120px;">Turnus</th>
                 <th style="width: 65px; text-align: center;">Sprache</th>
                 <th style="width: 140px;">Voraussetzungen</th>
-                <th style="width: 90px;">Termine</th>
+                <th class="th-sortable" onclick="sortTable(this, 'events');" style="width: 90px; text-align: center;" title="Nach Terminen sortieren">
+                  <div class="th-content th-content-center">Termine <span class="sort-indicator">↕</span></div>
+                </th>
                 <th style="width: 36px;"></th>
               </tr>
             </thead>
@@ -164,6 +184,10 @@
               {{else}}
                 {{range .FUESModules}}
                   <tr class="table-row {{if .IsCompleted}}is-completed{{end}} {{if .IsBookmarked}}is-bookmarked{{end}}"
+                      data-id="{{.ID}}"
+                      data-title="{{.TitleDE}}"
+                      data-ects="{{.Credits}}"
+                      data-events="{{.EventsCount}}"
                       onclick="openModal('{{.ID}}');">
                     <td style="text-align: center;" onclick="event.stopPropagation();">
                       <div class="table-actions">

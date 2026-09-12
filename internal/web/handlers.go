@@ -68,6 +68,7 @@ type ModuleListData struct {
 	FUESTotal         int
 	HasFUESDivider    bool
 	FilterModulesJSON string
+	FilterModuleIDsJSON string
 	Total             int
 	TotalInProgram    int
 	Showing           int
@@ -125,9 +126,9 @@ func detectNextSemester() (defaultTurnus, label, tag string) {
 	// - Wintersemester (Oct-Mar): middle is Jan 1 -> months 1-6 target Sommersemester
 	// - Sommersemester (Apr-Sep): middle is Jul 1 -> months 7-12 target Wintersemester
 	if month >= 1 && month <= 6 {
-		return "next", fmt.Sprintf("Sommersemester %d", year), fmt.Sprintf("SoSe %d", year)
+		return "next", fmt.Sprintf("Sommersemester %d", year), fmt.Sprintf("SoSe %02d", year%100)
 	}
-	return "next", fmt.Sprintf("Wintersemester %d/%d", year, (year+1)%100), fmt.Sprintf("WiSe %d/%02d", year, (year+1)%100)
+	return "next", fmt.Sprintf("Wintersemester %d/%d", year, (year+1)%100), fmt.Sprintf("WiSe %02d", year%100)
 }
 
 func parseIDList(val string) map[string]bool {
@@ -304,6 +305,9 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 
 	minCredits, _ := strconv.ParseFloat(r.URL.Query().Get("min_credits"), 64)
 	maxCredits, _ := strconv.ParseFloat(r.URL.Query().Get("max_credits"), 64)
+	if maxCredits >= 30 {
+		maxCredits = 0
+	}
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	if offset < 0 {
 		offset = 0
@@ -486,60 +490,113 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 	allViewModels = append(allViewModels, fuesModules...)
 
 	// Compile JSON list of all filtered modules for client-side autocomplete
-	var filterModulesJSON string
+	// Compile JSON list of all module IDs matching the active sidebar filters WITHOUT text search query q (Requirement 2 & 3)
+	var filterModuleIDsJSON string
 	if offset == 0 {
-		var autocompleteItems []FilterAutocompleteItem
-		seenID := make(map[string]bool)
+		filterWithoutQ := baseFilter
+		filterWithoutQ.Query = ""
+		filterWithoutQ.Limit = 0
+		filterWithoutQ.Offset = 0
 
-		for _, vm := range allViewModels {
-			if !seenID[vm.ID] {
-				seenID[vm.ID] = true
-				autocompleteItems = append(autocompleteItems, FilterAutocompleteItem{
-					ID:      vm.ID,
-					TitleDE: vm.TitleDE,
-					TitleEN: vm.TitleEN,
-					Credits: vm.Credits,
-					Turnus:  vm.Turnus,
-					IsFUES:  vm.IsFUES,
-					IsPhase: vm.IsPhaseOut,
-				})
+		var matchedIDs []string
+		if onlyBookmarked || onlyCompleted {
+			for _, vm := range regularModules {
+				matchedIDs = append(matchedIDs, vm.ID)
+			}
+		} else {
+			switch fues {
+			case "exkl":
+				regF := filterWithoutQ
+				regF.FUESFilter = "exkl"
+				matchedIDs, _ = s.store.SearchModuleIDs(regF)
+			case "nur":
+				fF := filterWithoutQ
+				fF.FUESFilter = "nur"
+				if programID != "" {
+					fF.ProgramID = ""
+					fF.NonAdjacentMajor = programMajor
+				}
+				matchedIDs, _ = s.store.SearchModuleIDs(fF)
+			default: // "inkl"
+				regF := filterWithoutQ
+				if programID == "" {
+					regF.FUESFilter = "exkl"
+				}
+				ids1, _ := s.store.SearchModuleIDs(regF)
+
+				fF := filterWithoutQ
+				fF.FUESFilter = "nur"
+				if programID != "" {
+					fF.ProgramID = ""
+					fF.NonAdjacentMajor = programMajor
+				}
+				ids2, _ := s.store.SearchModuleIDs(fF)
+
+				seen := make(map[string]bool)
+				for _, id := range ids1 {
+					if !seen[id] {
+						seen[id] = true
+						matchedIDs = append(matchedIDs, id)
+					}
+				}
+				for _, id := range ids2 {
+					if !seen[id] {
+						seen[id] = true
+						matchedIDs = append(matchedIDs, id)
+					}
+				}
 			}
 		}
 
-		if b, err := json.Marshal(autocompleteItems); err == nil {
-			filterModulesJSON = string(b)
+		if matchedIDs == nil {
+			matchedIDs = []string{}
+		}
+		if b, err := json.Marshal(matchedIDs); err == nil {
+			filterModuleIDsJSON = string(b)
 		}
 	}
 
 	data := ModuleListData{
-		Modules:           allViewModels,
-		RegularModules:    regularModules,
-		FUESModules:       fuesModules,
-		HasRegular:        hasRegular,
-		HasFUES:           hasFUES,
-		RegularShowing:    regularShowing,
-		RegularTotal:      regularTotal,
-		FUESShowing:       fuesShowing,
-		FUESTotal:         fuesTotal,
-		FilterModulesJSON: filterModulesJSON,
-		Total:             regularShowing + fuesShowing,
-		Showing:           len(allViewModels),
-		Offset:            offset,
-		HasNext:           false,
-		NextOffset:        offset,
-		ViewMode:          "table",
-		Query:             q,
-		ProgramName:       programName,
-		IsAppend:          offset > 0,
-		IsBookmarksView:   onlyBookmarked,
-		IsOpenPassedView:  onlyCompleted,
-		CompletedCredits:  completedCreditsSum,
+		Modules:             allViewModels,
+		RegularModules:      regularModules,
+		FUESModules:         fuesModules,
+		HasRegular:          hasRegular,
+		HasFUES:             hasFUES,
+		RegularShowing:      regularShowing,
+		RegularTotal:        regularTotal,
+		FUESShowing:         fuesShowing,
+		FUESTotal:           fuesTotal,
+		FilterModulesJSON:   filterModuleIDsJSON,
+		FilterModuleIDsJSON: filterModuleIDsJSON,
+		Total:               regularShowing + fuesShowing,
+		Showing:             len(allViewModels),
+		Offset:              offset,
+		HasNext:             false,
+		NextOffset:          offset,
+		ViewMode:            "table",
+		Query:               q,
+		ProgramName:         programName,
+		IsAppend:            offset > 0,
+		IsBookmarksView:     onlyBookmarked,
+		IsOpenPassedView:    onlyCompleted,
+		CompletedCredits:    completedCreditsSum,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.templates.ExecuteTemplate(w, "module_cards.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (s *Server) handleAllAutocompleteAPI(w http.ResponseWriter, r *http.Request) {
+	items, err := s.store.GetAllAutocompleteModules()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	json.NewEncoder(w).Encode(items)
 }
 
 func (s *Server) handleSuggestionsAPI(w http.ResponseWriter, r *http.Request) {
