@@ -32,11 +32,13 @@ type ModuleCardViewModel struct {
 
 // IndexPageData holds data passed to index.html template.
 type IndexPageData struct {
-	Programs        []storage.StudyProgramOption
-	CurrentSemester string
-	DefaultTurnus   string
-	NextSemesterTag string
-	TotalModules    int
+	Programs          []storage.StudyProgramOption
+	ProgramGroups     []storage.StudyProgramGroup
+	ProgramGroupsJSON template.HTML
+	CurrentSemester   string
+	DefaultTurnus     string
+	NextSemesterTag   string
+	TotalModules      int
 }
 
 // FilterAutocompleteItem is a lightweight representation of a module for instant client-side autocomplete.
@@ -110,16 +112,13 @@ func detectNextSemester() (defaultTurnus, label, tag string) {
 	month := now.Month()
 	year := now.Year()
 
-	if month >= 4 && month <= 9 {
-		// Next is Wintersemester starting in Oct
-		return "wise", fmt.Sprintf("Wintersemester %d/%d", year, (year+1)%100), "WiSe"
+	// Switchover in the middle of each semester:
+	// - Wintersemester (Oct-Mar): middle is Jan 1 -> months 1-6 target Sommersemester
+	// - Sommersemester (Apr-Sep): middle is Jul 1 -> months 7-12 target Wintersemester
+	if month >= 1 && month <= 6 {
+		return "next", fmt.Sprintf("Sommersemester %d", year), fmt.Sprintf("SoSe %d", year)
 	}
-	// Next is Sommersemester starting in April
-	targetYear := year
-	if month >= 10 {
-		targetYear++
-	}
-	return "sose", fmt.Sprintf("Sommersemester %d", targetYear), "SoSe"
+	return "next", fmt.Sprintf("Wintersemester %d/%d", year, (year+1)%100), fmt.Sprintf("WiSe %d/%02d", year, (year+1)%100)
 }
 
 func parseIDList(val string) map[string]bool {
@@ -148,15 +147,19 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	programs, _ := s.store.GetAllStudyPrograms()
+	groups, _ := s.store.GetGroupedStudyPrograms()
+	groupsJSON, _ := json.Marshal(groups)
 	total, _ := s.store.Count()
-	defTurnus, currentSem, nextTag := detectNextSemester()
+	_, currentSem, nextTag := detectNextSemester()
 
 	data := IndexPageData{
-		Programs:        programs,
-		CurrentSemester: currentSem,
-		DefaultTurnus:   defTurnus,
-		NextSemesterTag: nextTag,
-		TotalModules:    total,
+		Programs:          programs,
+		ProgramGroups:     groups,
+		ProgramGroupsJSON: template.HTML(groupsJSON),
+		CurrentSemester:   currentSem,
+		DefaultTurnus:     "all", // Default as requested: "Alle"
+		NextSemesterTag:   nextTag,
+		TotalModules:      total,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -174,6 +177,30 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 	onlyBookmarked := r.URL.Query().Get("only_bookmarked") == "true" || r.URL.Query().Get("only_bookmarked") == "1"
 	onlyCompleted := r.URL.Query().Get("only_completed") == "true" || r.URL.Query().Get("only_completed") == "1"
 	language := r.URL.Query().Get("language")
+	limitation := r.URL.Query().Get("limitation")
+	langDE := r.URL.Query().Get("lang_de") == "true" || r.URL.Query().Get("lang_de") == "1"
+	langEN := r.URL.Query().Get("lang_en") == "true" || r.URL.Query().Get("lang_en") == "1"
+	var languages []string
+	if langDE {
+		languages = append(languages, "Deutsch")
+	}
+	if langEN {
+		languages = append(languages, "English")
+	}
+
+	campuses := r.URL.Query()["campus"]
+	if len(campuses) == 0 {
+		if cp := r.URL.Query().Get("campuses"); cp != "" {
+			for _, part := range strings.Split(cp, ",") {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					campuses = append(campuses, part)
+				}
+			}
+		}
+	}
+	campusStrict := r.URL.Query().Get("campus_strict") == "true" || r.URL.Query().Get("campus_strict") == "1"
+
 	viewMode := r.URL.Query().Get("view")
 	if viewMode == "" {
 		viewMode = "grid"
@@ -220,6 +247,10 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 		MinCredits:      minCredits,
 		MaxCredits:      maxCredits,
 		Language:        language,
+		Languages:       languages,
+		Campuses:        campuses,
+		CampusStrict:    campusStrict,
+		Limitation:      limitation,
 		OnlyFUES:        onlyFUES,
 		ExcludePhaseOut: hidePhaseOut,
 		Limit:           limit,
@@ -326,6 +357,10 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 			MinCredits:       minCredits,
 			MaxCredits:       maxCredits,
 			Language:         language,
+			Languages:        languages,
+			Campuses:         campuses,
+			CampusStrict:     campusStrict,
+			Limitation:       limitation,
 			ExcludePhaseOut:  hidePhaseOut,
 			Limit:            100,
 		}

@@ -315,3 +315,162 @@ func TestStorage(t *testing.T) {
 		t.Errorf("unexpected linked modules: %+v", linkedMods)
 	}
 }
+
+func TestAdvancedFiltersAndGroupedPrograms(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "btu_adv_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "adv_test.db")
+	store, err := NewStorage(dbPath)
+	if err != nil {
+		t.Fatalf("failed to initialize storage: %v", err)
+	}
+	defer store.Close()
+
+	// Insert modules with diverse turnus, limitation, languages
+	modules := []*model.ModuleDetail{
+		{
+			ID:         "M1",
+			Code:       "M1",
+			TitleDE:    "Algorithmen",
+			Language:   "Deutsch",
+			Turnus:     "jedes Sommersemester gerader Jahre",
+			Limitation: "keine",
+			Credits:    6.0,
+		},
+		{
+			ID:         "M2",
+			Code:       "M2",
+			TitleDE:    "Data Science",
+			Language:   "English",
+			Turnus:     "jedes Wintersemester ungerader Jahre",
+			Limitation: "25",
+			Credits:    6.0,
+		},
+		{
+			ID:         "M3",
+			Code:       "M3",
+			TitleDE:    "Spezialkurs",
+			Language:   "Deutsch",
+			Turnus:     "sporadisch nach Ankündigung",
+			Limitation: "",
+			Credits:    3.0,
+		},
+	}
+
+	for _, m := range modules {
+		if err := store.UpsertModuleDetail(m); err != nil {
+			t.Fatalf("failed to upsert module %s: %v", m.ID, err)
+		}
+	}
+
+	// Insert events with rooms for campus testing
+	// Event 1: Hauptcampus
+	e1 := &model.EventDetail{
+		ID:          "EV1",
+		EventNumber: "E101",
+		Title:       "Vorlesung Algorithmen",
+		Schedules: []model.EventSchedule{
+			{Room: "Hauptgebäude - HG 3.45 - Zentralcampus"},
+		},
+		AssociatedModules: []string{"M1"},
+	}
+	if err := store.UpsertEvent(e1); err != nil {
+		t.Fatalf("failed to upsert event 1: %v", err)
+	}
+
+	// Event 2: Senftenberg
+	e2 := &model.EventDetail{
+		ID:          "EV2",
+		EventNumber: "E102",
+		Title:       "Labor Data Science",
+		Schedules: []model.EventSchedule{
+			{Room: "Gebäude 11 - Hörsaal SFB - 11.122 Grosser Hörsaal - Campus Senftenberg"},
+		},
+		AssociatedModules: []string{"M2"},
+	}
+	if err := store.UpsertEvent(e2); err != nil {
+		t.Fatalf("failed to upsert event 2: %v", err)
+	}
+
+	// 1. Test Turnus
+	_, totalSoseEven, err := store.SearchModulesAdvanced(AdvancedFilter{SemesterTurnus: "sose_even"})
+	if err != nil || totalSoseEven != 1 {
+		t.Errorf("expected 1 module for sose_even, got %d, err=%v", totalSoseEven, err)
+	}
+
+	_, totalWiseOdd, err := store.SearchModulesAdvanced(AdvancedFilter{SemesterTurnus: "wise_odd"})
+	if err != nil || totalWiseOdd != 1 {
+		t.Errorf("expected 1 module for wise_odd, got %d, err=%v", totalWiseOdd, err)
+	}
+
+	_, totalSporadic, err := store.SearchModulesAdvanced(AdvancedFilter{SemesterTurnus: "sporadic"})
+	if err != nil || totalSporadic != 1 {
+		t.Errorf("expected 1 module for sporadic, got %d, err=%v", totalSporadic, err)
+	}
+
+	// 2. Test Limitation
+	// "nein": unbeschränkt (M1 with "keine" and M3 with "")
+	_, totalUnlim, err := store.SearchModulesAdvanced(AdvancedFilter{Limitation: "nein"})
+	if err != nil || totalUnlim != 2 {
+		t.Errorf("expected 2 unbeschränkte modules, got %d, err=%v", totalUnlim, err)
+	}
+
+	// "nur": teilnehmerbeschränkt (M2 with "25")
+	_, totalLim, err := store.SearchModulesAdvanced(AdvancedFilter{Limitation: "nur"})
+	if err != nil || totalLim != 1 {
+		t.Errorf("expected 1 teilnehmerbeschränkt module, got %d, err=%v", totalLim, err)
+	}
+
+	// 3. Test Languages
+	_, totalDE, err := store.SearchModulesAdvanced(AdvancedFilter{Languages: []string{"Deutsch"}})
+	if err != nil || totalDE != 2 {
+		t.Errorf("expected 2 German modules, got %d, err=%v", totalDE, err)
+	}
+
+	_, totalEN, err := store.SearchModulesAdvanced(AdvancedFilter{Languages: []string{"English"}})
+	if err != nil || totalEN != 1 {
+		t.Errorf("expected 1 English module, got %d, err=%v", totalEN, err)
+	}
+
+	// 4. Test Campuses
+	_, totalHC, err := store.SearchModulesAdvanced(AdvancedFilter{Campuses: []string{"hauptcampus"}})
+	if err != nil || totalHC != 1 {
+		t.Errorf("expected 1 module at hauptcampus, got %d, err=%v", totalHC, err)
+	}
+
+	_, totalSFB, err := store.SearchModulesAdvanced(AdvancedFilter{Campuses: []string{"senftenberg"}, CampusStrict: true})
+	if err != nil || totalSFB != 1 {
+		t.Errorf("expected 1 module strictly at senftenberg, got %d, err=%v", totalSFB, err)
+	}
+
+	// 5. Test StudyProgramGroup and GetGroupedStudyPrograms
+	p1 := model.OfficialStudyProgram{
+		ID:          "stg1_po2024",
+		ProgramName: "Informatik",
+		Degree:      "Bachelor (universitär)",
+		POVersion:   "2024",
+	}
+	p2 := model.OfficialStudyProgram{
+		ID:          "stg1_po2019",
+		ProgramName: "Informatik",
+		Degree:      "Bachelor (universitär)",
+		POVersion:   "2019",
+	}
+	_ = store.UpsertOfficialProgram(&p1)
+	_ = store.UpsertOfficialProgram(&p2)
+
+	groups, err := store.GetGroupedStudyPrograms()
+	if err != nil {
+		t.Fatalf("GetGroupedStudyPrograms failed: %v", err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("expected 1 grouped study program, got %d", len(groups))
+	}
+	if len(groups[0].POs) != 2 {
+		t.Errorf("expected 2 POs in Informatik group, got %d", len(groups[0].POs))
+	}
+}

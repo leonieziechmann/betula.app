@@ -2,15 +2,20 @@
 
 const STORAGE_KEYS = {
   PROGRAM: 'btu_selected_program',
+  PROGRAM_GROUP: 'btu_selected_program_group',
   PROGRAM_TITLE: 'btu_selected_program_title',
+  PO_ID: 'btu_selected_po_id',
   TURNUS: 'btu_target_semester',
+  CAMPUSES: 'btu_campuses',
+  CAMPUS_STRICT: 'btu_campus_strict',
+  LIMITATION: 'btu_limitation',
+  LANG_DE: 'btu_lang_de',
+  LANG_EN: 'btu_lang_en',
   COMPLETED: 'btu_completed_modules',
   BOOKMARKS: 'btu_bookmarked_modules',
   ONLY_FUES: 'btu_only_fues',
   HIDE_PHASE_OUT: 'btu_hide_phase_out',
-  PREREQS_MET: 'btu_prereqs_met',
   VIEW_MODE: 'btu_view_mode',
-  LANGUAGE: 'btu_language',
   MIN_CREDITS: 'btu_min_credits'
 };
 
@@ -196,13 +201,59 @@ function updateBadges() {
   if (bkmkCount) bkmkCount.textContent = getBookmarkedModules().length;
 }
 
+let refreshDebounceTimer = null;
 function refreshModules() {
-  const form = document.getElementById('filter-form');
-  if (form) {
-    // Reset offset to 0 on new filter change
-    const offsetInput = document.getElementById('filter-offset');
-    if (offsetInput) offsetInput.value = '0';
-    htmx.trigger(form, 'submit');
+  clearTimeout(refreshDebounceTimer);
+  refreshDebounceTimer = setTimeout(() => {
+    const form = document.getElementById('filter-form');
+    if (form) {
+      const offsetInput = document.getElementById('filter-offset');
+      if (offsetInput) offsetInput.value = '0';
+      htmx.trigger(form, 'submit');
+    }
+    updateActiveFilterCount();
+  }, 25);
+}
+
+function updateActiveFilterCount() {
+  let count = 0;
+  const prog = document.getElementById('filter-program');
+  if (prog && prog.value) count++;
+
+  const turnus = document.getElementById('filter-turnus');
+  if (turnus && turnus.value && turnus.value !== 'all') count++;
+
+  const credits = document.getElementById('filter-min-credits');
+  if (credits && parseFloat(credits.value) > 0) count++;
+
+  const checkedCampuses = document.querySelectorAll('input[name="campus"]:checked');
+  if (checkedCampuses.length > 0) count += checkedCampuses.length;
+
+  const strict = document.getElementById('filter-campus-strict');
+  if (strict && strict.checked) count++;
+
+  const limit = document.getElementById('filter-limitation');
+  if (limit && limit.value && limit.value !== 'ja') count++;
+
+  const fues = document.getElementById('filter-fues');
+  if (fues && fues.checked) count++;
+
+  const phaseOut = document.getElementById('filter-hide-phaseout');
+  if (phaseOut && !phaseOut.checked) count++;
+
+  const de = document.getElementById('filter-lang-de');
+  const en = document.getElementById('filter-lang-en');
+  if (de && !de.checked) count++;
+  if (en && en.checked) count++;
+
+  const badge = document.getElementById('active-filters-count');
+  if (badge) {
+    if (count > 0) {
+      badge.textContent = `${count} aktiv`;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
   }
 }
 
@@ -338,20 +389,98 @@ window.filterComboboxOptions = function(query) {
   highlightedComboboxIndex = -1;
 };
 
-window.selectStudyProgram = function(id, title) {
+let programGroups = [];
+function initProgramGroups() {
+  try {
+    const el = document.getElementById('program-groups-data');
+    if (!el) return;
+    let raw = el.textContent ? el.textContent.trim() : '';
+    let parsed = JSON.parse(raw || '[]');
+    if (typeof parsed === 'string') {
+      parsed = JSON.parse(parsed);
+    }
+    programGroups = Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error("Failed to parse program groups:", e);
+    programGroups = [];
+  }
+}
+
+window.onProgramOptionClick = function(el) {
+  const key = el.getAttribute('data-key') || '';
+  const title = el.getAttribute('data-title') || '';
+  selectStudyProgramGroup(key, title);
+};
+
+window.selectStudyProgramGroup = function(groupKey, title, preferredPoId, shouldRefresh = true) {
+  if (programGroups.length === 0) initProgramGroups();
+
   const hiddenInput = document.getElementById('filter-program');
   const label = document.getElementById('combobox-label');
   const clearBtn = document.getElementById('btn-clear-program');
+  const poDisplay = document.getElementById('po-display');
+  const poDisplayText = document.getElementById('po-display-text');
+  const poSelect = document.getElementById('po-select');
 
-  if (hiddenInput) hiddenInput.value = id;
-  if (label) label.textContent = title || 'Alle Studiengänge (Gesamtkatalog)';
-  if (clearBtn) clearBtn.style.display = id ? 'inline-block' : 'none';
-
-  localStorage.setItem(STORAGE_KEYS.PROGRAM, id);
+  localStorage.setItem(STORAGE_KEYS.PROGRAM_GROUP, groupKey || '');
   localStorage.setItem(STORAGE_KEYS.PROGRAM_TITLE, title || '');
 
-  if (id) {
-    trackAnonymousEvent('program_select', id, title);
+  if (!groupKey) {
+    if (hiddenInput) hiddenInput.value = '';
+    if (label) label.textContent = 'Alle Studiengänge';
+    if (clearBtn) clearBtn.style.display = 'none';
+    if (poDisplayText) poDisplayText.textContent = '-';
+    if (poDisplay) poDisplay.style.display = 'flex';
+    if (poSelect) poSelect.style.display = 'none';
+    localStorage.removeItem(STORAGE_KEYS.PROGRAM);
+    localStorage.removeItem(STORAGE_KEYS.PO_ID);
+  } else {
+    const grp = programGroups.find(g => g.key === groupKey);
+    if (label) label.textContent = title || groupKey;
+    if (clearBtn) clearBtn.style.display = 'inline-block';
+
+    if (grp && grp.pos && grp.pos.length > 1) {
+      // Multiple POs: show interactive dropdown
+      if (poDisplay) poDisplay.style.display = 'none';
+      if (poSelect) {
+        poSelect.innerHTML = '';
+        let targetPoId = preferredPoId || '';
+        grp.pos.forEach(po => {
+          const opt = document.createElement('option');
+          opt.value = po.id;
+          const poLabel = po.po_version ? `PO ${po.po_version}` : 'PO Standard';
+          opt.textContent = `${poLabel} (${po.count})`;
+          poSelect.appendChild(opt);
+          if (!targetPoId) targetPoId = po.id;
+        });
+
+        if (preferredPoId && grp.pos.some(p => p.id === preferredPoId)) {
+          poSelect.value = preferredPoId;
+        } else if (targetPoId) {
+          poSelect.value = targetPoId;
+        }
+
+        poSelect.style.display = 'block';
+        if (hiddenInput) hiddenInput.value = poSelect.value;
+        localStorage.setItem(STORAGE_KEYS.PROGRAM, poSelect.value);
+        localStorage.setItem(STORAGE_KEYS.PO_ID, poSelect.value);
+      }
+    } else if (grp && grp.pos && grp.pos.length === 1) {
+      // Exactly 1 PO: show read-only indicator badge
+      const singlePO = grp.pos[0];
+      if (poSelect) poSelect.style.display = 'none';
+      if (poDisplay) poDisplay.style.display = 'flex';
+      const shortPo = singlePO.po_version ? `PO ${singlePO.po_version}` : 'PO Standard';
+      if (poDisplayText) poDisplayText.textContent = shortPo;
+      if (hiddenInput) hiddenInput.value = singlePO.id;
+      localStorage.setItem(STORAGE_KEYS.PROGRAM, singlePO.id);
+      localStorage.setItem(STORAGE_KEYS.PO_ID, singlePO.id);
+    } else {
+      if (poDisplayText) poDisplayText.textContent = '-';
+      if (poDisplay) poDisplay.style.display = 'flex';
+      if (poSelect) poSelect.style.display = 'none';
+      if (hiddenInput) hiddenInput.value = '';
+    }
   }
 
   // Close dropdown
@@ -363,24 +492,156 @@ window.selectStudyProgram = function(id, title) {
   highlightedComboboxIndex = -1;
   document.querySelectorAll('#combobox-options-list .combobox-option').forEach(opt => {
     opt.classList.remove('highlighted');
+    opt.classList.toggle('selected', opt.dataset.key === groupKey);
   });
 
-  // Mark selected option
-  document.querySelectorAll('.combobox-option').forEach(opt => {
-    opt.classList.toggle('selected', opt.dataset.id === id);
-  });
-
-  // On mobile screens, auto-close sidebar drawer on selection
   if (window.innerWidth <= 960) {
     toggleSidebar(false);
   }
 
+  if (shouldRefresh) {
+    refreshModules();
+  }
+};
+
+window.onPOSelectChanged = function(poId) {
+  const hiddenInput = document.getElementById('filter-program');
+  if (hiddenInput) hiddenInput.value = poId;
+  localStorage.setItem(STORAGE_KEYS.PROGRAM, poId);
+  localStorage.setItem(STORAGE_KEYS.PO_ID, poId);
   refreshModules();
 };
 
 window.clearStudyProgram = function(event) {
   if (event) event.stopPropagation();
-  selectStudyProgram('', '');
+  selectStudyProgramGroup('', '');
+};
+
+// Semester Turnus selection and Accordion logic
+window.selectSemesterTurnus = function(val, shouldRefresh = true) {
+  const hidden = document.getElementById('filter-turnus');
+  if (hidden) hidden.value = val;
+  localStorage.setItem(STORAGE_KEYS.TURNUS, val);
+
+  const btnAll = document.getElementById('btn-semester-all');
+  const btnNext = document.getElementById('btn-semester-next');
+  if (btnAll) btnAll.classList.toggle('active', val === 'all');
+  if (btnNext) btnNext.classList.toggle('active', val === 'next');
+
+  // Extended turnus pills
+  document.querySelectorAll('.turnus-pill').forEach(pill => {
+    const tVal = pill.getAttribute('data-turnus');
+    pill.classList.toggle('active', tVal === val);
+  });
+
+  if (shouldRefresh) {
+    refreshModules();
+  }
+};
+
+window.toggleSemesterAccordion = function(event) {
+  if (event) event.stopPropagation();
+  const acc = document.getElementById('semester-accordion');
+  const icon = document.getElementById('semester-ext-icon');
+  if (!acc) return;
+  const isOpen = acc.style.display !== 'none';
+  acc.style.display = isOpen ? 'none' : 'block';
+  if (icon) icon.textContent = isOpen ? '▾' : '▴';
+};
+
+// Limitation segmented control helper
+window.setLimitationFilter = function(val, shouldRefresh = true) {
+  const hidden = document.getElementById('filter-limitation');
+  if (hidden) hidden.value = val;
+  localStorage.setItem(STORAGE_KEYS.LIMITATION, val);
+
+  document.querySelectorAll('#limitation-control .segmented-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.val === val);
+  });
+
+  if (shouldRefresh) {
+    refreshModules();
+  }
+};
+
+function updateCampusChips() {
+  document.querySelectorAll('.campus-chip').forEach(chip => {
+    const input = chip.querySelector('input[type="checkbox"]');
+    if (input) {
+      chip.classList.toggle('active', input.checked);
+    }
+  });
+}
+
+function updateLanguageChips() {
+  document.querySelectorAll('.lang-chip').forEach(chip => {
+    const input = chip.querySelector('input[type="checkbox"]');
+    if (input) {
+      chip.classList.toggle('active', input.checked);
+    }
+  });
+}
+
+window.resetAllFilters = function() {
+  localStorage.removeItem(STORAGE_KEYS.PROGRAM);
+  localStorage.removeItem(STORAGE_KEYS.PROGRAM_GROUP);
+  localStorage.removeItem(STORAGE_KEYS.PROGRAM_TITLE);
+  localStorage.removeItem(STORAGE_KEYS.PO_ID);
+  localStorage.removeItem(STORAGE_KEYS.TURNUS);
+  localStorage.removeItem(STORAGE_KEYS.CAMPUSES);
+  localStorage.removeItem(STORAGE_KEYS.CAMPUS_STRICT);
+  localStorage.removeItem(STORAGE_KEYS.LIMITATION);
+  localStorage.removeItem(STORAGE_KEYS.LANG_DE);
+  localStorage.removeItem(STORAGE_KEYS.LANG_EN);
+  localStorage.removeItem(STORAGE_KEYS.ONLY_FUES);
+  localStorage.removeItem(STORAGE_KEYS.HIDE_PHASE_OUT);
+  localStorage.removeItem(STORAGE_KEYS.MIN_CREDITS);
+
+  // Reset Program & PO
+  selectStudyProgramGroup('', '', '', false);
+
+  // Reset Turnus
+  selectSemesterTurnus('all', false);
+
+  // Reset Credits
+  const creditsSlider = document.getElementById('filter-min-credits');
+  if (creditsSlider) {
+    creditsSlider.value = '0';
+    updateCreditsLabel('0');
+  }
+
+  // Reset Campuses
+  document.querySelectorAll('input[name="campus"]').forEach(chk => {
+    chk.checked = false;
+  });
+  updateCampusChips();
+
+  // Reset Campus Strict
+  const strictCheck = document.getElementById('filter-campus-strict');
+  if (strictCheck) strictCheck.checked = false;
+
+  // Reset Limitation
+  setLimitationFilter('ja', false);
+
+  // Reset Toggles
+  const fuesCheck = document.getElementById('filter-fues');
+  if (fuesCheck) fuesCheck.checked = false;
+
+  const phaseOutCheck = document.getElementById('filter-hide-phaseout');
+  if (phaseOutCheck) phaseOutCheck.checked = true;
+
+  // Reset Languages
+  const deCheck = document.getElementById('filter-lang-de');
+  if (deCheck) deCheck.checked = true;
+  const enCheck = document.getElementById('filter-lang-en');
+  if (enCheck) enCheck.checked = false;
+  updateLanguageChips();
+
+  // Reset search
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) searchInput.value = '';
+
+  refreshModules();
 };
 
 // Initialize on page load
@@ -388,10 +649,13 @@ document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('filter-form');
   if (!form) return;
 
-  // Restore Program
-  const savedProg = localStorage.getItem(STORAGE_KEYS.PROGRAM) || '';
+  initProgramGroups();
+
+  // Restore Program & PO (without refresh during init)
+  const savedGroup = localStorage.getItem(STORAGE_KEYS.PROGRAM_GROUP) || '';
   const savedTitle = localStorage.getItem(STORAGE_KEYS.PROGRAM_TITLE) || '';
-  selectStudyProgram(savedProg, savedTitle);
+  const savedPoId = localStorage.getItem(STORAGE_KEYS.PO_ID) || '';
+  selectStudyProgramGroup(savedGroup, savedTitle, savedPoId, false);
 
   // Keyboard navigation on combobox search input
   const comboboxSearch = document.getElementById('combobox-search');
@@ -438,7 +702,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (targetOption) {
-          selectStudyProgram(targetOption.dataset.id, targetOption.dataset.title);
+          selectStudyProgramGroup(targetOption.dataset.key, targetOption.dataset.title);
         }
       } else if (evt.key === 'Escape') {
         const dropdown = document.getElementById('combobox-dropdown');
@@ -451,17 +715,74 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Restore Turnus
-  const savedTurnus = localStorage.getItem(STORAGE_KEYS.TURNUS);
-  if (savedTurnus) {
-    const radio = document.querySelector(`input[name="turnus"][value="${savedTurnus}"]`);
-    if (radio) radio.checked = true;
-  }
-  document.querySelectorAll('input[name="turnus"]').forEach(r => {
-    r.addEventListener('change', () => {
-      if (r.checked) localStorage.setItem(STORAGE_KEYS.TURNUS, r.value);
+  // Restore Turnus (without refresh during init)
+  const savedTurnus = localStorage.getItem(STORAGE_KEYS.TURNUS) || 'all';
+  selectSemesterTurnus(savedTurnus, false);
+
+  // Restore Campuses
+  try {
+    const savedCampuses = JSON.parse(localStorage.getItem(STORAGE_KEYS.CAMPUSES) || '[]');
+    if (Array.isArray(savedCampuses)) {
+      document.querySelectorAll('input[name="campus"]').forEach(chk => {
+        chk.checked = savedCampuses.includes(chk.value);
+      });
+    }
+  } catch(e) {}
+  updateCampusChips();
+
+  document.querySelectorAll('input[name="campus"]').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const selected = Array.from(document.querySelectorAll('input[name="campus"]:checked')).map(c => c.value);
+      localStorage.setItem(STORAGE_KEYS.CAMPUSES, JSON.stringify(selected));
+      updateCampusChips();
+      refreshModules();
     });
   });
+
+  // Restore Campus Strict
+  const savedStrict = localStorage.getItem(STORAGE_KEYS.CAMPUS_STRICT);
+  const strictCheck = document.getElementById('filter-campus-strict');
+  if (savedStrict !== null && strictCheck) {
+    strictCheck.checked = savedStrict === 'true';
+  }
+  if (strictCheck) {
+    strictCheck.addEventListener('change', () => {
+      localStorage.setItem(STORAGE_KEYS.CAMPUS_STRICT, strictCheck.checked);
+      refreshModules();
+    });
+  }
+
+  // Restore Limitation
+  const savedLimit = localStorage.getItem(STORAGE_KEYS.LIMITATION) || 'ja';
+  setLimitationFilter(savedLimit, false);
+
+  // Restore Languages
+  const savedLangDE = localStorage.getItem(STORAGE_KEYS.LANG_DE);
+  const langDECheck = document.getElementById('filter-lang-de');
+  if (savedLangDE !== null && langDECheck) {
+    langDECheck.checked = savedLangDE === 'true';
+  }
+  if (langDECheck) {
+    langDECheck.addEventListener('change', () => {
+      localStorage.setItem(STORAGE_KEYS.LANG_DE, langDECheck.checked);
+      updateLanguageChips();
+      refreshModules();
+    });
+  }
+
+  const savedLangEN = localStorage.getItem(STORAGE_KEYS.LANG_EN);
+  const langENCheck = document.getElementById('filter-lang-en');
+  if (savedLangEN !== null && langENCheck) {
+    langENCheck.checked = savedLangEN === 'true';
+  }
+  if (langENCheck) {
+    langENCheck.addEventListener('change', () => {
+      localStorage.setItem(STORAGE_KEYS.LANG_EN, langENCheck.checked);
+      updateLanguageChips();
+      refreshModules();
+    });
+  }
+  updateLanguageChips();
 
   // Restore Only FÜS
   const savedFUES = localStorage.getItem(STORAGE_KEYS.ONLY_FUES);
@@ -472,6 +793,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (fuesCheck) {
     fuesCheck.addEventListener('change', () => {
       localStorage.setItem(STORAGE_KEYS.ONLY_FUES, fuesCheck.checked);
+      refreshModules();
     });
   }
 
@@ -484,6 +806,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (phaseOutCheck) {
     phaseOutCheck.addEventListener('change', () => {
       localStorage.setItem(STORAGE_KEYS.HIDE_PHASE_OUT, phaseOutCheck.checked);
+      refreshModules();
     });
   }
 
@@ -496,6 +819,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (prereqCheck) {
     prereqCheck.addEventListener('change', () => {
       localStorage.setItem(STORAGE_KEYS.PREREQS_MET, prereqCheck.checked);
+      refreshModules();
     });
   }
 
@@ -505,6 +829,11 @@ document.addEventListener('DOMContentLoaded', function() {
   if (savedCredits !== null && creditsSlider) {
     creditsSlider.value = savedCredits;
     updateCreditsLabel(savedCredits);
+  }
+  if (creditsSlider) {
+    creditsSlider.addEventListener('change', () => {
+      refreshModules();
+    });
   }
 
   // Restore View Mode

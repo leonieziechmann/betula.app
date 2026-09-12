@@ -410,11 +410,13 @@ func runModuleEvents(ctx context.Context, args []string) {
 	dbPath := fs.String("db", "btu_modules.db", "SQLite database path")
 	cacheDir := fs.String("cache-dir", ".cache", "Cache directory")
 	refresh := fs.Bool("refresh", false, "Force re-fetch from web")
+	limit := fs.Int("limit", 0, "Limit number of modules to scrape (0 for all)")
+	delayMs := fs.Int("delay", 1000, "Delay between modules in milliseconds")
 	_ = fs.Parse(reorderFlags(args))
 
 	moduleID := fs.Arg(0)
 	if moduleID == "" {
-		fmt.Fprintln(os.Stderr, "Error: missing module ID. Usage: scraper module-events <module-id>")
+		fmt.Fprintln(os.Stderr, "Error: missing module ID. Usage: scraper module-events <module-id | all>")
 		os.Exit(1)
 	}
 
@@ -427,6 +429,57 @@ func runModuleEvents(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 	eventProv := p.(*provider.BTUEventProvider)
+
+	if strings.EqualFold(moduleID, "all") {
+		rows, err := store.DB().QueryContext(ctx, `
+			SELECT id FROM modules 
+			WHERE current_semester_events IS NOT NULL AND current_semester_events != '' AND current_semester_events != '[]'
+			ORDER BY CAST(id AS INTEGER), id ASC
+		`)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error querying modules: %v\n", err)
+			os.Exit(1)
+		}
+		defer rows.Close()
+
+		var ids []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err == nil {
+				ids = append(ids, id)
+			}
+		}
+
+		if *limit > 0 && *limit < len(ids) {
+			ids = ids[:*limit]
+		}
+
+		fmt.Printf("[+] Scraping current semester events for %d modules (delay: %dms)...\n", len(ids), *delayMs)
+		totalEvents := 0
+		for i, id := range ids {
+			select {
+			case <-ctx.Done():
+				fmt.Println("\n[!] Scraping cancelled by user")
+				return
+			default:
+			}
+
+			count, err := eventProv.ScrapeEventsForModule(ctx, id, *refresh)
+			if err != nil {
+				fmt.Printf("[%d/%d] Modul %s: Fehler: %v\n", i+1, len(ids), id, err)
+			} else {
+				totalEvents += count
+				if count > 0 {
+					fmt.Printf("[%d/%d] Modul %s: %d Termine/Events gespeichert\n", i+1, len(ids), id, count)
+				}
+			}
+			if *delayMs > 0 && i < len(ids)-1 {
+				time.Sleep(time.Duration(*delayMs) * time.Millisecond)
+			}
+		}
+		fmt.Printf("[✓] Fertig! Insgesamt %d Events für %d Module gespeichert.\n", totalEvents, len(ids))
+		return
+	}
 
 	fmt.Printf("[+] Scraping current semester events for module %s...\n", moduleID)
 	count, err := eventProv.ScrapeEventsForModule(ctx, moduleID, *refresh)

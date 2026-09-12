@@ -1205,16 +1205,20 @@ func scanOfficialProgram(scanner interface{ Scan(...interface{}) error }) (*mode
 
 // AdvancedFilter specifies criteria for web search and smart filtering.
 type AdvancedFilter struct {
-	Query            string  // searches title_de, title_en, code, id, responsible_persons
-	ProgramID        string  // matches module_study_programs.program_id
-	ProgramName      string  // matches module_study_programs.program_name
-	SemesterTurnus   string  // "wise", "sose", "all"
+	Query            string   // searches title_de, title_en, code, id, responsible_persons
+	ProgramID        string   // matches module_study_programs.program_id
+	ProgramName      string   // matches module_study_programs.program_name
+	SemesterTurnus   string   // "all", "next", "sose", "sose_even", "sose_odd", "wise", "wise_even", "wise_odd", "sporadic"
 	MinCredits       float64
 	MaxCredits       float64
-	Language         string  // "Deutsch", "Englisch", "all"
+	Language         string   // legacy / single language query
+	Languages        []string // ["Deutsch", "English"]
+	Campuses         []string // ["hauptcampus", "sachsendorf", "senftenberg"]
+	CampusStrict     bool     // if true, all events must strictly be at the selected campus(es)
+	Limitation       string   // "ja" (all), "nein" (unlimited only), "nur" (limited only)
 	OnlyFUES         bool
-	ExcludePhaseOut  bool    // excludes modules where is_phase_out = 1
-	NonAdjacentMajor string  // excludes modules where major is in study_programs
+	ExcludePhaseOut  bool     // excludes modules where is_phase_out = 1
+	NonAdjacentMajor string   // excludes modules where major is in study_programs
 	Limit            int
 	Offset           int
 }
@@ -1297,10 +1301,49 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 		args = append(args, q, q, q, q, q, q)
 	}
 
-	if f.SemesterTurnus == "wise" {
+	turnus := strings.ToLower(strings.TrimSpace(f.SemesterTurnus))
+	if turnus == "next" {
+		now := time.Now()
+		month := now.Month()
+		year := now.Year()
+		// Switch in middle of semester: Months 1-6 -> SoSe, Months 7-12 -> WiSe
+		if month >= 1 && month <= 6 {
+			if year%2 == 0 {
+				turnus = "sose_even"
+			} else {
+				turnus = "sose_odd"
+			}
+		} else {
+			if year%2 == 0 {
+				turnus = "wise_even"
+			} else {
+				turnus = "wise_odd"
+			}
+		}
+	}
+
+	switch turnus {
+	case "wise":
 		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%winter%' OR LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%')")
-	} else if f.SemesterTurnus == "sose" {
+	case "wise_even":
+		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes wintersemester' OR LOWER(m.turnus) = 'every winter semester' OR LOWER(m.turnus) LIKE '%winter%gerad%' OR LOWER(m.turnus) LIKE '%winter%even%')")
+	case "wise_odd":
+		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes wintersemester' OR LOWER(m.turnus) = 'every winter semester' OR LOWER(m.turnus) LIKE '%winter%ungerad%' OR LOWER(m.turnus) LIKE '%winter%odd%')")
+	case "sose":
 		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%sommer%' OR LOWER(m.turnus) LIKE '%summer%' OR LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%')")
+	case "sose_even":
+		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%gerad%' OR LOWER(m.turnus) LIKE '%summer%even%')")
+	case "sose_odd":
+		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%jedes semester%' OR LOWER(m.turnus) LIKE '%every semester%' OR LOWER(m.turnus) = 'jedes sommersemester' OR LOWER(m.turnus) = 'every summer semester' OR LOWER(m.turnus) LIKE '%sommer%ungerad%' OR LOWER(m.turnus) LIKE '%summer%odd%')")
+	case "sporadic":
+		whereClauses = append(whereClauses, "(LOWER(m.turnus) LIKE '%sporadisch%' OR LOWER(m.turnus) LIKE '%ankündigung%' OR LOWER(m.turnus) LIKE '%announcement%')")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(f.Limitation)) {
+	case "nein":
+		whereClauses = append(whereClauses, "(m.limitation IS NULL OR m.limitation = '' OR LOWER(m.limitation) = 'keine')")
+	case "nur":
+		whereClauses = append(whereClauses, "(m.limitation IS NOT NULL AND m.limitation != '' AND LOWER(m.limitation) != 'keine')")
 	}
 
 	if f.OnlyFUES {
@@ -1316,7 +1359,60 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 		args = append(args, "%"+strings.ToLower(f.NonAdjacentMajor)+"%")
 	}
 
-	if f.Language != "" && !strings.EqualFold(f.Language, "all") {
+	if len(f.Campuses) > 0 {
+		var selectedConds []string
+		for _, c := range f.Campuses {
+			cond := campusRoomCondition(c)
+			if cond != "" {
+				selectedConds = append(selectedConds, cond)
+			}
+		}
+		if len(selectedConds) > 0 {
+			whereClauses = append(whereClauses, fmt.Sprintf("m.id IN (SELECT me.module_id FROM module_events me JOIN event_schedules es ON es.event_id = me.event_id WHERE %s)", strings.Join(selectedConds, " OR ")))
+		}
+
+		if f.CampusStrict {
+			allKnown := []string{"hauptcampus", "sachsendorf", "senftenberg"}
+			var unselectedConds []string
+			for _, k := range allKnown {
+				isSelected := false
+				for _, c := range f.Campuses {
+					cLow := strings.ToLower(strings.TrimSpace(c))
+					if cLow == k || (k == "hauptcampus" && cLow == "zentralcampus") {
+						isSelected = true
+						break
+					}
+				}
+				if !isSelected {
+					unselectedConds = append(unselectedConds, campusRoomCondition(k))
+				}
+			}
+			if len(unselectedConds) > 0 {
+				whereClauses = append(whereClauses, fmt.Sprintf("m.id NOT IN (SELECT me.module_id FROM module_events me JOIN event_schedules es ON es.event_id = me.event_id WHERE %s)", strings.Join(unselectedConds, " OR ")))
+			}
+		}
+	}
+
+	if len(f.Languages) > 0 {
+		hasDE := false
+		hasEN := false
+		for _, l := range f.Languages {
+			low := strings.ToLower(strings.TrimSpace(l))
+			if strings.Contains(low, "de") {
+				hasDE = true
+			}
+			if strings.Contains(low, "en") {
+				hasEN = true
+			}
+		}
+		if hasDE && !hasEN {
+			whereClauses = append(whereClauses, "LOWER(m.language) LIKE '%deutsch%'")
+		} else if hasEN && !hasDE {
+			whereClauses = append(whereClauses, "(LOWER(m.language) LIKE '%english%' OR LOWER(m.language) LIKE '%englisch%')")
+		} else if hasDE && hasEN {
+			whereClauses = append(whereClauses, "(LOWER(m.language) LIKE '%deutsch%' OR LOWER(m.language) LIKE '%english%' OR LOWER(m.language) LIKE '%englisch%')")
+		}
+	} else if f.Language != "" && !strings.EqualFold(f.Language, "all") {
 		whereClauses = append(whereClauses, "LOWER(m.language) LIKE ?")
 		args = append(args, "%"+strings.ToLower(f.Language)+"%")
 	}
@@ -1503,6 +1599,81 @@ func (s *Storage) GetAllStudyPrograms() ([]StudyProgramOption, error) {
 	}
 
 	return options, rows.Err()
+}
+
+// campusRoomCondition returns a SQL expression matching rooms belonging to a campus.
+func campusRoomCondition(campus string) string {
+	switch strings.ToLower(strings.TrimSpace(campus)) {
+	case "hauptcampus", "zentralcampus":
+		return "(LOWER(es.room) LIKE '%zentralcampus%' OR LOWER(es.room) LIKE '%hauptcampus%' OR LOWER(es.room) LIKE '%hauptgebäude%' OR LOWER(es.room) LIKE '%lehrgebäude%' OR LOWER(es.room) LIKE '%audimax%' OR LOWER(es.room) LIKE '%großer hörsaal%')"
+	case "sachsendorf":
+		return "(LOWER(es.room) LIKE '%sachsendorf%')"
+	case "senftenberg":
+		return "(LOWER(es.room) LIKE '%senftenberg%' OR LOWER(es.room) LIKE '%sfb%')"
+	default:
+		return fmt.Sprintf("(LOWER(es.room) LIKE '%%%s%%')", strings.ToLower(campus))
+	}
+}
+
+// StudyProgramGroup groups a study program with all its PO versions.
+type StudyProgramGroup struct {
+	Key         string               `json:"key"`          // e.g. "Informatik (Bachelor)"
+	ProgramName string               `json:"program_name"` // e.g. "Informatik"
+	Degree      string               `json:"degree"`       // e.g. "Bachelor (universitär)"
+	ShortTitle  string               `json:"short_title"`  // e.g. "Informatik (Bachelor)"
+	TotalCount  int                  `json:"total_count"`  // total module count in latest/primary PO
+	POs         []StudyProgramOption `json:"pos"`
+}
+
+// GetGroupedStudyPrograms returns study programs grouped by base title with their PO versions.
+func (s *Storage) GetGroupedStudyPrograms() ([]StudyProgramGroup, error) {
+	query := `
+		SELECT 
+			p.id, p.program_name, p.degree, p.po_version,
+			(SELECT COUNT(DISTINCT msp.module_id) FROM module_study_programs msp WHERE msp.program_id = p.id) as mod_count
+		FROM official_study_programs p
+		ORDER BY p.program_name ASC, p.degree ASC, p.po_version DESC
+	`
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	groupMap := make(map[string]*StudyProgramGroup)
+	var groupOrder []string
+
+	for rows.Next() {
+		var opt StudyProgramOption
+		if err := rows.Scan(&opt.ID, &opt.ProgramName, &opt.Degree, &opt.POVersion, &opt.Count); err != nil {
+			return nil, err
+		}
+		opt.ShortTitle = FormatProgramShort(opt.ProgramName, opt.Degree)
+		key := opt.ShortTitle
+
+		grp, exists := groupMap[key]
+		if !exists {
+			grp = &StudyProgramGroup{
+				Key:         key,
+				ProgramName: opt.ProgramName,
+				Degree:      opt.Degree,
+				ShortTitle:  opt.ShortTitle,
+				POs:         []StudyProgramOption{},
+			}
+			groupMap[key] = grp
+			groupOrder = append(groupOrder, key)
+		}
+		grp.POs = append(grp.POs, opt)
+		if opt.Count > grp.TotalCount {
+			grp.TotalCount = opt.Count
+		}
+	}
+
+	result := make([]StudyProgramGroup, 0, len(groupOrder))
+	for _, k := range groupOrder {
+		result = append(result, *groupMap[k])
+	}
+	return result, rows.Err()
 }
 
 // GetProgramTotalModules returns the total count of modules assigned to a program, or total in catalog if programID is empty.

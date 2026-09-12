@@ -23,161 +23,215 @@
       </div>
 
       <div class="sidebar-body">
-        <form id="filter-form" hx-get="/modules" hx-target="#modules-view" hx-trigger="change, submit">
+        <form id="filter-form" hx-get="/modules" hx-target="#modules-view" hx-trigger="submit">
           <input type="hidden" name="view" id="filter-view" value="grid">
           <input type="hidden" name="offset" id="filter-offset" value="0">
           <input type="hidden" name="program_id" id="filter-program" value="">
 
-        <!-- Study Program Searchable Combobox -->
-        <div class="filter-group">
-          <label class="filter-label">
-            <span>Dein Studiengang</span>
-          </label>
-          <div class="combobox-container">
-            <div class="combobox-display" id="combobox-display" onclick="toggleCombobox(event);" tabindex="0" onkeydown="if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') { event.preventDefault(); toggleCombobox(event); }">
-              <span id="combobox-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                Alle Studiengänge (Gesamtkatalog)
-              </span>
-              <div style="display: flex; align-items: center; gap: 0.3rem;">
-                <button type="button" class="btn-clear-prog" id="btn-clear-program" onclick="clearStudyProgram(event);" title="Auswahl aufheben" style="display: none;">&times;</button>
-                <span style="font-size: 0.7rem; color: var(--text-muted);">▼</span>
-              </div>
+          <!-- Card 1: Studiengang & PO Dual Control -->
+          <div class="filter-card">
+            <div class="filter-card-header">
+              <span class="card-title">🎓 Studiengang &amp; PO</span>
             </div>
-
-            <div class="combobox-dropdown" id="combobox-dropdown">
-              <div class="combobox-search-wrap">
-                <input 
-                  type="text" 
-                  id="combobox-search" 
-                  class="combobox-search-input" 
-                  placeholder="Studiengang suchen (z. B. Informatik)..." 
-                  autocomplete="off"
-                  oninput="filterComboboxOptions(this.value);"
-                  onclick="event.stopPropagation();"
-                >
-              </div>
-              <div class="combobox-options" id="combobox-options-list">
-                <div class="combobox-option" data-id="" data-title="Alle Studiengänge (Gesamtkatalog)" onmouseenter="setHighlightedComboboxOption(this);" onclick="selectStudyProgram('', 'Alle Studiengänge (Gesamtkatalog)');">
-                  <span>Alle Studiengänge (Gesamtkatalog)</span>
-                  <span class="badge badge-id">{{.TotalModules}}</span>
-                </div>
-                {{range .Programs}}
-                  <div class="combobox-option" data-id="{{.ID}}" data-title="{{.ShortTitle}}" onmouseenter="setHighlightedComboboxOption(this);" onclick="selectStudyProgram('{{.ID}}', '{{.ShortTitle}}');">
-                    <span>{{.ShortTitle}}</span>
-                    <span class="badge badge-id">{{.Count}}</span>
+            <div class="study-program-dual-row">
+              <!-- Left: Studiengang Combobox -->
+              <div class="combobox-container program-combobox">
+                <div class="combobox-display" id="combobox-display" onclick="toggleCombobox(event);" tabindex="0" onkeydown="if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') { event.preventDefault(); toggleCombobox(event); }">
+                  <span id="combobox-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    Alle Studiengänge
+                  </span>
+                  <div style="display: flex; align-items: center; gap: 0.3rem;">
+                    <button type="button" class="btn-clear-prog" id="btn-clear-program" onclick="clearStudyProgram(event);" title="Auswahl aufheben" style="display: none;">&times;</button>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">▼</span>
                   </div>
-                {{end}}
+                </div>
+
+                <div class="combobox-dropdown" id="combobox-dropdown">
+                  <div class="combobox-search-wrap">
+                    <input 
+                      type="text" 
+                      id="combobox-search" 
+                      class="combobox-search-input" 
+                      placeholder="Studiengang suchen..." 
+                      autocomplete="off"
+                      oninput="filterComboboxOptions(this.value);"
+                      onclick="event.stopPropagation();"
+                    >
+                  </div>
+                  <div class="combobox-options" id="combobox-options-list">
+                    <div class="combobox-option" data-key="" data-title="Alle Studiengänge" onmouseenter="setHighlightedComboboxOption(this);" onclick="onProgramOptionClick(this);">
+                      <span>Alle Studiengänge (Gesamtkatalog)</span>
+                      <span class="badge badge-id">{{.TotalModules}}</span>
+                    </div>
+                    {{range .ProgramGroups}}
+                      <div class="combobox-option" data-key="{{.Key}}" data-title="{{.ShortTitle}}" onmouseenter="setHighlightedComboboxOption(this);" onclick="onProgramOptionClick(this);">
+                        <span>{{.ShortTitle}}</span>
+                        <span class="badge badge-id">{{.TotalCount}}</span>
+                      </div>
+                    {{end}}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: PO Indicator / Select Combobox -->
+              <div class="po-container" id="po-container">
+                <div class="po-badge-display" id="po-display" title="Prüfungsordnung">
+                  <span id="po-display-text">-</span>
+                </div>
+                <select id="po-select" class="po-select-input" style="display: none;" onchange="onPOSelectChanged(this.value);" title="Prüfungsordnung auswählen">
+                </select>
+              </div>
+            </div>
+            <!-- JSON Data for program groups & POs -->
+            <script id="program-groups-data" type="application/json">{{.ProgramGroupsJSON}}</script>
+          </div>
+
+          <!-- Card 2: Semester Turnus -->
+          <div class="filter-card">
+            <div class="filter-card-header">
+              <span class="card-title">📅 Semester Turnus</span>
+            </div>
+            <div class="semester-quick-buttons">
+              <button type="button" class="btn-semester active" id="btn-semester-all" onclick="selectSemesterTurnus('all');">Alle</button>
+              <button type="button" class="btn-semester" id="btn-semester-next" onclick="selectSemesterTurnus('next');">⚡ Nächstes ({{.NextSemesterTag}})</button>
+            </div>
+            <button type="button" class="btn-semester-ext-toggle" id="btn-semester-toggle" onclick="toggleSemesterAccordion(event);">
+              <span>Erweiterte Optionen</span> <span id="semester-ext-icon">▾</span>
+            </button>
+            <input type="hidden" name="turnus" id="filter-turnus" value="all">
+
+            <!-- Accordion for extended options -->
+            <div class="semester-accordion" id="semester-accordion" style="display: none;">
+              <div class="semester-ext-grid">
+                <button type="button" class="turnus-pill" data-turnus="sose" onclick="selectSemesterTurnus('sose');">☀️ Sommersemester</button>
+                <button type="button" class="turnus-pill" data-turnus="sose_even" onclick="selectSemesterTurnus('sose_even');">☀️ SoSe Gerade</button>
+                <button type="button" class="turnus-pill" data-turnus="sose_odd" onclick="selectSemesterTurnus('sose_odd');">☀️ SoSe Ungerade</button>
+                <button type="button" class="turnus-pill" data-turnus="wise" onclick="selectSemesterTurnus('wise');">❄️ Wintersemester</button>
+                <button type="button" class="turnus-pill" data-turnus="wise_even" onclick="selectSemesterTurnus('wise_even');">❄️ WiSe Gerade</button>
+                <button type="button" class="turnus-pill" data-turnus="wise_odd" onclick="selectSemesterTurnus('wise_odd');">❄️ WiSe Ungerade</button>
+                <button type="button" class="turnus-pill" data-turnus="sporadic" onclick="selectSemesterTurnus('sporadic');">🎲 Sporadisch</button>
               </div>
             </div>
           </div>
-          <small style="color: var(--text-muted); font-size: 0.75rem;">Wird dauerhaft in deinem Browser gespeichert.</small>
-        </div>
 
-        <!-- Semester Turnus -->
-        <div class="filter-group">
-          <label class="filter-label">
-            <span>Angeboten im Semester</span>
-          </label>
-          <div class="pill-selector">
-            <label class="pill-option">
-              <input type="radio" name="turnus" value="{{.DefaultTurnus}}" checked>
-              <span class="pill-label">⚡ Nächstes ({{.NextSemesterTag}})</span>
-            </label>
-            <label class="pill-option">
-              <input type="radio" name="turnus" value="all">
-              <span class="pill-label">🔄 Alle</span>
-            </label>
-            <label class="pill-option">
-              <input type="radio" name="turnus" value="wise">
-              <span class="pill-label">❄️ Nur WiSe</span>
-            </label>
-            <label class="pill-option">
-              <input type="radio" name="turnus" value="sose">
-              <span class="pill-label">☀️ Nur SoSe</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Minimale ECTS Range Slider -->
-        <div class="filter-group">
-          <label class="filter-label">
-            <span>Minimale ECTS</span>
-            <span id="credits-val-badge" class="slider-val-badge">0 ECTS (Alle)</span>
-          </label>
-          <div class="slider-container">
-            <input 
-              type="range" 
-              id="filter-min-credits" 
-              name="min_credits" 
-              min="0" 
-              max="30" 
-              step="1" 
-              value="0" 
-              class="range-input" 
-              oninput="updateCreditsLabel(this.value);" 
-              onchange="refreshModules();"
-            >
-            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted);">
-              <span>0</span>
-              <span>6</span>
-              <span>12</span>
-              <span>18</span>
-              <span>24</span>
-              <span>30</span>
+          <!-- Card 3: Minimale ECTS Range Slider -->
+          <div class="filter-card">
+            <div class="filter-card-header">
+              <span class="card-title">⚖️ Minimale ECTS</span>
+              <span id="credits-val-badge" class="slider-val-badge">0 ECTS (Alle)</span>
+            </div>
+            <div class="slider-container">
+              <input 
+                type="range" 
+                id="filter-min-credits" 
+                name="min_credits" 
+                min="0" 
+                max="30" 
+                step="1" 
+                value="0" 
+                class="range-input" 
+                oninput="updateCreditsLabel(this.value);" 
+              >
+              <div class="slider-scale">
+                <span>0</span>
+                <span>6</span>
+                <span>12</span>
+                <span>18</span>
+                <span>24</span>
+                <span>30</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <hr style="border: 0; border-top: 1px solid var(--border);">
-
-        <!-- Smart Toggles -->
-        <div class="filter-group">
-          <label class="filter-label">Smarte Kriterien</label>
-          
-          <label class="toggle-item">
-            <span>Voraussetzungen erfüllt</span>
-            <div class="switch">
-              <input type="checkbox" name="only_prereqs_met" id="filter-prereqs" value="true">
-              <span class="slider"></span>
+          <!-- Card 4: Veranstaltungsort -->
+          <div class="filter-card">
+            <div class="filter-card-header">
+              <span class="card-title">📍 Veranstaltungsort</span>
+              <label class="toggle-item-compact" title="Alle Veranstaltungen des Moduls müssen ausschließlich an dem gewählten Campus stattfinden">
+                <span class="toggle-label-compact">Strikt</span>
+                <div class="switch switch-sm">
+                  <input type="checkbox" name="campus_strict" id="filter-campus-strict" value="true">
+                  <span class="slider"></span>
+                </div>
+              </label>
             </div>
-          </label>
-
-          <label class="toggle-item">
-            <span>Nur FÜS (fachfremd)</span>
-            <div class="switch">
-              <input type="checkbox" name="only_fues" id="filter-fues" value="true">
-              <span class="slider"></span>
+            <div class="campus-chips">
+              <label class="campus-chip" id="chip-hauptcampus">
+                <input type="checkbox" name="campus" value="hauptcampus" id="campus-hauptcampus">
+                <span class="chip-content"><span class="chip-icon">🏛️</span> Hauptcampus</span>
+              </label>
+              <label class="campus-chip" id="chip-sachsendorf">
+                <input type="checkbox" name="campus" value="sachsendorf" id="campus-sachsendorf">
+                <span class="chip-content"><span class="chip-icon">🌲</span> Sachsendorf</span>
+              </label>
+              <label class="campus-chip" id="chip-senftenberg">
+                <input type="checkbox" name="campus" value="senftenberg" id="campus-senftenberg">
+                <span class="chip-content"><span class="chip-icon">🧪</span> Senftenberg</span>
+              </label>
             </div>
-          </label>
+          </div>
 
-          <label class="toggle-item">
-            <span>Auslaufmodule ausblenden</span>
-            <div class="switch">
-              <input type="checkbox" name="hide_phase_out" id="filter-hide-phaseout" value="true" checked>
-              <span class="slider"></span>
+          <!-- Card 5: Kriterien & Filter -->
+          <div class="filter-card">
+            <div class="filter-card-header">
+              <span class="card-title">⚙️ Sonstige Kriterien</span>
             </div>
-          </label>
-        </div>
+            
+            <div class="filter-subitem">
+              <span class="subitem-title">Teilnehmerbeschränkung</span>
+              <div class="segmented-control" id="limitation-control">
+                <button type="button" class="segmented-btn active" data-val="ja" onclick="setLimitationFilter('ja');">Alle</button>
+                <button type="button" class="segmented-btn" data-val="nein" onclick="setLimitationFilter('nein');">Ohne Limit</button>
+                <button type="button" class="segmented-btn" data-val="nur" onclick="setLimitationFilter('nur');">Nur Beschränkt</button>
+              </div>
+              <input type="hidden" name="limitation" id="filter-limitation" value="ja">
+            </div>
 
-        <hr style="border: 0; border-top: 1px solid var(--border);">
+            <div class="filter-toggles-group">
+              <label class="toggle-item">
+                <span>🎓 Nur FÜS (fachfremd)</span>
+                <div class="switch">
+                  <input type="checkbox" name="only_fues" id="filter-fues" value="true">
+                  <span class="slider"></span>
+                </div>
+              </label>
 
-        <div class="filter-group">
-          <label class="filter-label" for="filter-language">Unterrichtssprache</label>
-          <select name="language" id="filter-language" class="select-input">
-            <option value="all">Alle Sprachen</option>
-            <option value="Deutsch">Nur Deutsch</option>
-            <option value="Englisch">Nur Englisch</option>
-          </select>
-        </div>
+              <label class="toggle-item">
+                <span>⏳ Auslaufmodule ausblenden</span>
+                <div class="switch">
+                  <input type="checkbox" name="hide_phase_out" id="filter-hide-phaseout" value="true" checked>
+                  <span class="slider"></span>
+                </div>
+              </label>
+            </div>
+          </div>
 
-        <!-- Reset Button -->
-        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
-          <button type="button" class="btn-icon-text" style="flex: 1; justify-content: center;" onclick="localStorage.clear(); window.location.reload();">
-            🗑 Filter zurücksetzen
-          </button>
-        </div>
-      </form>
-    </div>
+          <!-- Card 6: Unterrichtssprachen -->
+          <div class="filter-card">
+            <div class="filter-card-header">
+              <span class="card-title">🌐 Unterrichtssprachen</span>
+            </div>
+            <div class="lang-chips">
+              <label class="lang-chip active" id="chip-lang-de">
+                <input type="checkbox" name="lang_de" id="filter-lang-de" value="true" checked>
+                <span class="chip-content"><span class="chip-icon">🇩🇪</span> Deutsch</span>
+              </label>
+              <label class="lang-chip" id="chip-lang-en">
+                <input type="checkbox" name="lang_en" id="filter-lang-en" value="true">
+                <span class="chip-content"><span class="chip-icon">🇬🇧</span> English</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Reset Filter Button with active count -->
+          <div class="filter-actions-bar">
+            <button type="button" class="btn-reset-filters" onclick="resetAllFilters();" title="Alle Filter auf Standardwerte zurücksetzen">
+              <span>🗑 Filter zurücksetzen</span>
+              <span class="active-badge" id="active-filters-count" style="display: none;">0 aktiv</span>
+            </button>
+          </div>
+        </form>
+      </div>
   </aside>
 
   <!-- Mobile Drawer Backdrop Overlay -->
