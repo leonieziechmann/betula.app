@@ -241,6 +241,12 @@ body.sidebar-open {
   color: var(--primary);
 }
 
+.btn-icon-text.copied {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  color: #16a34a;
+}
+
 .badge-count {
   background: var(--primary);
   color: white;

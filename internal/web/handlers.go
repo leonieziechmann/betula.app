@@ -42,6 +42,7 @@ type IndexPageData struct {
 	DefaultTurnus     string
 	NextSemesterTag   string
 	TotalModules      int
+	Query             string
 }
 
 // FilterAutocompleteItem is a lightweight representation of a module for instant client-side autocomplete.
@@ -188,6 +189,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	instructorsJSON, _ := json.Marshal(instructors)
 	total, _ := s.store.Count()
 	_, currentSem, nextTag := detectNextSemester()
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
 	data := IndexPageData{
 		Programs:          programs,
@@ -199,6 +201,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		DefaultTurnus:     "all", // Default as requested: "Alle"
 		NextSemesterTag:   nextTag,
 		TotalModules:      total,
+		Query:             q,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -208,8 +211,30 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
+	// If a standard browser navigates directly to /modules?... instead of HTMX fragment fetching, redirect to /?...
+	if r.Header.Get("HX-Request") == "" && strings.Contains(r.Header.Get("Accept"), "text/html") {
+		target := "/?" + r.URL.RawQuery
+		if r.URL.RawQuery == "" {
+			target = "/"
+		}
+		http.Redirect(w, r, target, http.StatusTemporaryRedirect)
+		return
+	}
+
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		q = strings.TrimSpace(r.URL.Query().Get("search"))
+	}
 	programID := r.URL.Query().Get("program_id")
+	if programID == "" {
+		programID = r.URL.Query().Get("program")
+	}
+	if programID == "" {
+		programID = r.URL.Query().Get("studiengang")
+	}
+	if programID == "" {
+		programID = r.URL.Query().Get("stg")
+	}
 	var turnuses []string
 	if tList := r.URL.Query()["turnus"]; len(tList) > 0 {
 		for _, t := range tList {
@@ -266,7 +291,8 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	onlyPrereqsMet := r.URL.Query().Get("only_prereqs_met") == "true" || r.URL.Query().Get("only_prereqs_met") == "1"
+	onlyPrereqsMet := r.URL.Query().Get("only_prereqs_met") == "true" || r.URL.Query().Get("only_prereqs_met") == "1" ||
+		r.URL.Query().Get("prereqs_met") == "true" || r.URL.Query().Get("prereqs_met") == "1"
 	onlyBookmarked := r.URL.Query().Get("only_bookmarked") == "true" || r.URL.Query().Get("only_bookmarked") == "1"
 	onlyCompleted := r.URL.Query().Get("only_completed") == "true" || r.URL.Query().Get("only_completed") == "1"
 	language := r.URL.Query().Get("language")

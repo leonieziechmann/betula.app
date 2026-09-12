@@ -208,6 +208,69 @@ func TestLogsEndpoint(t *testing.T) {
 	}
 }
 
+func TestIndexPage_QueryParams(t *testing.T) {
+	srv, store := setupTestServer(t)
+	defer store.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/?q=Algebra&turnus=wise_even", nil)
+	rec := httptest.NewRecorder()
+
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !stringsContains(body, `value="Algebra"`) {
+		t.Errorf("expected search input to have value=\"Algebra\", got: %s", body)
+	}
+	if !stringsContains(body, "nav-btn-share") {
+		t.Errorf("expected HTML body to contain share button nav-btn-share")
+	}
+}
+
+func TestModulesEndpoint_DirectBrowserRedirect(t *testing.T) {
+	srv, store := setupTestServer(t)
+	defer store.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/modules?q=Algebra&turnus=wise_even", nil)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	rec := httptest.NewRecorder()
+
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("expected status 307 Temporary Redirect for browser direct visit, got %d", rec.Code)
+	}
+
+	loc := rec.Header().Get("Location")
+	if loc != "/?q=Algebra&turnus=wise_even" {
+		t.Errorf("expected redirect location /?q=Algebra&turnus=wise_even, got %s", loc)
+	}
+}
+
+func TestModulesEndpoint_ParamAliases(t *testing.T) {
+	srv, store := setupTestServer(t)
+	defer store.Close()
+
+	// Use program alias and prereqs_met alias with HTMX request header
+	req := httptest.NewRequest(http.MethodGet, "/modules?program=stg_test_inf&prereqs_met=true&completed=11101", nil)
+	req.Header.Set("HX-Request", "true")
+	rec := httptest.NewRecorder()
+
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !stringsContains(body, "Lineare Algebra II") {
+		t.Errorf("expected Lineare Algebra II to be returned when prereqs_met alias is used with 11101 completed")
+	}
+}
+
 func stringsContains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || (len(s) > 0 && len(substr) > 0 && (s != "" && containsHelper(s, substr))))
 }

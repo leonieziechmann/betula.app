@@ -372,11 +372,16 @@
           class="search-input" 
           placeholder="Modulname, Modulnummer (z. B. 11101), Dozent oder Stichwort..." 
           autocomplete="off"
+          value="{{.Query}}"
         >
         <div id="search-suggestions" class="search-suggestions-dropdown"></div>
       </div>
 
       <div class="nav-actions">
+        <button type="button" class="btn-icon-text" id="nav-btn-share" onclick="copyShareLink();" title="Link mit aktuellem Filter teilen">
+          <span>🔗 <span class="nav-action-label" id="share-btn-text">Teilen</span></span>
+        </button>
+
         <a href="/stats" class="btn-icon-text" id="nav-btn-stats" title="Systemstatistiken & Telemetrie" style="text-decoration: none;">
           <span>📊 <span class="nav-action-label">Statistiken</span></span>
         </a>

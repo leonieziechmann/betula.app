@@ -102,17 +102,23 @@ function trackAnonymousEvent(type, targetId, targetName) {
   }
 }
 
+let activeModalId = null;
+
 // Modal functions with background scroll locking
 window.openModal = function(moduleId) {
+  activeModalId = moduleId;
   document.body.classList.add('modal-open');
   trackAnonymousEvent('module_click', moduleId);
   htmx.ajax('GET', `/modules/${moduleId}`, '#modal-container');
+  updateURLFromState(false);
 };
 
 window.closeModal = function() {
+  activeModalId = null;
   document.body.classList.remove('modal-open');
   const container = document.getElementById('modal-container');
   if (container) container.innerHTML = '';
+  updateURLFromState(false);
 };
 
 // Calendar Block -> Accordion linking
@@ -327,7 +333,7 @@ function updateBadges() {
 }
 
 let refreshDebounceTimer = null;
-function refreshModules() {
+function refreshModules(updateURL = true) {
   clearTimeout(refreshDebounceTimer);
   refreshDebounceTimer = setTimeout(() => {
     const form = document.getElementById('filter-form');
@@ -337,8 +343,506 @@ function refreshModules() {
       htmx.trigger(form, 'submit');
     }
     updateActiveFilterCount();
+    if (updateURL) {
+      updateURLFromState(false);
+    }
   }, 25);
 }
+
+function updateURLFromState(push = false) {
+  const params = new URLSearchParams();
+
+  // Search input q
+  const searchInput = document.getElementById('search-input');
+  if (searchInput && searchInput.value.trim()) {
+    params.set('q', searchInput.value.trim());
+  }
+
+  // Program ID
+  const prog = document.getElementById('filter-program');
+  if (prog && prog.value) {
+    params.set('program_id', prog.value);
+  }
+
+  // Turnus
+  if (typeof selectedTurnuses !== 'undefined' && selectedTurnuses.length > 0) {
+    selectedTurnuses.forEach(t => {
+      if (t && t !== 'all') {
+        params.append('turnus', t);
+      }
+    });
+  }
+
+  // Limitation
+  const limitation = document.getElementById('filter-limitation');
+  if (limitation && limitation.value && limitation.value !== 'ja') {
+    params.set('limitation', limitation.value);
+  }
+
+  // FÜS
+  const fues = document.getElementById('filter-fues');
+  if (fues && fues.value && fues.value !== 'inkl') {
+    params.set('fues', fues.value);
+  }
+
+  // Prerequisites met
+  const prereq = document.getElementById('filter-prereqs');
+  if (prereq && prereq.checked) {
+    params.set('only_prereqs_met', 'true');
+  }
+
+  // Hide phase out (default true)
+  const phaseOut = document.getElementById('filter-hide-phaseout');
+  if (phaseOut && !phaseOut.checked) {
+    params.set('hide_phase_out', 'false');
+  }
+
+  // Min / Max ECTS
+  const minCredits = document.getElementById('filter-min-credits');
+  const maxCredits = document.getElementById('filter-max-credits');
+  const minVal = minCredits ? parseInt(minCredits.value, 10) : 0;
+  const maxVal = maxCredits ? parseInt(maxCredits.value, 10) : 30;
+  if (minVal > 0) {
+    params.set('min_credits', minVal);
+  }
+  if (maxVal < 30) {
+    params.set('max_credits', maxVal);
+  }
+
+  // Instructors
+  if (typeof selectedInstructors !== 'undefined' && selectedInstructors.length > 0) {
+    selectedInstructors.forEach(inst => params.append('instructor', inst));
+  }
+
+  // Campuses
+  const checkedCampuses = Array.from(document.querySelectorAll('input[name="campus"]:checked')).map(c => c.value);
+  if (checkedCampuses.length > 0) {
+    checkedCampuses.forEach(c => params.append('campus', c));
+  }
+
+  // Campus strict
+  const campusStrict = document.getElementById('filter-campus-strict');
+  if (campusStrict && campusStrict.checked) {
+    params.set('campus_strict', 'true');
+  }
+
+  // Languages (default DE=true, EN=false)
+  const langDE = document.getElementById('filter-lang-de');
+  const langEN = document.getElementById('filter-lang-en');
+  if (langDE && !langDE.checked) {
+    params.set('lang_de', 'false');
+  }
+  if (langEN && langEN.checked) {
+    params.set('lang_en', 'true');
+  }
+
+  // Special view (bookmarks / completed)
+  if (activeSpecialView) {
+    params.set('view', activeSpecialView);
+  }
+
+  // Module modal dialog
+  if (activeModalId) {
+    params.set('module', activeModalId);
+  }
+
+  const queryString = params.toString();
+  const newPath = window.location.pathname + (queryString ? '?' + queryString : '');
+  const currentFull = window.location.pathname + window.location.search;
+
+  if (newPath !== currentFull) {
+    if (push) {
+      window.history.pushState({ btuFilter: true }, '', newPath);
+    } else {
+      window.history.replaceState({ btuFilter: true }, '', newPath);
+    }
+  }
+}
+
+// Copy current shareable filter URL to clipboard
+window.copyShareLink = function() {
+  updateURLFromState(false);
+  const shareUrl = window.location.href;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      showShareFeedback();
+    }).catch(() => {
+      fallbackCopy(shareUrl);
+    });
+  } else {
+    fallbackCopy(shareUrl);
+  }
+};
+
+function showShareFeedback() {
+  const btn = document.getElementById('nav-btn-share');
+  const label = document.getElementById('share-btn-text');
+  if (label) label.textContent = 'Kopiert! ✓';
+  if (btn) btn.classList.add('copied');
+  setTimeout(() => {
+    if (label) label.textContent = 'Teilen';
+    if (btn) btn.classList.remove('copied');
+  }, 2000);
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showShareFeedback();
+  } catch (e) {
+    prompt('Link zum Teilen:', text);
+  }
+  document.body.removeChild(ta);
+}
+
+function parseURLParams() {
+  if (!window.location.search || window.location.search.length <= 1) {
+    return null;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const result = {};
+
+  const filterKeys = [
+    'q', 'search',
+    'program_id', 'program', 'studiengang', 'stg',
+    'turnus', 'turnuses',
+    'fues', 'only_fues',
+    'limitation',
+    'only_prereqs_met', 'prereqs_met',
+    'hide_phase_out',
+    'min_credits', 'max_credits',
+    'instructor', 'instructors', 'prof', 'profs',
+    'campus', 'campuses', 'campus_strict',
+    'lang_de', 'lang_en', 'language', 'languages',
+    'view', 'module', 'modal'
+  ];
+
+  let hasKnownKey = false;
+  for (const k of filterKeys) {
+    if (params.has(k)) {
+      hasKnownKey = true;
+      break;
+    }
+  }
+  if (!hasKnownKey) return null;
+
+  // q
+  if (params.has('q')) result.q = params.get('q');
+  else if (params.has('search')) result.q = params.get('search');
+
+  // program_id
+  if (params.has('program_id')) result.programId = params.get('program_id');
+  else if (params.has('program')) result.programId = params.get('program');
+  else if (params.has('studiengang')) result.programId = params.get('studiengang');
+  else if (params.has('stg')) result.programId = params.get('stg');
+
+  // turnus / turnuses
+  let turnusList = [];
+  if (params.has('turnuses')) {
+    params.get('turnuses').split(',').forEach(p => {
+      p = p.trim();
+      if (p && p !== 'all' && !turnusList.includes(p)) turnusList.push(p);
+    });
+  }
+  params.getAll('turnus').forEach(t => {
+    t.split(',').forEach(part => {
+      part = part.trim();
+      if (part && part !== 'all' && !turnusList.includes(part)) turnusList.push(part);
+    });
+  });
+  if (turnusList.length > 0 || params.has('turnus') || params.has('turnuses')) {
+    result.turnuses = turnusList;
+  }
+
+  // fues
+  if (params.has('fues')) {
+    result.fues = params.get('fues').toLowerCase().trim();
+  } else if (params.has('only_fues')) {
+    const val = params.get('only_fues');
+    result.fues = (val === 'true' || val === '1') ? 'nur' : 'inkl';
+  }
+
+  // limitation
+  if (params.has('limitation')) {
+    result.limitation = params.get('limitation').toLowerCase().trim();
+  }
+
+  // only_prereqs_met
+  if (params.has('only_prereqs_met')) {
+    result.onlyPrereqsMet = params.get('only_prereqs_met') === 'true' || params.get('only_prereqs_met') === '1';
+  } else if (params.has('prereqs_met')) {
+    result.onlyPrereqsMet = params.get('prereqs_met') === 'true' || params.get('prereqs_met') === '1';
+  }
+
+  // hide_phase_out
+  if (params.has('hide_phase_out')) {
+    const v = params.get('hide_phase_out');
+    result.hidePhaseOut = !(v === 'false' || v === '0');
+  }
+
+  // min_credits, max_credits
+  if (params.has('min_credits')) {
+    result.minCredits = parseInt(params.get('min_credits'), 10) || 0;
+  }
+  if (params.has('max_credits')) {
+    result.maxCredits = parseInt(params.get('max_credits'), 10) || 30;
+  }
+
+  // instructors
+  let instList = [];
+  if (params.has('instructors')) {
+    params.get('instructors').split(',').forEach(p => {
+      p = p.trim();
+      if (p && !instList.includes(p)) instList.push(p);
+    });
+  }
+  params.getAll('instructor').forEach(inst => {
+    inst.split(',').forEach(part => {
+      part = part.trim();
+      if (part && !instList.includes(part)) instList.push(part);
+    });
+  });
+  if (params.has('profs')) {
+    params.get('profs').split(',').forEach(p => {
+      p = p.trim();
+      if (p && !instList.includes(p)) instList.push(p);
+    });
+  }
+  params.getAll('prof').forEach(p => {
+    p = p.trim();
+    if (p && !instList.includes(p)) instList.push(p);
+  });
+  if (instList.length > 0 || params.has('instructor') || params.has('instructors')) {
+    result.instructors = instList;
+  }
+
+  // campuses
+  let campusList = [];
+  if (params.has('campuses')) {
+    params.get('campuses').split(',').forEach(c => {
+      c = c.trim().toLowerCase();
+      if (c && !campusList.includes(c)) campusList.push(c);
+    });
+  }
+  params.getAll('campus').forEach(c => {
+    c.split(',').forEach(part => {
+      part = part.trim().toLowerCase();
+      if (part && !campusList.includes(part)) campusList.push(part);
+    });
+  });
+  if (campusList.length > 0 || params.has('campus') || params.has('campuses')) {
+    result.campuses = campusList;
+  }
+
+  // campus_strict
+  if (params.has('campus_strict')) {
+    result.campusStrict = params.get('campus_strict') === 'true' || params.get('campus_strict') === '1';
+  }
+
+  // languages
+  if (params.has('lang_de')) {
+    result.langDE = params.get('lang_de') === 'true' || params.get('lang_de') === '1';
+  }
+  if (params.has('lang_en')) {
+    result.langEN = params.get('lang_en') === 'true' || params.get('lang_en') === '1';
+  }
+  if (params.has('language') || params.has('languages')) {
+    const lStr = (params.get('language') || params.get('languages')).toLowerCase();
+    if (lStr.includes('de') && !result.hasOwnProperty('langDE')) result.langDE = true;
+    if (lStr.includes('en') && !result.hasOwnProperty('langEN')) result.langEN = true;
+  }
+
+  // view
+  if (params.has('view')) {
+    const v = params.get('view');
+    if (v === 'bookmarks' || v === 'completed') {
+      result.view = v;
+    }
+  }
+
+  // module
+  if (params.has('module')) result.module = params.get('module');
+  else if (params.has('modal')) result.module = params.get('modal');
+
+  return result;
+}
+
+function findProgramGroupByProgramId(programId) {
+  if (!programId) return null;
+  if (typeof programGroups === 'undefined' || programGroups.length === 0) {
+    initProgramGroups();
+  }
+
+  const idNorm = programId.trim().toLowerCase();
+
+  for (const grp of programGroups) {
+    if ((grp.key && grp.key.toLowerCase() === idNorm) ||
+        (grp.short_title && grp.short_title.toLowerCase() === idNorm) ||
+        (grp.program_name && grp.program_name.toLowerCase() === idNorm)) {
+      return {
+        group: grp,
+        poId: (grp.pos && grp.pos.length > 0) ? grp.pos[0].id : ''
+      };
+    }
+    if (grp.pos) {
+      for (const po of grp.pos) {
+        if ((po.id && po.id.toLowerCase() === idNorm) ||
+            (po.short_title && po.short_title.toLowerCase() === idNorm) ||
+            (po.related_ids && po.related_ids.some(rId => rId.toLowerCase() === idNorm))) {
+          return {
+            group: grp,
+            poId: po.id
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function applyFilterState(state, isFromURL = false) {
+  if (!state) return;
+
+  // 1. Program & PO
+  if (state.programId) {
+    const found = findProgramGroupByProgramId(state.programId);
+    if (found) {
+      selectStudyProgramGroup(found.group.key, found.group.short_title, found.poId, false);
+    } else {
+      const progInput = document.getElementById('filter-program');
+      if (progInput) progInput.value = state.programId;
+      localStorage.setItem(STORAGE_KEYS.PROGRAM, state.programId);
+    }
+  } else if (isFromURL) {
+    selectStudyProgramGroup('', '', '', false);
+  }
+
+  // 2. Turnus
+  if (state.turnuses !== undefined) {
+    selectedTurnuses = Array.isArray(state.turnuses) ? [...state.turnuses] : [];
+  } else if (isFromURL) {
+    selectedTurnuses = [];
+  }
+  try {
+    localStorage.setItem(STORAGE_KEYS.TURNUS, JSON.stringify(selectedTurnuses));
+  } catch(e) {}
+  renderTurnusButtons();
+
+  // 3. Limitation
+  const limVal = state.limitation || (isFromURL ? 'ja' : (localStorage.getItem(STORAGE_KEYS.LIMITATION) || 'ja'));
+  setLimitationFilter(limVal, false);
+
+  // 4. FÜS
+  const fuesVal = state.fues || (isFromURL ? 'inkl' : (localStorage.getItem(STORAGE_KEYS.FUES) || 'inkl'));
+  setFUESFilter(fuesVal, false);
+
+  // 5. Prerequisites Met
+  const prereqCheck = document.getElementById('filter-prereqs');
+  if (prereqCheck) {
+    prereqCheck.checked = state.hasOwnProperty('onlyPrereqsMet') ? !!state.onlyPrereqsMet : false;
+    localStorage.setItem(STORAGE_KEYS.PREREQS_MET, prereqCheck.checked);
+  }
+
+  // 6. Hide Phase Out
+  const phaseOutCheck = document.getElementById('filter-hide-phaseout');
+  if (phaseOutCheck) {
+    phaseOutCheck.checked = state.hasOwnProperty('hidePhaseOut') ? !!state.hidePhaseOut : true;
+    localStorage.setItem(STORAGE_KEYS.HIDE_PHASE_OUT, phaseOutCheck.checked);
+  }
+
+  // 7. ECTS Slider
+  const minCredits = state.minCredits !== undefined ? state.minCredits : 0;
+  const maxCredits = state.maxCredits !== undefined ? state.maxCredits : 30;
+  updateCreditsDisplay(minCredits, maxCredits);
+
+  // 8. Instructors
+  if (state.instructors !== undefined) {
+    selectedInstructors = Array.isArray(state.instructors) ? [...state.instructors] : [];
+  } else if (isFromURL) {
+    selectedInstructors = [];
+  }
+  try {
+    localStorage.setItem(STORAGE_KEYS.INSTRUCTORS, JSON.stringify(selectedInstructors));
+  } catch(e) {}
+  renderSelectedProfChips();
+
+  // 9. Campuses
+  const campuses = state.campuses || [];
+  document.querySelectorAll('input[name="campus"]').forEach(chk => {
+    chk.checked = campuses.includes(chk.value.toLowerCase());
+  });
+  try {
+    localStorage.setItem(STORAGE_KEYS.CAMPUSES, JSON.stringify(campuses));
+  } catch(e) {}
+  updateCampusChips();
+
+  // 10. Campus Strict
+  const strictCheck = document.getElementById('filter-campus-strict');
+  if (strictCheck) {
+    strictCheck.checked = state.hasOwnProperty('campusStrict') ? !!state.campusStrict : false;
+    localStorage.setItem(STORAGE_KEYS.CAMPUS_STRICT, strictCheck.checked);
+  }
+
+  // 11. Languages (default: DE=true, EN=false)
+  const langDECheck = document.getElementById('filter-lang-de');
+  if (langDECheck) {
+    langDECheck.checked = state.hasOwnProperty('langDE') ? !!state.langDE : true;
+    localStorage.setItem(STORAGE_KEYS.LANG_DE, langDECheck.checked);
+  }
+  const langENCheck = document.getElementById('filter-lang-en');
+  if (langENCheck) {
+    langENCheck.checked = state.hasOwnProperty('langEN') ? !!state.langEN : false;
+    localStorage.setItem(STORAGE_KEYS.LANG_EN, langENCheck.checked);
+  }
+  updateLanguageChips();
+
+  // 12. Search Query q
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    if (state.q !== undefined) {
+      searchInput.value = state.q;
+    } else if (isFromURL) {
+      searchInput.value = '';
+    }
+  }
+
+  // 13. Special View (bookmarks / completed)
+  if (state.view === 'bookmarks') {
+    activeSpecialView = 'bookmarks';
+    document.getElementById('nav-btn-bookmarks')?.classList.add('active');
+    document.getElementById('nav-btn-completed')?.classList.remove('active');
+  } else if (state.view === 'completed') {
+    activeSpecialView = 'completed';
+    document.getElementById('nav-btn-completed')?.classList.add('active');
+    document.getElementById('nav-btn-bookmarks')?.classList.remove('active');
+  } else {
+    activeSpecialView = null;
+    document.getElementById('nav-btn-bookmarks')?.classList.remove('active');
+    document.getElementById('nav-btn-completed')?.classList.remove('active');
+  }
+
+  // 14. Module Modal
+  if (state.module) {
+    setTimeout(() => {
+      openModal(state.module);
+    }, 50);
+  }
+
+  updateActiveFilterCount();
+}
+
+// Browser Back/Forward navigation support
+window.addEventListener('popstate', function() {
+  const urlParams = parseURLParams() || {};
+  applyFilterState(urlParams, true);
+  refreshModules(false);
+});
 
 function updateActiveFilterCount() {
   let count = 0;
@@ -1213,11 +1717,117 @@ document.addEventListener('DOMContentLoaded', function() {
   initProgramGroups();
   initInstructors();
 
-  // Restore Program & PO (without refresh during init)
-  const savedGroup = localStorage.getItem(STORAGE_KEYS.PROGRAM_GROUP) || '';
-  const savedTitle = localStorage.getItem(STORAGE_KEYS.PROGRAM_TITLE) || '';
-  const savedPoId = localStorage.getItem(STORAGE_KEYS.PO_ID) || '';
-  selectStudyProgramGroup(savedGroup, savedTitle, savedPoId, false);
+  const urlState = parseURLParams();
+  if (urlState) {
+    applyFilterState(urlState, true);
+  } else {
+    // Restore Program & PO (without refresh during init)
+    const savedGroup = localStorage.getItem(STORAGE_KEYS.PROGRAM_GROUP) || '';
+    const savedTitle = localStorage.getItem(STORAGE_KEYS.PROGRAM_TITLE) || '';
+    const savedPoId = localStorage.getItem(STORAGE_KEYS.PO_ID) || '';
+    selectStudyProgramGroup(savedGroup, savedTitle, savedPoId, false);
+
+    // Restore Turnus (without refresh during init)
+    try {
+      const savedTurnusRaw = localStorage.getItem(STORAGE_KEYS.TURNUS);
+      if (savedTurnusRaw) {
+        let parsed = JSON.parse(savedTurnusRaw);
+        if (Array.isArray(parsed)) {
+          selectedTurnuses = parsed;
+        } else if (typeof parsed === 'string' && parsed !== 'all') {
+          selectedTurnuses = [parsed];
+        }
+      } else {
+        selectedTurnuses = [];
+      }
+    } catch(e) {
+      const savedTurnusRaw = localStorage.getItem(STORAGE_KEYS.TURNUS);
+      if (savedTurnusRaw && savedTurnusRaw !== 'all') {
+        selectedTurnuses = [savedTurnusRaw];
+      } else {
+        selectedTurnuses = [];
+      }
+    }
+    renderTurnusButtons();
+
+    // Restore Campuses
+    try {
+      const savedCampuses = JSON.parse(localStorage.getItem(STORAGE_KEYS.CAMPUSES) || '[]');
+      if (Array.isArray(savedCampuses)) {
+        document.querySelectorAll('input[name="campus"]').forEach(chk => {
+          chk.checked = savedCampuses.includes(chk.value);
+        });
+      }
+    } catch(e) {}
+    updateCampusChips();
+
+    // Restore Campus Strict
+    const savedStrict = localStorage.getItem(STORAGE_KEYS.CAMPUS_STRICT);
+    const strictCheck = document.getElementById('filter-campus-strict');
+    if (savedStrict !== null && strictCheck) {
+      strictCheck.checked = savedStrict === 'true';
+    }
+
+    // Restore Limitation
+    const savedLimit = localStorage.getItem(STORAGE_KEYS.LIMITATION) || 'ja';
+    setLimitationFilter(savedLimit, false);
+
+    // Restore Languages
+    const savedLangDE = localStorage.getItem(STORAGE_KEYS.LANG_DE);
+    const langDECheck = document.getElementById('filter-lang-de');
+    if (savedLangDE !== null && langDECheck) {
+      langDECheck.checked = savedLangDE === 'true';
+    }
+    const savedLangEN = localStorage.getItem(STORAGE_KEYS.LANG_EN);
+    const langENCheck = document.getElementById('filter-lang-en');
+    if (savedLangEN !== null && langENCheck) {
+      langENCheck.checked = savedLangEN === 'true';
+    }
+    updateLanguageChips();
+
+    // Restore FÜS Filter
+    let savedFUES = localStorage.getItem(STORAGE_KEYS.FUES);
+    if (!savedFUES) {
+      if (localStorage.getItem(STORAGE_KEYS.ONLY_FUES) === 'true') {
+        savedFUES = 'nur';
+      } else {
+        savedFUES = 'inkl';
+      }
+    }
+    setFUESFilter(savedFUES, false);
+
+    // Restore Whitelisted Instructors
+    try {
+      const savedProfs = JSON.parse(localStorage.getItem(STORAGE_KEYS.INSTRUCTORS) || '[]');
+      if (Array.isArray(savedProfs)) {
+        selectedInstructors = savedProfs;
+      }
+    } catch(e) {
+      selectedInstructors = [];
+    }
+    renderSelectedProfChips();
+
+    // Restore Hide Phase Out
+    const savedHidePhaseOut = localStorage.getItem(STORAGE_KEYS.HIDE_PHASE_OUT);
+    const phaseOutCheck = document.getElementById('filter-hide-phaseout');
+    if (savedHidePhaseOut !== null && phaseOutCheck) {
+      phaseOutCheck.checked = savedHidePhaseOut === 'true';
+    }
+
+    // Restore Prerequisites Met
+    const savedPrereqs = localStorage.getItem(STORAGE_KEYS.PREREQS_MET);
+    const prereqCheck = document.getElementById('filter-prereqs');
+    if (savedPrereqs !== null && prereqCheck) {
+      prereqCheck.checked = savedPrereqs === 'true';
+    }
+
+    // Restore ECTS Range Slider
+    const savedMinCredits = localStorage.getItem(STORAGE_KEYS.MIN_CREDITS) || 0;
+    const savedMaxCredits = localStorage.getItem(STORAGE_KEYS.MAX_CREDITS) || 30;
+    updateCreditsDisplay(savedMinCredits, savedMaxCredits);
+
+    updateURLFromState(false);
+  }
 
   // Keyboard navigation on combobox search input
   const comboboxSearch = document.getElementById('combobox-search');
@@ -1277,40 +1887,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Restore Turnus (without refresh during init)
-  try {
-    const savedTurnusRaw = localStorage.getItem(STORAGE_KEYS.TURNUS);
-    if (savedTurnusRaw) {
-      let parsed = JSON.parse(savedTurnusRaw);
-      if (Array.isArray(parsed)) {
-        selectedTurnuses = parsed;
-      } else if (typeof parsed === 'string' && parsed !== 'all') {
-        selectedTurnuses = [parsed];
-      }
-    } else {
-      selectedTurnuses = [];
-    }
-  } catch(e) {
-    const savedTurnusRaw = localStorage.getItem(STORAGE_KEYS.TURNUS);
-    if (savedTurnusRaw && savedTurnusRaw !== 'all') {
-      selectedTurnuses = [savedTurnusRaw];
-    } else {
-      selectedTurnuses = [];
-    }
-  }
-  renderTurnusButtons();
-
-  // Restore Campuses
-  try {
-    const savedCampuses = JSON.parse(localStorage.getItem(STORAGE_KEYS.CAMPUSES) || '[]');
-    if (Array.isArray(savedCampuses)) {
-      document.querySelectorAll('input[name="campus"]').forEach(chk => {
-        chk.checked = savedCampuses.includes(chk.value);
-      });
-    }
-  } catch(e) {}
-  updateCampusChips();
-
+  // Event listeners for filter controls
   document.querySelectorAll('input[name="campus"]').forEach(chk => {
     chk.addEventListener('change', () => {
       const selected = Array.from(document.querySelectorAll('input[name="campus"]:checked')).map(c => c.value);
@@ -1320,12 +1897,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Restore Campus Strict
-  const savedStrict = localStorage.getItem(STORAGE_KEYS.CAMPUS_STRICT);
   const strictCheck = document.getElementById('filter-campus-strict');
-  if (savedStrict !== null && strictCheck) {
-    strictCheck.checked = savedStrict === 'true';
-  }
   if (strictCheck) {
     strictCheck.addEventListener('change', () => {
       localStorage.setItem(STORAGE_KEYS.CAMPUS_STRICT, strictCheck.checked);
@@ -1333,16 +1905,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Restore Limitation
-  const savedLimit = localStorage.getItem(STORAGE_KEYS.LIMITATION) || 'ja';
-  setLimitationFilter(savedLimit, false);
-
-  // Restore Languages
-  const savedLangDE = localStorage.getItem(STORAGE_KEYS.LANG_DE);
   const langDECheck = document.getElementById('filter-lang-de');
-  if (savedLangDE !== null && langDECheck) {
-    langDECheck.checked = savedLangDE === 'true';
-  }
   if (langDECheck) {
     langDECheck.addEventListener('change', () => {
       localStorage.setItem(STORAGE_KEYS.LANG_DE, langDECheck.checked);
@@ -1351,11 +1914,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  const savedLangEN = localStorage.getItem(STORAGE_KEYS.LANG_EN);
   const langENCheck = document.getElementById('filter-lang-en');
-  if (savedLangEN !== null && langENCheck) {
-    langENCheck.checked = savedLangEN === 'true';
-  }
   if (langENCheck) {
     langENCheck.addEventListener('change', () => {
       localStorage.setItem(STORAGE_KEYS.LANG_EN, langENCheck.checked);
@@ -1363,31 +1922,7 @@ document.addEventListener('DOMContentLoaded', function() {
       refreshModules();
     });
   }
-  updateLanguageChips();
 
-  // Restore FÜS Filter
-  let savedFUES = localStorage.getItem(STORAGE_KEYS.FUES);
-  if (!savedFUES) {
-    if (localStorage.getItem(STORAGE_KEYS.ONLY_FUES) === 'true') {
-      savedFUES = 'nur';
-    } else {
-      savedFUES = 'inkl';
-    }
-  }
-  setFUESFilter(savedFUES, false);
-
-  // Restore Whitelisted Instructors
-  try {
-    const savedProfs = JSON.parse(localStorage.getItem(STORAGE_KEYS.INSTRUCTORS) || '[]');
-    if (Array.isArray(savedProfs)) {
-      selectedInstructors = savedProfs;
-    }
-  } catch(e) {
-    selectedInstructors = [];
-  }
-  renderSelectedProfChips();
-
-  // Keyboard navigation on prof search input
   const profSearch = document.getElementById('prof-search-input');
   if (profSearch) {
     profSearch.addEventListener('keydown', function(evt) {
@@ -1426,12 +1961,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Restore Hide Phase Out
-  const savedHidePhaseOut = localStorage.getItem(STORAGE_KEYS.HIDE_PHASE_OUT);
   const phaseOutCheck = document.getElementById('filter-hide-phaseout');
-  if (savedHidePhaseOut !== null && phaseOutCheck) {
-    phaseOutCheck.checked = savedHidePhaseOut === 'true';
-  }
   if (phaseOutCheck) {
     phaseOutCheck.addEventListener('change', () => {
       localStorage.setItem(STORAGE_KEYS.HIDE_PHASE_OUT, phaseOutCheck.checked);
@@ -1439,23 +1969,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Restore Prerequisites Met
-  const savedPrereqs = localStorage.getItem(STORAGE_KEYS.PREREQS_MET);
   const prereqCheck = document.getElementById('filter-prereqs');
-  if (savedPrereqs !== null && prereqCheck) {
-    prereqCheck.checked = savedPrereqs === 'true';
-  }
   if (prereqCheck) {
     prereqCheck.addEventListener('change', () => {
       localStorage.setItem(STORAGE_KEYS.PREREQS_MET, prereqCheck.checked);
       refreshModules();
     });
   }
-
-  // Restore ECTS Range Slider
-  const savedMinCredits = localStorage.getItem(STORAGE_KEYS.MIN_CREDITS) || 0;
-  const savedMaxCredits = localStorage.getItem(STORAGE_KEYS.MAX_CREDITS) || 30;
-  updateCreditsDisplay(savedMinCredits, savedMaxCredits);
 
   // View mode is permanently table
   const viewInput = document.getElementById('filter-view');
