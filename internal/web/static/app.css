@@ -1870,6 +1870,113 @@ input:checked + .slider:before {
   line-height: 1.3;
 }
 
+/* Module Catalog Accordion Sections */
+.accordion-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.accordion-section:hover {
+  box-shadow: var(--shadow-hover);
+  border-color: #cbd5e1;
+}
+
+.accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  background: white;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--text-main);
+  transition: background-color 0.15s ease;
+}
+
+.accordion-header:hover {
+  background-color: #f8fafc;
+}
+
+.accordion-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.accordion-title {
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.accordion-title strong {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.program-highlight {
+  color: var(--primary) !important;
+  font-weight: 700;
+}
+
+.accordion-header-right {
+  display: flex;
+  align-items: center;
+  margin-left: 1rem;
+}
+
+.accordion-arrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.accordion-section.collapsed .accordion-arrow {
+  transform: rotate(-90deg);
+}
+
+.accordion-body {
+  border-top: 1px solid var(--border);
+  padding: 0;
+  display: block;
+}
+
+.accordion-section.collapsed .accordion-body {
+  display: none;
+}
+
+#accordion-fues .accordion-header {
+  background: #fffcf6;
+}
+
+#accordion-fues .accordion-header:hover {
+  background: #fef8eb;
+}
+
+.table-empty-row {
+  text-align: center;
+  padding: 2rem 1rem !important;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+
+.accordion-body .table-container {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 /* Table View */
 .table-container {
   background: white;

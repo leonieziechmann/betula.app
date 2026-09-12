@@ -60,6 +60,12 @@ type ModuleListData struct {
 	Modules           []ModuleCardViewModel
 	RegularModules    []ModuleCardViewModel
 	FUESModules       []ModuleCardViewModel
+	HasRegular        bool
+	HasFUES           bool
+	RegularShowing    int
+	RegularTotal      int
+	FUESShowing       int
+	FUESTotal         int
 	HasFUESDivider    bool
 	FilterModulesJSON string
 	Total             int
@@ -68,7 +74,7 @@ type ModuleListData struct {
 	Offset            int
 	HasNext           bool
 	NextOffset        int
-	ViewMode          string // "grid" or "table"
+	ViewMode          string // "table"
 	Query             string
 	ProgramName       string
 	IsAppend          bool
@@ -337,16 +343,20 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 	activeTurnuses := turnuses
 	activeProg := programID
 	var nonAdjacentMajor string
+	programMajor := ""
+	if programName != "" {
+		programMajor = strings.TrimSpace(strings.Split(programName, "(")[0])
+	}
+
 	if onlyBookmarked || onlyCompleted {
 		activeTurnuses = nil
 		activeProg = ""
 	} else if fues == "nur" && programID != "" {
-		// When "nur FÜS" is active with a chosen study program, we query non-adjacent FÜS electives
 		activeProg = ""
-		nonAdjacentMajor = strings.TrimSpace(strings.Split(programName, "(")[0])
+		nonAdjacentMajor = programMajor
 	}
 
-	filter := storage.AdvancedFilter{
+	baseFilter := storage.AdvancedFilter{
 		Query:            q,
 		ProgramID:        activeProg,
 		NonAdjacentMajor: nonAdjacentMajor,
@@ -365,106 +375,123 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 		Offset:           offset,
 	}
 
-	items, total, err := s.store.SearchModulesAdvanced(filter)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error querying modules: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	var viewModels []ModuleCardViewModel
 	var completedCreditsSum float64
-
-	for _, it := range items {
-		vm := ModuleCardViewModel{
-			ModuleCardItem: it,
-			IsCompleted:    completedSet[it.ID],
-			IsBookmarked:   bookmarkedSet[it.ID],
-			IsLimited:      it.Limitation != "" && !strings.EqualFold(strings.TrimSpace(it.Limitation), "keine"),
-		}
-
-		if vm.IsCompleted {
-			completedCreditsSum += it.Credits
-		}
-
-		// Filter for bookmarked only if in bookmark view
-		if onlyBookmarked && !vm.IsBookmarked {
-			continue
-		}
-
-		// Filter for completed only if in completed view
-		if onlyCompleted && !vm.IsCompleted {
-			continue
-		}
-
-		// Evaluate Prerequisites
-		vm.PrereqStatus, vm.MissingMandatory, vm.MissingRecommended = evalPrereqStatus(it.MandatoryPrereqIDs, it.RecommendedPrereqIDs, completedSet)
-
-		// If user only wants modules whose prerequisites are satisfied, skip missing ones
-		if onlyPrereqsMet && vm.PrereqStatus == "missing" {
-			continue
-		}
-
-		viewModels = append(viewModels, vm)
-	}
-
-	// Calculate total modules in program
-	totalInProgram, _ := s.store.GetProgramTotalModules(programID)
-
-	var regularModules []ModuleCardViewModel
-	var fuesModules []ModuleCardViewModel
-	hasFUESDivider := false
-
-	// Requirement 5: Abgrenzung von Modulen, die zum Studiengang gehören, und darunter die FÜS-Module
-	// Only display the FÜS divider when "inkl. FÜS" is active and we are on page 1 of a program
-	if programID != "" && !onlyBookmarked && !onlyCompleted && fues == "inkl" && offset == 0 {
-		programMajor := strings.TrimSpace(strings.Split(programName, "(")[0])
-		fuesFilter := storage.AdvancedFilter{
-			FUESFilter:       "nur",
-			NonAdjacentMajor: programMajor,
-			SemesterTurnuses: activeTurnuses,
-			MinCredits:       minCredits,
-			MaxCredits:       maxCredits,
-			Language:         language,
-			Languages:        languages,
-			Campuses:         campuses,
-			CampusStrict:     campusStrict,
-			Limitation:       limitation,
-			Instructors:      instructors,
-			ExcludePhaseOut:  hidePhaseOut,
-			Limit:            100,
-		}
-		fuesItems, _, _ := s.store.SearchModulesAdvanced(fuesFilter)
-		for _, it := range fuesItems {
-			fvm := ModuleCardViewModel{
+	toViewModels := func(rawItems []storage.ModuleCardItem) []ModuleCardViewModel {
+		var list []ModuleCardViewModel
+		for _, it := range rawItems {
+			vm := ModuleCardViewModel{
 				ModuleCardItem: it,
 				IsCompleted:    completedSet[it.ID],
 				IsBookmarked:   bookmarkedSet[it.ID],
+				IsLimited:      it.Limitation != "" && !strings.EqualFold(strings.TrimSpace(it.Limitation), "keine"),
 			}
-			if fvm.IsCompleted {
+
+			if vm.IsCompleted {
 				completedCreditsSum += it.Credits
 			}
-			// Evaluate prerequisites for FÜS module
-			fvm.PrereqStatus, fvm.MissingMandatory, fvm.MissingRecommended = evalPrereqStatus(it.MandatoryPrereqIDs, it.RecommendedPrereqIDs, completedSet)
 
-			if onlyPrereqsMet && fvm.PrereqStatus == "missing" {
+			if onlyBookmarked && !vm.IsBookmarked {
 				continue
 			}
-			fuesModules = append(fuesModules, fvm)
+			if onlyCompleted && !vm.IsCompleted {
+				continue
+			}
+
+			vm.PrereqStatus, vm.MissingMandatory, vm.MissingRecommended = evalPrereqStatus(it.MandatoryPrereqIDs, it.RecommendedPrereqIDs, completedSet)
+			if onlyPrereqsMet && vm.PrereqStatus == "missing" {
+				continue
+			}
+			list = append(list, vm)
+		}
+		return list
+	}
+
+	var regularModules []ModuleCardViewModel
+	var fuesModules []ModuleCardViewModel
+	var regularShowing, regularTotal int
+	var fuesShowing, fuesTotal int
+	var hasRegular, hasFUES bool
+
+	if onlyBookmarked || onlyCompleted {
+		items, _, err := s.store.SearchModulesAdvanced(baseFilter)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error querying modules: %v", err), http.StatusInternalServerError)
+			return
+		}
+		regularModules = toViewModels(items)
+		regularShowing = len(regularModules)
+		regularTotal = len(regularModules)
+		hasRegular = len(regularModules) > 0
+	} else {
+		// Calculate total available counts
+		if programID != "" {
+			regularTotal, _ = s.store.GetProgramTotalModules(programID)
+			_ = s.store.DB().QueryRow(`SELECT COUNT(*) FROM modules WHERE (is_fues = 1 OR cross_disciplinary = 1) AND id NOT IN (SELECT module_id FROM module_study_programs WHERE LOWER(program_name) LIKE ?)`, "%"+strings.ToLower(programMajor)+"%").Scan(&fuesTotal)
+		} else {
+			totalCatalog, _ := s.store.Count()
+			_ = s.store.DB().QueryRow("SELECT COUNT(*) FROM modules WHERE is_fues = 1 OR cross_disciplinary = 1").Scan(&fuesTotal)
+			regularTotal = totalCatalog - fuesTotal
+			if regularTotal < 0 {
+				regularTotal = 0
+			}
 		}
 
-		if len(fuesModules) > 0 {
-			hasFUESDivider = true
-			regularModules = viewModels
+		switch fues {
+		case "exkl":
+			regFilter := baseFilter
+			regFilter.FUESFilter = "exkl"
+			regItems, totalReg, _ := s.store.SearchModulesAdvanced(regFilter)
+			regularModules = toViewModels(regItems)
+			regularShowing = totalReg
+			hasRegular = len(regularModules) > 0
+
+		case "nur":
+			fFilter := baseFilter
+			fFilter.FUESFilter = "nur"
+			if programID != "" {
+				fFilter.ProgramID = ""
+				fFilter.NonAdjacentMajor = programMajor
+			}
+			fItems, totalFuesFiltered, _ := s.store.SearchModulesAdvanced(fFilter)
+			fuesModules = toViewModels(fItems)
+			fuesShowing = totalFuesFiltered
+			hasFUES = len(fuesModules) > 0
+
+		default: // "inkl"
+			// 1. Regular modules
+			regFilter := baseFilter
+			if programID == "" {
+				regFilter.FUESFilter = "exkl"
+			}
+			regItems, totalReg, _ := s.store.SearchModulesAdvanced(regFilter)
+			regularModules = toViewModels(regItems)
+			regularShowing = totalReg
+			hasRegular = len(regularModules) > 0
+
+			// 2. FÜS modules
+			fFilter := baseFilter
+			fFilter.FUESFilter = "nur"
+			if programID != "" {
+				fFilter.ProgramID = ""
+				fFilter.NonAdjacentMajor = programMajor
+			}
+			fItems, totalFuesFiltered, _ := s.store.SearchModulesAdvanced(fFilter)
+			fuesModules = toViewModels(fItems)
+			fuesShowing = totalFuesFiltered
+			hasFUES = len(fuesModules) > 0
 		}
 	}
 
-	// Requirement 1: Compile JSON list of all filtered modules for instant client-side autocomplete
+	allViewModels := append([]ModuleCardViewModel{}, regularModules...)
+	allViewModels = append(allViewModels, fuesModules...)
+
+	// Compile JSON list of all filtered modules for client-side autocomplete
 	var filterModulesJSON string
 	if offset == 0 {
 		var autocompleteItems []FilterAutocompleteItem
 		seenID := make(map[string]bool)
 
-		for _, vm := range viewModels {
+		for _, vm := range allViewModels {
 			if !seenID[vm.ID] {
 				seenID[vm.ID] = true
 				autocompleteItems = append(autocompleteItems, FilterAutocompleteItem{
@@ -476,43 +503,6 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 					IsFUES:  vm.IsFUES,
 					IsPhase: vm.IsPhaseOut,
 				})
-			}
-		}
-
-		for _, vm := range fuesModules {
-			if !seenID[vm.ID] {
-				seenID[vm.ID] = true
-				autocompleteItems = append(autocompleteItems, FilterAutocompleteItem{
-					ID:      vm.ID,
-					TitleDE: vm.TitleDE,
-					TitleEN: vm.TitleEN,
-					Credits: vm.Credits,
-					Turnus:  vm.Turnus,
-					IsFUES:  vm.IsFUES,
-					IsPhase: vm.IsPhaseOut,
-				})
-			}
-		}
-
-		// If total > len(viewModels), fetch remaining module titles so search covers the entire filtered scope
-		if total > len(viewModels) {
-			fullFilter := filter
-			fullFilter.Limit = 1500
-			fullFilter.Offset = 0
-			allFiltered, _, _ := s.store.SearchModulesAdvanced(fullFilter)
-			for _, it := range allFiltered {
-				if !seenID[it.ID] {
-					seenID[it.ID] = true
-					autocompleteItems = append(autocompleteItems, FilterAutocompleteItem{
-						ID:      it.ID,
-						TitleDE: it.TitleDE,
-						TitleEN: it.TitleEN,
-						Credits: it.Credits,
-						Turnus:  it.Turnus,
-						IsFUES:  it.IsFUES,
-						IsPhase: it.IsPhaseOut,
-					})
-				}
 			}
 		}
 
@@ -522,18 +512,22 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := ModuleListData{
-		Modules:           viewModels,
+		Modules:           allViewModels,
 		RegularModules:    regularModules,
 		FUESModules:       fuesModules,
-		HasFUESDivider:    hasFUESDivider,
+		HasRegular:        hasRegular,
+		HasFUES:           hasFUES,
+		RegularShowing:    regularShowing,
+		RegularTotal:      regularTotal,
+		FUESShowing:       fuesShowing,
+		FUESTotal:         fuesTotal,
 		FilterModulesJSON: filterModulesJSON,
-		Total:             total,
-		TotalInProgram:    totalInProgram,
-		Showing:           len(viewModels),
+		Total:             regularShowing + fuesShowing,
+		Showing:           len(allViewModels),
 		Offset:            offset,
-		HasNext:           offset+limit < total,
-		NextOffset:        offset + limit,
-		ViewMode:          viewMode,
+		HasNext:           false,
+		NextOffset:        offset,
+		ViewMode:          "table",
 		Query:             q,
 		ProgramName:       programName,
 		IsAppend:          offset > 0,

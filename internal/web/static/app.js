@@ -183,16 +183,18 @@ window.updateCreditsLabel = function(val) {
   localStorage.setItem(STORAGE_KEYS.MIN_CREDITS, val);
 };
 
-window.setViewMode = function(mode) {
-  localStorage.setItem(STORAGE_KEYS.VIEW_MODE, mode);
-  const viewInput = document.getElementById('filter-view');
-  if (viewInput) {
-    viewInput.value = mode;
-    refreshModules();
+window.toggleAccordion = function(id) {
+  const section = document.getElementById(id);
+  if (!section) return;
+  const isCollapsed = section.classList.toggle('collapsed');
+  const btn = section.querySelector('.accordion-header');
+  if (btn) {
+    btn.setAttribute('aria-expanded', String(!isCollapsed));
   }
-  document.querySelectorAll('.btn-view').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === mode);
-  });
+};
+
+window.setViewMode = function(mode) {
+  // Legacy stub - table view is now the permanent view mode
 };
 
 function updateBadges() {
@@ -1231,13 +1233,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Restore View Mode
-  const savedView = localStorage.getItem(STORAGE_KEYS.VIEW_MODE) || 'grid';
+  // View mode is permanently table
   const viewInput = document.getElementById('filter-view');
-  if (viewInput) viewInput.value = savedView;
-  document.querySelectorAll('.btn-view').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === savedView);
-  });
+  if (viewInput) viewInput.value = 'table';
 
   // Synchronize active filtered modules from the server response
   function syncFilterModules() {

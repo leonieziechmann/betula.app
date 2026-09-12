@@ -25,31 +25,10 @@
         ← Zurück zur Suche
       </button>
     </div>
-  {{else}}
-    <!-- Standard Control Bar -->
-    <div class="control-bar">
-      <div class="results-info">
-        <strong>{{.Total}}</strong> von <strong>{{.TotalInProgram}}</strong> Modulen
-        {{if .ProgramName}}
-          im Studiengang <strong style="color: var(--primary);">{{.ProgramName}}</strong>
-        {{else}}
-          im Gesamtkatalog
-        {{end}}
-      </div>
-
-      <div class="view-controls">
-        <button type="button" class="btn-view {{if eq .ViewMode "grid"}}active{{end}}" data-view="grid" onclick="setViewMode('grid');" title="Kachelansicht">
-          ⊞ Kacheln
-        </button>
-        <button type="button" class="btn-view {{if eq .ViewMode "table"}}active{{end}}" data-view="table" onclick="setViewMode('table');" title="Tabellenansicht">
-          ☰ Tabelle
-        </button>
-      </div>
-    </div>
   {{end}}
 {{end}}
 
-{{if and (not .IsAppend) (eq (len .Modules) 0)}}
+{{if and (not .HasRegular) (not .HasFUES)}}
   <div class="empty-state-box">
     <div class="empty-icon">🔍</div>
     <h3 class="empty-title">Keine passenden Module gefunden</h3>
@@ -62,10 +41,25 @@
   </div>
 {{else}}
 
-  {{if eq .ViewMode "table"}}
-    {{if .HasFUESDivider}}
-      {{if not .IsAppend}}
-        <div class="catalog-section-header">📚 Reguläre Module des Studiengangs ({{len .RegularModules}})</div>
+  <!-- Accordion 1: Reguläre Module -->
+  {{if or .HasRegular (and (not .HasFUES) (not .IsBookmarksView) (not .IsOpenPassedView))}}
+    <div class="accordion-section" id="accordion-regular">
+      <button type="button" class="accordion-header" onclick="toggleAccordion('accordion-regular');" aria-expanded="true">
+        <div class="accordion-header-left">
+          <span class="accordion-title">
+            <strong>{{.RegularShowing}}</strong> von <strong>{{.RegularTotal}}</strong> Modulen
+            {{if .ProgramName}}
+              im Studiengang <strong class="program-highlight">{{.ProgramName}}</strong>
+            {{else}}
+              im Gesamtkatalog
+            {{end}}
+          </span>
+        </div>
+        <div class="accordion-header-right">
+          <span class="accordion-arrow">▼</span>
+        </div>
+      </button>
+      <div class="accordion-body">
         <div class="table-container">
           <table class="module-table">
             <thead>
@@ -82,60 +76,71 @@
               </tr>
             </thead>
             <tbody id="module-table-body">
-      {{end}}
-
-      {{$totalMods := len .RegularModules}}
-      {{range $idx, $mod := .RegularModules}}
-        <tr class="table-row {{if $mod.IsCompleted}}is-completed{{end}} {{if $mod.IsBookmarked}}is-bookmarked{{end}}"
-            onclick="openModal('{{$mod.ID}}');"
-            {{if and $.HasNext (eq (add $idx 1) $totalMods)}}hx-get="/modules?offset={{$.NextOffset}}&view=table" hx-trigger="revealed" hx-swap="afterend" hx-include="#filter-form"{{end}}>
-          <td style="text-align: center;" onclick="event.stopPropagation();">
-            <div class="table-actions">
-              <button type="button" class="action-btn-sm btn-star {{if $mod.IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{$mod.ID}}', event);" title="Merken">★</button>
-              <button type="button" class="action-btn-sm btn-check {{if $mod.IsCompleted}}active{{end}}" onclick="toggleCompleted('{{$mod.ID}}', event);" title="Bestanden">✓</button>
-            </div>
-          </td>
-          <td><span class="pill-id">#{{$mod.ID}}</span></td>
-          <td>
-            <div class="table-title">{{$mod.TitleDE}}</div>
-            {{if and $mod.TitleEN (ne $mod.TitleEN $mod.TitleDE)}}
-              <div class="table-subtitle">{{$mod.TitleEN}}</div>
-            {{end}}
-            <div class="table-badges-inline">
-              {{if $mod.IsLimited}}<span class="pill-badge pill-nc" title="Teilnehmerbeschränkt: {{$mod.Limitation}}">🔒 NC</span>{{end}}
-              {{if $mod.IsNotOffered}}<span class="pill-badge pill-not-offered" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" title="Modul nicht mehr im Angebot">🚫 Nicht im Angebot</span>
-              {{else if $mod.IsPhaseOut}}<span class="pill-badge pill-phaseout" title="Auslaufendes Modul">⏳ Auslauf</span>{{end}}
-              {{if $mod.SuccessorModules}}<span class="pill-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;" title="Nachfolgemodul: {{stringsJoin $mod.SuccessorModules ", "}}">➡️ Nachfolge: {{index $mod.SuccessorModules 0}}</span>{{end}}
-            </div>
-          </td>
-          <td style="text-align: center;"><span class="pill-ects">{{formatCredits $mod.CreditsRaw $mod.Credits}} ECTS</span></td>
-          <td><span class="meta-tag meta-turnus" title="{{$mod.Turnus}}">{{formatTurnusShort $mod.Turnus}}</span></td>
-          <td style="text-align: center;"><span class="meta-tag meta-lang" title="{{$mod.Language}}">{{formatLangBadge $mod.Language}}</span></td>
-          <td>
-            {{if eq $mod.PrereqStatus "met"}}<span class="prereq-pill prereq-met" title="Voraussetzungen erfüllt">🟢 OK</span>
-            {{else if eq $mod.PrereqStatus "recommended_missing"}}<span class="prereq-pill prereq-rec prereq-rec-missing" title="Empfohlen: {{stringsJoin $mod.MissingRecommended ", "}}">🟡 Empf.</span>
-            {{else if eq $mod.PrereqStatus "missing"}}<span class="prereq-pill prereq-miss prereq-missing" title="Fehlt: {{stringsJoin $mod.MissingMandatory ", "}}">🔴 Fehlt: {{index $mod.MissingMandatory 0}}</span>
-            {{else}}<span class="table-muted-dash">-</span>{{end}}
-          </td>
-          <td>
-            {{if $mod.EventsCount}}<span class="bottom-item bottom-events" title="{{$mod.EventsCount}} Termine im Vorlesungsverzeichnis">📅 {{$mod.EventsCount}}</span>
-            {{else}}<span class="table-muted-dash">-</span>{{end}}
-          </td>
-          <td style="text-align: center;"><span class="card-open-arrow">↗</span></td>
-        </tr>
-      {{end}}
-
-      {{if not .IsAppend}}
+              {{if eq (len .RegularModules) 0}}
+                <tr>
+                  <td colspan="9" class="table-empty-row">Keine regulären Module für die aktuellen Filter.</td>
+                </tr>
+              {{else}}
+                {{range .RegularModules}}
+                  <tr class="table-row {{if .IsCompleted}}is-completed{{end}} {{if .IsBookmarked}}is-bookmarked{{end}}"
+                      onclick="openModal('{{.ID}}');">
+                    <td style="text-align: center;" onclick="event.stopPropagation();">
+                      <div class="table-actions">
+                        <button type="button" class="action-btn-sm btn-star {{if .IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{.ID}}', event);" title="Merken">★</button>
+                        <button type="button" class="action-btn-sm btn-check {{if .IsCompleted}}active{{end}}" onclick="toggleCompleted('{{.ID}}', event);" title="Bestanden">✓</button>
+                      </div>
+                    </td>
+                    <td><span class="pill-id">#{{.ID}}</span></td>
+                    <td>
+                      <div class="table-title">{{.TitleDE}}</div>
+                      {{if and .TitleEN (ne .TitleEN .TitleDE)}}
+                        <div class="table-subtitle">{{.TitleEN}}</div>
+                      {{end}}
+                      <div class="table-badges-inline">
+                        {{if .IsLimited}}<span class="pill-badge pill-nc" title="Teilnehmerbeschränkt: {{.Limitation}}">🔒 NC</span>{{end}}
+                        {{if .IsNotOffered}}<span class="pill-badge pill-not-offered" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" title="Modul nicht mehr im Angebot">🚫 Nicht im Angebot</span>
+                        {{else if .IsPhaseOut}}<span class="pill-badge pill-phaseout" title="Auslaufendes Modul">⏳ Auslauf</span>{{end}}
+                        {{if .SuccessorModules}}<span class="pill-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;" title="Nachfolgemodul: {{stringsJoin .SuccessorModules ", "}}">➡️ Nachfolge: {{index .SuccessorModules 0}}</span>{{end}}
+                      </div>
+                    </td>
+                    <td style="text-align: center;"><span class="pill-ects">{{formatCredits .CreditsRaw .Credits}} ECTS</span></td>
+                    <td><span class="meta-tag meta-turnus" title="{{.Turnus}}">{{formatTurnusShort .Turnus}}</span></td>
+                    <td style="text-align: center;"><span class="meta-tag meta-lang" title="{{.Language}}">{{formatLangBadge .Language}}</span></td>
+                    <td>
+                      {{if eq .PrereqStatus "met"}}<span class="prereq-pill prereq-met" title="Voraussetzungen erfüllt">🟢 OK</span>
+                      {{else if eq .PrereqStatus "recommended_missing"}}<span class="prereq-pill prereq-rec prereq-rec-missing" title="Empfohlen: {{stringsJoin .MissingRecommended ", "}}">🟡 Empf.</span>
+                      {{else if eq .PrereqStatus "missing"}}<span class="prereq-pill prereq-miss prereq-missing" title="Fehlt: {{stringsJoin .MissingMandatory ", "}}">🔴 Fehlt: {{index .MissingMandatory 0}}</span>
+                      {{else}}<span class="table-muted-dash">-</span>{{end}}
+                    </td>
+                    <td>
+                      {{if .EventsCount}}<span class="bottom-item bottom-events" title="{{.EventsCount}} Termine im Vorlesungsverzeichnis">📅 {{.EventsCount}}</span>
+                      {{else}}<span class="table-muted-dash">-</span>{{end}}
+                    </td>
+                    <td style="text-align: center;"><span class="card-open-arrow">↗</span></td>
+                  </tr>
+                {{end}}
+              {{end}}
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  {{end}}
 
-        <div class="fues-section-divider">
-          <div class="fues-divider-line"></div>
-          <span class="fues-divider-badge">🎓 Fachübergreifendes Studium (FÜS) — Nicht-fachnahe Wahlmodule ({{len .FUESModules}})</span>
-          <div class="fues-divider-line"></div>
+  <!-- Accordion 2: FÜS-Module -->
+  {{if .HasFUES}}
+    <div class="accordion-section" id="accordion-fues">
+      <button type="button" class="accordion-header" onclick="toggleAccordion('accordion-fues');" aria-expanded="true">
+        <div class="accordion-header-left">
+          <span class="accordion-title">
+            🎓 <strong>{{.FUESShowing}}</strong> von <strong>{{.FUESTotal}}</strong> FÜS-Modulen
+          </span>
         </div>
-
+        <div class="accordion-header-right">
+          <span class="accordion-arrow">▼</span>
+        </div>
+      </button>
+      <div class="accordion-body">
         <div class="table-container">
           <table class="module-table">
             <thead>
@@ -152,339 +157,56 @@
               </tr>
             </thead>
             <tbody id="fues-table-body">
-              {{range $idx, $mod := .FUESModules}}
-                <tr class="table-row {{if $mod.IsCompleted}}is-completed{{end}} {{if $mod.IsBookmarked}}is-bookmarked{{end}}"
-                    onclick="openModal('{{$mod.ID}}');">
-                  <td style="text-align: center;" onclick="event.stopPropagation();">
-                    <div class="table-actions">
-                      <button type="button" class="action-btn-sm btn-star {{if $mod.IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{$mod.ID}}', event);" title="Merken">★</button>
-                      <button type="button" class="action-btn-sm btn-check {{if $mod.IsCompleted}}active{{end}}" onclick="toggleCompleted('{{$mod.ID}}', event);" title="Bestanden">✓</button>
-                    </div>
-                  </td>
-                  <td><span class="pill-id">#{{$mod.ID}}</span></td>
-                  <td>
-                    <div class="table-title">{{$mod.TitleDE}}</div>
-                    {{if and $mod.TitleEN (ne $mod.TitleEN $mod.TitleDE)}}
-                      <div class="table-subtitle">{{$mod.TitleEN}}</div>
-                    {{end}}
-                    <div class="table-badges-inline">
-                      <span class="pill-badge pill-fues">FÜS</span>
-                      {{if $mod.IsLimited}}<span class="pill-badge pill-nc">🔒 NC</span>{{end}}
-                      {{if $mod.IsNotOffered}}<span class="pill-badge pill-not-offered" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" title="Modul nicht mehr im Angebot">🚫 Nicht im Angebot</span>
-                      {{else if $mod.IsPhaseOut}}<span class="pill-badge pill-phaseout">⏳ Auslauf</span>{{end}}
-                      {{if $mod.SuccessorModules}}<span class="pill-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;" title="Nachfolgemodul: {{stringsJoin $mod.SuccessorModules ", "}}">➡️ Nachfolge: {{index $mod.SuccessorModules 0}}</span>{{end}}
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="pill-ects">{{formatCredits $mod.CreditsRaw $mod.Credits}} ECTS</span></td>
-                  <td><span class="meta-tag meta-turnus" title="{{$mod.Turnus}}">{{formatTurnusShort $mod.Turnus}}</span></td>
-                  <td style="text-align: center;"><span class="meta-tag meta-lang" title="{{$mod.Language}}">{{formatLangBadge $mod.Language}}</span></td>
-                  <td>
-                    {{if eq $mod.PrereqStatus "met"}}<span class="prereq-pill prereq-met" title="Voraussetzungen erfüllt">🟢 OK</span>
-                    {{else if eq $mod.PrereqStatus "recommended_missing"}}<span class="prereq-pill prereq-rec prereq-rec-missing" title="Empfohlen: {{stringsJoin $mod.MissingRecommended ", "}}">🟡 Empf.</span>
-                    {{else if eq $mod.PrereqStatus "missing"}}<span class="prereq-pill prereq-miss prereq-missing" title="Fehlt: {{stringsJoin $mod.MissingMandatory ", "}}">🔴 Fehlt: {{index $mod.MissingMandatory 0}}</span>
-                    {{else}}<span class="table-muted-dash">-</span>{{end}}
-                  </td>
-                  <td>
-                    {{if $mod.EventsCount}}<span class="bottom-item bottom-events" title="{{$mod.EventsCount}} Termine im Vorlesungsverzeichnis">📅 {{$mod.EventsCount}}</span>
-                    {{else}}<span class="table-muted-dash">-</span>{{end}}
-                  </td>
-                  <td style="text-align: center;"><span class="card-open-arrow">↗</span></td>
+              {{if eq (len .FUESModules) 0}}
+                <tr>
+                  <td colspan="9" class="table-empty-row">Keine FÜS-Module für die aktuellen Filter.</td>
                 </tr>
+              {{else}}
+                {{range .FUESModules}}
+                  <tr class="table-row {{if .IsCompleted}}is-completed{{end}} {{if .IsBookmarked}}is-bookmarked{{end}}"
+                      onclick="openModal('{{.ID}}');">
+                    <td style="text-align: center;" onclick="event.stopPropagation();">
+                      <div class="table-actions">
+                        <button type="button" class="action-btn-sm btn-star {{if .IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{.ID}}', event);" title="Merken">★</button>
+                        <button type="button" class="action-btn-sm btn-check {{if .IsCompleted}}active{{end}}" onclick="toggleCompleted('{{.ID}}', event);" title="Bestanden">✓</button>
+                      </div>
+                    </td>
+                    <td><span class="pill-id">#{{.ID}}</span></td>
+                    <td>
+                      <div class="table-title">{{.TitleDE}}</div>
+                      {{if and .TitleEN (ne .TitleEN .TitleDE)}}
+                        <div class="table-subtitle">{{.TitleEN}}</div>
+                      {{end}}
+                      <div class="table-badges-inline">
+                        <span class="pill-badge pill-fues">FÜS</span>
+                        {{if .IsLimited}}<span class="pill-badge pill-nc" title="Teilnehmerbeschränkt: {{.Limitation}}">🔒 NC</span>{{end}}
+                        {{if .IsNotOffered}}<span class="pill-badge pill-not-offered" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" title="Modul nicht mehr im Angebot">🚫 Nicht im Angebot</span>
+                        {{else if .IsPhaseOut}}<span class="pill-badge pill-phaseout" title="Auslaufendes Modul">⏳ Auslauf</span>{{end}}
+                        {{if .SuccessorModules}}<span class="pill-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;" title="Nachfolgemodul: {{stringsJoin .SuccessorModules ", "}}">➡️ Nachfolge: {{index .SuccessorModules 0}}</span>{{end}}
+                      </div>
+                    </td>
+                    <td style="text-align: center;"><span class="pill-ects">{{formatCredits .CreditsRaw .Credits}} ECTS</span></td>
+                    <td><span class="meta-tag meta-turnus" title="{{.Turnus}}">{{formatTurnusShort .Turnus}}</span></td>
+                    <td style="text-align: center;"><span class="meta-tag meta-lang" title="{{.Language}}">{{formatLangBadge .Language}}</span></td>
+                    <td>
+                      {{if eq .PrereqStatus "met"}}<span class="prereq-pill prereq-met" title="Voraussetzungen erfüllt">🟢 OK</span>
+                      {{else if eq .PrereqStatus "recommended_missing"}}<span class="prereq-pill prereq-rec prereq-rec-missing" title="Empfohlen: {{stringsJoin .MissingRecommended ", "}}">🟡 Empf.</span>
+                      {{else if eq .PrereqStatus "missing"}}<span class="prereq-pill prereq-miss prereq-missing" title="Fehlt: {{stringsJoin .MissingMandatory ", "}}">🔴 Fehlt: {{index .MissingMandatory 0}}</span>
+                      {{else}}<span class="table-muted-dash">-</span>{{end}}
+                    </td>
+                    <td>
+                      {{if .EventsCount}}<span class="bottom-item bottom-events" title="{{.EventsCount}} Termine im Vorlesungsverzeichnis">📅 {{.EventsCount}}</span>
+                      {{else}}<span class="table-muted-dash">-</span>{{end}}
+                    </td>
+                    <td style="text-align: center;"><span class="card-open-arrow">↗</span></td>
+                  </tr>
+                {{end}}
               {{end}}
             </tbody>
           </table>
         </div>
-      {{end}}
-
-    {{else}}
-      {{if not .IsAppend}}
-        <!-- Single Table View -->
-        <div class="table-container">
-          <table class="module-table">
-            <thead>
-              <tr>
-                <th style="width: 68px; text-align: center;">Status</th>
-                <th style="width: 75px;">ID</th>
-                <th>Modulname &amp; Lehrveranstaltung</th>
-                <th style="width: 85px; text-align: center;">ECTS</th>
-                <th style="width: 120px;">Turnus</th>
-                <th style="width: 65px; text-align: center;">Sprache</th>
-                <th style="width: 140px;">Voraussetzungen</th>
-                <th style="width: 90px;">Termine</th>
-                <th style="width: 36px;"></th>
-              </tr>
-            </thead>
-            <tbody id="module-table-body">
-      {{end}}
-
-      {{$totalMods := len .Modules}}
-      {{range $idx, $mod := .Modules}}
-        <tr class="table-row {{if $mod.IsCompleted}}is-completed{{end}} {{if $mod.IsBookmarked}}is-bookmarked{{end}}"
-            onclick="openModal('{{$mod.ID}}');"
-            {{if and $.HasNext (eq (add $idx 1) $totalMods)}}hx-get="/modules?offset={{$.NextOffset}}&view=table" hx-trigger="revealed" hx-swap="afterend" hx-include="#filter-form"{{end}}>
-          <td style="text-align: center;" onclick="event.stopPropagation();">
-            <div class="table-actions">
-              <button type="button" class="action-btn-sm btn-star {{if $mod.IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{$mod.ID}}', event);" title="Merken">★</button>
-              <button type="button" class="action-btn-sm btn-check {{if $mod.IsCompleted}}active{{end}}" onclick="toggleCompleted('{{$mod.ID}}', event);" title="Bestanden">✓</button>
-            </div>
-          </td>
-          <td><span class="pill-id">#{{$mod.ID}}</span></td>
-          <td>
-            <div class="table-title">{{$mod.TitleDE}}</div>
-            {{if and $mod.TitleEN (ne $mod.TitleEN $mod.TitleDE)}}
-              <div class="table-subtitle">{{$mod.TitleEN}}</div>
-            {{end}}
-            <div class="table-badges-inline">
-              {{if $mod.IsFUES}}<span class="pill-badge pill-fues">FÜS</span>{{end}}
-              {{if $mod.IsLimited}}<span class="pill-badge pill-nc" title="Teilnehmerbeschränkt: {{$mod.Limitation}}">🔒 NC</span>{{end}}
-              {{if $mod.IsNotOffered}}<span class="pill-badge pill-not-offered" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" title="Modul nicht mehr im Angebot">🚫 Nicht im Angebot</span>
-              {{else if $mod.IsPhaseOut}}<span class="pill-badge pill-phaseout" title="Auslaufendes Modul">⏳ Auslauf</span>{{end}}
-              {{if $mod.SuccessorModules}}<span class="pill-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;" title="Nachfolgemodul: {{stringsJoin $mod.SuccessorModules ", "}}">➡️ Nachfolge: {{index $mod.SuccessorModules 0}}</span>{{end}}
-            </div>
-          </td>
-          <td style="text-align: center;"><span class="pill-ects">{{formatCredits $mod.CreditsRaw $mod.Credits}} ECTS</span></td>
-          <td><span class="meta-tag meta-turnus" title="{{$mod.Turnus}}">{{formatTurnusShort $mod.Turnus}}</span></td>
-          <td style="text-align: center;"><span class="meta-tag meta-lang" title="{{$mod.Language}}">{{formatLangBadge $mod.Language}}</span></td>
-          <td>
-            {{if eq $mod.PrereqStatus "met"}}<span class="prereq-pill prereq-met" title="Voraussetzungen erfüllt">🟢 OK</span>
-            {{else if eq $mod.PrereqStatus "recommended_missing"}}<span class="prereq-pill prereq-rec prereq-rec-missing" title="Empfohlen: {{stringsJoin $mod.MissingRecommended ", "}}">🟡 Empf.</span>
-            {{else if eq $mod.PrereqStatus "missing"}}<span class="prereq-pill prereq-miss prereq-missing" title="Fehlt: {{stringsJoin $mod.MissingMandatory ", "}}">🔴 Fehlt: {{index $mod.MissingMandatory 0}}</span>
-            {{else}}<span class="table-muted-dash">-</span>{{end}}
-          </td>
-          <td>
-            {{if $mod.EventsCount}}<span class="bottom-item bottom-events" title="{{$mod.EventsCount}} Termine im Vorlesungsverzeichnis">📅 {{$mod.EventsCount}}</span>
-            {{else}}<span class="table-muted-dash">-</span>{{end}}
-          </td>
-          <td style="text-align: center;"><span class="card-open-arrow">↗</span></td>
-        </tr>
-      {{end}}
-
-      {{if not .IsAppend}}
-            </tbody>
-          </table>
-        </div>
-      {{end}}
-    {{end}}
-
-  {{else}}
-    <!-- Grid View (High-Density & Clean Cards) -->
-    {{if .HasFUESDivider}}
-      {{if not .IsAppend}}
-        <div class="catalog-section-header">📚 Reguläre Module des Studiengangs ({{len .RegularModules}})</div>
-        <div class="module-grid" id="module-cards-grid">
-      {{end}}
-
-      {{$totalMods := len .RegularModules}}
-      {{range $idx, $mod := .RegularModules}}
-        <div class="module-card {{if $mod.IsCompleted}}is-completed{{end}} {{if $mod.IsBookmarked}}is-bookmarked{{end}}"
-             onclick="openModal('{{$mod.ID}}');"
-             {{if and $.HasNext (eq (add $idx 1) $totalMods)}}hx-get="/modules?offset={{$.NextOffset}}&view=grid" hx-trigger="revealed" hx-swap="afterend" hx-include="#filter-form"{{end}}>
-
-          <div class="card-top">
-            <div class="card-pills">
-              <span class="pill-id">#{{$mod.ID}}</span>
-              <span class="pill-ects">{{formatCredits $mod.CreditsRaw $mod.Credits}} ECTS</span>
-              {{if $mod.IsLimited}}<span class="pill-badge pill-nc" title="Teilnehmerbeschränkt: {{$mod.Limitation}}">🔒 NC</span>{{end}}
-              {{if $mod.IsNotOffered}}<span class="pill-badge pill-not-offered" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" title="Modul nicht mehr im Angebot">🚫 Nicht im Angebot</span>
-              {{else if $mod.IsPhaseOut}}<span class="pill-badge pill-phaseout" title="Auslaufendes Modul">⏳ Auslauf</span>{{end}}
-              {{if $mod.SuccessorModules}}<span class="pill-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;" title="Nachfolgemodul: {{stringsJoin $mod.SuccessorModules ", "}}">➡️ Nachfolge: {{index $mod.SuccessorModules 0}}</span>{{end}}
-            </div>
-            <div class="card-actions" onclick="event.stopPropagation();">
-              <button type="button" class="action-btn btn-star {{if $mod.IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{$mod.ID}}', event);" title="{{if $mod.IsBookmarked}}Aus Merkliste entfernen{{else}}Auf Merkliste setzen{{end}}" aria-label="Merken">★</button>
-              <button type="button" class="action-btn btn-check {{if $mod.IsCompleted}}active{{end}}" onclick="toggleCompleted('{{$mod.ID}}', event);" title="{{if $mod.IsCompleted}}Bestanden (Klick zum Aufheben){{else}}Als bestanden markieren{{end}}" aria-label="Bestanden">✓</button>
-            </div>
-          </div>
-
-          <div class="card-title-group">
-            <div class="card-title" title="{{$mod.TitleDE}}">{{$mod.TitleDE}}</div>
-            {{if and $mod.TitleEN (ne $mod.TitleEN $mod.TitleDE)}}
-              <div class="card-subtitle" title="{{$mod.TitleEN}}">{{$mod.TitleEN}}</div>
-            {{end}}
-          </div>
-
-          <div class="card-meta-row">
-            <span class="meta-tag meta-turnus" title="Turnus: {{if $mod.Turnus}}{{$mod.Turnus}}{{else}}Keine Angabe{{end}}">
-              {{formatTurnusShort $mod.Turnus}}
-            </span>
-            <span class="meta-tag meta-lang" title="Sprache: {{if $mod.Language}}{{$mod.Language}}{{else}}Deutsch{{end}}">
-              {{formatLangBadge $mod.Language}}
-            </span>
-            {{if eq $mod.PrereqStatus "met"}}
-              <span class="meta-tag meta-prereq-met prereq-met" title="Voraussetzungen erfüllt">🟢 OK</span>
-            {{else if eq $mod.PrereqStatus "recommended_missing"}}
-              <span class="meta-tag meta-prereq-rec prereq-rec-missing" title="Empfohlene Voraussetzungen: {{stringsJoin $mod.MissingRecommended ", "}}">
-                🟡 Empf.
-              </span>
-            {{else if eq $mod.PrereqStatus "missing"}}
-              <span class="meta-tag meta-prereq-miss prereq-missing" title="Pflicht-Voraussetzung fehlt: {{stringsJoin $mod.MissingMandatory ", "}}">
-                🔴 Fehlt: {{index $mod.MissingMandatory 0}}
-              </span>
-            {{else}}
-              <span class="meta-tag meta-prereq-none" title="Keine Voraussetzungen">-</span>
-            {{end}}
-          </div>
-
-          <div class="card-bottom">
-            <div class="card-bottom-info">
-              {{if $mod.EventsCount}}
-                <span class="bottom-item bottom-events" title="{{$mod.EventsCount}} Lehrveranstaltungstermine im Semesterplan">📅 {{$mod.EventsCount}} {{if eq $mod.EventsCount 1}}Termin{{else}}Termine{{end}}</span>
-              {{else if $mod.Department}}
-                <span class="bottom-item bottom-dept" title="{{$mod.Department}}">🏛️ {{cleanDept $mod.Department}}</span>
-              {{end}}
-            </div>
-            <span class="card-open-arrow" title="Details öffnen">↗</span>
-          </div>
-        </div>
-      {{end}}
-
-      {{if not .IsAppend}}
-        </div>
-        <div class="fues-section-divider">
-          <div class="fues-divider-line"></div>
-          <span class="fues-divider-badge">🎓 Fachübergreifendes Studium (FÜS) — Nicht-fachnahe Wahlmodule ({{len .FUESModules}})</span>
-          <div class="fues-divider-line"></div>
-        </div>
-        <div class="module-grid" id="fues-cards-grid">
-          {{range $idx, $mod := .FUESModules}}
-            <div class="module-card {{if $mod.IsCompleted}}is-completed{{end}} {{if $mod.IsBookmarked}}is-bookmarked{{end}}"
-                 onclick="openModal('{{$mod.ID}}');">
-
-              <div class="card-top">
-                <div class="card-pills">
-                  <span class="pill-id">#{{$mod.ID}}</span>
-                  <span class="pill-ects">{{formatCredits $mod.CreditsRaw $mod.Credits}} ECTS</span>
-                  <span class="pill-badge pill-fues">FÜS</span>
-                  {{if $mod.IsLimited}}<span class="pill-badge pill-nc" title="Teilnehmerbeschränkt: {{$mod.Limitation}}">🔒 NC</span>{{end}}
-                  {{if $mod.IsNotOffered}}<span class="pill-badge pill-not-offered" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" title="Modul nicht mehr im Angebot">🚫 Nicht im Angebot</span>
-                  {{else if $mod.IsPhaseOut}}<span class="pill-badge pill-phaseout" title="Auslaufendes Modul">⏳ Auslauf</span>{{end}}
-                  {{if $mod.SuccessorModules}}<span class="pill-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;" title="Nachfolgemodul: {{stringsJoin $mod.SuccessorModules ", "}}">➡️ Nachfolge: {{index $mod.SuccessorModules 0}}</span>{{end}}
-                </div>
-                <div class="card-actions" onclick="event.stopPropagation();">
-                  <button type="button" class="action-btn btn-star {{if $mod.IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{$mod.ID}}', event);" title="Merken">★</button>
-                  <button type="button" class="action-btn btn-check {{if $mod.IsCompleted}}active{{end}}" onclick="toggleCompleted('{{$mod.ID}}', event);" title="Bestanden">✓</button>
-                </div>
-              </div>
-
-              <div class="card-title-group">
-                <div class="card-title" title="{{$mod.TitleDE}}">{{$mod.TitleDE}}</div>
-                {{if and $mod.TitleEN (ne $mod.TitleEN $mod.TitleDE)}}
-                  <div class="card-subtitle" title="{{$mod.TitleEN}}">{{$mod.TitleEN}}</div>
-                {{end}}
-              </div>
-
-              <div class="card-meta-row">
-                <span class="meta-tag meta-turnus" title="Turnus: {{if $mod.Turnus}}{{$mod.Turnus}}{{else}}Keine Angabe{{end}}">
-                  {{formatTurnusShort $mod.Turnus}}
-                </span>
-                <span class="meta-tag meta-lang" title="Sprache: {{if $mod.Language}}{{$mod.Language}}{{else}}Deutsch{{end}}">
-                  {{formatLangBadge $mod.Language}}
-                </span>
-                {{if eq $mod.PrereqStatus "met"}}
-                  <span class="meta-tag meta-prereq-met prereq-met" title="Voraussetzungen erfüllt">🟢 OK</span>
-                {{else if eq $mod.PrereqStatus "recommended_missing"}}
-                  <span class="meta-tag meta-prereq-rec prereq-rec-missing" title="Empfohlene Voraussetzungen: {{stringsJoin $mod.MissingRecommended ", "}}">
-                    🟡 Empf.
-                  </span>
-                {{else if eq $mod.PrereqStatus "missing"}}
-                  <span class="meta-tag meta-prereq-miss prereq-missing" title="Pflicht-Voraussetzung fehlt: {{stringsJoin $mod.MissingMandatory ", "}}">
-                    🔴 Fehlt: {{index $mod.MissingMandatory 0}}
-                  </span>
-                {{else}}
-                  <span class="meta-tag meta-prereq-none" title="Keine Voraussetzungen">-</span>
-                {{end}}
-              </div>
-
-              <div class="card-bottom">
-                <div class="card-bottom-info">
-                  {{if $mod.EventsCount}}
-                    <span class="bottom-item bottom-events" title="{{$mod.EventsCount}} Termine im Vorlesungsverzeichnis">📅 {{$mod.EventsCount}} {{if eq $mod.EventsCount 1}}Termin{{else}}Termine{{end}}</span>
-                  {{else if $mod.Department}}
-                    <span class="bottom-item bottom-dept" title="{{$mod.Department}}">🏛️ {{cleanDept $mod.Department}}</span>
-                  {{end}}
-                </div>
-                <span class="card-open-arrow" title="Details öffnen">↗</span>
-              </div>
-            </div>
-          {{end}}
-        </div>
-      {{end}}
-
-    {{else}}
-      {{if not .IsAppend}}
-        <!-- Standard Single Grid View -->
-        <div class="module-grid" id="module-cards-grid">
-      {{end}}
-
-      {{$totalMods := len .Modules}}
-      {{range $idx, $mod := .Modules}}
-        <div class="module-card {{if $mod.IsCompleted}}is-completed{{end}} {{if $mod.IsBookmarked}}is-bookmarked{{end}}"
-             onclick="openModal('{{$mod.ID}}');"
-             {{if and $.HasNext (eq (add $idx 1) $totalMods)}}hx-get="/modules?offset={{$.NextOffset}}&view=grid" hx-trigger="revealed" hx-swap="afterend" hx-include="#filter-form"{{end}}>
-
-          <div class="card-top">
-            <div class="card-pills">
-              <span class="pill-id">#{{$mod.ID}}</span>
-              <span class="pill-ects">{{formatCredits $mod.CreditsRaw $mod.Credits}} ECTS</span>
-              {{if $mod.IsFUES}}<span class="pill-badge pill-fues">FÜS</span>{{end}}
-              {{if $mod.IsLimited}}<span class="pill-badge pill-nc" title="Teilnehmerbeschränkt: {{$mod.Limitation}}">🔒 NC</span>{{end}}
-              {{if $mod.IsNotOffered}}<span class="pill-badge pill-not-offered" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" title="Modul nicht mehr im Angebot">🚫 Nicht im Angebot</span>
-              {{else if $mod.IsPhaseOut}}<span class="pill-badge pill-phaseout" title="Auslaufendes Modul">⏳ Auslauf</span>{{end}}
-              {{if $mod.SuccessorModules}}<span class="pill-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;" title="Nachfolgemodul: {{stringsJoin $mod.SuccessorModules ", "}}">➡️ Nachfolge: {{index $mod.SuccessorModules 0}}</span>{{end}}
-            </div>
-            <div class="card-actions" onclick="event.stopPropagation();">
-              <button type="button" class="action-btn btn-star {{if $mod.IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{$mod.ID}}', event);" title="{{if $mod.IsBookmarked}}Aus Merkliste entfernen{{else}}Auf Merkliste setzen{{end}}" aria-label="Merken">★</button>
-              <button type="button" class="action-btn btn-check {{if $mod.IsCompleted}}active{{end}}" onclick="toggleCompleted('{{$mod.ID}}', event);" title="{{if $mod.IsCompleted}}Bestanden (Klick zum Aufheben){{else}}Als bestanden markieren{{end}}" aria-label="Bestanden">✓</button>
-            </div>
-          </div>
-
-          <div class="card-title-group">
-            <div class="card-title" title="{{$mod.TitleDE}}">{{$mod.TitleDE}}</div>
-            {{if and $mod.TitleEN (ne $mod.TitleEN $mod.TitleDE)}}
-              <div class="card-subtitle" title="{{$mod.TitleEN}}">{{$mod.TitleEN}}</div>
-            {{end}}
-          </div>
-
-          <div class="card-meta-row">
-            <span class="meta-tag meta-turnus" title="Turnus: {{if $mod.Turnus}}{{$mod.Turnus}}{{else}}Keine Angabe{{end}}">
-              {{formatTurnusShort $mod.Turnus}}
-            </span>
-            <span class="meta-tag meta-lang" title="Sprache: {{if $mod.Language}}{{$mod.Language}}{{else}}Deutsch{{end}}">
-              {{formatLangBadge $mod.Language}}
-            </span>
-            {{if eq $mod.PrereqStatus "met"}}
-              <span class="meta-tag meta-prereq-met prereq-met" title="Voraussetzungen erfüllt">🟢 OK</span>
-            {{else if eq $mod.PrereqStatus "recommended_missing"}}
-              <span class="meta-tag meta-prereq-rec prereq-rec-missing" title="Empfohlene Voraussetzungen: {{stringsJoin $mod.MissingRecommended ", "}}">
-                🟡 Empf.
-              </span>
-            {{else if eq $mod.PrereqStatus "missing"}}
-              <span class="meta-tag meta-prereq-miss prereq-missing" title="Pflicht-Voraussetzung fehlt: {{stringsJoin $mod.MissingMandatory ", "}}">
-                🔴 Fehlt: {{index $mod.MissingMandatory 0}}
-              </span>
-            {{else}}
-              <span class="meta-tag meta-prereq-none" title="Keine Voraussetzungen">-</span>
-            {{end}}
-          </div>
-
-          <div class="card-bottom">
-            <div class="card-bottom-info">
-              {{if $mod.EventsCount}}
-                <span class="bottom-item bottom-events" title="{{$mod.EventsCount}} Lehrveranstaltungstermine im Semesterplan">📅 {{$mod.EventsCount}} {{if eq $mod.EventsCount 1}}Termin{{else}}Termine{{end}}</span>
-              {{else if $mod.Department}}
-                <span class="bottom-item bottom-dept" title="{{$mod.Department}}">🏛️ {{cleanDept $mod.Department}}</span>
-              {{end}}
-            </div>
-            <span class="card-open-arrow" title="Details öffnen">↗</span>
-          </div>
-        </div>
-      {{end}}
-
-      {{if not .IsAppend}}
-        </div>
-      {{end}}
-    {{end}}
-
+      </div>
+    </div>
   {{end}}
 
 {{end}}
-
