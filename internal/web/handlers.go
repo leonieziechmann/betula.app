@@ -656,7 +656,7 @@ func (s *Server) handleSuggestionsAPI(w http.ResponseWriter, r *http.Request) {
 			if turnusText == "" {
 				turnusText = "Kein Turnus"
 			}
-			fmt.Fprintf(&sb, `<div class="suggestion-item" onclick="openModal('%s'); document.getElementById('search-suggestions').style.display='none';">
+			fmt.Fprintf(&sb, `<div class="suggestion-item" onclick="openModule('%s'); document.getElementById('search-suggestions').style.display='none';">
 				<div class="suggestion-main">
 					<span class="badge badge-id">%s</span>
 					<strong class="suggestion-title">%s</strong>
@@ -673,6 +673,12 @@ func (s *Server) handleModuleModal(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/modules/")
 	if id == "" {
 		http.NotFound(w, r)
+		return
+	}
+
+	// If a browser navigates directly to /modules/{id} in the address bar, redirect to /?module={id}
+	if r.Header.Get("HX-Request") == "" && (r.Header.Get("Sec-Fetch-Dest") == "document" || strings.Contains(r.Header.Get("Accept"), "text/html")) {
+		http.Redirect(w, r, "/?module="+id, http.StatusTemporaryRedirect)
 		return
 	}
 
@@ -815,7 +821,7 @@ func (s *Server) handleModuleModal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.templates.ExecuteTemplate(w, "module_modal.html", data); err != nil {
+	if err := s.templates.ExecuteTemplate(w, "module_detail.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

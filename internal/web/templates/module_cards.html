@@ -95,7 +95,7 @@
                       data-title="{{.TitleDE}}"
                       data-ects="{{.Credits}}"
                       data-events="{{.EventsCount}}"
-                      onclick="openModal('{{.ID}}');">
+                      onclick="openModule('{{.ID}}');">
                     <td style="text-align: center;" onclick="event.stopPropagation();">
                       <div class="table-actions">
                         <button type="button" class="action-btn-sm btn-star {{if .IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{.ID}}', event);" title="Merken">★</button>
@@ -188,7 +188,7 @@
                       data-title="{{.TitleDE}}"
                       data-ects="{{.Credits}}"
                       data-events="{{.EventsCount}}"
-                      onclick="openModal('{{.ID}}');">
+                      onclick="openModule('{{.ID}}');">
                     <td style="text-align: center;" onclick="event.stopPropagation();">
                       <div class="table-actions">
                         <button type="button" class="action-btn-sm btn-star {{if .IsBookmarked}}active{{end}}" onclick="toggleBookmark('{{.ID}}', event);" title="Merken">★</button>

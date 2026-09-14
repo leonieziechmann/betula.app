@@ -121,11 +121,13 @@ func TestModulesEndpoint_Prerequisites(t *testing.T) {
 	}
 }
 
-func TestModuleModal(t *testing.T) {
+func TestModuleDetail(t *testing.T) {
 	srv, store := setupTestServer(t)
 	defer store.Close()
 
+	// 1. HTMX / In-page fetch should return the module detail HTML fragment
 	req := httptest.NewRequest(http.MethodGet, "/modules/11101", nil)
+	req.Header.Set("HX-Request", "true")
 	rec := httptest.NewRecorder()
 
 	srv.mux.ServeHTTP(rec, req)
@@ -136,7 +138,31 @@ func TestModuleModal(t *testing.T) {
 
 	body := rec.Body.String()
 	if !stringsContains(body, "Lineare Algebra I") {
-		t.Errorf("expected modal to contain module title")
+		t.Errorf("expected module detail to contain module title")
+	}
+	if !stringsContains(body, "module-detail-page") {
+		t.Errorf("expected HTML to contain module-detail-page root container")
+	}
+	if !stringsContains(body, "Zurück zum Katalog") {
+		t.Errorf("expected HTML to contain back to catalog button")
+	}
+	if !stringsContains(body, "Leistungspunkte") {
+		t.Errorf("expected HTML to contain KPI grid")
+	}
+
+	// 2. Direct browser navigation with Sec-Fetch-Dest: document should redirect to /?module=11101
+	browserReq := httptest.NewRequest(http.MethodGet, "/modules/11101", nil)
+	browserReq.Header.Set("Sec-Fetch-Dest", "document")
+	browserRec := httptest.NewRecorder()
+
+	srv.mux.ServeHTTP(browserRec, browserReq)
+
+	if browserRec.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("expected status 307 for direct browser navigation, got %d", browserRec.Code)
+	}
+	loc := browserRec.Header().Get("Location")
+	if loc != "/?module=11101" {
+		t.Errorf("expected redirect to /?module=11101, got %s", loc)
 	}
 }
 

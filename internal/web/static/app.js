@@ -25,6 +25,20 @@ const STORAGE_KEYS = {
 
 let activeSpecialView = null; // null | 'bookmarks' | 'completed'
 
+// Universal HTML escape helper
+function escapeHTML(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>'"]/g, 
+    tag => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[tag] || tag)
+  );
+}
+
 // State helpers
 function getCompletedModules() {
   try {
@@ -102,23 +116,172 @@ function trackAnonymousEvent(type, targetId, targetName) {
   }
 }
 
-let activeModalId = null;
+let activeModuleId = null;
+let savedCatalogHTML = null;
+let savedCatalogScrollY = 0;
 
-// Modal functions with background scroll locking
-window.openModal = function(moduleId) {
-  activeModalId = moduleId;
-  document.body.classList.add('modal-open');
+// Open module detail view in place of catalog
+window.openModule = function(moduleId, push = true) {
+  if (!moduleId) return;
+
+  const modulesView = document.getElementById('modules-view');
+  if (!modulesView) return;
+
+  // Save catalog HTML and scroll position if currently showing catalog
+  if (!activeModuleId && !modulesView.querySelector('.module-detail-page')) {
+    savedCatalogHTML = modulesView.innerHTML;
+    savedCatalogScrollY = window.scrollY || window.pageYOffset || 0;
+  }
+
+  activeModuleId = moduleId;
   trackAnonymousEvent('module_click', moduleId);
-  htmx.ajax('GET', `/modules/${moduleId}`, '#modal-container');
-  updateURLFromState(false);
+
+  // Close mobile sidebar if open
+  if (typeof toggleSidebar === 'function') {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && sidebar.classList.contains('open')) {
+      toggleSidebar(false);
+    }
+  }
+
+  // Hide search suggestions
+  const sugg = document.getElementById('search-suggestions');
+  if (sugg) sugg.style.display = 'none';
+
+  // Render temporary loading state
+  modulesView.innerHTML = `
+    <div class="module-detail-loading">
+      <div class="detail-loading-spinner"></div>
+      <div class="detail-loading-text">Modul #${escapeHTML(moduleId)} wird geladen...</div>
+    </div>
+  `;
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // Fetch module detail template into #modules-view
+  const completedList = getCompletedModules();
+  const bookmarkedList = getBookmarkedModules();
+  const url = `/modules/${encodeURIComponent(moduleId)}?completed=${encodeURIComponent(completedList.join(','))}&bookmarks=${encodeURIComponent(bookmarkedList.join(','))}`;
+
+  fetch(url, {
+    headers: {
+      'HX-Request': 'true',
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(resp => {
+    if (!resp.ok) throw new Error('Modul konnte nicht geladen werden');
+    return resp.text();
+  })
+  .then(html => {
+    if (activeModuleId === moduleId) {
+      modulesView.innerHTML = html;
+      if (window.htmx && typeof window.htmx.process === 'function') {
+        window.htmx.process(modulesView);
+      }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      updateURLFromState(push);
+    }
+  })
+  .catch(err => {
+    if (activeModuleId === moduleId) {
+      modulesView.innerHTML = `
+        <div class="detail-error-box">
+          <h3>Modul konnte nicht geladen werden</h3>
+          <p>Fehler: ${escapeHTML(err.message || 'Netzwerkfehler')}</p>
+          <button type="button" class="btn-detail-back" onclick="closeModuleView();">← Zurück zum Katalog</button>
+        </div>
+      `;
+    }
+  });
 };
 
-window.closeModal = function() {
-  activeModalId = null;
-  document.body.classList.remove('modal-open');
-  const container = document.getElementById('modal-container');
-  if (container) container.innerHTML = '';
-  updateURLFromState(false);
+// Backwards compatibility alias
+window.openModal = window.openModule;
+
+// Close module view and restore catalog
+window.closeModuleView = function(push = true) {
+  activeModuleId = null;
+  const modulesView = document.getElementById('modules-view');
+  if (!modulesView) return;
+
+  if (savedCatalogHTML) {
+    modulesView.innerHTML = savedCatalogHTML;
+    if (window.htmx && typeof window.htmx.process === 'function') {
+      window.htmx.process(modulesView);
+    }
+    window.scrollTo({ top: savedCatalogScrollY || 0, behavior: 'instant' });
+    updateURLFromState(push);
+  } else {
+    // If no saved catalog (direct page load on module), reload catalog via refreshModules
+    updateURLFromState(push);
+    refreshModules(false);
+  }
+};
+
+window.closeModal = window.closeModuleView;
+
+// Re-evaluates current module detail view after ticking off a prerequisite
+window.refreshCurrentModuleView = function() {
+  if (activeModuleId) {
+    openModule(activeModuleId, false);
+  }
+};
+
+// Update labels & classes on detail page buttons when toggled
+window.updateDetailActionBtns = function() {
+  if (!activeModuleId) return;
+  const bkmkList = getBookmarkedModules();
+  const isBkmk = bkmkList.includes(activeModuleId);
+  const btnBkmk = document.getElementById('detail-btn-bookmark');
+  const lblBkmk = document.getElementById('detail-bookmark-label');
+  if (btnBkmk) {
+    if (isBkmk) {
+      btnBkmk.classList.add('active');
+      if (lblBkmk) lblBkmk.textContent = 'Gemerkt';
+    } else {
+      btnBkmk.classList.remove('active');
+      if (lblBkmk) lblBkmk.textContent = 'Merken';
+    }
+  }
+
+  const compList = getCompletedModules();
+  const isComp = compList.includes(activeModuleId);
+  const btnComp = document.getElementById('detail-btn-complete');
+  const lblComp = document.getElementById('detail-complete-label');
+  if (btnComp) {
+    if (isComp) {
+      btnComp.classList.add('active');
+      if (lblComp) lblComp.textContent = 'Bestanden';
+    } else {
+      btnComp.classList.remove('active');
+      if (lblComp) lblComp.textContent = '+ Bestanden?';
+    }
+  }
+};
+
+// Copy direct share link to this specific module
+window.copyModuleShareLink = function(moduleId) {
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set('module', moduleId);
+  const shareUrl = url.toString();
+
+  const btn = document.getElementById('detail-btn-share');
+  const lbl = document.getElementById('detail-share-label');
+
+  function showSuccess() {
+    if (lbl) lbl.textContent = 'Kopiert! ✓';
+    if (btn) btn.classList.add('copied');
+    setTimeout(() => {
+      if (lbl) lbl.textContent = 'Teilen';
+      if (btn) btn.classList.remove('copied');
+    }, 2000);
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(shareUrl).then(showSuccess).catch(() => fallbackCopy(shareUrl));
+  } else {
+    fallbackCopy(shareUrl);
+  }
 };
 
 // Calendar Block -> Accordion linking
@@ -334,8 +497,10 @@ function updateBadges() {
 
 let refreshDebounceTimer = null;
 function refreshModules(updateURL = true) {
+  if (activeModuleId) return; // Do not overwrite active module view
   clearTimeout(refreshDebounceTimer);
   refreshDebounceTimer = setTimeout(() => {
+    if (activeModuleId) return;
     const form = document.getElementById('filter-form');
     if (form) {
       const offsetInput = document.getElementById('filter-offset');
@@ -441,9 +606,9 @@ function updateURLFromState(push = false) {
     params.set('view', activeSpecialView);
   }
 
-  // Module modal dialog
-  if (activeModalId) {
-    params.set('module', activeModalId);
+  // Module detail view
+  if (activeModuleId) {
+    params.set('module', activeModuleId);
   }
 
   const queryString = params.toString();
@@ -827,11 +992,13 @@ function applyFilterState(state, isFromURL = false) {
     document.getElementById('nav-btn-completed')?.classList.remove('active');
   }
 
-  // 14. Module Modal
+  // 14. Module Detail View
   if (state.module) {
-    setTimeout(() => {
-      openModal(state.module);
-    }, 50);
+    if (activeModuleId !== state.module) {
+      openModule(state.module, false);
+    }
+  } else if (activeModuleId) {
+    closeModuleView(false);
   }
 
   updateActiveFilterCount();
@@ -841,7 +1008,13 @@ function applyFilterState(state, isFromURL = false) {
 window.addEventListener('popstate', function() {
   const urlParams = parseURLParams() || {};
   applyFilterState(urlParams, true);
-  refreshModules(false);
+  if (!urlParams.module) {
+    if (activeModuleId) {
+      closeModuleView(false);
+    } else {
+      refreshModules(false);
+    }
+  }
 });
 
 function updateActiveFilterCount() {
@@ -917,10 +1090,12 @@ document.addEventListener('htmx:configRequest', function(evt) {
   }
 });
 
-// Remove modal lock and close mobile sidebar when Escape is pressed
+// Close module view and mobile sidebar when Escape is pressed
 document.addEventListener('keydown', function(evt) {
   if (evt.key === 'Escape') {
-    closeModal();
+    if (activeModuleId) {
+      closeModuleView();
+    }
     toggleSidebar(false);
     const suggestions = document.getElementById('search-suggestions');
     if (suggestions) suggestions.style.display = 'none';
@@ -2109,7 +2284,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   window.selectSuggestionItem = function(moduleId) {
     hideSuggestions();
-    openModal(moduleId);
+    openModule(moduleId);
   };
 
   window.setHighlightedSuggestion = function(idx) {
@@ -2218,10 +2393,10 @@ document.addEventListener('DOMContentLoaded', function() {
       } else if (evt.key === 'Enter') {
         evt.preventDefault();
         if (isBoxVisible && highlightedSuggestionIndex >= 0 && items[highlightedSuggestionIndex]) {
-          // If a suggestion is highlighted, open module modal dialog directly!
+          // If a suggestion is highlighted, open module detail view directly!
           const modId = items[highlightedSuggestionIndex].dataset.id;
           hideSuggestions();
-          openModal(modId);
+          openModule(modId);
         } else {
           // If no suggestion is highlighted, Enter updates the main module list!
           hideSuggestions();
@@ -2246,24 +2421,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  function escapeHTML(str) {
-    return str.replace(/[&<>'"]/g, 
-      tag => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        "'": '&#39;',
-        '"': '&quot;'
-      }[tag] || tag)
-    );
-  }
-
   // Update initial badges
   updateBadges();
 
   // Track initial anonymous page view
   trackAnonymousEvent('view');
 
-  // Trigger initial fetch
-  refreshModules();
+  // Trigger initial fetch only if not already viewing a module detail page
+  if (!activeModuleId) {
+    refreshModules();
+  }
 });
