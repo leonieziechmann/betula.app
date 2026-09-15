@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTU Smart Modulkatalog</title>
+  
+  <!-- Original BTU Stylesheet -->
+  <link rel="stylesheet" href="static/app.css">
+
+  <!-- Trunk Rust WebAssembly -->
+  <link data-trunk rel="rust" data-wasm-opt="z" />
+  <link data-trunk rel="copy-dir" href="static" />
+
+  <!-- SQL.js WebAssembly Engine & Bridge -->
+  <script src="static/sql-wasm.js"></script>
+  <script src="static/sqlite_bridge.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>

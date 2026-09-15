@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -75,6 +77,18 @@ func (p *BTUProgramTreeProvider) Name() string {
 
 func (p *BTUProgramTreeProvider) Description() string {
 	return "Traverses official study programs tree and extracts degree regulations, statutes, and amendments from QIS and OPUS 4"
+}
+
+// DownloadDir returns the directory path where PDF statutes are saved.
+func (p *BTUProgramTreeProvider) DownloadDir() string {
+	return p.downloadDir
+}
+
+// SetDownloadDir configures the directory path where PDF statutes are saved.
+func (p *BTUProgramTreeProvider) SetDownloadDir(dir string) {
+	if dir != "" {
+		p.downloadDir = dir
+	}
 }
 
 // fetchHTML fetches a page from cache or network.
@@ -257,7 +271,7 @@ func (p *BTUProgramTreeProvider) processStudyProgram(
 			// Clean and process documents
 			for i := range docs {
 				if downloadPDFs {
-					p.processDocumentDownload(ctx, &docs[i], prog.Name)
+					p.processDocumentDownload(ctx, &docs[i], prog.Name, forceRefresh)
 				}
 			}
 
@@ -285,68 +299,307 @@ func (p *BTUProgramTreeProvider) processStudyProgram(
 	return results
 }
 
-// processDocumentDownload attempts to download a statute or amendment, checking for bot challenge.
-func (p *BTUProgramTreeProvider) processDocumentDownload(ctx context.Context, doc *model.ProgramRegulationDocument, programName string) {
+// DownloadStats holds counts and statistics from a document download pass.
+type DownloadStats struct {
+	TotalPrograms  int
+	TotalDocuments int
+	UniqueURLs     int
+	Downloaded     int
+	SkippedCached  int
+	Errors         int
+}
+
+// DownloadProgramDocuments downloads all regulation documents for the given programs.
+// It deduplicates document downloads across programs, checks for existing cached files on disk,
+// downloads missing files politely, updates document metadata (LocalPath and DownloadStatus),
+// persists updates to storage if available, and returns the updated programs and stats.
+func (p *BTUProgramTreeProvider) DownloadProgramDocuments(
+	ctx context.Context,
+	programs []model.OfficialStudyProgram,
+	forceRefresh bool,
+	workers int,
+	delayMs int,
+) ([]model.OfficialStudyProgram, DownloadStats, error) {
+	if workers <= 0 {
+		workers = 2
+	}
+	if delayMs < 0 {
+		delayMs = 200
+	}
+
+	stats := DownloadStats{
+		TotalPrograms: len(programs),
+	}
+
+	type docJob struct {
+		url         string
+		programName string
+		doc         model.ProgramRegulationDocument
+	}
+
+	// 1. Collect all unique document URLs across programs
+	uniqueMap := make(map[string]*docJob)
+	var urlOrder []string
+
+	for _, prog := range programs {
+		for _, doc := range prog.Documents {
+			stats.TotalDocuments++
+			if doc.URL == "" {
+				continue
+			}
+			if _, exists := uniqueMap[doc.URL]; !exists {
+				uniqueMap[doc.URL] = &docJob{
+					url:         doc.URL,
+					programName: prog.ProgramName,
+					doc:         doc,
+				}
+				urlOrder = append(urlOrder, doc.URL)
+			}
+		}
+	}
+
+	stats.UniqueURLs = len(urlOrder)
+	if stats.UniqueURLs == 0 {
+		return programs, stats, nil
+	}
+
+	// 2. Process each unique URL through a worker pool
+	jobs := make(chan *docJob, len(urlOrder))
+	for _, u := range urlOrder {
+		jobs <- uniqueMap[u]
+	}
+	close(jobs)
+
+	var mu sync.Mutex
+	var completed uint64
+	var wg sync.WaitGroup
+
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case job, ok := <-jobs:
+					if !ok {
+						return
+					}
+
+					wasCached, err := p.downloadSingleDocument(ctx, &job.doc, job.programName, forceRefresh)
+
+					mu.Lock()
+					if err == nil && job.doc.DownloadStatus == "downloaded" {
+						if wasCached {
+							stats.SkippedCached++
+						} else {
+							stats.Downloaded++
+						}
+					} else {
+						stats.Errors++
+					}
+					mu.Unlock()
+
+					curr := atomic.AddUint64(&completed, 1)
+					if curr%5 == 0 || curr == uint64(stats.UniqueURLs) {
+						fmt.Printf("[Download] %d/%d (%.1f%%) documents processed\n",
+							curr, stats.UniqueURLs, float64(curr)/float64(stats.UniqueURLs)*100)
+					}
+
+					if !wasCached && delayMs > 0 {
+						time.Sleep(time.Duration(delayMs) * time.Millisecond)
+					}
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// 3. Propagate updated status and local path back to all study programs
+	for i := range programs {
+		for j := range programs[i].Documents {
+			if res, ok := uniqueMap[programs[i].Documents[j].URL]; ok {
+				programs[i].Documents[j].LocalPath = res.doc.LocalPath
+				programs[i].Documents[j].DownloadStatus = res.doc.DownloadStatus
+			}
+		}
+	}
+
+	// 4. Persist updated programs to storage
+	if p.storage != nil {
+		_ = p.storage.UpsertOfficialPrograms(programs)
+	}
+
+	return programs, stats, nil
+}
+
+// processDocumentDownload attempts to download a statute or amendment for a single document.
+func (p *BTUProgramTreeProvider) processDocumentDownload(ctx context.Context, doc *model.ProgramRegulationDocument, programName string, forceRefresh bool) {
+	_, _ = p.downloadSingleDocument(ctx, doc, programName, forceRefresh)
+}
+
+// downloadSingleDocument downloads or validates an existing PDF document.
+// Returns wasCached=true if an existing valid file was found on disk and reused.
+func (p *BTUProgramTreeProvider) downloadSingleDocument(
+	ctx context.Context,
+	doc *model.ProgramRegulationDocument,
+	programName string,
+	forceRefresh bool,
+) (bool, error) {
 	if doc.URL == "" {
-		return
+		return false, fmt.Errorf("empty document URL")
+	}
+
+	progSlug := cleanSlug(programName, "program")
+	dir := filepath.Join(p.downloadDir, progSlug)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		doc.DownloadStatus = "error"
+		return false, fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	fileName := getDocumentFileName(doc.URL)
+	targetPath := filepath.Join(dir, fileName)
+
+	// Check if already downloaded on disk and valid
+	if !forceRefresh {
+		if fi, err := os.Stat(targetPath); err == nil && fi.Size() > 0 {
+			doc.LocalPath = targetPath
+			doc.DownloadStatus = "downloaded"
+			return true, nil
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, doc.URL, nil)
 	if err != nil {
 		doc.DownloadStatus = "error"
-		return
+		return false, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+	// Use polite bot user-agent; desktop browser user-agents trigger OPUS 4 Cloudflare JS challenges
+	req.Header.Set("User-Agent", "BTUScraper/1.0 (+https://www.b-tu.de; Academic Research)")
+	req.Header.Set("Accept", "application/pdf,application/octet-stream,*/*")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
 		doc.DownloadStatus = "error"
-		return
+		return false, fmt.Errorf("download request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		doc.DownloadStatus = "error"
+		return false, fmt.Errorf("unexpected HTTP status %d", resp.StatusCode)
+	}
+
 	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
 
-	// Read initial header bytes (up to 4KB) to inspect content
+	// Read initial header bytes (up to 4KB) to inspect content type and magic bytes
 	preview := make([]byte, 4096)
 	n, _ := io.ReadFull(resp.Body, preview)
 	previewStr := strings.ToLower(string(preview[:n]))
 
-	// Check if this is a bot challenge (e.g. OPUS 4 / Cloudflare "Making sure you're not a bot!")
+	// Check for bot challenge pages
 	if strings.Contains(contentType, "text/html") ||
 		strings.Contains(previewStr, "not a bot") ||
 		strings.Contains(previewStr, "cloudflare") ||
 		strings.Contains(previewStr, "security check") ||
 		strings.Contains(previewStr, "challenge-platform") {
-		// Strictly respect user constraint: do not attempt to bypass/mitigate
 		doc.DownloadStatus = "blocked_bot_checker"
-		return
+		return false, fmt.Errorf("blocked by bot protection on %s", doc.URL)
 	}
 
-	// If it is genuinely a PDF, save to disk
-	if strings.Contains(contentType, "application/pdf") || strings.HasPrefix(string(preview[:n]), "%PDF-") {
-		progSlug := cleanSlug(programName, "program")
-		dir := filepath.Join(p.downloadDir, progSlug)
-		_ = os.MkdirAll(dir, 0755)
+	// Verify it is genuinely a PDF
+	if strings.Contains(contentType, "application/pdf") ||
+		strings.Contains(contentType, "application/octet-stream") ||
+		strings.HasPrefix(string(preview[:n]), "%PDF-") {
 
-		fileName := filepath.Base(doc.URL)
-		if !strings.HasSuffix(strings.ToLower(fileName), ".pdf") {
-			fileName += ".pdf"
+		tmpPath := targetPath + ".tmp"
+		outFile, err := os.Create(tmpPath)
+		if err != nil {
+			doc.DownloadStatus = "error"
+			return false, fmt.Errorf("failed to create temp file %s: %w", tmpPath, err)
 		}
-		targetPath := filepath.Join(dir, fileName)
 
-		outFile, err := os.Create(targetPath)
-		if err == nil {
-			defer outFile.Close()
-			_, _ = outFile.Write(preview[:n])
-			_, _ = io.Copy(outFile, resp.Body)
-			doc.LocalPath = targetPath
-			doc.DownloadStatus = "downloaded"
-			return
+		if n > 0 {
+			if _, err := outFile.Write(preview[:n]); err != nil {
+				outFile.Close()
+				_ = os.Remove(tmpPath)
+				doc.DownloadStatus = "error"
+				return false, fmt.Errorf("failed to write header bytes: %w", err)
+			}
+		}
+
+		if _, err := io.Copy(outFile, resp.Body); err != nil {
+			outFile.Close()
+			_ = os.Remove(tmpPath)
+			doc.DownloadStatus = "error"
+			return false, fmt.Errorf("failed to save PDF body: %w", err)
+		}
+		outFile.Close()
+
+		_ = os.Remove(targetPath)
+		if err := os.Rename(tmpPath, targetPath); err != nil {
+			doc.DownloadStatus = "error"
+			return false, fmt.Errorf("failed to finalize file %s: %w", targetPath, err)
+		}
+
+		doc.LocalPath = targetPath
+		doc.DownloadStatus = "downloaded"
+		return false, nil
+	}
+
+	doc.DownloadStatus = "error"
+	return false, fmt.Errorf("response was not a recognized PDF: %s", contentType)
+}
+
+// getDocumentFileName generates a clean, safe, and unique filename for a document URL.
+func getDocumentFileName(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		base := filepath.Base(rawURL)
+		if !strings.HasSuffix(strings.ToLower(base), ".pdf") {
+			base += ".pdf"
+		}
+		return sanitizeFileName(cleanSlug(base, "document.pdf"))
+	}
+
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	fileName := "document.pdf"
+	docID := ""
+	if len(parts) > 0 {
+		fileName = parts[len(parts)-1]
+	}
+	if len(parts) >= 2 {
+		for i := len(parts) - 2; i >= 0 && i >= len(parts)-4; i-- {
+			if _, err := strconv.Atoi(parts[i]); err == nil {
+				docID = parts[i]
+				break
+			}
 		}
 	}
 
-	doc.DownloadStatus = "blocked_bot_checker"
+	// Strip any query parameters or hash from filename
+	if idx := strings.IndexAny(fileName, "?#"); idx != -1 {
+		fileName = fileName[:idx]
+	}
+	if !strings.HasSuffix(strings.ToLower(fileName), ".pdf") {
+		fileName += ".pdf"
+	}
+	if docID != "" && !strings.HasPrefix(fileName, docID+"_") {
+		fileName = docID + "_" + fileName
+	}
+
+	return sanitizeFileName(fileName)
+}
+
+func sanitizeFileName(s string) string {
+	s = strings.TrimSpace(s)
+	invalid := []string{":", "*", "?", "\"", "<", ">", "|", "\\", "/"}
+	for _, inv := range invalid {
+		s = strings.ReplaceAll(s, inv, "_")
+	}
+	return s
 }
 
 func cleanSlug(s, fallback string) string {
@@ -354,10 +607,9 @@ func cleanSlug(s, fallback string) string {
 	if s == "" {
 		s = fallback
 	}
-	s = strings.ReplaceAll(s, " ", "_")
-	s = strings.ReplaceAll(s, "/", "_")
-	s = strings.ReplaceAll(s, "\\", "_")
-	s = strings.ReplaceAll(s, ":", "_")
-	s = strings.ReplaceAll(s, "|", "_")
+	invalid := []string{" ", "/", "\\", ":", "|", "*", "?", "\"", "<", ">"}
+	for _, inv := range invalid {
+		s = strings.ReplaceAll(s, inv, "_")
+	}
 	return s
 }

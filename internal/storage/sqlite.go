@@ -11,7 +11,8 @@ import (
 
 // Storage handles SQLite database connection and operations.
 type Storage struct {
-	db *sql.DB
+	db     *sql.DB
+	dbPath string
 }
 
 // NewStorage creates or connects to a SQLite database and runs migrations.
@@ -28,7 +29,7 @@ func NewStorage(dbPath string) (*Storage, error) {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
-	s := &Storage{db: db}
+	s := &Storage{db: db, dbPath: dbPath}
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
@@ -40,6 +41,17 @@ func NewStorage(dbPath string) (*Storage, error) {
 // DB returns the underlying sql.DB instance.
 func (s *Storage) DB() *sql.DB {
 	return s.db
+}
+
+// Path returns the SQLite database file path.
+func (s *Storage) Path() string {
+	return s.dbPath
+}
+
+// Checkpoint flushes WAL pages into the database file so it is safe to copy or serve.
+func (s *Storage) Checkpoint() error {
+	_, err := s.db.Exec("PRAGMA wal_checkpoint(PASSIVE);")
+	return err
 }
 
 // Close closes the database connection.
@@ -181,6 +193,37 @@ func (s *Storage) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_msp_module ON module_study_programs(module_id);
 	CREATE INDEX IF NOT EXISTS idx_msp_program ON module_study_programs(program_id);
 	CREATE INDEX IF NOT EXISTS idx_msp_prog_name ON module_study_programs(program_name);
+
+	CREATE TABLE IF NOT EXISTS program_curriculum_modules (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		program_id TEXT NOT NULL,
+		program_name TEXT NOT NULL,
+		degree TEXT,
+		po_version TEXT,
+		module_id TEXT,
+		module_code TEXT,
+		module_name TEXT NOT NULL,
+		module_name_en TEXT,
+		recommended_semester INTEGER DEFAULT 0,
+		recommended_semester_raw TEXT,
+		credits REAL DEFAULT 0,
+		module_type TEXT NOT NULL,
+		specialization TEXT,
+		sws TEXT,
+		exam_type TEXT,
+		graded TEXT,
+		prerequisites TEXT,
+		remarks TEXT,
+		source_file TEXT,
+		extracted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE SET NULL,
+		FOREIGN KEY (program_id) REFERENCES official_study_programs(id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_pcm_program ON program_curriculum_modules(program_id);
+	CREATE INDEX IF NOT EXISTS idx_pcm_module ON program_curriculum_modules(module_id);
+	CREATE INDEX IF NOT EXISTS idx_pcm_semester ON program_curriculum_modules(recommended_semester);
+	CREATE INDEX IF NOT EXISTS idx_pcm_type ON program_curriculum_modules(module_type);
 	`
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
@@ -190,5 +233,12 @@ func (s *Storage) migrate() error {
 	_, _ = s.db.Exec("ALTER TABLE modules ADD COLUMN is_not_offered INTEGER DEFAULT 0")
 	_, _ = s.db.Exec("ALTER TABLE modules ADD COLUMN successor_modules TEXT")
 	_, _ = s.db.Exec("DELETE FROM module_study_programs WHERE degree = 'Abschluss im Ausland'")
+
+	// Enrich module_study_programs with AI-verified curriculum fields
+	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN recommended_semester INTEGER DEFAULT 0")
+	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN module_type TEXT")
+	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN specialization TEXT")
+	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN credits REAL DEFAULT 0")
+	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN source TEXT")
 	return nil
 }

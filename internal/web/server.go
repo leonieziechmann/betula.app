@@ -31,10 +31,16 @@ type Server struct {
 	templates *template.Template
 	mux       *http.ServeMux
 	server    *http.Server
+	staticDir string
 }
 
 // ServerOption configures optional services for Server.
 type ServerOption func(*Server)
+
+// WithStaticDir configures the static file directory to serve (e.g. frontend/dist).
+func WithStaticDir(dir string) ServerOption {
+	return func(s *Server) { s.staticDir = dir }
+}
 
 // WithTracker configures the anonymous analytics tracker.
 func WithTracker(t *analytics.Tracker) ServerOption {
@@ -166,23 +172,31 @@ func NewServer(store *storage.Storage, eventProv *provider.BTUEventProvider, opt
 }
 
 func (s *Server) routes() {
-	// Static assets embedded
-	staticSubFS, err := fs.Sub(contentFS, "static")
-	if err == nil {
-		s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticSubFS))))
-	}
-
-	// Main routes
-	s.mux.HandleFunc("/", s.wrap(s.handleIndex))
-	s.mux.HandleFunc("/modules", s.wrap(s.handleModules))
-	s.mux.HandleFunc("/modules/", s.wrap(s.handleModuleModal))
-	s.mux.HandleFunc("/stats", s.wrap(s.handleStatsPage))
+	// API routes
+	s.mux.HandleFunc("/api/db", s.wrap(s.handleDBDownload))
+	s.mux.HandleFunc("/api/status", s.wrap(s.handleStatusAPI))
 	s.mux.HandleFunc("/api/programs", s.wrap(s.handleProgramsAPI))
+	s.mux.HandleFunc("/api/curriculum", s.wrap(s.handleCurriculumAPI))
 	s.mux.HandleFunc("/api/modules-autocomplete", s.wrap(s.handleAllAutocompleteAPI))
 	s.mux.HandleFunc("/api/suggestions", s.wrap(s.handleSuggestionsAPI))
 	s.mux.HandleFunc("/api/stats", s.wrap(s.handleStatsAPI))
 	s.mux.HandleFunc("/api/track", s.wrap(s.handleTrackAPI))
 	s.mux.HandleFunc("/api/logs", s.wrap(s.handleLogsAPI))
+
+	// Static / SPA or legacy embedded routes
+	if s.staticDir != "" {
+		s.mux.Handle("/", http.FileServer(http.Dir(s.staticDir)))
+	} else {
+		staticSubFS, err := fs.Sub(contentFS, "static")
+		if err == nil {
+			s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticSubFS))))
+		}
+
+		s.mux.HandleFunc("/", s.wrap(s.handleIndex))
+		s.mux.HandleFunc("/modules", s.wrap(s.handleModules))
+		s.mux.HandleFunc("/modules/", s.wrap(s.handleModuleModal))
+		s.mux.HandleFunc("/stats", s.wrap(s.handleStatsPage))
+	}
 }
 
 // wrap provides latency and error rate load monitoring

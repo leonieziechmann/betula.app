@@ -22,3 +22,10 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Downloaded statutes & regulation PDFs
+statutes/
+
+# Rust / Frontend build artifacts
+target/
+dist/

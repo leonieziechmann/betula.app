@@ -555,6 +555,29 @@
         </div>
 
         <div class="detail-card-body">
+          {{if .CurriculumEntries}}
+            <div style="margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color, #e2e8f0);">
+              <div style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-primary, #005a9c); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>📋</span> <span>Offizielle Studienplan-Semesterempfehlung (Satzungsprüfung)</span>
+              </div>
+              <div class="studyprograms-tags-list">
+                {{range .CurriculumEntries}}
+                  <div class="studyprogram-item-card" style="border-left: 3px solid var(--color-primary, #005a9c); display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;">
+                    <span class="prog-degree-badge">{{.Degree}}</span>
+                    <span class="prog-name"><strong>{{.ProgramName}}</strong></span>
+                    {{if .POVersion}}<span class="prog-po-badge">PO {{.POVersion}}</span>{{end}}
+                    <span style="background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">
+                      {{if gt .RecommendedSemester 0}}{{.RecommendedSemester}}. Semester{{else}}Wahlpflichtbereich{{end}}
+                    </span>
+                    {{if .ModuleType}}
+                      <span style="background: #f1f5f9; color: #334155; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem;">{{.ModuleType}}</span>
+                    {{end}}
+                  </div>
+                {{end}}
+              </div>
+            </div>
+          {{end}}
+
           {{if .LinkedPrograms}}
             <div class="studyprograms-tags-list">
               {{range .LinkedPrograms}}

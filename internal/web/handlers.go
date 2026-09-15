@@ -107,6 +107,7 @@ type ModalPageData struct {
 	Module               *model.ModuleDetail
 	LinkedPrograms       []model.OfficialStudyProgram
 	ShortStudyPrograms   []string
+	CurriculumEntries    []model.CurriculumModule
 	Events               []model.EventDetail
 	CalendarSchedules    []CalendarSchedule
 	HasEvents            bool
@@ -805,10 +806,13 @@ func (s *Server) handleModuleModal(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	curEntries, _ := s.store.GetModuleCurriculumEntries(id)
+
 	data := ModalPageData{
 		Module:               detail,
 		LinkedPrograms:       linkedProgs,
 		ShortStudyPrograms:   shortPrograms,
+		CurriculumEntries:    curEntries,
 		Events:               events,
 		CalendarSchedules:    calendarSchedules,
 		HasEvents:            len(events) > 0 || len(detail.CurrentSemesterEvents) > 0,
@@ -892,6 +896,35 @@ func (s *Server) handleProgramsAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(progs)
+}
+
+func (s *Server) handleCurriculumAPI(w http.ResponseWriter, r *http.Request) {
+	progID := r.URL.Query().Get("program_id")
+	modID := r.URL.Query().Get("module_id")
+
+	if modID != "" {
+		cur, err := s.store.GetModuleCurriculumEntries(modID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(cur)
+		return
+	}
+
+	if progID != "" {
+		cur, err := s.store.GetProgramCurriculum(progID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(cur)
+		return
+	}
+
+	http.Error(w, "missing program_id or module_id", http.StatusBadRequest)
 }
 
 func (s *Server) handleStatsAPI(w http.ResponseWriter, r *http.Request) {
@@ -1043,4 +1076,69 @@ func getFileSize(path string) string {
 		return fmt.Sprintf("%.1f KB", float64(fi.Size())/1024)
 	}
 	return fmt.Sprintf("%.2f MB", mb)
+}
+
+func (s *Server) handleDBDownload(w http.ResponseWriter, r *http.Request) {
+	if s.store == nil {
+		http.Error(w, "Database not available", http.StatusServiceUnavailable)
+		return
+	}
+	// Checkpoint WAL so the DB file is consistent and up to date
+	_ = s.store.Checkpoint()
+
+	dbPath := s.store.Path()
+	if dbPath == "" {
+		dbPath = "btu_modules.db"
+	}
+
+	fi, err := os.Stat(dbPath)
+	if err != nil {
+		http.Error(w, "Database file not found: "+err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Cache-Control and ETag
+	etag := fmt.Sprintf(`W/"%x-%x"`, fi.ModTime().UnixNano(), fi.Size())
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Content-Type", "application/vnd.sqlite3")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag")
+
+	http.ServeFile(w, r, dbPath)
+}
+
+func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {
+	var totalModules int
+	if s.store != nil {
+		totalModules, _ = s.store.Count()
+	}
+
+	var dbSize int64
+	var modTime time.Time
+	if s.store != nil && s.store.Path() != "" {
+		if fi, err := os.Stat(s.store.Path()); err == nil {
+			dbSize = fi.Size()
+			modTime = fi.ModTime()
+		}
+	}
+	etag := fmt.Sprintf(`W/"%x-%x"`, modTime.UnixNano(), dbSize)
+
+	res := map[string]any{
+		"status":         "ok",
+		"version":        "2.0",
+		"total_modules":  totalModules,
+		"db_size_bytes":  dbSize,
+		"db_last_update": modTime.Format(time.RFC3339),
+		"uptime":         time.Since(s.startTime).Round(time.Second).String(),
+		"database": map[string]any{
+			"size_bytes":  dbSize,
+			"last_update": modTime.Format(time.RFC3339),
+			"etag":        etag,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	_ = json.NewEncoder(w).Encode(res)
 }

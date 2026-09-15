@@ -18,6 +18,13 @@ type Config struct {
 	Storage   StorageConfig   `json:"storage" yaml:"storage"`
 	Refresher RefresherConfig `json:"refresher" yaml:"refresher"`
 	Logging   LoggingConfig   `json:"logging" yaml:"logging"`
+	Gemini    GeminiConfig    `json:"gemini" yaml:"gemini"`
+}
+
+// GeminiConfig configures the Gemini AI model and API key.
+type GeminiConfig struct {
+	APIKey string `json:"api_key" yaml:"api_key"`
+	Model  string `json:"model" yaml:"model"`
 }
 
 // ServerConfig configures the HTTP web server.
@@ -30,6 +37,7 @@ type StorageConfig struct {
 	DBPath          string `json:"db_path" yaml:"db_path"`
 	AnalyticsDBPath string `json:"analytics_db_path" yaml:"analytics_db_path"`
 	CacheDir        string `json:"cache_dir" yaml:"cache_dir"`
+	StatutesDir     string `json:"statutes_dir" yaml:"statutes_dir"`
 }
 
 // RefresherConfig configures the background polite scraping worker.
@@ -59,6 +67,7 @@ func Default() Config {
 			DBPath:          "btu_modules.db",
 			AnalyticsDBPath: "btu_analytics.db",
 			CacheDir:        ".cache",
+			StatutesDir:     "statutes",
 		},
 		Refresher: RefresherConfig{
 			AutoRefresh:          true, // Default: background service worker runs automatically on serve
@@ -72,6 +81,10 @@ func Default() Config {
 			LogFile:    "btu_scraper.log",
 			MinLevel:   "INFO",
 			BufferSize: 300,
+		},
+		Gemini: GeminiConfig{
+			APIKey: "",
+			Model:  "gemini-3.5-flash-lite",
 		},
 	}
 }
@@ -123,6 +136,9 @@ func applyEnvVars(cfg *Config) {
 	if v := os.Getenv("BTU_CACHE_DIR"); v != "" {
 		cfg.Storage.CacheDir = v
 	}
+	if v := os.Getenv("BTU_STATUTES_DIR"); v != "" {
+		cfg.Storage.StatutesDir = v
+	}
 
 	// Refresher
 	if v := os.Getenv("BTU_AUTO_REFRESH"); v != "" {
@@ -167,6 +183,14 @@ func applyEnvVars(cfg *Config) {
 		if i, err := strconv.Atoi(v); err == nil {
 			cfg.Logging.BufferSize = i
 		}
+	}
+
+	// Gemini
+	if v := os.Getenv("GEMINI_API_KEY"); v != "" {
+		cfg.Gemini.APIKey = v
+	}
+	if v := os.Getenv("GEMINI_MODEL"); v != "" {
+		cfg.Gemini.Model = v
 	}
 }
 

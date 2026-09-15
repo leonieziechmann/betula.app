@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,6 +20,7 @@ import (
 	"github.com/jakob/btu-scraper/internal/analytics"
 	"github.com/jakob/btu-scraper/internal/cache"
 	"github.com/jakob/btu-scraper/internal/config"
+	"github.com/jakob/btu-scraper/internal/gemini"
 	"github.com/jakob/btu-scraper/internal/logger"
 	"github.com/jakob/btu-scraper/internal/model"
 	"github.com/jakob/btu-scraper/internal/provider"
@@ -63,6 +66,12 @@ func main() {
 		runFUESEligible(ctx, subArgs)
 	case "programs":
 		runPrograms(ctx, subArgs)
+	case "download-statutes", "statutes":
+		runDownloadStatutes(ctx, subArgs)
+	case "scan-curriculum", "ai-curriculum":
+		runScanCurriculum(ctx, subArgs)
+	case "show-curriculum", "curriculum":
+		runShowCurriculum(ctx, subArgs)
 	case "program-modules":
 		runProgramModules(ctx, subArgs)
 	case "serve", "web":
@@ -100,6 +109,12 @@ Commands:
   fues-majors                List all study programs / majors present in the database
   fues-eligible <major>      List all FÜS modules NOT adjacent to the specified major
   programs                   Scrape/list official study programs, PO versions, and statute links
+                             [--name <filter>] [--degree <filter>] [--download] [--from-db] [--refresh]
+  download-statutes          Download study regulation PDFs (Studienordnungen & Prüfungsordnungen)
+                             [--name <filter>] [--degree <filter>] [--workers 2] [--delay 200] [--out-dir <dir>] [--refresh]
+  scan-curriculum            Extract study plan & semester progression from PDF statutes using Gemini AI
+                             [--name <filter>] [--degree <filter>] [--delay 500] [--force] [--api-key <key>]
+  show-curriculum <name|id>  Display structured semester study plan (Pflicht / Wahlpflicht / ECTS)
   program-modules <name|id>  List all modules associated with an official study program
   providers                  List all registered data providers
 
@@ -347,6 +362,24 @@ func runShow(ctx context.Context, args []string) {
 	}
 
 	printModuleCard(detail)
+
+	curEntries, err := store.GetModuleCurriculumEntries(moduleID)
+	if err == nil && len(curEntries) > 0 {
+		fmt.Printf("\nOfficial Curriculum Study Plans (%d):\n", len(curEntries))
+		for _, c := range curEntries {
+			semStr := fmt.Sprintf("%d. Semester", c.RecommendedSemester)
+			if c.RecommendedSemester <= 0 {
+				semStr = "Semesterunabhängig / Wahlpflichtpool"
+			}
+			typeStr := c.ModuleType
+			if typeStr == "" {
+				typeStr = "Modul"
+			}
+			fmt.Printf("  • %s | %s (PO %s) -> %s | %s (%.1f LP)\n",
+				c.Degree, c.ProgramName, c.POVersion, semStr, typeStr, c.Credits)
+		}
+		fmt.Println()
+	}
 }
 
 func runProviders(ctx context.Context, args []string) {
@@ -826,6 +859,22 @@ func runPrograms(ctx context.Context, args []string) {
 			fmt.Fprintf(os.Stderr, "Error loading study programs from database: %v\n", err)
 			os.Exit(1)
 		}
+
+		if *download && len(programs) > 0 {
+			p, ok := reg.Get(provider.ProgramTreeProviderName)
+			if ok {
+				progProv := p.(*provider.BTUProgramTreeProvider)
+				fmt.Printf("[+] Downloading regulation PDFs for %d stored study programs...\n", len(programs))
+				updated, stats, err := progProv.DownloadProgramDocuments(ctx, programs, *refresh, *workers, *delayMs)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning during PDF downloads: %v\n", err)
+				} else {
+					programs = updated
+					fmt.Printf("[✓] PDF download summary: %d downloaded, %d already cached, %d errors (across %d unique documents in %s)\n\n",
+						stats.Downloaded, stats.SkippedCached, stats.Errors, stats.UniqueURLs, progProv.DownloadDir())
+				}
+			}
+		}
 	} else {
 		p, ok := reg.Get(provider.ProgramTreeProviderName)
 		if !ok {
@@ -905,6 +954,368 @@ func runPrograms(ctx context.Context, args []string) {
 	}
 }
 
+func runDownloadStatutes(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("download-statutes", flag.ExitOnError)
+	dbPath := fs.String("db", "btu_modules.db", "SQLite database path")
+	cacheDir := fs.String("cache-dir", ".cache", "Cache directory")
+	refresh := fs.Bool("refresh", false, "Force re-downloading even if PDFs exist locally")
+	nameFilter := fs.String("name", "", "Filter study program name (e.g. Informatik)")
+	degreeFilter := fs.String("degree", "", "Filter degree (e.g. Bachelor, Master)")
+	workers := fs.Int("workers", 2, "Number of concurrent download workers (default 2)")
+	delayMs := fs.Int("delay", 200, "Polite delay in milliseconds between requests (default 200ms)")
+	outDir := fs.String("out-dir", "", "Custom target directory for PDFs (defaults to config statutes_dir)")
+	asJSON := fs.Bool("json", false, "Output results as raw JSON")
+	_ = fs.Parse(reorderFlags(args))
+
+	store, _, reg := setupApp(*dbPath, *cacheDir)
+	defer store.Close()
+
+	p, ok := reg.Get(provider.ProgramTreeProviderName)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Error: %s not registered\n", provider.ProgramTreeProviderName)
+		os.Exit(1)
+	}
+	progProv := p.(*provider.BTUProgramTreeProvider)
+	if *outDir != "" {
+		progProv.SetDownloadDir(*outDir)
+	}
+
+	programs, err := store.ListOfficialPrograms(*nameFilter, *degreeFilter)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading study programs from database: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(programs) == 0 {
+		fmt.Println("No study programs found in database matching the given filter.")
+		fmt.Println("Hint: Run 'scraper programs' first to discover programs from QIS.")
+		return
+	}
+
+	fmt.Printf("[+] Automated download of regulation PDFs for %d study program branches...\n", len(programs))
+	fmt.Printf("    Destination: %s | Workers: %d | Delay: %dms | ForceRefresh: %v\n\n",
+		progProv.DownloadDir(), *workers, *delayMs, *refresh)
+
+	start := time.Now()
+	updatedPrograms, stats, err := progProv.DownloadProgramDocuments(ctx, programs, *refresh, *workers, *delayMs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error downloading documents: %v\n", err)
+	}
+
+	if *asJSON {
+		data, _ := json.MarshalIndent(updatedPrograms, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	fmt.Printf("\n[✓] Completed in %s:\n", time.Since(start).Round(time.Millisecond))
+	fmt.Printf("    • Unique PDF Documents: %d\n", stats.UniqueURLs)
+	fmt.Printf("    • Newly Downloaded:     %d\n", stats.Downloaded)
+	fmt.Printf("    • Reused Local Cache:   %d\n", stats.SkippedCached)
+	if stats.Errors > 0 {
+		fmt.Printf("    • Errors / Blocked:     %d\n", stats.Errors)
+	}
+	fmt.Printf("    • Target Directory:     %s\n", progProv.DownloadDir())
+}
+
+func runScanCurriculum(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("scan-curriculum", flag.ExitOnError)
+	dbPath := fs.String("db", "btu_modules.db", "SQLite database path")
+	cacheDir := fs.String("cache-dir", ".cache", "Cache directory")
+	nameFilter := fs.String("name", "", "Filter study program name (e.g. Informatik)")
+	degreeFilter := fs.String("degree", "", "Filter degree (e.g. Bachelor, Master)")
+	apiKeyFlag := fs.String("api-key", "", "Gemini API key (defaults to config or GEMINI_API_KEY)")
+	modelFlag := fs.String("model", "", "Gemini model (default: gemini-3.5-flash-lite)")
+	delayMs := fs.Int("delay", 500, "Polite delay in milliseconds between requests (default: 500ms)")
+	force := fs.Bool("force", false, "Force re-scan even if curriculum already extracted")
+	asJSON := fs.Bool("json", false, "Output results as raw JSON")
+	_ = fs.Parse(reorderFlags(args))
+
+	cfg, _, _ := config.Load("")
+	apiKey := *apiKeyFlag
+	if apiKey == "" {
+		apiKey = cfg.Gemini.APIKey
+	}
+	if apiKey == "" {
+		apiKey = os.Getenv("GEMINI_API_KEY")
+	}
+	if apiKey == "" {
+		fmt.Fprintln(os.Stderr, "Error: missing Gemini API key.")
+		fmt.Fprintln(os.Stderr, "Provide via --api-key <key>, GEMINI_API_KEY env var, or gemini.api_key in config.yaml")
+		os.Exit(1)
+	}
+
+	modelName := *modelFlag
+	if modelName == "" {
+		modelName = cfg.Gemini.Model
+	}
+	if modelName == "" {
+		modelName = gemini.DefaultModel
+	}
+
+	store, _, _ := setupApp(*dbPath, *cacheDir)
+	defer store.Close()
+
+	geminiClient := gemini.NewClient(apiKey, modelName)
+
+	programs, err := store.ListOfficialPrograms(*nameFilter, *degreeFilter)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading study programs from database: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(programs) == 0 {
+		fmt.Println("No study programs found matching filter.")
+		return
+	}
+
+	// Filter to programs that have downloaded statute PDFs
+	var eligible []model.OfficialStudyProgram
+	for _, p := range programs {
+		hasLocalDoc := false
+		for _, doc := range p.Documents {
+			if doc.LocalPath != "" {
+				if fi, err := os.Stat(doc.LocalPath); err == nil && fi.Size() > 0 {
+					hasLocalDoc = true
+					break
+				}
+			}
+		}
+		if hasLocalDoc {
+			eligible = append(eligible, p)
+		}
+	}
+
+	if len(eligible) == 0 {
+		fmt.Println("No downloaded statute PDFs found for matching study programs.")
+		fmt.Println("Hint: Run 'scraper download-statutes' first to download the regulation PDFs.")
+		return
+	}
+
+	fmt.Printf("[+] Starting AI curriculum scan with Gemini (%s) for %d study program branches...\n", modelName, len(eligible))
+	fmt.Printf("    Delay: %dms | Force: %v\n\n", *delayMs, *force)
+
+	start := time.Now()
+	totalExtracted := 0
+	totalMatched := 0
+	programsScanned := 0
+
+	for idx, prog := range eligible {
+		select {
+		case <-ctx.Done():
+			fmt.Println("\nAborted by user.")
+			return
+		default:
+		}
+
+		// Check if already scanned
+		if !*force {
+			existing, _ := store.GetProgramCurriculum(prog.ID)
+			if len(existing) > 0 {
+				fmt.Printf("[%d/%d] ⏭️  %s (%s): already has %d curriculum modules (use --force to re-scan)\n",
+					idx+1, len(eligible), prog.ProgramName, prog.Degree, len(existing))
+				continue
+			}
+		}
+
+		// Find best document to scan: prefer statute over amendment
+		var bestDoc *model.ProgramRegulationDocument
+		for i := range prog.Documents {
+			d := &prog.Documents[i]
+			if d.LocalPath == "" {
+				continue
+			}
+			if fi, err := os.Stat(d.LocalPath); err != nil || fi.Size() == 0 {
+				continue
+			}
+			if bestDoc == nil || d.DocType == "statute" {
+				bestDoc = d
+				if d.DocType == "statute" {
+					break
+				}
+			}
+		}
+
+		if bestDoc == nil {
+			continue
+		}
+
+		fmt.Printf("[%d/%d] 🤖 Scanning %s (%s) via %s...\n",
+			idx+1, len(eligible), prog.ProgramName, prog.Degree, filepath.Base(bestDoc.LocalPath))
+
+		res, err := geminiClient.ExtractCurriculumFromPDF(ctx, bestDoc.LocalPath, prog.ProgramName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "    ❌ Error scanning %s: %v\n", bestDoc.LocalPath, err)
+			continue
+		}
+
+		var curModules []model.CurriculumModule
+		for _, m := range res.Modules {
+			curModules = append(curModules, model.CurriculumModule{
+				ProgramID:              prog.ID,
+				ProgramName:            prog.ProgramName,
+				Degree:                 prog.Degree,
+				POVersion:              prog.POVersion,
+				ModuleCode:             m.ModuleCode,
+				ModuleName:             m.ModuleName,
+				ModuleNameEN:           m.ModuleNameEN,
+				RecommendedSemester:    m.RecommendedSemester,
+				RecommendedSemesterRaw: m.RecommendedSemesterRaw,
+				Credits:                m.Credits,
+				ModuleType:             m.ModuleType,
+				Specialization:         m.Specialization,
+				SWS:                    m.SWS,
+				ExamType:               m.ExamType,
+				Graded:                 m.Graded,
+				Prerequisites:          m.Prerequisites,
+				Remarks:                m.Remarks,
+				SourceFile:             bestDoc.LocalPath,
+			})
+		}
+
+		if err := store.SaveCurriculumModules(prog.ID, prog.ProgramName, prog.Degree, prog.POVersion, curModules, bestDoc.LocalPath); err != nil {
+			fmt.Fprintf(os.Stderr, "    ❌ Error saving curriculum for %s: %v\n", prog.ProgramName, err)
+			continue
+		}
+
+		totalExt, matched, err := store.MatchAndLinkCurriculumModules(prog.ID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "    ⚠️ Error matching modules for %s: %v\n", prog.ProgramName, err)
+		}
+
+		programsScanned++
+		totalExtracted += totalExt
+		totalMatched += matched
+
+		fmt.Printf("    ✓ Extracted %d curriculum modules (%d linked to catalog modules)\n",
+			totalExt, matched)
+
+		if *delayMs > 0 {
+			time.Sleep(time.Duration(*delayMs) * time.Millisecond)
+		}
+	}
+
+	fmt.Printf("\n[✓] AI Curriculum Scan completed in %s:\n", time.Since(start).Round(time.Millisecond))
+	fmt.Printf("    • Study Programs Scanned:   %d\n", programsScanned)
+	fmt.Printf("    • Modules Extracted:        %d\n", totalExtracted)
+	fmt.Printf("    • Modules Linked to DB:     %d\n", totalMatched)
+
+	_ = asJSON
+}
+
+func runShowCurriculum(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("show-curriculum", flag.ExitOnError)
+	dbPath := fs.String("db", "btu_modules.db", "SQLite database path")
+	degreeFilter := fs.String("degree", "", "Filter by degree (e.g. Bachelor, Master)")
+	asJSON := fs.Bool("json", false, "Output results as raw JSON")
+	_ = fs.Parse(reorderFlags(args))
+
+	progNameOrID := fs.Arg(0)
+	if progNameOrID == "" {
+		fmt.Fprintln(os.Stderr, "Error: missing study program name or official ID.")
+		fmt.Fprintln(os.Stderr, "Usage: scraper show-curriculum [--degree <deg>] \"<name|id>\" (e.g. scraper show-curriculum \"Informatik\")")
+		os.Exit(1)
+	}
+
+	store, _, _ := setupApp(*dbPath, "")
+	defer store.Close()
+
+	programs, err := store.ListOfficialPrograms(progNameOrID, *degreeFilter)
+	if err != nil || len(programs) == 0 {
+		p, errFind := store.GetOfficialProgram(progNameOrID)
+		if errFind == nil && p != nil {
+			programs = []model.OfficialStudyProgram{*p}
+		}
+	}
+
+	if len(programs) == 0 {
+		fmt.Printf("No official study program found for %q.\n", progNameOrID)
+		return
+	}
+
+	type progCurriculumView struct {
+		Program    model.OfficialStudyProgram `json:"program"`
+		Curriculum []model.CurriculumModule   `json:"curriculum"`
+	}
+
+	var allViews []progCurriculumView
+
+	for _, p := range programs {
+		cur, err := store.GetProgramCurriculum(p.ID)
+		if err != nil || len(cur) == 0 {
+			continue
+		}
+		allViews = append(allViews, progCurriculumView{
+			Program:    p,
+			Curriculum: cur,
+		})
+	}
+
+	if len(allViews) == 0 {
+		fmt.Printf("No extracted curriculum found for %q.\n", progNameOrID)
+		fmt.Println("Hint: Run 'scraper scan-curriculum' first to extract curriculum data using AI.")
+		return
+	}
+
+	if *asJSON {
+		data, _ := json.MarshalIndent(allViews, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	for _, v := range allViews {
+		fmt.Println(strings.Repeat("=", 90))
+		fmt.Printf("🎓 %s | %s (PO-Version: %s)\n", v.Program.ProgramName, v.Program.Degree, v.Program.POVersion)
+		fmt.Printf("   Official ID: %s\n", v.Program.ID)
+		fmt.Println(strings.Repeat("-", 90))
+
+		bySemester := make(map[int][]model.CurriculumModule)
+		var semesters []int
+		for _, m := range v.Curriculum {
+			sem := m.RecommendedSemester
+			if len(bySemester[sem]) == 0 {
+				semesters = append(semesters, sem)
+			}
+			bySemester[sem] = append(bySemester[sem], m)
+		}
+		sort.Ints(semesters)
+
+		for _, sem := range semesters {
+			semHeader := fmt.Sprintf("SEMESTER %d", sem)
+			if sem == 0 {
+				semHeader = "SEMESTERUNABHÄNGIG / WAHLPFLICHTPOOLS"
+			}
+			fmt.Printf("\n📚 %s:\n", semHeader)
+			fmt.Printf("   %-8s | %-12s | %-45s | %-6s | %s\n", "Code/ID", "Art", "Modulbezeichnung", "ECTS", "Status / Verknüpfung")
+			fmt.Printf("   %s\n", strings.Repeat("-", 85))
+
+			semECTS := 0.0
+			for _, m := range bySemester[sem] {
+				semECTS += m.Credits
+				codeStr := m.ModuleCode
+				if codeStr == "" {
+					codeStr = "-"
+				}
+				nameStr := m.ModuleName
+				if len(nameStr) > 43 {
+					nameStr = nameStr[:40] + "..."
+				}
+				linkTag := "nicht verknüpft"
+				if m.ModuleID != "" {
+					linkTag = fmt.Sprintf("✓ Modul %s", m.ModuleID)
+				}
+				fmt.Printf("   %-8s | %-12s | %-45s | %4.1f LP | %s\n",
+					codeStr, m.ModuleType, nameStr, m.Credits, linkTag)
+			}
+			if sem > 0 {
+				fmt.Printf("   -> Semester-Summe: %.1f LP\n", semECTS)
+			}
+		}
+		fmt.Println()
+	}
+}
+
+
 func runProgramModules(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("program-modules", flag.ExitOnError)
 	dbPath := fs.String("db", "btu_modules.db", "SQLite database path")
@@ -982,6 +1393,7 @@ func runServe(ctx context.Context, args []string) {
 	cacheDir := fs.String("cache-dir", cfg.Storage.CacheDir, "Cache directory")
 	logFile := fs.String("log-file", cfg.Logging.LogFile, "Log file path")
 	port := fs.String("port", cfg.Server.Port, "HTTP port to listen on (default 8080)")
+	staticDir := fs.String("static-dir", "frontend/dist", "Directory containing the frontend static assets (SPA)")
 	autoRefresh := fs.Bool("auto-refresh", cfg.Refresher.AutoRefresh, "Enable background polite scheduled data refreshing")
 	offpeakStart := fs.Int("offpeak-start", cfg.Refresher.OffPeakStartHour, "Off-peak scraping window start hour (24h)")
 	offpeakEnd := fs.Int("offpeak-end", cfg.Refresher.OffPeakEndHour, "Off-peak scraping window end hour (24h)")
@@ -1052,12 +1464,18 @@ func runServe(ctx context.Context, args []string) {
 	}
 
 	// 7. Initialize web server
+	var webOpts []web.ServerOption
+	webOpts = append(webOpts, web.WithTracker(tracker), web.WithRefresher(ref), web.WithLogger(sysLog))
+	if *staticDir != "" {
+		if fi, err := os.Stat(*staticDir); err == nil && fi.IsDir() {
+			webOpts = append(webOpts, web.WithStaticDir(*staticDir))
+		}
+	}
+
 	srv, err := web.NewServer(
 		store,
 		eventProv,
-		web.WithTracker(tracker),
-		web.WithRefresher(ref),
-		web.WithLogger(sysLog),
+		webOpts...,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing web server: %v\n", err)
@@ -1101,7 +1519,12 @@ func setupApp(dbPath, cacheDir string) (*storage.Storage, cache.Cache, *provider
 	detailProvider := provider.NewBTUModuleDetailProvider(store, c, "", provider.DefaultDetailTTL)
 	eventProvider := provider.NewBTUEventProvider(store, c, provider.DefaultEventTTL)
 	fuesProvider := provider.NewBTUFUESProvider(store, c, "", provider.DefaultFUESTTL)
-	progProvider := provider.NewBTUProgramTreeProvider(store, c, "", provider.DefaultProgramTreeTTL, "statutes")
+	cfg, _, _ := config.Load("")
+	statutesDir := cfg.Storage.StatutesDir
+	if statutesDir == "" {
+		statutesDir = "statutes"
+	}
+	progProvider := provider.NewBTUProgramTreeProvider(store, c, "", provider.DefaultProgramTreeTTL, statutesDir)
 
 	// Connect program tree provider so module scraping can resolve unindexed programs on demand
 	detailProvider.SetProgramTreeProvider(progProvider)
@@ -1249,7 +1672,7 @@ func reorderFlags(args []string) []string {
 			if !strings.Contains(arg, "=") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				flagName := strings.TrimLeft(arg, "-")
 				switch flagName {
-				case "db", "cache-dir", "config", "search", "dept", "min-credits", "max-credits", "limit", "offset", "workers", "delay", "name", "degree", "port", "analytics-db", "log-file", "offpeak-start", "offpeak-end":
+				case "db", "cache-dir", "config", "search", "dept", "min-credits", "max-credits", "limit", "offset", "workers", "delay", "name", "degree", "port", "analytics-db", "log-file", "offpeak-start", "offpeak-end", "out-dir", "api-key", "model", "static-dir":
 					i++
 					flags = append(flags, args[i])
 				}

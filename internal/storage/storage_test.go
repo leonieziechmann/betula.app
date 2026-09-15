@@ -325,6 +325,52 @@ func TestStorage(t *testing.T) {
 	if len(linkedMods) != 1 || linkedMods[0].ID != "1001" {
 		t.Errorf("unexpected linked modules: %+v", linkedMods)
 	}
+
+	// 13. Test Curriculum storage and matching
+	curriculum := []model.CurriculumModule{
+		{
+			ProgramID:           sampleProg.ID,
+			ProgramName:         sampleProg.ProgramName,
+			Degree:              sampleProg.Degree,
+			POVersion:           sampleProg.POVersion,
+			ModuleCode:          "1001",
+			ModuleName:          "Advanced Mathematics I",
+			RecommendedSemester: 1,
+			Credits:             6.0,
+			ModuleType:          "Pflicht",
+		},
+		{
+			ProgramID:           sampleProg.ID,
+			ProgramName:         sampleProg.ProgramName,
+			Degree:              sampleProg.Degree,
+			POVersion:           sampleProg.POVersion,
+			ModuleCode:          "",
+			ModuleName:          "Unbekanntes Modul",
+			RecommendedSemester: 2,
+			Credits:             6.0,
+			ModuleType:          "Wahlpflicht",
+		},
+	}
+
+	if err := store.SaveCurriculumModules(sampleProg.ID, sampleProg.ProgramName, sampleProg.Degree, sampleProg.POVersion, curriculum, "test.pdf"); err != nil {
+		t.Fatalf("SaveCurriculumModules failed: %v", err)
+	}
+
+	retCurriculum, err := store.GetProgramCurriculum(sampleProg.ID)
+	if err != nil {
+		t.Fatalf("GetProgramCurriculum failed: %v", err)
+	}
+	if len(retCurriculum) != 2 {
+		t.Fatalf("expected 2 curriculum entries, got %d", len(retCurriculum))
+	}
+
+	total, matched, err := store.MatchAndLinkCurriculumModules(sampleProg.ID)
+	if err != nil {
+		t.Fatalf("MatchAndLinkCurriculumModules failed: %v", err)
+	}
+	if total != 2 || matched != 1 {
+		t.Errorf("expected total=2, matched=1, got total=%d, matched=%d", total, matched)
+	}
 }
 
 func TestAdvancedFiltersAndGroupedPrograms(t *testing.T) {

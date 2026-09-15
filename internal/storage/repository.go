@@ -2323,3 +2323,242 @@ func (s *Storage) GetAllInstructors() ([]InstructorItem, error) {
 	return result, nil
 }
 
+// SaveCurriculumModules persists extracted curriculum modules from a study regulation into the database.
+func (s *Storage) SaveCurriculumModules(
+	programID string,
+	programName string,
+	degree string,
+	poVersion string,
+	modules []model.CurriculumModule,
+	sourceFile string,
+) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Clean previous extraction for this program and source file
+	if sourceFile != "" {
+		_, err = tx.Exec("DELETE FROM program_curriculum_modules WHERE program_id = ? AND source_file = ?", programID, sourceFile)
+	} else {
+		_, err = tx.Exec("DELETE FROM program_curriculum_modules WHERE program_id = ?", programID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to clear previous curriculum modules: %w", err)
+	}
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO program_curriculum_modules (
+			program_id, program_name, degree, po_version,
+			module_id, module_code, module_name, module_name_en,
+			recommended_semester, recommended_semester_raw, credits,
+			module_type, specialization, sws, exam_type, graded,
+			prerequisites, remarks, source_file, extracted_at
+		) VALUES (
+			?, ?, ?, ?,
+			?, ?, ?, ?,
+			?, ?, ?,
+			?, ?, ?, ?, ?,
+			?, ?, ?, CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare insert statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, m := range modules {
+		pName := m.ProgramName
+		if pName == "" {
+			pName = programName
+		}
+		deg := m.Degree
+		if deg == "" {
+			deg = degree
+		}
+		po := m.POVersion
+		if po == "" {
+			po = poVersion
+		}
+
+		_, err := stmt.Exec(
+			programID, pName, deg, po,
+			m.ModuleID, m.ModuleCode, m.ModuleName, m.ModuleNameEN,
+			m.RecommendedSemester, m.RecommendedSemesterRaw, m.Credits,
+			m.ModuleType, m.Specialization, m.SWS, m.ExamType, m.Graded,
+			m.Prerequisites, m.Remarks, sourceFile,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert curriculum module %s: %w", m.ModuleName, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// MatchAndLinkCurriculumModules matches extracted curriculum rows against the modules table
+// by module code/ID or title, updating program_curriculum_modules and module_study_programs.
+func (s *Storage) MatchAndLinkCurriculumModules(programID string) (int, int, error) {
+	curriculum, err := s.GetProgramCurriculum(programID)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	total := len(curriculum)
+	matched := 0
+
+	for _, item := range curriculum {
+		var matchedModuleID string
+
+		// 1. Try matching by module_code as module ID or code
+		if item.ModuleCode != "" {
+			_ = s.db.QueryRow(`
+				SELECT id FROM modules WHERE id = ? OR code = ? LIMIT 1
+			`, item.ModuleCode, item.ModuleCode).Scan(&matchedModuleID)
+		}
+
+		// 2. Try exact title match (German or English)
+		if matchedModuleID == "" && item.ModuleName != "" {
+			_ = s.db.QueryRow(`
+				SELECT id FROM modules
+				WHERE LOWER(TRIM(title_de)) = LOWER(TRIM(?))
+				   OR LOWER(TRIM(title_en)) = LOWER(TRIM(?))
+				LIMIT 1
+			`, item.ModuleName, item.ModuleName).Scan(&matchedModuleID)
+		}
+
+		// 3. Try clean normalized title match (removing brackets/special characters)
+		if matchedModuleID == "" && item.ModuleName != "" {
+			cleanName := cleanModuleTitleForMatch(item.ModuleName)
+			if cleanName != "" && len(cleanName) > 4 {
+				_ = s.db.QueryRow(`
+					SELECT id FROM modules
+					WHERE LOWER(title_de) LIKE LOWER(?)
+					LIMIT 1
+				`, "%"+cleanName+"%").Scan(&matchedModuleID)
+			}
+		}
+
+		if matchedModuleID != "" {
+			matched++
+			// Update curriculum entry with matched module ID
+			_, _ = s.db.Exec(`
+				UPDATE program_curriculum_modules SET module_id = ? WHERE id = ?
+			`, matchedModuleID, item.ID)
+
+			// Update or insert into module_study_programs
+			regulation := item.POVersion
+			if regulation == "" {
+				regulation = "Prüfungsordnung"
+			}
+			_, _ = s.db.Exec(`
+				INSERT INTO module_study_programs (
+					module_id, program_id, program_name, degree, regulation,
+					recommended_semester, module_type, specialization, credits, source
+				) VALUES (
+					?, ?, ?, ?, ?,
+					?, ?, ?, ?, 'ai_statute_scan'
+				)
+				ON CONFLICT(module_id, program_id) DO UPDATE SET
+					recommended_semester = excluded.recommended_semester,
+					module_type = excluded.module_type,
+					specialization = excluded.specialization,
+					credits = excluded.credits,
+					source = excluded.source
+			`, matchedModuleID, item.ProgramID, item.ProgramName, item.Degree, regulation,
+				item.RecommendedSemester, item.ModuleType, item.Specialization, item.Credits)
+		}
+	}
+
+	return total, matched, nil
+}
+
+// GetProgramCurriculum retrieves all curriculum modules extracted for a study program.
+func (s *Storage) GetProgramCurriculum(programID string) ([]model.CurriculumModule, error) {
+	rows, err := s.db.Query(`
+		SELECT id, program_id, program_name, degree, po_version,
+		       COALESCE(module_id, ''), COALESCE(module_code, ''), module_name, COALESCE(module_name_en, ''),
+		       recommended_semester, COALESCE(recommended_semester_raw, ''), credits,
+		       module_type, COALESCE(specialization, ''), COALESCE(sws, ''),
+		       COALESCE(exam_type, ''), COALESCE(graded, ''), COALESCE(prerequisites, ''),
+		       COALESCE(remarks, ''), COALESCE(source_file, ''), extracted_at
+		FROM program_curriculum_modules
+		WHERE program_id = ?
+		ORDER BY recommended_semester ASC, module_type ASC, module_name ASC
+	`, programID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.CurriculumModule
+	for rows.Next() {
+		var m model.CurriculumModule
+		var extractedStr string
+		err := rows.Scan(
+			&m.ID, &m.ProgramID, &m.ProgramName, &m.Degree, &m.POVersion,
+			&m.ModuleID, &m.ModuleCode, &m.ModuleName, &m.ModuleNameEN,
+			&m.RecommendedSemester, &m.RecommendedSemesterRaw, &m.Credits,
+			&m.ModuleType, &m.Specialization, &m.SWS,
+			&m.ExamType, &m.Graded, &m.Prerequisites,
+			&m.Remarks, &m.SourceFile, &extractedStr,
+		)
+		if err != nil {
+			return nil, err
+		}
+		m.ExtractedAt, _ = time.Parse(time.RFC3339, extractedStr)
+		result = append(result, m)
+	}
+
+	return result, rows.Err()
+}
+
+// GetModuleCurriculumEntries returns all official study program curriculum records where this module is listed.
+func (s *Storage) GetModuleCurriculumEntries(moduleID string) ([]model.CurriculumModule, error) {
+	rows, err := s.db.Query(`
+		SELECT id, program_id, program_name, degree, po_version,
+		       COALESCE(module_id, ''), COALESCE(module_code, ''), module_name, COALESCE(module_name_en, ''),
+		       recommended_semester, COALESCE(recommended_semester_raw, ''), credits,
+		       module_type, COALESCE(specialization, ''), COALESCE(sws, ''),
+		       COALESCE(exam_type, ''), COALESCE(graded, ''), COALESCE(prerequisites, ''),
+		       COALESCE(remarks, ''), COALESCE(source_file, ''), extracted_at
+		FROM program_curriculum_modules
+		WHERE module_id = ?
+		ORDER BY program_name ASC, recommended_semester ASC
+	`, moduleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.CurriculumModule
+	for rows.Next() {
+		var m model.CurriculumModule
+		var extractedStr string
+		err := rows.Scan(
+			&m.ID, &m.ProgramID, &m.ProgramName, &m.Degree, &m.POVersion,
+			&m.ModuleID, &m.ModuleCode, &m.ModuleName, &m.ModuleNameEN,
+			&m.RecommendedSemester, &m.RecommendedSemesterRaw, &m.Credits,
+			&m.ModuleType, &m.Specialization, &m.SWS,
+			&m.ExamType, &m.Graded, &m.Prerequisites,
+			&m.Remarks, &m.SourceFile, &extractedStr,
+		)
+		if err != nil {
+			return nil, err
+		}
+		m.ExtractedAt, _ = time.Parse(time.RFC3339, extractedStr)
+		result = append(result, m)
+	}
+
+	return result, rows.Err()
+}
+
+func cleanModuleTitleForMatch(title string) string {
+	title = strings.TrimSpace(title)
+	if idx := strings.Index(title, "("); idx != -1 {
+		title = strings.TrimSpace(title[:idx])
+	}
+	return title
+}
+

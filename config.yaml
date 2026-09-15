@@ -15,6 +15,9 @@ storage:
   # Lokales Cache-Verzeichnis für HTML-Downloads
   cache_dir: ".cache"
 
+  # Lokales Verzeichnis für heruntergeladene Studien- und Prüfungsordnungen (PDF)
+  statutes_dir: "statutes"
+
 refresher:
   # Automatische Hintergrund-Aktualisierung (Service Worker) bei 'scraper serve'
   # true = Worker laufen automatisch im Hintergrund (Standard)
@@ -45,3 +48,10 @@ logging:
 
   # Größe des Ringspeichers für Live-Logs im Web-Dashboard (/stats)
   buffer_size: 300
+
+gemini:
+  # API Key für die Google Gemini API zum Scannen von Studienordnungs-PDFs
+  api_key: "***REMOVED***"
+
+  # Modell für die multimodale PDF-Extraktion
+  model: "gemini-3.5-flash-lite"
