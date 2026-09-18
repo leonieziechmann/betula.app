@@ -2,6 +2,7 @@ mod app;
 pub mod components;
 mod db;
 mod detail;
+pub mod fuzzy;
 mod models;
 mod program_detail;
 mod storage;

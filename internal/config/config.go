@@ -73,8 +73,8 @@ func Default() Config {
 			AutoRefresh:          true, // Default: background service worker runs automatically on serve
 			OffPeakStartHour:     1,    // 01:00
 			OffPeakEndHour:       6,    // 06:00
-			ModuleDelayMs:        1500, // 1.5s polite delay
-			QISDelayMs:           4500, // 4.5s gentle QIS delay
+			ModuleDelayMs:        500,  // 500ms delay (~2 req/s)
+			QISDelayMs:           500,  // 500ms delay (~2 req/s)
 			CatalogIntervalHours: 12,   // 12 hours
 		},
 		Logging: LoggingConfig{

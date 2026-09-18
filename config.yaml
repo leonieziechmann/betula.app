@@ -30,11 +30,11 @@ refresher:
   offpeak_end_hour: 6
 
   # Höfliche Verzögerungen (Polite Crawling) mit automatischer ±30% Zufallsstreuung (Jitter)
-  # Verzögerung zwischen Moduldetail-Seiten (b-tu.de/modul/<id>) in Millisekunden
-  module_delay_ms: 1500
+  # Verzögerung zwischen Moduldetail-Seiten (b-tu.de/modul/<id>) in Millisekunden (500ms = 2 req/s)
+  module_delay_ms: 500
 
-  # Sehr schonende Verzögerung für empfindliche QIS-Seiten (Veranstaltungen/FÜS) in Millisekunden
-  qis_delay_ms: 4500
+  # Schonende Verzögerung für QIS-Seiten (Veranstaltungen/FÜS/Baum) in Millisekunden (500ms = 2 req/s)
+  qis_delay_ms: 500
 
   # Intervall in Stunden, nach dem der Gesamtkatalog auf neu hinzugefügte Module geprüft wird
   catalog_interval_hours: 12

@@ -2352,14 +2352,18 @@ func (s *Storage) SaveCurriculumModules(
 		INSERT INTO program_curriculum_modules (
 			program_id, program_name, degree, po_version,
 			module_id, module_code, module_name, module_name_en,
-			recommended_semester, recommended_semester_raw, credits,
-			module_type, specialization, sws, exam_type, graded,
+			recommended_semester, recommended_semester_raw, semester_span,
+			start_semester, end_semester, credits, min_credits, max_credits,
+			module_type, study_section, subject_area, area_rules,
+			specialization, sws, exam_type, graded,
 			prerequisites, remarks, source_file, extracted_at
 		) VALUES (
 			?, ?, ?, ?,
 			?, ?, ?, ?,
 			?, ?, ?,
 			?, ?, ?, ?, ?,
+			?, ?, ?, ?,
+			?, ?, ?, ?,
 			?, ?, ?, CURRENT_TIMESTAMP
 		)
 	`)
@@ -2385,8 +2389,10 @@ func (s *Storage) SaveCurriculumModules(
 		_, err := stmt.Exec(
 			programID, pName, deg, po,
 			m.ModuleID, m.ModuleCode, m.ModuleName, m.ModuleNameEN,
-			m.RecommendedSemester, m.RecommendedSemesterRaw, m.Credits,
-			m.ModuleType, m.Specialization, m.SWS, m.ExamType, m.Graded,
+			m.RecommendedSemester, m.RecommendedSemesterRaw, m.SemesterSpan,
+			m.StartSemester, m.EndSemester, m.Credits, m.MinCredits, m.MaxCredits,
+			m.ModuleType, m.StudySection, m.SubjectArea, m.AreaRules,
+			m.Specialization, m.SWS, m.ExamType, m.Graded,
 			m.Prerequisites, m.Remarks, sourceFile,
 		)
 		if err != nil {
@@ -2455,19 +2461,25 @@ func (s *Storage) MatchAndLinkCurriculumModules(programID string) (int, int, err
 			_, _ = s.db.Exec(`
 				INSERT INTO module_study_programs (
 					module_id, program_id, program_name, degree, regulation,
-					recommended_semester, module_type, specialization, credits, source
+					recommended_semester, module_type, study_section, subject_area, area_rules,
+					specialization, credits, source
 				) VALUES (
 					?, ?, ?, ?, ?,
-					?, ?, ?, ?, 'ai_statute_scan'
+					?, ?, ?, ?, ?,
+					?, ?, 'ai_statute_scan'
 				)
 				ON CONFLICT(module_id, program_id) DO UPDATE SET
 					recommended_semester = excluded.recommended_semester,
 					module_type = excluded.module_type,
+					study_section = excluded.study_section,
+					subject_area = excluded.subject_area,
+					area_rules = excluded.area_rules,
 					specialization = excluded.specialization,
 					credits = excluded.credits,
 					source = excluded.source
 			`, matchedModuleID, item.ProgramID, item.ProgramName, item.Degree, regulation,
-				item.RecommendedSemester, item.ModuleType, item.Specialization, item.Credits)
+				item.RecommendedSemester, item.ModuleType, item.StudySection, item.SubjectArea, item.AreaRules,
+				item.Specialization, item.Credits)
 		}
 	}
 
@@ -2479,8 +2491,10 @@ func (s *Storage) GetProgramCurriculum(programID string) ([]model.CurriculumModu
 	rows, err := s.db.Query(`
 		SELECT id, program_id, program_name, degree, po_version,
 		       COALESCE(module_id, ''), COALESCE(module_code, ''), module_name, COALESCE(module_name_en, ''),
-		       recommended_semester, COALESCE(recommended_semester_raw, ''), credits,
-		       module_type, COALESCE(specialization, ''), COALESCE(sws, ''),
+		       recommended_semester, COALESCE(recommended_semester_raw, ''), COALESCE(semester_span, ''),
+		       start_semester, end_semester, credits, min_credits, max_credits,
+		       module_type, COALESCE(study_section, ''), COALESCE(subject_area, ''), COALESCE(area_rules, ''),
+		       COALESCE(specialization, ''), COALESCE(sws, ''),
 		       COALESCE(exam_type, ''), COALESCE(graded, ''), COALESCE(prerequisites, ''),
 		       COALESCE(remarks, ''), COALESCE(source_file, ''), extracted_at
 		FROM program_curriculum_modules
@@ -2499,8 +2513,10 @@ func (s *Storage) GetProgramCurriculum(programID string) ([]model.CurriculumModu
 		err := rows.Scan(
 			&m.ID, &m.ProgramID, &m.ProgramName, &m.Degree, &m.POVersion,
 			&m.ModuleID, &m.ModuleCode, &m.ModuleName, &m.ModuleNameEN,
-			&m.RecommendedSemester, &m.RecommendedSemesterRaw, &m.Credits,
-			&m.ModuleType, &m.Specialization, &m.SWS,
+			&m.RecommendedSemester, &m.RecommendedSemesterRaw, &m.SemesterSpan,
+			&m.StartSemester, &m.EndSemester, &m.Credits, &m.MinCredits, &m.MaxCredits,
+			&m.ModuleType, &m.StudySection, &m.SubjectArea, &m.AreaRules,
+			&m.Specialization, &m.SWS,
 			&m.ExamType, &m.Graded, &m.Prerequisites,
 			&m.Remarks, &m.SourceFile, &extractedStr,
 		)
@@ -2519,8 +2535,10 @@ func (s *Storage) GetModuleCurriculumEntries(moduleID string) ([]model.Curriculu
 	rows, err := s.db.Query(`
 		SELECT id, program_id, program_name, degree, po_version,
 		       COALESCE(module_id, ''), COALESCE(module_code, ''), module_name, COALESCE(module_name_en, ''),
-		       recommended_semester, COALESCE(recommended_semester_raw, ''), credits,
-		       module_type, COALESCE(specialization, ''), COALESCE(sws, ''),
+		       recommended_semester, COALESCE(recommended_semester_raw, ''), COALESCE(semester_span, ''),
+		       start_semester, end_semester, credits, min_credits, max_credits,
+		       module_type, COALESCE(study_section, ''), COALESCE(subject_area, ''), COALESCE(area_rules, ''),
+		       COALESCE(specialization, ''), COALESCE(sws, ''),
 		       COALESCE(exam_type, ''), COALESCE(graded, ''), COALESCE(prerequisites, ''),
 		       COALESCE(remarks, ''), COALESCE(source_file, ''), extracted_at
 		FROM program_curriculum_modules
@@ -2539,8 +2557,10 @@ func (s *Storage) GetModuleCurriculumEntries(moduleID string) ([]model.Curriculu
 		err := rows.Scan(
 			&m.ID, &m.ProgramID, &m.ProgramName, &m.Degree, &m.POVersion,
 			&m.ModuleID, &m.ModuleCode, &m.ModuleName, &m.ModuleNameEN,
-			&m.RecommendedSemester, &m.RecommendedSemesterRaw, &m.Credits,
-			&m.ModuleType, &m.Specialization, &m.SWS,
+			&m.RecommendedSemester, &m.RecommendedSemesterRaw, &m.SemesterSpan,
+			&m.StartSemester, &m.EndSemester, &m.Credits, &m.MinCredits, &m.MaxCredits,
+			&m.ModuleType, &m.StudySection, &m.SubjectArea, &m.AreaRules,
+			&m.Specialization, &m.SWS,
 			&m.ExamType, &m.Graded, &m.Prerequisites,
 			&m.Remarks, &m.SourceFile, &extractedStr,
 		)

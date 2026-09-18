@@ -325,8 +325,26 @@ body.sidebar-open {
   background: #f1f5f9;
 }
 
+.btn-toggle-all-subtle {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-toggle-all-subtle:hover {
+  background: #f1f5f9;
+  color: var(--text-main);
+  border-color: #cbd5e1;
+}
+
 .sidebar-body {
-  padding: 1rem;
+  padding: 0;
   overflow-y: auto;
   overflow-x: hidden;
   flex: 1;
@@ -339,11 +357,11 @@ body.sidebar-open {
 .sidebar-body form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0;
 }
 
 .sidebar-body::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .sidebar-body::-webkit-scrollbar-track {
@@ -355,40 +373,217 @@ body.sidebar-open {
   border-radius: 9999px;
 }
 
-/* Clean Sidebar Sections & Dividers */
-.sidebar-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.4rem 0.2rem;
+/* ==========================================================================
+   FLAT FULL-WIDTH ACCORDIONS (Clean, minimal, flat layout)
+   ========================================================================== */
+.flat-accordion {
+  border-bottom: 1px solid var(--border);
+  background: #ffffff;
 }
 
-.sidebar-section:first-child {
-  padding-top: 0.1rem;
+.flat-accordion:last-of-type {
+  border-bottom: none;
 }
 
-.sidebar-divider {
-  border: none;
-  border-top: 1px solid #e2e8f0;
-  margin: 0.25rem 0;
+.flat-accordion-header {
   width: 100%;
-}
-
-.sidebar-section-header {
+  padding: 0.75rem 1.15rem;
+  background: #f8fafc;
+  border: none;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+  text-align: left;
 }
 
-.sidebar-section-title {
-  font-size: 0.88rem;
+.flat-accordion-header:hover {
+  background: #f1f5f9;
+}
+
+.flat-accordion.is-open .flat-accordion-header {
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.header-title {
+  font-size: 0.86rem;
   font-weight: 700;
-  color: #1e293b;
+  color: #0f172a;
   letter-spacing: -0.01em;
 }
 
+.header-count-dezent {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.header-arrow {
+  font-size: 0.75rem;
+  color: #64748b;
+  transition: transform 0.2s ease;
+}
+
+.flat-accordion-content {
+  padding: 0.85rem 1.15rem;
+  background: #ffffff;
+  display: none;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.flat-accordion.is-open .flat-accordion-content {
+  display: flex;
+}
+
+/* Semester Grid */
+.semester-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.3rem;
+}
+
+.btn-sem {
+  padding: 0.45rem 0.2rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  user-select: none;
+}
+
+.btn-sem:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.btn-sem.active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+/* Dozierende White- & Blacklist Input & Tags */
+.prof-input-row {
+  display: flex;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.prof-text-input {
+  flex: 1;
+  padding: 0.48rem 0.65rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--text-main);
+  outline: none;
+  min-width: 0;
+}
+
+.prof-text-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.btn-prof-action {
+  padding: 0.48rem 0.65rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btn-prof-action.inc {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.btn-prof-action.inc:hover {
+  background: #bbf7d0;
+}
+
+.btn-prof-action.exc {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.btn-prof-action.exc:hover {
+  background: #fecaca;
+}
+
+.prof-tags-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.prof-tag-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.prof-tag-item.inc {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.prof-tag-item.exc {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.prof-tag-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 0.2rem;
+  opacity: 0.7;
+}
+
+.prof-tag-remove:hover {
+  opacity: 1;
+  font-weight: bold;
+}
+
+/* Sidebar Section Reset */
 .sidebar-section-reset {
-  padding-top: 0.4rem;
+  padding: 1rem 1.15rem 1.5rem;
+  background: #ffffff;
 }
 
 /* Sidebar Backdrop (for mobile drawer) */
@@ -674,47 +869,51 @@ body.sidebar-open {
   box-shadow: 0 1px 3px rgba(2, 132, 199, 0.12);
 }
 
-/* Study Program Detail Page */
+/* Study Program Detail Page (Full-Width Responsive Layout) */
 .program-detail-page {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.5rem 1rem;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .program-detail-header {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  padding: 1.75rem 2rem;
   background: white;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
 
 .program-detail-header-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.5rem;
   flex-wrap: wrap;
 }
 
 .program-detail-title-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .program-detail-title {
-  font-size: 1.6rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.02em;
   margin: 0;
+  line-height: 1.25;
 }
 
 .program-detail-subtitle {
@@ -728,22 +927,62 @@ body.sidebar-open {
 
 .program-detail-badges {
   display: flex;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
-.program-detail-actions {
+/* Master/Bachelor Counterpart Card Banner */
+.counterpart-banner {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: var(--radius-sm);
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.counterpart-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  color: #0369a1;
+}
+
+.btn-counterpart-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  background: var(--primary);
+  color: white;
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.btn-counterpart-link:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px -2px rgba(2, 132, 199, 0.3);
 }
 
 .program-detail-grid {
   display: grid;
   grid-template-columns: 1fr 340px;
   gap: 1.5rem;
+  align-items: start;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1080px) {
   .program-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -753,22 +992,297 @@ body.sidebar-open {
   background: white;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .program-section-title {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #1e293b;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
   border-bottom: 1px solid #f1f5f9;
-  padding-bottom: 0.6rem;
+  padding-bottom: 0.75rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Curriculum View Mode Tabs */
+.curriculum-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #f1f5f9;
+  padding: 0.3rem;
+  border-radius: var(--radius-sm);
+  width: fit-content;
+  margin-bottom: 0.5rem;
+}
+
+.btn-curriculum-tab {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-curriculum-tab:hover {
+  color: #0f172a;
+}
+
+.btn-curriculum-tab.active {
+  background: white;
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* Semester Study Plan Blocks */
+.curriculum-semesters-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.curriculum-semester-block {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.curriculum-semester-header {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  background: #f8fafc;
+  padding: 0.75rem 1.15rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.curriculum-semester-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.curriculum-semester-badge-num {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid #bae6fd;
+}
+
+.curriculum-semester-ects-badge {
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  border-radius: 4px;
+  border: 1px solid #a7f3d0;
+}
+
+/* Subject Area Grouping Cards */
+.subject-area-block {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  margin-bottom: 1.25rem;
+}
+
+.subject-area-header {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  background: #f8fafc;
+  padding: 0.75rem 1.15rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.area-rules-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: #fffbeb;
+  border-bottom: 1px solid #fef3c7;
+  font-size: 0.82rem;
+  color: #92400e;
+  line-height: 1.4;
+}
+
+/* Curriculum Module Items (Rich, Comfortable List Rows) */
+.curriculum-module-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.curriculum-module-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: white;
+  gap: 1rem;
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.curriculum-module-item:last-child {
+  border-bottom: none;
+}
+
+.curriculum-module-item:hover {
+  background: #f8fafc;
+}
+
+.curriculum-module-item.is-completed {
+  background: #f0fdf4;
+}
+
+.curriculum-module-item.is-bookmarked {
+  background: #fefce8;
+}
+
+.curriculum-module-left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.curriculum-module-status-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  line-height: 1;
+  color: #cbd5e1;
+  transition: color 0.15s;
+}
+
+.curriculum-module-status-btn.completed {
+  color: #16a34a;
+  font-weight: bold;
+}
+
+.curriculum-module-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.curriculum-module-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.curriculum-module-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.35;
+}
+
+.curriculum-module-item:hover .curriculum-module-title {
+  color: var(--primary);
+}
+
+.curriculum-module-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.curriculum-module-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+/* Badges for study area / section */
+.badge-study-section {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.badge-subject-area {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.badge-module-type-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.badge-module-type-tag.pflicht {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+  font-weight: 700;
+}
+
+.badge-module-type-tag.wahlpflicht {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
 }
 
 .statute-documents-list {
@@ -860,28 +1374,6 @@ body.sidebar-open {
   border-color: var(--primary);
   font-weight: 700;
   color: var(--primary);
-}
-
-.curriculum-semesters-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.curriculum-semester-block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.curriculum-semester-header {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #334155;
-  background: #f8fafc;
-  padding: 0.4rem 0.75rem;
-  border-left: 3px solid var(--primary);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 /* PO Selection Dropdown */
@@ -2534,6 +3026,63 @@ input:checked + .slider:before {
 .kpi-indigo { background: #e0e7ff; }
 .kpi-slate { background: #f1f5f9; }
 
+.detail-kpi-card.is-clickable {
+  cursor: pointer;
+}
+
+.detail-kpi-card.is-clickable:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+}
+
+.icon-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.icon-svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.icon-svg svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: currentColor;
+}
+
+.card-header-icon .icon-image {
+  max-width: 24px;
+  max-height: 24px;
+}
+
+.card-header-icon .icon-svg svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.kpi-icon-wrap .icon-image {
+  max-width: 28px;
+  max-height: 28px;
+}
+
+.kpi-icon-wrap .icon-svg svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
 .kpi-content {
   flex: 1;
   min-width: 0;
@@ -2768,6 +3317,72 @@ input:checked + .slider:before {
 }
 
 .detail-card-body {
+  padding: 1.25rem;
+}
+
+.detail-card-body.no-padding {
+  padding: 0;
+}
+
+/* Reusable Accordion Card Item */
+.accordion-card-item {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow);
+}
+
+.accordion-card-item:hover {
+  border-color: #cbd5e1;
+}
+
+.accordion-card-item .accordion-header {
+  width: 100%;
+  padding: 0.9rem 1.25rem;
+  background: #f8fafc;
+  border: none;
+  border-bottom: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.accordion-card-item .accordion-header:hover {
+  background: #f1f5f9;
+}
+
+.accordion-card-item.is-open .accordion-header {
+  border-bottom-color: var(--border);
+  background: #f8fafc;
+}
+
+.accordion-title-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+
+.accordion-subtitle-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+}
+
+.accordion-chevron {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.accordion-body-content {
   padding: 1.25rem;
 }
 
@@ -3881,3 +4496,70 @@ input:checked + .slider:before {
 .module-info-box {
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
 }
+
+/* Subject Area Filter Chips Bar */
+.subject-area-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.btn-area-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn-area-filter-chip:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.btn-area-filter-chip.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+}
+
+.btn-area-filter-chip .chip-count {
+  font-size: 0.72rem;
+  opacity: 0.85;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.btn-area-filter-chip.active .chip-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* Subject Area & Regulation Banner */
+.area-rules-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.83rem;
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+}
+

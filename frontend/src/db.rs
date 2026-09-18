@@ -65,12 +65,13 @@ pub fn query_filtered_modules(filter: &FilterOptions, completed: &HashSet<String
 
     if has_program {
         sql.push_str(
-            "SELECT DISTINCT m.id, m.code, m.title_de, m.title_en, m.department, m.credits, \
+            "SELECT DISTINCT m.id, m.code, m.title_de, m.title_en, m.department, \
+             COALESCE(msp.credits, m.credits) as credits, \
              m.credits_raw, m.turnus, m.language, m.is_fues, m.cross_disciplinary, \
              m.is_phase_out, m.is_not_offered, m.limitation, m.exam_type, m.successor_modules, \
              m.prerequisites_mandatory, m.prerequisites_recommended, \
              (SELECT COUNT(*) FROM module_events me WHERE me.module_id = m.id) as events_count, \
-             msp.recommended_semester, msp.module_type \
+             msp.recommended_semester, msp.module_type, msp.study_section, msp.subject_area, msp.area_rules, msp.specialization \
              FROM modules m \
              JOIN module_study_programs msp ON m.id = msp.module_id \
              WHERE msp.program_id = ? "
@@ -92,7 +93,7 @@ pub fn query_filtered_modules(filter: &FilterOptions, completed: &HashSet<String
              m.is_phase_out, m.is_not_offered, m.limitation, m.exam_type, m.successor_modules, \
              m.prerequisites_mandatory, m.prerequisites_recommended, \
              (SELECT COUNT(*) FROM module_events me WHERE me.module_id = m.id) as events_count, \
-             NULL as recommended_semester, NULL as module_type \
+             NULL as recommended_semester, NULL as module_type, NULL as study_section, NULL as subject_area, NULL as area_rules, NULL as specialization \
              FROM modules m \
              WHERE 1=1 "
         );
@@ -139,6 +140,109 @@ pub fn query_filtered_modules(filter: &FilterOptions, completed: &HashSet<String
         if !turnus_clauses.is_empty() {
             sql.push_str(&format!("AND ({}) ", turnus_clauses.join(" OR ")));
         }
+    }
+
+    // Modulart / Typ filter
+    match filter.module_type.as_str() {
+        "pflicht" => {
+            if has_program {
+                sql.push_str("AND (LOWER(msp.module_type) LIKE '%pflicht%' AND LOWER(msp.module_type) NOT LIKE '%wahlpflicht%' AND LOWER(msp.module_type) NOT LIKE '%wpm%') ");
+            } else {
+                sql.push_str("AND (EXISTS (SELECT 1 FROM program_curriculum_modules pcm WHERE pcm.module_id = m.id AND LOWER(pcm.module_type) LIKE '%pflicht%' AND LOWER(pcm.module_type) NOT LIKE '%wahlpflicht%')) ");
+            }
+        }
+        "wahlpflicht" => {
+            if has_program {
+                sql.push_str("AND (LOWER(msp.module_type) LIKE '%wahlpflicht%' OR LOWER(msp.module_type) LIKE '%wpm%') ");
+            } else {
+                sql.push_str("AND (EXISTS (SELECT 1 FROM program_curriculum_modules pcm WHERE pcm.module_id = m.id AND (LOWER(pcm.module_type) LIKE '%wahlpflicht%' OR LOWER(pcm.module_type) LIKE '%wpm%'))) ");
+            }
+        }
+        "fues" => {
+            sql.push_str("AND (m.is_fues = 1 OR m.cross_disciplinary = 1) ");
+        }
+        _ => {}
+    }
+
+    // Dozierende Whitelist (+ Include)
+    for prof in &filter.prof_includes {
+        let p_trimmed = prof.trim();
+        if !p_trimmed.is_empty() {
+            sql.push_str("AND (m.responsible_persons LIKE ? OR EXISTS (SELECT 1 FROM module_events me_p JOIN event_schedules es_p ON me_p.event_id = es_p.event_id WHERE me_p.module_id = m.id AND es_p.instructor LIKE ?)) ");
+            let pat = format!("%{}%", p_trimmed);
+            params.push(serde_json::Value::String(pat.clone()));
+            params.push(serde_json::Value::String(pat));
+        }
+    }
+
+    // Dozierende Blacklist (− Exclude)
+    for prof in &filter.prof_excludes {
+        let p_trimmed = prof.trim();
+        if !p_trimmed.is_empty() {
+            sql.push_str("AND ((m.responsible_persons IS NULL OR m.responsible_persons NOT LIKE ?) AND NOT EXISTS (SELECT 1 FROM module_events me_px JOIN event_schedules es_px ON me_px.event_id = es_px.event_id WHERE me_px.module_id = m.id AND es_px.instructor LIKE ?)) ");
+            let pat = format!("%{}%", p_trimmed);
+            params.push(serde_json::Value::String(pat.clone()));
+            params.push(serde_json::Value::String(pat));
+        }
+    }
+
+    // Department / Fachgebiet filter
+    let dept = filter.department.trim();
+    if !dept.is_empty() {
+        sql.push_str("AND m.department LIKE ? ");
+        params.push(serde_json::Value::String(format!("%{}%", dept)));
+    }
+
+    // Prüfungsformen Multi-Filter
+    let mut exam_clauses = Vec::new();
+    if filter.exam_klausur {
+        exam_clauses.push("LOWER(m.exam_type) LIKE '%klausur%'");
+    }
+    if filter.exam_muendlich {
+        exam_clauses.push("LOWER(m.exam_type) LIKE '%mündlich%'");
+    }
+    if filter.exam_beleg {
+        exam_clauses.push("(LOWER(m.exam_type) LIKE '%beleg%' OR LOWER(m.exam_type) LIKE '%hausarbeit%' OR LOWER(m.exam_type) LIKE '%projekt%')");
+    }
+    if !exam_clauses.is_empty() {
+        sql.push_str(&format!("AND ({}) ", exam_clauses.join(" OR ")));
+    }
+
+    // Lehrformen Multi-Filter
+    let mut teaching_clauses = Vec::new();
+    if filter.teaching_vorlesung {
+        teaching_clauses.push("(LOWER(m.teaching_forms) LIKE '%vorlesung%' OR EXISTS (SELECT 1 FROM module_events me_t JOIN events e_t ON me_t.event_id = e_t.id WHERE me_t.module_id = m.id AND LOWER(e_t.event_type) LIKE '%vorlesung%'))");
+    }
+    if filter.teaching_uebung {
+        teaching_clauses.push("(LOWER(m.teaching_forms) LIKE '%übung%' OR EXISTS (SELECT 1 FROM module_events me_t JOIN events e_t ON me_t.event_id = e_t.id WHERE me_t.module_id = m.id AND LOWER(e_t.event_type) LIKE '%übung%'))");
+    }
+    if filter.teaching_praktikum {
+        teaching_clauses.push("(LOWER(m.teaching_forms) LIKE '%praktikum%' OR EXISTS (SELECT 1 FROM module_events me_t JOIN events e_t ON me_t.event_id = e_t.id WHERE me_t.module_id = m.id AND LOWER(e_t.event_type) LIKE '%praktikum%'))");
+    }
+    if !teaching_clauses.is_empty() {
+        sql.push_str(&format!("AND ({}) ", teaching_clauses.join(" OR ")));
+    }
+
+    // Benotung filter
+    match filter.grading.as_str() {
+        "benotet" => {
+            sql.push_str("AND (LOWER(m.grading) LIKE '%benotet%' OR (m.grading IS NULL AND LOWER(m.exam_type) NOT LIKE '%unbenotet%')) ");
+        }
+        "unbenotet" => {
+            sql.push_str("AND (LOWER(m.grading) LIKE '%unbenotet%' OR LOWER(m.grading) LIKE '%bestanden%' OR LOWER(m.exam_type) LIKE '%unbenotet%') ");
+        }
+        _ => {}
+    }
+
+    // Moduldauer filter
+    match filter.duration.as_str() {
+        "1" => {
+            sql.push_str("AND (m.duration LIKE '%1%' OR m.duration IS NULL OR m.duration = '') ");
+        }
+        "2" => {
+            sql.push_str("AND m.duration LIKE '%2%' ");
+        }
+        _ => {}
     }
 
     // Limitation filter: "ja" (all), "nein" (ohne Limit), "nur" (nur beschränkt)
@@ -359,7 +463,8 @@ pub fn get_linked_programs(module_id: &str) -> Vec<ProgramOption> {
 
 pub fn get_curriculum_entries(module_id: &str) -> Vec<CurriculumModuleItem> {
     let sql = "SELECT DISTINCT p.id as program_id, p.program_name, p.degree, p.po_version, \
-               pcm.recommended_semester, pcm.module_type, pcm.credits, pcm.specialization \
+               pcm.recommended_semester, pcm.module_type, pcm.study_section, pcm.subject_area, pcm.area_rules, \
+               pcm.credits, pcm.specialization \
                FROM program_curriculum_modules pcm \
                JOIN official_study_programs p ON p.id = pcm.program_id \
                WHERE pcm.module_id = ? \
@@ -404,16 +509,110 @@ pub fn get_study_program_all_regulations(program_name: &str, degree: &str) -> Ve
     ]).unwrap_or_default()
 }
 
+pub fn get_study_program_counterpart(program_name: &str, current_degree: &str) -> Option<ProgramOption> {
+    let p_clean = program_name.trim();
+    let d_low = current_degree.to_lowercase();
+
+    // Identify if currently Bachelor or Master
+    let is_bachelor = d_low.contains("bachelor") || d_low.contains("b.sc") || d_low.contains("b.a") || d_low.contains("b.eng");
+    let is_master = d_low.contains("master") || d_low.contains("m.sc") || d_low.contains("m.a") || d_low.contains("m.eng");
+
+    let target_deg_clause = if is_bachelor {
+        "(LOWER(degree) LIKE '%master%' OR LOWER(degree) LIKE '%m.sc%' OR LOWER(degree) LIKE '%m.a%' OR LOWER(degree) LIKE '%m.eng%')"
+    } else if is_master {
+        "(LOWER(degree) LIKE '%bachelor%' OR LOWER(degree) LIKE '%b.sc%' OR LOWER(degree) LIKE '%b.a%' OR LOWER(degree) LIKE '%b.eng%')"
+    } else {
+        return None;
+    };
+
+    // Find direct counterpart with matching or similar program name
+    let sql = format!(
+        "SELECT id, program_name, degree, po_version \
+         FROM official_study_programs \
+         WHERE {} \
+           AND (LOWER(program_name) = LOWER(?) \
+                OR LOWER(program_name) LIKE LOWER(?) \
+                OR LOWER(?) LIKE '%' || LOWER(program_name) || '%') \
+         ORDER BY po_version DESC LIMIT 1",
+        target_deg_clause
+    );
+
+    let pat = format!("%{}%", p_clean);
+    let list: Vec<ProgramOption> = execute_query(&sql, &[
+        serde_json::Value::String(p_clean.to_string()),
+        serde_json::Value::String(pat),
+        serde_json::Value::String(p_clean.to_string()),
+    ]).unwrap_or_default();
+
+    list.into_iter().next()
+}
+
 pub fn get_study_program_curriculum_modules(program_id: &str) -> Vec<ModuleCardItem> {
-    let sql = "SELECT DISTINCT m.id, m.code, m.title_de, m.title_en, m.department, m.credits, \
+    // 1. Try fetching directly from program_curriculum_modules (extracted from statute PO with slots & semesters)
+    let pcm_sql = "SELECT \
+                   COALESCE(m.id, 'curriculum_' || pcm.id) as id, \
+                   COALESCE(m.code, pcm.module_code, '') as code, \
+                   COALESCE(pcm.module_name, m.title_de, '') as title_de, \
+                   COALESCE(pcm.module_name_en, m.title_en, '') as title_en, \
+                   m.department, \
+                   COALESCE(pcm.credits, m.credits) as credits, \
+                   m.credits_raw, m.turnus, m.language, \
+                   CASE WHEN LOWER(pcm.module_type) = 'füs' OR m.is_fues = 1 THEN 1 ELSE 0 END as is_fues, \
+                   m.cross_disciplinary, m.is_phase_out, m.is_not_offered, m.limitation, \
+                   COALESCE(pcm.exam_type, m.exam_type) as exam_type, \
+                   m.successor_modules, \
+                   COALESCE(pcm.prerequisites, m.prerequisites_mandatory) as prerequisites_mandatory, \
+                   m.prerequisites_recommended, \
+                   (SELECT COUNT(*) FROM module_events me WHERE me.module_id = m.id) as events_count, \
+                   pcm.recommended_semester, pcm.semester_span, pcm.start_semester, pcm.end_semester, pcm.min_credits, pcm.max_credits, \
+                   pcm.module_type, pcm.study_section, pcm.subject_area, pcm.area_rules, pcm.specialization \
+                   FROM program_curriculum_modules pcm \
+                   LEFT JOIN modules m ON pcm.module_id = m.id \
+                   WHERE pcm.program_id = ? \
+                   ORDER BY pcm.recommended_semester ASC, pcm.module_name ASC";
+    let list: Vec<ModuleCardItem> = execute_query(pcm_sql, &[serde_json::Value::String(program_id.to_string())]).unwrap_or_default();
+    if !list.is_empty() {
+        return list;
+    }
+
+    // 2. Fallback to module_study_programs
+    let sql = "SELECT DISTINCT m.id, m.code, m.title_de, m.title_en, m.department, \
+               COALESCE(msp.credits, m.credits) as credits, \
                m.credits_raw, m.turnus, m.language, m.is_fues, m.cross_disciplinary, \
                m.is_phase_out, m.is_not_offered, m.limitation, m.exam_type, m.successor_modules, \
                m.prerequisites_mandatory, m.prerequisites_recommended, \
                (SELECT COUNT(*) FROM module_events me WHERE me.module_id = m.id) as events_count, \
-               msp.recommended_semester, msp.module_type \
+               msp.recommended_semester, msp.module_type, msp.study_section, msp.subject_area, msp.area_rules, msp.specialization \
                FROM modules m \
                JOIN module_study_programs msp ON m.id = msp.module_id \
                WHERE msp.program_id = ? \
                ORDER BY msp.recommended_semester ASC, m.title_de ASC";
     execute_query(sql, &[serde_json::Value::String(program_id.to_string())]).unwrap_or_default()
+}
+
+#[derive(serde::Deserialize)]
+struct DepartmentRow {
+    department: Option<String>,
+}
+
+pub fn get_all_departments() -> Vec<String> {
+    let sql = "SELECT DISTINCT department FROM modules WHERE department IS NOT NULL AND department != '' ORDER BY department ASC";
+    let rows: Vec<DepartmentRow> = execute_query(sql, &[]).unwrap_or_default();
+    let mut set = std::collections::BTreeSet::new();
+    for r in rows {
+        if let Some(d) = r.department {
+            let trimmed = d.trim();
+            if !trimmed.is_empty() {
+                // Get clean last component or whole name
+                if let Some(idx) = trimmed.rfind('/') {
+                    if idx + 1 < trimmed.len() {
+                        set.insert(trimmed[idx + 1..].trim().to_string());
+                        continue;
+                    }
+                }
+                set.insert(trimmed.to_string());
+            }
+        }
+    }
+    set.into_iter().collect()
 }

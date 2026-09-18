@@ -35,8 +35,8 @@ func DefaultConfig() Config {
 	return Config{
 		OffPeakStartHour:      1, // 01:00
 		OffPeakEndHour:        6, // 06:00
-		ModuleDetailDelay:     1500 * time.Millisecond,
-		QISDelay:              4500 * time.Millisecond,
+		ModuleDetailDelay:     500 * time.Millisecond,
+		QISDelay:              500 * time.Millisecond,
 		CatalogInterval:       12 * time.Hour,
 		OffPeakOnlyBackground: true,
 	}
@@ -90,6 +90,7 @@ type Refresher struct {
 	totalRefreshed     uint64
 	totalEventsScraped uint64
 	totalErrors        uint64
+	consecutiveErrors  int
 	queuedPriority     map[string]bool
 	queuedPriorityMu   sync.Mutex
 	queuedEvents       map[string]bool
@@ -554,12 +555,44 @@ func (r *Refresher) recordError(component, target string, err error) {
 	// Trigger exponential backoff on connection or rate-limiting errors
 	errStr := err.Error()
 	if isRateLimitOrServerDown(errStr) {
-		r.triggerBackoff(5 * time.Minute)
+		r.mu.Lock()
+		r.consecutiveErrors++
+		errCount := r.consecutiveErrors
+		r.mu.Unlock()
+
+		backoffDur := computeExponentialBackoff(errCount)
+		r.triggerBackoff(backoffDur)
 	}
 }
 
 func (r *Refresher) recordSuccess() {
+	r.mu.Lock()
+	r.consecutiveErrors = 0
+	r.mu.Unlock()
 	r.log.RecordScrapeSuccess()
+}
+
+func computeExponentialBackoff(errCount int) time.Duration {
+	switch {
+	case errCount <= 1:
+		return 5 * time.Second
+	case errCount == 2:
+		return 15 * time.Second
+	case errCount == 3:
+		return 30 * time.Second
+	case errCount == 4:
+		return 1 * time.Minute
+	case errCount == 5:
+		return 2 * time.Minute
+	case errCount == 6:
+		return 5 * time.Minute
+	case errCount == 7:
+		return 15 * time.Minute
+	case errCount == 8:
+		return 30 * time.Minute
+	default:
+		return 60 * time.Minute // Max 1 hour exponential backoff
+	}
 }
 
 func (r *Refresher) triggerBackoff(dur time.Duration) {
@@ -567,7 +600,7 @@ func (r *Refresher) triggerBackoff(dur time.Duration) {
 	defer r.mu.Unlock()
 	r.backoffUntil = time.Now().Add(dur)
 	r.state = fmt.Sprintf("backing_off (until %s)", r.backoffUntil.Format("15:04:05"))
-	r.log.Warn("REFRESHER", "Triggered scraper backoff for %v due to university server response", dur)
+	r.log.Warn("REFRESHER", "Triggered scraper exponential backoff for %v (error streak: %d) due to university server response", dur, r.consecutiveErrors)
 }
 
 func (r *Refresher) isBackingOff() bool {

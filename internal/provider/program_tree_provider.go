@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -613,3 +614,101 @@ func cleanSlug(s, fallback string) string {
 	}
 	return s
 }
+
+// TraverseQISCurriculum traverses the nested QIS tree for a specific PO and extracts all categorized module assignments.
+func (p *BTUProgramTreeProvider) TraverseQISCurriculum(
+	ctx context.Context,
+	poURL string,
+	prog model.OfficialStudyProgram,
+	delayMs int,
+) ([]model.CurriculumModule, error) {
+	if delayMs <= 0 {
+		delayMs = 300
+	}
+
+	var results []model.CurriculumModule
+	visited := make(map[string]bool)
+	seenModules := make(map[string]bool)
+
+	var walk func(currentURL string, path []string)
+	walk = func(currentURL string, path []string) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		if visited[currentURL] {
+			return
+		}
+		visited[currentURL] = true
+
+		if delayMs > 0 {
+			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+		}
+
+		htmlBytes, err := p.fetchHTML(ctx, currentURL, false)
+		if err != nil {
+			return
+		}
+
+		nodes, err := p.parser.ParsePOBranchNodes(bytes.NewReader(htmlBytes), "https://www.b-tu.de")
+		if err != nil {
+			return
+		}
+
+		for _, node := range nodes {
+			if node.IsModule {
+				studySection, subjectArea, moduleType, specialization := parser.AnalyzeQISPath(path)
+				modCode := node.ModuleID
+				if modCode == "" && len(node.Text) >= 5 {
+					if m := regexp.MustCompile(`^(\d{5})`).FindStringSubmatch(node.Text); len(m) > 1 {
+						modCode = m[1]
+					}
+				}
+
+				key := fmt.Sprintf("%s_%s_%s_%s", modCode, node.Title, studySection, subjectArea)
+				if !seenModules[key] {
+					seenModules[key] = true
+					results = append(results, model.CurriculumModule{
+						ProgramID:      prog.ID,
+						ProgramName:    prog.ProgramName,
+						Degree:         prog.Degree,
+						POVersion:      prog.POVersion,
+						ModuleID:       modCode,
+						ModuleCode:     modCode,
+						ModuleName:     node.Title,
+						ModuleType:     moduleType,
+						StudySection:   studySection,
+						SubjectArea:    subjectArea,
+						Specialization: specialization,
+						SourceFile:     "qis_tree",
+						ExtractedAt:    time.Now(),
+					})
+				}
+			} else {
+				// Category branch (e.g. Grundstudium, Fachstudium, Praktische Informatik, etc.)
+				if !containsString(path, node.Text) &&
+					!strings.HasPrefix(node.Text, "PO-Version") &&
+					!strings.HasPrefix(node.Text, "Studiengang") &&
+					!strings.HasPrefix(node.Text, "Module für Abschluss") {
+					newPath := append(append([]string{}, path...), node.Text)
+					walk(node.URL, newPath)
+				}
+			}
+		}
+	}
+
+	walk(poURL, nil)
+	return results, nil
+}
+
+func containsString(slice []string, val string) bool {
+	for _, s := range slice {
+		if s == val {
+			return true
+		}
+	}
+	return false
+}
+

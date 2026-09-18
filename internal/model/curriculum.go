@@ -15,8 +15,16 @@ type CurriculumModule struct {
 	ModuleNameEN           string    `json:"module_name_en,omitempty"`
 	RecommendedSemester    int       `json:"recommended_semester"` // 1, 2, 3...
 	RecommendedSemesterRaw string    `json:"recommended_semester_raw,omitempty"`
+	SemesterSpan           string    `json:"semester_span,omitempty"` // e.g. "5-6", "3-4"
+	StartSemester          int       `json:"start_semester,omitempty"`
+	EndSemester            int       `json:"end_semester,omitempty"`
 	Credits                float64   `json:"credits"`
+	MinCredits             float64   `json:"min_credits,omitempty"` // For range rules (e.g. 10.0 in "10-24")
+	MaxCredits             float64   `json:"max_credits,omitempty"` // For range rules (e.g. 24.0 in "10-24")
 	ModuleType             string    `json:"module_type"` // "Pflicht", "Wahlpflicht", "Wahl", "FÜS", "Abschlussarbeit", "Praktikum"
+	StudySection           string    `json:"study_section,omitempty"` // "Grundstudium", "Fachstudium", "Vertiefungsstudium"
+	SubjectArea            string    `json:"subject_area,omitempty"`  // "Grundlagen der Informatik", "Praktische Informatik", "Angewandte und Technische Informatik", "Nebenfach"
+	AreaRules              string    `json:"area_rules,omitempty"`    // e.g. "Im Nebenfach müssen alle Module aus demselben Bereich belegt werden"
 	Specialization         string    `json:"specialization,omitempty"`
 	SWS                    string    `json:"sws,omitempty"`
 	ExamType               string    `json:"exam_type,omitempty"`

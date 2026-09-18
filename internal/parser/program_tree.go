@@ -311,3 +311,160 @@ func resolveURL(base, ref string) string {
 	}
 	return parsedBase.ResolveReference(parsedRef).String()
 }
+
+var (
+	moduleLeafCodeRegex = regexp.MustCompile(`^(\d{5})\s+(.+)$`)
+)
+
+// QISTreeNode represents any category branch or module leaf node inside the QIS PO hierarchy.
+type QISTreeNode struct {
+	Text     string
+	URL      string
+	NodeID   string
+	IsModule bool
+	ModuleID string
+	Title    string
+}
+
+// ParsePOBranchNodes extracts all child branch links and module leaves from a QIS PO node page.
+func (p *ProgramTreeParser) ParsePOBranchNodes(r io.Reader, baseURL string) ([]QISTreeNode, error) {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse HTML: %w", err)
+	}
+
+	var nodes []QISTreeNode
+	seen := make(map[string]bool)
+
+	var walk func(*html.Node, bool)
+	walk = func(n *html.Node, inTreelist bool) {
+		currentInTree := inTreelist
+		if n.Type == html.ElementNode && n.Data == "ul" && strings.Contains(GetAttr(n, "class"), "treelist") {
+			currentInTree = true
+		}
+
+		if currentInTree && n.Type == html.ElementNode && n.Data == "a" {
+			href := GetAttr(n, "href")
+			class := GetAttr(n, "class")
+			text := CleanSingleLine(NodeText(n))
+
+			if strings.Contains(href, "nodeID") && !strings.Contains(class, "breadCrumb") && text != "" && text != "Oberste Ebene" {
+				fullURL := resolveURL(baseURL, href)
+				parsedURL, _ := url.Parse(fullURL)
+				nodeID := ""
+				if parsedURL != nil {
+					nodeID = parsedURL.Query().Get("nodeID")
+				}
+
+				if nodeID != "" && !seen[nodeID] {
+					seen[nodeID] = true
+					isMod := false
+					modID := ""
+					title := text
+
+					if m := moduleLeafCodeRegex.FindStringSubmatch(text); len(m) > 2 {
+						isMod = true
+						modID = m[1]
+						title = m[2]
+					} else if strings.Contains(nodeID, "pruefung:") {
+						isMod = true
+					}
+
+					nodes = append(nodes, QISTreeNode{
+						Text:     text,
+						URL:      fullURL,
+						NodeID:   nodeID,
+						IsModule: isMod,
+						ModuleID: modID,
+						Title:    title,
+					})
+				}
+			}
+		}
+
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c, currentInTree)
+		}
+	}
+
+	walk(doc, false)
+	return nodes, nil
+}
+
+// AnalyzeQISPath extracts StudySection, SubjectArea, ModuleType, and Specialization from a QIS hierarchy path.
+func AnalyzeQISPath(path []string) (studySection, subjectArea, moduleType, specialization string) {
+	// Clean path components: remove root headers
+	var clean []string
+	for _, p := range path {
+		t := strings.TrimSpace(p)
+		if t == "" || t == "Gesamtkonto" || t == "Oberste Ebene" ||
+			strings.HasPrefix(t, "Studiengang:") ||
+			strings.HasPrefix(t, "Module für Abschluss:") ||
+			strings.HasPrefix(t, "PO-Version:") {
+			continue
+		}
+		clean = append(clean, t)
+	}
+
+	// 1. Determine studySection
+	for _, segment := range clean {
+		low := strings.ToLower(segment)
+		if strings.Contains(low, "grundstudium") || strings.Contains(low, "basisstudium") {
+			studySection = "Grundstudium"
+			break
+		} else if strings.Contains(low, "fachstudium") || strings.Contains(low, "hauptstudium") {
+			studySection = "Fachstudium"
+			break
+		} else if strings.Contains(low, "vertiefungsstudium") {
+			studySection = "Vertiefungsstudium"
+			break
+		} else if strings.Contains(low, "kernstudium") {
+			studySection = "Kernstudium"
+			break
+		}
+	}
+
+	// 2. Determine moduleType
+	moduleType = "Pflicht"
+	for _, segment := range clean {
+		low := strings.ToLower(segment)
+		if strings.Contains(low, "wahlpflicht") || strings.Contains(low, "wahlbereich") ||
+			strings.Contains(low, "wahlmodul") || strings.Contains(low, "wpf") || strings.Contains(low, "wahl") {
+			moduleType = "Wahlpflicht"
+			break
+		} else if strings.Contains(low, "bachelor-arbeit") || strings.Contains(low, "bachelorarbeit") ||
+			strings.Contains(low, "master-arbeit") || strings.Contains(low, "masterarbeit") ||
+			strings.Contains(low, "abschlussarbeit") || strings.Contains(low, "kolloquium") {
+			moduleType = "Abschlussarbeit"
+			break
+		} else if strings.Contains(low, "füs") || strings.Contains(low, "fachübergreifend") {
+			moduleType = "FÜS"
+			break
+		}
+	}
+
+	// 3. Determine subjectArea & specialization
+	// Filter out the pure section name from subjectArea
+	var meaningfulSegments []string
+	for _, segment := range clean {
+		if segment != studySection {
+			meaningfulSegments = append(meaningfulSegments, segment)
+		}
+	}
+
+	if len(meaningfulSegments) == 1 {
+		subjectArea = meaningfulSegments[0]
+	} else if len(meaningfulSegments) == 2 {
+		subjectArea = meaningfulSegments[0]
+		specialization = meaningfulSegments[1]
+	} else if len(meaningfulSegments) > 2 {
+		subjectArea = meaningfulSegments[0] + " / " + meaningfulSegments[1]
+		specialization = meaningfulSegments[len(meaningfulSegments)-1]
+	}
+
+	if subjectArea == "" && studySection != "" {
+		subjectArea = studySection
+	}
+
+	return studySection, subjectArea, moduleType, specialization
+}

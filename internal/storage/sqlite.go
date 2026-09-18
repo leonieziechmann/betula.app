@@ -206,8 +206,16 @@ func (s *Storage) migrate() error {
 		module_name_en TEXT,
 		recommended_semester INTEGER DEFAULT 0,
 		recommended_semester_raw TEXT,
+		semester_span TEXT,
+		start_semester INTEGER DEFAULT 0,
+		end_semester INTEGER DEFAULT 0,
 		credits REAL DEFAULT 0,
+		min_credits REAL DEFAULT 0,
+		max_credits REAL DEFAULT 0,
 		module_type TEXT NOT NULL,
+		study_section TEXT,
+		subject_area TEXT,
+		area_rules TEXT,
 		specialization TEXT,
 		sws TEXT,
 		exam_type TEXT,
@@ -240,5 +248,20 @@ func (s *Storage) migrate() error {
 	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN specialization TEXT")
 	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN credits REAL DEFAULT 0")
 	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN source TEXT")
+	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN study_section TEXT")
+	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN subject_area TEXT")
+	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN area_rules TEXT")
+
+	// Enrich program_curriculum_modules with study_section, subject_area, area_rules, semester_span, min/max credits, start/end semester
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN study_section TEXT")
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN subject_area TEXT")
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN area_rules TEXT")
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN semester_span TEXT")
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN start_semester INTEGER DEFAULT 0")
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN end_semester INTEGER DEFAULT 0")
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN min_credits REAL DEFAULT 0")
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN max_credits REAL DEFAULT 0")
+	_, _ = s.db.Exec("CREATE INDEX IF NOT EXISTS idx_pcm_subject_area ON program_curriculum_modules(subject_area)")
+	_, _ = s.db.Exec("CREATE INDEX IF NOT EXISTS idx_pcm_study_section ON program_curriculum_modules(study_section)")
 	return nil
 }

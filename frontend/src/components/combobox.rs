@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use crate::fuzzy::{self, FuzzyConfig};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComboboxItem {
@@ -24,91 +25,15 @@ struct ComboboxOptionEntry {
     score: i32,
 }
 
-/// Calculates a fuzzy match score for query against target.
-/// Returns None if the query does not match the target characters in sequential order.
+/// Calculates a fuzzy match score for query against target using the generalized fuzzy search engine.
 /// Higher score indicates a better match.
 pub fn fuzzy_score(query: &str, target: &str) -> Option<i32> {
-    let q_trimmed = query.trim();
-    if q_trimmed.is_empty() {
-        return Some(0);
-    }
+    fuzzy_score_with_config(query, target, &FuzzyConfig::combobox())
+}
 
-    let query_lower: Vec<char> = q_trimmed.to_lowercase().chars().collect();
-    let target_lower: Vec<char> = target.to_lowercase().chars().collect();
-
-    if query_lower.is_empty() {
-        return Some(0);
-    }
-
-    // Exact match gets huge bonus
-    if query_lower == target_lower {
-        return Some(2000);
-    }
-
-    let target_str = target.to_lowercase();
-    let query_str = q_trimmed.to_lowercase();
-    let is_exact_substr = target_str.contains(&query_str);
-
-    let mut q_idx = 0;
-    let mut score = 0;
-    let mut consecutive_matches = 0;
-    let mut first_match_idx = None;
-    let mut last_match_idx = 0;
-
-    for (t_idx, &t_char) in target_lower.iter().enumerate() {
-        if q_idx < query_lower.len() && t_char == query_lower[q_idx] {
-            if first_match_idx.is_none() {
-                first_match_idx = Some(t_idx);
-            }
-            last_match_idx = t_idx;
-
-            let mut char_score = 10;
-
-            // Beginning of string bonus
-            if t_idx == 0 {
-                char_score += 100;
-            } else {
-                // Word boundary bonus (after space, parenthesis, slash, dash, dot, colon)
-                let prev = target_lower[t_idx - 1];
-                if matches!(prev, ' ' | '(' | '[' | '{' | '-' | '/' | '_' | '.' | ':' | ',') {
-                    char_score += 70;
-                }
-            }
-
-            // Consecutive matches bonus
-            if consecutive_matches > 0 {
-                char_score += 35 * consecutive_matches as i32;
-            }
-            consecutive_matches += 1;
-
-            score += char_score;
-            q_idx += 1;
-        } else {
-            consecutive_matches = 0;
-        }
-    }
-
-    if q_idx == query_lower.len() {
-        if is_exact_substr {
-            score += 300;
-            if target_str.starts_with(&query_str) {
-                score += 200;
-            }
-        }
-
-        // Distance penalty: span between first and last matched char
-        if let Some(first) = first_match_idx {
-            let span = (last_match_idx - first + 1) as i32;
-            score -= span * 2;
-        }
-
-        // Length penalty: prefer shorter targets for same matches
-        score -= target_lower.len() as i32;
-
-        Some(score)
-    } else {
-        None
-    }
+/// Calculates a fuzzy match score using a custom FuzzyConfig.
+pub fn fuzzy_score_with_config(query: &str, target: &str, config: &FuzzyConfig) -> Option<i32> {
+    fuzzy::fuzzy_score(query, target, config).map(|s| s.round() as i32)
 }
 
 fn scroll_index_into_view(options_ref: NodeRef<leptos::html::Div>, index: usize) {
@@ -144,11 +69,13 @@ pub fn Combobox(
     on_clear: Callback<()>,
     #[prop(optional, into)] container_class: Option<String>,
     #[prop(optional)] anchor_to_parent: bool,
+    #[prop(optional)] fuzzy_config: Option<FuzzyConfig>,
 ) -> impl IntoView {
     let (search_query, set_search_query) = signal(String::new());
     let highlighted_index = RwSignal::new(0usize);
     let input_ref = NodeRef::<leptos::html::Input>::new();
     let options_ref = NodeRef::<leptos::html::Div>::new();
+    let active_cfg = fuzzy_config.unwrap_or_else(FuzzyConfig::combobox);
 
     let mut classes = vec!["combobox-container".to_string()];
     if anchor_to_parent {
@@ -182,7 +109,7 @@ pub fn Combobox(
             }
         } else {
             if let Some(label) = default_item_label {
-                if let Some(score) = fuzzy_score(q_trimmed, label) {
+                if let Some(score) = fuzzy_score_with_config(q_trimmed, label, &active_cfg) {
                     entries.push(ComboboxOptionEntry {
                         item: ComboboxItem::new("", label, None),
                         is_default: true,
@@ -191,7 +118,7 @@ pub fn Combobox(
                 }
             }
             for item in items.get() {
-                if let Some(score) = fuzzy_score(q_trimmed, &item.label) {
+                if let Some(score) = fuzzy_score_with_config(q_trimmed, &item.label, &active_cfg) {
                     entries.push(ComboboxOptionEntry {
                         item,
                         is_default: false,

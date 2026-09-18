@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -25,8 +26,16 @@ type ExtractedModule struct {
 	ModuleNameEN           string  `json:"module_name_en,omitempty"`
 	RecommendedSemester    int     `json:"recommended_semester,omitempty"`
 	RecommendedSemesterRaw string  `json:"recommended_semester_raw,omitempty"`
+	SemesterSpan           string  `json:"semester_span,omitempty"` // e.g. "5-6", "3-4"
+	StartSemester          int     `json:"start_semester,omitempty"`
+	EndSemester            int     `json:"end_semester,omitempty"`
 	Credits                float64 `json:"credits,omitempty"`
+	MinCredits             float64 `json:"min_credits,omitempty"` // e.g. 10.0 for "10-24"
+	MaxCredits             float64 `json:"max_credits,omitempty"` // e.g. 24.0 for "10-24"
 	ModuleType             string  `json:"module_type"` // "Pflicht", "Wahlpflicht", "Wahl", "FÜS", "Abschlussarbeit", "Praktikum"
+	StudySection           string  `json:"study_section,omitempty"` // "Grundstudium", "Fachstudium", "Vertiefungsstudium"
+	SubjectArea            string  `json:"subject_area,omitempty"`  // "Grundlagen der Informatik", "Praktische Informatik", "Angewandte und Technische Informatik", "Nebenfach", etc.
+	AreaRules              string  `json:"area_rules,omitempty"`    // e.g. "Im Nebenfach müssen alle Module aus demselben Bereich gewählt werden", "Mind. 12 LP"
 	Specialization         string  `json:"specialization,omitempty"`
 	SWS                    string  `json:"sws,omitempty"`
 	ExamType               string  `json:"exam_type,omitempty"`
@@ -71,6 +80,11 @@ func NewClient(apiKey, model string) *Client {
 // SetBaseURL overrides the API base URL (useful for mock testing).
 func (c *Client) SetBaseURL(url string) {
 	c.baseURL = url
+}
+
+// SetModel overrides the model name.
+func (c *Client) SetModel(model string) {
+	c.model = model
 }
 
 type geminiPart struct {
@@ -135,8 +149,16 @@ const curriculumSchema = `{
 					"module_name_en": { "type": "STRING" },
 					"recommended_semester": { "type": "INTEGER" },
 					"recommended_semester_raw": { "type": "STRING" },
+					"semester_span": { "type": "STRING" },
+					"start_semester": { "type": "INTEGER" },
+					"end_semester": { "type": "INTEGER" },
 					"credits": { "type": "NUMBER" },
+					"min_credits": { "type": "NUMBER" },
+					"max_credits": { "type": "NUMBER" },
 					"module_type": { "type": "STRING", "enum": ["Pflicht", "Wahlpflicht", "Wahl", "FÜS", "Abschlussarbeit", "Praktikum"] },
+					"study_section": { "type": "STRING" },
+					"subject_area": { "type": "STRING" },
+					"area_rules": { "type": "STRING" },
 					"specialization": { "type": "STRING" },
 					"sws": { "type": "STRING" },
 					"exam_type": { "type": "STRING" },
@@ -144,7 +166,7 @@ const curriculumSchema = `{
 					"prerequisites": { "type": "STRING" },
 					"remarks": { "type": "STRING" }
 				},
-				"required": ["module_name", "module_type"]
+				"required": ["module_name", "module_type", "recommended_semester", "credits"]
 			}
 		}
 	},
@@ -164,28 +186,70 @@ func (c *Client) ExtractCurriculumFromPDF(ctx context.Context, pdfPath string, p
 
 	b64Data := base64.StdEncoding.EncodeToString(pdfBytes)
 
-	prompt := fmt.Sprintf(`Du bist ein Experte für deutsche Hochschulprüfungsordnungen der BTU Cottbus-Senftenberg.
-Analysiere die beigefügte Studien- und Prüfungsordnung (bzw. Satzungsänderung) gründlich.
+	prompt := fmt.Sprintf(`Du bist ein führender Experte für deutsche Hochschulprüfungsordnungen (PO/SO) und Regelstudienpläne der BTU Cottbus-Senftenberg.
+Analysiere die beigefügte Studien- und Prüfungsordnung (bzw. Satzungsänderung) extrem gründlich und fehlerfrei.
 Hinweis zum Studiengang: "%s" (Dateiname: %s).
 
-Extrahiere den kompletten Studienverlaufsplan / Regelstudienplan / die Modultabelle (Anlage zur Prüfungsordnung):
-1. Ermittle den genauen Studiengang (program_name), Abschluss (degree) und die PO-Version / das Amtsblatt (po_version).
-2. Extrahiere ALLE aufgeführten Module und Lehrveranstaltungen mit:
-   - module_code: Modulnummer/Modulcode, falls in der Tabelle angegeben (oft 5-stellig wie z.B. 11101, 12104, oder Kürzel)
-   - module_name: Offizieller Modulname auf Deutsch
+AUFGABE: Extrahiere den offiziellen Studienablaufplan / Regelstudienplan (Modultabelle / Semesterübersicht) der Anlage zur Ordnung.
+
+BEACHTE DIE FOLGENDEN STRENGEN REGELN FÜR DIE TABELLENANALYSE:
+
+1. SPALTEN-ZUORDNUNG & MEHRSEMESTRIGE MODULE:
+   - Jede Zahl in den Spalten "1", "2", "3", "4", "5", "6" entspricht den Leistungspunkten im jeweiligen Semester.
+   - Wenn ein Modul über mehrere Semester geht (z. B. Laborpraktikum "(3+3) 6" in Semester 3 und 4):
+     - Trage das Anfangssemester ein: recommended_semester = 3
+     - start_semester = 3, end_semester = 4, semester_span = "3-4"
+     - credits = 6.0
+     - remarks = "2-semestrig (3 LP im 3. FS + 3 LP im 4. FS)"
+
+2. MEHRERE ZAHLEN IN EINER ZEILE (SPLITTE IN SEPARATE EINTRÄGE):
+   - Hat eine Zeile Zahlen in mehreren Semester-Spalten (z. B. "Anwendungsfach" mit 6 LP in Spalte 3 UND 6 LP in Spalte 4), erstelle für JEDES aktive Semester einen separaten Eintrag im Array modules:
+     - Eintrag A: recommended_semester = 3, credits = 6.0, module_name = "Anwendungsfach"
+     - Eintrag B: recommended_semester = 4, credits = 6.0, module_name = "Anwendungsfach"
+
+3. VERTIKALE ZUSAMMENFASSUNGEN (VERTIKAL ZUSAMMENGEFASSTE ZELLEN):
+   - Wenn ein vertikal zusammengefasstes Feld über mehrere Zeilen in einem Semester steht (wie z. B. im 4. Semester Informatik: 6 LP wählbar aus einem der drei Fachstudium-Komplexe):
+     - Erfasse dies als eigenen Wahlpflicht-Slot für das betreffende Semester:
+       - module_name: "Wahlpflichtmodul aus den Komplexen des Fachstudiums"
+       - recommended_semester: 4, credits: 6.0
+       - module_type: "Wahlpflicht", study_section: "Fachstudium", subject_area: "Fachstudium Komplexe"
+       - remarks: "Wählbar aus Komplex Grundlagen der Informatik, Komplex Praktische Informatik oder Komplex Angewandte und Technische Informatik (6 LP im 4. FS)"
+
+4. MIN/MAX-RANGES & SEMESTERÜBERGREIFENDE BEREICHE (z. B. 5.-6. SEMESTER):
+   - Wenn Bereiche mit Min/Max-Spannbreiten angegeben sind (z. B. "10-24" LP im 5.–6. Semester für Komplex Grundlagen, Praktische, Angewandte Informatik):
+     - Erfasse die Komplexe jeweils mit:
+       - recommended_semester: 5, semester_span: "5-6"
+       - min_credits: 10.0, max_credits: 24.0
+       - credits: 14.0 (oder rechnerischer Mittelwert)
+       - area_rules: "10–24 LP im 5.–6. Fachsemester (Gesamt 10–30 LP)"
+   - Zusammen mit Seminar/Praktikum (4 LP) und Bachelorarbeit (12 LP) im 5.–6. Semester ergibt sich in Summe: Summe Fachstudium Sem 5-6 = 60 LP!
+
+5. 30-ECTS-SANITY-CHECK & SUMMENZEILEN-ABGLEICH (PFLICHT!):
+   - In einem 6-semestrigen Bachelor (180 LP) MÜSSEN pro Semester ca. 30 LP herauskommen (erlaubter Bereich 28-32 LP; Sem 5-6 zusammen = 60 LP).
+   - Vergleiche deine Semester-Summen mit der Fußzeile der Tabelle ("Summe Semester", "Summe Grundstudium", "Summe Fachstudium", "Summe Studium").
+
+6. FELDER PRO MODUL:
+   - module_code: Modulnummer falls angegeben (oft 5-stellig wie "12105", "11949"), sonst leer
+   - module_name: Exakter deutscher Name des Moduls oder Wahlpflicht-Platzhalters
    - module_name_en: Englischer Name falls vorhanden
-   - recommended_semester: Empfohlenes Fachsemester als Zahl (1, 2, 3, 4, 5, 6...). Falls unklar, 0.
-   - recommended_semester_raw: Semesterangabe im Original (z.B. "1.", "1.-2.", "3. oder 4.")
-   - credits: Leistungspunkte / ECTS / LP als Dezimalzahl (z.B. 6.0)
-   - module_type: Art des Moduls. Verwende genau einen dieser Werte: "Pflicht", "Wahlpflicht", "Wahl", "FÜS", "Abschlussarbeit", "Praktikum"
-   - specialization: Vertiefungsrichtung, Studienschwerpunkt oder Wahlpflichtkatalog, falls das Modul zu einem bestimmten Schwerpunkt gehört (z.B. "Cybersecurity", "Katalog Technische Informatik"). Leer lassen wenn für alle gültig (Pflichtbereich).
-   - sws: Semesterwochenstunden falls vorhanden (z.B. "4 SWS", "2V+2Ü")
-   - exam_type: Art der Prüfungsleistung (z.B. "Klausur", "Mündliche Prüfung", "Hausarbeit", "Projekt")
+   - recommended_semester: Empfohlenes Fachsemester (1, 2, 3, 4, 5, 6...)
+   - recommended_semester_raw: Originaltext (z. B. "1.", "2.", "3.-4.", "5.-6.")
+   - semester_span: Semester-Spanne falls zutreffend (z. B. "5-6", "3-4"), sonst leer
+   - start_semester / end_semester: Bei mehsemestrigen Modulen (z. B. 3 und 4)
+   - credits: Leistungspunkte / ECTS für dieses Semester als Zahl (z. B. 6.0, 8.0, 10.0, 12.0)
+   - min_credits / max_credits: Min- und Max-Grenzen falls Range angegeben (z. B. 10.0 und 24.0)
+   - module_type: Genau einer von "Pflicht", "Wahlpflicht", "Wahl", "FÜS", "Abschlussarbeit", "Praktikum"
+   - study_section: "Grundstudium" (Semester 1-2 bzw. 1-4) oder "Fachstudium" / "Vertiefungsstudium"
+   - subject_area: Themenbereich / Komplex
+   - area_rules: Besondere Regeln laut Fußnoten/Ordnung (z. B. "Mind. 10 bis max. 24 LP aus jedem Komplex")
+   - specialization: Studienrichtung / Schwerpunkt falls modulspezifisch, sonst leer
+   - sws: Semesterwochenstunden falls vorhanden
+   - exam_type: Art der Prüfungsleistung
    - graded: "benotet" oder "unbenotet"
    - prerequisites: Teilnahmevoraussetzungen falls in der Tabelle angegeben
    - remarks: Besondere Hinweise oder Fußnoten
 
-Gib ausschließlich valides JSON gemäß dem vorgegebenen Schema zurück.`, programHint, filepath.Base(pdfPath))
+Gib ausschließlich valides JSON gemäß dem Schema zurück.`, programHint, filepath.Base(pdfPath))
 
 	reqPayload := geminiRequest{
 		Contents: []geminiContent{
@@ -282,5 +346,94 @@ Gib ausschließlich valides JSON gemäß dem vorgegebenen Schema zurück.`, prog
 		return nil, fmt.Errorf("failed to parse structured curriculum JSON (%w): %s", err, jsonText)
 	}
 
+	BalanceCurriculumSemesters(&result)
+
 	return &result, nil
+}
+
+// BalanceCurriculumSemesters performs automated balancing and validation across study semesters,
+// ensuring multi-semester spans and column alignment match the ~30 ECTS per semester standard.
+func BalanceCurriculumSemesters(res *CurriculumExtractionResult) {
+	if res == nil || len(res.Modules) == 0 {
+		return
+	}
+
+	// 1. Calculate semester sums
+	semSums := make(map[int]float64)
+	for _, m := range res.Modules {
+		if m.RecommendedSemester > 0 {
+			semSums[m.RecommendedSemester] += m.Credits
+		}
+	}
+
+	// 2. Pairwise adjacent balancing for shifted single-semester modules (e.g. Sem 3 has 36, Sem 4 has 24)
+	for sem := 1; sem <= 5; sem++ {
+		nextSem := sem + 1
+		sumCur := semSums[sem]
+		sumNext := semSums[nextSem]
+
+		diff := sumCur - 30.0
+		deficit := 30.0 - sumNext
+
+		if diff > 0 && deficit > 0 && diff == deficit {
+			// Find a module in current semester with credits == diff
+			for i := range res.Modules {
+				m := &res.Modules[i]
+				if m.RecommendedSemester == sem && m.Credits == diff && m.ModuleType != "Pflicht" {
+					m.RecommendedSemester = nextSem
+					semSums[sem] -= diff
+					semSums[nextSem] += diff
+					break
+				}
+			}
+		}
+	}
+
+	// 3. Multi-semester span balancing (e.g. Semesters 5 and 6 with span "5-6")
+	var spanModules []*ExtractedModule
+	for i := range res.Modules {
+		m := &res.Modules[i]
+		if (m.SemesterSpan == "5-6" || m.SemesterSpan == "5 - 6" || strings.Contains(m.RecommendedSemesterRaw, "5-6") || strings.Contains(m.RecommendedSemesterRaw, "5.-6.")) && (m.RecommendedSemester == 5 || m.RecommendedSemester == 6) {
+			spanModules = append(spanModules, m)
+		}
+	}
+
+	if len(spanModules) > 0 {
+		// Calculate non-span credits in Sem 5 and Sem 6
+		nonSpan5 := 0.0
+		nonSpan6 := 0.0
+		for i := range res.Modules {
+			m := &res.Modules[i]
+			isSpan := false
+			for _, sm := range spanModules {
+				if sm == m {
+					isSpan = true
+					break
+				}
+			}
+			if !isSpan {
+				if m.RecommendedSemester == 5 {
+					nonSpan5 += m.Credits
+				} else if m.RecommendedSemester == 6 {
+					nonSpan6 += m.Credits
+				}
+			}
+		}
+
+		targetSpan5 := 30.0 - nonSpan5
+		targetSpan6 := 30.0 - nonSpan6
+
+		if targetSpan5 > 0 && targetSpan6 > 0 {
+			// Distribute span module credits cleanly between sem 5 and sem 6
+			curSpan5 := 0.0
+			for _, m := range spanModules {
+				if curSpan5+m.Credits <= targetSpan5+2.0 {
+					m.RecommendedSemester = 5
+					curSpan5 += m.Credits
+				} else {
+					m.RecommendedSemester = 6
+				}
+			}
+		}
+	}
 }

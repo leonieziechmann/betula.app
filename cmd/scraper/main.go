@@ -70,6 +70,8 @@ func main() {
 		runDownloadStatutes(ctx, subArgs)
 	case "scan-curriculum", "ai-curriculum":
 		runScanCurriculum(ctx, subArgs)
+	case "qis-tree", "qis-curriculum", "scan-qis":
+		runQISCurriculum(ctx, subArgs)
 	case "show-curriculum", "curriculum":
 		runShowCurriculum(ctx, subArgs)
 	case "program-modules":
@@ -114,6 +116,8 @@ Commands:
                              [--name <filter>] [--degree <filter>] [--workers 2] [--delay 200] [--out-dir <dir>] [--refresh]
   scan-curriculum            Extract study plan & semester progression from PDF statutes using Gemini AI
                              [--name <filter>] [--degree <filter>] [--delay 500] [--force] [--api-key <key>]
+  qis-tree                   Extract complete study section, subject area & module tree from QISpos
+                             [--name <filter>] [--degree <filter>] [--delay 300]
   show-curriculum <name|id>  Display structured semester study plan (Pflicht / Wahlpflicht / ECTS)
   program-modules <name|id>  List all modules associated with an official study program
   providers                  List all registered data providers
@@ -1161,8 +1165,16 @@ func runScanCurriculum(ctx context.Context, args []string) {
 				ModuleNameEN:           m.ModuleNameEN,
 				RecommendedSemester:    m.RecommendedSemester,
 				RecommendedSemesterRaw: m.RecommendedSemesterRaw,
+				SemesterSpan:           m.SemesterSpan,
+				StartSemester:          m.StartSemester,
+				EndSemester:            m.EndSemester,
 				Credits:                m.Credits,
+				MinCredits:             m.MinCredits,
+				MaxCredits:             m.MaxCredits,
 				ModuleType:             m.ModuleType,
+				StudySection:           m.StudySection,
+				SubjectArea:            m.SubjectArea,
+				AreaRules:              m.AreaRules,
 				Specialization:         m.Specialization,
 				SWS:                    m.SWS,
 				ExamType:               m.ExamType,
@@ -1201,6 +1213,91 @@ func runScanCurriculum(ctx context.Context, args []string) {
 	fmt.Printf("    • Modules Linked to DB:     %d\n", totalMatched)
 
 	_ = asJSON
+}
+
+func runQISCurriculum(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("qis-tree", flag.ExitOnError)
+	dbPath := fs.String("db", "btu_modules.db", "SQLite database path")
+	cacheDir := fs.String("cache-dir", ".cache", "Cache directory")
+	nameFilter := fs.String("name", "", "Filter study programs by name (e.g. 'Informatik')")
+	degreeFilter := fs.String("degree", "", "Filter study programs by degree")
+	delayMs := fs.Int("delay", 300, "Delay in ms between QIS tree node requests (default 300ms)")
+	_ = fs.Parse(reorderFlags(args))
+
+	store, _, reg := setupApp(*dbPath, *cacheDir)
+	defer store.Close()
+
+	treeP, ok := reg.Get(provider.ProgramTreeProviderName)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Error: %s not registered\n", provider.ProgramTreeProviderName)
+		os.Exit(1)
+	}
+	treeProvider := treeP.(*provider.BTUProgramTreeProvider)
+
+	programs, err := store.ListOfficialPrograms(*nameFilter, *degreeFilter)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error querying programs: %v\n", err)
+		os.Exit(1)
+	}
+
+	var eligible []model.OfficialStudyProgram
+	for _, p := range programs {
+		if p.QISURL != "" {
+			eligible = append(eligible, p)
+		}
+	}
+
+	if len(eligible) == 0 {
+		fmt.Printf("No official study programs with QIS URL found matching filter %q\n", *nameFilter)
+		return
+	}
+
+	fmt.Printf("[+] Starting QISpos tree curriculum scan for %d study programs (delay=%dms)...\n\n", len(eligible), *delayMs)
+
+	totalModulesExtracted := 0
+	totalModulesLinked := 0
+
+	for idx, prog := range eligible {
+		select {
+		case <-ctx.Done():
+			fmt.Println("\n[!] Scan interrupted by user.")
+			return
+		default:
+		}
+
+		fmt.Printf("[%d/%d] 🌲 Scraping QISpos tree for %s (%s, PO %s)...\n",
+			idx+1, len(eligible), prog.ProgramName, prog.Degree, prog.POVersion)
+
+		curModules, err := treeProvider.TraverseQISCurriculum(ctx, prog.QISURL, prog, *delayMs)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "    ❌ Error traversing QIS tree: %v\n", err)
+			continue
+		}
+
+		if len(curModules) == 0 {
+			fmt.Printf("    ℹ️ No module leaves found under QIS node.\n")
+			continue
+		}
+
+		if err := store.SaveCurriculumModules(prog.ID, prog.ProgramName, prog.Degree, prog.POVersion, curModules, "qis_tree"); err != nil {
+			fmt.Fprintf(os.Stderr, "    ❌ Error saving curriculum modules: %v\n", err)
+			continue
+		}
+
+		tot, matched, err := store.MatchAndLinkCurriculumModules(prog.ID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "    ⚠️ Error matching modules: %v\n", err)
+		}
+
+		fmt.Printf("    ✓ Found %d modules in QIS tree (%d linked to DB catalog)\n", len(curModules), matched)
+		totalModulesExtracted += tot
+		totalModulesLinked += matched
+	}
+
+	fmt.Printf("\n[✓] QISpos Tree Curriculum Scan completed:\n")
+	fmt.Printf("    • Programs processed:  %d\n", len(eligible))
+	fmt.Printf("    • Total modules found: %d\n", totalModulesExtracted)
+	fmt.Printf("    • Linked to DB:        %d\n\n", totalModulesLinked)
 }
 
 func runShowCurriculum(ctx context.Context, args []string) {

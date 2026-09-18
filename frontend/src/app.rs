@@ -305,7 +305,15 @@ pub fn App() -> impl IntoView {
         if !f.query.is_empty() { count += 1; }
         if !f.program_id.is_empty() { count += 1; }
         if f.semester.is_some() { count += 1; }
+        if f.module_type != "alle" { count += 1; }
+        if !f.prof_includes.is_empty() { count += f.prof_includes.len(); }
+        if !f.prof_excludes.is_empty() { count += f.prof_excludes.len(); }
+        if !f.department.is_empty() { count += 1; }
         if !f.turnus_all { count += 1; }
+        if f.teaching_vorlesung || f.teaching_uebung || f.teaching_praktikum { count += 1; }
+        if f.duration != "alle" { count += 1; }
+        if f.exam_klausur || f.exam_muendlich || f.exam_beleg { count += 1; }
+        if f.grading != "alle" { count += 1; }
         if f.limitation != "ja" { count += 1; }
         if f.fues != "inkl" { count += 1; }
         if f.only_prereqs_met { count += 1; }

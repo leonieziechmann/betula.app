@@ -42,7 +42,25 @@ pub struct ModuleCardItem {
     #[serde(default)]
     pub recommended_semester: Option<i64>,
     #[serde(default)]
+    pub semester_span: Option<String>,
+    #[serde(default)]
+    pub start_semester: Option<i64>,
+    #[serde(default)]
+    pub end_semester: Option<i64>,
+    #[serde(default)]
+    pub min_credits: Option<f64>,
+    #[serde(default)]
+    pub max_credits: Option<f64>,
+    #[serde(default)]
     pub module_type: Option<String>,
+    #[serde(default)]
+    pub study_section: Option<String>,
+    #[serde(default)]
+    pub subject_area: Option<String>,
+    #[serde(default)]
+    pub area_rules: Option<String>,
+    #[serde(default)]
+    pub specialization: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -57,6 +75,12 @@ pub struct CurriculumModuleItem {
     pub recommended_semester: Option<i64>,
     #[serde(default)]
     pub module_type: Option<String>,
+    #[serde(default)]
+    pub study_section: Option<String>,
+    #[serde(default)]
+    pub subject_area: Option<String>,
+    #[serde(default)]
+    pub area_rules: Option<String>,
     #[serde(default)]
     pub credits: Option<f64>,
     #[serde(default)]
@@ -582,6 +606,11 @@ pub struct FilterOptions {
     pub program_id: String,
     pub po_version: String,
     pub semester: Option<i64>,
+    pub module_type: String, // "alle", "pflicht", "wahlpflicht", "fues"
+    // Dozenten & Organisation
+    pub prof_includes: Vec<String>,
+    pub prof_excludes: Vec<String>,
+    pub department: String,
     // Turnus filters
     pub turnus_all: bool,
     pub turnus_next: bool,
@@ -591,7 +620,16 @@ pub struct FilterOptions {
     pub turnus_sose_even: bool,
     pub turnus_sose_odd: bool,
     pub turnus_sporadic: bool,
-    // Filter controls
+    // Lehrformen & Dauer
+    pub teaching_vorlesung: bool,
+    pub teaching_uebung: bool,
+    pub teaching_praktikum: bool,
+    pub duration: String, // "alle", "1", "2"
+    // Prüfungen & Kriterien
+    pub exam_klausur: bool,
+    pub exam_muendlich: bool,
+    pub exam_beleg: bool,
+    pub grading: String, // "alle", "benotet", "unbenotet"
     pub limitation: String, // "ja", "nein", "nur"
     pub fues: String,       // "inkl", "exkl", "nur"
     pub only_prereqs_met: bool,
@@ -606,6 +644,12 @@ pub struct FilterOptions {
     // Languages
     pub lang_de: bool,
     pub lang_en: bool,
+    // Accordion State
+    pub acc_stg_open: bool,
+    pub acc_prof_open: bool,
+    pub acc_turnus_open: bool,
+    pub acc_filter_open: bool,
+    pub acc_ort_open: bool,
     // Special views
     pub is_bookmarks_view: bool,
     pub is_completed_view: bool,
@@ -621,6 +665,10 @@ impl Default for FilterOptions {
             program_id: String::new(),
             po_version: String::new(),
             semester: None,
+            module_type: "alle".to_string(),
+            prof_includes: Vec::new(),
+            prof_excludes: Vec::new(),
+            department: String::new(),
             turnus_all: true,
             turnus_next: false,
             turnus_accordion_open: false,
@@ -629,6 +677,14 @@ impl Default for FilterOptions {
             turnus_sose_even: false,
             turnus_sose_odd: false,
             turnus_sporadic: false,
+            teaching_vorlesung: false,
+            teaching_uebung: false,
+            teaching_praktikum: false,
+            duration: "alle".to_string(),
+            exam_klausur: false,
+            exam_muendlich: false,
+            exam_beleg: false,
+            grading: "alle".to_string(),
             limitation: "ja".to_string(),
             fues: "inkl".to_string(),
             only_prereqs_met: false,
@@ -641,6 +697,11 @@ impl Default for FilterOptions {
             campus_senftenberg: false,
             lang_de: true,
             lang_en: false,
+            acc_stg_open: true,
+            acc_prof_open: true,
+            acc_turnus_open: true,
+            acc_filter_open: true,
+            acc_ort_open: true,
             is_bookmarks_view: false,
             is_completed_view: false,
             sort_by: "title".to_string(),
