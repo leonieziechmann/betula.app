@@ -1,8 +1,9 @@
 // Small behaviours shared by the server-rendered pages and the browser app. Everything works
 // without this file (links and forms). Before the app has taken over (`window.__btuApp`), it
 // makes the classic site smoother: filters apply on change, panels keep their scroll position
-// across page loads. In both modes: Esc closes what feels like a popup, Ctrl+K or "/" jumps to
-// the search, the theme switch remembers the choice, the filter sheet opens and closes.
+// across page loads. In both modes: the shortcuts (Esc closes the preview or leaves the module
+// page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search), the theme
+// switch, the filter sheet, and the width of the module preview (dragged, kept in localStorage).
 (() => {
   const root = document.documentElement;
   const appRuns = () => window.__btuApp === true;
@@ -97,12 +98,58 @@
     }
   });
 
+  // ---- width of the module preview: drag the left edge, arrow keys, double click resets ----
+  const WIDTH_KEY = "btu.preview.width";
+  const setWidth = (px, remember) => {
+    const work = document.querySelector(".work");
+    const max = work ? Math.max(360, work.clientWidth - 400) : 2400;
+    const width = Math.round(Math.min(max, Math.max(360, px)));
+    root.style.setProperty("--preview-w", width + "px");
+    if (remember) { try { localStorage.setItem(WIDTH_KEY, String(width)); } catch {} }
+  };
+  document.addEventListener("pointerdown", (e) => {
+    const handle = e.target.closest('[data-action="resize-preview"]');
+    if (!handle || e.button !== 0) return;
+    e.preventDefault();
+    const panel = handle.parentElement.getBoundingClientRect();
+    const right = panel.right + (e.clientX - panel.left); // keep the grabbed point under the pointer
+    root.classList.add("resizing");
+    const move = (ev) => setWidth(right - ev.clientX, false);
+    const stop = (ev) => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", stop);
+      removeEventListener("pointercancel", stop);
+      root.classList.remove("resizing");
+      setWidth(right - ev.clientX, true);
+    };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", stop);
+    addEventListener("pointercancel", stop);
+  });
+  document.addEventListener("dblclick", (e) => {
+    if (!e.target.closest('[data-action="resize-preview"]')) return;
+    root.style.removeProperty("--preview-w");
+    try { localStorage.removeItem(WIDTH_KEY); } catch {}
+  });
+
+  // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
+    const resizer = e.target.closest ? e.target.closest('[data-action="resize-preview"]') : null;
+    if (resizer && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      e.preventDefault();
+      setWidth(resizer.parentElement.getBoundingClientRect().width + (e.key === "ArrowLeft" ? 32 : -32), true);
+      return;
+    }
+    const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
+    if (plain && e.key === "Escape") {
       if (filters()?.classList.contains("open")) { filters().classList.remove("open"); return; }
       if (typing(document.activeElement)) { document.activeElement.blur(); return; }
-      document.querySelector('[data-action="close-detail"]')?.click();
-    } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (e.key === "/" && !typing(document.activeElement))) {
+      // The preview first; on a module's own page Esc goes back to where the visitor came from.
+      (document.querySelector('[data-action="close-detail"]') || document.querySelector('[data-action="back"]'))?.click();
+    } else if (plain && (e.key === "f" || e.key === "F") && !typing(document.activeElement)) {
+      const full = document.querySelector('[data-action="fullscreen"]');
+      if (full) { e.preventDefault(); full.click(); }
+    } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();
       const search = document.getElementById("topsearch");
       search?.focus();

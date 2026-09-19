@@ -78,14 +78,15 @@ fn derive(data: &ModuleData) -> Derived {
 pub fn ModulePanel(data: ModuleData, close_href: String) -> impl IntoView {
     let id = data.module.id.clone();
     view! {
-        <section class="panel detail" data-swap="detail" aria-label="Modulvorschau">
+        <section class="panel detail" aria-label="Modulvorschau">
+            <div class="resizer" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
             <div class="scroll" data-keep-scroll="detail">
                 <header class="hero">
                     <div class="hero-top">
                         <a class="icon-btn back" href=close_href.clone() aria-label="Zurück zur Liste"><Icon name="arrow-left"/></a>
                         <span class="mono">{id.clone()}</span>
-                        <a class="ghost" href=url::module_path(&id) title="Als ganze Seite öffnen"><Icon name="maximize-2"/>"Vollbild"</a>
-                        <a class="icon-btn" href=close_href data-action="close-detail" aria-label="Vorschau schließen (Esc)"><Icon name="x"/></a>
+                        <a class="ghost" href=url::module_path(&id) data-action="fullscreen" title="Als ganze Seite öffnen (F)"><Icon name="maximize-2"/>"Vollbild"<kbd>"F"</kbd></a>
+                        <a class="ghost" href=close_href data-action="close-detail" title="Vorschau schließen (Esc)"><Icon name="x"/>"Schließen"<kbd>"Esc"</kbd></a>
                     </div>
                     <Heading data=data.clone()/>
                 </header>
@@ -126,7 +127,7 @@ pub fn ModulePage() -> impl IntoView {
                     <article class="module-page">
                         <header class="panel hero">
                             <div class="hero-top">
-                                <a class="ghost" href=url::CATALOG data-action="back"><Icon name="arrow-left"/>"Modulkatalog"</a>
+                                <a class="ghost" href=url::CATALOG data-action="back" title="Zurück (Esc)"><Icon name="arrow-left"/>"Zurück"<kbd>"Esc"</kbd></a>
                                 <span class="mono">{data.module.id.clone()}</span>
                             </div>
                             <Heading data=data.clone()/>

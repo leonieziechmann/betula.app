@@ -40,8 +40,10 @@ HTML form, nonsense ignored) and have one canonical spelling, which is also the 
 
 - **Layout:** a thin icon rail (52 px), a top bar with the search, and the whole remaining screen
   for content, with 8 px gaps and 9 px corners. The catalog is three panels side by side: filters,
-  list, and the preview of the selected module (`open=<id>`), so selecting a module keeps the
-  list, the filters and the scroll position; on a phone the preview fills the screen,
+  list, and the preview of the selected module (`open=<id>`). The preview floats above the list,
+  docked to the right edge, so the table is never resized; its width is changed by dragging its
+  left edge (arrow keys work too, a double click resets it) and remembered in `localStorage`.
+  Selecting a module keeps the list, the filters and the scroll position; on a phone the preview fills the screen,
   the filters become a bottom sheet and the rail a bottom bar. The list uses container queries:
   the narrower it gets, the fewer columns it shows.
 - **Targets:** whole rows are links (54 px, 72 px on a phone), filters are toggle chips
@@ -95,8 +97,12 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 
 - **R9. Server HTML is user-independent.** Bookmarks, passed modules and the chosen major live
   in the browser and are applied after the app took over, never during the first render.
-- **R10. Esc closes what feels like a popup** (suggestions, filter sheet, dialogs), nothing else.
-  Going back is the browser's job: every view is a real history entry.
+- **R10. Shortcuts are written next to their button** (`kbd`): Esc closes the filter sheet or the
+  module preview and, on a module's own page, goes back to where the visitor came from; `F` opens
+  the previewed module full screen; Ctrl+K or `/` jumps to the search. Every view is a real
+  history entry, so the browser's back always works too.
+- **R13. Personal view settings never go into the URL**: theme and the width of the preview live
+  in `localStorage` and are applied before the first paint by the script in `<head>`.
 - **R11. All SQL lives in `catalog/src/queries.rs`,** reads only `v_*` views, and every `pub fn`
   there runs against a real snapshot in the tests (the build fails otherwise).
 - **R12. Unknown stays unknown:** `Option` in the row structs, „nicht angegeben" on the page.
