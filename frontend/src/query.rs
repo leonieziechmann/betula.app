@@ -27,7 +27,7 @@ pub fn parameter(search: &str, name: &str) -> Option<String> {
     parameters(search).into_iter().find(|(k,v)|k==name&&!v.is_empty()).map(|(_,v)|v)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ProgramTab { Plan, Electives, All }
 impl ProgramTab { pub fn slug(self) -> &'static str { match self { Self::Plan => "plan", Self::Electives => "electives", Self::All => "modules" } } }
 #[derive(Clone, Debug, PartialEq)]

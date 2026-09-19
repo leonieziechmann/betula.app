@@ -384,6 +384,11 @@ pub fn App() -> impl IntoView {
     let on_toggle_bkmk_cb = Callback::new(move |id: String| toggle_bookmarked(id));
     let on_toggle_comp_cb = Callback::new(move |id: String| toggle_completed(id));
 
+    // Signal wrappers passed into pages must be created here, not inside the <For>:
+    // `.into()` there allocates them in the page's owner and frees them with the page.
+    let completed_signal = Signal::from(completed_modules);
+    let bookmarked_signal = Signal::from(bookmarked_modules);
+
     view! {
         <AppLayout
             sidebar_open=sidebar_open.into()
@@ -433,12 +438,18 @@ pub fn App() -> impl IntoView {
                 />
             }
         >
-            // Give each page its own lifetime. Tab/history changes must not
-            // dispose signals still referenced by the currently mounted page.
+            // Give each page its own lifetime. The program tab is part of the key and
+            // reaches the page as a plain value: if the page subscribed to `program_tab`,
+            // switching programs would run the outgoing page's effects once more after
+            // its signals were disposed, which panics.
             <For
-                each=move || vec![(db_ready.get(), not_found.get(), detail_program_id.get(), detail_module_id.get())]
+                each=move || {
+                    let program = detail_program_id.get();
+                    let tab = program.as_ref().map(|_| program_tab.get());
+                    vec![(db_ready.get(), not_found.get(), program, detail_module_id.get(), tab)]
+                }
                 key=|page| page.clone()
-                children=move |(ready, missing, program, module)| {
+                children=move |(ready, missing, program, module, tab)| {
                 if !ready {
                     // Database Loading Screen
                     view! {
@@ -466,7 +477,7 @@ pub fn App() -> impl IntoView {
                         <div id="modules-view">
                             <StudyProgramDetailPage
                                 program_id=prog_id
-                                active_tab=program_tab.into()
+                                active_tab=Signal::stored(tab.unwrap_or(ProgramTab::Plan))
                                 on_tab_change=on_program_tab
                                 on_back=close_program_page
                                 on_open_module=open_module
@@ -474,8 +485,8 @@ pub fn App() -> impl IntoView {
                                     on_select_program.run((p_id, p_name, po_ver));
                                     close_program_page();
                                 }
-                                completed_modules=completed_modules.into()
-                                bookmarked_modules=bookmarked_modules.into()
+                                completed_modules=completed_signal
+                                bookmarked_modules=bookmarked_signal
                             />
                         </div>
                     }.into_any()
@@ -485,8 +496,8 @@ pub fn App() -> impl IntoView {
                         <div id="modules-view">
                             <ModuleDetailPage
                                 module_id=mod_id
-                                completed_modules=completed_modules.into()
-                                bookmarked_modules=bookmarked_modules.into()
+                                completed_modules=completed_signal
+                                bookmarked_modules=bookmarked_signal
                                 on_back=close_module
                                 on_open_module=open_module
                                 on_open_program=open_program_page
