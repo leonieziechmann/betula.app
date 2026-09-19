@@ -1,217 +1,67 @@
-# BTU Course & Module Scraper
+# BTU catalog scraper
 
-A modular, extensible data collection application written in Go with minimal external dependencies. It collects course and module information from BTU Cottbus-Senftenberg (`b-tu.de/modul` and `b-tu.de/modul/<id>`), caches raw web data, and stores structured module records into SQLite.
+Collects course data of BTU Cottbus-Senftenberg (modules, study programs, study plans, events),
+keeps it up to date as a long-running service, and publishes it as SQLite snapshots over HTTP.
+A web server fetches the snapshots and redistributes them to browsers, which query the database
+locally through documented read views.
 
-## Schema v2 pipeline (current work)
+```
+b-tu.de/modul, QIS ──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ web server ──▶ browsers
+statute PDFs (OPUS) ──scan-curriculum (PDF geometry + optional Gemini enrichment)──▶ validated study plans
+```
 
-The scraper is being rebuilt around a raw page archive, a canonical SQLite model with read views,
-and a long-running service that publishes snapshots over HTTP. The commands below use
-`btu_v2.db`; the sections after this one describe the v1 commands, which still work and will be
-removed once the web server has moved to the snapshots.
+| | |
+|---|---|
+| [docs/operations.md](docs/operations.md) | running it as a service, configuration, secrets, log events, notifications, container / Docker Swarm / systemd |
+| [docs/schema-v2.md](docs/schema-v2.md) | pipeline, tables, the read views (the contract for consumers), what is still open |
+| [docs/data-sources.md](docs/data-sources.md) | where every fact comes from, which source wins, and the evidence |
+| [docs/backend-data-overhaul.md](docs/backend-data-overhaul.md) | the brief this design follows |
+
+## Quick start
 
 ```bash
-go build -o scraper ./cmd/scraper
-scraper run                      # service: crawl politely, build, validate, export, serve /snapshot, /healthz, /status
-scraper run --once               # a single cycle
-scraper crawl-modules | crawl-tree | crawl-events | prune-events | build | validate | export | serve-snapshot
-nix build .#container            # container image (see docs/operations.md)
+go build -o scraper ./cmd/scraper      # pure Go, no CGO; Windows, Linux, macOS
+scraper run                            # service: crawl politely, build, validate, export, serve
+scraper run --once                     # a single cycle
+scraper help                           # all commands
 ```
 
-- [docs/data-sources.md](docs/data-sources.md): where every fact comes from, which source wins, and why
-- [docs/schema-v2.md](docs/schema-v2.md): pipeline, tables, the read views and what is still open
-- [docs/operations.md](docs/operations.md): running it as a service, configuration, log events, notifications, deployment
-
-## Architecture
-
-The project is designed with an extensible **Provider Registry** architecture, making it simple to attach new university data sources (e.g. Prüfungspläne, QIS, Mensa, etc.) in the future:
-
-```
-btu-scraper/
-├── cmd/
-│   └── scraper/
-│       └── main.go                 # CLI tool (commands: catalog, detail, all, list, show, providers)
-├── internal/
-│   ├── cache/
-│   │   ├── cache.go                # Cache interface (Get, Set, Delete, Clear)
-│   │   └── diskcache.go            # File-based disk cache with TTL & atomic writes
-│   ├── model/
-│   │   └── module.go               # ModuleSummary, ModuleDetail, StudyProgram, Event models
-│   ├── parser/
-│   │   ├── catalog.go              # Scrapes & extracts ~4,800 modules from b-tu.de/modul
-│   │   ├── detail.go               # Bilingual parser for b-tu.de/modul/<id>
-│   │   └── util.go                 # HTML traversal & node formatting helpers
-│   ├── provider/
-│   │   ├── provider.go             # Provider interface & Registry
-│   │   ├── catalog_provider.go     # Scrapes & caches b-tu.de/modul
-│   │   └── detail_provider.go      # Scrapes & caches b-tu.de/modul/<id>
-│   └── storage/
-│       ├── sqlite.go               # SQLite connection, WAL mode & migrations
-│       └── repository.go           # Upsert and query repository
-```
-
-### Key Architectural Components
-
-1. **Information Provider Registry (`internal/provider`)**:
-   - `Provider` interface: represents an external source with a unique identifier and description.
-   - `Registry`: thread-safe container to register, query, and list providers.
-   - `BTUModuleCatalogProvider`: discovers module IDs, titles, and URLs from the catalog overview.
-   - `BTUModuleDetailProvider`: extracts comprehensive course data for an individual module.
-
-2. **Per-Provider Caching (`internal/cache`)**:
-   - `DiskCache` stores responses on disk with configurable TTLs (e.g. 24h for the catalog page, 7 days for module details).
-   - Atomic writes prevent partial cache files.
-   - Supports `--refresh` flag to bypass the cache.
-
-3. **Storage (`internal/storage`)**:
-   - Built on `modernc.org/sqlite` (100% pure Go, no CGO or GCC required).
-   - Stores structured course attributes: German/English titles, faculty/department, responsible staff, credits (ECTS), teaching forms & workload, prerequisites, study programs, exam details, and active semester links.
-   - Indexed for fast full-text filtering by code, title, department, credits, and language.
-
-## Quick Start
-
-### Build Scraper CLI (Go)
+`scraper run` serves `GET /snapshot/catalog.db` (ETag, `If-None-Match` → 304), `/healthz` and
+`/status` on `127.0.0.1:8090`. The stages also run one by one: `crawl-modules`, `crawl-tree`,
+`crawl-events`, `prune-events`, `build`, `validate`, `export`, `serve-snapshot`.
 
 ```bash
-go build -o scraper.exe ./cmd/scraper
+nix build .#scraper                    # static binary; the tests run inside the build
+nix build .#container                  # container image with a health check (docs/operations.md)
+go test ./...                          # network-free, no API key needed
 ```
 
-### Hybrid PWA & Web Application (Rust / Leptos)
+### Layout
 
-The web catalog uses a **Hybrid Progressive Web App (PWA)** architecture with Rust/Leptos hosting and routing:
-- **No-JS / Search Engines**: The Rust server directly serves fully rendered, static semantic HTML containing all modules and study programs with direct links for complete SEO indexing.
-- **JavaScript Enabled**: The browser seamlessly loads the interactive WebAssembly PWA with client-side SQLite in IndexedDB, instant fuzzy search, drag-and-drop curriculum planning, and Service Worker offline caching.
+| Package | Role |
+|---|---|
+| `cmd/scraper` | command line |
+| `internal/service` | the service loop, its stages, `/healthz` and `/status` |
+| `internal/crawl`, `internal/qistree` | polite archiving; QIS program tree walker |
+| `internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |
+| `internal/catalogbuild`, `internal/normalize`, `internal/parser` | raw pages → canonical tables; rule-based normalization; HTML parsers |
+| `internal/gemini`, `internal/curriculumscan`, `internal/statutes`, `internal/planaudit` | study plans from regulation PDFs, with audit trail |
+| `internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
+| `internal/oplog`, `internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
+| `server/`, `frontend/` | Rust web server and Leptos/WASM app. **Both still target the v1 database layout** and have to be moved to the read views and the snapshot endpoint. |
+
+### Credentials
+
+The Gemini API key is never read from a flag or a configuration file:
 
 ```bash
-# 1. Build the PWA frontend distribution (in frontend/)
-cd frontend
-trunk build --release
-cd ..
-
-# 2. Build and start the Rust hybrid PWA web server (on http://localhost:8080)
-cargo run --release --bin btu-server -- --port 8080 --db btu_modules.db --dist frontend/dist
+scraper secret set gemini-api-key      # developer machine: Windows Credential Manager, macOS Keychain, Secret Service
+scraper secret status                  # where the key is found; never prints it
 ```
 
-### CLI Commands
-
-#### 1. Discover all modules from catalog
-```bash
-# Fetches b-tu.de/modul and saves all module summaries into SQLite (btu_modules.db)
-go run ./cmd/scraper catalog
-```
-
-#### 2. Scrape details for a single module
-```bash
-# Scrapes module 11101 and displays a formatted summary card
-go run ./cmd/scraper detail 11101
-
-# Output as raw JSON
-go run ./cmd/scraper detail 11101 --json
-```
-
-#### 3. Scrape all modules with concurrency & rate limiting
-```bash
-# Scrapes catalog then iterates over modules with 4 concurrent workers
-go run ./cmd/scraper all --workers 4 --delay 100
-
-# Test run with first 20 modules
-go run ./cmd/scraper all --limit 20 --workers 3
-```
-
-#### 4. Search and filter stored modules
-```bash
-# Search by title or code
-go run ./cmd/scraper list --search "Informatik" --limit 15
-
-# Filter by department or credits
-go run ./cmd/scraper list --dept "MINT" --min-credits 6
-```
-
-#### 5. Show module details from SQLite
-```bash
-# Formatted text card
-go run ./cmd/scraper show 11101
-
-# JSON output
-go run ./cmd/scraper show 11101 --json
-```
-
-#### 6. Scrape and view course events / lectures (QIS)
-```bash
-# Scrape an individual event/lecture by ID or URL
-go run ./cmd/scraper event 147828
-
-# Scrape all events for a specific module (e.g. 11826 Informatik 1)
-go run ./cmd/scraper module-events 11826
-
-# Display timetables (type, day, time, room, instructor) for a module
-go run ./cmd/scraper show-events 11826
-
-# Output events as JSON
-go run ./cmd/scraper show-events 11826 --json
-```
-
-#### 7. Fachübergreifendes Studium (FÜS) Scraper & Non-Adjacent Filter
-```bash
-# Scrape official approved FÜS modules (288 modules) from the BTU QIS portal
-go run ./cmd/scraper fues
-
-# List all study programs / majors discovered across module assignments
-go run ./cmd/scraper fues-majors
-
-# List all FÜS modules that are NOT adjacent to your major (e.g. Informatik)
-# (Adjacent = module is assigned to that major in 'Zuordnung zu Studiengängen:')
-go run ./cmd/scraper fues-eligible "Informatik"
-
-# Filter by minimum credits and limit results
-go run ./cmd/scraper fues-eligible "Informatik" --min-credits 6 --limit 10
-
-# Output eligible modules as JSON
-go run ./cmd/scraper fues-eligible "Informatik" --json
-```
-
-#### 8. Official Study Programs, Regulations & Statutes (QIS & OPUS 4)
-```bash
-# Scrape statutes and amendments for a specific study program
-go run ./cmd/scraper programs --name "Informatik"
-
-# Filter by degree (Bachelor, Master)
-go run ./cmd/scraper programs --name "Informatik" --degree "Master"
-
-# Attempt PDF downloads (safely flags bot protection without mitigating)
-go run ./cmd/scraper programs --name "Informatik" --download
-
-# Query already stored study programs from SQLite (0ms response time)
-go run ./cmd/scraper programs --from-db --name "Informatik"
-
-# Output as JSON
-go run ./cmd/scraper programs --from-db --name "Informatik" --json
-
-# Polite crawl for all 92 programs (use 1-2 workers and a polite delay for sensitive servers)
-go run ./cmd/scraper programs --workers 1 --delay 1000
-```
-
-#### 9. Relational Study Program Module Query
-```bash
-# Query all modules associated with a study program (by name or official ID)
-go run ./cmd/scraper program-modules "Informatik"
-
-# Query by exact official study program ID
-go run ./cmd/scraper program-modules "stg_079_abschl_82_po_2008_-_2._SÄ_2024"
-
-# Output as JSON
-go run ./cmd/scraper program-modules --json "Informatik"
-```
-
-#### 10. List registered providers
-```bash
-go run ./cmd/scraper providers
-```
-
-## Running Tests
-
-```bash
-go test -v ./...
-```
+A service gets it as a Docker secret (`/run/secrets/gemini-api-key`), a systemd credential,
+`GEMINI_API_KEY_FILE`, or `GEMINI_API_KEY`. Without a key, `scan-curriculum` still works with
+the deterministic PDF reader alone.
 
 ## Reliable semester extraction from regulation PDFs
 
@@ -222,17 +72,8 @@ source cell values. Empty columns, horizontal spans, vertically merged elective
 slots, and subtotal rows retain their meaning. There is no credit-balancing
 algorithm that moves modules between semesters.
 
-The scraper and PDF parser run in the Go binary; the frontend uses Rust/WASM.
-No Python installation, pip packages, CGO, or external PDF commands are required.
-The PDF reader is pinned in `go.mod`. Configure the existing Gemini API access:
-
-```powershell
-$env:GEMINI_API_KEY = "your-key"
-```
-
-The existing `gemini` configuration and `--model` option remain supported.
-The application loads `config.yaml` after environment defaults, so an API key
-already configured there takes precedence. Do not commit credentials.
+The PDF parser runs in the Go binary: no Python, CGO or external PDF commands. The PDF reader is
+pinned in `go.mod`. The key is resolved by `internal/secrets` (see above); `--model` or `GEMINI_MODEL` selects the model.
 
 Validate without changing curriculum records:
 
@@ -240,12 +81,12 @@ Validate without changing curriculum records:
 go run ./cmd/scraper scan-curriculum --name Informatik --degree Bachelor --force --dry-run
 ```
 
-`--name` is a substring filter; use `--program-id` for a single exact program.
-To store validated results, omit `--dry-run`. Previous PDF plan rows for the program
-are replaced and catalog links are updated in one transaction; QIS tree rows remain.
+`--name` is a substring filter; use `--program-id` (e.g. `079-82-2008`) for a single program.
+The PDFs are expected in `statutes/` (`scraper download-statutes`).
+To store validated results, omit `--dry-run`. The previous plan of the program is replaced in
+one transaction (`catalogdb.SavePlan`); the next `build` derives the membership statements.
 Failed validation preserves the existing records.
-Only programs with a snapshot in `validated_curriculum_plans` are skipped.
-QIS membership and older AI rows do not count as a validated semester plan.
+Only programs with a stored validated plan are skipped.
 Use `--force` to explicitly reprocess an already validated plan.
 
 Useful options:
@@ -255,7 +96,7 @@ Useful options:
 | `--start-term auto` | Use an explicit intake statement from the PDF; otherwise report unknown |
 | `--start-term winter` / `summer` | Check a specific intake: summer offerings are even semesters only for winter intake |
 | `--credit-tolerance 6` | Warn when source semester totals differ from the expected average by more than 6 LP |
-| `--report-dir PATH` | Create a timestamped run directory containing evidence, structured logs and a review report; default `.cache/curriculum` |
+| `--report-dir PATH` | Create a timestamped run directory containing evidence, structured logs and a review report; default `logs/curriculum` |
 | `--json` | JSON Lines on stdout; diagnostics go to stderr |
 | `--pdf PATH --program-id ID` | Select the applicable complete study plan when multiple statutes/amendments exist |
 | `--plan-pages 7,9` | With `--pdf`, select complete plan variants on these physical PDF pages; unrelated/dual-study appendices are not mixed in |
@@ -290,13 +131,6 @@ contains Informatik B.Sc., Wirtschaftsinformatik B.Sc., Medizininformatik B.Sc.
 merged cells, LP ranges, workload, semester panels, repeated amendment copies,
 unnamed subtotals, and deliberately wrong/incomplete AI enrichment.
 
-The Rust study-plan view uses `validated_curriculum_plans` and the per-row
-`source_evidence` saved atomically with a successful extraction. It shows semesters,
-multi-semester teaching, joint credit windows, and a selector for separate variants.
-QIS catalog membership and legacy AI rows are not presented as verified semester
-requirements. Programs without a verified snapshot show an explicit empty state;
-their module catalogs and original documents remain available.
-
 Each scan writes three audit files in its `run-<timestamp>` directory:
 
 - `events.jsonl`: durable chronological events, including program ID/name, source,
@@ -318,28 +152,8 @@ links are still missing. Wahlpflicht/FÜS budgets do not require one concrete li
 To process all remaining programs without replacing validated plans:
 
 ```powershell
-go run ./cmd/scraper scan-curriculum --report-dir .cache/curriculum/remaining
+go run ./cmd/scraper scan-curriculum --report-dir logs/curriculum/remaining
 ```
-
-The Rust frontend uses these shareable routes (including direct reloads):
-
-- `/catalogue`: catalog with default filters.
-- `/catalogue?duration=2&grading=benotet`: readable filter parameters. Only settings
-  that differ from defaults are included. Further parameters include `search`,
-  `program`, `semester`, `min-credits` and `max-credits`. Multiple professor selections
-  repeat `prof-includes` or `prof-excludes`; accordion state stays out of the URL.
-- `/course/<id>`: module details.
-- `/study-programm/bsc-informatik-2008/plan`: verified semester plan.
-- `/study-programm/bsc-informatik-2008/electives`: elective catalogs.
-- `/study-programm/bsc-informatik-2008/modules`: all linked catalog modules, even
-  when the semester plan still needs review; each module appears once.
-
-Program slugs use degree, name and base PO year; distinct study modes and colliding
-versions receive a disambiguating suffix. Umlauts are transliterated for slugs.
-Internal program IDs remain unchanged. Old ID paths, `/?module=...`, `/?program=...`
-and `/catalouge?data=...` links still resolve and become canonical readable URLs.
-The Rust server (`btu-server`) serves the hybrid PWA with static SSR fallbacks for all these paths and retains 404 responses
-for missing assets and unknown API endpoints. Static dependencies use absolute paths.
 
 Optional integration tests run the actual PDF extractor against downloaded PDFs:
 

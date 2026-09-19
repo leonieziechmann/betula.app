@@ -21,10 +21,10 @@ Thumbs.db
 
 # Logs
 *.log
-logs/
+/logs/
 
 # Downloaded statutes & regulation PDFs
-statutes/
+/statutes/
 
 # Rust / Frontend build artifacts
 target/
@@ -36,4 +36,9 @@ __pycache__/
 .venv/
 
 # Exported catalog snapshots
-snapshot/
+/snapshot/
+
+# v1 configuration (no longer read; never commit credentials)
+config.yaml
+*.secret
+.env

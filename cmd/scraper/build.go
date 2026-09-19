@@ -20,10 +20,10 @@ import (
 // runBuild derives the canonical tables from the raw page archive. No network.
 func runBuild(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("build", flag.ExitOnError)
-	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
+	dbPath := fs.String("db", defaultDBPath, "Database path")
 	_ = fs.Parse(args)
 
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 
 	start := time.Now()
@@ -92,7 +92,7 @@ func printTop(title string, m map[string]int, limit int) {
 // runImportLegacyPlans copies the validated study plans of the schema v1 database.
 func runImportLegacyPlans(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("import-legacy-plans", flag.ExitOnError)
-	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
+	dbPath := fs.String("db", defaultDBPath, "Database path")
 	legacyDB := fs.String("legacy-db", "btu_modules.db", "Schema v1 database to read the validated plans from")
 	_ = fs.Parse(args)
 
@@ -100,7 +100,7 @@ func runImportLegacyPlans(ctx context.Context, args []string) {
 		fmt.Fprintf(os.Stderr, "Error: legacy database %s: %v\n", *legacyDB, err)
 		os.Exit(1)
 	}
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 
 	result, err := db.ImportLegacyPlans(*legacyDB)
@@ -118,11 +118,11 @@ func runImportLegacyPlans(ctx context.Context, args []string) {
 // runValidate reports the invariants of a built database and fails on regressions.
 func runValidate(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
-	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
+	dbPath := fs.String("db", defaultDBPath, "Database path")
 	noBaselines := fs.Bool("no-baselines", false, "Skip the BTU count baselines (for partial or test databases)")
 	_ = fs.Parse(args)
 
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 
 	baselines := catalogdb.BTUBaselines
@@ -155,12 +155,12 @@ func runValidate(ctx context.Context, args []string) {
 // runExport writes the snapshot that /api/db serves.
 func runExport(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("export", flag.ExitOnError)
-	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
+	dbPath := fs.String("db", defaultDBPath, "Database path")
 	outDir := fs.String("out", "snapshot", "Snapshot directory (catalog-<hash>.db and current.json)")
 	skipValidate := fs.Bool("skip-validate", false, "Export even if validate reports failures")
 	_ = fs.Parse(args)
 
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 
 	if !*skipValidate {

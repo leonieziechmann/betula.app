@@ -29,7 +29,7 @@
           subPackages = [ "cmd/scraper" ];
 
           # Update after changing go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy the hash Nix prints.
-          vendorHash = "sha256-VqK4SbOpaB6zZyki6oN5WNGkSRKsbRAcLkhHKKw2VvE=";
+          vendorHash = "sha256-b33lF4UjPtoTE0qbJ8mOmjEdxsLwUJqv3d7GjluATiA=";
 
           # modernc.org/sqlite is pure Go: a static binary without libc.
           env.CGO_ENABLED = "0";
@@ -51,7 +51,7 @@
             Entrypoint = [ "/bin/scraper" ];
             Cmd = [ "run" ];
             Env = [
-              "BTU_DB=/data/btu_v2.db"
+              "BTU_DB=/data/btu_scraper.db"
               "BTU_SNAPSHOT_DIR=/data/snapshot"
               "BTU_ADDR=0.0.0.0:8090"
               "BTU_LOG_FORMAT=json"

@@ -354,4 +354,3 @@ func TestSplitResponsiblePerson_ComplexTitles(t *testing.T) {
 		}
 	}
 }
-

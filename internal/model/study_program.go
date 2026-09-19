@@ -4,10 +4,10 @@ import "time"
 
 // ProgramRegulationDocument represents a statute or amendment document (e.g. from OPUS 4).
 type ProgramRegulationDocument struct {
-	Title          string `json:"title"`           // e.g. "Prüfungsordnung ABl. 12/2024" or "Satzungsänderung ABl. 13/2021 (1. SÄ)"
-	DocType        string `json:"doc_type"`        // "statute" (Prüfungsordnung / Studienordnung), "amendment" (Satzungsänderung), or "other"
-	URL            string `json:"url"`             // e.g. "https://opus4.kobv.de/opus4-btu/files/6707/12_Informatik_B.Sc.pdf"
-	Icon           string `json:"icon,omitempty"`  // e.g. "pruefungsordnung.gif", "satzungsaenderung1.gif"
+	Title          string `json:"title"`          // e.g. "Prüfungsordnung ABl. 12/2024" or "Satzungsänderung ABl. 13/2021 (1. SÄ)"
+	DocType        string `json:"doc_type"`       // "statute" (Prüfungsordnung / Studienordnung), "amendment" (Satzungsänderung), or "other"
+	URL            string `json:"url"`            // e.g. "https://opus4.kobv.de/opus4-btu/files/6707/12_Informatik_B.Sc.pdf"
+	Icon           string `json:"icon,omitempty"` // e.g. "pruefungsordnung.gif", "satzungsaenderung1.gif"
 	LocalPath      string `json:"local_path,omitempty"`
 	DownloadStatus string `json:"download_status"` // "downloaded", "blocked_bot_checker", "not_attempted", "error"
 }

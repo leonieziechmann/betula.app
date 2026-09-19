@@ -46,7 +46,7 @@ func runService(ctx context.Context, args []string) {
 	def := service.DefaultConfig()
 
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
-	dbPath := fs.String("db", envOr("BTU_DB", defaultV2DBPath), "Schema v2 database path (env BTU_DB)")
+	dbPath := fs.String("db", envOr("BTU_DB", defaultDBPath), "Database path (env BTU_DB)")
 	snapshotDir := fs.String("snapshot-dir", envOr("BTU_SNAPSHOT_DIR", def.SnapshotDir), "Directory for exported snapshots (env BTU_SNAPSHOT_DIR)")
 	addr := fs.String("addr", envOr("BTU_ADDR", "127.0.0.1:8090"), "Listen address for /snapshot, /healthz and /status (env BTU_ADDR)")
 	interval := fs.Duration("interval", envDuration("BTU_INTERVAL", def.Interval), "Pause between cycles (env BTU_INTERVAL)")
@@ -93,7 +93,7 @@ func runService(ctx context.Context, args []string) {
 		cfg.OffPeakStart, cfg.OffPeakEnd = s, e
 	}
 
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 	svc := service.New(db, cfg, recorder)
 

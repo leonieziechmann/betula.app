@@ -39,7 +39,7 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 
 | Flag | Environment | Default |
 |---|---|---|
-| `--db` | `BTU_DB` | `btu_v2.db` |
+| `--db` | `BTU_DB` | `btu_scraper.db` |
 | `--snapshot-dir` | `BTU_SNAPSHOT_DIR` | `snapshot` |
 | `--addr` | `BTU_ADDR` | `127.0.0.1:8090` |
 | `--interval` | `BTU_INTERVAL` | `30m` |
@@ -93,6 +93,8 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | WARN | `validate.check_warned` | e.g. kind conflicts between sources, programs without tree modules |
 | WARN | `build.unresolved_refs`, `build.tree_leaves_without_module`, `build.tree_pages_missing`, `build.modules_without_page`, `build.plans_without_program`, `build.plan_entries_unknown_module`, `build.unpaired_departments` | source data the build could not use, with counts and examples |
 | WARN | `http.request` with `status` 4xx/503 | |
+| ERROR | `scan.failed`, `scan.extraction_failed`, `scan.save_failed`, `statutes.download_failed` | study plan scan: cannot run / a document could not be read / a plan could not be stored (the previous plan is unchanged) / a PDF could not be downloaded |
+| WARN | `scan.rejected`, `scan.gemini_disabled`, `statutes.blocked` | a plan failed validation and was not stored / no API key, deterministic reader only / a PDF is behind bot protection |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
 | INFO | `cycle.started`, `cycle.finished`, `crawl.started`, `crawl.progress`, `crawl.finished`, `crawl.up_to_date`, `build.started`, `build.finished`, `validate.finished`, `export.finished`, `retention.pruned` | progress, with counts and durations |
 
@@ -115,7 +117,67 @@ Any of these works; they can be combined.
   (the university's server is down or blocks us) deserve their own alert text.
 - **`/status`** shows the most recent warnings and errors without access to the log stream.
 
-## 3. Deployment
+## 3. Secrets
+
+The only credential is the Gemini API key (`gemini-api-key`), and only `scan-curriculum` needs
+it. It is never read from a command line flag or a configuration file, and it is redacted from
+errors and audit files. `internal/secrets` looks for it in this order; the first source that is
+configured wins, and a configured but unreadable source is an error (no silent fallback):
+
+| # | Source | For |
+|---|---|---|
+| 1 | file named by `GEMINI_API_KEY_FILE` | Kubernetes secrets, sops-nix, agenix, a Docker secret under another name |
+| 2 | `/run/secrets/gemini-api-key` (or `gemini_api_key`) | **Docker Swarm / Compose secrets**, found without any configuration |
+| 3 | `$CREDENTIALS_DIRECTORY/gemini-api-key` | systemd `LoadCredential=` / `LoadCredentialEncrypted=` |
+| 4 | `GEMINI_API_KEY` | CI, a one-off shell |
+| 5 | operating system credential store | developer machine: Windows Credential Manager, macOS Keychain, Secret Service |
+
+```bash
+scraper secret set gemini-api-key       # hidden prompt, or: some-vault read … | scraper secret set gemini-api-key
+scraper secret status                   # where each secret is found; never prints it
+scraper secret delete gemini-api-key
+scraper secret migrate-config config.yaml   # one-time: move the key out of a v1 config file
+```
+
+### Docker Swarm
+
+Swarm keeps a secret encrypted in its Raft log and mounts it as a tmpfs file only into the
+containers of the services that list it. Nothing else has to be configured:
+
+```bash
+docker secret create gemini-api-key -        # paste the key, Ctrl-D; or: < key-file
+docker stack deploy -c docker-stack.yml btu
+```
+
+```yaml
+# docker-stack.yml
+services:
+  scraper:
+    image: registry.example.org/btu-scraper:latest   # nix build .#container, docker load, tag, push
+    secrets: [gemini-api-key]
+    volumes: [btu-data:/data]
+    networks: [internal]          # the web server reaches http://scraper:8090/snapshot/catalog.db
+    deploy:
+      replicas: 1                 # one writer per database
+      restart_policy: { condition: any, delay: 30s }
+      update_config: { order: stop-first }   # never two writers on the volume
+      resources: { limits: { memory: 1G } }
+secrets:
+  gemini-api-key: { external: true }
+volumes:
+  btu-data: {}
+networks:
+  internal: {}
+```
+
+The image's `HEALTHCHECK` makes Swarm restart a container that turns unhealthy. To rotate the
+key: create `gemini-api-key-v2`, change the service to
+`secrets: [{ source: gemini-api-key-v2, target: gemini-api-key }]`, deploy, remove the old secret.
+The service itself does not need the key; it is used when you run
+`docker exec <container> /bin/scraper scan-curriculum …` (the statutes directory is
+`BTU_STATUTES_DIR`, default `statutes` below the working directory `/data`).
+
+## 4. Deployment
 
 ### Container (built with Nix)
 
@@ -126,7 +188,7 @@ docker run -d --name btu-scraper -p 8090:8090 -v btu-data:/data btu-scraper:late
 ```
 
 The image contains the static `scraper` binary and CA certificates, nothing else. `/data` holds
-`btu_v2.db` and `snapshot/`. Defaults inside the image: `BTU_ADDR=0.0.0.0:8090`,
+`btu_scraper.db` and `snapshot/`. Defaults inside the image: `BTU_ADDR=0.0.0.0:8090`,
 `BTU_LOG_FORMAT=json`, `TZ=Europe/Berlin`. `nix build .#scraper` builds only the binary;
 `nix develop` gives a shell with Go.
 
@@ -143,7 +205,7 @@ Wants=network-online.target
 
 [Service]
 ExecStart=/usr/local/bin/scraper run
-Environment=BTU_DB=/var/lib/btu-scraper/btu_v2.db
+Environment=BTU_DB=/var/lib/btu-scraper/btu_scraper.db
 Environment=BTU_SNAPSHOT_DIR=/var/lib/btu-scraper/snapshot
 Environment=BTU_ADDR=127.0.0.1:8090
 Environment=TZ=Europe/Berlin
@@ -161,7 +223,6 @@ The process stops cleanly on SIGTERM. JSON lines go to the journal.
 ### One-off commands
 
 `crawl-modules`, `crawl-tree`, `crawl-events`, `prune-events`, `build`, `validate`, `export`,
-`serve-snapshot`, `import-legacy-plans` run the stages one by one against the same database.
+`serve-snapshot`, `download-statutes`, `scan-curriculum` run one by one against the same database.
 They can run next to a service: readers never block, and a writer waits up to 60 s for the
-other writer (a build holds the write lock for about 20 s). `scan-curriculum` still targets the v1
-database, see `docs/schema-v2.md` §6.
+other writer (a build holds the write lock for about 20 s).

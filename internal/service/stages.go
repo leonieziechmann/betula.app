@@ -16,7 +16,6 @@ import (
 	"github.com/leonieziechmann/btu-scraper/internal/crawl"
 	"github.com/leonieziechmann/btu-scraper/internal/oplog"
 	"github.com/leonieziechmann/btu-scraper/internal/parser"
-	"github.com/leonieziechmann/btu-scraper/internal/provider"
 	"github.com/leonieziechmann/btu-scraper/internal/qistree"
 )
 
@@ -40,12 +39,14 @@ type Endpoints struct {
 
 // BTUEndpoints are the live BTU pages.
 func BTUEndpoints() Endpoints {
+	const qis = "https://www.b-tu.de/qisserver3/rds"
 	return Endpoints{
-		CatalogURL:  provider.DefaultCatalogURL,
-		FUESURL:     provider.DefaultFUESURL,
-		ModuleURL:   provider.DefaultDetailURLTmpl,
-		EventURL:    provider.DefaultQISBaseURL,
-		TreeRootURL: provider.DefaultProgramTreeURL,
+		CatalogURL: "https://www.b-tu.de/modul",
+		ModuleURL:  "https://www.b-tu.de/modul/%s",
+		FUESURL:    qis + "?state=change&type=3&moduleParameter=pordpos&nextdir=change&next=TableSelectModul.vm&subdir=pord&P_start=0&P_anzahl=9999&missing=FUES",
+		EventURL:   qis + "?state=verpublish&status=init&vmfile=no&moduleCall=webInfo&publishConfFile=webInfo&publishSubDir=veranstaltung&veranstaltung.veranstid=%s",
+		TreeRootURL: qis + "?state=modulBeschrGast&moduleParameter=modDescr&next=tree.vm&nextdir=qispos/modulBeschr/gast&nodeID=auswahlBaum" +
+			"&navigationPosition=modules%2CmodulBeschrGast&breadcrumb=modDescrViewOnly2&topitem=modules&subitem=modulBeschrGast&asi=",
 	}
 }
 

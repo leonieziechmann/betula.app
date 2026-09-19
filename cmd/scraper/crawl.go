@@ -68,14 +68,14 @@ func finishCrawl(name string, stats crawl.Stats, err error) {
 // runCrawlModules archives the module catalog list, the FÜS list and every module page.
 func runCrawlModules(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("crawl-modules", flag.ExitOnError)
-	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
+	dbPath := fs.String("db", defaultDBPath, "Database path")
 	pace := addPaceFlags(fs, 4, 500, 24*time.Hour)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
 	defer closeLog()
 
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 
 	if stats, err := service.CrawlLists(ctx, db, service.BTUEndpoints(), service.Pace{Delay: pace().Delay, MaxAge: time.Hour}); err != nil || stats.Failed > 0 {
@@ -88,14 +88,14 @@ func runCrawlModules(ctx context.Context, args []string) {
 // runCrawlEvents archives the QIS event pages that module pages link.
 func runCrawlEvents(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("crawl-events", flag.ExitOnError)
-	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
+	dbPath := fs.String("db", defaultDBPath, "Database path")
 	pace := addPaceFlags(fs, 1, 500, 72*time.Hour)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
 	defer closeLog()
 
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 
 	stats, err := service.CrawlEvents(ctx, db, service.BTUEndpoints(), pace())
@@ -105,14 +105,14 @@ func runCrawlEvents(ctx context.Context, args []string) {
 // runCrawlTree walks the QIS program tree and archives what is missing or stale.
 func runCrawlTree(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("crawl-tree", flag.ExitOnError)
-	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
+	dbPath := fs.String("db", defaultDBPath, "Database path")
 	pace := addPaceFlags(fs, 1, 1000, 7*24*time.Hour)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
 	defer closeLog()
 
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 
 	stats, err := service.CrawlTree(ctx, db, service.BTUEndpoints(), pace())
@@ -122,14 +122,14 @@ func runCrawlTree(ctx context.Context, args []string) {
 // runPruneEvents applies the retention rule to archived events.
 func runPruneEvents(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("prune-events", flag.ExitOnError)
-	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
+	dbPath := fs.String("db", defaultDBPath, "Database path")
 	keep := fs.Duration("keep", 30*24*time.Hour, "Keep an event this long after its last date")
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
 	defer closeLog()
 
-	db := openV2(*dbPath)
+	db := openDB(*dbPath)
 	defer db.Close()
 
 	removed, err := db.PruneEvents(time.Now(), *keep)

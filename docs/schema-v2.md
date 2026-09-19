@@ -6,21 +6,21 @@
 ## 1. Pipeline
 
 ```
-crawl-modules / import-cache ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
+crawl-modules, crawl-tree, crawl-events ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
       (network)                 (archive)   (no network, deterministic)       (gate)      snapshot/     ETag / 304
 scan-curriculum ──▶ plan, plan_entry  (validated PDF plans, a source of their own)
 ```
 
 | Step | Command | Package | Notes |
 |---|---|---|---|
-| Archive pages | `scraper crawl-modules`, `scraper import-cache` | `internal/crawl`, `internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
+| Archive pages | `scraper crawl-modules`, `crawl-tree`, `crawl-events` | `internal/crawl`, `internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
 | Carry over validated plans (once) | `scraper import-legacy-plans` | `catalogdb/plans.go` | The only v1 data that is kept. Unvalidated rows are not imported; `0`/`''` become NULL. |
 | Build | `scraper build` | `internal/catalogbuild`, `internal/normalize`, `internal/qistree` | Parses the archive and replaces all derived tables in **one transaction**; fails on any foreign-key violation. About 20 s for the whole catalog. A parser or normalization fix takes effect by building again, without the network. |
 | Validate | `scraper validate` | `catalogdb/validate.go` | Invariants (fail), source problems (warn), numbers (info), count baselines (fail below the minimum). Exit code 1 on failures. |
 | Export | `scraper export --out snapshot` | `catalogdb/export.go` | Refuses a database that fails validation. `VACUUM INTO` (a consistent copy that includes WAL frames), drops `raw_page`, rollback-journal mode, `ANALYZE`, `VACUUM`. Writes `snapshot/catalog-<hash>.db` and replaces `snapshot/current.json` atomically. Snapshots are never overwritten, because a reader may hold the previous one open. |
 | Publish | `scraper serve-snapshot --addr 127.0.0.1:8090` | `internal/snapshothttp` | `GET /snapshot/catalog.db` (ETag = content hash, `If-None-Match` → 304, Range) and `GET /snapshot/current.json`. **This HTTP endpoint is the only interface between scraper and web server.** |
 
-Database files: `btu_v2.db` is the working database (archive + canonical, about 100 MB).
+Database files: `btu_scraper.db` is the working database (archive + canonical, about 100 MB).
 The snapshot is 34 MB (v1 shipped 50 MB). `btu_modules.db` (v1) is no longer written by
 any v2 command.
 
@@ -168,21 +168,28 @@ Done (see `docs/operations.md`):
 - **Structured logging** with stable events in every stage.
 - **Nix**: `flake.nix` builds the static binary and a container image.
 
+Also done: **the v1 code is gone** (`internal/storage`, `web`, `refresher`, `provider`, `cache`,
+`analytics`, `config`, the old logger and all v1 commands). `scan-curriculum` and
+`download-statutes` work on this database (`catalogdb.ScanPrograms`, `ScanCatalog`, `SavePlan`);
+the Gemini path was run against the API on 2026-09-19 (Informatik B.Sc., dry run: 23 entries, 9
+linked, identical to the stored plan). The API key moved from `config.yaml` into the secret
+sources of `docs/operations.md` §3.
+
 Open:
 
-- **`scan-curriculum` still writes to v1.** `catalogdb.SavePlan` is the v2 entry point with the
-  same transactional guarantee; the command has to read programs, documents and the module
-  catalog from v2 and save through it.
-- **Web server (Rust).** Still reads v1. It becomes an HTTP client of the service: poll
-  `/snapshot/catalog.db` with `If-None-Match`, keep the file, serve it as `/api/db` with the same
-  ETag, and answer SSR pages from the views.
-- **Removing v1 code** (`internal/storage`, `internal/web`, `internal/refresher`,
-  `internal/provider`, legacy commands) once the two points above are done. The URL constants the
-  service uses still live in `internal/provider`.
+- **Web server (Rust) and frontend.** Both still read the v1 layout and do not work against a
+  snapshot. The server becomes an HTTP client of the service: poll `/snapshot/catalog.db` with
+  `If-None-Match`, keep the file, serve it as `/api/db` with the same ETag, and answer SSR pages
+  from the views. The frontend rewrite follows the view map in section 4.
+- **Plan matching.** Only about 44 % of the plan entries are linked to a catalog module (title
+  matching). v2 has clean German and English titles for every module, which should lift this.
+- **`import-legacy-plans`** is the last piece that knows the v1 database. Remove it together with
+  `btu_modules.db` once the plans are backed up or rescanned.
+- **`data-sources.md`** describes the v1 code paths it audited; those files no longer exist.
 
 ## 7. Incident note
 
-`import-cache` reads the v1 disk cache through `DiskCache.Get`, which deletes an entry when it is
+The one-time v1 cache import (`import-cache`, since removed) read the v1 disk cache through `DiskCache.Get`, which deletes an entry when it is
 expired. The 896 cached QIS event pages (3-day TTL, fetched 09-11 … 09-14) were already expired
 and were removed by that read. Nothing the scraper could still use was lost, but they would have
 been useful as offline test data for events.
@@ -212,4 +219,4 @@ Two things the real data showed:
   than a month ago (the summer lecture period ended in July) and 770 have no date at all. With
   `--event-retention 720h` the first service cycle removes the 1,663. That is the decided rule;
   until BTU publishes the winter semester the schedule views will mostly hold exams. The live
-  `btu_v2.db` has not been pruned yet.
+  `btu_scraper.db` has not been pruned yet.
