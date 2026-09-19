@@ -16,7 +16,7 @@ use leptos_router::NavigateOptions;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::nav::{form_query, FormEvent};
+use crate::nav::{form_query, keep_position_after_prepend, list_height, list_position, FormEvent};
 use crate::pages::module::ModulePanel;
 use crate::ui::{ErrorState, Icon, KindBadge, OfferBadge};
 
@@ -24,17 +24,20 @@ use crate::ui::{ErrorState, Icon, KindBadge, OfferBadge};
 pub fn CatalogPage() -> impl IntoView {
     let location = use_location();
     let url = Memo::new(move |_| CatalogUrl::parse(&location.search.get()));
-    // Three independent parts of the URL, so that opening a preview re-renders neither the list
-    // nor the filters (their scroll positions stay), and a filter change leaves the preview alone.
-    let list_url = Memo::new(move |_| url.get().with_open(None));
+    // Three independent parts of the URL. The filter decides what the list is; `page` only says
+    // where the visitor is in it (the list scrolls endlessly and keeps `page` up to date); `open`
+    // is the preview. So scrolling and opening a preview re-render neither list nor filters.
+    let list_query = Memo::new(move |_| url.get().query);
+    let page = Memo::new(move |_| url.get().page);
     let open = Memo::new(move |_| url.get().open);
     let source = use_source();
     let status = PageStatus::capture();
 
     let list_source = source.clone();
     let list = Memo::new(move |_| {
-        let current = list_url.get();
-        list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current)))
+        // Start at the page the URL names at this moment; later page changes are scrolling.
+        let current = CatalogUrl { query: list_query.get(), page: page.get_untracked(), open: None };
+        list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current))).map(|data| (current, data))
     });
     let preview = Memo::new(move |_| match open.get() {
         None => Ok(None),
@@ -42,7 +45,7 @@ pub fn CatalogPage() -> impl IntoView {
     });
 
     let title = move || match list.get() {
-        Ok(data) => match &data.program {
+        Ok((_, data)) => match &data.program {
             Some(p) => format!("Module · {} {}", p.name, p.degree()),
             None => "Modulkatalog".to_string(),
         },
@@ -57,16 +60,13 @@ pub fn CatalogPage() -> impl IntoView {
                     status.for_error(&error);
                     view! { <div class="page"><ErrorState error/></div> }.into_any()
                 }
-                Ok(data) => {
-                    let current = list_url.get_untracked();
-                    view! {
-                        <Filters current=current.clone() data=data.clone() open/>
-                        <List current data open/>
-                    }.into_any()
-                }
+                Ok((current, data)) => view! {
+                    <Filters current=current.clone() data=data.clone() open/>
+                    <List current data open page/>
+                }.into_any(),
             }}
             {move || {
-                let close_href = list_url.get().path();
+                let close_href = url.get().with_open(None).path();
                 match preview.get() {
                     Ok(None) | Err(_) => ().into_any(),
                     Ok(Some(Some(data))) => view! { <ModulePanel data close_href/> }.into_any(),
@@ -200,11 +200,11 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
 }
 
 #[component]
-fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>) -> impl IntoView {
+fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>, page: Memo<u64>) -> impl IntoView {
     let q = current.query.clone();
     let total = data.page.total;
     let pages_total = total.div_ceil(PAGE_SIZE).max(1);
-    let page = current.page.min(pages_total);
+    let start_page = current.page.min(pages_total);
     let with_program = data.program.is_some();
     let unknown_program = q.program.is_some() && !with_program;
     let by_plan = with_program && q.sort == SortKey::Default;
@@ -230,26 +230,68 @@ fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>) -> i
         view! { <a class=class href=keep_open(next, open) aria-current=on.then_some("true")>{text}{arrow}</a> }
     };
 
-    // Group headers follow the study plan when the list is in plan order.
-    let mut last_group: Option<Option<i64>> = None;
-    let rows = data
-        .page
-        .rows
-        .iter()
-        .map(|row| {
-            let header = (by_plan && last_group != Some(row.plan_semester)).then(|| {
-                last_group = Some(row.plan_semester);
-                match row.plan_semester {
-                    Some(n) => format!("{n}. Semester"),
-                    None => "Ohne Semesterangabe im Regelstudienplan".to_string(),
-                }
-            });
-            view! {
-                {header.map(|text| view! { <div class="sem">{text}</div> })}
-                <Row row=row.clone() href=current.with_open(Some(&row.id)).path() open with_program/>
+    // The list is a sequence of chunks, one per page. The server renders the page the URL names
+    // (with pager links); the browser app appends the next chunk when the visitor gets near the
+    // end, prepends on request, and keeps `page` in the URL in step with what is on screen.
+    let chunks = RwSignal::new(vec![Chunk { page: start_page, rows: data.page.rows.clone(), continues: None }]);
+    let source = use_source();
+    let query = StoredValue::new(current.query.clone());
+    let load = move |page_no: u64| -> Option<Vec<CatalogRow>> {
+        let source = source.clone().ok()?;
+        source.run(|db| catalog::queries::catalog_page(db, &query.get_value(), (page_no - 1) * PAGE_SIZE, PAGE_SIZE)).ok().map(|p| p.rows)
+    };
+    let load_next = {
+        let load = load.clone();
+        move || {
+            let Some((last_page, last_group)) = chunks.with_untracked(|c| c.last().map(|c| (c.page, c.rows.last().map(|r| r.plan_semester)))) else { return };
+            if last_page >= pages_total {
+                return;
             }
-        })
-        .collect_view();
+            if let Some(rows) = load(last_page + 1) {
+                chunks.update(|c| c.push(Chunk { page: last_page + 1, rows, continues: last_group }));
+            }
+        }
+    };
+    let load_previous = move || {
+        let Some(first_page) = chunks.with_untracked(|c| c.first().map(|c| c.page)) else { return };
+        if first_page <= 1 {
+            return;
+        }
+        if let Some(rows) = load(first_page - 1) {
+            let height = list_height(ROWS_ID);
+            chunks.update(|c| c.insert(0, Chunk { page: first_page - 1, rows, continues: None }));
+            keep_position_after_prepend(ROWS_ID, height);
+        }
+    };
+    let first_loaded = move || chunks.with(|c| c.first().map(|c| c.page).unwrap_or(1));
+    let last_loaded = move || chunks.with(|c| c.last().map(|c| c.page).unwrap_or(1));
+
+    // Scrolling: load more near the end, and let the URL follow the position (replacing the
+    // history entry, so Back still leaves the list in one step).
+    let navigate = use_navigate();
+    let base = StoredValue::new(current.clone());
+    let follow = {
+        let load_next = load_next.clone();
+        move || {
+            let Some(position) = list_position(ROWS_ID) else { return };
+            if position.near_end {
+                load_next();
+            }
+            if let Some(seen) = position.page.filter(|seen| *seen != page.get_untracked()) {
+                let target = base.get_value().with_page(seen).with_open(open.get_untracked().as_deref()).path();
+                navigate(&target, NavigateOptions { replace: true, scroll: false, ..Default::default() });
+            }
+        }
+    };
+    let follow_window = follow.clone();
+    Effect::new(move |_| {
+        // On a phone the window scrolls, not the panel.
+        let follow = follow_window.clone();
+        let handle = window_event_listener(leptos::ev::scroll, move |_| follow());
+        on_cleanup(move || handle.remove());
+    });
+    let load_next_click = load_next.clone();
+    let chunk_base = current.clone();
 
     view! {
         <section class="panel list" aria-live="polite">
@@ -258,6 +300,7 @@ fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>) -> i
                     <span class="count num">{format::count(total)}</span>
                     <span class="count-label">{label}</span>
                     <div class="list-tools">
+                        <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen"</span>
                         <a class="sheet-toggle" href="#filters" data-action="sheet-open">
                             <Icon name="sliders-horizontal"/>"Filter"{(active_count > 0).then(|| view! { <em>{active_count}</em> })}
                         </a>
@@ -281,19 +324,31 @@ fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>) -> i
                 <span class="c-lang">"Spr."</span>
                 {sort_link(SortKey::Events, "Termine", "c-events")}
             </div>
-            <div class="rows scroll" data-keep-scroll="rows">
+            <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows" on:scroll=move |_| follow()>
                 {unknown_program.then(|| view! {
                     <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
                 })}
                 {(total == 0 && !unknown_program).then(|| view! {
                     <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
                 })}
-                {rows}
+                {move || (first_loaded() > 1).then(|| {
+                    let load_previous = load_previous.clone();
+                    view! { <button class="btn secondary load-more" type="button" on:click=move |_| load_previous()>"Vorherige Module laden"</button> }
+                })}
+                <For each=move || chunks.get() key=|chunk| chunk.page let:chunk>
+                    <ChunkRows chunk base=chunk_base.clone() by_plan with_program open page/>
+                </For>
+                {move || (last_loaded() < pages_total).then(|| {
+                    let load_next = load_next_click.clone();
+                    view! { <button class="btn secondary load-more" type="button" on:click=move |_| load_next()>"Weitere Module laden"</button> }
+                })}
+                {move || (last_loaded() >= pages_total && total > PAGE_SIZE).then(|| view! { <p class="list-end">"Ende der Liste · "{format::count(total)}" Module"</p> })}
+                // Without the browser app (no JavaScript, search engines): plain page links.
                 {(pages_total > 1).then(|| view! {
                     <nav class="pager" aria-label="Seiten">
-                        {(page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(page - 1), open)>"Zurück"</a> })}
-                        <span class="num">"Seite "{page}" von "{pages_total}</span>
-                        {(page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(page + 1), open)>"Weiter"</a> })}
+                        {(start_page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(start_page - 1), open)>"Zurück"</a> })}
+                        <span class="num">"Seite "{start_page}" von "{pages_total}</span>
+                        {(start_page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(start_page + 1), open)>"Weiter"</a> })}
                     </nav>
                 })}
             </div>
@@ -302,7 +357,7 @@ fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>) -> i
 }
 
 #[component]
-fn Row(row: CatalogRow, href: String, open: Memo<Option<String>>, with_program: bool) -> impl IntoView {
+fn Row(row: CatalogRow, base: CatalogUrl, open: Memo<Option<String>>, page: Memo<u64>, with_program: bool) -> impl IntoView {
     let language = format::languages(row.teaches_german, row.teaches_english);
     let (turnus_icon, turnus_text) = match row.turnus_season.as_ref().and_then(|s| s.known()) {
         Some(TurnusSeason::Winter) => ("snowflake", "Winter".to_string()),
@@ -318,6 +373,8 @@ fn Row(row: CatalogRow, href: String, open: Memo<Option<String>>, with_program: 
     };
     let has_events = row.teaching_events > 0;
     let id = row.id.clone();
+    let target = row.id.clone();
+    let href = move || base.with_page(page.get()).with_open(Some(&target)).path();
     view! {
         <a class="row" href=href aria-current=move || (open.get().as_deref() == Some(id.as_str())).then_some("true")>
             <div class="t">
@@ -342,6 +399,39 @@ fn Row(row: CatalogRow, href: String, open: Memo<Option<String>>, with_program: 
             </span>
         </a>
     }
+}
+
+/// One page of the list. `continues` is the plan semester the previous chunk ended with, so a
+/// group that runs across two chunks gets its header only once.
+#[derive(Clone, PartialEq)]
+struct Chunk {
+    page: u64,
+    rows: Vec<CatalogRow>,
+    continues: Option<Option<i64>>,
+}
+
+const ROWS_ID: &str = "rows";
+
+#[component]
+fn ChunkRows(chunk: Chunk, base: CatalogUrl, by_plan: bool, with_program: bool, open: Memo<Option<String>>, page: Memo<u64>) -> impl IntoView {
+    // Group headers follow the study plan when the list is in plan order.
+    let mut last_group = chunk.continues;
+    let rows = chunk
+        .rows
+        .iter()
+        .map(|row| {
+            let header = (by_plan && last_group != Some(row.plan_semester)).then(|| match row.plan_semester {
+                Some(n) => format!("{n}. Semester"),
+                None => "Ohne Semesterangabe im Regelstudienplan".to_string(),
+            });
+            last_group = Some(row.plan_semester);
+            view! {
+                {header.map(|text| view! { <div class="sem">{text}</div> })}
+                <Row row=row.clone() base=base.clone() open page with_program/>
+            }
+        })
+        .collect_view();
+    view! { <div class="chunk" data-page=chunk.page>{rows}</div> }
 }
 
 /// The filter panel: a GET form whose field names are the URL parameters of `CatalogUrl`.

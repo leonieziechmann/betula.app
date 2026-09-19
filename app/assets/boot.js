@@ -124,6 +124,7 @@ try {
     openDatabase(),
   ]);
   window.__btuApp = true;
+  document.documentElement.classList.add("app");
   app.start();
   status("Offline bereit", "ok");
   setTimeout(() => { if (statusState && statusState.text === "Offline bereit") status(""); }, 4000);

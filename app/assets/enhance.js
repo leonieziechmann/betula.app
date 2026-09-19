@@ -132,8 +132,28 @@
     try { localStorage.removeItem(WIDTH_KEY); } catch {}
   });
 
+  // ---- the list by keyboard: arrows move through the rows, Enter opens the focused one ----
+  // Rows are links, so moving the focus is all it takes: Enter then follows the link natively.
+  function moveInList(step) {
+    const rows = [...document.querySelectorAll(".rows a.row")];
+    if (!rows.length) return false;
+    const active = document.activeElement;
+    let index = rows.indexOf(active);
+    if (index < 0) index = rows.findIndex((row) => row.getAttribute("aria-current") === "true");
+    const next = index < 0 ? (step > 0 ? 0 : rows.length - 1) : Math.min(rows.length - 1, Math.max(0, index + step));
+    rows[next].focus({ preventScroll: true });
+    rows[next].scrollIntoView({ block: "nearest" });
+    return true;
+  }
+
   // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Only where arrows have no other job: not in fields, not in the filter panel.
+      const active = document.activeElement;
+      const free = !typing(active) && !active?.closest?.("#filters");
+      if (free && moveInList(e.key === "ArrowDown" ? 1 : -1)) { e.preventDefault(); return; }
+    }
     const resizer = e.target.closest ? e.target.closest('[data-action="resize-preview"]') : null;
     if (resizer && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
       e.preventDefault();

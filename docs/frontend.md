@@ -84,8 +84,14 @@ HTML form, nonsense ignored) and have one canonical spelling, which is also the 
   anything fails, the site stays a classic website served from the HTML cache. A newer snapshot is
   downloaded in the background and used from the next start. The server never answers data
   queries for the app: its load is cached HTML, static files and one database file.
-- **Fine-grained updates:** the catalog page splits its URL into list state and `open`, so opening
-  a preview re-renders neither list nor filters, and a filter change leaves the preview alone.
+- **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
+  `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
+  re-renders neither list nor filters, and a filter change leaves the preview alone.
+- **Endless list:** the list is a sequence of chunks, one per page of 50. The server renders the
+  page the URL names, with pager links (no JavaScript, search engines). In the browser app the
+  next chunk is appended when the visitor gets near the end, earlier ones are prepended on request
+  („Vorherige Module laden", scroll position kept), and `page` in the URL follows the chunk at the
+  top of the screen by replacing the history entry. A shared link with `page=7` starts there.
 
 ## 2. Rules
 
@@ -99,7 +105,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   in the browser and are applied after the app took over, never during the first render.
 - **R10. Shortcuts are written next to their button** (`kbd`): Esc closes the filter sheet or the
   module preview and, on a module's own page, goes back to where the visitor came from; `F` opens
-  the previewed module full screen; Ctrl+K or `/` jumps to the search. Every view is a real
+  the previewed module full screen; ↑/↓ move through the list (rows are links, so this is just
+  focus) and Enter opens the selected row; Ctrl+K or `/` jumps to the search. Every view is a real
   history entry, so the browser's back always works too.
 - **R13. Personal view settings never go into the URL**: theme and the width of the preview live
   in `localStorage` and are applied before the first paint by the script in `<head>`.
