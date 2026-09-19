@@ -13,12 +13,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/cache"
-	"github.com/jakob/btu-scraper/internal/catalogdb"
-	"github.com/jakob/btu-scraper/internal/crawl"
-	"github.com/jakob/btu-scraper/internal/parser"
-	"github.com/jakob/btu-scraper/internal/provider"
-	"github.com/jakob/btu-scraper/internal/qistree"
+	"github.com/leonieziechmann/btu-scraper/internal/cache"
+	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/btu-scraper/internal/crawl"
+	"github.com/leonieziechmann/btu-scraper/internal/parser"
+	"github.com/leonieziechmann/btu-scraper/internal/provider"
+	"github.com/leonieziechmann/btu-scraper/internal/qistree"
 )
 
 // Commands of the schema v2 pipeline: crawl (network → raw archive), then

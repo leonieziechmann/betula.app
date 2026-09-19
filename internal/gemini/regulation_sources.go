@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/jakob/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
 	"os"
 	"regexp"
 	"sort"

@@ -19,17 +19,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/analytics"
-	"github.com/jakob/btu-scraper/internal/cache"
-	"github.com/jakob/btu-scraper/internal/config"
-	"github.com/jakob/btu-scraper/internal/curriculumscan"
-	"github.com/jakob/btu-scraper/internal/gemini"
-	"github.com/jakob/btu-scraper/internal/logger"
-	"github.com/jakob/btu-scraper/internal/model"
-	"github.com/jakob/btu-scraper/internal/provider"
-	"github.com/jakob/btu-scraper/internal/refresher"
-	"github.com/jakob/btu-scraper/internal/storage"
-	"github.com/jakob/btu-scraper/internal/web"
+	"github.com/leonieziechmann/btu-scraper/internal/analytics"
+	"github.com/leonieziechmann/btu-scraper/internal/cache"
+	"github.com/leonieziechmann/btu-scraper/internal/config"
+	"github.com/leonieziechmann/btu-scraper/internal/curriculumscan"
+	"github.com/leonieziechmann/btu-scraper/internal/gemini"
+	"github.com/leonieziechmann/btu-scraper/internal/logger"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/provider"
+	"github.com/leonieziechmann/btu-scraper/internal/refresher"
+	"github.com/leonieziechmann/btu-scraper/internal/storage"
+	"github.com/leonieziechmann/btu-scraper/internal/web"
 )
 
 func main() {

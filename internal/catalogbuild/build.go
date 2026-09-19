@@ -11,7 +11,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
 )
 
 // derivedTables are replaced as a whole by every build, children first.

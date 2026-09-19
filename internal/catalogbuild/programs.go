@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/normalize"
+	"github.com/leonieziechmann/btu-scraper/internal/normalize"
 )
 
 type program struct {

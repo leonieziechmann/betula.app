@@ -3,7 +3,7 @@ package gemini
 import (
 	"context"
 	"fmt"
-	"github.com/jakob/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
 	"os"
 	"path/filepath"
 	"strings"

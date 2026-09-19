@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/logger"
-	"github.com/jakob/btu-scraper/internal/model"
-	"github.com/jakob/btu-scraper/internal/provider"
-	"github.com/jakob/btu-scraper/internal/storage"
+	"github.com/leonieziechmann/btu-scraper/internal/logger"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/provider"
+	"github.com/leonieziechmann/btu-scraper/internal/storage"
 )
 
 // Config holds configuration for the polite background refreshing service.

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/normalize"
-	"github.com/jakob/btu-scraper/internal/parser"
+	"github.com/leonieziechmann/btu-scraper/internal/normalize"
+	"github.com/leonieziechmann/btu-scraper/internal/parser"
 )
 
 // writeDepartments creates one row per organisational unit. German and English

@@ -9,10 +9,10 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/cache"
-	"github.com/jakob/btu-scraper/internal/model"
-	"github.com/jakob/btu-scraper/internal/parser"
-	"github.com/jakob/btu-scraper/internal/storage"
+	"github.com/leonieziechmann/btu-scraper/internal/cache"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/parser"
+	"github.com/leonieziechmann/btu-scraper/internal/storage"
 )
 
 const (

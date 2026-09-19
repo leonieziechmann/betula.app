@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jakob/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
 )
 
 type ValidationIssue struct {

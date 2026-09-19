@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
 )
 
 const (

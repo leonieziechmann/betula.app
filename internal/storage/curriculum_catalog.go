@@ -1,6 +1,6 @@
 package storage
 
-import "github.com/jakob/btu-scraper/internal/model"
+import "github.com/leonieziechmann/btu-scraper/internal/model"
 
 // HasValidatedCurriculum excludes catalog membership and unverified AI rows.
 func (s *Storage) HasValidatedCurriculum(programID string) (bool, error) {

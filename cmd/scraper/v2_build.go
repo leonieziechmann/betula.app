@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/catalogbuild"
-	"github.com/jakob/btu-scraper/internal/catalogdb"
-	"github.com/jakob/btu-scraper/internal/snapshothttp"
+	"github.com/leonieziechmann/btu-scraper/internal/catalogbuild"
+	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/btu-scraper/internal/snapshothttp"
 )
 
 // runBuild derives the canonical tables from the raw page archive. No network.

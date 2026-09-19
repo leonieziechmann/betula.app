@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jakob/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
 )
 
 type mockProvider struct {

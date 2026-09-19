@@ -1,4 +1,4 @@
-module github.com/jakob/btu-scraper
+module github.com/leonieziechmann/btu-scraper
 
 go 1.27.0
 

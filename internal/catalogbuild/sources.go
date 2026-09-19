@@ -7,10 +7,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/catalogdb"
-	"github.com/jakob/btu-scraper/internal/model"
-	"github.com/jakob/btu-scraper/internal/parser"
-	"github.com/jakob/btu-scraper/internal/qistree"
+	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/parser"
+	"github.com/leonieziechmann/btu-scraper/internal/qistree"
 )
 
 // sources is the parsed content of the raw archive.

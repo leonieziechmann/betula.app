@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
 )
 
 func TestStorage(t *testing.T) {

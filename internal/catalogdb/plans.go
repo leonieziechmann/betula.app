@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/normalize"
-	"github.com/jakob/btu-scraper/internal/qistree"
+	"github.com/leonieziechmann/btu-scraper/internal/normalize"
+	"github.com/leonieziechmann/btu-scraper/internal/qistree"
 )
 
 // Plan is a validated study plan of one program (source: statute PDF).

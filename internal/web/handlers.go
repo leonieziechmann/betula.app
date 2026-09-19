@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jakob/btu-scraper/internal/analytics"
-	"github.com/jakob/btu-scraper/internal/logger"
-	"github.com/jakob/btu-scraper/internal/model"
-	"github.com/jakob/btu-scraper/internal/refresher"
-	"github.com/jakob/btu-scraper/internal/storage"
+	"github.com/leonieziechmann/btu-scraper/internal/analytics"
+	"github.com/leonieziechmann/btu-scraper/internal/logger"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/refresher"
+	"github.com/leonieziechmann/btu-scraper/internal/storage"
 )
 
 // ModuleCardViewModel enriches ModuleCardItem with client-specific state (prerequisites, completion, bookmarks).

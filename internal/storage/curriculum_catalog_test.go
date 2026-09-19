@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jakob/btu-scraper/internal/model"
+	"github.com/leonieziechmann/btu-scraper/internal/model"
 )
 
 func TestCatalogRowsDoNotSuppressCurriculumScan(t *testing.T) {
