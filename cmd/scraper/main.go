@@ -83,6 +83,22 @@ func main() {
 		runServe(ctx, subArgs)
 	case "providers":
 		runProviders(ctx, subArgs)
+	case "crawl-modules":
+		runCrawlModules(ctx, subArgs)
+	case "build":
+		runBuild(ctx, subArgs)
+	case "validate":
+		runValidate(ctx, subArgs)
+	case "export":
+		runExport(ctx, subArgs)
+	case "serve-snapshot":
+		runServeSnapshot(ctx, subArgs)
+	case "import-legacy-plans":
+		runImportLegacyPlans(ctx, subArgs)
+	case "raw-vocab":
+		runRawVocab(ctx, subArgs)
+	case "import-cache":
+		runImportCache(ctx, subArgs)
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -125,6 +141,17 @@ Commands:
   show-curriculum <name|id>  Display structured semester study plan (Pflicht / Wahlpflicht / ECTS)
   program-modules <name|id>  List all modules associated with an official study program
   providers                  List all registered data providers
+
+Schema v2 pipeline (database: btu_v2.db):
+  crawl-modules              Archive the catalog list and all module pages in the raw page archive
+                             [--workers 4] [--delay 500] [--max-age 24h] [--limit N]
+  import-cache               Copy still-valid pages from the legacy .cache into the raw page archive
+  import-legacy-plans        Copy the validated study plans of the schema v1 database (one-time)
+  build                      Derive the canonical tables from the raw page archive (no network)
+  validate                   Check invariants, source conflicts and count baselines; exit 1 on failures
+  export                     Write the read-optimized snapshot for /api/db [--out snapshot]
+  serve-snapshot             Publish the snapshots over HTTP for the web server [--dir snapshot] [--addr 127.0.0.1:8090]
+  raw-vocab                  Print the distinct raw values of the normalized module fields
 
 Global Flags:
   --db <path>                SQLite database file (default: btu_modules.db)

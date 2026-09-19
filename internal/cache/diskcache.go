@@ -69,6 +69,18 @@ func (c *DiskCache) Get(key string) ([]byte, bool, error) {
 	return payload, true, nil
 }
 
+// StoredAt returns when the entry for key was written, or false if there is none.
+func (c *DiskCache) StoredAt(key string) (time.Time, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	fi, err := os.Stat(c.keyPath(key))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return fi.ModTime(), true
+}
+
 // Set stores data for key with the given TTL. If ttl <= 0, item never expires.
 func (c *DiskCache) Set(key string, data []byte, ttl time.Duration) error {
 	c.mu.Lock()
