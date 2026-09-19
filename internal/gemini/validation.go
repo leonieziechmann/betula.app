@@ -59,19 +59,28 @@ func MatchCatalogModule(m ExtractedModule, catalog []model.CurriculumCatalogModu
 	return &catalog[candidates[0]]
 }
 
+// compulsoryTotal marks a printed sum that counts the compulsory modules only,
+// next to a separately printed elective budget.
+var compulsoryTotal = regexp.MustCompile(`(?i)\(pflichtmodule\)`)
+
 // totalRow recognizes whole-plan total rows. Hyphenation from wrapped labels
 // ("Leistungs- punkte") is removed before matching. A wrong classification is
 // caught by the reconciliation against the extracted cells, so the label list
 // may be generous; partial subtotals such as "Summe Informatik-Vertiefung" are
 // not on it.
-var totalRow = totalLabelMatcher{regexp.MustCompile(`^(?:summe(?: der| aller| gesamt| über alle)?(?: studium| (?:master|bachelor)-?studium| gesamtstudium| gesamt| erreichte (?:lp|kp|leistungspunkte|kreditpunkte)| gutschrift(?: lp)?| aufwand(?: lp)?| anrechnung der lp des moduls / semester| leistungspunkte| kreditpunkte| lp| kp| ects| cp)?(?: pro semester| je semester)?|(?:lp|kp|cp|ects|leistungspunkte) gesamt(?: \d+)?|gesamt(?: lp| kp)?|insgesamt|total(?: credits)?|teilsummen? (?:pro|je) semester|gesamtsumme|gesamt-?summe|summe aufwand in der studienrichtung .+|arbeitsaufwand für die studienrichtung .+|summe nach arbeitsaufwand|aufteilung nach studentischem arbeitsaufwand(?: \d\))?|[σ∑]? ?= ?\d+ ?(?:lp|kp|cp|ects))$`)}
+var totalRow = totalLabelMatcher{regexp.MustCompile(`^(?:summe(?: der| aller| gesamt| über alle)?(?: studium| (?:master|bachelor)-?studium| gesamtstudium| gesamt| erreichte (?:lp|kp|leistungspunkte|kreditpunkte)| gutschrift(?: lp)?| aufwand(?: lp)?| anrechnung der lp des moduls / semester| leistungspunkte| kreditpunkte| lp| kp| ects| cp)?(?: pro semester| je semester)?|(?:lp|kp|cp|ects|leistungspunkte) gesamt(?: \d+)?|gesamt(?: lp| kp)?|insgesamt|total(?: credits)?|teilsummen? (?:pro|je) semester|gesamt-?summe(?: lp| kp)?|summe(?: lp| kp| ects| cp)? \(pflichtmodule\)|summe aufwand in der studienrichtung .+|arbeitsaufwand für die studienrichtung .+|summe nach arbeitsaufwand|(?:lp )?aufteilung nach studentischem arbeitsaufwand(?: \d\))?|[σ∑]? ?= ?\d+ ?(?:lp|kp|cp|ects))$`)}
 
 type totalLabelMatcher struct{ re *regexp.Regexp }
+
+// footnoteLead is a footnote index printed in front of a total's label,
+// as in "1 Summe LP".
+var footnoteLead = regexp.MustCompile(`^[0-9⁰¹²³⁴⁵⁶⁷⁸⁹]\)?\s+`)
 
 func (m totalLabelMatcher) MatchString(s string) bool {
 	s = strings.ToLower(strings.Join(strings.Fields(s), " "))
 	s = strings.ReplaceAll(s, "- ", "")
 	s = strings.TrimRight(s, " :*")
+	s = footnoteLead.ReplaceAllString(s, "")
 	return m.re.MatchString(s)
 }
 
@@ -137,6 +146,13 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 			}
 			continue
 		}
+		if IdentityConflict(m, *c) {
+			// The printed code now names a different module (codes are reused or
+			// renamed over the years). The plan itself is fine; only the link is
+			// withheld, and the catalog data of the wrong module is not compared.
+			add("warning", "catalog_identity_conflict", m.ModuleName, fmt.Sprintf("Code %s belongs to %q in the catalog; no module link assigned", m.ModuleCode, c.TitleDE))
+			continue
+		}
 		report.Matched++
 		if m.ModuleCode == "" && normalizedTitle(m.ModuleName) != normalizedTitle(c.TitleDE) && normalizedTitle(m.ModuleName) != normalizedTitle(c.TitleEN) {
 			add("warning", "catalog_title_match", m.ModuleName, fmt.Sprintf("Unique text match: %s — %s; source title preserved", c.ID, c.TitleDE))
@@ -144,9 +160,7 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 		if isConcrete {
 			linkedConcrete++
 		}
-		if m.ModuleCode != "" && c.TitleDE != "" && normalizedTitle(m.ModuleName) != normalizedTitle(c.TitleDE) && normalizedTitle(m.ModuleName) != normalizedTitle(c.TitleEN) {
-			add("error", "catalog_identity_conflict", m.ModuleName, fmt.Sprintf("Code %s belongs to %q in the catalog; review module identity", m.ModuleCode, c.TitleDE))
-		}
+
 		group := c.ID + "|" + m.Specialization + "|" + tableOf[m.SourceCell]
 		groupTable[group] = tableOf[m.SourceCell]
 		known[group] = c
@@ -161,7 +175,7 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 		if m.StartSemester == m.EndSemester && !multi && winter != summer && (startTerm == "winter" || startTerm == "summer") {
 			expectedWinter := (m.StartSemester%2 == 1) == (startTerm == "winter")
 			if expectedWinter != winter {
-				add("error", "season_conflict", m.ModuleName, fmt.Sprintf("Semester %d with %s intake conflicts with catalog offering %q (module %s); review source/version", m.StartSemester, startTerm, c.Turnus, c.ID))
+				add("warning", "season_conflict", m.ModuleName, fmt.Sprintf("Semester %d with %s intake conflicts with catalog offering %q (module %s); review source/version", m.StartSemester, startTerm, c.Turnus, c.ID))
 			}
 		}
 		if strings.Contains(turnus, "jahre") || strings.Contains(turnus, "year") {
@@ -221,13 +235,16 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 	// workload line adds up with the extracted cells, the reading is right and a
 	// credit line that does not follow the crediting rule is only a warning.
 	aufwandBad, aufwandMatched := map[string]bool{}, map[string]bool{}
-	creditMismatch := map[string][]string{}
-	printedByTable := map[string]float64{}
+	creditMismatch, aufwandMismatch := map[string][]string{}, map[string][]string{}
+	compulsoryTables := map[string]bool{}
+	printedLoByTable, printedHiByTable := map[string]float64{}, map[string]float64{}
 	printedSemesters := map[string]map[int]bool{}
 	overlappingTotals := map[string]bool{}
 	coveredSemesters := make(map[string]map[int]bool)
-	for _, t := range res.Layout.Totals {
-		if !totalRow.MatchString(strings.TrimSpace(t.Row)) || t.Min != t.Max {
+	for _, t := range dominantTotals(res.Layout.Totals) {
+		// A printed total may itself be a range when the plan contains elective
+		// budgets ("28 - 32"); it is then checked as an interval.
+		if !totalRow.MatchString(strings.TrimSpace(t.Row)) {
 			continue
 		}
 		checked++
@@ -240,7 +257,8 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 			}
 			printedSemesters[t.Table][sem] = true
 		}
-		printedByTable[t.Table] += t.Min
+		printedLoByTable[t.Table] += t.Min
+		printedHiByTable[t.Table] += t.Max
 		checkedTables[t.Table] = true
 		if coveredSemesters[t.Table] == nil {
 			coveredSemesters[t.Table] = make(map[int]bool)
@@ -251,9 +269,16 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 		start, end := t.Semesters[0], t.Semesters[len(t.Semesters)-1]
 		low, high := 0.0, 0.0
 		aufwand := strings.Contains(strings.ToLower(t.Row), "aufwand")
+		compulsory := compulsoryTotal.MatchString(t.Row)
+		if compulsory {
+			compulsoryTables[t.Table] = true
+		}
 		for _, c := range planCells {
 			if c.Table != t.Table {
 				continue
+			}
+			if compulsory && c.Elective {
+				continue // the elective budget is printed as its own line
 			}
 			a, b := c.Semesters[0], c.Semesters[len(c.Semesters)-1]
 			if aufwand && len(c.Workload) == len(c.Semesters) && len(c.Workload) > 0 {
@@ -277,12 +302,11 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 				high += c.Max
 			}
 		}
-		if t.Min < low-0.01 || t.Min > high+0.01 {
-			msg := fmt.Sprintf("%s semesters %d-%d: source total %.1f LP outside extracted %.1f–%.1f LP", t.Table, start, end, t.Min, low, high)
+		if t.Max < low-0.01 || t.Min > high+0.01 {
+			msg := fmt.Sprintf("%s semesters %d-%d: source total %s LP outside extracted %.1f–%.1f LP", t.Table, start, end, amountRange(t.Min, t.Max), low, high)
 			if aufwand {
 				aufwandBad[t.Table] = true
-				conflictTables[t.Table] = true
-				add("error", "source_total_conflict", "", msg)
+				aufwandMismatch[t.Table] = append(aufwandMismatch[t.Table], msg)
 			} else {
 				creditMismatch[t.Table] = append(creditMismatch[t.Table], msg)
 			}
@@ -312,10 +336,42 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 			groups[key].SourceTotal = t.Min
 		}
 	}
+	// A plan whose printed totals add up to the extracted requirements as a whole,
+	// but not semester by semester, is internally inconsistent in the regulation
+	// itself: the modules, their credits and the plan total are still verified.
+	planReconciles := map[string]bool{}
+	for table, totalLo := range printedLoByTable {
+		if overlappingTotals[table] {
+			continue
+		}
+		lo, hi := 0.0, 0.0
+		for _, c := range planCells {
+			if c.Table == table && !(compulsoryTables[table] && c.Elective) {
+				lo += c.Min
+				hi += c.Max
+			}
+		}
+		// Only an exact match excuses the split. With elective ranges on either
+		// side the totals could agree by coincidence and hide a misread cell.
+		exact := math.Abs(printedHiByTable[table]-totalLo) < .01 && math.Abs(hi-lo) < .01
+		planReconciles[table] = exact && math.Abs(totalLo-lo) < .01
+	}
+	for _, table := range sortedKeys(aufwandMismatch) {
+		for _, msg := range aufwandMismatch[table] {
+			if planReconciles[table] {
+				add("warning", "source_semester_split_unexplained", "", msg+" (the plan total matches the extracted requirements; the regulation's own per-semester split does not)")
+				continue
+			}
+			conflictTables[table] = true
+			add("error", "source_total_conflict", "", msg)
+		}
+	}
 	for _, table := range sortedKeys(creditMismatch) {
 		for _, msg := range creditMismatch[table] {
 			if aufwandMatched[table] && !aufwandBad[table] {
 				add("warning", "source_credit_total_unexplained", "", msg+" (the printed workload totals add up; check how the regulation credits multi-semester modules)")
+			} else if planReconciles[table] {
+				add("warning", "source_semester_split_unexplained", "", msg+" (the plan total matches the extracted requirements; the regulation's own per-semester split does not)")
 			} else {
 				conflictTables[table] = true
 				add("error", "source_total_conflict", "", msg)
@@ -331,20 +387,21 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.Curricu
 			}
 		}
 	}
-	for table, total := range printedByTable {
+	for _, table := range sortedFloatKeys(printedLoByTable) {
 		if overlappingTotals[table] {
 			continue
 		}
+		totalLo, totalHi := printedLoByTable[table], printedHiByTable[table]
 		lo, hi := 0.0, 0.0
 		for _, c := range planCells {
-			if c.Table == table {
+			if c.Table == table && !(compulsoryTables[table] && c.Elective) {
 				lo += c.Min
 				hi += c.Max
 			}
 		}
-		if total < lo-.01 || total > hi+.01 {
+		if totalHi < lo-.01 || totalLo > hi+.01 {
 			conflictTables[table] = true
-			add("error", "source_plan_total_conflict", "", fmt.Sprintf("%s: entire plan has %.1f–%.1f LP, disjoint printed semester totals sum to %.1f LP; inspect alternative tracks or duplicated requirements", table, lo, hi, total))
+			add("error", "source_plan_total_conflict", "", fmt.Sprintf("%s: entire plan has %.1f–%.1f LP, disjoint printed semester totals sum to %s LP; inspect alternative tracks or duplicated requirements", table, lo, hi, amountRange(totalLo, totalHi)))
 		}
 	}
 	for _, key := range order {
@@ -379,10 +436,38 @@ func effectiveCells(l *PDFLayout) []SourceCell {
 			tableHasPlan[c.Table] = true
 		}
 	}
+	// Within one "oder" group the plan still expects one requirement per semester
+	// column: "A oder B" in the first semester and "C oder D" in the second are
+	// two obligations, not one.
+	type altKey struct {
+		table string
+		group int
+		span  string
+	}
+	first := map[altKey]int{}
+	key := func(c SourceCell) altKey {
+		return altKey{c.Table, c.AltGroup, fmt.Sprint(c.Semesters)}
+	}
+	for _, c := range l.Cells {
+		if c.AltGroup == 0 {
+			continue
+		}
+		if idx, seen := first[key(c)]; !seen || c.AltIndex < idx {
+			first[key(c)] = c.AltIndex
+		}
+	}
+	counted := map[altKey]bool{}
 	var out []SourceCell
 	for _, c := range l.Cells {
-		if c.AltIndex > 0 {
-			continue // an alternative to a module that is already counted
+		if c.AltGroup > 0 {
+			k := key(c)
+			if c.AltIndex != first[k] || counted[k] {
+				continue // another alternative for this semester already counts
+			}
+			counted[k] = true
+		}
+		if c.Additional {
+			continue // a budget the plan prints on top of its own semester sums
 		}
 		if tableHasPlan[c.Table] {
 			if !c.InPlan {
@@ -403,5 +488,64 @@ func sortedKeys(m map[string][]string) []string {
 		out = append(out, k)
 	}
 	sort.Strings(out)
+	return out
+}
+
+// amountRange prints a credit value or, for elective budgets, its range.
+func amountRange(lo, hi float64) string {
+	if math.Abs(hi-lo) < 0.01 {
+		return fmt.Sprintf("%.1f", lo)
+	}
+	return fmt.Sprintf("%.1f–%.1f", lo, hi)
+}
+
+func sortedFloatKeys(m map[string]float64) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// isAufwandRow marks a total that counts student workload per semester instead
+// of the credits booked in that semester.
+func isAufwandRow(c SourceCell) bool {
+	return strings.Contains(strings.ToLower(c.Row), "aufwand")
+}
+
+// dominantTotals drops section subtotals that carry the same generic label as
+// the whole-plan total, as in "Summe" under a group of modules and "Summe
+// Studium" at the bottom of the same table. For one table, one semester span
+// and one kind of total, the whole plan is never smaller than one of its
+// sections, so the largest printed value is the plan total. Workload rows are
+// kept next to credit rows because they measure different things.
+func dominantTotals(totals []SourceCell) []SourceCell {
+	key := func(c SourceCell) string {
+		return fmt.Sprintf("%s|%v|%t", c.Table, c.Semesters, isAufwandRow(c))
+	}
+	best := map[string]float64{}
+	for _, c := range totals {
+		if !totalRow.MatchString(strings.TrimSpace(c.Row)) {
+			continue
+		}
+		if v, seen := best[key(c)]; !seen || c.Min > v {
+			best[key(c)] = c.Min
+		}
+	}
+	used := map[string]bool{}
+	out := make([]SourceCell, 0, len(totals))
+	for _, c := range totals {
+		if !totalRow.MatchString(strings.TrimSpace(c.Row)) {
+			out = append(out, c)
+			continue
+		}
+		k := key(c)
+		if used[k] || c.Min != best[k] {
+			continue
+		}
+		used[k] = true
+		out = append(out, c)
+	}
 	return out
 }

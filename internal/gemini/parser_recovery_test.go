@@ -54,11 +54,11 @@ func TestFormAndVerticalTextPreservePlan(t *testing.T) {
 	}
 }
 
-func TestUnknownAmendmentIsReadButNotIgnored(t *testing.T) {
+func TestUnknownAmendmentIsRecordedAndPlanStaysAuthoritative(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "amendment.pdf")
 	os.WriteFile(file, []byte("unknown amendment"), 0600)
 	s, e := SelectRegulationSources(model.OfficialStudyProgram{}, []model.ProgramRegulationDocument{{DocType: "statute", LocalPath: "base.pdf"}, {DocType: "amendment", LocalPath: file}})
-	if e != nil || s.Plan.LocalPath != "base.pdf" || len(s.Issues) != 1 || s.Reviews[0].SHA256 == "" {
+	if e != nil || s.Plan.LocalPath != "base.pdf" || len(s.Issues) != 0 || s.Reviews[0].SHA256 == "" || s.Reviews[0].Decision != "not_applied" {
 		t.Fatalf("%+v %v", s, e)
 	}
 }

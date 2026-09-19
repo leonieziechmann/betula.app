@@ -270,5 +270,5 @@ func (s *Storage) migrate() error {
 	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN max_credits REAL DEFAULT 0")
 	_, _ = s.db.Exec("CREATE INDEX IF NOT EXISTS idx_pcm_subject_area ON program_curriculum_modules(subject_area)")
 	_, _ = s.db.Exec("CREATE INDEX IF NOT EXISTS idx_pcm_study_section ON program_curriculum_modules(study_section)")
-	return nil
+	return s.EnsureProgramCoverage()
 }

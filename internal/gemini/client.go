@@ -184,7 +184,8 @@ const curriculumSchema = `{
 // ExtractCurriculumFromPDF sends a regulation PDF to Gemini and parses the structured curriculum.
 func (c *Client) ExtractCurriculumFromPDF(ctx context.Context, pdfPath string, programHint string) (*CurriculumExtractionResult, error) {
 	if c.apiKey == "" {
-		return nil, fmt.Errorf("Gemini API key is not configured. Set gemini.api_key in config.yaml or GEMINI_API_KEY environment variable")
+		// No API access configured: the deterministic PDF reader is sufficient.
+		return c.ExtractCurriculumOffline(ctx, pdfPath, programHint)
 	}
 
 	pdfBytes, err := os.ReadFile(pdfPath)

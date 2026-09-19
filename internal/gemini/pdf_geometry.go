@@ -701,21 +701,44 @@ func horizontalText(glyphs []pdfGlyph) string {
 			j++
 		}
 		line := chars[i:j]
-		maxSize, baseline := 0.0, 0.0
+		// The baseline is the row of the body text: the largest face, and among
+		// equal faces the widest glyph. Generators that report one font size for
+		// the whole page would otherwise put the baseline on a footnote marker.
+		maxSize, maxWidth, baseline := 0.0, 0.0, 0.0
+		baseSize, baseWidth := -1.0, -1.0
 		for _, g := range line {
+			if strings.TrimSpace(g.text) == "" {
+				continue
+			}
 			if g.fontSize > maxSize {
 				maxSize = g.fontSize
-				baseline = g.y
+			}
+			if g.width > maxWidth {
+				maxWidth = g.width
+			}
+			if g.fontSize > baseSize || (g.fontSize == baseSize && g.width > baseWidth) {
+				baseSize, baseWidth, baseline = g.fontSize, g.width, g.y
 			}
 		}
 		sort.SliceStable(line, func(a, b int) bool { return line[a].x < line[b].x })
 		var lineText strings.Builder
 		last := math.Inf(-1)
+		var previous *pdfGlyph
 		for k, g := range line {
+			// Some generators fake a bold face by drawing the same glyph twice with
+			// a hairline offset. Printing it twice would turn a 6 LP cell into 66.
+			if previous != nil && previous.text == g.text && math.Abs(previous.x-g.x) < 0.5 && math.Abs(previous.y-g.y) < 0.5 {
+				continue
+			}
+			previous = &line[k]
 			if k > 0 && g.x-last > 3 {
 				lineText.WriteByte(' ')
 			}
-			if g.fontSize < maxSize*.8 && g.y < baseline-.5 && len(g.text) == 1 && g.text[0] >= '0' && g.text[0] <= '9' {
+			// A footnote reference is set smaller and off the baseline. Some
+			// generators report one font size for the whole page, so the glyph
+			// advance is the only remaining evidence of the smaller face.
+			smaller := g.fontSize < maxSize*.8 || (maxWidth > 0 && g.width < maxWidth*.8)
+			if smaller && g.y < baseline-.5 && len(g.text) == 1 && g.text[0] >= '0' && g.text[0] <= '9' {
 				lineText.WriteRune([]rune("⁰¹²³⁴⁵⁶⁷⁸⁹")[g.text[0]-'0'])
 			} else {
 				lineText.WriteString(g.text)

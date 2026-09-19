@@ -39,6 +39,10 @@ type SourceCell struct {
 	// AltGroup/AltIndex: rows separated by an "oder" line are alternatives; the
 	// first alternative (index 0) is the one the semester totals count.
 	AltGroup, AltIndex int
+	// Additional marks a budget printed as "+6" on top of a total line that
+	// counts the compulsory modules only; it is part of the plan but never of
+	// that printed sum.
+	Additional bool `json:"additional,omitempty"`
 }
 
 type PDFLayout struct {
@@ -268,6 +272,19 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 		if !used[c.ID] {
 			return fmt.Errorf("source cell %s (%s) was omitted; incomplete extraction", c.ID, c.Row)
 		}
+	}
+	// The standard period is what the plan's own semester columns show. A model
+	// guess must never turn a six-semester plan into out-of-bounds semesters.
+	highest := 0
+	for _, c := range layout.Cells {
+		for _, sem := range c.Semesters {
+			if sem > highest {
+				highest = sem
+			}
+		}
+	}
+	if highest > 0 {
+		res.StandardPeriodSemesters = highest
 	}
 	res.StartTerm = layout.StartTerm
 	res.Layout = layout

@@ -50,22 +50,26 @@ btu-scraper/
 
 ## Quick Start
 
-### Build
+### Build Scraper CLI (Go)
 
 ```bash
 go build -o scraper.exe ./cmd/scraper
 ```
 
-### Web Application (HTMX Smart Modulkatalog)
+### Hybrid PWA & Web Application (Rust / Leptos)
 
-Start the interactive, zero-dependency web catalog with smart prerequisites checking and localStorage persistence:
+The web catalog uses a **Hybrid Progressive Web App (PWA)** architecture with Rust/Leptos hosting and routing:
+- **No-JS / Search Engines**: The Rust server directly serves fully rendered, static semantic HTML containing all modules and study programs with direct links for complete SEO indexing.
+- **JavaScript Enabled**: The browser seamlessly loads the interactive WebAssembly PWA with client-side SQLite in IndexedDB, instant fuzzy search, drag-and-drop curriculum planning, and Service Worker offline caching.
 
 ```bash
-# Start the web app on http://localhost:8080
-./scraper.exe serve
+# 1. Build the PWA frontend distribution (in frontend/)
+cd frontend
+trunk build --release
+cd ..
 
-# Start on a custom port or database path
-./scraper.exe serve --port 3000 --db btu_modules.db
+# 2. Build and start the Rust hybrid PWA web server (on http://localhost:8080)
+cargo run --release --bin btu-server -- --port 8080 --db btu_modules.db --dist frontend/dist
 ```
 
 ### CLI Commands
@@ -315,7 +319,7 @@ Program slugs use degree, name and base PO year; distinct study modes and collid
 versions receive a disambiguating suffix. Umlauts are transliterated for slugs.
 Internal program IDs remain unchanged. Old ID paths, `/?module=...`, `/?program=...`
 and `/catalouge?data=...` links still resolve and become canonical readable URLs.
-The Go server serves the SPA entry point for these paths and retains 404 responses
+The Rust server (`btu-server`) serves the hybrid PWA with static SSR fallbacks for all these paths and retains 404 responses
 for missing assets and unknown API endpoints. Static dependencies use absolute paths.
 
 Optional integration tests run the actual PDF extractor against downloaded PDFs:

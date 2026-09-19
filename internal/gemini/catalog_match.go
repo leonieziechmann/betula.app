@@ -143,3 +143,11 @@ func catalogTotalForSpan(res *CurriculumExtractionResult, catalog []model.Curric
 	}
 	return sum, covered, required
 }
+
+// IdentityConflict reports a printed module code that the catalog assigns to a
+// module with a different title. Such a link must not be written.
+func IdentityConflict(m ExtractedModule, c model.CurriculumCatalogModule) bool {
+	return m.ModuleCode != "" && c.TitleDE != "" &&
+		normalizedTitle(m.ModuleName) != normalizedTitle(c.TitleDE) &&
+		normalizedTitle(m.ModuleName) != normalizedTitle(c.TitleEN)
+}

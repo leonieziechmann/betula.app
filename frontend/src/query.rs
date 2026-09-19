@@ -32,7 +32,9 @@ pub enum ProgramTab { Plan, Electives, All }
 impl ProgramTab { pub fn slug(self) -> &'static str { match self { Self::Plan => "plan", Self::Electives => "electives", Self::All => "modules" } } }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Route { Catalog(FilterOptions), Course(String), Program(String, ProgramTab), NotFound }
-pub fn course_url(id: &str) -> String { format!("/course/{}", encode_value(id)) }
+pub fn module_url(id: &str) -> String { format!("/catalog/module/{}", encode_value(id)) }
+#[allow(dead_code)]
+pub fn course_url(id: &str) -> String { module_url(id) }
 pub fn program_url(slug: &str, tab: ProgramTab) -> String { format!("/study-programm/{}/{}", encode_value(slug), tab.slug()) }
 
 fn slugify(s: &str) -> String {
@@ -86,7 +88,7 @@ pub fn catalog_url(filters: &FilterOptions) -> String {
         let values=match value {Value::Array(a)=>a.clone(),v=>vec![v.clone()]};
         for value in values {let text=match value{Value::String(s)=>s,v=>v.to_string()};pairs.push(format!("{}={}",key,encode_value(&text)));}
     }}
-    if pairs.is_empty(){"/catalogue".into()}else{format!("/catalogue?{}",pairs.join("&"))}
+    if pairs.is_empty(){"/catalog".into()}else{format!("/catalog?{}",pairs.join("&"))}
 }
 fn catalog_filters(search:&str)->FilterOptions {
     let mut data:Map<String,Value>=parameter(search,"data").and_then(|s|serde_json::from_str(&s).ok()).unwrap_or_default();
@@ -125,14 +127,16 @@ fn catalog_filters(search:&str)->FilterOptions {
     filters
 }
 pub fn parse_route(path: &str, search: &str) -> Route {
-    if ["/","/catalogue","/catalouge"].contains(&path) {
+    let trimmed = path.trim_matches('/');
+    if trimmed.is_empty() || ["catalog", "catalogue", "catalouge"].contains(&trimmed) {
         if let Some(id)=parameter(search,"module"){return Route::Course(id)}
-        if path=="/" {if let Some(id)=parameter(search,"program"){return Route::Program(id,ProgramTab::Plan)}}
+        if trimmed.is_empty() {if let Some(id)=parameter(search,"program"){return Route::Program(id,ProgramTab::Plan)}}
         return Route::Catalog(catalog_filters(search));
     }
-    let parts:Vec<_>=path.trim_start_matches('/').split('/').collect();
+    let parts:Vec<_>=trimmed.split('/').collect();
     match parts.as_slice(){
-        ["course",id] if !id.is_empty()=>decode(id,false).map(Route::Course).unwrap_or(Route::NotFound),
+        ["catalog", "module", id] if !id.is_empty()=>decode(id,false).map(Route::Course).unwrap_or(Route::NotFound),
+        ["course", id] if !id.is_empty()=>decode(id,false).map(Route::Course).unwrap_or(Route::NotFound),
         ["study-programm",id,tab] if !id.is_empty()=>{
             let tab=match *tab{"plan"=>ProgramTab::Plan,"electives"=>ProgramTab::Electives,"modules"=>ProgramTab::All,_=>return Route::NotFound};
             decode(id,false).map(|id|Route::Program(id,tab)).unwrap_or(Route::NotFound)
@@ -147,9 +151,9 @@ pub fn parse_route(path: &str, search: &str) -> Route {
     fn p(id:&str,name:&str,degree:&str,po:&str)->ProgramOption{ProgramOption{id:id.into(),program_name:name.into(),degree:Some(degree.into()),po_version:Some(po.into())}}
     #[test]fn slugs_resolve_uniquely(){let programs=vec![p("i","Informatik","Bachelor (universitär)","2008 - 2. SÄ 2024"),p("m","Informatik","Master (universitär)","2008"),p("d","Informatik","Bachelor (universitär) - Duales Studium, praxisintegrierend","2008")];assert_eq!(program_slug("i",&programs),"bsc-informatik-2008");for p in &programs{assert_eq!(resolve_program(&program_slug(&p.id,&programs),&programs),p.id)}assert_eq!(resolve_program("i",&programs),"i");}
     #[test]fn slug_collisions_remain_unambiguous(){let programs=vec![p("a","Größe","Bachelor","2024"),p("b","Größe","Bachelor","2024 - 1. SÄ 2025"),p("c","Größe","Bachelor","2024")];let slugs:std::collections::HashSet<_>=programs.iter().map(|p|program_slug(&p.id,&programs)).collect();assert_eq!(slugs.len(),3);for p in &programs{assert_eq!(resolve_program(&program_slug(&p.id,&programs),&programs),p.id)}}
-    #[test]fn readable_filters_round_trip(){let f=FilterOptions{duration:"2".into(),grading:"benotet".into(),query:"Größe + Wärme & Strom".into(),program_id:"bsc-informatik-2008".into(),semester:Some(3),min_credits:2.5,lang_en:true,prof_includes:vec!["Müller & Co".into(),"Schmidt".into()],..Default::default()};let url=catalog_url(&f);assert!(url.starts_with("/catalogue?"));assert!(url.contains("duration=2&grading=benotet"));assert!(!url.contains("data="));let(path,search)=url.split_once('?').unwrap();assert_eq!(parse_route(path,search),Route::Catalog(f));assert_eq!(catalog_url(&FilterOptions::default()),"/catalogue");}
-    #[test]fn invalid_fields_do_not_destroy_valid_filters(){let Route::Catalog(f)=parse_route("/catalogue","?duration=2&grading=&semester=bad&lang-en=wrong&max-credits=NaN")else{panic!()};assert_eq!(f.duration,"2");assert_eq!(f.semester,None);assert_eq!(f.max_credits,30.);assert_eq!(f.grading,"alle");}
-    #[test]fn unicode_and_reserved_ids_round_trip(){for id in ["SÄ_2024","A+B & C=1/%"]{assert_eq!(parse_route(&course_url(id),""),Route::Course(id.into()));assert_eq!(parse_route(&program_url(id,ProgramTab::Plan),""),Route::Program(id.into(),ProgramTab::Plan));}assert_eq!(parse_route("/course/A+B",""),Route::Course("A+B".into()));}
-    #[test]fn invalid_routes(){for path in ["/course/%ZZ","/course/%","/course/%FF","/course/","/study-programm/id/unknown","/unknown"]{assert_eq!(parse_route(path,""),Route::NotFound)}}
-    #[test]fn legacy_links(){assert_eq!(parse_route("/","?module=11101"),Route::Course("11101".into()));assert_eq!(parse_route("/","?program=S%C3%84"),Route::Program("SÄ".into(),ProgramTab::Plan));let Route::Catalog(f)=parse_route("/catalouge","?data=%7B%22duration%22%3A%222%22%7D")else{panic!()};assert_eq!(f.duration,"2");}
+    #[test]fn readable_filters_round_trip(){let f=FilterOptions{duration:"2".into(),grading:"benotet".into(),query:"Größe + Wärme & Strom".into(),program_id:"bsc-informatik-2008".into(),semester:Some(3),min_credits:2.5,lang_en:true,prof_includes:vec!["Müller & Co".into(),"Schmidt".into()],..Default::default()};let url=catalog_url(&f);assert!(url.starts_with("/catalog?"));assert!(url.contains("duration=2&grading=benotet"));assert!(!url.contains("data="));let(path,search)=url.split_once('?').unwrap();assert_eq!(parse_route(path,search),Route::Catalog(f));assert_eq!(catalog_url(&FilterOptions::default()),"/catalog");}
+    #[test]fn invalid_fields_do_not_destroy_valid_filters(){let Route::Catalog(f)=parse_route("/catalog","?duration=2&grading=&semester=bad&lang-en=wrong&max-credits=NaN")else{panic!()};assert_eq!(f.duration,"2");assert_eq!(f.semester,None);assert_eq!(f.max_credits,30.);assert_eq!(f.grading,"alle");}
+    #[test]fn unicode_and_reserved_ids_round_trip(){for id in ["SÄ_2024","A+B & C=1/%"]{assert_eq!(parse_route(&module_url(id),""),Route::Course(id.into()));assert_eq!(parse_route(&course_url(id),""),Route::Course(id.into()));assert_eq!(parse_route(&program_url(id,ProgramTab::Plan),""),Route::Program(id.into(),ProgramTab::Plan));}assert_eq!(parse_route("/catalog/module/A+B",""),Route::Course("A+B".into()));assert_eq!(parse_route("/course/A+B",""),Route::Course("A+B".into()));}
+    #[test]fn invalid_routes(){for path in ["/catalog/module/%ZZ","/catalog/module/%","/catalog/module/%FF","/catalog/module/","/course/%ZZ","/course/%","/course/%FF","/course/","/study-programm/id/unknown","/unknown"]{assert_eq!(parse_route(path,""),Route::NotFound)}}
+    #[test]fn legacy_links(){assert_eq!(parse_route("/","?module=11101"),Route::Course("11101".into()));assert_eq!(parse_route("/","?program=S%C3%84"),Route::Program("SÄ".into(),ProgramTab::Plan));let Route::Catalog(f)=parse_route("/catalouge","?data=%7B%22duration%22%3A%222%22%7D")else{panic!()};assert_eq!(f.duration,"2");let Route::Catalog(f2)=parse_route("/catalogue","?duration=1")else{panic!()};assert_eq!(f2.duration,"1");assert_eq!(parse_route("/course/11101",""),Route::Course("11101".into()));}
 }

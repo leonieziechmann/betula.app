@@ -76,7 +76,7 @@ pub fn Navbar(
                     <span class="toggle-icon">"☰"</span>
                     <span class="toggle-label">"Filter"</span>
                 </button>
-                <a href="/catalogue" class="mobile-brand">
+                <a href="/catalog" class="mobile-brand">
                     <span class="brand-badge">"BTU"</span>
                     <span class="brand-mobile-title">"Modulkatalog"</span>
                 </a>
@@ -135,6 +135,14 @@ pub fn Navbar(
 
             // Navbar Action Buttons
             <div class="nav-actions">
+                <a
+                    href="/studiengaenge"
+                    class="btn-icon-text"
+                    title="Alle Studiengänge und wie vollständig ihre Studienpläne vorliegen"
+                >
+                    <span>"🎓 " <span class="nav-action-label">"Studiengänge"</span></span>
+                </a>
+
                 <button
                     type="button"
                     class="btn-icon-text"

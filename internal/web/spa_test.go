@@ -18,7 +18,7 @@ func TestSPADirectLinksAndAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler := spaHandler(dir)
-	for _, path := range []string{"/", "/?program=old", "/catalogue?duration=2&grading=benotet", "/catalouge?data=%7B%7D", "/course/11101", "/course/A%2BB%2FC", "/study-programm/S%C3%84_2024/plan", "/study-programm/bsc-informatik-2008/plan", "/study-programm/id/electives", "/study-programm/id/modules", "/study-programm/id"} {
+	for _, path := range []string{"/", "/?program=old", "/catalog", "/catalog?duration=2&grading=benotet", "/catalogue?duration=2&grading=benotet", "/catalouge?data=%7B%7D", "/catalog/module/11101", "/catalog/module/A%2BB%2FC", "/course/11101", "/course/A%2BB%2FC", "/study-programm/S%C3%84_2024/plan", "/study-programm/bsc-informatik-2008/plan", "/study-programm/id/electives", "/study-programm/id/modules", "/study-programm/id"} {
 		t.Run(path, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
@@ -27,7 +27,7 @@ func TestSPADirectLinksAndAssets(t *testing.T) {
 			}
 		})
 	}
-	for _, path := range []string{"/static/missing.js", "/api/unknown", "/unknown", "/course/", "/study-programm/id/unknown", "/course/id/extra"} {
+	for _, path := range []string{"/static/missing.js", "/api/unknown", "/unknown", "/catalog/module/", "/catalog/module/id/extra", "/course/", "/study-programm/id/unknown", "/course/id/extra"} {
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != http.StatusNotFound {
@@ -40,7 +40,7 @@ func TestSPADirectLinksAndAssets(t *testing.T) {
 		t.Fatalf("asset: %d %s", w.Code, w.Body.String())
 	}
 	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/course/11101", nil))
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/catalog/module/11101", nil))
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("POST: %d", w.Code)
 	}

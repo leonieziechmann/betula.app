@@ -14,14 +14,15 @@ import (
 )
 
 var (
-	creditAmount    = regexp.MustCompile(`^(\d+(?:[.,]\d+)?)(?:\s*[-–−]\s*(\d+(?:[.,]\d+)?))?$`)
-	semesterNumber  = regexp.MustCompile(`^\d{1,2}\.?$`)
-	semesterHeading = regexp.MustCompile(`semester|se-\s*mester`)
-	creditHeading   = regexp.MustCompile(`\blp\b|\bkp\b|\bcp\b|ects|leistungspunkte|credit`)
-	subtotalLabel   = regexp.MustCompile(`(?i)\bsumme\b|\bteilsummen?\b|\btotal\b|\bsubtotal\b|\bgesamt\b|\binsgesamt\b|^arbeitsaufwand\b|^aufteilung nach\b|^[Σ∑]?\s*=\s*\d+\s*(?:lp|kp|cp|ects)`)
-	winterIntake    = regexp.MustCompile(`studium kann nur im wintersemester|studienbeginn[^.]{0,70}wintersemester|studium (?:beginnt|kann)[^.]{0,80}wintersemester[^.]{0,30}(?:aufgenommen|begonnen)|studienaufnahme[^.]{0,50}wintersemester`)
-	summerIntake    = regexp.MustCompile(`studium kann nur im sommersemester|studienbeginn[^.]{0,70}sommersemester|studium (?:beginnt|kann)[^.]{0,80}sommersemester[^.]{0,30}(?:aufgenommen|begonnen)|studienaufnahme[^.]{0,50}sommersemester`)
-	workloadAmount  = regexp.MustCompile(`^\((\d+(?:[.,]\d+)?(?:\s*\+\s*\d+(?:[.,]\d+)?)+)\)\s*(\d+(?:[.,]\d+)?)$`)
+	creditAmount     = regexp.MustCompile(`^(\d+(?:[.,]\d+)?)(?:\s*[-–−]\s*(\d+(?:[.,]\d+)?))?$`)
+	semesterNumber   = regexp.MustCompile(`^\d{1,2}\.?$`)
+	semesterHeading  = regexp.MustCompile(`semester|se-\s*mester`)
+	creditHeading    = regexp.MustCompile(`\blp\b|\bkp\b|\bcp\b|ects|leistungspunkte|credit`)
+	creditUnitSuffix = regexp.MustCompile(`(?i)\s*(?:lp|kp|cp|ects)$`)
+	subtotalLabel    = regexp.MustCompile(`(?i)\bsumme\b|\bteilsummen?\b|\btotal\b|\bsubtotal\b|\bgesamt\b|\bgesamtsumme\b|\binsgesamt\b|^arbeitsaufwand\b|\baufteilung nach\b|^[Σ∑]?\s*=\s*\d+\s*(?:lp|kp|cp|ects)`)
+	winterIntake     = regexp.MustCompile(`studium kann nur im wintersemester|studienbeginn[^.]{0,70}wintersemester|studium (?:beginnt|kann)[^.]{0,80}wintersemester[^.]{0,30}(?:aufgenommen|begonnen)|studienaufnahme[^.]{0,50}wintersemester`)
+	summerIntake     = regexp.MustCompile(`studium kann nur im sommersemester|studienbeginn[^.]{0,70}sommersemester|studium (?:beginnt|kann)[^.]{0,80}sommersemester[^.]{0,30}(?:aufgenommen|begonnen)|studienaufnahme[^.]{0,50}sommersemester`)
+	workloadAmount   = regexp.MustCompile(`^\((\d+(?:[.,]\d+)?(?:\s*\+\s*\d+(?:[.,]\d+)?)+)\)\s*(\d+(?:[.,]\d+)?)$`)
 )
 
 func cleanPDFText(s string) string {
@@ -51,9 +52,8 @@ func cellText(s *string) string {
 }
 func parseCreditAmount(s string) (lo, hi float64, ok bool) {
 	s = strings.TrimSpace(strings.TrimRight(s, "⁰¹²³⁴⁵⁶⁷⁸⁹"))
-	for _, unit := range []string{" LP", " KP", " CP", " ECTS"} {
-		s = strings.TrimSpace(strings.TrimSuffix(s, unit))
-	}
+	// The unit may be printed without a separating space ("6LP") and in either case.
+	s = strings.TrimSpace(creditUnitSuffix.ReplaceAllString(s, ""))
 	if strings.Contains(s, "+") {
 		sum := 0.0
 		for _, part := range strings.Split(s, "+") {
@@ -267,17 +267,31 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			if len(semesters) == 0 || value == "" || value == "-" || value == "–" {
 				continue
 			}
-			var labels []string
+			var labels, statusOnly []string
 			seen := map[string]bool{}
 			for rj := hi + 1; rj < len(t.rows); rj++ {
 				var pieces []string
 				for cj, rb := range t.boxes[rj] {
-					if rb != nil && rb.x1 <= left+1 && rb.y0 < b.y1-1 && rb.y1 > b.y0+1 {
-						piece := cellText(t.rows[rj][cj])
-						if !statusCell.MatchString(piece) {
-							pieces = append(pieces, piece)
-						}
+					if rb == nil || rb.y0 >= b.y1-1 || rb.y1 <= b.y0+1 {
+						continue
 					}
+					piece := cellText(t.rows[rj][cj])
+					// Some plans print the status column to the right of the
+					// semester block instead of next to the module name.
+					if rb.x0 >= right-1 {
+						if statusCell.MatchString(piece) {
+							statusOnly = append(statusOnly, piece)
+						}
+						continue
+					}
+					if rb.x1 > left+1 {
+						continue
+					}
+					if statusCell.MatchString(piece) {
+						statusOnly = append(statusOnly, piece)
+						continue
+					}
+					pieces = append(pieces, piece)
 				}
 				label := cleanPDFText(strings.Join(pieces, " "))
 				if label != "" && !seen[label] {
@@ -285,25 +299,35 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 					seen[label] = true
 				}
 			}
+			// "Wahlpflicht" is a status marker next to a module name, but on its own
+			// it is the name of an elective budget row with its own credits. Dropping
+			// it would silently remove those credits from the plan.
+			if len(labels) == 0 && len(statusOnly) == 1 {
+				labels = statusOnly
+			}
 			label := strings.Join(labels, " / ")
 			if label == "" {
-				sum, rightTotal, count := 0.0, math.NaN(), 0
+				// Semester columns may print ranges ("28 - 32"), so the row is
+				// verified as an interval: the grand total has to be reachable.
+				sumLo, sumHi, count := 0.0, 0.0, 0
+				rightLo, rightHi := math.NaN(), math.NaN()
 				for cj, rb := range t.boxes[ri] {
 					if rb == nil {
 						continue
 					}
-					lo, hi, ok := parseCreditAmount(cellText(t.rows[ri][cj]))
-					if !ok || lo != hi {
+					clo, chi, ok := parseCreditAmount(cellText(t.rows[ri][cj]))
+					if !ok {
 						continue
 					}
 					if rb.x0 >= right-1 {
-						rightTotal = lo
+						rightLo, rightHi = clo, chi
 					} else if rb.x0 >= left-1 {
-						sum += lo
+						sumLo += clo
+						sumHi += chi
 						count++
 					}
 				}
-				if count > 0 && math.Abs(sum-rightTotal) < 0.01 {
+				if count > 0 && rightLo <= sumHi+0.01 && rightHi >= sumLo-0.01 {
 					label = "Subtotal"
 					// An unlabeled final row with every semester and a matching
 					// grand-total column is a verifiable whole-plan total.
@@ -311,6 +335,12 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 						label = "Summe"
 					}
 				} else {
+					// A cell without a label in the row's name column is also what a
+					// semester panel looks like to the ruled reader, so this counts
+					// towards discarding this reading in favour of the panel one.
+					if prose.MatchString(value) {
+						textIssues++
+					}
 					layout.Issues = append(layout.Issues, fmt.Sprintf("%sr%d: numeric row without a module label or verifiable subtotal", id, ri+1))
 					continue
 				}
@@ -345,9 +375,11 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 					}
 				}
 			}
-			optional, marked := false, false
+			optional, marked, additional := false, false, false
 			if !ok {
-				if v, yes := creditBeforeRemark(value); yes {
+				if v, yes := additionalCredit(value); yes {
+					lo, hi, ok, additional = v, v, true, true
+				} else if v, yes := creditBeforeRemark(value); yes {
 					lo, hi, ok = v, v, true
 				} else if v, yes := optionalPlacement(value); yes {
 					lo, hi, ok, optional = v, v, true, true
@@ -369,7 +401,8 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			}
 			c := SourceCell{ID: fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1), Table: id, Page: cellPage, Row: label, Semesters: semesters, Raw: value, Min: lo, Max: hi, BBox: []float64{b.x0 + origin.dx, b.y0 + origin.dy, b.x1 + origin.dx, b.y1 + origin.dy}, SharedRows: len(labels) > 1}
 			c.Workload, c.CreditSemester = workload, creditSemester
-			c.Optional = optional
+			c.Optional, c.Additional = optional, additional
+			c.Elective = electiveStatus(statusOnly)
 			if alt, ok := alternatives[ri]; ok {
 				c.AltGroup, c.AltIndex = alt[0], alt[1]
 			}
@@ -400,7 +433,10 @@ func mergeOptionalPlacements(layout *PDFLayout, from int) {
 	out = append(out, layout.Cells[:from]...)
 	index := map[string]int{}
 	for _, c := range layout.Cells[from:] {
-		if !c.Optional {
+		// "(6)" repeated across semesters names one module whose placement is
+		// open. "(6)+(6)" already states a quantity for this semester, so two
+		// such cells are two obligations and must stay apart.
+		if !c.Optional || strings.Contains(c.Raw, "+") {
 			out = append(out, c)
 			continue
 		}
@@ -499,13 +535,53 @@ func alternativeRows(t pdfTable, header int) map[int][2]int {
 		} else {
 			group++
 			g = group
-			for r := ro - 1; r > header && !isSectionRow(t.rows[r]) && !isOderRow(t.rows[r]) && !subtotalLabel.MatchString(cellText(t.rows[r][0])); r-- {
+			for r := ro - 1; r > header && !alternativeBreak(t.rows[r]) && !isOderRow(t.rows[r]); r-- {
 				out[r] = [2]int{g, 0}
 			}
 		}
-		for r := ro + 1; r < len(t.rows) && !isSectionRow(t.rows[r]) && !isOderRow(t.rows[r]) && !subtotalLabel.MatchString(cellText(t.rows[r][0])); r++ {
+		for r := ro + 1; r < len(t.rows) && !alternativeBreak(t.rows[r]) && !isOderRow(t.rows[r]); r++ {
 			out[r] = [2]int{g, idx + 1}
 		}
 	}
 	return out
+}
+
+// alternativeBreak ends a chain of "oder" alternatives. Besides a section row
+// with its own group total and a totals line, any heading that carries a label
+// but no credit value starts a new group of requirements: without this, the
+// alternatives of every later block would be counted as alternatives of the
+// first one and their credits would drop out of the plan.
+func alternativeBreak(row []*string) bool {
+	if len(row) == 0 {
+		return true
+	}
+	if isSectionRow(row) || subtotalLabel.MatchString(cellText(row[0])) {
+		return true
+	}
+	label, credit := false, false
+	for _, s := range row {
+		text := cellText(s)
+		if text == "" {
+			continue
+		}
+		if _, _, ok := parseCreditAmount(text); ok {
+			credit = true
+		} else {
+			label = true
+		}
+	}
+	return label && !credit
+}
+
+// electiveStatus reads the plan's own status column ("P", "WP"). A plan that
+// lists every elective as its own row uses it to separate the compulsory
+// modules that its semester sums count from the elective offer.
+func electiveStatus(markers []string) bool {
+	for _, m := range markers {
+		switch strings.ToLower(strings.TrimSpace(m)) {
+		case "wp", "w", "wahlpflicht", "wp / prü", "wp prü":
+			return true
+		}
+	}
+	return false
 }

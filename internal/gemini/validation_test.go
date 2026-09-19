@@ -348,3 +348,28 @@ func TestLegacyBalanceDoesNotInventAssignments(t *testing.T) {
 		t.Fatal("balance changed source")
 	}
 }
+
+func TestStandardPeriodComesFromSource(t *testing.T) {
+	layout, res := informatikFixture(t)
+	// A model may under- or overstate the standard period; the plan decides.
+	res.StandardPeriodSemesters = 2
+	if err := BindSourceCells(res, layout); err != nil {
+		t.Fatal(err)
+	}
+	highest := 0
+	for _, c := range layout.Cells {
+		for _, sem := range c.Semesters {
+			if sem > highest {
+				highest = sem
+			}
+		}
+	}
+	if res.StandardPeriodSemesters != highest {
+		t.Fatalf("standard period = %d, want %d from the source cells", res.StandardPeriodSemesters, highest)
+	}
+	for _, i := range ValidateCurriculum(res, nil, "winter", 6).Issues {
+		if i.Code == "semester_bounds" {
+			t.Fatalf("source semesters reported as out of bounds: %+v", i)
+		}
+	}
+}

@@ -73,7 +73,7 @@ pub fn App() -> impl IntoView {
             saved_scroll_y.set_value(win.scroll_y().unwrap_or(0.0));
             win.scroll_to_with_x_and_y(0.0, 0.0);
             if let Ok(hist) = win.history() {
-                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&query::course_url(&id)));
+                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&query::module_url(&id)));
             }
         }
         set_not_found.set(false);
@@ -162,7 +162,7 @@ pub fn App() -> impl IntoView {
         let url = if let Some(id) = detail_program_id.get() {
             program_link(&id, program_tab.get())
         } else if let Some(id) = detail_module_id.get() {
-            query::course_url(&id)
+            query::module_url(&id)
         } else { query::catalog_url(&f) };
         if let Some(win) = web_sys::window() {
             if let Ok(hist) = win.history() {
@@ -386,22 +386,22 @@ pub fn App() -> impl IntoView {
 
     view! {
         <AppLayout
-            sidebar_open=Signal::from(sidebar_open)
+            sidebar_open=sidebar_open.into()
             on_close_sidebar=Callback::new(move |_| set_sidebar_open.set(false))
             sidebar=move || view! {
                 <FilterSidebar
                     on_close_sidebar=Callback::new(move |_| set_sidebar_open.set(false))
-                    all_programs=Signal::from(all_programs)
-                    total_modules_count=Signal::from(total_modules_count)
-                    selected_program_id=Signal::from(selected_program_id)
-                    selected_program_name=Signal::from(selected_program_name)
-                    selected_po_version=Signal::from(selected_po_version)
+                    all_programs=all_programs.into()
+                    total_modules_count=total_modules_count.into()
+                    selected_program_id=selected_program_id.into()
+                    selected_program_name=selected_program_name.into()
+                    selected_po_version=selected_po_version.into()
                     filters=filters
                     program_combobox_open=program_combobox_open
                     on_select_program=on_select_program
                     on_clear_program=on_clear_program
                     on_reset_filters=Callback::new(move |_| reset_filters())
-                    active_filter_count=Signal::from(active_filter_count)
+                    active_filter_count=active_filter_count.into()
                     on_open_program_page=Callback::new(move |id: String| open_program_page(id))
                 />
             }
@@ -410,10 +410,10 @@ pub fn App() -> impl IntoView {
                     on_toggle_sidebar=Callback::new(move |_| set_sidebar_open.update(|o| *o = !*o))
                     query=Signal::derive(move || filters.get().query)
                     on_query_change=Callback::new(move |q| filters.update(|f| f.query = q))
-                    search_suggestions=Signal::from(search_suggestions)
+                    search_suggestions=search_suggestions.into()
                     on_select_module=on_open_module_cb
                     on_share=Callback::new(move |_| copy_share_link())
-                    share_copied=Signal::from(share_toast)
+                    share_copied=share_toast.into()
                     is_bookmarks_active=Signal::derive(move || filters.get().is_bookmarks_view)
                     bookmarks_count=Signal::derive(move || bookmarked_modules.get().len())
                     on_toggle_bookmarks_view=Callback::new(move |_| {
@@ -459,14 +459,14 @@ pub fn App() -> impl IntoView {
                         </div>
                     }.into_any()
                 } else if missing {
-                    view! { <div class="program-section-card"><h1>"Seite nicht gefunden"</h1><a href="/catalogue">"Zum Modulkatalog"</a></div> }.into_any()
+                    view! { <div class="program-section-card"><h1>"Seite nicht gefunden"</h1><a href="/catalog">"Zum Modulkatalog"</a></div> }.into_any()
                 } else if let Some(prog_id) = program {
                     // Study Program Detail Page
                     view! {
                         <div id="modules-view">
                             <StudyProgramDetailPage
                                 program_id=prog_id
-                                active_tab=Signal::from(program_tab)
+                                active_tab=program_tab.into()
                                 on_tab_change=on_program_tab
                                 on_back=close_program_page
                                 on_open_module=open_module
@@ -612,9 +612,9 @@ pub fn App() -> impl IntoView {
                                                 </div>
                                                 <div class="accordion-body">
                                                     <ModuleTable
-                                                        modules=Signal::from(regular_modules)
-                                                        completed_modules=Signal::from(completed_modules)
-                                                        bookmarked_modules=Signal::from(bookmarked_modules)
+                                                        modules=regular_modules.into()
+                                                        completed_modules=completed_modules.into()
+                                                        bookmarked_modules=bookmarked_modules.into()
                                                         sort_by=Signal::derive(move || filters.get().sort_by)
                                                         sort_asc=Signal::derive(move || filters.get().sort_asc)
                                                         on_sort=on_sort
@@ -644,9 +644,9 @@ pub fn App() -> impl IntoView {
                                                 </div>
                                                 <div class="accordion-body">
                                                     <ModuleTable
-                                                        modules=Signal::from(fues_modules)
-                                                        completed_modules=Signal::from(completed_modules)
-                                                        bookmarked_modules=Signal::from(bookmarked_modules)
+                                                        modules=fues_modules.into()
+                                                        completed_modules=completed_modules.into()
+                                                        bookmarked_modules=bookmarked_modules.into()
                                                         sort_by=Signal::derive(move || filters.get().sort_by)
                                                         sort_asc=Signal::derive(move || filters.get().sort_asc)
                                                         on_sort=on_sort

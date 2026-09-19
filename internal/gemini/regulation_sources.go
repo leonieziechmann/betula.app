@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"github.com/jakob/btu-scraper/internal/model"
@@ -74,7 +75,7 @@ func SelectRegulationSources(p model.OfficialStudyProgram, docs []model.ProgramR
 			return s, e
 		}
 		hash := fmt.Sprintf("%x", sha256.Sum256(b))
-		r := AmendmentReview{Source: d.LocalPath, SHA256: hash, Decision: "needs_review", Evidence: "Amendment has no content-pinned review yet"}
+		r := AmendmentReview{Source: d.LocalPath, SHA256: hash, Decision: "not_applied", Evidence: "Amendment not applied: project decision - amendments only add new rules, the Prüfungsordnung is authoritative"}
 		switch hash {
 		case "41ab9948f515c96f364dba44dbab2be9110641376e80510e06484adf2f322f79":
 			r.Decision = "no_plan_change"
@@ -130,10 +131,16 @@ func SelectRegulationSources(p model.OfficialStudyProgram, docs []model.ProgramR
 				s.Pages = []int{3}
 			}
 		}
-		s.Reviews = append(s.Reviews, r)
-		if r.Decision == "needs_review" {
-			s.Issues = append(s.Issues, ValidationIssue{Severity: "error", Code: "amendment_requires_patch", Message: r.Source + ": " + r.Evidence})
+		if r.Decision == "not_applied" {
+			// An unreviewed amendment is harmless unless it carries a study plan
+			// of its own; then a human has to decide which one applies.
+			if _, perr := ReadPDFLayout(context.Background(), d.LocalPath); perr == nil {
+				r.Decision = "needs_review"
+				r.Evidence = "Amendment contains a study plan table; check whether it replaces the plan of the Prüfungsordnung"
+				s.Issues = append(s.Issues, ValidationIssue{Severity: "warning", Code: "amendment_contains_plan", Message: r.Source + ": " + r.Evidence})
+			}
 		}
+		s.Reviews = append(s.Reviews, r)
 	}
 	return s, nil
 }

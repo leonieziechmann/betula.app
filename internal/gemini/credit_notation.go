@@ -123,7 +123,21 @@ var optionalCredit = regexp.MustCompile(`^\(\s*(\d+(?:[.,]\d+)?)\s*\)$`)
 // optionalPlacement returns N of a bracketed "(N)" cell. Such a cell marks one
 // of several semesters in which the module may be placed.
 func optionalPlacement(s string) (float64, bool) {
-	p := optionalCredit.FindStringSubmatch(strings.TrimSpace(s))
+	s = strings.TrimSpace(s)
+	// "(6)+(6)": two modules of that size are planned for this semester; their
+	// placement is a recommendation, their combined credit is not.
+	if strings.Contains(s, ")+(") || strings.Contains(s, ") + (") {
+		sum := 0.0
+		for _, part := range strings.Split(s, "+") {
+			v, ok := optionalPlacement(strings.TrimSpace(part))
+			if !ok {
+				return 0, false
+			}
+			sum += v
+		}
+		return sum, true
+	}
+	p := optionalCredit.FindStringSubmatch(s)
 	if p == nil {
 		return 0, false
 	}
@@ -143,4 +157,20 @@ func markedCredit(s string) (value float64, optional, ok bool) {
 	}
 	v, _, valid := parseCreditAmount(p[2])
 	return v, p[1] != "", valid
+}
+
+var additionalAmount = regexp.MustCompile(`^\(?\+\s*(\d+(?:[.,]\d+)?)\)?$`)
+
+// additionalCredit reads a budget that the plan prints on top of its own sum,
+// written as "+6" under a total line that counts the compulsory modules only.
+func additionalCredit(s string) (float64, bool) {
+	m := additionalAmount.FindStringSubmatch(strings.TrimSpace(s))
+	if m == nil {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", "."), 64)
+	if err != nil {
+		return 0, false
+	}
+	return v, true
 }

@@ -85,3 +85,26 @@ func TestMarkedCredit(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCreditAmountUnitSpelling(t *testing.T) {
+	for _, tc := range []struct {
+		in     string
+		lo, hi float64
+		ok     bool
+	}{
+		{"6", 6, 6, true},
+		{"6LP", 6, 6, true},
+		{"6 LP", 6, 6, true},
+		{"6lp", 6, 6, true},
+		{"12 KP", 12, 12, true},
+		{"10-24 LP", 10, 24, true},
+		{"4,5", 4.5, 4.5, true},
+		{"LP", 0, 0, false},
+		{"Sem.", 0, 0, false},
+	} {
+		lo, hi, ok := parseCreditAmount(tc.in)
+		if lo != tc.lo || hi != tc.hi || ok != tc.ok {
+			t.Errorf("parseCreditAmount(%q) = %v, %v, %v; want %v, %v, %v", tc.in, lo, hi, ok, tc.lo, tc.hi, tc.ok)
+		}
+	}
+}

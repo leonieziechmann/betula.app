@@ -132,7 +132,7 @@ pub struct GroupedProgram {
 }
 
 fn scroll_po_index_into_view(options_ref: NodeRef<leptos::html::Div>, index: usize) {
-    if let Some(container) = options_ref.get() {
+    if let Some(container) = options_ref.get_untracked() {
         if let Ok(Some(target)) = container.query_selector(&format!("[data-po-index=\"{}\"]", index)) {
             let obj = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&obj, &"block".into(), &"nearest".into());
@@ -236,9 +236,9 @@ pub fn StudyProgramSelection(
     Effect::new(move |_| {
         if po_dropdown_open.get() {
             untrack(move || {
-                let cur_po = selected_po_version.get();
-                let cur_id = selected_program_id.get();
-                let initial_idx = current_po_options.with(|list| {
+                let cur_po = selected_po_version.get_untracked();
+                let cur_id = selected_program_id.get_untracked();
+                let initial_idx = current_po_options.with_untracked(|list| {
                     list.iter().position(|p| {
                         p.id == cur_id || p.po_version.as_deref().unwrap_or("") == cur_po
                     }).unwrap_or(0)
@@ -247,7 +247,7 @@ pub fn StudyProgramSelection(
                 po_highlighted_index.set(initial_idx);
 
                 request_animation_frame(move || {
-                    if let Some(dropdown) = po_dropdown_ref.get() {
+                    if let Some(dropdown) = po_dropdown_ref.get_untracked() {
                         let _ = dropdown.focus();
                     }
                     scroll_po_index_into_view(po_options_ref, initial_idx);
@@ -269,7 +269,7 @@ pub fn StudyProgramSelection(
                 <Combobox
                     selected_label=selected_program_name
                     has_selection=has_program_selected
-                items=Signal::from(combobox_items)
+                items=combobox_items.into()
                 placeholder="Alle Studiengänge"
                 search_placeholder="Studiengang suchen..."
                 default_item_label="Alle Studiengänge (Gesamtkatalog)"
@@ -279,7 +279,7 @@ pub fn StudyProgramSelection(
                 anchor_to_parent=true
                 on_select=Callback::new(move |item: ComboboxItem| {
                     let title = item.label.clone();
-                    let groups = grouped_programs.get();
+                    let groups = grouped_programs.get_untracked();
                     if let Some(group) = groups.iter().find(|g| g.display_title == title) {
                         if let Some(latest) = group.po_options.first() {
                             let po = latest.po_version.clone().unwrap_or_default();
@@ -335,7 +335,7 @@ pub fn StudyProgramSelection(
                             on:keydown=move |ev: web_sys::KeyboardEvent| {
                                 if !has_multi { return; }
                                 match ev.key().as_str() {
-                                    "ArrowDown" | "Enter" | " " if !po_dropdown_open.get() => {
+                                    "ArrowDown" | "Enter" | " " if !po_dropdown_open.get_untracked() => {
                                         ev.prevent_default();
                                         program_combobox_open.set(false);
                                         po_dropdown_open.set(true);
@@ -354,7 +354,7 @@ pub fn StudyProgramSelection(
 
                         // PO Dropdown
                         {if is_open && has_multi {
-                            let prog_title = selected_program_name.get();
+                            let prog_title = selected_program_name.get_untracked();
                             view! {
                                 <div
                                     node_ref=po_dropdown_ref
@@ -365,18 +365,18 @@ pub fn StudyProgramSelection(
                                         match ev.key().as_str() {
                                             "ArrowDown" => {
                                                 ev.prevent_default();
-                                                let len = current_po_options.get().len();
+                                                let len = current_po_options.get_untracked().len();
                                                 if len > 0 {
-                                                    let next = (po_highlighted_index.get() + 1) % len;
+                                                    let next = (po_highlighted_index.get_untracked() + 1) % len;
                                                     po_highlighted_index.set(next);
                                                     scroll_po_index_into_view(po_options_ref, next);
                                                 }
                                             }
                                             "ArrowUp" => {
                                                 ev.prevent_default();
-                                                let len = current_po_options.get().len();
+                                                let len = current_po_options.get_untracked().len();
                                                 if len > 0 {
-                                                    let current = po_highlighted_index.get();
+                                                    let current = po_highlighted_index.get_untracked();
                                                     let next = if current == 0 { len - 1 } else { current - 1 };
                                                     po_highlighted_index.set(next);
                                                     scroll_po_index_into_view(po_options_ref, next);
@@ -384,8 +384,8 @@ pub fn StudyProgramSelection(
                                             }
                                             "Enter" => {
                                                 ev.prevent_default();
-                                                let list = current_po_options.get();
-                                                let idx = po_highlighted_index.get();
+                                                let list = current_po_options.get_untracked();
+                                                let idx = po_highlighted_index.get_untracked();
                                                 if let Some(target_po) = list.get(idx).or_else(|| list.first()) {
                                                     let po_str = target_po.po_version.clone().unwrap_or_default();
                                                     on_select_program.run((target_po.id.clone(), prog_title.clone(), po_str));

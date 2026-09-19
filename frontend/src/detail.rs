@@ -46,7 +46,7 @@ where
         move |_| {
             if let Some(win) = web_sys::window() {
                 let loc = win.location();
-                let share_url = format!("{}{}", loc.origin().unwrap_or_default(), crate::query::course_url(&m_id));
+                let share_url = format!("{}{}", loc.origin().unwrap_or_default(), crate::query::module_url(&m_id));
                 let nav = win.navigator();
                 let clipboard = nav.clipboard();
                 let _ = clipboard.write_text(&share_url);

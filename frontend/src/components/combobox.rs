@@ -37,7 +37,7 @@ pub fn fuzzy_score_with_config(query: &str, target: &str, config: &FuzzyConfig) 
 }
 
 fn scroll_index_into_view(options_ref: NodeRef<leptos::html::Div>, index: usize) {
-    if let Some(container) = options_ref.get() {
+    if let Some(container) = options_ref.get_untracked() {
         if let Ok(Some(target)) = container.query_selector(&format!("[data-index=\"{}\"]", index)) {
             let obj = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&obj, &"block".into(), &"nearest".into());
@@ -140,10 +140,10 @@ pub fn Combobox(
                 // Reset search query to empty on open so full list is visible
                 set_search_query.set(String::new());
 
-                let cur_label = selected_label.get();
-                let has_sel = has_selection.get();
+                let cur_label = selected_label.get_untracked();
+                let has_sel = has_selection.get_untracked();
 
-                let initial_idx = filtered_items.with(|list| {
+                let initial_idx = filtered_items.with_untracked(|list| {
                     list.iter().position(|entry| {
                         if entry.is_default {
                             !has_sel || cur_label.is_empty() || cur_label == entry.item.label
@@ -156,7 +156,7 @@ pub fn Combobox(
                 highlighted_index.set(initial_idx);
 
                 request_animation_frame(move || {
-                    if let Some(input) = input_ref.get() {
+                    if let Some(input) = input_ref.get_untracked() {
                         let _ = input.focus();
                         input.select();
                     }
@@ -164,7 +164,7 @@ pub fn Combobox(
                 });
 
                 gloo_timers::callback::Timeout::new(25, move || {
-                    if let Some(input) = input_ref.get() {
+                    if let Some(input) = input_ref.get_untracked() {
                         let _ = input.focus();
                         input.select();
                     }
@@ -183,7 +183,7 @@ pub fn Combobox(
                 on:click=move |_| is_open.update(|o| *o = !*o)
                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                     match ev.key().as_str() {
-                        "ArrowDown" | "Enter" | " " if !is_open.get() => {
+                        "ArrowDown" | "Enter" | " " if !is_open.get_untracked() => {
                             ev.prevent_default();
                             is_open.set(true);
                         }
@@ -243,36 +243,36 @@ pub fn Combobox(
                                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                                     match ev.key().as_str() {
                                         "ArrowDown" => {
-                                            ev.prevent_default();
-                                            let len = filtered_items.get().len();
-                                            if len > 0 {
-                                                let next = (highlighted_index.get() + 1) % len;
-                                                highlighted_index.set(next);
-                                                scroll_index_into_view(options_ref, next);
-                                            }
+                                             ev.prevent_default();
+                                             let len = filtered_items.get_untracked().len();
+                                             if len > 0 {
+                                                 let next = (highlighted_index.get_untracked() + 1) % len;
+                                                 highlighted_index.set(next);
+                                                 scroll_index_into_view(options_ref, next);
+                                             }
                                         }
                                         "ArrowUp" => {
-                                            ev.prevent_default();
-                                            let len = filtered_items.get().len();
-                                            if len > 0 {
-                                                let current = highlighted_index.get();
-                                                let next = if current == 0 { len - 1 } else { current - 1 };
-                                                highlighted_index.set(next);
-                                                scroll_index_into_view(options_ref, next);
-                                            }
+                                             ev.prevent_default();
+                                             let len = filtered_items.get_untracked().len();
+                                             if len > 0 {
+                                                 let current = highlighted_index.get_untracked();
+                                                 let next = if current == 0 { len - 1 } else { current - 1 };
+                                                 highlighted_index.set(next);
+                                                 scroll_index_into_view(options_ref, next);
+                                             }
                                         }
                                         "Enter" => {
-                                            ev.prevent_default();
-                                            let list = filtered_items.get();
-                                            let idx = highlighted_index.get();
-                                            if let Some(entry) = list.get(idx).or_else(|| list.first()) {
-                                                on_select.run(entry.item.clone());
-                                                is_open.set(false);
-                                            }
+                                             ev.prevent_default();
+                                             let list = filtered_items.get_untracked();
+                                             let idx = highlighted_index.get_untracked();
+                                             if let Some(entry) = list.get(idx).or_else(|| list.first()) {
+                                                 on_select.run(entry.item.clone());
+                                                 is_open.set(false);
+                                             }
                                         }
                                         "Escape" => {
-                                            ev.prevent_default();
-                                            is_open.set(false);
+                                             ev.prevent_default();
+                                             is_open.set(false);
                                         }
                                         _ => {}
                                     }

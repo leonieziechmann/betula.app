@@ -205,8 +205,12 @@ func (s *Server) routes() {
 func spaHandler(dir string) http.Handler {
 	files := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
-		appRoute := r.URL.Path == "/" || r.URL.Path == "/catalogue" || r.URL.Path == "/catalouge"
+		trimmed := strings.Trim(r.URL.EscapedPath(), "/")
+		parts := strings.Split(trimmed, "/")
+		appRoute := trimmed == "" || trimmed == "catalog" || trimmed == "catalogue" || trimmed == "catalouge"
+		if len(parts) == 3 && parts[0] == "catalog" && parts[1] == "module" && parts[2] != "" {
+			appRoute = true
+		}
 		if len(parts) == 2 && parts[0] == "course" && parts[1] != "" {
 			appRoute = true
 		}

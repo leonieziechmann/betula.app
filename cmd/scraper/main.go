@@ -22,6 +22,7 @@ import (
 	"github.com/jakob/btu-scraper/internal/analytics"
 	"github.com/jakob/btu-scraper/internal/cache"
 	"github.com/jakob/btu-scraper/internal/config"
+	"github.com/jakob/btu-scraper/internal/curriculumscan"
 	"github.com/jakob/btu-scraper/internal/gemini"
 	"github.com/jakob/btu-scraper/internal/logger"
 	"github.com/jakob/btu-scraper/internal/model"
@@ -116,8 +117,9 @@ Commands:
                              [--name <filter>] [--degree <filter>] [--download] [--from-db] [--refresh]
   download-statutes          Download study regulation PDFs (Studienordnungen & Prüfungsordnungen)
                              [--name <filter>] [--degree <filter>] [--workers 2] [--delay 200] [--out-dir <dir>] [--refresh]
-  scan-curriculum            Extract study plan & semester progression from PDF statutes using Gemini AI
-                             [--name <filter>] [--degree <filter>] [--delay 500] [--force] [--api-key <key>]
+  scan-curriculum            Extract study plan & semester progression from the Prüfungsordnung PDFs
+                             (Gemini enrichment when an API key is configured; --offline skips it)
+                             [--name <filter>] [--degree <filter>] [--delay 500] [--force] [--dry-run]
   qis-tree                   Extract complete study section, subject area & module tree from QISpos
                              [--name <filter>] [--degree <filter>] [--delay 300]
   show-curriculum <name|id>  Display structured semester study plan (Pflicht / Wahlpflicht / ECTS)
@@ -1031,6 +1033,7 @@ func runScanCurriculum(ctx context.Context, args []string) {
 	nameFilter := fs.String("name", "", "Filter study program name (e.g. Informatik)")
 	degreeFilter := fs.String("degree", "", "Filter degree (e.g. Bachelor, Master)")
 	apiKeyFlag := fs.String("api-key", "", "Gemini API key (defaults to config or GEMINI_API_KEY)")
+	offline := fs.Bool("offline", false, "Do not call Gemini even if an API key is configured (deterministic PDF reader only)")
 	modelFlag := fs.String("model", "", "Gemini model (default: gemini-3.5-flash-lite)")
 	delayMs := fs.Int("delay", 500, "Polite delay in milliseconds between requests (default: 500ms)")
 	force := fs.Bool("force", false, "Force re-scan even if curriculum already extracted")
@@ -1057,17 +1060,24 @@ func runScanCurriculum(ctx context.Context, args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	apiKey := *apiKeyFlag
-	if apiKey == "" {
-		apiKey = cfg.Gemini.APIKey
-	}
-	if apiKey == "" {
-		apiKey = os.Getenv("GEMINI_API_KEY")
-	}
-	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "Error: missing Gemini API key.")
-		fmt.Fprintln(os.Stderr, "Provide via --api-key <key>, GEMINI_API_KEY env var, or gemini.api_key in config.yaml")
-		os.Exit(1)
+	// Gemini enriches the plan whenever a key is available. Without one (or with
+	// --offline) the deterministic PDF reader alone produces the plan.
+	apiKey := ""
+	if !*offline {
+		apiKey = *apiKeyFlag
+		if apiKey == "" {
+			apiKey = cfg.Gemini.APIKey
+		}
+		if apiKey == "" {
+			apiKey = os.Getenv("GEMINI_API_KEY")
+		}
+		if apiKey == "" {
+			// Semester columns, credits, names and requirement types come from the
+			// PDF cells in either case; without a key only the model's extra fields
+			// (English title, study section, subject area, exam type) are missing.
+			fmt.Fprintln(os.Stderr, "Note: no Gemini API key configured; continuing with the deterministic PDF reader.")
+			fmt.Fprintln(os.Stderr, "      Provide --api-key, GEMINI_API_KEY or gemini.api_key in config.yaml for AI enrichment.")
+		}
 	}
 
 	modelName := *modelFlag
@@ -1163,7 +1173,11 @@ func runScanCurriculum(ctx context.Context, args []string) {
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "[+] Starting AI curriculum scan with Gemini (%s) for %d study program branches...\n", modelName, len(eligible))
+	mode := "deterministic PDF reader"
+	if apiKey != "" {
+		mode = "PDF reader + Gemini (" + modelName + ")"
+	}
+	fmt.Fprintf(os.Stderr, "[+] Starting curriculum scan (%s) for %d study program branches...\n", mode, len(eligible))
 	fmt.Fprintf(os.Stderr, "    Delay: %dms | Force: %v\n\n", *delayMs, *force)
 
 	start := time.Now()
@@ -1196,75 +1210,40 @@ func runScanCurriculum(ctx context.Context, args []string) {
 			}
 		}
 
-		// Never silently use an old base statute when an amendment is also present.
-		var bestDoc *model.ProgramRegulationDocument
-		var sourceSelection gemini.RegulationSelection
-		geminiClient.PlanPages = selectedPages
-		var available []model.ProgramRegulationDocument
-		seenPaths := make(map[string]bool)
-		for _, d := range prog.Documents {
-			if fi, err := os.Stat(d.LocalPath); err == nil && fi.Size() > 0 && !seenPaths[d.LocalPath] {
-				available = append(available, d)
-				seenPaths[d.LocalPath] = true
+		fmt.Fprintf(os.Stderr, "[%d/%d] Scanning %s (%s) %s...\n", idx+1, len(eligible), prog.ProgramName, prog.Degree, prog.POVersion)
+		outcome := curriculumscan.Scan(ctx, prog, catalog, curriculumscan.Options{
+			StartTerm: *startTerm, Tolerance: *tolerance, PDFPath: *pdfPath, PlanPages: selectedPages, Client: geminiClient,
+		})
+		bestDoc := &model.ProgramRegulationDocument{LocalPath: outcome.Source}
+		recordStatus := func(status, message string) {
+			if *dryRun {
+				return
+			}
+			if err := store.SaveProgramScanStatus(prog.ID, status, audit.Clean(message), outcome.Source); err != nil {
+				fmt.Fprintln(os.Stderr, "    Cannot save scan status:", err)
 			}
 		}
-		if *pdfPath != "" {
-			bestDoc = &model.ProgramRegulationDocument{LocalPath: *pdfPath}
-		} else if len(available) == 1 {
-			bestDoc = &available[0]
-		} else if len(available) > 1 {
-			var selectionErr error
-			sourceSelection, selectionErr = gemini.SelectRegulationSources(prog, available)
-			if selectionErr != nil {
-				logEvent(logger.CurriculumEvent{Level: "error", Code: "ambiguous_source", ProgramID: prog.ID, Program: prog.ProgramName, Message: selectionErr.Error(), Status: "needs_review"})
-				failed++
-				continue
-			}
-			bestDoc = &sourceSelection.Plan
-			geminiClient.PlanPages = sourceSelection.Pages
-			for _, review := range sourceSelection.Reviews {
-				logEvent(logger.CurriculumEvent{Level: "info", Code: "amendment_review", ProgramID: prog.ID, Program: prog.ProgramName, Source: review.Source, Message: review.Decision + ": " + review.Evidence + " SHA256=" + review.SHA256})
-			}
+		for _, review := range outcome.Reviews {
+			logEvent(logger.CurriculumEvent{Level: "info", Code: "amendment_review", ProgramID: prog.ID, Program: prog.ProgramName, Source: review.Source, Message: review.Decision + ": " + review.Evidence + " SHA256=" + review.SHA256})
 		}
-
-		if bestDoc == nil {
-			logEvent(logger.CurriculumEvent{Level: "warning", Code: "missing_pdf", ProgramID: prog.ID, Program: prog.ProgramName, Message: "No downloaded regulation PDF available", Status: "missing_source", Action: "download-statutes ausführen oder offizielle PDF-Quelle ergänzen."})
-			failed++
+		switch outcome.Status {
+		case curriculumscan.StatusMissingSource, curriculumscan.StatusNoPlan:
+			// Not a failure: discontinued programs and amendment-only entries have no plan table.
+			fmt.Fprintf(os.Stderr, "    Kein Studienplan: %s\n", audit.Clean(outcome.Message))
+			logEvent(logger.CurriculumEvent{Level: "info", Code: outcome.Status, ProgramID: prog.ID, Program: prog.ProgramName, Source: outcome.Source, Message: audit.Clean(outcome.Message), Status: outcome.Status})
+			recordStatus(outcome.Status, outcome.Message)
 			continue
 		}
-		logEvent(logger.CurriculumEvent{Level: "info", Code: "scan_started", ProgramID: prog.ID, Program: prog.ProgramName, Source: bestDoc.LocalPath, Message: "Extracting and validating study plan", Status: "running"})
-
-		fmt.Fprintf(os.Stderr, "[%d/%d] 🤖 Scanning %s (%s) via %s...\n",
-			idx+1, len(eligible), prog.ProgramName, prog.Degree, filepath.Base(bestDoc.LocalPath))
-
-		res, err := geminiClient.ExtractCurriculumFromPDF(ctx, bestDoc.LocalPath, prog.ProgramName+" / "+prog.Degree+" / PO "+prog.POVersion)
-		if err != nil {
-			err = fmt.Errorf("%s", audit.Clean(err.Error()))
-			fmt.Fprintf(os.Stderr, "    ❌ Error scanning %s: %v\n", bestDoc.LocalPath, err)
-			errorReport := map[string]string{"program_id": prog.ID, "source": bestDoc.LocalPath, "status": "rejected", "error": err.Error()}
-			data, _ := json.MarshalIndent(errorReport, "", "  ")
-			path := filepath.Join(*reportDir, fmt.Sprintf("%x.error.json", sha256.Sum256([]byte(prog.ID+"|"+bestDoc.LocalPath))))
-			if writeErr := os.WriteFile(path, data, 0644); writeErr != nil {
-				fmt.Fprintln(os.Stderr, "Cannot save rejection report:", writeErr)
-			}
-			if *asJSON {
-				_ = json.NewEncoder(os.Stdout).Encode(errorReport)
-			}
-			code, action := logger.ClassifyCurriculumFailure(err.Error())
-			logEvent(logger.CurriculumEvent{Level: "error", Code: code, ProgramID: prog.ID, Program: prog.ProgramName, Source: bestDoc.LocalPath, Message: err.Error(), Action: action, Report: path, Status: "needs_review"})
+		res := outcome.Extraction
+		validation := outcome.Validation
+		if res == nil {
+			msg := audit.Clean(outcome.Message)
+			fmt.Fprintf(os.Stderr, "    Error scanning %s: %s\n", outcome.Source, msg)
+			code, action := logger.ClassifyCurriculumFailure(msg)
+			logEvent(logger.CurriculumEvent{Level: "error", Code: code, ProgramID: prog.ID, Program: prog.ProgramName, Source: outcome.Source, Message: msg, Action: action, Status: "needs_review"})
+			recordStatus(outcome.Status, msg)
 			failed++
 			continue
-		}
-
-		if len(sourceSelection.Reviews) > 0 {
-			if applyErr := sourceSelection.Apply(res); applyErr != nil {
-				sourceSelection.Issues = append(sourceSelection.Issues, gemini.ValidationIssue{Severity: "error", Code: "amendment_requires_patch", Message: applyErr.Error()})
-			}
-		}
-		validation := gemini.ValidateCurriculum(res, catalog, *startTerm, *tolerance)
-		validation.Issues = append(validation.Issues, sourceSelection.Issues...)
-		if len(sourceSelection.Issues) > 0 {
-			validation.Valid = false
 		}
 		report := struct {
 			ProgramID  string                             `json:"program_id"`
@@ -1294,9 +1273,10 @@ func runScanCurriculum(ctx context.Context, args []string) {
 			logEvent(logger.CurriculumEvent{Level: issue.Severity, Code: issue.Code, ProgramID: prog.ID, Program: prog.ProgramName, Source: bestDoc.LocalPath, Module: issue.Module, Message: issue.Message, Report: filepath.Join(*reportDir, reportName), Action: logger.CurriculumIssueAction(issue.Code)})
 		}
 		fmt.Fprintf(os.Stderr, "    Evidence: %s\n", filepath.Join(*reportDir, reportName))
-		if !validation.Valid {
+		if !outcome.Saveable() {
 			fmt.Fprintln(os.Stderr, "    Rejected: existing curriculum preserved.")
 			logEvent(logger.CurriculumEvent{Level: "info", Code: "validation_rejected", ProgramID: prog.ID, Program: prog.ProgramName, Message: "Validation errors; existing records preserved", Status: "needs_review", Report: filepath.Join(*reportDir, reportName)})
+			recordStatus(outcome.Status, outcome.Message)
 			failed++
 			continue
 		}
@@ -1307,44 +1287,7 @@ func runScanCurriculum(ctx context.Context, args []string) {
 			totalMatched += validation.Matched
 			continue
 		}
-		var curModules []model.CurriculumModule
-		cellEvidence := map[string]string{}
-		for _, cell := range res.Layout.Cells {
-			data, _ := json.Marshal(cell)
-			cellEvidence[cell.ID] = string(data)
-		}
-		for _, m := range res.Modules {
-			curModules = append(curModules, model.CurriculumModule{
-				SourceEvidence:         cellEvidence[m.SourceCell],
-				ProgramID:              prog.ID,
-				ModuleID:               catalogModuleID(m, catalog),
-				ProgramName:            prog.ProgramName,
-				Degree:                 prog.Degree,
-				POVersion:              prog.POVersion,
-				ModuleCode:             m.ModuleCode,
-				ModuleName:             m.ModuleName,
-				ModuleNameEN:           m.ModuleNameEN,
-				RecommendedSemester:    m.RecommendedSemester,
-				RecommendedSemesterRaw: m.RecommendedSemesterRaw,
-				SemesterSpan:           m.SemesterSpan,
-				StartSemester:          m.StartSemester,
-				EndSemester:            m.EndSemester,
-				Credits:                m.Credits,
-				MinCredits:             m.MinCredits,
-				MaxCredits:             m.MaxCredits,
-				ModuleType:             m.ModuleType,
-				StudySection:           m.StudySection,
-				SubjectArea:            m.SubjectArea,
-				AreaRules:              m.AreaRules,
-				Specialization:         m.Specialization,
-				SWS:                    m.SWS,
-				ExamType:               m.ExamType,
-				Graded:                 m.Graded,
-				Prerequisites:          m.Prerequisites,
-				Remarks:                m.Remarks,
-				SourceFile:             bestDoc.LocalPath,
-			})
-		}
+		curModules := outcome.Modules
 
 		layoutData, _ := json.Marshal(res.Layout)
 		if err := store.SaveValidatedCurriculumModules(prog.ID, prog.ProgramName, prog.Degree, prog.POVersion, curModules, bestDoc.LocalPath, string(layoutData)); err != nil {
@@ -1355,10 +1298,8 @@ func runScanCurriculum(ctx context.Context, args []string) {
 		}
 
 		totalExt, matched := len(curModules), validation.Matched
-		status := "saved"
-		if len(validation.Issues) > 0 {
-			status = "saved_with_warnings"
-		}
+		status := outcome.Status
+		recordStatus(status, outcome.Message)
 		logEvent(logger.CurriculumEvent{Level: "info", Code: "saved", ProgramID: prog.ID, Program: prog.ProgramName, Source: bestDoc.LocalPath, Message: fmt.Sprintf("%d requirements, %d catalog links", totalExt, matched), Status: status, Report: filepath.Join(*reportDir, reportName)})
 
 		programsScanned++
