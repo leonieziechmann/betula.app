@@ -60,6 +60,10 @@ type Report struct {
 
 	Events              int
 	EventLinksNoArchive int // events a module page links that are not archived yet
+
+	// Unused lists archived pages that are not part of the current dataset: module pages
+	// of modules that left the lists, tree pages the root no longer reaches. source → keys.
+	Unused map[string][]string
 }
 
 // Build replaces all derived tables from the raw archive, in one transaction.
@@ -88,6 +92,8 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	warn(report.ModulesWithoutPage, "build.modules_without_page", "modules are known from a list only, their module page is missing")
 	warn(total(report.PageRefsUnresolved), "build.unresolved_refs", "module page assignments resolve to no program", "distinct", len(report.PageRefsUnresolved), "examples", examples(report.PageRefsUnresolved, 3))
 	warn(total(report.TreeLeavesNoModule), "build.tree_leaves_without_module", "tree leaves name modules that are not in the catalog", "distinct", len(report.TreeLeavesNoModule), "examples", examples(report.TreeLeavesNoModule, 5))
+	warn(len(report.Unused[catalogdb.SourceModulePage]), "build.unlisted_module_pages", "archived module pages belong to modules that are on no list any more; they are left out", "examples", first(report.Unused[catalogdb.SourceModulePage], 5))
+	warn(len(report.Unused[catalogdb.SourceQISTree]), "build.unreachable_tree_pages", "archived tree pages are no longer reachable from the QIS root; they are left out")
 	warn(report.MissingTreePages, "build.tree_pages_missing", "area pages of the QIS tree are missing from the archive")
 	warn(len(report.PlansWithoutProgram), "build.plans_without_program", "validated plans belong to programs that no longer exist", "programs", report.PlansWithoutProgram)
 	warn(report.PlanEntriesUnknownModule, "build.plan_entries_unknown_module", "plan entries are matched to modules that are not in the catalog")
@@ -98,6 +104,13 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil
+}
+
+func first(keys []string, limit int) []string {
+	if len(keys) > limit {
+		return keys[:limit]
+	}
+	return keys
 }
 
 func total(m map[string]int) int {
@@ -126,12 +139,23 @@ func examples(m map[string]int, limit int) []string {
 	return keys
 }
 
+// Unused returns the archived pages that are not part of the current dataset
+// (Report.Unused) without building anything.
+func Unused(ctx context.Context, db *catalogdb.DB) (map[string][]string, error) {
+	report := &Report{Unused: make(map[string][]string), TreeLeavesNoModule: map[string]int{}, PageRefsUnresolved: map[string]int{}, Assertions: map[string]int{}}
+	if _, err := loadSources(ctx, db, report); err != nil {
+		return nil, err
+	}
+	return report.Unused, nil
+}
+
 func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	report := &Report{
 		BuiltAt:            time.Now().UTC().Truncate(time.Second),
 		TreeLeavesNoModule: make(map[string]int),
 		PageRefsUnresolved: make(map[string]int),
 		Assertions:         make(map[string]int),
+		Unused:             make(map[string][]string),
 	}
 
 	// Parse everything before the transaction starts: parsing is the slow part

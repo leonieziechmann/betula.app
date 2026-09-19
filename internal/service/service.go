@@ -31,6 +31,7 @@ type Config struct {
 	Lists, Modules, Events, Tree Pace
 
 	EventRetention time.Duration        // keep an event this long after its last date; 0 keeps everything
+	ArchiveGrace   time.Duration        // remove archived pages nothing leads to any more, this long after their fetch; 0 keeps them
 	Baselines      []catalogdb.Baseline // count baselines for validate
 	StaleAfter     time.Duration        // health: unhealthy without a successful cycle for this long
 }
@@ -49,6 +50,7 @@ func DefaultConfig() Config {
 		Events:         Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 600},
 		Tree:           Pace{Delay: time.Second, MaxAge: 7 * 24 * time.Hour, Limit: 300},
 		EventRetention: 30 * 24 * time.Hour,
+		ArchiveGrace:   7 * 24 * time.Hour,
 		Baselines:      catalogdb.BTUBaselines,
 		StaleAfter:     26 * time.Hour,
 	}
@@ -211,6 +213,16 @@ func (s *Service) RunCycle(ctx context.Context) (result CycleResult) {
 	var report *catalogbuild.Report
 	if !step("build", func() (err error) { report, err = catalogbuild.Build(ctx, s.db); return err }) {
 		return result
+	}
+
+	if s.cfg.ArchiveGrace > 0 {
+		step("archive", func() error {
+			removed, err := s.db.PruneArchive(report.Unused, s.now().Add(-s.cfg.ArchiveGrace))
+			if err == nil && removed > 0 {
+				oplog.For("retention").Info("archive pruned", "event", "retention.archive_pruned", "removed", removed)
+			}
+			return err
+		})
 	}
 
 	_, pointerErr := catalogdb.ReadSnapshotPointer(s.cfg.SnapshotDir)

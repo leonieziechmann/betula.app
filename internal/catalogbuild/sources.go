@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
@@ -39,7 +40,6 @@ type poTree struct {
 	url       string
 	fetchedAt time.Time
 	pages     []qistree.Page // PO page first, then its area pages top-down
-	missing   int
 }
 
 type eventPage struct {
@@ -103,11 +103,31 @@ func loadSources(ctx context.Context, db *catalogdb.DB, report *Report) (*source
 		return nil, err
 	}
 
-	if err := loadTrees(ctx, db, src); err != nil {
-		return nil, err
+	// The lists decide which modules exist. The page of a module that left both lists is
+	// not part of the current dataset, however recently it was archived.
+	if len(src.catalogTitles)+len(src.fues) > 0 {
+		for id := range src.modulePages {
+			if _, listed := src.catalogTitles[id]; listed {
+				continue
+			}
+			if _, listed := src.fues[id]; listed {
+				continue
+			}
+			delete(src.modulePages, id)
+			report.Unused[catalogdb.SourceModulePage] = append(report.Unused[catalogdb.SourceModulePage], id)
+		}
+		for id := range src.moduleGone {
+			_, inCatalog := src.catalogTitles[id]
+			_, inFUES := src.fues[id]
+			if !inCatalog && !inFUES {
+				report.Unused[catalogdb.SourceModulePage] = append(report.Unused[catalogdb.SourceModulePage], id)
+			}
+		}
+		sort.Strings(report.Unused[catalogdb.SourceModulePage])
 	}
-	for _, t := range src.poTrees {
-		report.MissingTreePages += t.missing
+
+	if err := loadTrees(ctx, db, src, report); err != nil {
+		return nil, err
 	}
 
 	eventParser := parser.NewEventParser()
@@ -135,19 +155,26 @@ func isEnglishModulePage(body []byte) bool {
 	return bytes.Contains(body, []byte("Module Number")) && !bytes.Contains(body, []byte("Modulnummer"))
 }
 
-// loadTrees finds every archived PO page and walks the archive below it. A PO page
-// names its own program and degree in the breadcrumb, so the index pages above it
-// are not needed.
-func loadTrees(ctx context.Context, db *catalogdb.DB, src *sources) error {
+// loadTrees reads the program tree from the archive. With an archived root page the
+// tree is what a walk from that root reaches: a program or PO version that QIS no
+// longer lists is not part of the current dataset, and its pages are reported as
+// unused. Without a root (a partial archive) every archived PO page counts; a PO page
+// names its own program and degree in the breadcrumb.
+func loadTrees(ctx context.Context, db *catalogdb.DB, src *sources, report *Report) error {
 	bodies := make(map[string]*catalogdb.RawPage)
 	var poURLs []string
+	var root *catalogdb.RawPage
 	err := db.EachPage(catalogdb.SourceQISTree, func(p *catalogdb.RawPage) error {
 		if p.HTTPStatus != 200 || len(p.Body) == 0 {
 			return nil
 		}
 		bodies[p.Key] = p
-		if qistree.ParseNodeID(p.Key).IsPO() {
+		node := qistree.ParseNodeID(p.Key)
+		if node.IsPO() {
 			poURLs = append(poURLs, p.Key)
+		}
+		if node.Stg == "" && strings.Contains(p.Key, "nodeID=auswahlBaum") && (root == nil || p.FetchedAt.After(root.FetchedAt)) {
+			root = p
 		}
 		return nil
 	})
@@ -162,27 +189,60 @@ func loadTrees(ctx context.Context, db *catalogdb.DB, src *sources) error {
 		}
 		return nil, qistree.ErrPageMissing
 	}
-
 	treeParser := parser.NewProgramTreeParser()
-	for _, poURL := range poURLs {
-		page := bodies[poURL]
-		t := &poTree{node: qistree.ParseNodeID(poURL), url: poURL, fetchedAt: page.FetchedAt}
-		if t.context, err = treeParser.ParsePOContext(bytes.NewReader(page.Body)); err != nil {
-			return fmt.Errorf("PO page %s: %w", poURL, err)
-		}
-		if t.documents, err = treeParser.ParsePODocuments(bytes.NewReader(page.Body), "https://www.b-tu.de"); err != nil {
-			return fmt.Errorf("PO page %s: %w", poURL, err)
-		}
-		result, err := qistree.WalkPO(ctx, qistree.Page{URL: poURL}, fetch, func(p qistree.Page) error {
-			p.Body = nil // parsed already; keep memory small
-			t.pages = append(t.pages, p)
+	trees := make(map[string]*poTree)
+	collect := func(p qistree.Page) error {
+		if p.Level < qistree.LevelPO {
 			return nil
+		}
+		poURL := p.PO.URL
+		if p.Level == qistree.LevelPO {
+			poURL = p.URL
+		}
+		t := trees[poURL]
+		if t == nil {
+			page := bodies[poURL]
+			t = &poTree{node: qistree.ParseNodeID(poURL), url: poURL, fetchedAt: page.FetchedAt}
+			var err error
+			if t.context, err = treeParser.ParsePOContext(bytes.NewReader(page.Body)); err != nil {
+				return fmt.Errorf("PO page %s: %w", poURL, err)
+			}
+			if t.documents, err = treeParser.ParsePODocuments(bytes.NewReader(page.Body), "https://www.b-tu.de"); err != nil {
+				return fmt.Errorf("PO page %s: %w", poURL, err)
+			}
+			trees[poURL] = t
+			src.poTrees = append(src.poTrees, t)
+		}
+		p.Body = nil // parsed already; keep memory small
+		t.pages = append(t.pages, p)
+		return nil
+	}
+
+	if root != nil {
+		visited := make(map[string]bool)
+		result, err := qistree.Walk(ctx, root.Key, fetch, func(p qistree.Page) error {
+			visited[p.URL] = true
+			return collect(p)
 		})
 		if err != nil {
 			return err
 		}
-		t.missing = len(result.Missing)
-		src.poTrees = append(src.poTrees, t)
+		report.MissingTreePages += len(result.Missing)
+		for key := range bodies {
+			if !visited[key] {
+				report.Unused[catalogdb.SourceQISTree] = append(report.Unused[catalogdb.SourceQISTree], key)
+			}
+		}
+		sort.Strings(report.Unused[catalogdb.SourceQISTree])
+	} else {
+		for _, poURL := range poURLs {
+			result, err := qistree.WalkPO(ctx, qistree.Page{URL: poURL, PO: parser.PONode{URL: poURL}}, fetch, collect)
+			if err != nil {
+				return err
+			}
+			report.MissingTreePages += len(result.Missing)
+		}
 	}
+	sort.Slice(src.poTrees, func(i, j int) bool { return src.poTrees[i].url < src.poTrees[j].url })
 	return nil
 }

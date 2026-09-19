@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/leonieziechmann/btu-scraper/internal/catalogbuild"
+	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
 	"github.com/leonieziechmann/btu-scraper/internal/crawl"
 	"github.com/leonieziechmann/btu-scraper/internal/oplog"
 	"github.com/leonieziechmann/btu-scraper/internal/service"
@@ -119,23 +121,44 @@ func runCrawlTree(ctx context.Context, args []string) {
 	finishCrawl("crawl-tree", stats, err)
 }
 
-// runPruneEvents applies the retention rule to archived events.
-func runPruneEvents(ctx context.Context, args []string) {
-	fs := flag.NewFlagSet("prune-events", flag.ExitOnError)
+// runPrune removes everything that is not part of the current dataset: events past
+// their retention, and archived pages the current lists and the QIS root no longer
+// lead to. Run `build` afterwards to drop them from the canonical tables as well.
+func runPrune(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("prune", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "Database path")
-	keep := fs.Duration("keep", 30*24*time.Hour, "Keep an event this long after its last date")
+	keep := fs.Duration("event-retention", 30*24*time.Hour, "Keep an event this long after its last date")
+	grace := fs.Duration("archive-grace", 7*24*time.Hour, "Keep an unused archived page this long after it was fetched (0 removes all unused pages)")
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
 	defer closeLog()
+	log := oplog.For("retention")
 
 	db := openDB(*dbPath)
 	defer db.Close()
 
-	removed, err := db.PruneEvents(time.Now(), *keep)
+	events, err := db.PruneEvents(time.Now(), *keep)
 	if err != nil {
-		slog.Error("pruning events failed", "component", "retention", "event", "retention.failed", oplog.Err(err))
+		log.Error("pruning events failed", "event", "retention.failed", oplog.Err(err))
 		os.Exit(1)
 	}
-	slog.Info("events pruned", "component", "retention", "event", "retention.pruned", "removed", removed, "keep", keep.String())
+	log.Info("events pruned", "event", "retention.pruned", "removed", events, "keep", keep.String())
+
+	unused, err := catalogbuild.Unused(ctx, db)
+	if err != nil {
+		log.Error("cannot determine the unused pages", "event", "retention.failed", oplog.Err(err))
+		os.Exit(1)
+	}
+	var cutoff time.Time
+	if *grace > 0 {
+		cutoff = time.Now().Add(-*grace)
+	}
+	pages, err := db.PruneArchive(unused, cutoff)
+	if err != nil {
+		log.Error("pruning the archive failed", "event", "retention.failed", oplog.Err(err))
+		os.Exit(1)
+	}
+	log.Info("archive pruned", "event", "retention.archive_pruned", "removed", pages,
+		"unused_module_pages", len(unused[catalogdb.SourceModulePage]), "unused_tree_pages", len(unused[catalogdb.SourceQISTree]), "grace", grace.String())
 }

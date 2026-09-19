@@ -10,7 +10,7 @@ func TestPruneEventsRemovesOldEventsAndRemembersThem(t *testing.T) {
 	now := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
 	old := now.Add(-90 * 24 * time.Hour)
 
-	for _, id := range []string{"ended-long-ago", "ended-last-week", "undated-unlinked", "undated-linked", "undated-fresh"} {
+	for _, id := range []string{"ended-long-ago", "ended-last-week", "undated-unlinked", "undated-linked", "undated-fresh", "future-unlinked-stale"} {
 		fetchedAt := old
 		if id == "undated-fresh" {
 			fetchedAt = now
@@ -27,23 +27,24 @@ func TestPruneEventsRemovesOldEventsAndRemembersThem(t *testing.T) {
 			('ended-last-week',  'b', 'exam',     '2026-09-12', 'u', '2026-06-21T12:00:00Z'),
 			('undated-unlinked', 'c', 'other',    NULL,         'u', '2026-06-21T12:00:00Z'),
 			('undated-linked',   'd', 'other',    NULL,         'u', '2026-06-21T12:00:00Z'),
-			('undated-fresh',    'e', 'other',    NULL,         'u', '2026-09-19T12:00:00Z');
-		INSERT INTO module_event (module_id, event_id) VALUES ('11101', 'undated-linked');`)
+			('undated-fresh',    'e', 'other',    NULL,         'u', '2026-09-19T12:00:00Z'),
+			('future-unlinked-stale', 'f', 'teaching', '2027-02-05', 'u', '2026-06-21T12:00:00Z');
+		INSERT INTO module_event (module_id, event_id) VALUES ('11101', 'undated-linked'), ('11101', 'ended-last-week');`)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	removed, err := db.PruneEvents(now, 30*24*time.Hour)
-	if err != nil || removed != 2 {
-		t.Fatalf("PruneEvents = %d, %v; want 2", removed, err)
+	if err != nil || removed != 3 {
+		t.Fatalf("PruneEvents = %d, %v; want 3", removed, err)
 	}
 
 	tombstones, err := db.EventTombstones()
-	if err != nil || len(tombstones) != 2 || !tombstones["ended-long-ago"] || !tombstones["undated-unlinked"] {
+	if err != nil || len(tombstones) != 3 || !tombstones["ended-long-ago"] || !tombstones["undated-unlinked"] || !tombstones["future-unlinked-stale"] {
 		t.Fatalf("tombstones = %v (err %v)", tombstones, err)
 	}
 	for id, wantArchived := range map[string]bool{
-		"ended-long-ago": false, "undated-unlinked": false,
+		"ended-long-ago": false, "undated-unlinked": false, "future-unlinked-stale": false, // no module page links it and nothing refreshes it
 		"ended-last-week": true, "undated-linked": true, "undated-fresh": true,
 	} {
 		_, err := db.GetPage(SourceQISEvent, id)

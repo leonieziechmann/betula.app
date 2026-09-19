@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/leonieziechmann/btu-scraper/internal/normalize"
-	"github.com/leonieziechmann/btu-scraper/internal/qistree"
 )
 
 // Plan is a validated study plan of one program (source: statute PDF).
@@ -119,142 +118,6 @@ func nullIfZero[T comparable](v T) any {
 	return v
 }
 
-// LegacyImport summarises ImportLegacyPlans.
-type LegacyImport struct {
-	Plans          int
-	Entries        int
-	ScanStatuses   int
-	SkippedNoQISID []string // legacy programs whose QIS URL does not identify a PO
-}
-
-// ImportLegacyPlans copies the validated study plans of a schema v1 database. They are
-// the only v1 data worth keeping: every plan was checked against the PDF geometry, and
-// reproducing them costs Gemini calls. Rows of unvalidated scans are not imported, and
-// the v1 placeholders (0 and the empty string) become NULL. Program IDs are translated through the QIS
-// URL of the PO, which both schemas know.
-func (db *DB) ImportLegacyPlans(legacyPath string) (*LegacyImport, error) {
-	legacy, err := sql.Open("sqlite", legacyPath+"?mode=ro&_pragma=query_only(1)")
-	if err != nil {
-		return nil, err
-	}
-	defer legacy.Close()
-
-	result := &LegacyImport{}
-	idMap := make(map[string]string) // v1 program id → v2 program id
-	err = queryRows(legacy, "SELECT id, COALESCE(qis_url, '') FROM official_study_programs ORDER BY id", nil,
-		func(scan func(...any) error) error {
-			var id, qisURL string
-			if err := scan(&id, &qisURL); err != nil {
-				return err
-			}
-			if node := qistree.ParseNodeID(qisURL); node.IsPO() {
-				idMap[id] = node.ProgramID()
-			} else {
-				result.SkippedNoQISID = append(result.SkippedNoQISID, id)
-			}
-			return nil
-		})
-	if err != nil {
-		return nil, fmt.Errorf("failed to read legacy programs: %w", err)
-	}
-
-	var plans []Plan
-	legacyIDs := make(map[string]string) // v2 id → v1 id
-	err = queryRows(legacy, "SELECT program_id, source_file, layout_json, validated_at FROM validated_curriculum_plans ORDER BY program_id", nil,
-		func(scan func(...any) error) error {
-			var legacyID, validatedAt string
-			var p Plan
-			if err := scan(&legacyID, &p.SourceFile, &p.LayoutJSON, &validatedAt); err != nil {
-				return err
-			}
-			if newID, ok := idMap[legacyID]; ok {
-				p.ProgramID = newID
-				p.ValidatedAt = parseLegacyTime(validatedAt)
-				legacyIDs[newID] = legacyID
-				plans = append(plans, p)
-			}
-			return nil
-		})
-	if err != nil {
-		return nil, fmt.Errorf("failed to read legacy plans: %w", err)
-	}
-
-	for i := range plans {
-		p := &plans[i]
-		err := queryRows(legacy, `
-			SELECT COALESCE(module_id, ''), COALESCE(module_code, ''), module_name,
-			       COALESCE(recommended_semester, 0), COALESCE(start_semester, 0), COALESCE(end_semester, 0), COALESCE(semester_span, ''),
-			       COALESCE(credits, 0), COALESCE(min_credits, 0), COALESCE(max_credits, 0), COALESCE(module_type, ''),
-			       COALESCE(study_section, ''), COALESCE(subject_area, ''), COALESCE(area_rules, ''),
-			       COALESCE(specialization, ''), COALESCE(source_evidence, '')
-			FROM program_curriculum_modules
-			WHERE program_id = ? AND source_file = ?
-			ORDER BY id`, []any{legacyIDs[p.ProgramID], p.SourceFile},
-			func(scan func(...any) error) error {
-				var e PlanEntry
-				if err := scan(&e.ModuleID, &e.ModuleCodeRaw, &e.ModuleName,
-					&e.Semester, &e.StartSemester, &e.EndSemester, &e.SemesterSpan,
-					&e.Credits, &e.MinCredits, &e.MaxCredits, &e.KindRaw,
-					&e.StudySection, &e.SubjectArea, &e.AreaRules, &e.Specialization, &e.SourceEvidence); err != nil {
-					return err
-				}
-				p.Entries = append(p.Entries, e)
-				return nil
-			})
-		if err != nil {
-			return nil, fmt.Errorf("failed to read legacy plan rows of %s: %w", p.ProgramID, err)
-		}
-	}
-
-	type scanStatus struct{ programID, status, message, source, checkedAt string }
-	var statuses []scanStatus
-	err = queryRows(legacy, "SELECT program_id, status, COALESCE(message, ''), COALESCE(source_file, ''), checked_at FROM program_scan_status ORDER BY program_id", nil,
-		func(scan func(...any) error) error {
-			var s scanStatus
-			if err := scan(&s.programID, &s.status, &s.message, &s.source, &s.checkedAt); err != nil {
-				return err
-			}
-			if newID, ok := idMap[s.programID]; ok {
-				s.programID = newID
-				statuses = append(statuses, s)
-			}
-			return nil
-		})
-	if err != nil {
-		return nil, fmt.Errorf("failed to read legacy scan status: %w", err)
-	}
-
-	// One transaction: a failed import leaves the existing plans as they were.
-	tx, err := db.sql.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	for _, p := range plans {
-		if len(p.Entries) == 0 {
-			continue
-		}
-		if err := savePlanTx(tx, p); err != nil {
-			return nil, err
-		}
-		result.Plans++
-		result.Entries += len(p.Entries)
-	}
-	for _, s := range statuses {
-		_, err := tx.Exec(`
-			INSERT INTO plan_scan_status (program_id, status, message, source, updated_at) VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT(program_id) DO UPDATE SET status = excluded.status, message = excluded.message,
-				source = excluded.source, updated_at = excluded.updated_at`,
-			s.programID, s.status, nullIfZero(s.message), nullIfZero(s.source), parseLegacyTime(s.checkedAt).UTC().Format(time.RFC3339))
-		if err != nil {
-			return nil, fmt.Errorf("scan status %s: %w", s.programID, err)
-		}
-		result.ScanStatuses++
-	}
-	return result, tx.Commit()
-}
-
 func queryRows(db *sql.DB, query string, args []any, each func(scan func(...any) error) error) error {
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -267,14 +130,4 @@ func queryRows(db *sql.DB, query string, args []any, each func(scan func(...any)
 		}
 	}
 	return rows.Err()
-}
-
-// parseLegacyTime reads the two timestamp formats v1 used.
-func parseLegacyTime(s string) time.Time {
-	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t
-		}
-	}
-	return time.Now()
 }

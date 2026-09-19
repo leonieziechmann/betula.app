@@ -28,7 +28,7 @@ scraper help                           # all commands
 
 `scraper run` serves `GET /snapshot/catalog.db` (ETag, `If-None-Match` → 304), `/healthz` and
 `/status` on `127.0.0.1:8090`. The stages also run one by one: `crawl-modules`, `crawl-tree`,
-`crawl-events`, `prune-events`, `build`, `validate`, `export`, `serve-snapshot`.
+`crawl-events`, `prune`, `build`, `validate`, `export`, `serve-snapshot`.
 
 ```bash
 nix build .#scraper                    # static binary; the tests run inside the build
@@ -55,7 +55,8 @@ go test ./...                          # network-free, no API key needed
 The Gemini API key is never read from a flag or a configuration file:
 
 ```bash
-scraper secret set gemini-api-key      # developer machine: Windows Credential Manager, macOS Keychain, Secret Service
+cp .env.example .env                   # development: put GEMINI_API_KEY there; the file is git-ignored
+scraper secret set gemini-api-key      # or: Windows Credential Manager, macOS Keychain, Secret Service
 scraper secret status                  # where the key is found; never prints it
 ```
 

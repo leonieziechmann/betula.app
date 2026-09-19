@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/btu-scraper/internal/secrets"
 )
 
 const defaultDBPath = "btu_scraper.db"
@@ -31,7 +32,7 @@ var commands = [][]command{
 		{"crawl-modules", "Archive the module catalog list, the FÜS list and all module pages", runCrawlModules},
 		{"crawl-tree", "Walk the QIS program tree; fetch what is missing or stale", runCrawlTree},
 		{"crawl-events", "Archive the QIS event pages that module pages link", runCrawlEvents},
-		{"prune-events", "Remove events one month after their last date", runPruneEvents},
+		{"prune", "Remove what is not the current dataset: past events, archive pages nothing leads to", runPrune},
 		{"build", "Derive the canonical tables from the raw page archive (no network)", runBuild},
 		{"validate", "Check invariants, source conflicts and count baselines; exit 1 on failures", runValidate},
 		{"export", "Write the read-optimized snapshot", runExport},
@@ -44,7 +45,6 @@ var commands = [][]command{
 	},
 	{
 		{"raw-vocab", "Print the distinct raw values of the normalized module fields", runRawVocab},
-		{"import-legacy-plans", "Copy the validated study plans of a schema v1 database (one-time)", runImportLegacyPlans},
 	},
 }
 
@@ -55,6 +55,12 @@ func main() {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	// Development convenience: a git-ignored .env file. The real environment wins.
+	if _, err := secrets.LoadDotEnv(envOr("BTU_ENV_FILE", ".env")); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(2)
+	}
 
 	name := os.Args[1]
 	if name == "help" || name == "--help" || name == "-h" {

@@ -89,32 +89,6 @@ func printTop(title string, m map[string]int, limit int) {
 	}
 }
 
-// runImportLegacyPlans copies the validated study plans of the schema v1 database.
-func runImportLegacyPlans(ctx context.Context, args []string) {
-	fs := flag.NewFlagSet("import-legacy-plans", flag.ExitOnError)
-	dbPath := fs.String("db", defaultDBPath, "Database path")
-	legacyDB := fs.String("legacy-db", "btu_modules.db", "Schema v1 database to read the validated plans from")
-	_ = fs.Parse(args)
-
-	if _, err := os.Stat(*legacyDB); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: legacy database %s: %v\n", *legacyDB, err)
-		os.Exit(1)
-	}
-	db := openDB(*dbPath)
-	defer db.Close()
-
-	result, err := db.ImportLegacyPlans(*legacyDB)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("Imported %d validated plans with %d entries and %d scan statuses.\n", result.Plans, result.Entries, result.ScanStatuses)
-	if len(result.SkippedNoQISID) > 0 {
-		fmt.Printf("Skipped %d legacy programs without a usable QIS URL: %v\n", len(result.SkippedNoQISID), result.SkippedNoQISID)
-	}
-	fmt.Println("Run 'scraper build' to derive the plan-based membership statements.")
-}
-
 // runValidate reports the invariants of a built database and fails on regressions.
 func runValidate(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)

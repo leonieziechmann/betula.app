@@ -14,7 +14,7 @@ scan-curriculum ──▶ plan, plan_entry  (validated PDF plans, a source of th
 | Step | Command | Package | Notes |
 |---|---|---|---|
 | Archive pages | `scraper crawl-modules`, `crawl-tree`, `crawl-events` | `internal/crawl`, `internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
-| Carry over validated plans (once) | `scraper import-legacy-plans` | `catalogdb/plans.go` | The only v1 data that is kept. Unvalidated rows are not imported; `0`/`''` become NULL. |
+| Study plans | `scraper download-statutes`, `scraper scan-curriculum` | `internal/curriculumscan`, `internal/gemini`, `catalogdb/plans.go` | Validated plans are stored transactionally (`SavePlan`). The 140 plans of v1 were imported once; that importer is gone. |
 | Build | `scraper build` | `internal/catalogbuild`, `internal/normalize`, `internal/qistree` | Parses the archive and replaces all derived tables in **one transaction**; fails on any foreign-key violation. About 20 s for the whole catalog. A parser or normalization fix takes effect by building again, without the network. |
 | Validate | `scraper validate` | `catalogdb/validate.go` | Invariants (fail), source problems (warn), numbers (info), count baselines (fail below the minimum). Exit code 1 on failures. |
 | Export | `scraper export --out snapshot` | `catalogdb/export.go` | Refuses a database that fails validation. `VACUUM INTO` (a consistent copy that includes WAL frames), drops `raw_page`, rollback-journal mode, `ANALYZE`, `VACUUM`. Writes `snapshot/catalog-<hash>.db` and replaces `snapshot/current.json` atomically. Snapshots are never overwritten, because a reader may hold the previous one open. |
@@ -160,7 +160,7 @@ Done (see `docs/operations.md`):
   sees (without `meta` and the `fetched_at` columns). An unchanged digest means no export, so a
   refetched but unchanged page does not make every browser download the database again.
   `meta.data_changed_at` says when the content last changed.
-- **Retention.** Events are removed one month after their last date (`prune-events`, and in every
+- **Retention.** Events are removed one month after their last date (`prune`, and in every
   service cycle) and remembered in `event_tombstone`, because module pages keep linking them.
 - **QIS tree complete.** `crawl-tree` fetched the 152 missing index pages; a walk from the root now
   reaches all 2,652 pages, so new programs and PO versions are discovered.
@@ -183,8 +183,9 @@ Open:
   from the views. The frontend rewrite follows the view map in section 4.
 - **Plan matching.** Only about 44 % of the plan entries are linked to a catalog module (title
   matching). v2 has clean German and English titles for every module, which should lift this.
-- **`import-legacy-plans`** is the last piece that knows the v1 database. Remove it together with
-  `btu_modules.db` once the plans are backed up or rescanned.
+- **v1 data** left the repository on 2026-09-19 (databases, disk cache, logs, config): it is in
+  `btu-scraper-backup-2026-09-19` next to the repository, together with a copy of the working
+  database from before the first prune. No code reads it; the importer for the v1 plans was removed.
 - **`data-sources.md`** describes the v1 code paths it audited; those files no longer exist.
 
 ## 7. Incident note
@@ -219,4 +220,4 @@ Two things the real data showed:
   than a month ago (the summer lecture period ended in July) and 770 have no date at all. With
   `--event-retention 720h` the first service cycle removes the 1,663. That is the decided rule;
   until BTU publishes the winter semester the schedule views will mostly hold exams. The live
-  `btu_scraper.db` has not been pruned yet.
+  The prune ran on 2026-09-19: 1,149 events remain (554 teaching, 577 exams, 18 other).

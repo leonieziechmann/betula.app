@@ -19,8 +19,9 @@ One cycle, every `--interval` (30 min):
 | `modules` | off-peak only | module pages older than `--module-max-age` (7 d), oldest first, at most 400 per cycle |
 | `tree` | off-peak only | QIS program tree; pages older than `--tree-max-age` (7 d), at most 300 requests per cycle; discovers new programs and PO versions |
 | `events` | off-peak only | QIS pages of the events module pages link; older than `--event-max-age` (3 d), at most 600 per cycle |
-| `retention` | every cycle | removes events `--event-retention` (30 d) after their last date and remembers them, so they are not fetched again while a module page still links them |
-| `build` | every cycle | raw archive → canonical tables, one transaction, about 20 s |
+| `retention` | every cycle | removes events `--event-retention` (30 d) after their last date, and events no module page links any more; remembers them, so they are not fetched again |
+| `build` | every cycle | raw archive → canonical tables, one transaction, about 20 s. **Only the current dataset is built:** modules on the current lists, tree pages the current QIS root leads to |
+| `archive` | every cycle | removes archived pages nothing leads to any more, `--archive-grace` (7 d) after their fetch |
 | `validate` | when the content changed | invariants and count baselines; a failure blocks the export |
 | `export` | when the content changed and validation passed | new `snapshot/catalog-<hash>.db`, `current.json` replaced atomically |
 
@@ -47,6 +48,7 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--module-delay`, `--qis-delay` (ms) | `BTU_MODULE_DELAY_MS`, `BTU_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay) |
 | `--module-max-age`, `--event-max-age`, `--tree-max-age` | `BTU_MODULE_MAX_AGE`, `BTU_EVENT_MAX_AGE`, `BTU_TREE_MAX_AGE` | `168h`, `72h`, `168h` |
 | `--event-retention` | `BTU_EVENT_RETENTION` | `720h` (0 keeps everything) |
+| `--archive-grace` | `BTU_ARCHIVE_GRACE` | `168h` (0 keeps unused pages) |
 | `--stale-after` | `BTU_STALE_AFTER` | `26h` |
 | `--log-format`, `--log-level`, `--log-file` | `BTU_LOG_FORMAT`, `BTU_LOG_LEVEL`, `BTU_LOG_FILE` | `json` for `run` (else `text`), `info`, none |
 
@@ -91,12 +93,12 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | WARN | `crawl.not_found` | a listed page answers 404 |
 | WARN | `cycle.finished` with `result=degraded` | crawl problems; published data intact |
 | WARN | `validate.check_warned` | e.g. kind conflicts between sources, programs without tree modules |
-| WARN | `build.unresolved_refs`, `build.tree_leaves_without_module`, `build.tree_pages_missing`, `build.modules_without_page`, `build.plans_without_program`, `build.plan_entries_unknown_module`, `build.unpaired_departments` | source data the build could not use, with counts and examples |
+| WARN | `build.unresolved_refs`, `build.tree_leaves_without_module`, `build.tree_pages_missing`, `build.unlisted_module_pages`, `build.unreachable_tree_pages`, `build.modules_without_page`, `build.plans_without_program`, `build.plan_entries_unknown_module`, `build.unpaired_departments` | source data the build could not use, with counts and examples |
 | WARN | `http.request` with `status` 4xx/503 | |
 | ERROR | `scan.failed`, `scan.extraction_failed`, `scan.save_failed`, `statutes.download_failed` | study plan scan: cannot run / a document could not be read / a plan could not be stored (the previous plan is unchanged) / a PDF could not be downloaded |
 | WARN | `scan.rejected`, `scan.gemini_disabled`, `statutes.blocked` | a plan failed validation and was not stored / no API key, deterministic reader only / a PDF is behind bot protection |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
-| INFO | `cycle.started`, `cycle.finished`, `crawl.started`, `crawl.progress`, `crawl.finished`, `crawl.up_to_date`, `build.started`, `build.finished`, `validate.finished`, `export.finished`, `retention.pruned` | progress, with counts and durations |
+| INFO | `cycle.started`, `cycle.finished`, `crawl.started`, `crawl.progress`, `crawl.finished`, `crawl.up_to_date`, `build.started`, `build.finished`, `validate.finished`, `export.finished`, `retention.pruned`, `retention.archive_pruned` | progress, with counts and durations |
 
 CLI commands use the same log and these exit codes: `0` success, `1` failure (pages failed,
 validation failed, …), `2` invalid flags, `130` interrupted.
@@ -129,7 +131,7 @@ configured wins, and a configured but unreadable source is an error (no silent f
 | 1 | file named by `GEMINI_API_KEY_FILE` | Kubernetes secrets, sops-nix, agenix, a Docker secret under another name |
 | 2 | `/run/secrets/gemini-api-key` (or `gemini_api_key`) | **Docker Swarm / Compose secrets**, found without any configuration |
 | 3 | `$CREDENTIALS_DIRECTORY/gemini-api-key` | systemd `LoadCredential=` / `LoadCredentialEncrypted=` |
-| 4 | `GEMINI_API_KEY` | CI, a one-off shell |
+| 4 | `GEMINI_API_KEY` | CI, a one-off shell, and **development: a git-ignored `.env` file** |
 | 5 | operating system credential store | developer machine: Windows Credential Manager, macOS Keychain, Secret Service |
 
 ```bash
@@ -138,6 +140,14 @@ scraper secret status                   # where each secret is found; never prin
 scraper secret delete gemini-api-key
 scraper secret migrate-config config.yaml   # one-time: move the key out of a v1 config file
 ```
+
+### Development: `.env`
+
+Copy `.env.example` to `.env` and put the key there. The file is git-ignored and is read from the
+working directory at startup (`BTU_ENV_FILE` names another file). It can hold any `BTU_*` setting
+as well. A variable that is already set in the real environment always wins, so a stray `.env`
+cannot change a deployment; `scraper secret status` says when a key comes from the file. Do not
+ship a `.env` with an image; production uses one of the sources above.
 
 ### Docker Swarm
 
@@ -222,7 +232,7 @@ The process stops cleanly on SIGTERM. JSON lines go to the journal.
 
 ### One-off commands
 
-`crawl-modules`, `crawl-tree`, `crawl-events`, `prune-events`, `build`, `validate`, `export`,
+`crawl-modules`, `crawl-tree`, `crawl-events`, `prune`, `build`, `validate`, `export`,
 `serve-snapshot`, `download-statutes`, `scan-curriculum` run one by one against the same database.
 They can run next to a service: readers never block, and a writer waits up to 60 s for the
 other writer (a build holds the write lock for about 20 s).

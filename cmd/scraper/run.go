@@ -57,6 +57,7 @@ func runService(ctx context.Context, args []string) {
 	eventMaxAge := fs.Duration("event-max-age", envDuration("BTU_EVENT_MAX_AGE", def.Events.MaxAge), "Refetch an event page after this long (env BTU_EVENT_MAX_AGE)")
 	treeMaxAge := fs.Duration("tree-max-age", envDuration("BTU_TREE_MAX_AGE", def.Tree.MaxAge), "Refetch a QIS tree page after this long (env BTU_TREE_MAX_AGE)")
 	retention := fs.Duration("event-retention", envDuration("BTU_EVENT_RETENTION", def.EventRetention), "Remove an event this long after its last date, 0 keeps all (env BTU_EVENT_RETENTION)")
+	archiveGrace := fs.Duration("archive-grace", envDuration("BTU_ARCHIVE_GRACE", def.ArchiveGrace), "Remove archived pages nothing leads to any more this long after their fetch, 0 keeps them (env BTU_ARCHIVE_GRACE)")
 	staleAfter := fs.Duration("stale-after", envDuration("BTU_STALE_AFTER", def.StaleAfter), "Report unhealthy without a successful cycle for this long (env BTU_STALE_AFTER)")
 	once := fs.Bool("once", false, "Run a single cycle and exit (exit code 1 if it failed)")
 	logs := addLogFlags(fs)
@@ -78,6 +79,7 @@ func runService(ctx context.Context, args []string) {
 	cfg.Tree.Delay = 2 * time.Duration(*qisDelay) * time.Millisecond
 	cfg.Tree.MaxAge = *treeMaxAge
 	cfg.EventRetention = *retention
+	cfg.ArchiveGrace = *archiveGrace
 	cfg.StaleAfter = *staleAfter
 
 	if strings.EqualFold(*offpeak, "any") {

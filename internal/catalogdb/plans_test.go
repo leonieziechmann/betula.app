@@ -2,7 +2,6 @@ package catalogdb
 
 import (
 	"database/sql"
-	"path/filepath"
 	"testing"
 )
 
@@ -62,54 +61,5 @@ func TestSavePlanReplacesAtomically(t *testing.T) {
 		Scan(&semester, &credits, &kind, &span, &minCredits)
 	if err != nil || semester.Valid || credits.Valid || kind.Valid || span != "5-6" || minCredits != 10 {
 		t.Fatalf("entry = semester %v credits %v kind %v span %q min %v (err %v)", semester, credits, kind, span, minCredits, err)
-	}
-}
-
-func TestImportLegacyPlansOnlyTakesValidatedRows(t *testing.T) {
-	legacyPath := filepath.Join(t.TempDir(), "v1.db")
-	legacy, err := sql.Open("sqlite", legacyPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	poURL := "https://www.b-tu.de/qisserver3/rds?state=modulBeschrGast&nodeID=auswahlBaum%7Cstudiengang%3Astg%3D079%7Cabschluss%3Aabschl%3D82%7CstgSpecials%3Avert%3D%2Cschwp%3D%2Ckzfa%3DH%2Cpversion%3D2008"
-	_, err = legacy.Exec(`
-		CREATE TABLE official_study_programs (id TEXT PRIMARY KEY, qis_url TEXT);
-		CREATE TABLE validated_curriculum_plans (program_id TEXT PRIMARY KEY, source_file TEXT, layout_json TEXT, validated_at TEXT);
-		CREATE TABLE program_curriculum_modules (id INTEGER PRIMARY KEY, program_id TEXT, module_id TEXT, module_code TEXT, module_name TEXT,
-			recommended_semester INTEGER, start_semester INTEGER, end_semester INTEGER, semester_span TEXT,
-			credits REAL, min_credits REAL, max_credits REAL, module_type TEXT, study_section TEXT, subject_area TEXT,
-			area_rules TEXT, specialization TEXT, source_evidence TEXT, source_file TEXT);
-		CREATE TABLE program_scan_status (program_id TEXT PRIMARY KEY, status TEXT, message TEXT, source_file TEXT, checked_at TEXT);
-
-		INSERT INTO official_study_programs VALUES ('stg_079_abschl_82_po_2008_-_2._SÄ_2024', '` + poURL + `'), ('stg_no_url', '');
-		INSERT INTO validated_curriculum_plans VALUES ('stg_079_abschl_82_po_2008_-_2._SÄ_2024', 'po.pdf', '{"pages":[7]}', '2026-09-18 14:53:17');
-		INSERT INTO program_curriculum_modules (program_id, module_id, module_name, recommended_semester, start_semester, end_semester, credits, min_credits, max_credits, module_type, source_file, source_evidence) VALUES
-			('stg_079_abschl_82_po_2008_-_2._SÄ_2024', '12104', 'Entwicklung von Softwaresystemen', 1, 1, 1, 8, 0, 0, 'Pflicht', 'po.pdf', '{"id":"p7t1r5c2"}'),
-			('stg_079_abschl_82_po_2008_-_2._SÄ_2024', '',      'Theoretische Informatik',          3, 3, 3, 8, 0, 0, 'Pflicht', 'po.pdf', NULL),
-			('stg_079_abschl_82_po_2008_-_2._SÄ_2024', '11861', 'Operating Systems II',             0, 0, 0, 0, 0, 0, 'Pflicht', 'qis_tree', NULL),
-			('stg_079_abschl_82_po_2008_-_2._SÄ_2024', '99999', 'Unverified AI row',                2, 2, 2, 6, 0, 0, 'Pflicht', 'older-scan.pdf', NULL);
-		INSERT INTO program_scan_status VALUES ('stg_079_abschl_82_po_2008_-_2._SÄ_2024', 'saved_with_warnings', 'low coverage', 'po.pdf', '2026-09-18 14:53:17');
-	`)
-	if err != nil {
-		t.Fatalf("failed to create legacy fixture: %v", err)
-	}
-	_ = legacy.Close()
-
-	db := openTestDB(t)
-	result, err := db.ImportLegacyPlans(legacyPath)
-	if err != nil {
-		t.Fatalf("ImportLegacyPlans failed: %v", err)
-	}
-	if result.Plans != 1 || result.Entries != 2 || result.ScanStatuses != 1 || len(result.SkippedNoQISID) != 1 {
-		t.Fatalf("result = %+v", result)
-	}
-
-	var moduleID sql.NullString
-	var minCredits sql.NullFloat64
-	var kind, validatedAt string
-	err = db.SQL().QueryRow(`SELECT e.module_id, e.min_credits, e.kind, p.validated_at FROM plan_entry e JOIN plan p ON p.program_id = e.program_id
-		WHERE e.program_id = '079-82-2008' AND e.module_name = 'Theoretische Informatik'`).Scan(&moduleID, &minCredits, &kind, &validatedAt)
-	if err != nil || moduleID.Valid || minCredits.Valid || kind != "compulsory" || validatedAt != "2026-09-18T14:53:17Z" {
-		t.Fatalf("entry: module %v min %v kind %q validated %q (err %v)", moduleID, minCredits, kind, validatedAt, err)
 	}
 }

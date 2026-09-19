@@ -9,7 +9,8 @@
 //     configuration: "gemini-api-key" or "gemini_api_key".
 //  3. $CREDENTIALS_DIRECTORY   systemd credentials (LoadCredential= /
 //     LoadCredentialEncrypted=), file name "gemini-api-key".
-//  4. GEMINI_API_KEY           environment variable, for CI and one-off shells.
+//  4. GEMINI_API_KEY           environment variable, for CI and one-off shells. During
+//     development it may come from a git-ignored .env file (LoadDotEnv).
 //  5. the operating system's credential store: Windows Credential Manager, macOS
 //     Keychain, or the Secret Service (GNOME Keyring, KWallet) on Linux. This is the
 //     place for a developer machine; `scraper secret set` writes it.
@@ -83,6 +84,9 @@ func Resolve(name string) (string, Source, error) {
 	}
 
 	if value := strings.TrimSpace(os.Getenv(env)); value != "" {
+		if loaded, ok := fromDotEnv[env]; ok && strings.TrimSpace(loaded.value) == value {
+			return value, Source("environment variable " + env + " (development file " + loaded.file + ")"), nil
+		}
 		return value, Source("environment variable " + env), nil
 	}
 

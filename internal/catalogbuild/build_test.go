@@ -526,3 +526,63 @@ func TestScheduleFacetsUseEachModulesOwnNewestSemester(t *testing.T) {
 		"11101|1|0|1|0", // already published for winter: only the winter event counts
 		"11881|1|0|0|1") // still on the summer semester: keeps its campus
 }
+
+// Only the current dataset is built: a module that left the lists and a PO version
+// that the QIS root no longer leads to must not survive in the catalog just because
+// their pages are still archived.
+func TestBuildLeavesOutWhatIsNoLongerCurrent(t *testing.T) {
+	db, _ := buildFixture(t)
+	put := func(source, key, body string) {
+		t.Helper()
+		if err := db.PutPage(catalogdb.RawPage{Source: source, Key: key, URL: key, HTTPStatus: 200, Body: []byte(body),
+			FetchedAt: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A module page that no list names any more.
+	put(catalogdb.SourceModulePage, "10001", modulePageDE("10001", "Abgeschafftes Modul", ""))
+
+	// A root that only leads to the Bachelor PO; the Master PO pages stay archived.
+	root := treeBase + "auswahlBaum"
+	prog := treeBase + "auswahlBaum|studiengang:stg=079"
+	deg := prog + "|abschluss:abschl=82"
+	link := func(target, text string) string {
+		return `<ul class="treelist"><li><a class="regular" href="` + target + `">` + text + `</a></li></ul>`
+	}
+	put(catalogdb.SourceQISTree, root, link(prog, "Studiengang: Informatik"))
+	put(catalogdb.SourceQISTree, prog, link(deg, "Module für Abschluss: Bachelor (universitär)"))
+	put(catalogdb.SourceQISTree, deg, link(treeBase+poNode("82"), "PO-Version: 2008 - 2. SÄ 2024"))
+
+	report, err := Build(context.Background(), db)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	want(t, db, `SELECT id FROM program`, "079-82-2008")
+	want(t, db, `SELECT COUNT(*) FROM module WHERE id = '10001'`, "0")
+	want(t, db, `SELECT COUNT(*) FROM v_program_module WHERE program_id = '079-88-2008'`, "0")
+
+	if got := report.Unused[catalogdb.SourceModulePage]; len(got) != 1 || got[0] != "10001" {
+		t.Errorf("unused module pages = %v", got)
+	}
+	if got := report.Unused[catalogdb.SourceQISTree]; len(got) != 1 || got[0] != treeBase+poNode("88") {
+		t.Errorf("unused tree pages = %v", got)
+	}
+
+	// The grace period protects against a short glitch of a list …
+	if n, err := db.PruneArchive(report.Unused, time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)); err != nil || n != 0 {
+		t.Errorf("PruneArchive within the grace period removed %d pages (err %v)", n, err)
+	}
+	// … and after it the pages are gone for good.
+	if n, err := db.PruneArchive(report.Unused, time.Time{}); err != nil || n != 2 {
+		t.Errorf("PruneArchive removed %d pages (err %v), want 2", n, err)
+	}
+	if _, err := db.GetPage(catalogdb.SourceModulePage, "10001"); err != catalogdb.ErrNotFound {
+		t.Errorf("delisted module page still archived: %v", err)
+	}
+	if _, err := db.GetPage(catalogdb.SourceModulePage, "11101"); err != nil {
+		t.Errorf("a current module page was removed: %v", err)
+	}
+	if unused, err := Unused(context.Background(), db); err != nil || len(unused[catalogdb.SourceModulePage])+len(unused[catalogdb.SourceQISTree]) != 0 {
+		t.Errorf("after pruning, Unused = %v (err %v)", unused, err)
+	}
+}
