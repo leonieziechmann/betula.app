@@ -42,3 +42,4 @@ __pycache__/
 config.yaml
 *.secret
 .env
+node_modules/

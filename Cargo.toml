@@ -4,6 +4,8 @@ members = [
     "frontend",
     "server",
 ]
+# Throwaway experiments with their own lock files (docs/frontend-phase0.md).
+exclude = ["spikes"]
 resolver = "2"
 
 [profile.release]
