@@ -121,6 +121,24 @@ func (b *builder) writeEvents() error {
 		}
 	}
 
+	tombstones := make(map[string]bool)
+	rows, err := b.tx.Query("SELECT event_id FROM event_tombstone")
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		tombstones[id] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
 	// A module page decides which events belong to the module.
 	moduleIDs := make([]string, 0, len(b.src.modulePages))
 	for id := range b.src.modulePages {
@@ -134,7 +152,9 @@ func (b *builder) writeEvents() error {
 				continue
 			}
 			if b.src.events[eventID] == nil {
-				b.report.EventLinksNoArchive++
+				if !tombstones[eventID] { // removed on purpose by retention
+					b.report.EventLinksNoArchive++
+				}
 				continue
 			}
 			if _, err := b.tx.Exec("INSERT OR IGNORE INTO module_event (module_id, event_id) VALUES (?, ?)", moduleID, eventID); err != nil {

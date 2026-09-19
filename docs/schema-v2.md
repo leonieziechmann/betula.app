@@ -149,23 +149,36 @@ the cache, 2 answered 404 (12690, 14037: on the FÜS list, no page), 0 failed.
 reports as information: 4,712 curricular pairs without any stated kind, 415 pairs only the
 module page states, 109 only the tree states, 25 FÜS modules whose page admits no program.
 
-## 6. Not done yet
+## 6. Done since the first build, and what is still open
 
-- **Events.** The archive has no event pages: the cached ones had expired (section 7), and a QIS
-  event crawl is not approved. Module pages link 3,670 current events. The build, the views and
-  the tests handle events; the data arrives with the first event crawl.
-- **Retention** (delete events one month after `last_date`): the column exists, the prune command
-  does not.
+Done (see `docs/operations.md`):
+
+- **Service mode.** `scraper run` replaces the v1 refresher: rolling polite crawl of lists, module
+  pages, QIS tree and events, retention, build, validate, export, and the HTTP endpoints
+  (`/snapshot/*`, `/healthz`, `/status`) in one process.
+- **Snapshots only change with the content.** The build computes a digest over everything a reader
+  sees (without `meta` and the `fetched_at` columns). An unchanged digest means no export, so a
+  refetched but unchanged page does not make every browser download the database again.
+  `meta.data_changed_at` says when the content last changed.
+- **Retention.** Events are removed one month after their last date (`prune-events`, and in every
+  service cycle) and remembered in `event_tombstone`, because module pages keep linking them.
+- **QIS tree complete.** `crawl-tree` fetched the 152 missing index pages; a walk from the root now
+  reaches all 2,652 pages, so new programs and PO versions are discovered.
+- **Events archived** by `crawl-events` (section 8).
+- **Structured logging** with stable events in every stage.
+- **Nix**: `flake.nix` builds the static binary and a container image.
+
+Open:
+
 - **`scan-curriculum` still writes to v1.** `catalogdb.SavePlan` is the v2 entry point with the
-  same transactional guarantee; the command has to be pointed at it.
-- **Refresher.** The background refresh still updates v1. In v2 it becomes: crawl with
-  `--max-age`, build, validate, export.
-- **Web server (Rust).** Still reads v1. It becomes an HTTP client of `serve-snapshot`: poll
+  same transactional guarantee; the command has to read programs, documents and the module
+  catalog from v2 and save through it.
+- **Web server (Rust).** Still reads v1. It becomes an HTTP client of the service: poll
   `/snapshot/catalog.db` with `If-None-Match`, keep the file, serve it as `/api/db` with the same
   ETag, and answer SSR pages from the views.
-- **63 program index pages** of the QIS tree are not archived. They are not needed for the build
-  (every PO page names its program), only for discovering *new* programs.
-- **Removing v1 code** (`internal/storage`, `internal/web`, legacy commands) once the above is done.
+- **Removing v1 code** (`internal/storage`, `internal/web`, `internal/refresher`,
+  `internal/provider`, legacy commands) once the two points above are done. The URL constants the
+  service uses still live in `internal/provider`.
 
 ## 7. Incident note
 

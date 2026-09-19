@@ -46,11 +46,11 @@ type Options struct {
 
 // Stats counts the outcome per job.
 type Stats struct {
-	Fetched  int // 200, archived
-	Changed  int // of Fetched: the content differs from the archived page (or is new)
-	NotFound int // 404, archived without body
-	Skipped  int // archived recently enough
-	Failed   int // gave up after retries
+	Fetched  int `json:"fetched"`   // 200, archived
+	Changed  int `json:"changed"`   // of Fetched: the content differs from the archived page (or is new)
+	NotFound int `json:"not_found"` // 404, archived without body
+	Skipped  int `json:"skipped"`   // archived recently enough
+	Failed   int `json:"failed"`    // gave up after retries
 }
 
 // ErrServerUnhealthy aborts a crawl when the server keeps failing; hammering it

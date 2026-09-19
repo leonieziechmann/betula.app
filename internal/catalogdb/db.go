@@ -36,7 +36,9 @@ func Open(path string) (*DB, error) {
 		}
 	}
 
-	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)", path)
+	// busy_timeout: a build holds the write lock for about 20 s; a crawler that runs
+	// next to it (CLI beside the service) must wait for it instead of failing.
+	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)", path)
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)

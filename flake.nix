@@ -11,7 +11,11 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
-        scraper = pkgs.buildGoModule {
+        # go.mod asks for Go 1.27. nixpkgs' default `go` lags behind a new release for a
+        # while, so take the versioned attribute when it exists.
+        buildGoModule = pkgs.buildGoModule.override { go = pkgs.go_1_27 or pkgs.go; };
+
+        scraper = buildGoModule {
           pname = "btu-scraper";
           version = self.shortRev or self.dirtyShortRev or "dev";
           src = pkgs.lib.cleanSourceWith {
@@ -76,7 +80,7 @@
         apps.default = flake-utils.lib.mkApp { drv = scraper; };
 
         devShells.default = pkgs.mkShell {
-          packages = [ pkgs.go pkgs.gopls pkgs.sqlite ];
+          packages = [ (pkgs.go_1_27 or pkgs.go) pkgs.gopls pkgs.sqlite ];
         };
       });
 }
