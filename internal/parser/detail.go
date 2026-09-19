@@ -98,8 +98,7 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 			// Single cell row or malformed row
 			if len(tds) == 1 {
 				singleTxt := CleanSingleLine(NodeText(tds[0]))
-				if strings.Contains(strings.ToLower(singleTxt), "fachübergreifende studium zugelassen") ||
-					strings.Contains(strings.ToLower(singleTxt), "cross-disciplinary") {
+				if isCrossDisciplinaryNote(singleTxt) {
 					detail.CrossDisciplinary = true
 				}
 				if containsNotOffered(singleTxt) {
@@ -134,7 +133,7 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 			continue
 		}
 
-		if normKey == "" && strings.Contains(strings.ToLower(valSingle), "fachübergreifende studium zugelassen") {
+		if normKey == "" && isCrossDisciplinaryNote(valSingle) {
 			detail.CrossDisciplinary = true
 			continue
 		}
@@ -246,9 +245,11 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 
 		case "studyprograms":
 			items := ExtractListItems(valNode)
+			if len(items) == 0 && valSingle != "" {
+				items = []string{valSingle}
+			}
 			for _, item := range items {
-				sp := parseStudyProgram(item)
-				detail.StudyPrograms = append(detail.StudyPrograms, sp)
+				detail.StudyPrograms = append(detail.StudyPrograms, parseStudyProgram(item))
 			}
 
 		case "remarks":
@@ -297,8 +298,7 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 			}
 
 		case "currentevents":
-			lowVal := strings.ToLower(valSingle)
-			if strings.Contains(lowVal, "keine zuordnung vorhanden") || strings.Contains(lowVal, "no assignment available") {
+			if IsNoAssignment(valSingle) {
 				// Explicitly no event
 				break
 			}
@@ -318,8 +318,7 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 				if aText == "" {
 					aText = CleanSingleLine(NodeText(li))
 				}
-				lowText := strings.ToLower(aText)
-				if strings.Contains(lowText, "keine zuordnung vorhanden") || strings.Contains(lowText, "no assignment available") {
+				if IsNoAssignment(aText) {
 					continue
 				}
 				detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, model.ModuleEvent{
@@ -337,8 +336,7 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 						continue
 					}
 					aText := CleanSingleLine(NodeText(a))
-					lowText := strings.ToLower(aText)
-					if aText != "" && !strings.Contains(lowText, "keine zuordnung vorhanden") && !strings.Contains(lowText, "no assignment available") {
+					if aText != "" && !IsNoAssignment(aText) {
 						detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, model.ModuleEvent{
 							Title: aText,
 							URL:   href,
@@ -368,6 +366,21 @@ func containsNotOffered(s string) bool {
 		strings.Contains(low, "vorerst kein lehrangebot") ||
 		strings.Contains(low, "derzeit kein lehrangebot") ||
 		strings.Contains(low, "no longer offered")
+}
+
+// isCrossDisciplinaryNote matches the unlabelled row that approves a module for FÜS.
+func isCrossDisciplinaryNote(s string) bool {
+	low := strings.ToLower(s)
+	return strings.Contains(low, "fachübergreifende studium zugelassen") ||
+		strings.Contains(low, "approved for the general studies") ||
+		strings.Contains(low, "cross-disciplinary")
+}
+
+// IsNoAssignment matches the placeholder shown instead of an empty list
+// („keine Zuordnung vorhanden" / "no assignment").
+func IsNoAssignment(s string) bool {
+	low := strings.ToLower(s)
+	return strings.Contains(low, "keine zuordnung vorhanden") || strings.Contains(low, "no assignment")
 }
 
 func normalizePrereqText(s string) string {
@@ -429,22 +442,25 @@ func normalizeKey(raw string) string {
 		return "teachingforms"
 	case strings.Contains(k, "literatur") || strings.Contains(k, "instructionmaterial"):
 		return "literature"
+	// „Prüfungsleistung/en für Modulprüfung" and „Bewertung der Modulprüfung" (EN: "Assessment
+	// Mode for …" / "Evaluation of Module Examination") contain the plain exam label, so they
+	// have to be tested before it.
+	case strings.Contains(k, "prüfungsleistung") || strings.Contains(k, "pruefungsleistung") || strings.Contains(k, "assessmentmode") || strings.Contains(k, "assessmentmethod"):
+		return "examdetails"
+	case strings.Contains(k, "bewertung") || strings.Contains(k, "evaluationof") || strings.Contains(k, "grading"):
+		return "grading"
 	case strings.Contains(k, "modulprüfung") || strings.Contains(k, "modulpruefung") || strings.Contains(k, "moduleexam"):
 		return "moduleexam"
-	case strings.Contains(k, "prüfungsleistung") || strings.Contains(k, "pruefungsleistung") || strings.Contains(k, "assessmentmethod"):
-		return "examdetails"
-	case strings.Contains(k, "bewertung") || strings.Contains(k, "grading"):
-		return "grading"
-	case strings.Contains(k, "teilnehmerbeschränkung") || strings.Contains(k, "teilnehmerbeschraenkung") || strings.Contains(k, "limitationofparticipation"):
+	case strings.Contains(k, "teilnehmerbeschränkung") || strings.Contains(k, "teilnehmerbeschraenkung") || strings.Contains(k, "limitednumberofparticipants") || strings.Contains(k, "limitationofparticipation"):
 		return "limitation"
-	case strings.Contains(k, "studiengängen") || strings.Contains(k, "studiengaengen") || strings.Contains(k, "associatedstudyprogrammes"):
+	case strings.Contains(k, "studiengängen") || strings.Contains(k, "studiengaengen") || strings.Contains(k, "studyprogramme"):
 		return "studyprograms"
 	case strings.Contains(k, "bemerkungen") || strings.Contains(k, "remarks"):
 		return "remarks"
-	case strings.Contains(k, "veranstaltungenzummodul") || strings.Contains(k, "coursesformodule"):
-		return "courses"
-	case strings.Contains(k, "veranstaltungenimaktuellen") || strings.Contains(k, "coursesincurrentsemester"):
+	case strings.Contains(k, "veranstaltungenimaktuellen") || strings.Contains(k, "currentsemester"):
 		return "currentevents"
+	case strings.Contains(k, "veranstaltungenzummodul") || strings.Contains(k, "modulecomponents") || strings.Contains(k, "coursesformodule"):
+		return "courses"
 	case strings.Contains(k, "nachfolge"):
 		return "nachfolgemodul"
 	default:
@@ -462,13 +478,16 @@ func parseCredits(s string) float64 {
 	return f
 }
 
+// parseStudyProgram splits „Abschluss / Studiengang / PO". The separator is " / " with
+// spaces: a bare slash belongs to the value („LA Bachelor Grundstufe/Primarstufe").
+// A program name may itself contain " / ", so it is everything between first and last part.
 func parseStudyProgram(raw string) model.StudyProgram {
 	sp := model.StudyProgram{Raw: raw}
-	parts := strings.Split(raw, "/")
+	parts := strings.Split(raw, " / ")
 	if len(parts) >= 3 {
 		sp.Degree = strings.TrimSpace(parts[0])
-		sp.Program = strings.TrimSpace(parts[1])
-		sp.Regulation = strings.TrimSpace(parts[2])
+		sp.Program = strings.TrimSpace(strings.Join(parts[1:len(parts)-1], " / "))
+		sp.Regulation = strings.TrimSpace(parts[len(parts)-1])
 	} else if len(parts) == 2 {
 		sp.Degree = strings.TrimSpace(parts[0])
 		sp.Program = strings.TrimSpace(parts[1])
@@ -477,4 +496,3 @@ func parseStudyProgram(raw string) model.StudyProgram {
 	}
 	return sp
 }
-

@@ -468,3 +468,34 @@ func AnalyzeQISPath(path []string) (studySection, subjectArea, moduleType, speci
 
 	return studySection, subjectArea, moduleType, specialization
 }
+
+// POContext is what a PO page (or any page below it) says about its own position
+// in the tree. The breadcrumb repeats the ancestors, so a PO page can be understood
+// without the program and degree index pages above it.
+type POContext struct {
+	ProgramName string
+	Degree      string
+	POVersion   string
+}
+
+// ParsePOContext reads the breadcrumb („Krümelpfad") of a tree page.
+func (p *ProgramTreeParser) ParsePOContext(r io.Reader) (POContext, error) {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return POContext{}, fmt.Errorf("failed to parse HTML: %w", err)
+	}
+
+	var ctx POContext
+	for _, entry := range FindAllByClass(doc, "KruemelpfadEintrag") {
+		text := CleanSingleLine(NodeText(entry))
+		switch {
+		case strings.HasPrefix(text, "Studiengang:"):
+			ctx.ProgramName = strings.TrimSpace(strings.TrimPrefix(text, "Studiengang:"))
+		case strings.HasPrefix(text, "Module für Abschluss:"):
+			ctx.Degree = strings.TrimSpace(strings.TrimPrefix(text, "Module für Abschluss:"))
+		case strings.HasPrefix(text, "PO-Version:"):
+			ctx.POVersion = strings.TrimSpace(strings.TrimPrefix(text, "PO-Version:"))
+		}
+	}
+	return ctx, nil
+}

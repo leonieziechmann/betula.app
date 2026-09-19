@@ -98,3 +98,23 @@ func TestParsePOVersionsAndDocuments(t *testing.T) {
 		t.Errorf("unexpected doc 1: %+v", docs[1])
 	}
 }
+
+func TestParsePOContext(t *testing.T) {
+	page := `<html><body>
+		<div class="Kruemelpfad">
+			<div class="KruemelpfadEintrag"><a class="regular" href="?nodeID=auswahlBaum">Oberste Ebene</a></div>
+			<div class="KruemelpfadEintrag"><a class="regular" href="?nodeID=auswahlBaum%7Cstudiengang%3Astg%3D079">Studiengang: Informatik</a></div>
+			<div class="KruemelpfadEintrag"><a class="regular" href="?nodeID=x">Module für Abschluss: Bachelor (universitär)</a></div>
+			<div class="KruemelpfadEintrag"> PO-Version: 2008 - 2. SÄ 2024 </div>
+		</div>
+		<span class="Tree">PO-Version: 2008 - 2. SÄ 2024</span>
+	</body></html>`
+	ctx, err := NewProgramTreeParser().ParsePOContext(strings.NewReader(page))
+	if err != nil {
+		t.Fatalf("ParsePOContext failed: %v", err)
+	}
+	want := POContext{ProgramName: "Informatik", Degree: "Bachelor (universitär)", POVersion: "2008 - 2. SÄ 2024"}
+	if ctx != want {
+		t.Fatalf("ParsePOContext = %+v, want %+v", ctx, want)
+	}
+}
