@@ -71,6 +71,8 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         cache: Arc::new(HtmlCache::new(32 * 1024 * 1024)),
         build_id: "test".into(),
         stale_after: None,
+        site_root: "no-site".into(),
+        packages: Arc::default(),
         leptos: LeptosOptions::builder().output_name("btu-app").site_root("no-site").build(),
     }
 }

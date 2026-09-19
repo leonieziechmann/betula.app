@@ -71,11 +71,13 @@ pub const PAGE_SIZE: u64 = 50;
 pub struct CatalogUrl {
     pub query: CatalogQuery,
     pub page: u64,
+    /// The module previewed next to the list (`open=<id>`). Its own page is `module_path`.
+    pub open: Option<String>,
 }
 
 impl Default for CatalogUrl {
     fn default() -> Self {
-        Self { query: CatalogQuery::default(), page: 1 }
+        Self { query: CatalogQuery::default(), page: 1, open: None }
     }
 }
 
@@ -210,7 +212,8 @@ impl CatalogUrl {
             descending: first("desc").is_some(),
         };
         let page = first("page").and_then(|n| n.parse::<u64>().ok()).filter(|n| (1..=100_000).contains(n)).unwrap_or(1);
-        Self { query, page }
+        let open = first("open").filter(|id| id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        Self { query, page, open }
     }
 
     /// The canonical query string, without `?`; empty for the default catalog.
@@ -317,6 +320,9 @@ impl CatalogUrl {
         if self.page > 1 {
             out.push(("page", self.page.to_string()));
         }
+        if let Some(id) = &self.open {
+            out.push(("open", id.clone()));
+        }
 
         out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&")
     }
@@ -333,7 +339,12 @@ impl CatalogUrl {
 
     /// The same filter on another page.
     pub fn with_page(&self, page: u64) -> Self {
-        Self { query: self.query.clone(), page }
+        Self { query: self.query.clone(), page, open: self.open.clone() }
+    }
+
+    /// The same list with this module's preview open, or (`None`) with the preview closed.
+    pub fn with_open(&self, id: Option<&str>) -> Self {
+        Self { query: self.query.clone(), page: self.page, open: id.map(str::to_string) }
     }
 }
 
@@ -449,6 +460,7 @@ mod tests {
                 descending: true,
             },
             page: 4,
+            open: Some("12104".into()),
         };
         let text = url.to_query_string();
         assert_eq!(
@@ -456,7 +468,7 @@ mod tests {
             "q=Lineare+Algebra+%26+%C3%96kologie&program=bachelor-informatik-2008&list=fues&semester=3&kind=elective,none\
              &lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
              &turnus=winter,irregular&years=odd&form=lecture,exercise&duration=2&limited=no&fues=only&exam=mca,oral\
-             &graded=yes&status=all&ects_min=5&ects_max=7.5&campus=senftenberg&lang=en&prereqs=met&sort=ects&desc=1&page=4"
+             &graded=yes&status=all&ects_min=5&ects_max=7.5&campus=senftenberg&lang=en&prereqs=met&sort=ects&desc=1&page=4&open=12104"
         );
         assert_eq!(CatalogUrl::parse(&text), url);
     }
@@ -489,5 +501,8 @@ mod tests {
         assert_eq!(ProgramTab::from_segment("modules"), Some(ProgramTab::Modules));
         assert_eq!(ProgramTab::from_segment("electives"), None);
         assert_eq!(CatalogUrl { page: 3, ..Default::default() }.offset(), 100);
+        assert_eq!(CatalogUrl::parse("open=12104").with_open(None).path(), "/catalog");
+        assert_eq!(CatalogUrl::parse("open=../../etc").open, None);
+        assert_eq!(CatalogUrl::parse("turnus=winter").with_open(Some("11101")).path(), "/catalog?turnus=winter&open=11101");
     }
 }

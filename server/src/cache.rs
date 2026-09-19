@@ -96,10 +96,16 @@ pub fn cache_key(uri: &Uri) -> String {
         "" => "/",
         path => path,
     };
-    if path == catalog::url::CATALOG || path.starts_with("/catalog/module/") {
-        // The list with its filters, and the same list with a module's panel open.
-        let query = CatalogUrl::parse(uri.query().unwrap_or_default()).to_query_string();
-        if query.is_empty() { path.to_string() } else { format!("{path}?{query}") }
+    if path == catalog::url::CATALOG {
+        // The list with its filters and, if any, the previewed module.
+        CatalogUrl::parse(uri.query().unwrap_or_default()).path()
+    } else if path == catalog::url::PROGRAMS {
+        // The program overview filtered by the search text.
+        let text = catalog::url::parse_pairs(uri.query().unwrap_or_default()).into_iter().find(|(key, _)| key == "q").map(|(_, value)| catalog::search::fold(value.trim()));
+        match text.filter(|text| !text.is_empty()) {
+            Some(text) => format!("{path}?q={}", catalog::url::encode(&text)),
+            None => path.to_string(),
+        }
     } else {
         path.to_string()
     }
@@ -112,7 +118,7 @@ fn accepts_gzip(headers: &HeaderMap) -> bool {
         .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")))
 }
 
-fn gzip(body: &[u8]) -> Bytes {
+pub fn gzip(body: &[u8]) -> Bytes {
     let mut encoder = flate2::write::GzEncoder::new(Vec::with_capacity(body.len() / 4), flate2::Compression::new(6));
     match encoder.write_all(body).and_then(|_| encoder.finish()) {
         Ok(compressed) => Bytes::from(compressed),
@@ -205,7 +211,8 @@ mod tests {
         assert_eq!(key("/catalog?page=1"), "/catalog");
         assert_ne!(key("/catalog?page=2"), key("/catalog"));
         assert_eq!(key("/catalog/module/11101?utm_source=x"), "/catalog/module/11101");
-        assert_eq!(key("/catalog/module/11101?form=exercise&turnus=winter"), "/catalog/module/11101?turnus=winter&form=exercise");
+        assert_eq!(key("/catalog?open=11101&form=exercise&turnus=winter"), "/catalog?turnus=winter&form=exercise&open=11101");
+        assert_eq!(key("/programs?q=+%C3%96ko"), "/programs?q=oko");
         assert_eq!(key("/programs/x/plan?utm_source=x"), "/programs/x/plan");
         assert_eq!(key("/programs/"), "/programs");
         assert_eq!(key("/"), "/");

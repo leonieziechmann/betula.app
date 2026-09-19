@@ -1,115 +1,103 @@
 //! The module catalog: filters, list and (when a module is open) its detail panel, side by side.
 //!
-//! The URL is the whole state: `/catalog?…` is the list, `/catalog/module/<id>?…` the same list
-//! with the module's panel open. Filters are a plain GET form, every other control is a link,
+//! The URL is the whole state: `/catalog?…` is the list, `…&open=<id>` the same list with that
+//! module previewed next to it (its own page is `/catalog/module/<id>`). Filters are a plain GET form, every other control is a link,
 //! so the page works without JavaScript; with it, `enhance.js` submits the form on change.
 
 use catalog::filter::{CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, SortKey};
 use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
-use catalog::pages::{self, CatalogData, ModuleData};
+use catalog::pages::{self, CatalogData};
 use catalog::rows::CatalogRow;
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::{use_location, use_params_map};
+use leptos_router::hooks::{use_location, use_navigate};
+use leptos_router::NavigateOptions;
 
-use crate::data::{use_source, DataError, PageStatus};
+use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::nav::{form_query, FormEvent};
 use crate::pages::module::ModulePanel;
 use crate::ui::{ErrorState, Icon, KindBadge, OfferBadge};
-
-type Loaded = Result<(CatalogData, Option<Option<ModuleData>>), DataError>;
 
 #[component]
 pub fn CatalogPage() -> impl IntoView {
     let location = use_location();
-    let params = use_params_map();
-    let current = Memo::new(move |_| CatalogUrl::parse(&location.search.get()));
-    let open_id = Memo::new(move |_| params.read().get("id"));
+    let url = Memo::new(move |_| CatalogUrl::parse(&location.search.get()));
+    // Three independent parts of the URL, so that opening a preview re-renders neither the list
+    // nor the filters (their scroll positions stay), and a filter change leaves the preview alone.
+    let list_url = Memo::new(move |_| url.get().with_open(None));
+    let open = Memo::new(move |_| url.get().open);
     let source = use_source();
     let status = PageStatus::capture();
 
-    move || {
-        let current = current.get();
-        let open_id = open_id.get();
-        let loaded: Loaded = source.clone().and_then(|source| {
-            source.run(|db| {
-                let list = pages::catalog(db, &current)?;
-                let module = match &open_id {
-                    Some(id) => Some(pages::module(db, id)?),
-                    None => None,
-                };
-                Ok((list, module))
-            })
-        });
-        match loaded {
-            Err(error) => {
-                status.for_error(&error);
-                view! { <div class="page"><ErrorState error/></div> }.into_any()
-            }
-            Ok((data, module)) => {
-                if matches!(module, Some(None)) {
-                    status.set(404);
-                }
-                view! { <Catalog current data module open_id/> }.into_any()
-            }
-        }
-    }
-}
+    let list_source = source.clone();
+    let list = Memo::new(move |_| {
+        let current = list_url.get();
+        list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current)))
+    });
+    let preview = Memo::new(move |_| match open.get() {
+        None => Ok(None),
+        Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
+    });
 
-/// A link target that keeps the current filters.
-fn with_query(path: String, current: &CatalogUrl) -> String {
-    let query = current.to_query_string();
-    if query.is_empty() {
-        path
-    } else {
-        format!("{path}?{query}")
-    }
-}
-
-#[component]
-fn Catalog(current: CatalogUrl, data: CatalogData, module: Option<Option<ModuleData>>, open_id: Option<String>) -> impl IntoView {
-    let close_href = current.path();
-    let here = match &open_id {
-        Some(id) => url::module_path(id),
-        None => url::CATALOG.to_string(),
-    };
-    let title = match (&module, &data.program) {
-        (Some(Some(m)), _) => format!("{} {}", m.module.id, m.module.title),
-        (_, Some(p)) => format!("Module · {} {}", p.name, p.degree()),
-        _ => "Modulkatalog".to_string(),
+    let title = move || match list.get() {
+        Ok(data) => match &data.program {
+            Some(p) => format!("Module · {} {}", p.name, p.degree()),
+            None => "Modulkatalog".to_string(),
+        },
+        Err(_) => "Modulkatalog".to_string(),
     };
 
-    let no_detail = module.is_none();
     view! {
         <Title text=title/>
-        <div class="work" class:no-detail=no_detail>
-            <Filters current=current.clone() data=data.clone() action=here/>
-            <List current=current.clone() data=data.clone() open_id=open_id.clone()/>
-            {module.map(|found| match found {
-                Some(data) => view! { <ModulePanel data close_href=close_href.clone()/> }.into_any(),
-                None => view! {
-                    <section class="panel detail">
-                        <div class="state">
-                            <p class="state-title">"Modul nicht gefunden"</p>
-                            <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
-                            <a class="btn secondary" href=close_href.clone()>"Zur Liste"</a>
-                        </div>
-                    </section>
-                }.into_any(),
-            })}
+        <div class="work" class:no-detail=move || open.get().is_none()>
+            {move || match list.get() {
+                Err(error) => {
+                    status.for_error(&error);
+                    view! { <div class="page"><ErrorState error/></div> }.into_any()
+                }
+                Ok(data) => {
+                    let current = list_url.get_untracked();
+                    view! {
+                        <Filters current=current.clone() data=data.clone() open/>
+                        <List current data open/>
+                    }.into_any()
+                }
+            }}
+            {move || {
+                let close_href = list_url.get().path();
+                match preview.get() {
+                    Ok(None) | Err(_) => ().into_any(),
+                    Ok(Some(Some(data))) => view! { <ModulePanel data close_href/> }.into_any(),
+                    Ok(Some(None)) => view! {
+                        <section class="panel detail">
+                            <div class="state">
+                                <p class="state-title">"Modul nicht gefunden"</p>
+                                <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
+                                <a class="btn secondary" href=close_href>"Vorschau schließen"</a>
+                            </div>
+                        </section>
+                    }.into_any(),
+                }
+            }}
         </div>
     }
 }
 
-/// The active filters as removable tags: (group, value, URL without it).
-fn tags(current: &CatalogUrl, data: &CatalogData, here: &str) -> Vec<(String, String, String)> {
+/// A link that keeps whatever preview is open at the time it is followed.
+fn keep_open(target: CatalogUrl, open: Memo<Option<String>>) -> impl Fn() -> String + Clone + Send + Sync + 'static {
+    move || target.with_open(open.get().as_deref()).path()
+}
+
+/// The active filters as removable tags: (group, value, the list without it).
+fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, CatalogUrl)> {
     let q = &current.query;
-    let mut out: Vec<(String, String, String)> = Vec::new();
+    let mut out: Vec<(String, String, CatalogUrl)> = Vec::new();
     let mut push = |group: &str, value: String, change: &dyn Fn(&mut CatalogQuery)| {
         let mut next = current.with_page(1);
         change(&mut next.query);
-        out.push((group.to_string(), value, with_query(here.to_string(), &next)));
+        out.push((group.to_string(), value, next));
     };
 
     if !q.text.trim().is_empty() {
@@ -212,15 +200,11 @@ fn tags(current: &CatalogUrl, data: &CatalogData, here: &str) -> Vec<(String, St
 }
 
 #[component]
-fn List(current: CatalogUrl, data: CatalogData, open_id: Option<String>) -> impl IntoView {
+fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>) -> impl IntoView {
     let q = current.query.clone();
     let total = data.page.total;
     let pages_total = total.div_ceil(PAGE_SIZE).max(1);
     let page = current.page.min(pages_total);
-    let here = match &open_id {
-        Some(id) => url::module_path(id),
-        None => url::CATALOG.to_string(),
-    };
     let with_program = data.program.is_some();
     let unknown_program = q.program.is_some() && !with_program;
     let by_plan = with_program && q.sort == SortKey::Default;
@@ -230,7 +214,7 @@ fn List(current: CatalogUrl, data: CatalogData, open_id: Option<String>) -> impl
         _ if total == 1 => "Modul",
         _ => "Module",
     };
-    let active = tags(&current, &data, &here);
+    let active = tags(&current, &data);
     let active_count = active.len();
 
     let sort_link = |key: SortKey, text: &'static str, class: &'static str| {
@@ -243,7 +227,7 @@ fn List(current: CatalogUrl, data: CatalogData, open_id: Option<String>) -> impl
             (true, true) => " ↓",
             _ => "",
         };
-        view! { <a class=class href=with_query(here.clone(), &next) aria-current=on.then_some("true")>{text}{arrow}</a> }
+        view! { <a class=class href=keep_open(next, open) aria-current=on.then_some("true")>{text}{arrow}</a> }
     };
 
     // Group headers follow the study plan when the list is in plan order.
@@ -260,10 +244,9 @@ fn List(current: CatalogUrl, data: CatalogData, open_id: Option<String>) -> impl
                     None => "Ohne Semesterangabe im Regelstudienplan".to_string(),
                 }
             });
-            let open = open_id.as_deref() == Some(row.id.as_str());
             view! {
                 {header.map(|text| view! { <div class="sem">{text}</div> })}
-                <Row row=row.clone() href=with_query(url::module_path(&row.id), &current) open with_program/>
+                <Row row=row.clone() href=current.with_open(Some(&row.id)).path() open with_program/>
             }
         })
         .collect_view();
@@ -284,8 +267,8 @@ fn List(current: CatalogUrl, data: CatalogData, open_id: Option<String>) -> impl
                     </div>
                 </div>
                 <div class="active-filters">
-                    {active.into_iter().map(|(group, value, href)| view! {
-                        <span class="tag"><em>{group}</em>" "{value}<a href=href aria-label="Filter entfernen"><Icon name="x"/></a></span>
+                    {active.into_iter().map(|(group, value, target)| view! {
+                        <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open) aria-label="Filter entfernen"><Icon name="x"/></a></span>
                     }).collect_view()}
                 </div>
             </div>
@@ -303,14 +286,14 @@ fn List(current: CatalogUrl, data: CatalogData, open_id: Option<String>) -> impl
                     <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
                 })}
                 {(total == 0 && !unknown_program).then(|| view! {
-                    <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=here.clone()>"Alle Filter zurücksetzen"</a></div>
+                    <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
                 })}
                 {rows}
                 {(pages_total > 1).then(|| view! {
                     <nav class="pager" aria-label="Seiten">
-                        {(page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=with_query(here.clone(), &current.with_page(page - 1))>"Zurück"</a> })}
+                        {(page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(page - 1), open)>"Zurück"</a> })}
                         <span class="num">"Seite "{page}" von "{pages_total}</span>
-                        {(page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=with_query(here.clone(), &current.with_page(page + 1))>"Weiter"</a> })}
+                        {(page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(page + 1), open)>"Weiter"</a> })}
                     </nav>
                 })}
             </div>
@@ -319,7 +302,7 @@ fn List(current: CatalogUrl, data: CatalogData, open_id: Option<String>) -> impl
 }
 
 #[component]
-fn Row(row: CatalogRow, href: String, open: bool, with_program: bool) -> impl IntoView {
+fn Row(row: CatalogRow, href: String, open: Memo<Option<String>>, with_program: bool) -> impl IntoView {
     let language = format::languages(row.teaches_german, row.teaches_english);
     let (turnus_icon, turnus_text) = match row.turnus_season.as_ref().and_then(|s| s.known()) {
         Some(TurnusSeason::Winter) => ("snowflake", "Winter".to_string()),
@@ -334,8 +317,9 @@ fn Row(row: CatalogRow, href: String, open: bool, with_program: bool) -> impl In
         n => format!("{n} Termine"),
     };
     let has_events = row.teaching_events > 0;
+    let id = row.id.clone();
     view! {
-        <a class="row" href=href aria-current=open.then_some("true")>
+        <a class="row" href=href aria-current=move || (open.get().as_deref() == Some(id.as_str())).then_some("true")>
             <div class="t">
                 <b>{row.title.clone()}</b>
                 <small>
@@ -362,7 +346,7 @@ fn Row(row: CatalogRow, href: String, open: bool, with_program: bool) -> impl In
 
 /// The filter panel: a GET form whose field names are the URL parameters of `CatalogUrl`.
 #[component]
-fn Filters(current: CatalogUrl, data: CatalogData, action: String) -> impl IntoView {
+fn Filters(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>) -> impl IntoView {
     let q: CatalogQuery = current.query.clone();
     let scope = q.program.clone();
     let chip = |name: &'static str, value: &'static str, label: String, checked: bool, icon: Option<&'static str>| {
@@ -420,18 +404,28 @@ fn Filters(current: CatalogUrl, data: CatalogData, action: String) -> impl IntoV
             scope.relation = relation;
         }
         let on = scope.as_ref().is_some_and(|s| s.relation == relation);
-        view! { <a href=with_query(action.clone(), &next) aria-current=on.then_some("true")>{label}<span>{count.map(format::count)}</span></a> }
+        view! { <a href=keep_open(next, open) aria-current=on.then_some("true")>{label}<span>{count.map(format::count)}</span></a> }
     };
+
+    // In the browser app a change of the form is a navigation, not a page load.
+    let navigate = use_navigate();
+    let go = move |ev: leptos::ev::Event, kind: FormEvent| {
+        if let Some(query) = form_query(&ev, kind) {
+            navigate(&CatalogUrl::parse(&query).path(), NavigateOptions { scroll: false, ..Default::default() });
+        }
+    };
+    let go_on_submit = go.clone();
 
     view! {
         <aside class="panel filters" id="filters" aria-label="Filter">
-            <form method="get" action=action.clone() data-autosubmit="">
+            <form method="get" action=url::CATALOG data-autosubmit="" on:change=move |ev| go(ev, FormEvent::Change) on:submit=move |ev| go_on_submit(ev.into(), FormEvent::Submit)>
                 <div class="panel-head">
                     <h2>"Filter"</h2>
-                    <a class="ghost" href=action.clone()><Icon name="rotate-ccw"/>"Zurücksetzen"</a>
+                    <a class="ghost" href=keep_open(CatalogUrl::default(), open)><Icon name="rotate-ccw"/>"Zurücksetzen"</a>
                     <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label="Filter schließen"><Icon name="x"/></a>
                 </div>
                 <div class="body scroll" data-keep-scroll="filters">
+                    {move || open.get().map(|id| view! { <input type="hidden" name="open" value=id/> })}
                     {fues_list.then(|| view! { <input type="hidden" name="list" value="fues"/> })}
                     {sort_code.map(|code| view! { <input type="hidden" name="sort" value=code/> })}
                     {q.descending.then(|| view! { <input type="hidden" name="desc" value="1"/> })}
@@ -503,12 +497,12 @@ fn Filters(current: CatalogUrl, data: CatalogData, action: String) -> impl IntoV
                     }.into_any()}
 
                     {view! {
-                        <div class="fgroup">
-                            <div class="flabel label">"Prüfung"</div>
+                        <details class="fgroup" open=!q.exam_parts.is_empty()>
+                            <summary class="label">"Prüfung"</summary>
                             <div class="chips">
                                 {ExamPart::ALL.iter().map(|part| chip("exam", part.code(), part.label().to_string(), q.exam_parts.contains(part), None)).collect_view()}
                             </div>
-                        </div>
+                        </details>
                         <div class="fgroup">
                             <div class="flabel label">"Leistungspunkte"</div>
                             <div class="range">

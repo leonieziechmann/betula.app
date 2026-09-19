@@ -1,0 +1,134 @@
+// Starts the browser app: opens the local copy of the catalog (sql.js, cached in IndexedDB by
+// the snapshot's ETag), loads the WASM bundle and lets it take the page over. Until then, and
+// whenever anything here fails, the server-rendered site keeps working as it is.
+const DB_NAME = "btu-catalog";
+const STORE = "snapshots";
+
+let statusState = null;
+function status(text, state) {
+  statusState = text ? { text, state: state || "" } : null;
+  applyStatus();
+}
+function applyStatus() {
+  const el = document.getElementById("db-status");
+  if (!el) return;
+  const text = statusState ? statusState.text : "";
+  if (el.textContent !== text) el.textContent = text;
+  el.hidden = !text;
+  el.dataset.state = statusState ? statusState.state : "";
+}
+// The app re-renders the top bar; keep the status visible across that.
+new MutationObserver(applyStatus).observe(document.documentElement, { childList: true, subtree: true });
+
+function idb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(STORE).objectStore(STORE).get(key);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function idbPut(key, value) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function download(total) {
+  const response = await fetch("/api/db");
+  if (!response.ok) throw new Error("GET /api/db: HTTP " + response.status);
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) status(`Daten werden geladen … ${Math.min(99, Math.round((received / total) * 100))} %`);
+  }
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+  return bytes;
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("cannot load " + src));
+    document.head.appendChild(script);
+  });
+}
+
+async function openDatabase() {
+  // What the server has now; offline this fails and the cached copy is used as it is.
+  let server = null;
+  try {
+    const response = await fetch("/api/status", { cache: "no-store" });
+    if (response.ok) server = (await response.json()).snapshot;
+  } catch {}
+
+  let current = await idbGet("current"); // { etag, bytes }
+  if (!current) {
+    if (!server) throw new Error("no local copy of the catalog and the server is not reachable");
+    status("Daten werden geladen …");
+    current = { etag: server.etag, bytes: await download(server.bytes) };
+    await idbPut("current", current);
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  } else if (server && server.etag !== current.etag) {
+    // Work with the copy we have; fetch the new one in the background for the next start.
+    download(0)
+      .then((bytes) => idbPut("current", { etag: server.etag, bytes }))
+      .then(() => status("Neue Daten geladen · beim nächsten Start aktiv", "ok"))
+      .catch((error) => console.warn("[catalog] update failed", error));
+  }
+
+  await loadScript("/assets/sql-wasm.js");
+  const SQL = await window.initSqlJs({ locateFile: (file) => "/assets/" + file });
+  const db = new SQL.Database(current.bytes);
+  window.btuDb = {
+    etag: current.etag,
+    query(sql, params) {
+      const statement = db.prepare(sql);
+      try {
+        statement.bind(params);
+        const columns = statement.getColumnNames();
+        const rows = [];
+        while (statement.step()) rows.push(statement.get());
+        return { columns, rows };
+      } finally {
+        statement.free();
+      }
+    },
+  };
+}
+
+try {
+  const [app] = await Promise.all([
+    import("/pkg/btu_client.js").then(async (module) => { await module.default("/pkg/btu_client_bg.wasm"); return module; }),
+    openDatabase(),
+  ]);
+  window.__btuApp = true;
+  app.start();
+  status("Offline bereit", "ok");
+  setTimeout(() => { if (statusState && statusState.text === "Offline bereit") status(""); }, 4000);
+} catch (error) {
+  // Not fatal: the site stays a classic website.
+  console.info("[catalog] browser app not started:", error);
+  status("");
+}

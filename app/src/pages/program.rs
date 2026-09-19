@@ -57,6 +57,7 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
             ..Default::default()
         },
         page: 1,
+        open: None,
     }
     .path();
     let description = format!(

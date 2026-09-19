@@ -44,7 +44,14 @@ pub struct AppState {
     pub build_id: Arc<str>,
     pub stale_after: Option<Duration>,
     pub leptos: LeptosOptions,
+    /// Where the built browser app lives (`<site-root>/pkg`).
+    pub site_root: std::path::PathBuf,
+    /// The files of the browser app: name → (etag, bytes, gzip).
+    pub packages: Packages,
 }
+
+/// name → (etag, bytes, gzip)
+pub type Packages = Arc<std::sync::Mutex<std::collections::HashMap<String, (String, axum::body::Bytes, axum::body::Bytes)>>>;
 
 impl axum::extract::FromRef<AppState> for LeptosOptions {
     fn from_ref(state: &AppState) -> Self {
@@ -129,6 +136,10 @@ pub fn router(state: AppState) -> Router {
         .route(app::FAVICON, get(api::favicon))
         .route(app::FONT, get(api::font))
         .route(app::ENHANCE_SCRIPT, get(api::enhance_script))
+        .route(app::BOOT_SCRIPT, get(api::boot_script))
+        .route("/assets/sql-wasm.js", get(api::sql_js))
+        .route("/assets/sql-wasm.wasm", get(api::sql_wasm))
+        .route("/pkg/{file}", get(api::package))
         .route("/favicon.ico", get(api::favicon))
         .route("/robots.txt", get(api::robots))
         .merge(pages)
@@ -179,6 +190,8 @@ async fn main() -> std::process::ExitCode {
         cache: Arc::new(HtmlCache::new(config.html_cache_mb * 1024 * 1024)),
         build_id: format!("{}-{started_at:x}", env!("CARGO_PKG_VERSION")).into(),
         stale_after: config.stale_after(),
+        site_root: config.site_root.clone(),
+        packages: Arc::default(),
         leptos: LeptosOptions::builder()
             .output_name("btu-app")
             .site_root(config.site_root.to_string_lossy().into_owned())

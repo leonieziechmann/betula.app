@@ -1,7 +1,7 @@
 //! What is not a rendered page: the snapshot for browsers, status, health, static assets.
 
 use axum::body::Body;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -100,13 +100,43 @@ pub async fn health(State(state): State<AppState>) -> Response {
     }
 }
 
+/// A file embedded in the binary. Revalidated on every use (the 304 costs nothing and a new
+/// build shows up at once); compressed once per process.
 fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8]) -> Response {
+    static COMPRESSED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<usize, axum::body::Bytes>>> = std::sync::OnceLock::new();
+
     let etag = format!("\"{}\"", state.build_id);
     if if_none_match(headers, &etag) {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
     }
-    // Revalidated on every use: the 304 costs nothing, and a new build shows up at once.
-    ([(header::CONTENT_TYPE, content_type.to_string()), (header::CACHE_CONTROL, "public, no-cache".to_string()), (header::ETAG, etag)], body).into_response()
+    let wants_gzip = headers
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
+    // Fonts are compressed already.
+    let compressed = (wants_gzip && content_type != "font/woff2" && body.len() > 1024)
+        .then(|| {
+            let mut cache = COMPRESSED.get_or_init(Default::default).lock().ok()?;
+            Some(cache.entry(body.as_ptr() as usize).or_insert_with(|| crate::cache::gzip(body)).clone())
+        })
+        .flatten()
+        .filter(|bytes| !bytes.is_empty());
+
+    let mut response = match &compressed {
+        Some(bytes) => Response::new(Body::from(bytes.clone())),
+        None => Response::new(Body::from(body)),
+    };
+    let out = response.headers_mut();
+    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
+    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+    if let Ok(value) = HeaderValue::from_str(&etag) {
+        out.insert(header::ETAG, value);
+    }
+    if compressed.is_some() {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    }
+    response
 }
 
 pub async fn stylesheet(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -123,6 +153,70 @@ pub async fn font(State(state): State<AppState>, headers: HeaderMap) -> Response
 
 pub async fn enhance_script(State(state): State<AppState>, headers: HeaderMap) -> Response {
     asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/enhance.js"))
+}
+
+pub async fn boot_script(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/boot.js"))
+}
+
+pub async fn sql_js(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/sql-wasm.js"))
+}
+
+pub async fn sql_wasm(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "application/wasm", include_bytes!("../../app/assets/sql-wasm.wasm"))
+}
+
+/// `GET /pkg/<file>`: the browser app built by scripts/build-client.sh, from `<site-root>/pkg`.
+/// Compressed once per file version and kept in memory.
+pub async fn package(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+    let content_type = match file.rsplit('.').next() {
+        Some("js") => "text/javascript; charset=utf-8",
+        Some("wasm") => "application/wasm",
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    if !file.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = state.site_root.join("pkg").join(&file);
+    let Ok(meta) = tokio::fs::metadata(&path).await else { return StatusCode::NOT_FOUND.into_response() };
+    let modified = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
+    let etag = format!("\"{:x}-{:x}\"", modified, meta.len());
+    if if_none_match(&headers, &etag) {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+    }
+
+    let cached = state.packages.lock().ok().and_then(|cache| cache.get(&file).filter(|(tag, ..)| *tag == etag).cloned());
+    let (_, raw, compressed) = match cached {
+        Some(entry) => entry,
+        None => {
+            let Ok(raw) = tokio::fs::read(&path).await else { return StatusCode::NOT_FOUND.into_response() };
+            let raw = axum::body::Bytes::from(raw);
+            let compressed = crate::cache::gzip(&raw);
+            let entry = (etag.clone(), raw, compressed);
+            if let Ok(mut cache) = state.packages.lock() {
+                cache.insert(file.clone(), entry.clone());
+            }
+            entry
+        }
+    };
+    let wants_gzip = headers
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
+    let use_gzip = wants_gzip && !compressed.is_empty();
+    let mut response = Response::new(Body::from(if use_gzip { compressed } else { raw }));
+    let out = response.headers_mut();
+    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
+    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+    if let Ok(value) = HeaderValue::from_str(&etag) {
+        out.insert(header::ETAG, value);
+    }
+    if use_gzip {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    }
+    response
 }
 
 pub async fn robots() -> Response {

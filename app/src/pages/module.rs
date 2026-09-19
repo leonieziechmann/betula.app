@@ -1,63 +1,213 @@
-//! The module panel: what the module description states, its schedule and exams, its
-//! prerequisites and the programs it belongs to. It opens next to the catalog list
-//! (`/catalog/module/<id>`) and fills the screen on a phone.
+//! A module in two sizes: the preview panel next to the catalog list (`/catalog?…&open=<id>`)
+//! and the module's own page (`/catalog/module/<id>`), which uses the whole screen.
 
 use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, TeachingForm, TextItemKind, TurnusSeason};
-use catalog::pages::ModuleData;
+use catalog::pages::{self, ModuleData};
 use catalog::rows::Prerequisite;
 use catalog::rows_detail::EventDate;
 use catalog::url::{self, ProgramTab};
 use leptos::prelude::*;
-use leptos_meta::Meta;
+use leptos_meta::{Meta, Title};
+use leptos_router::hooks::use_params_map;
 
+use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::{Fact, Icon, KindBadge, OfferBadge, Prose};
+use crate::ui::{ErrorState, Fact, Icon, KindBadge, NotFound, OfferBadge, Prose};
 
+/// What both the preview panel and the full page show about a module, precomputed once.
+#[derive(Clone)]
+struct Derived {
+    other_title: Option<String>,
+    responsible: Vec<String>,
+    campus: Vec<&'static str>,
+    workload: Vec<String>,
+    literature: Vec<String>,
+    mandatory: Vec<Prerequisite>,
+    recommended: Vec<Prerequisite>,
+    description: String,
+}
+
+fn derive(data: &ModuleData) -> Derived {
+    let m = &data.module;
+    Derived {
+        other_title: match (&m.title_de, &m.title_en) {
+            (Some(de), Some(en)) if de != en => Some(if m.title == *de { en.clone() } else { de.clone() }),
+            _ => None,
+        },
+        responsible: data
+            .lecturers
+            .iter()
+            .filter(|l| l.role.code() == "responsible")
+            .map(|l| match &l.title {
+                Some(title) => format!("{title} {}", l.name),
+                None => l.name.clone(),
+            })
+            .collect(),
+        campus: [
+            (m.at_zentralcampus, "Zentralcampus Cottbus"),
+            (m.at_sachsendorf, "Cottbus-Sachsendorf"),
+            (m.at_senftenberg, "Senftenberg"),
+        ]
+        .iter()
+        .filter(|(at, _)| *at == Some(true))
+        .map(|(_, label)| *label)
+        .collect(),
+        workload: data
+            .teaching_forms
+            .iter()
+            .filter(|f| !f.form.is(TeachingForm::SelfStudy))
+            .map(|f| match &f.workload_raw {
+                Some(raw) => format!("{} {raw}", f.form_raw),
+                None => f.form_raw.clone(),
+            })
+            .collect(),
+        literature: data.text_items.iter().filter(|i| i.kind.is(TextItemKind::Literature)).map(|i| i.text.clone()).collect(),
+        mandatory: data.prerequisites.iter().filter(|p| p.kind.is(PrerequisiteKind::Mandatory)).cloned().collect(),
+        recommended: data.prerequisites.iter().filter(|p| p.kind.is(PrerequisiteKind::Recommended)).cloned().collect(),
+        description: m
+            .contents
+            .clone()
+            .or_else(|| m.learning_outcomes.clone())
+            .map(|text| text.chars().take(160).collect::<String>())
+            .unwrap_or_else(|| format!("Modul {} der BTU Cottbus-Senftenberg", m.id)),
+    }
+}
+
+/// The preview next to the catalog list. `close_href` is the same list without the preview.
 #[component]
 pub fn ModulePanel(data: ModuleData, close_href: String) -> impl IntoView {
-    let m = data.module.clone();
-    let description = m
-        .contents
-        .clone()
-        .or_else(|| m.learning_outcomes.clone())
-        .map(|text| text.chars().take(160).collect::<String>())
-        .unwrap_or_else(|| format!("Modul {} der BTU Cottbus-Senftenberg", m.id));
-    let other_title = match (&m.title_de, &m.title_en) {
-        (Some(de), Some(en)) if de != en => Some(if m.title == *de { en.clone() } else { de.clone() }),
-        _ => None,
-    };
-    let responsible: Vec<String> = data
-        .lecturers
-        .iter()
-        .filter(|l| l.role.code() == "responsible")
-        .map(|l| match &l.title {
-            Some(title) => format!("{title} {}", l.name),
-            None => l.name.clone(),
-        })
-        .collect();
-    let campus: Vec<&str> = [
-        (m.at_zentralcampus, "Zentralcampus Cottbus"),
-        (m.at_sachsendorf, "Cottbus-Sachsendorf"),
-        (m.at_senftenberg, "Senftenberg"),
-    ]
-    .iter()
-    .filter(|(at, _)| *at == Some(true))
-    .map(|(_, label)| *label)
-    .collect();
-    let workload: Vec<String> = data
-        .teaching_forms
-        .iter()
-        .filter(|f| !f.form.is(TeachingForm::SelfStudy))
-        .map(|f| match &f.workload_raw {
-            Some(raw) => format!("{} {raw}", f.form_raw),
-            None => f.form_raw.clone(),
-        })
-        .collect();
-    let literature: Vec<String> = data.text_items.iter().filter(|i| i.kind.is(TextItemKind::Literature)).map(|i| i.text.clone()).collect();
-    let mandatory: Vec<Prerequisite> = data.prerequisites.iter().filter(|p| p.kind.is(PrerequisiteKind::Mandatory)).cloned().collect();
-    let recommended: Vec<Prerequisite> = data.prerequisites.iter().filter(|p| p.kind.is(PrerequisiteKind::Recommended)).cloned().collect();
-    let has_prerequisites = m.prerequisites_mandatory.is_some() || m.prerequisites_recommended.is_some() || !data.prerequisites.is_empty();
+    let id = data.module.id.clone();
+    view! {
+        <section class="panel detail" data-swap="detail" aria-label="Modulvorschau">
+            <div class="scroll" data-keep-scroll="detail">
+                <header class="hero">
+                    <div class="hero-top">
+                        <a class="icon-btn back" href=close_href.clone() aria-label="Zurück zur Liste"><Icon name="arrow-left"/></a>
+                        <span class="mono">{id.clone()}</span>
+                        <a class="ghost" href=url::module_path(&id) title="Als ganze Seite öffnen"><Icon name="maximize-2"/>"Vollbild"</a>
+                        <a class="icon-btn" href=close_href data-action="close-detail" aria-label="Vorschau schließen (Esc)"><Icon name="x"/></a>
+                    </div>
+                    <Heading data=data.clone()/>
+                </header>
+                <div class="dbody">
+                    <Side data=data.clone()/>
+                    <Main data=data.clone()/>
+                    <Source data=data.clone()/>
+                </div>
+            </div>
+        </section>
+    }
+}
 
+/// The module's own page (`/catalog/module/<id>`): the whole screen, two columns.
+#[component]
+pub fn ModulePage() -> impl IntoView {
+    let params = use_params_map();
+    let id = Memo::new(move |_| params.read().get("id").unwrap_or_default());
+    let source = use_source();
+    let status = PageStatus::capture();
+
+    move || {
+        let id = id.get();
+        let inner = match source.clone().and_then(|source| source.run(|db| pages::module(db, &id))) {
+            Err(error) => {
+                status.for_error(&error);
+                view! { <ErrorState error/> }.into_any()
+            }
+            Ok(None) => {
+                status.set(404);
+                view! { <NotFound title="Modul nicht gefunden" hint="Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."/> }.into_any()
+            }
+            Ok(Some(data)) => {
+                let derived = derive(&data);
+                view! {
+                    <Title text=format!("{} {}", data.module.id, data.module.title)/>
+                    <Meta name="description" content=derived.description/>
+                    <article class="module-page">
+                        <header class="panel hero">
+                            <div class="hero-top">
+                                <a class="ghost" href=url::CATALOG data-action="back"><Icon name="arrow-left"/>"Modulkatalog"</a>
+                                <span class="mono">{data.module.id.clone()}</span>
+                            </div>
+                            <Heading data=data.clone()/>
+                        </header>
+                        <div class="module-grid">
+                            <div class="panel dbody"><Main data=data.clone()/><Source data=data.clone()/></div>
+                            <aside class="panel dbody"><Side data=data.clone()/></aside>
+                        </div>
+                    </article>
+                }
+                .into_any()
+            }
+        };
+        view! { <div class="page">{inner}</div> }
+    }
+}
+
+#[component]
+fn Heading(data: ModuleData) -> impl IntoView {
+    let m = data.module.clone();
+    let derived = derive(&data);
+    view! {
+        <h2>{m.title.clone()}</h2>
+        {derived.other_title.map(|title| view! { <p class="en">{title}</p> })}
+        <p class="badges">
+            <span class="badge strong num">{format::credits(m.credits)}</span>
+            <span class="badge">{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref())}</span>
+            {format::languages(m.teaches_german, m.teaches_english).map(|l| view! { <span class="badge">{l}</span> })}
+            {m.is_fues.then(|| view! { <span class="badge">"FÜS"</span> })}
+            {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label().to_string()}</span> })}
+        </p>
+    }
+}
+
+/// Schedule, key facts and programs: the right column of the page, the top of the preview.
+#[component]
+fn Side(data: ModuleData) -> impl IntoView {
+    let m = data.module.clone();
+    let derived = derive(&data);
+    view! {
+        {(!data.successors.is_empty()).then(|| view! {
+            <p class="note">
+                <Icon name="info"/>
+                <span>
+                    {if m.offer_status.is(OfferStatus::Active) { "Nachfolgemodul: " } else { "Wird abgelöst durch: " }}
+                    {data.successors.iter().map(|s| view! {
+                        <a href=url::module_path(&s.successor_id)>{s.successor_id.clone()}" "{s.successor_title.clone().unwrap_or_default()}</a>" "
+                    }).collect_view()}
+                </span>
+            </p>
+        })}
+        <Schedule data=data.clone()/>
+        <div class="section">
+            <p class="label">"Auf einen Blick"</p>
+            <dl class="facts">
+                <Fact icon="file-check-2" label="Prüfung" value=m.exam_form.as_ref().map(format::exam_short).or(m.exam_form_raw.clone())/>
+                <Fact icon="award" label="Benotung" value=m.is_graded.map(|g| if g { "benotet".to_string() } else { "unbenotet".to_string() }).or(m.grading_raw.clone())/>
+                <Fact icon="clock-3" label="Dauer" value=m.duration_raw.clone()/>
+                <Fact icon="users-round" label="Plätze" value=match (m.is_limited, m.participant_limit) {
+                    (Some(true), Some(n)) => Some(format!("max. {n}")),
+                    (Some(true), None) => m.limitation_raw.clone().or(Some("begrenzt".to_string())),
+                    (Some(false), _) => Some("unbegrenzt".to_string()),
+                    (None, _) => None,
+                }/>
+                <Fact icon="languages" label="Sprache" value=m.language_raw.clone()/>
+                <Fact icon="map-pin" label="Standort" value=(!derived.campus.is_empty()).then(|| derived.campus.join(", "))/>
+                <Fact wide=true icon="user-round" label="Verantwortlich" value=(!derived.responsible.is_empty()).then(|| derived.responsible.join("; "))/>
+                <Fact wide=true icon="layout-list" label="Lehrformen" value=(!derived.workload.is_empty()).then(|| derived.workload.join(" · "))/>
+            </dl>
+        </div>
+        <Programs data=data.clone()/>
+    }
+}
+
+/// Prerequisites and the texts of the module description: the main column of the page.
+#[component]
+fn Main(data: ModuleData) -> impl IntoView {
+    let m = data.module.clone();
+    let derived = derive(&data);
+    let has_prerequisites = m.prerequisites_mandatory.is_some() || m.prerequisites_recommended.is_some() || !data.prerequisites.is_empty();
+    let literature = derived.literature.clone();
     let prerequisite_links = |linked: Vec<Prerequisite>, kind: &'static str| {
         linked
             .into_iter()
@@ -72,96 +222,42 @@ pub fn ModulePanel(data: ModuleData, close_href: String) -> impl IntoView {
             })
             .collect_view()
     };
-
     view! {
-        <Meta name="description" content=description/>
-        <section class="panel detail" aria-label="Modul">
-            <div class="scroll" data-keep-scroll="detail">
-                <header class="hero">
-                    <div class="hero-top">
-                        <a class="icon-btn back" href=close_href.clone() aria-label="Zurück zur Liste"><Icon name="arrow-left"/></a>
-                        <span class="mono">{m.id.clone()}</span>
-                        <a class="icon-btn" href=close_href data-action="close-detail" aria-label="Schließen (Esc)"><Icon name="x"/></a>
-                    </div>
-                    <h2>{m.title.clone()}</h2>
-                    {other_title.map(|title| view! { <p class="en">{title}</p> })}
-                    <p class="badges">
-                        <span class="badge strong num">{format::credits(m.credits)}</span>
-                        <span class="badge">{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref())}</span>
-                        {format::languages(m.teaches_german, m.teaches_english).map(|l| view! { <span class="badge">{l}</span> })}
-                        {m.is_fues.then(|| view! { <span class="badge">"FÜS"</span> })}
-                        {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label().to_string()}</span> })}
-                    </p>
-                </header>
-                <div class="dbody">
-                    {(!data.successors.is_empty()).then(|| view! {
-                        <p class="note">
-                            <Icon name="info"/>
-                            <span>
-                                {if m.offer_status.is(OfferStatus::Active) { "Nachfolgemodul: " } else { "Wird abgelöst durch: " }}
-                                {data.successors.iter().map(|s| view! {
-                                    <a href=url::module_path(&s.successor_id)>{s.successor_id.clone()}" "{s.successor_title.clone().unwrap_or_default()}</a>" "
-                                }).collect_view()}
-                            </span>
-                        </p>
-                    })}
-
-                    <Schedule data=data.clone()/>
-
-                    <div class="section">
-                        <p class="label">"Auf einen Blick"</p>
-                        <dl class="facts">
-                            <Fact icon="file-check-2" label="Prüfung" value=m.exam_form.as_ref().map(format::exam_short).or(m.exam_form_raw.clone())/>
-                            <Fact icon="award" label="Benotung" value=m.is_graded.map(|g| if g { "benotet".to_string() } else { "unbenotet".to_string() }).or(m.grading_raw.clone())/>
-                            <Fact icon="clock-3" label="Dauer" value=m.duration_raw.clone()/>
-                            <Fact icon="users-round" label="Plätze" value=match (m.is_limited, m.participant_limit) {
-                                (Some(true), Some(n)) => Some(format!("max. {n}")),
-                                (Some(true), None) => m.limitation_raw.clone().or(Some("begrenzt".to_string())),
-                                (Some(false), _) => Some("unbegrenzt".to_string()),
-                                (None, _) => None,
-                            }/>
-                            <Fact icon="languages" label="Sprache" value=m.language_raw.clone()/>
-                            <Fact icon="map-pin" label="Standort" value=(!campus.is_empty()).then(|| campus.join(", "))/>
-                            <Fact wide=true icon="user-round" label="Verantwortlich" value=(!responsible.is_empty()).then(|| responsible.join("; "))/>
-                            <Fact wide=true icon="layout-list" label="Lehrformen" value=(!workload.is_empty()).then(|| workload.join(" · "))/>
-                        </dl>
-                    </div>
-
-                    {has_prerequisites.then(|| view! {
-                        <div class="section">
-                            <p class="label">"Voraussetzungen"</p>
-                            <div class="linklist">
-                                {prerequisite_links(mandatory, "zwingend")}
-                                {prerequisite_links(recommended, "empfohlen")}
-                            </div>
-                            {m.prerequisites_mandatory.clone().map(|text| view! { <details class="more"><summary>"Zwingend, im Wortlaut"</summary><Prose text/></details> })}
-                            {m.prerequisites_recommended.clone().map(|text| view! { <details class="more"><summary>"Empfohlen, im Wortlaut"</summary><Prose text/></details> })}
-                        </div>
-                    })}
-
-                    {m.contents.clone().map(|text| view! { <div class="section"><p class="label">"Inhalte"</p><Prose text/></div> })}
-                    {m.learning_outcomes.clone().map(|text| view! { <div class="section"><p class="label">"Lernziele"</p><Prose text/></div> })}
-                    {m.exam_details.clone().map(|text| view! { <div class="section"><p class="label">"Prüfungsleistung"</p><Prose text/></div> })}
-                    {(!literature.is_empty()).then(|| view! {
-                        <div class="section">
-                            <details class="more"><summary>"Literatur ("{literature.len()}")"</summary>
-                                <ul class="list-plain">{literature.into_iter().map(|l| view! { <li>{l}</li> }).collect_view()}</ul>
-                            </details>
-                        </div>
-                    })}
-                    {m.remarks.clone().map(|text| view! { <div class="section"><p class="label">"Bemerkungen"</p><Prose text/></div> })}
-
-                    <Programs data=data.clone()/>
-
-                    <p class="source">
-                        <Icon name="shield-check"/>
-                        "Quelle: Modulbeschreibung der BTU"
-                        {m.fetched_at.as_deref().map(|at| format!(" · abgerufen {}", format::date(at)))}
-                        {m.source_url.clone().map(|href| view! { <a href=href rel="noopener">"Original"<Icon name="arrow-up-right"/></a> })}
-                    </p>
+        {has_prerequisites.then(|| view! {
+            <div class="section">
+                <p class="label">"Voraussetzungen"</p>
+                <div class="linklist">
+                    {prerequisite_links(derived.mandatory.clone(), "zwingend")}
+                    {prerequisite_links(derived.recommended.clone(), "empfohlen")}
                 </div>
+                {m.prerequisites_mandatory.clone().map(|text| view! { <details class="more"><summary>"Zwingend, im Wortlaut"</summary><Prose text/></details> })}
+                {m.prerequisites_recommended.clone().map(|text| view! { <details class="more"><summary>"Empfohlen, im Wortlaut"</summary><Prose text/></details> })}
             </div>
-        </section>
+        })}
+        {m.contents.clone().map(|text| view! { <div class="section"><p class="label">"Inhalte"</p><Prose text/></div> })}
+        {m.learning_outcomes.clone().map(|text| view! { <div class="section"><p class="label">"Lernziele"</p><Prose text/></div> })}
+        {m.exam_details.clone().map(|text| view! { <div class="section"><p class="label">"Prüfungsleistung"</p><Prose text/></div> })}
+        {(!literature.is_empty()).then(|| view! {
+            <div class="section">
+                <details class="more"><summary>"Literatur ("{literature.len()}")"</summary>
+                    <ul class="list-plain">{literature.into_iter().map(|l| view! { <li>{l}</li> }).collect_view()}</ul>
+                </details>
+            </div>
+        })}
+        {m.remarks.clone().map(|text| view! { <div class="section"><p class="label">"Bemerkungen"</p><Prose text/></div> })}
+    }
+}
+
+#[component]
+fn Source(data: ModuleData) -> impl IntoView {
+    let m = data.module;
+    view! {
+        <p class="source">
+            <Icon name="shield-check"/>
+            "Quelle: Modulbeschreibung der BTU"
+            {m.fetched_at.as_deref().map(|at| format!(" · abgerufen {}", format::date(at)))}
+            {m.source_url.clone().map(|href| view! { <a href=href rel="noopener">"Original"<Icon name="arrow-up-right"/></a> })}
+        </p>
     }
 }
 

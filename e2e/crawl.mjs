@@ -53,7 +53,8 @@ while (next) {
   catalogPages++;
   const header = html.match(/class="count num"[^>]*>(?:<!>)?([\d.]+)</);
   if (total === null) total = header ? Number(header[1].replaceAll(".", "")) : NaN;
-  for (const link of links(html, /href="(\/catalog\/module\/[^"?]+)/g)) modules.add(link);
+  // Rows open a preview (`open=<id>`); the module's own page is /catalog/module/<id>.
+  for (const id of links(html, /href="\/catalog\?[^"]*?open=([A-Za-z0-9_-]+)/g)) modules.add("/catalog/module/" + id);
   next = links(html, /rel="next" href="([^"]+)"/g)[0] || links(html, /href="([^"]+)" rel="next"/g)[0] || null;
 }
 if (!(total > 0) || modules.size !== total) failures.push(`/catalog: header says ${total} modules, its ${catalogPages} pages list ${modules.size}`);

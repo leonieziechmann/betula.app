@@ -255,6 +255,8 @@ dependencies = [
  "leptos_meta",
  "leptos_router",
  "serde",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -263,6 +265,19 @@ version = "0.1.0"
 dependencies = [
  "rusqlite",
  "serde",
+]
+
+[[package]]
+name = "btu-client"
+version = "0.1.0"
+dependencies = [
+ "btu-app",
+ "btu-catalog",
+ "console_error_panic_hook",
+ "js-sys",
+ "leptos",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -395,6 +410,16 @@ dependencies = [
  "serde_core",
  "toml",
  "winnow",
+]
+
+[[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
 ]
 
 [[package]]

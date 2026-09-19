@@ -15,6 +15,7 @@ pub mod pages;
 pub mod queries;
 pub mod rows;
 pub mod rows_detail;
+pub mod search;
 pub mod url;
 
 #[cfg(any(feature = "native", test))]

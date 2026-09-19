@@ -39,6 +39,9 @@ __pycache__/
 /snapshot/
 /web-data/
 
+# Built browser app (scripts/build-client.sh)
+/site/
+
 # Node tooling of the browser tests
 node_modules/
 

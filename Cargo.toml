@@ -2,8 +2,12 @@
 members = [
     "app",
     "catalog",
+    "client",
     "server",
 ]
+# `client` is the WASM build of the app (feature csr); building it together with the server
+# (feature ssr) would unify both into one leptos. Build it with scripts/build-client.sh.
+default-members = ["app", "catalog", "server"]
 # spikes: throwaway experiments (docs/frontend-phase0.md). frontend: the old CSR app, kept as
 # reference until its parts are ported (plan grid, fuzzy search), then deleted.
 exclude = ["spikes", "frontend"]
