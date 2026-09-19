@@ -13,6 +13,8 @@ pub mod filter;
 pub mod labels;
 pub mod queries;
 pub mod rows;
+pub mod rows_detail;
+pub mod url;
 
 #[cfg(any(feature = "native", test))]
 pub mod native;

@@ -1,0 +1,491 @@
+//! URLs of the app, in one place for the server, the pages and the tests.
+//!
+//! `/`                                  landing page
+//! `/catalog?…`                         module catalog; the query string is a `CatalogQuery`
+//! `/catalog/module/<id>`               module page
+//! `/programs`                          program overview
+//! `/programs/<slug>[/plan|areas|modules]`   program page and its tabs
+//!
+//! The catalog parameters are readable and tolerant: a plain HTML form (no JavaScript) sends
+//! repeated parameters and empty values, the app writes the canonical form, a hand-edited
+//! link may contain nonsense. Unknown names and values are ignored, never an error.
+
+use crate::filter::{
+    CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey,
+    TurnusFilter,
+};
+use crate::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
+
+pub const HOME: &str = "/";
+pub const CATALOG: &str = "/catalog";
+pub const PROGRAMS: &str = "/programs";
+
+pub fn module_path(id: &str) -> String {
+    format!("/catalog/module/{}", encode(id))
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ProgramTab {
+    /// Regelstudienplan
+    #[default]
+    Plan,
+    /// Wahlpflicht & Bereiche
+    Areas,
+    /// Alle Module
+    Modules,
+}
+
+impl ProgramTab {
+    pub const ALL: &'static [Self] = &[Self::Plan, Self::Areas, Self::Modules];
+
+    pub fn segment(self) -> &'static str {
+        match self {
+            ProgramTab::Plan => "plan",
+            ProgramTab::Areas => "areas",
+            ProgramTab::Modules => "modules",
+        }
+    }
+
+    pub fn from_segment(segment: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|tab| tab.segment() == segment)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ProgramTab::Plan => "Regelstudienplan",
+            ProgramTab::Areas => "Wahlpflicht & Bereiche",
+            ProgramTab::Modules => "Alle Module",
+        }
+    }
+}
+
+pub fn program_path(slug: &str, tab: ProgramTab) -> String {
+    format!("/programs/{}/{}", encode(slug), tab.segment())
+}
+
+/// How many modules one catalog page lists.
+pub const PAGE_SIZE: u64 = 50;
+
+/// What a catalog URL says: the filter and the page (1-based).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CatalogUrl {
+    pub query: CatalogQuery,
+    pub page: u64,
+}
+
+impl Default for CatalogUrl {
+    fn default() -> Self {
+        Self { query: CatalogQuery::default(), page: 1 }
+    }
+}
+
+impl CatalogUrl {
+    pub fn offset(&self) -> u64 {
+        (self.page.max(1) - 1) * PAGE_SIZE
+    }
+
+    /// Parses a raw query string (`a=b&c=d`, with or without the leading `?`).
+    pub fn parse(raw_query: &str) -> Self {
+        Self::from_pairs(&parse_pairs(raw_query))
+    }
+
+    pub fn from_pairs(pairs: &[(String, String)]) -> Self {
+        // Codes may come repeated (`form=lecture&form=exercise`) or joined (`form=lecture,exercise`).
+        let codes = |name: &str| -> Vec<String> {
+            pairs
+                .iter()
+                .filter(|(key, _)| key == name)
+                .flat_map(|(_, value)| value.split(','))
+                .map(|code| code.trim().to_ascii_lowercase())
+                .filter(|code| !code.is_empty())
+                .collect()
+        };
+        let first = |name: &str| -> Option<String> {
+            pairs.iter().find(|(key, value)| key == name && !value.trim().is_empty()).map(|(_, v)| v.trim().to_string())
+        };
+        let names = |name: &str| -> Vec<String> {
+            let mut all: Vec<String> = pairs
+                .iter()
+                .filter(|(key, value)| key == name && !value.trim().is_empty())
+                .map(|(_, value)| value.trim().to_string())
+                .collect();
+            all.dedup();
+            all
+        };
+        let yes_no = |name: &str| match first(name).as_deref() {
+            Some("yes") => Some(true),
+            Some("no") => Some(false),
+            _ => None,
+        };
+        fn known<E: Labelled + PartialEq>(codes: &[String]) -> Vec<E> {
+            let mut values: Vec<E> = Vec::new();
+            for value in codes.iter().filter_map(|code| E::from_code(code)) {
+                if !values.contains(&value) {
+                    values.push(value);
+                }
+            }
+            values
+        }
+
+        let program = first("program").map(|program_slug| {
+            let mut kinds: Vec<KindFilter> =
+                known::<ModuleKind>(&codes("kind")).into_iter().map(KindFilter::Stated).collect();
+            if codes("kind").iter().any(|code| code == "none") {
+                kinds.push(KindFilter::Unstated);
+            }
+            ProgramScope {
+                program_slug,
+                relation: if first("list").as_deref() == Some("fues") {
+                    ProgramRelation::Fues
+                } else {
+                    ProgramRelation::Curricular
+                },
+                plan_semester: match first("semester").as_deref() {
+                    Some("none") => Some(PlanSemesterFilter::Unstated),
+                    Some(n) => n.parse::<u8>().ok().filter(|n| (1..=20).contains(n)).map(PlanSemesterFilter::Semester),
+                    None => None,
+                },
+                kinds,
+            }
+        });
+
+        let turnus_codes = codes("turnus");
+        let exam_codes = codes("exam");
+        let status_codes = codes("status");
+
+        let query = CatalogQuery {
+            text: first("q").unwrap_or_default(),
+            program,
+            lecturers_include: names("lecturer"),
+            lecturers_exclude: names("not-lecturer"),
+            department_id: first("department").and_then(|id| id.parse().ok()),
+            turnus: TurnusFilter {
+                winter: turnus_codes.iter().any(|c| c == "winter"),
+                summer: turnus_codes.iter().any(|c| c == "summer"),
+                irregular: turnus_codes.iter().any(|c| c == "irregular"),
+                year_parity: first("years").and_then(|code| TurnusParity::from_code(&code)),
+            },
+            teaching_forms: known::<TeachingForm>(&codes("form")),
+            duration_semesters: first("duration").and_then(|n| n.parse().ok()).filter(|n| (1..=12).contains(n)),
+            limited: yes_no("limited"),
+            fues: match first("fues").as_deref() {
+                Some("only") => Some(true),
+                Some("none") => Some(false),
+                _ => None,
+            },
+            exam_forms: known::<ExamForm>(&exam_codes),
+            exam_parts: ExamPart::ALL.iter().copied().filter(|part| exam_codes.iter().any(|c| c == part.code())).collect(),
+            graded: yes_no("graded"),
+            offer: if status_codes.iter().any(|code| code == "all") {
+                Some(OfferStatus::ALL.to_vec())
+            } else {
+                Some(known::<OfferStatus>(&status_codes)).filter(|chosen| !chosen.is_empty())
+            },
+            credits_min: first("ects_min").and_then(|n| n.replace(',', ".").parse().ok()).filter(|n: &f64| n.is_finite()),
+            credits_max: first("ects_max").and_then(|n| n.replace(',', ".").parse().ok()).filter(|n: &f64| n.is_finite()),
+            campuses: known::<Campus>(&codes("campus")),
+            languages: codes("lang")
+                .iter()
+                .filter_map(|code| match code.as_str() {
+                    "de" => Some(Language::German),
+                    "en" => Some(Language::English),
+                    _ => None,
+                })
+                .fold(Vec::new(), |mut all, language| {
+                    if !all.contains(&language) {
+                        all.push(language);
+                    }
+                    all
+                }),
+            only_ids: None,
+            // The URL carries the switch; the set of passed modules lives in the browser.
+            prerequisites_met_by: (first("prereqs").as_deref() == Some("met")).then(Vec::new),
+            sort: match first("sort").as_deref() {
+                Some("id") => SortKey::Id,
+                Some("ects") => SortKey::Credits,
+                Some("events") => SortKey::Events,
+                _ => SortKey::Title,
+            },
+            descending: first("desc").is_some(),
+        };
+        let page = first("page").and_then(|n| n.parse::<u64>().ok()).filter(|n| (1..=100_000).contains(n)).unwrap_or(1);
+        Self { query, page }
+    }
+
+    /// The canonical query string, without `?`; empty for the default catalog.
+    /// Equal filter states give equal strings, so it also serves as a cache key.
+    pub fn to_query_string(&self) -> String {
+        let q = &self.query;
+        let mut out: Vec<(&str, String)> = Vec::new();
+        let join = |codes: Vec<&str>| codes.join(",");
+
+        if !q.text.trim().is_empty() {
+            out.push(("q", q.text.trim().to_string()));
+        }
+        if let Some(scope) = &q.program {
+            out.push(("program", scope.program_slug.clone()));
+            if scope.relation == ProgramRelation::Fues {
+                out.push(("list", "fues".to_string()));
+            }
+            match scope.plan_semester {
+                Some(PlanSemesterFilter::Semester(n)) => out.push(("semester", n.to_string())),
+                Some(PlanSemesterFilter::Unstated) => out.push(("semester", "none".to_string())),
+                None => {}
+            }
+            if !scope.kinds.is_empty() {
+                let kinds = scope.kinds.iter().map(|kind| match kind {
+                    KindFilter::Stated(kind) => kind.code(),
+                    KindFilter::Unstated => "none",
+                });
+                out.push(("kind", join(kinds.collect())));
+            }
+        }
+        out.extend(q.lecturers_include.iter().map(|name| ("lecturer", name.clone())));
+        out.extend(q.lecturers_exclude.iter().map(|name| ("not-lecturer", name.clone())));
+        if let Some(id) = q.department_id {
+            out.push(("department", id.to_string()));
+        }
+        let turnus: Vec<&str> = [(q.turnus.winter, "winter"), (q.turnus.summer, "summer"), (q.turnus.irregular, "irregular")]
+            .iter()
+            .filter(|(on, _)| *on)
+            .map(|(_, code)| *code)
+            .collect();
+        if !turnus.is_empty() {
+            out.push(("turnus", join(turnus)));
+        }
+        if let Some(parity) = q.turnus.year_parity {
+            out.push(("years", parity.code().to_string()));
+        }
+        if !q.teaching_forms.is_empty() {
+            out.push(("form", join(q.teaching_forms.iter().map(|form| form.code()).collect())));
+        }
+        if let Some(n) = q.duration_semesters {
+            out.push(("duration", n.to_string()));
+        }
+        let yes_no = |value: bool| if value { "yes" } else { "no" }.to_string();
+        if let Some(limited) = q.limited {
+            out.push(("limited", yes_no(limited)));
+        }
+        if let Some(fues) = q.fues {
+            out.push(("fues", if fues { "only" } else { "none" }.to_string()));
+        }
+        let exams: Vec<&str> =
+            q.exam_forms.iter().map(|form| form.code()).chain(q.exam_parts.iter().map(|part| part.code())).collect();
+        if !exams.is_empty() {
+            out.push(("exam", join(exams)));
+        }
+        if let Some(graded) = q.graded {
+            out.push(("graded", yes_no(graded)));
+        }
+        if let Some(offer) = &q.offer {
+            if offer.len() == OfferStatus::ALL.len() {
+                out.push(("status", "all".to_string()));
+            } else if !offer.is_empty() {
+                out.push(("status", join(offer.iter().map(|status| status.code()).collect())));
+            }
+        }
+        if let Some(min) = q.credits_min {
+            out.push(("ects_min", min.to_string()));
+        }
+        if let Some(max) = q.credits_max {
+            out.push(("ects_max", max.to_string()));
+        }
+        if !q.campuses.is_empty() {
+            out.push(("campus", join(q.campuses.iter().map(|campus| campus.code()).collect())));
+        }
+        if !q.languages.is_empty() {
+            let languages = q.languages.iter().map(|language| match language {
+                Language::German => "de",
+                Language::English => "en",
+            });
+            out.push(("lang", join(languages.collect())));
+        }
+        if q.prerequisites_met_by.is_some() {
+            out.push(("prereqs", "met".to_string()));
+        }
+        match q.sort {
+            SortKey::Title => {}
+            SortKey::Id => out.push(("sort", "id".to_string())),
+            SortKey::Credits => out.push(("sort", "ects".to_string())),
+            SortKey::Events => out.push(("sort", "events".to_string())),
+        }
+        if q.descending {
+            out.push(("desc", "1".to_string()));
+        }
+        if self.page > 1 {
+            out.push(("page", self.page.to_string()));
+        }
+
+        out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&")
+    }
+
+    /// `/catalog` with the canonical query string.
+    pub fn path(&self) -> String {
+        let query = self.to_query_string();
+        if query.is_empty() {
+            CATALOG.to_string()
+        } else {
+            format!("{CATALOG}?{query}")
+        }
+    }
+
+    /// The same filter on another page.
+    pub fn with_page(&self, page: u64) -> Self {
+        Self { query: self.query.clone(), page }
+    }
+}
+
+impl ExamPart {
+    pub fn code(self) -> &'static str {
+        match self {
+            ExamPart::Written => "written",
+            ExamPart::Oral => "oral",
+            ExamPart::Paper => "paper",
+            ExamPart::Presentation => "presentation",
+            ExamPart::Project => "project",
+            ExamPart::Practical => "practical",
+        }
+    }
+}
+
+/// Splits and decodes a query string. Pairs without `=` get an empty value.
+pub fn parse_pairs(raw_query: &str) -> Vec<(String, String)> {
+    raw_query
+        .trim_start_matches('?')
+        .split('&')
+        .filter(|pair| !pair.is_empty())
+        .map(|pair| {
+            let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+            (decode(key), decode(value))
+        })
+        .collect()
+}
+
+/// Percent-encodes everything except unreserved characters and `,`; a space becomes `+`.
+pub fn encode(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b',' => out.push(byte as char),
+            b' ' => out.push('+'),
+            other => out.push_str(&format!("%{other:02X}")),
+        }
+    }
+    out
+}
+
+/// Decodes `%XX` and `+`. Broken escapes stay as they are; invalid UTF-8 is replaced.
+pub fn decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while let Some(&byte) = bytes.get(i) {
+        let escaped = if byte == b'%' {
+            bytes.get(i + 1..i + 3).and_then(|hex| std::str::from_utf8(hex).ok()).and_then(|hex| u8::from_str_radix(hex, 16).ok())
+        } else {
+            None
+        };
+        match (byte, escaped) {
+            (_, Some(value)) => {
+                out.push(value);
+                i += 3;
+            }
+            (b'+', _) => {
+                out.push(b' ');
+                i += 1;
+            }
+            (other, _) => {
+                out.push(other);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_catalog_has_no_query_string() {
+        assert_eq!(CatalogUrl::default().path(), "/catalog");
+        assert_eq!(CatalogUrl::parse(""), CatalogUrl::default());
+        assert_eq!(CatalogUrl::parse("?"), CatalogUrl::default());
+    }
+
+    #[test]
+    fn a_full_filter_survives_the_round_trip() {
+        let url = CatalogUrl {
+            query: CatalogQuery {
+                text: "Lineare Algebra & Ökologie".into(),
+                program: Some(ProgramScope {
+                    program_slug: "bachelor-informatik-2008".into(),
+                    relation: ProgramRelation::Fues,
+                    plan_semester: Some(PlanSemesterFilter::Semester(3)),
+                    kinds: vec![KindFilter::Stated(ModuleKind::Elective), KindFilter::Unstated],
+                }),
+                lecturers_include: vec!["Köhler, Ekkehard".into()],
+                lecturers_exclude: vec!["Meer, Klaus".into(), "Wachsmuth, Gerd".into()],
+                department_id: Some(7),
+                turnus: TurnusFilter { winter: true, summer: false, irregular: true, year_parity: Some(TurnusParity::Odd) },
+                teaching_forms: vec![TeachingForm::Lecture, TeachingForm::Exercise],
+                duration_semesters: Some(2),
+                limited: Some(false),
+                fues: Some(true),
+                exam_forms: vec![ExamForm::Mca],
+                exam_parts: vec![ExamPart::Oral],
+                graded: Some(true),
+                offer: Some(OfferStatus::ALL.to_vec()),
+                credits_min: Some(5.0),
+                credits_max: Some(7.5),
+                campuses: vec![Campus::Senftenberg],
+                languages: vec![Language::English],
+                only_ids: None,
+                prerequisites_met_by: Some(vec![]),
+                sort: SortKey::Credits,
+                descending: true,
+            },
+            page: 4,
+        };
+        let text = url.to_query_string();
+        assert_eq!(
+            text,
+            "q=Lineare+Algebra+%26+%C3%96kologie&program=bachelor-informatik-2008&list=fues&semester=3&kind=elective,none\
+             &lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
+             &turnus=winter,irregular&years=odd&form=lecture,exercise&duration=2&limited=no&fues=only&exam=mca,oral\
+             &graded=yes&status=all&ects_min=5&ects_max=7.5&campus=senftenberg&lang=en&prereqs=met&sort=ects&desc=1&page=4"
+        );
+        assert_eq!(CatalogUrl::parse(&text), url);
+    }
+
+    #[test]
+    fn a_plain_html_form_is_understood() {
+        // Repeated checkboxes, empty text inputs, %20 instead of +.
+        let url = CatalogUrl::parse("q=&form=lecture&form=exercise&turnus=winter&ects_min=&ects_max=6&lang=de&status=&q=algebra%20I");
+        assert_eq!(url.query.text, "algebra I");
+        assert_eq!(url.query.teaching_forms, vec![TeachingForm::Lecture, TeachingForm::Exercise]);
+        assert!(url.query.turnus.winter && !url.query.turnus.summer);
+        assert_eq!((url.query.credits_min, url.query.credits_max), (None, Some(6.0)));
+        assert_eq!(url.query.offer, None);
+        assert_eq!(url.to_query_string(), "q=algebra+I&turnus=winter&form=lecture,exercise&ects_max=6&lang=de");
+    }
+
+    #[test]
+    fn nonsense_is_ignored_not_an_error() {
+        let url = CatalogUrl::parse("form=yoga,lecture,lecture&kind=compulsory&semester=99&page=-3&sort=random&%ZZ=1&=&&graded=maybe&ects_min=NaN");
+        assert_eq!(url.query.teaching_forms, vec![TeachingForm::Lecture]);
+        assert_eq!(url.query.program, None, "kind and semester mean nothing without a program");
+        assert_eq!((url.page, url.query.sort, url.query.graded, url.query.credits_min), (1, SortKey::Title, None, None));
+        assert_eq!(url.to_query_string(), "form=lecture");
+    }
+
+    #[test]
+    fn paths() {
+        assert_eq!(module_path("11101"), "/catalog/module/11101");
+        assert_eq!(program_path("bachelor-informatik-2008", ProgramTab::Areas), "/programs/bachelor-informatik-2008/areas");
+        assert_eq!(ProgramTab::from_segment("modules"), Some(ProgramTab::Modules));
+        assert_eq!(ProgramTab::from_segment("electives"), None);
+        assert_eq!(CatalogUrl { page: 3, ..Default::default() }.offset(), 100);
+    }
+}

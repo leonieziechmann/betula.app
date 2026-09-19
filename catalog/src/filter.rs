@@ -44,8 +44,8 @@ pub enum PlanSemesterFilter {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ProgramScope {
-    /// `v_program.id`
-    pub program_id: String,
+    /// `v_program.slug`: what URLs carry, so no lookup is needed to build the query.
+    pub program_slug: String,
     pub relation: ProgramRelation,
     pub plan_semester: Option<PlanSemesterFilter>,
     /// Any of these; empty means all.
@@ -139,8 +139,8 @@ pub struct CatalogQuery {
     /// Any of these.
     pub exam_parts: Vec<ExamPart>,
     pub graded: Option<bool>,
-    /// Any of these; empty means all.
-    pub offer: Vec<OfferStatus>,
+    /// Any of these. `None` is the default, see `effective_offer`.
+    pub offer: Option<Vec<OfferStatus>>,
     pub credits_min: Option<f64>,
     pub credits_max: Option<f64>,
     /// Any of these. Only modules with room data can match (campus is unknown otherwise).
@@ -192,6 +192,17 @@ pub fn like_pattern(text: &str) -> String {
 }
 
 impl CatalogQuery {
+    /// Which offer states are listed. By default modules that are no longer offered are
+    /// hidden (1,649 of the 1,704 are in no curriculum at all), except inside a program:
+    /// there the list shows everything the curriculum names. Phase-out modules stay visible.
+    pub fn effective_offer(&self) -> Vec<OfferStatus> {
+        match (&self.offer, &self.program) {
+            (Some(chosen), _) => chosen.clone(),
+            (None, Some(_)) => OfferStatus::ALL.to_vec(),
+            (None, None) => vec![OfferStatus::Active, OfferStatus::PhaseOut],
+        }
+    }
+
     /// How many filters are active (for „Filter zurücksetzen (3)"). Sorting is not a filter.
     pub fn active_filters(&self) -> usize {
         let t = &self.turnus;
@@ -209,7 +220,7 @@ impl CatalogQuery {
             self.fues.is_some(),
             !self.exam_forms.is_empty() || !self.exam_parts.is_empty(),
             self.graded.is_some(),
-            !self.offer.is_empty(),
+            self.offer.is_some(),
             self.credits_min.is_some() || self.credits_max.is_some(),
             !self.campuses.is_empty(),
             !self.languages.is_empty(),
@@ -230,9 +241,10 @@ impl CatalogQuery {
 
         if let Some(scope) = &self.program {
             joins.push_str(
-                " JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = ? AND pm.relation = ?",
+                " JOIN v_program_module pm ON pm.module_id = f.module_id \
+                 AND pm.program_id = (SELECT id FROM v_program WHERE slug = ?) AND pm.relation = ?",
             );
-            params.push(Value::from(&scope.program_id));
+            params.push(Value::from(&scope.program_slug));
             params.push(Value::from(scope.relation.code()));
 
             match scope.plan_semester {
@@ -354,9 +366,10 @@ impl CatalogQuery {
             conditions.push("f.is_graded = ?".to_string());
             params.push(Value::from(graded));
         }
-        if !self.offer.is_empty() {
-            conditions.push(format!("f.offer_status IN ({})", placeholders(self.offer.len())));
-            params.extend(self.offer.iter().map(|status| Value::from(status.code())));
+        let offer = self.effective_offer();
+        if !offer.is_empty() && offer.len() < OfferStatus::ALL.len() {
+            conditions.push(format!("f.offer_status IN ({})", placeholders(offer.len())));
+            params.extend(offer.iter().map(|status| Value::from(status.code())));
         }
         if let Some(min) = self.credits_min {
             conditions.push("f.credits >= ?".to_string());

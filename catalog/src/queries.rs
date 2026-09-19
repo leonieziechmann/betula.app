@@ -11,6 +11,10 @@ use crate::rows::{
     CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchTerm,
     Semester,
 };
+use crate::rows_detail::{
+    AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
+    ProgramLink, ProgramVersion, Successor, TextItem,
+};
 
 const PROGRAM_COLUMNS: &str = "id, slug, name, degree_level, study_variant, degree_label, degree_raw, \
      degree_display, po_version, po_year, family_key, is_latest_po, source_url, has_plan, plan_status, \
@@ -174,5 +178,163 @@ pub fn search_suggestions(db: &dyn Database, text: &str, limit: u64) -> Result<V
         "SELECT module_id, term, kind FROM v_module_search WHERE term LIKE ? ESCAPE '\\' \
          GROUP BY module_id ORDER BY MIN(CASE kind WHEN 'id' THEN 0 ELSE 1 END), term COLLATE NOCASE LIMIT ?",
         &[Value::from(like_pattern(text)), Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX))],
+    )
+}
+
+/// Everyone who teaches or is responsible for a module, for the lecturer filter.
+pub fn lecturer_names(db: &dyn Database) -> Result<Vec<LecturerName>, DbError> {
+    fetch(
+        db,
+        "lecturer_names",
+        "SELECT name, COUNT(DISTINCT module_id) AS modules FROM v_module_lecturer \
+         GROUP BY name ORDER BY name COLLATE NOCASE",
+        &[],
+    )
+}
+
+pub fn module_lecturers(db: &dyn Database, module_id: &str) -> Result<Vec<Lecturer>, DbError> {
+    fetch(
+        db,
+        "module_lecturers",
+        "SELECT DISTINCT name, title, role FROM v_module_lecturer WHERE module_id = ? \
+         ORDER BY CASE role WHEN 'responsible' THEN 0 ELSE 1 END, name COLLATE NOCASE",
+        &[Value::from(module_id)],
+    )
+}
+
+pub fn module_teaching_forms(db: &dyn Database, module_id: &str) -> Result<Vec<ModuleTeachingForm>, DbError> {
+    fetch(
+        db,
+        "module_teaching_forms",
+        "SELECT form, form_raw, workload_raw, sws, hours FROM v_module_teaching_form WHERE module_id = ? ORDER BY ord",
+        &[Value::from(module_id)],
+    )
+}
+
+/// The literature and course lists of a module, in page order.
+pub fn module_text_items(db: &dyn Database, module_id: &str) -> Result<Vec<TextItem>, DbError> {
+    fetch(
+        db,
+        "module_text_items",
+        "SELECT kind, text FROM v_module_text_item WHERE module_id = ? ORDER BY kind, ord",
+        &[Value::from(module_id)],
+    )
+}
+
+pub fn module_successors(db: &dyn Database, module_id: &str) -> Result<Vec<Successor>, DbError> {
+    fetch(
+        db,
+        "module_successors",
+        "SELECT successor_id, successor_title FROM v_module_successor WHERE module_id = ? ORDER BY successor_id",
+        &[Value::from(module_id)],
+    )
+}
+
+const EVENT_ORDER: &str = "ORDER BY semester_key DESC, event_title COLLATE NOCASE, event_id, ord";
+
+/// The teaching events of a module, newest semester first. Exams are not in here.
+pub fn module_schedule(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>, DbError> {
+    fetch(
+        db,
+        "module_schedule",
+        &format!(
+            "SELECT semester_key, semester_label, event_id, event_number, event_title, event_type, group_name, \
+             weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, \
+             comment, source_url FROM v_module_schedule WHERE module_id = ? {EVENT_ORDER}"
+        ),
+        &[Value::from(module_id)],
+    )
+}
+
+/// The exam dates of a module, newest semester first.
+pub fn module_exams(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>, DbError> {
+    fetch(
+        db,
+        "module_exams",
+        &format!(
+            "SELECT semester_key, semester_label, event_id, event_number, event_title, NULL AS event_type, \
+             NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, first_date, \
+             last_date, room, campus, NULL AS instructor, comment, source_url \
+             FROM v_module_exam WHERE module_id = ? {EVENT_ORDER}"
+        ),
+        &[Value::from(module_id)],
+    )
+}
+
+/// The programs a module page names: resolved ones first, the newest PO of each first.
+pub fn module_program_links(db: &dyn Database, module_id: &str) -> Result<Vec<ProgramLink>, DbError> {
+    fetch(
+        db,
+        "module_program_links",
+        "SELECT degree_raw, program_raw, po_raw, resolve_status, program_slug, program_name, degree_display, \
+         po_version, is_latest_po, relation, kind, kind_source, area \
+         FROM v_module_program_link WHERE module_id = ? \
+         ORDER BY program_slug IS NULL, relation, program_name COLLATE NOCASE, po_version DESC, ord",
+        &[Value::from(module_id)],
+    )
+}
+
+/// The other PO versions of a program, newest first.
+pub fn program_versions(db: &dyn Database, program_id: &str) -> Result<Vec<ProgramVersion>, DbError> {
+    fetch(
+        db,
+        "program_versions",
+        "SELECT other_slug, po_version, is_latest_po FROM v_program_version WHERE program_id = ? \
+         ORDER BY po_year DESC, po_version DESC",
+        &[Value::from(program_id)],
+    )
+}
+
+/// The best-matching Bachelor of a Master, or Master of a Bachelor.
+pub fn program_counterpart(db: &dyn Database, program_id: &str) -> Result<Option<Counterpart>, DbError> {
+    fetch_optional(
+        db,
+        "program_counterpart",
+        "SELECT counterpart_slug, counterpart_name, counterpart_level, counterpart_po_version \
+         FROM v_program_counterpart WHERE program_id = ? \
+         ORDER BY match_score DESC, counterpart_po_version DESC LIMIT 1",
+        &[Value::from(program_id)],
+    )
+}
+
+pub fn program_documents(db: &dyn Database, program_id: &str) -> Result<Vec<Document>, DbError> {
+    fetch(
+        db,
+        "program_documents",
+        "SELECT title, doc_type, url FROM v_program_document WHERE program_id = ? ORDER BY ord",
+        &[Value::from(program_id)],
+    )
+}
+
+/// The module tree of a program: every placement of a module in an area, in tree order.
+pub fn program_areas(db: &dyn Database, program_id: &str) -> Result<Vec<AreaPlacement>, DbError> {
+    fetch(
+        db,
+        "program_areas",
+        "SELECT a.module_id, m.title AS module_title, m.credits AS module_credits, a.area_id, a.area, \
+         a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis \
+         FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id WHERE a.program_id = ? \
+         ORDER BY a.area_ord, a.area_id, m.title COLLATE NOCASE, a.module_id",
+        &[Value::from(program_id)],
+    )
+}
+
+pub fn program_plan(db: &dyn Database, program_id: &str) -> Result<Option<Plan>, DbError> {
+    fetch_optional(
+        db,
+        "program_plan",
+        "SELECT source_file, layout_json, validated_at FROM v_program_plan WHERE program_id = ?",
+        &[Value::from(program_id)],
+    )
+}
+
+pub fn program_plan_entries(db: &dyn Database, program_id: &str) -> Result<Vec<PlanEntry>, DbError> {
+    fetch(
+        db,
+        "program_plan_entries",
+        "SELECT module_id, module_name, semester, start_semester, end_semester, semester_span, credits, \
+         min_credits, max_credits, kind, kind_raw, study_section, subject_area, specialization, catalog_title, \
+         credits_differ_from_catalog FROM v_program_plan_entry WHERE program_id = ? ORDER BY ord",
+        &[Value::from(program_id)],
     )
 }
