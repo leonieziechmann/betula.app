@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/leonieziechmann/btu-scraper/internal/oplog"
 	_ "modernc.org/sqlite"
 )
 
@@ -143,6 +144,7 @@ func (db *DB) migrate() error {
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("migration %s: commit failed: %w", m.name, err)
 		}
+		oplog.For("db").Info("migration applied", "event", "db.migrated", "migration", m.name, "schema_version", m.version, "db", db.path)
 	}
 	return nil
 }

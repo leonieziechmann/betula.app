@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/leonieziechmann/btu-scraper/internal/oplog"
 )
 
 // snapshotDropTables exist for the scraper only and are not shipped to readers.
@@ -46,7 +48,21 @@ type Snapshot struct {
 // it. Snapshots are therefore never overwritten: a new file is written, the small
 // pointer file is replaced atomically, and older snapshots are removed when nobody
 // uses them any more.
+//
+// Log events: export.finished, export.failed (ERROR).
 func (db *DB) Export(ctx context.Context, dir string) (*Snapshot, error) {
+	start := time.Now()
+	snap, err := db.export(ctx, dir)
+	if err != nil {
+		oplog.For("export").Error("export failed; the previous snapshot stays current", "event", "export.failed", "dir", dir, oplog.Err(err))
+		return nil, err
+	}
+	oplog.For("export").Info("snapshot published", "event", "export.finished", "file", snap.File, "etag", snap.ETag,
+		"bytes", snap.Bytes, "duration_ms", time.Since(start).Milliseconds())
+	return snap, nil
+}
+
+func (db *DB) export(ctx context.Context, dir string) (*Snapshot, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}

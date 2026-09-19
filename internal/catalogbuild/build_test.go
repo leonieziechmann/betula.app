@@ -373,6 +373,37 @@ func TestBuildIsRepeatableAndKeepsPlans(t *testing.T) {
 	}
 	want(t, db, `SELECT COUNT(*) FROM plan_entry`, "3")
 	want(t, db, `SELECT COUNT(*) FROM pragma_foreign_key_check`, "0")
+
+	// The digest decides whether a new snapshot is published.
+	if !first.ContentChanged || second.ContentChanged || first.ContentDigest != second.ContentDigest {
+		t.Errorf("digest: first changed=%v, second changed=%v, equal=%v", first.ContentChanged, second.ContentChanged, first.ContentDigest == second.ContentDigest)
+	}
+
+	// Fetching a page again without any change must not count as new content …
+	page, err := db.GetPage(catalogdb.SourceModulePage, "11101")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page.FetchedAt = page.FetchedAt.Add(48 * time.Hour)
+	if err := db.PutPage(*page); err != nil {
+		t.Fatal(err)
+	}
+	refetched, err := Build(context.Background(), db)
+	if err != nil || refetched.ContentChanged {
+		t.Errorf("refetch without change: changed=%v err=%v", refetched != nil && refetched.ContentChanged, err)
+	}
+	want(t, db, `SELECT fetched_at FROM module WHERE id = '11101'`, "2026-09-21T15:00:00Z")
+	want(t, db, `SELECT value FROM v_meta WHERE key = 'data_changed_at'`, first.BuiltAt.Format(time.RFC3339))
+
+	// … but a changed page must.
+	page.Body = []byte(strings.Replace(string(page.Body), "<td>8</td>", "<td>9</td>", 1))
+	if err := db.PutPage(*page); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := Build(context.Background(), db)
+	if err != nil || !changed.ContentChanged {
+		t.Errorf("changed credits: changed=%v err=%v", changed != nil && changed.ContentChanged, err)
+	}
 }
 
 func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {

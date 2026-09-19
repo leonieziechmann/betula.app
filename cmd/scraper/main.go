@@ -85,6 +85,12 @@ func main() {
 		runProviders(ctx, subArgs)
 	case "crawl-modules":
 		runCrawlModules(ctx, subArgs)
+	case "crawl-events":
+		runCrawlEvents(ctx, subArgs)
+	case "crawl-tree":
+		runCrawlTree(ctx, subArgs)
+	case "prune-events":
+		runPruneEvents(ctx, subArgs)
 	case "build":
 		runBuild(ctx, subArgs)
 	case "validate":
@@ -93,6 +99,10 @@ func main() {
 		runExport(ctx, subArgs)
 	case "serve-snapshot":
 		runServeSnapshot(ctx, subArgs)
+	case "run":
+		runService(ctx, subArgs)
+	case "healthcheck":
+		runHealthcheck(ctx, subArgs)
 	case "import-legacy-plans":
 		runImportLegacyPlans(ctx, subArgs)
 	case "raw-vocab":
@@ -142,9 +152,15 @@ Commands:
   program-modules <name|id>  List all modules associated with an official study program
   providers                  List all registered data providers
 
-Schema v2 pipeline (database: btu_v2.db):
+Schema v2 pipeline (database: btu_v2.db). All commands take --log-format text|json, --log-level, --log-file:
+  run                        Long-running service: keep the archive fresh, rebuild, publish snapshots over HTTP
+                             [--addr 127.0.0.1:8090] [--interval 30m] [--offpeak 1-6|any] [--once]; every flag has a BTU_* env var
   crawl-modules              Archive the catalog list and all module pages in the raw page archive
                              [--workers 4] [--delay 500] [--max-age 24h] [--limit N]
+  crawl-events               Archive the QIS event pages that module pages link [--delay 500] [--max-age 72h]
+  crawl-tree                 Walk the QIS program tree; fetch what is missing or stale [--delay 1000] [--max-age 168h]
+  prune-events               Remove events one month after their last date [--keep 720h]
+  healthcheck                Exit 0 if a running service reports healthy [--url http://127.0.0.1:8090/healthz]
   import-cache               Copy still-valid pages from the legacy .cache into the raw page archive
   import-legacy-plans        Copy the validated study plans of the schema v1 database (one-time)
   build                      Derive the canonical tables from the raw page archive (no network)

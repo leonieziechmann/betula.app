@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/btu-scraper/internal/oplog"
 )
 
 // derivedTables are replaced as a whole by every build, children first.
@@ -30,6 +31,11 @@ var derivedTables = []string{
 // unresolved is counted here instead of disappearing silently.
 type Report struct {
 	BuiltAt time.Time
+
+	// ContentDigest identifies the published content. ContentChanged says whether it
+	// differs from the previous build; only then is a new snapshot worth exporting.
+	ContentDigest  string
+	ContentChanged bool
 
 	Modules            int
 	ModulesWithoutPage int // known from a list, but no module page in the archive
@@ -57,7 +63,70 @@ type Report struct {
 }
 
 // Build replaces all derived tables from the raw archive, in one transaction.
+//
+// Log events: build.started, build.finished, build.failed (ERROR), and one WARN per
+// kind of source data the build could not use (build.unresolved_refs,
+// build.tree_leaves_without_module, build.tree_pages_missing, build.plans_without_program,
+// build.plan_entries_unknown_module, build.modules_without_page).
 func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
+	log := oplog.For("build")
+	start := time.Now()
+	log.Info("build started", "event", "build.started")
+
+	report, err := build(ctx, db)
+	if err != nil {
+		log.Error("build failed; the previous canonical data is unchanged", "event", "build.failed",
+			"duration_ms", time.Since(start).Milliseconds(), oplog.Err(err))
+		return nil, err
+	}
+
+	warn := func(n int, event, msg string, args ...any) {
+		if n > 0 {
+			log.Warn(msg, append([]any{"event", event, "count", n}, args...)...)
+		}
+	}
+	warn(report.ModulesWithoutPage, "build.modules_without_page", "modules are known from a list only, their module page is missing")
+	warn(total(report.PageRefsUnresolved), "build.unresolved_refs", "module page assignments resolve to no program", "distinct", len(report.PageRefsUnresolved), "examples", examples(report.PageRefsUnresolved, 3))
+	warn(total(report.TreeLeavesNoModule), "build.tree_leaves_without_module", "tree leaves name modules that are not in the catalog", "distinct", len(report.TreeLeavesNoModule), "examples", examples(report.TreeLeavesNoModule, 5))
+	warn(report.MissingTreePages, "build.tree_pages_missing", "area pages of the QIS tree are missing from the archive")
+	warn(len(report.PlansWithoutProgram), "build.plans_without_program", "validated plans belong to programs that no longer exist", "programs", report.PlansWithoutProgram)
+	warn(report.PlanEntriesUnknownModule, "build.plan_entries_unknown_module", "plan entries are matched to modules that are not in the catalog")
+	warn(len(report.UnpairedEnglishDep), "build.unpaired_departments", "English department names have no German counterpart", "names", report.UnpairedEnglishDep)
+
+	log.Info("build finished", "event", "build.finished", "duration_ms", time.Since(start).Milliseconds(),
+		"modules", report.Modules, "programs", report.Programs, "events", report.Events,
+		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
+		"content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
+	return report, nil
+}
+
+func total(m map[string]int) int {
+	n := 0
+	for _, v := range m {
+		n += v
+	}
+	return n
+}
+
+// examples returns up to limit keys of m, most frequent first.
+func examples(m map[string]int, limit int) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if m[keys[i]] != m[keys[j]] {
+			return m[keys[i]] > m[keys[j]]
+		}
+		return keys[i] < keys[j]
+	})
+	if len(keys) > limit {
+		keys = keys[:limit]
+	}
+	return keys
+}
+
+func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	report := &Report{
 		BuiltAt:            time.Now().UTC().Truncate(time.Second),
 		TreeLeavesNoModule: make(map[string]int),
@@ -77,6 +146,10 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	var previousDigest, dataChangedAt string
+	_ = tx.QueryRow("SELECT value FROM meta WHERE key = 'content_digest'").Scan(&previousDigest)
+	_ = tx.QueryRow("SELECT value FROM meta WHERE key = 'data_changed_at'").Scan(&dataChangedAt)
 
 	for _, table := range derivedTables {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
@@ -103,8 +176,23 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		stepStart := time.Now()
 		if err := step.run(); err != nil {
 			return nil, fmt.Errorf("build step %q failed: %w", step.name, err)
+		}
+		oplog.For("build").Debug("build step finished", "event", "build.step", "step", step.name, "duration_ms", time.Since(stepStart).Milliseconds())
+	}
+
+	if report.ContentDigest, err = contentDigest(tx); err != nil {
+		return nil, err
+	}
+	report.ContentChanged = report.ContentDigest != previousDigest
+	if report.ContentChanged || dataChangedAt == "" {
+		dataChangedAt = report.BuiltAt.Format(time.RFC3339)
+	}
+	for key, value := range map[string]string{"content_digest": report.ContentDigest, "data_changed_at": dataChangedAt} {
+		if _, err := tx.Exec("INSERT INTO meta (key, value) VALUES (?, ?)", key, value); err != nil {
+			return nil, err
 		}
 	}
 

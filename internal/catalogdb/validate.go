@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/leonieziechmann/btu-scraper/internal/oplog"
 )
 
 // Check severities.
@@ -109,6 +111,30 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		v.baseline(b)
 	}
 	return v.checks, v.err
+}
+
+// LogChecks writes the outcome of Validate to the operational log: one ERROR per
+// failed check (validate.check_failed), one WARN per warning (validate.check_warned)
+// and a summary (validate.finished). It returns the number of failed checks.
+func LogChecks(checks []Check) int {
+	log := oplog.For("validate")
+	failed, warned := 0, 0
+	for _, c := range checks {
+		switch c.Status {
+		case StatusFail:
+			failed++
+			log.Error("check failed", "event", "validate.check_failed", "check", c.Name, "value", c.Value, "detail", c.Detail, "samples", c.Samples)
+		case StatusWarn:
+			warned++
+			log.Warn("check warns", "event", "validate.check_warned", "check", c.Name, "value", c.Value, "samples", c.Samples)
+		}
+	}
+	if failed > 0 {
+		log.Error("validation failed; no snapshot will be published from this data", "event", "validate.finished", "checks", len(checks), "failed", failed, "warned", warned)
+	} else {
+		log.Info("validation passed", "event", "validate.finished", "checks", len(checks), "failed", 0, "warned", warned)
+	}
+	return failed
 }
 
 // HasFailures reports whether any check failed.

@@ -40,8 +40,20 @@ type RawPage struct {
 // PutPage stores the latest response for (source, key), replacing the previous
 // one. changed_at only moves when the body differs from the archived body.
 func (db *DB) PutPage(p RawPage) error {
+	_, err := db.PutPageChanged(p)
+	return err
+}
+
+// PutPageChanged is PutPage and reports whether the body differs from the archived
+// one (true for a page that was not archived before).
+func (db *DB) PutPageChanged(p RawPage) (bool, error) {
+	changed, err := db.putPage(p)
+	return changed, err
+}
+
+func (db *DB) putPage(p RawPage) (bool, error) {
 	if p.Source == "" || p.Key == "" {
-		return fmt.Errorf("raw page requires source and key")
+		return false, fmt.Errorf("raw page requires source and key")
 	}
 	if p.FetchedAt.IsZero() {
 		p.FetchedAt = time.Now()
@@ -56,15 +68,19 @@ func (db *DB) PutPage(p RawPage) error {
 		var buf bytes.Buffer
 		zw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
 		if _, err := zw.Write(p.Body); err != nil {
-			return err
+			return false, err
 		}
 		if err := zw.Close(); err != nil {
-			return err
+			return false, err
 		}
 		bodyGz = buf.Bytes()
 	}
 
-	_, err := db.sql.Exec(`
+	var previous string
+	err := db.sql.QueryRow("SELECT content_hash FROM raw_page WHERE source = ? AND key = ?", p.Source, p.Key).Scan(&previous)
+	changed := err != nil || previous != hash
+
+	_, err = db.sql.Exec(`
 		INSERT INTO raw_page (source, key, source_url, fetched_at, changed_at, http_status, content_hash, body_gz)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(source, key) DO UPDATE SET
@@ -76,7 +92,7 @@ func (db *DB) PutPage(p RawPage) error {
 			content_hash = excluded.content_hash,
 			body_gz = excluded.body_gz
 	`, p.Source, p.Key, p.URL, fetchedAt, fetchedAt, p.HTTPStatus, hash, bodyGz)
-	return err
+	return changed, err
 }
 
 // GetPage returns the archived response for (source, key).
@@ -155,4 +171,27 @@ func scanRawPage(scanner interface{ Scan(...interface{}) error }) (*RawPage, err
 		}
 	}
 	return &p, nil
+}
+
+// FetchTimes returns when each page of a source was last fetched.
+func (db *DB) FetchTimes(source string) (map[string]time.Time, error) {
+	rows, err := db.sql.Query("SELECT key, fetched_at FROM raw_page WHERE source = ?", source)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]time.Time)
+	for rows.Next() {
+		var key, fetchedAt string
+		if err := rows.Scan(&key, &fetchedAt); err != nil {
+			return nil, err
+		}
+		t, err := time.Parse(time.RFC3339, fetchedAt)
+		if err != nil {
+			return nil, fmt.Errorf("raw page %s/%s: invalid fetched_at: %w", source, key, err)
+		}
+		result[key] = t
+	}
+	return result, rows.Err()
 }

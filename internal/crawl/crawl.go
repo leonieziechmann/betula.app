@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/btu-scraper/internal/oplog"
 )
 
 const (
@@ -20,6 +22,8 @@ const (
 	maxAttempts            = 3
 	maxConsecutiveFailures = 10
 	maxBodyBytes           = 16 << 20
+	slowResponse           = 15 * time.Second
+	progressEvery          = 250
 )
 
 // Job is one page to archive.
@@ -43,6 +47,7 @@ type Options struct {
 // Stats counts the outcome per job.
 type Stats struct {
 	Fetched  int // 200, archived
+	Changed  int // of Fetched: the content differs from the archived page (or is new)
 	NotFound int // 404, archived without body
 	Skipped  int // archived recently enough
 	Failed   int // gave up after retries
@@ -54,6 +59,9 @@ var ErrServerUnhealthy = errors.New("too many consecutive failures, crawl aborte
 
 // Run archives all jobs. It returns ErrServerUnhealthy after
 // maxConsecutiveFailures failed jobs in a row.
+//
+// Log events: crawl.started, crawl.progress, crawl.retry (WARN), crawl.slow (WARN),
+// crawl.not_found (WARN), crawl.job_failed (ERROR), crawl.aborted (ERROR), crawl.finished.
 func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats, error) {
 	if opt.Workers <= 0 {
 		opt.Workers = 1
@@ -67,6 +75,14 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 	if opt.Client == nil {
 		opt.Client = &http.Client{Timeout: 30 * time.Second}
 	}
+
+	log := oplog.For("crawl")
+	if len(jobs) > 0 {
+		log = log.With("source", jobs[0].Source)
+	}
+	start := time.Now()
+	log.Info("crawl started", "event", "crawl.started", "jobs", len(jobs), "workers", opt.Workers,
+		"delay_ms", opt.Delay.Milliseconds(), "max_age", opt.MaxAge.String())
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -95,10 +111,17 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 			consecutive++
 			if consecutive >= maxConsecutiveFailures && runErr == nil {
 				runErr = fmt.Errorf("%w (last error: %v)", ErrServerUnhealthy, err)
+				log.Error("crawl aborted: the server keeps failing", "event", "crawl.aborted",
+					"consecutive_failures", consecutive, "done", done, "jobs", len(jobs), oplog.Err(err))
 				cancel()
 			}
 		} else {
 			consecutive = 0
+		}
+		if done%progressEvery == 0 && done < len(jobs) {
+			log.Info("crawl progress", "event", "crawl.progress", "done", done, "jobs", len(jobs),
+				"fetched", stats.Fetched, "changed", stats.Changed, "skipped", stats.Skipped,
+				"not_found", stats.NotFound, "failed", stats.Failed, "elapsed_s", int(time.Since(start).Seconds()))
 		}
 		if opt.Progress != nil {
 			opt.Progress(done, len(jobs), stats)
@@ -116,20 +139,32 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 
 				if opt.MaxAge > 0 {
 					fetchedAt, err := db.PageFetchedAt(job.Source, job.Key)
-					if err == nil && !fetchedAt.IsZero() && time.Since(fetchedAt) < opt.MaxAge {
+					if err != nil {
+						log.Error("cannot read the archive", "event", "crawl.archive_error", "key", job.Key, oplog.Err(err))
+					} else if !fetchedAt.IsZero() && time.Since(fetchedAt) < opt.MaxAge {
 						record(func(s *Stats) { s.Skipped++ }, false, nil)
 						continue
 					}
 				}
 
-				status, err := fetchAndArchive(ctx, db, job, opt)
+				status, changed, err := fetchAndArchive(ctx, db, job, opt, log)
 				switch {
+				case err != nil && ctx.Err() != nil && !errors.Is(err, ErrServerUnhealthy):
+					return // interrupted; not a failure of the page
 				case err != nil:
+					log.Error("giving up on page", "event", "crawl.job_failed", "key", job.Key, "url", job.URL,
+						"attempts", maxAttempts, oplog.Err(err))
 					record(func(s *Stats) { s.Failed++ }, true, err)
 				case status == http.StatusNotFound:
+					log.Warn("page not found", "event", "crawl.not_found", "key", job.Key, "url", job.URL)
 					record(func(s *Stats) { s.NotFound++ }, false, nil)
 				default:
-					record(func(s *Stats) { s.Fetched++ }, false, nil)
+					record(func(s *Stats) {
+						s.Fetched++
+						if changed {
+							s.Changed++
+						}
+					}, false, nil)
 				}
 
 				sleep(ctx, jitter(opt.Delay))
@@ -137,6 +172,15 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 		}()
 	}
 	wg.Wait()
+
+	level := slog.LevelInfo
+	if stats.Failed > 0 {
+		level = slog.LevelWarn
+	}
+	log.Log(context.Background(), level, "crawl finished", "event", "crawl.finished", "jobs", len(jobs),
+		"fetched", stats.Fetched, "changed", stats.Changed, "skipped", stats.Skipped,
+		"not_found", stats.NotFound, "failed", stats.Failed, "duration_s", int(time.Since(start).Seconds()),
+		"aborted", runErr != nil)
 
 	if runErr != nil {
 		return stats, runErr
@@ -146,15 +190,20 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 
 // fetchAndArchive retries transient failures with a growing pause. 200 and 404
 // are final answers and are archived; everything else is an error.
-func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options) (int, error) {
+func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options, log *slog.Logger) (int, bool, error) {
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		begin := time.Now()
 		status, body, err := fetch(ctx, job.URL, opt)
+		if took := time.Since(begin); took > slowResponse {
+			log.Warn("slow response", "event", "crawl.slow", "key", job.Key, "duration_ms", took.Milliseconds(), "status", status)
+		}
+
 		if err == nil && (status == http.StatusOK || status == http.StatusNotFound) {
 			if status == http.StatusNotFound {
 				body = nil
 			}
-			return status, db.PutPage(catalogdb.RawPage{
+			changed, err := db.PutPageChanged(catalogdb.RawPage{
 				Source:     job.Source,
 				Key:        job.Key,
 				URL:        job.URL,
@@ -162,19 +211,26 @@ func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options
 				HTTPStatus: status,
 				Body:       body,
 			})
+			if err != nil {
+				return status, false, fmt.Errorf("failed to archive: %w", err)
+			}
+			return status, changed, nil
 		}
 		if err == nil {
 			err = fmt.Errorf("unexpected status %d", status)
 		}
-		lastErr = fmt.Errorf("%s %s: %w", job.Source, job.Key, err)
+		lastErr = err
 		if ctx.Err() != nil {
-			return 0, lastErr
+			return 0, false, lastErr
 		}
 		if attempt < maxAttempts {
-			sleep(ctx, opt.Backoff*time.Duration(1<<(attempt-1)))
+			pause := opt.Backoff * time.Duration(1<<(attempt-1))
+			log.Warn("request failed, retrying", "event", "crawl.retry", "key", job.Key, "attempt", attempt,
+				"status", status, "pause_s", int(pause.Seconds()), oplog.Err(err))
+			sleep(ctx, pause)
 		}
 	}
-	return 0, lastErr
+	return 0, false, lastErr
 }
 
 func fetch(ctx context.Context, pageURL string, opt Options) (int, []byte, error) {
@@ -192,7 +248,7 @@ func fetch(ctx context.Context, pageURL string, opt Options) (int, []byte, error
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if err != nil {
-		return 0, nil, err
+		return resp.StatusCode, nil, err
 	}
 	return resp.StatusCode, body, nil
 }

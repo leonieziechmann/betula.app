@@ -21,7 +21,7 @@ import (
 func runBuild(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("build", flag.ExitOnError)
 	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
-	_ = fs.Parse(reorderFlags(args))
+	_ = fs.Parse(args)
 
 	db := openV2(*dbPath)
 	defer db.Close()
@@ -94,7 +94,7 @@ func runImportLegacyPlans(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("import-legacy-plans", flag.ExitOnError)
 	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
 	legacyDB := fs.String("legacy-db", "btu_modules.db", "Schema v1 database to read the validated plans from")
-	_ = fs.Parse(reorderFlags(args))
+	_ = fs.Parse(args)
 
 	if _, err := os.Stat(*legacyDB); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: legacy database %s: %v\n", *legacyDB, err)
@@ -120,7 +120,7 @@ func runValidate(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
 	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
 	noBaselines := fs.Bool("no-baselines", false, "Skip the BTU count baselines (for partial or test databases)")
-	_ = fs.Parse(reorderFlags(args))
+	_ = fs.Parse(args)
 
 	db := openV2(*dbPath)
 	defer db.Close()
@@ -158,7 +158,7 @@ func runExport(ctx context.Context, args []string) {
 	dbPath := fs.String("db", defaultV2DBPath, "Schema v2 database path")
 	outDir := fs.String("out", "snapshot", "Snapshot directory (catalog-<hash>.db and current.json)")
 	skipValidate := fs.Bool("skip-validate", false, "Export even if validate reports failures")
-	_ = fs.Parse(reorderFlags(args))
+	_ = fs.Parse(args)
 
 	db := openV2(*dbPath)
 	defer db.Close()
@@ -189,7 +189,7 @@ func runServeSnapshot(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("serve-snapshot", flag.ExitOnError)
 	dir := fs.String("dir", "snapshot", "Snapshot directory written by 'export'")
 	addr := fs.String("addr", "127.0.0.1:8090", "Listen address")
-	_ = fs.Parse(reorderFlags(args))
+	_ = fs.Parse(args)
 
 	server := &http.Server{Addr: *addr, Handler: snapshothttp.Handler(*dir), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
