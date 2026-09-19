@@ -507,3 +507,22 @@ func TestExportWritesTrimmedSnapshotWithContentETag(t *testing.T) {
 		t.Errorf("the open reader lost its snapshot: %d modules, err %v", modules, err)
 	}
 }
+
+// BTU publishes the next semester event by event. The first published winter event
+// must not take the campus away from modules that are still on the summer semester.
+func TestScheduleFacetsUseEachModulesOwnNewestSemester(t *testing.T) {
+	db, _ := buildFixture(t)
+	_, err := db.SQL().Exec(`
+		INSERT INTO semester (key, season, year, label, starts_on, ends_on) VALUES ('2026W', 'winter', 2026, 'WiSe 2026/27', '2026-10-01', '2027-03-31');
+		INSERT INTO event (id, title, category, semester_key, source_url, fetched_at) VALUES
+			('w1', 'Lineare Algebra (neu)', 'teaching', '2026W', 'u', '2026-09-19T15:00:00Z'),
+			('s1', 'Lineare Algebra (alt)', 'teaching', '2026S', 'u', '2026-09-19T15:00:00Z');
+		INSERT INTO event_date (event_id, ord, campus) VALUES ('w1', 1, 'sachsendorf'), ('s1', 1, 'zentralcampus');
+		INSERT INTO module_event (module_id, event_id) VALUES ('11101', 'w1'), ('11101', 's1');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want(t, db, `SELECT module_id, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg FROM v_module_facets_src WHERE teaching_events > 0 ORDER BY 1`,
+		"11101|1|0|1|0", // already published for winter: only the winter event counts
+		"11881|1|0|0|1") // still on the summer semester: keeps its campus
+}

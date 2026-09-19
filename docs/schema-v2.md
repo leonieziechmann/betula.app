@@ -186,3 +186,30 @@ Open:
 expired. The 896 cached QIS event pages (3-day TTL, fetched 09-11 … 09-14) were already expired
 and were removed by that read. Nothing the scraper could still use was lost, but they would have
 been useful as offline test data for events.
+
+## 8. Events after the first QIS crawl (2026-09-19)
+
+`crawl-tree` (152 pages fetched, 2,500 read from the archive) and `crawl-events` (2,812 pages,
+one request at a time, 500 ms ±30 %, 30 minutes) finished with 0 retries, 0 not-found and 0
+failed pages.
+
+| | |
+|---|---|
+| Events | 2,812: 1,776 teaching, 1,009 exams, 27 other |
+| Semesters | SoSe 2026: 1,802 teaching + 1,009 exam events. WiSe 2026/27: 1 event so far |
+| Modules with a recurring schedule / with exam dates | 1,325 / 1,078 |
+| English-taught modules with events | 341 (v1: 31) |
+| Modules with a known campus | 1,005 (Zentralcampus 619, Sachsendorf 181, Senftenberg 217) |
+| Instructors / responsible persons | 187 / 521 distinct names |
+
+Two things the real data showed:
+
+- **One early winter event broke the schedule facets.** They looked at "the newest semester that
+  has events", which became WiSe 2026/27 as soon as its first event was published, and 1,324
+  modules lost their campus. Each module now uses the newest semester in which it has teaching
+  events itself (migration 0005, regression test, and a `validate` baseline).
+- **Retention will remove most of these events at once.** 1,663 of the 2,812 events ended more
+  than a month ago (the summer lecture period ended in July) and 770 have no date at all. With
+  `--event-retention 720h` the first service cycle removes the 1,663. That is the decided rule;
+  until BTU publishes the winter semester the schedule views will mostly hold exams. The live
+  `btu_v2.db` has not been pruned yet.

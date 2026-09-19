@@ -49,6 +49,7 @@ var BTUBaselines = []Baseline{
 	{"facet: English-taught", "SELECT COUNT(*) FROM v_module_facets WHERE teaches_english = 1", 900},
 	{"facet: limited participation with a number", "SELECT COUNT(*) FROM v_module_facets WHERE participant_limit IS NOT NULL", 200},
 	{"FÜS modules", "SELECT COUNT(*) FROM module WHERE is_fues = 1", 250},
+	{"modules with a known campus, if any event is archived", "SELECT CASE WHEN (SELECT COUNT(*) FROM event_date WHERE campus IS NOT NULL) = 0 THEN 1000000 ELSE (SELECT COUNT(*) FROM v_module_facets WHERE at_zentralcampus IS NOT NULL) END", 100},
 	{"programs", "SELECT COUNT(*) FROM program", 170},
 	{"programs with tree modules", "SELECT COUNT(*) FROM program_coverage WHERE tree_modules > 0", 170},
 	{"validated plans", "SELECT COUNT(*) FROM v_program_plan", 140},
