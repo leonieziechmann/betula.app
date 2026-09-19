@@ -253,6 +253,13 @@ func (s *Storage) migrate() error {
 	_, _ = s.db.Exec("ALTER TABLE module_study_programs ADD COLUMN area_rules TEXT")
 
 	// Enrich program_curriculum_modules with study_section, subject_area, area_rules, semester_span, min/max credits, start/end semester
+	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN source_evidence TEXT")
+	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS validated_curriculum_plans (
+		program_id TEXT PRIMARY KEY, source_file TEXT NOT NULL, layout_json TEXT NOT NULL,
+		validated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return err
+	}
 	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN study_section TEXT")
 	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN subject_area TEXT")
 	_, _ = s.db.Exec("ALTER TABLE program_curriculum_modules ADD COLUMN area_rules TEXT")

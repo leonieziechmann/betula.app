@@ -29,3 +29,8 @@ statutes/
 # Rust / Frontend build artifacts
 target/
 dist/
+
+# Legacy local development environments
+__pycache__/
+*.pyc
+.venv/

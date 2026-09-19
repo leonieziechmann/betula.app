@@ -23,12 +23,12 @@ import (
 // ModuleCardViewModel enriches ModuleCardItem with client-specific state (prerequisites, completion, bookmarks).
 type ModuleCardViewModel struct {
 	storage.ModuleCardItem
-	PrereqStatus        string   `json:"prereq_status"` // "met", "recommended_missing", "missing", "none"
-	MissingMandatory    []string `json:"missing_mandatory"`
-	MissingRecommended  []string `json:"missing_recommended"`
-	IsCompleted         bool     `json:"is_completed"`
-	IsBookmarked        bool     `json:"is_bookmarked"`
-	IsLimited           bool     `json:"is_limited"`
+	PrereqStatus       string   `json:"prereq_status"` // "met", "recommended_missing", "missing", "none"
+	MissingMandatory   []string `json:"missing_mandatory"`
+	MissingRecommended []string `json:"missing_recommended"`
+	IsCompleted        bool     `json:"is_completed"`
+	IsBookmarked       bool     `json:"is_bookmarked"`
+	IsLimited          bool     `json:"is_limited"`
 }
 
 // IndexPageData holds data passed to index.html template.
@@ -58,31 +58,31 @@ type FilterAutocompleteItem struct {
 
 // ModuleListData holds data passed to module_cards.html template.
 type ModuleListData struct {
-	Modules           []ModuleCardViewModel
-	RegularModules    []ModuleCardViewModel
-	FUESModules       []ModuleCardViewModel
-	HasRegular        bool
-	HasFUES           bool
-	RegularShowing    int
-	RegularTotal      int
-	FUESShowing       int
-	FUESTotal         int
-	HasFUESDivider    bool
-	FilterModulesJSON string
+	Modules             []ModuleCardViewModel
+	RegularModules      []ModuleCardViewModel
+	FUESModules         []ModuleCardViewModel
+	HasRegular          bool
+	HasFUES             bool
+	RegularShowing      int
+	RegularTotal        int
+	FUESShowing         int
+	FUESTotal           int
+	HasFUESDivider      bool
+	FilterModulesJSON   string
 	FilterModuleIDsJSON string
-	Total             int
-	TotalInProgram    int
-	Showing           int
-	Offset            int
-	HasNext           bool
-	NextOffset        int
-	ViewMode          string // "table"
-	Query             string
-	ProgramName       string
-	IsAppend          bool
-	IsBookmarksView   bool
-	IsOpenPassedView  bool
-	CompletedCredits  float64
+	Total               int
+	TotalInProgram      int
+	Showing             int
+	Offset              int
+	HasNext             bool
+	NextOffset          int
+	ViewMode            string // "table"
+	Query               string
+	ProgramName         string
+	IsAppend            bool
+	IsBookmarksView     bool
+	IsOpenPassedView    bool
+	CompletedCredits    float64
 }
 
 // CalendarSchedule represents an entry in the weekly visual schedule grid.
@@ -255,7 +255,7 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	
+
 	// FÜS filter: "inkl" (default), "exkl", "nur"
 	fues := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("fues")))
 	if fues == "" {
@@ -1112,6 +1112,9 @@ func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {
 	var totalModules int
 	if s.store != nil {
 		totalModules, _ = s.store.Count()
+		// A completed scraper transaction may still live in WAL. Refresh the
+		// snapshot timestamp before the browser compares its cached database.
+		_ = s.store.Checkpoint()
 	}
 
 	var dbSize int64

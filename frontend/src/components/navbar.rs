@@ -76,7 +76,7 @@ pub fn Navbar(
                     <span class="toggle-icon">"☰"</span>
                     <span class="toggle-label">"Filter"</span>
                 </button>
-                <a href="/" class="mobile-brand">
+                <a href="/catalogue" class="mobile-brand">
                     <span class="brand-badge">"BTU"</span>
                     <span class="brand-mobile-title">"Modulkatalog"</span>
                 </a>

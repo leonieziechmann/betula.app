@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ModuleCardItem {
+	#[serde(default)]
+	pub source_evidence: Option<String>,
+	#[serde(default)]
+	pub source_file: Option<String>,
     pub id: String,
     #[serde(default)]
     pub code: Option<String>,
@@ -65,6 +69,16 @@ pub struct ModuleCardItem {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CurriculumModuleItem {
+	#[serde(default)]
+	pub start_semester: Option<i64>,
+	#[serde(default)]
+	pub end_semester: Option<i64>,
+	#[serde(default)]
+	pub min_credits: Option<f64>,
+	#[serde(default)]
+	pub max_credits: Option<f64>,
+	#[serde(default)]
+	pub source_evidence: Option<String>,
     pub program_id: String,
     pub program_name: String,
     #[serde(default)]
@@ -600,7 +614,8 @@ pub enum PrereqStatus {
     None,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct FilterOptions {
     pub query: String,
     pub program_id: String,

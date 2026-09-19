@@ -168,14 +168,14 @@ func (s *Storage) GetModule(id string) (*model.ModuleDetail, error) {
 	`, id, id)
 
 	var (
-		d                                              model.ModuleDetail
-		isPhaseOutInt, isNotOfferedInt                 int
-		crossDiscInt, isFuesInt                        int
-		respJSON, succJSON, tfJSON, litJSON, spJSON    sql.NullString
-		coursesJSON, eventsJSON                        sql.NullString
-		scrapedAtStr                                   sql.NullString
-		titleEN, dept, lang, dur, turnus, credRaw      sql.NullString
-		learnOut, contents, prereqRec, prereqMand      sql.NullString
+		d                                               model.ModuleDetail
+		isPhaseOutInt, isNotOfferedInt                  int
+		crossDiscInt, isFuesInt                         int
+		respJSON, succJSON, tfJSON, litJSON, spJSON     sql.NullString
+		coursesJSON, eventsJSON                         sql.NullString
+		scrapedAtStr                                    sql.NullString
+		titleEN, dept, lang, dur, turnus, credRaw       sql.NullString
+		learnOut, contents, prereqRec, prereqMand       sql.NullString
 		examType, examDet, grading, limit, remarks, url sql.NullString
 	)
 
@@ -601,9 +601,9 @@ func (s *Storage) getSchedulesForEvent(eventID string) ([]model.EventSchedule, e
 	var schedules []model.EventSchedule
 	for rows.Next() {
 		var (
-			sc                                                  model.EventSchedule
-			grp, day, slot, start, end, rhythm, dur             sql.NullString
-			room, roomURL, inst, instURL, comm, canc            sql.NullString
+			sc                                       model.EventSchedule
+			grp, day, slot, start, end, rhythm, dur  sql.NullString
+			room, roomURL, inst, instURL, comm, canc sql.NullString
 		)
 		err := rows.Scan(
 			&grp, &day, &slot, &start, &end,
@@ -744,14 +744,14 @@ func (s *Storage) GetFUESForMajor(major string, minCredits float64) ([]model.Mod
 
 	for rows.Next() {
 		var (
-			d                                              model.ModuleDetail
-			isPhaseOutInt, isNotOfferedInt                 int
-			crossDiscInt, isFuesInt                        int
-			respJSON, succJSON, tfJSON, litJSON, spJSON    sql.NullString
-			coursesJSON, eventsJSON                        sql.NullString
-			scrapedAtStr                                   sql.NullString
-			titleEN, dept, lang, dur, turnus, credRaw      sql.NullString
-			learnOut, contents, prereqRec, prereqMand      sql.NullString
+			d                                               model.ModuleDetail
+			isPhaseOutInt, isNotOfferedInt                  int
+			crossDiscInt, isFuesInt                         int
+			respJSON, succJSON, tfJSON, litJSON, spJSON     sql.NullString
+			coursesJSON, eventsJSON                         sql.NullString
+			scrapedAtStr                                    sql.NullString
+			titleEN, dept, lang, dur, turnus, credRaw       sql.NullString
+			learnOut, contents, prereqRec, prereqMand       sql.NullString
 			examType, examDet, grading, limit, remarks, url sql.NullString
 		)
 
@@ -1735,8 +1735,8 @@ func (s *Storage) GetAllAutocompleteModules() ([]AutocompleteItem, error) {
 	var items []AutocompleteItem
 	for rows.Next() {
 		var (
-			it AutocompleteItem
-			titleEN, turnus sql.NullString
+			it                          AutocompleteItem
+			titleEN, turnus             sql.NullString
 			isFues, crossDisc, phaseOut int
 		)
 		if err := rows.Scan(&it.ID, &it.TitleDE, &titleEN, &it.Credits, &turnus, &isFues, &crossDisc, &phaseOut); err != nil {
@@ -1802,11 +1802,11 @@ func (s *Storage) SearchModulesAdvanced(f AdvancedFilter) ([]ModuleCardItem, int
 	var items []ModuleCardItem
 	for rows.Next() {
 		var (
-			item                                                  ModuleCardItem
-			isPhaseOutInt, isNotOfferedInt, isFuesInt             int
-			titleEN, dept, lang, turnus, credRaw                  sql.NullString
-			prereqRec, prereqMand, examType, urlStr               sql.NullString
-			respJSON, succJSON, eventsJSON, limitationStr         sql.NullString
+			item                                          ModuleCardItem
+			isPhaseOutInt, isNotOfferedInt, isFuesInt     int
+			titleEN, dept, lang, turnus, credRaw          sql.NullString
+			prereqRec, prereqMand, examType, urlStr       sql.NullString
+			respJSON, succJSON, eventsJSON, limitationStr sql.NullString
 		)
 		if err := rows.Scan(
 			&item.ID, &item.Code, &item.TitleDE, &titleEN, &isPhaseOutInt, &isNotOfferedInt, &dept,
@@ -2112,15 +2112,15 @@ func (s *Storage) GetProgramTotalModules(programID string) (int, error) {
 // FreshnessStats aggregates data freshness and queue discovery information.
 type FreshnessStats struct {
 	ModulesTotal          int `json:"modules_total"`
-	ModulesFresh          int `json:"modules_fresh"`          // Scraped within last 7 days
-	ModulesStale          int `json:"modules_stale"`          // Scraped > 7 days ago
-	ModulesUnscraped      int `json:"modules_unscraped"`      // Missing detailed contents
+	ModulesFresh          int `json:"modules_fresh"`     // Scraped within last 7 days
+	ModulesStale          int `json:"modules_stale"`     // Scraped > 7 days ago
+	ModulesUnscraped      int `json:"modules_unscraped"` // Missing detailed contents
 	ModulesFreshPct       int `json:"modules_fresh_pct"`
 	EventsTotalDiscovered int `json:"events_total_discovered"` // Unique events referenced by modules
-	EventsScraped         int `json:"events_scraped"`         // Stored in events table
-	EventsFresh           int `json:"events_fresh"`           // Scraped within last 7 days
-	EventsStale           int `json:"events_stale"`           // Scraped > 7 days ago
-	EventsPending         int `json:"events_pending"`         // Discovered but not yet scraped into events table
+	EventsScraped         int `json:"events_scraped"`          // Stored in events table
+	EventsFresh           int `json:"events_fresh"`            // Scraped within last 7 days
+	EventsStale           int `json:"events_stale"`            // Scraped > 7 days ago
+	EventsPending         int `json:"events_pending"`          // Discovered but not yet scraped into events table
 	EventsFreshPct        int `json:"events_fresh_pct"`
 	SchedulesTotal        int `json:"schedules_total"`
 	ProgramsTotal         int `json:"programs_total"`
@@ -2332,14 +2332,54 @@ func (s *Storage) SaveCurriculumModules(
 	modules []model.CurriculumModule,
 	sourceFile string,
 ) error {
+	return s.saveCurriculumModules(programID, programName, degree, poVersion, modules, sourceFile, false)
+}
+
+// SaveValidatedCurriculumModules atomically replaces source rows and their
+// prevalidated catalog links. A failed link update rolls back the entire plan.
+func (s *Storage) SaveValidatedCurriculumModules(programID, programName, degree, poVersion string, modules []model.CurriculumModule, sourceFile string, layoutJSON ...string) error {
+	if len(modules) == 0 || sourceFile == "" {
+		return fmt.Errorf("validated curriculum requires modules and a source file")
+	}
+	return s.saveCurriculumModules(programID, programName, degree, poVersion, modules, sourceFile, true, layoutJSON...)
+}
+
+func (s *Storage) saveCurriculumModules(programID, programName, degree, poVersion string, modules []model.CurriculumModule, sourceFile string, validated bool, layoutJSON ...string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if validated {
+		if _, err := tx.Exec("DELETE FROM validated_curriculum_plans WHERE program_id=?", programID); err != nil {
+			return err
+		}
+		if len(layoutJSON) > 0 && layoutJSON[0] != "" {
+			if _, err := tx.Exec("INSERT INTO validated_curriculum_plans(program_id,source_file,layout_json) VALUES(?,?,?)", programID, sourceFile, layoutJSON[0]); err != nil {
+				return err
+			}
+		}
+	}
+
+	if validated {
+		// Preserve program membership, but clear obsolete AI annotations for
+		// modules no longer matched in this source's replacement.
+		_, err = tx.Exec(`UPDATE module_study_programs SET recommended_semester=NULL,
+            module_type=NULL, study_section=NULL, subject_area=NULL, area_rules=NULL,
+            specialization=NULL, credits=NULL, source='curriculum_unassigned'
+            WHERE program_id=? AND source IN ('ai_statute_scan','verified_pdf_cells')
+            AND module_id IN (SELECT module_id FROM program_curriculum_modules WHERE program_id=? AND COALESCE(source_file,'') <> 'qis_tree')`, programID, programID)
+		if err != nil {
+			return err
+		}
+	}
 
 	// Clean previous extraction for this program and source file
-	if sourceFile != "" {
+	if validated {
+		// A validated extraction is one complete effective plan. Keeping rows
+		// from an older PDF (or a differently spelled path) would duplicate it.
+		_, err = tx.Exec("DELETE FROM program_curriculum_modules WHERE program_id = ? AND COALESCE(source_file,'') <> 'qis_tree'", programID)
+	} else if sourceFile != "" {
 		_, err = tx.Exec("DELETE FROM program_curriculum_modules WHERE program_id = ? AND source_file = ?", programID, sourceFile)
 	} else {
 		_, err = tx.Exec("DELETE FROM program_curriculum_modules WHERE program_id = ?", programID)
@@ -2356,7 +2396,7 @@ func (s *Storage) SaveCurriculumModules(
 			start_semester, end_semester, credits, min_credits, max_credits,
 			module_type, study_section, subject_area, area_rules,
 			specialization, sws, exam_type, graded,
-			prerequisites, remarks, source_file, extracted_at
+			prerequisites, remarks, source_file, source_evidence, extracted_at
 		) VALUES (
 			?, ?, ?, ?,
 			?, ?, ?, ?,
@@ -2364,7 +2404,7 @@ func (s *Storage) SaveCurriculumModules(
 			?, ?, ?, ?, ?,
 			?, ?, ?, ?,
 			?, ?, ?, ?,
-			?, ?, ?, CURRENT_TIMESTAMP
+			?, ?, ?, ?, CURRENT_TIMESTAMP
 		)
 	`)
 	if err != nil {
@@ -2393,10 +2433,51 @@ func (s *Storage) SaveCurriculumModules(
 			m.StartSemester, m.EndSemester, m.Credits, m.MinCredits, m.MaxCredits,
 			m.ModuleType, m.StudySection, m.SubjectArea, m.AreaRules,
 			m.Specialization, m.SWS, m.ExamType, m.Graded,
-			m.Prerequisites, m.Remarks, sourceFile,
+			m.Prerequisites, m.Remarks, sourceFile, m.SourceEvidence,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert curriculum module %s: %w", m.ModuleName, err)
+		}
+	}
+
+	if validated {
+		links := make(map[string]model.CurriculumModule)
+		for _, m := range modules {
+			if m.ModuleID == "" {
+				continue
+			}
+			if previous, ok := links[m.ModuleID]; ok {
+				if previous.RecommendedSemester != m.RecommendedSemester {
+					previous.RecommendedSemester = 0
+				}
+				previous.Credits += m.Credits
+				links[m.ModuleID] = previous
+			} else {
+				links[m.ModuleID] = m
+			}
+		}
+		for id, m := range links {
+			var exists int
+			if err := tx.QueryRow("SELECT COUNT(*) FROM modules WHERE id=?", id).Scan(&exists); err != nil {
+				return err
+			}
+			if exists != 1 {
+				return fmt.Errorf("validated module %s no longer exists", id)
+			}
+			_, err = tx.Exec(`INSERT INTO module_study_programs
+              (module_id,program_id,program_name,degree,regulation,recommended_semester,module_type,
+               study_section,subject_area,area_rules,specialization,credits,source)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'verified_pdf_cells')
+              ON CONFLICT(module_id,program_id) DO UPDATE SET
+                recommended_semester=excluded.recommended_semester,module_type=excluded.module_type,
+                study_section=excluded.study_section,subject_area=excluded.subject_area,
+                area_rules=excluded.area_rules,specialization=excluded.specialization,
+                credits=excluded.credits,source=excluded.source`,
+				id, programID, programName, degree, poVersion, m.RecommendedSemester, m.ModuleType,
+				m.StudySection, m.SubjectArea, m.AreaRules, m.Specialization, m.Credits)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -2417,48 +2498,55 @@ func (s *Storage) MatchAndLinkCurriculumModules(programID string) (int, int, err
 	for _, item := range curriculum {
 		var matchedModuleID string
 
-		// 1. Try matching by module_code as module ID or code
-		if item.ModuleCode != "" {
-			_ = s.db.QueryRow(`
-				SELECT id FROM modules WHERE id = ? OR code = ? LIMIT 1
-			`, item.ModuleCode, item.ModuleCode).Scan(&matchedModuleID)
+		// Use only a unique identity; never bind a short title to an arbitrary
+		// substring hit. Prevalidated PDF rows already carry ModuleID.
+		code := item.ModuleCode
+		if item.ModuleID != "" {
+			code = item.ModuleID
 		}
-
-		// 2. Try exact title match (German or English)
-		if matchedModuleID == "" && item.ModuleName != "" {
-			_ = s.db.QueryRow(`
-				SELECT id FROM modules
-				WHERE LOWER(TRIM(title_de)) = LOWER(TRIM(?))
-				   OR LOWER(TRIM(title_en)) = LOWER(TRIM(?))
-				LIMIT 1
-			`, item.ModuleName, item.ModuleName).Scan(&matchedModuleID)
+		var ids []string
+		var rows *sql.Rows
+		if code != "" {
+			rows, err = s.db.Query("SELECT id FROM modules WHERE id = ? OR code = ?", code, code)
+		} else {
+			rows, err = s.db.Query(`SELECT id FROM modules WHERE LOWER(TRIM(title_de))=LOWER(TRIM(?)) OR LOWER(TRIM(title_en))=LOWER(TRIM(?))`, item.ModuleName, item.ModuleName)
 		}
-
-		// 3. Try clean normalized title match (removing brackets/special characters)
-		if matchedModuleID == "" && item.ModuleName != "" {
-			cleanName := cleanModuleTitleForMatch(item.ModuleName)
-			if cleanName != "" && len(cleanName) > 4 {
-				_ = s.db.QueryRow(`
-					SELECT id FROM modules
-					WHERE LOWER(title_de) LIKE LOWER(?)
-					LIMIT 1
-				`, "%"+cleanName+"%").Scan(&matchedModuleID)
+		if err != nil {
+			return total, matched, err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return total, matched, err
 			}
+			ids = append(ids, id)
+		}
+		rowErr := rows.Err()
+		rows.Close()
+		if rowErr != nil {
+			return total, matched, rowErr
+		}
+		if len(ids) == 1 {
+			matchedModuleID = ids[0]
 		}
 
 		if matchedModuleID != "" {
 			matched++
 			// Update curriculum entry with matched module ID
-			_, _ = s.db.Exec(`
+			_, err = s.db.Exec(`
 				UPDATE program_curriculum_modules SET module_id = ? WHERE id = ?
 			`, matchedModuleID, item.ID)
+			if err != nil {
+				return total, matched, err
+			}
 
 			// Update or insert into module_study_programs
 			regulation := item.POVersion
 			if regulation == "" {
 				regulation = "Prüfungsordnung"
 			}
-			_, _ = s.db.Exec(`
+			_, err = s.db.Exec(`
 				INSERT INTO module_study_programs (
 					module_id, program_id, program_name, degree, regulation,
 					recommended_semester, module_type, study_section, subject_area, area_rules,
@@ -2477,9 +2565,13 @@ func (s *Storage) MatchAndLinkCurriculumModules(programID string) (int, int, err
 					specialization = excluded.specialization,
 					credits = excluded.credits,
 					source = excluded.source
+				WHERE COALESCE(module_study_programs.source,'') <> 'verified_pdf_cells'
 			`, matchedModuleID, item.ProgramID, item.ProgramName, item.Degree, regulation,
 				item.RecommendedSemester, item.ModuleType, item.StudySection, item.SubjectArea, item.AreaRules,
 				item.Specialization, item.Credits)
+			if err != nil {
+				return total, matched, err
+			}
 		}
 	}
 
@@ -2496,7 +2588,7 @@ func (s *Storage) GetProgramCurriculum(programID string) ([]model.CurriculumModu
 		       module_type, COALESCE(study_section, ''), COALESCE(subject_area, ''), COALESCE(area_rules, ''),
 		       COALESCE(specialization, ''), COALESCE(sws, ''),
 		       COALESCE(exam_type, ''), COALESCE(graded, ''), COALESCE(prerequisites, ''),
-		       COALESCE(remarks, ''), COALESCE(source_file, ''), extracted_at
+		       COALESCE(remarks, ''), COALESCE(source_file, ''), COALESCE(source_evidence, ''), extracted_at
 		FROM program_curriculum_modules
 		WHERE program_id = ?
 		ORDER BY recommended_semester ASC, module_type ASC, module_name ASC
@@ -2518,7 +2610,7 @@ func (s *Storage) GetProgramCurriculum(programID string) ([]model.CurriculumModu
 			&m.ModuleType, &m.StudySection, &m.SubjectArea, &m.AreaRules,
 			&m.Specialization, &m.SWS,
 			&m.ExamType, &m.Graded, &m.Prerequisites,
-			&m.Remarks, &m.SourceFile, &extractedStr,
+			&m.Remarks, &m.SourceFile, &m.SourceEvidence, &extractedStr,
 		)
 		if err != nil {
 			return nil, err
@@ -2540,7 +2632,7 @@ func (s *Storage) GetModuleCurriculumEntries(moduleID string) ([]model.Curriculu
 		       module_type, COALESCE(study_section, ''), COALESCE(subject_area, ''), COALESCE(area_rules, ''),
 		       COALESCE(specialization, ''), COALESCE(sws, ''),
 		       COALESCE(exam_type, ''), COALESCE(graded, ''), COALESCE(prerequisites, ''),
-		       COALESCE(remarks, ''), COALESCE(source_file, ''), extracted_at
+		       COALESCE(remarks, ''), COALESCE(source_file, ''), COALESCE(source_evidence, ''), extracted_at
 		FROM program_curriculum_modules
 		WHERE module_id = ?
 		ORDER BY program_name ASC, recommended_semester ASC
@@ -2562,7 +2654,7 @@ func (s *Storage) GetModuleCurriculumEntries(moduleID string) ([]model.Curriculu
 			&m.ModuleType, &m.StudySection, &m.SubjectArea, &m.AreaRules,
 			&m.Specialization, &m.SWS,
 			&m.ExamType, &m.Graded, &m.Prerequisites,
-			&m.Remarks, &m.SourceFile, &extractedStr,
+			&m.Remarks, &m.SourceFile, &m.SourceEvidence, &extractedStr,
 		)
 		if err != nil {
 			return nil, err
@@ -2581,4 +2673,3 @@ func cleanModuleTitleForMatch(title string) string {
 	}
 	return title
 }
-

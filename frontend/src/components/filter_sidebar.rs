@@ -106,7 +106,7 @@ pub fn FilterSidebar(
 
     view! {
         <div class="sidebar-header">
-            <a href="/" class="sidebar-brand">
+            <a href="/catalogue" class="sidebar-brand">
                 <span class="brand-badge">"BTU"</span>
                 <span class="brand-title">"Smart Modulkatalog"</span>
             </a>

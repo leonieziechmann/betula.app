@@ -1,0 +1,1248 @@
+{
+  "cells": [
+    {
+      "id": "p7t1r5c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Entwicklung von Softwaresystemen",
+      "semesters": [
+        1
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        358.79999755800003,
+        169.79949511799998,
+        383.880014648,
+        187.79949511799998
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r6c3",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Algorithmieren und Programmieren",
+      "semesters": [
+        2
+      ],
+      "raw": "10",
+      "min": 10.0,
+      "max": 10.0,
+      "bbox": [
+        383.880014648,
+        187.79949511799998,
+        408.600485351,
+        205.79949511799998
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r7c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Theoretische Informatik",
+      "semesters": [
+        3
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        408.600485351,
+        205.79949511799998,
+        433.19999145500003,
+        223.79949511799998
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r8c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Betriebssysteme I",
+      "semesters": [
+        4
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        433.19999145500003,
+        223.79949511799998,
+        457.79999755800003,
+        241.79949511799998
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r9c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Elektrische und elektronische Grundlagen der Informatik",
+      "semesters": [
+        1
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        358.79999755800003,
+        241.79949511799998,
+        383.880014648,
+        259.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r10c3",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Digitaltechnik",
+      "semesters": [
+        2
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        383.880014648,
+        259.799495118,
+        408.600485351,
+        277.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r11c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Programmierpraktikum",
+      "semesters": [
+        1
+      ],
+      "raw": "4",
+      "min": 4.0,
+      "max": 4.0,
+      "bbox": [
+        358.79999755800003,
+        277.799495118,
+        383.880014648,
+        295.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r12c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Softwarepraktikum",
+      "semesters": [
+        3
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        408.600485351,
+        295.799495118,
+        433.19999145500003,
+        313.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r13c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Digitaltechnik-Praktikum",
+      "semesters": [
+        4
+      ],
+      "raw": "4",
+      "min": 4.0,
+      "max": 4.0,
+      "bbox": [
+        433.19999145500003,
+        313.799495118,
+        457.79999755800003,
+        331.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r14c3",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Proseminar oder Praktikum",
+      "semesters": [
+        2
+      ],
+      "raw": "4",
+      "min": 4.0,
+      "max": 4.0,
+      "bbox": [
+        383.880014648,
+        331.799495118,
+        408.600485351,
+        349.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r17c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Mathematik IT-1 (Diskrete Mathematik)",
+      "semesters": [
+        1
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        358.79999755800003,
+        385.799495118,
+        383.880014648,
+        403.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r18c3",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Mathematik IT-2 (Lineare Algebra)",
+      "semesters": [
+        2
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        383.880014648,
+        403.799495118,
+        408.600485351,
+        421.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r19c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Mathematik IT-3 (Analysis)",
+      "semesters": [
+        3
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        408.600485351,
+        421.799495118,
+        433.19999145500003,
+        439.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r22c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Modul aus dem Bereich Praktische Mathematik",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        433.19999145500003,
+        475.799495118,
+        457.79999755800003,
+        493.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r23c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Anwendungsfach",
+      "semesters": [
+        3
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        408.600485351,
+        493.799495118,
+        433.19999145500003,
+        511.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r23c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Anwendungsfach",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        433.19999145500003,
+        493.799495118,
+        457.79999755800003,
+        511.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r24c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Fachübergreifendes Studium",
+      "semesters": [
+        1
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        358.79999755800003,
+        511.799495118,
+        383.880014648,
+        529.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r28c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        433.19999145500003,
+        583.799495118,
+        457.79999755800003,
+        637.799495118
+      ],
+      "shared_rows": true
+    },
+    {
+      "id": "p7t1r28c6",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Komplex Grundlagen der Informatik",
+      "semesters": [
+        5,
+        6
+      ],
+      "raw": "10-24",
+      "min": 10.0,
+      "max": 24.0,
+      "bbox": [
+        457.79999755800003,
+        583.799495118,
+        506.520498779,
+        601.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r29c6",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Komplex Praktische Informatik",
+      "semesters": [
+        5,
+        6
+      ],
+      "raw": "10-24",
+      "min": 10.0,
+      "max": 24.0,
+      "bbox": [
+        457.79999755800003,
+        601.799495118,
+        506.520498779,
+        619.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r30c6",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Komplex Angewandte und Technische Informatik",
+      "semesters": [
+        5,
+        6
+      ],
+      "raw": "10-24",
+      "min": 10.0,
+      "max": 24.0,
+      "bbox": [
+        457.79999755800003,
+        619.799495118,
+        506.520498779,
+        637.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r32c6",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Seminar oder Praktikum",
+      "semesters": [
+        5,
+        6
+      ],
+      "raw": "4",
+      "min": 4.0,
+      "max": 4.0,
+      "bbox": [
+        457.79999755800003,
+        655.799495118,
+        506.520498779,
+        673.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r33c6",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Bachelor-Arbeit",
+      "semesters": [
+        5,
+        6
+      ],
+      "raw": "12",
+      "min": 12.0,
+      "max": 12.0,
+      "bbox": [
+        457.79999755800003,
+        673.799495118,
+        506.520498779,
+        691.799495118
+      ],
+      "shared_rows": false
+    }
+  ],
+  "totals": [
+    {
+      "id": "p7t1r15c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Informatik",
+      "semesters": [
+        1
+      ],
+      "raw": "18",
+      "min": 18.0,
+      "max": 18.0,
+      "bbox": [
+        358.79999755800003,
+        349.799495118,
+        383.880014648,
+        367.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r15c3",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Informatik",
+      "semesters": [
+        2
+      ],
+      "raw": "20",
+      "min": 20.0,
+      "max": 20.0,
+      "bbox": [
+        383.880014648,
+        349.799495118,
+        408.600485351,
+        367.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r15c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Informatik",
+      "semesters": [
+        3
+      ],
+      "raw": "16",
+      "min": 16.0,
+      "max": 16.0,
+      "bbox": [
+        408.600485351,
+        349.799495118,
+        433.19999145500003,
+        367.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r15c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Informatik",
+      "semesters": [
+        4
+      ],
+      "raw": "12",
+      "min": 12.0,
+      "max": 12.0,
+      "bbox": [
+        433.19999145500003,
+        349.799495118,
+        457.79999755800003,
+        367.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r20c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Mathematik",
+      "semesters": [
+        1
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        358.79999755800003,
+        439.799495118,
+        383.880014648,
+        457.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r20c3",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Mathematik",
+      "semesters": [
+        2
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        383.880014648,
+        439.799495118,
+        408.600485351,
+        457.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r20c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Mathematik",
+      "semesters": [
+        3
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        408.600485351,
+        439.799495118,
+        433.19999145500003,
+        457.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r25c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Nebenfach",
+      "semesters": [
+        1
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        358.79999755800003,
+        529.799495118,
+        383.880014648,
+        547.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r25c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Nebenfach",
+      "semesters": [
+        3
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        408.600485351,
+        529.799495118,
+        433.19999145500003,
+        547.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r25c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplex Nebenfach",
+      "semesters": [
+        4
+      ],
+      "raw": "12",
+      "min": 12.0,
+      "max": 12.0,
+      "bbox": [
+        433.19999145500003,
+        529.799495118,
+        457.79999755800003,
+        547.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r26c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Grundstudium",
+      "semesters": [
+        1
+      ],
+      "raw": "32",
+      "min": 32.0,
+      "max": 32.0,
+      "bbox": [
+        358.79999755800003,
+        547.799495118,
+        383.880014648,
+        565.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r26c3",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Grundstudium",
+      "semesters": [
+        2
+      ],
+      "raw": "28",
+      "min": 28.0,
+      "max": 28.0,
+      "bbox": [
+        383.880014648,
+        547.799495118,
+        408.600485351,
+        565.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r26c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Grundstudium",
+      "semesters": [
+        3
+      ],
+      "raw": "30",
+      "min": 30.0,
+      "max": 30.0,
+      "bbox": [
+        408.600485351,
+        547.799495118,
+        433.19999145500003,
+        565.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r26c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Grundstudium",
+      "semesters": [
+        4
+      ],
+      "raw": "24",
+      "min": 24.0,
+      "max": 24.0,
+      "bbox": [
+        433.19999145500003,
+        547.799495118,
+        457.79999755800003,
+        565.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r31c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplexe des Fachstudiums",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        433.19999145500003,
+        637.799495118,
+        457.79999755800003,
+        655.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r31c6",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Komplexe des Fachstudiums",
+      "semesters": [
+        5,
+        6
+      ],
+      "raw": "44",
+      "min": 44.0,
+      "max": 44.0,
+      "bbox": [
+        457.79999755800003,
+        637.799495118,
+        506.520498779,
+        655.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r34c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Fachstudium",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        433.19999145500003,
+        691.799495118,
+        457.79999755800003,
+        709.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r34c6",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Fachstudium",
+      "semesters": [
+        5,
+        6
+      ],
+      "raw": "60",
+      "min": 60.0,
+      "max": 60.0,
+      "bbox": [
+        457.79999755800003,
+        691.799495118,
+        506.520498779,
+        709.799495118
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r35c2",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Studium",
+      "semesters": [
+        1
+      ],
+      "raw": "32",
+      "min": 32.0,
+      "max": 32.0,
+      "bbox": [
+        358.79999755800003,
+        709.799495118,
+        383.880014648,
+        727.799502747
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r35c3",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Studium",
+      "semesters": [
+        2
+      ],
+      "raw": "28",
+      "min": 28.0,
+      "max": 28.0,
+      "bbox": [
+        383.880014648,
+        709.799495118,
+        408.600485351,
+        727.799502747
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r35c4",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Studium",
+      "semesters": [
+        3
+      ],
+      "raw": "30",
+      "min": 30.0,
+      "max": 30.0,
+      "bbox": [
+        408.600485351,
+        709.799495118,
+        433.19999145500003,
+        727.799502747
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r35c5",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Studium",
+      "semesters": [
+        4
+      ],
+      "raw": "30",
+      "min": 30.0,
+      "max": 30.0,
+      "bbox": [
+        433.19999145500003,
+        709.799495118,
+        457.79999755800003,
+        727.799502747
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p7t1r35c6",
+      "table": "p7t1",
+      "page": 7,
+      "row": "Summe Studium",
+      "semesters": [
+        5,
+        6
+      ],
+      "raw": "60",
+      "min": 60.0,
+      "max": 60.0,
+      "bbox": [
+        457.79999755800003,
+        709.799495118,
+        506.520498779,
+        727.799502747
+      ],
+      "shared_rows": false
+    }
+  ],
+  "tables": [
+    {
+      "id": "p7t1",
+      "page": 7,
+      "rows": [
+        [
+          "Komplex bzw. Modul",
+          "Leistungspunkte (LP) im Se-\nmester",
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Summe\nLP"
+        ],
+        [
+          "",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          ""
+        ],
+        [
+          "Grundstudium",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "Komplex Informatik",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "Entwicklung von Softwaresystemen",
+          "8",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "8"
+        ],
+        [
+          "Algorithmieren und Programmieren",
+          "",
+          "10",
+          "",
+          "",
+          "",
+          "",
+          "10"
+        ],
+        [
+          "Theoretische Informatik",
+          "",
+          "",
+          "8",
+          "",
+          "",
+          "",
+          "8"
+        ],
+        [
+          "Betriebssysteme I",
+          "",
+          "",
+          "",
+          "8",
+          "",
+          "",
+          "8"
+        ],
+        [
+          "Elektrische und elektronische Grundlagen der Informatik",
+          "6",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "6"
+        ],
+        [
+          "Digitaltechnik",
+          "",
+          "6",
+          "",
+          "",
+          "",
+          "",
+          "6"
+        ],
+        [
+          "Programmierpraktikum",
+          "4",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "4"
+        ],
+        [
+          "Softwarepraktikum",
+          "",
+          "",
+          "8",
+          "",
+          "",
+          "",
+          "8"
+        ],
+        [
+          "Digitaltechnik-Praktikum",
+          "",
+          "",
+          "",
+          "4",
+          "",
+          "",
+          "4"
+        ],
+        [
+          "Proseminar oder Praktikum",
+          "",
+          "4",
+          "",
+          "",
+          "",
+          "",
+          "4"
+        ],
+        [
+          "Summe Komplex Informatik",
+          "18",
+          "20",
+          "16",
+          "12",
+          "",
+          "",
+          "66"
+        ],
+        [
+          "Komplex Mathematik",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "Mathematik IT-1 (Diskrete Mathematik)",
+          "8",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "8"
+        ],
+        [
+          "Mathematik IT-2 (Lineare Algebra)",
+          "",
+          "8",
+          "",
+          "",
+          "",
+          "",
+          "8"
+        ],
+        [
+          "Mathematik IT-3 (Analysis)",
+          "",
+          "",
+          "8",
+          "",
+          "",
+          "",
+          "8"
+        ],
+        [
+          "Summe Komplex Mathematik",
+          "8",
+          "8",
+          "8",
+          "",
+          "",
+          "",
+          "24"
+        ],
+        [
+          "Komplex Nebenfach*",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "Modul aus dem Bereich Praktische Mathematik",
+          "",
+          "",
+          "",
+          "6",
+          "",
+          "",
+          "6"
+        ],
+        [
+          "Anwendungsfach",
+          "",
+          "",
+          "6",
+          "6",
+          "",
+          "",
+          "12"
+        ],
+        [
+          "Fachübergreifendes Studium",
+          "6",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "6"
+        ],
+        [
+          "Summe Komplex Nebenfach",
+          "6",
+          "",
+          "6",
+          "12",
+          "",
+          "",
+          "24"
+        ],
+        [
+          "Summe Grundstudium",
+          "32",
+          "28",
+          "30",
+          "24",
+          "",
+          "",
+          "114"
+        ],
+        [
+          "Fachstudium*",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "Komplex Grundlagen der Informatik",
+          "",
+          "",
+          "",
+          "6",
+          "10-24",
+          null,
+          "10-30"
+        ],
+        [
+          "Komplex Praktische Informatik",
+          "",
+          "",
+          "",
+          null,
+          "10-24",
+          null,
+          "10-30"
+        ],
+        [
+          "Komplex Angewandte und Technische Informatik",
+          "",
+          "",
+          "",
+          null,
+          "10-24",
+          null,
+          "10-30"
+        ],
+        [
+          "Summe Komplexe des Fachstudiums",
+          "",
+          "",
+          "",
+          "6",
+          "44",
+          null,
+          "50"
+        ],
+        [
+          "Seminar oder Praktikum",
+          "",
+          "",
+          "",
+          "",
+          "4",
+          null,
+          "4"
+        ],
+        [
+          "Bachelor-Arbeit",
+          "",
+          "",
+          "",
+          "",
+          "12",
+          null,
+          "12"
+        ],
+        [
+          "Summe Fachstudium",
+          "",
+          "",
+          "",
+          "6",
+          "60",
+          null,
+          "66"
+        ],
+        [
+          "Summe Studium",
+          "32",
+          "28",
+          "30",
+          "30",
+          "60",
+          null,
+          "180"
+        ]
+      ]
+    }
+  ],
+  "issues": [],
+  "start_term": "winter"
+}

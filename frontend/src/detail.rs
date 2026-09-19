@@ -46,7 +46,7 @@ where
         move |_| {
             if let Some(win) = web_sys::window() {
                 let loc = win.location();
-                let share_url = format!("{}{}?module={}", loc.origin().unwrap_or_default(), loc.pathname().unwrap_or_default(), m_id);
+                let share_url = format!("{}{}", loc.origin().unwrap_or_default(), crate::query::course_url(&m_id));
                 let nav = win.navigator();
                 let clipboard = nav.clipboard();
                 let _ = clipboard.write_text(&share_url);
@@ -791,10 +791,9 @@ where
                                                 let p_id = c.program_id.clone();
                                                 let deg_short = format_degree_short(c.degree.as_deref());
                                                 let po_short = c.po_version.as_deref().map(format_po_short).unwrap_or_default();
-                                                let sem_str = match c.recommended_semester {
-                                                    Some(s) if s > 0 => format!("{}. Semester", s),
-                                                    _ => "Wahlpflicht".to_string(),
-                                                };
+						let evidence=c.source_evidence.as_deref().and_then(|s|serde_json::from_str::<crate::study_plan::PlanCell>(s).ok());
+						let sem_str=crate::study_plan::semester_label(c.start_semester.filter(|s|*s>0).or(c.recommended_semester).unwrap_or(0),c.end_semester.filter(|s|*s>0).or(c.recommended_semester).unwrap_or(0));
+						let credit_hint=evidence.map(|cell|if cell.is_workload(){format!("{} insgesamt · Arbeitsaufwand {} ECTS · Anrechnung im {}. Semester",cell.credits(),cell.workload.iter().map(|v|crate::study_plan::number(*v)).collect::<Vec<_>>().join(" + "),cell.credit_semester)}else{format!("{}{}",cell.credits(),if cell.is_window(){" im gesamten Zeitraum"}else{""})});
                                                 view! {
                                                     <div
                                                         class="studyprogram-item-card interactive"
@@ -809,6 +808,7 @@ where
                                                         <span class="prog-name">{c.program_name}</span>
                                                         <div class="prog-meta-badges">
                                                             <span class="badge-semester">{sem_str}</span>
+						    {credit_hint.map(|hint|view!{<span class="badge-module-type">{hint}</span>})}
                                                             {if let Some(ref mt) = c.module_type {
                                                                 if !mt.is_empty() {
                                                                     view! { <span class="badge-module-type">{mt.clone()}</span> }.into_any()

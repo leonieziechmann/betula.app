@@ -8,21 +8,19 @@ use crate::models::*;
 use crate::program_detail::*;
 use crate::storage::*;
 
-fn parse_query_param(search: &str, key: &str) -> Option<String> {
-    let s = search.trim_start_matches('?');
-    for pair in s.split('&') {
-        let mut parts = pair.split('=');
-        if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
-            if k == key && !v.trim().is_empty() {
-                return Some(v.to_string());
-            }
-        }
-    }
-    None
-}
-
+use crate::query::{self, Route, ProgramTab};
 #[component]
 pub fn App() -> impl IntoView {
+    let initial_route = web_sys::window().map(|w| query::parse_route(
+        &w.location().pathname().unwrap_or_default(), &w.location().search().unwrap_or_default()
+    )).unwrap_or(Route::Catalog(FilterOptions::default()));
+    let initial_filters = match &initial_route { Route::Catalog(f) => f.clone(), _ => FilterOptions::default() };
+    let initial_module = match &initial_route { Route::Course(id) => Some(id.clone()), _ => None };
+    let initial_program = match &initial_route { Route::Program(id, _) => Some(id.clone()), _ => None };
+    let initial_tab = match &initial_route { Route::Program(_, tab) => *tab, _ => ProgramTab::Plan };
+    let (not_found, set_not_found) = signal(initial_route == Route::NotFound);
+    let (program_tab, set_program_tab) = signal(initial_tab);
+
     // Database loading state
     let (db_ready, set_db_ready) = signal(false);
     let (db_progress, set_db_progress) = signal(0);
@@ -42,17 +40,17 @@ pub fn App() -> impl IntoView {
     let (selected_po_version, set_selected_po_version) = signal(String::new());
 
     // Filter Options
-    let filters = RwSignal::new(FilterOptions::default());
+    let filters = RwSignal::new(initial_filters);
 
     // Local user data
     let (completed_modules, set_completed_modules) = signal(load_completed());
     let (bookmarked_modules, set_bookmarked_modules) = signal(load_bookmarks());
 
     // Selected module for detail view (dedicated in-page view)
-    let (detail_module_id, set_detail_module_id) = signal(Option::<String>::None);
+    let (detail_module_id, set_detail_module_id) = signal(initial_module);
 
     // Selected study program for detail view (dedicated in-page view)
-    let (detail_program_id, set_detail_program_id) = signal(Option::<String>::None);
+    let (detail_program_id, set_detail_program_id) = signal(initial_program);
 
     // Share link toast state
     let (share_toast, set_share_toast) = signal(false);
@@ -60,15 +58,25 @@ pub fn App() -> impl IntoView {
     // Scroll restoration tracker
     let saved_scroll_y = StoredValue::new(0.0);
 
+    let catalog_link = move || {
+        let mut f = filters.get_untracked();
+        f.program_id = query::program_slug(&f.program_id, &all_programs.get_untracked());
+        query::catalog_url(&f)
+    };
+    let program_link = move |id: &str, tab: ProgramTab| {
+        query::program_url(&query::program_slug(id, &all_programs.get_untracked()), tab)
+    };
+
     // Open module detail view (in-page, replacing catalog view)
     let open_module = move |id: String| {
         if let Some(win) = web_sys::window() {
             saved_scroll_y.set_value(win.scroll_y().unwrap_or(0.0));
             win.scroll_to_with_x_and_y(0.0, 0.0);
             if let Ok(hist) = win.history() {
-                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&format!("?module={}", id)));
+                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&query::course_url(&id)));
             }
         }
+        set_not_found.set(false);
         set_sidebar_open.set(false);
         set_detail_program_id.set(None);
         set_detail_module_id.set(Some(id));
@@ -78,7 +86,7 @@ pub fn App() -> impl IntoView {
     let close_module = move || {
         if let Some(win) = web_sys::window() {
             if let Ok(hist) = win.history() {
-                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/"));
+                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&catalog_link()));
             }
             let y = saved_scroll_y.get_value();
             win.scroll_to_with_x_and_y(0.0, y);
@@ -92,11 +100,13 @@ pub fn App() -> impl IntoView {
             saved_scroll_y.set_value(win.scroll_y().unwrap_or(0.0));
             win.scroll_to_with_x_and_y(0.0, 0.0);
             if let Ok(hist) = win.history() {
-                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&format!("?program={}", id)));
+                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&program_link(&id, ProgramTab::Plan)));
             }
         }
+        set_not_found.set(false);
         set_sidebar_open.set(false);
         set_detail_module_id.set(None);
+        set_program_tab.set(ProgramTab::Plan);
         set_detail_program_id.set(Some(id));
     };
 
@@ -104,7 +114,7 @@ pub fn App() -> impl IntoView {
     let close_program_page = move || {
         if let Some(win) = web_sys::window() {
             if let Ok(hist) = win.history() {
-                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/"));
+                let _ = hist.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&catalog_link()));
             }
             let y = saved_scroll_y.get_value();
             win.scroll_to_with_x_and_y(0.0, y);
@@ -112,34 +122,63 @@ pub fn App() -> impl IntoView {
         set_detail_program_id.set(None);
     };
 
-    // Popstate event listener for browser Back/Forward buttons
-    Effect::new(move |_| {
-        if let Some(win) = web_sys::window() {
-            let on_popstate = Closure::wrap(Box::new(move |_: web_sys::PopStateEvent| {
-                if let Some(w) = web_sys::window() {
-                    let search = w.location().search().unwrap_or_default();
-                    if let Some(mod_id) = parse_query_param(&search, "module") {
-                        set_detail_program_id.set(None);
-                        set_detail_module_id.set(Some(mod_id));
-                    } else if let Some(prog_id) = parse_query_param(&search, "program") {
-                        set_detail_module_id.set(None);
-                        set_detail_program_id.set(Some(prog_id));
-                    } else {
-                        if detail_module_id.get().is_some() {
-                            set_detail_module_id.set(None);
-                        }
-                        if detail_program_id.get().is_some() {
-                            set_detail_program_id.set(None);
-                        }
-                    }
+    let on_program_tab = Callback::new(move |tab: ProgramTab| {
+        if let Some(id) = detail_program_id.get_untracked() {
+            if let Some(win) = web_sys::window() {
+                if let Ok(hist) = win.history() {
+                    let _ = hist.push_state_with_url(&JsValue::NULL, "", Some(&program_link(&id, tab)));
                 }
-            }) as Box<dyn FnMut(_)>);
-
-            let _ = win.add_event_listener_with_callback("popstate", on_popstate.as_ref().unchecked_ref());
-            on_popstate.forget();
+            }
+            set_program_tab.set(tab);
         }
     });
 
+    // Restore the full route and filter state on browser Back/Forward.
+    if let Some(win) = web_sys::window() {
+        let on_popstate = Closure::wrap(Box::new(move |_: web_sys::PopStateEvent| {
+            if let Some(w) = web_sys::window() {
+                let route = query::resolve_route(query::parse_route(&w.location().pathname().unwrap_or_default(), &w.location().search().unwrap_or_default()), &all_programs.get_untracked());
+                {
+                    set_not_found.set(route == Route::NotFound);
+                    match route {
+                        Route::Course(id) => { set_detail_program_id.set(None); set_detail_module_id.set(Some(id)); },
+                        Route::Program(id, tab) => { set_detail_module_id.set(None); set_program_tab.set(tab); set_detail_program_id.set(Some(id)); },
+                        Route::Catalog(f) => { filters.set(f); set_detail_module_id.set(None); set_detail_program_id.set(None); },
+                        Route::NotFound => { set_detail_module_id.set(None); set_detail_program_id.set(None); },
+                    }
+                    set_sidebar_open.set(false);
+                }
+            }
+        }) as Box<dyn FnMut(_)>);
+        let _ = win.add_event_listener_with_callback("popstate", on_popstate.as_ref().unchecked_ref());
+        on_popstate.forget();
+    }
+
+    // Canonical URLs and shareable filters, without creating a history entry per keystroke.
+    Effect::new(move |_| {
+        let mut f = filters.get();
+        if !db_ready.get() || not_found.get() { return; }
+        f.program_id = query::program_slug(&f.program_id, &all_programs.get());
+        let url = if let Some(id) = detail_program_id.get() {
+            program_link(&id, program_tab.get())
+        } else if let Some(id) = detail_module_id.get() {
+            query::course_url(&id)
+        } else { query::catalog_url(&f) };
+        if let Some(win) = web_sys::window() {
+            if let Ok(hist) = win.history() {
+                let _ = hist.replace_state_with_url(&JsValue::NULL, "", Some(&url));
+            }
+        }
+    });
+
+    // Keep the program selector in sync with filters restored from a shared URL.
+    Effect::new(move |_| {
+        let id = filters.get().program_id;
+        let program = all_programs.get().into_iter().find(|p| p.id == id);
+        set_selected_program_id.set(id);
+        set_selected_program_name.set(program.as_ref().map(|p| p.program_name.clone()).unwrap_or_else(|| "Alle Studiengänge".into()));
+        set_selected_po_version.set(program.and_then(|p| p.po_version).unwrap_or_default());
+    });
     // Global Escape key listener
     Effect::new(move |_| {
         if let Some(win) = web_sys::window() {
@@ -151,6 +190,7 @@ pub fn App() -> impl IntoView {
                     if detail_program_id.get().is_some() {
                         close_program_page();
                     }
+                    set_not_found.set(false);
                     set_sidebar_open.set(false);
                     program_combobox_open.set(false);
                 }
@@ -158,20 +198,6 @@ pub fn App() -> impl IntoView {
 
             let _ = win.add_event_listener_with_callback("keydown", on_keydown.as_ref().unchecked_ref());
             on_keydown.forget();
-        }
-    });
-
-    // Check initial URL for ?module=... or ?program=...
-    Effect::new(move |_| {
-        if db_ready.get() {
-            if let Some(win) = web_sys::window() {
-                let search = win.location().search().unwrap_or_default();
-                if let Some(mod_id) = parse_query_param(&search, "module") {
-                    set_detail_module_id.set(Some(mod_id));
-                } else if let Some(prog_id) = parse_query_param(&search, "program") {
-                    set_detail_program_id.set(Some(prog_id));
-                }
-            }
         }
     });
 
@@ -198,6 +224,10 @@ pub fn App() -> impl IntoView {
                     let total = get_total_count();
                     set_total_modules_count.set(total);
                     let progs = get_all_study_programs();
+                    if let Some(id) = detail_program_id.get_untracked() {
+                        set_detail_program_id.set(Some(query::resolve_program(&id, &progs)));
+                    }
+                    filters.update(|f| f.program_id = query::resolve_program(&f.program_id, &progs));
                     set_all_programs.set(progs);
                     set_db_ready.set(true);
                 }
@@ -403,8 +433,13 @@ pub fn App() -> impl IntoView {
                 />
             }
         >
-            {move || {
-                if !db_ready.get() {
+            // Give each page its own lifetime. Tab/history changes must not
+            // dispose signals still referenced by the currently mounted page.
+            <For
+                each=move || vec![(db_ready.get(), not_found.get(), detail_program_id.get(), detail_module_id.get())]
+                key=|page| page.clone()
+                children=move |(ready, missing, program, module)| {
+                if !ready {
                     // Database Loading Screen
                     view! {
                         <div style="text-align: center; padding: 5rem 2rem; color: var(--text-muted);">
@@ -412,7 +447,7 @@ pub fn App() -> impl IntoView {
                             <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">
                                 "Initialisiere BTU Modulkatalog (Client-Side SQLite)"
                             </h3>
-                            <p style="font-size: 0.9rem; margin-bottom: 1.5rem;">{db_msg.get()}</p>
+                            <p style="font-size: 0.9rem; margin-bottom: 1.5rem;">{move || db_msg.get()}</p>
                             <div style="max-width: 400px; margin: 0 auto; height: 8px; background: #e2e8f0; border-radius: 9999px; overflow: hidden;">
                                 <div
                                     style=move || format!("width: {}%; height: 100%; background: var(--primary); transition: width 0.3s ease;", db_progress.get())
@@ -423,12 +458,16 @@ pub fn App() -> impl IntoView {
                             </div>
                         </div>
                     }.into_any()
-                } else if let Some(prog_id) = detail_program_id.get() {
+                } else if missing {
+                    view! { <div class="program-section-card"><h1>"Seite nicht gefunden"</h1><a href="/catalogue">"Zum Modulkatalog"</a></div> }.into_any()
+                } else if let Some(prog_id) = program {
                     // Study Program Detail Page
                     view! {
                         <div id="modules-view">
                             <StudyProgramDetailPage
                                 program_id=prog_id
+                                active_tab=Signal::from(program_tab)
+                                on_tab_change=on_program_tab
                                 on_back=close_program_page
                                 on_open_module=open_module
                                 on_select_program=move |p_id, p_name, po_ver| {
@@ -440,7 +479,7 @@ pub fn App() -> impl IntoView {
                             />
                         </div>
                     }.into_any()
-                } else if let Some(mod_id) = detail_module_id.get() {
+                } else if let Some(mod_id) = module {
                     // Module Detail Page
                     view! {
                         <div id="modules-view">
@@ -458,6 +497,7 @@ pub fn App() -> impl IntoView {
                     }.into_any()
                 } else {
                     // Catalog Table View
+                    (move || {
                     let f = filters.get();
                     let regs = regular_modules.get();
                     let fues = fues_modules.get();
@@ -626,8 +666,9 @@ pub fn App() -> impl IntoView {
                             }}
                         </div>
                     }.into_any()
+                    }).into_any()
                 }
-            }}
+            } />
         </AppLayout>
     }
 }

@@ -3,6 +3,7 @@ package gemini
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,7 @@ const (
 
 // ExtractedModule represents a single course or requirement extracted from a study regulation PDF.
 type ExtractedModule struct {
+	SourceCell             string  `json:"source_cell"`
 	ModuleCode             string  `json:"module_code,omitempty"`
 	ModuleName             string  `json:"module_name"`
 	ModuleNameEN           string  `json:"module_name_en,omitempty"`
@@ -30,9 +32,9 @@ type ExtractedModule struct {
 	StartSemester          int     `json:"start_semester,omitempty"`
 	EndSemester            int     `json:"end_semester,omitempty"`
 	Credits                float64 `json:"credits,omitempty"`
-	MinCredits             float64 `json:"min_credits,omitempty"` // e.g. 10.0 for "10-24"
-	MaxCredits             float64 `json:"max_credits,omitempty"` // e.g. 24.0 for "10-24"
-	ModuleType             string  `json:"module_type"` // "Pflicht", "Wahlpflicht", "Wahl", "FÜS", "Abschlussarbeit", "Praktikum"
+	MinCredits             float64 `json:"min_credits,omitempty"`   // e.g. 10.0 for "10-24"
+	MaxCredits             float64 `json:"max_credits,omitempty"`   // e.g. 24.0 for "10-24"
+	ModuleType             string  `json:"module_type"`             // "Pflicht", "Wahlpflicht", "Wahl", "FÜS", "Abschlussarbeit", "Praktikum"
 	StudySection           string  `json:"study_section,omitempty"` // "Grundstudium", "Fachstudium", "Vertiefungsstudium"
 	SubjectArea            string  `json:"subject_area,omitempty"`  // "Grundlagen der Informatik", "Praktische Informatik", "Angewandte und Technische Informatik", "Nebenfach", etc.
 	AreaRules              string  `json:"area_rules,omitempty"`    // e.g. "Im Nebenfach müssen alle Module aus demselben Bereich gewählt werden", "Mind. 12 LP"
@@ -46,6 +48,9 @@ type ExtractedModule struct {
 
 // CurriculumExtractionResult represents the structured extraction result from a study regulation PDF.
 type CurriculumExtractionResult struct {
+	SourceSHA256            string            `json:"source_sha256"`
+	StartTerm               string            `json:"start_term"`
+	Layout                  *PDFLayout        `json:"layout,omitempty"`
 	ProgramName             string            `json:"program_name"`
 	Degree                  string            `json:"degree"`
 	POVersion               string            `json:"po_version"`
@@ -56,10 +61,12 @@ type CurriculumExtractionResult struct {
 
 // Client interacts with the Google Gemini API.
 type Client struct {
-	apiKey     string
-	model      string
-	baseURL    string
-	httpClient *http.Client
+	PlanPages    []int
+	layoutLoader func(context.Context, string) (*PDFLayout, error)
+	apiKey       string
+	model        string
+	baseURL      string
+	httpClient   *http.Client
 }
 
 // NewClient creates a new Gemini client.
@@ -110,7 +117,7 @@ type geminiRequest struct {
 type geminiGenConfig struct {
 	ResponseMimeType string          `json:"responseMimeType,omitempty"`
 	ResponseSchema   json.RawMessage `json:"responseSchema,omitempty"`
-	Temperature      float64         `json:"temperature,omitempty"`
+	Temperature      float64         `json:"temperature"`
 }
 
 type geminiCandidate struct {
@@ -144,6 +151,7 @@ const curriculumSchema = `{
 			"items": {
 				"type": "OBJECT",
 				"properties": {
+					"source_cell": { "type": "STRING" },
 					"module_code": { "type": "STRING" },
 					"module_name": { "type": "STRING" },
 					"module_name_en": { "type": "STRING" },
@@ -166,7 +174,7 @@ const curriculumSchema = `{
 					"prerequisites": { "type": "STRING" },
 					"remarks": { "type": "STRING" }
 				},
-				"required": ["module_name", "module_type", "recommended_semester", "credits"]
+				"required": ["source_cell", "module_name", "module_type", "recommended_semester", "credits"]
 			}
 		}
 	},
@@ -186,70 +194,39 @@ func (c *Client) ExtractCurriculumFromPDF(ctx context.Context, pdfPath string, p
 
 	b64Data := base64.StdEncoding.EncodeToString(pdfBytes)
 
-	prompt := fmt.Sprintf(`Du bist ein führender Experte für deutsche Hochschulprüfungsordnungen (PO/SO) und Regelstudienpläne der BTU Cottbus-Senftenberg.
-Analysiere die beigefügte Studien- und Prüfungsordnung (bzw. Satzungsänderung) extrem gründlich und fehlerfrei.
-Hinweis zum Studiengang: "%s" (Dateiname: %s).
-
-AUFGABE: Extrahiere den offiziellen Studienablaufplan / Regelstudienplan (Modultabelle / Semesterübersicht) der Anlage zur Ordnung.
-
-BEACHTE DIE FOLGENDEN STRENGEN REGELN FÜR DIE TABELLENANALYSE:
-
-1. SPALTEN-ZUORDNUNG & MEHRSEMESTRIGE MODULE:
-   - Jede Zahl in den Spalten "1", "2", "3", "4", "5", "6" entspricht den Leistungspunkten im jeweiligen Semester.
-   - Wenn ein Modul über mehrere Semester geht (z. B. Laborpraktikum "(3+3) 6" in Semester 3 und 4):
-     - Trage das Anfangssemester ein: recommended_semester = 3
-     - start_semester = 3, end_semester = 4, semester_span = "3-4"
-     - credits = 6.0
-     - remarks = "2-semestrig (3 LP im 3. FS + 3 LP im 4. FS)"
-
-2. MEHRERE ZAHLEN IN EINER ZEILE (SPLITTE IN SEPARATE EINTRÄGE):
-   - Hat eine Zeile Zahlen in mehreren Semester-Spalten (z. B. "Anwendungsfach" mit 6 LP in Spalte 3 UND 6 LP in Spalte 4), erstelle für JEDES aktive Semester einen separaten Eintrag im Array modules:
-     - Eintrag A: recommended_semester = 3, credits = 6.0, module_name = "Anwendungsfach"
-     - Eintrag B: recommended_semester = 4, credits = 6.0, module_name = "Anwendungsfach"
-
-3. VERTIKALE ZUSAMMENFASSUNGEN (VERTIKAL ZUSAMMENGEFASSTE ZELLEN):
-   - Wenn ein vertikal zusammengefasstes Feld über mehrere Zeilen in einem Semester steht (wie z. B. im 4. Semester Informatik: 6 LP wählbar aus einem der drei Fachstudium-Komplexe):
-     - Erfasse dies als eigenen Wahlpflicht-Slot für das betreffende Semester:
-       - module_name: "Wahlpflichtmodul aus den Komplexen des Fachstudiums"
-       - recommended_semester: 4, credits: 6.0
-       - module_type: "Wahlpflicht", study_section: "Fachstudium", subject_area: "Fachstudium Komplexe"
-       - remarks: "Wählbar aus Komplex Grundlagen der Informatik, Komplex Praktische Informatik oder Komplex Angewandte und Technische Informatik (6 LP im 4. FS)"
-
-4. MIN/MAX-RANGES & SEMESTERÜBERGREIFENDE BEREICHE (z. B. 5.-6. SEMESTER):
-   - Wenn Bereiche mit Min/Max-Spannbreiten angegeben sind (z. B. "10-24" LP im 5.–6. Semester für Komplex Grundlagen, Praktische, Angewandte Informatik):
-     - Erfasse die Komplexe jeweils mit:
-       - recommended_semester: 5, semester_span: "5-6"
-       - min_credits: 10.0, max_credits: 24.0
-       - credits: 14.0 (oder rechnerischer Mittelwert)
-       - area_rules: "10–24 LP im 5.–6. Fachsemester (Gesamt 10–30 LP)"
-   - Zusammen mit Seminar/Praktikum (4 LP) und Bachelorarbeit (12 LP) im 5.–6. Semester ergibt sich in Summe: Summe Fachstudium Sem 5-6 = 60 LP!
-
-5. 30-ECTS-SANITY-CHECK & SUMMENZEILEN-ABGLEICH (PFLICHT!):
-   - In einem 6-semestrigen Bachelor (180 LP) MÜSSEN pro Semester ca. 30 LP herauskommen (erlaubter Bereich 28-32 LP; Sem 5-6 zusammen = 60 LP).
-   - Vergleiche deine Semester-Summen mit der Fußzeile der Tabelle ("Summe Semester", "Summe Grundstudium", "Summe Fachstudium", "Summe Studium").
-
-6. FELDER PRO MODUL:
-   - module_code: Modulnummer falls angegeben (oft 5-stellig wie "12105", "11949"), sonst leer
-   - module_name: Exakter deutscher Name des Moduls oder Wahlpflicht-Platzhalters
-   - module_name_en: Englischer Name falls vorhanden
-   - recommended_semester: Empfohlenes Fachsemester (1, 2, 3, 4, 5, 6...)
-   - recommended_semester_raw: Originaltext (z. B. "1.", "2.", "3.-4.", "5.-6.")
-   - semester_span: Semester-Spanne falls zutreffend (z. B. "5-6", "3-4"), sonst leer
-   - start_semester / end_semester: Bei mehsemestrigen Modulen (z. B. 3 und 4)
-   - credits: Leistungspunkte / ECTS für dieses Semester als Zahl (z. B. 6.0, 8.0, 10.0, 12.0)
-   - min_credits / max_credits: Min- und Max-Grenzen falls Range angegeben (z. B. 10.0 und 24.0)
-   - module_type: Genau einer von "Pflicht", "Wahlpflicht", "Wahl", "FÜS", "Abschlussarbeit", "Praktikum"
-   - study_section: "Grundstudium" (Semester 1-2 bzw. 1-4) oder "Fachstudium" / "Vertiefungsstudium"
-   - subject_area: Themenbereich / Komplex
-   - area_rules: Besondere Regeln laut Fußnoten/Ordnung (z. B. "Mind. 10 bis max. 24 LP aus jedem Komplex")
-   - specialization: Studienrichtung / Schwerpunkt falls modulspezifisch, sonst leer
-   - sws: Semesterwochenstunden falls vorhanden
-   - exam_type: Art der Prüfungsleistung
-   - graded: "benotet" oder "unbenotet"
-   - prerequisites: Teilnahmevoraussetzungen falls in der Tabelle angegeben
-   - remarks: Besondere Hinweise oder Fußnoten
-
-Gib ausschließlich valides JSON gemäß dem Schema zurück.`, programHint, filepath.Base(pdfPath))
+	var layout *PDFLayout
+	if c.layoutLoader != nil {
+		layout, err = c.layoutLoader(ctx, pdfPath)
+	} else {
+		layout, err = ReadPDFLayoutForProgram(ctx, pdfPath, c.PlanPages, programHint)
+	}
+	if err != nil {
+		return nil, err
+	}
+	selectProgramMode(layout, programHint)
+	layoutJSON, err := json.Marshal(layout.Cells)
+	if err != nil {
+		return nil, err
+	}
+	prompt := fmt.Sprintf(`Extrahiere den Regelstudienplan aus der PDF für %s (%s).
+Die beigefügten Daten wurden anhand der PDF-Zellkoordinaten ausgelesen. Leere Zellen
+bleiben leer, horizontale/vertikale Zellverbindungen sind bereits berücksichtigt.
+Gib GENAU EINEN Moduleintrag pro Eintrag im Quellzellen-Array aus und übernimm dessen ID als
+source_cell. module_name muss dem Originalnamen in "row" entsprechen (ohne Modulnummer).
+Ergänze Modulnummer, Pflicht/Wahlpflicht, Fachbereich usw. aus den übrigen PDF-Anlagen.
+Bei shared_rows=true handelt es sich um EINEN gemeinsamen Wahlpflicht-Slot für ALLE
+angegebenen Bereiche, nicht um ein bestimmtes Modul oder mehrere Slots.
+"totals" sind nur Kontrollsummen und dürfen NICHT als Module ausgegeben werden.
+Semesterspalten stammen ausschließlich aus "semesters", niemals aus Reihenfolge,
+Modulnummer, Prüfungsdatum, LP-Summenspalte oder dem Wunsch nach 30 LP.
+Bei mehreren Semestern in einer Zelle ist recommended_semester=0: die Quelle legt
+kein einzelnes Semester fest. Übernimm Start/Ende und semester_span.
+Bei LP-Spannen setze credits=0, min_credits=min und max_credits=max. Keine Mittelwerte!
+Mehrere Zellen derselben Modulzeile sind getrennte Einträge mit den jeweiligen LP.
+Erfinde keine Module oder Werte. Nutze Originalnamen, keine Übersetzung.
+Wenn der Studienplan nicht zum angefragten Studiengang/Abschluss passt, gib modules=[] aus.
+JSON gemäß Schema. Quellzellen und Tabellen:
+%s`, programHint, filepath.Base(pdfPath), layoutJSON)
 
 	reqPayload := geminiRequest{
 		Contents: []geminiContent{
@@ -268,7 +245,7 @@ Gib ausschließlich valides JSON gemäß dem Schema zurück.`, programHint, file
 		GenerationConfig: &geminiGenConfig{
 			ResponseMimeType: "application/json",
 			ResponseSchema:   json.RawMessage(curriculumSchema),
-			Temperature:      0.1,
+			Temperature:      0,
 		},
 	}
 
@@ -277,7 +254,7 @@ Gib ausschließlich valides JSON gemäß dem Schema zurück.`, programHint, file
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/%s:generateContent?key=%s", c.baseURL, c.model, c.apiKey)
+	url := fmt.Sprintf("%s/%s:generateContent", c.baseURL, c.model)
 
 	// Retry up to 3 times for transient 503 / 429 responses
 	var respBody []byte
@@ -289,11 +266,16 @@ Gib ausschließlich valides JSON gemäß dem Schema zurück.`, programHint, file
 			return nil, fmt.Errorf("failed to create http request: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("x-goog-api-key", c.apiKey)
 
 		resp, err := c.httpClient.Do(httpReq)
 		if err != nil {
 			lastErr = fmt.Errorf("gemini api request failed: %w", err)
-			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(attempt) * 2 * time.Second):
+			}
 			continue
 		}
 
@@ -310,7 +292,7 @@ Gib ausschließlich valides JSON gemäß dem Schema zurück.`, programHint, file
 		}
 
 		if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests {
-			lastErr = fmt.Errorf("gemini api temporary error %d: %s", resp.StatusCode, string(respBody))
+			lastErr = fmt.Errorf("gemini api temporary error %d: %s", resp.StatusCode, strings.ReplaceAll(string(respBody), c.apiKey, "[REDACTED]"))
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
@@ -319,7 +301,7 @@ Gib ausschließlich valides JSON gemäß dem Schema zurück.`, programHint, file
 			continue
 		}
 
-		return nil, fmt.Errorf("gemini api returned status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("gemini api returned status %d: %s", resp.StatusCode, strings.ReplaceAll(string(respBody), c.apiKey, "[REDACTED]"))
 	}
 
 	if lastErr != nil {
@@ -339,101 +321,29 @@ Gib ausschließlich valides JSON gemäß dem Schema zurück.`, programHint, file
 		return nil, fmt.Errorf("gemini returned no content candidates")
 	}
 
-	jsonText := geminiResp.Candidates[0].Content.Parts[0].Text
+	if geminiResp.Candidates[0].FinishReason != "STOP" {
+		return nil, fmt.Errorf("incomplete Gemini response: %s", geminiResp.Candidates[0].FinishReason)
+	}
+	var jsonParts strings.Builder
+	for _, p := range geminiResp.Candidates[0].Content.Parts {
+		jsonParts.WriteString(p.Text)
+	}
+	jsonText := jsonParts.String()
 
 	var result CurriculumExtractionResult
 	if err := json.Unmarshal([]byte(jsonText), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse structured curriculum JSON (%w): %s", err, jsonText)
 	}
 
-	BalanceCurriculumSemesters(&result)
+	if err := BindSourceCells(&result, layout); err != nil {
+		return nil, err
+	}
+	result.SourceSHA256 = fmt.Sprintf("%x", sha256.Sum256(pdfBytes))
 
 	return &result, nil
 }
 
-// BalanceCurriculumSemesters performs automated balancing and validation across study semesters,
-// ensuring multi-semester spans and column alignment match the ~30 ECTS per semester standard.
-func BalanceCurriculumSemesters(res *CurriculumExtractionResult) {
-	if res == nil || len(res.Modules) == 0 {
-		return
-	}
-
-	// 1. Calculate semester sums
-	semSums := make(map[int]float64)
-	for _, m := range res.Modules {
-		if m.RecommendedSemester > 0 {
-			semSums[m.RecommendedSemester] += m.Credits
-		}
-	}
-
-	// 2. Pairwise adjacent balancing for shifted single-semester modules (e.g. Sem 3 has 36, Sem 4 has 24)
-	for sem := 1; sem <= 5; sem++ {
-		nextSem := sem + 1
-		sumCur := semSums[sem]
-		sumNext := semSums[nextSem]
-
-		diff := sumCur - 30.0
-		deficit := 30.0 - sumNext
-
-		if diff > 0 && deficit > 0 && diff == deficit {
-			// Find a module in current semester with credits == diff
-			for i := range res.Modules {
-				m := &res.Modules[i]
-				if m.RecommendedSemester == sem && m.Credits == diff && m.ModuleType != "Pflicht" {
-					m.RecommendedSemester = nextSem
-					semSums[sem] -= diff
-					semSums[nextSem] += diff
-					break
-				}
-			}
-		}
-	}
-
-	// 3. Multi-semester span balancing (e.g. Semesters 5 and 6 with span "5-6")
-	var spanModules []*ExtractedModule
-	for i := range res.Modules {
-		m := &res.Modules[i]
-		if (m.SemesterSpan == "5-6" || m.SemesterSpan == "5 - 6" || strings.Contains(m.RecommendedSemesterRaw, "5-6") || strings.Contains(m.RecommendedSemesterRaw, "5.-6.")) && (m.RecommendedSemester == 5 || m.RecommendedSemester == 6) {
-			spanModules = append(spanModules, m)
-		}
-	}
-
-	if len(spanModules) > 0 {
-		// Calculate non-span credits in Sem 5 and Sem 6
-		nonSpan5 := 0.0
-		nonSpan6 := 0.0
-		for i := range res.Modules {
-			m := &res.Modules[i]
-			isSpan := false
-			for _, sm := range spanModules {
-				if sm == m {
-					isSpan = true
-					break
-				}
-			}
-			if !isSpan {
-				if m.RecommendedSemester == 5 {
-					nonSpan5 += m.Credits
-				} else if m.RecommendedSemester == 6 {
-					nonSpan6 += m.Credits
-				}
-			}
-		}
-
-		targetSpan5 := 30.0 - nonSpan5
-		targetSpan6 := 30.0 - nonSpan6
-
-		if targetSpan5 > 0 && targetSpan6 > 0 {
-			// Distribute span module credits cleanly between sem 5 and sem 6
-			curSpan5 := 0.0
-			for _, m := range spanModules {
-				if curSpan5+m.Credits <= targetSpan5+2.0 {
-					m.RecommendedSemester = 5
-					curSpan5 += m.Credits
-				} else {
-					m.RecommendedSemester = 6
-				}
-			}
-		}
-	}
-}
+// BalanceCurriculumSemesters is retained for compatibility. Credit totals cannot
+// establish a semester assignment; validation must never move modules.
+// Deprecated: use BindSourceCells and ValidateCurriculum.
+func BalanceCurriculumSemesters(res *CurriculumExtractionResult) {}

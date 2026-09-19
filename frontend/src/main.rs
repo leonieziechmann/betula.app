@@ -5,6 +5,9 @@ mod detail;
 pub mod fuzzy;
 mod models;
 mod program_detail;
+mod study_plan;
+mod plan_view;
+mod query;
 mod storage;
 
 use app::App;

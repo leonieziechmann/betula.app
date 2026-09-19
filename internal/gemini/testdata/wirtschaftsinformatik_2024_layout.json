@@ -1,0 +1,1430 @@
+{
+  "cells": [
+    {
+      "id": "p8t1r4c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "11112 Mathematik IT-1 (Diskrete Mathematik)",
+      "semesters": [
+        1
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        309.2405,
+        141.47998779299996,
+        338.880014648,
+        157.55950488299993
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r5c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "11113 Mathematik IT-2 (Lineare Algebra)",
+      "semesters": [
+        2
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        338.880014648,
+        157.55950488299993,
+        368.7724033533103,
+        173.75951708999992
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r6c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "11213 Mathematik IT-3 (Analysis)",
+      "semesters": [
+        3
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        368.7724033533103,
+        173.75951708999992,
+        399.37240945731037,
+        189.83997314499993
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r7c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Grundlagen der Statistik",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        399.37240945731037,
+        189.83997314499993,
+        430.200491455,
+        206.03998535199992
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r8c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "13268 Einführung in die ökonometrische Datenanalyse",
+      "semesters": [
+        5
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        430.200491455,
+        206.03998535199992,
+        460.800497558,
+        234.83997314499993
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r9c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Mathematische und methodische Grundlagen",
+      "semesters": [
+        5
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        430.200491455,
+        234.83997314499993,
+        460.800497558,
+        263.640021973
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r12c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "12102 Programmierpraktikum",
+      "semesters": [
+        1
+      ],
+      "raw": "4",
+      "min": 4.0,
+      "max": 4.0,
+      "bbox": [
+        309.2405,
+        295.919990235,
+        338.880014648,
+        312.120002442
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r13c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "12101 Algorithmieren und Programmieren",
+      "semesters": [
+        2
+      ],
+      "raw": "10",
+      "min": 10.0,
+      "max": 10.0,
+      "bbox": [
+        338.880014648,
+        312.120002442,
+        368.7724033533103,
+        328.19951953199995
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r14c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "12330 Datenbanken",
+      "semesters": [
+        3
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        368.7724033533103,
+        328.19951953199995,
+        399.37240945731037,
+        344.399501221
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r15c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "12104 Entwicklung von Softwaresystemen",
+      "semesters": [
+        3
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        368.7724033533103,
+        344.399501221,
+        399.37240945731037,
+        360.47998779299996
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r16c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Informatik-Grundlagen",
+      "semesters": [
+        5
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        430.200491455,
+        360.47998779299996,
+        460.800497558,
+        376.67999999999995
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r19c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "12160 Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL",
+      "semesters": [
+        1
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        309.2405,
+        408.95999878,
+        338.880014648,
+        437.75998657299994
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r20c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Volkwirtschaftliche Grundlagen",
+      "semesters": [
+        1
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        309.2405,
+        437.75998657299994,
+        338.880014648,
+        453.95999878
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r21c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Betriebswirtschaftliche Grundlagen",
+      "semesters": [
+        2
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        338.880014648,
+        453.95999878,
+        368.7724033533103,
+        470.039485352
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r21c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Betriebswirtschaftliche Grundlagen",
+      "semesters": [
+        5
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        430.200491455,
+        453.95999878,
+        460.800497558,
+        470.039485352
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r22c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Weitere wirtschaftswissenschaftliche Grundlagen",
+      "semesters": [
+        6
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        460.800497558,
+        470.039485352,
+        491.519998779,
+        498.83950366299996
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r23c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Seminar Wirtschaftswissenschaften",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        399.37240945731037,
+        498.83950366299996,
+        430.200491455,
+        515.039485352
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r26c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "13977 Grundlagen der Wirtschaftsinformatik",
+      "semesters": [
+        1
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        309.2405,
+        547.320014649,
+        338.880014648,
+        563.4000012209999
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r27c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "14096 Betriebliche Informationssysteme",
+      "semesters": [
+        2
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        338.880014648,
+        563.4000012209999,
+        368.7724033533103,
+        579.600013428
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r28c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "14097 Geschäftsprozessmodellierung und -management",
+      "semesters": [
+        3
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        368.7724033533103,
+        579.600013428,
+        399.37240945731037,
+        608.4000012209999
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r29c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Wirtschaftsinformatik",
+      "semesters": [
+        4
+      ],
+      "raw": "12",
+      "min": 12.0,
+      "max": 12.0,
+      "bbox": [
+        399.37240945731037,
+        608.4000012209999,
+        430.200491455,
+        624.599998169
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r29c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Wirtschaftsinformatik",
+      "semesters": [
+        5
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        430.200491455,
+        608.4000012209999,
+        460.800497558,
+        624.599998169
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r29c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Wirtschaftsinformatik",
+      "semesters": [
+        6
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        460.800497558,
+        608.4000012209999,
+        491.519998779,
+        624.599998169
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r32c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Fachübergreifendes Studium (FÜS)",
+      "semesters": [
+        6
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        460.800497558,
+        656.879496949,
+        491.519998779,
+        672.95999878
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r33c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Wahlbereich Praxis der Wirtschaftsinformatik",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        399.37240945731037,
+        672.95999878,
+        430.200491455,
+        689.159995728
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r34c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Bachelor-Arbeit",
+      "semesters": [
+        6
+      ],
+      "raw": "12",
+      "min": 12.0,
+      "max": 12.0,
+      "bbox": [
+        460.800497558,
+        689.159995728,
+        491.519998779,
+        705.239997559
+      ],
+      "shared_rows": false
+    }
+  ],
+  "totals": [
+    {
+      "id": "p8t1r10c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        1
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        309.2405,
+        263.640021973,
+        338.880014648,
+        279.7199780279999
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r10c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        2
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        338.880014648,
+        263.640021973,
+        368.7724033533103,
+        279.7199780279999
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r10c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        3
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        368.7724033533103,
+        263.640021973,
+        399.37240945731037,
+        279.7199780279999
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r10c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        399.37240945731037,
+        263.640021973,
+        430.200491455,
+        279.7199780279999
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r10c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        5
+      ],
+      "raw": "12",
+      "min": 12.0,
+      "max": 12.0,
+      "bbox": [
+        430.200491455,
+        263.640021973,
+        460.800497558,
+        279.7199780279999
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r10c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        6
+      ],
+      "raw": "0",
+      "min": 0.0,
+      "max": 0.0,
+      "bbox": [
+        460.800497558,
+        263.640021973,
+        491.519998779,
+        279.7199780279999
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r17c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        1
+      ],
+      "raw": "4",
+      "min": 4.0,
+      "max": 4.0,
+      "bbox": [
+        309.2405,
+        376.67999999999995,
+        338.880014648,
+        392.75998657299994
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r17c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        2
+      ],
+      "raw": "10",
+      "min": 10.0,
+      "max": 10.0,
+      "bbox": [
+        338.880014648,
+        376.67999999999995,
+        368.7724033533103,
+        392.75998657299994
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r17c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        3
+      ],
+      "raw": "14",
+      "min": 14.0,
+      "max": 14.0,
+      "bbox": [
+        368.7724033533103,
+        376.67999999999995,
+        399.37240945731037,
+        392.75998657299994
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r17c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        4
+      ],
+      "raw": "0",
+      "min": 0.0,
+      "max": 0.0,
+      "bbox": [
+        399.37240945731037,
+        376.67999999999995,
+        430.200491455,
+        392.75998657299994
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r17c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        5
+      ],
+      "raw": "8",
+      "min": 8.0,
+      "max": 8.0,
+      "bbox": [
+        430.200491455,
+        376.67999999999995,
+        460.800497558,
+        392.75998657299994
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r17c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        6
+      ],
+      "raw": "0",
+      "min": 0.0,
+      "max": 0.0,
+      "bbox": [
+        460.800497558,
+        376.67999999999995,
+        491.519998779,
+        392.75998657299994
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r24c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        1
+      ],
+      "raw": "12",
+      "min": 12.0,
+      "max": 12.0,
+      "bbox": [
+        309.2405,
+        515.039485352,
+        338.880014648,
+        531.120002442
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r24c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        2
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        338.880014648,
+        515.039485352,
+        368.7724033533103,
+        531.120002442
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r24c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        3
+      ],
+      "raw": "0",
+      "min": 0.0,
+      "max": 0.0,
+      "bbox": [
+        368.7724033533103,
+        515.039485352,
+        399.37240945731037,
+        531.120002442
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r24c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        4
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        399.37240945731037,
+        515.039485352,
+        430.200491455,
+        531.120002442
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r24c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        5
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        430.200491455,
+        515.039485352,
+        460.800497558,
+        531.120002442
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r24c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        6
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        460.800497558,
+        515.039485352,
+        491.519998779,
+        531.120002442
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r30c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        1
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        309.2405,
+        624.599998169,
+        338.880014648,
+        640.6795
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r30c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        2
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        338.880014648,
+        624.599998169,
+        368.7724033533103,
+        640.6795
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r30c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        3
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        368.7724033533103,
+        624.599998169,
+        399.37240945731037,
+        640.6795
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r30c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        4
+      ],
+      "raw": "12",
+      "min": 12.0,
+      "max": 12.0,
+      "bbox": [
+        399.37240945731037,
+        624.599998169,
+        430.200491455,
+        640.6795
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r30c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        5
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        430.200491455,
+        624.599998169,
+        460.800497558,
+        640.6795
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r30c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Subtotal",
+      "semesters": [
+        6
+      ],
+      "raw": "6",
+      "min": 6.0,
+      "max": 6.0,
+      "bbox": [
+        460.800497558,
+        624.599998169,
+        491.519998779,
+        640.6795
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r35c2",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Summe",
+      "semesters": [
+        1
+      ],
+      "raw": "30",
+      "min": 30.0,
+      "max": 30.0,
+      "bbox": [
+        309.2405,
+        705.239997559,
+        338.880014648,
+        721.440002137
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r35c3",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Summe",
+      "semesters": [
+        2
+      ],
+      "raw": "30",
+      "min": 30.0,
+      "max": 30.0,
+      "bbox": [
+        338.880014648,
+        705.239997559,
+        368.7724033533103,
+        721.440002137
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r35c4",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Summe",
+      "semesters": [
+        3
+      ],
+      "raw": "28",
+      "min": 28.0,
+      "max": 28.0,
+      "bbox": [
+        368.7724033533103,
+        705.239997559,
+        399.37240945731037,
+        721.440002137
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r35c5",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Summe",
+      "semesters": [
+        4
+      ],
+      "raw": "30",
+      "min": 30.0,
+      "max": 30.0,
+      "bbox": [
+        399.37240945731037,
+        705.239997559,
+        430.200491455,
+        721.440002137
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r35c6",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Summe",
+      "semesters": [
+        5
+      ],
+      "raw": "32",
+      "min": 32.0,
+      "max": 32.0,
+      "bbox": [
+        430.200491455,
+        705.239997559,
+        460.800497558,
+        721.440002137
+      ],
+      "shared_rows": false
+    },
+    {
+      "id": "p8t1r35c7",
+      "table": "p8t1",
+      "page": 8,
+      "row": "Summe",
+      "semesters": [
+        6
+      ],
+      "raw": "30",
+      "min": 30.0,
+      "max": 30.0,
+      "bbox": [
+        460.800497558,
+        705.239997559,
+        491.519998779,
+        721.440002137
+      ],
+      "shared_rows": false
+    }
+  ],
+  "tables": [
+    {
+      "id": "p8t1",
+      "page": 8,
+      "rows": [
+        [
+          "Modulkomplexe bzw. Modul",
+          "Leistungspunkte (LP) im Seme-\nster",
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Summe\nLP"
+        ],
+        [
+          "",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          ""
+        ],
+        [
+          "Mathematische-Methodische Grundlagen",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "11112 Mathematik IT-1 (Diskrete Mathematik)",
+          "8",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "11113 Mathematik IT-2 (Lineare Algebra)",
+          "",
+          "8",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "11213 Mathematik IT-3 (Analysis)",
+          "",
+          "",
+          "8",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Wahlbereich Grundlagen der Statistik",
+          "",
+          "",
+          "",
+          "6",
+          "",
+          "",
+          ""
+        ],
+        [
+          "13268 Einführung in die ökonometrische Datenana-\nlyse",
+          "",
+          "",
+          "",
+          "",
+          "6",
+          "",
+          ""
+        ],
+        [
+          "Wahlbereich Mathematische und methodische\nGrundlagen",
+          "",
+          "",
+          "",
+          "",
+          "6",
+          "",
+          ""
+        ],
+        [
+          "",
+          "8",
+          "8",
+          "8",
+          "6",
+          "12",
+          "0",
+          "42"
+        ],
+        [
+          "Informatik-Grundlagen",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "12102 Programmierpraktikum",
+          "4",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "12101 Algorithmieren und Programmieren",
+          "",
+          "10",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "12330 Datenbanken",
+          "",
+          "",
+          "6",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "12104 Entwicklung von Softwaresystemen",
+          "",
+          "",
+          "8",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Wahlbereich Informatik-Grundlagen",
+          "",
+          "",
+          "",
+          "",
+          "8",
+          "",
+          ""
+        ],
+        [
+          "",
+          "4",
+          "10",
+          "14",
+          "0",
+          "8",
+          "0",
+          "36"
+        ],
+        [
+          "Wirtschaftswissenschaftliche Grundlagen",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "12160 Allgemeine Betriebswirtschaftslehre I: Grund-\nlagen der BWL",
+          "6",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Wahlbereich Volkwirtschaftliche Grundlagen",
+          "6",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Wahlbereich Betriebswirtschaftliche Grundlagen",
+          "",
+          "6",
+          "",
+          "",
+          "6",
+          "",
+          ""
+        ],
+        [
+          "Wahlbereich Weitere wirtschaftswissenschaftliche\nGrundlagen",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "6",
+          ""
+        ],
+        [
+          "Wahlbereich Seminar Wirtschaftswissenschaften",
+          "",
+          "",
+          "",
+          "6",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "12",
+          "6",
+          "0",
+          "6",
+          "6",
+          "6",
+          "36"
+        ],
+        [
+          "Wirtschaftsinformatik",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "13977 Grundlagen der Wirtschaftsinformatik",
+          "6",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "14096 Betriebliche Informationssysteme",
+          "",
+          "6",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "14097 Geschäftsprozessmodellierung und -manage-\nment",
+          "",
+          "",
+          "6",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Wahlbereich Wirtschaftsinformatik",
+          "",
+          "",
+          "",
+          "12",
+          "6",
+          "6",
+          ""
+        ],
+        [
+          "",
+          "6",
+          "6",
+          "6",
+          "12",
+          "6",
+          "6",
+          "42"
+        ],
+        [
+          "FÜS, Praxis und Bachelor-Arbeit",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "Fachübergreifendes Studium (FÜS)",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "6",
+          "6"
+        ],
+        [
+          "Wahlbereich Praxis der Wirtschaftsinformatik",
+          "",
+          "",
+          "",
+          "6",
+          "",
+          "",
+          "6"
+        ],
+        [
+          "Bachelor-Arbeit",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "12",
+          "12"
+        ],
+        [
+          "Summe",
+          "30",
+          "30",
+          "28",
+          "30",
+          "32",
+          "30",
+          "180"
+        ]
+      ]
+    }
+  ],
+  "issues": [],
+  "start_term": "unknown"
+}

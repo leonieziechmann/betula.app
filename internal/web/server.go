@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -185,7 +186,7 @@ func (s *Server) routes() {
 
 	// Static / SPA or legacy embedded routes
 	if s.staticDir != "" {
-		s.mux.Handle("/", http.FileServer(http.Dir(s.staticDir)))
+		s.mux.Handle("/", spaHandler(s.staticDir))
 	} else {
 		staticSubFS, err := fs.Sub(contentFS, "static")
 		if err == nil {
@@ -197,6 +198,33 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("/modules/", s.wrap(s.handleModuleModal))
 		s.mux.HandleFunc("/stats", s.wrap(s.handleStatsPage))
 	}
+}
+
+// Serve the Rust entry point for application routes, including direct navigation
+// and refreshes. Missing assets and API endpoints must still return a real 404.
+func spaHandler(dir string) http.Handler {
+	files := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+		appRoute := r.URL.Path == "/" || r.URL.Path == "/catalogue" || r.URL.Path == "/catalouge"
+		if len(parts) == 2 && parts[0] == "course" && parts[1] != "" {
+			appRoute = true
+		}
+		if (len(parts) == 2 || len(parts) == 3) && parts[0] == "study-programm" && parts[1] != "" {
+			appRoute = len(parts) == 2 || parts[2] == "plan" || parts[2] == "electives" || parts[2] == "modules"
+		}
+		if appRoute {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				w.Header().Set("Allow", "GET, HEAD")
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Cache-Control", "no-cache")
+			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+			return
+		}
+		files.ServeHTTP(w, r)
+	})
 }
 
 // wrap provides latency and error rate load monitoring
@@ -223,7 +251,6 @@ func (rw *statusResponseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
 }
-
 
 // Start runs the HTTP server listening on the specified port.
 func (s *Server) Start(port string) error {

@@ -7,16 +7,13 @@ use crate::components::{
     study_program_selector::{format_program_title, format_po_labels, format_degree_short},
 };
 
-#[derive(Clone, Copy, PartialEq)]
-enum ProgramViewTab {
-    Plan,
-    Electives,
-    All,
-}
+use crate::query::ProgramTab as ProgramViewTab;
 
 #[component]
 pub fn StudyProgramDetailPage<FBack, FOpen, FSelectProg>(
     program_id: String,
+    active_tab: Signal<ProgramViewTab>,
+    on_tab_change: Callback<ProgramViewTab>,
     on_back: FBack,
     on_open_module: FOpen,
     on_select_program: FSelectProg,
@@ -33,7 +30,7 @@ where
     let modules = StoredValue::new(get_study_program_curriculum_modules(&prog_id_clone));
 
     // Active view tab (Plan vs Electives vs All)
-    let (active_tab, set_active_tab) = signal(ProgramViewTab::Plan);
+
 
     // Share link toast
     let (share_copied, set_share_copied) = signal(false);
@@ -41,11 +38,11 @@ where
     let (selected_area_filter, set_selected_area_filter) = signal(Option::<String>::None);
 
     let on_share = {
-        let p_id = program_id.clone();
+
         Callback::new(move |_| {
             if let Some(win) = web_sys::window() {
                 let loc = win.location();
-                let share_url = format!("{}{}?program={}", loc.origin().unwrap_or_default(), loc.pathname().unwrap_or_default(), p_id);
+                let share_url = format!("{}{}", loc.origin().unwrap_or_default(), loc.pathname().unwrap_or_default());
                 let nav = win.navigator();
                 let clipboard = nav.clipboard();
                 let _ = clipboard.write_text(&share_url);
@@ -79,8 +76,8 @@ where
                     let prog_modules = modules.get_value();
 
                     // Calculate stats
-                    let total_mods = prog_modules.len();
-                    let total_credits: f64 = prog_modules.iter().filter_map(|m| m.credits).sum();
+                    let total_mods = prog_modules.iter().filter(|m| !m.id.starts_with("curriculum_")).map(|m| &m.id).collect::<HashSet<_>>().len();
+                    let total_credits = get_verified_study_plan(&detail.id).map(|p| p.total_label()).unwrap_or_else(|| "Noch nicht bestätigt".to_string());
 
                     // 1. Mandatory Modules grouped by recommended semester (1, 2, 3, ...)
                     let mut mandatory_semesters: BTreeMap<i64, Vec<ModuleCardItem>> = BTreeMap::new();
@@ -149,7 +146,7 @@ where
                     let study_sections_display = if !study_sections_set.is_empty() {
                         study_sections_set.into_iter().collect::<Vec<_>>().join(" & ")
                     } else {
-                        "Grund- & Fachstudium".to_string()
+                        "Laut Studienordnung".to_string()
                     };
                     let subject_areas_count = subject_areas.len();
 
@@ -194,7 +191,7 @@ where
                                         } else {
                                             view! {}.into_any()
                                         }}
-                                        <span class="badge badge-ects">{format!("{} ECTS gesamt", total_credits as i64)}</span>
+                                        <span class="badge badge-ects">{if total_credits=="Noch nicht bestätigt" {"Studienplan noch nicht bestätigt".to_string()} else {format!("{} im Studienplan", total_credits)}}</span>
                                     </div>
                                     <h1 class="program-detail-title">{full_title.clone()}</h1>
                                     <div class="program-detail-subtitle">
@@ -245,7 +242,7 @@ where
                             // Left Main Column: Structured Curriculum Plan & Electives
                             <div style="display: flex; flex-direction: column; gap: 1.5rem;">
                                 <ContentBox
-                                    title=format!("Studienplan & Module ({})", total_mods)
+                                    title="Studienplan & Modulkatalog"
                                     emoji="📚"
                                 >
                                     // View Tabs
@@ -253,21 +250,21 @@ where
                                         <button
                                             type="button"
                                             class=move || format!("btn-curriculum-tab {}", if active_tab.get() == ProgramViewTab::Plan { "active" } else { "" })
-                                            on:click=move |_| set_active_tab.set(ProgramViewTab::Plan)
+                                            on:click=move |_| on_tab_change.run(ProgramViewTab::Plan)
                                         >
-                                            "📅 Studienablaufplan (Pflicht)"
+                                            "Regelstudienplan"
                                         </button>
                                         <button
                                             type="button"
                                             class=move || format!("btn-curriculum-tab {}", if active_tab.get() == ProgramViewTab::Electives { "active" } else { "" })
-                                            on:click=move |_| set_active_tab.set(ProgramViewTab::Electives)
+                                            on:click=move |_| on_tab_change.run(ProgramViewTab::Electives)
                                         >
                                             "📂 Wahlpflicht & Fachbereiche"
                                         </button>
                                         <button
                                             type="button"
                                             class=move || format!("btn-curriculum-tab {}", if active_tab.get() == ProgramViewTab::All { "active" } else { "" })
-                                            on:click=move |_| set_active_tab.set(ProgramViewTab::All)
+                                            on:click=move |_| on_tab_change.run(ProgramViewTab::All)
                                         >
                                             "Alle Module"
                                         </button>
@@ -280,166 +277,55 @@ where
                                             </p>
                                         }.into_any()
                                     } else {
-                                        let mand_groups = mandatory_semesters.clone();
+                                        let plan_program_id = detail.id.clone();
+                                        let plan_modules = prog_modules.clone();
                                         let sub_groups = subject_areas.clone();
-                                        let thesis_mods = final_thesis_modules.clone();
+                                        // The catalog stays usable even when the semester plan needs review.
+                                        let mut catalog_by_id = BTreeMap::new();
+                                        for m in &prog_modules {
+                                            if !m.id.starts_with("curriculum_") {
+                                                if m.source_file.as_deref()==Some("qis_tree") || !catalog_by_id.contains_key(&m.id) {
+                                                    catalog_by_id.insert(m.id.clone(),m.clone());
+                                                }
+                                            }
+                                        }
+                                        let mut catalog_modules: Vec<_> = catalog_by_id.into_values().collect();
+                                        catalog_modules.sort_by(|a,b|a.title_de.cmp(&b.title_de));
+                                        let catalog_groups = if catalog_modules.is_empty() {BTreeMap::new()} else {
+                                            BTreeMap::from([("Module im Katalog".to_string(),catalog_modules)])
+                                        };
 
                                         view! {
                                             <div style="display: flex; flex-direction: column; gap: 1.75rem;">
-                                                // 1. SECTION: Studienablaufplan (Pflichtmodule nach Semester 1..6)
+                                                // Semesterplan mit Quellbelegen, Zeiträumen und Arbeitsaufwand.
                                                 {move || {
-                                                    let tab = active_tab.get();
-                                                    if (tab == ProgramViewTab::Plan || tab == ProgramViewTab::All) && !mand_groups.is_empty() {
-                                                        view! {
-                                                            <div class="curriculum-semesters-container">
-                                                                <h3 style="font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: -0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                                                                    <span>"📅"</span> "Regelstudienplan (Studienablaufplan nach Fachsemester)"
-                                                                </h3>
-                                                                {mand_groups.clone().into_iter().map(|(sem, s_mods)| {
-                                                                    let sem_credits: f64 = s_mods.iter().filter_map(|m| m.credits).sum();
-                                                                    let explicit_section = s_mods.iter().find_map(|m| m.study_section.as_ref().filter(|s| !s.trim().is_empty()));
-                                                                    let study_section_label = explicit_section.cloned().unwrap_or_else(|| {
-                                                                        if sem <= 2 {
-                                                                            "Grundstudium".to_string()
-                                                                        } else if sem <= 4 {
-                                                                            "Fachstudium".to_string()
-                                                                        } else {
-                                                                            "Vertiefungsstudium".to_string()
-                                                                        }
-                                                                    });
-
-                                                                    view! {
-                                                                        <div class="curriculum-semester-block">
-                                                                            <div class="curriculum-semester-header">
-                                                                                <div class="curriculum-semester-header-left">
-                                                                                    <span class="curriculum-semester-badge-num">{format!("{}. Fachsemester", sem)}</span>
-                                                                                    <span class="badge-study-section">{study_section_label}</span>
-                                                                                    <span style="font-size: 0.85rem; color: #64748b;">"(" {s_mods.len()} " Module / Fächer)"</span>
-                                                                                </div>
-                                                                                <span class="curriculum-semester-ects-badge">{format!("{} ECTS", sem_credits as i64)}</span>
-                                                                            </div>
-                                                                            <div class="curriculum-module-list">
-                                                                                {s_mods.into_iter().map(|m| {
-                                                                                    let m_id = m.id.clone();
-                                                                                    let m_id_click = m.id.clone();
-                                                                                    let is_comp = completed_modules.get().contains(&m_id);
-                                                                                    let is_bkmk = bookmarked_modules.get().contains(&m_id);
-                                                                                    let cr = if let (Some(min), Some(max)) = (m.min_credits, m.max_credits) {
-                                                                                        if min > 0.0 && max > min {
-                                                                                            format!("{}–{} ECTS", min as i64, max as i64)
-                                                                                        } else if let Some(c) = m.credits {
-                                                                                            format!("{} ECTS", c as i64)
-                                                                                        } else {
-                                                                                            String::new()
-                                                                                        }
-                                                                                    } else if let Some(c) = m.credits {
-                                                                                        format!("{} ECTS", c as i64)
-                                                                                    } else {
-                                                                                        String::new()
-                                                                                    };
-                                                                                    let turn = m.turnus.clone().unwrap_or_default();
-                                                                                    let code = m.code.clone().unwrap_or_default();
-                                                                                    let area = m.subject_area.clone().unwrap_or_default();
-                                                                                    let rules = m.area_rules.clone().unwrap_or_default();
-
-                                                                                    view! {
-                                                                                        <div
-                                                                                            class=move || format!("curriculum-module-item {} {}", if is_comp { "is-completed" } else { "" }, if is_bkmk { "is-bookmarked" } else { "" })
-                                                                                            on:click=move |_| on_open_module(m_id_click.clone())
-                                                                                        >
-                                                                                            <div class="curriculum-module-left">
-                                                                                                <span class=move || format!("curriculum-module-status-btn {}", if is_comp { "completed" } else { "" })>
-                                                                                                    {if is_comp { "✓" } else if is_bkmk { "★" } else { "○" }}
-                                                                                                </span>
-                                                                                                <div class="curriculum-module-info">
-                                                                                                    <div class="curriculum-module-title-row">
-                                                                                                        <span class="curriculum-module-title">{m.title_de}</span>
-                                                                                                    </div>
-                                                                                                    <div class="curriculum-module-meta">
-                                                                                                        {if !code.is_empty() {
-                                                                                                            view! { <span class="badge badge-id">{code}</span> }.into_any()
-                                                                                                        } else {
-                                                                                                            view! {}.into_any()
-                                                                                                        }}
-                                                                                                        {if let (Some(start), Some(end)) = (m.start_semester, m.end_semester) {
-                                                                                                            if start > 0 && end > start {
-                                                                                                                view! { <span class="badge" style="background: #fef3c7; color: #b45309; font-weight: 600;">{format!("{}-semestrig (Sem. {}–{})", end - start + 1, start, end)}</span> }.into_any()
-                                                                                                            } else {
-                                                                                                                view! {}.into_any()
-                                                                                                            }
-                                                                                                        } else {
-                                                                                                            view! {}.into_any()
-                                                                                                        }}
-                                                                                                        {if let Some(ref span) = m.semester_span {
-                                                                                                            if !span.trim().is_empty() && m.start_semester.unwrap_or(0) == 0 {
-                                                                                                                view! { <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600;">{format!("Sem. {}", span)}</span> }.into_any()
-                                                                                                            } else {
-                                                                                                                view! {}.into_any()
-                                                                                                            }
-                                                                                                        } else {
-                                                                                                            view! {}.into_any()
-                                                                                                        }}
-                                                                                                        {if !area.is_empty() {
-                                                                                                            view! { <span class="badge-subject-area">{area}</span> }.into_any()
-                                                                                                        } else {
-                                                                                                            view! {}.into_any()
-                                                                                                        }}
-                                                                                                        {if !rules.is_empty() {
-                                                                                                            view! { <span class="badge" style="background: #f1f5f9; color: #475569; font-size: 0.75rem;">{rules}</span> }.into_any()
-                                                                                                        } else {
-                                                                                                            view! {}.into_any()
-                                                                                                        }}
-                                                                                                        {if !turn.is_empty() {
-                                                                                                            view! { <span>"• " {turn}</span> }.into_any()
-                                                                                                        } else {
-                                                                                                            view! {}.into_any()
-                                                                                                        }}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            </div>
-                                                                                            <div class="curriculum-module-right">
-                                                                                                {if !cr.is_empty() {
-                                                                                                    view! { <span class="badge badge-ects">{cr}</span> }.into_any()
-                                                                                                } else {
-                                                                                                    view! {}.into_any()
-                                                                                                }}
-                                                                                                <span style="color: var(--primary); font-size: 0.82rem; font-weight: 600;">"Details →"</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    }
-                                                                                }).collect::<Vec<_>>()}
-                                                                            </div>
-                                                                        </div>
-                                                                    }
-                                                                }).collect::<Vec<_>>()}
-                                                            </div>
-                                                        }.into_any()
-                                                    } else {
-                                                        view! {}.into_any()
-                                                    }
+                                                    if active_tab.get()==ProgramViewTab::Plan {
+                                                        view!{<crate::plan_view::StudyPlanView program_id=plan_program_id.clone() modules=plan_modules.clone() on_open=Callback::new(on_open_module) completed=completed_modules bookmarked=bookmarked_modules/>}.into_any()
+                                                    }else{().into_any()}
                                                 }}
 
                                                 // 2. SECTION: Wahlpflichtbereiche & Fachbereiche
                                                 {move || {
                                                     let tab = active_tab.get();
-                                                    if (tab == ProgramViewTab::Electives || tab == ProgramViewTab::All) && !sub_groups.is_empty() {
+                                                    let groups = if tab==ProgramViewTab::All {catalog_groups.clone()} else {sub_groups.clone()};
+                                                    if (tab == ProgramViewTab::Electives || tab == ProgramViewTab::All) && !groups.is_empty() {
                                                         view! {
                                                             <div style="display: flex; flex-direction: column; gap: 1.25rem;">
                                                                 <h3 style="font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: -0.25rem; display: flex; align-items: center; gap: 0.5rem;">
-                                                                    <span>"📂"</span> "Wahlpflichtkataloge, Vertiefungen & Fachbereiche"
+                                                                    <span>"📂"</span> {if tab==ProgramViewTab::All {"Alle Module des Studiengangs"} else {"Wahlpflichtkataloge, Vertiefungen & Fachbereiche"}}
                                                                 </h3>
 
                                                                 // Interactive Subject Area Filter Chips
-                                                                <div class="subject-area-filter-bar">
+                                                                <div class="subject-area-filter-bar" style:display=if tab==ProgramViewTab::All {"none"} else {"flex"}>
                                                                     <button
                                                                         type="button"
                                                                         class=move || format!("btn-area-filter-chip {}", if selected_area_filter.get().is_none() { "active" } else { "" })
                                                                         on:click=move |_| set_selected_area_filter.set(None)
                                                                     >
                                                                         <span>"Alle Bereiche"</span>
-                                                                        <span class="chip-count">{sub_groups.len()}</span>
+                                                                        <span class="chip-count">{groups.len()}</span>
                                                                     </button>
-                                                                    {sub_groups.iter().map(|(area_name, a_mods)| {
+                                                                    {groups.iter().map(|(area_name, a_mods)| {
                                                                         let a_name_click = area_name.clone();
                                                                         let a_name_active = area_name.clone();
                                                                         let count = a_mods.len();
@@ -462,13 +348,13 @@ where
                                                                     }).collect::<Vec<_>>()}
                                                                 </div>
 
-                                                                {sub_groups.clone().into_iter().filter(|(area_title, _)| {
-                                                                    let sel = selected_area_filter.get();
+                                                                {groups.into_iter().filter(|(area_title, _)| {
+                                                                    let sel = if tab==ProgramViewTab::All {None} else {selected_area_filter.get()};
                                                                     sel.is_none() || sel.as_deref() == Some(area_title.as_str())
                                                                 }).map(|(area_title, a_mods)| {
                                                                     // Extract any rule hint from the first module having one
                                                                     let area_rule_opt = a_mods.iter().find_map(|m| m.area_rules.as_ref()).cloned();
-                                                                    let total_area_credits: f64 = a_mods.iter().filter_map(|m| m.credits).sum();
+
 
                                                                     view! {
                                                                         <div class="subject-area-block">
@@ -477,7 +363,7 @@ where
                                                                                     <span style="font-weight: 700; color: #1e293b;">{area_title}</span>
                                                                                     <span style="font-size: 0.8rem; color: #64748b;">"(" {a_mods.len()} " Module)"</span>
                                                                                 </div>
-                                                                                <span class="badge badge-ects">{format!("{} ECTS Pool", total_area_credits as i64)}</span>
+                                                                                <span class="badge badge-ects">{if tab==ProgramViewTab::All {"Modulkatalog"} else {"Auswahlkatalog"}}</span>
                                                                             </div>
 
                                                                             {if let Some(rule) = area_rule_opt {
@@ -560,63 +446,7 @@ where
                                                     }
                                                 }}
 
-                                                // 3. SECTION: Abschlussarbeiten
-                                                {if !thesis_mods.is_empty() {
-                                                    view! {
-                                                        <div class="subject-area-block">
-                                                            <div class="subject-area-header">
-                                                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                                    <span style="font-weight: 700; color: #1e293b;">"🎓 Abschlussarbeit & Kolloquium"</span>
-                                                                </div>
-                                                            </div>
-                                                            <div class="curriculum-module-list">
-                                                                {thesis_mods.into_iter().map(|m| {
-                                                                    let m_id = m.id.clone();
-                                                                    let m_id_click = m.id.clone();
-                                                                    let is_comp = completed_modules.get().contains(&m_id);
-                                                                    let is_bkmk = bookmarked_modules.get().contains(&m_id);
-                                                                    let cr = m.credits.map(|c| format!("{} ECTS", c as i64)).unwrap_or_default();
-                                                                    let code = m.code.clone().unwrap_or_default();
-
-                                                                    view! {
-                                                                        <div
-                                                                            class=move || format!("curriculum-module-item {} {}", if is_comp { "is-completed" } else { "" }, if is_bkmk { "is-bookmarked" } else { "" })
-                                                                            on:click=move |_| on_open_module(m_id_click.clone())
-                                                                        >
-                                                                            <div class="curriculum-module-left">
-                                                                                <span class=move || format!("curriculum-module-status-btn {}", if is_comp { "completed" } else { "" })>
-                                                                                    {if is_comp { "✓" } else if is_bkmk { "★" } else { "○" }}
-                                                                                </span>
-                                                                                <div class="curriculum-module-info">
-                                                                                    <span class="curriculum-module-title">{m.title_de}</span>
-                                                                                    <div class="curriculum-module-meta">
-                                                                                        {if !code.is_empty() {
-                                                                                            view! { <span class="badge badge-id">{code}</span> }.into_any()
-                                                                                        } else {
-                                                                                            view! {}.into_any()
-                                                                                        }}
-                                                                                        <span class="badge-module-type-tag pflicht">"Pflicht-Abschluss"</span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="curriculum-module-right">
-                                                                                {if !cr.is_empty() {
-                                                                                    view! { <span class="badge badge-ects">{cr}</span> }.into_any()
-                                                                                } else {
-                                                                                    view! {}.into_any()
-                                                                                }}
-                                                                                <span style="color: var(--primary); font-size: 0.82rem; font-weight: 600;">"Details →"</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    }
-                                                                }).collect::<Vec<_>>()}
-                                                            </div>
-                                                        </div>
-                                                    }.into_any()
-                                                } else {
-                                                    view! {}.into_any()
-                                                }}
-                                            </div>
+                                                                                            </div>
                                         }.into_any()
                                     }}
                                 </ContentBox>
@@ -628,7 +458,7 @@ where
                                 <ContentBox title="Übersicht" emoji="📊">
                                     <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.88rem;">
                                         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
-                                            <span style="color: #64748b;">"Gesamte Module:"</span>
+                                            <span style="color: #64748b;">"Module im Katalog:"</span>
                                             <strong>{total_mods}</strong>
                                         </div>
                                         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
@@ -640,8 +470,8 @@ where
                                             <span style="font-weight: 600; text-align: right; max-width: 60%;">{study_sections_display}</span>
                                         </div>
                                         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
-                                            <span style="color: #64748b;">"Summe ECTS:"</span>
-                                            <strong>{total_credits as i64} " ECTS"</strong>
+                                            <span style="color: #64748b;">"ECTS laut Studienplan:"</span>
+                                            <strong>{total_credits.clone()}</strong>
                                         </div>
                                         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
                                             <span style="color: #64748b;">"Abschlussgrad:"</span>

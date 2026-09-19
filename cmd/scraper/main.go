@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -11,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1032,10 +1034,29 @@ func runScanCurriculum(ctx context.Context, args []string) {
 	modelFlag := fs.String("model", "", "Gemini model (default: gemini-3.5-flash-lite)")
 	delayMs := fs.Int("delay", 500, "Polite delay in milliseconds between requests (default: 500ms)")
 	force := fs.Bool("force", false, "Force re-scan even if curriculum already extracted")
-	asJSON := fs.Bool("json", false, "Output results as raw JSON")
+	asJSON := fs.Bool("json", false, "Output extraction and validation reports as JSON Lines")
+	dryRun := fs.Bool("dry-run", false, "Validate and write reports without changing curriculum records")
+	startTerm := fs.String("start-term", "auto", "Intake: auto, winter, summer, unknown")
+	tolerance := fs.Float64("credit-tolerance", 6, "Allowed deviation from expected semester LP (warning only)")
+	reportDir := fs.String("report-dir", ".cache/curriculum", "Directory for extraction and validation evidence")
+	programID := fs.String("program-id", "", "Exact official program ID")
+	pdfPath := fs.String("pdf", "", "Explicit regulation PDF (otherwise resolve base statute and reviewed amendments)")
+	planPages := fs.String("plan-pages", "", "Physical PDF pages containing complete plan variants, e.g. 7,9 (requires --pdf)")
 	_ = fs.Parse(reorderFlags(args))
+	if *pdfPath != "" && *programID == "" {
+		fmt.Fprintln(os.Stderr, "Error: --pdf requires --program-id to avoid assigning one document to unrelated programs")
+		os.Exit(1)
+	}
 
-	cfg, _, _ := config.Load("")
+	if (*startTerm != "auto" && *startTerm != "winter" && *startTerm != "summer" && *startTerm != "unknown") || *tolerance < 0 {
+		fmt.Fprintln(os.Stderr, "Error: invalid --start-term or negative --credit-tolerance")
+		os.Exit(1)
+	}
+	cfg, _, err := config.Load("")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	apiKey := *apiKeyFlag
 	if apiKey == "" {
 		apiKey = cfg.Gemini.APIKey
@@ -1061,6 +1082,53 @@ func runScanCurriculum(ctx context.Context, args []string) {
 	defer store.Close()
 
 	geminiClient := gemini.NewClient(apiKey, modelName)
+	if *planPages != "" {
+		if *pdfPath == "" {
+			fmt.Fprintln(os.Stderr, "--plan-pages requires --pdf")
+			os.Exit(1)
+		}
+		for _, part := range strings.Split(*planPages, ",") {
+			n, err := strconv.Atoi(strings.TrimSpace(part))
+			if err != nil || n < 1 {
+				fmt.Fprintln(os.Stderr, "Invalid --plan-pages: use comma-separated positive page numbers")
+				os.Exit(1)
+			}
+			geminiClient.PlanPages = append(geminiClient.PlanPages, n)
+		}
+	}
+	selectedPages := append([]int(nil), geminiClient.PlanPages...)
+	catalog, err := store.GetCurriculumCatalog()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(*reportDir, 0755); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	audit, err := logger.NewCurriculumAudit(*reportDir, apiKey)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Cannot create curriculum log:", err)
+		os.Exit(1)
+	}
+	defer audit.Close()
+	*reportDir = audit.Dir
+	fmt.Fprintln(os.Stderr, "Curriculum audit:", audit.Dir)
+	logEvent := func(e logger.CurriculumEvent) {
+		if err := audit.Record(e); err != nil {
+			fmt.Fprintln(os.Stderr, "Cannot persist curriculum log:", err)
+			os.Exit(1)
+		}
+	}
+	finishAudit := func(status string) {
+		if err := store.Checkpoint(); err != nil {
+			logEvent(logger.CurriculumEvent{Level: "error", Code: "checkpoint_failed", Message: err.Error(), Action: "Datenbank-Snapshot vor dem Bereitstellen prüfen."})
+		}
+		if err := audit.Finish(status); err != nil {
+			fmt.Fprintln(os.Stderr, "Cannot persist audit summary:", err)
+			os.Exit(1)
+		}
+	}
 
 	programs, err := store.ListOfficialPrograms(*nameFilter, *degreeFilter)
 	if err != nil {
@@ -1069,94 +1137,187 @@ func runScanCurriculum(ctx context.Context, args []string) {
 	}
 
 	if len(programs) == 0 {
-		fmt.Println("No study programs found matching filter.")
+		fmt.Fprintln(os.Stderr, "No study programs found matching filter.")
+		finishAudit("no_programs")
 		return
 	}
 
 	// Filter to programs that have downloaded statute PDFs
 	var eligible []model.OfficialStudyProgram
 	for _, p := range programs {
-		hasLocalDoc := false
-		for _, doc := range p.Documents {
-			if doc.LocalPath != "" {
-				if fi, err := os.Stat(doc.LocalPath); err == nil && fi.Size() > 0 {
-					hasLocalDoc = true
-					break
-				}
-			}
+		if *programID != "" && p.ID != *programID {
+			continue
 		}
-		if hasLocalDoc {
+		if *pdfPath != "" {
 			eligible = append(eligible, p)
+			continue
 		}
+		// Missing documents are outcomes too, rather than silently omitted programs.
+		eligible = append(eligible, p)
 	}
 
 	if len(eligible) == 0 {
-		fmt.Println("No downloaded statute PDFs found for matching study programs.")
-		fmt.Println("Hint: Run 'scraper download-statutes' first to download the regulation PDFs.")
+		fmt.Fprintln(os.Stderr, "No downloaded statute PDFs found for matching study programs.")
+		fmt.Fprintln(os.Stderr, "Hint: Run 'scraper download-statutes' first to download the regulation PDFs.")
+		finishAudit("no_programs")
 		return
 	}
 
-	fmt.Printf("[+] Starting AI curriculum scan with Gemini (%s) for %d study program branches...\n", modelName, len(eligible))
-	fmt.Printf("    Delay: %dms | Force: %v\n\n", *delayMs, *force)
+	fmt.Fprintf(os.Stderr, "[+] Starting AI curriculum scan with Gemini (%s) for %d study program branches...\n", modelName, len(eligible))
+	fmt.Fprintf(os.Stderr, "    Delay: %dms | Force: %v\n\n", *delayMs, *force)
 
 	start := time.Now()
 	totalExtracted := 0
 	totalMatched := 0
 	programsScanned := 0
+	failed := 0
 
 	for idx, prog := range eligible {
 		select {
 		case <-ctx.Done():
-			fmt.Println("\nAborted by user.")
+			fmt.Fprintln(os.Stderr, "\nAborted by user.")
+			finishAudit("cancelled")
 			return
 		default:
 		}
 
 		// Check if already scanned
 		if !*force {
-			existing, _ := store.GetProgramCurriculum(prog.ID)
-			if len(existing) > 0 {
-				fmt.Printf("[%d/%d] ⏭️  %s (%s): already has %d curriculum modules (use --force to re-scan)\n",
-					idx+1, len(eligible), prog.ProgramName, prog.Degree, len(existing))
+			verified, err := store.HasValidatedCurriculum(prog.ID)
+			if err != nil {
+				logEvent(logger.CurriculumEvent{Level: "error", Code: "database_read", ProgramID: prog.ID, Program: prog.ProgramName, Message: err.Error(), Status: "failed", Action: "Datenbankschema und Zugriff prüfen."})
+				failed++
+				continue
+			}
+			if verified {
+				fmt.Fprintf(os.Stderr, "[%d/%d] Validated plan already present: %s\n", idx+1, len(eligible), prog.ProgramName)
+				logEvent(logger.CurriculumEvent{Level: "info", Code: "already_validated", ProgramID: prog.ID, Program: prog.ProgramName, Message: "Existing validated plan preserved", Status: "skipped_validated"})
 				continue
 			}
 		}
 
-		// Find best document to scan: prefer statute over amendment
+		// Never silently use an old base statute when an amendment is also present.
 		var bestDoc *model.ProgramRegulationDocument
-		for i := range prog.Documents {
-			d := &prog.Documents[i]
-			if d.LocalPath == "" {
+		var sourceSelection gemini.RegulationSelection
+		geminiClient.PlanPages = selectedPages
+		var available []model.ProgramRegulationDocument
+		seenPaths := make(map[string]bool)
+		for _, d := range prog.Documents {
+			if fi, err := os.Stat(d.LocalPath); err == nil && fi.Size() > 0 && !seenPaths[d.LocalPath] {
+				available = append(available, d)
+				seenPaths[d.LocalPath] = true
+			}
+		}
+		if *pdfPath != "" {
+			bestDoc = &model.ProgramRegulationDocument{LocalPath: *pdfPath}
+		} else if len(available) == 1 {
+			bestDoc = &available[0]
+		} else if len(available) > 1 {
+			var selectionErr error
+			sourceSelection, selectionErr = gemini.SelectRegulationSources(prog, available)
+			if selectionErr != nil {
+				logEvent(logger.CurriculumEvent{Level: "error", Code: "ambiguous_source", ProgramID: prog.ID, Program: prog.ProgramName, Message: selectionErr.Error(), Status: "needs_review"})
+				failed++
 				continue
 			}
-			if fi, err := os.Stat(d.LocalPath); err != nil || fi.Size() == 0 {
-				continue
-			}
-			if bestDoc == nil || d.DocType == "statute" {
-				bestDoc = d
-				if d.DocType == "statute" {
-					break
-				}
+			bestDoc = &sourceSelection.Plan
+			geminiClient.PlanPages = sourceSelection.Pages
+			for _, review := range sourceSelection.Reviews {
+				logEvent(logger.CurriculumEvent{Level: "info", Code: "amendment_review", ProgramID: prog.ID, Program: prog.ProgramName, Source: review.Source, Message: review.Decision + ": " + review.Evidence + " SHA256=" + review.SHA256})
 			}
 		}
 
 		if bestDoc == nil {
+			logEvent(logger.CurriculumEvent{Level: "warning", Code: "missing_pdf", ProgramID: prog.ID, Program: prog.ProgramName, Message: "No downloaded regulation PDF available", Status: "missing_source", Action: "download-statutes ausführen oder offizielle PDF-Quelle ergänzen."})
+			failed++
 			continue
 		}
+		logEvent(logger.CurriculumEvent{Level: "info", Code: "scan_started", ProgramID: prog.ID, Program: prog.ProgramName, Source: bestDoc.LocalPath, Message: "Extracting and validating study plan", Status: "running"})
 
-		fmt.Printf("[%d/%d] 🤖 Scanning %s (%s) via %s...\n",
+		fmt.Fprintf(os.Stderr, "[%d/%d] 🤖 Scanning %s (%s) via %s...\n",
 			idx+1, len(eligible), prog.ProgramName, prog.Degree, filepath.Base(bestDoc.LocalPath))
 
-		res, err := geminiClient.ExtractCurriculumFromPDF(ctx, bestDoc.LocalPath, prog.ProgramName)
+		res, err := geminiClient.ExtractCurriculumFromPDF(ctx, bestDoc.LocalPath, prog.ProgramName+" / "+prog.Degree+" / PO "+prog.POVersion)
 		if err != nil {
+			err = fmt.Errorf("%s", audit.Clean(err.Error()))
 			fmt.Fprintf(os.Stderr, "    ❌ Error scanning %s: %v\n", bestDoc.LocalPath, err)
+			errorReport := map[string]string{"program_id": prog.ID, "source": bestDoc.LocalPath, "status": "rejected", "error": err.Error()}
+			data, _ := json.MarshalIndent(errorReport, "", "  ")
+			path := filepath.Join(*reportDir, fmt.Sprintf("%x.error.json", sha256.Sum256([]byte(prog.ID+"|"+bestDoc.LocalPath))))
+			if writeErr := os.WriteFile(path, data, 0644); writeErr != nil {
+				fmt.Fprintln(os.Stderr, "Cannot save rejection report:", writeErr)
+			}
+			if *asJSON {
+				_ = json.NewEncoder(os.Stdout).Encode(errorReport)
+			}
+			code, action := logger.ClassifyCurriculumFailure(err.Error())
+			logEvent(logger.CurriculumEvent{Level: "error", Code: code, ProgramID: prog.ID, Program: prog.ProgramName, Source: bestDoc.LocalPath, Message: err.Error(), Action: action, Report: path, Status: "needs_review"})
+			failed++
 			continue
 		}
 
+		if len(sourceSelection.Reviews) > 0 {
+			if applyErr := sourceSelection.Apply(res); applyErr != nil {
+				sourceSelection.Issues = append(sourceSelection.Issues, gemini.ValidationIssue{Severity: "error", Code: "amendment_requires_patch", Message: applyErr.Error()})
+			}
+		}
+		validation := gemini.ValidateCurriculum(res, catalog, *startTerm, *tolerance)
+		validation.Issues = append(validation.Issues, sourceSelection.Issues...)
+		if len(sourceSelection.Issues) > 0 {
+			validation.Valid = false
+		}
+		report := struct {
+			ProgramID  string                             `json:"program_id"`
+			Source     string                             `json:"source"`
+			Extraction *gemini.CurriculumExtractionResult `json:"extraction"`
+			Validation gemini.ValidationReport            `json:"validation"`
+			Model      string                             `json:"model"`
+			CheckedAt  time.Time                          `json:"checked_at"`
+		}{prog.ID, bestDoc.LocalPath, res, validation, modelName, time.Now().UTC()}
+		reportBytes, reportErr := json.MarshalIndent(report, "", "  ")
+		// Program IDs contain characters that are illegal in Windows filenames.
+		reportName := fmt.Sprintf("%x.json", sha256.Sum256([]byte(prog.ID+"|"+bestDoc.LocalPath)))
+		if reportErr == nil {
+			reportErr = os.WriteFile(filepath.Join(*reportDir, reportName), reportBytes, 0644)
+		}
+		if reportErr != nil {
+			fmt.Fprintln(os.Stderr, "Cannot save validation evidence:", reportErr)
+			logEvent(logger.CurriculumEvent{Level: "error", Code: "report_write_failed", ProgramID: prog.ID, Program: prog.ProgramName, Message: reportErr.Error(), Status: "failed", Action: "Freien Speicher und Schreibrechte prüfen."})
+			failed++
+			continue
+		}
+		if *asJSON {
+			_ = json.NewEncoder(os.Stdout).Encode(report)
+		}
+		for _, issue := range validation.Issues {
+			fmt.Fprintf(os.Stderr, "    %s [%s] %s: %s\n", issue.Severity, issue.Code, issue.Module, issue.Message)
+			logEvent(logger.CurriculumEvent{Level: issue.Severity, Code: issue.Code, ProgramID: prog.ID, Program: prog.ProgramName, Source: bestDoc.LocalPath, Module: issue.Module, Message: issue.Message, Report: filepath.Join(*reportDir, reportName), Action: logger.CurriculumIssueAction(issue.Code)})
+		}
+		fmt.Fprintf(os.Stderr, "    Evidence: %s\n", filepath.Join(*reportDir, reportName))
+		if !validation.Valid {
+			fmt.Fprintln(os.Stderr, "    Rejected: existing curriculum preserved.")
+			logEvent(logger.CurriculumEvent{Level: "info", Code: "validation_rejected", ProgramID: prog.ID, Program: prog.ProgramName, Message: "Validation errors; existing records preserved", Status: "needs_review", Report: filepath.Join(*reportDir, reportName)})
+			failed++
+			continue
+		}
+		if *dryRun {
+			logEvent(logger.CurriculumEvent{Level: "info", Code: "dry_run_valid", ProgramID: prog.ID, Program: prog.ProgramName, Message: "Valid extraction, not saved (dry run)", Status: "dry_run_valid"})
+			programsScanned++
+			totalExtracted += len(res.Modules)
+			totalMatched += validation.Matched
+			continue
+		}
 		var curModules []model.CurriculumModule
+		cellEvidence := map[string]string{}
+		for _, cell := range res.Layout.Cells {
+			data, _ := json.Marshal(cell)
+			cellEvidence[cell.ID] = string(data)
+		}
 		for _, m := range res.Modules {
 			curModules = append(curModules, model.CurriculumModule{
+				SourceEvidence:         cellEvidence[m.SourceCell],
 				ProgramID:              prog.ID,
+				ModuleID:               catalogModuleID(m, catalog),
 				ProgramName:            prog.ProgramName,
 				Degree:                 prog.Degree,
 				POVersion:              prog.POVersion,
@@ -1185,21 +1346,26 @@ func runScanCurriculum(ctx context.Context, args []string) {
 			})
 		}
 
-		if err := store.SaveCurriculumModules(prog.ID, prog.ProgramName, prog.Degree, prog.POVersion, curModules, bestDoc.LocalPath); err != nil {
+		layoutData, _ := json.Marshal(res.Layout)
+		if err := store.SaveValidatedCurriculumModules(prog.ID, prog.ProgramName, prog.Degree, prog.POVersion, curModules, bestDoc.LocalPath, string(layoutData)); err != nil {
 			fmt.Fprintf(os.Stderr, "    ❌ Error saving curriculum for %s: %v\n", prog.ProgramName, err)
+			logEvent(logger.CurriculumEvent{Level: "error", Code: "database_write", ProgramID: prog.ID, Program: prog.ProgramName, Message: err.Error(), Status: "failed", Action: "Datenbanktransaktion und Schreibrechte prüfen."})
+			failed++
 			continue
 		}
 
-		totalExt, matched, err := store.MatchAndLinkCurriculumModules(prog.ID)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "    ⚠️ Error matching modules for %s: %v\n", prog.ProgramName, err)
+		totalExt, matched := len(curModules), validation.Matched
+		status := "saved"
+		if len(validation.Issues) > 0 {
+			status = "saved_with_warnings"
 		}
+		logEvent(logger.CurriculumEvent{Level: "info", Code: "saved", ProgramID: prog.ID, Program: prog.ProgramName, Source: bestDoc.LocalPath, Message: fmt.Sprintf("%d requirements, %d catalog links", totalExt, matched), Status: status, Report: filepath.Join(*reportDir, reportName)})
 
 		programsScanned++
 		totalExtracted += totalExt
 		totalMatched += matched
 
-		fmt.Printf("    ✓ Extracted %d curriculum modules (%d linked to catalog modules)\n",
+		fmt.Fprintf(os.Stderr, "    ✓ Extracted %d curriculum modules (%d linked to catalog modules)\n",
 			totalExt, matched)
 
 		if *delayMs > 0 {
@@ -1207,12 +1373,21 @@ func runScanCurriculum(ctx context.Context, args []string) {
 		}
 	}
 
-	fmt.Printf("\n[✓] AI Curriculum Scan completed in %s:\n", time.Since(start).Round(time.Millisecond))
-	fmt.Printf("    • Study Programs Scanned:   %d\n", programsScanned)
-	fmt.Printf("    • Modules Extracted:        %d\n", totalExtracted)
-	fmt.Printf("    • Modules Linked to DB:     %d\n", totalMatched)
+	fmt.Fprintf(os.Stderr, "\n[✓] AI Curriculum Scan completed in %s:\n", time.Since(start).Round(time.Millisecond))
+	fmt.Fprintf(os.Stderr, "    • Study Programs Scanned:   %d\n", programsScanned)
+	fmt.Fprintf(os.Stderr, "    • Modules Extracted:        %d\n", totalExtracted)
+	fmt.Fprintf(os.Stderr, "    • Modules Linked to DB:     %d\n", totalMatched)
+	status := "completed"
+	if failed > 0 {
+		status = "completed_with_issues"
+	}
+	finishAudit(status)
+	fmt.Fprintln(os.Stderr, "Review report:", filepath.Join(audit.Dir, "review.md"))
 
-	_ = asJSON
+	if failed > 0 {
+		fmt.Fprintf(os.Stderr, "%d program(s) require review; existing records were preserved for rejected extractions.\n", failed)
+		os.Exit(1)
+	}
 }
 
 func runQISCurriculum(ctx context.Context, args []string) {
@@ -1380,7 +1555,7 @@ func runShowCurriculum(ctx context.Context, args []string) {
 		for _, sem := range semesters {
 			semHeader := fmt.Sprintf("SEMESTER %d", sem)
 			if sem == 0 {
-				semHeader = "SEMESTERUNABHÄNGIG / WAHLPFLICHTPOOLS"
+				semHeader = "SEMESTERSPANNEN / OHNE FESTES SEMESTER"
 			}
 			fmt.Printf("\n📚 %s:\n", semHeader)
 			fmt.Printf("   %-8s | %-12s | %-45s | %-6s | %s\n", "Code/ID", "Art", "Modulbezeichnung", "ECTS", "Status / Verknüpfung")
@@ -1401,8 +1576,15 @@ func runShowCurriculum(ctx context.Context, args []string) {
 				if m.ModuleID != "" {
 					linkTag = fmt.Sprintf("✓ Modul %s", m.ModuleID)
 				}
-				fmt.Printf("   %-8s | %-12s | %-45s | %4.1f LP | %s\n",
-					codeStr, m.ModuleType, nameStr, m.Credits, linkTag)
+				creditText := fmt.Sprintf("%.1f", m.Credits)
+				if m.MaxCredits > 0 {
+					creditText = fmt.Sprintf("%.1f–%.1f", m.MinCredits, m.MaxCredits)
+				}
+				if m.SemesterSpan != "" {
+					linkTag += " | Semester " + m.SemesterSpan
+				}
+				fmt.Printf("   %-8s | %-12s | %-45s | %s LP | %s\n",
+					codeStr, m.ModuleType, nameStr, creditText, linkTag)
 			}
 			if sem > 0 {
 				fmt.Printf("   -> Semester-Summe: %.1f LP\n", semECTS)
@@ -1411,7 +1593,6 @@ func runShowCurriculum(ctx context.Context, args []string) {
 		fmt.Println()
 	}
 }
-
 
 func runProgramModules(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("program-modules", flag.ExitOnError)
@@ -1769,7 +1950,7 @@ func reorderFlags(args []string) []string {
 			if !strings.Contains(arg, "=") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				flagName := strings.TrimLeft(arg, "-")
 				switch flagName {
-				case "db", "cache-dir", "config", "search", "dept", "min-credits", "max-credits", "limit", "offset", "workers", "delay", "name", "degree", "port", "analytics-db", "log-file", "offpeak-start", "offpeak-end", "out-dir", "api-key", "model", "static-dir":
+				case "db", "cache-dir", "config", "search", "dept", "min-credits", "max-credits", "limit", "offset", "workers", "delay", "name", "degree", "port", "analytics-db", "log-file", "offpeak-start", "offpeak-end", "out-dir", "api-key", "model", "static-dir", "start-term", "credit-tolerance", "report-dir", "program-id", "pdf", "plan-pages":
 					i++
 					flags = append(flags, args[i])
 				}
@@ -1779,4 +1960,11 @@ func reorderFlags(args []string) []string {
 		}
 	}
 	return append(flags, nonFlags...)
+}
+
+func catalogModuleID(m gemini.ExtractedModule, catalog []model.CurriculumCatalogModule) string {
+	if matched := gemini.MatchCatalogModule(m, catalog); matched != nil {
+		return matched.ID
+	}
+	return ""
 }

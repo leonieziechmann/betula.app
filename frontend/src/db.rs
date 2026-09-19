@@ -464,10 +464,10 @@ pub fn get_linked_programs(module_id: &str) -> Vec<ProgramOption> {
 pub fn get_curriculum_entries(module_id: &str) -> Vec<CurriculumModuleItem> {
     let sql = "SELECT DISTINCT p.id as program_id, p.program_name, p.degree, p.po_version, \
                pcm.recommended_semester, pcm.module_type, pcm.study_section, pcm.subject_area, pcm.area_rules, \
-               pcm.credits, pcm.specialization \
+               pcm.credits, pcm.specialization, pcm.start_semester, pcm.end_semester, pcm.min_credits, pcm.max_credits, pcm.source_evidence \
                FROM program_curriculum_modules pcm \
                JOIN official_study_programs p ON p.id = pcm.program_id \
-               WHERE pcm.module_id = ? \
+               WHERE pcm.module_id = ? AND COALESCE(pcm.source_evidence,'') != '' \
                ORDER BY p.program_name, pcm.recommended_semester ASC, p.po_version DESC";
     execute_query(sql, &[serde_json::Value::String(module_id.to_string())]).unwrap_or_default()
 }
@@ -555,7 +555,7 @@ pub fn get_study_program_curriculum_modules(program_id: &str) -> Vec<ModuleCardI
                    COALESCE(pcm.module_name, m.title_de, '') as title_de, \
                    COALESCE(pcm.module_name_en, m.title_en, '') as title_en, \
                    m.department, \
-                   COALESCE(pcm.credits, m.credits) as credits, \
+                   CASE WHEN pcm.source_file = 'qis_tree' THEN m.credits ELSE pcm.credits END as credits, \
                    m.credits_raw, m.turnus, m.language, \
                    CASE WHEN LOWER(pcm.module_type) = 'füs' OR m.is_fues = 1 THEN 1 ELSE 0 END as is_fues, \
                    m.cross_disciplinary, m.is_phase_out, m.is_not_offered, m.limitation, \
@@ -565,7 +565,7 @@ pub fn get_study_program_curriculum_modules(program_id: &str) -> Vec<ModuleCardI
                    m.prerequisites_recommended, \
                    (SELECT COUNT(*) FROM module_events me WHERE me.module_id = m.id) as events_count, \
                    pcm.recommended_semester, pcm.semester_span, pcm.start_semester, pcm.end_semester, pcm.min_credits, pcm.max_credits, \
-                   pcm.module_type, pcm.study_section, pcm.subject_area, pcm.area_rules, pcm.specialization \
+                   pcm.module_type, pcm.study_section, pcm.subject_area, pcm.area_rules, pcm.specialization, pcm.source_evidence, pcm.source_file \
                    FROM program_curriculum_modules pcm \
                    LEFT JOIN modules m ON pcm.module_id = m.id \
                    WHERE pcm.program_id = ? \
@@ -588,6 +588,12 @@ pub fn get_study_program_curriculum_modules(program_id: &str) -> Vec<ModuleCardI
                WHERE msp.program_id = ? \
                ORDER BY msp.recommended_semester ASC, m.title_de ASC";
     execute_query(sql, &[serde_json::Value::String(program_id.to_string())]).unwrap_or_default()
+}
+
+pub fn get_verified_study_plan(program_id:&str)->Option<crate::study_plan::StudyPlan> {
+    #[derive(serde::Deserialize)] struct Row {layout_json:String}
+    let rows:Vec<Row>=execute_query("SELECT layout_json FROM validated_curriculum_plans WHERE program_id=?",&[serde_json::Value::String(program_id.into())]).unwrap_or_default();
+    rows.first().and_then(|r|serde_json::from_str(&r.layout_json).ok())
 }
 
 #[derive(serde::Deserialize)]

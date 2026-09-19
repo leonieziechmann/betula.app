@@ -977,15 +977,19 @@ body.sidebar-open {
 
 .program-detail-grid {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 1.5rem;
   align-items: start;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1600px) {
   .program-detail-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.program-detail-grid > div {
+  min-width: 0;
 }
 
 .program-section-card {
@@ -1015,6 +1019,8 @@ body.sidebar-open {
 /* Curriculum View Mode Tabs */
 .curriculum-view-tabs {
   display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   align-items: center;
   gap: 0.4rem;
   background: #f1f5f9;
@@ -4448,6 +4454,18 @@ input:checked + .slider:before {
   .navbar {
     padding: 0.5rem 0.75rem;
     gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .nav-search {
+    order: 3;
+    flex: 1 0 100%;
+    max-width: none;
+  }
+
+  .nav-actions {
+    margin-left: auto;
+    gap: 0.4rem;
   }
 
   .search-input {
@@ -4563,3 +4581,49 @@ input:checked + .slider:before {
   margin-bottom: 0.75rem;
 }
 
+/* Source-backed semester plans */
+.study-plan { --plan-ink:#17324b; --plan-muted:#52677c; display:flex; flex-direction:column; gap:1.4rem; color:var(--plan-ink); }
+.plan-intro h2 { font-size:1.7rem; letter-spacing:-.04em; margin:.35rem 0 .55rem; }
+.plan-intro p,.plan-window-explanation { color:var(--plan-muted); font-size:.9rem; line-height:1.65; margin:0; max-width:70ch; }
+.plan-eyebrow { font-size:.68rem; font-weight:800; letter-spacing:.14em; color:#28776e; }
+.plan-summary { display:grid; grid-template-columns:repeat(3,1fr); background:#f0f7f7; border:1px solid #d6e7e5; border-radius:14px; padding:1.15rem .4rem; }
+.plan-summary>div { display:flex; flex-direction:column; gap:.25rem; padding:0 .9rem; }
+.plan-summary>div+div { border-left:1px solid #cfdfdf; }
+.plan-summary strong { font-size:1.7rem; line-height:1.2; letter-spacing:-.04em; }
+.plan-summary span { font-size:.75rem; color:var(--plan-muted); line-height:1.4; }
+.plan-legend { display:flex; flex-wrap:wrap; gap:.65rem 1.3rem; font-size:.74rem; color:var(--plan-muted); }
+.plan-legend span { display:flex; align-items:center; gap:.4rem; }
+.plan-dot { width:8px; height:8px; border-radius:3px; background:#5c829d; }
+.plan-dot.ongoing { background:#118377; }.plan-dot.window { background:#8b5db6; }
+.plan-variants { border:1px solid #d8e2eb; border-radius:12px; padding:1rem; }
+.plan-variants>strong { font-size:.85rem; }.plan-variants p { margin:.3rem 0 .8rem; font-size:.8rem; color:var(--plan-muted); }
+.plan-variants [role=group] { display:flex; gap:.6rem; flex-wrap:wrap; }
+.plan-variants button { flex:1 1 220px; border:1px solid #d4dfe9; border-radius:9px; background:white; padding:.75rem .9rem; color:#354f67; text-align:left; font:inherit; font-size:.81rem; line-height:1.5; cursor:pointer; }
+.plan-variants button.active { border-color:#147f73; background:#edf8f5; color:#125a51; box-shadow:inset 0 0 0 1px #147f73; }
+.plan-semester-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.1rem; align-items:start; }
+.plan-semester { border:1px solid #dbe4ec; border-radius:13px; overflow:hidden; background:white; }
+.plan-semester>header { display:flex; align-items:center; gap:.8rem; padding:1rem; background:#f7f9fc; border-bottom:1px solid #e3e9ef; }
+.plan-semester-number { font-size:1.8rem; font-weight:800; color:#9cb0c2; letter-spacing:-.06em; }
+.plan-semester h3 { font-size:.98rem; margin:0; }.plan-semester header p { margin:.25rem 0 0; font-size:.79rem; color:#37516b; font-weight:600; }.plan-semester header small { display:block; font-size:.73rem; margin-top:.2rem; color:#14776c; }
+.plan-requirement { display:flex; gap:.75rem; align-items:flex-start; padding:.9rem 1rem; border-bottom:1px solid #edf0f4; border-left:3px solid transparent; }
+.plan-requirement:last-child { border-bottom:0; }.plan-requirement-text { min-width:0; flex:1; font-size:.83rem; line-height:1.5; }
+.plan-requirement-text strong { font-weight:600; overflow-wrap:anywhere; }
+.plan-requirement-text small { display:block; margin-top:.3rem; color:var(--plan-muted); font-size:.72rem; line-height:1.5; }
+.plan-module-link { display:inline; text-align:left; border:0; padding:0; background:none; color:#145e87; font:inherit; font-weight:650; line-height:inherit; cursor:pointer; overflow-wrap:anywhere; }
+.plan-module-link:hover { text-decoration:underline; color:#0d7669; }
+.plan-module-link:focus-visible,.plan-variants button:focus-visible,.plan-window-reference:focus-visible { outline:3px solid #147f73; outline-offset:3px; }
+.plan-credits { flex-shrink:0; padding:.2rem .45rem; background:#f0f4f8; color:#354f67; border-radius:5px; font-size:.7rem; font-weight:750; text-align:right; max-width:96px; line-height:1.4; }
+.plan-ongoing { background:#f1faf7; border-left-color:#168473; }.plan-ongoing .plan-credits { background:#dff1eb; color:#126355; }
+.plan-requirement-label { display:inline-block; margin-top:.3rem; font-size:.65rem; color:#698095; }
+.plan-completed,.plan-bookmarked { display:inline-block; margin:.3rem .5rem 0 0; font-size:.7rem; color:#147266; }
+.plan-window-reference { display:flex; align-items:center; gap:.7rem; padding:.85rem 1rem; background:#f7f2fb; color:#6a428b; font-size:.8rem; text-decoration:none; line-height:1.5; }
+.plan-window-reference small { display:block; font-size:.71rem; color:#795c90; }.plan-window-reference>span:first-child { font-size:1.4rem; }
+.plan-window { border:1px solid #d9cbe8; border-radius:13px; background:#fff; overflow:hidden; scroll-margin-top:90px; }
+.plan-window>header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; padding:1.1rem; background:#f7f2fb; }
+.plan-window .plan-eyebrow { color:#8251a3; }.plan-window h3 { font-size:1.15rem; margin:.35rem 0 0; }.plan-window header>strong { font-size:.85rem; color:#724b8f; }
+.plan-window-explanation { padding:1rem 1.1rem; font-size:.81rem; max-width:none; border-bottom:1px solid #eee6f4; }
+.plan-flexible { border-left-color:#a084b9; }.plan-flexible .plan-credits { background:#f2eaf8; color:#754b91; max-width:none; }
+.plan-source { display:flex; flex-wrap:wrap; gap:.6rem 1.5rem; justify-content:space-between; color:#60788e; font-size:.76rem; padding-top:.2rem; }
+.plan-source a { color:#176b80; font-weight:650; }.plan-empty { padding:1.4rem; background:#f8fafc; border:1px dashed #b8c9d7; border-radius:12px; }.plan-empty h3 { font-size:1rem; margin:0 0 .6rem; }.plan-empty p { color:var(--plan-muted); font-size:.86rem; line-height:1.6; margin:0; }
+@media(max-width:1150px) { .plan-semester-grid { grid-template-columns:1fr; } }
+@media(max-width:500px) { .plan-summary { padding:.85rem .1rem; }.plan-summary>div { padding:0 .55rem; }.plan-summary strong { font-size:1.35rem; }.plan-summary span { font-size:.68rem; }.plan-requirement { padding:.8rem .65rem; gap:.45rem; }.plan-intro h2 { font-size:1.45rem; }.plan-credits { max-width:78px; } }

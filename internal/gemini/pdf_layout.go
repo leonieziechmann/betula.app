@@ -1,0 +1,511 @@
+package gemini
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"math"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/ledongthuc/pdf"
+)
+
+var (
+	creditAmount    = regexp.MustCompile(`^(\d+(?:[.,]\d+)?)(?:\s*[-–−]\s*(\d+(?:[.,]\d+)?))?$`)
+	semesterNumber  = regexp.MustCompile(`^\d{1,2}\.?$`)
+	semesterHeading = regexp.MustCompile(`semester|se-\s*mester`)
+	creditHeading   = regexp.MustCompile(`\blp\b|\bkp\b|\bcp\b|ects|leistungspunkte|credit`)
+	subtotalLabel   = regexp.MustCompile(`(?i)\bsumme\b|\bteilsummen?\b|\btotal\b|\bsubtotal\b|\bgesamt\b|\binsgesamt\b|^arbeitsaufwand\b|^aufteilung nach\b|^[Σ∑]?\s*=\s*\d+\s*(?:lp|kp|cp|ects)`)
+	winterIntake    = regexp.MustCompile(`studium kann nur im wintersemester|studienbeginn[^.]{0,70}wintersemester|studium (?:beginnt|kann)[^.]{0,80}wintersemester[^.]{0,30}(?:aufgenommen|begonnen)|studienaufnahme[^.]{0,50}wintersemester`)
+	summerIntake    = regexp.MustCompile(`studium kann nur im sommersemester|studienbeginn[^.]{0,70}sommersemester|studium (?:beginnt|kann)[^.]{0,80}sommersemester[^.]{0,30}(?:aufgenommen|begonnen)|studienaufnahme[^.]{0,50}sommersemester`)
+	workloadAmount  = regexp.MustCompile(`^\((\d+(?:[.,]\d+)?(?:\s*\+\s*\d+(?:[.,]\d+)?)+)\)\s*(\d+(?:[.,]\d+)?)$`)
+)
+
+func cleanPDFText(s string) string {
+	s = strings.Map(symbolFontRune, s)
+	return strings.Join(strings.Fields(strings.ReplaceAll(s, "-\n", "")), " ")
+}
+
+// symbolFontRune maps the private-use code points of the Symbol font (used for
+// the sum sign in total rows) to their meaning and drops the rest.
+func symbolFontRune(r rune) rune {
+	if r < 0xF000 || r > 0xF0FF {
+		return r
+	}
+	switch r - 0xF000 {
+	case 0x20:
+		return ' '
+	case 0x53:
+		return 'Σ'
+	}
+	return -1
+}
+func cellText(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return cleanPDFText(*s)
+}
+func parseCreditAmount(s string) (lo, hi float64, ok bool) {
+	s = strings.TrimSpace(strings.TrimRight(s, "⁰¹²³⁴⁵⁶⁷⁸⁹"))
+	for _, unit := range []string{" LP", " KP", " CP", " ECTS"} {
+		s = strings.TrimSpace(strings.TrimSuffix(s, unit))
+	}
+	if strings.Contains(s, "+") {
+		sum := 0.0
+		for _, part := range strings.Split(s, "+") {
+			a, b, valid := parseCreditAmount(strings.TrimSpace(part))
+			if !valid || a != b {
+				return 0, 0, false
+			}
+			sum += a
+		}
+		return sum, sum, true
+	}
+	p := creditAmount.FindStringSubmatch(s)
+	if p == nil {
+		return 0, 0, false
+	}
+	lo, err := strconv.ParseFloat(strings.ReplaceAll(p[1], ",", "."), 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	hi = lo
+	if p[2] != "" {
+		hi, err = strconv.ParseFloat(strings.ReplaceAll(p[2], ",", "."), 64)
+	}
+	return lo, hi, err == nil && hi >= lo
+}
+
+func extractPDFLayout(ctx context.Context, path string, selectedPages ...int) (layout *PDFLayout, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			layout = nil
+			err = fmt.Errorf("read PDF layout: %v", r)
+		}
+	}()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f, reader, err := pdf.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open PDF: %w", err)
+	}
+	defer f.Close()
+	selected := map[int]bool{}
+	for _, p := range selectedPages {
+		if p < 1 || p > reader.NumPage() {
+			return nil, fmt.Errorf("plan page %d outside PDF", p)
+		}
+		selected[p] = true
+	}
+	layout = &PDFLayout{Cells: []SourceCell{}, Totals: []SourceCell{}, Tables: []json.RawMessage{}, Issues: []string{}, StartTerm: "unknown"}
+	var fullText strings.Builder
+	var pages []layoutPage
+	for pageNo := 1; pageNo <= reader.NumPage(); pageNo++ {
+		if len(selected) > 0 && !selected[pageNo] {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		geometry, err := readPageGeometry(ctx, reader.Page(pageNo))
+		if err != nil {
+			return nil, fmt.Errorf("PDF page %d: %w", pageNo, err)
+		}
+		fullText.WriteString(textInBox(geometry.glyphs, nil))
+		fullText.WriteByte('\n')
+		tables, err := tableGeometry(ctx, geometry.edges, geometry.glyphs)
+		if err != nil {
+			return nil, fmt.Errorf("PDF page %d: %w", pageNo, err)
+		}
+		annotateCellStyles(tables, geometry)
+		tables = mergeStudyFragments(tables, geometry)
+		if n := len(tables); n > 0 {
+			tables[n-1] = withTailRows(tables[n-1], geometry)
+		}
+		pages = append(pages, layoutPage{pageNo, geometry, tables})
+	}
+	mergeContinuedTables(pages)
+	refs := readCreditReferences(pages)
+	for _, pg := range pages {
+		pageNo, geometry, tables := pg.number, pg.geometry, pg.tables
+		for ti, t := range tables {
+			pageText := textInBox(geometry.glyphs, nil)
+			isPlan := strings.Contains(strings.ToLower(pageText), "studienplan") || strings.Contains(strings.ToLower(pageText), "studienpläne") || strings.Contains(strings.ToLower(pageText), "studienverlaufsplan")
+			workload := strings.Contains(pageText, "Arbeitsaufwand") && (strings.Contains(pageText, "Gutschrift") || strings.Contains(pageText, "Anrechnung"))
+			if appendTrackVariants(layout, t, pageNo, ti+1, workload, isPlan, planModePrefix(t, geometry)) {
+				continue
+			}
+			variants := splitStudyVariants(t)
+			if len(variants) > 0 {
+				for vi, v := range variants {
+					appendStudyTable(layout, v, pageNo, (ti+1)*100+vi+1, workload, isPlan)
+					if layout.PlanNames == nil {
+						layout.PlanNames = map[string]string{}
+					}
+					name := "Grundständig"
+					if vi == 1 {
+						name = "Dual praxisintegrierend"
+					}
+					layout.PlanNames[fmt.Sprintf("p%dt%d", pageNo, (ti+1)*100+vi+1)] = name
+				}
+			} else {
+				appendStudyTable(layout, t, pageNo, ti+1, workload, isPlan)
+			}
+			appendRowStudyTable(layout, t, pageNo, ti+1)
+			appendBoxStudyTable(layout, t, pageNo, ti+1, refs)
+		}
+		appendSemesterPanels(layout, tables, geometry, pageNo)
+		nameStudyPlans(layout, tables, geometry, pageNo)
+	}
+	text := strings.ToLower(cleanPDFText(fullText.String()))
+	deduplicatePlanTables(layout)
+	applyStyleLegends(layout, strings.ToLower(cleanPDFText(fullText.String())))
+	winter, summer := winterIntake.MatchString(text), summerIntake.MatchString(text)
+	if winter && !summer {
+		layout.StartTerm = "winter"
+	} else if summer && !winter {
+		layout.StartTerm = "summer"
+	}
+	return layout, nil
+}
+
+func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, workloadNotation ...bool) {
+	hi := -1
+	var header []*pdfBox
+	headerFrom, headerTo := 0, 0
+	headerTerm := ""
+	var prefix strings.Builder
+	for ri := 0; ri < len(t.rows) && ri < 5; ri++ {
+		for _, s := range t.rows[ri] {
+			prefix.WriteString(cellText(s))
+			prefix.WriteByte(' ')
+		}
+		p := strings.ToLower(prefix.String())
+		var boxes []*pdfBox
+		valid, explicit := true, 0
+		first, last := -1, -1
+		term := ""
+		for ci, s := range t.rows[ri] {
+			n, isExplicit, season, ok := parseSemesterHeader(cellText(s))
+			if !ok {
+				continue
+			}
+			if n != len(boxes)+1 || t.boxes[ri][ci] == nil {
+				valid = false
+				break
+			}
+			if isExplicit {
+				explicit++
+			}
+			if n == 1 {
+				term = season
+			}
+			if first < 0 {
+				first = ci
+			}
+			last = ci
+			boxes = append(boxes, t.boxes[ri][ci])
+		}
+		headingOK := semesterHeading.MatchString(p) || explicit >= 2 || (len(workloadNotation) > 1 && workloadNotation[1] && (creditHeading.MatchString(p) || subtotalLabel.MatchString(p)))
+		if headingOK && valid && len(boxes) >= 2 {
+			hi = ri
+			header = boxes
+			headerFrom, headerTo, headerTerm = first, last, term
+			break
+		}
+	}
+	if hi < 0 {
+		return
+	}
+	if headerTerm != "" && layout.StartTerm == "unknown" {
+		layout.StartTerm = headerTerm
+	}
+	id := fmt.Sprintf("p%dt%d", pageNo, tableNo)
+	firstNew := len(layout.Cells)
+	// A table whose "semester" boxes only hold module names (one panel per
+	// semester) is read by appendSemesterPanels; leave no trace of this attempt
+	// when it found no credit values at all.
+	startTotals, startIssues, startTables := len(layout.Totals), len(layout.Issues), len(layout.Tables)
+	textIssues := 0
+	defer func() {
+		accepted := len(layout.Cells) - firstNew
+		if (accepted == 0 && len(layout.Totals) == startTotals) || (textIssues > 0 && textIssues >= accepted) {
+			layout.Cells, layout.Totals = layout.Cells[:firstNew], layout.Totals[:startTotals]
+			layout.Issues = layout.Issues[:startIssues]
+			layout.Tables = layout.Tables[:startTables]
+		}
+	}()
+	data, _ := json.Marshal(struct {
+		ID   string      `json:"id"`
+		Page int         `json:"page"`
+		Rows [][]*string `json:"rows"`
+	}{id, pageNo, t.rows})
+	layout.Tables = append(layout.Tables, data)
+	left, right := header[0].x0, header[len(header)-1].x1
+	alternatives := alternativeRows(t, hi)
+	for ri := hi + 1; ri < len(t.rows); ri++ {
+		if isCreditSubHeader(t.rows[ri], headerFrom, headerTo) {
+			continue
+		}
+		for ci, b := range t.boxes[ri] {
+			if b == nil || b.x0 < left-1 {
+				continue
+			}
+			var semesters []int
+			for i, h := range header {
+				mid := (h.x0 + h.x1) / 2
+				if b.x0 <= mid && mid <= b.x1 {
+					semesters = append(semesters, i+1)
+				}
+			}
+			value := cellText(t.rows[ri][ci])
+			if len(semesters) == 0 || value == "" || value == "-" || value == "–" {
+				continue
+			}
+			var labels []string
+			seen := map[string]bool{}
+			for rj := hi + 1; rj < len(t.rows); rj++ {
+				var pieces []string
+				for cj, rb := range t.boxes[rj] {
+					if rb != nil && rb.x1 <= left+1 && rb.y0 < b.y1-1 && rb.y1 > b.y0+1 {
+						piece := cellText(t.rows[rj][cj])
+						if !statusCell.MatchString(piece) {
+							pieces = append(pieces, piece)
+						}
+					}
+				}
+				label := cleanPDFText(strings.Join(pieces, " "))
+				if label != "" && !seen[label] {
+					labels = append(labels, label)
+					seen[label] = true
+				}
+			}
+			label := strings.Join(labels, " / ")
+			if label == "" {
+				sum, rightTotal, count := 0.0, math.NaN(), 0
+				for cj, rb := range t.boxes[ri] {
+					if rb == nil {
+						continue
+					}
+					lo, hi, ok := parseCreditAmount(cellText(t.rows[ri][cj]))
+					if !ok || lo != hi {
+						continue
+					}
+					if rb.x0 >= right-1 {
+						rightTotal = lo
+					} else if rb.x0 >= left-1 {
+						sum += lo
+						count++
+					}
+				}
+				if count > 0 && math.Abs(sum-rightTotal) < 0.01 {
+					label = "Subtotal"
+					// An unlabeled final row with every semester and a matching
+					// grand-total column is a verifiable whole-plan total.
+					if ri == len(t.rows)-1 && count == len(header) {
+						label = "Summe"
+					}
+				} else {
+					layout.Issues = append(layout.Issues, fmt.Sprintf("%sr%d: numeric row without a module label or verifiable subtotal", id, ri+1))
+					continue
+				}
+			}
+			lo, hi, ok := parseCreditAmount(value)
+			if !ok {
+				if sum, joined := joinedCreditAmounts(value); joined {
+					lo, hi, ok = sum, sum, true
+				}
+			}
+			var workload []float64
+			creditSemester := 0
+			if !ok {
+				if parts := workloadParts(value); parts != nil {
+					total, _, valid := parseCreditAmount(parts[2])
+					sum := 0.0
+					for _, piece := range strings.Split(parts[1], "+") {
+						v, _, yes := parseCreditAmount(strings.TrimSpace(piece))
+						valid = valid && yes
+						workload = append(workload, v)
+						sum += v
+					}
+					if valid && math.Abs(sum-total) < 0.01 {
+						lo, hi, ok = total, total, true
+						if len(workload) == len(semesters) && len(workloadNotation) > 0 && workloadNotation[0] {
+							creditSemester = semesters[len(semesters)-1]
+						} else {
+							workload = nil
+						}
+					} else {
+						workload = nil
+					}
+				}
+			}
+			optional, marked := false, false
+			if !ok {
+				if v, yes := creditBeforeRemark(value); yes {
+					lo, hi, ok = v, v, true
+				} else if v, yes := optionalPlacement(value); yes {
+					lo, hi, ok, optional = v, v, true, true
+				} else if v, opt, yes := markedCredit(value); yes {
+					lo, hi, ok, optional, marked = v, v, true, opt, true
+				}
+			}
+			if !ok {
+				if prose.MatchString(value) {
+					textIssues++
+				}
+				layout.Issues = append(layout.Issues, fmt.Sprintf("%sr%dc%d: unsupported semester cell %q", id, ri+1, ci+1, value))
+				continue
+			}
+			origin := t.origin(ri)
+			cellPage := pageNo
+			if origin.page != 0 {
+				cellPage = origin.page
+			}
+			c := SourceCell{ID: fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1), Table: id, Page: cellPage, Row: label, Semesters: semesters, Raw: value, Min: lo, Max: hi, BBox: []float64{b.x0 + origin.dx, b.y0 + origin.dy, b.x1 + origin.dx, b.y1 + origin.dy}, SharedRows: len(labels) > 1}
+			c.Workload, c.CreditSemester = workload, creditSemester
+			c.Optional = optional
+			if alt, ok := alternatives[ri]; ok {
+				c.AltGroup, c.AltIndex = alt[0], alt[1]
+			}
+			c.Bold, c.Shaded = b.bold, b.shaded
+			if optional && b.shaded {
+				c.PlanSemester = semesters[0]
+			}
+			if marked {
+				c.Marker = "+"
+			}
+			if subtotalLabel.MatchString(label) {
+				layout.Totals = append(layout.Totals, c)
+			} else if hi > 0 {
+				layout.Cells = append(layout.Cells, c)
+			}
+		}
+	}
+	mergeOptionalPlacements(layout, firstNew)
+}
+
+// mergeOptionalPlacements joins the bracketed cells "(6) (6)" of one row into a
+// single credit that may fall into any of the listed semesters, so the module
+// is counted once and never pinned to a semester the plan does not name.
+var prose = regexp.MustCompile(`[A-Za-zÄÖÜäöüß]{4,}`)
+
+func mergeOptionalPlacements(layout *PDFLayout, from int) {
+	var out []SourceCell
+	out = append(out, layout.Cells[:from]...)
+	index := map[string]int{}
+	for _, c := range layout.Cells[from:] {
+		if !c.Optional {
+			out = append(out, c)
+			continue
+		}
+		key := fmt.Sprintf("%s|%s|%.1f|%.0f", c.Table, c.Row, c.Min, c.BBox[1])
+		i, seen := index[key]
+		if !seen {
+			index[key] = len(out)
+			out = append(out, c)
+			continue
+		}
+		m := &out[i]
+		if c.PlanSemester > 0 {
+			if m.PlanSemester > 0 {
+				m.PlanSemester = -1 // two grey cells: the plan does not choose one
+			} else if m.PlanSemester == 0 {
+				m.PlanSemester = c.PlanSemester
+			}
+		}
+		m.Shaded = m.Shaded || c.Shaded
+		m.Bold = m.Bold && c.Bold
+		m.Semesters = append(m.Semesters, c.Semesters...)
+		sort.Ints(m.Semesters)
+		lo, hi := m.Semesters[0], m.Semesters[len(m.Semesters)-1]
+		m.Semesters = m.Semesters[:0]
+		for s := lo; s <= hi; s++ {
+			m.Semesters = append(m.Semesters, s)
+		}
+		m.Raw += " " + c.Raw
+		m.BBox[0], m.BBox[2] = math.Min(m.BBox[0], c.BBox[0]), math.Max(m.BBox[2], c.BBox[2])
+	}
+	for i := range out {
+		if out[i].PlanSemester < 0 {
+			out[i].PlanSemester = 0
+		}
+	}
+	layout.Cells = out
+}
+
+var (
+	boldMeansRequired = regexp.MustCompile(`fett\s+geschriebene\s+lp-zahlen\s+sind\s+pflichtmodul`)
+	// The legend often sits in a two-column text block, so words of the other
+	// column may be interleaved after the hyphenated "ange-".
+	greyMeansPlan = regexp.MustCompile(`grau\s+ange-?.{0,400}?legte\s+zellen\s+stellen\s+einen\s+möglichen\s+studienplan|grau\s+angelegte\s+zellen\s+stellen\s+einen\s+möglichen\s+studienplan`)
+)
+
+// applyStyleLegends gives bold and grey cells their meaning when the regulation
+// says so in its legend. Without the legend the styles stay plain observations.
+func applyStyleLegends(layout *PDFLayout, text string) {
+	bold, grey := boldMeansRequired.MatchString(text), greyMeansPlan.MatchString(text)
+	if !bold && !grey {
+		return
+	}
+	hasBold, hasShaded := map[string]bool{}, map[string]bool{}
+	for _, c := range layout.Cells {
+		hasBold[c.Table] = hasBold[c.Table] || c.Bold
+		hasShaded[c.Table] = hasShaded[c.Table] || c.Shaded
+	}
+	for i := range layout.Cells {
+		c := &layout.Cells[i]
+		if bold && hasBold[c.Table] {
+			c.Elective = !c.Bold
+		}
+		if grey && hasShaded[c.Table] {
+			c.InPlan = c.Shaded
+		}
+	}
+}
+
+func isOderRow(row []*string) bool {
+	seen := false
+	for _, s := range row {
+		switch strings.ToLower(cellText(s)) {
+		case "":
+		case "oder", "or":
+			seen = true
+		default:
+			return false
+		}
+	}
+	return seen
+}
+
+// alternativeRows numbers the module rows on both sides of an "oder" line:
+// group id and alternative index (0 for the first option). The options extend
+// to the neighboring section header, total line or next "oder".
+func alternativeRows(t pdfTable, header int) map[int][2]int {
+	out := map[int][2]int{}
+	group := 0
+	for ro, row := range t.rows {
+		if ro <= header || !isOderRow(row) {
+			continue
+		}
+		g, idx := 0, 0
+		if prev, ok := out[ro-1]; ok {
+			g, idx = prev[0], prev[1]
+		} else {
+			group++
+			g = group
+			for r := ro - 1; r > header && !isSectionRow(t.rows[r]) && !isOderRow(t.rows[r]) && !subtotalLabel.MatchString(cellText(t.rows[r][0])); r-- {
+				out[r] = [2]int{g, 0}
+			}
+		}
+		for r := ro + 1; r < len(t.rows) && !isSectionRow(t.rows[r]) && !isOderRow(t.rows[r]) && !subtotalLabel.MatchString(cellText(t.rows[r][0])); r++ {
+			out[r] = [2]int{g, idx + 1}
+		}
+	}
+	return out
+}
