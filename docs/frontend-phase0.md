@@ -183,3 +183,51 @@ New questions that came out of phase 0:
     snap); the browser's own edge-swipe back keeps working because every view is a real history
     entry; page transitions with the View Transitions API where available. Built CSS-first
     (`dialog`, `popover`, scroll snap), so most of it works before or without WASM.
+
+## 4. Owner decisions (2026-09-19)
+
+| # | Decision |
+|---|---|
+| 1 | Full SSR, mainly for search engines; a shared link must open without JavaScript. Less comfort without JS is accepted. |
+| 2 | Default catalog: hide `not_offered`, keep `phase_out` with a badge, one switch to show everything; inside a program the whole curriculum. |
+| 3 | FÜS: with a program selected, its FÜS section lists only what that program accepts as FÜS. To see all FÜS modules, select „Alle Studiengänge". |
+| 4 | URLs: `/` is a landing page that lists every function with a link; `/catalog`, `/catalog/module/<id>`, `/programs`, `/programs/<slug>/…`. No `/gemerkt`, `/bestanden` for now. |
+| 5 | Leptos 0.8.20, SSR + hydration, no cargo-leptos. |
+| 6 | Search is planned separately (§5): it has to react to the selected context, not just fold umlauts. |
+| 7 | Web container built with Nix, same Swarm stack, scraper reachable only inside the stack. |
+| 8 | Schedule gap: the short note under the schedule, as proposed. |
+| 9 | **Queries run in the browser** on the downloaded snapshot: lowest latency on click, lowest server load. Stale data for a while is fine. No query API on the server. |
+| 10 | One Leptos app: crates `catalog`, `app`, `server`, (`client`). |
+| 11 | Esc only for what feels like a popup. |
+| 12 | Mobile concept: left to the implementation. |
+
+Consequence of 9, found in phase 1: because SQLite answers synchronously on both sides, pages
+are synchronous functions of their route parameters. Nothing is serialized into the HTML for
+hydration (the catalog page went from 314 KB to 74 KB, 13 KB gzipped), and until the local
+database is ready the site simply behaves like a classic website served from the HTML cache.
+
+## 5. Search: concept for discussion (not decided)
+
+What the owner asked for: the search reacts to the selected data. With a program selected its
+modules are boosted, but modules outside the program can still be found, at least in the
+suggestions.
+
+- **One box, typed results** (it should feel like a command palette): modules, programs,
+  lecturers. Enter on a module opens it; Enter on plain text filters the catalog.
+- **Ranking = text match × context.** Text: exact id > id prefix > title starts with > word
+  starts with > substring > fuzzy (typos), on folded text (case, ß→ss, diacritics; „okologie"
+  finds „Ökologie": 31 modules instead of 8). Context boosts, strongest first: module of the
+  selected (or „my") program's curriculum › of its FÜS list › offered in the coming semester ›
+  currently offered › same department as the module being viewed.
+- **Suggestions never filter by context, they only order by it**, in two groups: „In deinem
+  Studiengang" first, „Weitere Module" below. The catalog table keeps its filters, and says so
+  when the text also matches outside them: „12 weitere Treffer außerhalb von Informatik B.Sc.".
+- **Where it runs:** in the browser, in Rust, on an index built once from `v_module_search`
+  (14,708 terms, 149 KB gzip, already part of the snapshot) plus the facets needed for the
+  boosts. The existing `frontend/src/fuzzy/` engine is the starting point. The folding function
+  lives in `catalog`, so the server uses the same one for the no-JS fallback (`/catalog?q=…`),
+  which stays a plain list without the grouping.
+- **Backend:** nothing required. Optional later: a `term_folded` column so the no-JS `LIKE`
+  search folds too.
+- Open: should „my program" (remembered major) boost everywhere, or only while it is selected
+  as a filter? Should lecturers and programs appear in the same suggestion list from the start?
