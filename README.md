@@ -2,6 +2,25 @@
 
 A modular, extensible data collection application written in Go with minimal external dependencies. It collects course and module information from BTU Cottbus-Senftenberg (`b-tu.de/modul` and `b-tu.de/modul/<id>`), caches raw web data, and stores structured module records into SQLite.
 
+## Schema v2 pipeline (current work)
+
+The scraper is being rebuilt around a raw page archive, a canonical SQLite model with read views,
+and a long-running service that publishes snapshots over HTTP. The commands below use
+`btu_v2.db`; the sections after this one describe the v1 commands, which still work and will be
+removed once the web server has moved to the snapshots.
+
+```bash
+go build -o scraper ./cmd/scraper
+scraper run                      # service: crawl politely, build, validate, export, serve /snapshot, /healthz, /status
+scraper run --once               # a single cycle
+scraper crawl-modules | crawl-tree | crawl-events | prune-events | build | validate | export | serve-snapshot
+nix build .#container            # container image (see docs/operations.md)
+```
+
+- [docs/data-sources.md](docs/data-sources.md): where every fact comes from, which source wins, and why
+- [docs/schema-v2.md](docs/schema-v2.md): pipeline, tables, the read views and what is still open
+- [docs/operations.md](docs/operations.md): running it as a service, configuration, log events, notifications, deployment
+
 ## Architecture
 
 The project is designed with an extensible **Provider Registry** architecture, making it simple to attach new university data sources (e.g. Prüfungspläne, QIS, Mensa, etc.) in the future:
