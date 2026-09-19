@@ -1,18 +1,36 @@
 [package]
 name = "btu-server"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "Web server of the BTU catalog: fetches snapshots from the scraper, renders the app, serves the snapshot to browsers"
+
+[[bin]]
+name = "btu-server"
+path = "src/main.rs"
 
 [dependencies]
+btu-app = { path = "../app", features = ["ssr"] }
+btu-catalog = { path = "../catalog", features = ["native"] }
+leptos = { version = "0.8.20", features = ["ssr"] }
+leptos_axum = "0.8"
 axum = { version = "0.8", features = ["tokio", "http1", "http2"] }
-tokio = { version = "1", features = ["full"] }
-tower = "0.5"
-tower-http = { version = "0.6", features = ["fs", "cors", "trace", "compression-full", "set-header"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "fs", "time", "sync", "net", "io-util"] }
+tokio-util = { version = "0.7", features = ["io"] }
+futures-util = "0.3"
+# The snapshot endpoint is plain HTTP inside the deployment's network; no TLS stack to build.
+reqwest = { version = "0.12", default-features = false, features = ["stream"] }
+flate2 = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive", "env"] }
-html-escape = "0.2"
-percent-encoding = "2.3"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

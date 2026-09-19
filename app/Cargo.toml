@@ -1,0 +1,28 @@
+[package]
+name = "btu-app"
+version = "0.1.0"
+edition = "2021"
+description = "The BTU catalog web app: Leptos components rendered on the server and hydrated in the browser"
+
+[lib]
+name = "app"
+
+[features]
+# Server rendering (the web server) and hydration (the WASM bundle) are the two builds of this crate.
+ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "dep:leptos_axum", "dep:http"]
+hydrate = ["leptos/hydrate"]
+
+[dependencies]
+leptos = "0.8.20"
+leptos_router = "0.8"
+leptos_meta = "0.8"
+btu-catalog = { path = "../catalog" }
+serde = { version = "1.0", features = ["derive"] }
+leptos_axum = { version = "0.8", optional = true }
+http = { version = "1", optional = true }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

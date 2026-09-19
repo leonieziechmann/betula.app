@@ -1,14 +1,27 @@
 [workspace]
 members = [
+    "app",
     "catalog",
-    "frontend",
     "server",
 ]
-# Throwaway experiments with their own lock files (docs/frontend-phase0.md).
-exclude = ["spikes"]
+# spikes: throwaway experiments (docs/frontend-phase0.md). frontend: the old CSR app, kept as
+# reference until its parts are ported (plan grid, fuzzy search), then deleted.
+exclude = ["spikes", "frontend"]
 resolver = "2"
 
+# Leptos view types make full debug info enormous (a 1.8 GB server binary).
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
+lto = "thin"
+
+# The WASM bundle of the browser app: size first.
+[profile.wasm-release]
+inherits = "release"
 opt-level = "z"
 lto = true
 codegen-units = 1

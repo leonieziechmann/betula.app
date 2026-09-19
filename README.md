@@ -48,7 +48,23 @@ go test ./...                          # network-free, no API key needed
 | `internal/gemini`, `internal/curriculumscan`, `internal/statutes`, `internal/planaudit` | study plans from regulation PDFs, with audit trail |
 | `internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
 | `internal/oplog`, `internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
-| `server/`, `frontend/` | Rust web server and Leptos/WASM app. **Both still target the v1 database layout** and have to be moved to the read views and the snapshot endpoint. |
+| `catalog/`, `app/`, `server/` | The web tier in Rust (`docs/frontend.md`): the data contract with every SQL query, the Leptos app, and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
+| `e2e/` | crawl of the server-rendered site; Playwright smoke walk for the browser app |
+| `frontend/` | the old browser app, reference only until its parts are ported |
+
+### Web tier
+
+```bash
+./scraper.exe serve-snapshot --addr 127.0.0.1:8090
+```
+
+```bash
+cargo run -p btu-server
+```
+
+Then open http://127.0.0.1:8080. The web server talks to the scraper only through the snapshot
+endpoint. Flags, endpoints, log events and checks: `docs/frontend.md`. `cargo test --workspace`
+needs an exported snapshot (`scraper export`).
 
 ### Credentials
 

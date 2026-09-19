@@ -35,8 +35,12 @@ __pycache__/
 *.pyc
 .venv/
 
-# Exported catalog snapshots
+# Exported catalog snapshots, and the web server's copies of them
 /snapshot/
+/web-data/
+
+# Node tooling of the browser tests
+node_modules/
 
 # v1 configuration (no longer read; never commit credentials)
 config.yaml
