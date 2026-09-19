@@ -32,16 +32,19 @@ pub fn ProgramPage() -> impl IntoView {
         source.clone().and_then(|source| source.run(|db| pages::program(db, &slug)))
     });
 
-    move || match (data.get(), tab.get()) {
-        (Err(error), _) => {
-            status.for_error(&error);
-            view! { <ErrorState error/> }.into_any()
-        }
-        (Ok(Some(data)), Some(tab)) => view! { <ProgramView data tab/> }.into_any(),
-        _ => {
-            status.set(404);
-            view! { <NotFound title="Studiengang nicht gefunden" hint="Diesen Studiengang oder diese Ansicht gibt es nicht (mehr)."/> }.into_any()
-        }
+    move || {
+        let inner = match (data.get(), tab.get()) {
+            (Err(error), _) => {
+                status.for_error(&error);
+                view! { <ErrorState error/> }.into_any()
+            }
+            (Ok(Some(data)), Some(tab)) => view! { <ProgramView data tab/> }.into_any(),
+            _ => {
+                status.set(404);
+                view! { <NotFound title="Studiengang nicht gefunden" hint="Diesen Studiengang oder diese Ansicht gibt es nicht (mehr)."/> }.into_any()
+            }
+        };
+        view! { <div class="page">{inner}</div> }
     }
 }
 
@@ -67,8 +70,8 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
     view! {
         <Title text=format!("{} · {}", p.name, p.degree())/>
         <Meta name="description" content=description/>
-        <article class="detail" data-walk="program-page" data-walk-id=p.slug.clone()>
-            <header class="detail-header">
+        <article class="page-inner" data-walk="program-page" data-walk-id=p.slug.clone()>
+            <header class="panel page-head">
                 <p class="eyebrow"><a href=url::PROGRAMS>"Studiengänge"</a>" / "{p.degree_level.label().to_string()}</p>
                 <h1>{p.name.clone()}</h1>
                 <p class="badges">
@@ -103,7 +106,7 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
                 </p>
             </header>
 
-            <nav class="tabs" aria-label="Ansichten des Studiengangs">
+            <nav class="panel tabs" aria-label="Ansichten des Studiengangs">
                 {ProgramTab::ALL.iter().map(|t| {
                     let active = *t == tab;
                     view! {
@@ -121,9 +124,9 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
             }}
 
             {(!data.documents.is_empty()).then(|| view! {
-                <section class="block">
+                <section class="panel block">
                     <h2>"Ordnungen & Dokumente"</h2>
-                    <ul class="linklist">
+                    <ul class="list-plain">
                         {data.documents.iter().map(|d| view! {
                             <li><a href=d.url.clone() rel="noopener">{d.title.clone()}</a>" "<span class="badge">{d.doc_type.label().to_string()}</span></li>
                         }).collect_view()}
@@ -166,7 +169,7 @@ fn PlanTab(data: ProgramData) -> impl IntoView {
     }
 
     view! {
-        <section class="block">
+        <section class="panel block">
             <h2>"Regelstudienplan"</h2>
             <p class="hint">
                 "Aus der Prüfungs- und Studienordnung übernommen und geprüft"
@@ -228,9 +231,9 @@ fn AreasTab(areas: Vec<AreaPlacement>) -> impl IntoView {
     }
 
     view! {
-        <section class="block">
+        <section class="panel block">
             <h2>"Wahlpflicht & Bereiche"</h2>
-            <p class="chips">
+            <p class="chip-links">
                 {groups.iter().map(|(id, label, _, _, modules)| view! {
                     <a class="chip" data-walk="area-chip" href=format!("#area-{id}")>{label.clone()}" "<span class="tab-count">{modules.len()}</span></a>
                 }).collect_view()}
@@ -239,7 +242,7 @@ fn AreasTab(areas: Vec<AreaPlacement>) -> impl IntoView {
                 <section class=format!("area area-depth-{}", depth.clamp(1, 4)) id=format!("area-{id}")>
                     <h3>{label}</h3>
                     <p class="subtitle">{path}</p>
-                    <ul class="linklist">
+                    <ul class="list-plain">
                         {modules.into_iter().map(|m| view! {
                             <li>
                                 <a href=url::module_path(&m.module_id)>{m.module_id.clone()}" "{m.module_title.clone()}</a>
@@ -296,11 +299,11 @@ fn ModulesTab(curricular: Vec<ProgramModule>, fues: Vec<ProgramModule>) -> impl 
     let relation_hint = ProgramRelation::Fues.code();
 
     view! {
-        <section class="block">
+        <section class="panel block">
             <h2>"Curriculum "<span class="tab-count">{curricular.len()}</span></h2>
             {table(curricular, true)}
         </section>
-        <section class="block" id=relation_hint>
+        <section class="panel block" id=relation_hint>
             <h2>"Fachübergreifendes Studium (FÜS) "<span class="tab-count">{fues_count}</span></h2>
             <p class="hint">"Module, die in diesem Studiengang als FÜS angerechnet werden können. Sie gehören nicht zum Curriculum."</p>
             {if fues_count == 0 {

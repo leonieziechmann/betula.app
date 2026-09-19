@@ -204,7 +204,8 @@ impl CatalogUrl {
                 Some("id") => SortKey::Id,
                 Some("ects") => SortKey::Credits,
                 Some("events") => SortKey::Events,
-                _ => SortKey::Title,
+                Some("title") => SortKey::Title,
+                _ => SortKey::Default,
             },
             descending: first("desc").is_some(),
         };
@@ -304,7 +305,8 @@ impl CatalogUrl {
             out.push(("prereqs", "met".to_string()));
         }
         match q.sort {
-            SortKey::Title => {}
+            SortKey::Default => {}
+            SortKey::Title => out.push(("sort", "title".to_string())),
             SortKey::Id => out.push(("sort", "id".to_string())),
             SortKey::Credits => out.push(("sort", "ects".to_string())),
             SortKey::Events => out.push(("sort", "events".to_string())),
@@ -476,7 +478,7 @@ mod tests {
         let url = CatalogUrl::parse("form=yoga,lecture,lecture&kind=compulsory&semester=99&page=-3&sort=random&%ZZ=1&=&&graded=maybe&ects_min=NaN");
         assert_eq!(url.query.teaching_forms, vec![TeachingForm::Lecture]);
         assert_eq!(url.query.program, None, "kind and semester mean nothing without a program");
-        assert_eq!((url.page, url.query.sort, url.query.graded, url.query.credits_min), (1, SortKey::Title, None, None));
+        assert_eq!((url.page, url.query.sort, url.query.graded, url.query.credits_min), (1, SortKey::Default, None, None));
         assert_eq!(url.to_query_string(), "form=lecture");
     }
 

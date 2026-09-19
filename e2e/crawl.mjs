@@ -51,9 +51,9 @@ let catalogPages = 0;
 while (next) {
   const html = await get(next);
   catalogPages++;
-  const header = html.match(/class="total"[^>]*>(?:<!>)?<strong>([\d.]+)<\/strong>/);
+  const header = html.match(/class="count num"[^>]*>(?:<!>)?([\d.]+)</);
   if (total === null) total = header ? Number(header[1].replaceAll(".", "")) : NaN;
-  for (const link of links(html, /href="(\/catalog\/module\/[^"]+)"/g)) modules.add(link);
+  for (const link of links(html, /href="(\/catalog\/module\/[^"?]+)/g)) modules.add(link);
   next = links(html, /rel="next" href="([^"]+)"/g)[0] || links(html, /href="([^"]+)" rel="next"/g)[0] || null;
 }
 if (!(total > 0) || modules.size !== total) failures.push(`/catalog: header says ${total} modules, its ${catalogPages} pages list ${modules.size}`);

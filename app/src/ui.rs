@@ -55,8 +55,8 @@ pub fn EmptyState(#[prop(into)] title: String, #[prop(into)] hint: String) -> im
 #[component]
 pub fn KindBadge(kind: Option<Code<ModuleKind>>) -> impl IntoView {
     match kind {
-        Some(kind) => view! { <span class=format!("badge badge-kind badge-{}", kind.code())>{kind.label().to_string()}</span> }.into_any(),
-        None => view! { <span class="badge badge-unknown">{KIND_UNKNOWN}</span> }.into_any(),
+        Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label().to_string()}</span> }.into_any(),
+        None => view! { <span class="kind k-none"><i></i>{KIND_UNKNOWN}</span> }.into_any(),
     }
 }
 
@@ -64,17 +64,20 @@ pub fn KindBadge(kind: Option<Code<ModuleKind>>) -> impl IntoView {
 #[component]
 pub fn OfferBadge(status: Code<OfferStatus>) -> impl IntoView {
     (!status.is(OfferStatus::Active))
-        .then(|| view! { <span class=format!("badge badge-offer badge-{}", status.code())>{status.label().to_string()}</span> })
+        .then(|| view! { <span class="flag">{status.label().to_string()}</span> })
 }
 
 /// A label with its value; shows „nicht angegeben" instead of hiding an unknown value.
 #[component]
-pub fn Fact(#[prop(into)] label: String, value: Option<String>) -> impl IntoView {
+pub fn Fact(#[prop(into)] label: String, value: Option<String>, #[prop(default = "info")] icon: &'static str, #[prop(optional)] wide: bool) -> impl IntoView {
     let unknown = value.is_none();
     view! {
-        <div class="fact">
-            <dt>{label}</dt>
-            <dd class:unknown=unknown>{value.unwrap_or_else(|| "nicht angegeben".to_string())}</dd>
+        <div class="fact" class:wide=wide>
+            <span class="ico"><Icon name=icon/></span>
+            <div>
+                <dt>{label}</dt>
+                <dd class:unknown=unknown>{value.unwrap_or_else(|| "nicht angegeben".to_string())}</dd>
+            </div>
         </div>
     }
 }
@@ -87,4 +90,12 @@ pub fn Prose(text: String) -> impl IntoView {
         .filter(|paragraph| !paragraph.is_empty())
         .map(|paragraph| view! { <p class="prose">{paragraph.to_string()}</p> })
         .collect_view()
+}
+
+/// An icon of the inlined set (`crate::icons`). Unknown names render an empty box, never panic.
+#[component]
+pub fn Icon(name: &'static str, #[prop(optional)] class: &'static str) -> impl IntoView {
+    let markup = crate::icons::markup(name).unwrap_or_default();
+    let class = if class.is_empty() { "icon".to_string() } else { format!("icon {class}") };
+    view! { <svg class=class viewBox="0 0 24 24" aria-hidden="true" inner_html=markup></svg> }
 }

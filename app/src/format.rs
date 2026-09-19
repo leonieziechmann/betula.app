@@ -81,6 +81,26 @@ pub fn time_slot(weekday: Option<i64>, start: Option<&str>, end: Option<&str>) -
     }
 }
 
+/// The short name students use for an exam form, for table columns.
+pub fn exam_short(form: &Code<catalog::labels::ExamForm>) -> String {
+    use catalog::labels::ExamForm;
+    match form.known() {
+        Some(ExamForm::Map) => "MAP".to_string(),
+        Some(ExamForm::PrereqMap) => "Vorleistung + MAP".to_string(),
+        Some(ExamForm::Mca) => "MCA".to_string(),
+        Some(ExamForm::PrereqMca) => "Vorleistung + MCA".to_string(),
+        Some(ExamForm::Other) => "andere Form".to_string(),
+        None => form.label().to_string(),
+    }
+}
+
+/// `09:15` → 18.5 half hours since midnight; `None` for anything that is not a time.
+pub fn half_hours(time: &str) -> Option<f64> {
+    let (h, m) = time.split_once(':')?;
+    let (h, m) = (h.trim().parse::<u32>().ok()?, m.get(..2)?.parse::<u32>().ok()?);
+    (h < 24 && m < 60).then(|| f64::from(h) * 2.0 + f64::from(m) / 30.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

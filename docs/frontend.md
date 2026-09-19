@@ -25,12 +25,35 @@ scraper ──HTTP──▶ server ──HTML (cached per snapshot)──▶ bro
 |---|---|
 | `/` | Landing page: every function with a link |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `not-lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `prereqs`, `sort`, `desc`, `page` |
-| `/catalog/module/<id>` | Module page |
+| `/catalog/module/<id>[?…]` | The catalog with this module's detail panel open (full screen on a phone) |
 | `/programs` | Program overview (current PO versions) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page and its tabs |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key.
+
+### Look and interaction (since 2026-09-19, owner-approved direction)
+
+- **Layout:** a slim navigation rail, a top bar with the search, and the whole remaining screen
+  for content. The catalog is three panels side by side: filters, list, and the detail panel of
+  the opened module. `/catalog/module/<id>?<filters>` is the list *with* the panel, so opening a
+  module keeps the list, the filters and the scroll position; on a phone the panel fills the screen,
+  the filters become a bottom sheet and the rail a bottom bar. The list uses container queries:
+  the narrower it gets, the fewer columns it shows.
+- **Big targets:** whole rows are links (60 px, 72 px on a phone), filters are toggle chips
+  (38 px, 44 px on a phone) built from real checkboxes, so they work without JavaScript.
+- **Tokens:** `app/assets/app.css` starts with the token block (colors, radii, shadows); everything
+  below uses tokens only. One look, light and dark: dark follows the system, the switch in the rail
+  overrides it (`data-theme` on `<html>`, remembered in `localStorage`). Accent color only for
+  primary actions and the marker of the open row; selected chips are neutral (inverted).
+  Font: Inter (variable, latin subset, OFL), self-hosted. Icons: Lucide (ISC), inlined through
+  `app/src/icons.rs`. The only `style` attributes carry data for the week grid (`--from`, `--to`).
+- **`assets/enhance.js`** (progressive enhancement until the browser app takes over): filters
+  apply on change, panels keep their scroll position across page loads, Esc closes the detail
+  panel or the filter sheet, Ctrl+K or `/` focuses the search, theme switch. Page changes use
+  cross-document view transitions where the browser supports them.
+- `design/prototype.html` is the clickable design prototype the direction was agreed on;
+  `node e2e/shot.mjs <url> <out.png> [w] [h] [--dark]` takes review screenshots.
 
 ### Data flow
 

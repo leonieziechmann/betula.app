@@ -1,44 +1,20 @@
-//! The module page: everything the module description states, its schedule and exams
-//! per semester, and the programs it belongs to.
+//! The module panel: what the module description states, its schedule and exams, its
+//! prerequisites and the programs it belongs to. It opens next to the catalog list
+//! (`/catalog/module/<id>`) and fills the screen on a phone.
 
-use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, TextItemKind, TurnusSeason};
-use catalog::pages::{self, ModuleData};
+use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, TeachingForm, TextItemKind, TurnusSeason};
+use catalog::pages::ModuleData;
+use catalog::rows::Prerequisite;
 use catalog::rows_detail::EventDate;
 use catalog::url::{self, ProgramTab};
 use leptos::prelude::*;
-use leptos_meta::{Meta, Title};
-use leptos_router::hooks::use_params_map;
+use leptos_meta::Meta;
 
-use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::{ErrorState, Fact, KindBadge, NotFound, OfferBadge, Prose};
+use crate::ui::{Fact, Icon, KindBadge, OfferBadge, Prose};
 
 #[component]
-pub fn ModulePage() -> impl IntoView {
-    let params = use_params_map();
-    let id = Memo::new(move |_| params.read().get("id").unwrap_or_default());
-    let source = use_source();
-    let status = PageStatus::capture();
-    // Queries are synchronous on both sides (rusqlite here, sql.js in the browser), so a page
-    // is a plain function of its route parameters: no resources, nothing to serialize.
-    move || {
-        let id = id.get();
-        match source.clone().and_then(|source| source.run(|db| pages::module(db, &id))) {
-            Err(error) => {
-                status.for_error(&error);
-                view! { <ErrorState error/> }.into_any()
-            }
-            Ok(None) => {
-                status.set(404);
-                view! { <NotFound title="Modul nicht gefunden" hint="Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."/> }.into_any()
-            }
-            Ok(Some(data)) => view! { <ModuleView data/> }.into_any(),
-        }
-    }
-}
-
-#[component]
-fn ModuleView(data: ModuleData) -> impl IntoView {
+pub fn ModulePanel(data: ModuleData, close_href: String) -> impl IntoView {
     let m = data.module.clone();
     let description = m
         .contents
@@ -68,130 +44,128 @@ fn ModuleView(data: ModuleData) -> impl IntoView {
     .filter(|(at, _)| *at == Some(true))
     .map(|(_, label)| *label)
     .collect();
-    let literature: Vec<String> = data.text_items.iter().filter(|i| i.kind.is(TextItemKind::Literature)).map(|i| i.text.clone()).collect();
-    let courses: Vec<String> = data.text_items.iter().filter(|i| i.kind.is(TextItemKind::Course)).map(|i| i.text.clone()).collect();
-    let mandatory: Vec<_> = data.prerequisites.iter().filter(|p| p.kind.is(PrerequisiteKind::Mandatory)).cloned().collect();
-    let recommended: Vec<_> = data.prerequisites.iter().filter(|p| p.kind.is(PrerequisiteKind::Recommended)).cloned().collect();
-
-    let prerequisite_list = |title: &'static str, text: Option<String>, linked: Vec<catalog::rows::Prerequisite>| {
-        (text.is_some() || !linked.is_empty()).then(|| view! {
-            <section class="block">
-                <h3>{title}</h3>
-                {text.map(|text| view! { <Prose text/> })}
-                {(!linked.is_empty()).then(|| view! {
-                    <ul class="linklist">
-                        {linked.into_iter().map(|p| view! {
-                            <li>
-                                <a href=url::module_path(&p.required_module_id)>
-                                    {p.required_module_id.clone()}" "{p.required_title.clone().unwrap_or_default()}
-                                </a>
-                                {p.required_offer_status.map(|status| view! { <OfferBadge status/> })}
-                            </li>
-                        }).collect_view()}
-                    </ul>
-                })}
-            </section>
+    let workload: Vec<String> = data
+        .teaching_forms
+        .iter()
+        .filter(|f| !f.form.is(TeachingForm::SelfStudy))
+        .map(|f| match &f.workload_raw {
+            Some(raw) => format!("{} {raw}", f.form_raw),
+            None => f.form_raw.clone(),
         })
+        .collect();
+    let literature: Vec<String> = data.text_items.iter().filter(|i| i.kind.is(TextItemKind::Literature)).map(|i| i.text.clone()).collect();
+    let mandatory: Vec<Prerequisite> = data.prerequisites.iter().filter(|p| p.kind.is(PrerequisiteKind::Mandatory)).cloned().collect();
+    let recommended: Vec<Prerequisite> = data.prerequisites.iter().filter(|p| p.kind.is(PrerequisiteKind::Recommended)).cloned().collect();
+    let has_prerequisites = m.prerequisites_mandatory.is_some() || m.prerequisites_recommended.is_some() || !data.prerequisites.is_empty();
+
+    let prerequisite_links = |linked: Vec<Prerequisite>, kind: &'static str| {
+        linked
+            .into_iter()
+            .map(|p| view! {
+                <a class="pre" href=url::module_path(&p.required_module_id)>
+                    <span class="mono">{p.required_module_id.clone()}</span>
+                    <b>{p.required_title.clone().unwrap_or_default()}</b>
+                    {p.required_offer_status.map(|status| view! { <OfferBadge status/> })}
+                    <small>{kind}</small>
+                    <Icon name="chevron-right"/>
+                </a>
+            })
+            .collect_view()
     };
 
     view! {
-        <Title text=format!("{} {}", m.id, m.title)/>
         <Meta name="description" content=description/>
-        <article class="detail">
-            <header class="detail-header">
-                <p class="eyebrow"><a href=url::CATALOG>"Modulkatalog"</a>" / Modul "{m.id.clone()}</p>
-                <h1>{m.title.clone()}</h1>
-                {other_title.map(|title| view! { <p class="subtitle">{title}</p> })}
-                <p class="badges">
-                    <span class="badge badge-strong">{format::credits(m.credits)}</span>
-                    <span class="badge">{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref())}</span>
-                    {format::languages(m.teaches_german, m.teaches_english).map(|l| view! { <span class="badge">{l}</span> })}
-                    <OfferBadge status=m.offer_status.clone()/>
-                    {m.is_fues.then(|| view! { <span class="badge badge-fues">"FÜS"</span> })}
-                </p>
-            </header>
+        <section class="panel detail" aria-label="Modul">
+            <div class="scroll" data-keep-scroll="detail">
+                <header class="hero">
+                    <div class="hero-top">
+                        <a class="icon-btn back" href=close_href.clone() aria-label="Zurück zur Liste"><Icon name="arrow-left"/></a>
+                        <span class="mono">{m.id.clone()}</span>
+                        <a class="icon-btn" href=close_href data-action="close-detail" aria-label="Schließen (Esc)"><Icon name="x"/></a>
+                    </div>
+                    <h2>{m.title.clone()}</h2>
+                    {other_title.map(|title| view! { <p class="en">{title}</p> })}
+                    <p class="badges">
+                        <span class="badge strong num">{format::credits(m.credits)}</span>
+                        <span class="badge">{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref())}</span>
+                        {format::languages(m.teaches_german, m.teaches_english).map(|l| view! { <span class="badge">{l}</span> })}
+                        {m.is_fues.then(|| view! { <span class="badge">"FÜS"</span> })}
+                        {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label().to_string()}</span> })}
+                    </p>
+                </header>
+                <div class="dbody">
+                    {(!data.successors.is_empty()).then(|| view! {
+                        <p class="note">
+                            <Icon name="info"/>
+                            <span>
+                                {if m.offer_status.is(OfferStatus::Active) { "Nachfolgemodul: " } else { "Wird abgelöst durch: " }}
+                                {data.successors.iter().map(|s| view! {
+                                    <a href=url::module_path(&s.successor_id)>{s.successor_id.clone()}" "{s.successor_title.clone().unwrap_or_default()}</a>" "
+                                }).collect_view()}
+                            </span>
+                        </p>
+                    })}
 
-            {(!data.successors.is_empty()).then(|| view! {
-                <aside class="notice">
-                    {if m.offer_status.is(OfferStatus::Active) { "Dieses Modul hat ein Nachfolgemodul: " } else { "Dieses Modul wird abgelöst durch: " }}
-                    {data.successors.iter().map(|s| view! {
-                        <a href=url::module_path(&s.successor_id)>{s.successor_id.clone()}" "{s.successor_title.clone().unwrap_or_default()}</a>" "
-                    }).collect_view()}
-                </aside>
-            })}
+                    <Schedule data=data.clone()/>
 
-            <section class="block">
-                <h2>"Auf einen Blick"</h2>
-                <dl class="facts">
-                    <Fact label="Leistungspunkte" value=m.credits.map(|c| format::credits(Some(c)))/>
-                    <Fact label="Turnus" value=m.turnus_raw.clone()/>
-                    <Fact label="Dauer" value=m.duration_raw.clone()/>
-                    <Fact label="Sprache" value=m.language_raw.clone()/>
-                    <Fact label="Prüfungsform" value=m.exam_form.as_ref().map(|f| f.label().to_string()).or(m.exam_form_raw.clone())/>
-                    <Fact label="Benotung" value=m.is_graded.map(|g| if g { "benotet".to_string() } else { "unbenotet".to_string() }).or(m.grading_raw.clone())/>
-                    <Fact label="Teilnehmerbegrenzung" value=match (m.is_limited, m.participant_limit) {
-                        (Some(true), Some(n)) => Some(format!("max. {n} Teilnehmende")),
-                        (Some(true), None) => m.limitation_raw.clone().or(Some("begrenzt".to_string())),
-                        (Some(false), _) => Some("keine".to_string()),
-                        (None, _) => None,
-                    }/>
-                    <Fact label="Fachgebiet" value=m.department.clone()/>
-                    <Fact label="Modulverantwortung" value=(!responsible.is_empty()).then(|| responsible.join("; "))/>
-                    <Fact label="Standort" value=(!campus.is_empty()).then(|| campus.join(", "))/>
-                </dl>
-            </section>
+                    <div class="section">
+                        <p class="label">"Auf einen Blick"</p>
+                        <dl class="facts">
+                            <Fact icon="file-check-2" label="Prüfung" value=m.exam_form.as_ref().map(format::exam_short).or(m.exam_form_raw.clone())/>
+                            <Fact icon="award" label="Benotung" value=m.is_graded.map(|g| if g { "benotet".to_string() } else { "unbenotet".to_string() }).or(m.grading_raw.clone())/>
+                            <Fact icon="clock-3" label="Dauer" value=m.duration_raw.clone()/>
+                            <Fact icon="users-round" label="Plätze" value=match (m.is_limited, m.participant_limit) {
+                                (Some(true), Some(n)) => Some(format!("max. {n}")),
+                                (Some(true), None) => m.limitation_raw.clone().or(Some("begrenzt".to_string())),
+                                (Some(false), _) => Some("unbegrenzt".to_string()),
+                                (None, _) => None,
+                            }/>
+                            <Fact icon="languages" label="Sprache" value=m.language_raw.clone()/>
+                            <Fact icon="map-pin" label="Standort" value=(!campus.is_empty()).then(|| campus.join(", "))/>
+                            <Fact wide=true icon="user-round" label="Verantwortlich" value=(!responsible.is_empty()).then(|| responsible.join("; "))/>
+                            <Fact wide=true icon="layout-list" label="Lehrformen" value=(!workload.is_empty()).then(|| workload.join(" · "))/>
+                        </dl>
+                    </div>
 
-            <Schedule data=data.clone()/>
+                    {has_prerequisites.then(|| view! {
+                        <div class="section">
+                            <p class="label">"Voraussetzungen"</p>
+                            <div class="linklist">
+                                {prerequisite_links(mandatory, "zwingend")}
+                                {prerequisite_links(recommended, "empfohlen")}
+                            </div>
+                            {m.prerequisites_mandatory.clone().map(|text| view! { <details class="more"><summary>"Zwingend, im Wortlaut"</summary><Prose text/></details> })}
+                            {m.prerequisites_recommended.clone().map(|text| view! { <details class="more"><summary>"Empfohlen, im Wortlaut"</summary><Prose text/></details> })}
+                        </div>
+                    })}
 
-            {m.learning_outcomes.clone().map(|text| view! { <section class="block"><h2>"Lernziele"</h2><Prose text/></section> })}
-            {m.contents.clone().map(|text| view! { <section class="block"><h2>"Inhalte"</h2><Prose text/></section> })}
+                    {m.contents.clone().map(|text| view! { <div class="section"><p class="label">"Inhalte"</p><Prose text/></div> })}
+                    {m.learning_outcomes.clone().map(|text| view! { <div class="section"><p class="label">"Lernziele"</p><Prose text/></div> })}
+                    {m.exam_details.clone().map(|text| view! { <div class="section"><p class="label">"Prüfungsleistung"</p><Prose text/></div> })}
+                    {(!literature.is_empty()).then(|| view! {
+                        <div class="section">
+                            <details class="more"><summary>"Literatur ("{literature.len()}")"</summary>
+                                <ul class="list-plain">{literature.into_iter().map(|l| view! { <li>{l}</li> }).collect_view()}</ul>
+                            </details>
+                        </div>
+                    })}
+                    {m.remarks.clone().map(|text| view! { <div class="section"><p class="label">"Bemerkungen"</p><Prose text/></div> })}
 
-            {(m.prerequisites_mandatory.is_some() || m.prerequisites_recommended.is_some() || !data.prerequisites.is_empty()).then(|| view! {
-                <section class="block">
-                    <h2>"Voraussetzungen"</h2>
-                    {prerequisite_list("Zwingend", m.prerequisites_mandatory.clone(), mandatory)}
-                    {prerequisite_list("Empfohlen", m.prerequisites_recommended.clone(), recommended)}
-                </section>
-            })}
+                    <Programs data=data.clone()/>
 
-            <section class="block">
-                <h2>"Lehre & Prüfung"</h2>
-                {(!data.teaching_forms.is_empty()).then(|| view! {
-                    <table class="plain">
-                        <thead><tr><th scope="col">"Lehrform"</th><th scope="col">"Umfang"</th></tr></thead>
-                        <tbody>
-                            {data.teaching_forms.iter().map(|f| view! {
-                                <tr><td>{f.form_raw.clone()}</td><td>{f.workload_raw.clone().unwrap_or_else(|| "–".to_string())}</td></tr>
-                            }).collect_view()}
-                        </tbody>
-                    </table>
-                })}
-                {m.exam_details.clone().map(|text| view! { <h3>"Prüfungsleistung"</h3><Prose text/> })}
-                {(!courses.is_empty()).then(|| view! {
-                    <h3>"Lehrveranstaltungen laut Modulbeschreibung"</h3>
-                    <ul>{courses.into_iter().map(|c| view! { <li>{c}</li> }).collect_view()}</ul>
-                })}
-            </section>
-
-            {(!literature.is_empty()).then(|| view! {
-                <section class="block">
-                    <h2>"Literatur"</h2>
-                    <ul class="literature">{literature.into_iter().map(|l| view! { <li>{l}</li> }).collect_view()}</ul>
-                </section>
-            })}
-            {m.remarks.clone().map(|text| view! { <section class="block"><h2>"Bemerkungen"</h2><Prose text/></section> })}
-
-            <Programs data=data.clone()/>
-
-            <footer class="detail-footer">
-                {m.source_url.clone().map(|href| view! { <a href=href rel="noopener">"Modulbeschreibung bei der BTU öffnen"</a> })}
-                {m.fetched_at.as_deref().map(|at| format!(" · abgerufen am {}", format::date(at)))}
-            </footer>
-        </article>
+                    <p class="source">
+                        <Icon name="shield-check"/>
+                        "Quelle: Modulbeschreibung der BTU"
+                        {m.fetched_at.as_deref().map(|at| format!(" · abgerufen {}", format::date(at)))}
+                        {m.source_url.clone().map(|href| view! { <a href=href rel="noopener">"Original"<Icon name="arrow-up-right"/></a> })}
+                    </p>
+                </div>
+            </div>
+        </section>
     }
 }
 
-/// Teaching events and exams of the newest semester that has any; older semesters are not kept.
+/// Teaching events of the newest semester that has any, as a week grid plus a list; exams below.
 #[component]
 fn Schedule(data: ModuleData) -> impl IntoView {
     let m = &data.module;
@@ -201,10 +175,9 @@ fn Schedule(data: ModuleData) -> impl IntoView {
 
     // The gap before the BTU publishes the next semester (owner decision Q8).
     let gap_note = match (&newest, upcoming) {
-        (Some((key, label)), Some(next)) if *key < next.key => Some(format!(
-            "Termine aus dem {label}. Für das {} hat die BTU noch keine Termine zu diesem Modul veröffentlicht.",
-            next.label
-        )),
+        (Some((key, label)), Some(next)) if *key < next.key => {
+            Some(format!("Termine aus dem {label}. Für das {} hat die BTU noch keine Termine zu diesem Modul veröffentlicht.", next.label))
+        }
         _ => None,
     };
     let no_schedule_note = newest.is_none().then(|| match m.turnus_season.as_ref().and_then(|s| s.known()) {
@@ -214,69 +187,94 @@ fn Schedule(data: ModuleData) -> impl IntoView {
         _ => "Zu diesem Modul sind keine Termine veröffentlicht.",
     });
 
-    let table = |dates: Vec<EventDate>, with_type: bool| view! {
-        <div class="table-scroll">
-            <table class="plain">
-                <thead>
-                    <tr>
-                        <th scope="col">"Veranstaltung"</th>
-                        <th scope="col">"Zeit"</th>
-                        <th scope="col">"Rhythmus / Datum"</th>
-                        <th scope="col">"Raum"</th>
-                        <th scope="col">"Lehrende"</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {dates.into_iter().map(|d| {
-                        let when = match (&d.first_date, &d.last_date) {
-                            (Some(first), Some(last)) if first != last => Some(format!("{} – {}", format::date(first), format::date(last))),
-                            (Some(first), _) => Some(format::date(first)),
-                            _ => None,
-                        };
-                        let rhythm = d.rhythm.as_ref().map(|r| r.label().to_string()).or(d.rhythm_raw.clone());
-                        let detail = [rhythm, when].into_iter().flatten().collect::<Vec<_>>().join(", ");
-                        view! {
-                            <tr>
-                                <td>
-                                    {match &d.source_url {
-                                        Some(href) => view! { <a href=href.clone() rel="noopener">{d.event_title.clone()}</a> }.into_any(),
-                                        None => view! { <span>{d.event_title.clone()}</span> }.into_any(),
-                                    }}
-                                    {with_type.then(|| d.event_type.clone().map(|t| view! { <span class="subtitle">{t}{d.group_name.clone().map(|g| format!(" · {g}"))}</span> }))}
-                                    {d.comment.clone().map(|c| view! { <span class="subtitle">{c}</span> })}
-                                </td>
-                                <td>{format::time_slot(d.weekday, d.start_time.as_deref(), d.end_time.as_deref()).unwrap_or_else(|| "–".to_string())}</td>
-                                <td>{if detail.is_empty() { "–".to_string() } else { detail }}</td>
-                                <td>{d.room.clone().unwrap_or_else(|| "–".to_string())}</td>
-                                <td>{d.instructor.clone().unwrap_or_else(|| "–".to_string())}</td>
-                            </tr>
-                        }
-                    }).collect_view()}
-                </tbody>
-            </table>
-        </div>
-    };
-
     let newest_key = newest.as_ref().map(|(key, _)| key.clone());
     let teaching: Vec<EventDate> = data.schedule.iter().filter(|d| Some(&d.semester_key) == newest_key.as_ref()).cloned().collect();
     let exam_semester = data.exams.first().map(|d| (d.semester_key.clone(), d.semester_label.clone()));
     let exams: Vec<EventDate> = data.exams.iter().filter(|d| exam_semester.as_ref().is_some_and(|(key, _)| *key == d.semester_key)).cloned().collect();
 
+    // Week grid: only dates with a weekday and both times, Monday to Friday (Saturday if used).
+    let slots: Vec<(i64, f64, f64, EventDate)> = teaching
+        .iter()
+        .filter_map(|d| {
+            let from = format::half_hours(d.start_time.as_deref()?)?;
+            let to = format::half_hours(d.end_time.as_deref()?)?;
+            let day = d.weekday.filter(|day| (1..=6).contains(day))?;
+            (to > from).then(|| (day, from, to, d.clone()))
+        })
+        .collect();
+    let days: i64 = if slots.iter().any(|(day, ..)| *day == 6) { 6 } else { 5 };
+    let first = slots.iter().map(|(_, from, ..)| (from / 2.0).floor() * 2.0).fold(f64::INFINITY, f64::min).min(16.0);
+    let last = slots.iter().map(|(_, _, to, _)| (to / 2.0).ceil() * 2.0).fold(0.0, f64::max).max(first + 8.0);
+    let span = last - first;
+    let day_names = ["Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+    let event_list = |dates: Vec<EventDate>| {
+        dates
+            .into_iter()
+            .map(|d| {
+                let when = format::time_slot(d.weekday, d.start_time.as_deref(), d.end_time.as_deref());
+                let dates = match (&d.first_date, &d.last_date) {
+                    (Some(first), Some(last)) if first != last => Some(format!("{} – {}", format::date(first), format::date(last))),
+                    (Some(first), _) => Some(format::date(first)),
+                    _ => None,
+                };
+                let rhythm = d.rhythm.as_ref().map(|r| r.label().to_string()).or(d.rhythm_raw.clone());
+                let details: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm, dates, d.room.clone(), d.instructor.clone(), d.comment.clone()]
+                    .into_iter()
+                    .flatten()
+                    .collect();
+                let body = view! {
+                    <span class="when">{when.unwrap_or_else(|| "Zeit offen".to_string())}</span>
+                    <b>{d.event_title.clone()}</b>
+                    <small>{details.join(" · ")}</small>
+                };
+                match d.source_url.clone() {
+                    Some(href) => view! { <a class="ev" href=href rel="noopener">{body}</a> }.into_any(),
+                    None => view! { <div class="ev">{body}</div> }.into_any(),
+                }
+            })
+            .collect_view()
+    };
+
     view! {
-        <section class="block">
-            <h2>"Termine"{newest.as_ref().map(|(_, label)| format!(" · {label}"))}</h2>
-            {gap_note.map(|note| view! { <p class="hint">{note}</p> })}
-            {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
-            {(!teaching.is_empty()).then(|| table(teaching, true))}
-            {exam_semester.map(|(_, label)| view! {
-                <h3>"Prüfungstermine · "{label}</h3>
-                {table(exams, false)}
+        <div class="section">
+            <p class="label">"Termine"{newest.as_ref().map(|(_, label)| view! { <span>{label.clone()}</span> })}</p>
+            {(!slots.is_empty()).then(|| view! {
+                <div class="week" style=format!("--days:{days};--first:{first};--span:{span}")>
+                    <span></span>
+                    {day_names.iter().take(days as usize).map(|name| view! { <span class="d">{*name}</span> }).collect_view()}
+                    <div class="hours">
+                        {(0..(span as i64 / 2)).map(|i| view! { <span>{(first as i64 / 2) + i}</span> }).collect_view()}
+                    </div>
+                    {(1..=days).map(|day| view! {
+                        <div class="col">
+                            {slots.iter().filter(|(d, ..)| *d == day).map(|(_, from, to, date)| {
+                                let lecture = date.event_type.as_deref().is_some_and(|t| t.to_lowercase().contains("vorlesung"));
+                                view! {
+                                    <div class="slot" class:other=!lecture style=format!("--from:{from};--to:{to}") title=date.event_title.clone()>
+                                        {date.event_type.clone().unwrap_or_else(|| "Termin".to_string())}
+                                        <small>{date.start_time.clone()}</small>
+                                    </div>
+                                }
+                            }).collect_view()}
+                        </div>
+                    }).collect_view()}
+                </div>
             })}
-        </section>
+            {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
+            {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
+            {(!teaching.is_empty()).then(|| view! { <div class="evlist">{event_list(teaching)}</div> })}
+        </div>
+        {exam_semester.map(|(_, label)| view! {
+            <div class="section">
+                <p class="label">"Prüfungstermine"<span>{label}</span></p>
+                <div class="evlist">{event_list(exams)}</div>
+            </div>
+        })}
     }
 }
 
-/// The programs the module belongs to: curricula first, then the programs that accept it as FÜS.
+/// The programs the module belongs to: curricula first, then how many accept it as FÜS.
 #[component]
 fn Programs(data: ModuleData) -> impl IntoView {
     let resolved: Vec<_> = data.programs.iter().filter(|l| l.resolve_status.is(ResolveStatus::Resolved)).cloned().collect();
@@ -285,36 +283,27 @@ fn Programs(data: ModuleData) -> impl IntoView {
     let unresolved = data.programs.iter().filter(|l| l.resolve_status.is(ResolveStatus::Unresolved)).count();
 
     (!data.programs.is_empty()).then(|| view! {
-        <section class="block">
-            <h2>"Studiengänge"</h2>
-            {if curricular.is_empty() {
-                view! { <p class="hint">"Das Modul gehört zu keinem Curriculum eines Studiengangs im Katalog."</p> }.into_any()
-            } else {
-                view! {
-                    <ul class="linklist">
-                        {curricular.into_iter().map(|link| {
-                            let slug = link.program_slug.clone().unwrap_or_default();
-                            view! {
-                                <li>
-                                    <a href=url::program_path(&slug, ProgramTab::Modules)>
-                                        {link.program_name.clone().unwrap_or_default()}" · "
-                                        {link.degree_display.clone().or(link.degree_raw.clone()).unwrap_or_default()}
-                                        " · PO "{link.po_version.clone().unwrap_or_default()}
-                                    </a>
-                                    " "<KindBadge kind=link.kind.clone()/>
-                                    {link.area.clone().map(|area| view! { <span class="subtitle">{area}</span> })}
-                                </li>
-                            }
-                        }).collect_view()}
-                    </ul>
-                }.into_any()
-            }}
-            {(fues > 0).then(|| view! {
-                <p class="hint">"Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in "{fues}" Studiengängen."</p>
-            })}
-            {(unresolved > 0).then(|| view! {
-                <p class="hint">{unresolved}" weitere Nennungen in der Modulbeschreibung gehören zu Studiengängen, die nicht im Katalog stehen."</p>
-            })}
-        </section>
+        <div class="section">
+            <p class="label">"Studiengänge"<span>{curricular.len()}" Curricula"</span></p>
+            {curricular.is_empty().then(|| view! { <p class="hint">"Das Modul gehört zu keinem Curriculum eines Studiengangs im Katalog."</p> })}
+            <div class="linklist">
+                {curricular.into_iter().map(|link| {
+                    let slug = link.program_slug.clone().unwrap_or_default();
+                    view! {
+                        <a class="pre" href=url::program_path(&slug, ProgramTab::Modules)>
+                            <b>
+                                {link.program_name.clone().unwrap_or_default()}" · "
+                                {link.degree_display.clone().or(link.degree_raw.clone()).unwrap_or_default()}
+                                <span class="subtitle">"PO "{link.po_version.clone().unwrap_or_default()}{link.area.clone().map(|area| format!(" · {area}"))}</span>
+                            </b>
+                            <small><KindBadge kind=link.kind.clone()/></small>
+                            <Icon name="chevron-right"/>
+                        </a>
+                    }
+                }).collect_view()}
+            </div>
+            {(fues > 0).then(|| view! { <p class="hint">"Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in "{fues}" Studiengängen."</p> })}
+            {(unresolved > 0).then(|| view! { <p class="hint">{unresolved}" weitere Nennungen gehören zu Studiengängen, die nicht im Katalog stehen."</p> })}
+        </div>
     })
 }

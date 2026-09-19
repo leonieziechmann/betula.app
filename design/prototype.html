@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light" data-accent="blue" data-font="inter">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BTU Katalog · Design-Prototyp</title>
+<!-- Prototype only: fonts and icons come from a CDN here. The app will self-host both. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Geist:wght@400..700&family=Plus+Jakarta+Sans:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+<style>
+/* ---------- tokens ---------- */
+:root {
+  --font: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  --bg: #eef0f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f9;
+  --panel-3: #eef0f4;
+  --line: rgba(15, 23, 42, .07);
+  --line-strong: rgba(15, 23, 42, .13);
+  --text: #0e1524;
+  --text-2: #4a5568;
+  --text-3: #8892a6;
+
+  --accent: #2f5bea;
+  --accent-ink: #2447c4;
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  --accent-softer: color-mix(in srgb, var(--accent) 4%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 28%, transparent);
+
+  --green: #0b8f63;  --green-soft: color-mix(in srgb, #0b8f63 11%, var(--panel));
+  --amber: #a9690c;  --amber-soft: color-mix(in srgb, #d08a1a 14%, var(--panel));
+  --rose: #c2334d;   --rose-soft: color-mix(in srgb, #c2334d 10%, var(--panel));
+
+  --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 14px 36px -14px rgba(15, 23, 42, .14);
+  --shadow-pop: 0 0 0 1px var(--line), 0 10px 40px -8px rgba(15, 23, 42, .25);
+  --r-panel: 20px; --r-ctl: 12px; --r-s: 8px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+}
+[data-theme="dark"] {
+  --bg: #090b10;
+  --panel: #11141c;
+  --panel-2: #161a24;
+  --panel-3: #1c2130;
+  --line: rgba(255, 255, 255, .07);
+  --line-strong: rgba(255, 255, 255, .14);
+  --text: #eef1f7;
+  --text-2: #a5afc4;
+  --text-3: #67728a;
+  --accent-ink: color-mix(in srgb, var(--accent) 70%, #fff);
+  --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--panel));
+  --accent-softer: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  --green: #4fd1a1; --amber: #f0b861; --rose: #f08aa0;
+  --shadow-panel: 0 0 0 1px var(--line), 0 24px 48px -20px rgba(0, 0, 0, .7);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+}
+[data-accent="blue"]   { --accent: #2f5bea; }
+[data-accent="petrol"] { --accent: #0d7d87; }
+[data-accent="violet"] { --accent: #6a4df0; }
+[data-accent="ember"]  { --accent: #d4482b; }
+[data-theme="dark"][data-accent="blue"]   { --accent: #5b83ff; }
+[data-theme="dark"][data-accent="petrol"] { --accent: #2bb3bf; }
+[data-theme="dark"][data-accent="violet"] { --accent: #8f7bff; }
+[data-theme="dark"][data-accent="ember"]  { --accent: #ff7a59; }
+[data-theme="dark"] { --on-accent: #0a0d14; }
+[data-font="geist"]   { --font: "Geist", system-ui, sans-serif; }
+[data-font="jakarta"] { --font: "Plus Jakarta Sans", system-ui, sans-serif; }
+
+/* ---------- base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; color: var(--text);
+  background: radial-gradient(1100px 520px at 0% -8%, color-mix(in srgb, var(--accent) 7%, var(--bg)), transparent 70%), radial-gradient(900px 600px at 100% 108%, color-mix(in srgb, var(--accent) 5%, var(--bg)), transparent 70%), var(--bg);
+  font: 450 14px/1.45 var(--font); letter-spacing: -.006em;
+  -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01";
+  display: grid; grid-template-columns: 84px minmax(0, 1fr); overflow: hidden;
+}
+button, input, select { font: inherit; color: inherit; letter-spacing: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+svg.lucide { width: 18px; height: 18px; stroke-width: 1.9; flex: none; }
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-size: 12px; letter-spacing: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 10px; }
+::selection { background: var(--accent-soft); }
+.scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+
+/* ---------- rail ---------- */
+.rail { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 0 14px; }
+.logo {
+  width: 44px; height: 44px; border-radius: 14px; margin-bottom: 14px; display: grid; place-items: center;
+  background: var(--text); color: var(--bg); font-weight: 700; font-size: 15px; letter-spacing: -.04em;
+}
+.nav {
+  width: 64px; padding: 9px 0 7px; border-radius: 14px; display: grid; justify-items: center; gap: 4px;
+  color: var(--text-3); font-size: 11px; font-weight: 550; transition: background .15s, color .15s;
+}
+.nav svg { width: 21px; height: 21px; }
+.nav:hover { background: var(--line); color: var(--text); }
+.nav.active { background: var(--panel); color: var(--accent-ink); box-shadow: var(--shadow-panel); }
+.nav.soon { opacity: .45; }
+.rail-end { margin-top: auto; display: grid; gap: 6px; justify-items: center; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); display: grid; place-items: center; font-weight: 650; font-size: 13px; box-shadow: 0 0 0 1px var(--accent-line); }
+
+/* ---------- main frame ---------- */
+.main { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; padding: 14px 16px 16px 0; min-width: 0; height: 100vh; }
+.topbar { display: flex; align-items: center; gap: 14px; height: 48px; }
+.crumb { display: flex; align-items: baseline; gap: 10px; min-width: 278px; padding-left: 6px; }
+.crumb h1 { margin: 0; font-size: 20px; font-weight: 680; letter-spacing: -.025em; }
+.crumb small { color: var(--text-3); font-size: 13px; }
+.search {
+  flex: 1; max-width: 720px; height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px;
+  background: var(--panel); border-radius: 14px; box-shadow: var(--shadow-panel); color: var(--text-3); cursor: text;
+  transition: box-shadow .15s;
+}
+.search:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 14px 36px -14px rgba(15, 23, 42, .2); }
+.search input { flex: 1; border: 0; outline: 0; background: none; font-size: 15px; color: var(--text); }
+.search input::placeholder { color: var(--text-3); }
+kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border-radius: 7px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.top-end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.pill {
+  height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 12px;
+  background: var(--panel); box-shadow: var(--shadow-panel); font-weight: 550; font-size: 13px; color: var(--text-2);
+}
+.pill b { color: var(--text); font-weight: 600; }
+.pill.ok svg { color: var(--green); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+
+.work { display: grid; grid-template-columns: 284px minmax(0, 1fr) 448px; gap: 14px; min-height: 0; transition: grid-template-columns .28s var(--ease); }
+.work.no-detail { grid-template-columns: 284px minmax(0, 1fr) 0px; }
+.work.no-detail .detail { opacity: 0; pointer-events: none; transform: translateX(16px); }
+.panel { background: var(--panel); border-radius: var(--r-panel); box-shadow: var(--shadow-panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.panel-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px 12px; }
+.panel-head h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.015em; }
+.ghost { height: 32px; padding: 0 10px; border-radius: 9px; color: var(--text-2); font-weight: 550; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; transition: background .12s; }
+.ghost:hover { background: var(--panel-3); color: var(--text); }
+.icon-btn { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; color: var(--text-3); transition: background .12s, color .12s, transform .12s; }
+.icon-btn:hover { background: var(--panel-3); color: var(--text); }
+.icon-btn:active { transform: scale(.94); }
+.icon-btn.on { color: var(--accent); }
+.icon-btn.on svg { fill: currentColor; }
+
+/* ---------- filters ---------- */
+.filters .body { padding: 0 14px 18px; }
+.fgroup { padding: 14px 4px 4px; }
+.fgroup + .fgroup { border-top: 1px solid var(--line); margin-top: 12px; }
+.flabel { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin-bottom: 10px; }
+.select {
+  width: 100%; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 14px;
+  background: var(--accent-softer); box-shadow: inset 0 0 0 1px var(--accent-line); text-align: left; transition: background .12s;
+}
+.select:hover { background: var(--accent-soft); }
+.select .badge-ico { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
+.select b { display: block; font-weight: 620; font-size: 14px; }
+.select small { color: var(--text-2); font-size: 12px; }
+.select > svg { color: var(--text-3); }
+.mine { margin-left: auto; display: none; }
+.select { position: relative; }
+.select .mine { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--panel); color: var(--accent); box-shadow: 0 0 0 1px var(--accent-line); }
+.select .mine svg { width: 14px; height: 14px; fill: currentColor; }
+.select > span:nth-child(2) { margin-right: auto; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: 12px; background: var(--panel-3); margin-top: 10px; }
+.seg button { height: 36px; border-radius: 9px; font-weight: 580; font-size: 13px; color: var(--text-2); transition: all .15s; }
+.seg button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .12), 0 0 0 1px var(--line); }
+.seg button span { color: var(--text-3); font-weight: 500; margin-left: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  height: 38px; padding: 0 14px; border-radius: 11px; display: inline-flex; align-items: center; gap: 7px;
+  background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-weight: 550; font-size: 13.5px;
+  transition: all .14s var(--ease); user-select: none;
+}
+.chip svg { width: 16px; height: 16px; color: var(--text-3); }
+.chip:hover { box-shadow: inset 0 0 0 1px var(--text-3); color: var(--text); }
+.chip:active { transform: scale(.97); }
+.chip.on { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.chip.on svg { color: var(--accent); }
+.switch-row { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); font-weight: 520; cursor: pointer; }
+.switch-row small { display: block; color: var(--text-3); font-weight: 450; font-size: 12px; }
+.switch { width: 40px; height: 24px; border-radius: 99px; background: var(--line-strong); position: relative; flex: none; transition: background .18s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .18s var(--ease); }
+.switch.on { background: var(--accent); }
+.switch.on::after { transform: translateX(16px); }
+.range { display: flex; align-items: center; gap: 10px; }
+.range .track { flex: 1; height: 4px; border-radius: 4px; background: var(--panel-3); position: relative; }
+.range .track i { position: absolute; left: 12%; right: 45%; top: 0; bottom: 0; background: var(--accent); border-radius: 4px; }
+.range .track b { position: absolute; top: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--panel); box-shadow: 0 0 0 1.5px var(--accent), 0 2px 6px rgba(15, 23, 42, .2); }
+.range .val { min-width: 52px; text-align: center; padding: 5px 0; border-radius: 8px; background: var(--panel-2); font-weight: 600; font-size: 13px; box-shadow: inset 0 0 0 1px var(--line); }
+
+/* ---------- list ---------- */
+.list-head { padding: 16px 20px 0; }
+.count-row { display: flex; align-items: center; gap: 12px; }
+.count { font-size: 26px; font-weight: 700; letter-spacing: -.035em; line-height: 1; }
+.count-label { color: var(--text-2); font-weight: 520; }
+.list-tools { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.active-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0 12px; }
+.tag { height: 30px; padding: 0 6px 0 11px; border-radius: 9px; display: inline-flex; align-items: center; gap: 4px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; font-weight: 550; color: var(--text-2); }
+.tag em { font-style: normal; color: var(--text-3); font-weight: 450; }
+.tag button { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: var(--text-3); }
+.tag button:hover { background: var(--line-strong); color: var(--text); }
+.tag svg { width: 13px; height: 13px; }
+.list { container: list / inline-size; }
+.cols, .row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 160px 58px 112px 48px 96px 44px; align-items: center; column-gap: 16px; }
+.resp { color: var(--text-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container list (max-width: 1100px) {
+  .cols, .row { grid-template-columns: minmax(0, 1fr) 160px 58px 112px 48px 96px 44px; }
+  .cols .c-resp, .row .resp { display: none; }
+}
+.narrow-only { display: none; }
+@container list (max-width: 900px) {
+  .cols, .row { grid-template-columns: minmax(0, 1fr) 58px 112px 48px 96px 44px; }
+  .cols .c-exam, .row .exam { display: none; }
+}
+@container list (max-width: 680px) {
+  .cols, .row { grid-template-columns: minmax(0, 1fr) 54px 34px 44px; }
+  .cols .c-lang, .cols .c-events, .row .lang, .row .events, .turnus .txt { display: none; }
+  .cols .c-turnus { visibility: hidden; }
+  .narrow-only { display: inline-flex; }
+}
+.cols { padding: 9px 20px 9px 23px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.cols .c-lp, .row .lp { text-align: right; }
+.rows { padding: 0 8px 12px; }
+.sem { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 16px 12px 8px 15px; background: linear-gradient(var(--panel) 75%, transparent); font-weight: 650; font-size: 13px; letter-spacing: -.01em; }
+.sem small { color: var(--text-3); font-weight: 500; }
+.sem::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.row { position: relative; min-height: 62px; padding: 8px 12px 8px 15px; border-radius: 14px; cursor: pointer; transition: background .12s; }
+.row::before { content: ""; position: absolute; left: 4px; top: 16px; bottom: 16px; width: 3px; border-radius: 3px; background: var(--kind, var(--line-strong)); opacity: .9; }
+.row:hover { background: var(--panel-2); }
+.row.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.row.sel::before { top: 10px; bottom: 10px; background: var(--accent); }
+.row .t { min-width: 0; }
+.row .t b { font-weight: 600; font-size: 14.5px; line-height: 1.3; letter-spacing: -.012em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-wrap: pretty; }
+.row .t small { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; color: var(--text-3); font-size: 12.5px; margin-top: 3px; }
+.exam { color: var(--text-2); font-size: 13px; font-weight: 520; }
+.row .lp { font-weight: 650; font-size: 15px; }
+.row .lp small { font-weight: 500; font-size: 11px; color: var(--text-3); margin-left: 2px; }
+.kind { display: inline-flex; align-items: center; gap: 5px; font-weight: 560; color: var(--text-2); }
+.kind i { width: 6px; height: 6px; border-radius: 50%; background: var(--kind, var(--text-3)); }
+.kind.unknown { color: var(--text-3); font-style: italic; font-weight: 450; }
+.k-pflicht { --kind: var(--accent); } .k-wahl { --kind: var(--green); } .k-fues { --kind: var(--amber); } .k-none { --kind: var(--line-strong); }
+.turnus { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 520; font-size: 13px; }
+.turnus svg { width: 15px; height: 15px; color: var(--text-3); }
+.lang { font-size: 11.5px; font-weight: 650; color: var(--text-2); padding: 3px 7px; border-radius: 6px; background: var(--panel-3); justify-self: start; }
+.events { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); font-weight: 520; }
+.events.none { color: var(--text-3); font-weight: 450; }
+.events svg { width: 15px; height: 15px; }
+.done { color: var(--green); }
+
+/* ---------- detail ---------- */
+.detail { transition: opacity .2s, transform .28s var(--ease); }
+.hero { padding: 14px 16px 18px 22px; background: linear-gradient(180deg, var(--accent-soft), var(--panel) 92%); }
+.hero-top { display: flex; align-items: center; gap: 4px; color: var(--text-2); }
+.hero-top .mono { margin-right: auto; padding: 4px 8px; border-radius: 7px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.hero h2 { margin: 12px 0 4px; font-size: 25px; line-height: 1.15; font-weight: 700; letter-spacing: -.032em; text-wrap: balance; }
+.hero .en { color: var(--text-2); font-size: 14px; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.badge { height: 28px; padding: 0 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12.5px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); }
+.badge svg { width: 14px; height: 14px; }
+.badge.accent { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; padding-right: 6px; }
+.btn { height: 46px; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 620; font-size: 14px; transition: transform .12s, filter .12s, background .12s; }
+.btn:active { transform: scale(.98); }
+.btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 1px 0 rgba(255, 255, 255, .25) inset, 0 6px 16px -6px var(--accent); }
+.btn.primary:hover { filter: brightness(1.07); }
+.btn.secondary { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.btn.secondary:hover { background: var(--panel-2); }
+.dbody { padding: 4px 22px 24px; }
+.section { padding-top: 22px; }
+.section h3 { margin: 0 0 12px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.section h3 span { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 550; color: var(--text-2); font-size: 12.5px; }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fact { display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 13px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.fact .ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--panel); color: var(--accent-ink); box-shadow: 0 0 0 1px var(--line); }
+.fact .ico svg { width: 17px; height: 17px; }
+.fact small { display: block; color: var(--text-3); font-size: 11.5px; }
+.fact b { font-weight: 600; font-size: 13.5px; }
+.week { display: grid; grid-template-columns: 34px repeat(5, 1fr); border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); padding: 10px 10px 10px 4px; gap: 0 6px; }
+.week .d { text-align: center; font-size: 11.5px; font-weight: 650; color: var(--text-3); padding-bottom: 8px; }
+.week .hours { grid-row: 2; display: grid; grid-template-rows: repeat(5, 52px); font-size: 10.5px; color: var(--text-3); text-align: right; padding-right: 4px; }
+.week .col { grid-row: 2; position: relative; border-radius: 8px; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px 52px); min-height: 260px; }
+.slot { position: absolute; left: 2px; right: 2px; border-radius: 8px; padding: 5px 7px; font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); }
+.slot small { display: block; font-weight: 500; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot.ue { background: var(--green-soft); color: var(--green); box-shadow: inset 2.5px 0 0 var(--green); }
+.note { display: flex; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--amber-soft); color: var(--amber); font-size: 12.5px; font-weight: 520; }
+.note svg { width: 16px; height: 16px; margin-top: 1px; }
+.prereq { display: grid; gap: 6px; }
+.pre { min-height: 48px; display: flex; align-items: center; gap: 11px; padding: 6px 10px 6px 12px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); transition: background .12s; cursor: pointer; }
+.pre:hover { background: var(--panel-2); }
+.pre .st { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--green-soft); color: var(--green); }
+.pre .st svg { width: 14px; height: 14px; stroke-width: 2.6; }
+.pre .st.open { background: var(--panel-3); color: var(--text-3); }
+.pre b { font-weight: 570; font-size: 13.5px; }
+.pre small { color: var(--text-3); margin-left: auto; font-size: 12px; }
+.pre > svg { color: var(--text-3); width: 16px; height: 16px; }
+.prose { color: var(--text-2); font-size: 14px; line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.source { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 12.5px; }
+.source a { color: var(--accent-ink); font-weight: 560; text-decoration: none; display: inline-flex; gap: 5px; align-items: center; }
+.source a svg { width: 14px; height: 14px; }
+
+/* ---------- design switcher (not part of the app) ---------- */
+.lab { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: flex; align-items: center; gap: 14px; padding: 8px 12px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop); font-size: 12px; color: var(--text-3); }
+.lab .sw { display: flex; gap: 5px; align-items: center; }
+.lab button.c { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--panel), 0 0 0 1px var(--line-strong); }
+.lab button.c.on { box-shadow: inset 0 0 0 2px var(--panel), 0 0 0 2px var(--text); }
+.lab button.t { height: 28px; padding: 0 9px; border-radius: 8px; font-weight: 600; color: var(--text-2); }
+.lab button.t.on { background: var(--panel-3); color: var(--text); }
+
+/* ---------- phone ---------- */
+.bottomnav, .sheet-btn, .sheet-cta, .grabber, .back { display: none; }
+@media (max-width: 900px) {
+  body { display: block; overflow: auto; }
+  .rail { display: none; }
+  .main { display: block; height: auto; padding: 0 0 84px; }
+  .topbar { position: sticky; top: 0; z-index: 20; height: auto; padding: 10px 12px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(14px); }
+  .crumb, .top-end { display: none; }
+  .search { height: 48px; }
+  kbd { display: none; }
+  .work, .work.no-detail { display: block; }
+  .panel { border-radius: 0; box-shadow: none; background: transparent; overflow: visible; }
+  .list-head { padding: 6px 16px 0; }
+  .count { font-size: 22px; }
+  .cols { display: none; }
+  .sheet-btn { display: inline-flex; height: 40px; padding: 0 14px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); align-items: center; gap: 8px; font-weight: 600; }
+  .sheet-btn em { font-style: normal; min-width: 20px; height: 20px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 11.5px; display: grid; place-items: center; }
+  .list-tools .ghost, .list-tools .icon-btn { display: none; }
+  .rows { padding: 0 10px 12px; display: grid; gap: 8px; }
+  .sem { top: 68px; background: var(--bg); padding: 12px 6px 4px; }
+  .row { grid-template-columns: minmax(0, 1fr) 44px; grid-template-areas: "t b" "m b"; row-gap: 8px; min-height: 76px; padding: 12px 8px 12px 18px; background: var(--panel); box-shadow: var(--shadow-panel); border-radius: 16px; }
+  .row .t { grid-area: t; } .row .t b { white-space: normal; font-size: 15.5px; }
+  .row .icon-btn { grid-area: b; align-self: center; width: 44px; height: 44px; }
+  .row .lp, .row .turnus, .row .lang, .row .events { grid-area: m; }
+  .row .meta-m { grid-area: m; display: flex; gap: 12px; align-items: center; }
+  .row > .lp, .row > .turnus, .row > .lang, .row > .events { display: none; }
+  .filters { position: fixed; inset: auto 0 0 0; z-index: 40; max-height: 82vh; background: var(--panel); border-radius: 24px 24px 0 0; box-shadow: var(--shadow-pop); transform: translateY(105%); transition: transform .32s var(--ease); overflow: hidden; display: flex; }
+  .filters.open { transform: none; }
+  .grabber { display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); margin: 10px auto 0; }
+  .chip { height: 44px; padding: 0 16px; font-size: 14.5px; }
+  .sheet-cta { display: block; padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--panel); }
+  .sheet-cta .btn { width: 100%; height: 52px; font-size: 15px; }
+  .scrim { position: fixed; inset: 0; z-index: 35; background: rgba(8, 10, 16, .45); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+  .detail { position: fixed; inset: 0; z-index: 45; background: var(--panel); border-radius: 0; transform: translateX(100%); transition: transform .32s var(--ease); overflow-y: auto; display: block; }
+  .work:not(.no-detail) .detail.open { transform: none; }
+  .work.no-detail .detail, .detail:not(.open) { transform: translateX(100%); opacity: 1; }
+  .detail .scroll { overflow: visible; }
+  .back { display: grid; }
+  .hero { padding-top: calc(10px + env(safe-area-inset-top)); }
+  .actions { position: sticky; bottom: 0; }
+  .bottomnav { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: 64px; padding: 6px; border-radius: 22px; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(18px); box-shadow: var(--shadow-pop); }
+  .bottomnav .nav { width: auto; border-radius: 16px; }
+  .bottomnav .nav.active { box-shadow: none; background: var(--accent-soft); }
+  .lab { bottom: 86px; right: 10px; transform: scale(.85); transform-origin: right bottom; }
+}
+</style>
+</head>
+<body>
+
+<aside class="rail">
+  <div class="logo"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h7"/><circle cx="18" cy="17" r="1.6" fill="var(--accent)" stroke="var(--accent)"/></svg></div>
+  <button class="nav active"><i data-lucide="layout-list"></i>Module</button>
+  <button class="nav"><i data-lucide="graduation-cap"></i>Studium</button>
+  <button class="nav"><i data-lucide="bookmark"></i>Merkliste</button>
+  <button class="nav soon"><i data-lucide="calendar-range"></i>Planer</button>
+  <div class="rail-end">
+    <button class="icon-btn" id="theme" aria-label="Hell / Dunkel"><i data-lucide="moon"></i></button>
+    <div class="avatar">LZ</div>
+  </div>
+</aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="crumb"><h1>Module</h1><small>Informatik B.Sc.</small></div>
+    <label class="search"><i data-lucide="search"></i><input placeholder="Modul, Nummer, Dozent:in oder Studiengang suchen"><kbd>Strg K</kbd></label>
+    <div class="top-end">
+      <div class="pill ok"><span class="dot"></span>Offline bereit <span style="color:var(--text-3);font-weight:450">· Stand 19.09.</span></div>
+      <div class="pill"><i data-lucide="calendar-days"></i><b>WiSe 2026/27</b></div>
+    </div>
+  </header>
+
+  <div class="work" id="work">
+    <!-- filters -->
+    <section class="panel filters" id="filters">
+      <div style="display:flex;flex-direction:column;min-height:0;flex:1">
+        <span class="grabber"></span>
+        <div class="panel-head"><h2>Filter</h2><button class="ghost" style="margin-left:auto"><i data-lucide="rotate-ccw"></i>Zurücksetzen</button></div>
+        <div class="body scroll">
+          <button class="select">
+            <span class="badge-ico"><i data-lucide="graduation-cap"></i></span>
+            <span><b>Informatik</b><small>B.Sc. · PO 2008</small></span>
+            <span class="mine" title="Mein Studiengang"><i data-lucide="star"></i></span>
+            <i data-lucide="chevrons-up-down"></i>
+          </button>
+          <div class="seg"><button class="on">Curriculum<span>109</span></button><button>FÜS<span>116</span></button></div>
+
+          <div class="fgroup">
+            <div class="flabel">Angeboten im</div>
+            <div class="chips">
+              <button class="chip on"><i data-lucide="snowflake"></i>Winter</button>
+              <button class="chip"><i data-lucide="sun"></i>Sommer</button>
+              <button class="chip">Unregelmäßig</button>
+            </div>
+          </div>
+          <div class="fgroup">
+            <div class="flabel">Modulart</div>
+            <div class="chips">
+              <button class="chip">Pflicht</button><button class="chip">Wahlpflicht</button><button class="chip">Abschlussarbeit</button><button class="chip">Nicht angegeben</button>
+            </div>
+          </div>
+          <div class="fgroup">
+            <div class="flabel">Lehrform</div>
+            <div class="chips">
+              <button class="chip">Vorlesung</button><button class="chip on">Übung</button><button class="chip">Seminar</button><button class="chip">Praktikum</button><button class="chip">Projekt</button>
+            </div>
+          </div>
+          <div class="fgroup">
+            <div class="flabel">Leistungspunkte <span style="text-transform:none;letter-spacing:0;font-weight:550;color:var(--text-2)">4 – 10 LP</span></div>
+            <div class="range"><span class="val num">4</span><div class="track"><i></i><b style="left:12%"></b><b style="left:55%"></b></div><span class="val num">10</span></div>
+          </div>
+          <div class="fgroup">
+            <label class="switch-row"><span>Voraussetzungen erfüllt<small>anhand deiner bestandenen Module</small></span><span class="switch on"></span></label>
+            <label class="switch-row"><span>Nur mit Terminen<small>im kommenden Semester</small></span><span class="switch"></span></label>
+            <label class="switch-row"><span>Englischsprachig</span><span class="switch"></span></label>
+          </div>
+        </div>
+        <div class="sheet-cta"><button class="btn primary" id="sheet-apply">38 Module anzeigen</button></div>
+      </div>
+    </section>
+
+    <!-- list -->
+    <section class="panel list">
+      <div class="list-head">
+        <div class="count-row">
+          <span class="count num">38</span><span class="count-label">Module im Curriculum</span>
+          <div class="list-tools">
+            <button class="sheet-btn" id="sheet-open"><i data-lucide="sliders-horizontal"></i>Filter<em>3</em></button>
+            <button class="ghost"><i data-lucide="arrow-down-up"></i>Fachsemester</button>
+            <button class="icon-btn" aria-label="Dichte"><i data-lucide="rows-3"></i></button>
+          </div>
+        </div>
+        <div class="active-filters">
+          <span class="tag"><em>Turnus</em> Winter<button aria-label="entfernen"><i data-lucide="x"></i></button></span>
+          <span class="tag"><em>Lehrform</em> Übung<button aria-label="entfernen"><i data-lucide="x"></i></button></span>
+          <span class="tag"><em>Voraussetzungen</em> erfüllt<button aria-label="entfernen"><i data-lucide="x"></i></button></span>
+        </div>
+      </div>
+      <div class="cols"><span>Modul</span><span class="c-resp">Verantwortlich</span><span class="c-exam">Prüfung</span><span class="c-lp">LP</span><span class="c-turnus">Turnus</span><span class="c-lang">Spr.</span><span class="c-events">Termine</span><span></span></div>
+      <div class="rows scroll" id="rows"></div>
+    </section>
+
+    <!-- detail -->
+    <section class="panel detail open" id="detail">
+      <div class="scroll">
+        <div class="hero">
+          <div class="hero-top">
+            <button class="icon-btn back" id="back" aria-label="Zurück"><i data-lucide="arrow-left"></i></button>
+            <span class="mono" id="d-id">12104</span>
+            <button class="icon-btn" aria-label="Link teilen"><i data-lucide="share-2"></i></button>
+            <button class="icon-btn" aria-label="Als Seite öffnen"><i data-lucide="maximize-2"></i></button>
+            <button class="icon-btn" id="close" aria-label="Schließen (Esc)"><i data-lucide="x"></i></button>
+          </div>
+          <h2 id="d-title">Entwicklung von Softwaresystemen</h2>
+          <div class="en" id="d-en">Development of Software Systems</div>
+          <div class="badges">
+            <span class="badge accent" id="d-lp">8 LP</span>
+            <span class="badge"><i data-lucide="snowflake"></i>Wintersemester</span>
+            <span class="badge">Pflicht · 1. Semester</span>
+            <span class="badge">Deutsch</span>
+          </div>
+          <div class="actions">
+            <button class="btn primary"><i data-lucide="bookmark"></i>Merken</button>
+            <button class="btn secondary"><i data-lucide="circle-check-big"></i>Bestanden</button>
+          </div>
+        </div>
+        <div class="dbody">
+          <div class="section">
+            <h3>Termine <span>WiSe 2026/27</span></h3>
+            <div class="week">
+              <span></span><span class="d">Mo</span><span class="d">Di</span><span class="d">Mi</span><span class="d">Do</span><span class="d">Fr</span>
+              <div class="hours"><span>8</span><span>10</span><span>12</span><span>14</span><span>16</span></div>
+              <div class="col"><div class="slot" style="top:33px;height:39px">Vorlesung<small>09:15 · HS A</small></div></div>
+              <div class="col"></div>
+              <div class="col"><div class="slot ue" style="top:111px;height:39px">Übung 1<small>12:15 · VG 1c</small></div></div>
+              <div class="col"><div class="slot" style="top:59px;height:39px">Vorlesung<small>10:15 · HS A</small></div><div class="slot ue" style="top:156px;height:39px">Übung 2<small>14:00 · VG 1c</small></div></div>
+              <div class="col"></div>
+            </div>
+          </div>
+          <div class="section">
+            <h3>Auf einen Blick</h3>
+            <div class="facts">
+              <div class="fact"><span class="ico"><i data-lucide="file-check-2"></i></span><span><small>Prüfung</small><b>Klausur · 120 min</b></span></div>
+              <div class="fact"><span class="ico"><i data-lucide="award"></i></span><span><small>Benotung</small><b>benotet</b></span></div>
+              <div class="fact"><span class="ico"><i data-lucide="clock-3"></i></span><span><small>Umfang</small><b>4 V + 2 Ü</b></span></div>
+              <div class="fact"><span class="ico"><i data-lucide="users-round"></i></span><span><small>Plätze</small><b>unbegrenzt</b></span></div>
+              <div class="fact" style="grid-column:1/-1"><span class="ico"><i data-lucide="user-round"></i></span><span><small>Verantwortlich</small><b>Prof. Dr. Petra Hofstedt · Programmiersprachen und Compilerbau</b></span></div>
+            </div>
+          </div>
+          <div class="section">
+            <h3>Voraussetzungen <span style="color:var(--green)">1 von 2 erfüllt</span></h3>
+            <div class="prereq">
+              <div class="pre"><span class="st"><i data-lucide="check"></i></span><b>Mathematik IT-1 (Diskrete Mathematik)</b><small>empfohlen</small><i data-lucide="chevron-right"></i></div>
+              <div class="pre"><span class="st open"><i data-lucide="minus"></i></span><b>Algorithmieren und Programmieren</b><small>empfohlen</small><i data-lucide="chevron-right"></i></div>
+            </div>
+          </div>
+          <div class="section">
+            <h3>Inhalte</h3>
+            <p class="prose">Aufbauend auf einem intuitiven Algorithmenbegriff werden Grundprinzipien des Entwurfs und der Analyse von Softwaresystemen behandelt: Anforderungsanalyse, objektorientierter Entwurf, Modellierung mit UML, Entwurfsmuster, Testen und Qualitätssicherung sowie die Arbeit im Team mit Versionsverwaltung.</p>
+            <button class="ghost" style="margin:6px 0 0 -10px">Mehr anzeigen<i data-lucide="chevron-down"></i></button>
+          </div>
+          <div class="source"><i data-lucide="shield-check"></i>Quelle: Modulbeschreibung der BTU · abgerufen 19.09.2026 <a href="#" style="margin-left:auto">Original<i data-lucide="arrow-up-right"></i></a></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<nav class="bottomnav">
+  <button class="nav active"><i data-lucide="layout-list"></i>Module</button>
+  <button class="nav"><i data-lucide="graduation-cap"></i>Studium</button>
+  <button class="nav"><i data-lucide="bookmark"></i>Merkliste</button>
+  <button class="nav"><i data-lucide="user-round"></i>Ich</button>
+</nav>
+<div class="scrim" id="scrim"></div>
+
+<div class="lab">
+  <span>Design-Varianten</span>
+  <span class="sw" id="accents">
+    <button class="c on" data-v="blue" style="background:#2f5bea" aria-label="Blau"></button>
+    <button class="c" data-v="petrol" style="background:#0d7d87" aria-label="Petrol"></button>
+    <button class="c" data-v="violet" style="background:#6a4df0" aria-label="Violett"></button>
+    <button class="c" data-v="ember" style="background:#d4482b" aria-label="Rot-Orange"></button>
+  </span>
+  <span class="sw" id="fonts">
+    <button class="t on" data-v="inter">Inter</button><button class="t" data-v="geist">Geist</button><button class="t" data-v="jakarta">Jakarta</button>
+  </span>
+</div>
+
+<script>
+const modules = [
+  { sem: "1. Semester", lp: 22, items: [
+    ["12104", "Entwicklung von Softwaresystemen", "Development of Software Systems", 8, "winter", "DE", "pflicht", 3, false, false],
+    ["11112", "Mathematik IT-1 (Diskrete Mathematik)", "Mathematics IT-1 (Discrete Mathematics)", 8, "winter", "DE", "pflicht", 4, true, true],
+    ["12107", "Elektrische und elektronische Grundlagen der Informatik", "Electrical and Electronic Foundations", 6, "winter", "DE", "pflicht", 2, false, false]]},
+  { sem: "3. Semester", lp: 16, items: [
+    ["11213", "Mathematik IT-3 (Analysis)", "Mathematics IT-3 (Analysis)", 8, "winter", "DE", "pflicht", 4, false, false],
+    ["12202", "Softwarepraktikum", "Software Lab", 8, "winter", "DE", "pflicht", 0, true, false, "Projekt"]]},
+  { sem: "Wahlpflicht · ohne Semesterangabe", lp: null, items: [
+    ["14274", "Algorithmic Graph Theory", "Algorithmische Graphentheorie", 8, "winter", "EN", "wahl", 2, false, false],
+    ["12340", "Praktikum Betriebssysteme", "Operating Systems Lab", 4, "irregular", "DE", "wahl", 1, false, false, "Testat"],
+    ["13911", "Algebra: Structures and Algorithms", "Algebra: Strukturen und Algorithmen", 6, "irregular", "EN", "wahl", 0, false, false],
+    ["11957", "Allgemeine Betriebswirtschaftslehre III", "Business Administration III", 6, "winter", "DE", "none", 1, false, false],
+    ["12333", "Bachelor-Arbeit", "Bachelor Thesis", 12, "both", "DE", "pflicht", 0, false, false, "Arbeit + Kolloquium"]]},
+];
+const turnus = { winter: ["snowflake", "Winter"], summer: ["sun", "Sommer"], both: ["repeat", "jedes Sem."], irregular: ["shuffle", "unregelm."] };
+const people = ["Prof. Dr. Petra Hofstedt", "Prof. Dr. Ekkehard Köhler", "Prof. Dr. Heinrich Vierhaus", "Prof. Dr. Gerd Wachsmuth", "Prof. Dr. Jörg Nolte"];
+const kinds = { pflicht: "Pflicht", wahl: "Wahlpflicht", none: "Art nicht angegeben" };
+const rows = document.getElementById("rows");
+rows.innerHTML = modules.map(g => `
+  <div class="sem">${g.sem}${g.lp ? `<small>${g.lp} LP</small>` : ""}</div>
+  ${g.items.map(([id, de, en, lp, t, lang, k, ev, saved, done, exam = "Klausur"], i) => `
+    <div class="row k-${k}${id === "12104" ? " sel" : ""}" data-id="${id}" data-de="${de}" data-en="${en}" data-lp="${lp}" tabindex="0">
+      <div class="t"><b>${de}</b><small><span class="mono">${id}</span><span class="kind ${k === "none" ? "unknown" : ""}"><i></i>${kinds[k]}</span>${done ? `<span class="kind done"><i data-lucide="circle-check-big" style="width:14px;height:14px"></i>bestanden</span>` : ""}<span class="narrow-only">${lang} · ${ev ? ev + " Termine" : "noch keine Termine"}</span></small></div>
+      <span class="resp">${people[(i + Number(id[4])) % people.length]}</span>
+      <span class="exam">${exam}</span>
+      <span class="lp num">${lp}<small>LP</small></span>
+      <span class="turnus" title="${turnus[t][1]}"><i data-lucide="${turnus[t][0]}"></i><span class="txt">${turnus[t][1]}</span></span>
+      <span class="lang">${lang}</span>
+      <span class="events ${ev ? "" : "none"}">${ev ? `<i data-lucide="calendar-check-2"></i>${ev} Termine` : "noch keine"}</span>
+      <button class="icon-btn ${saved ? "on" : ""}" aria-label="Merken"><i data-lucide="bookmark"></i></button>
+    </div>`).join("")}`).join("");
+lucide.createIcons();
+
+const work = document.getElementById("work"), detail = document.getElementById("detail");
+const filters = document.getElementById("filters"), scrim = document.getElementById("scrim");
+rows.addEventListener("click", e => {
+  const mark = e.target.closest(".icon-btn");
+  if (mark) { mark.classList.toggle("on"); return; }
+  const row = e.target.closest(".row"); if (!row) return;
+  rows.querySelectorAll(".row.sel").forEach(r => r.classList.remove("sel"));
+  row.classList.add("sel");
+  document.getElementById("d-id").textContent = row.dataset.id;
+  document.getElementById("d-title").textContent = row.dataset.de;
+  document.getElementById("d-en").textContent = row.dataset.en;
+  document.getElementById("d-lp").textContent = row.dataset.lp + " LP";
+  work.classList.remove("no-detail"); detail.classList.add("open");
+});
+const closeDetail = () => { work.classList.add("no-detail"); detail.classList.remove("open"); rows.querySelectorAll(".row.sel").forEach(r => r.classList.remove("sel")); };
+document.getElementById("close").onclick = closeDetail;
+document.getElementById("back").onclick = closeDetail;
+const sheet = on => { filters.classList.toggle("open", on); scrim.classList.toggle("on", on); };
+document.getElementById("sheet-open").onclick = () => sheet(true);
+document.getElementById("sheet-apply").onclick = () => sheet(false);
+scrim.onclick = () => sheet(false);
+addEventListener("keydown", e => { if (e.key === "Escape") { if (filters.classList.contains("open")) sheet(false); else closeDetail(); } });
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => c.classList.toggle("on"));
+document.querySelectorAll(".switch-row").forEach(r => r.onclick = () => r.querySelector(".switch").classList.toggle("on"));
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => { b.parentElement.querySelectorAll("button").forEach(x => x.classList.remove("on")); b.classList.add("on"); });
+const root = document.documentElement;
+document.getElementById("theme").onclick = () => root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+const pick = (id, attr) => document.getElementById(id).addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  root.dataset[attr] = b.dataset.v;
+  b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+});
+pick("accents", "accent"); pick("fonts", "font");
+if (matchMedia("(max-width: 900px)").matches) { detail.classList.remove("open"); work.classList.add("no-detail"); rows.querySelectorAll(".row.sel").forEach(r => r.classList.remove("sel")); }
+</script>
+</body>
+</html>

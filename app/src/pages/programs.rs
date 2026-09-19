@@ -17,6 +17,7 @@ pub fn ProgramsPage() -> impl IntoView {
     let status = PageStatus::capture();
     view! {
         <Title text="Studiengänge"/>
+        <div class="page"><div class="page-inner">
         {match source.and_then(|source| source.run(queries::programs)) {
             Err(error) => {
                 status.for_error(&error);
@@ -24,6 +25,7 @@ pub fn ProgramsPage() -> impl IntoView {
             }
             Ok(programs) => view! { <Overview programs/> }.into_any(),
         }}
+        </div></div>
     }
 }
 
@@ -41,14 +43,14 @@ fn Overview(programs: Vec<Program>) -> impl IntoView {
     }
 
     view! {
-        <header class="page-header">
+        <header class="panel page-head">
             <h1>"Studiengänge"</h1>
             <p class="total"><strong>{format::count(current.len() as u64)}</strong>" Studiengänge in ihrer aktuellen Prüfungsordnung"</p>
         </header>
         {levels.into_iter().map(|level| {
             let group: Vec<&Program> = current.iter().copied().filter(|p| p.degree_level == level).collect();
             (!group.is_empty()).then(|| view! {
-                <section class="block">
+                <section class="panel block">
                     <h2>{level.label().to_string()}" "<span class="tab-count">{group.len()}</span></h2>
                     <ul class="cards">
                         {group.into_iter().map(|p| {

@@ -16,7 +16,8 @@ pub fn HomePage() -> impl IntoView {
 
     view! {
         <Title text=""/>
-        <section class="hero">
+        <div class="page"><div class="page-inner">
+        <section class="panel page-head">
             <h1>"Finde die Module, die zu deinem Studium passen."</h1>
             <p class="lead">
                 "Alle Module, Studiengänge und Regelstudienpläne der BTU Cottbus-Senftenberg an einem Ort: "
@@ -69,5 +70,6 @@ pub fn HomePage() -> impl IntoView {
                 }.into_any()
             }
         }}
+        </div></div>
     }
 }

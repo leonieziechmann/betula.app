@@ -96,8 +96,10 @@ pub fn cache_key(uri: &Uri) -> String {
         "" => "/",
         path => path,
     };
-    if path == catalog::url::CATALOG {
-        CatalogUrl::parse(uri.query().unwrap_or_default()).path()
+    if path == catalog::url::CATALOG || path.starts_with("/catalog/module/") {
+        // The list with its filters, and the same list with a module's panel open.
+        let query = CatalogUrl::parse(uri.query().unwrap_or_default()).to_query_string();
+        if query.is_empty() { path.to_string() } else { format!("{path}?{query}") }
     } else {
         path.to_string()
     }
@@ -203,6 +205,8 @@ mod tests {
         assert_eq!(key("/catalog?page=1"), "/catalog");
         assert_ne!(key("/catalog?page=2"), key("/catalog"));
         assert_eq!(key("/catalog/module/11101?utm_source=x"), "/catalog/module/11101");
+        assert_eq!(key("/catalog/module/11101?form=exercise&turnus=winter"), "/catalog/module/11101?turnus=winter&form=exercise");
+        assert_eq!(key("/programs/x/plan?utm_source=x"), "/programs/x/plan");
         assert_eq!(key("/programs/"), "/programs");
         assert_eq!(key("/"), "/");
     }

@@ -130,7 +130,7 @@ pub fn catalog_page(
         &format!(
             "SELECT f.module_id, m.title, m.title_de, m.title_en, f.credits, f.turnus_season, f.turnus_parity, \
              f.offer_status, f.teaches_german, f.teaches_english, f.is_fues, f.is_limited, m.department, \
-             f.teaching_events, {program_columns} \
+             f.teaching_events, f.exam_form, m.responsible, {program_columns} \
              FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{}{} LIMIT ? OFFSET ?",
             sql.joins,
             sql.where_clause(),

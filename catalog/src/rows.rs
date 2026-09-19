@@ -186,6 +186,9 @@ pub struct CatalogRow {
     pub department: Option<String>,
     /// Teaching events in the module's newest semester.
     pub teaching_events: i64,
+    pub exam_form: Option<Code<ExamForm>>,
+    /// The responsible persons as the module page names them.
+    pub responsible: Option<String>,
     /// Present when a program is selected.
     pub kind: Option<Code<ModuleKind>>,
     pub plan_semester: Option<i64>,
@@ -209,6 +212,8 @@ impl FromRow for CatalogRow {
             is_limited: row.opt_flag("is_limited")?,
             department: row.opt_text("department")?,
             teaching_events: row.int("teaching_events")?,
+            exam_form: Code::parse_opt(row.opt_text("exam_form")?),
+            responsible: row.opt_text("responsible")?,
             kind: Code::parse_opt(row.opt_text("kind")?),
             plan_semester: row.opt_int("plan_semester")?,
             area: row.opt_text("area")?,

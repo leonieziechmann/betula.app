@@ -117,6 +117,14 @@ pub async fn favicon(State(state): State<AppState>, headers: HeaderMap) -> Respo
     asset(&state, &headers, "image/svg+xml", include_bytes!("../../app/assets/favicon.svg"))
 }
 
+pub async fn font(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "font/woff2", include_bytes!("../../app/assets/inter-latin.woff2"))
+}
+
+pub async fn enhance_script(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/enhance.js"))
+}
+
 pub async fn robots() -> Response {
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], "User-agent: *\nAllow: /\nDisallow: /api/\n").into_response()
 }

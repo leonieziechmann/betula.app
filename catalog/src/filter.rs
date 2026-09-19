@@ -107,7 +107,9 @@ pub enum Language {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SortKey {
+    /// By title; inside a program in the order of its study plan (semester, then title).
     #[default]
+    Default,
     Title,
     Id,
     Credits,
@@ -434,7 +436,10 @@ impl CatalogQuery {
     pub fn order_by(&self) -> String {
         let direction = if self.descending { "DESC" } else { "ASC" };
         match self.sort {
-            SortKey::Title => format!(" ORDER BY m.title COLLATE NOCASE {direction}, f.module_id"),
+            SortKey::Default if self.program.is_some() => format!(
+                " ORDER BY pm.plan_semester IS NULL, pm.plan_semester {direction}, m.title COLLATE NOCASE, f.module_id"
+            ),
+            SortKey::Default | SortKey::Title => format!(" ORDER BY m.title COLLATE NOCASE {direction}, f.module_id"),
             SortKey::Id => format!(" ORDER BY f.module_id {direction}"),
             SortKey::Credits => format!(" ORDER BY f.credits {direction}, m.title COLLATE NOCASE, f.module_id"),
             SortKey::Events => {

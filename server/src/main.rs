@@ -127,6 +127,8 @@ pub fn router(state: AppState) -> Router {
         .route("/healthz", get(api::health))
         .route(app::STYLESHEET, get(api::stylesheet))
         .route(app::FAVICON, get(api::favicon))
+        .route(app::FONT, get(api::font))
+        .route(app::ENHANCE_SCRIPT, get(api::enhance_script))
         .route("/favicon.ico", get(api::favicon))
         .route("/robots.txt", get(api::robots))
         .merge(pages)
