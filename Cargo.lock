@@ -267,6 +267,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "btu-catalog"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "serde",
+]
+
+[[package]]
 name = "btu-catalog-frontend"
 version = "0.1.0"
 dependencies = [

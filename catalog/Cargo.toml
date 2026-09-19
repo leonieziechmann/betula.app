@@ -1,0 +1,27 @@
+[package]
+name = "btu-catalog"
+version = "0.1.0"
+edition = "2021"
+description = "Read access to the BTU catalog snapshot: row types, labels, filters and every SQL query of the web tier"
+
+[lib]
+name = "catalog"
+
+[features]
+# A rusqlite-backed `Database` for the web server. The browser supplies its own
+# implementation on top of sql.js, so rusqlite is never compiled to WASM.
+native = ["dep:rusqlite"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+
+[dev-dependencies]
+# The tests run every query against a real snapshot (see src/tests.rs).
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
