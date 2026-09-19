@@ -29,7 +29,7 @@
           subPackages = [ "cmd/scraper" ];
 
           # Update after changing go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy the hash Nix prints.
-          vendorHash = pkgs.lib.fakeHash;
+          vendorHash = "sha256-VqK4SbOpaB6zZyki6oN5WNGkSRKsbRAcLkhHKKw2VvE=";
 
           # modernc.org/sqlite is pure Go: a static binary without libc.
           env.CGO_ENABLED = "0";
