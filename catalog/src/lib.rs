@@ -11,6 +11,7 @@
 pub mod db;
 pub mod filter;
 pub mod labels;
+pub mod pages;
 pub mod queries;
 pub mod rows;
 pub mod rows_detail;

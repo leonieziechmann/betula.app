@@ -145,7 +145,8 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<Module>, DbError> {
     fetch_optional(
         db,
         "module",
-        "SELECT id, title, title_de, title_en, credits, language_raw, duration_raw, duration_semesters, \
+        "SELECT id, title, title_de, title_en, credits, language_raw, teaches_german, teaches_english, \
+         duration_raw, duration_semesters, \
          turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, \
          exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department, \
          learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, \

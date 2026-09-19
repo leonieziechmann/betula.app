@@ -486,6 +486,42 @@ fn check_constraints(table_sql: &str) -> Vec<(String, Vec<String>)> {
 }
 
 #[test]
+fn page_loaders_return_everything_a_page_shows() {
+    use crate::pages;
+    use crate::url::CatalogUrl;
+
+    let db = open();
+    let started = std::time::Instant::now();
+
+    let overview = pages::overview(&db).unwrap();
+    assert!(overview.current_semester.is_some() && overview.modules > 0 && overview.programs > 0);
+
+    let url = CatalogUrl::parse(&format!("program={INFORMATIK_BSC}&list=fues"));
+    let catalog = pages::catalog(&db, &url).unwrap();
+    let program = catalog.program.as_ref().expect("the selected program");
+    assert_eq!(catalog.curricular_total, Some(program.curricular_modules as u64));
+    assert_eq!(catalog.fues_total, Some(program.fues_modules as u64));
+    assert_eq!(Some(catalog.page.total), catalog.fues_total);
+    assert!(!catalog.departments.is_empty() && !catalog.lecturers.is_empty() && !catalog.programs.is_empty());
+
+    // A program that does not exist selects nothing; it is not an error.
+    let unknown = pages::catalog(&db, &CatalogUrl::parse("program=no-such-program")).unwrap();
+    assert_eq!((unknown.program, unknown.page.total), (None, 0));
+
+    let module_id = &catalog.page.rows[0].id;
+    let module = pages::module(&db, module_id).unwrap().expect("module page");
+    assert!(module.programs.iter().any(|link| link.program_slug.as_deref() == Some(INFORMATIK_BSC)));
+    assert_eq!(pages::module(&db, "00000").unwrap(), None);
+
+    let page = pages::program(&db, INFORMATIK_BSC).unwrap().expect("program page");
+    assert_eq!(page.curricular.len() as i64, page.program.curricular_modules);
+    assert_eq!(page.plan.is_some(), page.program.has_plan);
+    assert_eq!(pages::program(&db, "no-such-program").unwrap(), None);
+
+    eprintln!("all page loaders: {:?}", started.elapsed());
+}
+
+#[test]
 fn errors_are_reported_not_swallowed() {
     struct Wanted;
     impl FromRow for Wanted {
