@@ -41,6 +41,15 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 
 ### Look and interaction (since 2026-09-19, owner-approved direction)
 
+- **Name and logo** (owner decision 2026-09-20, domain `betula.app`): the product is **Betula**
+  (the birch; B-T-U stands in the name). Running text says „Betula", only the wordmark stresses
+  the three letters: BᴇTUʟᴀ in Inter 800 with E, L and A as small capitals and the E under the bar
+  of the T (`ui::Wordmark`, `.wordmark`; the spacing is measured, not guessed). The mark is birch
+  bark that also reads as the rows of a list (`ui::Mark`, 32 px grid; favicon on the same grid).
+  The rail carries the mark, the top bar of the start page the wordmark with „Modulkatalog ·
+  inoffiziell", so the two read as one logo; on a phone the start page carries both itself.
+  „Inoffiziell" always stays with the name, and nothing borrows the university's colours or mark.
+  Sizes, grids and numbers: `design/logo/logo.html`.
 - **Layout:** a thin icon rail (52 px), a top bar with the search, and the whole remaining screen
   for content, with 8 px gaps and 9 px corners. The catalog is three panels side by side: filters,
   list, and the preview of the selected module (`open=<id>`). The preview floats above the list,

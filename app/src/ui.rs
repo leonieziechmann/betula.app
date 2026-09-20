@@ -7,6 +7,30 @@ use leptos_meta::Title;
 
 use crate::data::DataError;
 
+/// The mark of Betula: birch bark that also reads as the rows of a list. Drawn on a 32 px grid, the
+/// size it has in the rail (`.logo`), so its bars fall on whole pixels. Larger cuts: `design/logo`.
+#[component]
+pub fn Mark() -> impl IntoView {
+    view! {
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="7"/>
+            <path d="M0 7h13v3H0zM23 12h9v3h-9zM0 17h5v3H0zM17 22h15v3H17z"/>
+        </svg>
+    }
+}
+
+/// The wordmark: B, T and U stand out of BᴇTUʟᴀ, the E sits under the bar of the T. The spacing
+/// lives in the stylesheet (`.wordmark`); each run keeps its own element because the spacing hangs
+/// on them. `small` is the cut for sizes under 28 px.
+#[component]
+pub fn Wordmark(#[prop(optional)] small: bool) -> impl IntoView {
+    view! {
+        <span class="wordmark" class:small=small role="img" aria-label="Betula">
+            <span aria-hidden="true"><span>"B"</span><span class="sc e">"E"</span><span>"T"</span><span class="u">"U"</span><span class="sc la">"LA"</span></span>
+        </span>
+    }
+}
+
 /// A query failed or there is no snapshot: say so, never an empty list.
 #[component]
 pub fn ErrorState(error: DataError) -> impl IntoView {

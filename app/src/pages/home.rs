@@ -6,7 +6,7 @@ use leptos_meta::Title;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::{ErrorState, Frame};
+use crate::ui::{ErrorState, Frame, Mark, Wordmark};
 
 #[component]
 pub fn HomePage() -> impl IntoView {
@@ -24,6 +24,7 @@ pub fn HomePage() -> impl IntoView {
                 <div><dt>"Studiengänge"</dt><dd class="num">{format::count(overview.programs)}</dd></div>
             </dl>
             <p class="hint">"Quelle: Modulbeschreibungen und Vorlesungsverzeichnis der BTU Cottbus-Senftenberg. Wo die Quelle nichts sagt, steht hier „nicht angegeben“ statt einer Vermutung."</p>
+            <p class="hint">"Betula ist ein inoffizielles Projekt und gehört nicht zur BTU."</p>
         })
     };
 
@@ -31,6 +32,7 @@ pub fn HomePage() -> impl IntoView {
         <Title text=""/>
         <Frame title="Datenstand" sidebar><div class="page-inner">
         <section class="panel page-head">
+            <p class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>"Modulkatalog · inoffiziell"</small></span></p>
             <h1>"Finde die Module, die zu deinem Studium passen."</h1>
             <p class="lead">
                 "Alle Module, Studiengänge und Regelstudienpläne der BTU Cottbus-Senftenberg an einem Ort: "

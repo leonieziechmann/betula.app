@@ -74,8 +74,8 @@ pub fn App() -> impl IntoView {
         <Link rel="preload" href=FONT as_="font" type_="font/woff2" crossorigin="anonymous"/>
         <Stylesheet href=STYLESHEET/>
         <Link rel="icon" type_="image/svg+xml" href=FAVICON/>
-        <Title formatter=|title: String| if title.is_empty() { "BTU Modulkatalog".to_string() } else { format!("{title} · BTU Modulkatalog") }/>
-        <Meta name="description" content="Module, Studiengänge und Regelstudienpläne der BTU Cottbus-Senftenberg: durchsuchbar, filterbar, aktuell."/>
+        <Title formatter=|title: String| if title.is_empty() { "Betula · Modulkatalog für die BTU Cottbus-Senftenberg (inoffiziell)".to_string() } else { format!("{title} · Betula") }/>
+        <Meta name="description" content="Betula ist ein inoffizieller Modulkatalog für die BTU Cottbus-Senftenberg: Module, Studiengänge und Regelstudienpläne, durchsuchbar, filterbar, aktuell."/>
         <Router>
             <FollowTabs/>
             <a class="skip-link" href="#content">"Zum Inhalt springen"</a>
@@ -130,7 +130,7 @@ fn NavItems() -> impl IntoView {
 fn Rail() -> impl IntoView {
     view! {
         <aside class="rail">
-            <a class="logo" href=url::HOME aria-label="BTU Modulkatalog"><Icon name="layout-list"/></a>
+            <a class="logo hit" href=url::HOME aria-label="Betula, zur Startseite"><ui::Mark/></a>
             <nav aria-label="Hauptnavigation"><NavItems/></nav>
             <span class="nav soon" title="Merkliste (in Arbeit)"><span class="ind"><Icon name="bookmark"/></span>"Merkliste"</span>
             <span class="nav soon" title="Semesterplaner (geplant)"><span class="ind"><Icon name="calendar-range"/></span>"Planer"</span>
@@ -191,8 +191,15 @@ fn TopBar() -> impl IntoView {
                     .map(|(_, value)| value)
                     .unwrap_or_default();
                 let on_input = on_input.clone();
+                // The start page carries the name: next to the mark in the rail it reads as the logo.
+                let home = area_now.get() == Area::Home;
+                let heading = if home {
+                    view! { <h1><ui::Wordmark small=true/></h1><small>"Modulkatalog · inoffiziell"</small> }.into_any()
+                } else {
+                    view! { <h1>{title}</h1> }.into_any()
+                };
                 view! {
-                    <div class="crumb"><h1>{title}</h1></div>
+                    <div class="crumb" class:brand=home>{heading}</div>
                     <form class="search" role="search" method="get" action=action data-live-search="">
                         <Icon name="search"/>
                         <label class="visually-hidden" for="topsearch">{if programs { "Studiengänge suchen" } else { "Module suchen" }}</label>
