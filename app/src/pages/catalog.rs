@@ -35,6 +35,23 @@ pub fn CatalogPage() -> impl IntoView {
     // where the visitor is in it (the list scrolls endlessly and keeps `page` up to date); `open`
     // is the preview. So scrolling and opening a preview re-render neither list nor filters.
     let list_query = Memo::new(move |_| url.get().query);
+    // „Gemerkt" is a filter like any other, but what is marked lives in the browser: the URL
+    // says only whether the filter is on, and the query gets the ids here, where they never
+    // reach a link or the server (R20). Marking a module while the filter is on changes the
+    // list, and only then.
+    let bookmarks = Bookmarks::expect();
+    let asked = Memo::new(move |_| {
+        let mut query = list_query.get();
+        if let (Some(marked), Some(bookmarks)) = (query.marked, bookmarks) {
+            let ids: Vec<String> = bookmarks.marks().into_iter().map(|mark| mark.id).collect();
+            if marked {
+                query.only_ids = Some(ids);
+            } else {
+                query.without_ids = ids;
+            }
+        }
+        query
+    });
     let page = Memo::new(move |_| url.get().page);
     let open = Memo::new(move |_| url.get().open);
     let source = use_source();
@@ -43,7 +60,7 @@ pub fn CatalogPage() -> impl IntoView {
     let list_source = source.clone();
     let list = Memo::new(move |_| {
         // Start at the page the URL names at this moment; later page changes are scrolling.
-        let current = CatalogUrl { query: list_query.get(), page: page.get_untracked(), open: None };
+        let current = CatalogUrl { query: asked.get(), page: page.get_untracked(), open: None };
         list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current))).map(|data| (current, data))
     });
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
@@ -293,6 +310,9 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
     if q.offer.is_some() {
         push("Status", "auch nicht mehr angebotene".to_string(), &|q| q.offer = None);
     }
+    if let Some(marked) = q.marked {
+        push("Merkliste", if marked { "nur gemerkte" } else { "ohne gemerkte" }.to_string(), &|q| q.marked = None);
+    }
     out
 }
 
@@ -454,8 +474,24 @@ fn List(
                 {unknown_program.then(|| view! {
                     <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
                 })}
-                {(total == 0 && !unknown_program).then(|| view! {
-                    <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
+                {(total == 0 && !unknown_program).then(|| match (q.marked == Some(true), APP) {
+                    (true, true) => view! {
+                        <div class="state">
+                            <p class="state-title">"Keine gemerkten Module in dieser Liste"</p>
+                            <p>"Kein gemerktes Modul passt zu den übrigen Filtern."</p>
+                            <a class="btn secondary" href=url::BOOKMARKS>"Zur Merkliste"</a>
+                        </div>
+                    }.into_any(),
+                    (true, false) => view! {
+                        <div class="state">
+                            <p class="state-title">"Deine Merkliste kennt nur dein Browser"</p>
+                            <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier deine gemerkten Module."</p>
+                            <a class="btn secondary" href=url::CATALOG>"Alle Module zeigen"</a>
+                        </div>
+                    }.into_any(),
+                    _ => view! {
+                        <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
+                    }.into_any(),
                 })}
                 {move || (first_loaded() > 1).then(|| {
                     let load_previous = load_previous.clone();
@@ -1187,6 +1223,9 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                             {chip("Benotet", None, Toggle::flag(|q| q.graded, |q, value| q.graded = value))}
                             {chip("Begrenzte Plätze", None, Toggle::flag(|q| q.limited, |q, value| q.limited = value))}
                             {chip("FÜS-Liste", None, Toggle::flag(|q| q.fues, |q, value| q.fues = value))}
+                            // Marking works in the browser app only, so the filter is there only
+                            // (R15); without it the chip would promise what no link can keep.
+                            {APP.then(|| chip("Gemerkt", Some("bookmark"), Toggle::flag(|q| q.marked, |q, value| q.marked = value)))}
                         </div>
                     </div>
 

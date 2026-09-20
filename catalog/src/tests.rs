@@ -402,6 +402,20 @@ fn lecturer_and_bookmark_filters() {
     // An empty „Gemerkt" list is empty, not "no filter".
     let none = CatalogQuery { only_ids: Some(vec![]), ..everything() };
     assert_eq!(queries::catalog_count(&db, &none).unwrap(), 0);
+
+    // „ohne Gemerkte": the rest of the same list.
+    let ids: Vec<String> = queries::catalog_page(&db, &everything(), 0, 4).unwrap().rows.into_iter().map(|r| r.id).collect();
+    let without = CatalogQuery { without_ids: ids.clone(), ..everything() };
+    assert_eq!(queries::catalog_count(&db, &without).unwrap(), all - 4);
+    assert!(!queries::catalog_page(&db, &without, 0, 50).unwrap().rows.iter().any(|row| ids.contains(&row.id)));
+
+    // The switch alone (a page that does not know the marks) matches nothing, never everything.
+    let only_marked = CatalogQuery { marked: Some(true), ..everything() };
+    assert_eq!(queries::catalog_count(&db, &only_marked).unwrap(), 0);
+    let filled = CatalogQuery { only_ids: Some(ids.clone()), ..only_marked.clone() };
+    assert_eq!(queries::catalog_count(&db, &filled).unwrap(), 4);
+    let unmarked = CatalogQuery { marked: Some(false), without_ids: ids, ..everything() };
+    assert_eq!(queries::catalog_count(&db, &unmarked).unwrap(), all - 4);
 }
 
 /// The page of the marked modules: whatever is marked is listed (also what is no longer offered),

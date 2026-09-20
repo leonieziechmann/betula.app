@@ -4,7 +4,7 @@
 // rendered again), M on a row, in the preview and on the module's page, the same state wherever a
 // module shows, the number at the rail, a reload keeps the marks; the list of marked modules
 // (order of marking, numbers, sorting, halves of the year, preview, a mark taken away stays on the
-// page dimmed, emptying with „Rückgängig"); the rail's item as a tab; „Zurück" from a module that
+// page dimmed, emptying with „Rückgängig"); „Gemerkt" as a filter of the catalog; the rail's item as a tab; „Zurück" from a module that
 // was opened from the marked modules; another tab of the same browser; what the snapshot does not
 // know; garbage in the storage.
 // Privacy: no request ever carries a marked id, and server HTML shows nothing marked.
@@ -306,6 +306,50 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   const beyond = requests.filter((r) => !r.startsWith(base));
   check(beyond.length === 0, `requests to somewhere else: ${beyond.slice(0, 3)}`);
   await context.close();
+}
+
+// ---------- „Gemerkt" as a filter of the catalog ----------
+{
+  const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog?turnus=winter");
+  const ids = (await listIds(page)).slice(0, 8);
+  const marked = [ids[1], ids[3], ids[5]];
+  for (const id of marked) await page.click(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`);
+  await page.waitForFunction((n) => document.querySelector(".rail .nav-count")?.textContent === String(n), marked.length, { timeout: 8000 }).catch(() => problems.push("filter: the marks were not made"));
+
+  const chip = '.filters .chip:has(.chip-label:text-is("Gemerkt"))';
+  await step("only the marked ones", () => page.click(chip), () => location.search.includes("marked=only") && document.querySelectorAll(".rows a.row").length === 3);
+  const shown = await listIds(page);
+  check(JSON.stringify([...shown].sort()) === JSON.stringify([...marked].sort()), `only the marked ones: ${shown} instead of ${marked}`);
+  check((await page.evaluate(() => document.querySelector(".list .count").textContent)) === "3", "the header counts something else than the list");
+  check(await page.evaluate(() => [...document.querySelectorAll(".active-filters .tag")].some((tag) => tag.textContent.includes("nur gemerkte"))), "the filter is not among the tags above the list");
+  // The other filters still hold, and a mark made now changes this list.
+  check(await page.evaluate(() => location.search.includes("turnus=winter")), "turning the filter on dropped the rest of the filter");
+  // A mark taken away here takes the module out of this list at once.
+  await step("a mark taken away leaves the list", () => page.click(`.row-wrap:has(a.row[data-id="${shown[0]}"]) > .mark-toggle`), () => document.querySelectorAll(".rows a.row").length === 2);
+
+  await step("without the marked ones", () => page.click(chip), () => location.search.includes("marked=none"));
+  const rest = await listIds(page);
+  const still = marked.filter((id) => id !== shown[0]);
+  check(rest.length > 0 && !rest.some((id) => still.includes(id)), `„ohne Gemerkte" still shows marked modules: ${rest.slice(0, 5)}`);
+  check(rest.includes(shown[0]), "the module whose mark was taken away is missing from „ohne Gemerkte“");
+  await step("and a mark made here leaves this one", () => page.click(`.row-wrap:has(a.row[data-id="${shown[0]}"]) > .mark-toggle`), (id) => !document.querySelector(`a.row[data-id="${id}"]`), shown[0]);
+  await step("the tag takes the filter off", () => page.click('.active-filters .tag:has-text("gemerkte") a'), () => !location.search.includes("marked="));
+
+  // Nothing marked matches the rest of the filter: the app says so, and says nothing else.
+  await page.goto(base + "/catalog?q=zzzzzz&marked=only", { waitUntil: "domcontentloaded" });
+  await takeover(page);
+  await page.waitForFunction(() => document.querySelector(".rows .state-title")?.textContent === "Keine gemerkten Module in dieser Liste", null, { timeout: 8000 }).catch(() => problems.push("filter: an empty list does not say that nothing marked matches"));
+  const stored_ids = await stored(page);
+  check(stored_ids.length === 3, `filter: the marks changed while filtering: ${stored_ids}`);
+  await context.close();
+
+  // Shared without the app: the page says that it cannot know, instead of „nothing found".
+  const plain = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
+  const flat = await plain.newPage();
+  await flat.goto(base + "/catalog?marked=only", { waitUntil: "domcontentloaded" });
+  const said = await flat.evaluate(() => ({ title: document.querySelector(".rows .state-title")?.textContent ?? "", rows: document.querySelectorAll(".rows a.row").length, chip: [...document.querySelectorAll(".chip-label")].filter((el) => el.textContent === "Gemerkt" && el.getClientRects().length).length }));
+  check(said.title.includes("kennt nur dein Browser") && said.rows === 0 && said.chip === 0, `without the app a shared „marked=only" link: ${JSON.stringify(said)}`);
+  await plain.close();
 }
 
 // ---------- phone ----------

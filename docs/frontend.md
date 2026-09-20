@@ -29,7 +29,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | URL | Page |
 |---|---|
 | `/` | Landing page: every function with a link |
-| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
+| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
 | `/catalog?…&open=<id>` | The same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
@@ -116,6 +116,13 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     strong (filled, inverted), like a chosen chip; the accent stays with primary actions.
   - **The rail's fourth item** („Merkliste", also in the phone's bottom bar) carries the number
     of marks. It is a tab like the others (R19).
+  - **„Gemerkt" filters the catalog** as well („Eigenschaften": only the marked ones, a second
+    click all but them, which is how one looks for what is still missing). The URL carries the
+    switch (`marked=only` / `marked=none`), never the ids: the browser fills them into the query
+    before it asks (`CatalogQuery::only_ids` / `without_ids`). A page that does not know the
+    marks therefore matches nothing with `marked=only` instead of answering as if nothing were
+    marked, and says so where the list would be empty — the app says that nothing of the
+    visitor's fits the other filters, the server that it cannot know.
   - **The list of marked modules** is the catalog's list in the catalog's frame: sidebar, rows
     with the same columns, the preview of `open=<id>` floating at the right edge, on a phone the
     module's own page. The sidebar holds what belongs to the list as a whole: its numbers
@@ -561,7 +568,9 @@ modules (order of marking, numbers and credits, sorting by column and in the sid
 of the year with their counts, the floating preview, a mark taken away staying on the page,
 copying the list, the link for another device and what the other device does with it: asking
 first, counting what is new, taking the ids out of the address without a history entry;
-emptying with the question and „Rückgängig"); the rail's item as a tab;
+emptying with the question and „Rückgängig"); „Gemerkt" as a filter of the catalog (only the
+marked ones and all but them, the rest of the filter kept, the tag above the list, a mark made
+while it is on, the two empty states with and without the app); the rail's item as a tab;
 „Zurück" and Esc from a module opened from the marked modules; a mark made in another tab
 arriving; a module the snapshot does not know; garbage in the storage. Privacy: no request of the
 whole session carries a mark, none leaves the site, and server HTML shows nothing marked. Phone:
@@ -623,12 +632,9 @@ follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
 
 ### „Merken": what is left (2026-09-20)
 
-- **Marks where modules are listed outside the catalog:** the tables of a program's page (plan,
-  areas, all modules) and the panel beside them. `bookmarks::MarkButton` is made for it
-  (`MarkLook::Row` next to a row's link); it waits for the rework of the program page to land.
-- **„Gemerkt" as a filter of the catalog** (only the marked, or without them while looking for
-  more): `CatalogQuery::only_ids` exists; the URL would carry the switch, never the ids, as
-  `prereqs=met` does for the passed modules.
-- **The landing page** names the list among what Betula can do, once its rework has landed.
+- **Marks in the tables of a program's page** (plan, areas, all modules): `bookmarks::MarkButton`
+  with `MarkLook::Row` next to a row's link is made for it. Left out on purpose while the page
+  itself is being worked on (owner, 2026-09-20); the panel beside the page already has the switch,
+  because it is the catalog's module preview.
 - **What follows the marks** (R20 applies): passed modules with the prerequisite check, the own
   program, the semester planner. A note per marked module would fit the same store.

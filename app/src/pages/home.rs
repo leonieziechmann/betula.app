@@ -62,7 +62,7 @@ const ABILITIES: [(&str, &str, &str); 6] = [
     ("shield-check", "Ehrlich bei Lücken", "Wo die Quelle nichts sagt, steht „nicht angegeben“ und keine Vermutung. Jedes Modul verlinkt auf sein Original bei der BTU."),
 ];
 
-const QUESTIONS: [(&str, &str); 6] = [
+const QUESTIONS: [(&str, &str); 7] = [
     (
         "Ist Betula ein Angebot der BTU?",
         "Nein. Betula ist ein inoffizielles, unabhängiges Projekt und gehört nicht zur BTU Cottbus-Senftenberg. Verbindlich sind allein die Modulbeschreibungen, Prüfungs- und Studienordnungen der Universität; jede Seite hier verlinkt deshalb auf ihr Original.",
@@ -82,6 +82,10 @@ const QUESTIONS: [(&str, &str); 6] = [
     (
         "Wie aktuell ist der Katalog?",
         "Der Datenstand steht auf dieser Seite und wird mit jedem Einlesen erneuert. Kurzfristige Änderungen, etwa verlegte Termine, stehen zuerst bei der BTU; im Zweifel gilt das Original.",
+    ),
+    (
+        "Kann ich mir Module merken?",
+        "Ja. Jedes Modul hat ein Lesezeichen; die Taste M tut dasselbe. Die gemerkten Module stehen in der Merkliste, mit Leistungspunkten und danach sortierbar, wann sie angeboten werden. Die Liste liegt nur in deinem Browser: kein Konto, und nichts davon erreicht den Server. Ein anderes Gerät hat seine eigene, ein Link bringt sie dorthin.",
     ),
     (
         "Kostet das etwas, brauche ich ein Konto?",
@@ -180,7 +184,7 @@ pub fn HomePage() -> impl IntoView {
             </ul>
             <p class="soon-line">
                 <span class="label">"In Arbeit"</span>
-                <span><Icon name="bookmark"/>"Merkliste und Studienverlauf: Module merken, bestandene abhaken"</span>
+                <span><Icon name="circle-check-big"/>"Studienverlauf: bestandene Module abhaken, Voraussetzungen prüfen"</span>
                 <span><Icon name="calendar-range"/>"Semesterplaner: der eigene Stundenplan aus den Terminen"</span>
             </p>
         </section>

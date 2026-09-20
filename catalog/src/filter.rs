@@ -231,6 +231,13 @@ pub struct CatalogQuery {
     pub languages_exclude: Vec<Language>,
     /// Restrict to these module ids: the „Gemerkt" and „Bestanden" views.
     pub only_ids: Option<Vec<String>>,
+    /// Leave these module ids out („ohne Gemerkte").
+    pub without_ids: Vec<String>,
+    /// „Gemerkt": `Some(true)` only marked modules, `Some(false)` none of them. What is marked
+    /// lives in the browser (R20), so the URL carries only the switch and the browser app fills
+    /// `only_ids` / `without_ids` before it asks. Where nothing filled them, „only marked"
+    /// matches nothing: a page that does not know the marks must not answer as if there were none.
+    pub marked: Option<bool>,
     /// Keep modules whose mandatory prerequisites are all in this set of passed modules.
     pub prerequisites_met_by: Option<Vec<String>>,
     pub sort: SortKey,
@@ -312,6 +319,7 @@ impl CatalogQuery {
             !self.campuses.is_empty() || !self.campuses_exclude.is_empty(),
             !self.languages.is_empty() || !self.languages_exclude.is_empty(),
             self.prerequisites_met_by.is_some(),
+            self.marked.is_some(),
         ]
         .iter()
         .filter(|active| **active)
@@ -492,6 +500,13 @@ impl CatalogQuery {
                 conditions.push(format!("f.module_id IN ({})", placeholders(ids.len())));
                 params.extend(ids.iter().map(Value::from));
             }
+        }
+        if !self.without_ids.is_empty() {
+            conditions.push(format!("f.module_id NOT IN ({})", placeholders(self.without_ids.len())));
+            params.extend(self.without_ids.iter().map(Value::from));
+        }
+        if self.marked == Some(true) && self.only_ids.is_none() {
+            conditions.push("0".to_string());
         }
 
         if let Some(passed) = &self.prerequisites_met_by {

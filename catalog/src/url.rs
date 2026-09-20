@@ -588,7 +588,14 @@ impl CatalogUrl {
             languages_exclude: without(languages_of("not-lang"), &languages),
             languages,
             only_ids: None,
-            // The URL carries the switch; the set of passed modules lives in the browser.
+            without_ids: Vec::new(),
+            // The URL carries the switch; what is marked lives in the browser (R20).
+            marked: match first("marked").as_deref() {
+                Some("only") => Some(true),
+                Some("none") => Some(false),
+                _ => None,
+            },
+            // The same for the modules that are passed.
             prerequisites_met_by: (first("prereqs").as_deref() == Some("met")).then(Vec::new),
             sort: match first("sort").as_deref() {
                 Some("id") => SortKey::Id,
@@ -710,6 +717,9 @@ impl CatalogUrl {
         }
         if !q.languages_exclude.is_empty() {
             out.push(("not-lang", join(q.languages_exclude.iter().map(|language| language.code()).collect())));
+        }
+        if let Some(marked) = q.marked {
+            out.push(("marked", if marked { "only" } else { "none" }.to_string()));
         }
         if q.prerequisites_met_by.is_some() {
             out.push(("prereqs", "met".to_string()));
@@ -873,6 +883,8 @@ mod tests {
                 languages: vec![Language::English],
                 languages_exclude: vec![Language::German],
                 only_ids: None,
+                without_ids: Vec::new(),
+                marked: Some(true),
                 prerequisites_met_by: Some(vec![]),
                 sort: SortKey::Credits,
                 descending: true,
@@ -887,7 +899,7 @@ mod tests {
              &not-kind=thesis&lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
              &turnus=winter,irregular&not-turnus=summer&years=odd&form=lecture,exercise&not-form=seminar&duration=2&limited=no\
              &fues=only&exam=mca,oral&not-exam=presentation&graded=yes&status=all&ects_min=5&ects_max=7.5\
-             &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&prereqs=met&sort=ects&desc=1&page=4&open=12104"
+             &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&marked=only&prereqs=met&sort=ects&desc=1&page=4&open=12104"
         );
         assert_eq!(CatalogUrl::parse(&text), url);
     }
