@@ -4,7 +4,8 @@
 //! `/catalog?…`                         module catalog; the query string is a `CatalogQuery`
 //! `/catalog/module/<id>`               module page
 //! `/programs`                          program overview
-//! `/programs/<slug>[/plan|areas|modules]`   program page and its tabs
+//! `/programs/<slug>[/plan|areas|modules][?variant=<n>]`   program page, its tabs and, where a
+//!                                      program has several study plans, which one is shown
 //!
 //! Most filters can also exclude: `exam=written&not-exam=presentation` lists modules with a
 //! written exam and without a presentation. A value that is both included and excluded counts
@@ -65,6 +66,30 @@ impl ProgramTab {
 
 pub fn program_path(slug: &str, tab: ProgramTab) -> String {
     format!("/programs/{}/{}", encode(slug), tab.segment())
+}
+
+/// How many study plans of one program can be told apart in the URL. A program has one plan per
+/// study direction; the highest seen so far is eight.
+pub const MAX_PLAN_VARIANTS: usize = 20;
+
+/// Which of several study plans a program's page shows (`variant=<n>`, 1-based). The plan is
+/// content, not a personal view setting: a link leads to the plan it shows, and the choice works
+/// without JavaScript. Anything else means the first plan.
+pub fn program_variant(raw_query: &str) -> usize {
+    parse_pairs(raw_query)
+        .iter()
+        .find(|(key, _)| key == "variant")
+        .and_then(|(_, value)| value.trim().parse::<usize>().ok())
+        .filter(|n| (1..=MAX_PLAN_VARIANTS).contains(n))
+        .unwrap_or(1)
+}
+
+/// The address of one of a program's study plans; the first one needs no parameter.
+pub fn program_variant_path(slug: &str, tab: ProgramTab, variant: usize) -> String {
+    match variant {
+        0 | 1 => program_path(slug, tab),
+        n => format!("{}?variant={n}", program_path(slug, tab)),
+    }
 }
 
 /// A group of degree levels, as the program overview filters them.
@@ -716,6 +741,9 @@ mod tests {
         assert_eq!(program_path("bachelor-informatik-2008", ProgramTab::Areas), "/programs/bachelor-informatik-2008/areas");
         assert_eq!(ProgramTab::from_segment("modules"), Some(ProgramTab::Modules));
         assert_eq!(ProgramTab::from_segment("electives"), None);
+        assert_eq!(program_variant_path("bachelor-elektrotechnik-2022", ProgramTab::Plan, 2), "/programs/bachelor-elektrotechnik-2022/plan?variant=2");
+        assert_eq!(program_variant_path("bachelor-elektrotechnik-2022", ProgramTab::Plan, 1), "/programs/bachelor-elektrotechnik-2022/plan");
+        assert_eq!((program_variant("variant=3"), program_variant("variant=0"), program_variant("variant=999"), program_variant("")), (3, 1, 1, 1));
         assert_eq!(CatalogUrl { page: 3, ..Default::default() }.offset(), 100);
         assert_eq!(CatalogUrl::parse("open=12104").with_open(None).path(), "/catalog");
         assert_eq!(CatalogUrl::parse("open=../../etc").open, None);

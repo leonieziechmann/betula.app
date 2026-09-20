@@ -176,6 +176,56 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   („Vorherige Module laden", scroll position kept), and `page` in the URL follows the chunk at the
   top of the screen by replacing the history entry. A shared link with `page=7` starts there.
 
+### The landing page and the map of the programs (2026-09-20)
+
+`/` answers three questions at a glance (`app/src/pages/home.rs`): what this is (headline, „inoffiziell"
+in the first line), what is in it (four figures, and the map as the one picture of the page), where
+to start (two buttons, example searches, entry links with their exact counts, the faculties). Below
+that: what the app does, and questions and answers in plain text. That text is what the page is
+found by; it only says what the app really does (the search covers titles and numbers, so it says
+that).
+
+The map (`catalog/src/graph.rs`): a dot per current program, a line where two curricula share
+modules (Jaccard; modules of more than 40 programs are ignored), a force layout without
+randomness. **The server lays it out once, when a snapshot is opened** (`Snapshot::open`,
+event `snapshot.map_built`), for a wide and a tall sheet; nothing is laid out while a page
+renders and nothing in the browser (owner decision). Server-rendered pages get it through context
+(`data::ProgramMapHandle`), the browser app as `GET /api/map.json` (about 8 KB gzip; `boot.js`
+fetches it next to the database and keeps a copy in IndexedDB; `window.betulaMap`). Without a map
+the section is left out. The links are three `<path>` elements per sheet, the dots are SVG links
+with `<title>` (so the map works without JavaScript and search engines follow the dots to the
+programs). The app adds what a pointer over a dot shows (one signal, one overlay: its links, its
+relatives, a line of text) and takes clicks itself, because the router only knows HTML links.
+A halo of 5 units around every dot takes the pointer too (R14); the halos lie under all dots.
+`node e2e/home.mjs` covers it.
+
+### Search engines (`app/src/seo.rs`, 2026-09-20)
+
+Aim: a search for a module or a program of the BTU finds the page here. What that rests on:
+
+- **Every page states itself once** with `seo::Seo` (inside its frame): description, canonical
+  address, Open Graph tags (picture: `app/assets/og.png`, made from `design/og/og.html`) and
+  structured data. Nothing of it is set for the whole app. (Before, every page carried the app's
+  default description, program pages a second one, and the module page lost its own.)
+- **One address per page.** Filters, further pages and the preview of the catalog, and a filtered
+  program overview are views: `noindex, follow`. `/programs/<slug>` names `/programs/<slug>/plan`
+  as its address. Older examination regulations are `noindex`. Links that only lead to views
+  (examples, entry links, toggles) carry `rel="nofollow"`.
+- **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
+  Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
+  Cottbus-Senftenberg · Betula" (each view of a program has its own title).
+- **Structured data states only what the page shows:** `WebSite` with its search and `FAQPage` on
+  the landing page, `Course` (code, credits, language, provider, `sameAs` the BTU's page) and
+  `BreadcrumbList` on a module, `BreadcrumbList` on a program.
+- **`/sitemap.xml`** (made once per snapshot): the three entrances, every module that has a page,
+  every current program with its views; `robots.txt` names it. Addresses are absolute and use
+  `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
+- The browser app removes the server's tags from the head when it takes over and writes its own,
+  so the head describes the page that is shown.
+
+Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
+`lastmod` per module (the snapshot has no date per module), English pages.
+
 ## 2. Rules
 
 R1–R8 from `docs/frontend-rewrite.md` §5 apply. In short: navigation state reaches pages as
@@ -269,10 +319,12 @@ keeps serving the last good one when Radix is away, also after a restart.
 | `--stale-after-seconds` | `FOLIA_SNAPSHOT_STALE_AFTER` | `21600` | `/healthz` fails when Radix was silent this long (0: never) |
 | `--html-cache-mb` | `FOLIA_HTML_CACHE_MB` | `128` | rendered pages kept in memory |
 | `--site-root` | `FOLIA_SITE_ROOT` | `site` | browser bundle (`pkg/`), from phase 2 |
+| `--public-url` | `FOLIA_PUBLIC_URL` | `https://betula.app` | the site's address from outside: canonical links, link previews, sitemap |
 | `--log-format`, `--log-level` | `FOLIA_LOG_FORMAT`, `FOLIA_LOG_LEVEL` | `text`, `info` | `json` in production |
 
-Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /healthz`, `/assets/app.css`,
-`/assets/favicon.svg`, `/robots.txt`.
+Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /api/map.json` (the map of the
+programs, with the snapshot's ETag), `GET /healthz`, `/assets/app.css`, `/assets/favicon.svg`,
+`/assets/og.png`, `/robots.txt`, `/sitemap.xml`.
 
 ### Log events (same rules as `docs/operations.md` §2: ERROR = a human has to act)
 
@@ -280,6 +332,8 @@ Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /healthz`, `
 |---|---|---|
 | INFO | `server.listening`, `server.shutdown` | lifecycle |
 | INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`) |
+| INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
+| WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
 | INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`) |
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
@@ -303,7 +357,9 @@ needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails wi
 - `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
   404 is never cached; `/api/db` with Radix's ETag, gzip and 304; a broken export is
-  rejected and the old snapshot stays; a new one invalidates pages; restart without Radix.
+  rejected and the old snapshot stays; a new one invalidates pages; restart without Radix;
+  one description and one absolute canonical address per page, `noindex` on a filtered list,
+  the sitemap, the map of the programs as laid out with the snapshot.
 
 ```bash
 cargo clippy --all-targets
@@ -362,13 +418,22 @@ sidebar); filters as links that keep focus and sidebar, the search keeping the f
 a faculty without a history entry; the views of a program in the sidebar; on a phone the filters
 in a sheet; and the filter links without JavaScript.
 
+```bash
+cd e2e && node home.mjs
+```
+
+drives the landing page: the map is part of the server's HTML (dots are links); the app draws it
+from what `boot.js` handed over; a pointer over a dot shows its relatives; a click opens the
+program without loading a page; the head has one description and one canonical address and both
+follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
+
 ## 5. Not done yet
 
 - PWA: manifest, service worker (offline start), update prompt. User data: bookmarks, passed
   modules with the prerequisite check, „mein Studiengang". `wasm-opt` for the bundle.
 - Phase 3: design system, plan grid with variants, weekly calendar, filter bottom sheet, search
   with context ranking (own concept, see `docs/frontend-phase0.md`).
-- Phase 4: Nix package and container, Swarm stack, CSP, `sitemap.xml`, CI.
+- Phase 4: Nix package and container, Swarm stack, CSP, CI.
 
 ### Ideas noted for later (owner: „schreib dir die mal auf", 2026-09-20)
 

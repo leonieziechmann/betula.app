@@ -22,6 +22,7 @@ use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::nav::{self, keep_position_after_prepend, list_height, list_position};
 use crate::pages::module::ModulePanel;
+use crate::seo::Seo;
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 
@@ -85,7 +86,7 @@ pub fn CatalogPage() -> impl IntoView {
     let title = move || match list.get() {
         Ok((_, data)) => match &data.program {
             Some(p) => format!("Module · {} {}", p.name, p.degree()),
-            None => "Modulkatalog".to_string(),
+            None => "Modulkatalog: alle Module der BTU Cottbus-Senftenberg".to_string(),
         },
         Err(_) => "Modulkatalog".to_string(),
     };
@@ -93,6 +94,20 @@ pub fn CatalogPage() -> impl IntoView {
     view! {
         <Title text=title/>
         <div class="work" class:no-detail=move || open.get().is_none()>
+            // One address for search engines: the unfiltered first page. Filters, further pages and
+            // the preview are views of it (their links are followed, they are not listed).
+            {move || {
+                let here = url.get();
+                let plain = here == CatalogUrl::default();
+                view! {
+                    <Seo
+                        title="Modulkatalog der BTU Cottbus-Senftenberg"
+                        description="Alle Module der BTU Cottbus-Senftenberg durchsuchen und filtern: nach Studiengang, Turnus, Lehrform, Prüfungsform, Sprache, Campus, Leistungspunkten und Dozierenden."
+                        path=here.path()
+                        noindex=!plain
+                    />
+                }
+            }}
             {move || match failed.get() {
                 Some(error) => {
                     status.for_error(&error);

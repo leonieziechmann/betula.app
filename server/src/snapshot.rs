@@ -31,6 +31,11 @@ pub struct Snapshot {
     pub gzip: Option<(PathBuf, u64)>,
     pub meta: Meta,
     pub activated_at: SystemTime,
+    /// The map of the programs on the landing page, laid out once when the snapshot is opened
+    /// (pages and `/api/map.json` only hand it on), with its JSON (plain, gzip).
+    pub program_map: Option<(Arc<catalog::graph::ProgramMap>, axum::body::Bytes, axum::body::Bytes)>,
+    /// `/sitemap.xml` (plain, gzip), made on first request.
+    pub sitemap: std::sync::OnceLock<(axum::body::Bytes, axum::body::Bytes)>,
     pool: Mutex<Vec<NativeDatabase>>,
 }
 
@@ -42,10 +47,23 @@ impl Snapshot {
         if overview.modules == 0 || overview.programs == 0 {
             return Err(DbError::Unavailable(format!("{}: the catalog is empty", path.display())));
         }
+        // A snapshot without a map is still a catalog: the landing page leaves the section out.
+        let started = Instant::now();
+        let program_map = match catalog::pages::program_map(&db).map_err(|e| e.to_string()).and_then(|map| serde_json::to_vec(&map).map(|json| (map, json)).map_err(|e| e.to_string())) {
+            Ok((map, json)) => {
+                tracing::info!(component = "snapshot", event = "snapshot.map_built", programs = map.programs.len(), links = map.links.len(), ms = started.elapsed().as_millis() as u64, "program map laid out");
+                let compressed = crate::cache::gzip(&json);
+                Some((Arc::new(map), axum::body::Bytes::from(json), compressed))
+            }
+            Err(error) => {
+                tracing::warn!(component = "snapshot", event = "snapshot.map_failed", error = %error, "the program map could not be built; the landing page goes without it");
+                None
+            }
+        };
         let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let gzip_path = gzip_path_of(&path);
         let gzip = std::fs::metadata(&gzip_path).ok().map(|m| (gzip_path, m.len()));
-        Ok(Self { etag, path, bytes, gzip, meta: overview.meta, activated_at: SystemTime::now(), pool: Mutex::new(vec![db]) })
+        Ok(Self { etag, path, bytes, gzip, meta: overview.meta, activated_at: SystemTime::now(), program_map, sitemap: std::sync::OnceLock::new(), pool: Mutex::new(vec![db]) })
     }
 
     pub fn with_db(&self, job: &mut dyn FnMut(&dyn Database)) -> Result<(), DbError> {

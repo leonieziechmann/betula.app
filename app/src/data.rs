@@ -18,6 +18,13 @@ pub trait CatalogSource: Send + Sync {
 #[derive(Clone)]
 pub struct Source(pub Arc<dyn CatalogSource>);
 
+/// The map of the programs on the landing page (`catalog::graph`). The web server lays it out
+/// once per snapshot and hands it to the pages it renders; the browser app gets the same map as
+/// `/api/map.json` (`boot.js`). Nobody computes it while a page renders; a host without a map
+/// simply provides none and the page leaves the section out.
+#[derive(Clone)]
+pub struct ProgramMapHandle(pub Arc<catalog::graph::ProgramMap>);
+
 /// What a page shows instead of data. Serializable, because the server hands the
 /// outcome of its queries to the browser for hydration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

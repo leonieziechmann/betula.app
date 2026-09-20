@@ -15,12 +15,13 @@ pub mod format;
 pub mod icons;
 pub mod nav;
 pub mod pages;
+pub mod seo;
 pub mod tabs;
 pub mod ui;
 
 use catalog::url;
 use leptos::prelude::*;
-use leptos_meta::{provide_meta_context, Link, Meta, MetaTags, Stylesheet, Title};
+use leptos_meta::{provide_meta_context, Link, MetaTags, Stylesheet, Title};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::{path, NavigateOptions, SsrMode};
@@ -33,6 +34,8 @@ use crate::ui::Icon;
 pub const STYLESHEET: &str = "/assets/app.css";
 pub const FAVICON: &str = "/assets/favicon.svg";
 pub const FONT: &str = "/assets/inter-latin.woff2";
+/// The picture of link previews (1200 × 630, made from `design/og/og.html`).
+pub const OG_IMAGE: &str = "/assets/og.png";
 pub const ENHANCE_SCRIPT: &str = "/assets/enhance.js";
 /// Loads the local database and the browser app, which then takes the page over.
 pub const BOOT_SCRIPT: &str = "/assets/boot.js";
@@ -74,8 +77,9 @@ pub fn App() -> impl IntoView {
         <Link rel="preload" href=FONT as_="font" type_="font/woff2" crossorigin="anonymous"/>
         <Stylesheet href=STYLESHEET/>
         <Link rel="icon" type_="image/svg+xml" href=FAVICON/>
-        <Title formatter=|title: String| if title.is_empty() { "Betula · Modulkatalog für die BTU Cottbus-Senftenberg (inoffiziell)".to_string() } else { format!("{title} · Betula") }/>
-        <Meta name="description" content="Betula ist ein inoffizieller Modulkatalog für die BTU Cottbus-Senftenberg: Module, Studiengänge und Regelstudienpläne, durchsuchbar, filterbar, aktuell."/>
+        // Description, canonical address and the rest of what search engines read belong to the
+        // page (`seo::Seo`), not to the app: a page must not carry two descriptions.
+        <Title formatter=|title: String| if title.is_empty() { "Modulkatalog der BTU Cottbus-Senftenberg · Betula (inoffiziell)".to_string() } else { format!("{title} · Betula") }/>
         <Router>
             <FollowTabs/>
             <a class="skip-link" href="#content">"Zum Inhalt springen"</a>

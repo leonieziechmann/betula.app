@@ -37,6 +37,11 @@ pub struct Config {
     #[arg(long, env = "FOLIA_SITE_ROOT", default_value = "site")]
     pub site_root: PathBuf,
 
+    /// The address of the site as the world sees it: canonical links, link previews and the
+    /// sitemap are written with it.
+    #[arg(long, env = "FOLIA_PUBLIC_URL", default_value = app::seo::DEFAULT_SITE_URL)]
+    pub public_url: String,
+
     /// `text` or `json`.
     #[arg(long, env = "FOLIA_LOG_FORMAT", default_value = "text")]
     pub log_format: String,

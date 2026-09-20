@@ -110,6 +110,36 @@ pub fn program_department_counts(db: &dyn Database) -> Result<Vec<ProgramDepartm
     )
 }
 
+/// (program id, module id) for the curriculum of every current program: what the map of the
+/// programs (`graph::program_map`) measures their kinship with.
+pub fn curriculum_links(db: &dyn Database) -> Result<Vec<(String, String)>, DbError> {
+    let rows = db.query(
+        "curriculum_links",
+        "SELECT pm.program_id, pm.module_id FROM v_program_module pm JOIN v_program p ON p.id = pm.program_id \
+         WHERE pm.relation = 'curricular' AND p.is_latest_po = 1 ORDER BY pm.module_id, pm.program_id",
+        &[],
+    )?;
+    let text = |value: &Value| match value {
+        Value::Text(text) => Some(text.clone()),
+        Value::Integer(number) => Some(number.to_string()),
+        _ => None,
+    };
+    Ok(rows.rows.iter().filter_map(|row| match row.as_slice() {
+        [program, module] => text(program).zip(text(module)),
+        _ => None,
+    }).collect())
+}
+
+/// Every module that has a page, offered or not: the sitemap.
+pub fn module_ids(db: &dyn Database) -> Result<Vec<String>, DbError> {
+    let rows = db.query("module_ids", "SELECT module_id FROM v_module_facets ORDER BY module_id", &[])?;
+    Ok(rows.rows.iter().filter_map(|row| match row.first() {
+        Some(Value::Text(id)) => Some(id.clone()),
+        Some(Value::Integer(id)) => Some(id.to_string()),
+        _ => None,
+    }).collect())
+}
+
 /// The semesters the validated study plan of a program places curriculum modules in: what the
 /// semester filter offers. Empty without a plan.
 pub fn program_plan_semesters(db: &dyn Database, program_id: &str) -> Result<Vec<i64>, DbError> {

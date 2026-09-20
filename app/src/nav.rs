@@ -199,6 +199,35 @@ pub fn session_set(key: &str, value: &str) {
     }
 }
 
+/// What this browser remembers under `key` (`localStorage`, so it outlives the session): a
+/// personal view setting, never part of the URL and never part of server HTML (R9). `None` on
+/// the server, and in a browser that refuses storage.
+#[allow(unused_variables)]
+pub fn local_get(key: &str) -> Option<String> {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window()?.local_storage().ok()??.get_item(key).ok()?
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+#[allow(unused_variables)]
+pub fn local_set(key: &str, value: &str) {
+    #[cfg(feature = "csr")]
+    if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+        let _ = storage.set_item(key, value);
+    }
+}
+
+/// The number in the `data-i` of the element an event hit, or of the closest element around it
+/// that has one: one handler for many small targets (the dots of the landing page's map).
+pub fn index_under(target: Option<leptos::web_sys::EventTarget>) -> Option<usize> {
+    use leptos::wasm_bindgen::JsCast;
+    let element = target?.dyn_into::<leptos::web_sys::Element>().ok()?;
+    element.closest("[data-i]").ok()??.get_attribute("data-i")?.parse().ok()
+}
+
 /// Scrolls the first element that matches `selector` into the middle of what scrolls around it.
 /// `false` if there is none.
 #[allow(unused_variables)]

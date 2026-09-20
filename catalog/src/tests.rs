@@ -157,6 +157,11 @@ fn every_query_runs_against_the_snapshot() {
     assert!(semesters.first().is_some_and(|first| *first >= 1) && semesters.windows(2).all(|pair| pair[0] < pair[1]), "{semesters:?}");
     assert!(!queries::program_plan_entries(&db, &id).unwrap().is_empty());
 
+    let curriculum = queries::curriculum_links(&db).unwrap();
+    assert!(curriculum.len() > 1000 && curriculum.iter().all(|(program, module)| !program.is_empty() && !module.is_empty()));
+    let ids = queries::module_ids(&db).unwrap();
+    assert!(ids.len() >= page.total as usize && ids.contains(&module.id));
+
     // Every `pub fn` of queries.rs must have run above.
     let declared: BTreeSet<&str> = include_str!("queries.rs")
         .lines()
@@ -593,6 +598,42 @@ fn page_loaders_return_everything_a_page_shows() {
     assert_eq!(pages::program(&db, "no-such-program").unwrap(), None);
 
     eprintln!("all page loaders: {:?}", started.elapsed());
+}
+
+#[test]
+fn the_program_map_is_stable_tidy_and_on_the_sheet() {
+    use crate::pages;
+    let db = open();
+    let started = std::time::Instant::now();
+    let map = pages::program_map(&db).unwrap();
+    eprintln!("program map: {:?}, {} programs, {} links", started.elapsed(), map.programs.len(), map.links.len());
+    assert_eq!(map, pages::program_map(&db).unwrap(), "the same snapshot gives the same map");
+
+    let current = queries::programs(&db).unwrap().iter().filter(|p| p.is_latest_po).count();
+    assert_eq!(map.programs.len(), current);
+    assert!(map.links.len() > current, "{} links", map.links.len());
+    assert!(map.links.iter().all(|l| l.a < l.b && l.b < current && l.shared > 0 && l.similarity > 0.0 && l.similarity <= 1.0));
+    // Informatik B.Sc. is related to somebody, its closest relative first.
+    let informatik = map.programs.iter().position(|p| p.slug == INFORMATIK_BSC);
+    assert!(informatik.is_none_or(|i| map.programs[i].modules > 10));
+
+    for layout in [&map.wide, &map.tall] {
+        assert_eq!(layout.dots.len(), current);
+        for (i, a) in layout.dots.iter().enumerate() {
+            assert!(a.0 - a.2 >= 0.0 && a.0 + a.2 <= layout.width && a.1 - a.2 >= 0.0 && a.1 + a.2 <= layout.height, "dot {i} leaves the sheet: {a:?}");
+            for b in layout.dots.iter().skip(i + 1) {
+                let distance = ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt();
+                assert!(distance >= a.2 + b.2, "dots overlap: {a:?} {b:?}");
+            }
+        }
+        assert!(layout.names.len() >= 8, "{} names", layout.names.len());
+    }
+
+    let home = pages::home(&db, &[CatalogQuery::default(), everything()]).unwrap();
+    assert_eq!(home.entry_counts.len(), 2);
+    assert!(home.entry_counts[0] > 0 && home.entry_counts[0] < home.entry_counts[1]);
+    assert_eq!(home.faculties.iter().map(|(_, programs)| programs).sum::<usize>(), current);
+    assert!(home.faculties.iter().filter(|(department, _)| department.is_some()).count() >= 4);
 }
 
 #[test]

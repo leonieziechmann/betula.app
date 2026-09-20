@@ -118,11 +118,28 @@ async function openDatabase() {
   };
 }
 
+// The map of the programs on the landing page. The server lays it out once per snapshot; the app
+// only draws it. Kept next to the catalog, so the landing page has it offline too. Without it
+// the app simply shows no map.
+async function loadProgramMap() {
+  try {
+    const response = await fetch("/api/map.json");
+    if (response.ok) {
+      const text = await response.text();
+      idbPut("map", text).catch(() => {});
+      return text;
+    }
+  } catch {}
+  return idbGet("map").catch(() => null);
+}
+
 try {
-  const [app] = await Promise.all([
+  const [app, , programMap] = await Promise.all([
     import("/pkg/folia_client.js").then(async (module) => { await module.default("/pkg/folia_client_bg.wasm"); return module; }),
     openDatabase(),
+    loadProgramMap(),
   ]);
+  window.betulaMap = programMap || null;
   window.__betulaApp = true;
   document.documentElement.classList.add("app");
   app.start();

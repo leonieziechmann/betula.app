@@ -93,16 +93,44 @@ fn install_panic_hook() {
     }));
 }
 
+/// The map of the programs as `boot.js` got it from the server (`window.betulaMap`, JSON). The
+/// app does not lay anything out; without a map the landing page leaves the section out.
+fn program_map() -> Option<app::data::ProgramMapHandle> {
+    let text = js_sys::Reflect::get(&web_sys::window()?.into(), &"betulaMap".into()).ok()?.as_string()?;
+    serde_json::from_str(&text).ok().map(|map| app::data::ProgramMapHandle(Arc::new(map)))
+}
+
 /// Called by `boot.js` when the local database is open.
 #[wasm_bindgen]
 pub fn start() {
     install_panic_hook();
-    let Some(body) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.body()) else { return };
+    let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
+    let Some(body) = document.body() else { return };
     // Not hydration: the local database may be older than the server's page, so the app renders
     // fresh. Same components, same markup, so nothing visibly changes.
     body.set_inner_html("");
-    leptos::mount::mount_to_body(|| {
+    // The same goes for what the server wrote into the head for this page (`app::seo`): the app
+    // writes its own, and what stayed would describe the first page on every later one.
+    let stale = "meta[name=description], meta[name=robots], link[rel=canonical], meta[property^='og:'], meta[name^='twitter:'], script[type='application/ld+json']";
+    if let Ok(tags) = document.query_selector_all(stale) {
+        for i in 0..tags.length() {
+            if let Some(tag) = tags.item(i) {
+                if let Some(parent) = tag.parent_node() {
+                    let _ = parent.remove_child(&tag);
+                }
+            }
+        }
+    }
+    let map = program_map();
+    let site = web_sys::window().and_then(|w| w.location().origin().ok());
+    leptos::mount::mount_to_body(move || {
         provide_context(Source(Arc::new(LocalSource)));
+        if let Some(map) = map.clone() {
+            provide_context(map);
+        }
+        if let Some(site) = site.clone() {
+            provide_context(app::seo::SiteUrl(site.into()));
+        }
         view! { <app::App/> }
     });
 }

@@ -35,6 +35,45 @@ pub fn overview(db: &dyn Database) -> Result<Overview, DbError> {
     })
 }
 
+/// The landing page: the overview, how many modules each of its entry links leads to, and the
+/// faculties with the number of their current programs (in the order of the program overview:
+/// 1 to 6, then the others; `None` = programs no faculty could be derived for).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HomeData {
+    pub overview: Overview,
+    /// One count per query handed to `home`, in their order.
+    pub entry_counts: Vec<u64>,
+    pub faculties: Vec<(Option<Department>, usize)>,
+}
+
+pub fn home(db: &dyn Database, entries: &[CatalogQuery]) -> Result<HomeData, DbError> {
+    let overview = overview(db)?;
+    let entry_counts = entries.iter().map(|query| queries::catalog_count(db, query)).collect::<Result<Vec<_>, _>>()?;
+    let ProgramsData { programs, departments, faculties } = programs_overview(db)?;
+    let mut counted: Vec<(Option<Department>, usize)> = Vec::new();
+    for program in programs.iter().filter(|program| program.is_latest_po) {
+        let department = faculties
+            .iter()
+            .find(|faculty| faculty.program_id == program.id)
+            .and_then(|faculty| departments.iter().find(|department| department.id == faculty.department_id));
+        match counted.iter_mut().find(|(known, _)| known.as_ref().map(|d| d.id) == department.map(|d| d.id)) {
+            Some((_, count)) => *count += 1,
+            None => counted.push((department.cloned(), 1)),
+        }
+    }
+    counted.sort_by_key(|(department, _)| match department {
+        Some(d) => (d.code.parse::<u32>().map_or(1, |_| 0), d.code.parse::<u32>().unwrap_or(0), d.code.clone()),
+        None => (2, 0, String::new()),
+    });
+    Ok(HomeData { overview, entry_counts, faculties: counted })
+}
+
+/// The map of the current programs (`graph`). The web server calls this once per snapshot.
+pub fn program_map(db: &dyn Database) -> Result<crate::graph::ProgramMap, DbError> {
+    let programs: Vec<Program> = queries::programs(db)?.into_iter().filter(|program| program.is_latest_po).collect();
+    Ok(crate::graph::program_map(&programs, &queries::curriculum_links(db)?))
+}
+
 /// What the pickers of the filter panel offer. The same for every filter, so the page loads it
 /// once and not with every list.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

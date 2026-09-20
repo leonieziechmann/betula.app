@@ -10,11 +10,12 @@ use catalog::rows_detail::{AreaPlacement, PlanEntry};
 use catalog::url::{self, CatalogUrl, ProgramTab};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
-use leptos_meta::{Meta, Title};
+use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::seo::{self, Seo};
 use crate::tabs::Area;
 use crate::ui::{BackLink, EmptyState, ErrorState, Frame, Icon, KindBadge, NotFound, OfferBadge};
 
@@ -111,9 +112,23 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
         p.curricular_modules
     );
 
+    // Each view of the program is a page of its own; `/programs/<slug>` is the plan.
+    let view_name = match tab {
+        ProgramTab::Plan => "Regelstudienplan",
+        ProgramTab::Areas => "Wahlpflicht und Bereiche",
+        ProgramTab::Modules => "Alle Module",
+    };
+    let name = format!("{} ({})", p.name, p.degree());
+    let trail = vec![seo::breadcrumbs(&[
+        ("Betula", url::HOME.to_string()),
+        ("Studiengänge", url::PROGRAMS.to_string()),
+        (name.as_str(), url::program_path(&p.slug, ProgramTab::Plan)),
+    ])];
+
     view! {
-        <Title text=format!("{} · {}", p.name, p.degree())/>
-        <Meta name="description" content=description/>
+        <Title text=format!("{name}: {view_name} · BTU Cottbus-Senftenberg")/>
+        // Older examination regulations stay reachable but are not what a search should find.
+        <Seo title=format!("{name}: {view_name}") description=description path=url::program_path(&p.slug, tab) noindex=!p.is_latest_po data=trail/>
         <article class="page-inner" data-walk="program-page" data-walk-id=p.slug.clone()>
             <header class="panel page-head">
                 <div class="hero-top"><BackLink area=Area::Programs/></div>

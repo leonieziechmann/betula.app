@@ -23,6 +23,7 @@ use leptos_router::hooks::use_location;
 use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::nav;
+use crate::seo::Seo;
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Frame, Icon, ToggleLink};
 
@@ -361,9 +362,20 @@ pub fn ProgramsPage() -> impl IntoView {
     };
 
     view! {
-        <Title text="Studiengänge"/>
+        <Title text="Studiengänge der BTU Cottbus-Senftenberg: Regelstudienpläne und Module"/>
         <Frame title="Filter" head sidebar sheet=true>
             <div class="page-inner">
+                {move || {
+                    let here = url.get();
+                    view! {
+                        <Seo
+                            title="Studiengänge der BTU Cottbus-Senftenberg"
+                            description=format!("Alle {total} Studiengänge der BTU Cottbus-Senftenberg nach Fakultät: Bachelor, Master, dual und Lehramt, jeweils mit Regelstudienplan, Wahlpflichtbereichen, Modulen und Ordnungen.")
+                            path=here.path()
+                            noindex=here.is_filtered()
+                        />
+                    }
+                }}
                 // The same opening as the catalog's list: the number, then what it counts.
                 <header class="summary">
                     <h1>

@@ -44,6 +44,8 @@ pub struct AppState {
     pub build_id: Arc<str>,
     pub stale_after: Option<Duration>,
     pub leptos: LeptosOptions,
+    /// The address of the site from outside, without a slash at the end (`--public-url`).
+    pub public_url: Arc<str>,
     /// Where the built browser app lives (`<site-root>/pkg`).
     pub site_root: std::path::PathBuf,
     /// The files of the browser app: name → (etag, bytes, gzip).
@@ -108,33 +110,41 @@ pub fn router(state: AppState) -> Router {
     let source = Source(Arc::new(ActiveSnapshot(state.store.clone())));
     let routes = generate_route_list(app::App);
     let options = state.leptos.clone();
+    // What every rendered page gets from its host: the data, the name of the site from outside,
+    // and the map of the programs the active snapshot was opened with.
+    let provide = {
+        let (store, site) = (state.store.clone(), app::seo::SiteUrl(state.public_url.clone()));
+        move || {
+            provide_context(source.clone());
+            provide_context(site.clone());
+            if let Some((map, ..)) = store.current().and_then(|snapshot| snapshot.program_map.clone()) {
+                provide_context(app::data::ProgramMapHandle(map));
+            }
+        }
+    };
 
     let pages = Router::new()
         .leptos_routes_with_context(
             &state,
             routes,
-            {
-                let source = source.clone();
-                move || provide_context(source.clone())
-            },
+            provide.clone(),
             {
                 let options = options.clone();
                 move || app::shell(options.clone())
             },
         )
-        .fallback(leptos_axum::file_and_error_handler_with_context::<AppState, _>(
-            move || provide_context(source.clone()),
-            app::shell,
-        ))
+        .fallback(leptos_axum::file_and_error_handler_with_context::<AppState, _>(provide, app::shell))
         .layer(middleware::from_fn_with_state(state.clone(), cache::html_cache));
 
     Router::new()
         .route("/api/db", get(api::database))
         .route("/api/status", get(api::status))
+        .route("/api/map.json", get(api::program_map))
         .route("/healthz", get(api::health))
         .route(app::STYLESHEET, get(api::stylesheet))
         .route(app::FAVICON, get(api::favicon))
         .route(app::FONT, get(api::font))
+        .route(app::OG_IMAGE, get(api::og_image))
         .route(app::ENHANCE_SCRIPT, get(api::enhance_script))
         .route(app::BOOT_SCRIPT, get(api::boot_script))
         .route("/assets/sql-wasm.js", get(api::sql_js))
@@ -142,6 +152,7 @@ pub fn router(state: AppState) -> Router {
         .route("/pkg/{file}", get(api::package))
         .route("/favicon.ico", get(api::favicon))
         .route("/robots.txt", get(api::robots))
+        .route("/sitemap.xml", get(api::sitemap))
         .merge(pages)
         .layer(middleware::from_fn(access_log))
         .with_state(state)
@@ -190,6 +201,7 @@ async fn main() -> std::process::ExitCode {
         cache: Arc::new(HtmlCache::new(config.html_cache_mb * 1024 * 1024)),
         build_id: format!("{}-{started_at:x}", env!("CARGO_PKG_VERSION")).into(),
         stale_after: config.stale_after(),
+        public_url: config.public_url.trim_end_matches('/').into(),
         site_root: config.site_root.clone(),
         packages: Arc::default(),
         leptos: LeptosOptions::builder()

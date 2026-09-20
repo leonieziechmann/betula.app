@@ -14,11 +14,12 @@ use catalog::rows::Prerequisite;
 use catalog::rows_detail::EventDate;
 use catalog::url::{self, ProgramTab};
 use leptos::prelude::*;
-use leptos_meta::{Meta, Title};
+use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::seo::{self, Seo};
 use crate::tabs::Area;
 use crate::ui::{BackLink, ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
 
@@ -76,9 +77,42 @@ fn derive(data: &ModuleData) -> Derived {
             .contents
             .clone()
             .or_else(|| m.learning_outcomes.clone())
-            .map(|text| text.chars().take(160).collect::<String>())
-            .unwrap_or_else(|| format!("Modul {} der BTU Cottbus-Senftenberg", m.id)),
+            .map(|text| seo::excerpt(&format!("{} ({}, {}) an der BTU Cottbus-Senftenberg: {text}", m.title, m.id, format::credits(m.credits)), 300))
+            .unwrap_or_else(|| format!("{} (Modul {}, {}) an der BTU Cottbus-Senftenberg: Turnus, Prüfung, Voraussetzungen und Studiengänge.", m.title, m.id, format::credits(m.credits))),
     }
+}
+
+/// The module as schema.org knows it (a `Course` of the university) and the way to it. Only what
+/// the page shows.
+fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
+    let m = &data.module;
+    let mut course = serde_json::json!({
+        "@type": "Course",
+        "@id": seo::absolute(&url::module_path(&m.id)),
+        "url": seo::absolute(&url::module_path(&m.id)),
+        "name": m.title,
+        "courseCode": m.id,
+        "provider": { "@type": "CollegeOrUniversity", "name": seo::UNIVERSITY, "url": seo::UNIVERSITY_URL },
+    });
+    let languages: Vec<&str> = [(m.teaches_german, "de"), (m.teaches_english, "en")].iter().filter(|(taught, _)| *taught == Some(true)).map(|(_, code)| *code).collect();
+    if let Some(course) = course.as_object_mut() {
+        if let Some(text) = m.contents.as_ref().or(m.learning_outcomes.as_ref()) {
+            course.insert("description".into(), seo::excerpt(text, 500).into());
+        }
+        if let Some(credits) = m.credits {
+            course.insert("numberOfCredits".into(), serde_json::json!({ "@type": "StructuredValue", "value": credits, "unitText": "ECTS" }));
+        }
+        if !languages.is_empty() {
+            course.insert("inLanguage".into(), languages.into());
+        }
+        if let Some(source) = &m.source_url {
+            course.insert("sameAs".into(), source.clone().into());
+        }
+    }
+    vec![
+        course,
+        seo::breadcrumbs(&[("Betula", url::HOME.to_string()), ("Modulkatalog", url::CATALOG.to_string()), (m.title.as_str(), url::module_path(&m.id))]),
+    ]
 }
 
 /// The preview next to the catalog list. `close_href` is the same list without the preview.
@@ -174,13 +208,19 @@ pub fn ModulePage() -> impl IntoView {
             Ok(Some(data)) => {
                 let derived = derive(&data);
                 view! {
-                    <Title text=format!("{} {}", data.module.id, data.module.title)/>
-                    <Meta name="description" content=derived.description/>
+                    // The name first (what people search for), then number and university.
+                    <Title text=format!("{} ({}) · Modul der BTU Cottbus-Senftenberg", data.module.title, data.module.id)/>
                     <Frame
                         title="Modul"
                         head={ let id = data.module.id.clone(); move || view! { <span class="mono">{id.clone()}</span> } }
                         sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone()/> } }
                     >
+                            <Seo
+                                title=format!("{} ({})", data.module.title, data.module.id)
+                                description=derived.description
+                                path=url::module_path(&data.module.id)
+                                data=structured(&data)
+                            />
                             <article class="module-page">
                                 <header class="panel hero">
                                     <div class="hero-top">

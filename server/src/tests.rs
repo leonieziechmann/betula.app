@@ -71,6 +71,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         cache: Arc::new(HtmlCache::new(32 * 1024 * 1024)),
         build_id: "test".into(),
         stale_after: None,
+        public_url: "https://catalog.example".into(),
         site_root: "no-site".into(),
         packages: Arc::default(),
         leptos: LeptosOptions::builder().output_name("folia-app").site_root("no-site").build(),
@@ -136,6 +137,37 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (_, headers, body) = request(&router, "/programs", &[("accept-encoding", "gzip, br")]).await;
     assert_eq!(headers[header::CONTENT_ENCODING], "gzip");
     assert_eq!(body[..2], [0x1f, 0x8b]);
+
+    // What search engines read: one description and one address per page, absolute, with the name
+    // the site has from outside; views of the lists are not listed; the sitemap names every page.
+    let head = |html: &str| html.split("</head>").next().unwrap_or_default().to_string();
+    let (_, _, body) = request(&router, "/catalog/module/11101", &[]).await;
+    let module = head(&String::from_utf8(body).unwrap());
+    assert_eq!(module.matches("name=\"description\"").count(), 1, "{module}");
+    assert!(module.contains("href=\"https://catalog.example/catalog/module/11101\" rel=\"canonical\""), "{module}");
+    assert!(module.contains("application/ld+json") && module.contains("\"@type\":\"Course\"") && !module.contains("noindex"), "{module}");
+    assert!(head(&html).contains("content=\"noindex, follow\""), "a filtered list is a view of /catalog");
+    let (_, _, body) = request(&router, "/", &[]).await;
+    let home = String::from_utf8(body).unwrap();
+    assert!(head(&home).contains("href=\"https://catalog.example/\" rel=\"canonical\"") && !head(&home).contains("noindex"));
+    assert!(home.contains("class=\"map map-wide\"") && home.contains("class=\"map map-tall\""), "the landing page draws the map the snapshot was opened with");
+
+    let (status, headers, body) = request(&router, "/sitemap.xml", &[]).await;
+    let sitemap = String::from_utf8(body).unwrap();
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/xml; charset=utf-8"));
+    assert!(sitemap.contains("<loc>https://catalog.example/</loc>") && sitemap.contains("<loc>https://catalog.example/catalog/module/11101</loc>"));
+    assert!(sitemap.matches("<loc>").count() > 3000 && sitemap.lines().all(|line| !line.starts_with("<url>") || !line.contains('?')), "pages only, no filters");
+    let (_, _, robots) = request(&router, "/robots.txt", &[]).await;
+    assert!(String::from_utf8(robots).unwrap().contains("Sitemap: https://catalog.example/sitemap.xml"));
+
+    // The map of the programs is laid out once per snapshot and handed on as it is.
+    let (status, headers, body) = request(&router, "/api/map.json", &[]).await;
+    assert_eq!((status, headers[header::ETAG].to_str().unwrap()), (StatusCode::OK, "\"aaaa1111\""));
+    let map: catalog::graph::ProgramMap = serde_json::from_slice(&body).unwrap();
+    assert_eq!(Some(&map), active.program_map.as_ref().map(|(map, ..)| map.as_ref()));
+    assert!(map.programs.len() > 100 && map.wide.dots.len() == map.programs.len() && map.tall.dots.len() == map.programs.len());
+    assert_eq!(request(&router, "/api/map.json", &[("if-none-match", "\"aaaa1111\"")]).await.0, StatusCode::NOT_MODIFIED);
+    assert_eq!(request(&router, app::OG_IMAGE, &[]).await.0, StatusCode::OK);
 
     // Unknown things are 404 and never cached.
     for path in ["/catalog/module/00000", "/programs/no-such-program", "/no-such-page"] {

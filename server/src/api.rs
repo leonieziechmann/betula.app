@@ -59,6 +59,80 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
     response
 }
 
+/// A body made once per snapshot, with the snapshot's ETag.
+fn per_snapshot(headers: &HeaderMap, etag: &str, content_type: &'static str, body: &(axum::body::Bytes, axum::body::Bytes)) -> Response {
+    if if_none_match(headers, etag) {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag.to_string())]).into_response();
+    }
+    let wants_gzip = headers
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
+    let use_gzip = wants_gzip && !body.1.is_empty();
+    let mut response = Response::new(Body::from(if use_gzip { body.1.clone() } else { body.0.clone() }));
+    let out = response.headers_mut();
+    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300, stale-while-revalidate=86400"));
+    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+    if let Ok(value) = HeaderValue::from_str(etag) {
+        out.insert(header::ETAG, value);
+    }
+    if use_gzip {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    }
+    response
+}
+
+/// `GET /api/map.json`: the map of the programs for the landing page of the browser app. Laid out
+/// when the snapshot was opened (`catalog::graph`); this only hands it on.
+pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let Some(snapshot) = state.store.current() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
+    };
+    match &snapshot.program_map {
+        Some((_, json, compressed)) => per_snapshot(&headers, &snapshot.etag, "application/json", &(json.clone(), compressed.clone())),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
+/// and every current program with its views. Filters of the lists are not pages (`app::seo`).
+pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let Some(snapshot) = state.store.current() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
+    };
+    if snapshot.sitemap.get().is_none() {
+        let mut listed: Result<(Vec<String>, Vec<catalog::rows::Program>), catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
+        let ran = snapshot.with_db(&mut |db| {
+            listed = catalog::queries::module_ids(db).and_then(|modules| Ok((modules, catalog::queries::programs(db)?)));
+        });
+        let (modules, programs) = match ran.and(listed) {
+            Ok(listed) => listed,
+            Err(error) => {
+                tracing::error!(component = "http", event = "sitemap.failed", error = %error, "the sitemap could not be read from the snapshot");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        };
+        let mut paths = vec![catalog::url::HOME.to_string(), catalog::url::CATALOG.to_string(), catalog::url::PROGRAMS.to_string()];
+        for program in programs.iter().filter(|program| program.is_latest_po) {
+            paths.extend(catalog::url::ProgramTab::ALL.iter().map(|tab| catalog::url::program_path(&program.slug, *tab)));
+        }
+        paths.extend(modules.iter().map(|id| catalog::url::module_path(id)));
+        let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+        for path in paths {
+            let address = format!("{}{path}", state.public_url).replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+            xml.push_str(&format!("<url><loc>{address}</loc></url>\n"));
+        }
+        xml.push_str("</urlset>\n");
+        let compressed = crate::cache::gzip(xml.as_bytes());
+        let _ = snapshot.sitemap.set((axum::body::Bytes::from(xml), compressed));
+    }
+    match snapshot.sitemap.get() {
+        Some(body) => per_snapshot(&headers, &snapshot.etag, "application/xml; charset=utf-8", body),
+        None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
 /// `GET /api/status`: what the browser compares its cached snapshot with, and what operators look at.
 pub async fn status(State(state): State<AppState>) -> Response {
     let (cached_pages, cached_bytes) = state.cache.size();
@@ -114,7 +188,7 @@ fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
     // Fonts are compressed already.
-    let compressed = (wants_gzip && content_type != "font/woff2" && body.len() > 1024)
+    let compressed = (wants_gzip && content_type != "font/woff2" && content_type != "image/png" && body.len() > 1024)
         .then(|| {
             let mut cache = COMPRESSED.get_or_init(Default::default).lock().ok()?;
             Some(cache.entry(body.as_ptr() as usize).or_insert_with(|| crate::cache::gzip(body)).clone())
@@ -145,6 +219,10 @@ pub async fn stylesheet(State(state): State<AppState>, headers: HeaderMap) -> Re
 
 pub async fn favicon(State(state): State<AppState>, headers: HeaderMap) -> Response {
     asset(&state, &headers, "image/svg+xml", include_bytes!("../../app/assets/favicon.svg"))
+}
+
+pub async fn og_image(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/og.png"))
 }
 
 pub async fn font(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -219,6 +297,7 @@ pub async fn package(State(state): State<AppState>, Path(file): Path<String>, he
     response
 }
 
-pub async fn robots() -> Response {
-    ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], "User-agent: *\nAllow: /\nDisallow: /api/\n").into_response()
+pub async fn robots(State(state): State<AppState>) -> Response {
+    let body = format!("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {}/sitemap.xml\n", state.public_url);
+    ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
 }
