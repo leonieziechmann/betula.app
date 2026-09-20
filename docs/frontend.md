@@ -26,7 +26,7 @@ scraper ──HTTP──▶ server ──HTML (cached per snapshot)──▶ bro
 | URL | Page |
 |---|---|
 | `/` | Landing page: every function with a link |
-| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `not-lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `prereqs`, `sort`, `desc`, `page` |
+| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
 | `/catalog?…&open=<id>` | The same list with this module previewed next to it (full screen on a phone); the preview has a „Vollbild" link to the module's page |
 | `/catalog/module/<id>` | The module's own page, two columns on the whole screen |
 | `/programs?q=…` | The program overview filtered by the search in the top bar |
@@ -34,7 +34,9 @@ scraper ──HTTP──▶ server ──HTML (cached per snapshot)──▶ bro
 | `/programs/<slug>/plan\|areas\|modules` | Program page and its tabs |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
-HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key.
+HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
+value that is both wanted and excluded counts as wanted. An exclusion removes only what the data
+states: a module whose campus or turnus is unknown stays in the list (R12).
 
 ### Look and interaction (since 2026-09-19, owner-approved direction)
 
@@ -46,9 +48,30 @@ HTML form, nonsense ignored) and have one canonical spelling, which is also the 
   Selecting a module keeps the list, the filters and the scroll position; on a phone the preview fills the screen,
   the filters become a bottom sheet and the rail a bottom bar. The list uses container queries:
   the narrower it gets, the fewer columns it shows.
-- **Targets:** whole rows are links (54 px, 72 px on a phone), filters are toggle chips
-  (30 px on the desktop to keep the panel short, 44 px on a phone) built from real checkboxes, so
-  they work without JavaScript. Rarely used filter groups fold away (`details`).
+- **Targets:** whole rows are links (54 px, 72 px on a phone); filter toggles are 32 px on the
+  desktop to keep the panel short, 44 px on a phone. Small controls have **virtual oversizing**
+  (R14): they take the pointer in an invisible area around them.
+- **The filter panel** (`app/src/pages/catalog.rs`, JavaScript first, owner decision 2026-09-20):
+  - It is rendered once and then follows the URL (`Filters` takes memos, not values), so a change
+    keeps the focus, the scroll position and what is folded open. Its width is dragged at the
+    handle in the gap between the two boxes, inside 232–440 px, and remembered in `localStorage`.
+  - **Toggles are links** to the list with the next state of their value: off → with → without →
+    off („keine Vorträge" is the second click). The small box on their left shows the state, so
+    they read as switches; the toggles of a row share its whole width. As links they need no
+    handler (the router turns the click into a navigation), work without JavaScript, carry
+    `rel="nofollow"` and `data-noscroll`, and the space bar flips them like a checkbox.
+    „One of a few" (list, plan semester, duration, years) is a segmented row of the same links.
+  - **Pickers** (`app/src/combobox.rs`: program, lecturers, department) have a search that
+    forgives typos and knows initials and abbreviations (`catalog::fuzzy`: „infomatik bsc"), arrow
+    keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
+    opens in place. The module comment of the component lists what keeps it predictable (it is a
+    rewrite: the picker of the old frontend lost its mark to the mouse, closed the preview with
+    Esc and knew its selection by label). Without the app the same places hold a plain `select`
+    or text field inside a GET form, and hidden inputs carry what the links have set.
+  - **Credits:** a slider with two knobs (0–30, the right end means „no upper limit") and the two
+    exact numbers under it. The knobs cannot pass each other; the filter follows when a knob is
+    let go.
+  - A chosen lecturer is a toggle of its own: with („bei"), without („nicht bei"), gone.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added).
 - **Tokens:** `app/assets/app.css` starts with the token block (colors, radii, shadows); everything
@@ -56,10 +79,11 @@ HTML form, nonsense ignored) and have one canonical spelling, which is also the 
   overrides it (`data-theme` on `<html>`, remembered in `localStorage`). Accent color only for
   primary actions and the marker of the open row; selected chips are neutral (inverted).
   Font: Inter (variable, latin subset, OFL), self-hosted. Icons: Lucide (ISC), inlined through
-  `app/src/icons.rs`. The only `style` attributes carry data for the week grid (`--from`, `--to`).
-- **`assets/enhance.js`** (progressive enhancement until the browser app takes over): filters
-  apply on change, panels keep their scroll position across page loads, Esc closes the detail
-  panel or the filter sheet, Ctrl+K or `/` focuses the search, theme switch. Page changes use
+  `app/src/icons.rs`. The only `style` attributes carry data as custom properties: the week grid
+  and the credit slider (`--from`, `--to`, `--at`), the place of a picker's popup, `ui::Hit`.
+- **`assets/enhance.js`** (progressive enhancement until the browser app takes over): the plain
+  fields of the filter form apply on change, panels keep their scroll position across page loads.
+  In both modes: the shortcuts, the theme switch, the filter sheet, and the two resize handles. Page changes use
   cross-document view transitions where the browser supports them.
 - `design/prototype.html` is the clickable design prototype the direction was agreed on;
   `node e2e/shot.mjs <url> <out.png> [w] [h] [--dark]` takes review screenshots.
@@ -108,8 +132,23 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   the previewed module full screen; ↑/↓ move through the list (rows are links, so this is just
   focus) and Enter opens the selected row; Ctrl+K or `/` jumps to the search. Every view is a real
   history entry, so the browser's back always works too.
-- **R13. Personal view settings never go into the URL**: theme and the width of the preview live
-  in `localStorage` and are applied before the first paint by the script in `<head>`.
+- **R13. Personal view settings never go into the URL**: theme and the widths of the filter panel
+  and the preview live in `localStorage` and are applied before the first paint by the script in
+  `<head>`.
+- **R14. Virtual oversizing.** A small control takes the pointer in an area larger than it shows:
+  an invisible layer that belongs to the control itself (a wrapper element would receive the click
+  instead of the control). Set per side with `--hit`, `--hit-x`/`--hit-y`, `--hit-t/-r/-b/-l`;
+  the stylesheet sets whole families (toggles, segments, tag and sort links, rail), `ui::Hit`
+  writes the properties for a single element. **Towards a neighbouring control at most half the
+  gap to it**, so two areas meet in the middle and never overlap; more only into space that holds
+  no control. Resize handles are zones of 16–20 px around a 4 px grip; the slider's knob is drawn
+  inside a larger thumb.
+- **R15. What needs JavaScript is not shown without it:** shortcut hints, resize handles, the
+  slider, the theme switch. Wrap it in `ui::JsOnly` (or give a single element the class
+  `js-only`; `ui::Shortcut` does it for `kbd`). The parts stay in the HTML, because the server
+  sends the same cached page to everybody (R9); the stylesheet hides them until the script in
+  `<head>` has marked the document, which is before the first paint. What only the browser app
+  can do (endless list, pickers) is rendered by the app alone or shown under `html.app`.
 - **R11. All SQL lives in `catalog/src/queries.rs`,** reads only `v_*` views, and every `pub fn`
   there runs against a real snapshot in the tests (the build fails otherwise).
 - **R12. Unknown stays unknown:** `Option` in the row structs, „nicht angegeben" on the page.
@@ -173,8 +212,9 @@ cargo test
 
 needs a snapshot (`snapshot/current.json` or `BTU_TEST_SNAPSHOT`) and fails without one:
 
-- `catalog`: every filter against direct SQL, exact totals and paging, the pinned numbers, enum
-  labels from the CHECK constraints, every query and page loader against real data, the URL codec.
+- `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
+  pinned numbers, enum labels from the CHECK constraints, every query and page loader against
+  real data, the URL codec, the ranking of the pickers (`fuzzy`).
 - `server`: a fake scraper over HTTP: not ready → 503; download, check, gzip, activate; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
   404 is never cached; `/api/db` with the scraper's ETag, gzip and 304; a broken export is
@@ -200,6 +240,19 @@ cd e2e && node spa.mjs
 drives the browser app in Edge: waits for the takeover, then opens a preview (the list must keep
 its scroll position), filters, closes with Esc, opens the full page, goes back, searches programs,
 and fails on any page load after the takeover or any console error.
+
+```bash
+cd e2e && node filters.mjs
+```
+
+drives the filter panel: a toggle through its three states (the panel must stay the same element
+and keep the focus), rows of toggles filling the width, oversized hit areas, the search field
+aligned with the list, the program picker (typo, arrow keys against a resting mouse pointer, wrap
+around, Enter, focus back on the button, Esc closing only the picker, click outside, clear, no two
+entries alike), the lecturer picker, the slider (drag, keyboard, knobs not crossing, typed
+numbers), the panel's width (limits, `localStorage`, reset), the group header across the border
+of two pages, and the same panel without JavaScript (links keep the rest of the filter, the form
+keeps what the links set, nothing that needs JavaScript is visible).
 
 ## 5. Not done yet
 

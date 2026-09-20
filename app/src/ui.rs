@@ -92,6 +92,60 @@ pub fn Prose(text: String) -> impl IntoView {
         .collect_view()
 }
 
+/// Wraps what only works with JavaScript: shortcut hints, drag handles, the theme switch. The
+/// server sends the same HTML to everybody and cannot know who has scripts (R9), so the parts
+/// are in the page and the stylesheet hides them until the script in the head has marked the
+/// document (`html.js`, before the first paint: nothing flashes). Single elements can carry the
+/// class `js-only` themselves; the wrapper has no box of its own.
+#[component]
+pub fn JsOnly(children: Children) -> impl IntoView {
+    view! { <span class="js-only">{children()}</span> }
+}
+
+/// Virtual oversizing for one element (class `hit`): how far, in pixels, it reacts to the pointer
+/// beyond what it shows. The stylesheet explains the mechanism and sets the sizes of whole
+/// families of controls; this is for a single control whose surroundings are its own, as in
+/// `<a class="ghost hit" style=Hit::y(7.0).style()>`. Towards a neighbouring control stay at or
+/// below half the gap to it, so that two areas never overlap.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Hit {
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub left: f32,
+}
+
+impl Hit {
+    pub const fn all(px: f32) -> Self {
+        Self { top: px, right: px, bottom: px, left: px }
+    }
+
+    /// Left and right.
+    pub const fn x(px: f32) -> Self {
+        Self { top: 0.0, right: px, bottom: 0.0, left: px }
+    }
+
+    /// Above and below.
+    pub const fn y(px: f32) -> Self {
+        Self { top: px, right: 0.0, bottom: px, left: 0.0 }
+    }
+
+    pub const fn sides(top: f32, right: f32, bottom: f32, left: f32) -> Self {
+        Self { top, right, bottom, left }
+    }
+
+    /// The custom properties for the `style` attribute.
+    pub fn style(self) -> String {
+        format!("--hit-t:{}px;--hit-r:{}px;--hit-b:{}px;--hit-l:{}px", self.top, self.right, self.bottom, self.left)
+    }
+}
+
+/// A shortcut written next to its control (R10).
+#[component]
+pub fn Shortcut(keys: &'static str) -> impl IntoView {
+    view! { <JsOnly><kbd>{keys}</kbd></JsOnly> }
+}
+
 /// An icon of the inlined set (`crate::icons`). Unknown names render an empty box, never panic.
 #[component]
 pub fn Icon(name: &'static str, #[prop(optional)] class: &'static str) -> impl IntoView {

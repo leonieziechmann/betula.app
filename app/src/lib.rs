@@ -9,6 +9,7 @@
 #![recursion_limit = "512"]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
+pub mod combobox;
 pub mod data;
 pub mod format;
 pub mod icons;
@@ -35,9 +36,9 @@ pub const ENHANCE_SCRIPT: &str = "/assets/enhance.js";
 pub const BOOT_SCRIPT: &str = "/assets/boot.js";
 
 /// Runs before the first paint: marks the document as scripted and applies what this browser
-/// remembers (theme, width of the module preview), so nothing flashes or jumps. Such personal
+/// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps. Such personal
 /// view settings live in localStorage, never in the URL and never in server HTML (R9).
-const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('btu.theme');if(t==='dark'||t==='light')d.dataset.theme=t;var w=parseInt(localStorage.getItem('btu.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px')}catch(e){}";
+const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('btu.theme');if(t==='dark'||t==='light')d.dataset.theme=t;var w=parseInt(localStorage.getItem('btu.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('btu.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px')}catch(e){}";
 
 /// The HTML document around the app (server side only).
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -124,7 +125,7 @@ fn Rail() -> impl IntoView {
             <span class="nav soon" title="Merkliste (in Arbeit)"><span class="ind"><Icon name="bookmark"/></span>"Merkliste"</span>
             <span class="nav soon" title="Semesterplaner (geplant)"><span class="ind"><Icon name="calendar-range"/></span>"Planer"</span>
             <div class="rail-end">
-                <button class="icon-btn theme-toggle" type="button" data-action="theme" aria-label="Hell oder dunkel">
+                <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label="Hell oder dunkel">
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
                 </button>
             </div>
@@ -188,7 +189,7 @@ fn TopBar() -> impl IntoView {
                         <Icon name="search"/>
                         <label class="visually-hidden" for="topsearch">{if programs { "Studiengänge suchen" } else { "Module suchen" }}</label>
                         <input id="topsearch" type="search" name="q" value=initial placeholder=placeholder autocomplete="off" on:input=on_input/>
-                        <kbd>"Strg K"</kbd>
+                        <ui::Shortcut keys="Strg K"/>
                     </form>
                     <span class="pill db-status" id="db-status" hidden></span>
                 }

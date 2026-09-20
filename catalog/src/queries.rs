@@ -94,6 +94,21 @@ pub fn program_modules(
     )
 }
 
+/// The semesters the validated study plan of a program places curriculum modules in: what the
+/// semester filter offers. Empty without a plan.
+pub fn program_plan_semesters(db: &dyn Database, program_id: &str) -> Result<Vec<i64>, DbError> {
+    let rows = db.query(
+        "program_plan_semesters",
+        "SELECT DISTINCT plan_semester FROM v_program_module \
+         WHERE program_id = ? AND relation = 'curricular' AND plan_semester IS NOT NULL ORDER BY plan_semester",
+        &[Value::from(program_id)],
+    )?;
+    Ok(rows.rows.iter().filter_map(|row| match row.first() {
+        Some(Value::Integer(n)) => Some(*n),
+        _ => None,
+    }).collect())
+}
+
 /// The exact number of modules a catalog query matches.
 pub fn catalog_count(db: &dyn Database, query: &CatalogQuery) -> Result<u64, DbError> {
     let sql = query.to_sql();

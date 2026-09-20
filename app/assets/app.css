@@ -32,6 +32,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--panel));
   --accent-line: color-mix(in srgb, var(--accent) 30%, transparent);
   --ok: #0b7f58;      --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
+  --no: #b3261e;      --no-soft: color-mix(in srgb, #b3261e 7%, var(--panel));
   --warn: #8f5a0a;    --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
 
   --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
@@ -39,7 +40,9 @@
   --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
   --ease: cubic-bezier(.2, .7, .2, 1);
   --rail: 52px; --w-filters: 272px; --gap: 8px;
-  /* Width of the module preview; the visitor's own width comes from localStorage (enhance.js). */
+  /* Widths of the filter panel and the module preview; the visitor's own widths come from
+     localStorage (enhance.js). The filter panel stays inside its limits whatever is stored. */
+  --filters: clamp(232px, var(--w-filters), min(440px, 42vw));
   --preview-w: 480px;
 }
 
@@ -61,7 +64,8 @@
     --accent-ink: #9db4ff;
     --on-accent: #0a0d14;
     --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
-    --ok: #4fd1a1;   --warn: #f0b861;
+    --ok: #4fd1a1;   --warn: #f0b861;   --no: #ff8f85;
+    --no-soft: color-mix(in srgb, #ff8f85 12%, var(--panel));
     --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
     --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
   }
@@ -82,7 +86,8 @@
   --accent-ink: #9db4ff;
   --on-accent: #0a0d14;
   --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
-  --ok: #4fd1a1;   --warn: #f0b861;
+  --ok: #4fd1a1;   --warn: #f0b861;   --no: #ff8f85;
+  --no-soft: color-mix(in srgb, #ff8f85 12%, var(--panel));
   --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
   --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
 }
@@ -117,6 +122,31 @@ table { border-collapse: collapse; width: 100%; }
 .skip-link:focus { top: 10px; }
 .scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 
+/* ---------- virtual oversizing ----------
+   Small controls react to the pointer in an area larger than they look: an invisible layer
+   around them that belongs to them (a click on it is a click on the control). Per side:
+   --hit for all four, --hit-x / --hit-y for an axis, --hit-t / -r / -b / -l for one side; the
+   more specific wins. The rule that keeps areas from overlapping: towards a neighbour at most
+   half the gap to it, so that two areas meet in the middle; more only into space that holds no
+   control of its own. `ui::Hit` writes the properties for a single element (class `hit`). */
+.hit, .chip, .seg a, .tag a, .cols a, .ghost, .icon-btn, .nav { position: relative; }
+.hit::after, .chip::after, .seg a::after, .tag a::after, .cols a::after, .ghost::after, .icon-btn::after, .nav::after, .combo-clear::after {
+  content: ""; position: absolute;
+  top: calc(-1 * var(--hit-t, var(--hit-y, var(--hit, 0px))));
+  right: calc(-1 * var(--hit-r, var(--hit-x, var(--hit, 0px))));
+  bottom: calc(-1 * var(--hit-b, var(--hit-y, var(--hit, 0px))));
+  left: calc(-1 * var(--hit-l, var(--hit-x, var(--hit, 0px))));
+}
+.chip { --hit: 2.5px; }                         /* chips are 5px apart */
+.seg a { --hit-y: 3px; }                        /* the padding of the track */
+.seg a:first-child { --hit-l: 3px; }
+.seg a:last-child { --hit-r: 3px; }
+.tag a { --hit-y: 5px; --hit-l: 6px; --hit-r: 6px; }
+.cols a { --hit-y: 8px; --hit-x: 8px; }          /* columns are 16px apart */
+.ghost { --hit-y: 4px; --hit-x: 1px; }
+.rail .nav, .rail .icon-btn { --hit-x: 6px; --hit-y: 1px; }   /* the rail is 52px wide, its items 2px apart */
+.combo-clear { --hit-y: 6px; --hit-x: 3px; }
+
 /* ---------- rail ---------- */
 .rail { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--gap) 0; }
 .logo { width: 36px; height: 36px; border-radius: var(--r-ctl); margin-bottom: 10px; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); }
@@ -139,12 +169,15 @@ table { border-collapse: collapse; width: 100%; }
   :root:not([data-theme="light"]) .theme-toggle .icon-sun { display: block; }
   :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
 }
-html:not(.js) .theme-toggle { display: none; }
+/* What only works with JavaScript (ui::JsOnly): hidden until the script in the head has run. */
+html:not(.js) .js-only { display: none !important; }
+span.js-only { display: contents; }
 
 /* ---------- frame ---------- */
 .main { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap) var(--gap) var(--gap) 0; min-width: 0; height: 100vh; }
 .topbar { display: flex; align-items: center; gap: var(--gap); height: 40px; }
-.crumb { display: flex; align-items: baseline; gap: 10px; width: calc(var(--w-filters) - 6px); padding-left: 6px; min-width: 0; }
+/* The title sits over the filter panel (its text over the panel's text), the search over the list. */
+.crumb { display: flex; align-items: baseline; gap: 10px; flex: none; width: var(--filters); padding-left: 14px; min-width: 0; }
 .crumb h1 { font-size: 17px; font-weight: 680; letter-spacing: -.025em; white-space: nowrap; }
 .crumb small { color: var(--text-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search { flex: 1; max-width: 760px; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; background: var(--panel); border-radius: var(--r-ctl); box-shadow: var(--shadow-panel); color: var(--text-3); cursor: text; }
@@ -183,16 +216,25 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .label { font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
 
 /* ---------- catalog: three panels ---------- */
-.work { position: relative; height: 100%; display: grid; grid-template-columns: var(--w-filters) minmax(0, 1fr); gap: var(--gap); min-height: 0; }
-/* The preview does not take room from the list: it floats above it, docked to the right edge. */
-.work > .detail {
-  position: absolute; z-index: 10; top: 0; right: 0; bottom: 0;
-  width: clamp(360px, var(--preview-w), calc(100% - var(--w-filters) - var(--gap) - 120px));
-  box-shadow: var(--shadow-pop); animation: preview-in .18s var(--ease);
+.work {
+  position: relative; height: 100%; display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); gap: var(--gap); min-height: 0;
+  --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px));
 }
-.resizer { position: absolute; z-index: 3; left: 0; top: 0; bottom: 0; width: 10px; cursor: col-resize; touch-action: none; }
-.resizer::after { content: ""; position: absolute; left: 3px; top: 50%; width: 4px; height: 44px; margin-top: -22px; border-radius: 2px; background: var(--line-strong); transition: background .12s, height .12s, margin .12s; }
-.resizer:hover::after, .resizer:focus-visible::after, .resizing .resizer::after { background: var(--accent); height: 72px; margin-top: -36px; }
+/* The preview does not take room from the list: it floats above it, docked to the right edge. */
+.work > .detail { position: absolute; z-index: 10; top: 0; right: 0; bottom: 0; width: var(--preview); box-shadow: var(--shadow-pop); animation: preview-in .18s var(--ease); }
+/* Resize handles: an invisible zone much wider than the grip it shows, around the edge it moves.
+   Both are children of .work, so no panel clips them. */
+.resizer { position: absolute; top: 0; bottom: 0; cursor: col-resize; touch-action: none; }
+.resizer::after { content: ""; position: absolute; top: 50%; width: 4px; height: 44px; margin-top: -22px; border-radius: 2px; background: var(--line-strong); transition: background .12s, height .12s, margin .12s, opacity .12s; }
+.resizer:hover::after, .resizer:focus-visible::after, .resizing .resizer::after { background: var(--accent); height: 72px; margin-top: -36px; opacity: 1; }
+.resizer:focus-visible { outline: 0; }
+/* Filter panel: the gap between the two boxes and the empty left margin of the list. Nothing of
+   it lies over the filter panel, whose scrollbar is at that edge. */
+.resizer.between { z-index: 4; left: var(--filters); width: calc(var(--gap) + 8px); }
+.resizer.between::after { left: calc(var(--gap) / 2 - 1.5px); width: 3px; opacity: .55; }
+/* Preview: 8px of the list in front of its left edge and its own empty left margin. */
+.resizer.preview-edge { z-index: 11; right: calc(var(--preview) - 12px); width: 20px; }
+.resizer.preview-edge::after { left: 11px; }
 .resizing, .resizing * { cursor: col-resize !important; user-select: none !important; }
 .resizing .work > .detail { animation: none; transition: none; }
 
@@ -207,34 +249,114 @@ details.fgroup[open] > summary::after { content: "–"; }
 details.fgroup[open] > summary { margin-bottom: 7px; }
 details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight: 650; font-size: 11.5px; }
 .flabel { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
-.flabel span:last-child:not(:first-child) { text-transform: none; letter-spacing: 0; font-weight: 550; color: var(--text-2); }
+.flabel > span { text-transform: none; letter-spacing: 0; font-weight: 550; color: var(--text-2); }
+.fgroup > .flabel:not(:first-child) { margin-top: 12px; }
+.flabel .legend { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-3) !important; font-weight: 500 !important; }
+.legend .box { margin-left: 5px; }
+.more .flabel { margin-top: 12px; }
 .select-wrap { position: relative; display: block; }
 .select-wrap select { appearance: none; width: 100%; min-height: 40px; padding: 0 34px 0 40px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 600; cursor: pointer; text-overflow: ellipsis; }
 .select-wrap select:hover { background: var(--panel-3); }
 .select-wrap > .icon:first-child { position: absolute; left: 12px; top: 11px; color: var(--text-2); pointer-events: none; }
 .select-wrap > .icon:last-child { position: absolute; right: 10px; top: 12px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; }
 .select-wrap.plain select { padding-left: 12px; font-weight: 520; min-height: 36px; font-size: 13px; }
-.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: var(--r-ctl); background: var(--panel-3); margin-top: 8px; }
-.seg a { min-height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 580; font-size: 13px; color: var(--text-2); text-decoration: none; }
-.seg a[aria-current="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+
+/* One of a few: the row fills the width, every choice the same share of it. */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 3px; border-radius: var(--r-ctl); background: var(--panel-3); margin-top: 8px; }
+.flabel + .seg { margin-top: 0; }
+.seg a { min-height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 580; font-size: 13px; color: var(--text-2); text-decoration: none; white-space: nowrap; user-select: none; }
+.seg a:hover { color: var(--text); }
+.seg a[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
 .seg a span { color: var(--text-3); font-weight: 500; margin-left: 5px; }
+
+/* Toggles: the chips of a row share its whole width; the box on the left says "switch" and
+   shows the state: empty, with (ticked), without (crossed). */
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.chip { position: relative; min-height: 30px; padding: 0 10px; border-radius: var(--r-s); display: inline-flex; align-items: center; gap: 7px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-weight: 550; font-size: 13px; cursor: pointer; user-select: none; text-decoration: none; transition: background .12s, color .12s, box-shadow .12s, transform .12s; }
-.chip input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
-.chip .icon { width: 15px; height: 15px; color: var(--text-3); }
+.chips + .chips { margin-top: 5px; }
+.chip { position: relative; flex: 1 1 auto; min-width: 0; max-width: 100%; min-height: 32px; padding: 0 10px 0 8px; border-radius: var(--r-s); display: inline-flex; align-items: center; gap: 7px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-weight: 550; font-size: 13px; cursor: pointer; user-select: none; text-decoration: none; transition: background .12s, color .12s, box-shadow .12s, transform .12s; }
+.chip > .icon { width: 15px; height: 15px; color: var(--text-3); }
 .chip:hover { box-shadow: inset 0 0 0 1px var(--text-3); color: var(--text); text-decoration: none; }
-.chip:active { transform: scale(.97); }
-.chip:has(input:checked) { background: var(--invert); color: var(--on-invert); box-shadow: none; }
-.chip:has(input:checked) .icon { color: inherit; }
-.chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip:active { transform: scale(.98); }
+.chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.box { flex: none; width: 15px; height: 15px; border-radius: 4px; display: inline-grid; place-items: center; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text-3); color: transparent; transition: background .12s, box-shadow .12s; }
+.box .icon { grid-area: 1 / 1; width: 11px; height: 11px; stroke-width: 3.2; display: none; }
+.chip[data-state="with"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.chip[data-state="with"] > .icon { color: inherit; }
+.chip[data-state="with"] .box, .box.with { background: var(--on-invert); box-shadow: none; color: var(--invert); }
+.box.with { background: var(--invert); color: var(--on-invert); }
+.chip[data-state="with"] .box .icon:first-child, .box.with .icon { display: block; }
+.chip[data-state="without"] { background: var(--no-soft); color: var(--no); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 45%, transparent); }
+.chip[data-state="without"] .chip-label { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.chip[data-state="without"] > .icon { color: inherit; }
+.chip[data-state="without"] .box, .box.without { background: var(--no); box-shadow: none; color: var(--panel); }
+.chip[data-state="without"] .box .icon:last-child, .box.without .icon { display: block; }
+.chips.people { margin-top: 6px; }
+.chips.people .chip { flex-basis: 100%; }
+
+/* Pickers with a search (app/src/combobox.rs). The popup is fixed to the window, so the
+   panel does not clip it; on a phone it opens in place. */
+.combo { position: relative; }
+.combo-trigger { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 12px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 600; text-align: left; transition: background .12s; }
+.combo-trigger:hover { background: var(--panel-3); }
+.combo[data-open] .combo-trigger { background: var(--panel); box-shadow: inset 0 0 0 2px var(--accent); }
+.combo-trigger > .icon:first-child { color: var(--text-2); }
+.combo-value { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.combo-value small { color: var(--text-3); font-weight: 500; font-size: 12.5px; margin-left: 8px; }
+.combo-value.placeholder { color: var(--text-2); }
+.combo-chevron { width: 16px; height: 16px; color: var(--text-3); }
+.combo-clear { position: absolute; right: 30px; top: 6px; width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; color: var(--text-3); }
+.combo-clear:hover { background: var(--line-strong); color: var(--text); }
+.combo-clear .icon { width: 14px; height: 14px; }
+.combo:has(.combo-clear) .combo-value { margin-right: 26px; }
+.more .combo-trigger { min-height: 36px; font-size: 13px; font-weight: 560; }
+.more .combo-clear { top: 4px; }
+.combo-pop { position: fixed; z-index: 60; left: var(--x, 8px); top: var(--y, auto); bottom: var(--b, auto); width: var(--w, 340px); max-height: var(--h, 420px); display: flex; flex-direction: column; overflow: hidden; background: var(--panel); border-radius: var(--r-panel); box-shadow: var(--shadow-pop); animation: pop-in .12s var(--ease); }
+.combo-search { flex: none; height: 44px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border-bottom: 1px solid var(--line); color: var(--text-3); }
+.combo-search .icon { width: 16px; height: 16px; }
+.combo-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; font-size: 14px; color: var(--text); }
+.combo-search input::placeholder { color: var(--text-3); }
+.combo-list { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
+.combo-option { display: flex; align-items: baseline; gap: 10px; min-height: 34px; padding: 7px 10px; border-radius: var(--r-row); cursor: pointer; font-size: 13.5px; font-weight: 560; }
+.combo-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-option small { margin-left: auto; color: var(--text-3); font-weight: 450; font-size: 12px; white-space: nowrap; }
+.combo-option .icon { align-self: center; width: 15px; height: 15px; }
+.combo-option.active { background: var(--panel-3); }
+.combo-option[aria-selected="true"] { color: var(--accent-ink); }
+.combo-empty { padding: 12px 10px; color: var(--text-3); font-size: 12.5px; text-align: center; }
+.combo-foot { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+.combo-foot kbd { padding: 2px 5px; margin-left: 6px; }
+.combo-foot kbd:first-child, .combo-foot kbd + kbd { margin-left: 0; }
+
 .field { display: block; margin-top: 8px; }
 .field > span { display: block; color: var(--text-2); font-size: 12px; margin-bottom: 3px; }
 .field input { width: 100%; min-height: 36px; font-size: 13px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+/* Credits: two thumbs on one track (--from and --to are fractions of it), exact numbers below. */
+/* The knob that is seen (--knob) is drawn inside a larger thumb that is grabbed (--thumb, virtual
+   oversizing); the bar lies under the knobs and ends at their outer edges. */
+.credits { --knob: 18px; --thumb: calc(var(--knob) + 10px); }
+.slider { --ring: var(--invert); position: relative; height: var(--thumb); }
+.slider::before, .slider::after { content: ""; position: absolute; z-index: 0; top: calc(50% - 2px); height: 4px; border-radius: 2px; pointer-events: none; }
+.slider::before { left: 5px; right: 5px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line); }
+.slider::after { left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--from, 0)); right: calc(var(--thumb) / 2 + (100% - var(--thumb)) * (1 - var(--to, 1))); background: var(--invert); }
+.slider input { position: absolute; z-index: 1; inset: 0; width: 100%; height: var(--thumb); margin: 0; padding: 0; appearance: none; -webkit-appearance: none; background: none; pointer-events: none; outline: 0; }
+.slider[data-low-on-top] input:first-of-type { z-index: 2; }
+.slider input::-webkit-slider-runnable-track { height: var(--thumb); background: none; }
+.slider input::-moz-range-track { height: var(--thumb); background: none; }
+.slider input::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: var(--thumb); height: var(--thumb); border-radius: 50%; cursor: grab; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .3)); background: radial-gradient(circle, var(--panel) 0 calc(var(--knob) / 2 - 2px), var(--ring) calc(var(--knob) / 2 - 1.5px) calc(var(--knob) / 2), transparent calc(var(--knob) / 2 + .5px)); }
+.slider input::-moz-range-thumb { pointer-events: auto; width: var(--thumb); height: var(--thumb); border: 0; border-radius: 50%; cursor: grab; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .3)); background: radial-gradient(circle, var(--panel) 0 calc(var(--knob) / 2 - 2px), var(--ring) calc(var(--knob) / 2 - 1.5px) calc(var(--knob) / 2), transparent calc(var(--knob) / 2 + .5px)); }
+.slider input:active::-webkit-slider-thumb { cursor: grabbing; }
+.slider input:focus-visible { --ring: var(--accent); }
+.scale span { position: absolute; left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--at, 0)); transform: translateX(-50%); }
+.scale { position: relative; height: 14px; margin: -3px 0 7px; font-size: 10.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .range { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; color: var(--text-3); }
-.range input { width: 100%; min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); text-align: center; font-weight: 600; }
+.range input { width: 100%; min-height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); text-align: center; font-weight: 600; font-size: 13px; }
 .hint { color: var(--text-3); font-size: 12.5px; margin-top: 8px; }
 .filter-actions { padding: 10px 12px 12px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
 .filter-actions .btn { flex: 1; }
+/* The app applies every change at once: its sheet only needs a way back to the list. */
+.filter-actions .show, .app .filter-actions .apply { display: none; }
+.app .filter-actions .show { display: inline-flex; }
 .js .filter-actions { display: none; }
 .sheet-toggle, .sheet-close { display: none; }
 
@@ -298,7 +420,7 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .events { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); font-weight: 520; }
 .events.none { color: var(--text-3); font-weight: 450; }
 .events .icon { width: 15px; height: 15px; }
-.chunk { display: block; }
+.chunk { display: contents; }
 /* The endless list belongs to the browser app; without it the pager links do the job. */
 .load-more, .list-end, .keys { display: none; }
 .app .load-more { display: flex; width: calc(100% - 16px); margin: 10px 8px; }
@@ -449,7 +571,6 @@ a.feature-link:hover { transform: translateY(-2px); text-decoration: none; }
   .sheet-toggle { display: inline-flex; min-height: 42px; padding: 0 14px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); align-items: center; gap: 8px; font-weight: 600; color: var(--text); text-decoration: none; }
   .sheet-toggle em { font-style: normal; min-width: 20px; height: 20px; border-radius: 10px; background: var(--invert); color: var(--on-invert); font-size: 11.5px; display: grid; place-items: center; }
   .rows.scroll { overflow: visible; padding: 0 12px 12px; display: grid; gap: 8px; }
-  .chunk { display: grid; gap: 8px; }
   .app .keys { display: none; }
   .sem { top: 68px; background: var(--bg); padding: 12px 4px 4px; }
   .row { grid-template-columns: minmax(0, 1fr) auto; min-height: 72px; padding: 12px 14px 12px 18px; background: var(--panel); box-shadow: var(--shadow-panel); border-radius: var(--r-panel); }
@@ -461,7 +582,17 @@ a.feature-link:hover { transform: translateY(-2px); text-decoration: none; }
   .filters .panel-head::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
   .filters .panel-head { position: relative; padding-top: 22px; }
   .sheet-close { display: grid; }
-  .chip { min-height: 44px; padding: 0 15px; font-size: 14.5px; border-radius: 8px; }
+  .chip { min-height: 44px; padding: 0 14px 0 12px; font-size: 14.5px; border-radius: 8px; gap: 9px; }
+  .box { width: 18px; height: 18px; border-radius: 5px; }
+  .box .icon { width: 13px; height: 13px; }
+  .seg a { min-height: 40px; font-size: 14.5px; }
+  .combo-trigger, .more .combo-trigger { min-height: 46px; font-size: 15px; }
+  .combo-clear, .more .combo-clear { top: 9px; }
+  .combo-pop { position: static; width: auto; max-height: 46vh; margin-top: 6px; box-shadow: inset 0 0 0 1px var(--line-strong); animation: none; }
+  .combo-option { min-height: 44px; align-items: center; font-size: 15px; }
+  .combo-foot { display: none; }
+  .credits { --knob: 24px; --thumb: 40px; }
+  .slider::before { left: 8px; right: 8px; }
   .select-wrap select, .select-wrap.plain select, .field input, .range input { min-height: 46px; font-size: 15px; }
   details.fgroup > summary { min-height: 40px; }
   .module-grid { grid-template-columns: minmax(0, 1fr); }
@@ -481,5 +612,6 @@ a.feature-link:hover { transform: translateY(-2px); text-decoration: none; }
 .back { display: none; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
+@keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 @media print { .rail, .topbar, .filters, .bottomnav, .pager { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }

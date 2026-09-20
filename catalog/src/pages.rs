@@ -44,6 +44,8 @@ pub struct CatalogData {
     /// With a program selected: how many modules its curriculum and its FÜS list match.
     pub curricular_total: Option<u64>,
     pub fues_total: Option<u64>,
+    /// The semesters of the selected program's study plan (empty without a plan).
+    pub plan_semesters: Vec<i64>,
     pub programs: Vec<Program>,
     pub departments: Vec<Department>,
     pub lecturers: Vec<LecturerName>,
@@ -75,8 +77,14 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbErr
         }
     }
 
+    let plan_semesters = match &program {
+        Some(program) if program.has_plan => queries::program_plan_semesters(db, &program.id)?,
+        _ => Vec::new(),
+    };
+
     Ok(CatalogData {
         page: queries::catalog_page(db, &url.query, url.offset(), PAGE_SIZE)?,
+        plan_semesters,
         program,
         curricular_total,
         fues_total,

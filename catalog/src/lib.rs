@@ -10,6 +10,7 @@
 
 pub mod db;
 pub mod filter;
+pub mod fuzzy;
 pub mod labels;
 pub mod pages;
 pub mod queries;

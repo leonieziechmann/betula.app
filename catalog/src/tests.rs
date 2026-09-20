@@ -152,6 +152,8 @@ fn every_query_runs_against_the_snapshot() {
     assert!(!queries::program_areas(&db, &id).unwrap().is_empty());
     let id = pick("SELECT program_id FROM v_program_plan LIMIT 1");
     assert!(queries::program_plan(&db, &id).unwrap().is_some_and(|plan| plan.layout_json.starts_with('{')));
+    let semesters = queries::program_plan_semesters(&db, &id).unwrap();
+    assert!(semesters.first().is_some_and(|first| *first >= 1) && semesters.windows(2).all(|pair| pair[0] < pair[1]), "{semesters:?}");
     assert!(!queries::program_plan_entries(&db, &id).unwrap().is_empty());
 
     // Every `pub fn` of queries.rs must have run above.
@@ -172,7 +174,7 @@ fn catalog_filters_match_direct_sql() {
     let db = open();
     let program_id = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.").id;
     let scope = |relation, plan_semester, kinds: Vec<KindFilter>| {
-        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds })
+        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![] })
     };
     let pm = format!("v_module_facets f JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = '{program_id}'");
 
@@ -273,6 +275,41 @@ fn catalog_filters_match_direct_sql() {
             format!(
                 "SELECT COUNT(*) FROM {pm} AND pm.relation = 'curricular' WHERE (pm.kind = 'compulsory' OR pm.kind IS NULL)"
             ),
+        ),
+        (
+            "exclusions: no presentation, no seminar, not in English, not in summer, not irregular",
+            CatalogQuery {
+                exam_parts_exclude: vec![ExamPart::Presentation],
+                teaching_forms_exclude: vec![TeachingForm::Seminar],
+                languages_exclude: vec![Language::English],
+                turnus: TurnusFilter { not_summer: true, not_irregular: true, ..Default::default() },
+                ..everything()
+            },
+            "SELECT COUNT(*) FROM v_module_facets WHERE IFNULL(exam_presentation, 0) = 0 AND IFNULL(has_seminar, 0) = 0 \
+             AND IFNULL(teaches_english, 0) = 0 AND IFNULL(offered_summer, 0) = 0 \
+             AND (turnus_season IS NULL OR turnus_season != 'irregular')".into(),
+        ),
+        (
+            "a written exam but no presentation",
+            CatalogQuery { exam_parts: vec![ExamPart::Written], exam_parts_exclude: vec![ExamPart::Presentation], ..everything() },
+            "SELECT COUNT(*) FROM v_module_facets WHERE exam_written = 1 AND IFNULL(exam_presentation, 0) = 0".into(),
+        ),
+        (
+            "not in Senftenberg: modules without room data stay",
+            CatalogQuery { campuses_exclude: vec![Campus::Senftenberg], ..everything() },
+            "SELECT COUNT(*) FROM v_module_facets WHERE at_senftenberg IS NULL OR at_senftenberg = 0".into(),
+        ),
+        (
+            "Informatik B.Sc. without compulsory modules: a module without a stated kind stays",
+            CatalogQuery {
+                program: Some(ProgramScope {
+                    program_slug: INFORMATIK_BSC.into(),
+                    kinds_exclude: vec![KindFilter::Stated(ModuleKind::Compulsory)],
+                    ..Default::default()
+                }),
+                ..everything()
+            },
+            format!("SELECT COUNT(*) FROM {pm} AND pm.relation = 'curricular' WHERE pm.kind IS NULL OR pm.kind != 'compulsory'"),
         ),
         (
             "search text",

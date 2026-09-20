@@ -1,43 +1,8 @@
-//! Browser-only helpers: plain forms become client-side navigation, and the endless list learns
-//! where the visitor is. On the server (and before the browser app has taken over) all of them
-//! do nothing: forms submit, and the list is one page with pager links.
+//! Browser-only helpers: the endless list learns where the visitor is, pickers place their
+//! popups and move the focus. On the server (and before the browser app has taken over) all of
+//! them do nothing.
 
-/// What happened to the form.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum FormEvent {
-    /// A field changed. On a phone this does nothing: the filter sheet has an apply button.
-    Change,
-    Submit,
-}
-
-/// The query string the GET form of this event would submit, and the submission prevented.
-/// `None` on the server, for events outside a form, and for changes on a phone.
-#[allow(unused_variables)]
-pub fn form_query(ev: &leptos::ev::Event, kind: FormEvent) -> Option<String> {
-    #[cfg(feature = "csr")]
-    {
-        use wasm_bindgen::JsCast;
-        let target = ev.target()?;
-        let form: web_sys::HtmlFormElement = match target.dyn_ref::<web_sys::HtmlFormElement>() {
-            Some(form) => form.clone(),
-            None => target.dyn_ref::<web_sys::Element>()?.closest("form").ok()??.dyn_into().ok()?,
-        };
-        if kind == FormEvent::Change {
-            let phone = web_sys::window()?.match_media("(max-width: 900px)").ok()??.matches();
-            if phone {
-                return None;
-            }
-        }
-        ev.prevent_default();
-        let data = web_sys::FormData::new_with_form(&form).ok()?;
-        let params = web_sys::UrlSearchParams::new_with_str_sequence_sequence(&data).ok()?;
-        Some(String::from(params.to_string()))
-    }
-    #[cfg(not(feature = "csr"))]
-    None
-}
-
-/// Where the visitor is in a list made of `[data-page]` chunks.
+/// Where the visitor is in a list whose pages each start with a `[data-page]` row.
 pub struct ListPosition {
     /// The page of the chunk at the top of what is visible.
     pub page: Option<u64>,
@@ -58,14 +23,15 @@ pub fn list_position(rows_id: &str) -> Option<ListPosition> {
         let own_scroll = rows.scroll_height() > rows.client_height() + 4;
 
         let line = if own_scroll { rows.get_bounding_client_rect().top() + 60.0 } else { 140.0 };
-        let chunks = rows.query_selector_all("[data-page]").ok()?;
+        // The page on screen is the last one that starts above the line.
+        let starts = rows.query_selector_all("[data-page]").ok()?;
         let mut page = None;
-        for i in 0..chunks.length() {
-            let Some(chunk) = chunks.item(i).and_then(|node| node.dyn_into::<web_sys::Element>().ok()) else { continue };
-            if chunk.get_bounding_client_rect().bottom() > line {
-                page = chunk.get_attribute("data-page").and_then(|n| n.parse().ok());
+        for i in 0..starts.length() {
+            let Some(start) = starts.item(i).and_then(|node| node.dyn_into::<web_sys::Element>().ok()) else { continue };
+            if page.is_some() && start.get_bounding_client_rect().top() > line {
                 break;
             }
+            page = start.get_attribute("data-page").and_then(|n| n.parse().ok());
         }
 
         let near_end = if own_scroll {
@@ -111,4 +77,95 @@ pub fn keep_position_after_prepend(rows_id: &'static str, height_before: f64) {
             window.scroll_by_with_x_and_y(0.0, added);
         }
     });
+}
+
+/// Where the popup of a picker goes (fixed to the window, so no panel clips it): under its
+/// button, or above it when there is more room.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PopupPlace {
+    pub left: f64,
+    pub top: Option<f64>,
+    pub bottom: Option<f64>,
+    pub width: f64,
+    pub max_height: f64,
+}
+
+impl PopupPlace {
+    /// Custom properties for `.combo-pop`; a phone ignores them and shows the popup in place.
+    pub fn style(&self) -> String {
+        let vertical = match (self.top, self.bottom) {
+            (Some(top), _) => format!("--y:{top:.0}px"),
+            (None, Some(bottom)) => format!("--b:{bottom:.0}px"),
+            (None, None) => String::new(),
+        };
+        format!("--x:{:.0}px;--w:{:.0}px;--h:{:.0}px;{vertical}", self.left, self.width, self.max_height)
+    }
+}
+
+/// `None` on the server or if the button is not there.
+#[allow(unused_variables)]
+pub fn popup_place(trigger_id: &str, min_width: f64) -> Option<PopupPlace> {
+    #[cfg(feature = "csr")]
+    {
+        let window = web_sys::window()?;
+        let rect = window.document()?.get_element_by_id(trigger_id)?.get_bounding_client_rect();
+        let viewport_width = window.inner_width().ok()?.as_f64()?;
+        let viewport_height = window.inner_height().ok()?.as_f64()?;
+        let width = rect.width().max(min_width).min(viewport_width - 16.0);
+        let left = rect.left().min(viewport_width - width - 8.0).max(8.0);
+        let (below, above) = (viewport_height - rect.bottom() - 12.0, rect.top() - 12.0);
+        Some(if below >= 300.0 || below >= above {
+            PopupPlace { left, top: Some(rect.bottom() + 4.0), bottom: None, width, max_height: below.clamp(160.0, 460.0) }
+        } else {
+            PopupPlace { left, top: None, bottom: Some(viewport_height - rect.top() + 4.0), width, max_height: above.clamp(160.0, 460.0) }
+        })
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// Moves the focus without scrolling anything; text fields get their content selected.
+#[allow(unused_variables)]
+pub fn focus_by_id(id: &str) {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let element = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(id));
+        let Some(element) = element.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return };
+        let options = web_sys::FocusOptions::new();
+        options.set_prevent_scroll(true);
+        let _ = element.focus_with_options(&options);
+        if let Some(input) = element.dyn_ref::<web_sys::HtmlInputElement>() {
+            input.select();
+        }
+    }
+}
+
+/// Scrolls the list around an entry (its parent, and nothing else) so that the entry is
+/// visible; `center` puts it in the middle, for the first look at a long list.
+#[allow(unused_variables)]
+pub fn reveal_in_list(entry_id: &str, center: bool) {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let entry = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(entry_id));
+        let Some(entry) = entry.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return };
+        let Some(list) = entry.parent_element() else { return };
+        let (top, height, view) = (entry.offset_top(), entry.offset_height(), list.client_height());
+        if center {
+            list.set_scroll_top((top - (view - height) / 2).max(0));
+        } else if top < list.scroll_top() {
+            list.set_scroll_top((top - 4).max(0));
+        } else if top + height > list.scroll_top() + view {
+            list.set_scroll_top(top + height - view + 4);
+        }
+    }
+}
+
+/// Closes the filter sheet of the phone layout.
+pub fn close_filter_sheet() {
+    #[cfg(feature = "csr")]
+    if let Some(filters) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id("filters")) {
+        let _ = filters.class_list().remove_1("open");
+    }
 }

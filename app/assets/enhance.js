@@ -3,7 +3,8 @@
 // makes the classic site smoother: filters apply on change, panels keep their scroll position
 // across page loads. In both modes: the shortcuts (Esc closes the preview or leaves the module
 // page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search), the theme
-// switch, the filter sheet, and the width of the module preview (dragged, kept in localStorage).
+// switch, the filter sheet, and the widths of the filter panel and the module preview (dragged,
+// kept in localStorage).
 (() => {
   const root = document.documentElement;
   const appRuns = () => window.__btuApp === true;
@@ -44,25 +45,25 @@
   let timer;
   document.addEventListener("change", (e) => {
     const form = e.target.closest("form[data-autosubmit]");
-    if (!form) return;
-    if (appRuns()) {
-      // The app re-renders the filter panel: keep its scroll position and the focused control.
-      const body = form.querySelector("[data-keep-scroll]");
-      const top = body ? body.scrollTop : 0;
-      const { name, value, type } = e.target;
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const next = document.querySelector('#filters [data-keep-scroll]');
-        if (next) next.scrollTop = top;
-        if (!name) return;
-        const selector = type === "checkbox" ? `#filters [name="${name}"][value="${value}"]` : `#filters [name="${name}"]`;
-        document.querySelector(selector)?.focus({ preventScroll: true });
-      }));
-      return;
-    }
+    if (!form || appRuns()) return; // the app has its own handlers
     if (phone()) return; // the sheet has its own apply button
     clearTimeout(timer);
     timer = setTimeout(() => submit(form), e.target.type === "number" || e.target.type === "text" ? 350 : 0);
   }, true);
+
+  // Classic mode: the credit slider writes into the two number fields, which the form submits.
+  document.addEventListener("input", (e) => {
+    const slider = e.target.type === "range" && !appRuns() ? e.target.closest(".slider") : null;
+    if (!slider) return;
+    const [low, high] = slider.querySelectorAll("input");
+    if (e.target === low && +low.value > +high.value) low.value = high.value;
+    if (e.target === high && +high.value < +low.value) high.value = low.value;
+    slider.style.setProperty("--from", low.value / low.max);
+    slider.style.setProperty("--to", high.value / high.max);
+    const fields = slider.closest("form")?.elements;
+    if (fields?.ects_min) fields.ects_min.value = +low.value > 0 ? low.value : "";
+    if (fields?.ects_max) fields.ects_max.value = +high.value < +high.max ? high.value : "";
+  });
 
   // The app filters while typing; Enter must not load a page on top of that.
   document.addEventListener("submit", (e) => {
@@ -98,38 +99,52 @@
     }
   });
 
-  // ---- width of the module preview: drag the left edge, arrow keys, double click resets ----
-  const WIDTH_KEY = "btu.preview.width";
-  const setWidth = (px, remember) => {
-    const work = document.querySelector(".work");
-    const max = work ? Math.max(360, work.clientWidth - 400) : 2400;
-    const width = Math.round(Math.min(max, Math.max(360, px)));
-    root.style.setProperty("--preview-w", width + "px");
-    if (remember) { try { localStorage.setItem(WIDTH_KEY, String(width)); } catch {} }
+  // ---- widths of the filter panel and the module preview: drag the edge, arrow keys on the
+  // focused edge, a double click resets. Personal, so kept in localStorage and not in the URL.
+  const RESIZE = {
+    "resize-filters": { key: "btu.filters.width", prop: "--w-filters", grows: 1, min: () => 232, max: () => 440, panel: () => filters() },
+    "resize-preview": {
+      key: "btu.preview.width", prop: "--preview-w", grows: -1, min: () => 360, panel: () => document.querySelector(".work > .detail"),
+      max: () => { const work = document.querySelector(".work"); return work ? Math.max(360, work.clientWidth - 400) : 2400; },
+    },
+  };
+  const resizerOf = (target) => {
+    const handle = target.closest ? target.closest("[data-action^='resize-']") : null;
+    return handle && RESIZE[handle.dataset.action] ? { handle, edge: RESIZE[handle.dataset.action] } : null;
+  };
+  const setWidth = (edge, px, remember) => {
+    const width = Math.round(Math.min(edge.max(), Math.max(edge.min(), px)));
+    root.style.setProperty(edge.prop, width + "px");
+    if (remember) { try { localStorage.setItem(edge.key, String(width)); } catch {} }
   };
   document.addEventListener("pointerdown", (e) => {
-    const handle = e.target.closest('[data-action="resize-preview"]');
-    if (!handle || e.button !== 0) return;
+    const hit = e.button === 0 ? resizerOf(e.target) : null;
+    if (!hit) return;
     e.preventDefault();
-    const panel = handle.parentElement.getBoundingClientRect();
-    const right = panel.right + (e.clientX - panel.left); // keep the grabbed point under the pointer
+    const { edge } = hit;
+    const panel = edge.panel();
+    if (!panel) return;
+    const startWidth = panel.getBoundingClientRect().width;
+    const startX = e.clientX; // the grabbed point stays under the pointer
     root.classList.add("resizing");
-    const move = (ev) => setWidth(right - ev.clientX, false);
+    const widthAt = (ev) => startWidth + edge.grows * (ev.clientX - startX);
+    const move = (ev) => setWidth(edge, widthAt(ev), false);
     const stop = (ev) => {
       removeEventListener("pointermove", move);
       removeEventListener("pointerup", stop);
       removeEventListener("pointercancel", stop);
       root.classList.remove("resizing");
-      setWidth(right - ev.clientX, true);
+      setWidth(edge, widthAt(ev), true);
     };
     addEventListener("pointermove", move);
     addEventListener("pointerup", stop);
     addEventListener("pointercancel", stop);
   });
   document.addEventListener("dblclick", (e) => {
-    if (!e.target.closest('[data-action="resize-preview"]')) return;
-    root.style.removeProperty("--preview-w");
-    try { localStorage.removeItem(WIDTH_KEY); } catch {}
+    const hit = resizerOf(e.target);
+    if (!hit) return;
+    root.style.removeProperty(hit.edge.prop);
+    try { localStorage.removeItem(hit.edge.key); } catch {}
   });
 
   // ---- the list by keyboard: arrows move through the rows, Enter opens the focused one ----
@@ -148,16 +163,22 @@
 
   // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {
+    // An open picker has the keyboard to itself (its Esc closes the picker, nothing else).
+    if (e.target.closest?.(".combo[data-open]")) return;
+    // The filter toggles are links that act as switches: the space bar flips them, too.
+    if (e.key === " " && e.target.matches?.('a[role="checkbox"], a[role="radio"]')) { e.preventDefault(); e.target.click(); return; }
     if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // Only where arrows have no other job: not in fields, not in the filter panel.
       const active = document.activeElement;
       const free = !typing(active) && !active?.closest?.("#filters");
       if (free && moveInList(e.key === "ArrowDown" ? 1 : -1)) { e.preventDefault(); return; }
     }
-    const resizer = e.target.closest ? e.target.closest('[data-action="resize-preview"]') : null;
-    if (resizer && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+    const hit = e.key === "ArrowLeft" || e.key === "ArrowRight" ? resizerOf(e.target) : null;
+    if (hit) {
       e.preventDefault();
-      setWidth(resizer.parentElement.getBoundingClientRect().width + (e.key === "ArrowLeft" ? 32 : -32), true);
+      const step = (e.key === "ArrowRight" ? 24 : -24) * hit.edge.grows;
+      const panel = hit.edge.panel();
+      if (panel) setWidth(hit.edge, panel.getBoundingClientRect().width + step, true);
       return;
     }
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;

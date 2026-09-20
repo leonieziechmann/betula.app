@@ -60,7 +60,7 @@ const stored = await page.evaluate(() => localStorage.getItem("btu.preview.width
 if (Number(stored) !== dragged) problems.push(`resize: localStorage has ${stored}, the preview is ${dragged}px`);
 if ((await page.evaluate(() => location.search)).includes(String(dragged))) problems.push("resize: the width leaked into the URL");
 
-await step("filter", () => page.click('label.chip:has(input[name="turnus"][value="winter"])'), () => location.search.includes("turnus=winter") && document.querySelector(".tag"));
+await step("filter", () => page.click('#filters a.chip:has-text("Winter")'), () => location.search.includes("turnus=winter") && document.querySelector(".tag"));
 if ((await count()) === before) problems.push("filter: the count did not change");
 if (!(await page.evaluate(() => Boolean(document.querySelector(".detail h2"))))) problems.push("filter: the preview closed");
 

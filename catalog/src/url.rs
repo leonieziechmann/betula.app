@@ -6,6 +6,10 @@
 //! `/programs`                          program overview
 //! `/programs/<slug>[/plan|areas|modules]`   program page and its tabs
 //!
+//! Most filters can also exclude: `exam=written&not-exam=presentation` lists modules with a
+//! written exam and without a presentation. A value that is both included and excluded counts
+//! as included.
+//!
 //! The catalog parameters are readable and tolerant: a plain HTML form (no JavaScript) sends
 //! repeated parameters and empty values, the app writes the canonical form, a hand-edited
 //! link may contain nonsense. Unknown names and values are ignored, never an error.
@@ -129,12 +133,32 @@ impl CatalogUrl {
             values
         }
 
-        let program = first("program").map(|program_slug| {
-            let mut kinds: Vec<KindFilter> =
-                known::<ModuleKind>(&codes("kind")).into_iter().map(KindFilter::Stated).collect();
-            if codes("kind").iter().any(|code| code == "none") {
+        fn without<T: PartialEq>(excluded: Vec<T>, included: &[T]) -> Vec<T> {
+            excluded.into_iter().filter(|value| !included.contains(value)).collect()
+        }
+        let kinds_of = |name: &str| -> Vec<KindFilter> {
+            let mut kinds: Vec<KindFilter> = known::<ModuleKind>(&codes(name)).into_iter().map(KindFilter::Stated).collect();
+            if codes(name).iter().any(|code| code == "none") {
                 kinds.push(KindFilter::Unstated);
             }
+            kinds
+        };
+        let languages_of = |name: &str| -> Vec<Language> {
+            let mut all: Vec<Language> = Vec::new();
+            for language in codes(name).iter().filter_map(|code| Language::from_code(code)) {
+                if !all.contains(&language) {
+                    all.push(language);
+                }
+            }
+            all
+        };
+        let exam_parts_of = |name: &str| -> Vec<ExamPart> {
+            let chosen = codes(name);
+            ExamPart::ALL.iter().copied().filter(|part| chosen.iter().any(|c| c == part.code())).collect()
+        };
+
+        let program = first("program").map(|program_slug| {
+            let kinds = kinds_of("kind");
             ProgramScope {
                 program_slug,
                 relation: if first("list").as_deref() == Some("fues") {
@@ -147,13 +171,21 @@ impl CatalogUrl {
                     Some(n) => n.parse::<u8>().ok().filter(|n| (1..=20).contains(n)).map(PlanSemesterFilter::Semester),
                     None => None,
                 },
+                kinds_exclude: without(kinds_of("not-kind"), &kinds),
                 kinds,
             }
         });
 
         let turnus_codes = codes("turnus");
+        let not_turnus_codes = codes("not-turnus");
+        let turnus = |code: &str| turnus_codes.iter().any(|c| c == code);
+        let not_turnus = |code: &str| !turnus(code) && not_turnus_codes.iter().any(|c| c == code);
         let exam_codes = codes("exam");
         let status_codes = codes("status");
+        let teaching_forms = known::<TeachingForm>(&codes("form"));
+        let exam_parts = exam_parts_of("exam");
+        let campuses = known::<Campus>(&codes("campus"));
+        let languages = languages_of("lang");
 
         let query = CatalogQuery {
             text: first("q").unwrap_or_default(),
@@ -162,12 +194,16 @@ impl CatalogUrl {
             lecturers_exclude: names("not-lecturer"),
             department_id: first("department").and_then(|id| id.parse().ok()),
             turnus: TurnusFilter {
-                winter: turnus_codes.iter().any(|c| c == "winter"),
-                summer: turnus_codes.iter().any(|c| c == "summer"),
-                irregular: turnus_codes.iter().any(|c| c == "irregular"),
+                winter: turnus("winter"),
+                summer: turnus("summer"),
+                irregular: turnus("irregular"),
+                not_winter: not_turnus("winter"),
+                not_summer: not_turnus("summer"),
+                not_irregular: not_turnus("irregular"),
                 year_parity: first("years").and_then(|code| TurnusParity::from_code(&code)),
             },
-            teaching_forms: known::<TeachingForm>(&codes("form")),
+            teaching_forms_exclude: without(known::<TeachingForm>(&codes("not-form")), &teaching_forms),
+            teaching_forms,
             duration_semesters: first("duration").and_then(|n| n.parse().ok()).filter(|n| (1..=12).contains(n)),
             limited: yes_no("limited"),
             fues: match first("fues").as_deref() {
@@ -176,7 +212,8 @@ impl CatalogUrl {
                 _ => None,
             },
             exam_forms: known::<ExamForm>(&exam_codes),
-            exam_parts: ExamPart::ALL.iter().copied().filter(|part| exam_codes.iter().any(|c| c == part.code())).collect(),
+            exam_parts_exclude: without(exam_parts_of("not-exam"), &exam_parts),
+            exam_parts,
             graded: yes_no("graded"),
             offer: if status_codes.iter().any(|code| code == "all") {
                 Some(OfferStatus::ALL.to_vec())
@@ -185,20 +222,10 @@ impl CatalogUrl {
             },
             credits_min: first("ects_min").and_then(|n| n.replace(',', ".").parse().ok()).filter(|n: &f64| n.is_finite()),
             credits_max: first("ects_max").and_then(|n| n.replace(',', ".").parse().ok()).filter(|n: &f64| n.is_finite()),
-            campuses: known::<Campus>(&codes("campus")),
-            languages: codes("lang")
-                .iter()
-                .filter_map(|code| match code.as_str() {
-                    "de" => Some(Language::German),
-                    "en" => Some(Language::English),
-                    _ => None,
-                })
-                .fold(Vec::new(), |mut all, language| {
-                    if !all.contains(&language) {
-                        all.push(language);
-                    }
-                    all
-                }),
+            campuses_exclude: without(known::<Campus>(&codes("not-campus")), &campuses),
+            campuses,
+            languages_exclude: without(languages_of("not-lang"), &languages),
+            languages,
             only_ids: None,
             // The URL carries the switch; the set of passed modules lives in the browser.
             prerequisites_met_by: (first("prereqs").as_deref() == Some("met")).then(Vec::new),
@@ -236,12 +263,14 @@ impl CatalogUrl {
                 Some(PlanSemesterFilter::Unstated) => out.push(("semester", "none".to_string())),
                 None => {}
             }
-            if !scope.kinds.is_empty() {
-                let kinds = scope.kinds.iter().map(|kind| match kind {
-                    KindFilter::Stated(kind) => kind.code(),
-                    KindFilter::Unstated => "none",
-                });
-                out.push(("kind", join(kinds.collect())));
+            for (name, kinds) in [("kind", &scope.kinds), ("not-kind", &scope.kinds_exclude)] {
+                if !kinds.is_empty() {
+                    let codes = kinds.iter().map(|kind| match kind {
+                        KindFilter::Stated(kind) => kind.code(),
+                        KindFilter::Unstated => "none",
+                    });
+                    out.push((name, join(codes.collect())));
+                }
             }
         }
         out.extend(q.lecturers_include.iter().map(|name| ("lecturer", name.clone())));
@@ -257,11 +286,23 @@ impl CatalogUrl {
         if !turnus.is_empty() {
             out.push(("turnus", join(turnus)));
         }
+        let not_turnus: Vec<&str> =
+            [(q.turnus.not_winter, "winter"), (q.turnus.not_summer, "summer"), (q.turnus.not_irregular, "irregular")]
+                .iter()
+                .filter(|(on, _)| *on)
+                .map(|(_, code)| *code)
+                .collect();
+        if !not_turnus.is_empty() {
+            out.push(("not-turnus", join(not_turnus)));
+        }
         if let Some(parity) = q.turnus.year_parity {
             out.push(("years", parity.code().to_string()));
         }
         if !q.teaching_forms.is_empty() {
             out.push(("form", join(q.teaching_forms.iter().map(|form| form.code()).collect())));
+        }
+        if !q.teaching_forms_exclude.is_empty() {
+            out.push(("not-form", join(q.teaching_forms_exclude.iter().map(|form| form.code()).collect())));
         }
         if let Some(n) = q.duration_semesters {
             out.push(("duration", n.to_string()));
@@ -277,6 +318,9 @@ impl CatalogUrl {
             q.exam_forms.iter().map(|form| form.code()).chain(q.exam_parts.iter().map(|part| part.code())).collect();
         if !exams.is_empty() {
             out.push(("exam", join(exams)));
+        }
+        if !q.exam_parts_exclude.is_empty() {
+            out.push(("not-exam", join(q.exam_parts_exclude.iter().map(|part| part.code()).collect())));
         }
         if let Some(graded) = q.graded {
             out.push(("graded", yes_no(graded)));
@@ -297,12 +341,14 @@ impl CatalogUrl {
         if !q.campuses.is_empty() {
             out.push(("campus", join(q.campuses.iter().map(|campus| campus.code()).collect())));
         }
+        if !q.campuses_exclude.is_empty() {
+            out.push(("not-campus", join(q.campuses_exclude.iter().map(|campus| campus.code()).collect())));
+        }
         if !q.languages.is_empty() {
-            let languages = q.languages.iter().map(|language| match language {
-                Language::German => "de",
-                Language::English => "en",
-            });
-            out.push(("lang", join(languages.collect())));
+            out.push(("lang", join(q.languages.iter().map(|language| language.code()).collect())));
+        }
+        if !q.languages_exclude.is_empty() {
+            out.push(("not-lang", join(q.languages_exclude.iter().map(|language| language.code()).collect())));
         }
         if q.prerequisites_met_by.is_some() {
             out.push(("prereqs", "met".to_string()));
@@ -437,23 +483,34 @@ mod tests {
                     relation: ProgramRelation::Fues,
                     plan_semester: Some(PlanSemesterFilter::Semester(3)),
                     kinds: vec![KindFilter::Stated(ModuleKind::Elective), KindFilter::Unstated],
+                    kinds_exclude: vec![KindFilter::Stated(ModuleKind::Thesis)],
                 }),
                 lecturers_include: vec!["Köhler, Ekkehard".into()],
                 lecturers_exclude: vec!["Meer, Klaus".into(), "Wachsmuth, Gerd".into()],
                 department_id: Some(7),
-                turnus: TurnusFilter { winter: true, summer: false, irregular: true, year_parity: Some(TurnusParity::Odd) },
+                turnus: TurnusFilter {
+                    winter: true,
+                    irregular: true,
+                    not_summer: true,
+                    year_parity: Some(TurnusParity::Odd),
+                    ..Default::default()
+                },
                 teaching_forms: vec![TeachingForm::Lecture, TeachingForm::Exercise],
+                teaching_forms_exclude: vec![TeachingForm::Seminar],
                 duration_semesters: Some(2),
                 limited: Some(false),
                 fues: Some(true),
                 exam_forms: vec![ExamForm::Mca],
                 exam_parts: vec![ExamPart::Oral],
+                exam_parts_exclude: vec![ExamPart::Presentation],
                 graded: Some(true),
                 offer: Some(OfferStatus::ALL.to_vec()),
                 credits_min: Some(5.0),
                 credits_max: Some(7.5),
                 campuses: vec![Campus::Senftenberg],
+                campuses_exclude: vec![Campus::Sachsendorf],
                 languages: vec![Language::English],
+                languages_exclude: vec![Language::German],
                 only_ids: None,
                 prerequisites_met_by: Some(vec![]),
                 sort: SortKey::Credits,
@@ -466,9 +523,10 @@ mod tests {
         assert_eq!(
             text,
             "q=Lineare+Algebra+%26+%C3%96kologie&program=bachelor-informatik-2008&list=fues&semester=3&kind=elective,none\
-             &lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
-             &turnus=winter,irregular&years=odd&form=lecture,exercise&duration=2&limited=no&fues=only&exam=mca,oral\
-             &graded=yes&status=all&ects_min=5&ects_max=7.5&campus=senftenberg&lang=en&prereqs=met&sort=ects&desc=1&page=4&open=12104"
+             &not-kind=thesis&lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
+             &turnus=winter,irregular&not-turnus=summer&years=odd&form=lecture,exercise&not-form=seminar&duration=2&limited=no\
+             &fues=only&exam=mca,oral&not-exam=presentation&graded=yes&status=all&ects_min=5&ects_max=7.5\
+             &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&prereqs=met&sort=ects&desc=1&page=4&open=12104"
         );
         assert_eq!(CatalogUrl::parse(&text), url);
     }
@@ -483,6 +541,14 @@ mod tests {
         assert_eq!((url.query.credits_min, url.query.credits_max), (None, Some(6.0)));
         assert_eq!(url.query.offer, None);
         assert_eq!(url.to_query_string(), "q=algebra+I&turnus=winter&form=lecture,exercise&ects_max=6&lang=de");
+    }
+
+    #[test]
+    fn included_wins_over_excluded() {
+        let url = CatalogUrl::parse("exam=oral&not-exam=oral,presentation&turnus=winter&not-turnus=winter,summer&lang=en&not-lang=en");
+        assert_eq!((url.query.exam_parts.clone(), url.query.exam_parts_exclude.clone()), (vec![ExamPart::Oral], vec![ExamPart::Presentation]));
+        assert!(url.query.turnus.winter && !url.query.turnus.not_winter && url.query.turnus.not_summer);
+        assert_eq!(url.to_query_string(), "turnus=winter&not-turnus=summer&exam=oral&not-exam=presentation&lang=en");
     }
 
     #[test]

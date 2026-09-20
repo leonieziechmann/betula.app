@@ -50,6 +50,8 @@ pub struct ProgramScope {
     pub plan_semester: Option<PlanSemesterFilter>,
     /// Any of these; empty means all.
     pub kinds: Vec<KindFilter>,
+    /// None of these.
+    pub kinds_exclude: Vec<KindFilter>,
 }
 
 /// Any of the ticked offers matches; nothing ticked means no turnus filter.
@@ -58,6 +60,11 @@ pub struct TurnusFilter {
     pub winter: bool,
     pub summer: bool,
     pub irregular: bool,
+    /// Leave out what is known to be offered then. Unknown stays: an exclusion only removes
+    /// what the data states (the same holds for every `*_exclude` below).
+    pub not_winter: bool,
+    pub not_summer: bool,
+    pub not_irregular: bool,
     /// Keep modules offered in years of this parity (modules without a parity always match).
     pub year_parity: Option<TurnusParity>,
 }
@@ -87,6 +94,18 @@ impl ExamPart {
         }
     }
 
+    /// What the chips of the filter say.
+    pub fn short_label(self) -> &'static str {
+        match self {
+            ExamPart::Written => "Klausur",
+            ExamPart::Oral => "Mündlich",
+            ExamPart::Paper => "Hausarbeit",
+            ExamPart::Presentation => "Vortrag",
+            ExamPart::Project => "Projekt",
+            ExamPart::Practical => "Praktisch",
+        }
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             ExamPart::Written => "Klausur",
@@ -103,6 +122,58 @@ impl ExamPart {
 pub enum Language {
     German,
     English,
+}
+
+impl Language {
+    pub const ALL: &'static [Self] = &[Self::German, Self::English];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Language::German => "de",
+            Language::English => "en",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|language| language.code() == code)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Language::German => "Deutsch",
+            Language::English => "Englisch",
+        }
+    }
+
+    fn column(self) -> &'static str {
+        match self {
+            Language::German => "f.teaches_german",
+            Language::English => "f.teaches_english",
+        }
+    }
+}
+
+/// The facet column of a teaching form; `None` for forms the catalog cannot filter by.
+fn teaching_form_column(form: TeachingForm) -> Option<&'static str> {
+    match form {
+        TeachingForm::Lecture => Some("f.has_lecture"),
+        TeachingForm::Exercise => Some("f.has_exercise"),
+        TeachingForm::Seminar => Some("f.has_seminar"),
+        TeachingForm::Practical => Some("f.has_practical"),
+        TeachingForm::Project => Some("f.has_project"),
+        TeachingForm::Excursion => Some("f.has_excursion"),
+        TeachingForm::Tutorial | TeachingForm::Consultation | TeachingForm::SelfStudy | TeachingForm::Paper | TeachingForm::Other => None,
+    }
+}
+
+/// The facet column of a campus; only campuses with room data have one.
+fn campus_column(campus: Campus) -> Option<&'static str> {
+    match campus {
+        Campus::Zentralcampus => Some("f.at_zentralcampus"),
+        Campus::Sachsendorf => Some("f.at_sachsendorf"),
+        Campus::Senftenberg => Some("f.at_senftenberg"),
+        Campus::Nord => None,
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -131,6 +202,8 @@ pub struct CatalogQuery {
     pub turnus: TurnusFilter,
     /// Any of these.
     pub teaching_forms: Vec<TeachingForm>,
+    /// None of these.
+    pub teaching_forms_exclude: Vec<TeachingForm>,
     pub duration_semesters: Option<u8>,
     /// `Some(true)`: only modules with a participant limit, `Some(false)`: only without.
     pub limited: Option<bool>,
@@ -140,6 +213,8 @@ pub struct CatalogQuery {
     pub exam_forms: Vec<ExamForm>,
     /// Any of these.
     pub exam_parts: Vec<ExamPart>,
+    /// None of these: „keine Vorträge".
+    pub exam_parts_exclude: Vec<ExamPart>,
     pub graded: Option<bool>,
     /// Any of these. `None` is the default, see `effective_offer`.
     pub offer: Option<Vec<OfferStatus>>,
@@ -147,8 +222,12 @@ pub struct CatalogQuery {
     pub credits_max: Option<f64>,
     /// Any of these. Only modules with room data can match (campus is unknown otherwise).
     pub campuses: Vec<Campus>,
+    /// None of these (modules without room data stay: their campus is unknown).
+    pub campuses_exclude: Vec<Campus>,
     /// Any of these.
     pub languages: Vec<Language>,
+    /// None of these.
+    pub languages_exclude: Vec<Language>,
     /// Restrict to these module ids: the „Gemerkt" and „Bestanden" views.
     pub only_ids: Option<Vec<String>>,
     /// Keep modules whose mandatory prerequisites are all in this set of passed modules.
@@ -173,6 +252,11 @@ impl Sql {
             format!(" WHERE {}", self.conditions.join(" AND "))
         }
     }
+}
+
+/// „Not known to be so": the flag is 0 or the source does not say.
+fn unless(column: &str) -> String {
+    format!("IFNULL({column}, 0) = 0")
 }
 
 fn placeholders(n: usize) -> String {
@@ -213,19 +297,19 @@ impl CatalogQuery {
             !self.text.trim().is_empty(),
             program.is_some(),
             program.is_some_and(|p| p.plan_semester.is_some()),
-            program.is_some_and(|p| !p.kinds.is_empty()),
+            program.is_some_and(|p| !p.kinds.is_empty() || !p.kinds_exclude.is_empty()),
             self.department_id.is_some(),
-            t.winter || t.summer || t.irregular || t.year_parity.is_some(),
-            !self.teaching_forms.is_empty(),
+            t.winter || t.summer || t.irregular || t.not_winter || t.not_summer || t.not_irregular || t.year_parity.is_some(),
+            !self.teaching_forms.is_empty() || !self.teaching_forms_exclude.is_empty(),
             self.duration_semesters.is_some(),
             self.limited.is_some(),
             self.fues.is_some(),
-            !self.exam_forms.is_empty() || !self.exam_parts.is_empty(),
+            !self.exam_forms.is_empty() || !self.exam_parts.is_empty() || !self.exam_parts_exclude.is_empty(),
             self.graded.is_some(),
             self.offer.is_some(),
             self.credits_min.is_some() || self.credits_max.is_some(),
-            !self.campuses.is_empty(),
-            !self.languages.is_empty(),
+            !self.campuses.is_empty() || !self.campuses_exclude.is_empty(),
+            !self.languages.is_empty() || !self.languages_exclude.is_empty(),
             self.prerequisites_met_by.is_some(),
         ]
         .iter()
@@ -271,6 +355,15 @@ impl CatalogQuery {
             if !kinds.is_empty() {
                 conditions.push(format!("({})", kinds.join(" OR ")));
             }
+            for kind in &scope.kinds_exclude {
+                match kind {
+                    KindFilter::Stated(kind) => {
+                        conditions.push("(pm.kind IS NULL OR pm.kind != ?)".to_string());
+                        params.push(Value::from(kind.code()));
+                    }
+                    KindFilter::Unstated => conditions.push("pm.kind IS NOT NULL".to_string()),
+                }
+            }
         }
 
         let text = self.text.trim();
@@ -314,32 +407,26 @@ impl CatalogQuery {
         if !turnus.is_empty() {
             conditions.push(format!("({})", turnus.join(" OR ")));
         }
+        if self.turnus.not_winter {
+            conditions.push(unless("f.offered_winter"));
+        }
+        if self.turnus.not_summer {
+            conditions.push(unless("f.offered_summer"));
+        }
+        if self.turnus.not_irregular {
+            conditions.push("IFNULL(f.turnus_season, '') != 'irregular'".to_string());
+        }
         if let Some(parity) = self.turnus.year_parity {
             conditions.push("(f.turnus_parity IS NULL OR f.turnus_parity = ?)".to_string());
             params.push(Value::from(parity.code()));
         }
 
-        let forms: Vec<&str> = self
-            .teaching_forms
-            .iter()
-            .filter_map(|form| match form {
-                TeachingForm::Lecture => Some("f.has_lecture = 1"),
-                TeachingForm::Exercise => Some("f.has_exercise = 1"),
-                TeachingForm::Seminar => Some("f.has_seminar = 1"),
-                TeachingForm::Practical => Some("f.has_practical = 1"),
-                TeachingForm::Project => Some("f.has_project = 1"),
-                TeachingForm::Excursion => Some("f.has_excursion = 1"),
-                // No facet column: not offered as a filter.
-                TeachingForm::Tutorial
-                | TeachingForm::Consultation
-                | TeachingForm::SelfStudy
-                | TeachingForm::Paper
-                | TeachingForm::Other => None,
-            })
-            .collect();
+        let forms: Vec<String> =
+            self.teaching_forms.iter().filter_map(|form| teaching_form_column(*form)).map(|column| format!("{column} = 1")).collect();
         if !forms.is_empty() {
             conditions.push(format!("({})", forms.join(" OR ")));
         }
+        conditions.extend(self.teaching_forms_exclude.iter().filter_map(|form| teaching_form_column(*form)).map(unless));
 
         if let Some(n) = self.duration_semesters {
             conditions.push("f.duration_semesters = ?".to_string());
@@ -363,6 +450,7 @@ impl CatalogQuery {
         if !exams.is_empty() {
             conditions.push(format!("({})", exams.join(" OR ")));
         }
+        conditions.extend(self.exam_parts_exclude.iter().map(|part| unless(part.column())));
 
         if let Some(graded) = self.graded {
             conditions.push("f.is_graded = ?".to_string());
@@ -382,31 +470,18 @@ impl CatalogQuery {
             params.push(Value::Real(max));
         }
 
-        let campuses: Vec<&str> = self
-            .campuses
-            .iter()
-            .filter_map(|campus| match campus {
-                Campus::Zentralcampus => Some("f.at_zentralcampus = 1"),
-                Campus::Sachsendorf => Some("f.at_sachsendorf = 1"),
-                Campus::Senftenberg => Some("f.at_senftenberg = 1"),
-                Campus::Nord => None,
-            })
-            .collect();
+        let campuses: Vec<String> =
+            self.campuses.iter().filter_map(|campus| campus_column(*campus)).map(|column| format!("{column} = 1")).collect();
         if !campuses.is_empty() {
             conditions.push(format!("({})", campuses.join(" OR ")));
         }
+        conditions.extend(self.campuses_exclude.iter().filter_map(|campus| campus_column(*campus)).map(unless));
 
-        let languages: Vec<&str> = self
-            .languages
-            .iter()
-            .map(|language| match language {
-                Language::German => "f.teaches_german = 1",
-                Language::English => "f.teaches_english = 1",
-            })
-            .collect();
+        let languages: Vec<String> = self.languages.iter().map(|language| format!("{} = 1", language.column())).collect();
         if !languages.is_empty() {
             conditions.push(format!("({})", languages.join(" OR ")));
         }
+        conditions.extend(self.languages_exclude.iter().map(|language| unless(language.column())));
 
         if let Some(ids) = &self.only_ids {
             if ids.is_empty() {
