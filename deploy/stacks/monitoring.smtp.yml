@@ -1,0 +1,62 @@
+# Override: let Grafana send alert e-mails. Optional - without it the provisioned e-mail
+# contact point exists but every send fails with "SMTP not configured" (alerts still
+# show up in Grafana).
+#
+#   docker stack deploy -c monitoring.yml [-c monitoring.public.yml] -c monitoring.smtp.yml monitoring
+#
+# Swarm secrets, created on the server from operator input, never stored in the repo:
+#   grafana-smtp-host       host:port, e.g. smtp.example.org:587  (465 = implicit TLS)
+#   grafana-smtp-user       login name
+#   grafana-smtp-password   password or app token
+#   grafana-smtp-from       sender address the provider accepts, e.g. monitoring@betula.app
+# One call per secret; the value comes from stdin and is never echoed or put into argv:
+#   ... | ssh betula /opt/betula/stacks/monitoring-secrets.sh set grafana-smtp-host
+#   ssh -t betula /opt/betula/stacks/monitoring-secrets.sh set grafana-smtp-password     (hidden prompt)
+#
+# Test after deploying: Grafana > Alerting > Contact points > betula-owner > Test.
+# To rotate a secret: create <name>-v2 the same way, point "source" below at it, deploy,
+# then docker secret rm <name>.
+
+services:
+  grafana:
+    environment:
+      GF_SMTP_ENABLED: "true"
+      # The image's entrypoint turns every GF_*__FILE into the variable without the suffix.
+      GF_SMTP_HOST__FILE: /run/secrets/grafana-smtp-host
+      GF_SMTP_USER__FILE: /run/secrets/grafana-smtp-user
+      GF_SMTP_PASSWORD__FILE: /run/secrets/grafana-smtp-password
+      GF_SMTP_FROM_ADDRESS__FILE: /run/secrets/grafana-smtp-from
+      GF_SMTP_FROM_NAME: Betula monitoring
+      # Never fall back to an unencrypted session with the credentials.
+      GF_SMTP_STARTTLS_POLICY: MandatoryStartTLS
+    secrets:
+      - source: grafana-smtp-host
+        target: grafana-smtp-host
+        uid: "472"
+        gid: "0"
+        mode: 0400
+      - source: grafana-smtp-user
+        target: grafana-smtp-user
+        uid: "472"
+        gid: "0"
+        mode: 0400
+      - source: grafana-smtp-password
+        target: grafana-smtp-password
+        uid: "472"
+        gid: "0"
+        mode: 0400
+      - source: grafana-smtp-from
+        target: grafana-smtp-from
+        uid: "472"
+        gid: "0"
+        mode: 0400
+
+secrets:
+  grafana-smtp-host:
+    external: true
+  grafana-smtp-user:
+    external: true
+  grafana-smtp-password:
+    external: true
+  grafana-smtp-from:
+    external: true

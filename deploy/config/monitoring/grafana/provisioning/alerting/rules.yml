@@ -1,0 +1,1095 @@
+# Grafana-managed alert rules (unified alerting file provisioning, schema of Grafana 13.2).
+# Every rule: A = instant query against a provisioned data source (uid prometheus / loki),
+# B = reduce (last, NaN dropped), C = threshold. The numbers in the comments refer to the
+# list in the monitoring task: (1) btu errors (2) containers (3) host (4) 5xx (5) certificate (6) ssh.
+#
+# State handling, decided once:
+#   noDataState  OK       where "nothing found" is the healthy case (no error lines, no 5xx)
+#                NoData   where data must always exist (host metrics, up)
+#   execErrState KeepLast everywhere, so a restarting Loki/Prometheus does not flap every rule;
+#                         betula-target-down is the exception that reports a broken backend.
+#   severity     critical is repeated every 4 hours, warning once a day (policies.yml).
+#   Firing rules are listed on top of the overview dashboard, with or without a working
+#   notification channel.
+#
+# Annotations are Go templates and are NOT env-expanded by the provisioner; titles and labels
+# are - keep "$" out of them. Provisioned rules are read-only in the UI: edit here, then
+#   docker service update --force monitoring_grafana
+# A rule removed from this file must be listed once under deleteRules (orgId, uid) to disappear.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: betula-logs
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # (1) The scraper's log levels are a contract: ERROR = a human is needed. One alert instance per
+      # (service, event, msg), so the message names the event. The text is "msg" in the Go scraper
+      # (slog) and "message" in the Rust web server (tracing, flatten_event); label_format merges them.
+      # Lines that are not JSON are skipped here (__error__) and handled by the next rule.
+      # The btu stack MUST set BTU_LOG_FORMAT=json for the web service (its default is text).
+      # The window is 35m = one scraper cycle (30m) + margin: an error that comes back every cycle is
+      # ONE continuous alert instead of a resolve/fire pair every half hour. No data = no errors = OK.
+      - uid: betula-btu-error-logs
+        title: "btu: ERROR in the logs"
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum by (service, event, msg) (count_over_time({stack=\"btu\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-logs
+        panelId: 2
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }}: {{ if $labels.event }}{{ $labels.event }}{{ else }}ERROR{{ end }}"
+          description: |-
+            {{ $labels.msg }}
+            {{ if eq $labels.event "validate.check_failed" }}An invariant or count baseline failed, so no new snapshot is published. A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. The fields check, value and samples of the log line say which one.{{ else if eq $labels.event "crawl.aborted" }}Ten pages failed in a row and the crawl stage stopped: the university server is down or blocks us. Published data is intact and only ages.{{ else if eq $labels.event "export.failed" }}The export failed; the previous snapshot stays current.{{ else if eq $labels.event "build.failed" }}The build was rolled back; the canonical data is unchanged.{{ else }}Level ERROR means a human is needed, or published data could not be updated (docs/operations.md, section Logging).{{ end }}
+            {{ if $values.B }}{{ printf "%.0f" $values.B.Value }} such line(s) in the last 35 minutes. {{ end }}Logs dashboard: stack btu, level error. Also: GET /status on the scraper.
+
+      # (1b) What rule (1) cannot parse: a Go runtime crash ("panic:", "fatal error:") or a Rust panic
+      # on stderr, and ERROR lines of a web server that was deployed without BTU_LOG_FORMAT=json.
+      # One crash stays below the restart rule's threshold, so this is the only signal for it.
+      # Matched on the text, not on Loki's detected_level: that heuristic calls a line "info" as
+      # soon as the word appears anywhere in it. No word boundaries: the text format wraps the
+      # level in ANSI colour codes.
+      - uid: betula-btu-unstructured-errors
+        title: "btu: crash or ERROR outside the JSON log"
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum by (service) (count_over_time({stack=\"btu\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-logs
+        panelId: 2
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }}: crash or ERROR line that is not JSON"
+          description: "{{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}Some{{ end }} line(s) in the last 35 minutes. Either the process crashed (Go \"panic:\" / \"fatal error:\", Rust \"panicked at\"; Swarm has restarted it) or the service logs text instead of JSON - the web server needs BTU_LOG_FORMAT=json in the btu stack file, otherwise its errors arrive here without event and message. Logs dashboard: stack btu, filter panic|fatal error|ERROR."
+
+      # The log rules treat "no data" as "all good", so a broken pipeline must raise its own alert.
+      # Measured on Alloy's counters, not on log volume: a quiet night is not an outage.
+      - uid: betula-log-shipping
+        title: Logs are not reaching Loki
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "sum(rate({__name__=~\"loki_write_dropped_entries_total|loki_write_batch_retries_total\"}[10m]))"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "10m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-overview
+        panelId: 40
+        labels:
+          severity: critical
+        annotations:
+          summary: Alloy cannot deliver logs to Loki
+          description: "Alloy has been retrying or dropping log batches for 10 minutes. While this lasts, the log based alerts see nothing. Check: docker service logs monitoring_loki / monitoring_alloy, disk space, Loki's ingestion limits in loki.yml."
+  - orgId: 1
+    name: betula-containers
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # (2a) In Swarm a restart is a NEW container, so restarts are counted as containers of one service
+      # started within 15 minutes. 3 or more: a rolling update starts one (two with a second replica).
+      - uid: betula-restart-loop
+        title: Container is restarting repeatedly
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "count by (stack, service) (max_over_time(container_start_time_seconds{service!=\"\"}[15m]) > (time() - 900))"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [2]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-overview
+        panelId: 20
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} keeps restarting"
+          description: "{{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}Several{{ end }} containers of {{ $labels.service }} were started within 15 minutes. Swarm restarts a task that exits or turns unhealthy. Check: docker service ps --no-trunc {{ $labels.service }} and the Logs dashboard."
+
+      # (2b) cAdvisor knows containers, not Swarm's desired state, so "should run" has to be written
+      # down. This rule names the services the site cannot live without and can therefore never
+      # resolve by itself while one of them is gone (a task that cannot start - rejected, bad image,
+      # missing secret - makes Traefik answer 404, which the 5xx rule does not see):
+      #   edge_traefik   always
+      #   the web server btu_web, or placeholder_web while the application has not landed
+      #   btu_scraper    as soon as anything of stack btu runs (so the rule is quiet before btu lands)
+      # absent() yields exactly one series per missing service. Keep the list in step with the
+      # exclusion in (2c) when the btu stack names its services differently. 3m pending covers a
+      # stop-first update. The last line keeps the rule quiet while cAdvisor itself reports nothing
+      # (Alloy down is the target-down rule's job). During the very first bring-up it fires until
+      # the edge and placeholder stacks run - that is the truth, not noise.
+      - uid: betula-required-service-down
+        title: A required service is not running
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "(absent(container_last_seen{service=\"edge_traefik\"}) or label_replace(absent(container_last_seen{service=~\"btu_web|placeholder_web\"}), \"service\", \"btu_web\", \"\", \"\") or (absent(container_last_seen{service=\"btu_scraper\"}) and on() (count(container_last_seen{stack=\"btu\"}) > 0))) and on() (count(container_last_seen{id=\"/\"}) > 0)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "3m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-overview
+        panelId: 20
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} is not running"
+          description: "No container of {{ $labels.service }} exists{{ if eq $labels.service \"btu_web\" }} (and none of placeholder_web either): https://betula.app answers 404 or not at all{{ end }}. This alert stays until a container runs again. Check: docker service ps --no-trunc {{ $labels.service }} (a rejected task names its reason in the ERROR column), docker stack services {{ if eq $labels.service \"edge_traefik\" }}edge{{ else }}btu{{ end }}. If EVERY service is listed, cAdvisor inside Alloy has lost sight of Docker - check docker service logs monitoring_alloy."
+
+  - orgId: 1
+    name: betula-containers-slow
+    folder: Betula alerts
+    interval: "5m"   # the 7-day range query below is not worth running every minute
+    rules:
+
+      # (2c) The catch-all for every other service: had a container within the last 7 days, has none
+      # now. It also catches a task that dies before the first scrape, which (2a) cannot see. A
+      # deliberate removal (docker stack rm) looks the same: silence it, do not wait for it. Only a
+      # warning (daily reminder): what the site needs is in (2b), and excluded here so it does not
+      # alert twice.
+      - uid: betula-service-down
+        title: Service has no running container
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "(count by (stack, service) (count_over_time(container_last_seen{service!=\"\", service!~\"edge_traefik|btu_web|placeholder_web|btu_scraper\"}[7d])) unless count by (stack, service) (container_last_seen{service!=\"\"})) and on() (count(container_last_seen{id=\"/\"}) > 0)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "5m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-overview
+        panelId: 20
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} is not running"
+          description: "{{ $labels.service }} had a container within the last 7 days and has none now. Check: docker service ps --no-trunc {{ $labels.service }}. If the service was removed on purpose, add a silence (Alerting > Silences, matcher service={{ $labels.service }}, 7 days): the rule only forgets a service after 7 days, and a \"resolved\" message then does NOT mean it is back. If EVERY service is listed, cAdvisor inside Alloy has lost sight of Docker - check docker service logs monitoring_alloy."
+  - orgId: 1
+    name: betula-host
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # (3) No data here means the host metrics are gone - that must not pass as healthy.
+      - uid: betula-disk-usage
+        title: "Disk usage above 85 %"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "100 * (1 - node_filesystem_avail_bytes{fstype=~\"ext[234]|xfs|btrfs\"} / node_filesystem_size_bytes{fstype=~\"ext[234]|xfs|btrfs\"})"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [85]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "10m"
+        noDataState: NoData
+        execErrState: KeepLast
+        dashboardUid: betula-overview
+        panelId: 12
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.mountpoint }} is {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} %{{ else }}almost{{ end }} full"
+          description: "Usual suspects: docker system df (old images: docker image prune -a), journalctl --disk-usage, the volumes of Loki (30 d retention), Prometheus (3 GB cap) and the scraper database."
+      - uid: betula-memory-usage
+        title: "Memory usage above 90 %"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [90]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "10m"
+        noDataState: NoData
+        execErrState: KeepLast
+        dashboardUid: betula-overview
+        panelId: 11
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host memory is {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} %{{ else }}almost{{ end }} used"
+          description: "Based on MemAvailable, so page cache does not count. The overview dashboard shows memory per service; every service has a limit, so look for one that sits at its limit."
+
+      # Swarm cannot run Alloy privileged, so cAdvisor has no /dev/kmsg and reports no OOM events.
+      # The kernel writes the same fact into the journal.
+      - uid: betula-oom-kill
+        title: The kernel killed a process (out of memory)
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum(count_over_time({job=\"journal\"} |~ `[Oo]ut of memory: Killed process` [15m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-logs
+        panelId: 2
+        labels:
+          severity: critical
+        annotations:
+          summary: Out-of-memory kill on the host
+          description: "The kernel log names the victim. \"Memory cgroup out of memory\" means a container hit its memory limit (raise the limit in the stack file or find the leak); without \"cgroup\" the whole host ran out. Logs dashboard: source journal, filter \"Killed process\"."
+  - orgId: 1
+    name: betula-edge
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # (4) Only with at least 0.05 requests/s (15 in 5 minutes): one failed request out of three at
+      # night is not an outage. No traffic or no 5xx at all = no data = OK.
+      - uid: betula-traefik-5xx
+        title: "Traefik answers more than 5 % of the requests with 5xx"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "100 * (sum(rate(traefik_entrypoint_requests_total{entrypoint=\"websecure\", code=~\"5..\"}[5m])) / sum(rate(traefik_entrypoint_requests_total{entrypoint=\"websecure\"}[5m]))) and on() (sum(rate(traefik_entrypoint_requests_total{entrypoint=\"websecure\"}[5m])) > 0.05)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [5]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "5m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-overview
+        panelId: 31
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ if $values.B }}{{ printf \"%.1f\" $values.B.Value }} %{{ else }}Many{{ end }} of the HTTPS requests fail with 5xx"
+          description: "502/504 usually mean the web service behind Traefik is down or restarting, 500 comes from the application itself. Traefik's access log has the details (kept for 7 days): Logs dashboard, service edge_traefik, text filter \"DownstreamStatus\":5 (type it with the quotes)."
+
+      # (5) No certificate yet (edge not deployed, DNS missing) is no data = OK; Traefik being down is the target-down rule.
+      # max by (sans), not min: Traefik never drops the series of a certificate it has replaced
+      # (labels cn, serial, sans; traefik/traefik#8606, open), so after every renewal the old serial
+      # lives on until Traefik restarts and min() would raise a false alarm 16 days later. The newest
+      # certificate per name is the one being served; when a renewal really fails, the old one is
+      # the newest and the rule fires as it should. sans is always filled, cn may be empty.
+      - uid: betula-cert-expiry
+        title: TLS certificate expires in less than 14 days
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "(max by (sans) (traefik_tls_certs_not_after{cn!=\"TRAEFIK DEFAULT CERT\"}) - time()) / 86400"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: lt
+                    params: [14]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "1h"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-overview
+        panelId: 4
+        labels:
+          severity: critical
+        annotations:
+          summary: "Certificate for {{ $labels.sans }} expires in {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}a few{{ end }} days"
+          description: "Traefik renews Let's Encrypt certificates 30 days before they expire, so renewal has been failing for a while. Check docker service logs edge_traefik for \"acme\", that port 80 is reachable (HTTP-01 challenge) and that the DNS record still points to this server. If this host name is no longer served at all (router removed), the entry is a leftover that disappears when Traefik restarts: docker service update --force edge_traefik."
+  - orgId: 1
+    name: betula-security
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # (6) Failed logins and fail2ban bans are the permanent background noise of port 22 and say nothing.
+      # (Measured: 7 failed password attempts in the first 22 minutes of this server's life.)
+      # A SUCCESSFUL login that is not the deploy key never happens in normal operation: zero noise,
+      # and the one event worth waking up for. The only expected firing: the operator's last root
+      # login (ssh alias betula-root) less than 15 minutes before this stack first starts, because
+      # Alloy reads the journal of the last 12 hours.
+      # unit: sshd logs "Accepted ..." while the process still belongs to ssh.service; "session.*"
+      # (Alloy folds session-<n>.scope into session.scope) is there in case journald attributes a
+      # line to the login session that pam_systemd opens right afterwards.
+      - uid: betula-ssh-unexpected-login
+        title: SSH login that is not the deploy key
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum(count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Accepted \\S+ for ` !~ `Accepted publickey for deploy ` [15m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-logs
+        panelId: 2
+        labels:
+          severity: critical
+        annotations:
+          summary: Unexpected successful SSH login
+          description: "sshd accepted a login that is not \"publickey for deploy\": a password login, root, or another user. After the hardening none of these can happen. Logs dashboard: source journal, filter \"Accepted\". Then: last -a, and check /etc/ssh/sshd_config.d/."
+      - uid: betula-security-service-failed
+        title: A security relevant service failed
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum(count_over_time({job=\"journal\"} |~ `(ssh|fail2ban|ufw|docker|containerd)\\.service: Failed with result` [30m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-logs
+        panelId: 2
+        labels:
+          severity: critical
+        annotations:
+          summary: "systemd reports a failed unit: ssh, fail2ban, ufw, docker or containerd"
+          description: "Check systemctl --failed and journalctl -u <unit>. Without fail2ban or ufw the host is still key-only, but no longer protected as designed."
+  - orgId: 1
+    name: betula-meta
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # The watchdog of the other rules. They keep their last state when a query fails (no flapping
+      # while Loki or Prometheus restart); THIS rule turns to Error / NoData instead, so a dead
+      # Prometheus is reported. Loki down shows up here as job="loki".
+      # What nothing on this server can report: the server itself being down. Use an external
+      # uptime check on https://betula.app for that.
+      - uid: betula-target-down
+        title: Monitoring target is down
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: up
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: lt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "5m"
+        noDataState: NoData
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} cannot be scraped"
+          description: "Prometheus has not been able to scrape {{ $labels.job }} ({{ $labels.instance }}) for 5 minutes. traefik: is the edge stack running and attached to the monitoring network? integrations/unix or integrations/cadvisor: Alloy. Check docker stack services monitoring."

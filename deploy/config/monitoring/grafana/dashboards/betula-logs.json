@@ -1,0 +1,239 @@
+{
+  "uid": "betula-logs",
+  "title": "Logs",
+  "description": "Logs explorer for all containers and the host journal. Provisioned from deploy/config/monitoring/grafana/dashboards - edit there.",
+  "tags": ["betula"],
+  "schemaVersion": 42,
+  "version": 1,
+  "id": null,
+  "editable": true,
+  "graphTooltip": 1,
+  "timezone": "browser",
+  "weekStart": "monday",
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {"refresh_intervals": ["10s", "30s", "1m", "5m", "15m"]},
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": ["betula"],
+      "asDropdown": false,
+      "title": "Betula",
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "source",
+        "label": "Source",
+        "type": "custom",
+        "query": "docker,journal",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]},
+        "options": [
+          {"selected": true, "text": "All", "value": "$__all"},
+          {"selected": false, "text": "docker", "value": "docker"},
+          {"selected": false, "text": "journal", "value": "journal"}
+        ],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "stack",
+        "label": "Stack",
+        "type": "query",
+        "datasource": {"type": "loki", "uid": "loki"},
+        "query": {"label": "stack", "refId": "LokiVariableQueryEditor-VariableQuery", "stream": "", "type": 1},
+        "definition": "",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]},
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {"type": "loki", "uid": "loki"},
+        "query": {
+          "label": "service",
+          "refId": "LokiVariableQueryEditor-VariableQuery",
+          "stream": "{job=~\".+\", stack=~\"$stack\"}",
+          "type": 1
+        },
+        "definition": "",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]},
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "level",
+        "label": "Level",
+        "type": "custom",
+        "query": "critical,fatal,error,warn,info,debug,trace,unknown",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]},
+        "options": [
+          {"selected": true, "text": "All", "value": "$__all"},
+          {"selected": false, "text": "critical", "value": "critical"},
+          {"selected": false, "text": "fatal", "value": "fatal"},
+          {"selected": false, "text": "error", "value": "error"},
+          {"selected": false, "text": "warn", "value": "warn"},
+          {"selected": false, "text": "info", "value": "info"},
+          {"selected": false, "text": "debug", "value": "debug"},
+          {"selected": false, "text": "trace", "value": "trace"},
+          {"selected": false, "text": "unknown", "value": "unknown"}
+        ],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "filter",
+        "label": "Text filter (regex, case-insensitive)",
+        "description": "RE2 regex, inserted as a raw LogQL string: quotes and backslashes work as typed (DownstreamStatus\":5, \\d+ ms). Only a backtick cannot be used.",
+        "type": "textbox",
+        "query": "",
+        "current": {"selected": false, "text": "", "value": ""},
+        "options": [{"selected": true, "text": "", "value": ""}],
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Lines by level",
+      "description": "",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "loki", "uid": "loki"},
+          "editorMode": "code",
+          "expr": "sum by (detected_level) (count_over_time({job=~\"$source\", stack=~\"$stack\", service=~\"$service\"} | detected_level=~\"$level\" |~ `(?i)$filter` [$__auto]))",
+          "legendFormat": "{{detected_level}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"mode": "normal", "group": "A"}
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byRegexp", "options": "^critical$"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "purple"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "^fatal$"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "purple"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "^error$"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "^warn$"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "^info$"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "^debug$"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "^trace$"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "light-blue"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "^unknown$"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#8e8e8e"}}]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "showLegend": true, "calcs": ["sum"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "Log lines",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 24, "w": 24, "x": 0, "y": 6},
+      "description": "Container logs carry stack / service / container, journal lines carry unit. Open a line for all fields; JSON lines of the scraper show event and msg there.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "loki", "uid": "loki"},
+          "editorMode": "code",
+          "expr": "{job=~\"$source\", stack=~\"$stack\", service=~\"$service\"} | detected_level=~\"$level\" |~ `(?i)$filter`",
+          "legendFormat": "",
+          "queryType": "range",
+          "maxLines": 1000
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}

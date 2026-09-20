@@ -1,0 +1,41 @@
+# Installed by /opt/betula/vps/10-base.sh as /etc/fail2ban/jail.d/betula.local.
+# *.local in jail.d is read after every *.conf (including Ubuntu's defaults-debian.conf), so the
+# values below are the effective ones whatever the distribution default is this year.
+
+[DEFAULT]
+# Ubuntu has no /var/log/auth.log unless rsyslog is installed; the journal is always there.
+backend = systemd
+
+# Ubuntu's firewall stack is nftables in the kernel with ufw and Docker driving it through
+# iptables-nft. fail2ban gets its own native table (inet f2b-table, input hook, priority -1):
+# bans are evaluated before ufw's chains, and nothing here edits ufw's or Docker's rules, so
+# "ufw reload" and Docker restarts neither lose bans nor get confused by them.
+# (banaction = ufw would rewrite ufw's persistent user rules on every ban.)
+banaction = nftables
+banaction_allports = nftables[type=allports]
+
+ignoreip = 127.0.0.1/8 ::1
+
+findtime = 10m
+maxretry = 5
+bantime = 1h
+
+# Repeat offenders: 1h, 2h, 4h ... capped at one week. Needs the ban history to live at least as
+# long as the cap, see fail2ban.d/betula.local (dbpurgeage).
+bantime.increment = true
+bantime.factor = 1
+bantime.maxtime = 1w
+# Random extra so that a botnet does not come back in lockstep.
+bantime.rndtime = 10m
+
+[sshd]
+enabled = true
+port = 22
+# mode = normal on purpose. "aggressive" also counts connections that close before
+# authenticating; the operator's automation (many short sessions, port probes while waiting for
+# a reboot) would ban itself. Failed public keys are not counted either (filter default
+# publickey = nofail), so an agent that offers several keys is safe.
+mode = normal
+# Units and process names of OpenSSH 9.8+/10 (sshd, sshd-session, sshd-auth); a jail-level match
+# wins over whatever the packaged filter says.
+journalmatch = _SYSTEMD_UNIT=ssh.service + _SYSTEMD_UNIT=sshd.service + _COMM=sshd + _COMM=sshd-session + _COMM=sshd-auth

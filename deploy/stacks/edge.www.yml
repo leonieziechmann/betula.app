@@ -1,0 +1,35 @@
+# Optional override for stack "edge": https://www.betula.app/<path> -> 301 -> https://betula.app/<path>.
+#
+#   docker stack deploy -c /opt/betula/stacks/edge.yml -c /opt/betula/stacks/edge.www.yml edge
+#
+# Deploy it ONLY while www.betula.app resolves to this server (A record at Porkbun). vps/40-stacks.sh checks
+# that on every run and adds or leaves out this file accordingly; measured 2026-09-20: the record exists.
+# The router below makes Traefik order a certificate for www at once; while the name does not resolve, every
+# attempt is a failed validation against Let's Encrypt's limit of 5 per host name per hour. A failed order is
+# not repeated by Traefik on its own: see "certresolver" in edge.yml for the retry.
+# To remove the redirect, deploy edge.yml alone again: labels that are no longer in the files are dropped.
+#
+# The labels sit on the traefik service only because a swarm router has to be declared on some service; the
+# edge stack always exists, the placeholder and the app stacks come and go.
+
+services:
+  traefik:
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=edge"
+        - "traefik.http.routers.edge-www.rule=Host(`www.betula.app`)"
+        - "traefik.http.routers.edge-www.entrypoints=websecure"
+        - "traefik.http.routers.edge-www.tls.certresolver=le"
+        # secure-headers first (outermost), so the redirect response carries HSTS as well.
+        - "traefik.http.routers.edge-www.middlewares=secure-headers@file,edge-www-to-apex"
+        # The redirect answers every request; should it ever not match, noop@internal replies 418 and
+        # nothing is proxied.
+        - "traefik.http.routers.edge-www.service=noop@internal"
+        # The Host rule has already matched, so the pattern only has to capture path and query.
+        - 'traefik.http.middlewares.edge-www-to-apex.redirectregex.regex=^https?://[^/]+(.*)'
+        - "traefik.http.middlewares.edge-www-to-apex.redirectregex.replacement=https://betula.app$${1}"
+        - "traefik.http.middlewares.edge-www-to-apex.redirectregex.permanent=true"
+        # The swarm provider skips a service whose labels name no port, routers included. Never routed to;
+        # nothing listens on 9.
+        - "traefik.http.services.edge-unused.loadbalancer.server.port=9"

@@ -1,0 +1,32 @@
+# Override EXAMPLE: hand Grafana the secret of a notification channel that is not e-mail
+# (ntfy topic URL, webhook bearer token or Telegram bot token). E-mail needs monitoring.smtp.yml
+# instead. The whole procedure is in README.md, "Alert notifications"; in short:
+#
+#   1. cp monitoring.notify.example.yml monitoring.notify.yml   and keep only the secret you use
+#   2. replace the receiver in config/monitoring/grafana/provisioning/alerting/contact-points.yml
+#      (its header has a ready block per channel; it reads the secret with $__file{/run/secrets/<name>})
+#   3. create the secret on the server; the value comes from stdin and is never echoed:
+#        <password manager CLI> | ssh betula /opt/betula/stacks/monitoring-secrets.sh set grafana-ntfy-url
+#   4. deploy/sync.sh, then  ssh betula bash /opt/betula/vps/40-stacks.sh monitoring
+#
+# vps/40-stacks.sh adds monitoring.notify.yml to every deploy of the stack once the file exists
+# and all secrets listed at the bottom exist. Deployed by hand, the file has to be named every
+# time as well (swarm replaces the whole service definition on each deploy):
+#   docker stack deploy -c monitoring.yml [-c monitoring.public.yml] -c monitoring.notify.yml monitoring
+#
+# Known secret names (stacks/monitoring-secrets.sh): grafana-ntfy-url, grafana-webhook-token,
+# grafana-telegram-bot-token. To rotate one: create <name>-v2, point "source" at it, deploy,
+# then docker secret rm <name>.
+
+services:
+  grafana:
+    secrets:
+      - source: grafana-ntfy-url
+        target: grafana-ntfy-url
+        uid: "472"
+        gid: "0"
+        mode: 0400
+
+secrets:
+  grafana-ntfy-url:
+    external: true

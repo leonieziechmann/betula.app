@@ -1,0 +1,68 @@
+# Reusable middlewares, referenced from router labels as <name>@file.
+# Traefik watches this directory and applies a change within seconds. Look at its log afterwards: a router
+# that names a middleware which failed to load is not served at all.
+
+http:
+  middlewares:
+    # For every public router. No Content-Security-Policy here: it depends on what a page loads, so each
+    # application sends its own.
+    secure-headers:
+      headers:
+        # One year. The .app TLD is HSTS-preloaded as a whole, so a long max-age can lock nobody out who is
+        # not locked to HTTPS already. includeSubDomains: every betula.app host is served from here over TLS.
+        # No preload token: the TLD entry covers it, and a token would be a promise for a separate listing.
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        # SAMEORIGIN, not DENY: stops foreign sites from framing us, still lets the app embed its own
+        # documents (PDF viewer). Stricter rules go into the app's CSP as frame-ancestors.
+        customFrameOptionsValue: SAMEORIGIN
+        # Other sites learn the origin, never the path or the query.
+        referrerPolicy: strict-origin-when-cross-origin
+        # Nothing here needs device access. Only long-established feature names: Chrome logs a console
+        # warning for every name it does not know.
+        permissionsPolicy: "accelerometer=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        # An empty value removes the header; backend names and versions are nobody's business.
+        customResponseHeaders:
+          Server: ""
+          X-Powered-By: ""
+
+    # Responses that already carry Content-Encoding pass through untouched, so an application may ship
+    # pre-compressed assets and still use this.
+    compress:
+      compress:
+        encodings:
+          - zstd
+          - br
+          - gzip
+        minResponseBodyBytes: 1024
+        # An allow list: text-like types only. Binary downloads (the catalog snapshot is a SQLite file of
+        # about 100 MB) would cost CPU on every request for little gain.
+        includedContentTypes:
+          - text/html
+          - text/css
+          - text/plain
+          - text/javascript
+          - text/xml
+          - application/javascript
+          - application/json
+          - application/manifest+json
+          - application/xml
+          - application/wasm
+          - image/svg+xml
+
+    # Optional, per source address. For IPv4 that is the real client: Traefik's ports are published in host
+    # mode and no proxy sits in front. IPv6 connections are relayed by docker-proxy and all arrive from the
+    # address of the bridge gateway, so they share ONE bucket (see "ipv6" in stacks/edge.yml): with AAAA
+    # records every IPv6 visitor would get 429 as soon as all of them together exceed the rate.
+    # Generous on purpose: the first load of a single-page app is a burst of requests. Excess requests get 429.
+    rate-limit:
+      rateLimit:
+        average: 50
+        period: 1s
+        burst: 100
+        sourceCriterion:
+          ipStrategy:
+            # For the day Traefik sees IPv6 addresses itself: one customer owns a whole /64, count it as
+            # one client. Without effect until then.
+            ipv6Subnet: 64

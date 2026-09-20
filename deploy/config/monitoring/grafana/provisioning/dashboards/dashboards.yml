@@ -1,0 +1,15 @@
+# Dashboards are files in the repo. Edit in the UI, export the JSON, commit it - a change
+# saved only in the UI is refused (allowUiUpdates: false) so it cannot get lost silently.
+apiVersion: 1
+
+providers:
+  - name: betula
+    orgId: 1
+    type: file
+    folder: Betula
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

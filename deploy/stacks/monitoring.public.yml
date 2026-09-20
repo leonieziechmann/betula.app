@@ -1,0 +1,55 @@
+# Override: publish Grafana through Traefik at https://$GRAFANA_HOST
+# (default grafana.betula.app, the same default monitoring.yml uses for root_url).
+#
+#   GRAFANA_HOST=grafana.betula.app docker stack deploy \
+#     -c monitoring.yml -c monitoring.public.yml monitoring
+#
+# Deploy this ONLY while the DNS record of GRAFANA_HOST resolves to this server: Traefik
+# requests a certificate as soon as it sees the router, and failed validations count
+# against Let's Encrypt's rate limit. Check first:  dig +short A grafana.betula.app
+# (Measured 2026-09-20: grafana.betula.app -> 77.237.233.41, so this file is part of the
+# first deploy.)
+#
+# Leaving the file out of a later deploy takes Grafana off the internet again.
+#
+# Router, service and middleware names are global in Traefik, hence the stack prefix.
+
+services:
+  grafana:
+    networks:
+      edge: {}
+    deploy:
+      labels:
+        traefik.enable: "true"
+        # Grafana sits on two networks; Traefik must use the one it shares with it.
+        traefik.swarm.network: edge
+        traefik.http.services.monitoring-grafana.loadbalancer.server.port: "3000"
+
+        # /metrics AND /metrics/plugins/<id> answer without a login; they are for Prometheus
+        # inside the stack only. Grafana has no UI or API route below /metrics.
+        traefik.http.routers.monitoring-grafana.rule: "Host(`${GRAFANA_HOST:-grafana.betula.app}`) && !PathPrefix(`/metrics`)"
+        traefik.http.routers.monitoring-grafana.entrypoints: websecure
+        traefik.http.routers.monitoring-grafana.tls.certresolver: le
+        traefik.http.routers.monitoring-grafana.middlewares: secure-headers@file
+        traefik.http.routers.monitoring-grafana.service: monitoring-grafana
+
+        # The login form is the one place where passwords can be guessed (basic auth is off,
+        # see monitoring.yml), and bots find a new host within minutes. 10 requests per minute
+        # and client address are plenty for a human; the rest gets 429 before it reaches
+        # Grafana. Grafana's own lockout (5 failures in 5 minutes, per address and per user
+        # name) sits behind it. Same certificate as above: one host name, one order.
+        traefik.http.routers.monitoring-grafana-login.rule: "Host(`${GRAFANA_HOST:-grafana.betula.app}`) && Path(`/login`)"
+        traefik.http.routers.monitoring-grafana-login.priority: "1000"   # must win over the router above
+        traefik.http.routers.monitoring-grafana-login.entrypoints: websecure
+        traefik.http.routers.monitoring-grafana-login.tls.certresolver: le
+        traefik.http.routers.monitoring-grafana-login.middlewares: secure-headers@file,monitoring-grafana-login-rl
+        traefik.http.routers.monitoring-grafana-login.service: monitoring-grafana
+        traefik.http.middlewares.monitoring-grafana-login-rl.ratelimit.average: "10"
+        traefik.http.middlewares.monitoring-grafana-login-rl.ratelimit.period: 1m
+        traefik.http.middlewares.monitoring-grafana-login-rl.ratelimit.burst: "10"
+        # One IPv6 customer owns a whole /64 (this host has a global IPv6 address).
+        traefik.http.middlewares.monitoring-grafana-login-rl.ratelimit.sourcecriterion.ipstrategy.ipv6subnet: "64"
+
+networks:
+  edge:
+    external: true

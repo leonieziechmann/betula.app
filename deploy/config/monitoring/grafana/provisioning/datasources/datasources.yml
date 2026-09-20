@@ -1,0 +1,30 @@
+# The uids are referenced by the dashboards and by every alert rule - do not change them.
+apiVersion: 1
+
+prune: true   # a data source removed from this file is removed from Grafana too
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://monitoring_prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 30s   # = scrape interval, so $__rate_interval never gets too short
+      # All rules are Grafana-managed (alerting/rules.yml). Otherwise the Alerting pages also ask
+      # this data source for rules it does not have and show errors (Loki runs no ruler).
+      manageAlerts: false
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://monitoring_loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      timeout: 60
+      manageAlerts: false

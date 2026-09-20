@@ -1,0 +1,16 @@
+# Installed by /opt/betula/vps/30-docker.sh as /etc/systemd/system/betula-docker-prune.timer.
+
+[Unit]
+Description=Betula: weekly Docker image and build cache cleanup
+
+[Timer]
+# Sunday 03:30 host-local time (Europe/Berlin), no "UTC" suffix on purpose: the reboot slot of
+# unattended-upgrades (04:30) is host-local too, so this stays one hour ahead of it in summer
+# and in winter. 03:30 exists exactly once on both daylight-saving Sundays.
+OnCalendar=Sun *-*-* 03:30:00
+RandomizedDelaySec=10m
+# Catch up after a boot if the server was off at the scheduled time.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

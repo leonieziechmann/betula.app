@@ -1,0 +1,16 @@
+# One owner, one inbox: everything goes to "betula-owner". Alerts of the same rule are
+# grouped into one message; a rule that keeps firing is repeated, critical ones sooner.
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: betula-owner
+    group_by: ["grafana_folder", "alertname"]
+    group_wait: 30s       # collect alerts that start together (a host problem fires several rules)
+    group_interval: 5m
+    repeat_interval: 24h
+    routes:
+      - receiver: betula-owner
+        object_matchers:
+          - ["severity", "=", "critical"]
+        repeat_interval: 4h

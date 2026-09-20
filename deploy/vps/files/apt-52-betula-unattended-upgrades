@@ -1,0 +1,21 @@
+// Installed by /opt/betula/vps/10-base.sh as /etc/apt/apt.conf.d/52-betula-unattended-upgrades.
+// Sorts after the distribution's 50unattended-upgrades and overrides single values, so that
+// conffile stays untouched. Its Allowed-Origins already mean "security only" (the -updates
+// pocket is commented out there); Docker's repository is not an allowed origin either, so an
+// engine upgrade (which restarts every container) only happens when 30-docker.sh is asked to.
+
+// Kernel and libc fixes only take effect after a reboot. The time is host-local ("shutdown -r
+// 04:30") and the host runs on Europe/Berlin (HOST_TIMEZONE in vps/lib.sh): the quietest hour
+// for a German audience, in summer and in winter. Interrupting the scraper is always safe
+// (docs/operations.md: every page is archived on its own, builds are single transactions).
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
+Unattended-Upgrade::Automatic-Reboot-Time "04:30";
+
+// Old kernels fill a small /boot and a small disk.
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+// An interrupted dpkg run must repair itself; nobody logs in to type "dpkg --configure -a".
+Unattended-Upgrade::AutoFixInterruptedDpkg "true";

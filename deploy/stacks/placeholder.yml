@@ -1,0 +1,86 @@
+# Stack "placeholder": a static "coming soon" page at https://betula.app.
+# It proves DNS -> firewall -> Traefik -> Let's Encrypt -> overlay network -> service before the app exists.
+#
+#   bash /opt/betula/vps/40-stacks.sh placeholder      # skips it as soon as a stack "btu" exists
+#   docker stack deploy -c /opt/betula/stacks/placeholder.yml placeholder
+#
+# Going live: deploy the app stack first, check it, then "docker stack rm placeholder". The router below has
+# priority 1, so the app's router for the same host wins the moment it appears - no gap and no tie between two
+# identical rules. Both routers use the same stored certificate.
+#
+# nginx.conf is a single-file bind mount and sync.sh replaces a changed file (new inode), so a running task
+# keeps the old one. vps/40-stacks.sh exports PLACEHOLDER_CONFIG_REV (a checksum of the file); a new value
+# changes the label below and swarm restarts the task. By hand: docker service update --force placeholder_web.
+# Changes below html/ are served immediately.
+
+services:
+  web:
+    # Runs as uid 101 and listens on 8080; the -slim variant has no extra modules.
+    image: nginxinc/nginx-unprivileged:1.30.5-alpine-slim
+    environment:
+      # The entrypoint would otherwise report on every start that it cannot edit files on a read-only root.
+      NGINX_ENTRYPOINT_QUIET_LOGS: "1"
+    networks:
+      - edge
+    labels:
+      app.betula.config-rev: "${PLACEHOLDER_CONFIG_REV:-0}"
+    volumes:
+      - type: bind
+        source: /opt/betula/config/placeholder/nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+      - type: bind
+        source: /opt/betula/config/placeholder/html
+        target: /usr/share/nginx/html
+        read_only: true
+      # pid file and temp paths; the only writable place.
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 8388608
+    read_only: true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      replicas: 1
+      placement:
+        # Bind mounts from /opt/betula exist on this node only.
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
+          pids: 64
+        reservations:
+          cpus: "0.05"
+          memory: 8M
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 60s
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: 15s
+      rollback_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=edge"
+        - "traefik.http.routers.placeholder.rule=Host(`betula.app`)"
+        - "traefik.http.routers.placeholder.entrypoints=websecure"
+        - "traefik.http.routers.placeholder.tls.certresolver=le"
+        - "traefik.http.routers.placeholder.middlewares=secure-headers@file,compress@file"
+        - "traefik.http.routers.placeholder.priority=1"
+        - "traefik.http.services.placeholder.loadbalancer.server.port=8080"
+
+networks:
+  edge:
+    external: true

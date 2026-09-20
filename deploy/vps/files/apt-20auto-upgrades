@@ -1,0 +1,6 @@
+// Installed by /opt/betula/vps/10-base.sh as /etc/apt/apt.conf.d/20auto-upgrades.
+// Same file name that "dpkg-reconfigure unattended-upgrades" writes, so there is one switch, not two.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+// Old .deb files in the cache are dead weight on a small disk.
+APT::Periodic::AutocleanInterval "7";

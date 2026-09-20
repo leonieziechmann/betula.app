@@ -1,0 +1,46 @@
+# Prometheus 3.13 - checked against docs/configuration/configuration.md of v3.13.3.
+# Host and container metrics are NOT scraped here: Alloy collects them on the host and
+# pushes them through remote write (jobs integrations/unix and integrations/cadvisor).
+# Apply changes with:  docker service update --force monitoring_prometheus
+
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+
+storage:
+  tsdb:
+    # In 3.13 retention belongs here; the --storage.tsdb.retention.* flags are deprecated.
+    retention:
+      time: 15d
+      size: 3GB        # cap: whichever limit is reached first wins
+    # Alloy replays its write-ahead log after a restart; accept samples that arrive late
+    # instead of rejecting them as out of order.
+    out_of_order_time_window: 10m
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
+
+  # Traefik's dedicated metrics entrypoint, reachable only over the external "monitoring"
+  # overlay. The target is simply down until the edge stack runs.
+  - job_name: traefik
+    static_configs:
+      - targets: ["edge_traefik:8082"]
+
+  - job_name: loki
+    static_configs:
+      - targets: ["monitoring_loki:3100"]
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["monitoring_grafana:3000"]
+
+  - job_name: alloy
+    static_configs:
+      - targets: ["monitoring_alloy:12345"]
+
+  # App metrics later: attach the btu service to the "monitoring" overlay and add e.g.
+  # - job_name: btu-scraper
+  #   static_configs:
+  #     - targets: ["btu_scraper:8090"]

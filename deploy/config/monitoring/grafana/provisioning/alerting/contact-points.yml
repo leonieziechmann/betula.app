@@ -1,0 +1,56 @@
+# Where alerts go. The contact point is named after its role, not its channel: the
+# notification policy (policies.yml) refers to "betula-owner", so switching the channel
+# only means replacing the receiver below and restarting Grafana
+# (docker service update --force monitoring_grafana).
+#
+# E-mail stays silent until SMTP is wired (deploy with monitoring.smtp.yml); until then
+# Grafana logs "SMTP not configured" for every attempt and alerts are only visible in the UI:
+# the panel "Alerts that need attention" on top of the overview (home) dashboard lists them.
+#
+# Switching to another channel - replace the receiver, keep the contact point's name:
+#
+#   ntfy - the quickest way to real notifications: no SMTP, no account, one secret (the topic
+#   URL), push messages on the phone. Self-hosted or ntfy.sh; the built-in template renders
+#   Grafana's JSON as text:
+#     - uid: betula-owner-ntfy
+#       type: webhook
+#       settings:
+#         url: https://ntfy.sh/<long-random-topic>?template=grafana
+#         httpMethod: POST
+#
+#   any other webhook: same as above with its URL; add
+#         authorization_scheme: Bearer
+#         authorization_credentials: $__file{/run/secrets/grafana-webhook-token}
+#
+#   Telegram:
+#     - uid: betula-owner-telegram
+#       type: telegram
+#       settings:
+#         bottoken: $__file{/run/secrets/grafana-telegram-bot-token}
+#         chatid: "<chat id>"
+#
+# Tokens never go into this file. Create a swarm secret on the server
+# (stacks/monitoring-secrets.sh), hand it to the grafana service with your copy of
+# stacks/monitoring.notify.example.yml (vps/40-stacks.sh then deploys it every time), and
+# read it with $__file{...} as shown. A topic URL on a public ntfy server is a secret too:
+# put the whole URL into a secret and use  url: $__file{/run/secrets/grafana-ntfy-url}.
+#
+# Settings in this file are expanded ($VAR, $__file{}). A literal dollar sign, for
+# example in a message template, must be written as $$.
+#
+# The old receiver has to be deleted explicitly once, or it stays next to the new one:
+#   deleteContactPoints:
+#     - orgId: 1
+#       uid: betula-owner-email
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: betula-owner
+    receivers:
+      - uid: betula-owner-email
+        type: email
+        disableResolveMessage: false
+        settings:
+          addresses: contact@leonieziechmann.de
+          singleEmail: true

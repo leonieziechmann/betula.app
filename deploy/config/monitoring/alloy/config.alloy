@@ -1,0 +1,285 @@
+// Grafana Alloy v1.19 - the one agent on the host. Component names and arguments were
+// checked against the v1.19 reference. All components used here are generally available.
+//
+//   container logs  -> Loki        labels: job="docker", stack, service, container
+//   host journal    -> Loki        labels: job="journal", unit   (level = structured metadata)
+//   host metrics    -> Prometheus  embedded node_exporter  (job integrations/unix)
+//   container metrics -> Prometheus embedded cAdvisor      (job integrations/cadvisor)
+//
+// Apply changes with:  docker service update --force monitoring_alloy
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// ---------------------------------------------------------------- container logs
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+// Only the rules are used (loki.source.docker applies them to every target itself).
+discovery.relabel "container_labels" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_stack_namespace"]
+    target_label  = "stack"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_swarm_service_name"]
+    target_label  = "service"
+  }
+
+  // Docker reports "/edge_traefik.1.abc"; drop the slash.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.docker.containers.targets
+  labels           = {job = "docker"}
+  relabel_rules    = discovery.relabel.container_labels.rules
+  refresh_interval = "15s"
+  forward_to       = [loki.write.loki.receiver]
+}
+
+// ---------------------------------------------------------------- host journal
+
+loki.relabel "journal" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+
+  // Kernel messages and a few others have no unit: use the syslog identifier ("kernel", "sudo").
+  rule {
+    source_labels = ["unit", "__journal_syslog_identifier"]
+    separator     = ";"
+    regex         = ";(.+)"
+    target_label  = "unit"
+  }
+
+  // Every SSH login is its own session-<n>.scope and the operator opens many short
+  // sessions. Unnumbered, they stay one stream instead of thousands.
+  rule {
+    source_labels = ["unit"]
+    regex         = "session-\\d+\\.scope"
+    target_label  = "unit"
+    replacement   = "session.scope"
+  }
+
+  rule {
+    source_labels = ["unit"]
+    regex         = "(run|docker)-.+\\.(scope|service|mount)"
+    target_label  = "unit"
+    replacement   = "$1.$2"
+  }
+
+  // syslog priority -> the level names Loki and Grafana know.
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+
+  rule {
+    source_labels = ["level"]
+    regex         = "emerg|alert|crit"
+    target_label  = "level"
+    replacement   = "critical"
+  }
+
+  rule {
+    source_labels = ["level"]
+    regex         = "err"
+    target_label  = "level"
+    replacement   = "error"
+  }
+
+  rule {
+    source_labels = ["level"]
+    regex         = "warning"
+    target_label  = "level"
+    replacement   = "warn"
+  }
+
+  rule {
+    source_labels = ["level"]
+    regex         = "notice"
+    target_label  = "level"
+    replacement   = "info"
+  }
+
+  // Keep this rule LAST. Alloy 1.19.0 - 1.19.2 overwrite the job label from "labels" below
+  // with the component id ("loki.source.journal.host", grafana/alloy#6980; fixed upstream
+  // after 1.19.2). Relabeling runs after that, so this pins job="journal" in every version;
+  // three alert rules and both dashboards select on it and would silently match nothing.
+  rule {
+    target_label = "job"
+    replacement  = "journal"
+  }
+}
+
+loki.source.journal "host" {
+  // Explicit path: without one Alloy opens the journal "local only", which depends on the
+  // container's /etc/machine-id matching the host's and is the code path of the open bug
+  // grafana/alloy#924 (nothing is read, and nothing is logged about it). With a path every
+  // journal below the directory is read. Only /var/log/journal is mounted from the host (journald
+  // is persistent there; see the alloy service in stacks/monitoring.yml for why /run is left out).
+  path          = "/var/log/journal"
+  max_age       = "12h"
+  labels        = {job = "journal"}   // see the last rule of loki.relabel "journal"
+  relabel_rules = loki.relabel.journal.rules
+  forward_to    = [loki.process.journal.receiver]
+}
+
+loki.process "journal" {
+  forward_to = [loki.write.loki.receiver]
+
+  // Each container health check makes systemd log a mount unit going away -
+  // dozens of lines per minute that say nothing.
+  stage.drop {
+    expression          = "^run-docker-.*\\.mount: (Deactivated successfully|Succeeded)\\.$"
+    drop_counter_reason = "docker_healthcheck_mount_noise"
+  }
+
+  // level would multiply the streams per unit as an index label. A pipeline starts with
+  // the labels in its extracted map, so the value can move to structured metadata;
+  // Loki derives detected_level from it.
+  stage.structured_metadata {
+    values = {level = ""}
+  }
+
+  stage.label_drop {
+    values = ["level"]
+  }
+}
+
+loki.write "loki" {
+  endpoint {
+    url = "http://monitoring_loki:3100/loki/api/v1/push"
+
+    // About an hour of retries instead of 8 minutes before a batch is dropped. While a
+    // batch waits, the sources stop reading; Docker and journald keep the lines.
+    max_backoff_retries = 20
+  }
+}
+
+// ---------------------------------------------------------------- host metrics
+
+prometheus.exporter.unix "host" {
+  // The host root is mounted at /rootfs (it contains the host's /proc); the host's
+  // /sys is mounted over /sys because cAdvisor needs it there.
+  procfs_path    = "/rootfs/proc"
+  sysfs_path     = "/sys"
+  rootfs_path    = "/rootfs"
+  udev_data_path = "/rootfs/run/udev/data"
+
+  // Network collectors are left out on purpose: /proc/net belongs to the network
+  // namespace of the reader, i.e. this container. Host traffic comes from cAdvisor's
+  // root cgroup (id="/"), which reads /proc/1/net/dev.
+  set_collectors = [
+    "cpu",
+    "diskstats",
+    "filefd",
+    "filesystem",
+    "loadavg",
+    "meminfo",
+    "pressure",
+    "stat",
+    "time",
+    "uname",
+    "vmstat",
+  ]
+
+  filesystem {
+    fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|efivarfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tmpfs|tracefs)$"
+    mount_points_exclude = "^/(dev|proc|run|sys|var/lib/docker/.+|var/lib/containerd/.+)($|/)"
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = prometheus.exporter.unix.host.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+// ---------------------------------------------------------------- container metrics
+
+prometheus.exporter.cadvisor "containers" {
+  docker_host = "unix:///var/run/docker.sock"
+
+  // Docker 29 keeps images in containerd; cAdvisor then needs containerd (namespace
+  // "moby") to resolve a container. Through /rootfs the path stays valid when containerd
+  // restarts, and a missing socket only costs container metrics, not the whole task.
+  containerd_host = "/rootfs/run/containerd/containerd.sock"
+
+  docker_only     = true   // Docker containers plus the root cgroup (= host totals)
+  enabled_metrics = ["cpu", "memory", "network", "diskIO"]
+
+  // Only the two Swarm labels become metric labels, not every container label.
+  store_container_labels       = false
+  allowlisted_container_labels = [
+    "com.docker.stack.namespace",
+    "com.docker.swarm.service.name",
+  ]
+
+  storage_duration = "1m"
+}
+
+prometheus.scrape "containers" {
+  targets         = prometheus.exporter.cadvisor.containers.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.containers.receiver]
+}
+
+prometheus.relabel "containers" {
+  forward_to = [prometheus.remote_write.prometheus.receiver]
+
+  // The same label names as in Loki, so dashboards and alerts read alike.
+  rule {
+    source_labels = ["container_label_com_docker_stack_namespace"]
+    target_label  = "stack"
+  }
+
+  rule {
+    source_labels = ["container_label_com_docker_swarm_service_name"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["name"]
+    target_label  = "container"
+  }
+
+  rule {
+    action = "labeldrop"
+    regex  = "container_label_.*"
+  }
+
+  // One veth pair per container shows up in the host's interface list; pure churn.
+  rule {
+    source_labels = ["interface"]
+    regex         = "veth.*"
+    action        = "drop"
+  }
+}
+
+prometheus.remote_write "prometheus" {
+  endpoint {
+    url = "http://monitoring_prometheus:9090/api/v1/write"
+
+    queue_config {
+      max_shards = 3   // a few thousand series; the default of 50 only costs memory
+    }
+  }
+}

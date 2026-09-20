@@ -1,0 +1,19 @@
+# Installed by /opt/betula/vps/30-docker.sh as /etc/systemd/system/betula-docker-prune.service.
+
+[Unit]
+Description=Betula: remove dangling Docker images and old build cache
+Documentation=file:///opt/betula/vps/30-docker.sh
+After=docker.service
+# Do not start Docker just to clean it; skip the run when the daemon is down.
+Requisite=docker.service
+
+[Service]
+Type=oneshot
+# Dangling only (no --all): an image that arrived with "docker load" and is not used by a
+# service yet is tagged, hence not dangling, and must survive. What goes away are the untagged
+# leftovers of re-loading a tag (the previous btu-scraper:<tag> after an update).
+ExecStart=/usr/bin/docker image prune --force
+# Build cache is only ever created by an ad-hoc build on the server; a week is generous.
+ExecStart=/usr/bin/docker builder prune --force --all --filter until=168h
+# Never "docker system prune" / "network prune": they delete unused networks, and the overlay
+# networks edge and monitoring are unused whenever their stacks are down.

@@ -1,0 +1,22 @@
+# TLS options "default": used by every router that does not name other options.
+
+tls:
+  options:
+    default:
+      # Every browser from the last ten years speaks 1.2. TLS 1.3 suites are fixed in Go and not listed here.
+      minVersion: VersionTLS12
+      # TLS 1.2: ECDHE + AEAD only (Mozilla "intermediate"). ECDSA first, the certificates are EC256; the RSA
+      # entries keep a certificate with an RSA key working.
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+      # No curvePreferences: Go's default list includes the post-quantum hybrid X25519MLKEM768, and a list
+      # written here would freeze it.
+      #
+      # Unknown or missing SNI fails the handshake instead of getting Traefik's self-signed default
+      # certificate: a scan of the IP address learns nothing, and no browser ever sees a wrong certificate.
+      sniStrict: true

@@ -1,0 +1,8 @@
+Explanation: Installed by /opt/betula/vps/30-docker.sh as /etc/apt/preferences.d/betula-docker.
+Explanation: The firewall integration (DOCKER-USER chain, iptables backend, swarm) was verified
+Explanation: against Docker Engine 29.x. Patch and minor releases of 29 are welcome; a new major
+Explanation: release must be a decision, because it may change how published ports are filtered.
+Explanation: Raise the version here and DOCKER_MAJOR in 30-docker.sh / 90-verify-host.sh together.
+Package: docker-ce docker-ce-cli docker-ce-rootless-extras
+Pin: version 5:29.*
+Pin-Priority: 900

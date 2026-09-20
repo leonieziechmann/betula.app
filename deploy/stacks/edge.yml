@@ -1,0 +1,332 @@
+# Stack "edge": Traefik v3, the only service that publishes ports, and a read-only Docker socket proxy.
+#
+#   bash /opt/betula/vps/40-stacks.sh edge       # the normal way: checks DNS, adds edge.www.yml when it may, waits
+#   docker stack deploy -c /opt/betula/stacks/edge.yml edge
+#   docker stack deploy -c /opt/betula/stacks/edge.yml -c /opt/betula/stacks/edge.www.yml edge   # see edge.www.yml first
+#
+# docker stack deploy substitutes ${VAR} from the invoking shell (sudo resets the environment; the deploy
+# user is in the docker group and needs no sudo). All variables are optional:
+#   ACME_CASERVER      ACME directory URL. Unset or empty: Let's Encrypt production. Staging (untrusted
+#                      certificates, generous rate limits): https://acme-staging-v02.api.letsencrypt.org/directory
+#                      It is the only switch. The certificate store follows it (production -> /acme/acme.json,
+#                      any other CA -> /acme/acme-staging.json; see the entrypoint of the traefik service), so
+#                      staging certificates cannot end up in the production store, and going back to production
+#                      is a deploy without the variable.
+#                      A staging run cannot be checked in a browser: .app is HSTS-preloaded, so there is no
+#                      click-through for the untrusted chain. Look at the issuer instead, it contains "(STAGING)":
+#                        curl -vk https://betula.app/ 2>&1 | grep -i issuer
+#                        openssl s_client -connect betula.app:443 -servername betula.app </dev/null 2>/dev/null \
+#                          | openssl x509 -noout -issuer
+#   SOCKET_PROXY_USER  uid:gid of the socket proxy, default 0:0 (see the service). Non-root alternative:
+#                      "65534:$(getent group docker | cut -d: -f3)"
+#
+# ---- Contract for other stacks ------------------------------------------------------------------------------
+# networks      "edge"        Traefik <-> public-facing services   } external attachable overlays,
+#               "monitoring"  metrics scraping                      } created by the host scripts
+# entrypoints   web :80 (redirects everything to https; also answers the ACME HTTP-01 challenge)
+#               websecure :443 (default entrypoint of every router)
+#               metrics :8082, not published: scrape http://edge_traefik:8082/metrics over "monitoring"
+# certresolver  "le". A router that names it makes Traefik order a certificate immediately, so only use it for
+#               host names whose DNS already points at this server: failed validations are rate limited
+#               (5 per host name per hour).
+#               Traefik does NOT retry a failed order on its own. It tries again when the routing configuration
+#               changes or when it restarts; until then the host name fails in the TLS handshake (sniStrict, no
+#               fallback certificate). Find it:  docker service logs edge_traefik 2>&1 | grep -i acme
+#               ("Unable to obtain ACME certificate for domains"). Fix the cause (DNS, 80/tcp reachable), then
+#                 docker service update --force edge_traefik
+#               That is one new attempt per missing host name per restart: stay below 5 per hour.
+# middlewares   secure-headers@file (every public router), compress@file, rate-limit@file (optional);
+#               defined in /opt/betula/config/traefik/dynamic/, reloaded by Traefik without a restart
+# tls           options "default" (same directory): TLS >= 1.2, AEAD suites, sniStrict. Requests for a host
+#               name without a certificate (or for the bare IP) fail in the handshake; that is intended.
+# logs          JSON on stdout. Application lines carry "level" in lower case (debug|info|warn|error).
+#               Access log lines carry "level":"info" as well - always, whatever the status - and an empty
+#               "msg". They are the lines with DownstreamStatus (plus RequestHost, RequestPath, Duration,
+#               ClientHost and, when a router matched, RouterName). Never use level for failed requests:
+#                 {service="edge_traefik"} | json | DownstreamStatus >= 500     failed requests
+#                 {service="edge_traefik"} | json | DownstreamStatus = ""       Traefik's own messages
+# privacy       The access log is personal data: client IP address (ClientHost) and port, requested URL with
+#               its query string, user agent, time. It exists twice: in Docker's log files on this host (local
+#               driver, 10 MB x 5 per container, oldest file dropped first) and in Loki, stream
+#               {service="edge_traefik"}, for 7 days (retention_stream in config/monitoring/loki.yml; every
+#               other stream is kept 30 days). The privacy notice of the site has to name both. Traefik cannot
+#               shorten addresses; the levers are dropped fields (see the accessLog flags) and that retention.
+# ipv6          The host has a global IPv6 address and Docker publishes 80/443 on [::] too, but no Docker
+#               network has IPv6: docker-proxy relays those connections, and Traefik sees the gateway of
+#               docker_gwbridge (172.30.x.1) as the client - no usable address in the access log and one
+#               rate-limit bucket for everybody. Without AAAA records only scanners arrive that way.
+#               Do NOT create AAAA records for betula.app or any subdomain until Traefik receives IPv6 itself.
+#
+# Labels for a new public service. They belong under deploy.labels (service labels); container labels are not
+# seen by the swarm provider. Router, service and middleware names are global: prefix them with the stack name.
+#
+#   services:
+#     web:
+#       networks: [edge]
+#       deploy:
+#         labels:
+#           - "traefik.enable=true"
+#           - "traefik.swarm.network=edge"
+#           - "traefik.http.routers.btu-web.rule=Host(`betula.app`)"
+#           - "traefik.http.routers.btu-web.entrypoints=websecure"
+#           - "traefik.http.routers.btu-web.tls.certresolver=le"
+#           - "traefik.http.routers.btu-web.middlewares=secure-headers@file,compress@file"
+#           - "traefik.http.services.btu-web.loadbalancer.server.port=8080"   # mandatory: swarm has no port detection
+#   networks:
+#     edge:
+#       external: true
+#
+# (stacks/btu.example.yml is the full version of this for the application.)
+# A literal "$" in a label (regex replacement) must be written "$$", or stack deploy tries to substitute it.
+#
+# ---- Decisions ----------------------------------------------------------------------------------------------
+# Static configuration is passed as CLI arguments, not as /etc/traefik/traefik.yml:
+#   - Traefik reads exactly one static source (file, flags or environment; a file wins and the rest is ignored),
+#     and only this stack file is substituted at deploy time. The ACME_CASERVER toggle therefore needs flags;
+#     the two flags that depend on it are appended by the entrypoint of the service.
+#   - A changed flag changes the service spec, so "docker stack deploy" restarts Traefik by itself. An edited
+#     bind-mounted file would not. Everything that may change at runtime lives in the watched dynamic directory.
+# Compose keys that stack deploy ignores are not used (security_opt, privileged, restart, depends_on, the short
+# "tmpfs:" key, ...). no-new-privileges can only come from the daemon (/etc/docker/daemon.json).
+# No "logging:" key: the daemon default (vps/files/docker-daemon.json: local driver, rotated) applies to all.
+# CPU limits stay <= 1.0: the engine refuses to start a task whose limit exceeds the CPUs of the host.
+# No "version:" key: Docker CLI >= 23 then validates against its newest v3 schema (3.13).
+
+services:
+  traefik:
+    image: traefik:v3.7.13
+    # The certificate store is a function of the CA, so /acme/acme.json only ever holds production
+    # certificates. Traefik keeps its stored certificates when caServer changes (only the account is reset):
+    # staging certificates in the production store would be served until renewal, and on .app no browser lets
+    # anybody click past them. Stack deploy cannot derive one value from another (its substitution knows
+    # ${VAR:-default} and nothing else), hence this shell step. It replaces the image's /entrypoint.sh, which
+    # only guesses whether the first argument is a Traefik command. "$$" is a literal "$" for stack deploy.
+    entrypoint:
+      - /bin/sh
+      - -euc
+      - |
+        prod=https://acme-v02.api.letsencrypt.org/directory
+        ca="$${ACME_CASERVER:-$$prod}"
+        case "$$ca" in
+          "$$prod") store=acme.json ;;
+          https://*) store=acme-staging.json ;;
+          *) echo "ACME_CASERVER must be an https:// ACME directory URL" >&2; exit 64 ;;
+        esac
+        printf '{"level":"info","msg":"ACME CA %s, certificate store /acme/%s"}\n' "$$ca" "$$store"
+        exec traefik "$$@" \
+          "--certificatesResolvers.le.acme.caServer=$$ca" \
+          "--certificatesResolvers.le.acme.storage=/acme/$$store"
+      - traefik
+    command:
+      - "--global.checkNewVersion=false"
+      - "--global.sendAnonymousUsage=false"
+      # The API and the dashboard stay off: there is deliberately no --api flag.
+
+      - "--log.level=INFO"
+      - "--log.format=json"
+      - "--accessLog=true"
+      - "--accessLog.format=json"
+      # Request headers are dropped by default; the user agent is what tells a crawler from a person.
+      - "--accessLog.fields.headers.names.User-Agent=keep"
+      # Personal data only once (see "privacy" above): ClientAddr repeats ClientHost:ClientPort, and
+      # ClientUsername would record basic-auth user names. ClientHost stays, abuse handling needs it.
+      - "--accessLog.fields.names.ClientAddr=drop"
+      - "--accessLog.fields.names.ClientUsername=drop"
+
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entryPoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entryPoints.web.http.redirections.entryPoint.permanent=true"
+      - "--entryPoints.websecure.address=:443"
+      # Without this, a router that names no entrypoint would also listen on web, metrics and ping.
+      - "--entryPoints.websecure.asDefault=true"
+      # A router that forgets its tls label must not become plain HTTP on port 443.
+      - "--entryPoints.websecure.http.tls=true"
+      - "--entryPoints.metrics.address=:8082"
+      # Loopback only: nothing but the container healthcheck needs /ping.
+      - "--entryPoints.ping.address=127.0.0.1:8081"
+
+      - "--ping=true"
+      - "--ping.entryPoint=ping"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entryPoint=metrics"
+      - "--metrics.prometheus.addRoutersLabels=true"
+
+      - "--providers.swarm.endpoint=tcp://socket-proxy:2375"
+      - "--providers.swarm.exposedByDefault=false"
+      - "--providers.swarm.network=edge"
+      # The provider polls; a proxy that hangs must not block it forever.
+      - "--providers.swarm.httpClientTimeout=15s"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+
+      # caServer and storage are appended by the entrypoint above.
+      - "--certificatesResolvers.le.acme.email=contact@leonieziechmann.de"
+      - "--certificatesResolvers.le.acme.keyType=EC256"
+      - "--certificatesResolvers.le.acme.httpChallenge.entryPoint=web"
+    environment:
+      # Read by the entrypoint, not by Traefik (which only looks at TRAEFIK_* and ignores even those once
+      # flags are given). As a variable and not pasted into the script: a value is data, never shell code.
+      ACME_CASERVER: "${ACME_CASERVER:-}"
+      # Soft limit below the container limit: the Go runtime collects harder instead of being OOM-killed.
+      GOMEMLIMIT: "220MiB"
+    ports:
+      # mode: host bypasses the routing mesh, so Traefik (and the rate limiter, and the access log) see the
+      # real client address instead of an ingress-network address. True for IPv4 only, see "ipv6" above.
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+    networks:
+      - edge
+      - monitoring
+      - socket
+    volumes:
+      # Traefik creates the store file itself with mode 0600 and refuses a restored copy that is more open.
+      # The volume root belongs to root, which is why Traefik runs as root (without capabilities, see below).
+      - type: volume
+        source: acme
+        target: /acme
+      # The directory, not single files: a file bind mount pins the inode, and sync.sh replaces a changed
+      # file by renaming a new one into place (the directory itself is never replaced).
+      - type: bind
+        source: /opt/betula/config/traefik/dynamic
+        target: /etc/traefik/dynamic
+        read_only: true
+      # The buffering middleware spills large bodies to the temp dir; nothing else is writable.
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    stop_grace_period: 20s
+    healthcheck:
+      # The healthcheck is a second traefik process that does not see the flags above; it needs these three
+      # to find the ping entrypoint.
+      test:
+        - "CMD"
+        - "traefik"
+        - "healthcheck"
+        - "--ping=true"
+        - "--ping.entryPoint=ping"
+        - "--entryPoints.ping.address=127.0.0.1:8081"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      # Exactly one: two instances would both write the certificate store and both order certificates.
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+          pids: 512
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 120s
+      update_config:
+        # Host-mode ports: the new task cannot bind 80/443 while the old one runs. Updates cost a few seconds.
+        order: stop-first
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        order: stop-first
+
+  socket-proxy:
+    # Traefik never touches /var/run/docker.sock. This proxy forwards only the listed read requests;
+    # everything else, and every method other than GET/HEAD, is answered with 403/405.
+    image: wollomatic/socket-proxy:1.13.1
+    # The image runs as nobody, who cannot open the socket (root:docker 0660), and the docker gid differs from
+    # host to host. uid 0 owns the socket; with every capability dropped that is all it is good for here.
+    user: "${SOCKET_PROXY_USER:-0:0}"
+    command:
+      - "-loglevel=info"
+      - "-logjson"
+      - "-listenip=0.0.0.0"
+      # The access control is the network: "socket" is internal and only these two services are attached.
+      # (The service name "traefik" would not work here: it resolves to the VIP, and Traefik connects from
+      # its task address.)
+      - "-allowfrom=0.0.0.0/0"
+      # What the swarm provider of Traefik 3.7 calls: _ping (API version negotiation), version, services,
+      # tasks, networks and one node inspect per task - without it Traefik drops every task.
+      # The pattern is matched against the path only and anchored by the proxy.
+      - "-allowHEAD=/_ping"
+      - '-allowGET=/(_ping|v1\.[0-9]{1,2}/(version|(services|tasks|networks|nodes)(/[A-Za-z0-9][A-Za-z0-9_.-]*)?))'
+      - "-allowhealthcheck"
+      # Exit when the daemon socket is gone, so swarm starts a fresh task.
+      - "-watchdoginterval=60"
+      - "-stoponwatchdog"
+      - "-shutdowngracetime=5"
+    networks:
+      - socket
+    volumes:
+      # read_only protects the socket file, not the API behind it; the allow list above does that.
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+    read_only: true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      replicas: 1
+      placement:
+        # The swarm endpoints (services, tasks, nodes) are only answered by a manager.
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
+          pids: 128
+        reservations:
+          cpus: "0.05"
+          memory: 8M
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 60s
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: 20s
+      rollback_config:
+        order: start-first
+
+networks:
+  edge:
+    external: true
+  monitoring:
+    external: true
+  socket:
+    # No route to the outside and no other members: the proxy is reachable from Traefik only.
+    driver: overlay
+    internal: true
+
+volumes:
+  # Real name: edge_acme. acme.json (production) is worth a backup; losing it means ordering every
+  # certificate again (5 identical certificates per week). acme-staging.json is disposable. To start over
+  # with a CA: docker service scale edge_traefik=0, delete its file from the volume, scale back to 1.
+  acme: {}

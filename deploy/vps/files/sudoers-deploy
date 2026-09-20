@@ -1,0 +1,5 @@
+# Installed by /opt/betula/vps/10-base.sh as /etc/sudoers.d/90-betula-deploy (mode 0440).
+# deploy has a locked password, so the "%sudo ... ALL" rule of the main file can never be
+# satisfied; without NOPASSWD the account could not administer anything.
+# Plain syntax only: Ubuntu 26.04 runs sudo-rs, which implements a subset of sudoers.
+deploy ALL=(ALL:ALL) NOPASSWD: ALL

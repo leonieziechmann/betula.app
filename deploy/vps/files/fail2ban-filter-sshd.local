@@ -1,0 +1,11 @@
+# Installed by /opt/betula/vps/10-base.sh as /etc/fail2ban/filter.d/sshd.local.
+# OpenSSH 9.8 split sshd into sshd + sshd-session, OpenSSH 10 added sshd-auth, and the
+# authentication failures are logged under the new names. fail2ban 1.1.0 only learned about them
+# through distribution patches; this override makes the jail independent of the patch level.
+# A filter that silently matches nothing is the classic way for fail2ban to "run" and ban nobody.
+
+[DEFAULT]
+_daemon = sshd(?:-session|-auth)?
+
+[Definition]
+journalmatch = _SYSTEMD_UNIT=ssh.service + _SYSTEMD_UNIT=sshd.service + _COMM=sshd + _COMM=sshd-session + _COMM=sshd-auth

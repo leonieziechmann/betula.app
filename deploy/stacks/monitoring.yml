@@ -1,0 +1,303 @@
+# Stack "monitoring": Grafana + Loki + Prometheus + Grafana Alloy.
+#
+#   bash /opt/betula/vps/40-stacks.sh monitoring     # the normal way: creates the admin secret, picks the
+#                                                    # overrides (DNS check, SMTP secrets), exports
+#                                                    # MONITORING_CONFIG_REV and waits for 1/1 everywhere
+#   cd /opt/betula/stacks && docker stack deploy -c monitoring.yml monitoring
+#
+# Optional overrides. Swarm replaces the whole service spec on every deploy, so pass
+# the SAME set of -c files every time or the routers / SMTP settings vanish again:
+#
+#   GRAFANA_HOST=grafana.betula.app docker stack deploy \
+#     -c monitoring.yml -c monitoring.public.yml -c monitoring.smtp.yml monitoring
+#
+# Variables (all optional; substituted from the invoking shell, sudo would reset them):
+#   GRAFANA_HOST           public host name, default grafana.betula.app
+#   GRAFANA_ADMIN_USER     login name of the admin, default betula; only read at the FIRST deploy
+#   MONITORING_CONFIG_REV  see below
+#
+# Needs before the first deploy:
+#   - swarm secret  grafana-admin-password, created ON the server. vps/40-stacks.sh does it when the
+#                   secret is missing: 32 random characters, written once to
+#                   /root/betula-initial-credentials.txt (root only, mode 0600); only the path is
+#                   printed. To choose the initial password yourself, create the secret BEFORE the
+#                   first run of 40-stacks.sh with stacks/monitoring-secrets.sh. The value comes from
+#                   stdin and never shows up on the screen, in argv or in the shell history
+#                   ("docker secret create <name> -" typed at a terminal would echo it):
+#                     laptop:  <password manager CLI> | ssh betula /opt/betula/stacks/monitoring-secrets.sh set grafana-admin-password
+#                     or:      ssh -t betula /opt/betula/stacks/monitoring-secrets.sh set grafana-admin-password   (hidden prompt)
+#                   ("betula" = your ssh alias for deploy@betula.app.) Without the secret the
+#                   deploy stops with "secret not found".
+#                   Login: user "betula" (GRAFANA_ADMIN_USER, see the grafana service) + that password.
+#   - overlay net   monitoring (external, attachable; vps/30-docker.sh creates it)
+#   - directories   /opt/betula/config/monitoring and /var/log/journal (journald Storage=persistent,
+#                   vps/10-base.sh). A missing bind source makes Swarm reject the task ("bind source
+#                   path does not exist"); 40-stacks.sh checks every bind source before it deploys.
+#
+# No "logging:" key, like the other stacks: the daemon default applies (local driver, rotated).
+# The Docker API can read that driver back, which is how Alloy collects container logs.
+#
+# Config files are bind mounts, so Swarm does not notice when one changes (and sync.sh replaces
+# a changed file, so a single-file mount like loki.yml even keeps showing the old one). Hence
+# MONITORING_CONFIG_REV: vps/40-stacks.sh exports a checksum of /opt/betula/config/monitoring,
+# and a new value restarts all four services. By hand:
+#   docker service update --force monitoring_<service>
+#
+# Nothing here publishes a port; Grafana becomes public only through monitoring.public.yml
+# (its DNS record exists, so that override is part of the first deploy). Without it, or when
+# Traefik is the thing that is broken, use an SSH tunnel to the container's address on
+# docker_gwbridge:
+#   server:  cid=$(docker ps -q --no-trunc -f name=monitoring_grafana | head -n 1)
+#            docker network inspect docker_gwbridge -f "{{(index .Containers \"$cid\").IPv4Address}}"
+#   laptop:  ssh -N -L 3000:<that address without the /prefix>:3000 betula     (your ssh alias)
+#            open http://localhost:3000 (Chrome and Firefox accept the Secure cookie on localhost)
+#
+# After the first deploy, check that every piece really works on this host:
+#   docker stack services monitoring                      # 1/1 everywhere
+#   Grafana > Explore > Prometheus:  container_last_seen{service!=""}   # names present = cAdvisor sees Docker
+#                                    node_filesystem_avail_bytes{mountpoint="/"}
+#   Grafana > Explore > Loki:        {job="docker"}  and  {job="journal"}
+#
+# Memory budget (limits): grafana 768M + loki 288M + prometheus 256M + alloy 288M = 1600M.
+# Measured host: 4 vCPU, 5.9 GB RAM. The budget stays: the memory belongs to the application,
+# and the scraper's build step is the big consumer. No reservations: a reservation that does
+# not fit keeps a task pending forever. CPU limits stay <= 1.0, so a query storm in the
+# monitoring stack can never take more than one core per service away from the site.
+
+x-restart: &restart
+  condition: any
+  delay: 10s
+  window: 60s
+
+x-placement: &placement
+  # Bind mounts only exist on this node.
+  constraints:
+    - node.role == manager
+
+services:
+  grafana:
+    image: grafana/grafana:13.2.2
+    environment:
+      GF_SERVER_DOMAIN: ${GRAFANA_HOST:-grafana.betula.app}
+      GF_SERVER_ROOT_URL: https://${GRAFANA_HOST:-grafana.betula.app}/
+      # Not "admin": Grafana locks a USER NAME after 5 failed logins in 5 minutes, so bots that
+      # guess the default name on the public login page would keep the owner locked out.
+      # Name and password are only read when the database is created (first deploy); a later
+      # change of GRAFANA_ADMIN_USER or of the secret does nothing. To change the password later:
+      #   ... | ssh betula /opt/betula/stacks/monitoring-secrets.sh reset-admin-password
+      # (grafana cli --password-from-stdin; "reset-admin-password <new>" would leave the
+      # password in the shell history and in ps.)
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-betula}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
+      # Also lock out the guessing ADDRESS (off by default). Traefik passes the real client
+      # address as X-Real-Ip (host-mode ports) and strips the header from outside requests.
+      GF_SECURITY_DISABLE_IP_ADDRESS_LOGIN_PROTECTION: "false"
+      # Passwords are only accepted by the login form, which monitoring.public.yml rate-limits;
+      # with basic auth every API path would take guesses. Automation uses service account tokens.
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: lax
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # No phoning home: usage stats, update checks, news feed, plugin downloads, snapshots.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_ANALYTICS_FEEDBACK_LINKS_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_PUBLIC_DASHBOARDS_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/betula-overview.json
+      # Measured on this server (2026-09-20): Grafana 13.2.2 idles at ~390 MB of anonymous memory
+      # with the two dashboards and 14 alert rules; the first limit of 384M was hit 24 times within
+      # five minutes (memory.events max). The host has 5.9 GB, so the headroom is cheap.
+      GOMEMLIMIT: 640MiB
+    secrets:
+      - source: grafana-admin-password
+        target: grafana-admin-password
+        uid: "472"
+        gid: "0"
+        mode: 0400
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - /opt/betula/config/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /opt/betula/config/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      default: {}
+    labels:
+      app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
+    cap_drop: [ALL]
+    healthcheck:
+      # curl is part of the Alpine based Grafana image.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    deploy:
+      replicas: 1
+      placement: *placement
+      restart_policy: *restart
+      update_config:
+        order: stop-first   # one writer on the SQLite volume
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  loki:
+    image: grafana/loki:3.7.8
+    command:
+      - -config.file=/etc/loki/loki.yml
+    environment:
+      GOMEMLIMIT: 250MiB
+    volumes:
+      - loki-data:/loki
+      - /opt/betula/config/monitoring/loki.yml:/etc/loki/loki.yml:ro
+    networks:
+      default: {}
+    labels:
+      app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
+    cap_drop: [ALL]
+    healthcheck:
+      # The image is distroless (no shell, no wget); the binary checks itself.
+      test: ["CMD", "/usr/bin/loki", "-health", "-health.url=http://127.0.0.1:3100/ready"]
+      interval: 30s
+      timeout: 6s
+      retries: 5
+      start_period: 90s
+    deploy:
+      replicas: 1
+      placement: *placement
+      restart_policy: *restart
+      update_config:
+        order: stop-first
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 288M
+
+  prometheus:
+    image: prom/prometheus:v3.13.3
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Alloy pushes host and container metrics here. Retention lives in prometheus.yml
+      # (the retention flags are deprecated in 3.13). GOMEMLIMIT follows the cgroup limit.
+      - --web.enable-remote-write-receiver
+    volumes:
+      - prometheus-data:/prometheus
+      - /opt/betula/config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      default: {}
+      monitoring: {}   # the only member of this stack on the shared overlay: it scrapes edge_traefik:8082
+    labels:
+      app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
+    cap_drop: [ALL]
+    healthcheck:
+      # busybox wget is part of the image.
+      test: ["CMD", "wget", "-q", "-T", "5", "--spider", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 6s
+      retries: 5
+      start_period: 60s
+    deploy:
+      replicas: 1
+      placement: *placement
+      restart_policy: *restart
+      update_config:
+        order: stop-first   # the TSDB directory is locked by one process
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 256M
+
+  alloy:
+    image: grafana/alloy:v1.19.2
+    # The node's name becomes the instance label of the host metrics.
+    hostname: "{{.Node.Hostname}}"
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345   # scraped by Prometheus; not published
+      - --disable-reporting
+    environment:
+      GOMEMLIMIT: 250MiB
+    # SECURITY, stated plainly: this container is root-equivalent on the host.
+    #  - /var/run/docker.sock gives the full Docker API. ":ro" does NOT restrict it: it
+    #    only protects the socket file, a client can still connect and send any request.
+    #  - /:/rootfs:ro exposes every host file, including /run/containerd/containerd.sock.
+    # Why it is accepted instead of a second docker-socket-proxy: on Docker 29 (containerd
+    # image store) the embedded cAdvisor must also talk to containerd's gRPC socket, which
+    # an HTTP socket proxy cannot filter, and it needs the host root at /rootfs anyway. A
+    # proxy in front of docker.sock alone would not lower the privilege. What limits the
+    # risk: Alloy publishes no port, sits only on the stack-internal network, the image
+    # tag is pinned, and it runs as root (needed for the journal and /proc) but without
+    # "privileged" (Swarm cannot grant it; the cost is no OOM events from /dev/kmsg and no
+    # per-container disk usage - OOM kills are alerted on from the kernel journal instead).
+    volumes:
+      - alloy-data:/var/lib/alloy/data            # log positions + remote-write WAL survive restarts
+      - /opt/betula/config/monitoring/alloy:/etc/alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log/journal:/var/log/journal:ro
+      # /run/log/journal is deliberately NOT mounted. journald is persistent here (vps/10-base.sh)
+      # and flushes the early-boot runtime journal into /var/log/journal, so nothing is lost; but
+      # if that directory were ever missing after a boot, Swarm would reject the whole task
+      # ("bind source path does not exist") and logs AND metrics would stop.
+      - /etc/machine-id:/etc/machine-id:ro        # journald stores its files under this id
+      - /sys:/sys:ro                              # cAdvisor reads the HOST cgroup tree at /sys/fs/cgroup
+      - type: bind                                # cAdvisor: /rootfs/proc marks "running in a container";
+        source: /                                 # unix exporter: host procfs and filesystems
+        target: /rootfs
+        read_only: true
+        bind:
+          propagation: rslave                     # host unmounts propagate, nothing is kept busy
+    networks:
+      default: {}
+    labels:
+      app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
+    healthcheck:
+      # The image has neither curl nor wget, but it is Ubuntu based: bash can open the socket.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345 &&
+          printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3 &&
+          head -n 1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement: *placement
+      restart_policy: *restart
+      update_config:
+        order: stop-first   # two agents would ship every log line twice
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 288M
+
+networks:
+  default:
+    driver: overlay
+  monitoring:
+    external: true
+
+volumes:
+  grafana-data: {}
+  loki-data: {}
+  prometheus-data: {}
+  alloy-data: {}
+
+secrets:
+  grafana-admin-password:
+    external: true

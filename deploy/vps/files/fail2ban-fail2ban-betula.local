@@ -1,0 +1,7 @@
+# Installed by /opt/betula/vps/10-base.sh as /etc/fail2ban/fail2ban.d/betula.local.
+# Incremental ban times are computed from the ban history in fail2ban's database. The default
+# purge age is one day, which would reset every offender's counter each night; keep the history
+# a little longer than the longest ban (bantime.maxtime = 1w in jail.d/betula.local).
+
+[DEFAULT]
+dbpurgeage = 8d
