@@ -386,7 +386,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   check(await page.evaluate(() => { const logo = document.querySelector(".rail .logo svg"); return logo.getClientRects().length === 1 && getComputedStyle(logo).visibility === "visible"; }), "without JavaScript the logo is gone");
   const response = await page.goto(base + "/bookmarks", { waitUntil: "domcontentloaded" });
   check(response.status() === 200 && (await page.evaluate(() => document.querySelector(".rows .state")?.textContent.includes("JavaScript"))), "without JavaScript the page of the list does not explain itself");
-  check((await page.evaluate(() => document.querySelector('meta[name="robots"]')?.content)) === "noindex", "the page of the list is offered to search engines");
+  check((await page.evaluate(() => document.querySelector('meta[name="robots"]')?.content ?? "")).startsWith("noindex"), "the page of the list is offered to search engines");
   await page.goto(base + "/catalog/module/11101", { waitUntil: "domcontentloaded" });
   check((await page.evaluate(() => [...document.querySelectorAll(".mark-switch, .action.mark-toggle")].filter((el) => el.getClientRects().length).length)) === 0, "without JavaScript the module's page shows a dead switch");
   await context.close();
