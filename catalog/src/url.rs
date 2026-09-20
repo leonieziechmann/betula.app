@@ -3,6 +3,8 @@
 //! `/`                                  landing page
 //! `/catalog?…`                         module catalog; the query string is a `CatalogQuery`
 //! `/catalog/module/<id>`               module page
+//! `/bookmarks?…`                       the visitor's marked modules (`BookmarksUrl`); which ones
+//!                                      they are is never part of a URL, only how they are shown
 //! `/programs`                          program overview
 //! `/programs/<slug>[/plan|areas|modules][?variant=<n>][&open=<id>]`   program page, its tabs,
 //!                                      which of several study plans is shown and which module
@@ -25,6 +27,8 @@ use crate::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, Teachin
 pub const HOME: &str = "/";
 pub const CATALOG: &str = "/catalog";
 pub const PROGRAMS: &str = "/programs";
+/// „Merkliste": the modules the visitor has marked. The list itself lives in the browser.
+pub const BOOKMARKS: &str = "/bookmarks";
 
 pub fn module_path(id: &str) -> String {
     format!("/catalog/module/{}", encode(id))
@@ -302,6 +306,125 @@ impl ProgramsUrl {
             return PROGRAMS.to_string();
         }
         format!("{PROGRAMS}?{}", out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&"))
+    }
+}
+
+/// What a module id may look like wherever one arrives from outside (a URL, the browser's
+/// storage): it ends up in links and queries.
+pub fn is_module_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// How the list of marked modules is ordered.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum BookmarkSort {
+    /// The newest mark first: the order of a list one keeps adding to.
+    #[default]
+    Added,
+    Title,
+    Credits,
+    /// Number of teaching events in the module's newest semester.
+    Events,
+}
+
+impl BookmarkSort {
+    pub const ALL: &'static [Self] = &[Self::Added, Self::Title, Self::Credits, Self::Events];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            BookmarkSort::Added => "added",
+            BookmarkSort::Title => "title",
+            BookmarkSort::Credits => "ects",
+            BookmarkSort::Events => "events",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            BookmarkSort::Added => "Zuletzt gemerkt",
+            BookmarkSort::Title => "Titel",
+            BookmarkSort::Credits => "Leistungspunkte",
+            BookmarkSort::Events => "Termine",
+        }
+    }
+}
+
+/// The half of the year a module is offered in, as the list of marked modules filters it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Season {
+    Winter,
+    Summer,
+}
+
+impl Season {
+    pub const ALL: &'static [Self] = &[Self::Winter, Self::Summer];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Season::Winter => "winter",
+            Season::Summer => "summer",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Season::Winter => "Winter",
+            Season::Summer => "Sommer",
+        }
+    }
+}
+
+/// What the URL of the marked modules says: `/bookmarks?turnus=winter&sort=ects&desc=1&open=11101`.
+/// It says how the list is shown and never what is on it: the marks are personal, they live in
+/// the browser and reach neither a URL nor the server (R9, R13). Tolerant and canonical like
+/// `CatalogUrl`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BookmarksUrl {
+    /// Only what is offered in this half of the year.
+    pub season: Option<Season>,
+    pub sort: BookmarkSort,
+    /// The other way round. The order of marking has one direction only, the newest first.
+    pub descending: bool,
+    /// The module previewed next to the list (`open=<id>`), as in the catalog.
+    pub open: Option<String>,
+}
+
+impl BookmarksUrl {
+    pub fn parse(raw_query: &str) -> Self {
+        let pairs = parse_pairs(raw_query);
+        let first = |name: &str| pairs.iter().find(|(key, value)| key == name && !value.trim().is_empty()).map(|(_, value)| value.trim().to_ascii_lowercase());
+        let sort = first("sort").and_then(|code| BookmarkSort::ALL.iter().copied().find(|sort| sort.code() == code)).unwrap_or_default();
+        Self {
+            season: first("turnus").and_then(|code| Season::ALL.iter().copied().find(|season| season.code() == code)),
+            sort,
+            descending: sort != BookmarkSort::Added && first("desc").is_some(),
+            open: pairs.iter().find(|(key, _)| key == "open").map(|(_, id)| id.trim().to_string()).filter(|id| is_module_id(id)),
+        }
+    }
+
+    pub fn path(&self) -> String {
+        let mut out: Vec<(&str, String)> = Vec::new();
+        if let Some(season) = self.season {
+            out.push(("turnus", season.code().to_string()));
+        }
+        if self.sort != BookmarkSort::Added {
+            out.push(("sort", self.sort.code().to_string()));
+            if self.descending {
+                out.push(("desc", "1".to_string()));
+            }
+        }
+        if let Some(id) = &self.open {
+            out.push(("open", id.clone()));
+        }
+        if out.is_empty() {
+            return BOOKMARKS.to_string();
+        }
+        format!("{BOOKMARKS}?{}", out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&"))
+    }
+
+    /// The same list with this module's preview open, or (`None`) with the preview closed.
+    pub fn with_open(&self, id: Option<&str>) -> Self {
+        Self { open: id.map(str::to_string), ..self.clone() }
     }
 }
 
@@ -796,6 +919,21 @@ mod tests {
         assert_eq!(url.query.program, None, "kind and semester mean nothing without a program");
         assert_eq!((url.page, url.query.sort, url.query.graded, url.query.credits_min), (1, SortKey::Default, None, None));
         assert_eq!(url.to_query_string(), "form=lecture");
+    }
+
+    #[test]
+    fn the_marked_modules_have_a_canonical_url() {
+        assert_eq!(BookmarksUrl::parse("").path(), "/bookmarks");
+        let url = BookmarksUrl::parse("open=11101&desc=1&sort=ECTS&turnus=winter&ids=1,2,3&utm=x");
+        assert_eq!((url.season, url.sort, url.descending, url.open.as_deref()), (Some(Season::Winter), BookmarkSort::Credits, true, Some("11101")));
+        assert_eq!(url.path(), "/bookmarks?turnus=winter&sort=ects&desc=1&open=11101");
+        assert_eq!(BookmarksUrl::parse(url.path().split_once('?').map(|(_, query)| query).unwrap_or_default()), url);
+        assert_eq!(url.with_open(None).path(), "/bookmarks?turnus=winter&sort=ects&desc=1");
+        // The order of marking has one direction, and nonsense is ignored.
+        assert_eq!(BookmarksUrl::parse("sort=added&desc=1").path(), "/bookmarks");
+        assert_eq!(BookmarksUrl::parse("sort=random&turnus=spring&open=../../etc&desc=1"), BookmarksUrl::default());
+        assert!(is_module_id("11101") && is_module_id("FÜS-1".replace('Ü', "U").as_str()));
+        assert!(!is_module_id("") && !is_module_id("1 OR 1=1") && !is_module_id(&"9".repeat(33)) && !is_module_id("a\tb"));
     }
 
     #[test]

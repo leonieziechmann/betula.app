@@ -404,6 +404,53 @@ fn lecturer_and_bookmark_filters() {
     assert_eq!(queries::catalog_count(&db, &none).unwrap(), 0);
 }
 
+/// The page of the marked modules: whatever is marked is listed (also what is no longer offered),
+/// in the order of marking unless another one is asked for, and what the snapshot does not know
+/// is named instead of dropped.
+#[test]
+fn the_marked_modules_page() {
+    use crate::pages::{self, BookmarksData};
+    use crate::url::{BookmarkSort, Season};
+
+    let db = open();
+    let pick = |sql: &str| column(&db, sql);
+    let winter = pick("SELECT module_id FROM v_module_facets WHERE offered_winter = 1 AND IFNULL(offered_summer, 0) = 0 AND credits IS NOT NULL ORDER BY module_id LIMIT 2");
+    let summer = pick("SELECT module_id FROM v_module_facets WHERE offered_summer = 1 AND IFNULL(offered_winter, 0) = 0 AND credits IS NOT NULL ORDER BY module_id LIMIT 1");
+    let gone = pick("SELECT module_id FROM v_module_facets WHERE offer_status = 'not_offered' ORDER BY module_id LIMIT 1");
+    assert_eq!((winter.len(), summer.len(), gone.len()), (2, 1, 1), "the snapshot has modules of every kind the test needs");
+
+    // Newest mark first; an id nobody knows, one that is no id at all, and one marked twice.
+    let marked: Vec<String> = [gone[0].as_str(), "99999999", summer[0].as_str(), "1 OR 1=1", winter[1].as_str(), winter[0].as_str(), summer[0].as_str()].iter().map(|id| id.to_string()).collect();
+    let known: Vec<String> = [&gone[0], &summer[0], &winter[1], &winter[0]].iter().map(|id| id.to_string()).collect();
+    let ids = |data: &BookmarksData| data.rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>();
+
+    let data = pages::bookmarks(&db, &marked, BookmarkSort::Added, false).unwrap();
+    assert_eq!(ids(&data), known, "the order of marking, and the module that is no longer offered stays on the list");
+    assert_eq!(data.missing, vec!["99999999".to_string()]);
+
+    // The halves of the year are those of the catalog's turnus filter.
+    let quoted = known.iter().map(|id| format!("'{id}'")).collect::<Vec<_>>().join(", ");
+    for (season, column_name) in [(Season::Winter, "offered_winter"), (Season::Summer, "offered_summer")] {
+        let expected: BTreeSet<String> = column(&db, &format!("SELECT module_id FROM v_module_facets WHERE {column_name} = 1 AND module_id IN ({quoted})")).into_iter().collect();
+        let offered: BTreeSet<String> = known.iter().filter(|id| data.offered_in(season, id)).cloned().collect();
+        assert_eq!(offered, expected, "{column_name}");
+    }
+    assert!(data.offered_in(Season::Winter, &winter[0]) && !data.offered_in(Season::Summer, &winter[0]) && data.offered_in(Season::Summer, &summer[0]));
+    assert!(!data.offered_in(Season::Winter, "99999999"));
+
+    // Another order comes from the same query as the catalog's.
+    let by_credits = pages::bookmarks(&db, &marked, BookmarkSort::Credits, true).unwrap();
+    let credits: Vec<f64> = by_credits.rows.iter().filter_map(|row| row.credits).collect();
+    assert!(credits.windows(2).all(|pair| pair[0] >= pair[1]), "descending credits: {credits:?}");
+    assert_eq!((by_credits.rows.len(), by_credits.missing.clone(), by_credits.winter.len()), (4, data.missing.clone(), data.winter.len()));
+    // The order of marking has one direction.
+    assert_eq!(ids(&pages::bookmarks(&db, &marked, BookmarkSort::Added, true).unwrap()), known);
+
+    // Nothing marked: nothing listed, and no query that matches everything.
+    assert_eq!(pages::bookmarks(&db, &[], BookmarkSort::Added, false).unwrap(), BookmarksData::default());
+    assert_eq!(pages::bookmarks(&db, &["1 OR 1=1".to_string()], BookmarkSort::Title, false).unwrap(), BookmarksData::default());
+}
+
 #[test]
 fn search_text_is_literal() {
     let db = open();
