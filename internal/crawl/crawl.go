@@ -17,7 +17,10 @@ import (
 )
 
 const (
-	DefaultUserAgent = "Mozilla/5.0 (compatible; BTU-Student-Scraper/1.0)"
+	// DefaultUserAgent names the collector and how to reach its owner. b-tu.de/robots.txt
+	// disallows /qisserver3/ for every robot, and the catalog is maintained there, so a
+	// contact address lets the university's administrators write instead of only block.
+	DefaultUserAgent = "Betula-Radix/1.0 (+https://betula.app; info@betula.app)"
 
 	maxAttempts            = 3
 	maxConsecutiveFailures = 10

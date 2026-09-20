@@ -120,6 +120,9 @@ func (b *builder) writeModules() error {
 	for id := range b.src.catalogTitles {
 		ids[id] = true
 	}
+	for id := range b.src.qisTitles {
+		ids[id] = true
+	}
 	for id := range b.src.fues {
 		ids[id] = true
 	}
@@ -142,8 +145,8 @@ func (b *builder) writeModules() error {
 			exam_written, exam_oral, exam_paper, exam_presentation, exam_project, exam_practical,
 			grading_raw, is_graded, is_fues, page_states_fues,
 			learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks,
-			source_url, fetched_at
-		) VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?)`)
+			source_url, fetched_at, description_source
+		) VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?)`)
 	if err != nil {
 		return err
 	}
@@ -156,10 +159,7 @@ func (b *builder) writeModules() error {
 
 		if page == nil {
 			// Known from a list only. The FÜS list is the fallback for the few fields it has.
-			title := b.src.catalogTitles[id]
-			if title == "" {
-				title = fuesEntry.Title
-			}
+			title := firstNonEmpty(b.src.catalogTitles[id], b.src.qisTitles[id], fuesEntry.Title)
 			if title == "" {
 				title = id
 			}
@@ -174,7 +174,7 @@ func (b *builder) writeModules() error {
 				nil, nil, nil, nil, nil, nil,
 				nil, nil, boolInt(isFUES), nil,
 				nil, nil, nil, nil, nil,
-				nil, nil)
+				nil, nil, nil)
 			if err != nil {
 				return err
 			}
@@ -192,7 +192,7 @@ func (b *builder) writeModules() error {
 		}
 		title := d.TitleDE
 		if title == "" {
-			title = firstNonEmpty(d.TitleEN, b.src.catalogTitles[id], fuesEntry.Title, id)
+			title = firstNonEmpty(d.TitleEN, b.src.catalogTitles[id], b.src.qisTitles[id], fuesEntry.Title, id)
 		}
 
 		german, english := normalize.Languages(d.Language)
@@ -238,7 +238,7 @@ func (b *builder) writeModules() error {
 			null(d.Grading), flagIf(gradedKnown, graded), boolInt(isFUES), boolInt(d.CrossDisciplinary),
 			freeText(d.LearningOutcomes), freeText(d.Contents),
 			freeText(d.PrerequisitesRecommended), freeText(d.PrerequisitesMandatory), freeText(d.Remarks),
-			page.url, page.fetchedAt.UTC().Format(time.RFC3339))
+			page.url, page.fetchedAt.UTC().Format(time.RFC3339), page.descriptionSource())
 		if err != nil {
 			return err
 		}

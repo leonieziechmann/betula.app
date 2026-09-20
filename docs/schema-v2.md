@@ -6,14 +6,14 @@
 ## 1. Pipeline
 
 ```
-crawl-modules, crawl-tree, crawl-events ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
+crawl-qis-modules, crawl-modules, crawl-tree, crawl-events ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
       (network)                 (archive)   (no network, deterministic)       (gate)      snapshot/     ETag / 304
 scan-curriculum ──▶ plan, plan_entry  (validated PDF plans, a source of their own)
 ```
 
 | Step | Command | Package | Notes |
 |---|---|---|---|
-| Archive pages | `radix crawl-modules`, `crawl-tree`, `crawl-events` | `internal/crawl`, `internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
+| Archive pages | `radix crawl-qis-modules`, `crawl-modules`, `crawl-tree`, `crawl-events` | `internal/crawl`, `internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
 | Study plans | `radix download-statutes`, `radix scan-curriculum` | `internal/curriculumscan`, `internal/gemini`, `catalogdb/plans.go` | Validated plans are stored transactionally (`SavePlan`). The 140 plans of v1 were imported once; that importer is gone. |
 | Build | `radix build` | `internal/catalogbuild`, `internal/normalize`, `internal/qistree` | Parses the archive and replaces all derived tables in **one transaction**; fails on any foreign-key violation. About 20 s for the whole catalog. A parser or normalization fix takes effect by building again, without the network. |
 | Validate | `radix validate` | `catalogdb/validate.go` | Invariants (fail), source problems (warn), numbers (info), count baselines (fail below the minimum). Exit code 1 on failures. |
@@ -38,7 +38,7 @@ and the `plan*` tables is derived and replaced by each build.
 | Table | Content | Source |
 |---|---|---|
 | `raw_page` | latest body of every fetched page | all (not in the snapshot) |
-| `module` | one row per module, normalized and raw columns | module page; FÜS list for `is_fues` and as fallback for a module without a page (`detail_status = 'missing'`) |
+| `module` | one row per module, normalized and raw columns; `description_source` says which page the fields come from | the QIS module description where QIS has one, else the copy on `b-tu.de/modul` (`docs/data-sources.md` §10); FÜS list for `is_fues` and as fallback for a module without a page (`detail_status = 'missing'`) |
 | `department` | organisational units; German and English names of one unit are paired by unit code and shared responsible persons | module page |
 | `module_person`, `module_teaching_form`, `module_text_item` | responsible persons, teaching forms with SWS/hours, literature and course lists | module page |
 | `module_prerequisite`, `module_successor` | module IDs named in the prerequisite texts / successor rows, only when the module exists | module page |
@@ -96,7 +96,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_program_counterpart` | program × Bachelor/Master counterpart | `program_id, counterpart_id, counterpart_slug, counterpart_name, counterpart_level, counterpart_po_version, match_score` (take the highest) |
 | `v_program_document` | program × document | `program_id, ord, title, doc_type, url` |
 | `v_department` | department | `id, code, label, name_de, name_en, modules` |
-| `v_semester` | semester | `key, season, year, label, starts_on, ends_on, is_current, teaching_events, exam_events` |
+| `v_semester` | semester | `key, season, year, label, starts_on, ends_on, is_current, teaching_events, exam_events`. `is_current` follows `meta.current_semester`: the calendar decides (April–September summer, October–March winter), but a semester whose schedule is already published wins over it — a semester counts as published once 100 modules have a dated teaching event in it, so that the few events BTU releases early cannot move the catalog. |
 | `program_coverage` | program | `program_id, program_name, degree, po_version, tree_modules, page_modules, plan_entries, plan_entries_linked, modules_without_kind, plan_status` |
 | `v_meta` | key | `key, value` |
 

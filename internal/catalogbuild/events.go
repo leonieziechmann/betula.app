@@ -139,14 +139,14 @@ func (b *builder) writeEvents() error {
 		return err
 	}
 
-	// A module page decides which events belong to the module.
-	moduleIDs := make([]string, 0, len(b.src.modulePages))
-	for id := range b.src.modulePages {
+	// The descriptions of a module decide which events belong to it.
+	moduleIDs := make([]string, 0, len(b.src.eventLinks))
+	for id := range b.src.eventLinks {
 		moduleIDs = append(moduleIDs, id)
 	}
 	sort.Strings(moduleIDs)
 	for _, moduleID := range moduleIDs {
-		for _, link := range b.src.modulePages[moduleID].detail.CurrentSemesterEvents {
+		for _, link := range b.src.eventLinks[moduleID] {
 			eventID := eventIDFromURL(link.URL)
 			if eventID == "" {
 				continue

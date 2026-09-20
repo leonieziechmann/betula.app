@@ -19,7 +19,7 @@ import (
 
 // UserAgent is a plain bot identification. A desktop browser user agent makes the
 // OPUS server answer with a JavaScript challenge instead of the PDF.
-const UserAgent = "BTUScraper/1.0 (+https://www.b-tu.de; Academic Research)"
+const UserAgent = "Betula-Radix/1.0 (+https://betula.app; info@betula.app)"
 
 // ErrBotProtection means the server answered with a challenge page instead of a PDF.
 // The challenge is not worked around; the document has to be fetched by hand.

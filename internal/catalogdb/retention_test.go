@@ -58,3 +58,44 @@ func TestPruneEventsRemovesOldEventsAndRemembersThem(t *testing.T) {
 		t.Fatalf("second PruneEvents = %d, %v", removed, err)
 	}
 }
+
+// QIS dates an oral examination "by arrangement" with a placeholder from years ago.
+// Such an examination belongs to the semester that is about to start, and retention
+// must not read its date as "long over": on 2026-09-21 that rule deleted 186
+// examinations of WiSe 2026/27, all of them dated 27.12.2015.
+func TestPruneEventsKeepsASemesterThatHasNotEnded(t *testing.T) {
+	db := openTestDB(t)
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+
+	for _, id := range []string{"winter-placeholder", "summer-over"} {
+		if err := db.PutPage(RawPage{Source: SourceQISEvent, Key: id, URL: id, HTTPStatus: 200,
+			Body: []byte(id), FetchedAt: now.Add(-90 * 24 * time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.SQL().Exec(`
+		INSERT INTO semester (key, season, year, label, starts_on, ends_on) VALUES
+			('2026W', 'winter', 2026, 'WiSe 2026/27', '2026-10-01', '2027-03-31'),
+			('2025W', 'winter', 2025, 'WiSe 2025/26', '2025-10-01', '2026-03-31');
+		INSERT INTO module (id, title, detail_status, offer_status, is_fues) VALUES ('11107', 'Höhere Mathematik', 'ok', 'active', 0);
+		INSERT INTO event (id, title, category, semester_key, last_date, source_url, fetched_at) VALUES
+			('winter-placeholder', 'Mündliche Prüfung nach Vereinbarung', 'exam', '2026W', '2015-12-27', 'u', '2026-06-21T12:00:00Z'),
+			('summer-over',        'Vorlesung',                           'teaching', '2025W', '2026-01-28', 'u', '2026-06-21T12:00:00Z');
+		INSERT INTO module_event (module_id, event_id) VALUES ('11107', 'winter-placeholder'), ('11107', 'summer-over');`); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := db.PruneEvents(now, 30*24*time.Hour)
+	if err != nil {
+		t.Fatalf("PruneEvents: %v", err)
+	}
+	if removed != 1 {
+		t.Fatalf("PruneEvents removed %d events, want only the one whose semester has ended", removed)
+	}
+	if _, err := db.GetPage(SourceQISEvent, "winter-placeholder"); err != nil {
+		t.Error("the examination of the semester that has not ended was removed")
+	}
+	if _, err := db.GetPage(SourceQISEvent, "summer-over"); err == nil {
+		t.Error("an event of a semester that ended long ago is still archived")
+	}
+}

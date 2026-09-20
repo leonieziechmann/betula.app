@@ -28,7 +28,7 @@ type Config struct {
 	// request each and are checked in every cycle.
 	OffPeakStart, OffPeakEnd int
 
-	Lists, Modules, Events, Tree Pace
+	Lists, Modules, QISModules, Events, Tree Pace
 
 	EventRetention time.Duration        // keep an event this long after its last date; 0 keeps everything
 	ArchiveGrace   time.Duration        // remove archived pages nothing leads to any more, this long after their fetch; 0 keeps them
@@ -47,6 +47,7 @@ func DefaultConfig() Config {
 		OffPeakEnd:     6,
 		Lists:          Pace{Delay: time.Second, MaxAge: 12 * time.Hour},
 		Modules:        Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 7 * 24 * time.Hour, Limit: 400},
+		QISModules:     Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 600},
 		Events:         Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 600},
 		Tree:           Pace{Delay: time.Second, MaxAge: 7 * 24 * time.Hour, Limit: 300},
 		EventRetention: 30 * 24 * time.Hour,
@@ -179,6 +180,14 @@ func (s *Service) RunCycle(ctx context.Context) (result CycleResult) {
 	}
 	crawlStage("lists", false, catalogdb.SourceModuleCatalog, func() (crawl.Stats, error) { return CrawlLists(ctx, s.db, s.cfg.Endpoints, s.cfg.Lists) })
 	crawlStage("modules", true, catalogdb.SourceModulePage, func() (crawl.Stats, error) { return CrawlModules(ctx, s.db, s.cfg.Endpoints, s.cfg.Modules) })
+	// The QIS descriptions carry the events of the semester that runs now, so they
+	// are read before the events they name. The table they list comes first.
+	crawlStage("qis-modules", true, catalogdb.SourceQISModulePage, func() (crawl.Stats, error) {
+		if stats, err := CrawlQISModuleList(ctx, s.db, s.cfg.Endpoints, s.cfg.Lists); err != nil || stats.Failed > 0 {
+			return stats, err
+		}
+		return CrawlQISModules(ctx, s.db, s.cfg.Endpoints, s.cfg.QISModules)
+	})
 	crawlStage("tree", true, catalogdb.SourceQISTree, func() (crawl.Stats, error) { return CrawlTree(ctx, s.db, s.cfg.Endpoints, s.cfg.Tree) })
 	crawlStage("events", true, catalogdb.SourceQISEvent, func() (crawl.Stats, error) { return CrawlEvents(ctx, s.db, s.cfg.Endpoints, s.cfg.Events) })
 	if ctx.Err() != nil {

@@ -20,7 +20,7 @@ use crate::native::NativeDatabase;
 use crate::queries;
 
 /// `content_digest` of the snapshot the pinned numbers below were taken from (2026-09-19).
-const PINNED_DIGEST: &str = "e20a744cfcbc2f475a56d7b47c8fffff69120c9f507d9cd288ffc15a6a695277";
+const PINNED_DIGEST: &str = "14dc847aef858b5c61763a67a093279ee9d6d1570e23e692b0397c757c159fc0";
 
 const INFORMATIK_BSC: &str = "bachelor-informatik-2008";
 
@@ -353,8 +353,8 @@ fn catalog_filters_match_direct_sql() {
 
     if is_pinned(&db) {
         let (_, winter_exercise, _) = cases.iter().find(|(name, _, _)| name.starts_with("winter and exercise")).unwrap();
-        assert_eq!(queries::catalog_count(&db, winter_exercise).unwrap(), 979);
-        assert_eq!(queries::catalog_count(&db, &CatalogQuery::default()).unwrap(), 2864 + 340);
+        assert_eq!(queries::catalog_count(&db, winter_exercise).unwrap(), 984);
+        assert_eq!(queries::catalog_count(&db, &CatalogQuery::default()).unwrap(), 2781 + 451);
     }
 }
 
@@ -470,26 +470,30 @@ fn snapshot_facts_of_the_brief() {
     assert_eq!((curricular.len(), fues.len()), (109, 116));
     assert_eq!(queries::programs(&db).unwrap().len(), 182);
     assert_eq!(queries::departments(&db).unwrap().len(), 14);
-    assert_eq!(queries::meta(&db).unwrap().current_semester.as_deref(), Some("2026S"));
+    // The catalog moves to a semester as soon as its schedule is published, even
+    // while the old one runs out (radix: minModulesOfAPublishedSchedule).
+    assert_eq!(queries::meta(&db).unwrap().current_semester.as_deref(), Some("2026W"));
 
     let count = |query: CatalogQuery| queries::catalog_count(&db, &query).unwrap();
-    assert_eq!(count(everything()), 4908);
-    assert_eq!(count(CatalogQuery { offer: Some(vec![OfferStatus::Active]), ..everything() }), 2864);
+    assert_eq!(count(everything()), 4936);
+    assert_eq!(count(CatalogQuery { offer: Some(vec![OfferStatus::Active]), ..everything() }), 2781);
     assert_eq!(count(CatalogQuery { offer: Some(vec![OfferStatus::NotOffered]), ..everything() }), 1704);
-    assert_eq!(count(CatalogQuery { offer: Some(vec![OfferStatus::PhaseOut]), ..everything() }), 340);
-    assert_eq!(count(CatalogQuery { languages: vec![Language::German], ..everything() }), 3928);
-    assert_eq!(count(CatalogQuery { languages: vec![Language::English], ..everything() }), 980);
-    assert_eq!(count(CatalogQuery { graded: Some(true), ..everything() }), 4623);
-    assert_eq!(count(CatalogQuery { graded: Some(false), ..everything() }), 283);
+    assert_eq!(count(CatalogQuery { offer: Some(vec![OfferStatus::PhaseOut]), ..everything() }), 451);
+    assert_eq!(count(CatalogQuery { languages: vec![Language::German], ..everything() }), 3950);
+    assert_eq!(count(CatalogQuery { languages: vec![Language::English], ..everything() }), 986);
+    assert_eq!(count(CatalogQuery { graded: Some(true), ..everything() }), 4654);
+    assert_eq!(count(CatalogQuery { graded: Some(false), ..everything() }), 282);
     assert_eq!(count(CatalogQuery { fues: Some(true), ..everything() }), 288);
     let winter = TurnusFilter { winter: true, ..Default::default() };
     let summer = TurnusFilter { summer: true, ..Default::default() };
     let irregular = TurnusFilter { irregular: true, ..Default::default() };
-    assert_eq!(count(CatalogQuery { turnus: winter, ..everything() }), 1950 + 604);
-    assert_eq!(count(CatalogQuery { turnus: summer, ..everything() }), 1661 + 604);
-    assert_eq!(count(CatalogQuery { turnus: irregular, ..everything() }), 691);
+    assert_eq!(count(CatalogQuery { turnus: winter, ..everything() }), 1965 + 607);
+    assert_eq!(count(CatalogQuery { turnus: summer, ..everything() }), 1671 + 607);
+    assert_eq!(count(CatalogQuery { turnus: irregular, ..everything() }), 693);
+    // The winter schedule reached the catalog on 2026-09-21; before it, only the
+    // modules with a room in the summer semester were placed (234).
     let campus_known = scalar(&db, "SELECT COUNT(*) FROM v_module_facets WHERE at_zentralcampus IS NOT NULL");
-    assert_eq!(campus_known, 234);
+    assert_eq!(campus_known, 1119);
 }
 
 #[test]
@@ -499,7 +503,7 @@ fn every_enum_code_has_a_label() {
     let covered = |codes: &[String]| enums.iter().any(|(_, known)| codes.iter().all(|c| known.contains(&c.as_str())));
 
     // Columns that never reach a page.
-    let internal = ["detail_status", "page_lang", "degree_label_basis"];
+    let internal = ["detail_status", "page_lang", "degree_label_basis", "description_source"];
 
     let mut missing = Vec::new();
     let mut constraints = 0;

@@ -87,6 +87,27 @@ func runCrawlModules(ctx context.Context, args []string) {
 	finishCrawl("crawl-modules", stats, err)
 }
 
+// runCrawlQISModules archives the QIS module descriptions, the source the catalog
+// is maintained in.
+func runCrawlQISModules(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("crawl-qis-modules", flag.ExitOnError)
+	dbPath := fs.String("db", defaultDBPath, "Database path")
+	pace := addPaceFlags(fs, 1, 500, 24*time.Hour)
+	logs := addLogFlags(fs)
+	_ = fs.Parse(args)
+	_, closeLog := logs.setup()
+	defer closeLog()
+
+	db := openDB(*dbPath)
+	defer db.Close()
+
+	if stats, err := service.CrawlQISModuleList(ctx, db, service.BTUEndpoints(), service.Pace{Delay: pace().Delay, MaxAge: time.Hour}); err != nil || stats.Failed > 0 {
+		finishCrawl("crawl-qis-modules", stats, err)
+	}
+	stats, err := service.CrawlQISModules(ctx, db, service.BTUEndpoints(), pace())
+	finishCrawl("crawl-qis-modules", stats, err)
+}
+
 // runCrawlEvents archives the QIS event pages that module pages link.
 func runCrawlEvents(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("crawl-events", flag.ExitOnError)

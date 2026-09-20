@@ -1,0 +1,34 @@
+package catalogbuild
+
+import (
+	"testing"
+)
+
+// The current semester moves on its own, without a single row of the catalog
+// changing: BTU publishes the schedule of the next semester while the old one
+// runs out. Only a changed digest is exported, so the digest has to see it.
+func TestTheDigestSeesTheCurrentSemester(t *testing.T) {
+	db, _ := buildFixture(t)
+
+	digest := func() string {
+		t.Helper()
+		tx, err := db.SQL().Begin()
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		d, err := contentDigest(tx)
+		if err != nil {
+			t.Fatalf("contentDigest: %v", err)
+		}
+		return d
+	}
+
+	before := digest()
+	if _, err := db.SQL().Exec("UPDATE meta SET value = '2026W' WHERE key = 'current_semester'"); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if after := digest(); after == before {
+		t.Error("the digest is the same after the semester moved; no snapshot would be published")
+	}
+}

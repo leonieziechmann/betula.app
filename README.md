@@ -10,7 +10,7 @@ An unofficial catalog of the modules, study programs and study plans of BTU Cott
   redistributes them to browsers, which query the database locally through documented read views.
 
 ```
-b-tu.de/modul, QIS ──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
+QIS (module descriptions, tree, events), b-tu.de/modul ──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
 statute PDFs (OPUS) ──scan-curriculum (PDF geometry + optional Gemini enrichment)──▶ validated study plans
 ```
 
@@ -31,8 +31,12 @@ radix help                           # all commands
 ```
 
 `radix run` serves `GET /snapshot/catalog.db` (ETag, `If-None-Match` → 304), `/healthz` and
-`/status` on `127.0.0.1:8090`. The stages also run one by one: `crawl-modules`, `crawl-tree`,
-`crawl-events`, `prune`, `build`, `validate`, `export`, `serve-snapshot`.
+`/status` on `127.0.0.1:8090`. The stages also run one by one: `crawl-qis-modules`, `crawl-modules`,
+`crawl-tree`, `crawl-events`, `prune`, `build`, `validate`, `export`, `serve-snapshot`.
+
+The module fields come from the module description in QIS, not from `b-tu.de/modul`: that page
+is a copy BTU's CMS renders, and it lags — in September 2026 it still named the events of the
+summer while QIS already had the winter schedule (`docs/data-sources.md` §10).
 
 ```bash
 nix build .#radix                    # static binary; the tests run inside the build

@@ -40,7 +40,13 @@ type Baseline struct {
 var BTUBaselines = []Baseline{
 	{"modules", "SELECT COUNT(*) FROM module", 4800},
 	{"modules with a parsed page", "SELECT COUNT(*) FROM module WHERE detail_status = 'ok'", 4800},
-	{"English module pages with program assignments (P2)", "SELECT COUNT(DISTINCT r.module_id) FROM module_program_ref r JOIN module m ON m.id = r.module_id WHERE m.page_lang = 'en'", 600},
+	// The fields come from QIS since 2026-09-20 (docs/data-sources.md). The three
+	// checks below replace the one on English module pages on b-tu.de, which is no
+	// longer the source: that a description is read at all, that its study programs
+	// are read, and that it names the events of the semester that runs now.
+	{"modules with a QIS description", "SELECT COUNT(*) FROM module WHERE description_source = 'qis'", 3000},
+	{"QIS modules with program assignments (P2)", "SELECT COUNT(DISTINCT r.module_id) FROM module_program_ref r JOIN module m ON m.id = r.module_id WHERE m.description_source = 'qis'", 2400},
+	{"modules with an English title", "SELECT COUNT(*) FROM module WHERE title_en IS NOT NULL AND title_en <> ''", 3000},
 	{"modules with known grading (P1)", "SELECT COUNT(*) FROM module WHERE is_graded IS NOT NULL", 4800},
 	{"modules with exam details (P1)", "SELECT COUNT(*) FROM module WHERE exam_details IS NOT NULL", 4000},
 	{"facet: exercise (v1 found 0 of 1,535)", "SELECT COUNT(*) FROM v_module_facets WHERE has_exercise = 1", 1535},

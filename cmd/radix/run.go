@@ -54,6 +54,7 @@ func runService(ctx context.Context, args []string) {
 	moduleDelay := fs.Int("module-delay", envInt("RADIX_MODULE_DELAY_MS", int(def.Modules.Delay.Milliseconds())), "Pause between module page requests in ms (env RADIX_MODULE_DELAY_MS)")
 	qisDelay := fs.Int("qis-delay", envInt("RADIX_QIS_DELAY_MS", int(def.Events.Delay.Milliseconds())), "Pause between QIS requests in ms (env RADIX_QIS_DELAY_MS)")
 	moduleMaxAge := fs.Duration("module-max-age", envDuration("RADIX_MODULE_MAX_AGE", def.Modules.MaxAge), "Refetch a module page after this long (env RADIX_MODULE_MAX_AGE)")
+	qisModuleMaxAge := fs.Duration("qis-module-max-age", envDuration("RADIX_QIS_MODULE_MAX_AGE", def.QISModules.MaxAge), "Refetch a QIS module description after this long (env RADIX_QIS_MODULE_MAX_AGE)")
 	eventMaxAge := fs.Duration("event-max-age", envDuration("RADIX_EVENT_MAX_AGE", def.Events.MaxAge), "Refetch an event page after this long (env RADIX_EVENT_MAX_AGE)")
 	treeMaxAge := fs.Duration("tree-max-age", envDuration("RADIX_TREE_MAX_AGE", def.Tree.MaxAge), "Refetch a QIS tree page after this long (env RADIX_TREE_MAX_AGE)")
 	retention := fs.Duration("event-retention", envDuration("RADIX_EVENT_RETENTION", def.EventRetention), "Remove an event this long after its last date, 0 keeps all (env RADIX_EVENT_RETENTION)")
@@ -74,6 +75,8 @@ func runService(ctx context.Context, args []string) {
 	cfg.Interval = *interval
 	cfg.Modules.Delay = time.Duration(*moduleDelay) * time.Millisecond
 	cfg.Modules.MaxAge = *moduleMaxAge
+	cfg.QISModules.Delay = time.Duration(*qisDelay) * time.Millisecond
+	cfg.QISModules.MaxAge = *qisModuleMaxAge
 	cfg.Events.Delay = time.Duration(*qisDelay) * time.Millisecond
 	cfg.Events.MaxAge = *eventMaxAge
 	cfg.Tree.Delay = 2 * time.Duration(*qisDelay) * time.Millisecond

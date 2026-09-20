@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 )
 
@@ -65,5 +66,16 @@ func contentDigest(tx *sql.Tx) (string, error) {
 			return "", err
 		}
 	}
+
+	// The current semester lives in meta, which is left out above, but it is content:
+	// pages name it, and it moves on its own when the schedule of the next semester is
+	// published while the old one runs out. Without it here, that switch would never
+	// reach a browser, because only a changed digest is exported.
+	var current sql.NullString
+	if err := tx.QueryRow("SELECT value FROM meta WHERE key = 'current_semester'").Scan(&current); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("digest of the current semester: %w", err)
+	}
+	fmt.Fprintf(h, "\x1ecurrent_semester %s\n", current.String)
+
 	return hex.EncodeToString(h.Sum(nil)), nil
 }

@@ -17,6 +17,7 @@ One cycle, every `--interval` (30 min):
 |---|---|---|
 | `lists` | every cycle, if older than 12 h | module catalog list, FÜS list (one request each) |
 | `modules` | off-peak only | module pages older than `--module-max-age` (7 d), oldest first, at most 400 per cycle |
+| `qis-modules` | off-peak only | the QIS module table (in chunks, if older than 12 h) and the QIS module descriptions older than `--qis-module-max-age` (3 d), at most 600 per cycle. These are the source of the module fields and of the events of the current semester (`docs/data-sources.md` §10) |
 | `tree` | off-peak only | QIS program tree; pages older than `--tree-max-age` (7 d), at most 300 requests per cycle; discovers new programs and PO versions |
 | `events` | off-peak only | QIS pages of the events module pages link; older than `--event-max-age` (3 d), at most 600 per cycle |
 | `retention` | every cycle | removes events `--event-retention` (30 d) after their last date, and events no module page links any more; remembers them, so they are not fetched again |
@@ -46,7 +47,7 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--interval` | `RADIX_INTERVAL` | `30m` |
 | `--offpeak` | `RADIX_OFFPEAK` | `1-6` |
 | `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay) |
-| `--module-max-age`, `--event-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_EVENT_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `72h`, `168h` |
+| `--module-max-age`, `--qis-module-max-age`, `--event-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_MAX_AGE`, `RADIX_EVENT_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `72h`, `72h`, `168h` |
 | `--event-retention` | `RADIX_EVENT_RETENTION` | `720h` (0 keeps everything) |
 | `--archive-grace` | `RADIX_ARCHIVE_GRACE` | `168h` (0 keeps unused pages) |
 | `--stale-after` | `RADIX_STALE_AFTER` | `26h` |
@@ -97,6 +98,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | WARN | `http.request` with `status` 4xx/503 | |
 | ERROR | `scan.failed`, `scan.extraction_failed`, `scan.save_failed`, `statutes.download_failed` | study plan scan: cannot run / a document could not be read / a plan could not be stored (the previous plan is unchanged) / a PDF could not be downloaded |
 | WARN | `scan.rejected`, `scan.gemini_disabled`, `statutes.blocked` | a plan failed validation and was not stored / no API key, deterministic reader only / a PDF is behind bot protection |
+| INFO | `crawl.list_chunks_dropped` | the QIS module table got shorter; chunks behind its end were removed |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
 | INFO | `cycle.started`, `cycle.finished`, `crawl.started`, `crawl.progress`, `crawl.finished`, `crawl.up_to_date`, `build.started`, `build.finished`, `validate.finished`, `export.finished`, `retention.pruned`, `retention.archive_pruned` | progress, with counts and durations |
 

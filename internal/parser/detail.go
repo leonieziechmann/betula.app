@@ -109,242 +109,7 @@ func (p *DetailParser) Parse(r io.Reader, fallbackID, pageURL string) (*model.Mo
 			continue
 		}
 
-		rawKey := CleanSingleLine(NodeText(tds[0]))
-		valNode := tds[1]
-		valText := CleanText(valNode)
-		valSingle := CleanSingleLine(NodeText(valNode))
-
-		if containsNotOffered(valSingle) || containsNotOffered(rawKey) {
-			detail.IsNotOffered = true
-			detail.IsPhaseOut = true
-		}
-
-		normKey := normalizeKey(rawKey)
-
-		// Handle secondary title row right under title row
-		if (normKey == "" || rawKey == "") && (prevKey == "title" || prevKey == "moduletitle") {
-			if valSingle != "" {
-				if detail.TitleEN == "" {
-					detail.TitleEN = valSingle
-				} else if detail.TitleDE == "" {
-					detail.TitleDE = valSingle
-				}
-			}
-			continue
-		}
-
-		if normKey == "" && isCrossDisciplinaryNote(valSingle) {
-			detail.CrossDisciplinary = true
-			continue
-		}
-
-		prevKey = normKey
-
-		switch normKey {
-		case "modulenumber":
-			lowVal := strings.ToLower(valSingle)
-			if strings.Contains(lowVal, "phase-out") ||
-				strings.Contains(lowVal, "auslauf") ||
-				containsNotOffered(lowVal) {
-				detail.IsPhaseOut = true
-			}
-			if containsNotOffered(lowVal) {
-				detail.IsNotOffered = true
-			}
-			// Extract clean module number
-			cleanNum := strings.TrimSpace(strings.Split(valSingle, "-")[0])
-			if cleanNum != "" {
-				detail.ID = cleanNum
-				detail.Code = cleanNum
-			}
-
-		case "moduletitle":
-			if detail.TitleDE == "" {
-				detail.TitleDE = valSingle
-			} else if detail.TitleEN == "" && detail.TitleDE != valSingle {
-				detail.TitleEN = valSingle
-			}
-
-		case "department":
-			detail.Department = valSingle
-
-		case "responsible":
-			items := ExtractListItems(valNode)
-			var respList []model.ResponsiblePerson
-			if len(items) > 0 {
-				for _, it := range items {
-					respList = append(respList, model.SplitResponsiblePerson(it))
-				}
-			} else if valSingle != "" {
-				respList = append(respList, model.SplitResponsiblePerson(valSingle))
-			}
-			detail.ResponsiblePersons = respList
-
-		case "language":
-			detail.Language = valSingle
-
-		case "duration":
-			detail.Duration = valSingle
-
-		case "turnus":
-			detail.Turnus = valSingle
-			if containsNotOffered(valSingle) {
-				detail.IsNotOffered = true
-				detail.IsPhaseOut = true
-			}
-
-		case "credits":
-			detail.CreditsRaw = valSingle
-			detail.Credits = parseCredits(valSingle)
-
-		case "learningoutcomes":
-			detail.LearningOutcomes = valText
-
-		case "contents":
-			detail.Contents = valText
-
-		case "prerequisitesrecommended":
-			detail.PrerequisitesRecommended = normalizePrereqText(valText)
-
-		case "prerequisitesmandatory":
-			detail.PrerequisitesMandatory = normalizePrereqText(valText)
-
-		case "teachingforms":
-			items := ExtractListItems(valNode)
-			for _, item := range items {
-				parts := strings.SplitN(item, "/", 2)
-				tf := model.TeachingForm{}
-				if len(parts) == 2 {
-					tf.Type = strings.TrimSpace(parts[0])
-					tf.Workload = strings.TrimSpace(parts[1])
-				} else {
-					tf.Type = strings.TrimSpace(parts[0])
-				}
-				detail.TeachingForms = append(detail.TeachingForms, tf)
-			}
-
-		case "literature":
-			items := ExtractListItems(valNode)
-			if len(items) > 0 {
-				detail.Literature = items
-			} else if valSingle != "" {
-				detail.Literature = []string{valSingle}
-			}
-
-		case "moduleexam":
-			detail.ExamType = valSingle
-
-		case "examdetails":
-			detail.ExamDetails = valText
-
-		case "grading":
-			detail.Grading = valSingle
-
-		case "limitation":
-			detail.Limitation = valSingle
-
-		case "studyprograms":
-			items := ExtractListItems(valNode)
-			if len(items) == 0 && valSingle != "" {
-				items = []string{valSingle}
-			}
-			for _, item := range items {
-				detail.StudyPrograms = append(detail.StudyPrograms, parseStudyProgram(item))
-			}
-
-		case "remarks":
-			detail.Remarks = valText
-			lowRemarks := strings.ToLower(valText)
-			if strings.Contains(lowRemarks, "auslaufmodul") || strings.Contains(lowRemarks, "phase-out module") || containsNotOffered(lowRemarks) {
-				detail.IsPhaseOut = true
-			}
-			if containsNotOffered(lowRemarks) {
-				detail.IsNotOffered = true
-			}
-			if strings.Contains(lowRemarks, "nachfolge") {
-				detail.IsPhaseOut = true
-				matches := reNachfolge.FindAllStringSubmatch(valText, -1)
-				for _, m := range matches {
-					if len(m) >= 2 && m[1] != detail.ID {
-						detail.SuccessorModules = appendUnique(detail.SuccessorModules, m[1])
-					}
-				}
-			}
-
-		case "nachfolgemodul":
-			detail.IsPhaseOut = true
-			// Check links in valNode
-			links := FindAllByTag(valNode, atom.A)
-			for _, l := range links {
-				href := GetAttr(l, "href")
-				if m := reModuleID.FindString(href); m != "" && m != detail.ID {
-					detail.SuccessorModules = appendUnique(detail.SuccessorModules, m)
-				}
-			}
-			// Also check text
-			matches := reModuleID.FindAllString(valText, -1)
-			for _, m := range matches {
-				if m != detail.ID {
-					detail.SuccessorModules = appendUnique(detail.SuccessorModules, m)
-				}
-			}
-
-		case "courses":
-			items := ExtractListItems(valNode)
-			if len(items) > 0 {
-				detail.AssociatedCourses = items
-			} else if valSingle != "" {
-				detail.AssociatedCourses = []string{valSingle}
-			}
-
-		case "currentevents":
-			if IsNoAssignment(valSingle) {
-				// Explicitly no event
-				break
-			}
-
-			lis := FindAllByTag(valNode, atom.Li)
-			for _, li := range lis {
-				a := FindFirstByTag(li, atom.A)
-				if a == nil {
-					// "If there are no links to qis then you can assume there is no event"
-					continue
-				}
-				href := GetAttr(a, "href")
-				if href == "" || href == "#" {
-					continue
-				}
-				aText := CleanSingleLine(NodeText(a))
-				if aText == "" {
-					aText = CleanSingleLine(NodeText(li))
-				}
-				if IsNoAssignment(aText) {
-					continue
-				}
-				detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, model.ModuleEvent{
-					Title: aText,
-					URL:   href,
-				})
-			}
-
-			// If no <li> found, check if there are <a> tags directly in valNode
-			if len(detail.CurrentSemesterEvents) == 0 {
-				aNodes := FindAllByTag(valNode, atom.A)
-				for _, a := range aNodes {
-					href := GetAttr(a, "href")
-					if href == "" || href == "#" {
-						continue
-					}
-					aText := CleanSingleLine(NodeText(a))
-					if aText != "" && !IsNoAssignment(aText) {
-						detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, model.ModuleEvent{
-							Title: aText,
-							URL:   href,
-						})
-					}
-				}
-			}
-		}
+		applyRow(detail, CleanSingleLine(NodeText(tds[0])), tds[1], &prevKey)
 	}
 
 	// Final normalization for prerequisites if not set
@@ -399,6 +164,251 @@ func appendUnique(slice []string, val string) []string {
 		}
 	}
 	return append(slice, val)
+}
+
+// applyRow maps one label/value row of a module description onto detail. The CMS
+// page on b-tu.de and the QIS page it copies carry the same labels in the same
+// shapes, so both parsers read a row through this function.
+func applyRow(detail *model.ModuleDetail, rawKey string, valNode *html.Node, prevKey *string) {
+	valText := CleanText(valNode)
+	valSingle := CleanSingleLine(NodeText(valNode))
+
+	if containsNotOffered(valSingle) || containsNotOffered(rawKey) {
+		detail.IsNotOffered = true
+		detail.IsPhaseOut = true
+	}
+
+	normKey := normalizeKey(rawKey)
+
+	// Handle secondary title row right under title row
+	if (normKey == "" || rawKey == "") && (*prevKey == "title" || *prevKey == "moduletitle") {
+		if valSingle != "" {
+			if detail.TitleEN == "" {
+				detail.TitleEN = valSingle
+			} else if detail.TitleDE == "" {
+				detail.TitleDE = valSingle
+			}
+		}
+		return
+	}
+
+	if normKey == "" && isCrossDisciplinaryNote(valSingle) {
+		detail.CrossDisciplinary = true
+		return
+	}
+
+	*prevKey = normKey
+
+	switch normKey {
+	case "modulenumber":
+		lowVal := strings.ToLower(valSingle)
+		if strings.Contains(lowVal, "phase-out") ||
+			strings.Contains(lowVal, "auslauf") ||
+			containsNotOffered(lowVal) {
+			detail.IsPhaseOut = true
+		}
+		if containsNotOffered(lowVal) {
+			detail.IsNotOffered = true
+		}
+		// Extract clean module number
+		cleanNum := strings.TrimSpace(strings.Split(valSingle, "-")[0])
+		if cleanNum != "" {
+			detail.ID = cleanNum
+			detail.Code = cleanNum
+		}
+
+	case "moduletitle":
+		if detail.TitleDE == "" {
+			detail.TitleDE = valSingle
+		} else if detail.TitleEN == "" && detail.TitleDE != valSingle {
+			detail.TitleEN = valSingle
+		}
+
+	case "department":
+		detail.Department = valSingle
+
+	case "responsible":
+		items := ExtractListItems(valNode)
+		var respList []model.ResponsiblePerson
+		if len(items) > 0 {
+			for _, it := range items {
+				respList = append(respList, model.SplitResponsiblePerson(it))
+			}
+		} else if valSingle != "" {
+			respList = append(respList, model.SplitResponsiblePerson(valSingle))
+		}
+		detail.ResponsiblePersons = respList
+
+	case "language":
+		detail.Language = valSingle
+
+	case "duration":
+		detail.Duration = valSingle
+
+	case "turnus":
+		detail.Turnus = valSingle
+		if containsNotOffered(valSingle) {
+			detail.IsNotOffered = true
+			detail.IsPhaseOut = true
+		}
+
+	case "credits":
+		detail.CreditsRaw = valSingle
+		detail.Credits = parseCredits(valSingle)
+
+	case "learningoutcomes":
+		detail.LearningOutcomes = valText
+
+	case "contents":
+		detail.Contents = valText
+
+	case "prerequisitesrecommended":
+		detail.PrerequisitesRecommended = normalizePrereqText(valText)
+
+	case "prerequisitesmandatory":
+		detail.PrerequisitesMandatory = normalizePrereqText(valText)
+
+	case "teachingforms":
+		items := ExtractListItems(valNode)
+		for _, item := range items {
+			parts := strings.SplitN(item, "/", 2)
+			tf := model.TeachingForm{}
+			if len(parts) == 2 {
+				tf.Type = strings.TrimSpace(parts[0])
+				tf.Workload = strings.TrimSpace(parts[1])
+			} else {
+				tf.Type = strings.TrimSpace(parts[0])
+			}
+			detail.TeachingForms = append(detail.TeachingForms, tf)
+		}
+
+	case "literature":
+		items := ExtractListItems(valNode)
+		if len(items) > 0 {
+			detail.Literature = items
+		} else if valSingle != "" {
+			detail.Literature = []string{valSingle}
+		}
+
+	case "moduleexam":
+		detail.ExamType = valSingle
+
+	case "examdetails":
+		detail.ExamDetails = valText
+
+	case "grading":
+		detail.Grading = valSingle
+
+	case "limitation":
+		detail.Limitation = valSingle
+
+	case "studyprograms":
+		items := ExtractListItems(valNode)
+		if len(items) == 0 && valSingle != "" {
+			items = []string{valSingle}
+		}
+		for _, item := range items {
+			detail.StudyPrograms = append(detail.StudyPrograms, parseStudyProgram(item))
+		}
+
+	case "remarks":
+		detail.Remarks = valText
+		lowRemarks := strings.ToLower(valText)
+		if strings.Contains(lowRemarks, "auslaufmodul") || strings.Contains(lowRemarks, "phase-out module") || containsNotOffered(lowRemarks) {
+			detail.IsPhaseOut = true
+		}
+		if containsNotOffered(lowRemarks) {
+			detail.IsNotOffered = true
+		}
+		if strings.Contains(lowRemarks, "nachfolge") {
+			detail.IsPhaseOut = true
+			matches := reNachfolge.FindAllStringSubmatch(valText, -1)
+			for _, m := range matches {
+				if len(m) >= 2 && m[1] != detail.ID {
+					detail.SuccessorModules = appendUnique(detail.SuccessorModules, m[1])
+				}
+			}
+		}
+
+	case "nachfolgemodul":
+		detail.IsPhaseOut = true
+		// Check links in valNode. Only b-tu.de/modul/<id> addresses a module by its
+		// number; a QIS link carries the internal number of the description, which
+		// is five digits too and would name a module that does not exist.
+		links := FindAllByTag(valNode, atom.A)
+		for _, l := range links {
+			href := GetAttr(l, "href")
+			if !strings.Contains(href, "/modul/") {
+				continue
+			}
+			if m := reModuleID.FindString(href); m != "" && m != detail.ID {
+				detail.SuccessorModules = appendUnique(detail.SuccessorModules, m)
+			}
+		}
+		// Also check text
+		matches := reModuleID.FindAllString(valText, -1)
+		for _, m := range matches {
+			if m != detail.ID {
+				detail.SuccessorModules = appendUnique(detail.SuccessorModules, m)
+			}
+		}
+
+	case "courses":
+		items := ExtractListItems(valNode)
+		if len(items) > 0 {
+			detail.AssociatedCourses = items
+		} else if valSingle != "" {
+			detail.AssociatedCourses = []string{valSingle}
+		}
+
+	case "currentevents":
+		if IsNoAssignment(valSingle) {
+			// Explicitly no event
+			break
+		}
+
+		lis := FindAllByTag(valNode, atom.Li)
+		for _, li := range lis {
+			a := FindFirstByTag(li, atom.A)
+			if a == nil {
+				// "If there are no links to qis then you can assume there is no event"
+				continue
+			}
+			href := GetAttr(a, "href")
+			if href == "" || href == "#" {
+				continue
+			}
+			aText := CleanSingleLine(NodeText(a))
+			if aText == "" {
+				aText = CleanSingleLine(NodeText(li))
+			}
+			if IsNoAssignment(aText) {
+				continue
+			}
+			detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, model.ModuleEvent{
+				Title: aText,
+				URL:   href,
+			})
+		}
+
+		// If no <li> found, check if there are <a> tags directly in valNode
+		if len(detail.CurrentSemesterEvents) == 0 {
+			aNodes := FindAllByTag(valNode, atom.A)
+			for _, a := range aNodes {
+				href := GetAttr(a, "href")
+				if href == "" || href == "#" {
+					continue
+				}
+				aText := CleanSingleLine(NodeText(a))
+				if aText != "" && !IsNoAssignment(aText) {
+					detail.CurrentSemesterEvents = append(detail.CurrentSemesterEvents, model.ModuleEvent{
+						Title: aText,
+						URL:   href,
+					})
+				}
+			}
+		}
+	}
 }
 
 func normalizeKey(raw string) string {
@@ -461,7 +471,9 @@ func normalizeKey(raw string) string {
 		return "currentevents"
 	case strings.Contains(k, "veranstaltungenzummodul") || strings.Contains(k, "modulecomponents") || strings.Contains(k, "coursesformodule"):
 		return "courses"
-	case strings.Contains(k, "nachfolge"):
+	// QIS states a phase-out in a row of its own („Auslaufmodul: Nachfolgemodul
+	// seit: …"); the copy on b-tu.de only mentions it in the remarks.
+	case strings.Contains(k, "nachfolge") || strings.Contains(k, "auslaufmodul") || strings.Contains(k, "phaseoutmodule"):
 		return "nachfolgemodul"
 	default:
 		return ""

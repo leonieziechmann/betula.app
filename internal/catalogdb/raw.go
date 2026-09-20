@@ -19,6 +19,8 @@ const (
 	SourceModulePage    = "module_page"
 	SourceQISEvent      = "qis_event"
 	SourceQISFUESList   = "qis_fues_list"
+	SourceQISModuleList = "qis_module_list"
+	SourceQISModulePage = "qis_module_page"
 	SourceQISTree       = "qis_tree"
 )
 

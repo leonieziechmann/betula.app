@@ -9,11 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"sort"
 	"time"
 
 	"github.com/leonieziechmann/betula/internal/catalogdb"
 	"github.com/leonieziechmann/betula/internal/crawl"
+	"github.com/leonieziechmann/betula/internal/model"
+	"github.com/leonieziechmann/betula/internal/normalize"
 	"github.com/leonieziechmann/betula/internal/oplog"
 	"github.com/leonieziechmann/betula/internal/parser"
 	"github.com/leonieziechmann/betula/internal/qistree"
@@ -30,21 +33,32 @@ type Pace struct {
 
 // Endpoints are the pages the service reads. Tests point them at a local server.
 type Endpoints struct {
-	CatalogURL  string
-	FUESURL     string
-	ModuleURL   string // fmt template with the module ID
-	EventURL    string // fmt template with the QIS event ID
-	TreeRootURL string
+	CatalogURL    string
+	FUESURL       string
+	ModuleURL     string // fmt template with the module ID
+	QISModuleList string // fmt template with the first row and the number of rows
+	QISModuleURL  string // fmt template: %[1]s the QIS pordnr, %[2]s the view language
+	EventURL      string // fmt template with the QIS event ID
+	TreeRootURL   string
 }
 
 // BTUEndpoints are the live BTU pages.
 func BTUEndpoints() Endpoints {
 	const qis = "https://www.b-tu.de/qisserver3/rds"
+	const moduleTable = qis + "?state=change&type=3&moduleParameter=pordpos&nextdir=change&next=TableSelectModul.vm&subdir=pord"
 	return Endpoints{
-		CatalogURL: "https://www.b-tu.de/modul",
-		ModuleURL:  "https://www.b-tu.de/modul/%s",
-		FUESURL:    qis + "?state=change&type=3&moduleParameter=pordpos&nextdir=change&next=TableSelectModul.vm&subdir=pord&P_start=0&P_anzahl=9999&missing=FUES",
-		EventURL:   qis + "?state=verpublish&status=init&vmfile=no&moduleCall=webInfo&publishConfFile=webInfo&publishSubDir=veranstaltung&veranstaltung.veranstid=%s",
+		CatalogURL:    "https://www.b-tu.de/modul",
+		ModuleURL:     "https://www.b-tu.de/modul/%s",
+		FUESURL:       moduleTable + "&P_start=0&P_anzahl=9999&missing=FUES",
+		QISModuleList: moduleTable + "&P_start=%d&P_anzahl=%d",
+		// The module description in QIS. nodeID is not decoration: without it the answer
+		// leaves out the events of the current semester. objLanguage picks the language
+		// the description is written in, not a translation: the German view of a module
+		// taught in English states „keine" for its learning outcomes and contents.
+		QISModuleURL: qis + "?state=modulBeschrDetailInfo&moduleParameter=modDescr&struct=auswahlBaum" +
+			"&nextdir=qispos/modulBeschr/bearbeiter&next=redTree.vm&createInfoTree=Y&create=blobs&expand=1" +
+			"&nodeID=auswahlBaum%%7Cmodul:pordnr=%[1]s&rest=A&objLanguage=%[2]s&pord.pordnr=%[1]s",
+		EventURL: qis + "?state=verpublish&status=init&vmfile=no&moduleCall=webInfo&publishConfFile=webInfo&publishSubDir=veranstaltung&veranstaltung.veranstid=%s",
 		TreeRootURL: qis + "?state=modulBeschrGast&moduleParameter=modDescr&next=tree.vm&nextdir=qispos/modulBeschr/gast&nodeID=auswahlBaum" +
 			"&navigationPosition=modules%2CmodulBeschrGast&breadcrumb=modDescrViewOnly2&topitem=modules&subitem=modulBeschrGast&asi=",
 	}
@@ -59,6 +73,76 @@ func CrawlLists(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) 
 	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff})
 }
 
+// qisModuleListChunk is how many rows one request of the QIS module table asks for.
+// The whole table in one response is 27 MB, more than the crawler keeps of a single
+// page; 1,000 rows are about 8 MB.
+const qisModuleListChunk = 1000
+
+// maxQISModuleListChunks bounds the loop if the table never returns a short chunk.
+const maxQISModuleListChunks = 50
+
+// CrawlQISModuleList archives the QIS module table in chunks, until a chunk is
+// shorter than a full one. Chunks behind the end of a table that shrank are
+// removed, so that they cannot keep naming modules the table no longer has.
+func CrawlQISModuleList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (crawl.Stats, error) {
+	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff})
+	rowParser := parser.NewFUESParser()
+
+	for i := 0; i < maxQISModuleListChunks; i++ {
+		start := i * qisModuleListChunk
+		job := crawl.Job{
+			Source: catalogdb.SourceQISModuleList,
+			Key:    qisModuleListKey(start),
+			URL:    fmt.Sprintf(ep.QISModuleList, start, qisModuleListChunk),
+		}
+		body, err := fetcher.Get(ctx, job)
+		if err != nil {
+			return fetcher.Stats(), err
+		}
+		rows, err := rowParser.Parse(bytes.NewReader(body))
+		if err != nil {
+			return fetcher.Stats(), fmt.Errorf("QIS module table at %d: %w", start, err)
+		}
+		if len(rows) < qisModuleListChunk {
+			return fetcher.Stats(), dropQISListChunksAfter(db, start)
+		}
+	}
+	return fetcher.Stats(), fmt.Errorf("the QIS module table has more than %d rows; no chunk ended it", maxQISModuleListChunks*qisModuleListChunk)
+}
+
+func qisModuleListKey(start int) string { return fmt.Sprintf("rows-%06d", start) }
+
+// dropQISListChunksAfter removes archived chunks that start after the last one read.
+func dropQISListChunksAfter(db *catalogdb.DB, lastStart int) error {
+	fetched, err := db.FetchTimes(catalogdb.SourceQISModuleList)
+	if err != nil {
+		return err
+	}
+	var stale []string
+	for key := range fetched {
+		var start int
+		if _, err := fmt.Sscanf(key, "rows-%d", &start); err != nil || start <= lastStart {
+			// A key of another shape is not ours to judge; "list" is the key of the
+			// single-page attempt this chunking replaced.
+			if key == "list" {
+				stale = append(stale, key)
+			}
+			continue
+		}
+		stale = append(stale, key)
+	}
+	if len(stale) == 0 {
+		return nil
+	}
+	n, err := db.PruneArchive(map[string][]string{catalogdb.SourceQISModuleList: stale}, time.Time{})
+	if err != nil {
+		return err
+	}
+	oplog.For("crawl").Info("removed module table chunks behind the end", "event", "crawl.list_chunks_dropped",
+		"source", catalogdb.SourceQISModuleList, "removed", n)
+	return nil
+}
+
 // CrawlModules archives the module pages of every module the archived lists name.
 func CrawlModules(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (crawl.Stats, error) {
 	ids, err := ModuleIDs(db)
@@ -68,6 +152,25 @@ func CrawlModules(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace
 	jobs := make([]crawl.Job, 0, len(ids))
 	for _, id := range ids {
 		jobs = append(jobs, crawl.Job{Source: catalogdb.SourceModulePage, Key: id, URL: fmt.Sprintf(ep.ModuleURL, id)})
+	}
+	return runOldestFirst(ctx, db, jobs, pace)
+}
+
+// CrawlQISModules archives the QIS module description of every module the archived
+// QIS module table names. QIS is where the catalog is maintained, so its page carries
+// the events of the current semester weeks before the CMS copy on b-tu.de does.
+func CrawlQISModules(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (crawl.Stats, error) {
+	refs, err := QISModuleRefs(db)
+	if err != nil {
+		return crawl.Stats{}, err
+	}
+	jobs := make([]crawl.Job, 0, len(refs))
+	for _, r := range refs {
+		jobs = append(jobs, crawl.Job{
+			Source: catalogdb.SourceQISModulePage,
+			Key:    r.ModuleID,
+			URL:    fmt.Sprintf(ep.QISModuleURL, r.Pordnr, r.Language),
+		})
 	}
 	return runOldestFirst(ctx, db, jobs, pace)
 }
@@ -204,24 +307,105 @@ func ModuleIDs(db *catalogdb.DB) ([]string, error) {
 	return ids, nil
 }
 
-// LinkedEventIDs are the QIS event IDs that archived module pages link.
-func LinkedEventIDs(db *catalogdb.DB) ([]string, error) {
+// QISModuleRef is one row of the QIS module table: the module number students see,
+// the internal number of its description, which addresses the page, and the view to
+// ask for — a description is written in the language the module is taught in, and
+// the other view leaves its texts empty.
+type QISModuleRef struct {
+	ModuleID string
+	Pordnr   string
+	Language string // objLanguage: "de" or "en"
+}
+
+// qisViewLanguage picks the view from the teaching language of the module. German
+// is the fallback: it is what an unknown or a bilingual module is described in.
+func qisViewLanguage(raw string) string {
+	german, english := normalize.Languages(raw)
+	if english && !german {
+		return "en"
+	}
+	return "de"
+}
+
+var rePordnr = regexp.MustCompile(`pord\.pordnr=(\d+)`)
+
+// QISModuleRefs reads the archived chunks of the QIS module table. Rows without a
+// link to a description are skipped: without its pordnr the page cannot be addressed.
+func QISModuleRefs(db *catalogdb.DB) ([]QISModuleRef, error) {
+	rowParser := parser.NewFUESParser()
 	seen := make(map[string]bool)
-	detailParser := parser.NewDetailParser()
-	err := db.EachPage(catalogdb.SourceModulePage, func(p *catalogdb.RawPage) error {
+	var refs []QISModuleRef
+
+	err := db.EachPage(catalogdb.SourceQISModuleList, func(p *catalogdb.RawPage) error {
 		if p.HTTPStatus != 200 || len(p.Body) == 0 {
 			return nil
 		}
-		d, err := detailParser.Parse(bytes.NewReader(p.Body), p.Key, p.URL)
+		rows, err := rowParser.Parse(bytes.NewReader(p.Body))
 		if err != nil {
-			return fmt.Errorf("module page %s: %w", p.Key, err)
+			return fmt.Errorf("QIS module table %s: %w", p.Key, err)
 		}
-		for _, link := range d.CurrentSemesterEvents {
-			if id := eventIDFromURL(link.URL); id != "" {
-				seen[id] = true
+		for _, r := range rows {
+			m := rePordnr.FindStringSubmatch(r.QISURL)
+			if m == nil || seen[r.ID] {
+				continue
 			}
+			seen[r.ID] = true
+			refs = append(refs, QISModuleRef{ModuleID: r.ID, Pordnr: m[1], Language: qisViewLanguage(r.Language)})
 		}
 		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(refs) == 0 {
+		return nil, fmt.Errorf("the archived QIS module table names no module descriptions; it may not be archived yet, or the page layout changed")
+	}
+	sort.Slice(refs, func(a, b int) bool { return refs[a].ModuleID < refs[b].ModuleID })
+	return refs, nil
+}
+
+// LinkedEventIDs are the QIS event IDs that archived module descriptions link:
+// both the QIS page, which names the events of the semester that runs now, and the
+// copy on b-tu.de, which can still name the exams of the one that is ending.
+func LinkedEventIDs(db *catalogdb.DB) ([]string, error) {
+	seen := make(map[string]bool)
+	detailParser := parser.NewDetailParser()
+	qisParser := parser.NewQISModuleParser()
+
+	read := func(source string, parse func([]byte, string, string) ([]model.ModuleEvent, error)) error {
+		return db.EachPage(source, func(p *catalogdb.RawPage) error {
+			if p.HTTPStatus != 200 || len(p.Body) == 0 {
+				return nil
+			}
+			links, err := parse(p.Body, p.Key, p.URL)
+			if err != nil {
+				return fmt.Errorf("%s %s: %w", source, p.Key, err)
+			}
+			for _, link := range links {
+				if id := eventIDFromURL(link.URL); id != "" {
+					seen[id] = true
+				}
+			}
+			return nil
+		})
+	}
+
+	err := read(catalogdb.SourceQISModulePage, func(body []byte, key, pageURL string) ([]model.ModuleEvent, error) {
+		d, err := qisParser.Parse(bytes.NewReader(body), key, pageURL)
+		if err != nil {
+			return nil, err
+		}
+		return d.CurrentSemesterEvents, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = read(catalogdb.SourceModulePage, func(body []byte, key, pageURL string) ([]model.ModuleEvent, error) {
+		d, err := detailParser.Parse(bytes.NewReader(body), key, pageURL)
+		if err != nil {
+			return nil, err
+		}
+		return d.CurrentSemesterEvents, nil
 	})
 	if err != nil {
 		return nil, err

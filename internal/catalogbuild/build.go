@@ -7,6 +7,7 @@ package catalogbuild
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -281,9 +282,13 @@ func foreignKeyCheck(tx *sql.Tx) error {
 }
 
 func (b *builder) writeMeta() error {
+	current, err := b.currentSemester()
+	if err != nil {
+		return err
+	}
 	meta := map[string]string{
 		"built_at":         b.report.BuiltAt.Format(time.RFC3339),
-		"current_semester": currentSemesterKey(b.report.BuiltAt),
+		"current_semester": current,
 	}
 	rows, err := b.tx.Query("SELECT source, MIN(fetched_at), MAX(fetched_at), COUNT(*) FROM raw_page WHERE http_status = 200 GROUP BY source")
 	if err != nil {
@@ -319,6 +324,39 @@ func (b *builder) writeMeta() error {
 }
 
 // currentSemesterKey: summer semester runs April to September, winter October to March.
+// minModulesOfAPublishedSchedule is when a semester counts as published. BTU
+// releases a semester module by module over weeks: on 2026-09-19 a single winter
+// event existed (a Polish course) while the summer semester was still running, and
+// one event must never move the whole catalog forward.
+const minModulesOfAPublishedSchedule = 100
+
+// currentSemester is the semester the catalog presents. The calendar decides, but a
+// semester whose schedule is already published wins over it: on 2026-09-21 the
+// winter schedule was in QIS with 1,496 modules while the summer semester still had
+// ten days to run, and students plan with the semester they can attend, not with
+// the one that is ending.
+func (b *builder) currentSemester() (string, error) {
+	byCalendar := currentSemesterKey(b.report.BuiltAt)
+
+	var published sql.NullString
+	err := b.tx.QueryRow(`
+		SELECT e.semester_key FROM event e
+		JOIN module_event me ON me.event_id = e.id
+		WHERE e.category <> 'exam' AND e.first_date IS NOT NULL
+		GROUP BY e.semester_key
+		HAVING COUNT(DISTINCT me.module_id) >= ?
+		ORDER BY e.semester_key DESC LIMIT 1`, minModulesOfAPublishedSchedule).Scan(&published)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("cannot read the published semesters: %w", err)
+	}
+	// Semester keys sort chronologically, so the published one only ever moves the
+	// catalog forward, never back into a semester that has ended.
+	if published.Valid && published.String > byCalendar {
+		return published.String, nil
+	}
+	return byCalendar, nil
+}
+
 func currentSemesterKey(now time.Time) string {
 	now = now.In(time.FixedZone("CET", 3600))
 	switch m := now.Month(); {

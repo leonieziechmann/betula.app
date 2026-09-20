@@ -12,6 +12,11 @@ import (
 //   - an event that no module page links any more and that has not been refreshed
 //     within keep (the crawler only refreshes linked events), whatever its dates.
 //
+// Nothing of a semester that has not ended is removed, whatever its dates say. QIS
+// dates an oral examination "by arrangement" with a placeholder: 186 examinations of
+// WiSe 2026/27 carried 27.12.2015 and were deleted by the rule above on 2026-09-21,
+// although they are the examinations of the semester that is about to start.
+//
 // It works on the result of the last build (event.last_date, module_event); the next
 // build drops the events from the canonical tables.
 func (db *DB) PruneEvents(now time.Time, keep time.Duration) (int, error) {
@@ -25,13 +30,15 @@ func (db *DB) PruneEvents(now time.Time, keep time.Duration) (int, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	today := now.UTC().Format("2006-01-02")
 	_, err = tx.Exec(`
 		INSERT OR REPLACE INTO event_tombstone (event_id, last_date, pruned_at)
 		SELECT e.id, e.last_date, ? FROM event e
-		WHERE (e.last_date IS NOT NULL AND e.last_date < ?)
-		   OR (e.fetched_at < ?
-		       AND NOT EXISTS (SELECT 1 FROM module_event me WHERE me.event_id = e.id))`,
-		prunedAt, cutoffDate, cutoffTime)
+		WHERE NOT EXISTS (SELECT 1 FROM semester s WHERE s.key = e.semester_key AND s.ends_on >= ?)
+		  AND ((e.last_date IS NOT NULL AND e.last_date < ?)
+		    OR (e.fetched_at < ?
+		        AND NOT EXISTS (SELECT 1 FROM module_event me WHERE me.event_id = e.id)))`,
+		prunedAt, today, cutoffDate, cutoffTime)
 	if err != nil {
 		return 0, fmt.Errorf("failed to mark events: %w", err)
 	}

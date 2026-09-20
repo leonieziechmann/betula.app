@@ -377,3 +377,66 @@ fixtures. Expect them to move after the re-crawl: tree-only should fall from 3,1
 **Q8.** The database must ship with views so that the frontend can use simple queries. This is
 deliverable 3 of the brief: the views are part of the exported snapshot and are the only read
 contract.
+
+## 10. The module description moved to QIS (2026-09-20)
+
+**What was wrong.** `b-tu.de/modul/<id>` is not a source: it is a copy that BTU's CMS renders
+from QIS, and the copy lags. On 2026-09-20, with QIS already on WiSe 2026/27, every one of the
+4,908 module pages was re-fetched and **not one had changed**: they still named the events of
+SoSe 2026. Module 11289 „Softwaretechnik" linked `veranstid=145503` (Prüfung SS 2026) while QIS
+listed `veranstid=153213` for the same Veranstaltungsnummer 120632, in WS 2026/27. Analysis I
+(11103) showed one repeat exam on the copy and its whole winter schedule in QIS — lecture
+130930, exercise 130931, exam 130932, with rooms and times (Mo 09:15, HG 3.45, 05.10.2026 …
+25.01.2027). Since the event crawl only ever sees what a module description links, the winter
+semester could not enter the catalog at all through the copy.
+
+**The source now.** The description in QIS, `state=modulBeschrDetailInfo&pord.pordnr=<n>`
+(`nodeID=auswahlBaum|modul:pordnr=<n>` is required — without it the answer leaves out the
+events). It carries every field the copy has, in the same labels and list shapes, plus the
+German **and** the English title in one page. Its rows are read by `parser.QISModuleParser`
+through the same `applyRow` as the copy, so both end up in one `model.ModuleDetail`.
+
+The module numbers and their `pordnr` come from the QIS module table
+(`TableSelectModul.vm`, source `qis_module_list`). The whole table is 27 MB in one response —
+more than the crawler keeps of a page (16 MB) — so it is read in chunks of 1,000 rows
+(`rows-000000`, `rows-001000`, …) until a chunk is short; chunks behind the end are removed.
+
+| | b-tu.de list | QIS table | both |
+|---|---|---|---|
+| Modules | 4,908 | 3,237 | 3,209 |
+| Only there | 1,699 (1,698 `not_offered`, 1 `phase_out`) | 28 | |
+| Active modules missing | 0 | 0 | |
+
+**Precedence.** QIS wins for every module it has a description for; `module.description_source`
+states `qis` or `btu_cms` per module, and `source_url` is the page the fields were read from —
+the QIS address for a QIS-sourced module, not the nicer `b-tu.de/modul/<id>`. The 1,698 modules
+QIS no longer lists keep their copy, so old regulations and study plans do not lose their modules.
+
+**Events are the exception: both descriptions count.** QIS names only the semester that runs
+now, while the copy still names the exams of the one that is ending — on 2026-09-20 the repeat
+exams of SoSe 2026, some of them days away. An event states its own semester, so both sets of
+links are kept (`mergeEventLinks`); retention removes an event 30 days after its last date as
+before.
+
+**One view per module, in its own language.** A QIS description is written in the language the
+module is taught in; the other view is not a translation. The German view of 11191 „EMC in
+Electrical Power Installations" states `Lernziele: keine` and `Inhalte: keine` and puts the
+English title first, while the English view carries the text. The teaching language is a column
+of the module table, so `QISModuleRefs` asks for `objLanguage=en` for the 691 English-taught
+modules and `de` for the rest — one request per module, and `isEnglishModulePage` marks the
+English ones exactly as it did for the copy, which the build uses to sort the two titles.
+
+**What QIS says and the copy does not.** A phase-out has a row of its own in QIS
+(„Auslaufmodul: Nachfolgemodul seit: 20.01.2023" with a link to the successor); 11162
+„Wirtschaftsprüfung" was `active` with no remark in the catalog built from the copy. The
+successor is read from the link text, never from its address: a QIS link carries the internal
+`pordnr` (16532), which is five digits too and would name a module that does not exist.
+
+**The catalog follows the published semester, not the calendar.** With the winter schedule in
+(1,496 modules, 2,004 teaching events on 2026-09-21) the summer semester still had ten days to
+run, but students plan with the semester they can attend. `meta.current_semester` therefore takes
+the later of the calendar semester and the newest one whose schedule is published, where
+published means at least 100 modules have a dated teaching event in it. The threshold is what
+keeps a single early event from moving the whole catalog, as one Polish course nearly did on
+2026-09-19. The value is part of the content digest, or a semester that moves without any other
+change would never be exported to a browser.
