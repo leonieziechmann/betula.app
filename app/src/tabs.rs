@@ -28,6 +28,9 @@ pub enum Area {
     Home,
     Catalog,
     Programs,
+    /// „Merkliste": the visitor's marked modules. It is one page; a module opened from it is a
+    /// page of the catalog whose „Zurück" leads back here (`Tabs::came_from`).
+    Bookmarks,
 }
 
 impl Area {
@@ -36,6 +39,8 @@ impl Area {
             Area::Programs
         } else if path.starts_with(url::CATALOG) {
             Area::Catalog
+        } else if path.starts_with(url::BOOKMARKS) {
+            Area::Bookmarks
         } else {
             Area::Home
         }
@@ -47,6 +52,7 @@ impl Area {
             Area::Home => url::HOME,
             Area::Catalog => url::CATALOG,
             Area::Programs => url::PROGRAMS,
+            Area::Bookmarks => url::BOOKMARKS,
         }
     }
 }
@@ -73,6 +79,8 @@ struct Memory {
     catalog_list: Option<String>,
     programs: Option<String>,
     programs_list: Option<String>,
+    /// The marked modules as they were left: their order, the module open beside them.
+    bookmarks: Option<String>,
 }
 
 impl Memory {
@@ -91,6 +99,11 @@ impl Memory {
         let (last, list) = match Area::of(&path) {
             Area::Catalog => (&mut self.catalog, &mut self.catalog_list),
             Area::Programs => (&mut self.programs, &mut self.programs_list),
+            Area::Bookmarks => {
+                self.bookmarks = Some(location.clone());
+                self.previous = std::mem::replace(&mut self.current, location);
+                return;
+            }
             Area::Home => {
                 self.previous = std::mem::replace(&mut self.current, location);
                 return;
@@ -104,14 +117,14 @@ impl Memory {
     }
 
     fn stored(&self) -> String {
-        [&self.catalog, &self.catalog_list, &self.programs, &self.programs_list].map(|entry| entry.clone().unwrap_or_default()).join("\n")
+        [&self.catalog, &self.catalog_list, &self.programs, &self.programs_list, &self.bookmarks].map(|entry| entry.clone().unwrap_or_default()).join("\n")
     }
 
     fn restored(stored: &str) -> Self {
         // Only paths of this site: what is stored ends up in links.
         let mut lines = stored.lines().map(|line| Some(line.to_string()).filter(|line| line.starts_with('/') && !line.starts_with("//")));
         let mut next = || lines.next().flatten();
-        Self { catalog: next(), catalog_list: next(), programs: next(), programs_list: next(), ..Default::default() }
+        Self { catalog: next(), catalog_list: next(), programs: next(), programs_list: next(), bookmarks: next(), ..Default::default() }
     }
 }
 
@@ -147,6 +160,7 @@ impl Tabs {
             let (last, list) = match area {
                 Area::Catalog => (&memory.catalog, &memory.catalog_list),
                 Area::Programs => (&memory.programs, &memory.programs_list),
+                Area::Bookmarks => (&memory.bookmarks, &memory.bookmarks),
                 Area::Home => (&None, &None),
             };
             let remembered = if Area::of(path) != area {
@@ -165,6 +179,7 @@ impl Tabs {
         self.0.with_untracked(|memory| match area {
             Area::Catalog => memory.catalog_list.clone(),
             Area::Programs => memory.programs_list.clone(),
+            Area::Bookmarks => memory.bookmarks.clone(),
             Area::Home => None,
         })
         .unwrap_or_else(|| area.root().to_string())
@@ -176,6 +191,7 @@ impl Tabs {
         self.0.with_untracked(|memory| match area {
             Area::Catalog => memory.catalog.clone(),
             Area::Programs => memory.programs.clone(),
+            Area::Bookmarks => memory.bookmarks.clone(),
             Area::Home => None,
         })
     }
@@ -184,6 +200,12 @@ impl Tabs {
     /// before or after the memory has heard of `now`; the answer is the same either way.
     pub fn before(self, now: &str) -> String {
         self.0.with_untracked(|memory| if memory.current == now { memory.previous.clone() } else { memory.current.clone() })
+    }
+
+    /// The area the visitor was in before `now`. A module's page asks this: a module opened from
+    /// the marked modules leads back to them, not to the catalog's list.
+    pub fn came_from(self, now: &str) -> Area {
+        Area::of(path_of(&self.before(now)))
     }
 }
 
@@ -224,6 +246,21 @@ mod tests {
         let restored = Memory::restored(&memory.stored());
         assert_eq!((restored.catalog.clone(), restored.programs_list.clone()), (memory.catalog.clone(), memory.programs_list.clone()));
         assert_eq!(Memory::restored("javascript:alert(1)\n//evil.example/x\n/programs\n"), Memory { programs: Some("/programs".into()), ..Default::default() });
+    }
+
+    #[test]
+    fn the_marked_modules_are_an_area_of_their_own() {
+        assert_eq!(Area::of("/bookmarks"), Area::Bookmarks);
+        let mut memory = Memory::default();
+        for location in ["/catalog?turnus=winter", "/bookmarks?sort=ects&open=11112", "/catalog/module/11112"] {
+            memory.visit(location.to_string());
+        }
+        assert_eq!(memory.bookmarks.as_deref(), Some("/bookmarks?sort=ects&open=11112"));
+        // The module was opened from the marked modules: that is where its „Zurück" leads.
+        assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog_list.as_deref()), (Area::Bookmarks, Some("/catalog?turnus=winter")));
+        // A reload keeps it, and what an older version stored (four lines) still reads.
+        assert_eq!(Memory::restored(&memory.stored()).bookmarks, memory.bookmarks);
+        assert_eq!(Memory::restored("/catalog\n/catalog\n\n\n"), Memory { catalog: Some("/catalog".into()), catalog_list: Some("/catalog".into()), ..Default::default() });
     }
 
     #[test]

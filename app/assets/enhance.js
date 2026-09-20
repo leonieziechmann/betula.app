@@ -2,7 +2,8 @@
 // without this file (links and forms). Before the app has taken over (`window.__betulaApp`), it
 // makes the classic site smoother: filters apply on change, panels keep their scroll position
 // across page loads. In both modes: the shortcuts (Esc closes the preview or leaves the module
-// page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search), the theme
+// page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search; in the app
+// M marks the module the visitor is at), the theme
 // switch, the filter sheet, and the widths of the filter panel and the module preview (dragged,
 // kept in localStorage).
 (() => {
@@ -115,13 +116,19 @@
         section.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
         break;
       }
-      case "copy-link": {
+      case "copy-link":
+      case "copy-text": {
+        // The address of the page, or what the control carries (`data-text`: the marked modules
+        // as text, or with `data-absolute` a path of this site that becomes a whole address).
         e.preventDefault();
-        const label = target.querySelector("span");
-        navigator.clipboard?.writeText(location.href).then(() => {
+        const label = target.querySelector("[data-label]") || target.querySelector("span");
+        const link = target.dataset.action === "copy-link";
+        const carried = target.dataset.text || "";
+        const text = link ? location.href : "absolute" in target.dataset ? new URL(carried, location.origin).href : carried;
+        navigator.clipboard?.writeText(text).then(() => {
           if (!label || label.dataset.was) return;
           label.dataset.was = label.textContent;
-          label.textContent = "Link kopiert";
+          label.textContent = link ? "Link kopiert" : "Kopiert";
           setTimeout(() => { label.textContent = label.dataset.was; delete label.dataset.was; }, 1600);
         }).catch(() => {});
         break;
@@ -262,6 +269,12 @@
     } else if (plain && (e.key === "f" || e.key === "F") && !typing(document.activeElement)) {
       const full = document.querySelector('[data-action="fullscreen"]');
       if (full) { e.preventDefault(); full.click(); }
+    } else if (plain && (e.key === "m" || e.key === "M") && !typing(document.activeElement) && appRuns()) {
+      // „Merken" for what the visitor is at: the row the keyboard is on, else the module that is
+      // open (its preview, or its page). The buttons belong to the browser app.
+      const row = document.activeElement?.closest?.(".row-wrap");
+      const mark = row ? row.querySelector('[data-action="mark"]') : document.querySelector('.hero [data-action="mark"]');
+      if (mark) { e.preventDefault(); mark.click(); }
     } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();
       const search = document.getElementById("topsearch");

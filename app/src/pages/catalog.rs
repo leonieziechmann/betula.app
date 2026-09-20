@@ -17,6 +17,7 @@ use leptos_meta::Title;
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::NavigateOptions;
 
+use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
 use crate::data::{use_source, PageStatus};
 use crate::format;
@@ -57,16 +58,8 @@ pub fn CatalogPage() -> impl IntoView {
 
     // On a phone a module opens as its own page, never as a preview (the preview would fill the
     // screen anyway, and the page has a history entry of its own to come back from).
-    let phone = RwSignal::new(nav::is_phone());
+    let phone = phone_layout();
     let navigate = use_navigate();
-    Effect::new(move |_| {
-        let handle = window_event_listener(leptos::ev::resize, move |_| {
-            if phone.get_untracked() != nav::is_phone() {
-                phone.set(nav::is_phone());
-            }
-        });
-        on_cleanup(move || handle.remove());
-    });
     Effect::new(move |_| {
         if let (true, Some(id)) = (phone.get(), open.get()) {
             navigate(&url::module_path(&id), NavigateOptions { replace: true, ..Default::default() });
@@ -145,6 +138,21 @@ pub fn CatalogPage() -> impl IntoView {
             }}
         </div>
     }
+}
+
+/// Whether the phone layout is in use, kept up to date while the window changes its size. A list
+/// needs it because its rows lead to the module's page there and to a preview elsewhere.
+pub(crate) fn phone_layout() -> RwSignal<bool> {
+    let phone = RwSignal::new(nav::is_phone());
+    Effect::new(move |_| {
+        let handle = window_event_listener(leptos::ev::resize, move |_| {
+            if phone.get_untracked() != nav::is_phone() {
+                phone.set(nav::is_phone());
+            }
+        });
+        on_cleanup(move || handle.remove());
+    });
+    phone
 }
 
 /// A link that keeps whatever preview is open at the time it is followed.
@@ -418,7 +426,7 @@ fn List(
                     <span class="count num">{format::count(total)}</span>
                     <span class="count-label">{label}</span>
                     <div class="list-tools">
-                        <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen"</span>
+                        <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau, M merkt das gewählte Modul"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen "<kbd>"M"</kbd>" merken"</span>
                         <a class="sheet-toggle" href="#filters" data-action="sheet-open">
                             <Icon name="sliders-horizontal"/>"Filter"{(active_count > 0).then(|| view! { <em>{active_count}</em> })}
                         </a>
@@ -474,16 +482,23 @@ fn List(
     }
 }
 
+/// A module as a row of a list: the catalog's, and the list of marked modules. The whole row is
+/// a link; the mark at its end is a button next to the link, not inside it.
 #[component]
-fn Row(
+pub(crate) fn Row(
     row: CatalogRow,
-    base: CatalogUrl,
-    open: Memo<Option<String>>,
-    page: Memo<u64>,
+    /// Where the row leads on the desktop: its list with this module previewed next to it. On a
+    /// phone it leads to the module's own page.
+    #[prop(into)] preview: Signal<String>,
+    /// This module is the one previewed.
+    #[prop(into)] current: Signal<bool>,
     phone: RwSignal<bool>,
     with_program: bool,
     /// Set on the first row of a page: how the list knows which page is on screen.
     starts_page: Option<u64>,
+    /// In the list of marked modules a module whose mark was taken away stays where it is,
+    /// dimmed, so that a slip is one click to undo.
+    #[prop(optional)] dim_unmarked: bool,
 ) -> impl IntoView {
     let language = format::languages(row.teaches_german, row.teaches_english);
     let (turnus_icon, turnus_text) = match row.turnus_season.as_ref().and_then(|s| s.known()) {
@@ -499,39 +514,41 @@ fn Row(
         n => format!("{n} Termine"),
     };
     let has_events = row.teaching_events > 0;
-    let id = row.id.clone();
     let target = row.id.clone();
     // The preview next to the list; on a phone the module's own page.
-    let href = move || {
-        if phone.get() {
-            url::module_path(&target)
-        } else {
-            base.with_page(page.get()).with_open(Some(&target)).path()
-        }
-    };
+    let href = move || if phone.get() { url::module_path(&target) } else { preview.get() };
+    let unmarked = dim_unmarked.then(|| {
+        let (bookmarks, id) = (Bookmarks::expect(), row.id.clone());
+        Memo::new(move |_| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&id)))
+    });
     view! {
-        <a class="row" href=href data-noscroll="" data-id=row.id.clone() data-page=starts_page aria-current=move || (open.get().as_deref() == Some(id.as_str())).then_some("true")>
-            <div class="t">
-                <b>{row.title.clone()}</b>
-                <small>
-                    <span class="mono">{row.id.clone()}</span>
-                    {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
-                    <OfferBadge status=row.offer_status.clone()/>
-                    {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
-                    {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">"begrenzte Plätze"</span> })}
-                    <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
-                </small>
-            </div>
-            <span class="resp">{row.responsible.clone()}</span>
-            <span class="exam">{row.exam_form.as_ref().map(format::exam_short)}</span>
-            <span class="lp num">{row.credits.map(format::number)}<small>"LP"</small></span>
-            <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
-            <span class="lang" class:unknown=language.is_none()>{language.unwrap_or("k. A.")}</span>
-            <span class="events" class:none=!has_events>
-                {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
-                {if has_events { events } else { "noch keine".to_string() }}
-            </span>
-        </a>
+        <div class="row-wrap" class:unmarked=move || unmarked.is_some_and(|unmarked| unmarked.get())>
+            <a class="row" href=href data-noscroll="" data-id=row.id.clone() data-page=starts_page aria-current=move || current.get().then_some("true")>
+                <div class="t">
+                    <b>{row.title.clone()}</b>
+                    <small>
+                        <span class="mono">{row.id.clone()}</span>
+                        {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
+                        <OfferBadge status=row.offer_status.clone()/>
+                        {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
+                        {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">"begrenzte Plätze"</span> })}
+                        <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
+                    </small>
+                </div>
+                <span class="resp">{row.responsible.clone()}</span>
+                <span class="exam">{row.exam_form.as_ref().map(format::exam_short)}</span>
+                <span class="lp num">{row.credits.map(format::number)}<small>"LP"</small></span>
+                <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
+                <span class="lang" class:unknown=language.is_none()>{language.unwrap_or("k. A.")}</span>
+                <span class="events" class:none=!has_events>
+                    {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
+                    {if has_events { events } else { "noch keine".to_string() }}
+                </span>
+            </a>
+            // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
+            // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
+            {APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> })}
+        </div>
     }
 }
 
@@ -581,12 +598,15 @@ fn ChunkRows(
             let first = index == 0;
             let new_group = by_plan && last_group != Some(group);
             last_group = Some(group);
+            let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
+            let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
+            let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
             view! {
                 {(new_group && first).then(|| view! {
                     {move || (group_before.get() != Some(group)).then(|| view! { <div class="sem">{header(group)}</div> })}
                 })}
                 {(new_group && !first).then(|| view! { <div class="sem">{header(group)}</div> })}
-                <Row row=row.clone() base=base.clone() open page phone with_program starts_page=first.then_some(chunk.page)/>
+                <Row row=row.clone() preview current phone with_program starts_page=first.then_some(chunk.page)/>
             }
         })
         .collect_view();

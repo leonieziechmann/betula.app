@@ -17,6 +17,7 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::{use_location, use_params_map};
 
+use crate::bookmarks::{MarkButton, MarkLook};
 use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::seo::{self, Seo};
@@ -166,10 +167,12 @@ fn sections(data: &ModuleData) -> Vec<(&'static str, &'static str)> {
 }
 
 /// The sidebar of the module's page: the sections of the page, and what can be done with the
-/// module. „Merken" and the semester plan are announced here, where they will live.
+/// module. It stays in view while the page scrolls, so „Merken" is here as well as beside the
+/// badges of the heading. The semester plan is announced here, where it will live.
 #[component]
 fn Sidebar(data: ModuleData) -> impl IntoView {
     let source_url = data.module.source_url.clone();
+    let (id, title) = (data.module.id.clone(), data.module.title.clone());
     view! {
         <nav class="toc jumps" aria-label="Auf dieser Seite">
             <p class="flabel label">"Auf dieser Seite"</p>
@@ -179,7 +182,7 @@ fn Sidebar(data: ModuleData) -> impl IntoView {
         </nav>
         <div class="fgroup actions">
             <p class="flabel label">"Aktionen"</p>
-            <span class="action soon" title="In Arbeit"><Icon name="bookmark"/>"Merken"<em>"bald"</em></span>
+            <MarkButton id title look=MarkLook::Action/>
             <span class="action soon" title="Geplant"><Icon name="calendar-range"/>"Ins Semester einplanen"<em>"bald"</em></span>
             <JsOnly><a class="action" href="#" data-action="copy-link"><Icon name="share-2"/><span>"Link kopieren"</span></a></JsOnly>
             {source_url.map(|href| view! { <a class="action" href=href rel="noopener"><Icon name="arrow-up-right"/>"Original bei der BTU"</a> })}
@@ -187,18 +190,26 @@ fn Sidebar(data: ModuleData) -> impl IntoView {
     }
 }
 
-/// The program whose page shows this module beside it, if that is where the visitor comes from.
-/// A reload forgets the step before, so the memory of the area answers as well: it knows the
-/// program page it was left at, and that page names the module it has open (`open=<id>`).
-fn opened_beside_a_program(id: &str) -> Option<String> {
+/// Where „Zurück" leads from a module's page, as an area and (where one page answers it) that
+/// page: the program whose page had the module open beside it, the marked modules if the module
+/// was opened from them, else the catalog's list as it was left. The step the visitor took
+/// decides; a reload forgets it, and then the memory of the programs answers, because a program
+/// page names the module it has open (`open=<id>`).
+fn back_to(id: &str) -> (Area, Option<String>) {
     let location = use_location();
-    let tabs = Tabs::expect()?;
+    let Some(tabs) = Tabs::expect() else { return (Area::Catalog, None) };
     let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
     let before = tabs.before(&now);
     if tabs::page_below(&before, url::PROGRAMS).is_some() {
-        return Some(before);
+        return (Area::Programs, Some(before));
     }
-    tabs.left(Area::Programs).filter(|left| shows_module(left, id))
+    if tabs.came_from(&now) == Area::Bookmarks {
+        return (Area::Bookmarks, None);
+    }
+    match tabs.left(Area::Programs).filter(|left| shows_module(left, id)) {
+        Some(program) => (Area::Programs, Some(program)),
+        None => (Area::Catalog, None),
+    }
 }
 
 /// Does this address name a program's page with this module open beside it?
@@ -231,7 +242,7 @@ pub fn ModulePage() -> impl IntoView {
                 let derived = derive(&data);
                 // „Zurück" leads where the visitor came from: the program whose page had this
                 // module open beside it (its „Vollbild"), else the catalog's list as it was left.
-                let from_program = opened_beside_a_program(&id);
+                let back = back_to(&id);
                 view! {
                     // The name first (what people search for), then number and university.
                     <Title text=format!("{} ({}) · Modul der BTU Cottbus-Senftenberg", data.module.title, data.module.id)/>
@@ -250,7 +261,7 @@ pub fn ModulePage() -> impl IntoView {
                             <article class="module-page">
                                 <header class="panel hero">
                                     <div class="hero-top">
-                                        <BackLink area=Area::Catalog to=from_program/>
+                                        <BackLink area=back.0 to=back.1.clone()/>
                                         <span class="mono">{data.module.id.clone()}</span>
                                     </div>
                                     <Heading data=data.clone()/>
@@ -282,6 +293,11 @@ fn Heading(data: ModuleData) -> impl IntoView {
             {format::languages(m.teaches_german, m.teaches_english).map(|l| view! { <span class="badge">{l}</span> })}
             {m.is_fues.then(|| view! { <span class="badge">"FÜS"</span> })}
             {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label().to_string()}</span> })}
+            // „Merken" stands in the line of the credits, at its right end (owner, 2026-09-20), in
+            // the preview and on the module's page alike. Marking belongs to the browser app: the
+            // switch is part of server HTML so that nothing moves at the takeover, and the
+            // stylesheet shows it once the app runs (R9, R15).
+            <MarkButton id=m.id.clone() title=m.title.clone() look=MarkLook::Hero/>
         </p>
     }
 }
