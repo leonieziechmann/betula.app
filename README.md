@@ -54,7 +54,6 @@ go test ./...                          # network-free, no API key needed
 | `internal/oplog`, `internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
 | `catalog/`, `app/`, `client/`, `server/` | Folia, the web tier in Rust (`docs/frontend.md`): the data contract with every SQL query, the Leptos app, and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
 | `e2e/` | crawl of the server-rendered site; Playwright smoke walk for the browser app |
-| `frontend/` | the old browser app, reference only until its parts are ported |
 
 ### Web tier
 
