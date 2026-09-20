@@ -11,7 +11,7 @@ use crate::queries;
 use crate::rows::{CatalogPage, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
 use crate::rows_detail::{
     AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
-    ProgramLink, ProgramVersion, Successor, TextItem,
+    ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
 };
 use crate::url::{CatalogUrl, PAGE_SIZE};
 
@@ -104,6 +104,83 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbErr
         departments: queries::departments(db)?,
         meta: queries::meta(db)?,
     })
+}
+
+/// What a derived faculty rests on, from strongest to weakest.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FacultyBasis {
+    /// The department of the program's thesis module.
+    Thesis,
+    /// The department that offers at least half of the curriculum's offered modules.
+    Majority,
+    /// The faculty of the programs of the same subject (Bachelor and Master), where they agree.
+    Counterpart,
+}
+
+/// The faculty of a program. **Derived, not stated:** neither the module catalog nor the
+/// lecture directory of the BTU names a program's faculty. A program without a clear answer has
+/// no entry, and the page says so („unknown stays unknown").
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProgramFaculty {
+    pub program_id: String,
+    pub department_id: i64,
+    pub basis: FacultyBasis,
+}
+
+/// Derives the faculties: the thesis module's department if there is exactly one; else the
+/// department offering at least half of the offered curriculum; else what the other programs
+/// of the same subject agree on.
+pub fn faculties(programs: &[Program], counts: &[ProgramDepartmentCount]) -> Vec<ProgramFaculty> {
+    let mut found: Vec<ProgramFaculty> = Vec::new();
+    for program in programs {
+        let own: Vec<&ProgramDepartmentCount> = counts.iter().filter(|c| c.program_id == program.id).collect();
+        let thesis: Vec<i64> = own.iter().filter(|c| c.thesis_modules > 0).map(|c| c.department_id).collect();
+        let offered: i64 = own.iter().map(|c| c.offered_modules).sum();
+        let largest = own.iter().max_by_key(|c| c.offered_modules);
+        let derived = match (thesis.as_slice(), largest) {
+            ([department], _) => Some((*department, FacultyBasis::Thesis)),
+            (_, Some(largest)) if offered > 0 && largest.offered_modules * 2 >= offered => Some((largest.department_id, FacultyBasis::Majority)),
+            _ => None,
+        };
+        if let Some((department_id, basis)) = derived {
+            found.push(ProgramFaculty { program_id: program.id.clone(), department_id, basis });
+        }
+    }
+    // The subject of „Wirtschaftsingenieurwesen - dual" is „Wirtschaftsingenieurwesen".
+    let subject = |program: &Program| program.name_key.trim_end_matches("-dual").to_string();
+    let by_subject: Vec<ProgramFaculty> = programs
+        .iter()
+        .filter(|program| !found.iter().any(|f| f.program_id == program.id))
+        .filter_map(|program| {
+            let mut agreed: Vec<i64> = programs
+                .iter()
+                .filter(|other| subject(other) == subject(program))
+                .filter_map(|other| found.iter().find(|f| f.program_id == other.id).map(|f| f.department_id))
+                .collect();
+            agreed.sort_unstable();
+            agreed.dedup();
+            match agreed.as_slice() {
+                [department] => Some(ProgramFaculty { program_id: program.id.clone(), department_id: *department, basis: FacultyBasis::Counterpart }),
+                _ => None,
+            }
+        })
+        .collect();
+    found.extend(by_subject);
+    found
+}
+
+/// The program overview: every program, the departments, and each program's derived faculty.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProgramsData {
+    pub programs: Vec<Program>,
+    pub departments: Vec<Department>,
+    pub faculties: Vec<ProgramFaculty>,
+}
+
+pub fn programs_overview(db: &dyn Database) -> Result<ProgramsData, DbError> {
+    let programs = queries::programs(db)?;
+    let faculties = faculties(&programs, &queries::program_department_counts(db)?);
+    Ok(ProgramsData { departments: queries::departments(db)?, faculties, programs })
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

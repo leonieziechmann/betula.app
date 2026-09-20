@@ -100,12 +100,10 @@ pub fn cache_key(uri: &Uri) -> String {
         // The list with its filters and, if any, the previewed module.
         CatalogUrl::parse(uri.query().unwrap_or_default()).path()
     } else if path == catalog::url::PROGRAMS {
-        // The program overview filtered by the search text.
-        let text = catalog::url::parse_pairs(uri.query().unwrap_or_default()).into_iter().find(|(key, _)| key == "q").map(|(_, value)| catalog::search::fold(value.trim()));
-        match text.filter(|text| !text.is_empty()) {
-            Some(text) => format!("{path}?q={}", catalog::url::encode(&text)),
-            None => path.to_string(),
-        }
+        // The program overview with its filters; the search text folded, as the page matches it.
+        let mut overview = catalog::url::ProgramsUrl::parse(uri.query().unwrap_or_default());
+        overview.text = catalog::search::fold(&overview.text);
+        overview.path()
     } else {
         path.to_string()
     }

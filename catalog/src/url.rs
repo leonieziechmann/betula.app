@@ -67,6 +67,146 @@ pub fn program_path(slug: &str, tab: ProgramTab) -> String {
     format!("/programs/{}/{}", encode(slug), tab.segment())
 }
 
+/// A group of degree levels, as the program overview filters them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LevelGroup {
+    Bachelor,
+    Master,
+    /// Lehramt, Bachelor and Master.
+    Teaching,
+    Doctoral,
+    /// Without a degree, or another one.
+    Other,
+}
+
+impl LevelGroup {
+    pub const ALL: &'static [Self] = &[Self::Bachelor, Self::Master, Self::Teaching, Self::Doctoral, Self::Other];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            LevelGroup::Bachelor => "bachelor",
+            LevelGroup::Master => "master",
+            LevelGroup::Teaching => "teaching",
+            LevelGroup::Doctoral => "doctoral",
+            LevelGroup::Other => "other",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            LevelGroup::Bachelor => "Bachelor",
+            LevelGroup::Master => "Master",
+            LevelGroup::Teaching => "Lehramt",
+            LevelGroup::Doctoral => "Promotion",
+            LevelGroup::Other => "Sonstige",
+        }
+    }
+
+    pub fn of(level: &crate::labels::Code<crate::labels::DegreeLevel>) -> Self {
+        use crate::labels::DegreeLevel;
+        match level.known() {
+            Some(DegreeLevel::Bachelor) => LevelGroup::Bachelor,
+            Some(DegreeLevel::Master) => LevelGroup::Master,
+            Some(DegreeLevel::TeachingBachelor | DegreeLevel::TeachingMaster) => LevelGroup::Teaching,
+            Some(DegreeLevel::Doctoral) => LevelGroup::Doctoral,
+            Some(DegreeLevel::None | DegreeLevel::Other) | None => LevelGroup::Other,
+        }
+    }
+}
+
+/// A group of forms of study, as the program overview filters them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FormGroup {
+    Dual,
+    DoubleDegree,
+    /// Part time and distance learning.
+    Flexible,
+}
+
+impl FormGroup {
+    pub const ALL: &'static [Self] = &[Self::Dual, Self::DoubleDegree, Self::Flexible];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            FormGroup::Dual => "dual",
+            FormGroup::DoubleDegree => "double",
+            FormGroup::Flexible => "flexible",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            FormGroup::Dual => "Dual",
+            FormGroup::DoubleDegree => "Doppelabschluss",
+            FormGroup::Flexible => "Teilzeit & Fern",
+        }
+    }
+
+    pub fn of(variant: Option<&crate::labels::Code<crate::labels::StudyVariant>>) -> Option<Self> {
+        use crate::labels::StudyVariant;
+        match variant?.known()? {
+            StudyVariant::DualPractice | StudyVariant::DualTraining => Some(FormGroup::Dual),
+            StudyVariant::DoubleDegree => Some(FormGroup::DoubleDegree),
+            StudyVariant::PartTime | StudyVariant::Distance => Some(FormGroup::Flexible),
+            StudyVariant::Extended | StudyVariant::Reduced | StudyVariant::Other => None,
+        }
+    }
+}
+
+/// What the URL of the program overview says: `/programs?q=…&level=bachelor,master&form=dual&plan=1`.
+/// Tolerant and canonical like `CatalogUrl`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ProgramsUrl {
+    /// The search of the top bar.
+    pub text: String,
+    /// Any of these; empty means all.
+    pub levels: Vec<LevelGroup>,
+    /// Any of these; empty means all.
+    pub forms: Vec<FormGroup>,
+    /// Only programs with a validated study plan.
+    pub with_plan: bool,
+}
+
+impl ProgramsUrl {
+    pub fn parse(raw_query: &str) -> Self {
+        let pairs = parse_pairs(raw_query);
+        let codes = |name: &str| -> Vec<String> {
+            pairs.iter().filter(|(key, _)| key == name).flat_map(|(_, value)| value.split(',')).map(|code| code.trim().to_ascii_lowercase()).collect()
+        };
+        let (levels, forms) = (codes("level"), codes("form"));
+        Self {
+            text: pairs.iter().find(|(key, value)| key == "q" && !value.trim().is_empty()).map(|(_, value)| value.trim().to_string()).unwrap_or_default(),
+            levels: LevelGroup::ALL.iter().copied().filter(|level| levels.iter().any(|code| code == level.code())).collect(),
+            forms: FormGroup::ALL.iter().copied().filter(|form| forms.iter().any(|code| code == form.code())).collect(),
+            with_plan: pairs.iter().any(|(key, value)| key == "plan" && value == "1"),
+        }
+    }
+
+    pub fn is_filtered(&self) -> bool {
+        !self.text.is_empty() || !self.levels.is_empty() || !self.forms.is_empty() || self.with_plan
+    }
+
+    pub fn path(&self) -> String {
+        let mut out: Vec<(&str, String)> = Vec::new();
+        if !self.text.trim().is_empty() {
+            out.push(("q", self.text.trim().to_string()));
+        }
+        if !self.levels.is_empty() {
+            out.push(("level", self.levels.iter().map(|level| level.code()).collect::<Vec<_>>().join(",")));
+        }
+        if !self.forms.is_empty() {
+            out.push(("form", self.forms.iter().map(|form| form.code()).collect::<Vec<_>>().join(",")));
+        }
+        if self.with_plan {
+            out.push(("plan", "1".to_string()));
+        }
+        if out.is_empty() {
+            return PROGRAMS.to_string();
+        }
+        format!("{PROGRAMS}?{}", out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&"))
+    }
+}
+
 /// How many modules one catalog page lists.
 pub const PAGE_SIZE: u64 = 50;
 
@@ -558,6 +698,16 @@ mod tests {
         assert_eq!(url.query.program, None, "kind and semester mean nothing without a program");
         assert_eq!((url.page, url.query.sort, url.query.graded, url.query.credits_min), (1, SortKey::Default, None, None));
         assert_eq!(url.to_query_string(), "form=lecture");
+    }
+
+    #[test]
+    fn the_program_overview_has_a_canonical_url() {
+        assert_eq!(ProgramsUrl::parse("").path(), "/programs");
+        let url = ProgramsUrl::parse("form=dual&level=master,bachelor,yoga&plan=1&q=+Informatik+&utm=x");
+        assert_eq!((url.levels.clone(), url.forms.clone(), url.with_plan), (vec![LevelGroup::Bachelor, LevelGroup::Master], vec![FormGroup::Dual], true));
+        assert_eq!(url.path(), "/programs?q=Informatik&level=bachelor,master&form=dual&plan=1");
+        assert_eq!(ProgramsUrl::parse(url.path().split_once('?').map(|(_, query)| query).unwrap_or_default()), url);
+        assert!(!ProgramsUrl::parse("plan=0&level=").is_filtered());
     }
 
     #[test]

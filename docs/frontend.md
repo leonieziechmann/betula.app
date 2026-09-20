@@ -29,9 +29,8 @@ scraper ──HTTP──▶ server ──HTML (cached per snapshot)──▶ bro
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
 | `/catalog?…&open=<id>` | The same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
-| `/programs?q=…` | The program overview filtered by the search in the top bar |
-| `/programs` | Program overview (current PO versions) |
-| `/programs/<slug>/plan\|areas\|modules` | Program page and its tabs |
+| `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
+| `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -88,6 +87,22 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   „Merken" and the semester plan will live. Coming back to the list, the row the visitor left it
   at is scrolled into view (`enhance.js` notes the clicked row in the state of the history entry
   it is clicked in; `nav::recall_row`).
+- **Every page has the same frame (owner decision 2026-09-20, R17):** a sidebar as wide as the
+  catalog's filter panel, with the same handle and the same remembered width, and the page next
+  to it (`ui::Frame`; the catalog builds it itself, its sidebar is the filter form). Going from
+  one area to another, nothing jumps. The sidebar holds what belongs to the page as a whole:
+  filters (catalog, program overview), the views of a program, the sections of a module, actions,
+  and on the landing page the state of the data. On a phone a sidebar of filters is a sheet
+  opened by the page's „Filter" button, views stay on top, everything else follows the page.
+- **The program overview** is one section per faculty, one row per subject, and in the row every
+  program of the subject (Bachelor, Master, dual, …) as a link: 148 programs read as about 80
+  rows in eight sections. Programs without a validated study plan are the quieter links.
+  **The faculty is derived, not stated** (no source names a program's faculty):
+  `catalog::pages::faculties` takes the department of the thesis module, else the department
+  that offers at least half of the offered curriculum, else what the programs of the same
+  subject agree on. The sidebar says so, and programs without a clear answer have a section of
+  their own („unknown stays unknown", R12). The 2026-09-19 snapshot: 106 by thesis, 34 by
+  majority, 4 by subject, 4 without.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added).
 - **Tokens:** `app/assets/app.css` starts with the token block (colors, radii, shadows); everything
@@ -159,6 +174,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   gap to it**, so two areas meet in the middle and never overlap; more only into space that holds
   no control. Resize handles are zones of 16–20 px around a 4 px grip; the slider's knob is drawn
   inside a larger thumb.
+- **R17. Every page is framed** by `ui::Frame` (see „Look and interaction"). A new page starts
+  with the question what its sidebar holds, not whether it has one.
 - **R16. In one reactive closure read the source, not a memo derived from it and the source.**
   reactive_graph 0.2.14 does not mark the observer that made a memo recompute as dirty. A closure
   that reads `state` (a memo derived from `query`) and then `query` therefore misses a change of
@@ -288,6 +305,17 @@ for sidebar and filter panel, Esc back to the list with the row in view. Phone: 
 page directly, the page starts with times and facts, back returns to the tapped row deep in the
 endless list, a shared preview link becomes the page.
 
+```bash
+cd e2e && node programs.mjs
+```
+
+drives the programs area: the sidebar in the same place on catalog, overview, program page and
+landing page; the overview (faculties in order, every program exactly once, the counts of header,
+sections and links agree, no two links of a subject read the same, nothing cut off in the
+sidebar); filters as links that keep focus and sidebar, the search keeping the filters; a jump to
+a faculty without a history entry; the views of a program in the sidebar; on a phone the filters
+in a sheet; and the filter links without JavaScript.
+
 ## 5. Not done yet
 
 - PWA: manifest, service worker (offline start), update prompt. User data: bookmarks, passed
@@ -295,3 +323,14 @@ endless list, a shared preview link becomes the page.
 - Phase 3: design system, plan grid with variants, weekly calendar, filter bottom sheet, search
   with context ranking (own concept, see `docs/frontend-phase0.md`).
 - Phase 4: Nix package and container, Swarm stack, CSP, `sitemap.xml`, CI.
+
+### Ideas noted for later (owner: „schreib dir die mal auf", 2026-09-20)
+
+- **Leafing through the filtered list from a module's page:** previous and next module with
+  „12 von 35" in the sidebar, and keys for it, without going back to the list. Needs the list the
+  visitor came from (its canonical query, kept outside the URL) and one query for the ids in order.
+- **The neighbourhood of a module** in the sidebar: what it builds on and what builds on it
+  (`v_module_prerequisite` in both directions), as a small map instead of two lists.
+- **A stated faculty per program** instead of the derived one: the BTU's pages of the study
+  programmes name it. That is a new source for the scraper (an additive column, a crawl the
+  owner has to approve), not a frontend change.

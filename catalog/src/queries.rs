@@ -13,11 +13,11 @@ use crate::rows::{
 };
 use crate::rows_detail::{
     AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
-    ProgramLink, ProgramVersion, Successor, TextItem,
+    ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
 };
 
 const PROGRAM_COLUMNS: &str = "id, slug, name, degree_level, study_variant, degree_label, degree_raw, \
-     degree_display, po_version, po_year, family_key, is_latest_po, source_url, has_plan, plan_status, \
+     degree_display, po_version, po_year, family_key, name_key, is_latest_po, source_url, has_plan, plan_status, \
      curricular_modules, fues_modules, documents";
 
 /// „Datenstand" and the current semester.
@@ -91,6 +91,22 @@ pub fn program_modules(
          FROM v_program_module WHERE program_id = ? AND relation = ? \
          ORDER BY plan_semester IS NULL, plan_semester, module_title COLLATE NOCASE, module_id",
         &[Value::from(program_id), Value::from(relation.code())],
+    )
+}
+
+/// Which departments offer the curriculum of each program: the evidence `pages::faculties`
+/// derives a program's faculty from (no source states it).
+pub fn program_department_counts(db: &dyn Database) -> Result<Vec<ProgramDepartmentCount>, DbError> {
+    fetch(
+        db,
+        "program_department_counts",
+        "SELECT pm.program_id, f.department_id, \
+                SUM(CASE WHEN pm.kind = 'thesis' THEN 1 ELSE 0 END) AS thesis_modules, \
+                SUM(CASE WHEN f.offer_status != 'not_offered' THEN 1 ELSE 0 END) AS offered_modules \
+         FROM v_program_module pm JOIN v_module_facets f ON f.module_id = pm.module_id \
+         WHERE pm.relation = 'curricular' AND f.department_id IS NOT NULL \
+         GROUP BY pm.program_id, f.department_id ORDER BY pm.program_id, f.department_id",
+        &[],
     )
 }
 

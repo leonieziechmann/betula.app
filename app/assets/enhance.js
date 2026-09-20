@@ -11,7 +11,8 @@
   const phone = () => matchMedia("(max-width: 900px)").matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
-  const filters = () => document.getElementById("filters");
+  // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
+  const filters = () => document.getElementById("filters") || document.querySelector(".sidebar.sheet");
   let inAppSteps = 0;
 
   // ---- classic mode: scroll positions of the panels survive a page load ----
@@ -134,7 +135,7 @@
   // ---- widths of the filter panel and the module preview: drag the edge, arrow keys on the
   // focused edge, a double click resets. Personal, so kept in localStorage and not in the URL.
   const RESIZE = {
-    "resize-filters": { key: "btu.filters.width", prop: "--w-filters", grows: 1, min: () => 232, max: () => 440, panel: () => filters() || document.getElementById("sidebar") },
+    "resize-filters": { key: "btu.filters.width", prop: "--w-filters", grows: 1, min: () => 232, max: () => 440, panel: () => document.getElementById("filters") || document.getElementById("sidebar") },
     "resize-preview": {
       key: "btu.preview.width", prop: "--preview-w", grows: -1, min: () => 360, panel: () => document.querySelector(".work > .detail"),
       max: () => { const work = document.querySelector(".work"); return work ? Math.max(360, work.clientWidth - 400) : 2400; },

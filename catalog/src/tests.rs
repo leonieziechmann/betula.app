@@ -152,6 +152,7 @@ fn every_query_runs_against_the_snapshot() {
     assert!(!queries::program_areas(&db, &id).unwrap().is_empty());
     let id = pick("SELECT program_id FROM v_program_plan LIMIT 1");
     assert!(queries::program_plan(&db, &id).unwrap().is_some_and(|plan| plan.layout_json.starts_with('{')));
+    assert!(queries::program_department_counts(&db).unwrap().iter().any(|count| count.thesis_modules > 0));
     let semesters = queries::program_plan_semesters(&db, &id).unwrap();
     assert!(semesters.first().is_some_and(|first| *first >= 1) && semesters.windows(2).all(|pair| pair[0] < pair[1]), "{semesters:?}");
     assert!(!queries::program_plan_entries(&db, &id).unwrap().is_empty());
@@ -568,6 +569,23 @@ fn page_loaders_return_everything_a_page_shows() {
     let module = pages::module(&db, module_id).unwrap().expect("module page");
     assert!(module.programs.iter().any(|link| link.program_slug.as_deref() == Some(INFORMATIK_BSC)));
     assert_eq!(pages::module(&db, "00000").unwrap(), None);
+
+    // Faculties are derived: most programs get one, none gets two, and the rest stays unknown.
+    let overview = pages::programs_overview(&db).unwrap();
+    let current: Vec<_> = overview.programs.iter().filter(|p| p.is_latest_po).collect();
+    let with_faculty = current.iter().filter(|p| overview.faculties.iter().any(|f| f.program_id == p.id)).count();
+    assert!(with_faculty * 10 >= current.len() * 9 && with_faculty < current.len(), "{with_faculty} of {}", current.len());
+    let mut ids: Vec<&String> = overview.faculties.iter().map(|f| &f.program_id).collect();
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), overview.faculties.len(), "one faculty per program");
+    let informatik = overview.programs.iter().find(|p| p.slug == INFORMATIK_BSC).unwrap();
+    let faculty = overview.faculties.iter().find(|f| f.program_id == informatik.id).expect("Informatik has a faculty");
+    let department = overview.departments.iter().find(|d| d.id == faculty.department_id).unwrap();
+    assert_eq!(department.code, "1", "{department:?}");
+    assert!(overview.faculties.iter().any(|f| f.basis == pages::FacultyBasis::Thesis));
+    assert!(overview.faculties.iter().any(|f| f.basis == pages::FacultyBasis::Majority));
+    assert!(overview.faculties.iter().any(|f| f.basis == pages::FacultyBasis::Counterpart));
 
     let page = pages::program(&db, INFORMATIK_BSC).unwrap().expect("program page");
     assert_eq!(page.curricular.len() as i64, page.program.curricular_modules);

@@ -6,17 +6,30 @@ use leptos_meta::Title;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::ErrorState;
+use crate::ui::{ErrorState, Frame};
 
 #[component]
 pub fn HomePage() -> impl IntoView {
     let source = use_source();
     let status = PageStatus::capture();
     let overview = source.and_then(|source| source.run(pages::overview));
+    // The sidebar of the landing page: how big and how fresh the data is.
+    let facts = overview.clone().ok();
+    let sidebar = move || {
+        facts.clone().map(|overview| view! {
+            <dl class="side-facts">
+                {overview.current_semester.as_ref().map(|s| view! { <div><dt>"Aktuelles Semester"</dt><dd>{s.label.clone()}</dd></div> })}
+                {overview.meta.data_changed_at.as_deref().map(|at| view! { <div><dt>"Daten zuletzt geändert"</dt><dd>{format::date(at)}</dd></div> })}
+                <div><dt>"Module im Angebot"</dt><dd class="num">{format::count(overview.modules)}</dd></div>
+                <div><dt>"Studiengänge"</dt><dd class="num">{format::count(overview.programs)}</dd></div>
+            </dl>
+            <p class="hint">"Quelle: Modulbeschreibungen und Vorlesungsverzeichnis der BTU Cottbus-Senftenberg. Wo die Quelle nichts sagt, steht hier „nicht angegeben“ statt einer Vermutung."</p>
+        })
+    };
 
     view! {
         <Title text=""/>
-        <div class="page"><div class="page-inner">
+        <Frame title="Datenstand" sidebar><div class="page-inner">
         <section class="panel page-head">
             <h1>"Finde die Module, die zu deinem Studium passen."</h1>
             <p class="lead">
@@ -30,7 +43,6 @@ pub fn HomePage() -> impl IntoView {
                 view! { <ErrorState error/> }.into_any()
             }
             Ok(overview) => {
-                let semester = overview.current_semester.as_ref().map(|s| s.label.clone());
                 view! {
                     <ul class="features">
                         <li class="feature">
@@ -62,14 +74,9 @@ pub fn HomePage() -> impl IntoView {
                             </div>
                         </li>
                     </ul>
-                    <p class="freshness">
-                        {semester.map(|label| format!("Aktuelles Semester: {label} · "))}
-                        {overview.meta.data_changed_at.as_deref().map(|at| format!("Datenstand {}", format::date(at)))}
-                        " · Quelle: Modulbeschreibungen und Vorlesungsverzeichnis der BTU"
-                    </p>
                 }.into_any()
             }
         }}
-        </div></div>
+        </div></Frame>
     }
 }

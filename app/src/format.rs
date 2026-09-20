@@ -1,6 +1,17 @@
 //! How values read on a page. Unknown values get an honest text, never a guess.
 
-use catalog::labels::{Code, TurnusParity, TurnusSeason};
+use catalog::labels::{Code, StudyVariant, TurnusParity, TurnusSeason};
+
+/// The form of study in a word or two, for places where a program is one line.
+pub fn variant_short(variant: &Code<StudyVariant>) -> String {
+    match variant.known() {
+        Some(StudyVariant::DualPractice) => "dual, Praxis".to_string(),
+        Some(StudyVariant::DualTraining) => "dual, Ausbildung".to_string(),
+        Some(StudyVariant::Extended) => "erweitert".to_string(),
+        Some(StudyVariant::Reduced) => "verkürzt".to_string(),
+        _ => variant.label().to_string(),
+    }
+}
 
 /// `6` → „6", `7.5` → „7,5"
 pub fn number(value: f64) -> String {

@@ -92,6 +92,71 @@ pub fn Prose(text: String) -> impl IntoView {
         .collect_view()
 }
 
+/// The frame of a page (owner decision 2026-09-20: a basic element of the layout, R17): a sidebar
+/// as wide as the filter panel of the catalog, with the same handle and the same remembered
+/// width, and the page next to it. Going from one area to another, nothing jumps. The sidebar
+/// holds what belongs to the page as a whole: its filters, its sections, its actions.
+/// The catalog is the one page that builds this frame itself (its sidebar is the filter form).
+#[component]
+pub fn Frame(
+    /// Heading of the sidebar.
+    #[prop(into)] title: String,
+    /// What else the head of the sidebar shows: a code, a reset link.
+    #[prop(optional, into)] head: ViewFn,
+    #[prop(into)] sidebar: ViewFn,
+    /// On a phone the sidebar comes before the page (views) instead of after it (actions).
+    #[prop(optional)] sidebar_first: bool,
+    /// On a phone the sidebar is a sheet that a „Filter" button of the page opens
+    /// (`data-action="sheet-open"`), like the filter panel of the catalog.
+    #[prop(optional)] sheet: bool,
+    children: Children,
+) -> impl IntoView {
+    let label = title.clone();
+    view! {
+        <div class="work framed" class:sidebar-first=sidebar_first>
+            <aside class="panel sidebar" class:sheet=sheet id="sidebar" aria-label=label>
+                <div class="panel-head">
+                    <h2>{title}</h2>
+                    {head.run()}
+                    {sheet.then(|| view! { <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label="Schließen"><Icon name="x"/></a> })}
+                </div>
+                <div class="body scroll" data-keep-scroll="sidebar">{sidebar.run()}</div>
+            </aside>
+            <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+            <div class="page" id="page-scroll">{children()}</div>
+        </div>
+    }
+}
+
+/// A two-state toggle that is a link to the page with the other state: the same look and the
+/// same rules as the toggles of the catalog's filter panel (no handler, works without
+/// JavaScript, the space bar flips it).
+#[component]
+pub fn ToggleLink(
+    #[prop(into)] href: Signal<String>,
+    #[prop(into)] on: Signal<bool>,
+    #[prop(into)] label: String,
+    /// A number shown at the right end.
+    #[prop(optional)] count: Option<usize>,
+) -> impl IntoView {
+    view! {
+        <a
+            class="chip"
+            href=move || href.get()
+            role="checkbox"
+            rel="nofollow"
+            draggable="false"
+            data-noscroll=""
+            data-state=move || if on.get() { "with" } else { "off" }
+            aria-checked=move || if on.get() { "true" } else { "false" }
+        >
+            <span class="box"><Icon name="check"/><Icon name="x"/></span>
+            <span class="chip-label">{label}</span>
+            {count.map(|count| view! { <span class="chip-count num">{count}</span> })}
+        </a>
+    }
+}
+
 /// Wraps what only works with JavaScript: shortcut hints, drag handles, the theme switch. The
 /// server sends the same HTML to everybody and cannot know who has scripts (R9), so the parts
 /// are in the page and the stylesheet hides them until the script in the head has marked the

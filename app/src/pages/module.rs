@@ -19,7 +19,7 @@ use leptos_router::hooks::use_params_map;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::{ErrorState, Fact, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
+use crate::ui::{ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
 
 /// What both the preview panel and the full page show about a module, precomputed once.
 #[derive(Clone)]
@@ -135,24 +135,19 @@ fn sections(data: &ModuleData) -> Vec<(&'static str, &'static str)> {
 fn Sidebar(data: ModuleData) -> impl IntoView {
     let source_url = data.module.source_url.clone();
     view! {
-        <aside class="panel sidebar" id="sidebar" aria-label="Zu diesem Modul">
-            <div class="panel-head"><h2>"Modul"</h2><span class="mono">{data.module.id.clone()}</span></div>
-            <div class="body scroll">
-                <nav class="toc" aria-label="Auf dieser Seite">
-                    <p class="flabel label">"Auf dieser Seite"</p>
-                    {sections(&data).into_iter().map(|(anchor, heading)| view! {
-                        <a href=format!("#{anchor}") data-action="jump">{heading}</a>
-                    }).collect_view()}
-                </nav>
-                <div class="fgroup actions">
-                    <p class="flabel label">"Aktionen"</p>
-                    <span class="action soon" title="In Arbeit"><Icon name="bookmark"/>"Merken"<em>"bald"</em></span>
-                    <span class="action soon" title="Geplant"><Icon name="calendar-range"/>"Ins Semester einplanen"<em>"bald"</em></span>
-                    <JsOnly><a class="action" href="#" data-action="copy-link"><Icon name="share-2"/><span>"Link kopieren"</span></a></JsOnly>
-                    {source_url.map(|href| view! { <a class="action" href=href rel="noopener"><Icon name="arrow-up-right"/>"Original bei der BTU"</a> })}
-                </div>
-            </div>
-        </aside>
+        <nav class="toc jumps" aria-label="Auf dieser Seite">
+            <p class="flabel label">"Auf dieser Seite"</p>
+            {sections(&data).into_iter().map(|(anchor, heading)| view! {
+                <a href=format!("#{anchor}") data-action="jump">{heading}</a>
+            }).collect_view()}
+        </nav>
+        <div class="fgroup actions">
+            <p class="flabel label">"Aktionen"</p>
+            <span class="action soon" title="In Arbeit"><Icon name="bookmark"/>"Merken"<em>"bald"</em></span>
+            <span class="action soon" title="Geplant"><Icon name="calendar-range"/>"Ins Semester einplanen"<em>"bald"</em></span>
+            <JsOnly><a class="action" href="#" data-action="copy-link"><Icon name="share-2"/><span>"Link kopieren"</span></a></JsOnly>
+            {source_url.map(|href| view! { <a class="action" href=href rel="noopener"><Icon name="arrow-up-right"/>"Original bei der BTU"</a> })}
+        </div>
     }
 }
 
@@ -180,10 +175,11 @@ pub fn ModulePage() -> impl IntoView {
                 view! {
                     <Title text=format!("{} {}", data.module.id, data.module.title)/>
                     <Meta name="description" content=derived.description/>
-                    <div class="work module-work">
-                        <Sidebar data=data.clone()/>
-                        <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
-                        <div class="page" id="module-scroll">
+                    <Frame
+                        title="Modul"
+                        head={ let id = data.module.id.clone(); move || view! { <span class="mono">{id.clone()}</span> } }
+                        sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone()/> } }
+                    >
                             <article class="module-page">
                                 <header class="panel hero">
                                     <div class="hero-top">
@@ -198,8 +194,7 @@ pub fn ModulePage() -> impl IntoView {
                                     <div class="panel dbody"><Main data=data.clone()/><Source data=data.clone()/></div>
                                 </div>
                             </article>
-                        </div>
-                    </div>
+                    </Frame>
                 }
                 .into_any()
             }

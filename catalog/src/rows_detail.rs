@@ -37,6 +37,28 @@ impl FromRow for LecturerName {
     }
 }
 
+/// How much of a program's curriculum one department offers (for the derived faculty).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProgramDepartmentCount {
+    pub program_id: String,
+    pub department_id: i64,
+    /// Thesis modules of the curriculum that belong to this department.
+    pub thesis_modules: i64,
+    /// Curriculum modules of this department that are still offered.
+    pub offered_modules: i64,
+}
+
+impl FromRow for ProgramDepartmentCount {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            program_id: row.text("program_id")?,
+            department_id: row.int("department_id")?,
+            thesis_modules: row.int("thesis_modules")?,
+            offered_modules: row.int("offered_modules")?,
+        })
+    }
+}
+
 /// `v_module_teaching_form`
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ModuleTeachingForm {

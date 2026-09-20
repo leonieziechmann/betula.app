@@ -150,12 +150,10 @@ fn TopBar() -> impl IntoView {
         }
         let run = move || {
             let target = if area_now.get_untracked() == "programs" {
-                let text = text.trim();
-                if text.is_empty() {
-                    url::PROGRAMS.to_string()
-                } else {
-                    format!("{}?q={}", url::PROGRAMS, url::encode(text))
-                }
+                let on_overview = location.pathname.get_untracked() == url::PROGRAMS;
+                let mut next = if on_overview { url::ProgramsUrl::parse(&location.search.get_untracked()) } else { Default::default() };
+                next.text = text.trim().to_string();
+                next.path()
             } else {
                 let on_catalog = location.pathname.get_untracked() == url::CATALOG;
                 let mut next = if on_catalog { url::CatalogUrl::parse(&location.search.get_untracked()) } else { Default::default() };

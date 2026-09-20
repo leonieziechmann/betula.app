@@ -93,8 +93,8 @@ if (opened !== ids[2]) problems.push(`arrow keys: expected module ${ids[2]}, the
 if ((await page.evaluate(() => history.length)) > historyBefore + 2) problems.push("scrolling added history entries");
 await page.keyboard.press("Escape");
 
-await step("programs", () => page.click('.rail a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelectorAll(".card-link").length > 50);
-await step("program search", () => page.fill("#topsearch", "informatik"), () => location.search.includes("q=informatik") && document.querySelectorAll(".card-link").length < 30 && document.querySelectorAll(".card-link").length > 0);
+await step("programs", () => page.click('.rail a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 50);
+await step("program search", () => page.fill("#topsearch", "informatik"), () => location.search.includes("q=informatik") && document.querySelectorAll(".program-pill").length < 30 && document.querySelectorAll(".program-pill").length > 0);
 
 await browser.close();
 console.log(JSON.stringify({ timings, problems }, null, 2));

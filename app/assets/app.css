@@ -525,6 +525,39 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .tab { min-height: 40px; padding: 0 16px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 600; font-size: 13.5px; text-decoration: none; }
 .tab:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
 .tab.active { background: var(--invert); color: var(--on-invert); }
+/* A page of sections opens like the catalog's list: the number, then what it counts. */
+.summary { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px 2px 16px; }
+.summary h1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-right: auto; font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
+.sheet-only { display: none; }
+.faculty { padding: 16px 12px 10px; container: faculty / inline-size; }
+.faculty-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 0 12px 12px; }
+.faculty-code { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-s); background: var(--invert); color: var(--on-invert); white-space: nowrap; }
+.faculty-head h2 { min-width: 0; font-size: 16px; font-weight: 650; letter-spacing: -.015em; text-wrap: pretty; }
+.faculty > .hint { padding: 0 12px 10px; margin: 0; }
+/* As many columns of subjects as fit (one on a phone, two on a laptop, three on a wide screen):
+   the whole width is used, a faculty is half as long, and the alphabet runs down each column. */
+.subjects { columns: 400px; column-gap: 28px; border-top: 1px solid var(--line); }
+.subject { break-inside: avoid; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 4px 14px; align-items: start; min-height: 48px; padding: 7px 12px; border-bottom: 1px solid var(--line); border-radius: var(--r-row); }
+.subject:hover { background: var(--panel-2); }
+/* The name stands next to the first of its programs, however many lines of them follow. */
+.subject-name { padding-top: 6px; font-weight: 620; font-size: 14.5px; line-height: 20px; letter-spacing: -.012em; }
+.subject-programs { display: flex; flex-wrap: wrap; gap: 6px; }
+.program-pill { --hit: 3px; position: relative; min-height: 32px; padding: 0 10px; border-radius: var(--r-s); display: inline-flex; align-items: center; gap: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 520; text-decoration: none; white-space: nowrap; transition: background .12s, box-shadow .12s, color .12s; }
+.program-pill::after { content: ""; position: absolute; inset: calc(-1 * var(--hit)); }
+.program-pill b { color: var(--text); font-weight: 650; }
+.program-pill .variant { color: var(--text-3); }
+.program-pill .variant::before { content: "· "; }
+/* Four of five programs have a validated study plan; the ones without are the quieter ones. */
+.program-pill.no-plan { box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); }
+.program-pill.no-plan b { color: var(--text-2); font-weight: 600; }
+.program-pill:hover { background: var(--invert); box-shadow: none; color: var(--on-invert); text-decoration: none; }
+.program-pill:hover b, .program-pill:hover .variant { color: inherit; }
+@container faculty (max-width: 640px) {
+  .subject { grid-template-columns: minmax(0, 1fr); padding: 10px 12px; }
+  .subject-name { padding-top: 0; }
+  .faculty-head h2 { grid-column: 1 / -1; grid-row: 2; }
+  .faculty-head .tab-count { grid-column: 3; }
+}
 .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--gap); }
 .feature-link { display: block; height: 100%; padding: 22px 24px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: inherit; text-decoration: none; transition: transform .15s var(--ease); }
 a.feature-link:hover { transform: translateY(-2px); text-decoration: none; }
@@ -555,18 +588,34 @@ a.feature-link:hover { transform: translateY(-2px); text-decoration: none; }
 .list-plain li { padding: 10px 0; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
 .list-plain li:last-child { border-bottom: 0; }
 
-/* The module's page has the frame of the catalog: a sidebar as wide as the filter panel. */
-.module-work > .page { padding: 0 1px 24px 0; }
+/* The frame of every page (ui::Frame): a sidebar as wide as the catalog's filter panel, with
+   the same handle and remembered width, and the page next to it. */
+.framed > .page { padding: 0 1px 24px 0; }
 .sidebar .panel-head .mono { padding: 3px 7px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); margin-right: 6px; }
-.sidebar .body { padding: 0 10px 12px; }
-.toc { display: grid; gap: 1px; padding: 4px 0 0; }
+.sidebar .body { padding: 0 10px 12px; overflow-x: hidden; }
+.sidebar .fgroup.first { padding-top: 4px; }
+.toc { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; padding: 4px 0 0; }
+.toc.fgroup { padding-top: 10px; }
 .toc .flabel, .actions .flabel { padding-left: 2px; }
-.toc a { min-height: 32px; display: flex; align-items: center; padding: 0 10px; border-radius: var(--r-s); color: var(--text-2); font-weight: 550; font-size: 13px; text-decoration: none; }
+.toc a { min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: var(--r-s); color: var(--text-2); font-weight: 550; font-size: 13px; text-decoration: none; }
 .toc a:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
+.toc a[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
+.toc a b { flex: none; font-weight: 650; color: var(--text); white-space: nowrap; }
+.toc a .toc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-weight: 450; font-size: 12.5px; }
+.toc a .num { flex: none; margin-left: auto; color: var(--text-3); font-weight: 500; font-size: 12px; }
+.toc .hint { padding: 0 2px; font-size: 12px; }
+.chip-count { margin-left: auto; padding-left: 6px; color: var(--text-3); font-weight: 500; font-size: 12px; }
+.chip[data-state="with"] .chip-count { color: inherit; opacity: .7; }
+.side-facts { display: grid; gap: 10px; margin: 4px 0 0; padding: 0 2px; }
+.side-facts dt { color: var(--text-3); font-size: 11.5px; }
+.side-facts dd { margin: 0; font-weight: 620; font-size: 14px; }
 .actions { display: grid; gap: 2px; }
 .action { min-height: 36px; display: flex; align-items: center; gap: 9px; padding: 0 10px; border-radius: var(--r-s); color: var(--text); font-weight: 560; font-size: 13px; text-decoration: none; }
 a.action:hover { background: var(--panel-3); text-decoration: none; }
-.action .icon { width: 16px; height: 16px; color: var(--text-2); }
+.action .icon { flex: none; width: 16px; height: 16px; color: var(--text-2); }
+.action > span { min-width: 0; }
+.action small { display: block; color: var(--text-3); font-weight: 450; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action:has(small) { min-height: 46px; }
 .action.soon, .action.soon .icon { color: var(--text-3); }
 .action em { margin-left: auto; font-style: normal; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--panel-3); color: var(--text-3); }
 .section { scroll-margin-top: 14px; }
@@ -635,11 +684,25 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
   .slider::before { left: 8px; right: 8px; }
   .select-wrap select, .select-wrap.plain select, .field input, .range input { min-height: 46px; font-size: 15px; }
   details.fgroup > summary { min-height: 40px; }
-  .module-work { display: flex; flex-direction: column; }
-  .module-work > .page { padding: 0 12px 12px; }
+  .framed { display: flex; flex-direction: column; }
+  .framed > .page { padding: 0 12px 12px; }
   .sidebar { order: 2; margin: 0 12px 24px; }
-  .sidebar .panel-head, .toc { display: none; }
-  .sidebar .body { padding: 2px 8px 8px; }
+  .framed.sidebar-first .sidebar { order: 0; margin: 0 12px 12px; }
+  /* A sidebar of filters is a sheet from below, opened by the page's „Filter" button. */
+  .sidebar.sheet { position: fixed; inset: auto 0 0 0; z-index: 40; order: 0; margin: 0; max-height: 84vh; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(105%); transition: transform .3s var(--ease); }
+  .sidebar.sheet:target, .sidebar.sheet.open { transform: none; }
+  .sidebar.sheet .panel-head { display: flex; position: relative; padding-top: 22px; }
+  .sidebar.sheet .panel-head::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+  .sidebar.sheet .body { overflow-y: auto; padding: 0 12px 12px; }
+  .sidebar.sheet .sheet-only { display: flex; position: sticky; bottom: 0; margin: 12px -12px -12px; background: var(--panel); }
+  .summary { padding: 4px 16px 0; }
+  .sidebar .panel-head, .toc.jumps { display: none; }
+  .sidebar .body { padding: 2px 8px 8px; overflow: visible; }
+  .toc.views { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; padding: 6px 0 2px; }
+  .toc.views .flabel { display: none; }
+  .toc.views a { justify-content: center; min-height: 42px; padding: 0 6px; text-align: center; font-size: 13.5px; background: var(--panel-3); }
+  .program-pill { min-height: 40px; padding: 0 12px; font-size: 14.5px; }
+  .faculty { padding: 14px 4px 6px; }
   .actions.fgroup { padding-top: 6px; }
   .action { min-height: 46px; font-size: 15px; }
   .person { min-height: 50px; }

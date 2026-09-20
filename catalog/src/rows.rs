@@ -89,6 +89,8 @@ pub struct Program {
     pub po_version: String,
     pub po_year: Option<i64>,
     pub family_key: String,
+    /// The same subject across degree levels (Bachelor and Master of one name).
+    pub name_key: String,
     pub is_latest_po: bool,
     pub source_url: String,
     pub has_plan: bool,
@@ -119,6 +121,7 @@ impl FromRow for Program {
             po_version: row.text("po_version")?,
             po_year: row.opt_int("po_year")?,
             family_key: row.text("family_key")?,
+            name_key: row.text("name_key")?,
             is_latest_po: row.flag("is_latest_po")?,
             source_url: row.text("source_url")?,
             has_plan: row.flag("has_plan")?,

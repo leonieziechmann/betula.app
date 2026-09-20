@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use catalog::filter::{CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey};
-use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, StudyVariant, TeachingForm, TurnusParity, TurnusSeason};
+use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
 use catalog::pages::{self, CatalogChoices, CatalogData};
 use catalog::rows::{CatalogRow, Program};
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
@@ -619,15 +619,7 @@ impl Choices {
         // (owner decision 2026-09-20; amendments are not part of it). Where two programs would
         // read the same, and only there, the form of study tells them apart.
         let short = |p: &Program| (p.name.clone(), p.degree().to_string(), p.po_year);
-        let variant = |p: &Program| {
-            p.study_variant.as_ref().map(|v| match v.known() {
-                Some(StudyVariant::DualPractice) => "dual, Praxis".to_string(),
-                Some(StudyVariant::DualTraining) => "dual, Ausbildung".to_string(),
-                Some(StudyVariant::Extended) => "erweitert".to_string(),
-                Some(StudyVariant::Reduced) => "verkürzt".to_string(),
-                _ => v.label().to_string(),
-            })
-        };
+        let variant = |p: &Program| p.study_variant.as_ref().map(format::variant_short);
         Self {
             programs: data
                 .programs

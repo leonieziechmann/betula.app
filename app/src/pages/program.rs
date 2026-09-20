@@ -1,5 +1,7 @@
-//! The program page: header, documents, and the tabs Regelstudienplan / Bereiche / Alle Module.
-//! The tab is part of the URL, so it arrives as a plain value from the router.
+//! The program page: header, documents, and the views Regelstudienplan / Bereiche / Alle Module.
+//! The view is part of the URL, so it arrives as a plain value from the router. The sidebar
+//! (the frame of every page) switches the views and holds what is related to the program and
+//! what can be done with it.
 
 use catalog::filter::{ProgramRelation, ProgramScope};
 use catalog::pages::{self, ProgramData};
@@ -13,7 +15,7 @@ use leptos_router::hooks::use_params_map;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::{EmptyState, ErrorState, KindBadge, NotFound, OfferBadge};
+use crate::ui::{EmptyState, ErrorState, Frame, Icon, KindBadge, NotFound, OfferBadge};
 
 #[component]
 pub fn ProgramPage() -> impl IntoView {
@@ -32,34 +34,74 @@ pub fn ProgramPage() -> impl IntoView {
         source.clone().and_then(|source| source.run(|db| pages::program(db, &slug)))
     });
 
-    move || {
-        let inner = match (data.get(), tab.get()) {
-            (Err(error), _) => {
-                status.for_error(&error);
-                view! { <ErrorState error/> }.into_any()
-            }
-            (Ok(Some(data)), Some(tab)) => view! { <ProgramView data tab/> }.into_any(),
-            _ => {
-                status.set(404);
-                view! { <NotFound title="Studiengang nicht gefunden" hint="Diesen Studiengang oder diese Ansicht gibt es nicht (mehr)."/> }.into_any()
-            }
-        };
-        view! { <div class="page">{inner}</div> }
+    move || match (data.get(), tab.get()) {
+        (Err(error), _) => {
+            status.for_error(&error);
+            view! { <div class="page"><ErrorState error/></div> }.into_any()
+        }
+        (Ok(Some(data)), Some(tab)) => {
+            let sidebar = {
+                let data = data.clone();
+                move || view! { <ProgramSidebar data=data.clone() tab/> }
+            };
+            view! { <Frame title="Studiengang" sidebar sidebar_first=true><ProgramView data tab/></Frame> }.into_any()
+        }
+        _ => {
+            status.set(404);
+            view! { <div class="page"><NotFound title="Studiengang nicht gefunden" hint="Diesen Studiengang oder diese Ansicht gibt es nicht (mehr)."/></div> }.into_any()
+        }
+    }
+}
+
+/// Views of the program, what is related to it, and what can be done with it.
+#[component]
+fn ProgramSidebar(data: ProgramData, tab: ProgramTab) -> impl IntoView {
+    let p = data.program.clone();
+    let catalog_link = CatalogUrl {
+        query: CatalogQuery { program: Some(ProgramScope { program_slug: p.slug.clone(), ..Default::default() }), ..Default::default() },
+        page: 1,
+        open: None,
+    }
+    .path();
+    let related = data.counterpart.is_some() || !data.versions.is_empty();
+    view! {
+        <nav class="toc views" aria-label="Ansichten des Studiengangs">
+            <p class="flabel label">"Ansichten"</p>
+            {ProgramTab::ALL.iter().map(|t| {
+                let active = *t == tab;
+                view! { <a data-walk="tab" href=url::program_path(&p.slug, *t) data-noscroll="" aria-current=active.then_some("page")>{t.label()}</a> }
+            }).collect_view()}
+        </nav>
+        {related.then(|| view! {
+            <div class="fgroup actions">
+                <p class="flabel label">"Verwandt"</p>
+                {data.counterpart.as_ref().map(|c| view! {
+                    <a class="action" href=url::program_path(&c.slug, ProgramTab::Plan)>
+                        <Icon name="graduation-cap"/>
+                        <span>{format!("Passender {}", c.level.label())}<small>{c.name.clone()}" · PO "{c.po_version.clone()}</small></span>
+                    </a>
+                })}
+                {data.versions.iter().map(|v| view! {
+                    <a class="action" href=url::program_path(&v.slug, tab)>
+                        <Icon name="file-check-2"/>
+                        <span>"PO "{v.po_version.clone()}{v.is_latest_po.then_some(" (aktuell)")}</span>
+                    </a>
+                }).collect_view()}
+            </div>
+        })}
+        <div class="fgroup actions">
+            <p class="flabel label">"Aktionen"</p>
+            <a class="action" href=catalog_link><Icon name="sliders-horizontal"/>"Module im Katalog filtern"</a>
+            <span class="action soon" title="In Arbeit"><Icon name="star"/>"Als meinen Studiengang setzen"<em>"bald"</em></span>
+            {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>"Ordnungen & Dokumente"</a> })}
+            <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>"Im Verzeichnis der BTU"</a>
+        </div>
     }
 }
 
 #[component]
 fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
     let p = data.program.clone();
-    let catalog_link = CatalogUrl {
-        query: CatalogQuery {
-            program: Some(ProgramScope { program_slug: p.slug.clone(), ..Default::default() }),
-            ..Default::default()
-        },
-        page: 1,
-        open: None,
-    }
-    .path();
     let description = format!(
         "{} ({}, PO {}) an der BTU Cottbus-Senftenberg: {} Module, Regelstudienplan, Wahlpflichtbereiche und Ordnungen.",
         p.name,
@@ -84,39 +126,8 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
                 <dl class="facts">
                     <div class="fact"><dt>"Module im Curriculum"</dt><dd>{p.curricular_modules}</dd></div>
                     <div class="fact"><dt>"Anrechenbare FÜS-Module"</dt><dd>{p.fues_modules}</dd></div>
-                    {data.counterpart.as_ref().map(|c| view! {
-                        <div class="fact">
-                            <dt>{format!("Passender {}", c.level.label())}</dt>
-                            <dd><a href=url::program_path(&c.slug, ProgramTab::Plan)>{c.name.clone()}" (PO "{c.po_version.clone()}")"</a></dd>
-                        </div>
-                    })}
-                    {(!data.versions.is_empty()).then(|| view! {
-                        <div class="fact">
-                            <dt>"Andere Prüfungsordnungen"</dt>
-                            <dd class="inline-links">
-                                {data.versions.iter().map(|v| view! {
-                                    <a href=url::program_path(&v.slug, tab)>"PO "{v.po_version.clone()}{v.is_latest_po.then_some(" (aktuell)")}</a>
-                                }).collect_view()}
-                            </dd>
-                        </div>
-                    })}
                 </dl>
-                <p class="actions">
-                    <a class="button" href=catalog_link>"Module dieses Studiengangs filtern"</a>
-                    <a class="button button-quiet" href=p.source_url.clone() rel="noopener">"Im Vorlesungsverzeichnis der BTU"</a>
-                </p>
             </header>
-
-            <nav class="panel tabs" aria-label="Ansichten des Studiengangs">
-                {ProgramTab::ALL.iter().map(|t| {
-                    let active = *t == tab;
-                    view! {
-                        <a class="tab" class:active=active data-walk="tab" href=url::program_path(&p.slug, *t) aria-current=active.then_some("page")>
-                            {t.label()}
-                        </a>
-                    }
-                }).collect_view()}
-            </nav>
 
             {match tab {
                 ProgramTab::Plan => view! { <PlanTab data=data.clone()/> }.into_any(),
@@ -125,7 +136,7 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
             }}
 
             {(!data.documents.is_empty()).then(|| view! {
-                <section class="panel block">
+                <section class="panel block" id="dokumente">
                     <h2>"Ordnungen & Dokumente"</h2>
                     <ul class="list-plain">
                         {data.documents.iter().map(|d| view! {
