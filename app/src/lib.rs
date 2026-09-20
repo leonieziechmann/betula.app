@@ -33,6 +33,19 @@ use crate::ui::Icon;
 /// Where the host serves the files of `app/assets`.
 pub const STYLESHEET: &str = "/assets/app.css";
 pub const FAVICON: &str = "/assets/favicon.svg";
+/// The mark as pictures, for what cannot read the SVG (`design/logo/render-icons.mjs` makes them):
+/// the classic `/favicon.ico`, the icon of iOS (home screen, link previews of Messages) and the
+/// icons of the web app manifest.
+pub const FAVICON_ICO: &str = "/favicon.ico";
+pub const TOUCH_ICON: &str = "/apple-touch-icon.png";
+pub const ICON_192: &str = "/assets/icon-192.png";
+pub const ICON_512: &str = "/assets/icon-512.png";
+pub const ICON_MASKABLE: &str = "/assets/icon-maskable-512.png";
+/// Name, colours and icons of the site for a home screen or an installed window.
+pub const MANIFEST: &str = "/manifest.webmanifest";
+/// The page background of the light and the dark theme (`--bg`), for the browser's own chrome.
+pub const THEME_LIGHT: &str = "#f1f2f4";
+pub const THEME_DARK: &str = "#0a0c11";
 pub const FONT: &str = "/assets/inter-latin.woff2";
 /// The picture of link previews (1200 × 630, made from `design/og/og.html`).
 pub const OG_IMAGE: &str = "/assets/og.png";
@@ -41,9 +54,10 @@ pub const ENHANCE_SCRIPT: &str = "/assets/enhance.js";
 pub const BOOT_SCRIPT: &str = "/assets/boot.js";
 
 /// Runs before the first paint: marks the document as scripted and applies what this browser
-/// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps. Such personal
+/// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps; the
+/// colour of the browser's own chrome (`theme-color`, `THEME_DARK`) follows the theme. Such personal
 /// view settings live in localStorage, never in the URL and never in server HTML (R9).
-const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px')}catch(e){}";
+const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px')}catch(e){}";
 
 /// The HTML document around the app (server side only).
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -57,6 +71,16 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
                 <meta name="color-scheme" content="light dark"/>
+                // Who the site is, for tabs, home screens and link previews. Static and the same
+                // on every page, so it lives here and survives the takeover by the browser app.
+                <meta name="application-name" content=seo::SITE_NAME/>
+                <meta name="apple-mobile-web-app-title" content=seo::SITE_NAME/>
+                // One tag: the head script turns it dark with the theme (crawlers read the light one).
+                <meta name="theme-color" content=THEME_LIGHT/>
+                <link rel="icon" href=FAVICON_ICO sizes="32x32"/>
+                <link rel="icon" type="image/svg+xml" href=FAVICON/>
+                <link rel="apple-touch-icon" href=TOUCH_ICON/>
+                <link rel="manifest" href=MANIFEST/>
                 <script inner_html=HEAD_SCRIPT></script>
                 <MetaTags/>
                 <script defer src=ENHANCE_SCRIPT></script>
@@ -76,7 +100,6 @@ pub fn App() -> impl IntoView {
     view! {
         <Link rel="preload" href=FONT as_="font" type_="font/woff2" crossorigin="anonymous"/>
         <Stylesheet href=STYLESHEET/>
-        <Link rel="icon" type_="image/svg+xml" href=FAVICON/>
         // Description, canonical address and the rest of what search engines read belong to the
         // page (`seo::Seo`), not to the app: a page must not carry two descriptions.
         <Title formatter=|title: String| if title.is_empty() { "Modulkatalog der BTU Cottbus-Senftenberg · Betula (inoffiziell)".to_string() } else { format!("{title} · Betula") }/>

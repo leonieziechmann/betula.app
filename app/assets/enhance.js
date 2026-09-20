@@ -85,6 +85,9 @@
       case "theme": {
         const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
         root.dataset.theme = dark ? "light" : "dark";
+        // The browser's own chrome follows the chosen theme, not the system's (the head script
+        // does the same on load; the colours are --bg of the two themes).
+        for (const meta of document.querySelectorAll("meta[name=theme-color]")) meta.content = dark ? "#f1f2f4" : "#0a0c11";
         try { localStorage.setItem("betula.theme", root.dataset.theme); } catch {}
         break;
       }

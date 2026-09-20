@@ -69,6 +69,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
     AppState {
         store,
         cache: Arc::new(HtmlCache::new(32 * 1024 * 1024)),
+        cards: Arc::new(crate::cards::Cards::new(8 * 1024 * 1024, 1)),
         build_id: "test".into(),
         stale_after: None,
         public_url: "https://catalog.example".into(),
@@ -151,6 +152,55 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let home = String::from_utf8(body).unwrap();
     assert!(head(&home).contains("href=\"https://catalog.example/\" rel=\"canonical\"") && !head(&home).contains("noindex"));
     assert!(home.contains("class=\"map map-wide\"") && home.contains("class=\"map map-tall\""), "the landing page draws the map the snapshot was opened with");
+
+    // What a link preview and a home screen read: the card of the page with an absolute picture,
+    // and the icons and the manifest of the site, each served as what it is.
+    for tag in ["property=\"og:title\"", "property=\"og:description\"", "name=\"twitter:card\"", "name=\"twitter:image\"", "property=\"og:image:alt\""] {
+        assert_eq!(module.matches(tag).count(), 1, "{tag} in {module}");
+    }
+    for link in ["rel=\"manifest\"", "rel=\"apple-touch-icon\"", "href=\"/favicon.ico\"", "name=\"theme-color\""] {
+        assert_eq!(head(&home).matches(link).count(), 1, "{link}");
+    }
+    for (path, content_type, magic) in [
+        ("/assets/og.png", "image/png", &b"\x89PNG"[..]),
+        ("/apple-touch-icon.png", "image/png", &b"\x89PNG"[..]),
+        ("/apple-touch-icon-precomposed.png", "image/png", &b"\x89PNG"[..]),
+        ("/assets/icon-192.png", "image/png", &b"\x89PNG"[..]),
+        ("/assets/icon-512.png", "image/png", &b"\x89PNG"[..]),
+        ("/assets/icon-maskable-512.png", "image/png", &b"\x89PNG"[..]),
+        ("/favicon.ico", "image/x-icon", &[0, 0, 1, 0][..]),
+    ] {
+        let (status, headers, body) = request(&router, path, &[]).await;
+        assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, content_type), "{path}");
+        assert!(body.starts_with(magic), "{path}");
+    }
+    // A module and a program have their own picture: named in the head with the site's outside
+    // address, drawn on the first request, kept after that, and answered with 304 to its ETag.
+    assert!(module.contains("content=\"https://catalog.example/cards/module/11101.png\"") && !module.contains("/assets/og.png"), "{module}");
+    assert!(head(&home).contains("content=\"https://catalog.example/assets/og.png\""), "the landing page keeps the standard picture");
+    let (status, headers, card) = request(&router, "/cards/module/11101.png", &[]).await;
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"));
+    assert!(card.starts_with(b"\x89PNG") && card[16..24] == [0, 0, 4, 176, 0, 0, 2, 118], "1200 x 630");
+    let etag = headers[header::ETAG].to_str().unwrap().to_string();
+    let (status, again, _) = request(&router, "/cards/module/11101.png", &[("if-none-match", &etag)]).await;
+    assert_eq!((status, again[header::ETAG].to_str().unwrap()), (StatusCode::NOT_MODIFIED, etag.as_str()));
+    let program = String::from_utf8(request(&router, "/programs", &[]).await.2).unwrap();
+    let slug = program.split("href=\"/programs/").nth(1).and_then(|rest| rest.split(['/', '"', '?']).next()).unwrap().to_string();
+    let (status, headers, card) = request(&router, &format!("/cards/program/{slug}.png"), &[]).await;
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"), "{slug}");
+    assert!(card.starts_with(b"\x89PNG"));
+    for missing in ["/cards/module/00000.png", "/cards/module/11101", "/cards/program/no-such-program.png"] {
+        assert_eq!(request(&router, missing, &[]).await.0, StatusCode::NOT_FOUND, "{missing}");
+    }
+
+    let (status, headers, body) = request(&router, "/manifest.webmanifest", &[]).await;
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/manifest+json"));
+    let manifest: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(manifest["short_name"], "Betula");
+    for icon in manifest["icons"].as_array().unwrap() {
+        let (status, _, _) = request(&router, icon["src"].as_str().unwrap(), &[]).await;
+        assert_eq!(status, StatusCode::OK, "the manifest names an icon that is not served: {icon}");
+    }
 
     let (status, headers, body) = request(&router, "/sitemap.xml", &[]).await;
     let sitemap = String::from_utf8(body).unwrap();

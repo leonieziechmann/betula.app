@@ -25,6 +25,12 @@ serde_json = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive", "env"] }
+# Link-preview cards (src/cards.rs): SVG to PNG in this process, with our own font files only.
+resvg = { version = "0.45", default-features = false, features = ["text"] }
+# The shaper resvg sets text with, used directly to measure lines before they are set.
+rustybuzz = "0.20"
+# The cards are written as palette PNGs (a fifth of the size of tiny-skia's true-colour ones).
+png = "0.17"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

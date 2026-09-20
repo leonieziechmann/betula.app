@@ -8,6 +8,7 @@ use axum::Json;
 use serde_json::json;
 use tokio_util::io::ReaderStream;
 
+use crate::cards::{Card, CardText};
 use crate::AppState;
 
 fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
@@ -223,6 +224,136 @@ pub async fn favicon(State(state): State<AppState>, headers: HeaderMap) -> Respo
 
 pub async fn og_image(State(state): State<AppState>, headers: HeaderMap) -> Response {
     asset(&state, &headers, "image/png", include_bytes!("../../app/assets/og.png"))
+}
+
+/// The mark as pictures (`design/logo/render-icons.mjs`): `/favicon.ico` for what asks for it
+/// unprompted, the icon of iOS, and the icons the manifest names.
+pub async fn favicon_ico(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "image/x-icon", include_bytes!("../../app/assets/favicon.ico"))
+}
+
+pub async fn touch_icon(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/apple-touch-icon.png"))
+}
+
+pub async fn icon_192(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-192.png"))
+}
+
+pub async fn icon_512(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-512.png"))
+}
+
+pub async fn icon_maskable(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-maskable-512.png"))
+}
+
+/// `GET /cards/module/<id>.png`: the picture of a module's link preview (`cards`).
+pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+    let Some(id) = file.strip_suffix(".png").filter(|id| !id.is_empty() && id.len() <= 32) else { return StatusCode::NOT_FOUND.into_response() };
+    let id = id.to_string();
+    card(&state, &headers, format!("m:{id}"), move |db| {
+        Ok(catalog::queries::module(db, &id)?.map(|module| {
+            let mut facts = Vec::new();
+            if !module.offer_status.is(catalog::labels::OfferStatus::Active) {
+                facts.push(module.offer_status.label().to_string());
+            }
+            if module.credits.is_some() {
+                facts.push(app::format::credits(module.credits));
+            }
+            if let Some(season) = &module.turnus_season {
+                facts.push(match &module.turnus_parity {
+                    Some(parity) => format!("{} ({})", season.label(), parity.label()),
+                    None => season.label().to_string(),
+                });
+            }
+            match (module.teaches_german, module.teaches_english) {
+                (Some(true), Some(true)) => facts.push("Deutsch und Englisch".to_string()),
+                (Some(true), _) => facts.push("Deutsch".to_string()),
+                (_, Some(true)) => facts.push("Englisch".to_string()),
+                _ => {}
+            }
+            if let Some(exam) = &module.exam_form {
+                facts.push(app::format::exam_short(exam));
+            }
+            CardText { eyebrow: format!("Modul {}", module.id), title: module.title, facts, note: module.department }
+        }))
+    })
+    .await
+}
+
+/// `GET /cards/program/<slug>.png`: the picture of a program's link preview.
+pub async fn program_card(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+    let Some(slug) = file.strip_suffix(".png").filter(|slug| !slug.is_empty() && slug.len() <= 200) else { return StatusCode::NOT_FOUND.into_response() };
+    let slug = slug.to_string();
+    card(&state, &headers, format!("p:{slug}"), move |db| {
+        Ok(catalog::queries::program_by_slug(db, &slug)?.map(|program| {
+            let mut facts = vec![program.degree().to_string()];
+            if let Some(variant) = &program.study_variant {
+                facts.push(variant.label().to_string());
+            }
+            facts.push(match program.po_year {
+                Some(year) => format!("Prüfungsordnung {year}"),
+                None => format!("Prüfungsordnung {}", program.po_version),
+            });
+            let mut note = vec![format!("{} Module im Curriculum", app::format::count(program.curricular_modules.max(0) as u64))];
+            if program.has_plan {
+                note.push("mit Regelstudienplan".to_string());
+            }
+            CardText { eyebrow: "Studiengang".to_string(), title: program.name, facts, note: Some(note.join("  ·  ")) }
+        }))
+    })
+    .await
+}
+
+/// A card: what it says is read from the snapshot, the picture is kept or drawn. When the server
+/// has no free place to draw (or no snapshot yet), the site's standard picture answers instead,
+/// not to be kept, so the next fetch gets the real one.
+async fn card(state: &AppState, headers: &HeaderMap, key: String, read: impl FnOnce(&dyn catalog::Database) -> Result<Option<CardText>, catalog::DbError>) -> Response {
+    let standard = || {
+        let mut response = Response::new(Body::from(&include_bytes!("../../app/assets/og.png")[..]));
+        let out = response.headers_mut();
+        out.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
+        out.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        response
+    };
+    let Some(snapshot) = state.store.current() else { return standard() };
+    // Only asked for a card that is not known for this snapshot, and only with a free place.
+    let text = || {
+        let mut read = Some(read);
+        let mut text = Ok(None);
+        let ran = snapshot.with_db(&mut |db| {
+            if let Some(read) = read.take() {
+                text = read(db);
+            }
+        });
+        ran.and(text).map_err(|error| error.to_string())
+    };
+    match state.cards.get(&key, state.store.generation(), text).await {
+        Ok(Card::Drawn(etag, png)) => {
+            let mut response = if if_none_match(headers, &etag) { StatusCode::NOT_MODIFIED.into_response() } else { Response::new(Body::from(png)) };
+            let out = response.headers_mut();
+            out.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
+            // A day for whoever keeps it; the ETag settles the rest. Fetchers of messengers keep
+            // pictures far longer than that anyway.
+            out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"));
+            if let Ok(value) = HeaderValue::from_str(&etag) {
+                out.insert(header::ETAG, value);
+            }
+            response
+        }
+        Ok(Card::Unknown) => StatusCode::NOT_FOUND.into_response(),
+        Ok(Card::Busy) => standard(),
+        Err(error) => {
+            tracing::error!(component = "cards", event = "card.failed", key, error = %error, "a card could not be read from the snapshot or drawn");
+            standard()
+        }
+    }
+}
+
+/// `GET /manifest.webmanifest`: name, colours and icons of the site for a home screen.
+pub async fn manifest(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "application/manifest+json", include_bytes!("../../app/assets/manifest.webmanifest"))
 }
 
 pub async fn font(State(state): State<AppState>, headers: HeaderMap) -> Response {

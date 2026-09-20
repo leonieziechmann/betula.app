@@ -17,6 +17,31 @@ debug = "line-tables-only"
 [profile.dev.package."*"]
 debug = false
 
+# Drawing the link-preview cards (server/src/cards.rs) is pixel work: unoptimised it takes a
+# third of a second per card, which would make the dev server turn previews away as "busy".
+[profile.dev.package.tiny-skia]
+opt-level = 3
+[profile.dev.package.tiny-skia-path]
+opt-level = 3
+[profile.dev.package.resvg]
+opt-level = 3
+[profile.dev.package.usvg]
+opt-level = 3
+[profile.dev.package.rustybuzz]
+opt-level = 3
+[profile.dev.package.ttf-parser]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+
 [profile.release]
 lto = "thin"
 

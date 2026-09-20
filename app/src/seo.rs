@@ -21,6 +21,8 @@ pub struct SiteUrl(pub Arc<str>);
 
 pub const DEFAULT_SITE_URL: &str = "https://betula.app";
 pub const SITE_NAME: &str = "Betula";
+/// What the picture of link previews shows (`app/assets/og.png`), for those who cannot see it.
+pub const OG_IMAGE_ALT: &str = "Betula: alle Module und Studiengänge der BTU Cottbus-Senftenberg. Durchsuchen, filtern, Studium planen. Inoffizieller Modulkatalog.";
 /// The university the catalog is about, as structured data names it.
 pub const UNIVERSITY: &str = "Brandenburgische Technische Universität Cottbus-Senftenberg";
 pub const UNIVERSITY_URL: &str = "https://www.b-tu.de/";
@@ -32,6 +34,16 @@ pub fn site_url() -> String {
 /// `path` (with its query, if it belongs to the page) as an absolute address.
 pub fn absolute(path: &str) -> String {
     format!("{}{}", site_url(), path)
+}
+
+/// The pictures the server draws for link previews (`server/src/cards.rs`): 1200 × 630, the title
+/// and a few facts in the look of the site.
+pub fn module_card(id: &str) -> String {
+    format!("/cards/module/{id}.png")
+}
+
+pub fn program_card(slug: &str) -> String {
+    format!("/cards/program/{slug}.png")
 }
 
 /// Text for a description: one line, at most `limit` characters, cut at a word.
@@ -73,6 +85,10 @@ pub fn Seo(
     /// The one address of this page: path, plus the query if it makes a different page.
     #[prop(into)]
     path: String,
+    /// The page's own picture for link previews (`module_card`, `program_card`); without one the
+    /// site's standard picture is named.
+    #[prop(optional, into)]
+    card: Option<String>,
     /// A view of another page (a filter, a page of a list): follow its links, do not list it.
     #[prop(optional)]
     noindex: bool,
@@ -81,7 +97,9 @@ pub fn Seo(
     data: Vec<serde_json::Value>,
 ) -> impl IntoView {
     let address = absolute(&path);
-    let image = absolute(crate::OG_IMAGE);
+    // A card says the page's title; the standard picture says what the site is.
+    let alt = if card.is_some() { format!("{title} · {SITE_NAME}") } else { OG_IMAGE_ALT.to_string() };
+    let image = absolute(card.as_deref().unwrap_or(crate::OG_IMAGE));
     let data = (!data.is_empty()).then(|| json_ld(&serde_json::json!({ "@context": "https://schema.org", "@graph": data })));
     view! {
         <Meta name="description" content=description.clone()/>
@@ -90,13 +108,20 @@ pub fn Seo(
         <Meta property="og:site_name" content=SITE_NAME/>
         <Meta property="og:type" content="website"/>
         <Meta property="og:locale" content="de_DE"/>
-        <Meta property="og:title" content=title/>
-        <Meta property="og:description" content=description/>
+        <Meta property="og:title" content=title.clone()/>
+        <Meta property="og:description" content=description.clone()/>
         <Meta property="og:url" content=address/>
-        <Meta property="og:image" content=image/>
+        <Meta property="og:image" content=image.clone()/>
+        <Meta property="og:image:type" content="image/png"/>
         <Meta property="og:image:width" content="1200"/>
         <Meta property="og:image:height" content="630"/>
+        <Meta property="og:image:alt" content=alt.clone()/>
+        // X reads the og: tags too, but only with its own it shows the large card everywhere.
         <Meta name="twitter:card" content="summary_large_image"/>
+        <Meta name="twitter:title" content=title/>
+        <Meta name="twitter:description" content=description/>
+        <Meta name="twitter:image" content=image/>
+        <Meta name="twitter:image:alt" content=alt/>
         {data.map(|json| view! { <Script type_="application/ld+json">{json}</Script> })}
     }
 }

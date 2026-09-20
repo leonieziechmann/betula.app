@@ -219,6 +219,7 @@ pub fn ModulePage() -> impl IntoView {
                                 title=format!("{} ({})", data.module.title, data.module.id)
                                 description=derived.description
                                 path=url::module_path(&data.module.id)
+                                card=crate::seo::module_card(&data.module.id)
                                 data=structured(&data)
                             />
                             <article class="module-page">

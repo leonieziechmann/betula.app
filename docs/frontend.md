@@ -6,7 +6,7 @@
 
 > State: 2026-09-20. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
-> again. Not yet: PWA (service worker, manifest), bookmarks and other user data, context search.
+> again. Not yet: the service worker of the PWA (the manifest and the icons exist), bookmarks and other user data, context search.
 > Decisions and their evidence: `docs/frontend-phase0.md`.
 
 ## 1. Overview
@@ -222,6 +222,35 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
 - The browser app removes the server's tags from the head when it takes over and writes its own,
   so the head describes the page that is shown.
+- **Link previews** (messengers, Slack, Discord, X): the card is the page's own title and
+  description with a picture (1200 × 630, absolute address, with type, size and alt text); X
+  gets its `twitter:` twins, because only with them the large card shows everywhere. A preview
+  never runs JavaScript, so all of it is in the server's HTML.
+- **A module and a program have their own picture** (`/cards/module/<id>.png`,
+  `/cards/program/<slug>.png`; `seo::module_card`, `seo::program_card`): the logo, the kind and
+  number, the title (four sizes, at most four lines, then „…"), a line of facts and a quieter
+  one (department; size of the curriculum). Every other page names the standard picture
+  `og.png`. The server draws the cards itself (`server/src/cards.rs`): an SVG put together in
+  Rust, set by resvg in static cuts of Inter (`server/assets/inter-*.ttf`, cut once from the
+  app's variable font by `design/cards/make-fonts.py`, a development tool; nothing but the
+  server's own process runs in production), measured with the same shaper before it is set,
+  written as a palette PNG (20–30 kB). About 15 ms of drawing and 65 ms of packing in a dev
+  build; the pixel crates are optimised in the dev profile for that.
+  - **Kept:** a finished card stays in memory (`--card-cache-mb`, 64 MiB ≈ 2,500 cards) under
+    the hash of what it says, so a new snapshot only redraws the cards whose text changed. The
+    hash is also the ETag (`If-None-Match` → 304); `Cache-Control: public, max-age=86400`.
+  - **Never in the way of the pages:** drawing runs on the blocking pool, at most half the
+    processors at once (1–4). If every place is taken, or there is no snapshot, or drawing
+    fails, the answer is `og.png` at once with `no-store`, so the next fetch gets the real card.
+    An unknown module or program is a 404. Look at the design with
+    `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review`.
+- **Who the site is, outside a page** (static in the document's head, `app::shell`, so it
+  survives the takeover): `/favicon.ico` (32 and 48 px) and the SVG icon, `/apple-touch-icon.png`
+  (180 px, full bleed: iOS rounds it and uses it for the home screen and for previews in
+  Messages), `/manifest.webmanifest` (name, colours, icons 192/512 and a maskable one) and
+  `theme-color` (the page background; the head script and the theme switch turn it dark). The
+  pictures are made from the mark's grids by `node design/logo/render-icons.mjs`. The manifest
+  makes the site installable; it does not make it work offline (no service worker yet).
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
 `lastmod` per module (the snapshot has no date per module), English pages.
@@ -319,12 +348,15 @@ keeps serving the last good one when Radix is away, also after a restart.
 | `--stale-after-seconds` | `FOLIA_SNAPSHOT_STALE_AFTER` | `21600` | `/healthz` fails when Radix was silent this long (0: never) |
 | `--html-cache-mb` | `FOLIA_HTML_CACHE_MB` | `128` | rendered pages kept in memory |
 | `--site-root` | `FOLIA_SITE_ROOT` | `site` | browser bundle (`pkg/`), from phase 2 |
+| `--card-cache-mb` | `FOLIA_CARD_CACHE_MB` | `64` | finished link-preview cards kept in memory |
 | `--public-url` | `FOLIA_PUBLIC_URL` | `https://betula.app` | the site's address from outside: canonical links, link previews, sitemap |
 | `--log-format`, `--log-level` | `FOLIA_LOG_FORMAT`, `FOLIA_LOG_LEVEL` | `text`, `info` | `json` in production |
 
 Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /api/map.json` (the map of the
 programs, with the snapshot's ETag), `GET /healthz`, `/assets/app.css`, `/assets/favicon.svg`,
-`/assets/og.png`, `/robots.txt`, `/sitemap.xml`.
+`/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
+`/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/manifest.webmanifest`,
+`/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`, `/sitemap.xml`.
 
 ### Log events (same rules as `docs/operations.md` §2: ERROR = a human has to act)
 
@@ -336,11 +368,14 @@ programs, with the snapshot's ETag), `GET /healthz`, `/assets/app.css`, `/assets
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
 | INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`) |
+| DEBUG | `card.drawn` | a link-preview card was drawn (`key`, `bytes`, `ms`) |
+| WARN | `card.busy` | every drawing place was taken, previews got the standard picture (`count`; at most one line a minute). Often: more places or a larger `--card-cache-mb` |
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
 | WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / served uncompressed |
 | ERROR | `snapshot.rejected` | a download is not a usable catalog; the previous snapshot stays active |
 | ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
 | ERROR | `http.request` with `status >= 500`, `render.failed`, `snapshot.unreadable` | a request failed |
+| ERROR | `card.failed` | a card's text could not be read or the card could not be drawn; the preview got the standard picture |
 | ERROR | `server.start_failed`, `server.failed` | the server cannot run |
 
 ## 4. Checks

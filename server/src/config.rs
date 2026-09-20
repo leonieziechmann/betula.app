@@ -33,6 +33,10 @@ pub struct Config {
     #[arg(long, env = "FOLIA_HTML_CACHE_MB", default_value_t = 128)]
     pub html_cache_mb: usize,
 
+    /// Finished link-preview cards (`/cards/…png`) kept in memory, in MiB.
+    #[arg(long, env = "FOLIA_CARD_CACHE_MB", default_value_t = 64)]
+    pub card_cache_mb: usize,
+
     /// Directory with the browser bundle (`pkg/`), served under `/pkg`. Optional until phase 2.
     #[arg(long, env = "FOLIA_SITE_ROOT", default_value = "site")]
     pub site_root: PathBuf,

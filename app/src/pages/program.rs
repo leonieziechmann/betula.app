@@ -128,7 +128,7 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
     view! {
         <Title text=format!("{name}: {view_name} · BTU Cottbus-Senftenberg")/>
         // Older examination regulations stay reachable but are not what a search should find.
-        <Seo title=format!("{name}: {view_name}") description=description path=url::program_path(&p.slug, tab) noindex=!p.is_latest_po data=trail/>
+        <Seo title=format!("{name}: {view_name}") description=description path=url::program_path(&p.slug, tab) card=crate::seo::program_card(&p.slug) noindex=!p.is_latest_po data=trail/>
         <article class="page-inner" data-walk="program-page" data-walk-id=p.slug.clone()>
             <header class="panel page-head">
                 <div class="hero-top"><BackLink area=Area::Programs/></div>
