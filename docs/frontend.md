@@ -94,9 +94,15 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   filters (catalog, program overview), the views of a program, the sections of a module, actions,
   and on the landing page the state of the data. On a phone a sidebar of filters is a sheet
   opened by the page's „Filter" button, views stay on top, everything else follows the page.
-- **The program overview** is one section per faculty, one row per subject, and in the row every
-  program of the subject (Bachelor, Master, dual, …) as a link: 148 programs read as about 80
-  rows in eight sections. Programs without a validated study plan are the quieter links.
+- **The program overview** is one section per faculty, and in it a matrix: a row per subject, a
+  column per cycle of study (Bachelor, Master, the rest; Lehramt counts to its cycle). 148
+  programs read as about 80 rows, 72 of 98 cells hold one program, and the columns are the same
+  in every section, so the whole page stands on a few vertical lines. A program that is also
+  offered in other forms of study carries them as segments of the same control
+  („B.Sc. 2022 | dual, Ausbildung | dual, Praxis"); a segment's full name is its `aria-label`.
+  A column nothing is left in after filtering is not drawn. Programs without a validated study
+  plan are the quieter links. Tried before and dropped as clutter (owner, 2026-09-20): cards,
+  and the rows set in several text columns; rows of unequal height with nothing to line up on.
   **The faculty is derived, not stated** (no source names a program's faculty):
   `catalog::pages::faculties` takes the department of the thesis module, else the department
   that offers at least half of the offered curriculum, else what the programs of the same
@@ -174,6 +180,14 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   gap to it**, so two areas meet in the middle and never overlap; more only into space that holds
   no control. Resize handles are zones of 16–20 px around a 4 px grip; the slider's knob is drawn
   inside a larger thumb.
+- **R18. A drag moves one panel, not the page.** The widths of filter panel and preview are
+  custom properties on `<html>`; changing one lays out the whole page again (the list changes
+  its width, every row re-evaluates its container queries: 60 to 80 ms a frame with 300 rows).
+  While a handle is dragged, `enhance.js` sets only an inline width on the panel (it lies above
+  its neighbour), at most once a frame, and writes the property once when the handle is let go.
+  `node e2e/resize-perf.mjs` measures frame times during a drag (before: 61 of 136 frames over
+  33 ms, worst 83 ms; after: none, worst 18 ms); `filters.mjs` checks that list and property do
+  not change during a drag. The same rule for anything else that follows the pointer.
 - **R17. Every page is framed** by `ui::Frame` (see „Look and interaction"). A new page starts
   with the question what its sidebar holds, not whether it has one.
 - **R16. In one reactive closure read the source, not a memo derived from it and the source.**

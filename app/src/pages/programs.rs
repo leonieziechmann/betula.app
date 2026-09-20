@@ -1,6 +1,10 @@
-//! The program overview: one section per faculty, one row per subject, and in the row every
-//! program of that subject (Bachelor, Master, dual, …) as a link. 148 programs are 92 subjects
-//! in eight sections, which is what makes the page easy to take in.
+//! The program overview: one section per faculty, and in it a matrix: a row per subject, a
+//! column per cycle of study (Bachelor, Master, the rest). 148 programs are about 80 rows, most
+//! of them one line, and everything stands on the same few vertical lines, which is what makes
+//! the page calm. (A flow of cards, and a list set in several text columns, were both tried
+//! first and read as clutter: rows of unequal height with nothing to line up on.)
+//! A program that is also offered in other forms of study (dual, extended, …) carries them as
+//! segments of the same control.
 //!
 //! The sidebar filters (degree, form of study, study plan) and jumps to the faculties; the
 //! search of the top bar narrows by name. All of it is in the URL (`catalog::url::ProgramsUrl`).
@@ -8,6 +12,7 @@
 //! No source states a program's faculty. It is derived (`catalog::pages::faculties`), the
 //! sidebar says on what grounds, and programs without a clear answer have a section of their own.
 
+use catalog::labels::DegreeLevel;
 use catalog::pages::{self, ProgramsData};
 use catalog::rows::{Department, Program};
 use catalog::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
@@ -115,11 +120,89 @@ fn matches(program: &Program, url: &ProgramsUrl) -> bool {
         && catalog::search::matches(&text, &url.text)
 }
 
+/// The columns of the matrix: the cycles of study. Lehramt counts to the cycle it is part of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Stage {
+    Bachelor,
+    Master,
+    /// Doctoral programs and programs without a degree.
+    Other,
+}
+
+impl Stage {
+    fn of(program: &Program) -> Self {
+        match program.degree_level.known() {
+            Some(DegreeLevel::Bachelor | DegreeLevel::TeachingBachelor) => Stage::Bachelor,
+            Some(DegreeLevel::Master | DegreeLevel::TeachingMaster) => Stage::Master,
+            _ => Stage::Other,
+        }
+    }
+
+    fn code(self) -> &'static str {
+        match self {
+            Stage::Bachelor => "bachelor",
+            Stage::Master => "master",
+            Stage::Other => "other",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Stage::Bachelor => "Bachelor",
+            Stage::Master => "Master",
+            Stage::Other => "Weitere",
+        }
+    }
+}
+
+/// The degree as a control says it: „B.Sc.", else „Bachelor", else „ohne Abschluss".
+fn degree_short(program: &Program) -> String {
+    program.degree_display.clone().unwrap_or_else(|| program.degree_level.label().to_string())
+}
+
+/// What tells a form of study from the plain program of its subject: „dual, Praxis", „erweitert".
+/// „Maschinenbau - dual" adds the „dual" of its name where the form does not say it already.
+fn form_label(program: &Program, subject: &str) -> Option<String> {
+    let added = program.name.strip_prefix(subject).map(|rest| rest.trim_matches([' ', '-'])).filter(|rest| !rest.is_empty());
+    match (added, program.study_variant.as_ref().map(format::variant_short)) {
+        (Some(added), Some(variant)) if !variant.contains(added) => Some(format!("{added}, {variant}")),
+        (Some(added), None) => Some(added.to_string()),
+        (_, variant) => variant,
+    }
+}
+
+/// A program with the other forms of study it is offered in (same degree, same PO year).
+struct Group {
+    main: Program,
+    forms: Vec<Program>,
+}
+
+fn groups(programs: Vec<Program>, subject: &str) -> Vec<Group> {
+    let is_form = |p: &Program| p.study_variant.is_some() || p.name != subject;
+    let mut programs = programs;
+    programs.sort_by_key(|p| (is_form(p), std::cmp::Reverse(p.po_year), degree_short(p)));
+    let mut groups: Vec<Group> = Vec::new();
+    for program in programs {
+        let base = match is_form(&program) {
+            true => groups.iter_mut().find(|g| !is_form(&g.main) && degree_short(&g.main) == degree_short(&program) && g.main.po_year == program.po_year),
+            false => None,
+        };
+        match base {
+            Some(group) => group.forms.push(program),
+            None => groups.push(Group { main: program, forms: Vec::new() }),
+        }
+    }
+    groups
+}
+
 /// What the page shows for a URL: the faculties with what is left of them.
 #[derive(Clone, PartialEq)]
 struct Shown {
     faculties: Vec<Faculty>,
     programs: usize,
+    /// Whether any program is left in these columns: a column nothing is in is not drawn.
+    bachelor: bool,
+    master: bool,
     text: String,
     filtered: bool,
 }
@@ -162,7 +245,15 @@ pub fn ProgramsPage() -> impl IntoView {
                 .filter(|faculty| !faculty.subjects.is_empty())
                 .collect()
         });
-        Shown { programs: faculties.iter().map(Faculty::programs).sum(), faculties, text: url.text.clone(), filtered: url.is_filtered() }
+        let any = |stage: Stage| faculties.iter().flat_map(|f| &f.subjects).flat_map(|s| &s.programs).any(|p| Stage::of(p) == stage);
+        Shown {
+            programs: faculties.iter().map(Faculty::programs).sum(),
+            bachelor: any(Stage::Bachelor),
+            master: any(Stage::Master),
+            faculties,
+            text: url.text.clone(),
+            filtered: url.is_filtered(),
+        }
     });
 
     // Every control of the sidebar is a link to the overview it leads to (as in the catalog).
@@ -284,7 +375,8 @@ pub fn ProgramsPage() -> impl IntoView {
                             </div>
                         }.into_any();
                     }
-                    shown.faculties.into_iter().map(|faculty| view! { <FacultySection faculty/> }).collect_view().into_any()
+                    let (bachelor, master) = (shown.bachelor, shown.master);
+                    shown.faculties.into_iter().map(|faculty| view! { <FacultySection faculty bachelor master/> }).collect_view().into_any()
                 }}
             </div>
         </Frame>
@@ -292,58 +384,96 @@ pub fn ProgramsPage() -> impl IntoView {
     .into_any()
 }
 
+/// One link of the matrix. `as_form`: a segment behind its plain program, saying only what differs.
+fn program_link(program: &Program, subject: &str, as_form: bool) -> impl IntoView {
+    let year = program.po_year.map(|year| year.to_string()).unwrap_or_else(|| program.po_version.clone());
+    let form = form_label(program, subject);
+    let described = format!(
+        "{} · {} · PO {}{}",
+        program.name,
+        program.degree(),
+        program.po_version,
+        program.study_variant.as_ref().map(|v| format!(" · {}", v.label())).unwrap_or_default()
+    );
+    let tooltip = format!(
+        "{described} · {} Module · {}",
+        program.curricular_modules,
+        if program.has_plan { "geprüfter Regelstudienplan" } else { "noch kein geprüfter Regelstudienplan" }
+    );
+    let text = if as_form {
+        view! { <span>{form.unwrap_or_else(|| program.name.clone())}</span> }.into_any()
+    } else {
+        view! {
+            <b>{degree_short(program)}</b>
+            <span class="num">{year}</span>
+            {form.map(|form| view! { <span class="variant">{form}</span> })}
+        }
+        .into_any()
+    };
+    view! {
+        <a
+            class="program-pill"
+            class:form=as_form
+            class:no-plan=!program.has_plan
+            data-walk="program-link"
+            href=url::program_path(&program.slug, ProgramTab::Plan)
+            title=tooltip
+            aria-label=described
+        >
+            {text}
+        </a>
+    }
+}
+
 #[component]
-fn FacultySection(faculty: Faculty) -> impl IntoView {
+fn FacultySection(faculty: Faculty, bachelor: bool, master: bool) -> impl IntoView {
     let programs = faculty.programs();
     let (anchor, short, name) = (faculty.anchor(), faculty.short(), faculty.name());
+    let has_other = faculty.subjects.iter().flat_map(|s| &s.programs).any(|p| Stage::of(p) == Stage::Other);
+    // The columns are the same in every section (so they line up down the whole page); the
+    // narrow last one is labelled only where something is in it.
+    let stages: Vec<Stage> = [(Stage::Bachelor, bachelor), (Stage::Master, master), (Stage::Other, true)].iter().filter(|(_, shown)| *shown).map(|(stage, _)| *stage).collect();
+    let head = stages.clone();
     view! {
-        <section class="panel block faculty" id=anchor>
+        <section class="panel faculty" class:has-bachelor=bachelor class:has-master=master id=anchor>
             <header class="faculty-head">
                 <span class="faculty-code">{short}</span>
-                <h2>{name}</h2>
+                <h2>{name.clone()}</h2>
                 <span class="tab-count">{programs}{if programs == 1 { " Studiengang" } else { " Studiengänge" }}</span>
             </header>
             {faculty.department.is_none().then(|| view! {
                 <p class="hint">"Für diese Studiengänge lässt sich aus den Daten keine Fakultät eindeutig ableiten, zum Beispiel weil mehrere Fakultäten sie gemeinsam tragen."</p>
             })}
-            <ul class="subjects">
+            <div class="subjects" role="table" aria-label=name>
+                <div class="matrix-row matrix-head label" role="row">
+                    <span role="columnheader">"Fach"</span>
+                    {head.into_iter().map(|stage| view! {
+                        <span role="columnheader">{(stage != Stage::Other || has_other).then(|| stage.label())}</span>
+                    }).collect_view()}
+                </div>
                 {faculty.subjects.into_iter().map(|subject| {
-                    let subject_title = subject.title.clone();
+                    let Subject { title, programs } = subject;
                     view! {
-                    <li class="subject">
-                        <span class="subject-name">{subject.title.clone()}</span>
-                        <span class="subject-programs">
-                            {subject.programs.into_iter().map(|p| {
-                                let year = p.po_year.map(|year| year.to_string()).unwrap_or_else(|| p.po_version.clone());
-                                // What the program's name adds to the subject („- dual") belongs to
-                                // the form of study, unless the form says it already.
-                                let added = p.name.strip_prefix(subject_title.as_str()).map(|rest| rest.trim_matches([' ', '-'])).filter(|rest| !rest.is_empty());
-                                let variant = match (added, p.study_variant.as_ref().map(format::variant_short)) {
-                                    (Some(added), Some(variant)) if !variant.contains(added) => Some(format!("{added}, {variant}")),
-                                    (Some(added), None) => Some(added.to_string()),
-                                    (_, variant) => variant,
-                                };
-                                let title = format!(
-                                    "{} · {} · PO {} · {} Module{}",
-                                    p.name,
-                                    p.degree(),
-                                    p.po_version,
-                                    p.curricular_modules,
-                                    if p.has_plan { " · geprüfter Regelstudienplan" } else { " · noch kein geprüfter Regelstudienplan" }
-                                );
+                        <div class="matrix-row subject" role="row">
+                            <span class="subject-name" role="rowheader">{title.clone()}</span>
+                            {stages.iter().map(|stage| {
+                                let of_stage: Vec<Program> = programs.iter().filter(|p| Stage::of(p) == *stage).cloned().collect();
+                                let empty = of_stage.is_empty();
                                 view! {
-                                    <a class="program-pill" class:no-plan=!p.has_plan data-walk="program-link" href=url::program_path(&p.slug, ProgramTab::Plan) title=title>
-                                        <b>{p.degree().to_string()}</b>
-                                        <span class="num">{year}</span>
-                                        {variant.map(|variant| view! { <span class="variant">{variant}</span> })}
-                                    </a>
+                                    <span class="cell" class:empty=empty role="cell" data-stage=stage.code()>
+                                        {groups(of_stage, &title).into_iter().map(|group| view! {
+                                            <span class="pill-group">
+                                                {program_link(&group.main, &title, false)}
+                                                {group.forms.iter().map(|form| program_link(form, &title, true)).collect_view()}
+                                            </span>
+                                        }).collect_view()}
+                                    </span>
                                 }
                             }).collect_view()}
-                        </span>
-                    </li>
+                        </div>
                     }
                 }).collect_view()}
-            </ul>
+            </div>
         </section>
     }
 }

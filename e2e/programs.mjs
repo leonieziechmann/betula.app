@@ -53,7 +53,11 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
       pills: pills.length,
       distinct: new Set(pills.map((p) => p.getAttribute("href"))).size,
       total: Number(document.querySelector(".summary .count").textContent.replace(/\D/g, "")),
-      alike: sections.flatMap((s) => [...s.querySelectorAll(".subject")]).filter((row) => { const texts = [...row.querySelectorAll(".program-pill")].map((p) => p.textContent); return new Set(texts).size !== texts.length; }).map((row) => row.querySelector(".subject-name").textContent),
+      // A segment says only what differs from its program („dual, Praxis"); its full name is its label.
+      alike: sections.flatMap((s) => [...s.querySelectorAll(".subject")]).filter((row) => { const names = [...row.querySelectorAll(".program-pill")].map((p) => p.getAttribute("aria-label")); return new Set(names).size !== names.length; }).map((row) => row.querySelector(".subject-name").textContent),
+      // The matrix: every column starts on one vertical line, in all sections.
+      lines: ["bachelor", "master", "other"].map((stage) => new Set([...document.querySelectorAll(`.cell[data-stage="${stage}"]`)].map((cell) => Math.round(cell.getBoundingClientRect().left))).size),
+      overflowing: [...document.querySelectorAll(".cell")].filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length,
       cut: [...document.querySelectorAll("#sidebar .toc a, #sidebar .hint, #sidebar .chip")].filter((el) => el.getBoundingClientRect().right > document.getElementById("sidebar").getBoundingClientRect().right + 0.5).map((el) => el.textContent.slice(0, 30)),
     };
   });
@@ -61,6 +65,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   check(overview.pills === overview.distinct && overview.pills === overview.total && overview.counted === overview.total, `overview: ${overview.pills} links, ${overview.distinct} programs, ${overview.counted} counted in the sections, ${overview.total} in the header`);
   check(overview.alike.length === 0, `overview: programs of a subject that read the same: ${overview.alike.join(", ")}`);
   check(overview.cut.length === 0, `overview: cut off at the edge of the sidebar: ${overview.cut.join(" | ")}`);
+  check(overview.lines.join() === "1,1,1" && overview.overflowing === 0, `overview: the columns do not line up (${overview.lines}) or a cell overflows (${overview.overflowing})`);
 
   // Filters are links; the sidebar stays the same element and the toggle keeps the focus.
   await page.evaluate(() => { document.getElementById("sidebar").__same = true; });
@@ -97,6 +102,9 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await step("phone: a filter in the sheet", () => page.tap('#sidebar a.chip:has-text("Bachelor")'), () => location.search === "?level=bachelor" && document.querySelector(".sidebar.sheet.open"));
   await step("phone: the sheet closes", () => page.tap('#sidebar .sheet-only a'), () => !document.querySelector(".sidebar.sheet.open"));
   check(await page.evaluate(() => [...document.querySelectorAll(".faculty-head")].every((head) => head.scrollWidth <= head.clientWidth + 1)), "phone: a faculty's heading does not fit");
+  // On a phone the matrix is one column: the programs of a subject stand under its name.
+  const stacked = await page.evaluate(() => [...document.querySelectorAll(".subject")].filter((row) => { const name = row.querySelector(".subject-name").getBoundingClientRect(); return ![...row.querySelectorAll(".cell:not(.empty)")].every((cell) => cell.getBoundingClientRect().top >= name.bottom - 1 && cell.getBoundingClientRect().right <= innerWidth); }).length);
+  check(stacked === 0, `phone: in ${stacked} rows the programs overlap the name of the subject or leave the screen`);
   await context.close();
 }
 

@@ -134,40 +134,68 @@
 
   // ---- widths of the filter panel and the module preview: drag the edge, arrow keys on the
   // focused edge, a double click resets. Personal, so kept in localStorage and not in the URL.
+  //
+  // A width is a custom property on <html>, and changing it lays out the whole page again: the
+  // list changes its width, and with it every row and its container queries (measured with 300
+  // rows: 60 to 80 ms a frame). So while the handle is dragged only the panel itself follows, as
+  // an inline width, above its neighbour, at most once a frame. The property is written once,
+  // when the handle is let go.
+  const sideWidth = () => (document.getElementById("filters") || document.getElementById("sidebar"))?.getBoundingClientRect().width ?? 272;
   const RESIZE = {
-    "resize-filters": { key: "btu.filters.width", prop: "--w-filters", grows: 1, min: () => 232, max: () => 440, panel: () => document.getElementById("filters") || document.getElementById("sidebar") },
+    "resize-filters": {
+      key: "btu.filters.width", prop: "--w-filters", grows: 1,
+      min: () => 232, max: () => Math.max(232, Math.min(440, innerWidth * 0.42)),
+      panel: () => document.getElementById("filters") || document.getElementById("sidebar"),
+      place: (handle, width) => { handle.style.left = width === null ? "" : width + "px"; },
+    },
     "resize-preview": {
-      key: "btu.preview.width", prop: "--preview-w", grows: -1, min: () => 360, panel: () => document.querySelector(".work > .detail"),
-      max: () => { const work = document.querySelector(".work"); return work ? Math.max(360, work.clientWidth - 400) : 2400; },
+      key: "btu.preview.width", prop: "--preview-w", grows: -1,
+      min: () => 360, max: () => { const work = document.querySelector(".work"); return work ? Math.max(360, work.clientWidth - sideWidth() - 128) : 2400; },
+      panel: () => document.querySelector(".work > .detail"),
+      place: (handle, width) => { handle.style.right = width === null ? "" : width - 12 + "px"; },
     },
   };
   const resizerOf = (target) => {
     const handle = target.closest ? target.closest("[data-action^='resize-']") : null;
     return handle && RESIZE[handle.dataset.action] ? { handle, edge: RESIZE[handle.dataset.action] } : null;
   };
-  const setWidth = (edge, px, remember) => {
-    const width = Math.round(Math.min(edge.max(), Math.max(edge.min(), px)));
+  const within = (edge, px) => Math.round(Math.min(edge.max(), Math.max(edge.min(), px)));
+  const setWidth = (edge, px) => {
+    const width = within(edge, px);
     root.style.setProperty(edge.prop, width + "px");
-    if (remember) { try { localStorage.setItem(edge.key, String(width)); } catch {} }
+    try { localStorage.setItem(edge.key, String(width)); } catch {}
   };
   document.addEventListener("pointerdown", (e) => {
     const hit = e.button === 0 ? resizerOf(e.target) : null;
     if (!hit) return;
     e.preventDefault();
-    const { edge } = hit;
+    const { edge, handle } = hit;
     const panel = edge.panel();
     if (!panel) return;
     const startWidth = panel.getBoundingClientRect().width;
     const startX = e.clientX; // the grabbed point stays under the pointer
     root.classList.add("resizing");
-    const widthAt = (ev) => startWidth + edge.grows * (ev.clientX - startX);
-    const move = (ev) => setWidth(edge, widthAt(ev), false);
+    let latest = startWidth, frame = 0;
+    const paint = () => {
+      frame = 0;
+      const width = within(edge, latest);
+      panel.style.width = width + "px";
+      edge.place(handle, width);
+    };
+    const move = (ev) => {
+      latest = startWidth + edge.grows * (ev.clientX - startX);
+      if (!frame) frame = requestAnimationFrame(paint);
+    };
     const stop = (ev) => {
       removeEventListener("pointermove", move);
       removeEventListener("pointerup", stop);
       removeEventListener("pointercancel", stop);
+      cancelAnimationFrame(frame);
+      if (ev.type === "pointerup") latest = startWidth + edge.grows * (ev.clientX - startX);
+      panel.style.width = "";
+      edge.place(handle, null);
       root.classList.remove("resizing");
-      setWidth(edge, widthAt(ev), true);
+      setWidth(edge, latest);
     };
     addEventListener("pointermove", move);
     addEventListener("pointerup", stop);
@@ -211,7 +239,7 @@
       e.preventDefault();
       const step = (e.key === "ArrowRight" ? 24 : -24) * hit.edge.grows;
       const panel = hit.edge.panel();
-      if (panel) setWidth(hit.edge, panel.getBoundingClientRect().width + step, true);
+      if (panel) setWidth(hit.edge, panel.getBoundingClientRect().width + step);
       return;
     }
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;

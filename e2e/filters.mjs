@@ -213,6 +213,24 @@ const drag = async (dx) => {
   await page.mouse.up();
 };
 const startWidth = await width();
+// While the handle is dragged only the panel follows; the page is laid out again when it is let go
+// (a relayout of a long list with every pointer move is what made the dragging lag).
+{
+  const state = () => page.evaluate(() => ({ panel: Math.round(document.getElementById("filters").getBoundingClientRect().width), list: Math.round(document.querySelector(".panel.list").getBoundingClientRect().width), variable: document.documentElement.style.getPropertyValue("--w-filters") }));
+  const before = await state();
+  const edge = await page.locator('[data-action="resize-filters"]').boundingBox();
+  await page.mouse.move(edge.x + edge.width / 2, edge.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(edge.x + edge.width / 2 + 50, edge.y + 200, { steps: 5 });
+  await page.waitForTimeout(120);
+  const during = await state();
+  await page.mouse.up();
+  await page.waitForTimeout(120);
+  const after = await state();
+  check(Math.abs(during.panel - (before.panel + 50)) <= 2 && during.list === before.list && during.variable === before.variable, `resize: while dragging ${JSON.stringify(during)}, before ${JSON.stringify(before)}`);
+  check(Math.abs(after.panel - (before.panel + 50)) <= 2 && after.list === before.list - (after.panel - before.panel) && after.variable === after.panel + "px", `resize: after letting go ${JSON.stringify(after)}`);
+  await page.dblclick('[data-action="resize-filters"]');
+}
 // The zone that takes the pointer is much wider than the grip, and none of it lies over the panel (its scrollbar).
 const zone = await page.evaluate(() => { const z = document.querySelector('[data-action="resize-filters"]').getBoundingClientRect(); return { width: z.width, over: document.getElementById("filters").getBoundingClientRect().right - z.left }; });
 check(zone.width >= 16 && zone.over <= 0.5, `resize: the handle's zone is ${zone.width}px wide and ${zone.over}px over the filter panel`);

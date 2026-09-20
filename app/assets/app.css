@@ -236,6 +236,9 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .resizer.preview-edge { z-index: 11; right: calc(var(--preview) - 12px); width: 20px; }
 .resizer.preview-edge::after { left: 11px; }
 .resizing, .resizing * { cursor: col-resize !important; user-select: none !important; }
+/* While a handle is dragged only its panel follows (above its neighbour); the page is laid out
+   again once, when the handle is let go (enhance.js). */
+.resizing .filters, .resizing .sidebar { position: relative; z-index: 6; }
 .resizing .work > .detail { animation: none; transition: none; }
 
 .filters form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
@@ -529,31 +532,47 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .summary { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px 2px 16px; }
 .summary h1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-right: auto; font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
 .sheet-only { display: none; }
-.faculty { padding: 16px 12px 10px; container: faculty / inline-size; }
-.faculty-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 0 12px 12px; }
+/* The program overview is a matrix per faculty: a row per subject, a column per cycle of study.
+   The columns are the same in every section, so everything lines up down the whole page. */
+.faculty { padding: 16px 0 6px; container: faculty / inline-size; }
+.faculty-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 0 24px 14px; }
 .faculty-code { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-s); background: var(--invert); color: var(--on-invert); white-space: nowrap; }
 .faculty-head h2 { min-width: 0; font-size: 16px; font-weight: 650; letter-spacing: -.015em; text-wrap: pretty; }
-.faculty > .hint { padding: 0 12px 10px; margin: 0; }
-/* As many columns of subjects as fit (one on a phone, two on a laptop, three on a wide screen):
-   the whole width is used, a faculty is half as long, and the alphabet runs down each column. */
-.subjects { columns: 400px; column-gap: 28px; border-top: 1px solid var(--line); }
-.subject { break-inside: avoid; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 4px 14px; align-items: start; min-height: 48px; padding: 7px 12px; border-bottom: 1px solid var(--line); border-radius: var(--r-row); }
+.faculty > .hint { padding: 0 24px 12px; margin: 0; }
+/* One column by default (a phone, a narrow window); the matrix where there is room for it. */
+.matrix-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px 20px; padding: 0 24px; }
+@container faculty (min-width: 761px) {
+  .matrix-row { grid-template-columns: minmax(0, 25fr) minmax(0, 75fr); }
+  .faculty.has-bachelor .matrix-row, .faculty.has-master .matrix-row { grid-template-columns: minmax(0, 25fr) minmax(0, 75fr) 176px; }
+  .faculty.has-bachelor.has-master .matrix-row { grid-template-columns: minmax(0, 25fr) minmax(0, 38fr) minmax(0, 37fr) 176px; }
+}
+.matrix-head { padding-top: 8px; padding-bottom: 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.subject { align-items: start; min-height: 46px; padding-top: 7px; padding-bottom: 7px; border-bottom: 1px solid var(--line); transition: background .1s; }
+.subject:last-child { border-bottom: 0; }
 .subject:hover { background: var(--panel-2); }
 /* The name stands next to the first of its programs, however many lines of them follow. */
-.subject-name { padding-top: 6px; font-weight: 620; font-size: 14.5px; line-height: 20px; letter-spacing: -.012em; }
-.subject-programs { display: flex; flex-wrap: wrap; gap: 6px; }
-.program-pill { --hit: 3px; position: relative; min-height: 32px; padding: 0 10px; border-radius: var(--r-s); display: inline-flex; align-items: center; gap: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 520; text-decoration: none; white-space: nowrap; transition: background .12s, box-shadow .12s, color .12s; }
-.program-pill::after { content: ""; position: absolute; inset: calc(-1 * var(--hit)); }
+.subject-name { padding-top: 6px; font-weight: 620; font-size: 14.5px; line-height: 20px; letter-spacing: -.012em; text-wrap: pretty; }
+.cell { display: flex; flex-wrap: wrap; align-content: start; gap: 6px 0; min-width: 0; }
+/* A program and the other forms of study it is offered in are one control of several segments:
+   the segments share their borders, only the ends are rounded. The group has no box of its own,
+   so in a narrow column the segments wrap like words and every line stays as wide as its text. */
+.pill-group { display: contents; }
+.program-pill { --hit-y: 3px; position: relative; min-height: 32px; margin-right: -1px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 520; text-decoration: none; white-space: nowrap; transition: background .12s, color .12s; }
+.pill-group > .program-pill:first-child { border-top-left-radius: var(--r-s); border-bottom-left-radius: var(--r-s); }
+.pill-group > .program-pill:last-child { margin-right: 6px; border-top-right-radius: var(--r-s); border-bottom-right-radius: var(--r-s); }
+.program-pill::after { content: ""; position: absolute; inset: calc(-1 * var(--hit-y)) 0; }
 .program-pill b { color: var(--text); font-weight: 650; }
 .program-pill .variant { color: var(--text-3); }
 .program-pill .variant::before { content: "· "; }
+.program-pill.form { padding: 0 9px; font-weight: 500; }
 /* Four of five programs have a validated study plan; the ones without are the quieter ones. */
-.program-pill.no-plan { box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); }
+.program-pill.no-plan { color: var(--text-3); }
 .program-pill.no-plan b { color: var(--text-2); font-weight: 600; }
-.program-pill:hover { background: var(--invert); box-shadow: none; color: var(--on-invert); text-decoration: none; }
+.program-pill:hover { z-index: 1; background: var(--invert); box-shadow: none; color: var(--on-invert); text-decoration: none; }
 .program-pill:hover b, .program-pill:hover .variant { color: inherit; }
-@container faculty (max-width: 640px) {
-  .subject { grid-template-columns: minmax(0, 1fr); padding: 10px 12px; }
+@container faculty (max-width: 760px) {
+  .matrix-head, .cell.empty { display: none; }
+  .subject { padding-top: 10px; padding-bottom: 10px; }
   .subject-name { padding-top: 0; }
   .faculty-head h2 { grid-column: 1 / -1; grid-row: 2; }
   .faculty-head .tab-count { grid-column: 3; }
@@ -702,7 +721,7 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
   .toc.views .flabel { display: none; }
   .toc.views a { justify-content: center; min-height: 42px; padding: 0 6px; text-align: center; font-size: 13.5px; background: var(--panel-3); }
   .program-pill { min-height: 40px; padding: 0 12px; font-size: 14.5px; }
-  .faculty { padding: 14px 4px 6px; }
+  .faculty-head, .faculty > .hint, .matrix-row { padding-left: 16px; padding-right: 16px; }
   .actions.fgroup { padding-top: 6px; }
   .action { min-height: 46px; font-size: 15px; }
   .person { min-height: 50px; }
