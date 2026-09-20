@@ -10,6 +10,7 @@
 #![recursion_limit = "512"]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
+mod access;
 mod api;
 mod cache;
 mod cards;
@@ -53,6 +54,8 @@ pub struct AppState {
     pub site_root: std::path::PathBuf,
     /// The files of the browser app: name → (etag, bytes, gzip).
     pub packages: Packages,
+    /// Closed testing: the password in front of the whole site (`access`); `None` when it is open.
+    pub gate: Option<Arc<access::Gate>>,
 }
 
 /// name → (etag, bytes, gzip)
@@ -103,6 +106,9 @@ async fn access_log(request: Request, next: Next) -> Response {
     let ms = started.elapsed().as_secs_f64() * 1000.0;
     if status >= 500 {
         tracing::error!(component = "http", event = "http.request", %method, path, status, ms, cache, bytes, "request failed");
+    } else if path == api::LIVENESS {
+        // The container's own probe, twice a minute: not part of the story of a run.
+        tracing::debug!(component = "http", event = "http.request", %method, path, status, ms, cache, bytes, "request");
     } else {
         tracing::info!(component = "http", event = "http.request", %method, path, status, ms, cache, bytes, "request");
     }
@@ -144,6 +150,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/status", get(api::status))
         .route("/api/map.json", get(api::program_map))
         .route("/healthz", get(api::health))
+        .route(api::LIVENESS, get(api::alive))
         .route(app::STYLESHEET, get(api::stylesheet))
         .route(app::FAVICON, get(api::favicon))
         .route(app::FONT, get(api::font))
@@ -165,7 +172,10 @@ pub fn router(state: AppState) -> Router {
         .route("/cards/program/{file}", get(api::program_card))
         .route("/robots.txt", get(api::robots))
         .route("/sitemap.xml", get(api::sitemap))
+        .route(access::PATH, get(access::page).post(access::enter))
         .merge(pages)
+        // Around everything above, the page cache included; the access log sees what it turns away.
+        .layer(middleware::from_fn_with_state(state.clone(), access::gate))
         .layer(middleware::from_fn(access_log))
         .with_state(state)
 }
@@ -192,10 +202,53 @@ async fn shutdown_signal() {
     tracing::info!(component = "server", event = "server.shutdown", "shutting down");
 }
 
+/// `folia healthcheck`: is the server of this container alive? Says nothing unless it is not
+/// (Docker keeps the output of a failed probe with the container, not in its log).
+async fn healthcheck(addr: std::net::SocketAddr) -> std::process::ExitCode {
+    // The server may listen on every address; the probe asks the loopback one.
+    let ip = match addr.ip() {
+        std::net::IpAddr::V4(ip) if ip.is_unspecified() => std::net::Ipv4Addr::LOCALHOST.into(),
+        std::net::IpAddr::V6(ip) if ip.is_unspecified() => std::net::Ipv6Addr::LOCALHOST.into(),
+        ip => ip,
+    };
+    let url = format!("http://{}{}", std::net::SocketAddr::new(ip, addr.port()), api::LIVENESS);
+    let answer = match reqwest::Client::builder().timeout(Duration::from_secs(3)).build() {
+        Ok(client) => client.get(&url).send().await,
+        Err(error) => Err(error),
+    };
+    match answer {
+        Ok(response) if response.status() == reqwest::StatusCode::OK => std::process::ExitCode::SUCCESS,
+        Ok(response) => {
+            eprintln!("{url} answered {}", response.status());
+            std::process::ExitCode::FAILURE
+        }
+        Err(error) => {
+            eprintln!("{url}: {error}");
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     let config = Config::parse();
+    if let Some(config::Command::Healthcheck) = config.command {
+        return healthcheck(config.addr).await;
+    }
     init_logging(&config);
+
+    // Before anything else: a gate that cannot close must not leave the site open.
+    let gate = match access::Gate::from_environment(config.access_gate) {
+        Ok(Some((gate, source))) => {
+            tracing::info!(component = "access", event = "access.gate_on", source, "closed testing: the site asks for the access password");
+            Some(Arc::new(gate))
+        }
+        Ok(None) => None,
+        Err(error) => {
+            tracing::error!(component = "server", event = "server.start_failed", error = %error, "the access gate cannot be set up");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
 
     let store = match SnapshotStore::new(config.data_dir.clone()) {
         Ok(store) => store,
@@ -217,6 +270,7 @@ async fn main() -> std::process::ExitCode {
         public_url: config.public_url.trim_end_matches('/').into(),
         site_root: config.site_root.clone(),
         packages: Arc::default(),
+        gate,
         leptos: LeptosOptions::builder()
             .output_name("folia-app")
             .site_root(config.site_root.to_string_lossy().into_owned())

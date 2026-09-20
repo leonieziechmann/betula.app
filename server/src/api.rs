@@ -157,6 +157,16 @@ pub async fn status(State(state): State<AppState>) -> Response {
     ([(header::CACHE_CONTROL, "no-store")], Json(body)).into_response()
 }
 
+/// Where `folia healthcheck` asks whether the server is alive.
+pub const LIVENESS: &str = "/livez";
+
+/// `GET /livez`: the process answers requests, nothing more. For the container's HEALTHCHECK:
+/// a supervisor that restarted the server over `/healthz` would take the site down exactly when
+/// it could still serve its last snapshot (no answer from Radix), or before the first one arrived.
+pub async fn alive() -> Response {
+    ([(header::CACHE_CONTROL, "no-store")], "ok\n").into_response()
+}
+
 /// `GET /healthz`: 200 while a snapshot is served and Radix was reachable recently.
 pub async fn health(State(state): State<AppState>) -> Response {
     let problem = if state.store.current().is_none() {
@@ -429,6 +439,10 @@ pub async fn package(State(state): State<AppState>, Path(file): Path<String>, he
 }
 
 pub async fn robots(State(state): State<AppState>) -> Response {
+    // In closed testing (`access`) there is nothing for a crawler but a login page.
+    if state.gate.is_some() {
+        return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], "User-agent: *\nDisallow: /\n").into_response();
+    }
     let body = format!("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {}/sitemap.xml\n", state.public_url);
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
 }

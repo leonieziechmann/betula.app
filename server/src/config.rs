@@ -9,6 +9,10 @@ use clap::Parser;
 #[derive(Parser, Debug, Clone)]
 #[command(name = "folia", about = "Folia, the web server of Betula (catalog of BTU Cottbus-Senftenberg)", version)]
 pub struct Config {
+    /// Without a command the server runs.
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
     /// Address to listen on.
     #[arg(long, env = "FOLIA_ADDR", default_value = "127.0.0.1:8080")]
     pub addr: SocketAddr,
@@ -46,6 +50,12 @@ pub struct Config {
     #[arg(long, env = "FOLIA_PUBLIC_URL", default_value = app::seo::DEFAULT_SITE_URL)]
     pub public_url: String,
 
+    /// Closed testing: the whole site asks for one shared password (`on`/`off`). The password is a
+    /// secret and never a flag: a Docker secret or systemd credential named `folia-access-password`,
+    /// the file named by `FOLIA_ACCESS_PASSWORD_FILE`, or `FOLIA_ACCESS_PASSWORD` (src/access.rs).
+    #[arg(long, env = "FOLIA_ACCESS_GATE", default_value_t = false, num_args = 0..=1, default_missing_value = "true", value_parser = clap::builder::BoolishValueParser::new())]
+    pub access_gate: bool,
+
     /// `text` or `json`.
     #[arg(long, env = "FOLIA_LOG_FORMAT", default_value = "text")]
     pub log_format: String,
@@ -53,6 +63,14 @@ pub struct Config {
     /// `error`, `warn`, `info`, `debug` or a tracing filter expression.
     #[arg(long, env = "FOLIA_LOG_LEVEL", default_value = "info")]
     pub log_level: String,
+}
+
+#[derive(clap::Subcommand, Debug, Clone)]
+pub enum Command {
+    /// The probe of a container's HEALTHCHECK (like `radix healthcheck`): asks the server that
+    /// listens on `FOLIA_ADDR` for `/livez` and exits with 0 when it answers. An image built with
+    /// Nix has no curl or wget to do that.
+    Healthcheck,
 }
 
 impl Config {

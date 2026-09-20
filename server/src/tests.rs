@@ -75,6 +75,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         public_url: "https://catalog.example".into(),
         site_root: "no-site".into(),
         packages: Arc::default(),
+        gate: None,
         leptos: LeptosOptions::builder().output_name("folia-app").site_root("no-site").build(),
     }
 }
@@ -88,6 +89,107 @@ async fn request(router: &Router, path: &str, headers: &[(&str, &str)]) -> (Stat
     let (parts, body) = response.into_parts();
     let body = axum::body::to_bytes(body, 64 * 1024 * 1024).await.unwrap().to_vec();
     (parts.status, parts.headers, body)
+}
+
+/// A form sent to the server, the way the login page sends its own.
+async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str) -> (StatusCode, HeaderMap, String) {
+    let mut request = Request::builder().method("POST").uri(path).header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = router.clone().oneshot(request.body(Body::from(form.to_string())).unwrap()).await.unwrap();
+    let (parts, body) = response.into_parts();
+    let body = axum::body::to_bytes(body, 1024 * 1024).await.unwrap().to_vec();
+    (parts.status, parts.headers, String::from_utf8(body).unwrap())
+}
+
+/// Closed testing (`access`): nothing but the login page and what it needs answers without the
+/// password; with it the site is what it was. Needs no snapshot.
+#[tokio::test(flavor = "multi_thread")]
+async fn closed_testing_asks_for_the_password_before_anything_else() {
+    let gated = |name: &str| {
+        let mut state = state(SnapshotStore::new(temp_dir(name)).unwrap());
+        state.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+        crate::router(state)
+    };
+    let router = gated("gate");
+    let page = [("accept", "text/html,application/xhtml+xml,*/*;q=0.8")];
+
+    // Whoever opens a page is led to the login page, which remembers where they wanted to go.
+    // Everything else just hears "no", and nobody may keep either answer.
+    let (status, headers, _) = request(&router, "/catalog?q=mathe&open=11101", &page).await;
+    assert_eq!(status, StatusCode::FOUND);
+    assert_eq!((headers[header::LOCATION].to_str().unwrap(), headers[header::CACHE_CONTROL].to_str().unwrap()), ("/access?next=%2Fcatalog%3Fq%3Dmathe%26open%3D11101", "no-store"));
+    assert_eq!(request(&router, "/", &page).await.1[header::LOCATION], "/access");
+    for path in ["/api/db", "/api/status", "/api/map.json", "/sitemap.xml", "/pkg/folia_client.js", "/assets/boot.js", "/assets/og.png", "/cards/module/11101.png", "/catalog", "/healthz/", "/no-such-page"] {
+        let (status, headers, _) = request(&router, path, &[]).await;
+        assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::UNAUTHORIZED, "no-store"), "{path}");
+    }
+    assert_eq!(post(&router, "/api/db", &[], "").await.0, StatusCode::UNAUTHORIZED);
+
+    // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away.
+    for path in [app::STYLESHEET, app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::MANIFEST] {
+        assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
+    }
+    assert_eq!(request(&router, "/healthz", &[]).await.0, StatusCode::SERVICE_UNAVAILABLE, "answered by the health check (no snapshot here), not by the gate");
+    // The container's own probe (`folia healthcheck`) has no password and needs no snapshot.
+    let (status, headers, body) = request(&router, crate::api::LIVENESS, &[]).await;
+    assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap(), body.as_slice()), (StatusCode::OK, "no-store", &b"ok\n"[..]));
+    let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
+    assert_eq!((status, String::from_utf8(robots).unwrap().as_str()), (StatusCode::OK, "User-agent: *\nDisallow: /\n"));
+
+    // The login page: a form that works without JavaScript, carries the way back as text (never
+    // as markup) and is nothing a search engine or a cache may keep.
+    let (status, headers, body) = request(&router, "/access?next=%2Fcatalog%3Fq%3D%22%3E%3Cscript%3Ealert(1)%3C%2Fscript%3E", &page).await;
+    let html = String::from_utf8(body).unwrap();
+    assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap(), headers["x-robots-tag"].to_str().unwrap()), (StatusCode::OK, "no-store", "noindex, nofollow"));
+    assert!(html.starts_with("<!DOCTYPE html>") && html.contains("<form method=\"post\" action=\"/access\">") && html.contains("type=\"password\""), "{html}");
+    assert!(html.contains("name=\"next\"") && !html.contains("<script>alert") && !html.contains("role=\"alert\""), "{html}");
+
+    // A wrong password stays on the form and says so; the right one opens the gate for this
+    // browser and leads to where the visitor wanted to go, and nowhere outside the site.
+    let (status, headers, html) = post(&router, "/access", &[], "password=birke&next=%2Fprograms").await;
+    assert_eq!((status, headers.get(header::SET_COOKIE)), (StatusCode::UNAUTHORIZED, None));
+    assert!(html.contains("Das Passwort stimmt nicht.") && html.contains("value=\"/programs\""), "{html}");
+    let (status, headers, _) = post(&router, "/access", &[], "password=+birke+im+tagebau%0A&next=%2Fprograms%3Fq%3Dinfo").await;
+    assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::SEE_OTHER, "/programs?q=info"));
+    let cookie = headers[header::SET_COOKIE].to_str().unwrap().to_string();
+    assert!(cookie.starts_with("betula_access=v1.") && cookie.ends_with("; Path=/; Max-Age=7776000; HttpOnly; SameSite=Lax"), "{cookie}");
+    let (_, headers, _) = post(&router, "/access", &[("x-forwarded-proto", "https")], "password=birke+im+tagebau&next=%2F%2Fevil.example%2F").await;
+    assert_eq!(headers[header::LOCATION], "/");
+    assert!(headers[header::SET_COOKIE].to_str().unwrap().ends_with("; SameSite=Lax; Secure"), "behind the proxy the cookie travels over HTTPS only");
+
+    // With the cookie the site is what it was, only private to this browser. A made-up or
+    // altered cookie is no cookie.
+    let visit = cookie.split(';').next().unwrap().to_string();
+    let with_cookie = [("cookie", visit.as_str()), ("accept", "text/html")];
+    assert_eq!(request(&router, "/api/status", &with_cookie).await.0, StatusCode::OK);
+    assert_eq!(request(&router, "/catalog", &with_cookie).await.0, StatusCode::SERVICE_UNAVAILABLE, "the page itself answers (no snapshot here)");
+    let (status, headers, _) = request(&router, "/assets/boot.js", &with_cookie).await;
+    assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::OK, "private, no-cache"));
+    assert_eq!(request(&router, app::STYLESHEET, &with_cookie).await.1[header::CACHE_CONTROL], "public, no-cache", "what is open anyway stays shared");
+    let (status, headers, _) = request(&router, "/access?next=%2Fcatalog", &with_cookie).await;
+    assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::SEE_OTHER, "/catalog"));
+    let forged = format!("{}{}", &visit[..visit.len() - 1], if visit.ends_with('0') { '1' } else { '0' });
+    for cookie in [forged.as_str(), "betula_access=v1.99999999999.00", "betula_access=", "other=1"] {
+        assert_eq!(request(&router, "/api/status", &[("cookie", cookie)]).await.0, StatusCode::UNAUTHORIZED, "{cookie}");
+    }
+
+    // Ten wrong passwords close the form for the rest of the minute, for the right one too.
+    let router = gated("gate-closed");
+    for _ in 0..10 {
+        assert_eq!(post(&router, "/access", &[], "password=geraten").await.0, StatusCode::UNAUTHORIZED);
+    }
+    let (status, headers, html) = post(&router, "/access", &[], "password=birke+im+tagebau").await;
+    assert_eq!((status, headers.get(header::SET_COOKIE)), (StatusCode::TOO_MANY_REQUESTS, None));
+    assert!(headers.contains_key(header::RETRY_AFTER) && html.contains("Zu viele falsche Versuche"), "{html}");
+    assert_eq!(request(&router, "/api/status", &with_cookie).await.0, StatusCode::OK, "who is in stays in");
+
+    // Without the gate the login page has nothing to ask and leads on.
+    let open = crate::router(state(SnapshotStore::new(temp_dir("gate-off")).unwrap()));
+    let (status, headers, _) = request(&open, "/access?next=%2Fprograms", &page).await;
+    assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::SEE_OTHER, "/programs"));
+    assert_eq!(request(&open, "/api/status", &[]).await.0, StatusCode::OK);
 }
 
 #[tokio::test(flavor = "multi_thread")]

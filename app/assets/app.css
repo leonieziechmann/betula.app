@@ -926,6 +926,28 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 
 .bottomnav { display: none; }
 
+/* ---------- closed testing: the login page ----------
+   A document of its own (server/src/access.rs): no rail, no app, one column in the middle of the
+   screen. The lockup stands on the page as in the app (on a panel the light mark would vanish),
+   mark and panel share the left edge; the field is 16px so phones do not zoom in. */
+/* `display` again, because phones turn the body of the app into a block; more room below than
+   above, so the column sits a little over the middle, where it looks centred. */
+body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 24px 16px 12vh; }
+.gate-main { width: min(100%, 400px); }
+.gate-panel { padding: 26px 28px 28px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.gate-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.gate-brand .logo { margin: 0; }
+.gate-brand > span:last-child { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.gate-brand small { color: var(--text-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gate-panel h1 { font-size: 20px; font-weight: 650; letter-spacing: -.015em; margin-bottom: 6px; }
+.gate-panel > p { color: var(--text-2); margin-bottom: 22px; }
+.gate-panel label { display: block; color: var(--text-2); font-size: 12px; font-weight: 550; margin-bottom: 5px; }
+.gate-panel input[type="password"] { width: 100%; height: 48px; padding: 0 14px; border: 0; outline: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 16px; }
+.gate-panel input[type="password"]:focus { box-shadow: 0 0 0 2px var(--accent); }
+.gate-panel input[aria-invalid="true"]:not(:focus) { box-shadow: inset 0 0 0 1px var(--no); }
+.gate-problem { margin-top: 8px; padding: 9px 12px; border-radius: var(--r-ctl); background: var(--no-soft); color: var(--no); font-size: 13px; font-weight: 550; }
+.gate-panel .button { width: 100%; min-height: 48px; margin-top: 14px; justify-content: center; font-size: 15px; }
+
 /* ---------- phone and tablet ---------- */
 @media (max-width: 1180px) and (min-width: 901px) {
   :root { --w-filters: 248px; }

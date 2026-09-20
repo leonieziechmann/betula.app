@@ -402,13 +402,98 @@ keeps serving the last good one when Radix is away, also after a restart.
 | `--site-root` | `FOLIA_SITE_ROOT` | `site` | browser bundle (`pkg/`), from phase 2 |
 | `--card-cache-mb` | `FOLIA_CARD_CACHE_MB` | `64` | finished link-preview cards kept in memory |
 | `--public-url` | `FOLIA_PUBLIC_URL` | `https://betula.app` | the site's address from outside: canonical links, link previews, sitemap |
+| `--access-gate` | `FOLIA_ACCESS_GATE` | `off` | closed testing: the whole site asks for one shared password (see below) |
 | `--log-format`, `--log-level` | `FOLIA_LOG_FORMAT`, `FOLIA_LOG_LEVEL` | `text`, `info` | `json` in production |
 
+`folia healthcheck` is not the server but its probe (like `radix healthcheck`): it asks the server
+that listens on `FOLIA_ADDR` for `/livez` and exits with 0 when it answers. The container image
+uses it as `HEALTHCHECK`, because an image built with Nix has no curl or wget.
+
 Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /api/map.json` (the map of the
-programs, with the snapshot's ETag), `GET /healthz`, `/assets/app.css`, `/assets/favicon.svg`,
+programs, with the snapshot's ETag), `GET /healthz` (200 while a snapshot is served and Radix was
+heard from; for an uptime monitor), `GET /livez` (200 while the process answers; for the container's
+healthcheck, which must not restart a server that still serves its last snapshot),
+`/assets/app.css`, `/assets/favicon.svg`,
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
 `/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/manifest.webmanifest`,
-`/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`, `/sitemap.xml`.
+`/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`, `/sitemap.xml`, and
+`GET`/`POST /access` (the login page of closed testing).
+
+### Closed testing: the access gate (`server/src/access.rs`, 2026-09-21)
+
+For the time in which the site is tested by invited people only (owner: the legal pages come
+later, so nothing may be public yet). One switch, one secret:
+
+```bash
+FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
+```
+
+- **The switch** is `FOLIA_ACCESS_GATE` (`on`/`off`, also `true`/`false`, `1`/`0`; flag
+  `--access-gate`). Off is the default and leaves no trace but `/access` leading on to the site.
+  Taking the gate away later is this one value; the secret may stay where it is.
+- **The password** is a secret and is found the way Radix finds its key (`docs/operations.md`
+  §3), first hit wins: the file named by `FOLIA_ACCESS_PASSWORD_FILE`, a Docker secret
+  `/run/secrets/folia-access-password` (or `folia_access_password`), a systemd credential
+  `folia-access-password`, the variable `FOLIA_ACCESS_PASSWORD`. Never a flag. **A gate that is on
+  and finds no password (or an unreadable file) keeps the server from starting**
+  (`server.start_failed`); it never opens the site by accident. Use a long random password: it is
+  the only thing between the site and the world.
+- **What a visitor sees:** opening any page leads to `/access?next=<page>` (302), a login page in
+  the look of the app that works without JavaScript; the right password leads back to the page
+  (303, only ever to a path of this site). Everything that is not a page (`/api/db`, `/pkg/*`,
+  cards, the sitemap …) answers `401` without the password.
+- **The cookie** `betula_access` (`HttpOnly`, `SameSite=Lax`, `Secure` when the request came
+  through the proxy as HTTPS, 90 days) holds the end of the visit, signed with a key made from
+  the password (HMAC-SHA256). The server keeps no sessions and nothing about visitors: a
+  restart or a new container keeps everybody in, **a new password ends every visit at once**.
+- **Open without the password** is only what the login page, a home screen and a supervisor
+  need: `/access`, the stylesheet, the font, the icons, `/manifest.webmanifest` (browsers fetch it
+  without cookies), `/healthz` (uptime monitor), `/livez` (the container's healthcheck) and
+  `/robots.txt`, which says `Disallow: /` while the gate is on. The login page is `noindex` and
+  `no-store`.
+- **Behind the gate** the site is what it was, the page cache included (the gate lies around it);
+  only `Cache-Control: public` becomes `private`, so no cache between server and browser keeps a
+  page for somebody else. Link previews of messengers show nothing while the gate is on: their
+  fetchers have no password.
+- **Guessing:** ten wrong passwords within a minute close the form for the rest of that minute
+  (`429`, for the right password too; who is in stays in). The count is for the whole site, not
+  per address, because the server keeps nothing about visitors; it bounds guessing to about
+  14 000 tries a day, at the price that someone guessing can keep others from logging in.
+
+In a container nothing else is needed. On the server the switch is `FOLIA_ACCESS_GATE` in the
+instance's file (`deploy/stacks/canary.env`), and `deploy/stacks/betula.yml` has the rest:
+
+```yaml
+services:
+  folia:
+    environment:
+      FOLIA_ACCESS_GATE: "on"          # "off" opens the site; the secret may stay
+    secrets: [folia-access-password]   # found at /run/secrets/folia-access-password
+secrets:
+  folia-access-password:
+    external: true                     # swarm: … | docker secret create folia-access-password -
+    # file: ./access-password.txt      # compose without swarm: a git-ignored file instead
+```
+
+### The container (`flake.nix`, 2026-09-21)
+
+```bash
+nix build .#folia-image            # result → docker image tarball "betula-folia:latest"
+docker load < result
+docker run -d --name folia -p 8080:8080 -v folia-data:/data -e FOLIA_SNAPSHOT_URL=http://<radix>:8090/snapshot/catalog.db betula-folia:latest
+```
+
+`.#folia` is the server (`cargoLock`: no hash to keep up to date), `.#folia-client` the browser
+app as `scripts/build-client.sh` builds it, with a wasm-bindgen CLI of exactly the version in
+`Cargo.lock` (nixpkgs rarely has that one; after a change of the version the two hashes in
+`flake.nix` have to be renewed, the comment there says how). The image holds `/bin/folia`, the
+browser app under `/site` and nothing else; it runs as user 10001, to whom `/data` belongs (a
+fresh named volume takes the owner over), with a read-only root file system if asked to. Defaults
+inside: `FOLIA_ADDR=0.0.0.0:8080`, `FOLIA_DATA_DIR=/data`, `FOLIA_SITE_ROOT=/site`,
+`FOLIA_SNAPSHOT_URL=http://radix:8090/snapshot/catalog.db`, `FOLIA_LOG_FORMAT=json`, and
+`HEALTHCHECK folia healthcheck` (every 2 s while starting, then every 30 s). The tests do not run
+in the Nix build (they need a snapshot). Shipping both images to the server and deploying an
+instance is `deploy/ship.sh` (`deploy/README.md` §4).
 
 ### Log events (same rules as `docs/operations.md` §2: ERROR = a human has to act)
 
@@ -420,6 +505,10 @@ programs, with the snapshot's ETag), `GET /healthz`, `/assets/app.css`, `/assets
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
 | INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`) |
+| DEBUG | `http.request` with `path=/livez` | the container's own probe, twice a minute |
+| INFO | `access.gate_on` | closed testing is on (`source`: where the password was found, never the password) |
+| INFO | `access.granted` | the access password was entered |
+| WARN | `access.denied` | a wrong access password (`failures` in this minute, `closed` when the form closed; at most ten lines a minute) |
 | DEBUG | `card.drawn` | a link-preview card was drawn (`key`, `bytes`, `ms`) |
 | WARN | `card.busy` | every drawing place was taken, previews got the standard picture (`count`; at most one line a minute). Often: more places or a larger `--card-cache-mb` |
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
@@ -446,7 +535,11 @@ needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails wi
   404 is never cached; `/api/db` with Radix's ETag, gzip and 304; a broken export is
   rejected and the old snapshot stays; a new one invalidates pages; restart without Radix;
   one description and one absolute canonical address per page, `noindex` on a filtered list,
-  the sitemap, the map of the programs as laid out with the snapshot.
+  the sitemap, the map of the programs as laid out with the snapshot. Closed testing (needs no
+  snapshot): pages lead to the login page, everything else answers 401, what stays open, the
+  way back as text and never to another host, wrong and right password, the cookie and its
+  `Secure` behind the proxy, forged cookies, `private` instead of `public`, the closed form
+  after ten wrong passwords, the signature and the end of a visit, where the password is found.
 
 ```bash
 cargo clippy --all-targets
@@ -516,6 +609,17 @@ with the sidebar leading to each of them without a history entry, all modules on
 their area, and on a phone the matrix scrolling inside its panel while the page does not.
 
 ```bash
+cd e2e && GATE_PASSWORD=… node gate.mjs http://127.0.0.1:8086
+```
+
+drives closed testing against a folia started with `--access-gate` and the same password: without
+it nothing answers but the login page and what it needs; a page leads to the login page; a wrong
+password stays there, says so and keeps the way back; the right one leads to the wanted page with
+the cookie as it should be, and behind the gate the browser app takes over without a single
+refused request (the manifest included); the login page has one left edge, stands in the middle
+and scrolls nowhere sideways; on a phone without JavaScript the same form logs in.
+
+```bash
 cd e2e && node home.mjs
 ```
 
@@ -530,7 +634,9 @@ follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
   modules with the prerequisite check, „mein Studiengang". `wasm-opt` for the bundle.
 - Phase 3: design system, weekly calendar, filter bottom sheet, search
   with context ranking (own concept, see `docs/frontend-phase0.md`).
-- Phase 4: Nix package and container, Swarm stack, CSP, CI.
+- Phase 4: CSP, CI. (Done 2026-09-21: Nix package and container, the Swarm stack
+  `deploy/stacks/betula.yml` with its instances, `deploy/ship.sh`.) `wasm-opt` is not part of
+  the Nix build either.
 
 ### Ideas noted for later (owner: „schreib dir die mal auf", 2026-09-20)
 

@@ -25,6 +25,10 @@ serde_json = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive", "env"] }
+# The access gate (src/access.rs): the cookie of a visit is signed, a guess is compared in
+# constant time.
+hmac = "0.12"
+sha2 = "0.10"
 # Link-preview cards (src/cards.rs): SVG to PNG in this process, with our own font files only.
 resvg = { version = "0.45", default-features = false, features = ["text"] }
 # The shaper resvg sets text with, used directly to measure lines before they are set.
