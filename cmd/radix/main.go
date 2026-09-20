@@ -41,6 +41,7 @@ var commands = [][]command{
 	{
 		{"download-statutes", "Download the regulation PDFs of the programs (OPUS)", runDownloadStatutes},
 		{"scan-curriculum", "Extract validated study plans from the regulation PDFs (Gemini enrichment optional)", runScanCurriculum},
+		{"relink-plans", "Match the stored study plans against the catalog again; rewrites only the module links", runRelinkPlans},
 		{"secret", "Manage credentials in the OS credential store: set | status | delete | migrate-config", runSecret},
 	},
 	{

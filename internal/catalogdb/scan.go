@@ -75,6 +75,29 @@ func (db *DB) ScanCatalog() ([]model.CurriculumCatalogModule, error) {
 	return catalog, err
 }
 
+// ScanProgramClaims is what each program's own pages say belongs to it: the
+// module pages that name the program and the modules under its QIS tree. What a
+// study plan linked is left out, so the claim stays evidence of its own and a
+// plan can never confirm itself.
+func (db *DB) ScanProgramClaims() (map[string]map[string]bool, error) {
+	claims := map[string]map[string]bool{}
+	err := queryRows(db.sql, `
+		SELECT program_id, module_id FROM program_module
+		WHERE in_tree = 1 OR on_module_page = 1`, nil,
+		func(scan func(...any) error) error {
+			var program, module string
+			if err := scan(&program, &module); err != nil {
+				return err
+			}
+			if claims[program] == nil {
+				claims[program] = map[string]bool{}
+			}
+			claims[program][module] = true
+			return nil
+		})
+	return claims, err
+}
+
 // HasPlan reports whether a validated plan is stored for the program.
 func (db *DB) HasPlan(programID string) (bool, error) {
 	var exists bool

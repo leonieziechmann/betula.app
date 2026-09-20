@@ -13,6 +13,17 @@ type CurriculumCatalogModule struct {
 	Credits  float64
 }
 
+// CurriculumCatalog is the module catalog as the study plan of one program is
+// matched against it: every module of the university, and the modules this
+// program already claims on its own pages. Titles repeat across the university
+// (68 modules are called "Bachelor-Arbeit", two "Grundlagen der Elektrotechnik"
+// are both current), so a plan row that prints no module number is told apart
+// by what the program claims. Claims may be empty; the row then stays unlinked.
+type CurriculumCatalog struct {
+	Modules []CurriculumCatalogModule
+	Claims  map[string]bool // module ids the program's own pages name
+}
+
 // CurriculumModule represents an extracted module recommendation from an official study regulation (PO / SO).
 type CurriculumModule struct {
 	SourceEvidence         string    `json:"source_evidence,omitempty"`

@@ -233,6 +233,14 @@ The process stops cleanly on SIGTERM. JSON lines go to the journal.
 ### One-off commands
 
 `crawl-modules`, `crawl-tree`, `crawl-events`, `prune`, `build`, `validate`, `export`,
-`serve-snapshot`, `download-statutes`, `scan-curriculum` run one by one against the same database.
-They can run next to a service: readers never block, and a writer waits up to 60 s for the
-other writer (a build holds the write lock for about 20 s).
+`serve-snapshot`, `download-statutes`, `scan-curriculum`, `relink-plans` run one by one against
+the same database. They can run next to a service: readers never block, and a writer waits up to
+60 s for the other writer (a build holds the write lock for about 20 s).
+
+`relink-plans` matches the stored plans against the catalog again and rewrites only the link from
+a plan row to a module, from the name and code the scan stored. That is what a change to the
+matching needs: re-reading the PDFs would extract everything again, spend a Gemini call per
+program and change rows the change never touched. `--dry-run` reports the counts first; `new`,
+`moved` and `cleared` say what a run would do, and a `moved` or `cleared` row is logged with its
+program, so a rule that loses a link is visible before it is written. Run `build` afterwards:
+`in_plan`, the kind of a membership and the plan semester are derived from the links.

@@ -124,8 +124,9 @@ func chooseSources(prog model.OfficialStudyProgram, docs []model.ProgramRegulati
 	return sel, notes, nil
 }
 
-// Scan extracts and validates the study plan of one program.
-func Scan(ctx context.Context, prog model.OfficialStudyProgram, catalog []model.CurriculumCatalogModule, opt Options) Outcome {
+// Scan extracts and validates the study plan of one program. The catalog is the
+// one the program sees: every module, and the ones the program itself claims.
+func Scan(ctx context.Context, prog model.OfficialStudyProgram, catalog model.CurriculumCatalog, opt Options) Outcome {
 	out := Outcome{ProgramID: prog.ID}
 	client := opt.Client
 	if client == nil {
@@ -238,7 +239,7 @@ func Scan(ctx context.Context, prog model.OfficialStudyProgram, catalog []model.
 }
 
 // BuildModules converts extracted requirements into database rows.
-func BuildModules(prog model.OfficialStudyProgram, res *gemini.CurriculumExtractionResult, catalog []model.CurriculumCatalogModule, source string) []model.CurriculumModule {
+func BuildModules(prog model.OfficialStudyProgram, res *gemini.CurriculumExtractionResult, catalog model.CurriculumCatalog, source string) []model.CurriculumModule {
 	evidence := map[string]string{}
 	if res.Layout != nil {
 		for _, cell := range res.Layout.Cells {
@@ -248,12 +249,8 @@ func BuildModules(prog model.OfficialStudyProgram, res *gemini.CurriculumExtract
 	}
 	var rows []model.CurriculumModule
 	for _, m := range res.Modules {
-		id := ""
-		if matched := gemini.MatchCatalogModule(m, catalog); matched != nil && !gemini.IdentityConflict(m, *matched) {
-			id = matched.ID
-		}
 		rows = append(rows, model.CurriculumModule{
-			SourceEvidence: evidence[m.SourceCell], ProgramID: prog.ID, ModuleID: id,
+			SourceEvidence: evidence[m.SourceCell], ProgramID: prog.ID, ModuleID: gemini.LinkModule(m, catalog),
 			ProgramName: prog.ProgramName, Degree: prog.Degree, POVersion: prog.POVersion,
 			ModuleCode: m.ModuleCode, ModuleName: m.ModuleName, ModuleNameEN: m.ModuleNameEN,
 			RecommendedSemester: m.RecommendedSemester, RecommendedSemesterRaw: m.RecommendedSemesterRaw,

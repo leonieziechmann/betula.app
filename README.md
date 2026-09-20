@@ -96,6 +96,15 @@ algorithm that moves modules between semesters.
 The PDF parser runs in the Go binary: no Python, CGO or external PDF commands. The PDF reader is
 pinned in `go.mod`. The key is resolved by `internal/secrets` (see above); `--model` or `GEMINI_MODEL` selects the model.
 
+A plan row is linked to a catalog module only where the catalog identifies it beyond doubt: by the
+printed module number, or by a title that names exactly one module. Titles repeat across the
+university — 68 modules are called „Bachelor-Arbeit", and both „Grundlagen der Elektrotechnik" are
+current, one read by Maschinenbau and one by Elektrotechnik — so where a title names several, the
+modules the program itself claims (its module pages, its QIS tree) decide. Claiming none or
+several leaves the row unlinked, as does a row that names no module at all („Anwendungsfach",
+„Komplex Praktische Informatik"). `relink-plans` applies this matching to the stored plans without
+reading a PDF again (`docs/operations.md`, „One-off commands").
+
 Validate without changing curriculum records:
 
 ```powershell

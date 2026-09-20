@@ -67,3 +67,34 @@ func TestScanAdaptersReadProgramsDocumentsAndCatalog(t *testing.T) {
 		t.Errorf("stored entry: kind %q area %q evidence %q (err %v)", kind, area, evidence, err)
 	}
 }
+
+// The claims are the program's own evidence: its module pages and its tree. A
+// membership that only a study plan asserted is left out, so the next scan
+// cannot confirm its own link.
+func TestScanProgramClaimsLeavesOutWhatOnlyThePlanAsserted(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.SQL().Exec(`
+		INSERT INTO program (id, slug, name, stg_code, abschl_code, degree_raw, degree_level, po_version, family_key, name_key, is_latest_po, source_url, fetched_at) VALUES
+			('079-82-2008', 'bachelor-informatik-2008', 'Informatik', '079', '82', 'Bachelor (universitär)', 'bachelor', '2008', '079-82', 'informatik', 1, 'https://qis/po1', '2026-09-17T18:00:00Z');
+		INSERT INTO module (id, title, detail_status, offer_status, is_fues) VALUES
+			('12102', 'Programmierpraktikum', 'ok', 'active', 0),
+			('11787', 'Theoretische Informatik', 'ok', 'active', 0),
+			('11122', 'Bachelor-Arbeit', 'ok', 'active', 0);
+		INSERT INTO program_module (program_id, module_id, relation, in_tree, on_module_page, in_plan) VALUES
+			('079-82-2008', '12102', 'curricular', 1, 1, 0),
+			('079-82-2008', '11787', 'curricular', 0, 1, 0),
+			('079-82-2008', '11122', 'curricular', 0, 0, 1);`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := db.ScanProgramClaims()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := claims["079-82-2008"]; len(got) != 2 || !got["12102"] || !got["11787"] || got["11122"] {
+		t.Errorf("claims = %v", got)
+	}
+	if _, ok := claims["247-82-2016"]; ok {
+		t.Error("a program without modules must not appear")
+	}
+}

@@ -13,7 +13,7 @@ import (
 func TestCatalogTextMatchingDoesNotInventIdentity(t *testing.T) {
 	catalog := []model.CurriculumCatalogModule{{ID: "1", TitleDE: "Angewandte Programmierung I"}, {ID: "2", TitleDE: "Angewandte Programmierung II"}, {ID: "3", TitleDE: "Fachdidaktik Deutsch"}}
 	for _, tc := range []struct{ name, want string }{{"Angewandte Programierung I", "1"}, {"Angewandte Programmierung III", ""}, {"Fachdidaktik Deutsch (beinhaltet fachdidaktisches Tagespraktikum, fTP)", "3"}, {"Programmierung", ""}} {
-		m := MatchCatalogModule(ExtractedModule{ModuleName: tc.name}, catalog)
+		m := MatchCatalogModule(ExtractedModule{ModuleName: tc.name}, wholeCatalog(catalog...))
 		got := ""
 		if m != nil {
 			got = m.ID
@@ -23,8 +23,65 @@ func TestCatalogTextMatchingDoesNotInventIdentity(t *testing.T) {
 		}
 	}
 	catalog = append(catalog, model.CurriculumCatalogModule{ID: "4", TitleDE: "Fachdidaktik Deutsch"})
-	if MatchCatalogModule(ExtractedModule{ModuleName: "Fachdidaktik Deutsch"}, catalog) != nil {
+	if MatchCatalogModule(ExtractedModule{ModuleName: "Fachdidaktik Deutsch"}, wholeCatalog(catalog...)) != nil {
 		t.Fatal("duplicate title must remain unresolved")
+	}
+}
+
+// One title names several modules of the university: both „Grundlagen der
+// Elektrotechnik" are current, Maschinenbau reads the one and Elektrotechnik
+// the other. What the program itself claims tells them apart — and only that.
+func TestProgramClaimResolvesModulesOfTheSameTitle(t *testing.T) {
+	twins := []model.CurriculumCatalogModule{
+		{ID: "12537", TitleDE: "Grundlagen der Elektrotechnik"},
+		{ID: "12696", TitleDE: "Grundlagen der Elektrotechnik"},
+	}
+	row := ExtractedModule{ModuleName: "Grundlagen der Elektrotechnik"}
+	for _, tc := range []struct {
+		name   string
+		claims map[string]bool
+		want   string
+	}{
+		{"the program claims one of them", map[string]bool{"12696": true}, "12696"},
+		{"another program claims the other", map[string]bool{"12537": true}, "12537"},
+		{"the program claims neither", map[string]bool{"11903": true}, ""},
+		{"the program claims both", map[string]bool{"12537": true, "12696": true}, ""},
+		{"nothing is known about the program", nil, ""},
+	} {
+		got := ""
+		if m := MatchCatalogModule(row, model.CurriculumCatalog{Modules: twins, Claims: tc.claims}); m != nil {
+			got = m.ID
+		}
+		if got != tc.want {
+			t.Errorf("%s: got %q want %q", tc.name, got, tc.want)
+		}
+	}
+	// The claim breaks a tie; it never withholds a link that is unique anyway.
+	lone := model.CurriculumCatalog{Modules: twins[:1], Claims: map[string]bool{"11903": true}}
+	if m := MatchCatalogModule(row, lone); m == nil || m.ID != "12537" {
+		t.Errorf("unique title withheld: %+v", m)
+	}
+}
+
+// A plan cell prints the slot in front of the title. The printed code and the
+// module it names still mean the same module.
+func TestSlotMarkerIsNotAnIdentityConflict(t *testing.T) {
+	c := model.CurriculumCatalogModule{ID: "11922", TitleDE: "Numerik & Simulation"}
+	for _, tc := range []struct {
+		printed  string
+		conflict bool
+	}{
+		{"Numerik & Simulation", false},
+		{"KI P Numerik & Simulation", false},
+		{"SPB3 Numerik & Simulation", false},
+		{"12 Numerik & Simulation", false},
+		{"Vertiefung Numerik & Simulation", true},
+		{"Numerik & Simulation II", true},
+		{"KI P", true},
+	} {
+		if got := IdentityConflict(ExtractedModule{ModuleCode: "11922", ModuleName: tc.printed}, c); got != tc.conflict {
+			t.Errorf("%q: conflict %v, want %v", tc.printed, got, tc.conflict)
+		}
 	}
 }
 
@@ -34,7 +91,7 @@ func TestCatalogReconciliationDetectsLayoutError(t *testing.T) {
 	if e := BindSourceCells(r, l); e != nil {
 		t.Fatal(e)
 	}
-	v := ValidateCurriculum(r, []model.CurriculumCatalogModule{{ID: "1", TitleDE: "Alpha", Credits: 6}}, "winter", 6)
+	v := ValidateCurriculum(r, wholeCatalog(model.CurriculumCatalogModule{ID: "1", TitleDE: "Alpha", Credits: 6}), "winter", 6)
 	found := false
 	for _, i := range v.Issues {
 		found = found || i.Code == "catalog_suggests_layout_error"
@@ -90,7 +147,7 @@ func TestRecoveredPDFLayouts(t *testing.T) {
 			if e = BindSourceCells(r, l); e != nil {
 				t.Fatal(e)
 			}
-			v := ValidateCurriculum(r, nil, "auto", 6)
+			v := ValidateCurriculum(r, wholeCatalog(), "auto", 6)
 			if !v.Valid {
 				for _, i := range v.Issues {
 					if i.Severity == "error" {

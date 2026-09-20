@@ -13,9 +13,15 @@ import (
 	"github.com/leonieziechmann/betula/internal/model"
 )
 
+// wholeCatalog is the university catalog as a program that claims nothing of
+// its own sees it: every module, no tie-break.
+func wholeCatalog(mods ...model.CurriculumCatalogModule) model.CurriculumCatalog {
+	return model.CurriculumCatalog{Modules: mods}
+}
+
 func TestMissingCatalogCoverageIsVisibleWithoutInventedLinks(t *testing.T) {
 	res := &CurriculumExtractionResult{Modules: []ExtractedModule{{ModuleName: "Historical module", ModuleType: "Pflicht", StartSemester: 1, EndSemester: 1, Credits: 6}}, Layout: &PDFLayout{Cells: []SourceCell{{Table: "p1", Semesters: []int{1}, Min: 6, Max: 6}}, Totals: []SourceCell{{Table: "p1", Row: "Summe", Semesters: []int{1}, Min: 6, Max: 6}}}, TotalCredits: 6, StandardPeriodSemesters: 1}
-	r := ValidateCurriculum(res, nil, "winter", 6)
+	r := ValidateCurriculum(res, wholeCatalog(), "winter", 6)
 	found := false
 	for _, issue := range r.Issues {
 		if issue.Code == "catalog_coverage" {
@@ -26,7 +32,7 @@ func TestMissingCatalogCoverageIsVisibleWithoutInventedLinks(t *testing.T) {
 		t.Fatalf("missing coverage warning: %+v", r)
 	}
 	res.Modules[0].ModuleType = "Wahlpflicht"
-	r = ValidateCurriculum(res, nil, "winter", 6)
+	r = ValidateCurriculum(res, wholeCatalog(), "winter", 6)
 	for _, issue := range r.Issues {
 		if issue.Code == "catalog_coverage" {
 			t.Fatal("elective budget should not require a concrete catalog link")
@@ -118,7 +124,7 @@ func TestWirtschaftsinformatikGoldenColumns(t *testing.T) {
 			t.Errorf("%s: %d, want %d", m.ModuleName, m.RecommendedSemester, want[i])
 		}
 	}
-	if r := ValidateCurriculum(res, nil, "unknown", 6); !r.Valid {
+	if r := ValidateCurriculum(res, wholeCatalog(), "unknown", 6); !r.Valid {
 		t.Fatalf("source rejected: %+v", r)
 	}
 }
@@ -129,7 +135,7 @@ func TestIncompleteTableIsRejected(t *testing.T) {
 	if err := BindSourceCells(res, layout); err != nil {
 		t.Fatal(err)
 	}
-	if r := ValidateCurriculum(res, nil, "auto", 6); r.Valid {
+	if r := ValidateCurriculum(res, wholeCatalog(), "auto", 6); r.Valid {
 		t.Fatal("table fragment accepted without whole-plan totals")
 	}
 }
@@ -195,7 +201,7 @@ func TestInformatikGoldenSemesterColumns(t *testing.T) {
 		t.Errorf("wrong totals: %v", sums)
 	}
 	before, _ := json.Marshal(res)
-	report := ValidateCurriculum(res, nil, "auto", 6)
+	report := ValidateCurriculum(res, wholeCatalog(), "auto", 6)
 	if !report.Valid {
 		t.Fatalf("valid source rejected: %+v", report)
 	}
@@ -292,7 +298,7 @@ func TestSeasonValidationAndAmbiguousIdentity(t *testing.T) {
 	} {
 		res := &CurriculumExtractionResult{Modules: []ExtractedModule{{ModuleCode: "42", ModuleName: "Test", StartSemester: tt.sem, EndSemester: tt.sem, Credits: 6}}, Layout: &PDFLayout{}}
 		cat := []model.CurriculumCatalogModule{{ID: "42", Turnus: tt.offering, Duration: tt.duration, Credits: 6}}
-		report := ValidateCurriculum(res, cat, tt.term, 6)
+		report := ValidateCurriculum(res, wholeCatalog(cat...), tt.term, 6)
 		conflict := false
 		for _, i := range report.Issues {
 			if i.Code == "season_conflict" {
@@ -304,13 +310,13 @@ func TestSeasonValidationAndAmbiguousIdentity(t *testing.T) {
 		}
 	}
 	catalog := []model.CurriculumCatalogModule{{ID: "1", TitleDE: "Mathematik"}, {ID: "2", TitleDE: "Mathematik"}, {ID: "3", TitleDE: "Mathematik II"}}
-	if MatchCatalogModule(ExtractedModule{ModuleName: "Mathematik"}, catalog) != nil {
+	if MatchCatalogModule(ExtractedModule{ModuleName: "Mathematik"}, wholeCatalog(catalog...)) != nil {
 		t.Fatal("ambiguous title matched")
 	}
-	if MatchCatalogModule(ExtractedModule{ModuleName: "Mathe"}, catalog) != nil {
+	if MatchCatalogModule(ExtractedModule{ModuleName: "Mathe"}, wholeCatalog(catalog...)) != nil {
 		t.Fatal("substring matched")
 	}
-	if MatchCatalogModule(ExtractedModule{ModuleCode: "404", ModuleName: "Mathematik II"}, catalog) != nil {
+	if MatchCatalogModule(ExtractedModule{ModuleCode: "404", ModuleName: "Mathematik II"}, wholeCatalog(catalog...)) != nil {
 		t.Fatal("unknown code fell back to different identity")
 	}
 }
@@ -326,7 +332,7 @@ func TestSourceTotalsDetectMissingCreditsAndLoad(t *testing.T) {
 			layout.Totals[i].Max = 45
 		}
 	}
-	r := ValidateCurriculum(res, nil, "winter", 6)
+	r := ValidateCurriculum(res, wholeCatalog(), "winter", 6)
 	if r.Valid {
 		t.Fatal("inconsistent totals accepted")
 	}
@@ -367,7 +373,7 @@ func TestStandardPeriodComesFromSource(t *testing.T) {
 	if res.StandardPeriodSemesters != highest {
 		t.Fatalf("standard period = %d, want %d from the source cells", res.StandardPeriodSemesters, highest)
 	}
-	for _, i := range ValidateCurriculum(res, nil, "winter", 6).Issues {
+	for _, i := range ValidateCurriculum(res, wholeCatalog(), "winter", 6).Issues {
 		if i.Code == "semester_bounds" {
 			t.Fatalf("source semesters reported as out of bounds: %+v", i)
 		}

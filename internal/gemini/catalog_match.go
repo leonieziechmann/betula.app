@@ -89,9 +89,9 @@ func titleSimilarity(a, b string) float64 {
 	return 1 - float64(prev[len(y)])/float64(max(len(x), len(y)))
 }
 
-func matchSimilarTitle(name string, catalog []model.CurriculumCatalogModule) *model.CurriculumCatalogModule {
+func matchSimilarTitle(name string, catalog model.CurriculumCatalog) *model.CurriculumCatalogModule {
 	best, second, index := 0.0, 0.0, -1
-	for i, c := range catalog {
+	for i, c := range catalog.Modules {
 		score := math.Max(titleSimilarity(name, c.TitleDE), titleSimilarity(name, c.TitleEN))
 		if score > best {
 			second, best, index = best, score, i
@@ -102,10 +102,10 @@ func matchSimilarTitle(name string, catalog []model.CurriculumCatalogModule) *mo
 	if index < 0 || best < .92 || best-second < .06 {
 		return nil
 	}
-	return &catalog[index]
+	return &catalog.Modules[index]
 }
 
-func catalogTotalForSpan(res *CurriculumExtractionResult, catalog []model.CurriculumCatalogModule, total SourceCell) (float64, int, int) {
+func catalogTotalForSpan(res *CurriculumExtractionResult, catalog model.CurriculumCatalog, total SourceCell) (float64, int, int) {
 	byCell := map[string]ExtractedModule{}
 	for _, m := range res.Modules {
 		byCell[m.SourceCell] = m
@@ -144,10 +144,33 @@ func catalogTotalForSpan(res *CurriculumExtractionResult, catalog []model.Curric
 	return sum, covered, required
 }
 
+// A plan cell prints the slot in front of the title: the study direction with
+// the requirement kind ("KI P Numerik & Simulation" is Konstruktiver
+// Ingenieurbau, Pflicht) or the number of the area ("SPB3 …"). The marker
+// belongs to the table, not to the module.
+var slotMarker = regexp.MustCompile(`^(?:[A-ZÄÖÜ]{1,4}[0-9]{0,2}|[0-9]{1,2}|\+\+)(?:\s+|$)`)
+
+func withoutSlotMarker(s string) string {
+	for {
+		rest := slotMarker.ReplaceAllString(s, "")
+		if rest == s || strings.TrimSpace(rest) == "" {
+			return s
+		}
+		s = rest
+	}
+}
+
 // IdentityConflict reports a printed module code that the catalog assigns to a
-// module with a different title. Such a link must not be written.
+// module with a different title. Such a link must not be written. The slot a
+// cell prints in front of the title is not a different title.
 func IdentityConflict(m ExtractedModule, c model.CurriculumCatalogModule) bool {
-	return m.ModuleCode != "" && c.TitleDE != "" &&
-		normalizedTitle(m.ModuleName) != normalizedTitle(c.TitleDE) &&
-		normalizedTitle(m.ModuleName) != normalizedTitle(c.TitleEN)
+	if m.ModuleCode == "" || c.TitleDE == "" {
+		return false
+	}
+	for _, name := range []string{m.ModuleName, withoutSlotMarker(m.ModuleName)} {
+		if normalizedTitle(name) == normalizedTitle(c.TitleDE) || normalizedTitle(name) == normalizedTitle(c.TitleEN) {
+			return false
+		}
+	}
+	return true
 }

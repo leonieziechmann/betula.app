@@ -36,9 +36,14 @@ type ValidationReport struct {
 
 // MatchCatalogModule requires a unique exact identity. In particular, a short
 // title such as "Mathematik" must not match an arbitrary LIKE ... LIMIT 1 row.
-func MatchCatalogModule(m ExtractedModule, catalog []model.CurriculumCatalogModule) *model.CurriculumCatalogModule {
+// Where one title names several modules of the university, the program's own
+// claim decides: a plan of Informatik that says "Programmierpraktikum" means
+// the module Informatik itself lists, not its namesake in another faculty. It
+// decides, it does not guess — without exactly one claimed candidate the row
+// stays unlinked.
+func MatchCatalogModule(m ExtractedModule, catalog model.CurriculumCatalog) *model.CurriculumCatalogModule {
 	var candidates []int
-	for i, c := range catalog {
+	for i, c := range catalog.Modules {
 		match := false
 		if m.ModuleCode != "" {
 			match = c.ID == m.ModuleCode || c.Code == m.ModuleCode
@@ -53,10 +58,34 @@ func MatchCatalogModule(m ExtractedModule, catalog []model.CurriculumCatalogModu
 	if len(candidates) == 0 && m.ModuleCode == "" {
 		return matchSimilarTitle(m.ModuleName, catalog)
 	}
+	if len(candidates) > 1 {
+		candidates = claimed(candidates, catalog)
+	}
 	if len(candidates) != 1 {
 		return nil
 	}
-	return &catalog[candidates[0]]
+	return &catalog.Modules[candidates[0]]
+}
+
+// LinkModule is the catalog module a plan row names, or "" where the catalog
+// does not identify it beyond doubt. It is the whole rule: the scan writes the
+// link it returns, and a later run over the stored rows must reach the same one.
+func LinkModule(m ExtractedModule, catalog model.CurriculumCatalog) string {
+	if c := MatchCatalogModule(m, catalog); c != nil && !IdentityConflict(m, *c) {
+		return c.ID
+	}
+	return ""
+}
+
+// claimed keeps the candidates the program itself names.
+func claimed(candidates []int, catalog model.CurriculumCatalog) []int {
+	var own []int
+	for _, i := range candidates {
+		if catalog.Claims[catalog.Modules[i].ID] {
+			own = append(own, i)
+		}
+	}
+	return own
 }
 
 // compulsoryTotal marks a printed sum that counts the compulsory modules only,
@@ -88,7 +117,7 @@ var singleSemesterDuration = regexp.MustCompile(`(?i)^1\s*semester`)
 
 // ValidateCurriculum reports contradictions without changing any extracted data.
 // startTerm may override only the intake assumption, never the source semester.
-func ValidateCurriculum(res *CurriculumExtractionResult, catalog []model.CurriculumCatalogModule, startTerm string, tolerance float64) ValidationReport {
+func ValidateCurriculum(res *CurriculumExtractionResult, catalog model.CurriculumCatalog, startTerm string, tolerance float64) ValidationReport {
 	if startTerm == "" || startTerm == "auto" {
 		startTerm = res.StartTerm
 	}

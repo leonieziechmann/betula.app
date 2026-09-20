@@ -166,6 +166,10 @@ func runScanCurriculum(ctx context.Context, args []string) {
 	if len(catalog) == 0 {
 		fail("the module catalog is empty; run `radix build` first")
 	}
+	claims, err := db.ScanProgramClaims()
+	if err != nil {
+		fail("cannot read the program membership", oplog.Err(err))
+	}
 	programs, err := db.ScanPrograms(*nameFilter, *degreeFilter, *programID)
 	if err != nil {
 		fail("cannot read the programs", oplog.Err(err))
@@ -214,7 +218,7 @@ func runScanCurriculum(ctx context.Context, args []string) {
 			}
 		}
 
-		outcome := curriculumscan.Scan(ctx, prog, catalog, curriculumscan.Options{
+		outcome := curriculumscan.Scan(ctx, prog, model.CurriculumCatalog{Modules: catalog, Claims: claims[prog.ID]}, curriculumscan.Options{
 			StartTerm: *startTerm, Tolerance: *tolerance, PDFPath: *pdfPath, PlanPages: pages, Client: client,
 		})
 		message := audit.Clean(outcome.Message)
@@ -321,6 +325,93 @@ func runScanCurriculum(ctx context.Context, args []string) {
 	}
 	if rejected > 0 {
 		os.Exit(1)
+	}
+}
+
+// runRelinkPlans applies the current catalog matching to the stored plans. The
+// plan stays as the PDF was read: only the link from a row to a catalog module
+// is rewritten, from the module name and code the scan already stored. That is
+// what a fix in the matching needs — re-reading the PDFs would extract
+// everything again and change rows the fix never touched.
+func runRelinkPlans(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("relink-plans", flag.ExitOnError)
+	dbPath := fs.String("db", defaultDBPath, "Database path")
+	programID := fs.String("program-id", "", "Only this program (e.g. 079-82-2008)")
+	dryRun := fs.Bool("dry-run", false, "Report what would change without writing it")
+	logs := addLogFlags(fs)
+	_ = fs.Parse(args)
+	_, closeLog := logs.setup()
+	defer closeLog()
+	log := oplog.For("relink")
+
+	fail := func(msg string, args ...any) {
+		log.Error(msg, append([]any{"event", "relink.failed"}, args...)...)
+		os.Exit(1)
+	}
+
+	db := openDB(*dbPath)
+	defer db.Close()
+	catalog, err := db.ScanCatalog()
+	if err != nil {
+		fail("cannot read the module catalog", oplog.Err(err))
+	}
+	if len(catalog) == 0 {
+		fail("the module catalog is empty; run `radix build` first")
+	}
+	claims, err := db.ScanProgramClaims()
+	if err != nil {
+		fail("cannot read the program membership", oplog.Err(err))
+	}
+	links, err := db.PlanLinks(*programID)
+	if err != nil {
+		fail("cannot read the stored plans", oplog.Err(err))
+	}
+	if len(links) == 0 {
+		fail("no stored plan matches the filter")
+	}
+
+	var changed []catalogdb.PlanLink
+	var added, moved, cleared, linked int
+	for _, l := range links {
+		if ctx.Err() != nil {
+			os.Exit(130)
+		}
+		row := gemini.ExtractedModule{ModuleCode: l.ModuleCode, ModuleName: l.ModuleName}
+		next := gemini.LinkModule(row, model.CurriculumCatalog{Modules: catalog, Claims: claims[l.ProgramID]})
+		if next != "" {
+			linked++
+		}
+		if next == l.ModuleID {
+			continue
+		}
+		switch {
+		case l.ModuleID == "":
+			added++
+		case next == "":
+			cleared++
+			log.Warn("a stored link is gone; the catalog no longer identifies this row", "event", "relink.cleared",
+				"program_id", l.ProgramID, "ord", l.Ord, "module", l.ModuleName, "was", l.ModuleID)
+		default:
+			moved++
+			log.Warn("a stored link now names a different module", "event", "relink.moved",
+				"program_id", l.ProgramID, "ord", l.Ord, "module", l.ModuleName, "was", l.ModuleID, "now", next)
+		}
+		l.ModuleID = next
+		changed = append(changed, l)
+	}
+
+	if *dryRun {
+		log.Info("relink finished (dry run, nothing written)", "event", "relink.finished", "rows", len(links),
+			"linked", linked, "new", added, "moved", moved, "cleared", cleared)
+		return
+	}
+	if err := db.SetPlanLinks(changed); err != nil {
+		fail("cannot write the links; the stored plans are unchanged", oplog.Err(err))
+	}
+	log.Info("relink finished", "event", "relink.finished", "rows", len(links),
+		"linked", linked, "new", added, "moved", moved, "cleared", cleared)
+	if len(changed) > 0 {
+		log.Info("run `radix build` (or wait for the next service cycle) to publish the new links", "event", "relink.hint")
 	}
 }
 

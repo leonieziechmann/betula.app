@@ -98,6 +98,62 @@ func savePlanTx(tx *sql.Tx, p Plan) error {
 	return nil
 }
 
+// PlanLink is one stored plan row as the catalog matching sees it: what the PDF
+// printed, and the module the last run linked it to.
+type PlanLink struct {
+	ProgramID  string
+	Ord        int
+	ModuleID   string
+	ModuleCode string
+	ModuleName string
+}
+
+// PlanLinks are the rows of the stored plans, in plan order. An empty programID
+// reads every plan.
+func (db *DB) PlanLinks(programID string) ([]PlanLink, error) {
+	query := `
+		SELECT program_id, ord, COALESCE(module_id, ''), COALESCE(module_code_raw, ''), module_name
+		FROM plan_entry`
+	var args []any
+	if programID != "" {
+		query += " WHERE program_id = ?"
+		args = append(args, programID)
+	}
+	query += " ORDER BY program_id, ord"
+	var links []PlanLink
+	err := queryRows(db.sql, query, args, func(scan func(...any) error) error {
+		var l PlanLink
+		if err := scan(&l.ProgramID, &l.Ord, &l.ModuleID, &l.ModuleCode, &l.ModuleName); err != nil {
+			return err
+		}
+		links = append(links, l)
+		return nil
+	})
+	return links, err
+}
+
+// SetPlanLinks writes the module link of the given rows in one transaction. It
+// touches nothing else: what the PDF says stays as the scan read it.
+func (db *DB) SetPlanLinks(links []PlanLink) error {
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	stmt, err := tx.Prepare("UPDATE plan_entry SET module_id = ? WHERE program_id = ? AND ord = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, l := range links {
+		if _, err := stmt.Exec(nullIfZero(l.ModuleID), l.ProgramID, l.Ord); err != nil {
+			return fmt.Errorf("plan %s: entry %d: %w", l.ProgramID, l.Ord, err)
+		}
+	}
+	return tx.Commit()
+}
+
 // SetPlanScanStatus records the outcome of the last scan of a program's statutes.
 func (db *DB) SetPlanScanStatus(programID, status, message, source string) error {
 	_, err := db.sql.Exec(`

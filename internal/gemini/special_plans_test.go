@@ -57,7 +57,7 @@ func TestSpecialPlanPDFIntegration(t *testing.T) {
 			if err := BindSourceCells(res, l); err != nil {
 				t.Fatal(err)
 			}
-			if report := ValidateCurriculum(res, nil, "unknown", 6); !report.Valid {
+			if report := ValidateCurriculum(res, wholeCatalog(), "unknown", 6); !report.Valid {
 				t.Fatalf("rejected plan: %+v", report)
 			}
 			if tc.name == "Medizininformatik" {
