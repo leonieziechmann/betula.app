@@ -3,26 +3,26 @@
 > Hand-off brief, self-contained. Verified against the repository, the snapshot
 > `snapshot/catalog-1d4691d0656871d6.db` and the frontend's own sql.js build on 2026-09-19.
 > Companion documents: `docs/schema-v2.md` (the data contract), `docs/operations.md`
-> (the scraper service), `docs/data-sources.md` §7 (owner decisions about the data).
+> (Radix), `docs/data-sources.md` §7 (owner decisions about the data).
 
 ## 1. Context
 
 The backend overhaul is finished on branch **`backend-data-overhaul`** (not merged into `master`).
 
 ```
-b-tu.de, QIS ──▶ scraper (Go, `scraper run`) ──▶ build ▶ validate ▶ export
+b-tu.de, QIS ──▶ Radix (Go, `radix run`) ──▶ build ▶ validate ▶ export
                                                       │
                    GET /snapshot/catalog.db  (ETag = content hash, If-None-Match → 304, Range)
                                                       ▼
                                    web server (Rust, `server/`) ──/api/db──▶ browser (Leptos/WASM + sql.js)
 ```
 
-- **The scraper service** listens on `127.0.0.1:8090` by default and serves:
+- **Radix** listens on `127.0.0.1:8090` by default and serves:
   - `GET /snapshot/catalog.db` (503 + `Retry-After` before the first export)
   - `GET /snapshot/current.json` (`{"file","etag","bytes","exported_at"}`)
   - `GET /healthz` and `GET /status`
 
-  **This HTTP endpoint is the only interface between scraper and web server; they share no files.** See `docs/operations.md` §1.
+  **This HTTP endpoint is the only interface between Radix and the web server (Folia); they share no files.** See `docs/operations.md` §1.
 - **The snapshot** is a 36.8 MB SQLite file. It ships the read views, which are the **only read contract** (`docs/schema-v2.md` §3). §4 of that document maps every query in today's `frontend/src/db.rs` to its replacement view.
 - **The web tier has not been touched yet.** `server/` (axum + rusqlite) and `frontend/` (Leptos 0.7.8 CSR + sql.js) still read the **v1** file `btu_modules.db`, which no longer exists. Neither works against v2.
 
@@ -38,13 +38,13 @@ b-tu.de, QIS ──▶ scraper (Go, `scraper run`) ──▶ build ▶ validate 
   - top bar with search, share, and the „Gemerkt" / „Bestanden" views
 - **UI language is German.** Module titles come in German or English, as the data has them.
 - **Show unknown as unknown.** Stated information beats inferred; nothing is guessed (degree labels, module kind, semester, campus).
-- **Deployment target** for the scraper is a Linux service in Docker Swarm, with the image built with Nix, while staying Windows/CLI compatible. Confirm with the owner whether the web tier follows the same pattern (open question 7).
+- **Deployment target** for Radix is a Linux service in Docker Swarm, with the image built with Nix, while staying Windows/CLI compatible. Confirm with the owner whether the web tier follows the same pattern (open question 7).
 - **Logging:** rigorous structured logs with stable `event` names; ERROR means a human must act (`docs/operations.md` §2). Apply the same rules to the web server.
 
 ## 2. Goal
 
 1. **Web server:**
-   - Becomes an HTTP client of the scraper's snapshot endpoint.
+   - Becomes an HTTP client of Radix's snapshot endpoint.
    - Redistributes the snapshot to browsers as `/api/db` with the same ETag.
    - Renders its server-side fallback pages from the views.
 2. **Frontend:** a rewrite that is coherent, correct, fast and stable, on the same page structure:
@@ -119,7 +119,7 @@ So SQL on the views is fast enough for live filtering. An in-memory index is not
 - Filter and sort on view columns. No `LIKE` on free text except against `v_module_search`.
 - Every list shows an exact total (a `COUNT(*)` with the same filter) and pages through the rest.
 - If the contract lacks something, don't work around it in the frontend:
-  - **Additive changes** (a new column or view) may be made in the backend: a new migration in `internal/catalogdb/migrations/`, a test in `internal/catalogbuild/build_test.go`, and `docs/schema-v2.md` updated. `go test ./...` and `scraper validate` must stay green.
+  - **Additive changes** (a new column or view) may be made in the backend: a new migration in `internal/catalogdb/migrations/`, a test in `internal/catalogbuild/build_test.go`, and `docs/schema-v2.md` updated. `go test ./...` and `radix validate` must stay green.
   - **Changing the meaning** of an existing column needs the owner.
 
 **Data facts the UI must handle** (from the current snapshot)
@@ -146,10 +146,10 @@ So SQL on the views is fast enough for live filtering. An in-memory index is not
 ### Web server (`server/`)
 
 - **Snapshot client:**
-  - Poll `{BTU_SNAPSHOT_URL}` (e.g. `http://127.0.0.1:8090/snapshot/catalog.db`) with `If-None-Match`, at a configurable interval with backoff.
+  - Poll `{FOLIA_SNAPSHOT_URL}` (e.g. `http://127.0.0.1:8090/snapshot/catalog.db`) with `If-None-Match`, at a configurable interval with backoff.
   - Download to a temp file, check it opens, then switch atomically. Keep the previous file while requests still use it.
-  - Serve the last good snapshot when the scraper is down; return 503 until the first snapshot exists.
-- **`/api/db`:** serves the snapshot bytes with the scraper's ETag, `304` on `If-None-Match`, and a sensible `Cache-Control`.
+  - Serve the last good snapshot when Radix is down; return 503 until the first snapshot exists.
+- **`/api/db`:** serves the snapshot bytes with Radix's ETag, `304` on `If-None-Match`, and a sensible `Cache-Control`.
 - **`/api/status`:** etag, bytes, `data_changed_at`.
 - **`/healthz`:** fails when there is no snapshot, or it is older than a configured limit.
 - **SSR fallback pages** are rendered from the same views with the same CSS classes as the app, so the first paint matches the hydrated look. How much SSR to keep is open question 1.
@@ -255,14 +255,14 @@ frontend/src/
    - old CSS and components deleted as each page is replaced
 4. **Hardening:**
    - PWA and caching, performance and accessibility pass
-   - `docs/frontend.md` (architecture, rules R1–R8, how to run against a local `scraper serve-snapshot`)
+   - `docs/frontend.md` (architecture, rules R1–R8, how to run against a local `radix serve-snapshot`)
    - build and container for the web tier (open question 7)
    - CI: `cargo test`, clippy, `trunk build --release`, the inline-style check, the smoke walk
 
 ## 8. Constraints
 
-- **Don't change what the scraper does.** Backend changes are limited to additive contract changes (§4), reported to the owner.
-- **No crawling.** Develop against the existing snapshot or a local `scraper serve-snapshot --addr 127.0.0.1:8090`.
+- **Don't change what Radix does.** Backend changes are limited to additive contract changes (§4), reported to the owner.
+- **No crawling.** Develop against the existing snapshot or a local `radix serve-snapshot --addr 127.0.0.1:8090`.
 - **Keep the tests green:** `go test ./...`, `cargo test` (workspace), clippy.
 - **Work on Windows and Linux.** No secrets in code or config.
 - **Tooling note for this machine:**
@@ -279,12 +279,12 @@ frontend/src/
 4. **URL scheme.** No compatibility needed. Today it is `/catalog`, `/catalog/module/<id>`, `/study-programm/<slug>/<tab>` (with a typo). For example: `/module/<id>`, `/studiengang/<slug>/plan|bereiche|module`, `/studiengaenge`.
 5. **Leptos:** stay on 0.7.8 or upgrade (spike result)?
 6. **Search folding:** fold in Rust after loading the terms, or add a folded column to `v_module_search` in the backend?
-7. **Web tier deployment:** container built with Nix in the same Swarm stack as the scraper (`docs/operations.md` §3–4), reaching it at `http://scraper:8090`?
+7. **Web tier deployment:** container built with Nix in the same Swarm stack as Radix (`docs/operations.md` §3–4), reaching it at `http://radix:8090`?
 8. **Schedule gap:** what to show between the pruning of a semester's teaching events and the next semester's publication. The decision so far is to fall back to turnus; confirm the wording.
 
 ## 10. Acceptance criteria
 
-- **The browser gets its data only through the web server.** The app runs end to end against a snapshot fetched over HTTP from `scraper serve-snapshot`, and serves it to the browser as `/api/db`; no shared files.
+- **The browser gets its data only through the web server.** The app runs end to end against a snapshot fetched over HTTP from `radix serve-snapshot`, and serves it to the browser as `/api/db`; no shared files.
 - **Only the contract is read.** `grep` finds no v1 table names and no base-table access in `server/` or `frontend/`; all SQL lives in `data/queries.rs` (frontend) and one module in the server.
 - **Zero console errors in the smoke walk** on a debug build: all 182 programs × all tabs with fast navigation, Back/Forward, and the sidebar „open program" path.
 - **Every list header shows the exact total.** Filter results match direct SQL on the views for a fixture set (e.g. `offered_winter = 1 AND has_exercise = 1` → 979 modules on the current snapshot; update the fixture when the snapshot changes).

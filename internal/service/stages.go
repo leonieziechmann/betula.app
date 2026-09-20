@@ -1,4 +1,4 @@
-// Package service runs the scraper as a long-lived process: it keeps the raw
+// Package service runs Radix as a long-lived process: it keeps the raw
 // archive fresh at a polite pace, rebuilds the catalog, and publishes a new
 // snapshot when the data changed. The stages are also used one by one by the CLI.
 package service
@@ -12,11 +12,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/crawl"
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
-	"github.com/leonieziechmann/btu-scraper/internal/parser"
-	"github.com/leonieziechmann/btu-scraper/internal/qistree"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/crawl"
+	"github.com/leonieziechmann/betula/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/parser"
+	"github.com/leonieziechmann/betula/internal/qistree"
 )
 
 // Pace is how fast and how much one stage may fetch.

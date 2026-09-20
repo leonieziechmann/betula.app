@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/oplog"
 )
 
 const (

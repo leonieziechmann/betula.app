@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogbuild"
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/snapshothttp"
+	"github.com/leonieziechmann/betula/internal/catalogbuild"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/snapshothttp"
 )
 
 // runBuild derives the canonical tables from the raw page archive. No network.
@@ -144,7 +144,7 @@ func runExport(ctx context.Context, args []string) {
 			os.Exit(1)
 		}
 		if catalogdb.HasFailures(checks) {
-			fmt.Fprintln(os.Stderr, "Error: the database fails validation; run 'scraper validate' (or pass --skip-validate).")
+			fmt.Fprintln(os.Stderr, "Error: the database fails validation; run 'radix validate' (or pass --skip-validate).")
 			os.Exit(1)
 		}
 	}
@@ -158,7 +158,7 @@ func runExport(ctx context.Context, args []string) {
 }
 
 // runServeSnapshot publishes the exported snapshots over HTTP. The web server is a
-// client of this endpoint; it shares no files with the scraper.
+// client of this endpoint; it shares no files with Radix.
 func runServeSnapshot(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("serve-snapshot", flag.ExitOnError)
 	dir := fs.String("dir", "snapshot", "Snapshot directory written by 'export'")

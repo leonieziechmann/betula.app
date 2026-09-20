@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
 )
 
 // The fixture is a miniature BTU: two programs (Informatik B.Sc. and M.Sc.), a German

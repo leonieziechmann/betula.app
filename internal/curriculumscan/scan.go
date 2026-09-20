@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/leonieziechmann/btu-scraper/internal/gemini"
-	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/betula/internal/gemini"
+	"github.com/leonieziechmann/betula/internal/model"
 )
 
 // Outcome statuses. Only the first two are written as a validated plan.

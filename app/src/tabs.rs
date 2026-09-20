@@ -21,7 +21,7 @@ use leptos_router::hooks::use_location;
 
 use crate::nav;
 
-const STORAGE_KEY: &str = "btu.tabs";
+const STORAGE_KEY: &str = "betula.tabs";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Area {

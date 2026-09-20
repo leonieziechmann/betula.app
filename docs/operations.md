@@ -1,14 +1,14 @@
-# Operating the scraper service
+# Operating Radix
 
-The scraper runs as one long-lived process. It keeps the raw archive fresh at a polite pace,
+Radix runs as one long-lived process. It keeps the raw archive fresh at a polite pace,
 rebuilds the catalog, publishes a new snapshot when the content changed, and serves the
 snapshots over HTTP. The web server is an HTTP client of it; they share no files.
 
 ## 1. Running it
 
 ```bash
-scraper run --addr 127.0.0.1:8090          # Windows, Linux, macOS: same binary, same flags
-scraper run --once                          # one cycle, then exit (exit code 1 if it failed)
+radix run --addr 127.0.0.1:8090          # Windows, Linux, macOS: same binary, same flags
+radix run --once                          # one cycle, then exit (exit code 1 if it failed)
 ```
 
 One cycle, every `--interval` (30 min):
@@ -40,17 +40,17 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 
 | Flag | Environment | Default |
 |---|---|---|
-| `--db` | `BTU_DB` | `btu_scraper.db` |
-| `--snapshot-dir` | `BTU_SNAPSHOT_DIR` | `snapshot` |
-| `--addr` | `BTU_ADDR` | `127.0.0.1:8090` |
-| `--interval` | `BTU_INTERVAL` | `30m` |
-| `--offpeak` | `BTU_OFFPEAK` | `1-6` |
-| `--module-delay`, `--qis-delay` (ms) | `BTU_MODULE_DELAY_MS`, `BTU_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay) |
-| `--module-max-age`, `--event-max-age`, `--tree-max-age` | `BTU_MODULE_MAX_AGE`, `BTU_EVENT_MAX_AGE`, `BTU_TREE_MAX_AGE` | `168h`, `72h`, `168h` |
-| `--event-retention` | `BTU_EVENT_RETENTION` | `720h` (0 keeps everything) |
-| `--archive-grace` | `BTU_ARCHIVE_GRACE` | `168h` (0 keeps unused pages) |
-| `--stale-after` | `BTU_STALE_AFTER` | `26h` |
-| `--log-format`, `--log-level`, `--log-file` | `BTU_LOG_FORMAT`, `BTU_LOG_LEVEL`, `BTU_LOG_FILE` | `json` for `run` (else `text`), `info`, none |
+| `--db` | `RADIX_DB` | `radix.db` |
+| `--snapshot-dir` | `RADIX_SNAPSHOT_DIR` | `snapshot` |
+| `--addr` | `RADIX_ADDR` | `127.0.0.1:8090` |
+| `--interval` | `RADIX_INTERVAL` | `30m` |
+| `--offpeak` | `RADIX_OFFPEAK` | `1-6` |
+| `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay) |
+| `--module-max-age`, `--event-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_EVENT_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `72h`, `168h` |
+| `--event-retention` | `RADIX_EVENT_RETENTION` | `720h` (0 keeps everything) |
+| `--archive-grace` | `RADIX_ARCHIVE_GRACE` | `168h` (0 keeps unused pages) |
+| `--stale-after` | `RADIX_STALE_AFTER` | `26h` |
+| `--log-format`, `--log-level`, `--log-file` | `RADIX_LOG_FORMAT`, `RADIX_LOG_LEVEL`, `RADIX_LOG_FILE` | `json` for `run` (else `text`), `info`, none |
 
 ### HTTP endpoints
 
@@ -110,11 +110,11 @@ Any of these works; they can be combined.
 - **Health probe.** Point an uptime monitor (Uptime Kuma, healthchecks.io, …) at `/healthz`.
   It turns `503` when there is nothing to serve, when cycles keep failing, or when the
   service has been stuck for a day. This catches what logs cannot: a process that hangs.
-- **Container health.** The Nix image has `HEALTHCHECK scraper healthcheck`; `docker ps` shows
+- **Container health.** The Nix image has `HEALTHCHECK radix healthcheck`; `docker ps` shows
   `unhealthy`, and tools like Autoheal or a Docker event listener can notify or restart.
 - **Log level.** Alert on `level=ERROR`:
-  `journalctl -u btu-scraper -o cat -f | jq -c 'select(.level=="ERROR")'`, or a Loki/Promtail
-  rule `{unit="btu-scraper"} | json | level="ERROR"`, or Docker's logging driver of choice.
+  `journalctl -u betula-radix -o cat -f | jq -c 'select(.level=="ERROR")'`, or a Loki/Promtail
+  rule `{unit="betula-radix"} | json | level="ERROR"`, or Docker's logging driver of choice.
 - **Specific events.** `validate.check_failed` (a parser probably broke) and `crawl.aborted`
   (the university's server is down or blocks us) deserve their own alert text.
 - **`/status`** shows the most recent warnings and errors without access to the log stream.
@@ -135,18 +135,18 @@ configured wins, and a configured but unreadable source is an error (no silent f
 | 5 | operating system credential store | developer machine: Windows Credential Manager, macOS Keychain, Secret Service |
 
 ```bash
-scraper secret set gemini-api-key       # hidden prompt, or: some-vault read … | scraper secret set gemini-api-key
-scraper secret status                   # where each secret is found; never prints it
-scraper secret delete gemini-api-key
-scraper secret migrate-config config.yaml   # one-time: move the key out of a v1 config file
+radix secret set gemini-api-key       # hidden prompt, or: some-vault read … | radix secret set gemini-api-key
+radix secret status                   # where each secret is found; never prints it
+radix secret delete gemini-api-key
+radix secret migrate-config config.yaml   # one-time: move the key out of a v1 config file
 ```
 
 ### Development: `.env`
 
 Copy `.env.example` to `.env` and put the key there. The file is git-ignored and is read from the
-working directory at startup (`BTU_ENV_FILE` names another file). It can hold any `BTU_*` setting
+working directory at startup (`RADIX_ENV_FILE` names another file). It can hold any `RADIX_*` setting
 as well. A variable that is already set in the real environment always wins, so a stray `.env`
-cannot change a deployment; `scraper secret status` says when a key comes from the file. Do not
+cannot change a deployment; `radix secret status` says when a key comes from the file. Do not
 ship a `.env` with an image; production uses one of the sources above.
 
 ### Docker Swarm
@@ -156,17 +156,17 @@ containers of the services that list it. Nothing else has to be configured:
 
 ```bash
 docker secret create gemini-api-key -        # paste the key, Ctrl-D; or: < key-file
-docker stack deploy -c docker-stack.yml btu
+docker stack deploy -c docker-stack.yml betula
 ```
 
 ```yaml
 # docker-stack.yml
 services:
-  scraper:
-    image: registry.example.org/btu-scraper:latest   # nix build .#container, docker load, tag, push
+  radix:
+    image: registry.example.org/betula-radix:latest   # nix build .#radix-image, docker load, tag, push
     secrets: [gemini-api-key]
-    volumes: [btu-data:/data]
-    networks: [internal]          # the web server reaches http://scraper:8090/snapshot/catalog.db
+    volumes: [radix-data:/data]
+    networks: [internal]          # Folia reaches http://radix:8090/snapshot/catalog.db
     deploy:
       replicas: 1                 # one writer per database
       restart_policy: { condition: any, delay: 30s }
@@ -175,7 +175,7 @@ services:
 secrets:
   gemini-api-key: { external: true }
 volumes:
-  btu-data: {}
+  radix-data: {}
 networks:
   internal: {}
 ```
@@ -184,22 +184,22 @@ The image's `HEALTHCHECK` makes Swarm restart a container that turns unhealthy. 
 key: create `gemini-api-key-v2`, change the service to
 `secrets: [{ source: gemini-api-key-v2, target: gemini-api-key }]`, deploy, remove the old secret.
 The service itself does not need the key; it is used when you run
-`docker exec <container> /bin/scraper scan-curriculum …` (the statutes directory is
-`BTU_STATUTES_DIR`, default `statutes` below the working directory `/data`).
+`docker exec <container> /bin/radix scan-curriculum …` (the statutes directory is
+`RADIX_STATUTES_DIR`, default `statutes` below the working directory `/data`).
 
 ## 4. Deployment
 
 ### Container (built with Nix)
 
 ```bash
-nix build .#container            # result → docker image tarball
+nix build .#radix-image            # result → docker image tarball
 docker load < result
-docker run -d --name btu-scraper -p 8090:8090 -v btu-data:/data btu-scraper:latest
+docker run -d --name betula-radix -p 8090:8090 -v radix-data:/data betula-radix:latest
 ```
 
-The image contains the static `scraper` binary and CA certificates, nothing else. `/data` holds
-`btu_scraper.db` and `snapshot/`. Defaults inside the image: `BTU_ADDR=0.0.0.0:8090`,
-`BTU_LOG_FORMAT=json`, `TZ=Europe/Berlin`. `nix build .#scraper` builds only the binary;
+The image contains the static `radix` binary and CA certificates, nothing else. `/data` holds
+`radix.db` and `snapshot/`. Defaults inside the image: `RADIX_ADDR=0.0.0.0:8090`,
+`RADIX_LOG_FORMAT=json`, `TZ=Europe/Berlin`. `nix build .#radix` builds only the binary;
 `nix develop` gives a shell with Go.
 
 After changing `go.mod`/`go.sum`, set `vendorHash = pkgs.lib.fakeHash;` in `flake.nix`, build
@@ -209,17 +209,17 @@ once, and copy the hash from the error message.
 
 ```ini
 [Unit]
-Description=BTU catalog scraper
+Description=Radix, the collector of Betula
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/scraper run
-Environment=BTU_DB=/var/lib/btu-scraper/btu_scraper.db
-Environment=BTU_SNAPSHOT_DIR=/var/lib/btu-scraper/snapshot
-Environment=BTU_ADDR=127.0.0.1:8090
+ExecStart=/usr/local/bin/radix run
+Environment=RADIX_DB=/var/lib/betula-radix/radix.db
+Environment=RADIX_SNAPSHOT_DIR=/var/lib/betula-radix/snapshot
+Environment=RADIX_ADDR=127.0.0.1:8090
 Environment=TZ=Europe/Berlin
-StateDirectory=btu-scraper
+StateDirectory=betula-radix
 DynamicUser=yes
 Restart=on-failure
 RestartSec=30

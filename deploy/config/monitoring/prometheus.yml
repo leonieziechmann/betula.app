@@ -40,7 +40,7 @@ scrape_configs:
     static_configs:
       - targets: ["monitoring_alloy:12345"]
 
-  # App metrics later: attach the btu service to the "monitoring" overlay and add e.g.
-  # - job_name: btu-scraper
+  # App metrics later: attach the radix service to the "monitoring" overlay and add e.g.
+  # - job_name: radix
   #   static_configs:
-  #     - targets: ["btu_scraper:8090"]
+  #     - targets: ["betula_radix:8090"]

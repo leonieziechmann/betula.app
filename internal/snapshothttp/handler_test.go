@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
 )
 
 func get(t *testing.T, url, ifNoneMatch string) (*http.Response, []byte) {

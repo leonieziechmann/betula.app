@@ -1,4 +1,4 @@
-module github.com/leonieziechmann/btu-scraper
+module github.com/leonieziechmann/betula
 
 go 1.27.0
 

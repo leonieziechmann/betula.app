@@ -8,8 +8,8 @@ import (
 	"os"
 	"sort"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/parser"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/parser"
 )
 
 // runRawVocab prints the distinct raw values of the module-page fields that get

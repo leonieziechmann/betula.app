@@ -33,9 +33,9 @@ func TestSemesterPanelPDF(t *testing.T) {
 }
 
 func TestSpecialPlanPDFIntegration(t *testing.T) {
-	root := os.Getenv("BTU_PDF_TEST_DIR")
+	root := os.Getenv("RADIX_PDF_TEST_DIR")
 	if root == "" {
-		t.Skip("set BTU_PDF_TEST_DIR")
+		t.Skip("set RADIX_PDF_TEST_DIR")
 	}
 	for _, tc := range []struct {
 		name, file string

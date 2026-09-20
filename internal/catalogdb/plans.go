@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/normalize"
+	"github.com/leonieziechmann/betula/internal/normalize"
 )
 
 // Plan is a validated study plan of one program (source: statute PDF).

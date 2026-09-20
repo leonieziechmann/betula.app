@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/normalize"
+	"github.com/leonieziechmann/betula/internal/normalize"
 )
 
 type program struct {

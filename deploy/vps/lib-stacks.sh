@@ -15,7 +15,7 @@ BETULA_ROOT="/opt/betula"
 STACKS_DIR="${BETULA_ROOT}/stacks"
 CONFIG_DIR="${BETULA_ROOT}/config"
 
-# Literal in the stack files (placeholder.yml, edge.www.yml, btu.example.yml); not configurable.
+# Literal in the stack files (placeholder.yml, edge.www.yml, betula.example.yml); not configurable.
 SITE_HOST="betula.app"
 WWW_HOST="www.betula.app"
 DEFAULT_GRAFANA_HOST="grafana.betula.app"

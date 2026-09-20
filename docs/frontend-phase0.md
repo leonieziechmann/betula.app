@@ -29,7 +29,7 @@ labels exist once (the old tier had slug logic twice and would have had every qu
   facet columns. `LIKE` only against `v_module_search`, with `%`/`_` escaped.
 - `queries.rs`: one function per query; only `v_*` views.
 
-The tests fail without a snapshot (`BTU_TEST_SNAPSHOT`, else `snapshot/current.json`):
+The tests fail without a snapshot (`FOLIA_TEST_SNAPSHOT`, else `snapshot/current.json`):
 
 - `catalog_filters_match_direct_sql`: 13 filter combinations, each compared with
   hand-written SQL on the views, each paged to the end (exact total, no module twice or missing).
@@ -155,8 +155,8 @@ One set of components and one CSS, so SSR and app cannot drift apart. Two rules 
    function in Go at build time and in Rust on the query text). Fuzzy suggestions in the top
    bar can still load the 14,708 terms once (149 KB gzip) and use the existing `fuzzy/` engine.
 7. **Web tier deployment.** *Recommendation:* yes, same pattern: `flake.nix` gets `web` and
-   `web-container`; one Swarm stack; the scraper is reachable only inside the stack network as
-   `http://scraper:8090`, only the web tier publishes a port; same logging rules.
+   `web-container`; one Swarm stack; Radix is reachable only inside the stack network as
+   `http://radix:8090`, only the web tier publishes a port; same logging rules.
 8. **Schedule gap.** Today 525 modules have a schedule, all in SoSe 2026, which ends on 30 Sep;
    1,552 active winter modules have nothing for WiSe 2026/27 yet. *Recommendation:* show the
    newest semester's schedule with its label. When it is not the coming one, add:
@@ -194,7 +194,7 @@ New questions that came out of phase 0:
 | 4 | URLs: `/` is a landing page that lists every function with a link; `/catalog`, `/catalog/module/<id>`, `/programs`, `/programs/<slug>/…`. No `/gemerkt`, `/bestanden` for now. |
 | 5 | Leptos 0.8.20, SSR + hydration, no cargo-leptos. |
 | 6 | Search is planned separately (§5): it has to react to the selected context, not just fold umlauts. |
-| 7 | Web container built with Nix, same Swarm stack, scraper reachable only inside the stack. |
+| 7 | Web container built with Nix, same Swarm stack, Radix reachable only inside the stack. |
 | 8 | Schedule gap: the short note under the schedule, as proposed. |
 | 9 | **Queries run in the browser** on the downloaded snapshot: lowest latency on click, lowest server load. Stale data for a while is fine. No query API on the server. |
 | 10 | One Leptos app: crates `catalog`, `app`, `server`, (`client`). |

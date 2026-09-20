@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/betula/internal/model"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )

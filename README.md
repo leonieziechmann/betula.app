@@ -1,12 +1,16 @@
-# BTU catalog scraper
+# Betula
 
-Collects course data of BTU Cottbus-Senftenberg (modules, study programs, study plans, events),
-keeps it up to date as a long-running service, and publishes it as SQLite snapshots over HTTP.
-A web server fetches the snapshots and redistributes them to browsers, which query the database
-locally through documented read views.
+An unofficial catalog of the modules, study programs and study plans of BTU Cottbus-Senftenberg
+(https://betula.app). Betula is the birch; its two parts are named after the tree:
+
+- **Radix** (the root, Go): collects the course data (modules, study programs, study plans,
+  events), keeps it up to date as a long-running service, and publishes it as SQLite snapshots
+  over HTTP.
+- **Folia** (the leaves, Rust): the web server and the browser app. It fetches the snapshots and
+  redistributes them to browsers, which query the database locally through documented read views.
 
 ```
-b-tu.de/modul, QIS ──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ web server ──▶ browsers
+b-tu.de/modul, QIS ──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
 statute PDFs (OPUS) ──scan-curriculum (PDF geometry + optional Gemini enrichment)──▶ validated study plans
 ```
 
@@ -20,19 +24,19 @@ statute PDFs (OPUS) ──scan-curriculum (PDF geometry + optional Gemini enrich
 ## Quick start
 
 ```bash
-go build -o scraper ./cmd/scraper      # pure Go, no CGO; Windows, Linux, macOS
-scraper run                            # service: crawl politely, build, validate, export, serve
-scraper run --once                     # a single cycle
-scraper help                           # all commands
+go build -o radix ./cmd/radix      # pure Go, no CGO; Windows, Linux, macOS
+radix run                            # service: crawl politely, build, validate, export, serve
+radix run --once                     # a single cycle
+radix help                           # all commands
 ```
 
-`scraper run` serves `GET /snapshot/catalog.db` (ETag, `If-None-Match` → 304), `/healthz` and
+`radix run` serves `GET /snapshot/catalog.db` (ETag, `If-None-Match` → 304), `/healthz` and
 `/status` on `127.0.0.1:8090`. The stages also run one by one: `crawl-modules`, `crawl-tree`,
 `crawl-events`, `prune`, `build`, `validate`, `export`, `serve-snapshot`.
 
 ```bash
-nix build .#scraper                    # static binary; the tests run inside the build
-nix build .#container                  # container image with a health check (docs/operations.md)
+nix build .#radix                    # static binary; the tests run inside the build
+nix build .#radix-image                  # container image with a health check (docs/operations.md)
 go test ./...                          # network-free, no API key needed
 ```
 
@@ -40,7 +44,7 @@ go test ./...                          # network-free, no API key needed
 
 | Package | Role |
 |---|---|
-| `cmd/scraper` | command line |
+| `cmd/radix` | command line of Radix |
 | `internal/service` | the service loop, its stages, `/healthz` and `/status` |
 | `internal/crawl`, `internal/qistree` | polite archiving; QIS program tree walker |
 | `internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |
@@ -48,23 +52,23 @@ go test ./...                          # network-free, no API key needed
 | `internal/gemini`, `internal/curriculumscan`, `internal/statutes`, `internal/planaudit` | study plans from regulation PDFs, with audit trail |
 | `internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
 | `internal/oplog`, `internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
-| `catalog/`, `app/`, `server/` | The web tier in Rust (`docs/frontend.md`): the data contract with every SQL query, the Leptos app, and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
+| `catalog/`, `app/`, `client/`, `server/` | Folia, the web tier in Rust (`docs/frontend.md`): the data contract with every SQL query, the Leptos app, and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
 | `e2e/` | crawl of the server-rendered site; Playwright smoke walk for the browser app |
 | `frontend/` | the old browser app, reference only until its parts are ported |
 
 ### Web tier
 
 ```bash
-./scraper.exe serve-snapshot --addr 127.0.0.1:8090
+./radix.exe serve-snapshot --addr 127.0.0.1:8090
 ```
 
 ```bash
-cargo run -p btu-server
+cargo run -p folia-server
 ```
 
-Then open http://127.0.0.1:8080. The web server talks to the scraper only through the snapshot
+Then open http://127.0.0.1:8080. Folia talks to Radix only through the snapshot
 endpoint. Flags, endpoints, log events and checks: `docs/frontend.md`. `cargo test --workspace`
-needs an exported snapshot (`scraper export`).
+needs an exported snapshot (`radix export`).
 
 ### Credentials
 
@@ -72,8 +76,8 @@ The Gemini API key is never read from a flag or a configuration file:
 
 ```bash
 cp .env.example .env                   # development: put GEMINI_API_KEY there; the file is git-ignored
-scraper secret set gemini-api-key      # or: Windows Credential Manager, macOS Keychain, Secret Service
-scraper secret status                  # where the key is found; never prints it
+radix secret set gemini-api-key      # or: Windows Credential Manager, macOS Keychain, Secret Service
+radix secret status                  # where the key is found; never prints it
 ```
 
 A service gets it as a Docker secret (`/run/secrets/gemini-api-key`), a systemd credential,
@@ -95,11 +99,11 @@ pinned in `go.mod`. The key is resolved by `internal/secrets` (see above); `--mo
 Validate without changing curriculum records:
 
 ```powershell
-go run ./cmd/scraper scan-curriculum --name Informatik --degree Bachelor --force --dry-run
+go run ./cmd/radix scan-curriculum --name Informatik --degree Bachelor --force --dry-run
 ```
 
 `--name` is a substring filter; use `--program-id` (e.g. `079-82-2008`) for a single program.
-The PDFs are expected in `statutes/` (`scraper download-statutes`).
+The PDFs are expected in `statutes/` (`radix download-statutes`).
 To store validated results, omit `--dry-run`. The previous plan of the program is replaced in
 one transaction (`catalogdb.SavePlan`); the next `build` derives the membership statements.
 Failed validation preserves the existing records.
@@ -169,13 +173,13 @@ links are still missing. Wahlpflicht/FÜS budgets do not require one concrete li
 To process all remaining programs without replacing validated plans:
 
 ```powershell
-go run ./cmd/scraper scan-curriculum --report-dir logs/curriculum/remaining
+go run ./cmd/radix scan-curriculum --report-dir logs/curriculum/remaining
 ```
 
 Optional integration tests run the actual PDF extractor against downloaded PDFs:
 
 ```powershell
-$env:BTU_PDF_TEST_DIR = (Resolve-Path statutes).Path
+$env:RADIX_PDF_TEST_DIR = (Resolve-Path statutes).Path
 go test ./internal/gemini -run 'Test.*PDFIntegration|TestPDFLayoutIntegration|Golden' -v
 ```
 

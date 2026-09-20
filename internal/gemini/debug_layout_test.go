@@ -9,7 +9,7 @@ import (
 )
 
 func TestDebugLayout(t *testing.T) {
-	path := os.Getenv("BTU_DEBUG_PDF")
+	path := os.Getenv("RADIX_DEBUG_PDF")
 	if path == "" {
 		t.Skip()
 	}

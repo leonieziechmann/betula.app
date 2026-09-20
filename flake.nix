@@ -1,5 +1,5 @@
 {
-  description = "BTU catalog scraper: keeps the catalog up to date and publishes SQLite snapshots over HTTP";
+  description = "Betula: Radix keeps the catalog of BTU Cottbus-Senftenberg up to date and publishes SQLite snapshots over HTTP";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -15,8 +15,8 @@
         # while, so take the versioned attribute when it exists.
         buildGoModule = pkgs.buildGoModule.override { go = pkgs.go_1_27 or pkgs.go; };
 
-        scraper = buildGoModule {
-          pname = "btu-scraper";
+        radix = buildGoModule {
+          pname = "betula-radix";
           version = self.shortRev or self.dirtyShortRev or "dev";
           src = pkgs.lib.cleanSourceWith {
             src = ./.;
@@ -26,7 +26,7 @@
               in !(pkgs.lib.hasPrefix "frontend" rel || pkgs.lib.hasPrefix "server" rel
                 || pkgs.lib.hasPrefix "target" rel || pkgs.lib.hasPrefix "docs" rel);
           };
-          subPackages = [ "cmd/scraper" ];
+          subPackages = [ "cmd/radix" ];
 
           # Update after changing go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy the hash Nix prints.
           vendorHash = "sha256-b33lF4UjPtoTE0qbJ8mOmjEdxsLwUJqv3d7GjluATiA=";
@@ -38,23 +38,23 @@
           # The tests are network-free and run during the build.
           doCheck = true;
 
-          meta.mainProgram = "scraper";
+          meta.mainProgram = "radix";
         };
 
-        container = pkgs.dockerTools.buildLayeredImage {
-          name = "btu-scraper";
+        radix-image = pkgs.dockerTools.buildLayeredImage {
+          name = "betula-radix";
           tag = "latest";
-          contents = [ scraper pkgs.cacert ];
+          contents = [ radix pkgs.cacert ];
           # /data holds the working database and the exported snapshots.
           extraCommands = "mkdir -p data tmp && chmod 1777 tmp";
           config = {
-            Entrypoint = [ "/bin/scraper" ];
+            Entrypoint = [ "/bin/radix" ];
             Cmd = [ "run" ];
             Env = [
-              "BTU_DB=/data/btu_scraper.db"
-              "BTU_SNAPSHOT_DIR=/data/snapshot"
-              "BTU_ADDR=0.0.0.0:8090"
-              "BTU_LOG_FORMAT=json"
+              "RADIX_DB=/data/radix.db"
+              "RADIX_SNAPSHOT_DIR=/data/snapshot"
+              "RADIX_ADDR=0.0.0.0:8090"
+              "RADIX_LOG_FORMAT=json"
               "TZ=Europe/Berlin" # off-peak hours are local time; zoneinfo is embedded in the binary
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
             ];
@@ -62,7 +62,7 @@
             Volumes = { "/data" = { }; };
             WorkingDir = "/data";
             Healthcheck = {
-              Test = [ "CMD" "/bin/scraper" "healthcheck" ];
+              Test = [ "CMD" "/bin/radix" "healthcheck" ];
               Interval = 60000000000; # 60 s, in nanoseconds
               Timeout = 10000000000;
               StartPeriod = 120000000000;
@@ -73,11 +73,11 @@
       in
       {
         packages = {
-          inherit scraper container;
-          default = scraper;
+          inherit radix radix-image;
+          default = radix;
         };
 
-        apps.default = flake-utils.lib.mkApp { drv = scraper; };
+        apps.default = flake-utils.lib.mkApp { drv = radix; };
 
         devShells.default = pkgs.mkShell {
           packages = [ (pkgs.go_1_27 or pkgs.go) pkgs.gopls pkgs.sqlite ];

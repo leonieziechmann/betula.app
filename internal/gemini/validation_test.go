@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/betula/internal/model"
 )
 
 func TestMissingCatalogCoverageIsVisibleWithoutInventedLinks(t *testing.T) {
@@ -37,9 +37,9 @@ func TestMissingCatalogCoverageIsVisibleWithoutInventedLinks(t *testing.T) {
 // Opt-in tests exercise the actual Go geometry extractor against local
 // university PDFs, which are not committed to this repository.
 func TestPDFLayoutIntegration(t *testing.T) {
-	root := os.Getenv("BTU_PDF_TEST_DIR")
+	root := os.Getenv("RADIX_PDF_TEST_DIR")
 	if root == "" {
-		t.Skip("set BTU_PDF_TEST_DIR to the downloaded statutes directory")
+		t.Skip("set RADIX_PDF_TEST_DIR to the downloaded statutes directory")
 	}
 	for _, tc := range []struct{ file, fixture string }{
 		{"Informatik/6707_12_Informatik_B.Sc.pdf", "informatik_2024_layout.json"},

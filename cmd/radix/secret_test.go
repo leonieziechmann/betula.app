@@ -8,7 +8,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
-	"github.com/leonieziechmann/btu-scraper/internal/secrets"
+	"github.com/leonieziechmann/betula/internal/secrets"
 )
 
 func TestMigrateConfigSecretMovesTheKeyOutOfTheFile(t *testing.T) {

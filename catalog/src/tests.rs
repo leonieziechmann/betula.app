@@ -1,7 +1,7 @@
 //! The data layer against a real snapshot.
 //!
-//! The snapshot is found through `BTU_TEST_SNAPSHOT` (a path to a `catalog-*.db`), else
-//! through `../snapshot/current.json` as `scraper export` writes it. Without one the tests
+//! The snapshot is found through `FOLIA_TEST_SNAPSHOT` (a path to a `catalog-*.db`), else
+//! through `../snapshot/current.json` as `radix export` writes it. Without one the tests
 //! fail: a green run must mean that every query ran against real data. Counts that depend
 //! on the day's data are compared with direct SQL on the views; the exact numbers of
 //! docs/frontend-rewrite.md §4 are asserted only for the snapshot they were taken from.
@@ -25,13 +25,13 @@ const PINNED_DIGEST: &str = "e20a744cfcbc2f475a56d7b47c8fffff69120c9f507d9cd288f
 const INFORMATIK_BSC: &str = "bachelor-informatik-2008";
 
 fn snapshot_path() -> PathBuf {
-    if let Ok(path) = std::env::var("BTU_TEST_SNAPSHOT") {
+    if let Ok(path) = std::env::var("FOLIA_TEST_SNAPSHOT") {
         return PathBuf::from(path);
     }
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("snapshot");
     let pointer = std::fs::read_to_string(dir.join("current.json")).unwrap_or_else(|e| {
         panic!(
-            "no catalog snapshot for the tests ({e}). Run `scraper export`, or set BTU_TEST_SNAPSHOT \
+            "no catalog snapshot for the tests ({e}). Run `radix export`, or set FOLIA_TEST_SNAPSHOT \
              to a catalog-*.db (docs/operations.md)."
         )
     });

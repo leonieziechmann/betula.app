@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/oplog"
 	_ "modernc.org/sqlite"
 )
 

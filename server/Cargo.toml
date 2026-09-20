@@ -1,16 +1,16 @@
 [package]
-name = "btu-server"
+name = "folia-server"
 version = "0.2.0"
 edition = "2021"
-description = "Web server of the BTU catalog: fetches snapshots from the scraper, renders the app, serves the snapshot to browsers"
+description = "Folia, the web server of Betula: fetches snapshots from Radix, renders the app, serves the snapshot to browsers"
 
 [[bin]]
-name = "btu-server"
+name = "folia"
 path = "src/main.rs"
 
 [dependencies]
-btu-app = { path = "../app", features = ["ssr"] }
-btu-catalog = { path = "../catalog", features = ["native"] }
+folia-app = { path = "../app", features = ["ssr"] }
+folia-catalog = { path = "../catalog", features = ["native"] }
 leptos = { version = "0.8.20", features = ["ssr"] }
 leptos_axum = "0.8"
 axum = { version = "0.8", features = ["tokio", "http1", "http2"] }

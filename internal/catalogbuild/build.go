@@ -11,8 +11,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/oplog"
 )
 
 // derivedTables are replaced as a whole by every build, children first.

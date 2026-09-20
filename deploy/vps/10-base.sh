@@ -35,7 +35,7 @@ BASE_PACKAGES=(
   unattended-upgrades # automatic security updates and the 04:30 reboot
   needrestart        # restarts services that still run an outdated library after an upgrade
   jq                 # validates daemon.json; 91-verify-stacks.sh reads the Loki/Prometheus answers;
-                     # the scraper logs JSON lines (docs/operations.md)
+                     # Radix logs JSON lines (docs/operations.md)
   bind9-dnsutils     # dig: 40-stacks.sh checks that a host name resolves to this server before it
                      # lets Traefik request a certificate (Let's Encrypt rate limits)
   # No rsync: deploy/sync.sh streams a tar archive over ssh (Git Bash on Windows has no rsync),
@@ -579,7 +579,7 @@ configure_swap() {
   esac
 
   # RAM <= 2 GB -> 2 GB, up to 4 GB -> same as RAM, above -> 4 GB. Swap is a safety net against
-  # the OOM killer (monitoring stack + scraper build; 5.9 GB RAM and no swap when this server
+  # the OOM killer (monitoring stack + radix build; 5.9 GB RAM and no swap when this server
   # was measured, which makes it 4 GB here), not working memory.
   ram_mb="$(mem_total_mb)"
   size_mb="${ram_mb}"

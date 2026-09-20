@@ -1,6 +1,6 @@
-//! Web server of the BTU catalog.
+//! Folia, the web server of Betula.
 //!
-//! It knows the scraper only through its HTTP snapshot endpoint (docs/operations.md §1),
+//! It knows Radix only through its HTTP snapshot endpoint (docs/operations.md §1),
 //! renders the app's pages from the active snapshot, caches them until the next snapshot,
 //! and hands the snapshot file on to browsers as `/api/db`.
 //!
@@ -193,7 +193,7 @@ async fn main() -> std::process::ExitCode {
         site_root: config.site_root.clone(),
         packages: Arc::default(),
         leptos: LeptosOptions::builder()
-            .output_name("btu-app")
+            .output_name("folia-app")
             .site_root(config.site_root.to_string_lossy().into_owned())
             .site_pkg_dir("pkg")
             .site_addr(config.addr)

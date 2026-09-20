@@ -38,7 +38,7 @@ RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
 # pushed by Alloy through remote write (config/monitoring/alloy/config.alloy).
 EXPECTED_JOBS=(prometheus traefik loki grafana alloy integrations/unix integrations/cadvisor)
 # Ports of the contract that must NOT listen on the host: Traefik ping and metrics, socket proxy,
-# Grafana, Loki, Prometheus, Alloy, scraper.
+# Grafana, Loki, Prometheus, Alloy, Radix.
 PRIVATE_PORTS=(8081 8082 2375 3000 3100 9090 12345 8090)
 PASSED=0
 WARNED=0
@@ -181,11 +181,11 @@ header_value() {
 check_services() {
   section "services (replicas running and healthy, no update in flight)"
   local stack svc state found
-  for stack in edge placeholder btu monitoring; do
+  for stack in edge placeholder betula monitoring; do
     if ! stack_exists "${stack}"; then
       case "${stack}" in
         edge | monitoring) fail "stack ${stack} is not deployed (vps/40-stacks.sh)" ;;
-        placeholder) stack_exists btu || fail "neither stack placeholder nor stack btu is deployed: nothing answers https://${SITE_HOST}" ;;
+        placeholder) stack_exists betula || fail "neither stack placeholder nor stack betula is deployed: nothing answers https://${SITE_HOST}" ;;
       esac
       continue
     fi
@@ -201,8 +201,8 @@ check_services() {
     done < <(stack_services "${stack}")
     [[ "${found}" -eq 1 ]] || fail "stack ${stack} has no services"
   done
-  if stack_exists btu && stack_exists placeholder; then
-    warning "stack placeholder still runs next to btu; once the application works: docker stack rm placeholder"
+  if stack_exists betula && stack_exists placeholder; then
+    warning "stack placeholder still runs next to betula; once the application works: docker stack rm placeholder"
   fi
   if www_router_deployed; then pass "override edge.www.yml is deployed (https://${WWW_HOST} redirects)"; else
     warning "override edge.www.yml is not deployed: https://${WWW_HOST} is not served (40-stacks.sh adds it when the name resolves here)"
@@ -329,7 +329,7 @@ check_ports() {
     done
   done
   if [[ -z "${have}" ]]; then
-    pass "nothing listens on the host on ${PRIVATE_PORTS[*]} (Traefik ping/metrics, socket proxy, Grafana, Loki, Prometheus, Alloy, scraper)"
+    pass "nothing listens on the host on ${PRIVATE_PORTS[*]} (Traefik ping/metrics, socket proxy, Grafana, Loki, Prometheus, Alloy, Radix)"
   else
     fail "reachable on the host: ${have% } - a service publishes a port it should not (docker service ls; sudo ss -tlnp)"
   fi

@@ -1,5 +1,5 @@
-// Command scraper keeps a catalog of BTU Cottbus-Senftenberg modules, programs,
-// study plans and events up to date and publishes it as SQLite snapshots.
+// Command radix is the collector of Betula: it keeps a catalog of BTU Cottbus-Senftenberg
+// modules, programs, study plans and events up to date and publishes it as SQLite snapshots.
 // See docs/operations.md.
 package main
 
@@ -10,11 +10,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/secrets"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/secrets"
 )
 
-const defaultDBPath = "btu_scraper.db"
+const defaultDBPath = "radix.db"
 
 type command struct {
 	name    string
@@ -57,7 +57,7 @@ func main() {
 	defer cancel()
 
 	// Development convenience: a git-ignored .env file. The real environment wins.
-	if _, err := secrets.LoadDotEnv(envOr("BTU_ENV_FILE", ".env")); err != nil {
+	if _, err := secrets.LoadDotEnv(envOr("RADIX_ENV_FILE", ".env")); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(2)
 	}
@@ -81,7 +81,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("BTU catalog scraper\n\nUsage:\n  scraper <command> [flags]      (scraper <command> --help lists the flags)\n\nCommands:")
+	fmt.Println("Radix, the collector of Betula (catalog of BTU Cottbus-Senftenberg)\n\nUsage:\n  radix <command> [flags]      (radix <command> --help lists the flags)\n\nCommands:")
 	for _, group := range commands {
 		for _, c := range group {
 			fmt.Printf("  %-20s %s\n", c.name, c.summary)
@@ -89,7 +89,7 @@ func printUsage() {
 		fmt.Println()
 	}
 	fmt.Println("Every command takes --db (default " + defaultDBPath + "), --log-format text|json, --log-level, --log-file.\n" +
-		"Credentials are never read from flags or configuration files; see `scraper secret status`.")
+		"Credentials are never read from flags or configuration files; see `radix secret status`.")
 }
 
 func openDB(path string) *catalogdb.DB {

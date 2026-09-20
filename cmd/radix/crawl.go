@@ -9,15 +9,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogbuild"
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/crawl"
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
-	"github.com/leonieziechmann/btu-scraper/internal/service"
+	"github.com/leonieziechmann/betula/internal/catalogbuild"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/crawl"
+	"github.com/leonieziechmann/betula/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/service"
 )
 
-// logFlags are shared by all schema v2 commands. Defaults come from BTU_LOG_FORMAT,
-// BTU_LOG_LEVEL and BTU_LOG_FILE, so a container can configure logging by environment.
+// logFlags are shared by all schema v2 commands. Defaults come from RADIX_LOG_FORMAT,
+// RADIX_LOG_LEVEL and RADIX_LOG_FILE, so a container can configure logging by environment.
 type logFlags struct {
 	format, level, file *string
 }
@@ -25,9 +25,9 @@ type logFlags struct {
 func addLogFlags(fs *flag.FlagSet) *logFlags {
 	env := oplog.OptionsFromEnv()
 	return &logFlags{
-		format: fs.String("log-format", env.Format, "Log format: text or json (env BTU_LOG_FORMAT)"),
-		level:  fs.String("log-level", env.Level, "Log level: debug, info, warn, error (env BTU_LOG_LEVEL)"),
-		file:   fs.String("log-file", env.File, "Also append the log to this file (env BTU_LOG_FILE)"),
+		format: fs.String("log-format", env.Format, "Log format: text or json (env RADIX_LOG_FORMAT)"),
+		level:  fs.String("log-level", env.Level, "Log level: debug, info, warn, error (env RADIX_LOG_LEVEL)"),
+		file:   fs.String("log-file", env.File, "Also append the log to this file (env RADIX_LOG_FILE)"),
 	}
 }
 

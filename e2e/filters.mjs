@@ -31,7 +31,7 @@ const param = (name) => page.evaluate((n) => new URL(location.href).searchParams
 const count = () => page.evaluate(() => document.querySelector(".count")?.textContent);
 
 await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
-await page.waitForFunction(() => window.__btuApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
 await page.evaluate(() => { window.__marker = 1; document.getElementById("filters").__same = true; });
 
 // ---- toggles: with → without → off; the panel is the same element throughout, the focus stays
@@ -255,14 +255,14 @@ const zone = await page.evaluate(() => { const z = document.querySelector('[data
 check(zone.width >= 16 && zone.over <= 0.5, `resize: the handle's zone is ${zone.width}px wide and ${zone.over}px over the filter panel`);
 await drag(60);
 check(Math.abs((await width()) - (startWidth + 60)) <= 2, `resize: expected about ${startWidth + 60}px, got ${await width()}px`);
-check(Number(await page.evaluate(() => localStorage.getItem("btu.filters.width"))) === (await width()), "resize: the width is not in localStorage");
+check(Number(await page.evaluate(() => localStorage.getItem("betula.filters.width"))) === (await width()), "resize: the width is not in localStorage");
 await drag(600);
 check((await width()) === 440, `resize: the upper limit is 440px, got ${await width()}px`);
 await drag(-900);
 check((await width()) === 232, `resize: the lower limit is 232px, got ${await width()}px`);
 check(!(await page.evaluate(() => location.search)).includes("232"), "resize: the width leaked into the URL");
 await page.dblclick('[data-action="resize-filters"]');
-check((await width()) === startWidth && (await page.evaluate(() => localStorage.getItem("btu.filters.width"))) === null, `resize: a double click does not reset (${await width()}px)`);
+check((await width()) === startWidth && (await page.evaluate(() => localStorage.getItem("betula.filters.width"))) === null, `resize: a double click does not reset (${await width()}px)`);
 
 // ---- a group header stays while its group runs across the border between two pages
 await step("program list", async () => { await page.click('#filters a:has-text("Zurücksetzen")'); await page.click("#pick-program"); await page.fill("#pick-program-search", "informatik b.sc"); await page.keyboard.press("Enter"); }, () => document.querySelector(".sem") && document.querySelectorAll(".rows a.row").length === 50);

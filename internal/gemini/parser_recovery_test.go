@@ -3,7 +3,7 @@ package gemini
 import (
 	"context"
 	"fmt"
-	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/betula/internal/model"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,7 +64,7 @@ func TestUnknownAmendmentIsRecordedAndPlanStaysAuthoritative(t *testing.T) {
 }
 
 func TestRecoveredPDFLayouts(t *testing.T) {
-	root := os.Getenv("BTU_PDF_TEST_DIR")
+	root := os.Getenv("RADIX_PDF_TEST_DIR")
 	if root == "" {
 		t.Skip("local statute PDFs required")
 	}

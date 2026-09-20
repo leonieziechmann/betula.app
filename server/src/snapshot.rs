@@ -1,9 +1,9 @@
-//! The snapshot client: keeps the newest catalog snapshot of the scraper on disk and active.
+//! The snapshot client: keeps the newest catalog snapshot of Radix on disk and active.
 //!
 //! GET with `If-None-Match` → 304 (nothing to do) or 200 (download to a temporary file, check
 //! that it opens and answers the queries of the landing page, compress it once for browsers,
 //! then switch). A snapshot that fails the check is rejected and the previous one stays active.
-//! When the scraper is down the last good snapshot keeps being served, also across restarts.
+//! When Radix is down the last good snapshot keeps being served, also across restarts.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -23,7 +23,7 @@ const POOL_SIZE: usize = 8;
 
 /// One snapshot file, opened read-only by a small pool of connections.
 pub struct Snapshot {
-    /// The scraper's ETag (content hash), passed on to browsers unchanged.
+    /// Radix's ETag (content hash), passed on to browsers unchanged.
     pub etag: String,
     pub path: PathBuf,
     pub bytes: u64,
@@ -76,13 +76,13 @@ struct Pointer {
     etag: String,
 }
 
-/// The active snapshot and what is known about the link to the scraper.
+/// The active snapshot and what is known about the link to Radix.
 pub struct SnapshotStore {
     data_dir: PathBuf,
     current: RwLock<Option<Arc<Snapshot>>>,
     /// Changes with every activation; the HTML cache is only valid within one generation.
     generation: AtomicU64,
-    /// Unix seconds of the last answer from the scraper (200 or 304); 0 = never.
+    /// Unix seconds of the last answer from Radix (200 or 304); 0 = never.
     last_contact: AtomicU64,
     started: Instant,
 }
@@ -107,7 +107,7 @@ impl SnapshotStore {
         self.generation.load(Ordering::Relaxed)
     }
 
-    /// Seconds since the scraper last answered; `None` if it never did in this process.
+    /// Seconds since Radix last answered; `None` if it never did in this process.
     pub fn seconds_since_contact(&self) -> Option<u64> {
         match self.last_contact.load(Ordering::Relaxed) {
             0 => None,
@@ -139,7 +139,7 @@ impl SnapshotStore {
         let pointer: Pointer = match serde_json::from_str(&text) {
             Ok(pointer) => pointer,
             Err(error) => {
-                tracing::warn!(component = "snapshot", event = "snapshot.restore_failed", error = %error, "unreadable snapshot pointer; waiting for the scraper");
+                tracing::warn!(component = "snapshot", event = "snapshot.restore_failed", error = %error, "unreadable snapshot pointer; waiting for Radix");
                 return false;
             }
         };
@@ -150,7 +150,7 @@ impl SnapshotStore {
                 true
             }
             Err(error) => {
-                tracing::warn!(component = "snapshot", event = "snapshot.restore_failed", error = %error, "stored snapshot is unusable; waiting for the scraper");
+                tracing::warn!(component = "snapshot", event = "snapshot.restore_failed", error = %error, "stored snapshot is unusable; waiting for Radix");
                 false
             }
         }
@@ -182,9 +182,9 @@ pub enum Sync {
 
 #[derive(Debug)]
 pub enum SyncError {
-    /// The scraper did not answer or answered with an error: keep serving what we have.
+    /// Radix did not answer or answered with an error: keep serving what we have.
     Fetch(String),
-    /// The scraper has no export yet (503).
+    /// Radix has no export yet (503).
     NotReady,
     /// The download is not a usable catalog: needs a human.
     Rejected(String),
@@ -195,14 +195,14 @@ impl std::fmt::Display for SyncError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SyncError::Fetch(why) => write!(f, "fetch failed: {why}"),
-            SyncError::NotReady => write!(f, "the scraper has not exported a snapshot yet"),
+            SyncError::NotReady => write!(f, "Radix has not exported a snapshot yet"),
             SyncError::Rejected(why) => write!(f, "snapshot rejected: {why}"),
             SyncError::Io(why) => write!(f, "cannot store the snapshot: {why}"),
         }
     }
 }
 
-/// One check against the scraper.
+/// One check against Radix.
 pub async fn sync_once(store: &Arc<SnapshotStore>, client: &reqwest::Client, url: &str) -> Result<Sync, SyncError> {
     let current = store.current();
     let mut request = client.get(url);
@@ -255,7 +255,7 @@ pub async fn sync_once(store: &Arc<SnapshotStore>, client: &reqwest::Client, url
     drop(file);
     tracing::info!(component = "snapshot", event = "snapshot.downloaded", etag = %etag, bytes, ms = started.elapsed().as_millis() as u64, "snapshot downloaded");
 
-    // File names carry the content hash, like the scraper's own export.
+    // File names carry the content hash, like Radix's own export.
     let hash: String = etag.chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect();
     let file_name = format!("catalog-{hash}.db");
     let target = store.data_dir.join(&file_name);
@@ -303,7 +303,7 @@ fn gzip_file(source: &Path, target: &Path) -> std::io::Result<()> {
     encoder.finish()?.flush()
 }
 
-/// Polls the scraper until the process ends. Failures back off up to five minutes.
+/// Polls Radix until the process ends. Failures back off up to five minutes.
 pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, stale_after: Option<Duration>) {
     let client = match reqwest::Client::builder().connect_timeout(Duration::from_secs(10)).timeout(Duration::from_secs(600)).build() {
         Ok(client) => client,
@@ -312,7 +312,7 @@ pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, sta
             return;
         }
     };
-    tracing::info!(component = "snapshot", event = "snapshot.sync_started", url = %url, interval_s = interval.as_secs(), "watching the scraper's snapshot endpoint");
+    tracing::info!(component = "snapshot", event = "snapshot.sync_started", url = %url, interval_s = interval.as_secs(), "watching Radix's snapshot endpoint");
 
     let mut failures: u32 = 0;
     loop {
@@ -320,7 +320,7 @@ pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, sta
             Ok(Sync::Unchanged) => {
                 tracing::debug!(component = "snapshot", event = "snapshot.unchanged", "snapshot unchanged");
                 if failures > 0 {
-                    tracing::info!(component = "snapshot", event = "snapshot.sync_recovered", after_failures = failures, "the scraper answers again");
+                    tracing::info!(component = "snapshot", event = "snapshot.sync_recovered", after_failures = failures, "Radix answers again");
                 }
                 failures = 0;
                 interval
@@ -340,7 +340,7 @@ pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, sta
                 if matches!(error, SyncError::Rejected(_) | SyncError::Io(_)) {
                     tracing::error!(component = "snapshot", event = "snapshot.rejected", error = %error, "keeping the previous snapshot");
                 } else if stale {
-                    tracing::error!(component = "snapshot", event = "snapshot.stale", error = %error, failures, without_snapshot, "no answer from the scraper for longer than the configured limit");
+                    tracing::error!(component = "snapshot", event = "snapshot.stale", error = %error, failures, without_snapshot, "no answer from Radix for longer than the configured limit");
                 } else {
                     tracing::warn!(component = "snapshot", event = "snapshot.fetch_failed", error = %error, failures, without_snapshot, "will retry");
                 }

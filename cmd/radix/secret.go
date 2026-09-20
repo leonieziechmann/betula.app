@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/leonieziechmann/btu-scraper/internal/secrets"
+	"github.com/leonieziechmann/betula/internal/secrets"
 )
 
 // runSecret manages credentials in the operating system's credential store. A
@@ -20,10 +20,10 @@ import (
 func runSecret(ctx context.Context, args []string) {
 	usage := func() {
 		fmt.Fprintln(os.Stderr, `Usage:
-  scraper secret set <name>         read the secret from the terminal (hidden) or from stdin and store it
-  scraper secret status             show where each secret is found; never prints a secret
-  scraper secret delete <name>      remove the secret from the credential store
-  scraper secret migrate-config [config.yaml]
+  radix secret set <name>         read the secret from the terminal (hidden) or from stdin and store it
+  radix secret status             show where each secret is found; never prints a secret
+  radix secret delete <name>      remove the secret from the credential store
+  radix secret migrate-config [config.yaml]
                                     move gemini.api_key out of a v1 config file into the credential store
 
 Names: `+strings.Join(secrets.Known, ", "))
@@ -136,7 +136,7 @@ func migrateConfigSecret(path string) error {
 	if err := secrets.Store(secrets.GeminiAPIKey, string(m[3])); err != nil {
 		return fmt.Errorf("the key stays in %s: %w", path, err)
 	}
-	cleaned := configAPIKeyLine.ReplaceAll(data, []byte(`${1}""  # moved to the OS credential store: scraper secret status`))
+	cleaned := configAPIKeyLine.ReplaceAll(data, []byte(`${1}""  # moved to the OS credential store: radix secret status`))
 	if err := os.WriteFile(path, cleaned, 0600); err != nil {
 		return fmt.Errorf("the key is stored, but %s could not be rewritten: %w", path, err)
 	}

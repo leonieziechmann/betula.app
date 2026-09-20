@@ -13,7 +13,7 @@
 #
 # What decides which files are deployed:
 #   edge.www.yml           only while www.betula.app resolves to this machine
-#   placeholder            skipped as soon as a stack "btu" exists (then remove it: docker stack rm placeholder)
+#   placeholder            skipped as soon as a stack "betula" exists (then remove it: docker stack rm placeholder)
 #   monitoring.public.yml  only while GRAFANA_HOST is set and resolves to this machine
 #   monitoring.smtp.yml    only while all of its swarm secrets exist (stacks/monitoring-secrets.sh)
 #   monitoring.notify.yml  the same, if the file exists (your copy of monitoring.notify.example.yml)
@@ -249,8 +249,8 @@ deploy_edge() {
 
 deploy_placeholder() {
   step "Stack placeholder (static page at https://${SITE_HOST})"
-  if stack_exists btu; then
-    log "stack btu exists: the application owns https://${SITE_HOST}, placeholder is not deployed"
+  if stack_exists betula; then
+    log "stack betula exists: the application owns https://${SITE_HOST}, placeholder is not deployed"
     if stack_exists placeholder; then
       warn "stack placeholder is still there; once the application works: docker stack rm placeholder"
     fi
@@ -312,7 +312,7 @@ deploy_monitoring() {
 report() {
   step "Done"
   local stack
-  for stack in edge placeholder btu monitoring; do
+  for stack in edge placeholder betula monitoring; do
     if stack_exists "${stack}"; then
       docker stack services "${stack}" --format '{{.Name}}  {{.Replicas}}  {{.Image}}' | sed 's/^/  /'
     fi

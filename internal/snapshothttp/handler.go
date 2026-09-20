@@ -1,5 +1,5 @@
 // Package snapshothttp publishes exported catalog snapshots over HTTP. It is the
-// only interface between the scraper and the web server: the web server polls
+// only interface between Radix and the web server (Folia): the web server polls
 // with If-None-Match, downloads a snapshot when its ETag changed, and
 // redistributes it to browsers.
 package snapshothttp
@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
 )
 
 const (

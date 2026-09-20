@@ -28,7 +28,7 @@ const step = async (name, action, until) => {
 
 const started = Date.now();
 await page.goto(base + "/catalog?program=bachelor-informatik-2008", { waitUntil: "domcontentloaded" });
-await page.waitForFunction(() => window.__btuApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
 timings.takeover = Date.now() - started;
 await page.evaluate(() => { window.__marker = 1; });
 
@@ -56,7 +56,7 @@ await page.mouse.move(handle.x - 146, handle.y + handle.height / 2, { steps: 6 }
 await page.mouse.up();
 const dragged = await previewWidth();
 if (Math.abs(dragged - (startWidth + 150)) > 3) problems.push(`resize: expected about ${startWidth + 150}px, got ${dragged}px`);
-const stored = await page.evaluate(() => localStorage.getItem("btu.preview.width"));
+const stored = await page.evaluate(() => localStorage.getItem("betula.preview.width"));
 if (Number(stored) !== dragged) problems.push(`resize: localStorage has ${stored}, the preview is ${dragged}px`);
 if ((await page.evaluate(() => location.search)).includes(String(dragged))) problems.push("resize: the width leaked into the URL");
 

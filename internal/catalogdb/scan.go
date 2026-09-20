@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/betula/internal/model"
 )
 
 // ScanPrograms returns the programs a study plan scan can work on, with their

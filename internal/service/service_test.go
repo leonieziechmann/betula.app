@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
 )
 
 // fakeBTU serves a tiny catalog: one program with one PO and one area, two modules,

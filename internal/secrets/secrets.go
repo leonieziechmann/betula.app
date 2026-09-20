@@ -13,7 +13,8 @@
 //     development it may come from a git-ignored .env file (LoadDotEnv).
 //  5. the operating system's credential store: Windows Credential Manager, macOS
 //     Keychain, or the Secret Service (GNOME Keyring, KWallet) on Linux. This is the
-//     place for a developer machine; `scraper secret set` writes it.
+//     place for a developer machine; `radix secret set` writes it. An entry stored under the
+//     program's former name ("btu-scraper") is still found, so the rename costs no credential.
 //
 // An explicitly configured source wins over the keyring, so that a service never
 // silently picks up a developer's personal credential.
@@ -32,7 +33,11 @@ import (
 // GeminiAPIKey is the name of the Gemini API credential.
 const GeminiAPIKey = "gemini-api-key"
 
-const keyringService = "btu-scraper"
+const keyringService = "betula-radix"
+
+// legacyKeyringService is the name before the project was called Betula. Entries under it are
+// still read (and removed by Delete); `secret set` writes the new name only.
+const legacyKeyringService = "btu-scraper"
 
 // dockerSecretsDir is where Docker mounts the secrets of a service (tmpfs).
 var dockerSecretsDir = "/run/secrets"
@@ -90,9 +95,11 @@ func Resolve(name string) (string, Source, error) {
 		return value, Source("environment variable " + env), nil
 	}
 
-	value, err := keyring.Get(keyringService, name)
-	if err == nil && strings.TrimSpace(value) != "" {
+	if value, err := keyring.Get(keyringService, name); err == nil && strings.TrimSpace(value) != "" {
 		return strings.TrimSpace(value), "operating system credential store", nil
+	}
+	if value, err := keyring.Get(legacyKeyringService, name); err == nil && strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value), Source("operating system credential store (entry of the former name " + legacyKeyringService + ")"), nil
 	}
 	// A missing entry and a missing keyring (a container has none) are the same to the caller.
 	return "", "", ErrNotFound
@@ -130,6 +137,10 @@ func Store(name, value string) error {
 // Delete removes a secret from the operating system's credential store.
 func Delete(name string) error {
 	err := keyring.Delete(keyringService, name)
+	legacy := keyring.Delete(legacyKeyringService, name)
+	if errors.Is(err, keyring.ErrNotFound) {
+		err = legacy // only the former entry existed (or none: ErrNotFound)
+	}
 	if errors.Is(err, keyring.ErrNotFound) {
 		return ErrNotFound
 	}
@@ -139,7 +150,7 @@ func Delete(name string) error {
 // HowTo explains, for an error message, how to provide a secret.
 func HowTo(name string) string {
 	env := envName(name)
-	return fmt.Sprintf("provide it with `scraper secret set %s` (developer machine), "+
+	return fmt.Sprintf("provide it with `radix secret set %s` (developer machine), "+
 		"a Docker secret named %q, %s_FILE=/path/to/secret (Kubernetes, sops-nix, agenix), "+
 		"a systemd credential named %q, or the %s environment variable", name, name, env, name, env)
 }

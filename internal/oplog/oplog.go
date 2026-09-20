@@ -1,4 +1,4 @@
-// Package oplog is the operational log of the scraper service.
+// Package oplog is the operational log of Radix, the collector service.
 //
 // Every record is one line with a level, a component and a stable event name:
 //
@@ -30,13 +30,13 @@ type Options struct {
 	File   string // optional: also append to this file
 }
 
-// OptionsFromEnv reads BTU_LOG_FORMAT, BTU_LOG_LEVEL and BTU_LOG_FILE, so that a
+// OptionsFromEnv reads RADIX_LOG_FORMAT, RADIX_LOG_LEVEL and RADIX_LOG_FILE, so that a
 // container or a systemd unit can configure logging without changing the command line.
 func OptionsFromEnv() Options {
 	return Options{
-		Format: os.Getenv("BTU_LOG_FORMAT"),
-		Level:  os.Getenv("BTU_LOG_LEVEL"),
-		File:   os.Getenv("BTU_LOG_FILE"),
+		Format: os.Getenv("RADIX_LOG_FORMAT"),
+		Level:  os.Getenv("RADIX_LOG_LEVEL"),
+		File:   os.Getenv("RADIX_LOG_FILE"),
 	}
 }
 

@@ -1,15 +1,15 @@
 [package]
-name = "btu-client"
+name = "folia-client"
 version = "0.1.0"
 edition = "2021"
-description = "The browser app of the BTU catalog (WASM): the app's components on the local sql.js database"
+description = "The browser app of Betula (WASM): the app's components on the local sql.js database"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-btu-app = { path = "../app", features = ["csr"] }
-btu-catalog = { path = "../catalog" }
+folia-app = { path = "../app", features = ["csr"] }
+folia-catalog = { path = "../catalog" }
 leptos = { version = "0.8.20", features = ["csr"] }
 # Must be the version of the wasm-bindgen CLI that scripts/build-client.sh runs.
 wasm-bindgen = "=0.2.128"

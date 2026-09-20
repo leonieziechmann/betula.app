@@ -1,7 +1,7 @@
 package gemini
 
 import (
-	"github.com/leonieziechmann/btu-scraper/internal/model"
+	"github.com/leonieziechmann/betula/internal/model"
 	"math"
 	"regexp"
 	"strings"

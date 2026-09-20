@@ -212,7 +212,7 @@
       "title": "Log lines",
       "datasource": {"type": "loki", "uid": "loki"},
       "gridPos": {"h": 24, "w": 24, "x": 0, "y": 6},
-      "description": "Container logs carry stack / service / container, journal lines carry unit. Open a line for all fields; JSON lines of the scraper show event and msg there.",
+      "description": "Container logs carry stack / service / container, journal lines carry unit. Open a line for all fields; JSON lines of Radix show event and msg there.",
       "targets": [
         {
           "refId": "A",

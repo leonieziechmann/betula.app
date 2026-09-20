@@ -60,7 +60,7 @@
 #
 # Memory budget (limits): grafana 768M + loki 288M + prometheus 256M + alloy 288M = 1600M.
 # Measured host: 4 vCPU, 5.9 GB RAM. The budget stays: the memory belongs to the application,
-# and the scraper's build step is the big consumer. No reservations: a reservation that does
+# and Radix's build step is the big consumer. No reservations: a reservation that does
 # not fit keeps a task pending forever. CPU limits stay <= 1.0, so a query storm in the
 # monitoring stack can never take more than one core per service away from the site.
 

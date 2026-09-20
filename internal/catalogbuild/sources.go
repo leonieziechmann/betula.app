@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/model"
-	"github.com/leonieziechmann/btu-scraper/internal/parser"
-	"github.com/leonieziechmann/btu-scraper/internal/qistree"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/model"
+	"github.com/leonieziechmann/betula/internal/parser"
+	"github.com/leonieziechmann/betula/internal/qistree"
 )
 
 // sources is the parsed content of the raw archive.

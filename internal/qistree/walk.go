@@ -8,7 +8,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/leonieziechmann/btu-scraper/internal/parser"
+	"github.com/leonieziechmann/betula/internal/parser"
 )
 
 const baseURL = "https://www.b-tu.de"

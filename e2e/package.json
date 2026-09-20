@@ -1,5 +1,5 @@
 {
-  "name": "btu-catalog-e2e",
+  "name": "betula-e2e",
   "private": true,
   "type": "module",
   "description": "Browser smoke walk for the BTU catalog web app (docs/frontend-rewrite.md, phase 0)",

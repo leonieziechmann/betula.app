@@ -1,8 +1,8 @@
 [package]
-name = "btu-app"
+name = "folia-app"
 version = "0.1.0"
 edition = "2021"
-description = "The BTU catalog web app: Leptos components rendered on the server and hydrated in the browser"
+description = "The web app of Betula: Leptos components, rendered on the server and again in the browser"
 
 [lib]
 name = "app"
@@ -17,7 +17,7 @@ csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen"]
 leptos = "0.8.20"
 leptos_router = "0.8"
 leptos_meta = "0.8"
-btu-catalog = { path = "../catalog" }
+folia-catalog = { path = "../catalog" }
 serde = { version = "1.0", features = ["derive"] }
 leptos_axum = { version = "0.8", optional = true }
 http = { version = "1", optional = true }

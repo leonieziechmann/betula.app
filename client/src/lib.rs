@@ -14,8 +14,8 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
-    /// `window.btuDb.query(sql, params)` → `{ columns: string[], rows: any[][] }`.
-    #[wasm_bindgen(js_namespace = btuDb, js_name = query, catch)]
+    /// `window.betulaDb.query(sql, params)` → `{ columns: string[], rows: any[][] }`.
+    #[wasm_bindgen(js_namespace = betulaDb, js_name = query, catch)]
     fn db_query(sql: &str, params: js_sys::Array) -> Result<JsValue, JsValue>;
 }
 

@@ -1,5 +1,8 @@
 # Brief: Backend & database overhaul (data sources, schema, read views)
 
+> **Names.** Written before the project had a name. Since 2026-09-20 the product is Betula, "the scraper" is
+> **Radix** (`cmd/radix`, `radix.db`, `RADIX_*`) and the web tier is **Folia**; the text below keeps the old names.
+
 > Hand-off brief. It is self-contained; everything below was verified against the
 > repository and `btu_modules.db` on 2026-09-19 unless marked *(verify)*.
 

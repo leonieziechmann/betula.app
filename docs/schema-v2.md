@@ -13,14 +13,14 @@ scan-curriculum ──▶ plan, plan_entry  (validated PDF plans, a source of th
 
 | Step | Command | Package | Notes |
 |---|---|---|---|
-| Archive pages | `scraper crawl-modules`, `crawl-tree`, `crawl-events` | `internal/crawl`, `internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
-| Study plans | `scraper download-statutes`, `scraper scan-curriculum` | `internal/curriculumscan`, `internal/gemini`, `catalogdb/plans.go` | Validated plans are stored transactionally (`SavePlan`). The 140 plans of v1 were imported once; that importer is gone. |
-| Build | `scraper build` | `internal/catalogbuild`, `internal/normalize`, `internal/qistree` | Parses the archive and replaces all derived tables in **one transaction**; fails on any foreign-key violation. About 20 s for the whole catalog. A parser or normalization fix takes effect by building again, without the network. |
-| Validate | `scraper validate` | `catalogdb/validate.go` | Invariants (fail), source problems (warn), numbers (info), count baselines (fail below the minimum). Exit code 1 on failures. |
-| Export | `scraper export --out snapshot` | `catalogdb/export.go` | Refuses a database that fails validation. `VACUUM INTO` (a consistent copy that includes WAL frames), drops `raw_page`, rollback-journal mode, `ANALYZE`, `VACUUM`. Writes `snapshot/catalog-<hash>.db` and replaces `snapshot/current.json` atomically. Snapshots are never overwritten, because a reader may hold the previous one open. |
-| Publish | `scraper serve-snapshot --addr 127.0.0.1:8090` | `internal/snapshothttp` | `GET /snapshot/catalog.db` (ETag = content hash, `If-None-Match` → 304, Range) and `GET /snapshot/current.json`. **This HTTP endpoint is the only interface between scraper and web server.** |
+| Archive pages | `radix crawl-modules`, `crawl-tree`, `crawl-events` | `internal/crawl`, `internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
+| Study plans | `radix download-statutes`, `radix scan-curriculum` | `internal/curriculumscan`, `internal/gemini`, `catalogdb/plans.go` | Validated plans are stored transactionally (`SavePlan`). The 140 plans of v1 were imported once; that importer is gone. |
+| Build | `radix build` | `internal/catalogbuild`, `internal/normalize`, `internal/qistree` | Parses the archive and replaces all derived tables in **one transaction**; fails on any foreign-key violation. About 20 s for the whole catalog. A parser or normalization fix takes effect by building again, without the network. |
+| Validate | `radix validate` | `catalogdb/validate.go` | Invariants (fail), source problems (warn), numbers (info), count baselines (fail below the minimum). Exit code 1 on failures. |
+| Export | `radix export --out snapshot` | `catalogdb/export.go` | Refuses a database that fails validation. `VACUUM INTO` (a consistent copy that includes WAL frames), drops `raw_page`, rollback-journal mode, `ANALYZE`, `VACUUM`. Writes `snapshot/catalog-<hash>.db` and replaces `snapshot/current.json` atomically. Snapshots are never overwritten, because a reader may hold the previous one open. |
+| Publish | `radix serve-snapshot --addr 127.0.0.1:8090` | `internal/snapshothttp` | `GET /snapshot/catalog.db` (ETag = content hash, `If-None-Match` → 304, Range) and `GET /snapshot/current.json`. **This HTTP endpoint is the only interface between Radix and Folia (the web server).** |
 
-Database files: `btu_scraper.db` is the working database (archive + canonical, about 100 MB).
+Database files: `radix.db` is the working database (archive + canonical, about 100 MB).
 The snapshot is 34 MB (v1 shipped 50 MB). `btu_modules.db` (v1) is no longer written by
 any v2 command.
 
@@ -153,7 +153,7 @@ module page states, 109 only the tree states, 25 FÜS modules whose page admits 
 
 Done (see `docs/operations.md`):
 
-- **Service mode.** `scraper run` replaces the v1 refresher: rolling polite crawl of lists, module
+- **Service mode.** `radix run` replaces the v1 refresher: rolling polite crawl of lists, module
   pages, QIS tree and events, retention, build, validate, export, and the HTTP endpoints
   (`/snapshot/*`, `/healthz`, `/status`) in one process.
 - **Snapshots only change with the content.** The build computes a digest over everything a reader
@@ -184,7 +184,7 @@ Open:
 - **Plan matching.** Only about 44 % of the plan entries are linked to a catalog module (title
   matching). v2 has clean German and English titles for every module, which should lift this.
 - **v1 data** left the repository on 2026-09-19 (databases, disk cache, logs, config): it is in
-  `btu-scraper-backup-2026-09-19` next to the repository, together with a copy of the working
+  `betula-radix-backup-2026-09-19` next to the repository, together with a copy of the working
   database from before the first prune. No code reads it; the importer for the v1 plans was removed.
 - **`data-sources.md`** describes the v1 code paths it audited; those files no longer exist.
 
@@ -192,7 +192,7 @@ Open:
 
 The one-time v1 cache import (`import-cache`, since removed) read the v1 disk cache through `DiskCache.Get`, which deletes an entry when it is
 expired. The 896 cached QIS event pages (3-day TTL, fetched 09-11 … 09-14) were already expired
-and were removed by that read. Nothing the scraper could still use was lost, but they would have
+and were removed by that read. Nothing Radix could still use was lost, but they would have
 been useful as offline test data for events.
 
 ## 8. Events after the first QIS crawl (2026-09-19)

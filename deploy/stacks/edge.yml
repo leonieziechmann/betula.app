@@ -67,16 +67,16 @@
 #         labels:
 #           - "traefik.enable=true"
 #           - "traefik.swarm.network=edge"
-#           - "traefik.http.routers.btu-web.rule=Host(`betula.app`)"
-#           - "traefik.http.routers.btu-web.entrypoints=websecure"
-#           - "traefik.http.routers.btu-web.tls.certresolver=le"
-#           - "traefik.http.routers.btu-web.middlewares=secure-headers@file,compress@file"
-#           - "traefik.http.services.btu-web.loadbalancer.server.port=8080"   # mandatory: swarm has no port detection
+#           - "traefik.http.routers.folia.rule=Host(`betula.app`)"
+#           - "traefik.http.routers.folia.entrypoints=websecure"
+#           - "traefik.http.routers.folia.tls.certresolver=le"
+#           - "traefik.http.routers.folia.middlewares=secure-headers@file,compress@file"
+#           - "traefik.http.services.folia.loadbalancer.server.port=8080"   # mandatory: swarm has no port detection
 #   networks:
 #     edge:
 #       external: true
 #
-# (stacks/btu.example.yml is the full version of this for the application.)
+# (stacks/betula.example.yml is the full version of this for the application.)
 # A literal "$" in a label (regex replacement) must be written "$$", or stack deploy tries to substitute it.
 #
 # ---- Decisions ----------------------------------------------------------------------------------------------

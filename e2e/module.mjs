@@ -20,7 +20,7 @@ const open = async (options, path) => {
   page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 300)); });
   page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
   await page.goto(base + path, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__btuApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
   await page.evaluate(() => { window.__marker = 1; });
   const step = async (name, action, until, arg) => {
     const started = Date.now();
@@ -74,7 +74,7 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   const back = await page.evaluate((id) => { const row = document.querySelector(`a.row[data-id="${id}"]`)?.getBoundingClientRect(); const rows = document.querySelector(".rows").getBoundingClientRect(); return row ? row.top >= rows.top && row.bottom <= rows.bottom : null; }, id);
   check(back === true, `back on the list the row of the module is ${back === null ? "not loaded" : "not in view"}`);
   check(Math.abs((await page.evaluate(() => document.getElementById("filters").getBoundingClientRect().width)) - (sidebar[1] + 40)) <= 2, "the filter panel does not have the width the sidebar was given");
-  await page.evaluate(() => localStorage.removeItem("btu.filters.width"));
+  await page.evaluate(() => localStorage.removeItem("betula.filters.width"));
   await context.close();
 }
 

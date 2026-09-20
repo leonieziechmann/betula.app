@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
 )
 
 func openTestDB(t *testing.T) *catalogdb.DB {

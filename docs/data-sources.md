@@ -1,5 +1,8 @@
 # Data sources: where every fact comes from
 
+> **Names.** Written before the project had a name. Since 2026-09-20 the product is Betula, "the scraper" is
+> **Radix** (`cmd/radix`, `radix.db`, `RADIX_*`) and the web tier is **Folia**; the text below keeps the old names.
+>
 > Deliverable 1 of `docs/backend-data-overhaul.md`.
 > **Historical audit.** The code paths and line numbers below refer to the v1 scraper as of commit
 > `0b043c9`. That code was removed after schema v2 replaced it; the defects P1–P6 are fixed.

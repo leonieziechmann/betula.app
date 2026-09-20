@@ -17,7 +17,7 @@ fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
         .is_some_and(|value| value.split(',').any(|tag| tag.trim().trim_start_matches("W/") == etag))
 }
 
-/// `GET /api/db`: the active snapshot with the scraper's ETag. Browsers keep it in IndexedDB
+/// `GET /api/db`: the active snapshot with Radix's ETag. Browsers keep it in IndexedDB
 /// and come back with `If-None-Match`, which is answered without touching the file.
 pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let Some(snapshot) = state.store.current() else {
@@ -74,7 +74,7 @@ pub async fn status(State(state): State<AppState>) -> Response {
     });
     let body = json!({
         "snapshot": snapshot,
-        "scraper_last_contact_seconds_ago": state.store.seconds_since_contact(),
+        "radix_last_contact_seconds_ago": state.store.seconds_since_contact(),
         "html_cache": { "pages": cached_pages, "bytes": cached_bytes },
         "uptime_seconds": state.store.uptime().as_secs(),
         "build": state.build_id.as_ref(),
@@ -82,14 +82,14 @@ pub async fn status(State(state): State<AppState>) -> Response {
     ([(header::CACHE_CONTROL, "no-store")], Json(body)).into_response()
 }
 
-/// `GET /healthz`: 200 while a snapshot is served and the scraper was reachable recently.
+/// `GET /healthz`: 200 while a snapshot is served and Radix was reachable recently.
 pub async fn health(State(state): State<AppState>) -> Response {
     let problem = if state.store.current().is_none() {
         Some("no snapshot yet".to_string())
     } else {
         state.stale_after.and_then(|limit| {
             let silent_for = state.store.seconds_since_contact().unwrap_or_else(|| state.store.uptime().as_secs());
-            (silent_for > limit.as_secs()).then(|| format!("no answer from the scraper for {silent_for} s"))
+            (silent_for > limit.as_secs()).then(|| format!("no answer from Radix for {silent_for} s"))
         })
     };
     match problem {

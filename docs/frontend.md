@@ -1,4 +1,8 @@
-# The web tier: architecture, rules, how to run it
+# Folia, the web tier: architecture, rules, how to run it
+
+> Betula has two parts named after the birch: **Radix** (the root: the Go collector, `docs/operations.md`)
+> and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`
+> and `folia-server` with the binary `folia`).
 
 > State: 2026-09-20. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
@@ -8,7 +12,7 @@
 ## 1. Overview
 
 ```
-scraper ──HTTP──▶ server ──HTML (cached per snapshot)──▶ browser
+Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browser
  /snapshot/catalog.db        ──/api/db (gzip, ETag)───▶ browser: local SQLite (phase 2)
 ```
 
@@ -239,7 +243,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 ## 3. Running it
 
 ```bash
-./scraper.exe serve-snapshot --addr 127.0.0.1:8090
+./radix.exe serve-snapshot --addr 127.0.0.1:8090
 ```
 
 ```bash
@@ -247,7 +251,7 @@ bash scripts/build-client.sh
 ```
 
 ```bash
-cargo run -p btu-server
+cargo run -p folia-server
 ```
 
 The first command builds the browser app into `site/pkg` (needs the `wasm32-unknown-unknown`
@@ -255,18 +259,18 @@ target and `wasm-bindgen` 0.2.128, which Trunk keeps in its cache); without it t
 stays server-rendered.
 
 Open `http://127.0.0.1:8080`. The server fetches the snapshot over HTTP into `web-data/` and
-keeps serving the last good one when the scraper is away, also after a restart.
+keeps serving the last good one when Radix is away, also after a restart.
 
 | Flag | Environment | Default | |
 |---|---|---|---|
-| `--addr` | `BTU_WEB_ADDR` | `127.0.0.1:8080` | listen address |
-| `--snapshot-url` | `BTU_SNAPSHOT_URL` | `http://127.0.0.1:8090/snapshot/catalog.db` | the scraper's endpoint (plain HTTP inside the deployment network) |
-| `--data-dir` | `BTU_WEB_DATA_DIR` | `web-data` | downloaded snapshots |
-| `--poll-seconds` | `BTU_SNAPSHOT_POLL` | `60` | check interval (conditional GET) |
-| `--stale-after-seconds` | `BTU_SNAPSHOT_STALE_AFTER` | `21600` | `/healthz` fails when the scraper was silent this long (0: never) |
-| `--html-cache-mb` | `BTU_HTML_CACHE_MB` | `128` | rendered pages kept in memory |
-| `--site-root` | `BTU_SITE_ROOT` | `site` | browser bundle (`pkg/`), from phase 2 |
-| `--log-format`, `--log-level` | `BTU_LOG_FORMAT`, `BTU_LOG_LEVEL` | `text`, `info` | `json` in production |
+| `--addr` | `FOLIA_ADDR` | `127.0.0.1:8080` | listen address |
+| `--snapshot-url` | `FOLIA_SNAPSHOT_URL` | `http://127.0.0.1:8090/snapshot/catalog.db` | Radix's endpoint (plain HTTP inside the deployment network) |
+| `--data-dir` | `FOLIA_DATA_DIR` | `web-data` | downloaded snapshots |
+| `--poll-seconds` | `FOLIA_SNAPSHOT_POLL` | `60` | check interval (conditional GET) |
+| `--stale-after-seconds` | `FOLIA_SNAPSHOT_STALE_AFTER` | `21600` | `/healthz` fails when Radix was silent this long (0: never) |
+| `--html-cache-mb` | `FOLIA_HTML_CACHE_MB` | `128` | rendered pages kept in memory |
+| `--site-root` | `FOLIA_SITE_ROOT` | `site` | browser bundle (`pkg/`), from phase 2 |
+| `--log-format`, `--log-level` | `FOLIA_LOG_FORMAT`, `FOLIA_LOG_LEVEL` | `text`, `info` | `json` in production |
 
 Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /healthz`, `/assets/app.css`,
 `/assets/favicon.svg`, `/robots.txt`.
@@ -277,12 +281,12 @@ Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /healthz`, `
 |---|---|---|
 | INFO | `server.listening`, `server.shutdown` | lifecycle |
 | INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`) |
-| DEBUG | `snapshot.unchanged` | the scraper answered 304 |
+| DEBUG | `snapshot.unchanged` | Radix answered 304 |
 | INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`) |
-| WARN | `snapshot.fetch_failed` | scraper unreachable or not ready; retried with backoff; the last snapshot stays active |
+| WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
 | WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / served uncompressed |
 | ERROR | `snapshot.rejected` | a download is not a usable catalog; the previous snapshot stays active |
-| ERROR | `snapshot.stale` | no answer from the scraper for longer than the limit |
+| ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
 | ERROR | `http.request` with `status >= 500`, `render.failed`, `snapshot.unreadable` | a request failed |
 | ERROR | `server.start_failed`, `server.failed` | the server cannot run |
 
@@ -292,19 +296,19 @@ Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /healthz`, `
 cargo test
 ```
 
-needs a snapshot (`snapshot/current.json` or `BTU_TEST_SNAPSHOT`) and fails without one:
+needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one:
 
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
   real data, the URL codec, the ranking of the pickers (`fuzzy`).
-- `server`: a fake scraper over HTTP: not ready → 503; download, check, gzip, activate; 304 →
+- `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
-  404 is never cached; `/api/db` with the scraper's ETag, gzip and 304; a broken export is
-  rejected and the old snapshot stays; a new one invalidates pages; restart without the scraper.
+  404 is never cached; `/api/db` with Radix's ETag, gzip and 304; a broken export is
+  rejected and the old snapshot stays; a new one invalidates pages; restart without Radix.
 
 ```bash
 cargo clippy --all-targets
-cargo clippy -p btu-client --target wasm32-unknown-unknown
+cargo clippy -p folia-client --target wasm32-unknown-unknown
 ```
 
 ```bash
@@ -375,5 +379,5 @@ in a sheet; and the filter links without JavaScript.
 - **The neighbourhood of a module** in the sidebar: what it builds on and what builds on it
   (`v_module_prerequisite` in both directions), as a small map instead of two lists.
 - **A stated faculty per program** instead of the derived one: the BTU's pages of the study
-  programmes name it. That is a new source for the scraper (an additive column, a crawl the
+  programmes name it. That is a new source for Radix (an additive column, a crawl the
   owner has to approve), not a frontend change.

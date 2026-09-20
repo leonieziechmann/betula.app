@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/leonieziechmann/btu-scraper/internal/normalize"
+	"github.com/leonieziechmann/betula/internal/normalize"
 )
 
 const (

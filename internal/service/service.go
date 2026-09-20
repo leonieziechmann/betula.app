@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogbuild"
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/crawl"
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
-	"github.com/leonieziechmann/btu-scraper/internal/snapshothttp"
+	"github.com/leonieziechmann/betula/internal/catalogbuild"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/crawl"
+	"github.com/leonieziechmann/betula/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/snapshothttp"
 )
 
 // Config is the behaviour of the long-running service.

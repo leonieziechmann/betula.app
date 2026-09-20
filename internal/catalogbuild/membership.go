@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/leonieziechmann/btu-scraper/internal/model"
-	"github.com/leonieziechmann/btu-scraper/internal/normalize"
-	"github.com/leonieziechmann/btu-scraper/internal/parser"
+	"github.com/leonieziechmann/betula/internal/model"
+	"github.com/leonieziechmann/betula/internal/normalize"
+	"github.com/leonieziechmann/betula/internal/parser"
 )
 
 // writePageAssignments stores what each module page lists under „Zuordnung zu

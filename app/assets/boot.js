@@ -1,7 +1,7 @@
 // Starts the browser app: opens the local copy of the catalog (sql.js, cached in IndexedDB by
 // the snapshot's ETag), loads the WASM bundle and lets it take the page over. Until then, and
 // whenever anything here fails, the server-rendered site keeps working as it is.
-const DB_NAME = "btu-catalog";
+const DB_NAME = "betula-catalog";
 const STORE = "snapshots";
 
 let statusState = null;
@@ -101,7 +101,7 @@ async function openDatabase() {
   await loadScript("/assets/sql-wasm.js");
   const SQL = await window.initSqlJs({ locateFile: (file) => "/assets/" + file });
   const db = new SQL.Database(current.bytes);
-  window.btuDb = {
+  window.betulaDb = {
     etag: current.etag,
     query(sql, params) {
       const statement = db.prepare(sql);
@@ -120,10 +120,10 @@ async function openDatabase() {
 
 try {
   const [app] = await Promise.all([
-    import("/pkg/btu_client.js").then(async (module) => { await module.default("/pkg/btu_client_bg.wasm"); return module; }),
+    import("/pkg/folia_client.js").then(async (module) => { await module.default("/pkg/folia_client_bg.wasm"); return module; }),
     openDatabase(),
   ]);
-  window.__btuApp = true;
+  window.__betulaApp = true;
   document.documentElement.classList.add("app");
   app.start();
   status("Offline bereit", "ok");

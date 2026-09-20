@@ -1,4 +1,4 @@
-//! The BTU catalog web app. The same components render on the server (complete HTML for
+//! The web app of Betula (the pages of Folia). The same components render on the server (complete HTML for
 //! search engines, shared links and browsers without JavaScript) and in the browser.
 //!
 //! Rules (docs/frontend.md §2): navigation state comes from the router as plain values (R1);
@@ -40,7 +40,7 @@ pub const BOOT_SCRIPT: &str = "/assets/boot.js";
 /// Runs before the first paint: marks the document as scripted and applies what this browser
 /// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps. Such personal
 /// view settings live in localStorage, never in the URL and never in server HTML (R9).
-const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('btu.theme');if(t==='dark'||t==='light')d.dataset.theme=t;var w=parseInt(localStorage.getItem('btu.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('btu.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px')}catch(e){}";
+const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px')}catch(e){}";
 
 /// The HTML document around the app (server side only).
 pub fn shell(options: LeptosOptions) -> impl IntoView {

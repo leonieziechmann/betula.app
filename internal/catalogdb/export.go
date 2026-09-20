@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/oplog"
 )
 
-// snapshotDropTables exist for the scraper only and are not shipped to readers.
+// snapshotDropTables exist for Radix only and are not shipped to readers.
 var snapshotDropTables = []string{"raw_page"}
 
 const (

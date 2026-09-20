@@ -20,7 +20,7 @@ const open = async (options, path) => {
   page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 300)); });
   page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
   await page.goto(base + path, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__btuApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
   await page.evaluate(() => { window.__marker = 1; });
   const step = async (name, action, until, arg) => {
     const started = Date.now();

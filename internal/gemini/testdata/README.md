@@ -14,6 +14,6 @@ Wirtschaftsinformatik includes unnamed subtotal rows and repeated elective slots
 Optional integration tests compare the Go extractor to these unchanged snapshots.
 Cell identity, labels, semester spans, credits and intake must match exactly;
 border coordinates may differ by at most 0.25 PDF points due to stroke averaging.
-Set BTU_PDF_TEST_DIR to the absolute statutes directory. No Python runtime is used.
+Set RADIX_PDF_TEST_DIR to the absolute statutes directory. No Python runtime is used.
 The default regression tests also generate real PDFs entirely in Go and do not
 make API calls.

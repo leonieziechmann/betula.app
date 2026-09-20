@@ -1,5 +1,5 @@
 // Small behaviours shared by the server-rendered pages and the browser app. Everything works
-// without this file (links and forms). Before the app has taken over (`window.__btuApp`), it
+// without this file (links and forms). Before the app has taken over (`window.__betulaApp`), it
 // makes the classic site smoother: filters apply on change, panels keep their scroll position
 // across page loads. In both modes: the shortcuts (Esc closes the preview or leaves the module
 // page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search), the theme
@@ -7,7 +7,7 @@
 // kept in localStorage).
 (() => {
   const root = document.documentElement;
-  const appRuns = () => window.__btuApp === true;
+  const appRuns = () => window.__betulaApp === true;
   const phone = () => matchMedia("(max-width: 900px)").matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
@@ -20,7 +20,7 @@
     try {
       document.querySelectorAll("[data-keep-scroll]").forEach((el) => {
         const name = el.dataset.keepScroll;
-        sessionStorage.setItem("btu.scroll." + name, JSON.stringify({ top: el.scrollTop, key: name === "rows" ? listKey() : "" }));
+        sessionStorage.setItem("betula.scroll." + name, JSON.stringify({ top: el.scrollTop, key: name === "rows" ? listKey() : "" }));
       });
     } catch {}
   }
@@ -29,7 +29,7 @@
       document.querySelectorAll("[data-keep-scroll]").forEach((el) => {
         const name = el.dataset.keepScroll;
         if (name === "detail") return;
-        const saved = JSON.parse(sessionStorage.getItem("btu.scroll." + name) || "null");
+        const saved = JSON.parse(sessionStorage.getItem("betula.scroll." + name) || "null");
         if (saved && (name !== "rows" || saved.key === listKey())) el.scrollTop = saved.top;
       });
     } catch {}
@@ -85,7 +85,7 @@
       case "theme": {
         const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
         root.dataset.theme = dark ? "light" : "dark";
-        try { localStorage.setItem("btu.theme", root.dataset.theme); } catch {}
+        try { localStorage.setItem("betula.theme", root.dataset.theme); } catch {}
         break;
       }
       case "sheet-open":
@@ -139,13 +139,13 @@
   const sideWidth = () => (document.getElementById("filters") || document.getElementById("sidebar"))?.getBoundingClientRect().width ?? 272;
   const RESIZE = {
     "resize-filters": {
-      key: "btu.filters.width", prop: "--w-filters", grows: 1,
+      key: "betula.filters.width", prop: "--w-filters", grows: 1,
       min: () => 232, max: () => Math.max(232, Math.min(440, innerWidth * 0.42)),
       panel: () => document.getElementById("filters") || document.getElementById("sidebar"),
       place: (handle, width) => { handle.style.left = width === null ? "" : width + "px"; },
     },
     "resize-preview": {
-      key: "btu.preview.width", prop: "--preview-w", grows: -1,
+      key: "betula.preview.width", prop: "--preview-w", grows: -1,
       min: () => 360, max: () => { const work = document.querySelector(".work"); return work ? Math.max(360, work.clientWidth - sideWidth() - 128) : 2400; },
       panel: () => document.querySelector(".work > .detail"),
       place: (handle, width) => { handle.style.right = width === null ? "" : width - 12 + "px"; },

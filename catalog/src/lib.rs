@@ -1,4 +1,4 @@
-//! Read access to the BTU catalog snapshot (docs/schema-v2.md §3 is the contract).
+//! Read access to the catalog snapshot of Betula (docs/schema-v2.md §3 is the contract).
 //!
 //! The web server and the browser app share this crate, so there is exactly one place
 //! with SQL (`queries`), one typed filter state (`filter`), one set of row structs

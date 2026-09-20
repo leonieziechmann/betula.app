@@ -15,21 +15,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/curriculumscan"
-	"github.com/leonieziechmann/btu-scraper/internal/gemini"
-	"github.com/leonieziechmann/btu-scraper/internal/model"
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
-	"github.com/leonieziechmann/btu-scraper/internal/planaudit"
-	"github.com/leonieziechmann/btu-scraper/internal/secrets"
-	"github.com/leonieziechmann/btu-scraper/internal/statutes"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/curriculumscan"
+	"github.com/leonieziechmann/betula/internal/gemini"
+	"github.com/leonieziechmann/betula/internal/model"
+	"github.com/leonieziechmann/betula/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/planaudit"
+	"github.com/leonieziechmann/betula/internal/secrets"
+	"github.com/leonieziechmann/betula/internal/statutes"
 )
 
 // runDownloadStatutes fetches the regulation PDFs the programs link (OPUS).
 func runDownloadStatutes(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("download-statutes", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "Database path")
-	dir := fs.String("statutes-dir", envOr("BTU_STATUTES_DIR", "statutes"), "Directory for the regulation PDFs (env BTU_STATUTES_DIR)")
+	dir := fs.String("statutes-dir", envOr("RADIX_STATUTES_DIR", "statutes"), "Directory for the regulation PDFs (env RADIX_STATUTES_DIR)")
 	nameFilter := fs.String("name", "", "Only programs whose name contains this")
 	degreeFilter := fs.String("degree", "", "Only programs whose degree contains this")
 	programID := fs.String("program-id", "", "Only this program")
@@ -92,7 +92,7 @@ func runDownloadStatutes(ctx context.Context, args []string) {
 func runScanCurriculum(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("scan-curriculum", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "Database path")
-	dir := fs.String("statutes-dir", envOr("BTU_STATUTES_DIR", "statutes"), "Directory with the regulation PDFs (env BTU_STATUTES_DIR)")
+	dir := fs.String("statutes-dir", envOr("RADIX_STATUTES_DIR", "statutes"), "Directory with the regulation PDFs (env RADIX_STATUTES_DIR)")
 	nameFilter := fs.String("name", "", "Only programs whose name contains this")
 	degreeFilter := fs.String("degree", "", "Only programs whose degree contains this")
 	programID := fs.String("program-id", "", "Only this program (e.g. 079-82-2008)")
@@ -164,7 +164,7 @@ func runScanCurriculum(ctx context.Context, args []string) {
 		fail("cannot read the module catalog", oplog.Err(err))
 	}
 	if len(catalog) == 0 {
-		fail("the module catalog is empty; run `scraper build` first")
+		fail("the module catalog is empty; run `radix build` first")
 	}
 	programs, err := db.ScanPrograms(*nameFilter, *degreeFilter, *programID)
 	if err != nil {
@@ -317,7 +317,7 @@ func runScanCurriculum(ctx context.Context, args []string) {
 	log.Log(ctx, level, "scan finished", "event", "scan.finished", "valid", saved, "already_validated", skipped,
 		"without_plan", withoutPlan, "needs_review", rejected, "review_report", filepath.Join(audit.Dir, "review.md"))
 	if !*dryRun && saved > 0 {
-		log.Info("run `scraper build` (or wait for the next service cycle) to publish the new plans", "event", "scan.hint")
+		log.Info("run `radix build` (or wait for the next service cycle) to publish the new plans", "event", "scan.hint")
 	}
 	if rejected > 0 {
 		os.Exit(1)

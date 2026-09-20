@@ -1,8 +1,8 @@
 [package]
-name = "btu-catalog"
+name = "folia-catalog"
 version = "0.1.0"
 edition = "2021"
-description = "Read access to the BTU catalog snapshot: row types, labels, filters and every SQL query of the web tier"
+description = "Read access to the catalog snapshot of Betula: row types, labels, filters and every SQL query of the web tier"
 
 [lib]
 name = "catalog"

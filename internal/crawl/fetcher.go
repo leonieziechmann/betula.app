@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/leonieziechmann/btu-scraper/internal/catalogdb"
-	"github.com/leonieziechmann/btu-scraper/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/oplog"
 )
 
 // ErrNotFound is returned by Fetcher.Get for a page the server answers with 404.

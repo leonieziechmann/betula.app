@@ -15,7 +15,7 @@ deploy/
     90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
   stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml,
-                          btu.example.yml, monitoring.notify.example.yml, monitoring-secrets.sh
+                          betula.example.yml, monitoring.notify.example.yml, monitoring-secrets.sh
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/
 ```
 
@@ -110,7 +110,7 @@ Why this order, and what can go wrong:
   ssh betula 'cid=$(docker ps -q --no-trunc -f name=monitoring_grafana | head -n 1); docker network inspect docker_gwbridge -f "{{(index .Containers \"$cid\").IPv4Address}}"'
   ssh -N -L 3000:<that address without /24>:3000 betula        # then open http://localhost:3000
   ```
-  The same recipe reaches Prometheus (9090) or the scraper's `/status` (8090).
+  The same recipe reaches Prometheus (9090) or Radix's `/status` (8090).
 - Dashboards and alert rules are files (`config/monitoring/grafana/`); the UI refuses to save them.
   Edit, export JSON, commit, sync, `40-stacks.sh monitoring`.
 
@@ -134,7 +134,7 @@ when their bind-mounted configuration changed.
 
 ## 4. Shipping the application (no registry)
 
-Once: `cp deploy/stacks/btu.example.yml deploy/stacks/btu.yml`, resolve its TODOs (the web image does not
+Once: `cp deploy/stacks/betula.example.yml deploy/stacks/betula.yml`, resolve its TODOs (the web image does not
 exist yet), sync, and create the secret the stack names - the value travels on stdin, never in argv:
 `<password manager CLI> | ssh betula docker secret create gemini-api-key -`
 
@@ -142,10 +142,10 @@ Every release, on the machine that built the images:
 
 ```bash
 TAG="$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)"          # a NEW tag per build, never "latest"
-docker load < result && docker tag btu-scraper:latest "btu-scraper:${TAG}"     # nix build .#container
-docker save "btu-scraper:${TAG}" | gzip | ssh betula docker load               # same for btu-server
-ssh betula "BTU_SCRAPER_IMAGE=btu-scraper:${TAG} BTU_WEB_IMAGE=btu-server:${TAG} \
-  docker stack deploy --resolve-image never --detach=false -c /opt/betula/stacks/btu.yml btu"
+docker load < result && docker tag betula-radix:latest "betula-radix:${TAG}"     # nix build .#radix-image
+docker save "betula-radix:${TAG}" | gzip | ssh betula docker load               # same for folia
+ssh betula "RADIX_IMAGE=betula-radix:${TAG} FOLIA_IMAGE=betula-folia:${TAG} \
+  docker stack deploy --resolve-image never --detach=false -c /opt/betula/stacks/betula.yml betula"
 ssh betula bash /opt/betula/vps/91-verify-stacks.sh
 ```
 
@@ -153,7 +153,7 @@ Swarm compares service definitions, not image contents: re-loading an existing t
 hence the new tag each time. Rollback = deploy the previous tag again (it is still loaded). The first
 time, finish with `ssh betula docker stack rm placeholder`; the app's router outranks the placeholder
 (priority 1) as soon as it exists, so there is no gap. Old versions stay until you remove them
-(`docker image ls 'btu-*'`, `docker image rm ...`); the weekly prune timer only removes untagged images.
+(`docker image ls 'betula-*'`, `docker image rm ...`); the weekly prune timer only removes untagged images.
 
 ## 5. Secrets
 
@@ -163,7 +163,7 @@ Swarm secrets are immutable; rotation means a new name.
 |---|---|
 | `grafana-admin-password` | created by `40-stacks.sh`. Later changes: `monitoring-secrets.sh reset-admin-password` (the secret itself stays) |
 | `grafana-smtp-*`, `grafana-ntfy-url`, tokens | `... \| ssh betula /opt/betula/stacks/monitoring-secrets.sh set <name>`. Rotate: `set <name>-v2`, point `source:` in the override at it, sync, `40-stacks.sh monitoring`, `docker secret rm <name>` |
-| `gemini-api-key` | `... \| ssh betula docker secret create gemini-api-key-v2 -`, in `btu.yml`: `- source: gemini-api-key-v2` / `target: gemini-api-key`, deploy, remove the old one |
+| `gemini-api-key` | `... \| ssh betula docker secret create gemini-api-key-v2 -`, in `betula.yml`: `- source: gemini-api-key-v2` / `target: gemini-api-key`, deploy, remove the old one |
 | ssh key of `deploy` | append the new public key to `/home/deploy/.ssh/authorized_keys`, test it in a new session, then remove the old line |
 | root password | not touched by any script; it is the break-glass login on the provider's console. Keep it in the password manager |
 | ACME account + certificates | volume `edge_acme` (`acme.json`). Losing it means ordering everything again (5 identical certificates per week) |
@@ -189,9 +189,9 @@ month or two and after Docker security advisories. Ubuntu security updates insta
 ## 7. Logs from the command line
 
 ```bash
-docker stack services edge; docker service ps --no-trunc btu_scraper       # state, and why a task failed
-docker service logs -f --tail 100 btu_scraper                              # one JSON line per event
-docker service logs --since 1h btu_scraper 2>&1 | grep '"level":"ERROR"'   # ERROR = a human is needed
+docker stack services edge; docker service ps --no-trunc betula_radix       # state, and why a task failed
+docker service logs -f --tail 100 betula_radix                              # one JSON line per event
+docker service logs --since 1h betula_radix 2>&1 | grep '"level":"ERROR"'   # ERROR = a human is needed
 docker service logs --since 1h edge_traefik 2>&1 | grep -i acme            # certificate orders
 docker service logs --since 1h edge_traefik 2>&1 | grep '"DownstreamStatus":5'   # failed requests
 sudo journalctl -u ssh -u docker -u fail2ban --since -2h                   # host units
@@ -207,13 +207,13 @@ for containers, `job="journal"` and `unit` for the host).
 | What | When |
 |---|---|
 | Ubuntu security updates | daily (unattended-upgrades); services using an updated library are restarted, except docker/containerd |
-| **Reboot** | 04:30 Europe/Berlin, only when an update asks for it (kernel, libc). All containers restart; the site is away for about a minute. Interrupting the scraper is safe (docs/operations.md) |
+| **Reboot** | 04:30 Europe/Berlin, only when an update asks for it (kernel, libc). All containers restart; the site is away for about a minute. Interrupting Radix is safe (docs/operations.md) |
 | Reboot after a kernel panic | after 60 s |
 | Containers | swarm restarts a task that exits or turns unhealthy; after a boot everything comes back by itself |
 | Certificates | Traefik renews 30 days before expiry; an alert fires below 14 days |
 | Image cleanup | Sunday 03:30: dangling images and old build cache only, never networks or volumes |
 | ssh bans | fail2ban: 5 failures in 10 min = 1 h, doubling up to a week; sshd penalises per source on top |
-| **Not** automatic | Docker Engine upgrades, image tag updates, backups (none exist yet: volumes `edge_acme`, `btu_btu-data`, `monitoring_grafana-data`) |
+| **Not** automatic | Docker Engine upgrades, image tag updates, backups (none exist yet: volumes `edge_acme`, `betula_radix-data`, `monitoring_grafana-data`) |
 
 Nothing on this server can report that the server itself is down: point an external uptime check
 at `https://betula.app/`.

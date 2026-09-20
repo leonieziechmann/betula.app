@@ -1,7 +1,7 @@
 # Grafana-managed alert rules (unified alerting file provisioning, schema of Grafana 13.2).
 # Every rule: A = instant query against a provisioned data source (uid prometheus / loki),
 # B = reduce (last, NaN dropped), C = threshold. The numbers in the comments refer to the
-# list in the monitoring task: (1) btu errors (2) containers (3) host (4) 5xx (5) certificate (6) ssh.
+# list in the monitoring task: (1) betula errors (2) containers (3) host (4) 5xx (5) certificate (6) ssh.
 #
 # State handling, decided once:
 #   noDataState  OK       where "nothing found" is the healthy case (no error lines, no 5xx)
@@ -25,15 +25,15 @@ groups:
     interval: "1m"
     rules:
 
-      # (1) The scraper's log levels are a contract: ERROR = a human is needed. One alert instance per
-      # (service, event, msg), so the message names the event. The text is "msg" in the Go scraper
+      # (1) Radix's log levels are a contract: ERROR = a human is needed. One alert instance per
+      # (service, event, msg), so the message names the event. The text is "msg" in Radix
       # (slog) and "message" in the Rust web server (tracing, flatten_event); label_format merges them.
       # Lines that are not JSON are skipped here (__error__) and handled by the next rule.
-      # The btu stack MUST set BTU_LOG_FORMAT=json for the web service (its default is text).
-      # The window is 35m = one scraper cycle (30m) + margin: an error that comes back every cycle is
+      # The betula stack MUST set FOLIA_LOG_FORMAT=json for the web service (its default is text).
+      # The window is 35m = one Radix cycle (30m) + margin: an error that comes back every cycle is
       # ONE continuous alert instead of a resolve/fire pair every half hour. No data = no errors = OK.
-      - uid: betula-btu-error-logs
-        title: "btu: ERROR in the logs"
+      - uid: betula-error-logs
+        title: "betula: ERROR in the logs"
         condition: C
         data:
           - refId: A
@@ -48,7 +48,7 @@ groups:
                 type: loki
                 uid: loki
               editorMode: code
-              expr: "sum by (service, event, msg) (count_over_time({stack=\"btu\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
+              expr: "sum by (service, event, msg) (count_over_time({stack=\"betula\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
               queryType: instant
               intervalMs: 1000
               maxDataPoints: 43200
@@ -103,16 +103,16 @@ groups:
           description: |-
             {{ $labels.msg }}
             {{ if eq $labels.event "validate.check_failed" }}An invariant or count baseline failed, so no new snapshot is published. A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. The fields check, value and samples of the log line say which one.{{ else if eq $labels.event "crawl.aborted" }}Ten pages failed in a row and the crawl stage stopped: the university server is down or blocks us. Published data is intact and only ages.{{ else if eq $labels.event "export.failed" }}The export failed; the previous snapshot stays current.{{ else if eq $labels.event "build.failed" }}The build was rolled back; the canonical data is unchanged.{{ else }}Level ERROR means a human is needed, or published data could not be updated (docs/operations.md, section Logging).{{ end }}
-            {{ if $values.B }}{{ printf "%.0f" $values.B.Value }} such line(s) in the last 35 minutes. {{ end }}Logs dashboard: stack btu, level error. Also: GET /status on the scraper.
+            {{ if $values.B }}{{ printf "%.0f" $values.B.Value }} such line(s) in the last 35 minutes. {{ end }}Logs dashboard: stack betula, level error. Also: GET /status on Radix.
 
       # (1b) What rule (1) cannot parse: a Go runtime crash ("panic:", "fatal error:") or a Rust panic
-      # on stderr, and ERROR lines of a web server that was deployed without BTU_LOG_FORMAT=json.
+      # on stderr, and ERROR lines of a web server that was deployed without FOLIA_LOG_FORMAT=json.
       # One crash stays below the restart rule's threshold, so this is the only signal for it.
       # Matched on the text, not on Loki's detected_level: that heuristic calls a line "info" as
       # soon as the word appears anywhere in it. No word boundaries: the text format wraps the
       # level in ANSI colour codes.
-      - uid: betula-btu-unstructured-errors
-        title: "btu: crash or ERROR outside the JSON log"
+      - uid: betula-unstructured-errors
+        title: "betula: crash or ERROR outside the JSON log"
         condition: C
         data:
           - refId: A
@@ -127,7 +127,7 @@ groups:
                 type: loki
                 uid: loki
               editorMode: code
-              expr: "sum by (service) (count_over_time({stack=\"btu\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
+              expr: "sum by (service) (count_over_time({stack=\"betula\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
               queryType: instant
               intervalMs: 1000
               maxDataPoints: 43200
@@ -179,7 +179,7 @@ groups:
           severity: critical
         annotations:
           summary: "{{ $labels.service }}: crash or ERROR line that is not JSON"
-          description: "{{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}Some{{ end }} line(s) in the last 35 minutes. Either the process crashed (Go \"panic:\" / \"fatal error:\", Rust \"panicked at\"; Swarm has restarted it) or the service logs text instead of JSON - the web server needs BTU_LOG_FORMAT=json in the btu stack file, otherwise its errors arrive here without event and message. Logs dashboard: stack btu, filter panic|fatal error|ERROR."
+          description: "{{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}Some{{ end }} line(s) in the last 35 minutes. Either the process crashed (Go \"panic:\" / \"fatal error:\", Rust \"panicked at\"; Swarm has restarted it) or the service logs text instead of JSON - the web server needs FOLIA_LOG_FORMAT=json in the betula stack file, otherwise its errors arrive here without event and message. Logs dashboard: stack betula, filter panic|fatal error|ERROR."
 
       # The log rules treat "no data" as "all good", so a broken pipeline must raise its own alert.
       # Measured on Alloy's counters, not on log volume: a quiet night is not an outage.
@@ -335,10 +335,10 @@ groups:
       # resolve by itself while one of them is gone (a task that cannot start - rejected, bad image,
       # missing secret - makes Traefik answer 404, which the 5xx rule does not see):
       #   edge_traefik   always
-      #   the web server btu_web, or placeholder_web while the application has not landed
-      #   btu_scraper    as soon as anything of stack btu runs (so the rule is quiet before btu lands)
+      #   the web server betula_folia, or placeholder_web while the application has not landed
+      #   betula_radix    as soon as anything of stack betula runs (so the rule is quiet before betula lands)
       # absent() yields exactly one series per missing service. Keep the list in step with the
-      # exclusion in (2c) when the btu stack names its services differently. 3m pending covers a
+      # exclusion in (2c) when the betula stack names its services differently. 3m pending covers a
       # stop-first update. The last line keeps the rule quiet while cAdvisor itself reports nothing
       # (Alloy down is the target-down rule's job). During the very first bring-up it fires until
       # the edge and placeholder stacks run - that is the truth, not noise.
@@ -357,7 +357,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: "(absent(container_last_seen{service=\"edge_traefik\"}) or label_replace(absent(container_last_seen{service=~\"btu_web|placeholder_web\"}), \"service\", \"btu_web\", \"\", \"\") or (absent(container_last_seen{service=\"btu_scraper\"}) and on() (count(container_last_seen{stack=\"btu\"}) > 0))) and on() (count(container_last_seen{id=\"/\"}) > 0)"
+              expr: "(absent(container_last_seen{service=\"edge_traefik\"}) or label_replace(absent(container_last_seen{service=~\"betula_folia|placeholder_web\"}), \"service\", \"betula_folia\", \"\", \"\") or (absent(container_last_seen{service=\"betula_radix\"}) and on() (count(container_last_seen{stack=\"betula\"}) > 0))) and on() (count(container_last_seen{id=\"/\"}) > 0)"
               instant: true
               range: false
               intervalMs: 1000
@@ -410,7 +410,7 @@ groups:
           severity: critical
         annotations:
           summary: "{{ $labels.service }} is not running"
-          description: "No container of {{ $labels.service }} exists{{ if eq $labels.service \"btu_web\" }} (and none of placeholder_web either): https://betula.app answers 404 or not at all{{ end }}. This alert stays until a container runs again. Check: docker service ps --no-trunc {{ $labels.service }} (a rejected task names its reason in the ERROR column), docker stack services {{ if eq $labels.service \"edge_traefik\" }}edge{{ else }}btu{{ end }}. If EVERY service is listed, cAdvisor inside Alloy has lost sight of Docker - check docker service logs monitoring_alloy."
+          description: "No container of {{ $labels.service }} exists{{ if eq $labels.service \"betula_folia\" }} (and none of placeholder_web either): https://betula.app answers 404 or not at all{{ end }}. This alert stays until a container runs again. Check: docker service ps --no-trunc {{ $labels.service }} (a rejected task names its reason in the ERROR column), docker stack services {{ if eq $labels.service \"edge_traefik\" }}edge{{ else }}betula{{ end }}. If EVERY service is listed, cAdvisor inside Alloy has lost sight of Docker - check docker service logs monitoring_alloy."
 
   - orgId: 1
     name: betula-containers-slow
@@ -438,7 +438,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: "(count by (stack, service) (count_over_time(container_last_seen{service!=\"\", service!~\"edge_traefik|btu_web|placeholder_web|btu_scraper\"}[7d])) unless count by (stack, service) (container_last_seen{service!=\"\"})) and on() (count(container_last_seen{id=\"/\"}) > 0)"
+              expr: "(count by (stack, service) (count_over_time(container_last_seen{service!=\"\", service!~\"edge_traefik|betula_folia|placeholder_web|betula_radix\"}[7d])) unless count by (stack, service) (container_last_seen{service!=\"\"})) and on() (count(container_last_seen{id=\"/\"}) > 0)"
               instant: true
               range: false
               intervalMs: 1000
@@ -567,7 +567,7 @@ groups:
           severity: critical
         annotations:
           summary: "{{ $labels.mountpoint }} is {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} %{{ else }}almost{{ end }} full"
-          description: "Usual suspects: docker system df (old images: docker image prune -a), journalctl --disk-usage, the volumes of Loki (30 d retention), Prometheus (3 GB cap) and the scraper database."
+          description: "Usual suspects: docker system df (old images: docker image prune -a), journalctl --disk-usage, the volumes of Loki (30 d retention), Prometheus (3 GB cap) and Radix database."
       - uid: betula-memory-usage
         title: "Memory usage above 90 %"
         condition: C

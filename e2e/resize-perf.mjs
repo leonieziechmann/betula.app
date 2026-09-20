@@ -15,7 +15,7 @@ const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANN
 const open = async (path, width = 1500) => {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   await page.goto(base + path, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__btuApp === true, null, { timeout: 120000 });
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
   if (noFallback) await page.evaluate(() => { document.documentElement.dataset.resizeBudget = "100000"; });
   return page;
 };
@@ -39,7 +39,7 @@ const drag = async (page, selector, dx) => {
   const { frames, mode } = await page.evaluate(() => { cancelAnimationFrame(window.__raf); return { frames: window.__frames.slice(1), mode: document.documentElement.dataset.resizeMode }; });
   await page.mouse.up();
   await page.waitForTimeout(300);
-  await page.evaluate(() => { localStorage.removeItem("btu.filters.width"); localStorage.removeItem("btu.preview.width"); document.documentElement.style.removeProperty("--w-filters"); document.documentElement.style.removeProperty("--preview-w"); });
+  await page.evaluate(() => { localStorage.removeItem("betula.filters.width"); localStorage.removeItem("betula.preview.width"); document.documentElement.style.removeProperty("--w-filters"); document.documentElement.style.removeProperty("--preview-w"); });
   const sorted = [...frames].sort((a, b) => a - b);
   const at = (q) => Math.round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] * 10) / 10;
   return { mode, ms, frames: frames.length, median: at(0.5), p95: at(0.95), worst: at(1), over33ms: frames.filter((f) => f > 33).length };
