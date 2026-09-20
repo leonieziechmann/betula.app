@@ -128,6 +128,24 @@ pub fn Frame(
     }
 }
 
+/// „Zurück" on a page inside an area (a module, a program): up to the area's list as it was left.
+/// If that list is where the visitor came from, `enhance.js` goes back through the browser
+/// history instead (`data-back="history"`), so the list is the same history entry as before and
+/// the history does not grow. Esc does the same (R10).
+#[component]
+pub fn BackLink(area: crate::tabs::Area) -> impl IntoView {
+    let location = leptos_router::hooks::use_location();
+    let tabs = crate::tabs::Tabs::expect();
+    let now = crate::tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
+    let list = tabs.map(|tabs| tabs.list(area)).unwrap_or_else(|| area.root().to_string());
+    let came_from_it = tabs.is_some_and(|tabs| tabs.before(&now) == list);
+    view! {
+        <a class="ghost" href=list data-action="back" data-back=came_from_it.then_some("history") title="Zurück (Esc)">
+            <Icon name="arrow-left"/>"Zurück"<Shortcut keys="Esc"/>
+        </a>
+    }
+}
+
 /// A two-state toggle that is a link to the page with the other state: the same look and the
 /// same rules as the toggles of the catalog's filter panel (no handler, works without
 /// JavaScript, the space bar flips it).

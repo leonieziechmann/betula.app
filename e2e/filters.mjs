@@ -213,22 +213,41 @@ const drag = async (dx) => {
   await page.mouse.up();
 };
 const startWidth = await width();
-// While the handle is dragged only the panel follows; the page is laid out again when it is let go
-// (a relayout of a long list with every pointer move is what made the dragging lag).
+// The page follows the handle live (list and search field move with it). Only where a page cannot keep
+// up, the rest of the drag moves the panel alone and the page follows when the handle is let go; the
+// test forces that with a budget no frame can meet.
 {
-  const state = () => page.evaluate(() => ({ panel: Math.round(document.getElementById("filters").getBoundingClientRect().width), list: Math.round(document.querySelector(".panel.list").getBoundingClientRect().width), variable: document.documentElement.style.getPropertyValue("--w-filters") }));
+  const state = () => page.evaluate(() => ({
+    panel: Math.round(document.getElementById("filters").getBoundingClientRect().width),
+    list: Math.round(document.querySelector(".panel.list").getBoundingClientRect().width),
+    search: Math.round(document.querySelector(".search").getBoundingClientRect().left),
+    variable: document.documentElement.style.getPropertyValue("--w-filters"),
+    mode: document.documentElement.dataset.resizeMode || null,
+  }));
+  const dragBy = async (dx) => {
+    const edge = await page.locator('[data-action="resize-filters"]').boundingBox();
+    await page.mouse.move(edge.x + edge.width / 2, edge.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(edge.x + edge.width / 2 + dx, edge.y + 200, { steps: 12 });
+    await page.waitForTimeout(150);
+    const during = await state();
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+    return { during, after: await state() };
+  };
   const before = await state();
-  const edge = await page.locator('[data-action="resize-filters"]').boundingBox();
-  await page.mouse.move(edge.x + edge.width / 2, edge.y + 200);
-  await page.mouse.down();
-  await page.mouse.move(edge.x + edge.width / 2 + 50, edge.y + 200, { steps: 5 });
-  await page.waitForTimeout(120);
-  const during = await state();
-  await page.mouse.up();
-  await page.waitForTimeout(120);
-  const after = await state();
-  check(Math.abs(during.panel - (before.panel + 50)) <= 2 && during.list === before.list && during.variable === before.variable, `resize: while dragging ${JSON.stringify(during)}, before ${JSON.stringify(before)}`);
-  check(Math.abs(after.panel - (before.panel + 50)) <= 2 && after.list === before.list - (after.panel - before.panel) && after.variable === after.panel + "px", `resize: after letting go ${JSON.stringify(after)}`);
+  const live = await dragBy(60);
+  check(live.during.mode === "live" && Math.abs(live.during.panel - (before.panel + 60)) <= 2 && live.during.list === before.list - (live.during.panel - before.panel) && live.during.search === before.search + (live.during.panel - before.panel),
+    `resize: the page does not follow the handle live: ${JSON.stringify(live.during)}, before ${JSON.stringify(before)}`);
+  check(live.after.mode === null && live.after.variable === live.after.panel + "px", `resize: after letting go ${JSON.stringify(live.after)}`);
+  await page.dblclick('[data-action="resize-filters"]');
+
+  await page.evaluate(() => { document.documentElement.dataset.resizeBudget = "0.001"; });
+  const forced = await dragBy(60);
+  check(forced.during.mode === "panel" && Math.abs(forced.during.panel - (before.panel + 60)) <= 2 && forced.during.list > before.list - 60, `resize: the fallback did not take over: ${JSON.stringify(forced.during)}`);
+  check(forced.after.mode === null && forced.after.variable === forced.after.panel + "px" && forced.after.list === before.list - (forced.after.panel - before.panel) && Math.abs(forced.after.panel - (before.panel + 60)) <= 2,
+    `resize: after the fallback the page did not catch up: ${JSON.stringify(forced.after)}`);
+  await page.evaluate(() => { delete document.documentElement.dataset.resizeBudget; });
   await page.dblclick('[data-action="resize-filters"]');
 }
 // The zone that takes the pointer is much wider than the grip, and none of it lies over the panel (its scrollbar).

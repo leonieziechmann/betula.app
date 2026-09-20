@@ -22,6 +22,8 @@ use leptos_router::hooks::use_location;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::nav;
+use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Frame, Icon, ToggleLink};
 
 /// All programs of one subject („Maschinenbau" with its degrees and forms of study).
@@ -228,6 +230,18 @@ pub fn ProgramsPage() -> impl IntoView {
     let form_counts: Vec<(FormGroup, usize)> = FormGroup::ALL.iter().map(|form| (*form, count_where(&|p| FormGroup::of(p.study_variant.as_ref()) == Some(*form)))).collect();
     let plan_count = count_where(&|p| p.has_plan);
 
+    // Coming back from a program's page, the overview shows that program again.
+    let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
+    let left_at = Tabs::expect().and_then(|tabs| tabs::page_below(&tabs.before(&now), url::PROGRAMS));
+    if let Some(slug) = left_at.filter(|slug| slug.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')) {
+        Effect::new(move |_| {
+            // Now, and once more after the browser has restored its own idea of the scroll position.
+            let selector = format!(".program-pill[data-id=\"{slug}\"]");
+            nav::reveal_selector(&selector);
+            set_timeout(move || { nav::reveal_selector(&selector); }, std::time::Duration::from_millis(220));
+        });
+    }
+
     let all = StoredValue::new(all);
     let shown = Memo::new(move |_| {
         let url = url.get();
@@ -416,6 +430,7 @@ fn program_link(program: &Program, subject: &str, as_form: bool) -> impl IntoVie
             class:form=as_form
             class:no-plan=!program.has_plan
             data-walk="program-link"
+            data-id=program.slug.clone()
             href=url::program_path(&program.slug, ProgramTab::Plan)
             title=tooltip
             aria-label=described

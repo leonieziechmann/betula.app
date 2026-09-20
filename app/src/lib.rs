@@ -15,6 +15,7 @@ pub mod format;
 pub mod icons;
 pub mod nav;
 pub mod pages;
+pub mod tabs;
 pub mod ui;
 
 use catalog::url;
@@ -25,6 +26,7 @@ use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, program::ProgramPage, programs::ProgramsPage};
+use crate::tabs::{Area, Tabs};
 use crate::ui::Icon;
 
 /// Where the host serves the files of `app/assets`.
@@ -67,6 +69,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    Tabs::provide();
     view! {
         <Link rel="preload" href=FONT as_="font" type_="font/woff2" crossorigin="anonymous"/>
         <Stylesheet href=STYLESHEET/>
@@ -74,6 +77,7 @@ pub fn App() -> impl IntoView {
         <Title formatter=|title: String| if title.is_empty() { "BTU Modulkatalog".to_string() } else { format!("{title} · BTU Modulkatalog") }/>
         <Meta name="description" content="Module, Studiengänge und Regelstudienpläne der BTU Cottbus-Senftenberg: durchsuchbar, filterbar, aktuell."/>
         <Router>
+            <FollowTabs/>
             <a class="skip-link" href="#content">"Zum Inhalt springen"</a>
             <Rail/>
             <div class="main">
@@ -94,25 +98,31 @@ pub fn App() -> impl IntoView {
     }
 }
 
-/// Which main area a path belongs to (for the navigation's current item and the page title).
-fn area(path: &str) -> &'static str {
-    if path.starts_with(url::PROGRAMS) {
-        "programs"
-    } else if path.starts_with(url::CATALOG) {
-        "catalog"
-    } else {
-        "home"
+/// Lets the memory of the tabs follow the router (it needs the router's context).
+#[component]
+fn FollowTabs() -> impl IntoView {
+    if let Some(tabs) = Tabs::expect() {
+        tabs.follow();
     }
 }
 
+/// The main navigation. Its items are tabs: each leads to where its area was left (`tabs`).
 #[component]
 fn NavItems() -> impl IntoView {
     let location = use_location();
-    let current = move |name: &'static str| (area(&location.pathname.get()) == name).then_some("page");
+    let tabs = Tabs::expect();
+    let current = move |area: Area| (Area::of(&location.pathname.get()) == area).then_some("page");
+    let href = move |area: Area| {
+        let path = location.pathname.get();
+        match tabs {
+            Some(tabs) => tabs.href(area, &path),
+            None => area.root().to_string(),
+        }
+    };
     view! {
-        <a class="nav" href=url::HOME title="Start" aria-current=move || current("home")><span class="ind"><Icon name="house"/></span>"Start"</a>
-        <a class="nav" href=url::CATALOG title="Module" aria-current=move || current("catalog")><span class="ind"><Icon name="layout-list"/></span>"Module"</a>
-        <a class="nav" href=url::PROGRAMS title="Studiengänge" aria-current=move || current("programs")><span class="ind"><Icon name="graduation-cap"/></span>"Studium"</a>
+        <a class="nav" data-area="home" href=url::HOME title="Start" aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/></span>"Start"</a>
+        <a class="nav" data-area="catalog" href=move || href(Area::Catalog) title="Module" aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>"Module"</a>
+        <a class="nav" data-area="programs" href=move || href(Area::Programs) title="Studiengänge" aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/></span>"Studium"</a>
     }
 }
 
@@ -136,7 +146,7 @@ fn Rail() -> impl IntoView {
 #[component]
 fn TopBar() -> impl IntoView {
     let location = use_location();
-    let area_now = Memo::new(move |_| area(&location.pathname.get()));
+    let area_now = Memo::new(move |_| Area::of(&location.pathname.get()));
     let navigate = use_navigate();
     let pending = StoredValue::new(None::<TimeoutHandle>);
 
@@ -149,7 +159,7 @@ fn TopBar() -> impl IntoView {
             handle.clear();
         }
         let run = move || {
-            let target = if area_now.get_untracked() == "programs" {
+            let target = if area_now.get_untracked() == Area::Programs {
                 let on_overview = location.pathname.get_untracked() == url::PROGRAMS;
                 let mut next = if on_overview { url::ProgramsUrl::parse(&location.search.get_untracked()) } else { Default::default() };
                 next.text = text.trim().to_string();
@@ -169,11 +179,11 @@ fn TopBar() -> impl IntoView {
     view! {
         <header class="topbar">
             {move || {
-                let programs = area_now.get() == "programs";
+                let programs = area_now.get() == Area::Programs;
                 let (title, action, placeholder) = match area_now.get() {
-                    "programs" => ("Studiengänge", url::PROGRAMS, "Studiengang suchen"),
-                    "catalog" => ("Module", url::CATALOG, "Modul, Nummer oder Thema suchen"),
-                    _ => ("Start", url::CATALOG, "Modul, Nummer oder Thema suchen"),
+                    Area::Programs => ("Studiengänge", url::PROGRAMS, "Studiengang suchen"),
+                    Area::Catalog => ("Module", url::CATALOG, "Modul, Nummer oder Thema suchen"),
+                    Area::Home => ("Start", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                 };
                 let initial = url::parse_pairs(&location.search.get_untracked())
                     .into_iter()

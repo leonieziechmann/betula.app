@@ -22,6 +22,7 @@ use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::nav::{self, keep_position_after_prepend, list_height, list_position};
 use crate::pages::module::ModulePanel;
+use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 
 #[component]
@@ -71,9 +72,11 @@ pub fn CatalogPage() -> impl IntoView {
         }
     });
     // Coming back from a module's page, the list shows the row the visitor left it at: the
-    // previewed module, or on a phone the row that was tapped. Only the first list of this visit
-    // does that; a filter change starts at the top as always.
-    let come_back_to = StoredValue::new(open.get_untracked().or_else(nav::recall_row));
+    // previewed module, or (a phone has no preview) the module whose page was open just before.
+    // Only the first list of this visit does that; a filter change starts at the top as always.
+    let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
+    let left_at = Tabs::expect().and_then(|tabs| tabs::page_below(&tabs.before(&now), "/catalog/module"));
+    let come_back_to = StoredValue::new(open.get_untracked().or(left_at));
     let preview = Memo::new(move |_| match open.get() {
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),

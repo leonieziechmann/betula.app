@@ -15,7 +15,8 @@ use leptos_router::hooks::use_params_map;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::{EmptyState, ErrorState, Frame, Icon, KindBadge, NotFound, OfferBadge};
+use crate::tabs::Area;
+use crate::ui::{BackLink, EmptyState, ErrorState, Frame, Icon, KindBadge, NotFound, OfferBadge};
 
 #[component]
 pub fn ProgramPage() -> impl IntoView {
@@ -115,6 +116,7 @@ fn ProgramView(data: ProgramData, tab: ProgramTab) -> impl IntoView {
         <Meta name="description" content=description/>
         <article class="page-inner" data-walk="program-page" data-walk-id=p.slug.clone()>
             <header class="panel page-head">
+                <div class="hero-top"><BackLink area=Area::Programs/></div>
                 <p class="eyebrow"><a href=url::PROGRAMS>"Studiengänge"</a>" / "{p.degree_level.label().to_string()}</p>
                 <h1>{p.name.clone()}</h1>
                 <p class="badges">

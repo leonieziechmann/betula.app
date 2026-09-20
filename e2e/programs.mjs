@@ -2,8 +2,9 @@
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node programs.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Walks: the sidebar is in the same place on every page → overview (faculties in order, every program
 // once, nothing cut off) → filters (links, the sidebar is not rebuilt, the search keeps them) → jump to a
-// faculty without a history entry → program page (views in the sidebar) → phone (filters in a sheet) →
-// the overview without JavaScript.
+// faculty without a history entry → program page (views in the sidebar, „Zurück" and Esc lead back to the
+// program in the overview) → the rail's items are tabs that remember where their area was left → phone
+// (filters in a sheet) → the overview without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -89,6 +90,32 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await step("program page", () => page.click('.program-pill[href^="/programs/bachelor-informatik"]'), () => location.pathname.startsWith("/programs/bachelor-informatik") && document.querySelector('[data-walk="program-page"]'));
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), "program page: the sidebar moved");
   await step("program page: another view", () => page.click('#sidebar .toc a:has-text("Alle Module")'), () => location.pathname.endsWith("/modules") && document.querySelector("table.modules") && document.querySelector('#sidebar .toc a[aria-current="page"]')?.textContent === "Alle Module");
+
+  // „Zurück" (and Esc) lead to the overview, and the overview shows the program again.
+  const inView = () => page.evaluate(() => { const pill = document.querySelector('.program-pill[data-id^="bachelor-informatik"]')?.getBoundingClientRect(); return Boolean(pill) && pill.top >= 0 && pill.bottom <= innerHeight; });
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-action="back"] kbd')].some((k) => k.textContent === "Esc")), "program page: no back link with its shortcut");
+  await step("program page: Zurück", () => page.click('[data-action="back"]'), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 100);
+  await page.waitForTimeout(400);
+  check(await inView(), "back on the overview the program is not in view");
+  await step("program page again", () => page.click('.program-pill[data-id^="bachelor-informatik"]'), () => location.pathname.startsWith("/programs/bachelor-informatik"));
+  await step("program page: Esc", () => page.keyboard.press("Escape"), () => location.pathname === "/programs");
+
+  // The rail's items are tabs: each leads to where its area was left.
+  const tab = (area) => page.getAttribute(`.rail a[data-area="${area}"]`, "href");
+  await step("a filter in the overview", () => page.click('#sidebar a.chip:has-text("Master")'), () => location.search === "?level=master");
+  await step("a program", () => page.click('.program-pill[data-id^="master-informatik"]'), () => location.pathname.startsWith("/programs/master-informatik"));
+  const programPage = await page.evaluate(() => location.pathname);
+  check((await tab("programs")) === "/programs?level=master", `tabs: on a program's page the own tab leads to ${await tab("programs")}, not to the overview as it was left`);
+  await step("tab: Module", () => page.click('.rail a[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelector(".rows a.row"));
+  await step("a filter in the catalog", () => page.click('#filters a.chip:has-text("Winter")'), () => location.search.includes("turnus=winter"));
+  check((await tab("programs")) === programPage, `tabs: the tab of the programs leads to ${await tab("programs")}, the area was left at ${programPage}`);
+  await step("tab: Studium returns to the program", () => page.click('.rail a[data-area="programs"]'), (path) => location.pathname === path && document.querySelector('[data-walk="program-page"]'), programPage);
+  check((await tab("catalog")) === "/catalog?turnus=winter", `tabs: the tab of the catalog leads to ${await tab("catalog")}`);
+  // Coming from another area, „Zurück" leads up to the overview (not back to that other area).
+  await step("Zurück after a change of tabs", () => page.click('[data-action="back"]'), () => location.pathname === "/programs" && location.search === "?level=master");
+  await step("tab: Module returns to the filtered list", () => page.click('.rail a[data-area="catalog"]'), () => location.pathname === "/catalog" && location.search.includes("turnus=winter"));
+  check((await tab("catalog")) === "/catalog", "tabs: on the list the own tab is not the plain list");
+
   await step("home", () => page.click('.rail a[href="/"]'), () => location.pathname === "/" && document.querySelector(".features"));
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), "home: the sidebar is not in the frame's place");
   await context.close();
@@ -114,6 +141,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   const page = await context.newPage();
   await page.goto(base + "/programs?level=master", { waitUntil: "domcontentloaded" });
   check((await page.getAttribute('#sidebar a.chip:has-text("Master")', "data-state")) === "with", "no JS: the filter of the URL is not shown as set");
+  check((await page.getAttribute('.rail a[data-area="catalog"]', "href")) === "/catalog", "no JS: a tab is not the plain link to its area");
   const before = await page.locator(".program-pill").count();
   await page.click('#sidebar a.chip:has-text("Doppelabschluss")');
   await page.waitForURL(/form=double/);

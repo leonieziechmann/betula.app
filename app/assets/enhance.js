@@ -13,7 +13,6 @@
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
   // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
   const filters = () => document.getElementById("filters") || document.querySelector(".sidebar.sheet");
-  let inAppSteps = 0;
 
   // ---- classic mode: scroll positions of the panels survive a page load ----
   const listKey = () => location.search.replace(/([?&])(page|open)=[^&]*/g, "$1");
@@ -71,17 +70,13 @@
     if (appRuns() && e.target.matches("form[data-live-search]")) e.preventDefault();
   });
 
-  // A row that is clicked is remembered in the history entry it is clicked in (capture: before
-  // the router adds the next entry). Coming back to that entry, the list shows the row again.
+  // Classic mode on a phone: a module is its own page, never a preview (the app does this by
+  // itself, and also knows which row to show when the visitor comes back).
   document.addEventListener("click", (e) => {
     const row = e.target.closest?.("a.row[data-id]");
-    if (!row) return;
-    try { history.replaceState({ ...(history.state || {}), btuRow: row.dataset.id }, ""); } catch {}
-    // On a phone a module is its own page, never a preview (the app does this by itself).
-    if (!appRuns() && phone() && !e.defaultPrevented) {
-      e.preventDefault();
-      location.href = "/catalog/module/" + encodeURIComponent(row.dataset.id);
-    }
+    if (!row || appRuns() || !phone() || e.defaultPrevented) return;
+    e.preventDefault();
+    location.href = "/catalog/module/" + encodeURIComponent(row.dataset.id);
   }, true);
 
   document.addEventListener("click", (e) => {
@@ -102,10 +97,11 @@
         filters()?.classList.remove("open");
         break;
       case "back": {
-        // Back to where the visitor came from (list, filters and scroll position included),
-        // if that was this site; otherwise follow the link.
-        const cameFromHere = appRuns() ? inAppSteps > 0 : document.referrer.startsWith(location.origin);
-        if (cameFromHere && history.length > 1) { e.preventDefault(); history.back(); }
+        // The link leads to the list of the area. If that list is where the visitor came from,
+        // go back through the history instead: the same entry as before, and no new one. The app
+        // knows and says so (`data-back`); the classic site can only ask the referrer.
+        const cameFromIt = appRuns() ? target.dataset.back === "history" : document.referrer.startsWith(location.origin);
+        if (cameFromIt && history.length > 1) { e.preventDefault(); history.back(); }
         break;
       }
       case "jump": {
@@ -128,18 +124,18 @@
         break;
       }
     }
-    // Steps inside the site, for „Zurück": links that were followed, not buttons in link's clothing.
-    if (!e.defaultPrevented && e.target.closest("a[href]")) inAppSteps++;
   });
 
   // ---- widths of the filter panel and the module preview: drag the edge, arrow keys on the
   // focused edge, a double click resets. Personal, so kept in localStorage and not in the URL.
   //
-  // A width is a custom property on <html>, and changing it lays out the whole page again: the
-  // list changes its width, and with it every row and its container queries (measured with 300
-  // rows: 60 to 80 ms a frame). So while the handle is dragged only the panel itself follows, as
-  // an inline width, above its neighbour, at most once a frame. The property is written once,
-  // when the handle is let go.
+  // The page follows the handle live (owner, 2026-09-20: that is how it has to feel): the width
+  // is a custom property on <html>, written at most once a frame. Every write lays out the whole
+  // page, which is fine as long as the page keeps up. Where it does not (three frames in a row
+  // far over budget: a very long list, a slow machine), the rest of that drag moves only the
+  // panel itself, above its neighbour, and the page is laid out once when the handle is let go.
+  // Pages have to be cheap to lay out for this to stay live; `e2e/resize-perf.mjs` measures it.
+  // `data-resize-budget` on <html> sets the budget in ms (the tests use it to force the fallback).
   const sideWidth = () => (document.getElementById("filters") || document.getElementById("sidebar"))?.getBoundingClientRect().width ?? 272;
   const RESIZE = {
     "resize-filters": {
@@ -175,26 +171,38 @@
     const startWidth = panel.getBoundingClientRect().width;
     const startX = e.clientX; // the grabbed point stays under the pointer
     root.classList.add("resizing");
-    let latest = startWidth, frame = 0;
-    const paint = () => {
-      frame = 0;
+    root.dataset.resizeMode = "live";
+    const budget = Number(root.dataset.resizeBudget) || 34; // ms; a frame at 60 Hz has 16.7
+    let latest = startWidth, applied = null, live = true, wrote = false, slow = 0, previous = 0, loop = 0;
+    const tick = (now) => {
+      // How long the frame after a write took tells whether the page keeps up.
+      if (live && wrote && previous) {
+        slow = now - previous > budget ? slow + 1 : 0;
+        if (slow >= 3) { live = false; root.dataset.resizeMode = "panel"; }
+      }
+      previous = now;
+      wrote = false;
       const width = within(edge, latest);
-      panel.style.width = width + "px";
-      edge.place(handle, width);
+      if (width !== applied) {
+        applied = width;
+        wrote = true;
+        if (live) root.style.setProperty(edge.prop, width + "px");
+        else { panel.style.width = width + "px"; edge.place(handle, width); }
+      }
+      loop = requestAnimationFrame(tick);
     };
-    const move = (ev) => {
-      latest = startWidth + edge.grows * (ev.clientX - startX);
-      if (!frame) frame = requestAnimationFrame(paint);
-    };
+    loop = requestAnimationFrame(tick);
+    const move = (ev) => { latest = startWidth + edge.grows * (ev.clientX - startX); };
     const stop = (ev) => {
       removeEventListener("pointermove", move);
       removeEventListener("pointerup", stop);
       removeEventListener("pointercancel", stop);
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(loop);
       if (ev.type === "pointerup") latest = startWidth + edge.grows * (ev.clientX - startX);
       panel.style.width = "";
       edge.place(handle, null);
       root.classList.remove("resizing");
+      delete root.dataset.resizeMode;
       setWidth(edge, latest);
     };
     addEventListener("pointermove", move);

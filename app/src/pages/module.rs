@@ -19,7 +19,8 @@ use leptos_router::hooks::use_params_map;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::{ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
+use crate::tabs::Area;
+use crate::ui::{BackLink, ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
 
 /// What both the preview panel and the full page show about a module, precomputed once.
 #[derive(Clone)]
@@ -183,7 +184,7 @@ pub fn ModulePage() -> impl IntoView {
                             <article class="module-page">
                                 <header class="panel hero">
                                     <div class="hero-top">
-                                        <a class="ghost" href=url::CATALOG data-action="back" title="Zurück (Esc)"><Icon name="arrow-left"/>"Zurück"<Shortcut keys="Esc"/></a>
+                                        <BackLink area=Area::Catalog/>
                                         <span class="mono">{data.module.id.clone()}</span>
                                     </div>
                                     <Heading data=data.clone()/>

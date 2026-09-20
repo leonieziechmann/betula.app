@@ -11,7 +11,7 @@ name = "app"
 # Server rendering (the web server) and the browser app (the WASM bundle) are the two builds of this crate.
 ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "dep:leptos_axum", "dep:http"]
 # The browser app renders fresh from the local database instead of hydrating server HTML.
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "dep:js-sys"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen"]
 
 [dependencies]
 leptos = "0.8.20"
@@ -22,8 +22,7 @@ serde = { version = "1.0", features = ["derive"] }
 leptos_axum = { version = "0.8", optional = true }
 http = { version = "1", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
-js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "History", "ScrollIntoViewOptions", "ScrollLogicalPosition"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition"] }
 
 [lints.clippy]
 unwrap_used = "deny"

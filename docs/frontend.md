@@ -84,9 +84,19 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   when a preview becomes a page: its sidebar has the width and the handle of the filter panel.
   The sidebar jumps to the sections of the page (without history entries, so Esc still leaves the
   page) and holds the actions: copy the link, the original at the BTU, and the places where
-  „Merken" and the semester plan will live. Coming back to the list, the row the visitor left it
-  at is scrolled into view (`enhance.js` notes the clicked row in the state of the history entry
-  it is clicked in; `nav::recall_row`).
+  „Merken" and the semester plan will live.
+- **The areas are tabs (owner decision 2026-09-20, R19; `app/src/tabs.rs`):** the items of the
+  rail (and of the phone's bottom bar) remember where their area was left. From another area a
+  tab leads back to that place (the open program, the filtered list with its preview); on a page
+  inside the area (a module, a program) the area's own tab leads up to the area's list as it was
+  left; on the list it is the plain link. The same memory serves „Zurück" on a module's and a
+  program's page (`ui::BackLink`; Esc does the same): it leads to the area's list, through the
+  browser history if that list is where the visitor came from (`data-back="history"`, so the
+  history does not grow), and as a plain link otherwise (after a change of tabs „Zurück" leads
+  up, not back to the other area). And it tells a list which row to show again: the catalog
+  scrolls to the module whose page was open just before, the program overview to the program.
+  The memory is personal state: `sessionStorage`, never the URL, never server HTML; without the
+  app every tab is the plain link to its area.
 - **Every page has the same frame (owner decision 2026-09-20, R17):** a sidebar as wide as the
   catalog's filter panel, with the same handle and the same remembered width, and the page next
   to it (`ui::Frame`; the catalog builds it itself, its sidebar is the filter form). Going from
@@ -180,14 +190,22 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   gap to it**, so two areas meet in the middle and never overlap; more only into space that holds
   no control. Resize handles are zones of 16–20 px around a 4 px grip; the slider's knob is drawn
   inside a larger thumb.
-- **R18. A drag moves one panel, not the page.** The widths of filter panel and preview are
-  custom properties on `<html>`; changing one lays out the whole page again (the list changes
-  its width, every row re-evaluates its container queries: 60 to 80 ms a frame with 300 rows).
-  While a handle is dragged, `enhance.js` sets only an inline width on the panel (it lies above
-  its neighbour), at most once a frame, and writes the property once when the handle is let go.
-  `node e2e/resize-perf.mjs` measures frame times during a drag (before: 61 of 136 frames over
-  33 ms, worst 83 ms; after: none, worst 18 ms); `filters.mjs` checks that list and property do
-  not change during a drag. The same rule for anything else that follows the pointer.
+- **R19. The areas are tabs** (see „Look and interaction"): a new area gets an entry in
+  `tabs::Area`, and a page inside an area uses `ui::BackLink`.
+- **R18. The page follows a resize handle live, so pages have to be cheap to lay out.** The
+  widths of filter panel and preview are custom properties on `<html>`, written at most once a
+  frame while a handle is dragged; every write lays out the whole page (owner, 2026-09-20: the
+  live feel is wanted; moving only the panel and catching up on release felt worse). What keeps
+  that at 60 fps (`node e2e/resize-perf.mjs` measures frame times on every kind of page):
+  - No layout whose cost explodes with its width: the program overview set in CSS text columns
+    had to rebalance all columns with every pixel and stuttered; the matrix of grid rows does not.
+  - Long lists do not lay out what is off screen: `content-visibility: auto` on the catalog's
+    rows (with 350 rows loaded: 58 of 138 frames over 33 ms before, 1 after). The rows are direct
+    children of the scrolling list, so this works per row; the last height is remembered.
+  - A safety net for pages or machines that still cannot keep up: after three frames in a row
+    over budget, the rest of that drag moves only the panel (inline width, above its neighbour)
+    and the property is written when the handle is let go (`data-resize-mode`, and
+    `data-resize-budget` to force it in `filters.mjs`).
 - **R17. Every page is framed** by `ui::Frame` (see „Look and interaction"). A new page starts
   with the question what its sidebar holds, not whether it has one.
 - **R16. In one reactive closure read the source, not a memo derived from it and the source.**
@@ -323,8 +341,10 @@ endless list, a shared preview link becomes the page.
 cd e2e && node programs.mjs
 ```
 
-drives the programs area: the sidebar in the same place on catalog, overview, program page and
-landing page; the overview (faculties in order, every program exactly once, the counts of header,
+drives the programs area: „Zurück" and Esc on a program's page leading back to the program in the
+overview; the rail's items as tabs (the open program and the filtered catalog are still there
+after a change of areas, „Zurück" after such a change leads up and not across); the sidebar in
+the same place on catalog, overview, program page and landing page; the overview (faculties in order, every program exactly once, the counts of header,
 sections and links agree, no two links of a subject read the same, nothing cut off in the
 sidebar); filters as links that keep focus and sidebar, the search keeping the filters; a jump to
 a faculty without a history entry; the views of a program in the sidebar; on a phone the filters

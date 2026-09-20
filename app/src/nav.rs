@@ -180,17 +180,40 @@ pub fn is_phone() -> bool {
     false
 }
 
-/// The row the visitor left the list at, if this history entry remembers one: `enhance.js`
-/// writes the id of a clicked row into the state of the entry it is clicked in, so it is there
-/// again when the visitor comes back to exactly that entry, and nowhere else.
-pub fn recall_row() -> Option<String> {
+/// What this browser session remembers under `key` (`sessionStorage`). `None` on the server.
+#[allow(unused_variables)]
+pub fn session_get(key: &str) -> Option<String> {
     #[cfg(feature = "csr")]
     {
-        let state = web_sys::window()?.history().ok()?.state().ok()?;
-        js_sys::Reflect::get(&state, &wasm_bindgen::JsValue::from_str("btuRow")).ok()?.as_string()
+        web_sys::window()?.session_storage().ok()??.get_item(key).ok()?
     }
     #[cfg(not(feature = "csr"))]
     None
+}
+
+#[allow(unused_variables)]
+pub fn session_set(key: &str, value: &str) {
+    #[cfg(feature = "csr")]
+    if let Some(storage) = web_sys::window().and_then(|w| w.session_storage().ok().flatten()) {
+        let _ = storage.set_item(key, value);
+    }
+}
+
+/// Scrolls the first element that matches `selector` into the middle of what scrolls around it.
+/// `false` if there is none.
+#[allow(unused_variables)]
+pub fn reveal_selector(selector: &str) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        let found = web_sys::window().and_then(|w| w.document()).and_then(|d| d.query_selector(selector).ok().flatten());
+        let Some(element) = found else { return false };
+        let options = web_sys::ScrollIntoViewOptions::new();
+        options.set_block(web_sys::ScrollLogicalPosition::Center);
+        element.scroll_into_view_with_scroll_into_view_options(&options);
+        true
+    }
+    #[cfg(not(feature = "csr"))]
+    false
 }
 
 /// Scrolls the list so that the row of this module is in the middle. `false` if the row is not

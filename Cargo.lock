@@ -250,7 +250,6 @@ version = "0.1.0"
 dependencies = [
  "btu-catalog",
  "http",
- "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",
