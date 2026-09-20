@@ -27,8 +27,8 @@ scraper ──HTTP──▶ server ──HTML (cached per snapshot)──▶ bro
 |---|---|
 | `/` | Landing page: every function with a link |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
-| `/catalog?…&open=<id>` | The same list with this module previewed next to it (full screen on a phone); the preview has a „Vollbild" link to the module's page |
-| `/catalog/module/<id>` | The module's own page, two columns on the whole screen |
+| `/catalog?…&open=<id>` | The same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it |
+| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…` | The program overview filtered by the search in the top bar |
 | `/programs` | Program overview (current PO versions) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page and its tabs |
@@ -36,7 +36,9 @@ scraper ──HTTP──▶ server ──HTML (cached per snapshot)──▶ bro
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
 value that is both wanted and excluded counts as wanted. An exclusion removes only what the data
-states: a module whose campus or turnus is unknown stays in the list (R12).
+states: a module whose campus or turnus is unknown stays in the list (R12). Lecturers: the
+wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhler) and not
+(Lambers or Hofstedt).
 
 ### Look and interaction (since 2026-09-19, owner-approved direction)
 
@@ -71,7 +73,21 @@ states: a module whose campus or turnus is unknown stays in the list (R12).
   - **Credits:** a slider with two knobs (0–30, the right end means „no upper limit") and the two
     exact numbers under it. The knobs cannot pass each other; the filter follows when a knob is
     let go.
-  - A chosen lecturer is a toggle of its own: with („bei"), without („nicht bei"), gone.
+  - A chosen lecturer is a row: on the left the switch between + (wanted) and × (unwanted), the
+    name with the academic title under it, on the right the button that takes the person out.
+  - Entries of the program picker have one shape: name, short degree, year of the PO. The form of
+    study is added only where two programs would otherwise read the same.
+  - What the pickers offer is loaded once per visit (`pages::catalog_choices`), not with every
+    list, which keeps a filter change to the queries of the list itself.
+- **A module reads the same wherever it is opened:** preview and page are the same parts in the
+  same order (times and key facts, then the description); a wide page puts the halves side by
+  side, the description on the left. The page keeps the frame of the catalog, so nothing jumps
+  when a preview becomes a page: its sidebar has the width and the handle of the filter panel.
+  The sidebar jumps to the sections of the page (without history entries, so Esc still leaves the
+  page) and holds the actions: copy the link, the original at the BTU, and the places where
+  „Merken" and the semester plan will live. Coming back to the list, the row the visitor left it
+  at is scrolled into view (`enhance.js` notes the clicked row in the state of the history entry
+  it is clicked in; `nav::recall_row`).
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added).
 - **Tokens:** `app/assets/app.css` starts with the token block (colors, radii, shadows); everything
@@ -143,6 +159,14 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   gap to it**, so two areas meet in the middle and never overlap; more only into space that holds
   no control. Resize handles are zones of 16–20 px around a 4 px grip; the slider's knob is drawn
   inside a larger thumb.
+- **R16. In one reactive closure read the source, not a memo derived from it and the source.**
+  reactive_graph 0.2.14 does not mark the observer that made a memo recompute as dirty. A closure
+  that reads `state` (a memo derived from `query`) and then `query` therefore misses a change of
+  `query` whenever `state` keeps its value: checking `state` recomputes `query`, `state` reports
+  „unchanged", and `query` is clean by the time it is asked. It hits the first such closure of a
+  page only (for the others the recomputation has already happened), which made the first toggle
+  of the filter panel drop the rest of the filter. `e2e/filters.mjs` checks every link of the
+  panel against the whole filter.
 - **R15. What needs JavaScript is not shown without it:** shortcut hints, resize handles, the
   slider, the theme switch. Wrap it in `ui::JsOnly` (or give a single element the class
   `js-only`; `ui::Shortcut` does it for `kbd`). The parts stay in the HTML, because the server
@@ -253,6 +277,16 @@ entries alike), the lecturer picker, the slider (drag, keyboard, knobs not cross
 numbers), the panel's width (limits, `localStorage`, reset), the group header across the border
 of two pages, and the same panel without JavaScript (links keep the rest of the filter, the form
 keeps what the links set, nothing that needs JavaScript is visible).
+
+```bash
+cd e2e && node module.mjs
+```
+
+drives a module in its two sizes. Desktop: preview → page with the sidebar exactly where the
+filter panel was, the same order of sections in both, jumps without history entries, one width
+for sidebar and filter panel, Esc back to the list with the row in view. Phone: a tap opens the
+page directly, the page starts with times and facts, back returns to the tapped row deep in the
+endless list, a shared preview link becomes the page.
 
 ## 5. Not done yet
 

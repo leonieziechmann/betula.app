@@ -50,6 +50,17 @@ await step("toggle: space bar flips it off", () => page.keyboard.press(" "), () 
 check((await page.getAttribute(talk, "data-state")) === "off", "toggle: the chip does not show 'off'");
 check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by a filter change");
 
+// ---- every link of the panel follows the whole filter. (The first toggle once kept the link of
+// the empty filter, so a click on it dropped everything else: a change of the filter that leaves
+// a toggle's own state alone has to reach that toggle's link all the same.)
+await step("two filters", async () => { await page.click('#filters a.chip:has-text("Vorlesung")'); await page.click('#filters a.chip:has-text("Klausur")'); }, () => location.search.includes("form=lecture") && location.search.includes("exam=written"));
+const forgetful = await page.evaluate(() => [...document.querySelectorAll('#filters a[role="checkbox"], #filters a[role="radio"]')]
+  .filter((a) => a.offsetParent && !(a.getAttribute("href").includes("form=lecture") && a.getAttribute("href").includes("exam=written")))
+  .map((a) => `${a.textContent.trim()} → ${a.getAttribute("href")}`));
+check(forgetful.length === 0, `links that drop the rest of the filter: ${forgetful.slice(0, 4).join(" | ")}`);
+await step("the first toggle keeps the others", () => page.click('#filters a.chip:has-text("Winter")'), () => ["turnus=winter", "form=lecture", "exam=written"].every((part) => location.search.includes(part)));
+await step("reset", () => page.click('#filters a:has-text("Zurücksetzen")'), () => location.search === "");
+
 // ---- every toggle has its box, and the toggles of a row share the row's whole width
 const layout = await page.evaluate(() => {
   const issues = [];
@@ -99,6 +110,9 @@ const doubles = await page.evaluate(() => {
   return twice;
 });
 check(doubles.length === 0, `picker: entries that cannot be told apart: ${doubles.slice(0, 3).join(" | ")}`);
+// One shape for all: name, short degree, year of the PO; the form of study only where two would read the same.
+const shapes = await page.evaluate(() => [...document.querySelectorAll("#pick-program-list .combo-option small")].map((el) => el.textContent).filter((text) => !/^[^·]+ · \d{4}( · [^·]+)?$/.test(text) || /SÄ|NF|PO/.test(text)));
+check(shapes.length === 0, `picker: entries of another shape: ${shapes.slice(0, 3).join(" | ")}`);
 
 // A typo, a second word, and the best match on top.
 await step("picker: search with a typo", () => page.keyboard.type("infomatik bsc"), () => document.querySelector("#pick-program-list .combo-option .combo-label")?.textContent === "Informatik");
@@ -150,9 +164,24 @@ const family = person.split(",")[0];
 await page.fill("#pick-lecturer-search", family);
 await page.waitForFunction((name) => document.querySelector("#pick-lecturer-list .combo-option .combo-label")?.textContent.startsWith(name), family);
 const picked = await page.evaluate(() => document.querySelector("#pick-lecturer-list .combo-option .combo-label").textContent);
-await step("lecturer: Enter adds the person", () => page.keyboard.press("Enter"), (name) => new URL(location.href).searchParams.get("lecturer") === name && document.querySelector(".chips.people .chip"), picked);
-await step("lecturer: a second click excludes", () => page.click(".chips.people .chip"), (name) => new URL(location.href).searchParams.get("not-lecturer") === name && document.querySelector('.chips.people .chip[data-state="without"]'), picked);
-await step("lecturer: a third click removes", () => page.click(".chips.people .chip"), () => !location.search.includes("lecturer") && !document.querySelector(".chips.people .chip"));
+await step("lecturer: Enter adds the person", () => page.keyboard.press("Enter"), (name) => new URL(location.href).searchParams.get("lecturer") === name && document.querySelector('.people .person[data-state="with"]'), picked);
+const onlyFirst = await count();
+// Academic titles: small, in the picker and under the chosen name.
+await step("lecturer picker opens again", () => page.click("#pick-lecturer"), () => document.querySelectorAll("#pick-lecturer-list .combo-option").length > 50);
+check(await page.evaluate(() => [...document.querySelectorAll("#pick-lecturer-list .combo-option small")].some((el) => el.textContent.startsWith("Prof."))), "lecturer: the picker shows no academic titles");
+check(!(await page.evaluate((name) => [...document.querySelectorAll("#pick-lecturer-list .combo-label")].some((el) => el.textContent === name), picked)), "lecturer: a chosen person is offered again");
+// A second wanted person is an alternative: the list grows (or stays), it never shrinks.
+await page.fill("#pick-lecturer-search", "prof dr");
+await page.waitForFunction(() => document.querySelectorAll("#pick-lecturer-list .combo-option").length > 3);
+await step("lecturer: a second person, by a click", () => page.click('#pick-lecturer-list .combo-option:has(small:text-matches("^Prof\.")) >> nth=0'), () => new URL(location.href).searchParams.getAll("lecturer").length === 2 && document.querySelectorAll(".people .person").length === 2);
+const either = await count();
+const number = (text) => Number(String(text).replace(/\D/g, ""));
+check(number(either) >= number(onlyFirst) && number(either) > 0, `lecturer: two wanted persons are not alternatives (${onlyFirst} → ${either})`);
+check(await page.evaluate(() => [...document.querySelectorAll(".people .person-name small")].some((el) => el.textContent.startsWith("Prof."))), "lecturer: no title under the chosen name");
+const second = await page.evaluate(() => document.querySelectorAll(".people .person-name b")[1].textContent);
+await step("lecturer: × excludes", () => page.click(".people .person >> nth=1 >> a.cross"), (name) => new URL(location.href).searchParams.get("not-lecturer") === name && document.querySelectorAll('.people .person[data-state="without"]').length === 1, second);
+await step("lecturer: + wants again", () => page.click(".people .person >> nth=1 >> a.plus"), () => new URL(location.href).searchParams.getAll("lecturer").length === 2 && !location.search.includes("not-lecturer"));
+await step("lecturer: the button on the right removes", async () => { await page.click(".people .person >> nth=1 >> a.remove"); await page.click(".people .person >> nth=0 >> a.remove"); }, () => !location.search.includes("lecturer") && !document.querySelector(".people"));
 
 // ---- credits: drag the lower thumb, step the upper one with the keyboard
 await page.evaluate(() => document.querySelector("#filters .slider").scrollIntoView({ block: "center" }));

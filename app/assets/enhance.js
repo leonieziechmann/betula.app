@@ -70,11 +70,22 @@
     if (appRuns() && e.target.matches("form[data-live-search]")) e.preventDefault();
   });
 
+  // A row that is clicked is remembered in the history entry it is clicked in (capture: before
+  // the router adds the next entry). Coming back to that entry, the list shows the row again.
   document.addEventListener("click", (e) => {
-    if (e.target.closest("a[href]")) inAppSteps++;
+    const row = e.target.closest?.("a.row[data-id]");
+    if (!row) return;
+    try { history.replaceState({ ...(history.state || {}), btuRow: row.dataset.id }, ""); } catch {}
+    // On a phone a module is its own page, never a preview (the app does this by itself).
+    if (!appRuns() && phone() && !e.defaultPrevented) {
+      e.preventDefault();
+      location.href = "/catalog/module/" + encodeURIComponent(row.dataset.id);
+    }
+  }, true);
+
+  document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");
-    if (!target) return;
-    switch (target.dataset.action) {
+    switch (target?.dataset.action) {
       case "theme": {
         const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
         root.dataset.theme = dark ? "light" : "dark";
@@ -92,17 +103,38 @@
       case "back": {
         // Back to where the visitor came from (list, filters and scroll position included),
         // if that was this site; otherwise follow the link.
-        const cameFromHere = appRuns() ? inAppSteps > 1 : document.referrer.startsWith(location.origin);
+        const cameFromHere = appRuns() ? inAppSteps > 0 : document.referrer.startsWith(location.origin);
         if (cameFromHere && history.length > 1) { e.preventDefault(); history.back(); }
         break;
       }
+      case "jump": {
+        // To a section of the page, without a history entry (Esc and „Zurück" still leave the page).
+        const section = document.getElementById(target.getAttribute("href").slice(1));
+        if (!section) break;
+        e.preventDefault();
+        section.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+        break;
+      }
+      case "copy-link": {
+        e.preventDefault();
+        const label = target.querySelector("span");
+        navigator.clipboard?.writeText(location.href).then(() => {
+          if (!label || label.dataset.was) return;
+          label.dataset.was = label.textContent;
+          label.textContent = "Link kopiert";
+          setTimeout(() => { label.textContent = label.dataset.was; delete label.dataset.was; }, 1600);
+        }).catch(() => {});
+        break;
+      }
     }
+    // Steps inside the site, for „Zurück": links that were followed, not buttons in link's clothing.
+    if (!e.defaultPrevented && e.target.closest("a[href]")) inAppSteps++;
   });
 
   // ---- widths of the filter panel and the module preview: drag the edge, arrow keys on the
   // focused edge, a double click resets. Personal, so kept in localStorage and not in the URL.
   const RESIZE = {
-    "resize-filters": { key: "btu.filters.width", prop: "--w-filters", grows: 1, min: () => 232, max: () => 440, panel: () => filters() },
+    "resize-filters": { key: "btu.filters.width", prop: "--w-filters", grows: 1, min: () => 232, max: () => 440, panel: () => filters() || document.getElementById("sidebar") },
     "resize-preview": {
       key: "btu.preview.width", prop: "--preview-w", grows: -1, min: () => 360, panel: () => document.querySelector(".work > .detail"),
       max: () => { const work = document.querySelector(".work"); return work ? Math.max(360, work.clientWidth - 400) : 2400; },

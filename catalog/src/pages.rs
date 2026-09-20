@@ -35,7 +35,24 @@ pub fn overview(db: &dyn Database) -> Result<Overview, DbError> {
     })
 }
 
-/// The catalog: one page of modules plus what the filter form offers.
+/// What the pickers of the filter panel offer. The same for every filter, so the page loads it
+/// once and not with every list.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct CatalogChoices {
+    pub programs: Vec<Program>,
+    pub departments: Vec<Department>,
+    pub lecturers: Vec<LecturerName>,
+}
+
+pub fn catalog_choices(db: &dyn Database) -> Result<CatalogChoices, DbError> {
+    Ok(CatalogChoices {
+        programs: queries::programs(db)?,
+        departments: queries::departments(db)?,
+        lecturers: queries::lecturer_names(db)?,
+    })
+}
+
+/// The catalog: one page of modules plus what the list and the filter panel say about it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CatalogData {
     pub page: CatalogPage,
@@ -46,20 +63,16 @@ pub struct CatalogData {
     pub fues_total: Option<u64>,
     /// The semesters of the selected program's study plan (empty without a plan).
     pub plan_semesters: Vec<i64>,
-    pub programs: Vec<Program>,
+    /// For the name of the selected department (few rows; the long lists are `CatalogChoices`).
     pub departments: Vec<Department>,
-    pub lecturers: Vec<LecturerName>,
     pub meta: Meta,
 }
 
 pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbError> {
-    let programs = queries::programs(db)?;
-    let program = url
-        .query
-        .program
-        .as_ref()
-        .and_then(|scope| programs.iter().find(|p| p.slug == scope.program_slug))
-        .cloned();
+    let program = match &url.query.program {
+        Some(scope) => queries::program_by_slug(db, &scope.program_slug)?,
+        None => None,
+    };
 
     // The two lists of a program are shown as tabs, each with its exact total.
     let (mut curricular_total, mut fues_total) = (None, None);
@@ -88,9 +101,7 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbErr
         program,
         curricular_total,
         fues_total,
-        programs,
         departments: queries::departments(db)?,
-        lecturers: queries::lecturer_names(db)?,
         meta: queries::meta(db)?,
     })
 }

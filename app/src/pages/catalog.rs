@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use catalog::filter::{CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey};
-use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
-use catalog::pages::{self, CatalogData};
+use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, StudyVariant, TeachingForm, TurnusParity, TurnusSeason};
+use catalog::pages::{self, CatalogChoices, CatalogData};
 use catalog::rows::{CatalogRow, Program};
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
 use leptos::prelude::*;
@@ -20,7 +20,7 @@ use leptos_router::NavigateOptions;
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::nav::{keep_position_after_prepend, list_height, list_position};
+use crate::nav::{self, keep_position_after_prepend, list_height, list_position};
 use crate::pages::module::ModulePanel;
 use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 
@@ -46,7 +46,34 @@ pub fn CatalogPage() -> impl IntoView {
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
     let failed = Memo::new(move |_| list.with(|list| list.as_ref().err().cloned()));
     let facts = Memo::new(move |_| list.with(|list| list.as_ref().map(|(_, data)| Facts::of(data)).unwrap_or_default()));
-    let choices = Memo::new(move |_| list.with(|list| list.as_ref().map(|(_, data)| Choices::of(data)).unwrap_or_default()));
+    // What the pickers offer does not depend on the filter: loaded once, not with every list.
+    let choices_source = source.clone();
+    let choices = Memo::new(move |_| {
+        let loaded = choices_source.clone().and_then(|source| source.run(pages::catalog_choices));
+        loaded.map(|choices| Choices::of(&choices)).unwrap_or_default()
+    });
+
+    // On a phone a module opens as its own page, never as a preview (the preview would fill the
+    // screen anyway, and the page has a history entry of its own to come back from).
+    let phone = RwSignal::new(nav::is_phone());
+    let navigate = use_navigate();
+    Effect::new(move |_| {
+        let handle = window_event_listener(leptos::ev::resize, move |_| {
+            if phone.get_untracked() != nav::is_phone() {
+                phone.set(nav::is_phone());
+            }
+        });
+        on_cleanup(move || handle.remove());
+    });
+    Effect::new(move |_| {
+        if let (true, Some(id)) = (phone.get(), open.get()) {
+            navigate(&url::module_path(&id), NavigateOptions { replace: true, ..Default::default() });
+        }
+    });
+    // Coming back from a module's page, the list shows the row the visitor left it at: the
+    // previewed module, or on a phone the row that was tapped. Only the first list of this visit
+    // does that; a filter change starts at the top as always.
+    let come_back_to = StoredValue::new(open.get_untracked().or_else(nav::recall_row));
     let preview = Memo::new(move |_| match open.get() {
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
@@ -72,7 +99,10 @@ pub fn CatalogPage() -> impl IntoView {
                     <Filters query=list_query facts choices open/>
                     // The handle for the panel's width sits in the gap between the two boxes.
                     <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="filters" aria-label="Breite der Filter ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
-                    {move || list.get().ok().map(|(current, data)| view! { <List current data open page/> })}
+                    {move || list.get().ok().map(|(current, data)| {
+                        let reveal = come_back_to.try_update_value(Option::take).flatten();
+                        view! { <List current data open page phone reveal/> }
+                    })}
                 }.into_any(),
             }}
             {move || {
@@ -241,7 +271,15 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
 }
 
 #[component]
-fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>, page: Memo<u64>) -> impl IntoView {
+fn List(
+    current: CatalogUrl,
+    data: CatalogData,
+    open: Memo<Option<String>>,
+    page: Memo<u64>,
+    phone: RwSignal<bool>,
+    /// The row to scroll to once the list is there (it may be on the next page of the list).
+    reveal: Option<String>,
+) -> impl IntoView {
     let q = current.query.clone();
     let total = data.page.total;
     let pages_total = total.div_ceil(PAGE_SIZE).max(1);
@@ -333,6 +371,27 @@ fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>, page
     });
     let load_next_click = load_next.clone();
     let chunk_base = current.clone();
+    if let Some(id) = reveal {
+        let load_next = load_next.clone();
+        Effect::new(move |_| {
+            if !nav::reveal_row(ROWS_ID, &id) {
+                load_next();
+            }
+            // Once more in the next frame (the row may have been on the next page), and once
+            // more a moment later: coming back through the history, the browser restores the
+            // scroll position of a list that was longer above, after this effect has run.
+            let (next_frame, later) = (id.clone(), id.clone());
+            request_animation_frame(move || {
+                nav::reveal_row(ROWS_ID, &next_frame);
+            });
+            set_timeout(
+                move || {
+                    nav::reveal_row(ROWS_ID, &later);
+                },
+                std::time::Duration::from_millis(220),
+            );
+        });
+    }
 
     view! {
         <section class="panel list" aria-live="polite">
@@ -377,7 +436,7 @@ fn List(current: CatalogUrl, data: CatalogData, open: Memo<Option<String>>, page
                     view! { <button class="btn secondary load-more" type="button" on:click=move |_| load_previous()>"Vorherige Module laden"</button> }
                 })}
                 <For each=move || chunks.get() key=|chunk| chunk.page let:chunk>
-                    <ChunkRows chunk chunks base=chunk_base.clone() by_plan with_program open page/>
+                    <ChunkRows chunk chunks base=chunk_base.clone() by_plan with_program open page phone/>
                 </For>
                 {move || (last_loaded() < pages_total).then(|| {
                     let load_next = load_next_click.clone();
@@ -403,6 +462,7 @@ fn Row(
     base: CatalogUrl,
     open: Memo<Option<String>>,
     page: Memo<u64>,
+    phone: RwSignal<bool>,
     with_program: bool,
     /// Set on the first row of a page: how the list knows which page is on screen.
     starts_page: Option<u64>,
@@ -423,9 +483,16 @@ fn Row(
     let has_events = row.teaching_events > 0;
     let id = row.id.clone();
     let target = row.id.clone();
-    let href = move || base.with_page(page.get()).with_open(Some(&target)).path();
+    // The preview next to the list; on a phone the module's own page.
+    let href = move || {
+        if phone.get() {
+            url::module_path(&target)
+        } else {
+            base.with_page(page.get()).with_open(Some(&target)).path()
+        }
+    };
     view! {
-        <a class="row" href=href data-noscroll="" data-page=starts_page aria-current=move || (open.get().as_deref() == Some(id.as_str())).then_some("true")>
+        <a class="row" href=href data-noscroll="" data-id=row.id.clone() data-page=starts_page aria-current=move || (open.get().as_deref() == Some(id.as_str())).then_some("true")>
             <div class="t">
                 <b>{row.title.clone()}</b>
                 <small>
@@ -463,7 +530,16 @@ const ROWS_ID: &str = "rows";
 /// of its own), so a sticky group header stays in place for as long as its group is on screen,
 /// across the border between two pages.
 #[component]
-fn ChunkRows(chunk: Chunk, chunks: RwSignal<Vec<Chunk>>, base: CatalogUrl, by_plan: bool, with_program: bool, open: Memo<Option<String>>, page: Memo<u64>) -> impl IntoView {
+fn ChunkRows(
+    chunk: Chunk,
+    chunks: RwSignal<Vec<Chunk>>,
+    base: CatalogUrl,
+    by_plan: bool,
+    with_program: bool,
+    open: Memo<Option<String>>,
+    page: Memo<u64>,
+    phone: RwSignal<bool>,
+) -> impl IntoView {
     // Group headers follow the study plan when the list is in plan order. A group that began on
     // the page before (which may be loaded later, above this one) gets no second header.
     let own_page = chunk.page;
@@ -492,7 +568,7 @@ fn ChunkRows(chunk: Chunk, chunks: RwSignal<Vec<Chunk>>, base: CatalogUrl, by_pl
                     {move || (group_before.get() != Some(group)).then(|| view! { <div class="sem">{header(group)}</div> })}
                 })}
                 {(new_group && !first).then(|| view! { <div class="sem">{header(group)}</div> })}
-                <Row row=row.clone() base=base.clone() open page with_program starts_page=first.then_some(chunk.page)/>
+                <Row row=row.clone() base=base.clone() open page phone with_program starts_page=first.then_some(chunk.page)/>
             }
         })
         .collect_view();
@@ -538,19 +614,36 @@ struct Choices {
 }
 
 impl Choices {
-    fn of(data: &CatalogData) -> Self {
+    fn of(data: &CatalogChoices) -> Self {
+        // A program is its name, the short degree and the year of its PO: one shape for all
+        // (owner decision 2026-09-20; amendments are not part of it). Where two programs would
+        // read the same, and only there, the form of study tells them apart.
+        let short = |p: &Program| (p.name.clone(), p.degree().to_string(), p.po_year);
+        let variant = |p: &Program| {
+            p.study_variant.as_ref().map(|v| match v.known() {
+                Some(StudyVariant::DualPractice) => "dual, Praxis".to_string(),
+                Some(StudyVariant::DualTraining) => "dual, Ausbildung".to_string(),
+                Some(StudyVariant::Extended) => "erweitert".to_string(),
+                Some(StudyVariant::Reduced) => "verkürzt".to_string(),
+                _ => v.label().to_string(),
+            })
+        };
         Self {
             programs: data
                 .programs
                 .iter()
                 .map(|p| {
-                    // Two programs may differ in nothing but the form of study (double degree, dual).
-                    let variant = p.study_variant.as_ref().map(|v| format!(" · {}", v.label())).unwrap_or_default();
-                    ComboItem::new(p.slug.clone(), p.name.clone(), format!("{} · PO {}{variant}", p.degree(), p.po_version), i64::from(p.is_latest_po))
+                    let year = p.po_year.map(|year| year.to_string()).unwrap_or_else(|| p.po_version.clone());
+                    let alike = data.programs.iter().filter(|other| short(other) == short(p)).count() > 1;
+                    let detail = match variant(p).filter(|_| alike) {
+                        Some(variant) => format!("{} · {year} · {variant}", p.degree()),
+                        None => format!("{} · {year}", p.degree()),
+                    };
+                    ComboItem::new(p.slug.clone(), p.name.clone(), detail, i64::from(p.is_latest_po))
                 })
                 .collect(),
             departments: data.departments.iter().map(|d| ComboItem::new(d.id.to_string(), d.label.clone(), format!("{} Module", d.modules), 0)).collect(),
-            lecturers: data.lecturers.iter().map(|l| ComboItem::new(l.name.clone(), l.name.clone(), format!("{} Module", l.modules), 0)).collect(),
+            lecturers: data.lecturers.iter().map(|l| ComboItem::new(l.name.clone(), l.name.clone(), l.title.clone().unwrap_or_default(), 0)).collect(),
         }
     }
 }
@@ -667,9 +760,17 @@ fn Chip(
     let read = toggle.read.clone();
     let state = Memo::new(move |_| query.with(|q| read(q)));
     let excludes = toggle.excludes;
+    // The link reads the filter itself and not `state`. A closure that reads a memo derived from
+    // `query` before `query` misses a change of `query` whenever the derived value stays the
+    // same (reactive_graph 0.2.14 does not mark the observer that made a memo recompute, and the
+    // derived memo then reports „unchanged"). That was the first toggle of the panel losing the
+    // rest of the filter. Rule (docs/frontend.md, R16): in one closure read the source, not a
+    // memo derived from it and the source.
     let href = move || {
-        let next = toggle.after(state.get());
-        target(query, open, |q| (toggle.write)(q, next))
+        target(query, open, |q| {
+            let next = toggle.after((toggle.read)(q));
+            (toggle.write)(q, next)
+        })
     };
     let name = label.clone();
     view! {
@@ -899,28 +1000,39 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
     };
 
     // ---- lecturers ----
-    let lecturer = |name: String| {
-        let (read_name, write_name) = (name.clone(), name);
-        Toggle::new(
-            move |q| {
-                if q.lecturers_include.contains(&read_name) {
-                    Tri::With
-                } else if q.lecturers_exclude.contains(&read_name) {
-                    Tri::Without
-                } else {
-                    Tri::Off
-                }
-            },
-            move |q, state| {
-                q.lecturers_include.retain(|n| *n != write_name);
-                q.lecturers_exclude.retain(|n| *n != write_name);
-                match state {
-                    Tri::With => q.lecturers_include.push(write_name.clone()),
-                    Tri::Without => q.lecturers_exclude.push(write_name.clone()),
-                    Tri::Off => {}
-                }
-            },
-        )
+    // A chosen person is a row: on the left the switch between + (wanted) and × (unwanted), on
+    // the right the button that takes the person out again. Wanted persons are alternatives
+    // (Meer or Köhler), unwanted ones are all left out (neither Lambers nor Hofstedt).
+    let person = move |name: String| {
+        let place = move |q: &mut CatalogQuery, name: &str, wanted: Option<bool>| {
+            q.lecturers_include.retain(|n| n != name);
+            q.lecturers_exclude.retain(|n| n != name);
+            match wanted {
+                Some(true) => q.lecturers_include.push(name.to_string()),
+                Some(false) => q.lecturers_exclude.push(name.to_string()),
+                None => {}
+            }
+        };
+        let title = choices.with_untracked(|c| c.lecturers.iter().find(|item| item.id == name).map(|item| item.detail.clone())).unwrap_or_default();
+        let link = |wanted: Option<bool>| {
+            let name = name.clone();
+            move || target(query, open, |q| place(q, &name, wanted))
+        };
+        let is_unwanted = {
+            let name = name.clone();
+            move || query.with(|q| q.lecturers_exclude.contains(&name))
+        };
+        let (unwanted_1, unwanted_2, unwanted_3) = (is_unwanted.clone(), is_unwanted.clone(), is_unwanted);
+        view! {
+            <div class="person" data-state=move || if unwanted_1() { "without" } else { "with" }>
+                <div class="seg mini" role="radiogroup" aria-label=name.clone()>
+                    <a href=link(Some(true)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="plus" title="Module mit dieser Person" aria-label="mit" aria-checked=move || if unwanted_2() { "false" } else { "true" }><Icon name="plus"/></a>
+                    <a href=link(Some(false)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="cross" title="Module ohne diese Person" aria-label="ohne" aria-checked=move || if unwanted_3() { "true" } else { "false" }><Icon name="x"/></a>
+                </div>
+                <span class="person-name"><b>{name.clone()}</b>{(!title.is_empty()).then(|| view! { <small>{title}</small> })}</span>
+                <a class="icon-btn remove" href=link(None) rel="nofollow" draggable="false" data-noscroll="" title="Entfernen" aria-label=format!("{name} entfernen")><Icon name="trash-2"/></a>
+            </div>
+        }
     };
     let lecturer_picker = if APP {
         let items = Memo::new(move |_| {
@@ -1055,7 +1167,8 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                         {move || {
                             let names = chosen_lecturers.get();
                             (!names.is_empty()).then(|| view! {
-                                <div class="chips people">{names.into_iter().map(|name| chip(&name.clone(), None, lecturer(name))).collect_view()}</div>
+                                <div class="people">{names.into_iter().map(person).collect_view()}</div>
+                                <p class="hint people-hint"><span><b>"+"</b>"mindestens eine dieser Personen"</span><span><b>"×"</b>"keine dieser Personen"</span></p>
                             })
                         }}
                         <div class="flabel label">"Fachgebiet"</div>

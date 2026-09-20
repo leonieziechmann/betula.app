@@ -169,3 +169,45 @@ pub fn close_filter_sheet() {
         let _ = filters.class_list().remove_1("open");
     }
 }
+
+/// The phone layout (one column, bottom bar) is in use. `false` on the server.
+pub fn is_phone() -> bool {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|w| w.match_media("(max-width: 900px)").ok().flatten()).is_some_and(|query| query.matches())
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// The row the visitor left the list at, if this history entry remembers one: `enhance.js`
+/// writes the id of a clicked row into the state of the entry it is clicked in, so it is there
+/// again when the visitor comes back to exactly that entry, and nowhere else.
+pub fn recall_row() -> Option<String> {
+    #[cfg(feature = "csr")]
+    {
+        let state = web_sys::window()?.history().ok()?.state().ok()?;
+        js_sys::Reflect::get(&state, &wasm_bindgen::JsValue::from_str("btuRow")).ok()?.as_string()
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// Scrolls the list so that the row of this module is in the middle. `false` if the row is not
+/// (yet) part of the list.
+#[allow(unused_variables)]
+pub fn reveal_row(rows_id: &str, module_id: &str) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        let rows = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(rows_id));
+        let safe = module_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        let row = rows.filter(|_| safe).and_then(|rows| rows.query_selector(&format!("a.row[data-id=\"{module_id}\"]")).ok().flatten());
+        let Some(row) = row else { return false };
+        let options = web_sys::ScrollIntoViewOptions::new();
+        options.set_block(web_sys::ScrollLogicalPosition::Center);
+        row.scroll_into_view_with_scroll_into_view_options(&options);
+        true
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}

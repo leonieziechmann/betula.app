@@ -194,7 +194,8 @@ pub struct CatalogQuery {
     /// Search text: matches module ids and German or English titles.
     pub text: String,
     pub program: Option<ProgramScope>,
-    /// Every one of these teaches or is responsible for the module.
+    /// At least one of these teaches or is responsible for the module (owner decision
+    /// 2026-09-20: „Meer oder Köhler", not „Meer und Köhler").
     pub lecturers_include: Vec<String>,
     /// None of these teaches or is responsible for the module.
     pub lecturers_exclude: Vec<String>,
@@ -375,11 +376,12 @@ impl CatalogQuery {
             params.push(Value::from(like_pattern(text)));
         }
 
-        for name in &self.lecturers_include {
-            conditions.push(
-                "EXISTS (SELECT 1 FROM v_module_lecturer l WHERE l.module_id = f.module_id AND l.name = ?)".to_string(),
-            );
-            params.push(Value::from(name));
+        if !self.lecturers_include.is_empty() {
+            conditions.push(format!(
+                "EXISTS (SELECT 1 FROM v_module_lecturer l WHERE l.module_id = f.module_id AND l.name IN ({}))",
+                placeholders(self.lecturers_include.len())
+            ));
+            params.extend(self.lecturers_include.iter().map(Value::from));
         }
         if !self.lecturers_exclude.is_empty() {
             conditions.push(format!(

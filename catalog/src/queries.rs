@@ -202,7 +202,8 @@ pub fn lecturer_names(db: &dyn Database) -> Result<Vec<LecturerName>, DbError> {
     fetch(
         db,
         "lecturer_names",
-        "SELECT name, COUNT(DISTINCT module_id) AS modules FROM v_module_lecturer \
+        // Two persons are listed with two spellings of their title; the longer one is the fuller one.
+        "SELECT name, MAX(title) AS title, COUNT(DISTINCT module_id) AS modules FROM v_module_lecturer \
          GROUP BY name ORDER BY name COLLATE NOCASE",
         &[],
     )

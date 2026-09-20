@@ -1,5 +1,12 @@
 //! A module in two sizes: the preview panel next to the catalog list (`/catalog?…&open=<id>`)
-//! and the module's own page (`/catalog/module/<id>`), which uses the whole screen.
+//! and the module's own page (`/catalog/module/<id>`), which uses the whole screen. Both are made
+//! of the same parts in the same order (times and key facts, then the description), so a module
+//! reads the same wherever it is opened; a wide page puts the two halves side by side.
+//!
+//! The page has the same frame as the catalog: a sidebar as wide as the filter panel (same
+//! handle, same remembered width), so nothing jumps when a module goes from preview to page.
+//! The sidebar holds what belongs to the module as a whole: where to go on the page, and what
+//! to do with the module.
 
 use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, TeachingForm, TextItemKind, TurnusSeason};
 use catalog::pages::{self, ModuleData};
@@ -12,7 +19,7 @@ use leptos_router::hooks::use_params_map;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::ui::{ErrorState, Fact, Icon, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
+use crate::ui::{ErrorState, Fact, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
 
 /// What both the preview panel and the full page show about a module, precomputed once.
 #[derive(Clone)]
@@ -99,7 +106,57 @@ pub fn ModulePanel(data: ModuleData, close_href: String) -> impl IntoView {
     }
 }
 
-/// The module's own page (`/catalog/module/<id>`): the whole screen, two columns.
+/// The sections a module has, in the order of the page: (anchor, heading).
+fn sections(data: &ModuleData) -> Vec<(&'static str, &'static str)> {
+    let m = &data.module;
+    let literature = data.text_items.iter().any(|i| i.kind.is(TextItemKind::Literature));
+    let prerequisites = m.prerequisites_mandatory.is_some() || m.prerequisites_recommended.is_some() || !data.prerequisites.is_empty();
+    [
+        (true, "termine", "Termine"),
+        (!data.exams.is_empty(), "pruefungstermine", "Prüfungstermine"),
+        (true, "blick", "Auf einen Blick"),
+        (!data.programs.is_empty(), "studiengaenge", "Studiengänge"),
+        (prerequisites, "voraussetzungen", "Voraussetzungen"),
+        (m.contents.is_some(), "inhalte", "Inhalte"),
+        (m.learning_outcomes.is_some(), "lernziele", "Lernziele"),
+        (m.exam_details.is_some(), "pruefungsleistung", "Prüfungsleistung"),
+        (literature, "literatur", "Literatur"),
+        (m.remarks.is_some(), "bemerkungen", "Bemerkungen"),
+    ]
+    .into_iter()
+    .filter(|(present, ..)| *present)
+    .map(|(_, anchor, heading)| (anchor, heading))
+    .collect()
+}
+
+/// The sidebar of the module's page: the sections of the page, and what can be done with the
+/// module. „Merken" and the semester plan are announced here, where they will live.
+#[component]
+fn Sidebar(data: ModuleData) -> impl IntoView {
+    let source_url = data.module.source_url.clone();
+    view! {
+        <aside class="panel sidebar" id="sidebar" aria-label="Zu diesem Modul">
+            <div class="panel-head"><h2>"Modul"</h2><span class="mono">{data.module.id.clone()}</span></div>
+            <div class="body scroll">
+                <nav class="toc" aria-label="Auf dieser Seite">
+                    <p class="flabel label">"Auf dieser Seite"</p>
+                    {sections(&data).into_iter().map(|(anchor, heading)| view! {
+                        <a href=format!("#{anchor}") data-action="jump">{heading}</a>
+                    }).collect_view()}
+                </nav>
+                <div class="fgroup actions">
+                    <p class="flabel label">"Aktionen"</p>
+                    <span class="action soon" title="In Arbeit"><Icon name="bookmark"/>"Merken"<em>"bald"</em></span>
+                    <span class="action soon" title="Geplant"><Icon name="calendar-range"/>"Ins Semester einplanen"<em>"bald"</em></span>
+                    <JsOnly><a class="action" href="#" data-action="copy-link"><Icon name="share-2"/><span>"Link kopieren"</span></a></JsOnly>
+                    {source_url.map(|href| view! { <a class="action" href=href rel="noopener"><Icon name="arrow-up-right"/>"Original bei der BTU"</a> })}
+                </div>
+            </div>
+        </aside>
+    }
+}
+
+/// The module's own page (`/catalog/module/<id>`): sidebar, and the module on the rest of the screen.
 #[component]
 pub fn ModulePage() -> impl IntoView {
     let params = use_params_map();
@@ -109,38 +166,44 @@ pub fn ModulePage() -> impl IntoView {
 
     move || {
         let id = id.get();
-        let inner = match source.clone().and_then(|source| source.run(|db| pages::module(db, &id))) {
+        match source.clone().and_then(|source| source.run(|db| pages::module(db, &id))) {
             Err(error) => {
                 status.for_error(&error);
-                view! { <ErrorState error/> }.into_any()
+                view! { <div class="page"><ErrorState error/></div> }.into_any()
             }
             Ok(None) => {
                 status.set(404);
-                view! { <NotFound title="Modul nicht gefunden" hint="Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."/> }.into_any()
+                view! { <div class="page"><NotFound title="Modul nicht gefunden" hint="Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."/></div> }.into_any()
             }
             Ok(Some(data)) => {
                 let derived = derive(&data);
                 view! {
                     <Title text=format!("{} {}", data.module.id, data.module.title)/>
                     <Meta name="description" content=derived.description/>
-                    <article class="module-page">
-                        <header class="panel hero">
-                            <div class="hero-top">
-                                <a class="ghost" href=url::CATALOG data-action="back" title="Zurück (Esc)"><Icon name="arrow-left"/>"Zurück"<Shortcut keys="Esc"/></a>
-                                <span class="mono">{data.module.id.clone()}</span>
-                            </div>
-                            <Heading data=data.clone()/>
-                        </header>
-                        <div class="module-grid">
-                            <div class="panel dbody"><Main data=data.clone()/><Source data=data.clone()/></div>
-                            <aside class="panel dbody"><Side data=data.clone()/></aside>
+                    <div class="work module-work">
+                        <Sidebar data=data.clone()/>
+                        <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                        <div class="page" id="module-scroll">
+                            <article class="module-page">
+                                <header class="panel hero">
+                                    <div class="hero-top">
+                                        <a class="ghost" href=url::CATALOG data-action="back" title="Zurück (Esc)"><Icon name="arrow-left"/>"Zurück"<Shortcut keys="Esc"/></a>
+                                        <span class="mono">{data.module.id.clone()}</span>
+                                    </div>
+                                    <Heading data=data.clone()/>
+                                </header>
+                                // Same parts, same order as the preview; side by side where there is room.
+                                <div class="module-grid">
+                                    <aside class="panel dbody"><Side data=data.clone()/></aside>
+                                    <div class="panel dbody"><Main data=data.clone()/><Source data=data.clone()/></div>
+                                </div>
+                            </article>
                         </div>
-                    </article>
+                    </div>
                 }
                 .into_any()
             }
-        };
-        view! { <div class="page">{inner}</div> }
+        }
     }
 }
 
@@ -179,7 +242,7 @@ fn Side(data: ModuleData) -> impl IntoView {
             </p>
         })}
         <Schedule data=data.clone()/>
-        <div class="section">
+        <div class="section" id="blick">
             <p class="label">"Auf einen Blick"</p>
             <dl class="facts">
                 <Fact icon="file-check-2" label="Prüfung" value=m.exam_form.as_ref().map(format::exam_short).or(m.exam_form_raw.clone())/>
@@ -224,7 +287,7 @@ fn Main(data: ModuleData) -> impl IntoView {
     };
     view! {
         {has_prerequisites.then(|| view! {
-            <div class="section">
+            <div class="section" id="voraussetzungen">
                 <p class="label">"Voraussetzungen"</p>
                 <div class="linklist">
                     {prerequisite_links(derived.mandatory.clone(), "zwingend")}
@@ -234,17 +297,17 @@ fn Main(data: ModuleData) -> impl IntoView {
                 {m.prerequisites_recommended.clone().map(|text| view! { <details class="more"><summary>"Empfohlen, im Wortlaut"</summary><Prose text/></details> })}
             </div>
         })}
-        {m.contents.clone().map(|text| view! { <div class="section"><p class="label">"Inhalte"</p><Prose text/></div> })}
-        {m.learning_outcomes.clone().map(|text| view! { <div class="section"><p class="label">"Lernziele"</p><Prose text/></div> })}
-        {m.exam_details.clone().map(|text| view! { <div class="section"><p class="label">"Prüfungsleistung"</p><Prose text/></div> })}
+        {m.contents.clone().map(|text| view! { <div class="section" id="inhalte"><p class="label">"Inhalte"</p><Prose text/></div> })}
+        {m.learning_outcomes.clone().map(|text| view! { <div class="section" id="lernziele"><p class="label">"Lernziele"</p><Prose text/></div> })}
+        {m.exam_details.clone().map(|text| view! { <div class="section" id="pruefungsleistung"><p class="label">"Prüfungsleistung"</p><Prose text/></div> })}
         {(!literature.is_empty()).then(|| view! {
-            <div class="section">
+            <div class="section" id="literatur">
                 <details class="more"><summary>"Literatur ("{literature.len()}")"</summary>
                     <ul class="list-plain">{literature.into_iter().map(|l| view! { <li>{l}</li> }).collect_view()}</ul>
                 </details>
             </div>
         })}
-        {m.remarks.clone().map(|text| view! { <div class="section"><p class="label">"Bemerkungen"</p><Prose text/></div> })}
+        {m.remarks.clone().map(|text| view! { <div class="section" id="bemerkungen"><p class="label">"Bemerkungen"</p><Prose text/></div> })}
     }
 }
 
@@ -333,7 +396,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     };
 
     view! {
-        <div class="section">
+        <div class="section" id="termine">
             <p class="label">"Termine"{newest.as_ref().map(|(_, label)| view! { <span>{label.clone()}</span> })}</p>
             {(!slots.is_empty()).then(|| view! {
                 <div class="week" style=format!("--days:{days};--first:{first};--span:{span}")>
@@ -362,7 +425,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
             {(!teaching.is_empty()).then(|| view! { <div class="evlist">{event_list(teaching)}</div> })}
         </div>
         {exam_semester.map(|(_, label)| view! {
-            <div class="section">
+            <div class="section" id="pruefungstermine">
                 <p class="label">"Prüfungstermine"<span>{label}</span></p>
                 <div class="evlist">{event_list(exams)}</div>
             </div>
@@ -379,7 +442,7 @@ fn Programs(data: ModuleData) -> impl IntoView {
     let unresolved = data.programs.iter().filter(|l| l.resolve_status.is(ResolveStatus::Unresolved)).count();
 
     (!data.programs.is_empty()).then(|| view! {
-        <div class="section">
+        <div class="section" id="studiengaenge">
             <p class="label">"Studiengänge"<span>{curricular.len()}" Curricula"</span></p>
             {curricular.is_empty().then(|| view! { <p class="hint">"Das Modul gehört zu keinem Curriculum eines Studiengangs im Katalog."</p> })}
             <div class="linklist">

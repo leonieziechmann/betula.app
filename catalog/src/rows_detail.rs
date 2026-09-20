@@ -26,12 +26,14 @@ impl FromRow for Lecturer {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LecturerName {
     pub name: String,
+    /// The academic title as a module page states it; `None` for persons only known from events.
+    pub title: Option<String>,
     pub modules: i64,
 }
 
 impl FromRow for LecturerName {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
-        Ok(Self { name: row.text("name")?, modules: row.int("modules")? })
+        Ok(Self { name: row.text("name")?, title: row.opt_text("title")?, modules: row.int("modules")? })
     }
 }
 

@@ -355,9 +355,9 @@ fn catalog_filters_match_direct_sql() {
 #[test]
 fn lecturer_and_bookmark_filters() {
     let db = open();
-    let name = column(&db, "SELECT name FROM v_module_lecturer GROUP BY name ORDER BY COUNT(*) DESC LIMIT 1")
-        .pop()
-        .expect("a lecturer");
+    let busiest = column(&db, "SELECT name FROM v_module_lecturer GROUP BY name ORDER BY COUNT(*) DESC, name LIMIT 4");
+    let [name, b, c, d] = busiest.as_slice() else { panic!("four lecturers") };
+    let name = name.clone();
     let teaches = scalar(
         &db,
         &format!("SELECT COUNT(DISTINCT module_id) FROM v_module_lecturer WHERE name = '{}'", name.replace('\'', "''")),
@@ -365,9 +365,25 @@ fn lecturer_and_bookmark_filters() {
     let all = queries::catalog_count(&db, &everything()).unwrap();
 
     let include = CatalogQuery { lecturers_include: vec![name.clone()], ..everything() };
-    let exclude = CatalogQuery { lecturers_exclude: vec![name], ..everything() };
+    let exclude = CatalogQuery { lecturers_exclude: vec![name.clone()], ..everything() };
     assert_eq!(queries::catalog_count(&db, &include).unwrap(), teaches);
     assert_eq!(queries::catalog_count(&db, &exclude).unwrap(), all - teaches);
+
+    // (A or B) and not (C or D): wanted persons are alternatives, unwanted ones all have to be absent.
+    let quote = |name: &str| format!("'{}'", name.replace('\'', "''"));
+    let expected = scalar(
+        &db,
+        &format!(
+            "SELECT COUNT(*) FROM v_module_facets f WHERE \
+             EXISTS (SELECT 1 FROM v_module_lecturer l WHERE l.module_id = f.module_id AND l.name IN ({}, {})) \
+             AND NOT EXISTS (SELECT 1 FROM v_module_lecturer l WHERE l.module_id = f.module_id AND l.name IN ({}, {}))",
+            quote(&name), quote(b), quote(c), quote(d)
+        ),
+    ) as u64;
+    let either = CatalogQuery { lecturers_include: vec![name.clone(), b.clone()], ..everything() };
+    let mixed = CatalogQuery { lecturers_exclude: vec![c.clone(), d.clone()], ..either.clone() };
+    assert!(queries::catalog_count(&db, &either).unwrap() > teaches, "a second wanted person adds modules");
+    assert_eq!(queries::catalog_count(&db, &mixed).unwrap(), expected);
 
     let ids: Vec<String> = queries::catalog_page(&db, &everything(), 10, 3).unwrap().rows.into_iter().map(|r| r.id).collect();
     let bookmarks = CatalogQuery { only_ids: Some(ids.clone()), sort: SortKey::Id, ..everything() };
@@ -539,7 +555,10 @@ fn page_loaders_return_everything_a_page_shows() {
     assert_eq!(catalog.curricular_total, Some(program.curricular_modules as u64));
     assert_eq!(catalog.fues_total, Some(program.fues_modules as u64));
     assert_eq!(Some(catalog.page.total), catalog.fues_total);
-    assert!(!catalog.departments.is_empty() && !catalog.lecturers.is_empty() && !catalog.programs.is_empty());
+    assert!(!catalog.departments.is_empty());
+    let choices = pages::catalog_choices(&db).unwrap();
+    assert!(!choices.departments.is_empty() && !choices.programs.is_empty());
+    assert!(choices.lecturers.iter().any(|l| l.title.is_some()) && choices.lecturers.iter().any(|l| l.title.is_none()));
 
     // A program that does not exist selects nothing; it is not an error.
     let unknown = pages::catalog(&db, &CatalogUrl::parse("program=no-such-program")).unwrap();
