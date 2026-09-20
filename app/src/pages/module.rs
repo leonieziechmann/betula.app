@@ -15,12 +15,12 @@ use catalog::rows_detail::EventDate;
 use catalog::url::{self, ProgramTab};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::use_params_map;
+use leptos_router::hooks::{use_location, use_params_map};
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::seo::{self, Seo};
-use crate::tabs::Area;
+use crate::tabs::{self, Area, Tabs};
 use crate::ui::{BackLink, ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
 
 /// What both the preview panel and the full page show about a module, precomputed once.
@@ -115,16 +115,17 @@ fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
     ]
 }
 
-/// The preview next to the catalog list. `close_href` is the same list without the preview.
+/// The preview next to a list. `close_href` is the same page without the preview. `docked` puts
+/// it into the right column of a frame (`ui::Frame`) instead of floating over the page.
 #[component]
-pub fn ModulePanel(data: ModuleData, close_href: String) -> impl IntoView {
+pub fn ModulePanel(data: ModuleData, close_href: String, #[prop(optional)] docked: bool) -> impl IntoView {
     let id = data.module.id.clone();
     view! {
-        <section class="panel detail" id="preview" aria-label="Modulvorschau">
+        <section class="panel detail" class:aside=docked id="preview" aria-label="Modulvorschau">
             <div class="scroll" data-keep-scroll="detail">
                 <header class="hero">
                     <div class="hero-top">
-                        <a class="icon-btn back" href=close_href.clone() aria-label="Zurück zur Liste"><Icon name="arrow-left"/></a>
+                        <a class="icon-btn back" href=close_href.clone() aria-label="Vorschau schließen"><Icon name="arrow-left"/></a>
                         <span class="mono">{id.clone()}</span>
                         <a class="ghost" href=url::module_path(&id) data-action="fullscreen" title="Als ganze Seite öffnen (F)"><Icon name="maximize-2"/>"Vollbild"<Shortcut keys="F"/></a>
                         <a class="ghost" href=close_href data-action="close-detail" title="Vorschau schließen (Esc)"><Icon name="x"/>"Schließen"<Shortcut keys="Esc"/></a>
@@ -186,6 +187,27 @@ fn Sidebar(data: ModuleData) -> impl IntoView {
     }
 }
 
+/// The program whose page shows this module beside it, if that is where the visitor comes from.
+/// A reload forgets the step before, so the memory of the area answers as well: it knows the
+/// program page it was left at, and that page names the module it has open (`open=<id>`).
+fn opened_beside_a_program(id: &str) -> Option<String> {
+    let location = use_location();
+    let tabs = Tabs::expect()?;
+    let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
+    let before = tabs.before(&now);
+    if tabs::page_below(&before, url::PROGRAMS).is_some() {
+        return Some(before);
+    }
+    tabs.left(Area::Programs).filter(|left| shows_module(left, id))
+}
+
+/// Does this address name a program's page with this module open beside it?
+fn shows_module(location: &str, id: &str) -> bool {
+    let query = location.split_once('?').map(|(_, query)| query).unwrap_or_default();
+    tabs::page_below(location, url::PROGRAMS).is_some()
+        && url::parse_pairs(query).iter().any(|(key, value)| key == "open" && value == id)
+}
+
 /// The module's own page (`/catalog/module/<id>`): sidebar, and the module on the rest of the screen.
 #[component]
 pub fn ModulePage() -> impl IntoView {
@@ -207,6 +229,9 @@ pub fn ModulePage() -> impl IntoView {
             }
             Ok(Some(data)) => {
                 let derived = derive(&data);
+                // „Zurück" leads where the visitor came from: the program whose page had this
+                // module open beside it (its „Vollbild"), else the catalog's list as it was left.
+                let from_program = opened_beside_a_program(&id);
                 view! {
                     // The name first (what people search for), then number and university.
                     <Title text=format!("{} ({}) · Modul der BTU Cottbus-Senftenberg", data.module.title, data.module.id)/>
@@ -225,7 +250,7 @@ pub fn ModulePage() -> impl IntoView {
                             <article class="module-page">
                                 <header class="panel hero">
                                     <div class="hero-top">
-                                        <BackLink area=Area::Catalog/>
+                                        <BackLink area=Area::Catalog to=from_program/>
                                         <span class="mono">{data.module.id.clone()}</span>
                                     </div>
                                     <Heading data=data.clone()/>

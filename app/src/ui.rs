@@ -121,6 +121,11 @@ pub fn Prose(text: String) -> impl IntoView {
 /// width, and the page next to it. Going from one area to another, nothing jumps. The sidebar
 /// holds what belongs to the page as a whole: its filters, its sections, its actions.
 /// The catalog is the one page that builds this frame itself (its sidebar is the filter form).
+///
+/// A page can put a panel on the right as well (`aside`), as wide as the catalog's module
+/// preview and with the same handle and remembered width: what belongs to what the visitor
+/// picked. Unlike the catalog's preview it is a column of the layout, not a panel floating over
+/// the page, so the page keeps the room it has and nothing is covered.
 #[component]
 pub fn Frame(
     /// Heading of the sidebar.
@@ -133,11 +138,15 @@ pub fn Frame(
     /// On a phone the sidebar is a sheet that a „Filter" button of the page opens
     /// (`data-action="sheet-open"`), like the filter panel of the catalog.
     #[prop(optional)] sheet: bool,
+    /// The panel on the right, with its own handle. It brings its own box
+    /// (`<section class="panel detail aside">`), so a module preview can be used as it is.
+    #[prop(optional, into)] aside: Option<ViewFn>,
     children: Children,
 ) -> impl IntoView {
     let label = title.clone();
+    let has_aside = aside.is_some();
     view! {
-        <div class="work framed" class:sidebar-first=sidebar_first>
+        <div class="work framed" class:sidebar-first=sidebar_first class:with-aside=has_aside>
             <aside class="panel sidebar" class:sheet=sheet id="sidebar" aria-label=label>
                 <div class="panel-head">
                     <h2>{title}</h2>
@@ -148,23 +157,38 @@ pub fn Frame(
             </aside>
             <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
             <div class="page" id="page-scroll">{children()}</div>
+            {aside.map(|aside| view! {
+                // The handle is a sibling of the panel, as in the catalog: a child would be clipped.
+                <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                {aside.run()}
+            })}
         </div>
     }
 }
 
-/// „Zurück" on a page inside an area (a module, a program): up to the area's list as it was left.
-/// If that list is where the visitor came from, `enhance.js` goes back through the browser
-/// history instead (`data-back="history"`), so the list is the same history entry as before and
-/// the history does not grow. Esc does the same (R10).
+/// „Zurück" on a page inside an area (a module, a program): up to the area's list as it was
+/// left, or to the page `to` names (a module opened beside a program leads back to that program).
+/// If that is where the visitor came from, `enhance.js` goes back through the browser history
+/// instead (`data-back="history"`), so it is the same history entry as before and the history
+/// does not grow. Esc does the same (R10).
+///
+/// Where it leads is read again on every change of the address: after closing the module beside
+/// a program the visitor did *not* come from the list any more, so Esc must follow the link and
+/// not walk the history back into the module it has just closed.
 #[component]
-pub fn BackLink(area: crate::tabs::Area) -> impl IntoView {
+pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<String>) -> impl IntoView {
     let location = leptos_router::hooks::use_location();
     let tabs = crate::tabs::Tabs::expect();
-    let now = crate::tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
-    let list = tabs.map(|tabs| tabs.list(area)).unwrap_or_else(|| area.root().to_string());
-    let came_from_it = tabs.is_some_and(|tabs| tabs.before(&now) == list);
+    let target = to.unwrap_or_else(|| tabs.map(|tabs| tabs.list(area)).unwrap_or_else(|| area.root().to_string()));
+    let came_from_it = {
+        let target = target.clone();
+        move || {
+            let now = crate::tabs::location_of(&location.pathname.get(), &location.search.get());
+            tabs.is_some_and(|tabs| tabs.before(&now) == target).then_some("history")
+        }
+    };
     view! {
-        <a class="ghost" href=list data-action="back" data-back=came_from_it.then_some("history") title="Zurück (Esc)">
+        <a class="ghost" href=target data-action="back" data-back=came_from_it title="Zurück (Esc)">
             <Icon name="arrow-left"/>"Zurück"<Shortcut keys="Esc"/>
         </a>
     }

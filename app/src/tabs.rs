@@ -81,6 +81,13 @@ impl Memory {
             return;
         }
         let path = path_of(&location).to_string();
+        // A module opened out of a program (its preview, „Vollbild") belongs to that program, not
+        // to the catalog: the catalog's tab keeps leading to the list as it was left, and that
+        // list does not reveal a module the visitor never picked there (owner, 2026-09-20).
+        if path.starts_with("/catalog/module/") && Area::of(path_of(&self.current)) == Area::Programs {
+            self.previous = std::mem::replace(&mut self.current, location);
+            return;
+        }
         let (last, list) = match Area::of(&path) {
             Area::Catalog => (&mut self.catalog, &mut self.catalog_list),
             Area::Programs => (&mut self.programs, &mut self.programs_list),
@@ -163,6 +170,16 @@ impl Tabs {
         .unwrap_or_else(|| area.root().to_string())
     }
 
+    /// The page of `area` the visitor was on last, whatever it was. Unlike `list` this is the
+    /// page itself (a program with a module open beside it, a module of the catalog).
+    pub fn left(self, area: Area) -> Option<String> {
+        self.0.with_untracked(|memory| match area {
+            Area::Catalog => memory.catalog.clone(),
+            Area::Programs => memory.programs.clone(),
+            Area::Home => None,
+        })
+    }
+
     /// Where the visitor was before `now`. Pages ask this while they are built, which may be
     /// before or after the memory has heard of `now`; the answer is the same either way.
     pub fn before(self, now: &str) -> String {
@@ -185,14 +202,23 @@ mod tests {
     #[test]
     fn tabs_remember_where_their_area_was_left() {
         let mut memory = Memory::default();
-        for location in ["/catalog?turnus=winter", "/catalog?turnus=winter&page=3", "/programs?level=master", "/programs/master-informatik-2008/plan", "/catalog/module/11112"] {
+        for location in ["/catalog?turnus=winter", "/catalog?turnus=winter&page=3", "/catalog/module/11112", "/programs?level=master", "/programs/master-informatik-2008/plan"] {
             memory.visit(location.to_string());
         }
         assert_eq!(memory.catalog.as_deref(), Some("/catalog/module/11112"));
         assert_eq!(memory.catalog_list.as_deref(), Some("/catalog?turnus=winter&page=3"));
         assert_eq!(memory.programs.as_deref(), Some("/programs/master-informatik-2008/plan"));
         assert_eq!(memory.programs_list.as_deref(), Some("/programs?level=master"));
-        assert_eq!((memory.previous.as_str(), memory.current.as_str()), ("/programs/master-informatik-2008/plan", "/catalog/module/11112"));
+        assert_eq!((memory.previous.as_str(), memory.current.as_str()), ("/programs?level=master", "/programs/master-informatik-2008/plan"));
+
+        // A module opened out of a program leaves the catalog's memory alone.
+        let mut from_program = Memory::default();
+        for location in ["/catalog?turnus=winter", "/programs/master-informatik-2008/plan?open=11112", "/catalog/module/11112"] {
+            from_program.visit(location.to_string());
+        }
+        assert_eq!(from_program.catalog.as_deref(), Some("/catalog?turnus=winter"));
+        assert_eq!(from_program.programs.as_deref(), Some("/programs/master-informatik-2008/plan?open=11112"));
+        assert_eq!(from_program.previous.as_str(), "/programs/master-informatik-2008/plan?open=11112");
 
         // What a reload keeps: the areas, not the step before.
         let restored = Memory::restored(&memory.stored());

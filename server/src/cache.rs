@@ -105,11 +105,9 @@ pub fn cache_key(uri: &Uri) -> String {
         overview.text = catalog::search::fold(&overview.text);
         overview.path()
     } else if path.starts_with("/programs/") {
-        // A program's page shows one of its study plans; which one is part of the page.
-        match catalog::url::program_variant(uri.query().unwrap_or_default()) {
-            1 => path.to_string(),
-            variant => format!("{path}?variant={variant}"),
-        }
+        // A program's page shows one of its study plans and, beside it, one of its modules.
+        let tab = path.rsplit('/').next().and_then(catalog::url::ProgramTab::from_segment).unwrap_or_default();
+        format!("{path}{}", catalog::url::ProgramUrl::parse("", tab, uri.query().unwrap_or_default()).query())
     } else {
         path.to_string()
     }
@@ -219,8 +217,9 @@ mod tests {
         assert_eq!(key("/programs?q=+%C3%96ko"), "/programs?q=oko");
         assert_eq!(key("/programs/x/plan?utm_source=x"), "/programs/x/plan");
         // Which study plan of a program is shown belongs to the page, so also to its key.
-        assert_eq!(key("/programs/x/plan?variant=2"), "/programs/x/plan?variant=2");
+        assert_eq!(key("/programs/x/plan?variant=2&open=11101"), "/programs/x/plan?variant=2&open=11101");
         assert_eq!(key("/programs/x/plan?variant=1"), key("/programs/x/plan?variant=nonsense"));
+        assert_eq!(key("/programs/x/plan?open=../etc"), "/programs/x/plan");
         assert_eq!(key("/programs/"), "/programs");
         assert_eq!(key("/"), "/");
     }

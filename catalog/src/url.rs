@@ -4,8 +4,9 @@
 //! `/catalog?…`                         module catalog; the query string is a `CatalogQuery`
 //! `/catalog/module/<id>`               module page
 //! `/programs`                          program overview
-//! `/programs/<slug>[/plan|areas|modules][?variant=<n>]`   program page, its tabs and, where a
-//!                                      program has several study plans, which one is shown
+//! `/programs/<slug>[/plan|areas|modules][?variant=<n>][&open=<id>]`   program page, its tabs,
+//!                                      which of several study plans is shown and which module
+//!                                      stands beside it (`ProgramUrl`)
 //!
 //! Most filters can also exclude: `exam=written&not-exam=presentation` lists modules with a
 //! written exam and without a presentation. A value that is both included and excluded counts
@@ -71,24 +72,96 @@ pub fn program_path(slug: &str, tab: ProgramTab) -> String {
 /// How many study plans of one program can be told apart in the URL. A program has one plan per
 /// study direction; the highest seen so far is eight.
 pub const MAX_PLAN_VARIANTS: usize = 20;
+/// How many rows of one study plan can be told apart in the URL (the longest has 29).
+pub const MAX_PLAN_ROWS: usize = 200;
 
-/// Which of several study plans a program's page shows (`variant=<n>`, 1-based). The plan is
-/// content, not a personal view setting: a link leads to the plan it shows, and the choice works
-/// without JavaScript. Anything else means the first plan.
-pub fn program_variant(raw_query: &str) -> usize {
-    parse_pairs(raw_query)
-        .iter()
-        .find(|(key, _)| key == "variant")
-        .and_then(|(_, value)| value.trim().parse::<usize>().ok())
-        .filter(|n| (1..=MAX_PLAN_VARIANTS).contains(n))
-        .unwrap_or(1)
+/// What a program's address says besides the program itself: which view, which of its study
+/// plans, and which of its modules is shown next to it.
+///
+/// Both are content, not personal view settings: a link leads to the plan and the module it
+/// shows, and both work without JavaScript. How the plan is *drawn* is personal and stays out of
+/// the URL (R13).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProgramUrl {
+    pub slug: String,
+    pub tab: ProgramTab,
+    /// 1-based. The first plan is the default and is not written.
+    pub variant: usize,
+    /// The module shown beside the page (`open=<id>`); its own page is `module_path`.
+    pub open: Option<String>,
+    /// The area shown beside the page (`area=<id>`): what the program's tree puts in it. A
+    /// module opened from that list keeps it, so closing the module returns to the area.
+    pub area: Option<i64>,
+    /// The row of the study plan shown beside the page (`req=<n>`, 1-based within the chosen
+    /// plan). Most of these rows are requirements the plan states without naming a module
+    /// („Wahlpflichtmodule der Studienrichtung"), so they have nothing else to be named by.
+    pub req: Option<usize>,
 }
 
-/// The address of one of a program's study plans; the first one needs no parameter.
-pub fn program_variant_path(slug: &str, tab: ProgramTab, variant: usize) -> String {
-    match variant {
-        0 | 1 => program_path(slug, tab),
-        n => format!("{}?variant={n}", program_path(slug, tab)),
+impl ProgramUrl {
+    pub fn new(slug: &str, tab: ProgramTab) -> Self {
+        Self { slug: slug.to_string(), tab, variant: 1, open: None, area: None, req: None }
+    }
+
+    pub fn parse(slug: &str, tab: ProgramTab, raw_query: &str) -> Self {
+        let pairs = parse_pairs(raw_query);
+        let first = |name: &str| pairs.iter().find(|(key, _)| key == name).map(|(_, value)| value.trim().to_string());
+        Self {
+            slug: slug.to_string(),
+            tab,
+            variant: first("variant").and_then(|value| value.parse::<usize>().ok()).filter(|n| (1..=MAX_PLAN_VARIANTS).contains(n)).unwrap_or(1),
+            open: first("open").filter(|id| id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')),
+            area: first("area").and_then(|value| value.parse::<i64>().ok()).filter(|id| *id > 0),
+            req: first("req").and_then(|value| value.parse::<usize>().ok()).filter(|n| (1..=MAX_PLAN_ROWS).contains(n)),
+        }
+    }
+
+    /// One spelling per page, which is also the key the server caches it under.
+    pub fn query(&self) -> String {
+        let mut out: Vec<String> = Vec::new();
+        if self.variant > 1 {
+            out.push(format!("variant={}", self.variant));
+        }
+        if let Some(id) = self.area {
+            out.push(format!("area={id}"));
+        }
+        if let Some(row) = self.req {
+            out.push(format!("req={row}"));
+        }
+        if let Some(id) = &self.open {
+            out.push(format!("open={}", encode(id)));
+        }
+        match out.is_empty() {
+            true => String::new(),
+            false => format!("?{}", out.join("&")),
+        }
+    }
+
+    pub fn path(&self) -> String {
+        format!("{}{}", program_path(&self.slug, self.tab), self.query())
+    }
+
+    /// The same page with this module beside it, or (`None`) without it.
+    pub fn with_open(&self, id: Option<&str>) -> Self {
+        Self { open: id.map(str::to_string), ..self.clone() }
+    }
+
+    /// The same page with this area beside it; what was shown so far makes way for it.
+    pub fn with_area(&self, id: Option<i64>) -> Self {
+        Self { area: id, open: None, req: None, ..self.clone() }
+    }
+
+    /// The same page with this row of the study plan beside it.
+    pub fn with_req(&self, row: Option<usize>) -> Self {
+        Self { req: row, open: None, area: None, ..self.clone() }
+    }
+
+    pub fn with_variant(&self, variant: usize) -> Self {
+        Self { variant, ..self.clone() }
+    }
+
+    pub fn with_tab(&self, tab: ProgramTab) -> Self {
+        Self { tab, ..self.clone() }
     }
 }
 
@@ -741,9 +814,25 @@ mod tests {
         assert_eq!(program_path("bachelor-informatik-2008", ProgramTab::Areas), "/programs/bachelor-informatik-2008/areas");
         assert_eq!(ProgramTab::from_segment("modules"), Some(ProgramTab::Modules));
         assert_eq!(ProgramTab::from_segment("electives"), None);
-        assert_eq!(program_variant_path("bachelor-elektrotechnik-2022", ProgramTab::Plan, 2), "/programs/bachelor-elektrotechnik-2022/plan?variant=2");
-        assert_eq!(program_variant_path("bachelor-elektrotechnik-2022", ProgramTab::Plan, 1), "/programs/bachelor-elektrotechnik-2022/plan");
-        assert_eq!((program_variant("variant=3"), program_variant("variant=0"), program_variant("variant=999"), program_variant("")), (3, 1, 1, 1));
+        let program = ProgramUrl::parse("bachelor-elektrotechnik-2022", ProgramTab::Plan, "variant=2&open=11101&utm=x");
+        assert_eq!(program.path(), "/programs/bachelor-elektrotechnik-2022/plan?variant=2&open=11101");
+        // An area beside the page, and a module opened out of it keeps it.
+        let areas = ProgramUrl::parse("x", ProgramTab::Areas, "area=12&open=11101");
+        assert_eq!(areas.query(), "?area=12&open=11101");
+        assert_eq!(areas.with_open(None).query(), "?area=12");
+        assert_eq!(areas.with_area(None).query(), "");
+        assert_eq!(ProgramUrl::parse("x", ProgramTab::Areas, "area=-3").area, None);
+        // A row of the plan, and what replaces what.
+        let plan = ProgramUrl::parse("x", ProgramTab::Plan, "variant=2&req=7");
+        assert_eq!(plan.query(), "?variant=2&req=7");
+        assert_eq!(plan.with_area(Some(3)).query(), "?variant=2&area=3");
+        assert_eq!(plan.with_open(Some("11101")).query(), "?variant=2&req=7&open=11101");
+        assert_eq!(ProgramUrl::parse("x", ProgramTab::Plan, "req=0").req, None);
+        assert_eq!(program.with_open(None).with_variant(1).path(), "/programs/bachelor-elektrotechnik-2022/plan");
+        assert_eq!(ProgramUrl::parse("x", ProgramTab::Plan, "variant=0").variant, 1);
+        assert_eq!(ProgramUrl::parse("x", ProgramTab::Plan, "variant=999").variant, 1);
+        assert_eq!(ProgramUrl::parse("x", ProgramTab::Plan, "open=../../etc").open, None);
+        assert_eq!(ProgramUrl::parse("x", ProgramTab::Areas, "").query(), "");
         assert_eq!(CatalogUrl { page: 3, ..Default::default() }.offset(), 100);
         assert_eq!(CatalogUrl::parse("open=12104").with_open(None).path(), "/catalog");
         assert_eq!(CatalogUrl::parse("open=../../etc").open, None);

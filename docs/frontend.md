@@ -33,7 +33,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog?…&open=<id>` | The same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
+| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — all of them are content, so they stand in the address, work without JavaScript and are part of the server's cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. On a phone `open` leads to the module's own page, as in the catalog |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -108,7 +108,15 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   up, not back to the other area). And it tells a list which row to show again: the catalog
   scrolls to the module whose page was open just before, the program overview to the program.
   The memory is personal state: `sessionStorage`, never the URL, never server HTML; without the
-  app every tab is the plain link to its area.
+  app every tab is the plain link to its area. **A module opened out of a program does not become
+  what the catalog remembers** (owner, 2026-09-20): its tab keeps leading to the list as it was
+  left, and that list does not reveal a module the visitor never picked there. A module opened
+  beside a program and then taken to
+  its own page („Vollbild") leads **back to that program**, not to the catalog: the step before
+  answers, and after a reload the area's own memory does (it was left at a program page that
+  names this module in `open`). Where „Zurück" leads is read again on every change of the
+  address, so after closing the module beside a program Esc follows the link out of the program
+  instead of walking the history back into the module it has just closed.
 - **Every page has the same frame (owner decision 2026-09-20, R17):** a sidebar as wide as the
   catalog's filter panel, with the same handle and the same remembered width, and the page next
   to it (`ui::Frame`; the catalog builds it itself, its sidebar is the filter form). Going from
@@ -131,6 +139,50 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   subject agree on. The sidebar says so, and programs without a clear answer have a section of
   their own („unknown stays unknown", R12). The 2026-09-19 snapshot: 106 by thesis, 34 by
   majority, 4 by subject, 4 without.
+- **The program page** (reworked 2026-09-20, second round; the first one was „unaufgeräumt"): the
+  head is three lines that start on the same edge — where the visitor is („Zurück", the path),
+  the name with the numbers of the program right of it on its baseline (Semester, LP, Module,
+  FÜS-Module; length and size are what the validated plan says, so they are only there when there
+  is one), and under it the line of the regulations (degree · PO · form of study · „aktuell" or the
+  flag of an older PO). Everything that lists modules is **one table with the same columns**
+  (Nr., Modul, Art, LP, Turnus, Semester): areas and semesters are groups of rows inside it,
+  never boxes beside it, rows are one line high, and the views stand on the same vertical lines.
+  **A program has one study plan per study direction** — they used to be drawn as one table, so
+  Elektrotechnik B.Sc. listed modules twice and counted 60 LP in its first semester instead of 30
+  (33 of the 140 programs with a plan have more than one). The chosen plan is `?variant=<n>`; the
+  chips name it without the boilerplate of the PDF caption and carry the full caption as their
+  title. The plan is drawn as its regulations print it — a row per module, a column per semester,
+  the credits in the cell, modules over several semesters spanning their columns, the sums
+  underneath — or as a list, semester after semester with its sum. Which of the two is personal:
+  `localStorage`, the switch is in the sidebar and needs JavaScript (R9, R15); server HTML is
+  always the matrix. Only what the plan puts into a single semester is added up in that
+  semester's column; a footnote says so where a plan has modules over several semesters.
+  **The page has a panel on the right** (`ui::Frame`'s `aside`, as wide as the catalog's preview,
+  same handle, same remembered width): a module clicked in any of the three views opens in it
+  (`?open=<id>`, the same panel as in the catalog, so a module reads the same wherever it is
+  opened); an area clicked in „Wahlpflicht & Bereiche" — in the table or in the sidebar, which
+  also brings it into view — shows what it holds (`?area=<id>`: its numbers, the areas under it,
+  and its modules, each of them opening in the same panel and coming back to the area when it is
+  closed); a row of the study plan that names no module of the catalog — most of them are
+  requirements („Wahlpflichtmodule der Studienrichtung", „Wahlpflichtmodul aus der Informatik") —
+  shows what the plan states about it and where the modules that can be chosen are listed
+  (`?req=<n>`, the row's place in the chosen plan). **No source links a row to an area**
+  (`area_rules` is prose about credits), so the name does the work and the panel says so: the
+  labels of the areas are scored against the row's name (a distinctive word counts, „Wahlpflicht­
+  modul" hardly), only the study directions the plan's caption names are kept („MIT und EET" →
+  never the areas of PA or IoT), a single best fit is shown with its modules, and where two fit
+  equally well both are named instead of one being picked (R12). A row the plan states as
+  Pflicht, Abschlussarbeit or Praktikum means one module, not a choice: it gets no area at all,
+  only the honest note that the catalog does not know it under this name and a search for it. And with nothing picked the panel holds the
+  numbers of the view one is looking at — for the
+  plan the chosen study direction with its semesters, credits and how much of it the catalog
+  links, plus the credits per semester as bars; for the other views the areas and how the modules
+  split by the kind the program states them as (every kind that occurs, „Art nicht angegeben"
+  where no source says; nothing is counted into a kind it was not stated as). Unlike the catalog's preview it is a column of
+  the layout, not a panel over the page: the tables keep the room that is left and give up the
+  columns that carry least (Bereich, Turnus, Nr.) as it gets narrower. Tried before and dropped
+  (owner, 2026-09-20): the matrix as a centred block in a wide empty panel — „liest sich zwar
+  leichter, sieht trotzdem komisch aus"; the width wants content, not air.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added).
 - **Tokens:** `app/assets/app.css` starts with the token block (colors, radii, shadows); everything
@@ -451,7 +503,17 @@ the same place on catalog, overview, program page and landing page; the overview
 sections and links agree, no two links of a subject read the same, nothing cut off in the
 sidebar); filters as links that keep focus and sidebar, the search keeping the filters; a jump to
 a faculty without a history entry; the views of a program in the sidebar; on a phone the filters
-in a sheet; and the filter links without JavaScript.
+in a sheet; and the filter links without JavaScript. On a program's page: the numbers of the head
+(and that none of them leaves its panel), one study plan per study direction (no module twice, the
+first semester at 30 LP, semester columns of equal width), switching the direction through the
+URL, a module opening beside the page (its row marked, the panel not lying over the table) and
+closing again, „Vollbild" and back to the program without a new history entry, Esc leaving the
+program instead of reopening the module, an area beside the page with its modules (and a module
+picked out of it coming back to the area), a requirement of the plan with its numbers and its
+ways on, the catalog's tab unchanged by a module seen in full screen out of a program, matrix and
+list with the choice remembered in this browser only, the areas as groups of rows
+with the sidebar leading to each of them without a history entry, all modules one line high with
+their area, and on a phone the matrix scrolling inside its panel while the page does not.
 
 ```bash
 cd e2e && node home.mjs
@@ -466,7 +528,7 @@ follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
 
 - PWA: manifest, service worker (offline start), update prompt. User data: bookmarks, passed
   modules with the prerequisite check, „mein Studiengang". `wasm-opt` for the bundle.
-- Phase 3: design system, plan grid with variants, weekly calendar, filter bottom sheet, search
+- Phase 3: design system, weekly calendar, filter bottom sheet, search
   with context ranking (own concept, see `docs/frontend-phase0.md`).
 - Phase 4: Nix package and container, Swarm stack, CSP, CI.
 
