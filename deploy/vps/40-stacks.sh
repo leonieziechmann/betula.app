@@ -13,7 +13,10 @@
 #
 # What decides which files are deployed:
 #   edge.www.yml           only while www.betula.app resolves to this machine
-#   placeholder            skipped as soon as a stack "betula" exists (then remove it: docker stack rm placeholder)
+#   placeholder            skipped as soon as an instance of the application serves betula.app (then
+#                          remove it: docker stack rm placeholder). An instance at another name,
+#                          like canary.betula.app, leaves it alone. The application itself is
+#                          deployed by vps/50-app.sh, never here.
 #   monitoring.public.yml  only while GRAFANA_HOST is set and resolves to this machine
 #   monitoring.smtp.yml    only while all of its swarm secrets exist (stacks/monitoring-secrets.sh)
 #   monitoring.notify.yml  the same, if the file exists (your copy of monitoring.notify.example.yml)
@@ -40,13 +43,11 @@ betula_init --tmp
 require_ubuntu
 
 ALL_STACKS=(edge placeholder monitoring)
-CONVERGE_TIMEOUT="${CONVERGE_TIMEOUT:-600}"
 ACME_STAGING_URL="https://acme-staging-v02.api.letsencrypt.org/directory"
 CREDENTIALS_FILE="/root/betula-initial-credentials.txt"
 ADMIN_SECRET="grafana-admin-password"
 # "-" and not ":-": an explicitly empty GRAFANA_HOST means "do not publish Grafana".
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST-${DEFAULT_GRAFANA_HOST}}"
-FAILED_STACKS=()
 CREDENTIALS_WRITTEN=0
 
 # ---------------------------------------------------------------- helpers
@@ -64,102 +65,7 @@ checksum_of() {
   find "$@" -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12
 }
 
-# require_bind_sources FILE... - every host path the files bind-mount must exist before swarm sees them.
-require_bind_sources() {
-  local path missing=0
-  while IFS= read -r path; do
-    [[ -n "${path}" ]] || continue
-    if [[ ! -e "${path}" ]]; then
-      warn "bind source ${path} does not exist"
-      missing=$((missing + 1))
-    fi
-  done < <(yaml_bind_sources "$@")
-  [[ "${missing}" -eq 0 ]] ||
-    die "${missing} bind source(s) missing: swarm would reject the task. Run deploy/sync.sh (config files) or vps/10-base.sh (/var/log/journal) first"
-}
-
-# require_secrets FILE... - same for the external secrets the files name.
-require_secrets() {
-  local name
-  while IFS= read -r name; do
-    [[ -n "${name}" ]] || continue
-    secret_exists "${name}" || die "swarm secret ${name} does not exist (stacks/monitoring-secrets.sh set ${name})"
-  done < <(yaml_external_secrets "$@")
-}
-
-# deploy_stack STACK FILE...
-deploy_stack() {
-  local stack=$1 file
-  shift
-  local -a args=()
-  for file in "$@"; do
-    [[ -f "${file}" ]] || die "stack file missing: ${file} (run deploy/sync.sh)"
-    assert_lf "${file}"
-    args+=(-c "${file}")
-  done
-  require_bind_sources "$@"
-  require_secrets "$@"
-  log "docker stack deploy ${stack}: $(printf '%s ' "${@##*/}")"
-  # --detach=true: return at once; wait_for_stack below waits with a timeout and explains failures.
-  # --prune: a service that left the files leaves the swarm as well.
-  docker stack deploy --detach=true --prune "${args[@]}" "${stack}"
-}
-
-# wait_for_stack STACK - until every service is converged (see service_state), or the timeout.
-wait_for_stack() {
-  local stack=$1 svc state streak=0 deadline last="" summary
-  local -a pending=() failed=()
-  deadline=$((SECONDS + CONVERGE_TIMEOUT))
-  # Give the orchestrator a moment to turn the new spec into an update; "1/1, no update" read
-  # too early would describe the state before this deploy.
-  sleep 3
-  while :; do
-    pending=()
-    failed=()
-    summary=""
-    while IFS= read -r svc; do
-      [[ -n "${svc}" ]] || continue
-      state="$(service_state "${svc}")"
-      summary+="${svc#"${stack}"_}: ${state#* }; "
-      case "${state}" in
-        ok\ *) ;;
-        failed\ *) failed+=("${svc}") ;;
-        *) pending+=("${svc}") ;;
-      esac
-    done < <(stack_services "${stack}")
-    if [[ "${summary}" != "${last}" ]]; then
-      log "${stack}: ${summary:-no services yet}"
-      last="${summary}"
-    fi
-    if [[ "${#failed[@]}" -gt 0 ]]; then
-      break
-    fi
-    if [[ -n "${summary}" && "${#pending[@]}" -eq 0 ]]; then
-      # Twice in a row, 5 s apart: a task that dies right after its start does not count.
-      streak=$((streak + 1))
-      if [[ "${streak}" -ge 2 ]]; then
-        log "${stack}: converged"
-        return 0
-      fi
-    else
-      streak=0
-    fi
-    if [[ "${SECONDS}" -ge "${deadline}" ]]; then
-      warn "${stack}: not converged after ${CONVERGE_TIMEOUT} s"
-      break
-    fi
-    sleep 5
-  done
-
-  for svc in ${failed[@]+"${failed[@]}"} ${pending[@]+"${pending[@]}"}; do
-    printf '\n---- docker service ps --no-trunc %s\n' "${svc}" >&2
-    docker service ps --no-trunc "${svc}" >&2 || true
-    printf -- '---- docker service logs --tail 15 %s\n' "${svc}" >&2
-    docker service logs --no-task-ids --tail 15 "${svc}" >&2 2>&1 || true
-  done
-  FAILED_STACKS+=("${stack}")
-  return 0
-}
+# deploy_stack and wait_for_stack live in lib-stacks.sh (50-app.sh uses them as well).
 
 # ---------------------------------------------------------------- steps
 
@@ -249,8 +155,11 @@ deploy_edge() {
 
 deploy_placeholder() {
   step "Stack placeholder (static page at https://${SITE_HOST})"
-  if stack_exists betula; then
-    log "stack betula exists: the application owns https://${SITE_HOST}, placeholder is not deployed"
+  local owner
+  # An instance at another name (canary.betula.app) leaves the placeholder where it is.
+  owner="$(app_stack_for_host "${SITE_HOST}")"
+  if [[ -n "${owner}" ]]; then
+    log "stack ${owner} serves https://${SITE_HOST}: the application owns it, placeholder is not deployed"
     if stack_exists placeholder; then
       warn "stack placeholder is still there; once the application works: docker stack rm placeholder"
     fi
@@ -312,7 +221,8 @@ deploy_monitoring() {
 report() {
   step "Done"
   local stack
-  for stack in edge placeholder betula monitoring; do
+  # shellcheck disable=SC2046  # instance names are single words
+  for stack in edge placeholder $(instance_names) monitoring; do
     if stack_exists "${stack}"; then
       docker stack services "${stack}" --format '{{.Name}}  {{.Replicas}}  {{.Image}}' | sed 's/^/  /'
     fi

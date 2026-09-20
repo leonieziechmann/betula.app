@@ -1,10 +1,11 @@
 # Stack "placeholder": a static "coming soon" page at https://betula.app.
 # It proves DNS -> firewall -> Traefik -> Let's Encrypt -> overlay network -> service before the app exists.
 #
-#   bash /opt/betula/vps/40-stacks.sh placeholder      # skips it as soon as a stack "betula" exists
+#   bash /opt/betula/vps/40-stacks.sh placeholder      # skips it as soon as an instance of the application serves betula.app
 #   docker stack deploy -c /opt/betula/stacks/placeholder.yml placeholder
 #
-# Going live: deploy the app stack first, check it, then "docker stack rm placeholder". The router below has
+# An instance of the application at another name (canary.betula.app) leaves this page alone.
+# Going live: deploy an instance with APP_HOST=betula.app first, check it, then "docker stack rm placeholder". The router below has
 # priority 1, so the app's router for the same host wins the moment it appears - no gap and no tie between two
 # identical rules. Both routers use the same stored certificate.
 #

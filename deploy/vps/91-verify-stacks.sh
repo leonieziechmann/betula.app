@@ -5,7 +5,7 @@
 #   bash /opt/betula/vps/91-verify-stacks.sh                 # everything
 #   bash /opt/betula/vps/91-verify-stacks.sh tls headers     # only some sections
 #
-# Sections: services http tls headers ports loki prometheus grafana alerts
+# Sections: services http tls headers ports app loki prometheus grafana alerts
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
 # Changes nothing. The only traffic it causes: a few requests to the site (which also put fresh
 # lines into Traefik's access log for the Loki check) and queries inside the monitoring stack.
@@ -31,15 +31,15 @@ require_ubuntu
 require_cmd docker curl openssl jq
 require_swarm_manager
 
-ALL_SECTIONS=(services http tls headers ports loki prometheus grafana alerts)
+ALL_SECTIONS=(services http tls headers ports app loki prometheus grafana alerts)
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST:-${DEFAULT_GRAFANA_HOST}}"
 RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
 # Jobs that must be "up": five scraped by Prometheus (config/monitoring/prometheus.yml), two
 # pushed by Alloy through remote write (config/monitoring/alloy/config.alloy).
 EXPECTED_JOBS=(prometheus traefik loki grafana alloy integrations/unix integrations/cadvisor)
 # Ports of the contract that must NOT listen on the host: Traefik ping and metrics, socket proxy,
-# Grafana, Loki, Prometheus, Alloy, Radix.
-PRIVATE_PORTS=(8081 8082 2375 3000 3100 9090 12345 8090)
+# Grafana, Loki, Prometheus, Alloy, Radix, Folia.
+PRIVATE_PORTS=(8081 8082 2375 3000 3100 9090 12345 8090 8080)
 PASSED=0
 WARNED=0
 FAILED=0
@@ -180,12 +180,14 @@ header_value() {
 
 check_services() {
   section "services (replicas running and healthy, no update in flight)"
-  local stack svc state found
-  for stack in edge placeholder betula monitoring; do
+  local stack svc state found site_owner
+  site_owner="$(app_stack_for_host "${SITE_HOST}")"
+  # shellcheck disable=SC2046  # instance names are single words
+  for stack in edge placeholder $(instance_names) monitoring; do
     if ! stack_exists "${stack}"; then
       case "${stack}" in
         edge | monitoring) fail "stack ${stack} is not deployed (vps/40-stacks.sh)" ;;
-        placeholder) stack_exists betula || fail "neither stack placeholder nor stack betula is deployed: nothing answers https://${SITE_HOST}" ;;
+        placeholder) [[ -n "${site_owner}" ]] || fail "neither stack placeholder nor an instance of the application serves https://${SITE_HOST}: nothing answers there" ;;
       esac
       continue
     fi
@@ -201,8 +203,8 @@ check_services() {
     done < <(stack_services "${stack}")
     [[ "${found}" -eq 1 ]] || fail "stack ${stack} has no services"
   done
-  if stack_exists betula && stack_exists placeholder; then
-    warning "stack placeholder still runs next to betula; once the application works: docker stack rm placeholder"
+  if [[ -n "${site_owner}" ]] && stack_exists placeholder; then
+    warning "stack placeholder still runs although stack ${site_owner} serves https://${SITE_HOST}; once the application works: docker stack rm placeholder"
   fi
   if www_router_deployed; then pass "override edge.www.yml is deployed (https://${WWW_HOST} redirects)"; else
     warning "override edge.www.yml is not deployed: https://${WWW_HOST} is not served (40-stacks.sh adds it when the name resolves here)"
@@ -329,9 +331,81 @@ check_ports() {
     done
   done
   if [[ -z "${have}" ]]; then
-    pass "nothing listens on the host on ${PRIVATE_PORTS[*]} (Traefik ping/metrics, socket proxy, Grafana, Loki, Prometheus, Alloy, Radix)"
+    pass "nothing listens on the host on ${PRIVATE_PORTS[*]} (Traefik ping/metrics, socket proxy, Grafana, Loki, Prometheus, Alloy, Radix, Folia)"
   else
     fail "reachable on the host: ${have% } - a service publishes a port it should not (docker service ls; sudo ss -tlnp)"
+  fi
+}
+
+check_app() {
+  section "application (every instance in stacks/*.env: router, release, certificate, alive, closed testing)"
+  local name url rule radix_tag folia_tag code out body path deployed=0
+  while IFS= read -r name; do
+    [[ -n "${name}" ]] || continue
+    load_instance "${name}"
+    url="https://${INSTANCE_HOST}"
+    if ! stack_exists "${INSTANCE_STACK}"; then
+      warning "instance ${name} (${url}) is not deployed (deploy/ship.sh ${name})"
+      continue
+    fi
+    deployed=1
+
+    rule="$(service_label "${INSTANCE_STACK}_folia" "traefik.http.routers.${INSTANCE_STACK}-folia.rule")"
+    if [[ "${rule}" == "Host(\`${INSTANCE_HOST}\`)" ]]; then pass "${name}: routed for ${INSTANCE_HOST}"; else
+      fail "${name}: the router rule is '${rule:-<none>}', ${name}.env says ${INSTANCE_HOST} (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+    fi
+    radix_tag="$(docker service inspect "${INSTANCE_STACK}_radix" --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' 2>/dev/null || true)"
+    folia_tag="$(docker service inspect "${INSTANCE_STACK}_folia" --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' 2>/dev/null || true)"
+    radix_tag="${radix_tag%%@*}"
+    folia_tag="${folia_tag%%@*}"
+    if [[ -n "${folia_tag}" && "${radix_tag##*:}" == "${folia_tag##*:}" ]]; then pass "${name}: both services run release ${folia_tag##*:}"; else
+      warning "${name}: the services run different releases (${radix_tag:-no radix} / ${folia_tag:-no folia})"
+    fi
+
+    check_certificate "${INSTANCE_HOST}"
+
+    # -k: whether the chain is trusted is check_certificate's verdict.
+    code="$(curl -sS -k -o /dev/null --max-time 15 -w '%{http_code}' "${url}/livez" 2>/dev/null || true)"
+    if [[ "${code}" == "200" ]]; then pass "${url}/livez -> 200 (the web server answers through Traefik)"; else
+      fail "${url}/livez -> ${code:-no answer} (docker service ps --no-trunc ${INSTANCE_STACK}_folia; docker service logs edge_traefik)"
+    fi
+    code="$(curl -sS -k -o /dev/null --max-time 15 -w '%{http_code}' "${url}/healthz" 2>/dev/null || true)"
+    case "${code}" in
+      200) pass "${url}/healthz -> 200 (a snapshot is served and Radix was heard from)" ;;
+      503) warning "${url}/healthz -> 503: no snapshot yet, or no answer from Radix for 6 h. A fresh Radix needs hours for its first export (curl -s ${url}/healthz; docker service logs ${INSTANCE_STACK}_radix)" ;;
+      *) fail "${url}/healthz -> ${code:-no answer}" ;;
+    esac
+
+    if [[ "${INSTANCE_GATE}" == "on" ]]; then
+      # Closed testing: a page leads to the login page, nothing else answers, crawlers are sent away.
+      out="$(curl -sS -k -o /dev/null --max-time 15 -H 'Accept: text/html' -w '%{http_code} %{redirect_url}' "${url}/catalog" 2>/dev/null || true)"
+      if [[ "${out}" == "302 ${url}/access?next=%2Fcatalog" ]]; then pass "${name}: a page leads to the login page (${out})"; else
+        fail "${name}: ${url}/catalog answers '${out}' instead of leading to /access: closed testing is NOT in force"
+      fi
+      for path in /api/db /api/status /sitemap.xml; do
+        code="$(curl -sS -k -o /dev/null --max-time 15 -w '%{http_code}' "${url}${path}" 2>/dev/null || true)"
+        if [[ "${code}" == "401" ]]; then pass "${name}: ${path} -> 401 without the password"; else
+          fail "${name}: ${path} -> ${code:-no answer} without the password, expected 401: the catalog is public"
+        fi
+      done
+      body="$(curl -sS -k --max-time 15 "${url}/robots.txt" 2>/dev/null || true)"
+      if [[ "${body}" == *"Disallow: /"$'\n'* || "${body}" == *"Disallow: /" ]] && [[ "${body}" != *"Sitemap:"* ]]; then
+        pass "${name}: robots.txt turns crawlers away"
+      else
+        fail "${name}: robots.txt does not say 'Disallow: /' (${body//$'\n'/ | })"
+      fi
+      body="$(curl -sS -k --max-time 15 "${url}/access" 2>/dev/null || true)"
+      if [[ "${body}" == *'type="password"'* ]]; then pass "${name}: ${url}/access shows the login form"; else
+        fail "${name}: ${url}/access shows no login form"
+      fi
+    else
+      warning "${name}: closed testing is off (${name}.env): ${url} is open to everybody"
+      code="$(curl -sS -k -o /dev/null --max-time 15 -H 'Accept: text/html' -w '%{http_code}' "${url}/" 2>/dev/null || true)"
+      if [[ "${code}" == "200" || "${code}" == "503" ]]; then pass "${name}: ${url}/ -> ${code}"; else fail "${name}: ${url}/ -> ${code:-no answer}"; fi
+    fi
+  done < <(instance_names)
+  if [[ "${deployed}" -eq 0 ]]; then
+    warning "no instance of the application is deployed (from the workstation: deploy/ship.sh canary)"
   fi
 }
 

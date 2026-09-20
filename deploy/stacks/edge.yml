@@ -76,7 +76,7 @@
 #     edge:
 #       external: true
 #
-# (stacks/betula.example.yml is the full version of this for the application.)
+# (stacks/betula.yml is the full version of this for the application.)
 # A literal "$" in a label (regex replacement) must be written "$$", or stack deploy tries to substitute it.
 #
 # ---- Decisions ----------------------------------------------------------------------------------------------

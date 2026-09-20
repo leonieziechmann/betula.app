@@ -1,0 +1,189 @@
+# The application: Radix, the collector (Go, internal), and Folia, the Rust/Leptos web server, the
+# only public service. One file for every instance of it; what differs between instances is in
+# stacks/<instance>.env (canary.env: the closed test at https://canary.betula.app):
+#
+#   STACK_NAME         the name of the stack, e.g. canary. Also part of the router names, so two
+#                      instances never claim the same router in Traefik.
+#   APP_HOST           the public host name, e.g. canary.betula.app
+#   FOLIA_ACCESS_GATE  on: the whole site asks for the password in the secret folia-access-password
+#                      (docs/frontend.md, "Closed testing"). off: open to everybody. Default: on.
+#   RADIX_IMAGE, FOLIA_IMAGE   given per release (see "Images")
+#
+# Deployed by vps/50-app.sh (as deploy, no sudo), which deploy/ship.sh calls after it has built
+# and loaded the images; never by vps/40-stacks.sh:
+#
+#   bash /opt/betula/vps/50-app.sh canary 2026-09-21-ab12cd3
+#
+# The placeholder keeps https://betula.app until an instance is given APP_HOST=betula.app; its
+# router has priority 1, so the application takes over the moment its router appears.
+#
+# Images. There is no registry: an image arrives with "ssh ... docker load" and is named by a tag
+# that is NEW for every build (date + git commit). Never ":latest" and never the same tag twice:
+# swarm compares the service definition, not the image content, so a re-loaded "latest" would not
+# restart anything. --resolve-image never: the default asks a registry for the digest of the tag,
+# and there is no registry that knows these images.
+#
+# The monitoring stack reads both services' logs as JSON lines with level / event / msg (rule
+# "betula: ERROR in the logs": level=ERROR means a human is needed, docs/operations.md section 2)
+# for the stacks named in its rules (betula and canary).
+#
+# What the facts below are based on: docs/operations.md (Radix), flake.nix (both images),
+# server/src/config.rs and server/src/main.rs (web server), docs/frontend.md.
+#
+# The messages of "${NAME:?message}" below contain no "-" on purpose: docker stack deploy looks
+# for "-" before it looks for ":?", so "${X:?for example betula-radix:1}" is read as "the
+# variable 'X:?for example betula' with the default 'radix:1'" and deploys an image that does not
+# exist. (Found 2026-09-21 by deploying this file to a test swarm.)
+
+services:
+  radix:
+    # flake.nix builds "betula-radix:latest" (nix build .#radix-image); ship.sh gives it the tag
+    # and 50-app.sh hands it over as RADIX_IMAGE, for example betula-radix:2026-09-21-ab12cd3.
+    image: "${RADIX_IMAGE:?RADIX_IMAGE is not set}"
+    # The image brings everything else: Entrypoint /bin/radix run, RADIX_ADDR=0.0.0.0:8090,
+    # RADIX_DB=/data/radix.db, RADIX_SNAPSHOT_DIR=/data/snapshot, RADIX_LOG_FORMAT=json,
+    # TZ=Europe/Berlin (the off-peak crawl window 1-6 is local time), and
+    # HEALTHCHECK "radix healthcheck" (60 s interval, 120 s start period), so no healthcheck is
+    # declared here.
+    environment:
+      RADIX_LOG_LEVEL: info
+      # What "radix healthcheck" asks. /status answers 200 as long as the process serves HTTP.
+      # The default, /healthz, answers 503 until the first snapshot exists (hours on a fresh
+      # volume) and while cycles fail - and swarm does not just report an unhealthy task, it
+      # KILLS it: a fresh Radix would be restarted every five minutes in the middle of its first
+      # crawl, and no restart repairs a build that fails. What /healthz knows reaches a human
+      # through the log instead (level=ERROR, rule "betula: ERROR in the logs").
+      RADIX_HEALTH_URL: "http://127.0.0.1:8090/status"
+    # The Gemini key (only "scan-curriculum" needs it) comes with the override betula.gemini.yml,
+    # which 50-app.sh adds while the secret gemini-api-key exists.
+    volumes:
+      # Working database, snapshots and the statutes directory. Worth a backup (README.md).
+      - radix-data:/data
+    networks:
+      # Folia reaches http://radix:8090/snapshot/catalog.db. Not "internal": Radix has to reach
+      # the university's servers. (The monitoring overlay joins when Radix gets a /metrics
+      # endpoint; see the commented job in config/monitoring/prometheus.yml.)
+      default: {}
+    # No ports: nothing but Traefik publishes anything. /status for a human:
+    #   ssh -L 8090:<address of the container on docker_gwbridge>:8090 betula   (same recipe as for Grafana, README.md)
+    cap_drop: [ALL]
+    stop_grace_period: 60s        # SIGTERM stops it cleanly; a build transaction takes about 20 s
+    deploy:
+      replicas: 1                 # one writer per database
+      placement:
+        constraints:
+          - node.role == manager  # the volume lives on this node
+      restart_policy:
+        condition: any
+        delay: 30s
+      update_config:
+        order: stop-first         # never two writers on the volume
+        failure_action: rollback
+        monitor: 150s             # longer than the healthcheck's start period
+      rollback_config:
+        order: stop-first
+      resources:
+        limits:
+          cpus: "1.0"             # the build must not starve the web server; never above the host's 4 CPUs
+          memory: 1G              # docs/operations.md
+          pids: 256
+
+  folia:
+    # flake.nix builds "betula-folia:latest" (nix build .#folia-image): /bin/folia as user 10001,
+    # the browser app under /site, /data owned by that user (a fresh volume takes the owner over),
+    # FOLIA_ADDR=0.0.0.0:8080, FOLIA_DATA_DIR=/data, FOLIA_SITE_ROOT=/site,
+    # FOLIA_SNAPSHOT_URL=http://radix:8090/snapshot/catalog.db, FOLIA_LOG_FORMAT=json (the alert
+    # rules only understand JSON), and HEALTHCHECK "folia healthcheck".
+    #
+    # That healthcheck asks /livez, on purpose not /healthz: /healthz answers 503 until the first
+    # snapshot has been downloaded (a fresh Radix needs hours for its first export) and again when
+    # Radix was unreachable for 6 h. Swarm kills an unhealthy task and Traefik stops routing to
+    # it, so the site would go down exactly when it could still serve the last snapshot. /healthz
+    # belongs to an external uptime monitor; both answer without the password of closed testing.
+    image: "${FOLIA_IMAGE:?FOLIA_IMAGE is not set}"
+    environment:
+      FOLIA_LOG_LEVEL: info
+      # Canonical links, link previews and the sitemap are written with it.
+      FOLIA_PUBLIC_URL: "https://${APP_HOST:?APP_HOST is not set}"
+      # Rendered pages kept in memory; part of the memory limit below (default 128).
+      FOLIA_HTML_CACHE_MB: "128"
+      # Closed unless somebody says "off": a deploy that forgets the variable must not publish
+      # the site. On without the secret, the server refuses to start instead of serving it openly.
+      FOLIA_ACCESS_GATE: "${FOLIA_ACCESS_GATE:-on}"
+    secrets:
+      # Found without configuration at /run/secrets/folia-access-password; listed even while the
+      # gate is off, so that turning it on is one value. A new password ends every visit at once.
+      # Rotation: create folia-access-password-v2, then
+      #   - source: folia-access-password-v2 / target: folia-access-password
+      - folia-access-password
+    volumes:
+      # Downloaded snapshots, so a restart works while Radix is down.
+      - folia-data:/data
+      # Nothing else is written; the root file system stays read-only.
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    read_only: true
+    networks:
+      default: {}
+      edge: {}
+    cap_drop: [ALL]
+    stop_grace_period: 30s          # graceful shutdown on SIGTERM (server/src/main.rs)
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager    # the volume lives on this node
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        # stop-first costs a few seconds per update (the image's healthcheck probes a new task
+        # every 2 s while it starts), but start-first would run two servers on one data directory,
+        # and each removes the snapshot files it does not know (snapshot.rs, remove_other_files).
+        order: stop-first
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        order: stop-first
+      resources:
+        limits:
+          cpus: "1.0"
+          # Holds the HTML cache (up to 128 MB), the card cache (up to 64 MB) and the open snapshot
+          # (SQLite, about 40 MB on disk); /api/db is streamed from the file.
+          memory: 768M
+          pids: 256
+      labels:
+        # Service labels (deploy.labels): the swarm provider does not read container labels.
+        - "traefik.enable=true"
+        - "traefik.swarm.network=edge"
+        - "traefik.http.routers.${STACK_NAME:?STACK_NAME is not set}-folia.rule=Host(`${APP_HOST}`)"
+        - "traefik.http.routers.${STACK_NAME}-folia.entrypoints=websecure"
+        - "traefik.http.routers.${STACK_NAME}-folia.tls.certresolver=le"
+        # secure-headers: HSTS and friends. Traefik's value replaces a header the server sets
+        # itself (the server sends X-Frame-Options DENY, the middleware makes it SAMEORIGIN).
+        # rate-limit: 50 requests a second per address, bursts of 100 (the first load of the app
+        # is a burst); what it turns away never reaches the login form of closed testing.
+        # compress: text types only; /api/db and the assets arrive pre-compressed and pass through.
+        - "traefik.http.routers.${STACK_NAME}-folia.middlewares=secure-headers@file,rate-limit@file,compress@file"
+        # Default priority (rule length) beats the placeholder's priority 1 on the same host.
+        - "traefik.http.routers.${STACK_NAME}-folia.service=${STACK_NAME}-folia"
+        - "traefik.http.services.${STACK_NAME}-folia.loadbalancer.server.port=8080"
+
+networks:
+  default:
+    driver: overlay
+  edge:
+    external: true
+
+volumes:
+  radix-data: {}
+  folia-data: {}
+
+secrets:
+  # Created once on the server; the value comes from stdin and is never echoed or put into argv:
+  #   <password manager CLI> | ssh betula docker secret create folia-access-password -
+  # Long and random: while the gate is on it is all that stands between the site and the world.
+  folia-access-password:
+    external: true

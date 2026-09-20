@@ -29,7 +29,9 @@ groups:
       # (service, event, msg), so the message names the event. The text is "msg" in Radix
       # (slog) and "message" in the Rust web server (tracing, flatten_event); label_format merges them.
       # Lines that are not JSON are skipped here (__error__) and handled by the next rule.
-      # The betula stack MUST set FOLIA_LOG_FORMAT=json for the web service (its default is text).
+      # The web server has to log JSON (FOLIA_LOG_FORMAT=json; its image sets it, its default is text).
+      # The stacks are the instances of the application (stacks/*.env): betula, and canary for the
+      # closed test. A new instance has to be named here and in rule (1b), or its errors stay silent.
       # The window is 35m = one Radix cycle (30m) + margin: an error that comes back every cycle is
       # ONE continuous alert instead of a resolve/fire pair every half hour. No data = no errors = OK.
       - uid: betula-error-logs
@@ -48,7 +50,7 @@ groups:
                 type: loki
                 uid: loki
               editorMode: code
-              expr: "sum by (service, event, msg) (count_over_time({stack=\"betula\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
+              expr: "sum by (service, event, msg) (count_over_time({stack=~\"betula|canary\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
               queryType: instant
               intervalMs: 1000
               maxDataPoints: 43200
@@ -103,7 +105,7 @@ groups:
           description: |-
             {{ $labels.msg }}
             {{ if eq $labels.event "validate.check_failed" }}An invariant or count baseline failed, so no new snapshot is published. A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. The fields check, value and samples of the log line say which one.{{ else if eq $labels.event "crawl.aborted" }}Ten pages failed in a row and the crawl stage stopped: the university server is down or blocks us. Published data is intact and only ages.{{ else if eq $labels.event "export.failed" }}The export failed; the previous snapshot stays current.{{ else if eq $labels.event "build.failed" }}The build was rolled back; the canonical data is unchanged.{{ else }}Level ERROR means a human is needed, or published data could not be updated (docs/operations.md, section Logging).{{ end }}
-            {{ if $values.B }}{{ printf "%.0f" $values.B.Value }} such line(s) in the last 35 minutes. {{ end }}Logs dashboard: stack betula, level error. Also: GET /status on Radix.
+            {{ if $values.B }}{{ printf "%.0f" $values.B.Value }} such line(s) in the last 35 minutes. {{ end }}Logs dashboard: the stack of {{ $labels.service }}, level error. Also: GET /status on Radix.
 
       # (1b) What rule (1) cannot parse: a Go runtime crash ("panic:", "fatal error:") or a Rust panic
       # on stderr, and ERROR lines of a web server that was deployed without FOLIA_LOG_FORMAT=json.
@@ -127,7 +129,7 @@ groups:
                 type: loki
                 uid: loki
               editorMode: code
-              expr: "sum by (service) (count_over_time({stack=\"betula\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
+              expr: "sum by (service) (count_over_time({stack=~\"betula|canary\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
               queryType: instant
               intervalMs: 1000
               maxDataPoints: 43200
@@ -179,7 +181,7 @@ groups:
           severity: critical
         annotations:
           summary: "{{ $labels.service }}: crash or ERROR line that is not JSON"
-          description: "{{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}Some{{ end }} line(s) in the last 35 minutes. Either the process crashed (Go \"panic:\" / \"fatal error:\", Rust \"panicked at\"; Swarm has restarted it) or the service logs text instead of JSON - the web server needs FOLIA_LOG_FORMAT=json in the betula stack file, otherwise its errors arrive here without event and message. Logs dashboard: stack betula, filter panic|fatal error|ERROR."
+          description: "{{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}Some{{ end }} line(s) in the last 35 minutes. Either the process crashed (Go \"panic:\" / \"fatal error:\", Rust \"panicked at\"; Swarm has restarted it) or the service logs text instead of JSON - the web server needs FOLIA_LOG_FORMAT=json (its image sets it), otherwise its errors arrive here without event and message. Logs dashboard: the stack of {{ $labels.service }}, filter panic|fatal error|ERROR."
 
       # The log rules treat "no data" as "all good", so a broken pipeline must raise its own alert.
       # Measured on Alloy's counters, not on log volume: a quiet night is not an outage.

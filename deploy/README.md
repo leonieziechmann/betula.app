@@ -7,21 +7,24 @@ is edited there. No password, token or key is ever part of these files.
 ```
 deploy/
   sync.sh                 workstation -> /opt/betula (tar over ssh; refuses CR line endings)
+  ship.sh                 workstation: build the images of a commit, load them on the server, deploy an instance
   vps/                    host scripts, run on the server, in the order of their numbers
     10-base.sh            upgrade, user deploy, ufw, fail2ban, unattended-upgrades, journald, sysctl, swap
     20-ssh-lockdown.sh    key-only ssh for deploy, root login off (with automatic rollback until --confirm)
     30-docker.sh          Docker Engine 29, swarm, overlay networks edge + monitoring, published-port filter
     40-stacks.sh          swarm secrets, stacks edge -> placeholder -> monitoring, waits for convergence
-    90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40
+    50-app.sh             one instance of the application (stacks/betula.yml + stacks/<instance>.env) at a release tag
+    90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 and 50
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
   stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml,
-                          betula.example.yml, monitoring.notify.example.yml, monitoring-secrets.sh
+                          betula(.gemini).yml, canary.env, monitoring.notify.example.yml, monitoring-secrets.sh
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/
 ```
 
 All host scripts are idempotent and non-interactive; every one can simply be run again. Root scripts
-are run with `sudo bash ...`; `40-stacks.sh` and `91-verify-stacks.sh` run as `deploy` **without**
-sudo (sudo would drop the environment variables that select staging certificates or the Grafana host).
+are run with `sudo bash ...`; `40-stacks.sh`, `50-app.sh` and `91-verify-stacks.sh` run as `deploy`
+**without** sudo (sudo would drop the environment variables that select staging certificates, the
+Grafana host or an instance's values).
 
 ## 0. Workstation
 
@@ -134,26 +137,53 @@ when their bind-mounted configuration changed.
 
 ## 4. Shipping the application (no registry)
 
-Once: `cp deploy/stacks/betula.example.yml deploy/stacks/betula.yml`, resolve its TODOs (the web image does not
-exist yet), sync, and create the secret the stack names - the value travels on stdin, never in argv:
-`<password manager CLI> | ssh betula docker secret create gemini-api-key -`
+The application (Radix + Folia) is one stack file, `stacks/betula.yml`, for every **instance** of it.
+An instance is a file `stacks/<instance>.env`: the name of its stack, its public host name, and
+whether the site asks for the password of closed testing. `canary.env` is the closed test at
+https://canary.betula.app; the placeholder keeps https://betula.app until an instance gets
+`APP_HOST=betula.app` (its router outranks the placeholder's priority 1, so there is no gap; then
+`docker stack rm placeholder`). A new instance also has to be named in the two log rules of
+`config/monitoring/grafana/provisioning/alerting/rules.yml` (`stack=~"betula|canary"`), or its
+errors stay silent.
 
-Every release, on the machine that built the images:
+Once per server: the DNS record of the instance's name, and the password of closed testing as a
+swarm secret - the value travels on stdin, never in argv (`docs/frontend.md`, "Closed testing"):
 
 ```bash
-TAG="$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)"          # a NEW tag per build, never "latest"
-docker load < result && docker tag betula-radix:latest "betula-radix:${TAG}"     # nix build .#radix-image
-docker save "betula-radix:${TAG}" | gzip | ssh betula docker load               # same for folia
-ssh betula "RADIX_IMAGE=betula-radix:${TAG} FOLIA_IMAGE=betula-folia:${TAG} \
-  docker stack deploy --resolve-image never --detach=false -c /opt/betula/stacks/betula.yml betula"
-ssh betula bash /opt/betula/vps/91-verify-stacks.sh
+<password manager CLI> | ssh betula docker secret create folia-access-password -
 ```
 
+Optional: `gemini-api-key`, created the same way. Only `radix scan-curriculum` needs it; `50-app.sh`
+adds `stacks/betula.gemini.yml` while the secret exists.
+
+Every release, from the repository root on the workstation (Git Bash on Windows; Nix runs in the WSL
+distribution `NixOS`, or on the PATH under Linux):
+
+```bash
+SSH_TARGET=betula bash deploy/ship.sh canary
+```
+
+It ships the **commit** `HEAD` (uncommitted changes to what the images are built from stop it;
+`SHIP_WORKTREE=1` ships the working tree as it is, tagged `...-wip-<time>`): `nix build
+.#radix-image .#folia-image` from a `git archive`, each image through ssh into `docker load`, the tag
+`<date of the commit>-<short hash>` given on the server, `sync.sh`, then on the server
+`vps/50-app.sh canary <tag>` (checks images, DNS and secrets, deploys, waits for convergence) and
+`vps/91-verify-stacks.sh services app`. Shipping a commit a second time changes nothing.
+`bash deploy/ship.sh canary --build-only` builds the images and sends nothing anywhere.
+
+By hand, on the server: `bash /opt/betula/vps/50-app.sh canary <tag>` deploys a release that is
+loaded already - that is also the **rollback** (`docker image ls 'betula-*'` lists what is there) -
+and `bash /opt/betula/vps/50-app.sh canary` applies a change of `canary.env` or `betula.yml` to the
+release that runs. Opening the site: `FOLIA_ACCESS_GATE=off` in `canary.env`, sync, `50-app.sh canary`.
+
 Swarm compares service definitions, not image contents: re-loading an existing tag restarts nothing,
-hence the new tag each time. Rollback = deploy the previous tag again (it is still loaded). The first
-time, finish with `ssh betula docker stack rm placeholder`; the app's router outranks the placeholder
-(priority 1) as soon as it exists, so there is no gap. Old versions stay until you remove them
-(`docker image ls 'betula-*'`, `docker image rm ...`); the weekly prune timer only removes untagged images.
+hence a tag per commit and never `latest`. Old versions stay until you remove them
+(`docker image rm ...`); the weekly prune timer only removes untagged images.
+
+First data: a fresh Radix crawls politely and needs hours for its first snapshot; until then the
+site says that the catalog is not available yet (`/healthz` answers 503, `/livez` 200). Study plans
+come from `radix download-statutes` and `radix scan-curriculum` (`docs/operations.md`), run with
+`docker exec` in the Radix container.
 
 ## 5. Secrets
 
@@ -163,7 +193,8 @@ Swarm secrets are immutable; rotation means a new name.
 |---|---|
 | `grafana-admin-password` | created by `40-stacks.sh`. Later changes: `monitoring-secrets.sh reset-admin-password` (the secret itself stays) |
 | `grafana-smtp-*`, `grafana-ntfy-url`, tokens | `... \| ssh betula /opt/betula/stacks/monitoring-secrets.sh set <name>`. Rotate: `set <name>-v2`, point `source:` in the override at it, sync, `40-stacks.sh monitoring`, `docker secret rm <name>` |
-| `gemini-api-key` | `... \| ssh betula docker secret create gemini-api-key-v2 -`, in `betula.yml`: `- source: gemini-api-key-v2` / `target: gemini-api-key`, deploy, remove the old one |
+| `gemini-api-key` | `... \| ssh betula docker secret create gemini-api-key-v2 -`, in `betula.gemini.yml`: `- source: gemini-api-key-v2` / `target: gemini-api-key` (and the new name under `secrets:`), sync, `50-app.sh <instance>`, remove the old one |
+| `folia-access-password` | the password testers get while `FOLIA_ACCESS_GATE` is on. Rotate like `gemini-api-key`, in `betula.yml` (`folia-access-password-v2`, `source:`/`target:`, sync, `50-app.sh <instance>`); a new password ends every tester's visit at once |
 | ssh key of `deploy` | append the new public key to `/home/deploy/.ssh/authorized_keys`, test it in a new session, then remove the old line |
 | root password | not touched by any script; it is the break-glass login on the provider's console. Keep it in the password manager |
 | ACME account + certificates | volume `edge_acme` (`acme.json`). Losing it means ordering everything again (5 identical certificates per week) |

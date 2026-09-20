@@ -1,0 +1,19 @@
+# Optional override for stacks/betula.yml: gives Radix the Gemini API key.
+#
+# Only "scan-curriculum" needs the key (docs/operations.md section 3), so an instance starts
+# without it. vps/50-app.sh adds this file while the swarm secret gemini-api-key exists:
+#
+#   <password manager CLI> | ssh betula docker secret create gemini-api-key -
+#   docker exec <radix container> /bin/radix scan-curriculum ...
+#
+# Rotation: create gemini-api-key-v2, then  - source: gemini-api-key-v2 / target: gemini-api-key
+
+services:
+  radix:
+    secrets:
+      # Found without configuration at /run/secrets/gemini-api-key.
+      - gemini-api-key
+
+secrets:
+  gemini-api-key:
+    external: true

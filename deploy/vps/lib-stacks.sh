@@ -15,13 +15,26 @@ BETULA_ROOT="/opt/betula"
 STACKS_DIR="${BETULA_ROOT}/stacks"
 CONFIG_DIR="${BETULA_ROOT}/config"
 
-# Literal in the stack files (placeholder.yml, edge.www.yml, betula.example.yml); not configurable.
+# Literal in the stack files (placeholder.yml, edge.www.yml); not configurable. The application's
+# own host name is not literal: every instance has one (stacks/<instance>.env, load_instance).
 SITE_HOST="betula.app"
 WWW_HOST="www.betula.app"
 DEFAULT_GRAFANA_HOST="grafana.betula.app"
 
 # Set by resolves_here: one line that says why (or where to).
 RESOLVE_DETAIL=""
+
+# Seconds wait_for_stack waits per stack (the first run pulls about 1 GB of images).
+CONVERGE_TIMEOUT="${CONVERGE_TIMEOUT:-600}"
+# Stacks wait_for_stack gave up on; the caller decides what that means for its exit code.
+FAILED_STACKS=()
+# Extra arguments of "docker stack deploy" (50-app.sh: --resolve-image never).
+STACK_DEPLOY_ARGS=()
+
+# Set by load_instance: one instance of the application (stacks/<instance>.env).
+INSTANCE_STACK=""
+INSTANCE_HOST=""
+INSTANCE_GATE=""
 
 # ---------------------------------------------------------------- docker
 
@@ -106,6 +119,166 @@ yaml_external_secrets() {
     /^[^[:space:]#]/ { on = 0 }
     on && /^  [A-Za-z0-9_.-]+:/ { name = $1; sub(/:.*$/, "", name); print name }
   ' "$@" | sort -u
+}
+
+# ---------------------------------------------------------------- deploying
+
+# require_bind_sources FILE... - every host path the files bind-mount must exist before swarm sees them.
+require_bind_sources() {
+  local path missing=0
+  while IFS= read -r path; do
+    [[ -n "${path}" ]] || continue
+    if [[ ! -e "${path}" ]]; then
+      warn "bind source ${path} does not exist"
+      missing=$((missing + 1))
+    fi
+  done < <(yaml_bind_sources "$@")
+  [[ "${missing}" -eq 0 ]] ||
+    die "${missing} bind source(s) missing: swarm would reject the task. Run deploy/sync.sh (config files) or vps/10-base.sh (/var/log/journal) first"
+}
+
+# require_secrets FILE... - same for the external secrets the files name.
+require_secrets() {
+  local name
+  while IFS= read -r name; do
+    [[ -n "${name}" ]] || continue
+    secret_exists "${name}" ||
+      die "swarm secret ${name} does not exist. Create it with the value on stdin, never in argv: <password manager CLI> | ssh betula docker secret create ${name} -   (secrets of the monitoring stack: stacks/monitoring-secrets.sh set ${name})"
+  done < <(yaml_external_secrets "$@")
+}
+
+# deploy_stack STACK FILE...
+deploy_stack() {
+  local stack=$1 file
+  shift
+  local -a args=()
+  for file in "$@"; do
+    [[ -f "${file}" ]] || die "stack file missing: ${file} (run deploy/sync.sh)"
+    assert_lf "${file}"
+    args+=(-c "${file}")
+  done
+  require_bind_sources "$@"
+  require_secrets "$@"
+  log "docker stack deploy ${stack}: $(printf '%s ' "${@##*/}")"
+  # --detach=true: return at once; wait_for_stack below waits with a timeout and explains failures.
+  # --prune: a service that left the files leaves the swarm as well.
+  # (the "+" form: an empty array is an "unbound variable" for older bash versions)
+  docker stack deploy --detach=true --prune ${STACK_DEPLOY_ARGS[@]+"${STACK_DEPLOY_ARGS[@]}"} "${args[@]}" "${stack}"
+}
+
+# wait_for_stack STACK - until every service is converged (see service_state), or the timeout.
+# A stack that does not get there is added to FAILED_STACKS, with the reason on stderr.
+wait_for_stack() {
+  local stack=$1 svc state streak=0 deadline last="" summary
+  local -a pending=() failed=()
+  deadline=$((SECONDS + CONVERGE_TIMEOUT))
+  # Give the orchestrator a moment to turn the new spec into an update; "1/1, no update" read
+  # too early would describe the state before this deploy.
+  sleep 3
+  while :; do
+    pending=()
+    failed=()
+    summary=""
+    while IFS= read -r svc; do
+      [[ -n "${svc}" ]] || continue
+      state="$(service_state "${svc}")"
+      summary+="${svc#"${stack}"_}: ${state#* }; "
+      case "${state}" in
+        ok\ *) ;;
+        failed\ *) failed+=("${svc}") ;;
+        *) pending+=("${svc}") ;;
+      esac
+    done < <(stack_services "${stack}")
+    if [[ "${summary}" != "${last}" ]]; then
+      log "${stack}: ${summary:-no services yet}"
+      last="${summary}"
+    fi
+    if [[ "${#failed[@]}" -gt 0 ]]; then
+      break
+    fi
+    if [[ -n "${summary}" && "${#pending[@]}" -eq 0 ]]; then
+      # Twice in a row, 5 s apart: a task that dies right after its start does not count.
+      streak=$((streak + 1))
+      if [[ "${streak}" -ge 2 ]]; then
+        log "${stack}: converged"
+        return 0
+      fi
+    else
+      streak=0
+    fi
+    if [[ "${SECONDS}" -ge "${deadline}" ]]; then
+      warn "${stack}: not converged after ${CONVERGE_TIMEOUT} s"
+      break
+    fi
+    sleep 5
+  done
+
+  for svc in ${failed[@]+"${failed[@]}"} ${pending[@]+"${pending[@]}"}; do
+    printf '\n---- docker service ps --no-trunc %s\n' "${svc}" >&2
+    docker service ps --no-trunc "${svc}" >&2 || true
+    printf -- '---- docker service logs --tail 15 %s\n' "${svc}" >&2
+    docker service logs --no-task-ids --tail 15 "${svc}" >&2 2>&1 || true
+  done
+  FAILED_STACKS+=("${stack}")
+  return 0
+}
+
+# ---------------------------------------------------------------- instances of the application
+
+# instance_names -> the instances that have a file stacks/<instance>.env, one per line.
+instance_names() {
+  local file
+  for file in "${STACKS_DIR}"/*.env; do
+    [[ -f "${file}" ]] || continue
+    file="${file##*/}"
+    printf '%s\n' "${file%.env}"
+  done
+}
+
+# load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST and INSTANCE_GATE.
+# The file is read, never sourced: a value is data, whatever it looks like.
+load_instance() {
+  local name=$1 file line key value
+  file="${STACKS_DIR}/${name}.env"
+  [[ "${name}" =~ ^[a-z][a-z0-9-]{0,30}$ ]] || die "'${name}' is not a name for an instance (lower case letters, digits, '-')"
+  [[ -f "${file}" ]] || die "there is no instance '${name}': ${file} does not exist (known: $(instance_names | tr '\n' ' '))"
+  assert_lf "${file}"
+  INSTANCE_STACK=""
+  INSTANCE_HOST=""
+  INSTANCE_GATE="on"
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -n "${line}" && "${line}" != \#* ]] || continue
+    [[ "${line}" == *=* ]] || die "${file}: '${line}' is not NAME=value"
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "${key}" in
+      STACK_NAME) INSTANCE_STACK="${value}" ;;
+      APP_HOST) INSTANCE_HOST="${value}" ;;
+      FOLIA_ACCESS_GATE) INSTANCE_GATE="${value}" ;;
+      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE)" ;;
+    esac
+  done <"${file}"
+  [[ "${INSTANCE_STACK}" == "${name}" ]] || die "${file}: STACK_NAME is '${INSTANCE_STACK}', the file says '${name}'; they have to agree"
+  case "${INSTANCE_STACK}" in
+    edge | placeholder | monitoring) die "${file}: '${INSTANCE_STACK}' is the name of another stack" ;;
+  esac
+  [[ "${INSTANCE_HOST}" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || die "${file}: APP_HOST '${INSTANCE_HOST}' is not a host name"
+  [[ "${INSTANCE_GATE}" == "on" || "${INSTANCE_GATE}" == "off" ]] || die "${file}: FOLIA_ACCESS_GATE is '${INSTANCE_GATE}', not on or off"
+}
+
+# app_stack_for_host HOST -> the stack whose web server is routed for HOST (nothing when none is).
+# Read from the router label stacks/betula.yml sets, so it tells what is deployed, not what is planned.
+app_stack_for_host() {
+  local host=$1 svc stack
+  while IFS= read -r svc; do
+    [[ "${svc}" == *_folia ]] || continue
+    stack="${svc%_folia}"
+    if [[ "$(service_label "${svc}" "traefik.http.routers.${stack}-folia.rule")" == "Host(\`${host}\`)" ]]; then
+      printf '%s' "${stack}"
+      return 0
+    fi
+  done < <(docker service ls --format '{{.Name}}' 2>/dev/null | sort)
+  return 0
 }
 
 # ---------------------------------------------------------------- DNS
