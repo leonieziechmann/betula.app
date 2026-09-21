@@ -2,8 +2,9 @@
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node filters.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Walks: toggles (with → without → off, the panel is not rebuilt) → rows of toggles fill the width →
 // program picker (typo-tolerant search, arrow keys, Enter, Esc, click outside, clear) → lecturer picker →
-// credit slider → width of the panel (limits, localStorage) → group header across a page border →
-// the same panel without JavaScript.
+// credit slider → width of the panel (limits, localStorage) → the area picker and the list of a
+// program (plan order, the semester at the row, the second page reached by scrolling) → the same
+// panel without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -137,7 +138,7 @@ check((await active()) === last, `picker: arrow up from the first entry does not
 
 await page.fill("#pick-program-search", "informatik b.sc");
 await page.waitForFunction(() => document.querySelector("#pick-program-list .combo-option .combo-label")?.textContent === "Informatik");
-await step("picker: Enter takes the marked entry", () => page.keyboard.press("Enter"), () => new URL(location.href).searchParams.get("program")?.startsWith("bachelor-informatik") && !document.querySelector(".combo-pop") && document.querySelector(".sem"));
+await step("picker: Enter takes the marked entry", () => page.keyboard.press("Enter"), () => new URL(location.href).searchParams.get("program")?.startsWith("bachelor-informatik") && !document.querySelector(".combo-pop") && document.querySelector(".rows .plan-sem"));
 check(await page.evaluate(() => document.activeElement?.id === "pick-program"), "picker: the focus did not return to the button");
 check((await page.textContent("#pick-program .combo-value")).startsWith("Informatik"), "picker: the button does not show the selection");
 check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by picking a program");
@@ -264,26 +265,22 @@ check(!(await page.evaluate(() => location.search)).includes("232"), "resize: th
 await page.dblclick('[data-action="resize-filters"]');
 check((await width()) === startWidth && (await page.evaluate(() => localStorage.getItem("betula.filters.width"))) === null, `resize: a double click does not reset (${await width()}px)`);
 
-// ---- a group header stays while its group runs across the border between two pages
-await step("program list", async () => { await page.click('#filters a:has-text("Zurücksetzen")'); await page.click("#pick-program"); await page.fill("#pick-program-search", "informatik b.sc"); await page.keyboard.press("Enter"); }, () => document.querySelector(".sem") && document.querySelectorAll(".rows a.row").length === 50);
-await step("scroll into the second page", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = rows.scrollHeight; }), () => document.querySelectorAll(".rows a.row").length > 50);
-const header = await page.evaluate(async () => {
-  const rows = document.querySelector(".rows");
-  const second = rows.querySelector('a.row[data-page="2"]');
-  rows.scrollTop = second.offsetTop + 200;
-  await new Promise((r) => setTimeout(r, 150));
-  const top = rows.getBoundingClientRect().top;
-  const stuck = [...rows.querySelectorAll(".sem")].filter((h) => Math.abs(h.getBoundingClientRect().top - top) < 3).pop();
-  // The group of the first visible row: the last header before it in the document.
-  const visible = [...rows.querySelectorAll("a.row")].find((r) => r.getBoundingClientRect().bottom > top + 40);
-  let expected = null;
-  for (const el of rows.querySelectorAll(".sem, a.row")) {
-    if (el === visible) break;
-    if (el.classList.contains("sem")) expected = el.textContent;
-  }
-  return { stuck: stuck?.textContent || null, expected };
-});
-check(header.stuck !== null && header.stuck === header.expected, `group header on page two: shows "${header.stuck}", expected "${header.expected}"`);
+// ---- the list of a program: in plan order with the semester at every row (no headings between
+// the semesters: the semester filter is for that), and the areas of its tree as a picker
+await step("program list", async () => { await page.click('#filters a:has-text("Zurücksetzen")'); await page.click("#pick-program"); await page.fill("#pick-program-search", "informatik b.sc"); await page.keyboard.press("Enter"); }, () => document.querySelector(".rows .plan-sem") && !document.querySelector(".rows .sem") && document.querySelector("#pick-area"));
+const semesters = await page.evaluate(() => [...document.querySelectorAll(".rows .vrow")].slice(0, 12).map((row) => row.querySelector(".plan-sem")?.textContent ?? null));
+check(semesters[0] === "1. Semester" && semesters.every((s) => s === null || /^\d+\. Semester$/.test(s)), `program list: the first rows say ${semesters.join(" | ")}`);
+await step("scroll into the second page", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = 60 * 58; }), () => /[?&]page=2\b/.test(location.search) && document.querySelector('.vrow[data-i="60"] a.row'));
+await step("area picker opens", () => page.click("#pick-area"), () => document.activeElement?.id === "pick-area-search" && document.querySelectorAll("#pick-area-list .combo-option").length > 3);
+const areaName = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option .combo-label")].map((el) => el.textContent).find((name) => /wahlpflicht/i.test(name)));
+check(Boolean(areaName), "area picker: no elective area is offered");
+await page.fill("#pick-area-search", areaName.split(" ").slice(0, 2).join(" "));
+await page.waitForFunction((name) => document.querySelector("#pick-area-list .combo-option .combo-label")?.textContent === name, areaName);
+await step("area: Enter filters the list", () => page.keyboard.press("Enter"), (name) => /[?&]area=\d+/.test(location.search) && [...document.querySelectorAll(".tag")].some((tag) => tag.textContent.includes(name)) && !location.search.includes("page="), areaName);
+const inArea = await count();
+check(number(inArea) > 0 && number(inArea) < number(all), `area: ${inArea} modules in „${areaName}" (of ${all})`);
+check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by picking an area");
+await step("area: the tag takes it out again", () => page.click('.tag:has(em:text("Bereich")) a'), () => !location.search.includes("area="));
 
 // ---- without JavaScript: the same panel as links and plain fields
 const plain = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1300, height: 900 } });

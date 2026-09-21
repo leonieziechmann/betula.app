@@ -187,11 +187,13 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
     variant: location.search.includes("variant=2"),
   }));
   check(picked.marked === 1 && picked.variant, `aside: ${picked.marked} rows are marked as open, the study direction was kept: ${picked.variant}`);
-  // The whole page and back: „Zurück" (and Esc) lead to the program the module was opened in,
-  // not to the catalog the module belongs to.
-  await step("the module as a whole page", () => page.click('#preview [data-action="fullscreen"]'), () => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page"));
+  // The whole page, in place: the address stays the program's (with `full=1`), so the area,
+  // its tab and the history do too; „Zurück" (and Esc) lead to the program with the module
+  // beside it again, and the page is the module's own page.
+  await step("the module as a whole page", () => page.click('#preview [data-action="fullscreen"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("full=1") && document.querySelector(".module-page h2") && document.getElementById("sidebar"));
+  check(await page.evaluate(() => document.querySelector('.rail a[data-area="programs"]')?.getAttribute("aria-current") === "page" && document.querySelector(".toc.jumps") !== null), "full page: the programs tab is not the current one, or the module's sidebar is missing");
   const entriesBefore = await page.evaluate(() => history.length);
-  await step("Zurück leads to the program", () => page.click('[data-action="back"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open="));
+  await step("Zurück leads to the program", () => page.click('[data-action="back"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && !location.search.includes("full=") && document.querySelector("table.matrix"));
   check((await page.evaluate(() => history.length)) === entriesBefore, "back from the module page added a history entry instead of walking back");
 
   await step("close it again", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("open=") && Boolean(document.querySelector("#preview .bars")));
@@ -292,10 +294,24 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   check(phone.scrolls, "phone: the matrix does not scroll inside its panel");
   check(phone.views, "phone: the views of the program are not above the page");
   check(phone.facts, "phone: a number of the head stands outside the screen");
-  // A module has no room beside the page here: it opens as its own page (as in the catalog).
+  // A module has no room beside the page here: one tap, and it is the page, in the program's
+  // area (the address keeps `open=`), and „Zurück" is the program again.
   // Clicked through the DOM: the sticky top bar covers the first rows on a phone.
+  const entries = await page.evaluate(() => history.length);
   await page.evaluate(() => document.querySelector('table.matrix tbody a[data-walk="module"]')?.click());
-  await page.waitForFunction(() => location.pathname.startsWith("/catalog/module/"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not open as its own page"));
+  await page.waitForFunction(() => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && document.querySelector(".module-page h2") && !document.querySelector("table.matrix"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not become the page"));
+  check((await page.evaluate(() => history.length)) === entries + 1, "phone: opening a module took more than one history entry");
+  await page.evaluate(() => document.querySelector('[data-action="back"]')?.click());
+  await page.waitForFunction(() => !location.search.includes("open=") && document.querySelector("table.matrix"), null, { timeout: 8000 }).catch(() => problems.push("phone: Zurück did not lead back to the program"));
+  // An area, too, is the page on a phone, and a module picked from it leads back to it.
+  await page.evaluate(() => [...document.querySelectorAll("#sidebar .toc.views a")].find((a) => a.getAttribute("href")?.endsWith("/areas"))?.click());
+  await page.waitForFunction(() => location.pathname.endsWith("/areas") && document.querySelector('table.areas tr.group a[data-walk="area"]'), null, { timeout: 8000 }).catch(() => problems.push("phone: the areas did not open"));
+  await page.evaluate(() => document.querySelector('table.areas tr.group a[data-walk="area"]')?.click());
+  await page.waitForFunction(() => location.search.includes("area=") && document.querySelector("#preview .linklist .pre") && !document.querySelector("table.areas"), null, { timeout: 8000 }).catch(() => problems.push("phone: an area did not become the page"));
+  await page.evaluate(() => document.querySelector('#preview .linklist a[data-walk="module"]')?.click());
+  await page.waitForFunction(() => location.search.includes("area=") && location.search.includes("open=") && document.querySelector(".module-page h2"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module out of an area did not become the page"));
+  await page.evaluate(() => document.querySelector('[data-action="back"]')?.click());
+  await page.waitForFunction(() => location.search.includes("area=") && !location.search.includes("open=") && document.querySelector("#preview .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: Zurück from the module did not lead back to the area"));
   await context.close();
 }
 

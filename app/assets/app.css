@@ -483,6 +483,13 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
    costs to lay out no longer grows with the rows that are loaded: a resize stays live and an
    endless list stays quick (measured with 350 rows: 50 ms a frame before, 17 ms after). */
 .rows .row-wrap { content-visibility: auto; contain-intrinsic-size: auto 58px; }
+/* The virtual list of the browser app (`VirtualRows`): an element as tall as the whole list, so
+   the scrollbar has the list's length from the start, and inside it only the rows that are on
+   screen, each at its offset. They are measured, so they need no reserved size. */
+.vlist { position: relative; height: var(--h, 0px); }
+.vlist > .vrow { position: absolute; left: 0; right: 0; top: var(--top, 0px); }
+.rows.virtual .row-wrap { content-visibility: visible; contain-intrinsic-size: none; }
+.plan-sem { white-space: nowrap; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 0 6px; color: var(--text-3); font-size: 13px; }
 .state { max-width: 520px; margin: 56px auto; padding: 0 20px; text-align: center; }
 .state h1, .state .state-title { font-size: 17px; font-weight: 650; margin-bottom: 6px; }
@@ -1069,6 +1076,9 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .sheet-toggle { display: inline-flex; min-height: 42px; padding: 0 14px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); align-items: center; gap: 8px; font-weight: 600; color: var(--text); text-decoration: none; }
   .sheet-toggle em { font-style: normal; min-width: 20px; height: 20px; border-radius: 10px; background: var(--invert); color: var(--on-invert); font-size: 11.5px; display: grid; place-items: center; }
   .rows.scroll { overflow: visible; padding: 0 12px 12px; display: grid; gap: 8px; }
+  /* The virtual list places its rows itself; the gap between the cards is part of every row. */
+  .rows.virtual { display: block; }
+  .vlist > .vrow { padding-bottom: 8px; }
   .app .keys { display: none; }
   .sem { top: 68px; background: var(--bg); padding: 12px 4px 4px; }
   .rows .row-wrap { contain-intrinsic-size: auto 84px; }
@@ -1080,6 +1090,16 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .filters:target, .filters.open { transform: none; }
   .filters .panel-head::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
   .filters .panel-head { position: relative; padding-top: 22px; }
+  /* The sheet is closed the way one expects of a sheet, too: dragged down at its head (the
+     browser must not scroll there instead), or with a tap beside it, on the page it dims. */
+  .filters .panel-head, .sidebar.sheet .panel-head { touch-action: none; cursor: grab; }
+  .filters.dragging, .sidebar.sheet.dragging { transition: none; }
+  html.sheet-open::after { content: ""; position: fixed; inset: 0; z-index: 39; background: rgba(15, 23, 42, .34); }
+  /* What was picked beside a program (a module, an area, a row of the plan) has no room beside
+     the page on a phone: it is the page until it is closed. The browser app renders it as a page
+     of its own; this is for the same HTML without it. */
+  .framed.aside-picked > .page, .framed.aside-picked > .sidebar, .framed.aside-picked > .resizer { display: none; }
+  .framed.with-aside.aside-picked > .detail.aside { margin: 0 12px 12px; }
   .sheet-close { display: grid; }
   .chip { min-height: 44px; padding: 0 14px 0 12px; font-size: 14.5px; border-radius: 8px; gap: 9px; }
   .box { width: 18px; height: 18px; border-radius: 5px; }

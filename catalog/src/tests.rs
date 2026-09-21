@@ -119,6 +119,9 @@ fn every_query_runs_against_the_snapshot() {
     assert_eq!(page.rows.len(), 50);
     let module = queries::module(&db, &page.rows[0].id).unwrap().expect("listed module has a page");
     assert_eq!(module.title, page.rows[0].title);
+    // The place of a row in the list is the place the page lists it at.
+    assert_eq!(queries::catalog_position(&db, &everything(), &page.rows[7].id).unwrap(), Some(7));
+    assert_eq!(queries::catalog_position(&db, &everything(), "00000").unwrap(), None);
     assert_eq!(queries::module(&db, "00000").unwrap(), None);
     queries::module_prerequisites(&db, &module.id).unwrap();
     assert!(!queries::search_suggestions(&db, "Algebra", 10).unwrap().is_empty());
@@ -180,7 +183,7 @@ fn catalog_filters_match_direct_sql() {
     let db = open();
     let program_id = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.").id;
     let scope = |relation, plan_semester, kinds: Vec<KindFilter>| {
-        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![] })
+        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![], area: None })
     };
     let pm = format!("v_module_facets f JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = '{program_id}'");
 

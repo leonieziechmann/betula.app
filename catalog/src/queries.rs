@@ -202,6 +202,29 @@ pub fn catalog_page(
     Ok(CatalogPage { total, offset, rows })
 }
 
+/// Where a module stands in the list a query orders (0-based), or `None` if it is not in it: the
+/// list scrolls to the row the visitor comes back to without loading every page before it.
+pub fn catalog_position(db: &dyn Database, query: &CatalogQuery, id: &str) -> Result<Option<u64>, DbError> {
+    let sql = query.to_sql();
+    let mut params = sql.params.clone();
+    params.push(Value::from(id));
+    let rows = db.query(
+        "catalog_position",
+        &format!(
+            "SELECT n FROM (SELECT f.module_id AS module_id, ROW_NUMBER() OVER (ORDER BY {}) AS n \
+             FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{}) WHERE module_id = ?",
+            query.order_terms(),
+            sql.joins,
+            sql.where_clause()
+        ),
+        &params,
+    )?;
+    Ok(match rows.rows.first().and_then(|row| row.first()) {
+        Some(Value::Integer(n)) if *n >= 1 => Some((*n - 1) as u64),
+        _ => None,
+    })
+}
+
 pub fn module(db: &dyn Database, id: &str) -> Result<Option<Module>, DbError> {
     fetch_optional(
         db,

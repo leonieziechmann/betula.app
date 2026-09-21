@@ -7,6 +7,10 @@
 //! handle, same remembered width), so nothing jumps when a module goes from preview to page.
 //! The sidebar holds what belongs to the module as a whole: where to go on the page, and what
 //! to do with the module.
+//!
+//! The page is one component (`ModuleFull`) wherever it is shown: at the module's own address,
+//! and inside a program's area (`/programs/<slug>/<tab>?…&open=<id>&full=1`, and on a phone for
+//! whatever `open` names), where „Vollbild" must neither change the area nor the tab.
 
 use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, TeachingForm, TextItemKind, TurnusSeason};
 use catalog::pages::{self, ModuleData};
@@ -118,9 +122,12 @@ fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
 
 /// The preview next to a list. `close_href` is the same page without the preview. `docked` puts
 /// it into the right column of a frame (`ui::Frame`) instead of floating over the page.
+/// `full_href` is where „Vollbild" leads: the module's own page unless the page beside which the
+/// module stands can show it in full itself (a program's page).
 #[component]
-pub fn ModulePanel(data: ModuleData, close_href: String, #[prop(optional)] docked: bool) -> impl IntoView {
+pub fn ModulePanel(data: ModuleData, close_href: String, #[prop(optional)] docked: bool, #[prop(optional_no_strip)] full_href: Option<String>) -> impl IntoView {
     let id = data.module.id.clone();
+    let full_href = full_href.unwrap_or_else(|| url::module_path(&id));
     view! {
         <section class="panel detail" class:aside=docked id="preview" aria-label="Modulvorschau">
             <div class="scroll" data-keep-scroll="detail">
@@ -128,7 +135,7 @@ pub fn ModulePanel(data: ModuleData, close_href: String, #[prop(optional)] docke
                     <div class="hero-top">
                         <a class="icon-btn back" href=close_href.clone() aria-label="Vorschau schließen"><Icon name="arrow-left"/></a>
                         <span class="mono">{id.clone()}</span>
-                        <a class="ghost" href=url::module_path(&id) data-action="fullscreen" title="Als ganze Seite öffnen (F)"><Icon name="maximize-2"/>"Vollbild"<Shortcut keys="F"/></a>
+                        <a class="ghost" href=full_href data-action="fullscreen" title="Als ganze Seite öffnen (F)"><Icon name="maximize-2"/>"Vollbild"<Shortcut keys="F"/></a>
                         <a class="ghost" href=close_href data-action="close-detail" title="Vorschau schließen (Esc)"><Icon name="x"/>"Schließen"<Shortcut keys="Esc"/></a>
                     </div>
                     <Heading data=data.clone()/>
@@ -239,44 +246,54 @@ pub fn ModulePage() -> impl IntoView {
                 view! { <div class="page"><NotFound title="Modul nicht gefunden" hint="Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."/></div> }.into_any()
             }
             Ok(Some(data)) => {
-                let derived = derive(&data);
                 // „Zurück" leads where the visitor came from: the program whose page had this
                 // module open beside it (its „Vollbild"), else the catalog's list as it was left.
                 let back = back_to(&id);
-                view! {
-                    // The name first (what people search for), then number and university.
-                    <Title text=format!("{} ({}) · Modul der BTU Cottbus-Senftenberg", data.module.title, data.module.id)/>
-                    <Frame
-                        title="Modul"
-                        head={ let id = data.module.id.clone(); move || view! { <span class="mono">{id.clone()}</span> } }
-                        sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone()/> } }
-                    >
-                            <Seo
-                                title=format!("{} ({})", data.module.title, data.module.id)
-                                description=derived.description
-                                path=url::module_path(&data.module.id)
-                                card=crate::seo::module_card(&data.module.id)
-                                data=structured(&data)
-                            />
-                            <article class="module-page">
-                                <header class="panel hero">
-                                    <div class="hero-top">
-                                        <BackLink area=back.0 to=back.1.clone()/>
-                                        <span class="mono">{data.module.id.clone()}</span>
-                                    </div>
-                                    <Heading data=data.clone()/>
-                                </header>
-                                // Same parts, same order as the preview; side by side where there is room.
-                                <div class="module-grid">
-                                    <aside class="panel dbody"><Side data=data.clone()/></aside>
-                                    <div class="panel dbody"><Main data=data.clone()/><Source data=data.clone()/></div>
-                                </div>
-                            </article>
-                    </Frame>
-                }
-                .into_any()
+                view! { <ModuleFull data back_area=back.0 back_to=back.1/> }.into_any()
             }
         }
+    }
+}
+
+/// The module's whole page: the frame with the module's sidebar, the module on the rest of the
+/// screen. One component wherever the page is shown; `back_area` and `back_to` say where
+/// „Zurück" leads (the list of the area, or the page `back_to` names). `noindex` marks the page
+/// as a view of another one (a module shown in full inside a program): search engines follow
+/// it, its address for them stays the module's own.
+#[component]
+pub fn ModuleFull(data: ModuleData, back_area: Area, #[prop(optional_no_strip)] back_to: Option<String>, #[prop(optional)] noindex: bool) -> impl IntoView {
+    let derived = derive(&data);
+    view! {
+        // The name first (what people search for), then number and university.
+        <Title text=format!("{} ({}) · Modul der BTU Cottbus-Senftenberg", data.module.title, data.module.id)/>
+        <Frame
+            title="Modul"
+            head={ let id = data.module.id.clone(); move || view! { <span class="mono">{id.clone()}</span> } }
+            sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone()/> } }
+        >
+                <Seo
+                    title=format!("{} ({})", data.module.title, data.module.id)
+                    description=derived.description
+                    path=url::module_path(&data.module.id)
+                    card=crate::seo::module_card(&data.module.id)
+                    data=structured(&data)
+                    noindex=noindex
+                />
+                <article class="module-page">
+                    <header class="panel hero">
+                        <div class="hero-top">
+                            <BackLink area=back_area to=back_to/>
+                            <span class="mono">{data.module.id.clone()}</span>
+                        </div>
+                        <Heading data=data.clone()/>
+                    </header>
+                    // Same parts, same order as the preview; side by side where there is room.
+                    <div class="module-grid">
+                        <aside class="panel dbody"><Side data=data.clone()/></aside>
+                        <div class="panel dbody"><Main data=data.clone()/><Source data=data.clone()/></div>
+                    </div>
+                </article>
+        </Frame>
     }
 }
 

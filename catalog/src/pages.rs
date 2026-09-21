@@ -92,6 +92,31 @@ pub fn catalog_choices(db: &dyn Database) -> Result<CatalogChoices, DbError> {
     })
 }
 
+/// An area of the selected program's module tree, as the filter panel offers it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CatalogArea {
+    /// `v_program_module_area.area_id`: what the URL carries (`area=<id>`).
+    pub id: i64,
+    pub label: String,
+    /// The whole path („Fachstudium / Wahlpflichtmodule Praktische Informatik").
+    pub path: String,
+    pub depth: i64,
+    /// How many modules the tree places directly in it.
+    pub modules: usize,
+}
+
+/// The areas of a program in tree order, one entry per area the tree places modules in.
+pub fn catalog_areas(placements: &[AreaPlacement]) -> Vec<CatalogArea> {
+    let mut areas: Vec<CatalogArea> = Vec::new();
+    for placement in placements {
+        match areas.iter_mut().find(|area| area.id == placement.area_id) {
+            Some(area) => area.modules += 1,
+            None => areas.push(CatalogArea { id: placement.area_id, label: placement.area_label.clone(), path: placement.area.clone(), depth: placement.depth, modules: 1 }),
+        }
+    }
+    areas
+}
+
 /// The catalog: one page of modules plus what the list and the filter panel say about it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CatalogData {
@@ -103,6 +128,8 @@ pub struct CatalogData {
     pub fues_total: Option<u64>,
     /// The semesters of the selected program's study plan (empty without a plan).
     pub plan_semesters: Vec<i64>,
+    /// The areas of the selected program's module tree (empty without a program, or a tree).
+    pub areas: Vec<CatalogArea>,
     /// For the name of the selected department (few rows; the long lists are `CatalogChoices`).
     pub departments: Vec<Department>,
     pub meta: Meta,
@@ -134,10 +161,15 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbErr
         Some(program) if program.has_plan => queries::program_plan_semesters(db, &program.id)?,
         _ => Vec::new(),
     };
+    let areas = match &program {
+        Some(program) => catalog_areas(&queries::program_areas(db, &program.id)?),
+        None => Vec::new(),
+    };
 
     Ok(CatalogData {
         page: queries::catalog_page(db, &url.query, url.offset(), PAGE_SIZE)?,
         plan_semesters,
+        areas,
         program,
         curricular_total,
         fues_total,

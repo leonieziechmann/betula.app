@@ -319,7 +319,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
                 let (target, id, here) = (row.id.clone(), row.id.clone(), here.clone());
                 let preview = Signal::derive(move || here.with_open(Some(&target)).path());
                 let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
-                view! { <Row row preview current phone with_program=false starts_page=None dim_unmarked=true/> }
+                view! { <Row row preview current phone with_program=false dim_unmarked=true/> }
             }).collect_view()}
             {(!missing.is_empty()).then(|| view! {
                 <div class="sem">"Nicht im Modulkatalog"</div>

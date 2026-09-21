@@ -14,6 +14,12 @@
 //! row of the plan that names no module — „Wahlpflichtmodule der Studienrichtung" — shows what the
 //! plan states about it and where those modules are to be found (`?req=<n>`); with nothing picked
 //! that panel holds the numbers of the view one is looking at.
+//!
+//! „Vollbild" of the module beside the page shows the module's whole page in place
+//! (`&full=1`): the address stays in the programs area, so the tab, the history and „Zurück" do
+//! too. On a phone nothing stands beside a page: whatever is picked — a module, an area, a row of
+//! the plan — is the page, opened with one tap and one history entry, and „Zurück" leads to what
+//! it was picked from.
 
 use std::collections::HashMap;
 
@@ -26,16 +32,26 @@ use catalog::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::{use_location, use_navigate, use_params_map};
-use leptos_router::NavigateOptions;
+use leptos_router::hooks::{use_location, use_params_map};
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::nav;
-use crate::pages::module::ModulePanel;
+use crate::pages::catalog::phone_layout;
+use crate::pages::module::{ModuleFull, ModulePanel};
 use crate::seo::{self, Seo};
 use crate::tabs::Area;
 use crate::ui::{BackLink, EmptyState, ErrorState, Fact, Frame, Icon, NotFound, OfferBadge, Shortcut};
+
+/// What fills the page: the program itself (with what was picked beside it, on the desktop), or
+/// what was picked — the module in full, or on a phone also an area or a row of the plan.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Filling {
+    Program,
+    Module(String),
+    Area(i64),
+    Req(usize),
+}
 
 /// Where this browser remembers how it likes the study plan drawn.
 const PLAN_SHAPE_KEY: &str = "betula.plan.shape";
@@ -85,14 +101,16 @@ pub fn ProgramPage() -> impl IntoView {
         None => Some(ProgramTab::default()),
         Some(segment) => ProgramTab::from_segment(&segment),
     });
-    // Three independent parts of the address: the view, the study plan it shows, and the module
-    // beside it. Each part re-renders only what depends on it.
+    // The parts of the address: the view, the study plan it shows, and what the visitor picked
+    // (a module beside the page or filling it, an area, a row of the plan). Each part re-renders
+    // only what depends on it.
     let here = Memo::new(move |_| ProgramUrl::parse(&slug.get(), tab.get().unwrap_or_default(), &location.search.get()));
     let variant = Memo::new(move |_| here.get().variant);
     let open = Memo::new(move |_| here.get().open);
+    let full = Memo::new(move |_| here.get().full);
     let area = Memo::new(move |_| here.get().area);
     let req = Memo::new(move |_| here.get().req);
-    // What the rows of every table link to; the module beside the page does not change them.
+    // What the rows of every table link to; what stands beside the page does not change them.
     let links = Memo::new(move |_| here.get().with_open(None));
     let shape = RwSignal::new(PlanShape::remembered());
     let source = use_source();
@@ -103,49 +121,115 @@ pub fn ProgramPage() -> impl IntoView {
         source.clone().and_then(|source| source.run(|db| pages::program(db, &slug)))
     });
 
-    // On a phone a module has no room beside the page: it opens as its own page, as in the
-    // catalog. Shared links with `open` end up there too.
-    let phone = RwSignal::new(nav::is_phone());
-    let navigate = use_navigate();
-    Effect::new(move |_| {
-        let handle = window_event_listener(leptos::ev::resize, move |_| {
-            if phone.get_untracked() != nav::is_phone() {
-                phone.set(nav::is_phone());
-            }
-        });
-        on_cleanup(move || handle.remove());
+    // On the desktop a module stands beside the page until „Vollbild" lets it fill the page. On
+    // a phone nothing stands beside a page: what is picked is the page, and the page is a
+    // history entry of its own (one tap, one step back), never a preview and then a page.
+    let phone = phone_layout();
+    let filling = Memo::new(move |_| match (open.get(), full.get(), phone.get()) {
+        (Some(id), true, _) | (Some(id), false, true) => Filling::Module(id),
+        (Some(_), false, false) | (None, _, false) => Filling::Program,
+        (None, _, true) => match (area.get(), req.get()) {
+            (Some(id), _) => Filling::Area(id),
+            (None, Some(row)) => Filling::Req(row),
+            (None, None) => Filling::Program,
+        },
     });
-    Effect::new(move |_| {
-        if let (true, Some(id)) = (phone.get(), open.get()) {
-            navigate(&url::module_path(&id), NavigateOptions { replace: true, ..Default::default() });
-        }
-    });
+    let picked = Signal::derive(move || open.get().is_some() || area.get().is_some() || req.get().is_some());
 
     move || match (data.get(), tab.get()) {
         (Err(error), _) => {
             status.for_error(&error);
             view! { <div class="page"><ErrorState error/></div> }.into_any()
         }
-        (Ok(Some(data)), Some(tab)) => {
-            let sidebar = {
-                let data = data.clone();
-                move || view! { <ProgramSidebar data=data.clone() tab shape links area/> }
-            };
-            let aside = {
-                let data = data.clone();
-                move || view! { <ProgramAside data=data.clone() tab variant open area req links/> }
-            };
-            view! {
-                <Frame title="Studiengang" sidebar sidebar_first=true aside>
-                    <ProgramView data tab variant shape links open area req/>
-                </Frame>
+        (Ok(Some(data)), Some(tab)) => match filling.get() {
+            Filling::Module(id) => view! { <ProgramModuleFull id links phone/> }.into_any(),
+            Filling::Area(_) | Filling::Req(_) => {
+                let name = format!("{} ({})", data.program.name, data.program.degree());
+                view! {
+                    <Title text=format!("{name}: {} · BTU Cottbus-Senftenberg", if matches!(filling.get_untracked(), Filling::Area(_)) { "Bereich" } else { "Regelstudienplan" })/>
+                    <div class="work framed picked-page">
+                        <div class="page" id="page-scroll">
+                            {picked_panel(&data, tab, variant.get_untracked(), area.get_untracked(), req.get_untracked(), links, true)}
+                        </div>
+                    </div>
+                }
+                .into_any()
             }
-            .into_any()
-        }
+            Filling::Program => {
+                let sidebar = {
+                    let data = data.clone();
+                    move || view! { <ProgramSidebar data=data.clone() tab shape links area/> }
+                };
+                let aside = {
+                    let data = data.clone();
+                    move || view! { <ProgramAside data=data.clone() tab variant open area req links/> }
+                };
+                view! {
+                    <Frame title="Studiengang" sidebar sidebar_first=true aside aside_picked=picked>
+                        <ProgramView data tab variant shape links open area req/>
+                    </Frame>
+                }
+                .into_any()
+            }
+        },
         _ => {
             status.set(404);
             view! { <div class="page"><NotFound title="Studiengang nicht gefunden" hint="Diesen Studiengang oder diese Ansicht gibt es nicht (mehr)."/></div> }.into_any()
         }
+    }
+}
+
+/// The module in full, inside the program's area: the same page as the module's own, with
+/// „Zurück" leading to the program — with the module beside it again on the desktop, without it
+/// on a phone (and to the area it was picked from, where it was).
+#[component]
+fn ProgramModuleFull(id: String, links: Memo<ProgramUrl>, phone: RwSignal<bool>) -> impl IntoView {
+    let source = use_source();
+    let status = PageStatus::capture();
+    let loaded = source.and_then(|source| source.run(|db| pages::module(db, &id)));
+    match loaded {
+        Err(error) => {
+            status.for_error(&error);
+            view! { <div class="page"><ErrorState error/></div> }.into_any()
+        }
+        Ok(None) => {
+            status.set(404);
+            view! { <div class="page"><NotFound title="Modul nicht gefunden" hint="Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."/></div> }.into_any()
+        }
+        Ok(Some(data)) => {
+            let back = links.with_untracked(|links| if phone.get_untracked() { links.path() } else { links.with_open(Some(&id)).path() });
+            view! { <ModuleFull data back_area=Area::Programs back_to=Some(back) noindex=true/> }.into_any()
+        }
+    }
+}
+
+/// What stands beside the page with no module picked — the area, the row of the plan, else the
+/// numbers of the view — or, as `page`, what fills the page on a phone.
+fn picked_panel(data: &ProgramData, tab: ProgramTab, variant: usize, area: Option<i64>, req: Option<usize>, links: Memo<ProgramUrl>, page: bool) -> AnyView {
+    let plans = plan_variants(&data.plan_entries);
+    let areas = area_groups(&data.areas);
+    if let Some(group) = area.and_then(|id| areas.iter().find(|group| group.id == id)) {
+        return view! { <AreaPanel group=group.snapshot() modules=data.curricular.clone() links page/> }.into_any();
+    }
+    let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
+    let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row - 1).cloned().map(|entry| (entry, plan.label.clone(), plans.len() > 1))));
+    match row {
+        Some((entry, plan, several)) => {
+            let fitting = areas_for_row(&entry, &plan, &areas);
+            let known: HashMap<String, ProgramModule> = data.curricular.iter().chain(data.fues.iter()).map(|m| (m.module_id.clone(), m.clone())).collect();
+            view! { <PlanRowPanel entry plan=(several).then_some(plan) program=data.program.clone() fitting known links page/> }.into_any()
+        }
+        None if page => view! {
+            <section class="panel detail aside" id="preview">
+                <div class="state">
+                    <p class="state-title">"Nicht gefunden"</p>
+                    <p>"Diesen Bereich oder diese Zeile des Regelstudienplans gibt es nicht (mehr)."</p>
+                    <p><a class="button" href=links.get_untracked().with_area(None).path()>"Zum Studiengang"</a></p>
+                </div>
+            </section>
+        }
+        .into_any(),
+        None => view! { <ProgramNumbers data=data.clone() tab plans variant=Signal::derive(move || variant)/> }.into_any(),
     }
 }
 
@@ -343,10 +427,11 @@ fn ProgramAside(
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
     });
-    let plans = plan_variants(&data.plan_entries);
-    let areas = area_groups(&data.areas);
     move || match module.get() {
-        Ok(Some(Some(module))) => view! { <ModulePanel data=module close_href=links.get().path() docked=true/> }.into_any(),
+        Ok(Some(Some(module))) => {
+            let full_href = links.get().with_open(Some(&module.module.id)).with_full(true).path();
+            view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href)/> }.into_any()
+        }
         Ok(Some(None)) | Err(_) => view! {
             <section class="panel detail aside" id="preview" aria-label="Modulvorschau">
                 <div class="state">
@@ -358,24 +443,7 @@ fn ProgramAside(
         }
         .into_any(),
         // No module picked: the area or the row of the plan one clicked, else this view's numbers.
-        Ok(None) => match area.get().and_then(|id| areas.iter().find(|group| group.id == id)) {
-            Some(group) => view! { <AreaPanel group=group.snapshot() modules=data.curricular.clone() links/> }.into_any(),
-            None => {
-                let chosen = plans.get(variant.get().min(plans.len()).saturating_sub(1));
-                let row = req.get().and_then(|row| chosen.and_then(|plan| plan.entries.get(row - 1).cloned().map(|entry| (entry, plan.label.clone(), plans.len() > 1))));
-                match row {
-                    Some((entry, plan, several)) => {
-                        let fitting = areas_for_row(&entry, &plan, &areas);
-                        let known: HashMap<String, ProgramModule> = data.curricular.iter().chain(data.fues.iter()).map(|m| (m.module_id.clone(), m.clone())).collect();
-                        view! {
-                            <PlanRowPanel entry plan=(several).then_some(plan) program=data.program.clone() fitting known links/>
-                        }
-                        .into_any()
-                    }
-                    None => view! { <ProgramNumbers data=data.clone() tab plans=plans.clone() variant/> }.into_any(),
-                }
-            }
-        },
+        Ok(None) => picked_panel(&data, tab, variant.get(), area.get(), req.get(), links, false),
     }
 }
 
@@ -394,7 +462,10 @@ fn PlanRowPanel(
     /// What the catalog knows about the modules of this program.
     known: HashMap<String, ProgramModule>,
     links: Memo<ProgramUrl>,
+    /// The panel is the page (a phone): „Zurück" instead of „Schließen".
+    #[prop(optional)] page: bool,
 ) -> impl IntoView {
+    let close = links.get_untracked().with_req(None).path();
     let semester = match semester_span(&entry) {
         Some((from, to)) if from == to => Some(format!("{from}. Semester")),
         Some((from, to)) => Some(format!("{from}.–{to}. Semester")),
@@ -444,10 +515,13 @@ fn PlanRowPanel(
             <div class="scroll">
                 <header class="hero">
                     <div class="hero-top">
+                        {page.then(|| view! { <BackLink area=Area::Programs to=Some(close.clone())/> })}
                         <span class="mono">"Regelstudienplan"</span>
-                        <a class="ghost" href=move || links.get().with_req(None).path() data-action="close-detail" title="Schließen (Esc)">
-                            <Icon name="x"/>"Schließen"<Shortcut keys="Esc"/>
-                        </a>
+                        {(!page).then(|| view! {
+                            <a class="ghost" href=close.clone() data-action="close-detail" title="Schließen (Esc)">
+                                <Icon name="x"/>"Schließen"<Shortcut keys="Esc"/>
+                            </a>
+                        })}
                     </div>
                     <h2>{entry.module_name.clone()}</h2>
                     {plan.map(|plan| view! { <p class="en">{plan}</p> })}
@@ -630,8 +704,15 @@ fn areas_for_row(entry: &PlanEntry, plan: &str, areas: &[AreaGroup]) -> Vec<Area
 /// clicking the area in „Wahlpflicht & Bereiche"; a module picked from here keeps it, so closing
 /// the module comes back to this list.
 #[component]
-fn AreaPanel(group: AreaGroup, modules: Vec<ProgramModule>, links: Memo<ProgramUrl>) -> impl IntoView {
+fn AreaPanel(
+    group: AreaGroup,
+    modules: Vec<ProgramModule>,
+    links: Memo<ProgramUrl>,
+    /// The panel is the page (a phone): „Zurück" instead of „Schließen".
+    #[prop(optional)] page: bool,
+) -> impl IntoView {
     let known: HashMap<String, ProgramModule> = modules.into_iter().map(|m| (m.module_id.clone(), m)).collect();
+    let close = links.get_untracked().with_area(None).path();
     let count = group.modules.len();
     let sum: f64 = group.modules.iter().filter_map(|placement| placement.module_credits).sum();
     let kind_of = |placement: &AreaPlacement| placement.kind.clone().or_else(|| known.get(&placement.module_id).and_then(|m| m.kind.clone()));
@@ -644,10 +725,13 @@ fn AreaPanel(group: AreaGroup, modules: Vec<ProgramModule>, links: Memo<ProgramU
             <div class="scroll">
                 <header class="hero">
                     <div class="hero-top">
+                        {page.then(|| view! { <BackLink area=Area::Programs to=Some(close.clone())/> })}
                         <span class="mono">"Bereich"</span>
-                        <a class="ghost" href=move || links.get().with_area(None).path() data-action="close-detail" title="Schließen (Esc)">
-                            <Icon name="x"/>"Schließen"<Shortcut keys="Esc"/>
-                        </a>
+                        {(!page).then(|| view! {
+                            <a class="ghost" href=close.clone() data-action="close-detail" title="Schließen (Esc)">
+                                <Icon name="x"/>"Schließen"<Shortcut keys="Esc"/>
+                            </a>
+                        })}
                     </div>
                     <h2>{group.label.clone()}</h2>
                     {(!path.is_empty()).then(|| view! { <p class="en">{path.clone()}</p> })}
@@ -691,7 +775,7 @@ fn AreaPanel(group: AreaGroup, modules: Vec<ProgramModule>, links: Memo<ProgramU
 /// The numbers of the view one is looking at: what the plan of this study direction adds up to,
 /// or what the program has in areas and modules. Only what the data states, never a guess.
 #[component]
-fn ProgramNumbers(data: ProgramData, tab: ProgramTab, plans: Vec<PlanVariant>, variant: Memo<usize>) -> impl IntoView {
+fn ProgramNumbers(data: ProgramData, tab: ProgramTab, plans: Vec<PlanVariant>, #[prop(into)] variant: Signal<usize>) -> impl IntoView {
     let p = data.program.clone();
     let areas = area_groups(&data.areas).len();
     let kinds = kind_counts(data.curricular.iter().map(|m| m.kind.clone()));

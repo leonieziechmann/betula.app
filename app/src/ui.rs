@@ -141,12 +141,17 @@ pub fn Frame(
     /// The panel on the right, with its own handle. It brings its own box
     /// (`<section class="panel detail aside">`), so a module preview can be used as it is.
     #[prop(optional, into)] aside: Option<ViewFn>,
+    /// The panel on the right shows something the visitor picked (a module, an area). On a phone,
+    /// where nothing stands beside a page, it is then the page: the page and the sidebar step
+    /// back until it is closed. (The browser app renders such a pick as a page of its own; this
+    /// is for the same HTML without it.)
+    #[prop(optional, into)] aside_picked: Signal<bool>,
     children: Children,
 ) -> impl IntoView {
     let label = title.clone();
     let has_aside = aside.is_some();
     view! {
-        <div class="work framed" class:sidebar-first=sidebar_first class:with-aside=has_aside>
+        <div class="work framed" class:sidebar-first=sidebar_first class:with-aside=has_aside class:aside-picked=move || has_aside && aside_picked.get()>
             <aside class="panel sidebar" class:sheet=sheet id="sidebar" aria-label=label>
                 <div class="panel-head">
                     <h2>{title}</h2>

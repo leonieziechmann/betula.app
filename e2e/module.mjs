@@ -41,6 +41,7 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
 {
   const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog?program=bachelor-informatik-2008");
   await page.evaluate(() => { document.querySelector(".rows").scrollTop = 1200; });
+  await page.waitForTimeout(250); // the virtual list renders the rows of the new position on the next frame
   const id = await page.evaluate(() => { const rows = document.querySelector(".rows").getBoundingClientRect(); return [...document.querySelectorAll(".rows a.row")].find((r) => r.getBoundingClientRect().top > rows.top + 200).dataset.id; });
   await step("preview", () => page.click(`a.row[data-id="${id}"]`), () => Boolean(document.querySelector(".detail h2")));
   const previewOrder = await order(page, ".detail");
@@ -82,13 +83,11 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
 {
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
   const { page, step, context } = await open(phone, "/catalog");
-  // Deep in the endless list, so that coming back has something to prove.
-  for (let i = 0; i < 2; i++) {
-    const before = await page.evaluate(() => document.querySelectorAll(".rows a.row").length);
-    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
-    await page.waitForFunction((n) => document.querySelectorAll(".rows a.row").length > n, before, { timeout: 8000 }).catch(() => problems.push("phone: the list did not grow"));
-  }
-  const id = await page.evaluate(() => { const row = document.querySelectorAll(".rows a.row")[88]; row.scrollIntoView({ block: "center" }); return row.dataset.id; });
+  // Deep in the virtual list (the 89th row, on its second page), so that coming back has
+  // something to prove.
+  await page.evaluate(() => { const list = document.querySelector(".vlist"); scrollTo(0, list.getBoundingClientRect().top + scrollY + 88 * 88); });
+  await page.waitForFunction(() => document.querySelector('.vrow[data-i="88"] a.row'), null, { timeout: 8000 }).catch(() => problems.push("phone: the list did not render its 89th row"));
+  const id = await page.evaluate(() => { const row = document.querySelector('.vrow[data-i="88"] a.row'); row.scrollIntoView({ block: "center" }); return row.dataset.id; });
   await page.waitForTimeout(300);
   await step("phone: a tap opens the module's page", () => page.tap(`a.row[data-id="${id}"]`), (id) => location.pathname === `/catalog/module/${id}` && document.querySelector(".module-page h2"), id);
   check(!(await page.evaluate(() => location.search.includes("open="))), "phone: the preview was not skipped");

@@ -4,7 +4,7 @@
 > and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`
 > and `folia-server` with the binary `folia`).
 
-> State: 2026-09-20. Every page is server-rendered and works without JavaScript; with
+> State: 2026-09-21. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
 > again. Not yet: the service worker of the PWA (the manifest and the icons exist), user data beyond the marked modules, context search.
 > Decisions and their evidence: `docs/frontend-phase0.md`.
@@ -22,18 +22,18 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, search), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`. |
 
 ### Routes (`catalog/src/url.rs`)
 
 | URL | Page |
 |---|---|
 | `/` | Landing page: every function with a link |
-| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
+| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>` is an area of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in it or below it |
 | `/catalog?…&open=<id>` | The same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — all of them are content, so they stand in the address, work without JavaScript and are part of the server's cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. On a phone `open` leads to the module's own page, as in the catalog |
+| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — all of them are content, so they stand in the address, work without JavaScript and are part of the server's cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. The server renders an explanation, the same for everybody, `noindex` |
 
@@ -76,13 +76,26 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     handler (the router turns the click into a navigation), work without JavaScript, carry
     `rel="nofollow"` and `data-noscroll`, and the space bar flips them like a checkbox.
     „One of a few" (list, plan semester, duration, years) is a segmented row of the same links.
-  - **Pickers** (`app/src/combobox.rs`: program, lecturers, department) have a search that
+  - **Pickers** (`app/src/combobox.rs`: program, area, lecturers, department) have a search that
     forgives typos and knows initials and abbreviations (`catalog::fuzzy`: „infomatik bsc"), arrow
     keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
-    opens in place. The module comment of the component lists what keeps it predictable (it is a
-    rewrite: the picker of the old frontend lost its mark to the mouse, closed the preview with
-    Esc and knew its selection by label). Without the app the same places hold a plain `select`
-    or text field inside a GET form, and hidden inputs carry what the links have set.
+    opens in place — and there nothing that moves the window closes it: the on-screen keyboard
+    that opens for the search field shrinks the window and scrolls the field into view, which
+    used to close the popup the moment it opened. The module comment of the component lists what
+    keeps it predictable (it is a rewrite: the picker of the old frontend lost its mark to the
+    mouse, closed the preview with Esc and knew its selection by label). Without the app the same
+    places hold a plain `select` or text field inside a GET form, and hidden inputs carry what
+    the links have set.
+  - **The areas of a program** („Bereich", with a program selected, curriculum only): the areas
+    of its module tree as the program page lists them (`pages::CatalogArea`, from
+    `v_program_module_area`), in tree order, each with where it sits and how many modules it
+    holds. An area filters to the modules the tree places in it or in an area below it; that is
+    how the elective modules („Wahlpflichtmodule Praktische Informatik") of a program are
+    listed, whatever the plan says about their semester.
+  - **On a phone the panel is a sheet** from below, opened by the list's „Filter" button, and
+    closed the way a sheet is expected to close: dragged down at its head (it follows the finger
+    and is let go when pulled far or fast enough, else it slides back), with a tap on the page
+    behind it (dimmed while the sheet is open), with its button, or with Esc (`enhance.js`).
   - **Credits:** a slider with two knobs (0–30, the right end means „no upper limit") and the two
     exact numbers under it. The knobs cannot pass each other; the filter follows when a knob is
     let go.
@@ -195,6 +208,18 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   subject agree on. The sidebar says so, and programs without a clear answer have a section of
   their own („unknown stays unknown", R12). The 2026-09-19 snapshot: 106 by thesis, 34 by
   majority, 4 by subject, 4 without.
+- **A module is shown where it was opened** (2026-09-21): on the desktop beside the list or the
+  page (`open=<id>`), and in full where „Vollbild" is asked for — the catalog's preview leads to
+  the module's own page (its area), the program's panel to `…&full=1` (the same page, rendered by
+  `ModuleFull` in place, so the programs tab, the history and „Zurück" stay what they were; before,
+  „Vollbild" out of a program switched to the catalog's address, and the back graph and the tabs
+  had to guess). On a phone nothing stands beside a page: what is tapped is the page, with one
+  tap and one history entry — a row of the catalog or of the marked modules leads to the
+  module's page; on a program's page a module, an area or a row of the plan becomes the page
+  (`Filling` in `app/src/pages/program.rs`), and „Zurück" leads to what it was picked from (a
+  module picked out of an area back to the area). No preview that then has to be opened in full,
+  no panel that unfolds under the page. Without the app the same HTML (the panel beside the
+  page) is shown as the page by the stylesheet (`.aside-picked`).
 - **The program page** (reworked 2026-09-20, second round; the first one was „unaufgeräumt"): the
   head is three lines that start on the same edge — where the visitor is („Zurück", the path),
   the name with the numbers of the program right of it on its baseline (Semester, LP, Module,
@@ -278,11 +303,22 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 - **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
   `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
   re-renders neither list nor filters, and a filter change leaves the preview alone.
-- **Endless list:** the list is a sequence of chunks, one per page of 50. The server renders the
-  page the URL names, with pager links (no JavaScript, search engines). In the browser app the
-  next chunk is appended when the visitor gets near the end, earlier ones are prepended on request
-  („Vorherige Module laden", scroll position kept), and `page` in the URL follows the chunk at the
-  top of the screen by replacing the history entry. A shared link with `page=7` starts there.
+- **The list is virtual** (`VirtualRows` in `app/src/pages/catalog.rs`, 2026-09-21; before,
+  chunks of 50 were appended and prepended, and a long scroll grew slow): an element as tall as
+  the whole list holds only the rows that are on screen and a few around them, each at its
+  offset, so the scrollbar has the length of the list from the start. Rows are measured once
+  rendered and estimated (at the average of the measured ones) until then; a row above what is
+  visible that turns out taller or shorter than estimated moves everything below it, so the list
+  scrolls by the difference and nothing jumps under the visitor's eyes. Pages of 50 are loaded
+  when their rows come near (one query, a few milliseconds) and dropped again when far. `page` in
+  the URL follows the row at the top of the screen (history entry replaced); a shared link with
+  `page=7` starts there, and coming back from a module the list centres on its row
+  (`queries::catalog_position`: the row's place in the ordered list, one window query, no pages
+  loaded before it). The server renders the page the URL names, with pager links (no JavaScript,
+  search engines). Inside a program the list is in plan order with the plan's semester at every
+  row; the headings between the semesters are gone (the semester filter is for that) — so the
+  elective modules, which the plan places in no semester, are simply the rows after the last
+  semester, and the area picker lists them by area.
 
 ### The landing page and the map of the programs (2026-09-20)
 
@@ -589,7 +625,19 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 cargo test
 ```
 
-needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one:
+needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one.
+Without a crawl, a synthetic one serves for development and for the browser checks below
+(`internal/catalogbuild/folia_fixture_test.go`: 1,200 modules with varied facets, 115 programs
+with trees, areas and degree labels, Informatik B.Sc. and Elektrotechnik B.Sc. with validated
+plans, a few events — numbers made up, nothing of it says anything about the BTU; the checks
+that compare pinned or real-data numbers fail on it, everything else runs):
+
+```bash
+BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteFoliaFixture -count=1
+./radix serve-snapshot --dir snapshot          # then cargo run -p folia-server as usual
+```
+
+What `cargo test` checks:
 
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
@@ -623,8 +671,10 @@ cd e2e && node spa.mjs
 ```
 
 drives the browser app in Edge: waits for the takeover, then opens a preview (the list must keep
-its scroll position), filters, closes with Esc, opens the full page, goes back, searches programs,
-and fails on any page load after the takeover or any console error.
+its scroll position), filters, closes with Esc, opens the full page, goes back, scrolls the
+virtual list (as long as the whole list from the start, a slice rendered, the last rows there at
+its end, `page` following, the length unchanged), searches programs, and fails on any page load
+after the takeover or any console error.
 
 ```bash
 cd e2e && node filters.mjs
@@ -635,9 +685,11 @@ and keep the focus), rows of toggles filling the width, oversized hit areas, the
 aligned with the list, the program picker (typo, arrow keys against a resting mouse pointer, wrap
 around, Enter, focus back on the button, Esc closing only the picker, click outside, clear, no two
 entries alike), the lecturer picker, the slider (drag, keyboard, knobs not crossing, typed
-numbers), the panel's width (limits, `localStorage`, reset), the group header across the border
-of two pages, and the same panel without JavaScript (links keep the rest of the filter, the form
-keeps what the links set, nothing that needs JavaScript is visible).
+numbers), the panel's width (limits, `localStorage`, reset), the list of a program (plan order,
+the semester at every row, no headings, the second page reached by scrolling) with the area picker
+(an elective area filters the list, the tag above it, the panel not rebuilt), and the same panel
+without JavaScript (links keep the rest of the filter, the form keeps what the links set, nothing
+that needs JavaScript is visible).
 
 ```bash
 cd e2e && node module.mjs
@@ -648,6 +700,16 @@ filter panel was, the same order of sections in both, jumps without history entr
 for sidebar and filter panel, Esc back to the list with the row in view. Phone: a tap opens the
 page directly, the page starts with times and facts, back returns to the tapped row deep in the
 endless list, a shared preview link becomes the page.
+
+```bash
+cd e2e && node phone.mjs
+```
+
+drives the catalog on a phone: the filter sheet dragged down at its head (following the finger,
+snapping back after a short drag), a tap beside it closing it, the area picker staying open
+while the window shrinks (the on-screen keyboard) and filtering the list, and the virtual list
+with the window scrolling (the last rows at its end, the page keeping its height, no two rows
+overlapping, `page` following).
 
 ```bash
 cd e2e && node bookmarks.mjs
@@ -687,13 +749,16 @@ in a sheet; and the filter links without JavaScript. On a program's page: the nu
 (and that none of them leaves its panel), one study plan per study direction (no module twice, the
 first semester at 30 LP, semester columns of equal width), switching the direction through the
 URL, a module opening beside the page (its row marked, the panel not lying over the table) and
-closing again, „Vollbild" and back to the program without a new history entry, Esc leaving the
-program instead of reopening the module, an area beside the page with its modules (and a module
-picked out of it coming back to the area), a requirement of the plan with its numbers and its
-ways on, the catalog's tab unchanged by a module seen in full screen out of a program, matrix and
-list with the choice remembered in this browser only, the areas as groups of rows
-with the sidebar leading to each of them without a history entry, all modules one line high with
-their area, and on a phone the matrix scrolling inside its panel while the page does not.
+closing again, „Vollbild" in place (`full=1`, the programs tab still current, the module's
+sidebar) and back to the program without a new history entry, Esc leaving the program instead of
+reopening the module, an area beside the page with its modules (and a module picked out of it
+coming back to the area), a requirement of the plan with its numbers and its ways on, the
+catalog's tab unchanged by a module seen in full screen out of a program, matrix and list with
+the choice remembered in this browser only, the areas as groups of rows with the sidebar leading
+to each of them without a history entry, all modules one line high with their area, and on a
+phone the matrix scrolling inside its panel while the page does not, a module becoming the page
+with one tap and one history entry and „Zurück" leading back, an area becoming the page and a
+module picked out of it leading back to the area.
 
 ```bash
 cd e2e && GATE_PASSWORD=… node gate.mjs http://127.0.0.1:8086

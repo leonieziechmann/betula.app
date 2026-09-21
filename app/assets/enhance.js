@@ -13,7 +13,13 @@
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
   // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
+  // Open, the page behind it is dimmed (html.sheet-open) and a tap on it closes the sheet.
   const filters = () => document.getElementById("filters") || document.querySelector(".sidebar.sheet");
+  const openSheet = () => { const sheet = filters(); if (!sheet) return; sheet.classList.add("open"); root.classList.add("sheet-open"); };
+  const closeSheet = () => { filters()?.classList.remove("open"); root.classList.remove("sheet-open"); };
+  // The app may replace the page under an open sheet (Back, a tab): nothing may stay dimmed.
+  const tidySheet = () => { if (root.classList.contains("sheet-open") && !document.querySelector(".filters.open, .sidebar.sheet.open")) root.classList.remove("sheet-open"); };
+  addEventListener("popstate", closeSheet);
 
   // ---- classic mode: scroll positions of the panels survive a page load ----
   const listKey = () => location.search.replace(/([?&])(page|open)=[^&]*/g, "$1");
@@ -80,6 +86,41 @@
     location.href = "/catalog/module/" + encodeURIComponent(row.dataset.id);
   }, true);
 
+  // A tap beside the open sheet, on the dimmed page (the target is then the document itself).
+  document.addEventListener("click", (e) => {
+    tidySheet();
+    if (root.classList.contains("sheet-open") && e.target === root) { e.preventDefault(); closeSheet(); }
+  }, true);
+
+  // The sheet is dragged down at its head to close it: it follows the finger, and is let go
+  // when it was pulled far or fast enough; otherwise it slides back.
+  document.addEventListener("pointerdown", (e) => {
+    const head = e.target.closest?.(".filters .panel-head, .sidebar.sheet .panel-head");
+    const sheet = head?.closest(".filters, .sidebar.sheet");
+    if (!sheet || !sheet.classList.contains("open") || !phone() || e.target.closest("a, button, input")) return;
+    e.preventDefault();
+    const startY = e.clientY, startAt = performance.now();
+    let dy = 0;
+    try { sheet.setPointerCapture(e.pointerId); } catch {}
+    const move = (ev) => {
+      dy = Math.max(0, ev.clientY - startY);
+      sheet.classList.add("dragging");
+      sheet.style.transform = `translateY(${dy}px)`;
+    };
+    const stop = () => {
+      sheet.removeEventListener("pointermove", move);
+      sheet.removeEventListener("pointerup", stop);
+      sheet.removeEventListener("pointercancel", stop);
+      const speed = dy / Math.max(1, performance.now() - startAt); // px per ms
+      sheet.style.transform = "";
+      sheet.classList.remove("dragging");
+      if (dy > Math.min(160, sheet.offsetHeight * 0.35) || (dy > 24 && speed > 0.6)) closeSheet();
+    };
+    sheet.addEventListener("pointermove", move);
+    sheet.addEventListener("pointerup", stop);
+    sheet.addEventListener("pointercancel", stop);
+  });
+
   document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");
     switch (target?.dataset.action) {
@@ -94,11 +135,11 @@
       }
       case "sheet-open":
         e.preventDefault();
-        filters()?.classList.add("open");
+        openSheet();
         break;
       case "sheet-close":
         e.preventDefault();
-        filters()?.classList.remove("open");
+        closeSheet();
         break;
       case "back": {
         // The link leads to the list of the area. If that list is where the visitor came from,
@@ -262,7 +303,7 @@
     }
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
     if (plain && e.key === "Escape") {
-      if (filters()?.classList.contains("open")) { filters().classList.remove("open"); return; }
+      if (filters()?.classList.contains("open")) { closeSheet(); return; }
       if (typing(document.activeElement)) { document.activeElement.blur(); return; }
       // The preview first; on a module's own page Esc goes back to where the visitor came from.
       (document.querySelector('[data-action="close-detail"]') || document.querySelector('[data-action="back"]'))?.click();

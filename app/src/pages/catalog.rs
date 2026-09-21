@@ -5,11 +5,13 @@
 //! links to the list they lead to, so the page works without JavaScript; the browser app adds
 //! what links cannot do (pickers with a search, the credit slider).
 
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use catalog::filter::{CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey};
 use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
-use catalog::pages::{self, CatalogChoices, CatalogData};
+use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData};
 use catalog::rows::{CatalogRow, Program};
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
 use leptos::prelude::*;
@@ -21,7 +23,7 @@ use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::nav::{self, keep_position_after_prepend, list_height, list_position};
+use crate::nav;
 use crate::pages::module::ModulePanel;
 use crate::seo::Seo;
 use crate::tabs::{self, Tabs};
@@ -222,6 +224,14 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
                 }
             });
         }
+        if let Some(id) = scope.area {
+            let label = data.areas.iter().find(|area| area.id == id).map(|area| area.label.clone()).unwrap_or_else(|| format!("Bereich {id}"));
+            push("Bereich", label, &|q| {
+                if let Some(s) = q.program.as_mut() {
+                    s.area = None;
+                }
+            });
+        }
     }
     if q.turnus.winter {
         push("Turnus", "Winter".to_string(), &|q| q.turnus.winter = false);
@@ -323,7 +333,7 @@ fn List(
     open: Memo<Option<String>>,
     page: Memo<u64>,
     phone: RwSignal<bool>,
-    /// The row to scroll to once the list is there (it may be on the next page of the list).
+    /// The row to scroll to once the list is there.
     reveal: Option<String>,
 ) -> impl IntoView {
     let q = current.query.clone();
@@ -332,7 +342,6 @@ fn List(
     let start_page = current.page.min(pages_total);
     let with_program = data.program.is_some();
     let unknown_program = q.program.is_some() && !with_program;
-    let by_plan = with_program && q.sort == SortKey::Default;
     let label = match (&data.program, q.program.as_ref().map(|s| s.relation)) {
         (Some(_), Some(ProgramRelation::Fues)) => "FÜS-Module dieses Studiengangs",
         (Some(_), _) => "Module im Curriculum",
@@ -355,89 +364,40 @@ fn List(
         view! { <a class=class href=keep_open(next, open) aria-current=on.then_some("true")>{text}{arrow}</a> }
     };
 
-    // The list is a sequence of chunks, one per page. The server renders the page the URL names
-    // (with pager links); the browser app appends the next chunk when the visitor gets near the
-    // end, prepends on request, and keeps `page` in the URL in step with what is on screen.
-    let chunks = RwSignal::new(vec![Chunk { page: start_page, rows: data.page.rows.clone() }]);
-    let source = use_source();
-    let query = StoredValue::new(current.query.clone());
-    let load = move |page_no: u64| -> Option<Vec<CatalogRow>> {
-        let source = source.clone().ok()?;
-        source.run(|db| catalog::queries::catalog_page(db, &query.get_value(), (page_no - 1) * PAGE_SIZE, PAGE_SIZE)).ok().map(|p| p.rows)
-    };
-    let load_next = {
-        let load = load.clone();
-        move || {
-            let Some(last_page) = chunks.with_untracked(|c| c.last().map(|c| c.page)) else { return };
-            if last_page >= pages_total {
-                return;
-            }
-            if let Some(rows) = load(last_page + 1) {
-                chunks.update(|c| c.push(Chunk { page: last_page + 1, rows }));
-            }
-        }
-    };
-    let load_previous = move || {
-        let Some(first_page) = chunks.with_untracked(|c| c.first().map(|c| c.page)) else { return };
-        if first_page <= 1 {
-            return;
-        }
-        if let Some(rows) = load(first_page - 1) {
-            let height = list_height(ROWS_ID);
-            chunks.update(|c| c.insert(0, Chunk { page: first_page - 1, rows }));
-            keep_position_after_prepend(ROWS_ID, height);
-        }
-    };
-    let first_loaded = move || chunks.with(|c| c.first().map(|c| c.page).unwrap_or(1));
-    let last_loaded = move || chunks.with(|c| c.last().map(|c| c.page).unwrap_or(1));
-
-    // Scrolling: load more near the end, and let the URL follow the position (replacing the
-    // history entry, so Back still leaves the list in one step).
-    let navigate = use_navigate();
-    let base = StoredValue::new(current.clone());
-    let follow = {
-        let load_next = load_next.clone();
-        move || {
-            let Some(position) = list_position(ROWS_ID) else { return };
-            if position.near_end {
-                load_next();
-            }
-            if let Some(seen) = position.page.filter(|seen| *seen != page.get_untracked()) {
-                let target = base.get_value().with_page(seen).with_open(open.get_untracked().as_deref()).path();
-                navigate(&target, NavigateOptions { replace: true, scroll: false, ..Default::default() });
-            }
-        }
-    };
-    let follow_window = follow.clone();
-    Effect::new(move |_| {
-        // On a phone the window scrolls, not the panel.
-        let follow = follow_window.clone();
-        let handle = window_event_listener(leptos::ev::scroll, move |_| follow());
-        on_cleanup(move || handle.remove());
-    });
-    let load_next_click = load_next.clone();
-    let chunk_base = current.clone();
-    if let Some(id) = reveal {
-        let load_next = load_next.clone();
-        Effect::new(move |_| {
-            if !nav::reveal_row(ROWS_ID, &id) {
-                load_next();
-            }
-            // Once more in the next frame (the row may have been on the next page), and once
-            // more a moment later: coming back through the history, the browser restores the
-            // scroll position of a list that was longer above, after this effect has run.
-            let (next_frame, later) = (id.clone(), id.clone());
-            request_animation_frame(move || {
-                nav::reveal_row(ROWS_ID, &next_frame);
-            });
-            set_timeout(
-                move || {
-                    nav::reveal_row(ROWS_ID, &later);
-                },
-                std::time::Duration::from_millis(220),
-            );
-        });
+    // What the list says instead of rows.
+    let states = view! {
+        {unknown_program.then(|| view! {
+            <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
+        })}
+        {(total == 0 && !unknown_program).then(|| match (q.marked == Some(true), APP) {
+            (true, true) => view! {
+                <div class="state">
+                    <p class="state-title">"Keine gemerkten Module in dieser Liste"</p>
+                    <p>"Kein gemerktes Modul passt zu den übrigen Filtern."</p>
+                    <a class="btn secondary" href=url::BOOKMARKS>"Zur Merkliste"</a>
+                </div>
+            }.into_any(),
+            (true, false) => view! {
+                <div class="state">
+                    <p class="state-title">"Deine Merkliste kennt nur dein Browser"</p>
+                    <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier deine gemerkten Module."</p>
+                    <a class="btn secondary" href=url::CATALOG>"Alle Module zeigen"</a>
+                </div>
+            }.into_any(),
+            _ => view! {
+                <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
+            }.into_any(),
+        })}
     }
+    .into_any();
+
+    // The browser app renders only what is on screen of the whole list; the server renders the
+    // page the URL names, with pager links (no JavaScript, search engines).
+    let rows = if APP {
+        view! { <VirtualRows current=current.clone() first=data.page.rows.clone() total open page phone with_program reveal states/> }.into_any()
+    } else {
+        view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program states/> }.into_any()
+    };
 
     view! {
         <section class="panel list" aria-live="polite">
@@ -470,51 +430,322 @@ fn List(
                 <span class="c-lang">"Spr."</span>
                 {sort_link(SortKey::Events, "Termine", "c-events")}
             </div>
-            <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows" on:scroll=move |_| follow()>
-                {unknown_program.then(|| view! {
-                    <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
-                })}
-                {(total == 0 && !unknown_program).then(|| match (q.marked == Some(true), APP) {
-                    (true, true) => view! {
-                        <div class="state">
-                            <p class="state-title">"Keine gemerkten Module in dieser Liste"</p>
-                            <p>"Kein gemerktes Modul passt zu den übrigen Filtern."</p>
-                            <a class="btn secondary" href=url::BOOKMARKS>"Zur Merkliste"</a>
-                        </div>
-                    }.into_any(),
-                    (true, false) => view! {
-                        <div class="state">
-                            <p class="state-title">"Deine Merkliste kennt nur dein Browser"</p>
-                            <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier deine gemerkten Module."</p>
-                            <a class="btn secondary" href=url::CATALOG>"Alle Module zeigen"</a>
-                        </div>
-                    }.into_any(),
-                    _ => view! {
-                        <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
-                    }.into_any(),
-                })}
-                {move || (first_loaded() > 1).then(|| {
-                    let load_previous = load_previous.clone();
-                    view! { <button class="btn secondary load-more" type="button" on:click=move |_| load_previous()>"Vorherige Module laden"</button> }
-                })}
-                <For each=move || chunks.get() key=|chunk| chunk.page let:chunk>
-                    <ChunkRows chunk chunks base=chunk_base.clone() by_plan with_program open page phone/>
-                </For>
-                {move || (last_loaded() < pages_total).then(|| {
-                    let load_next = load_next_click.clone();
-                    view! { <button class="btn secondary load-more" type="button" on:click=move |_| load_next()>"Weitere Module laden"</button> }
-                })}
-                {move || (last_loaded() >= pages_total && total > PAGE_SIZE).then(|| view! { <p class="list-end">"Ende der Liste · "{format::count(total)}" Module"</p> })}
-                // Without the browser app (no JavaScript, search engines): plain page links.
-                {(pages_total > 1).then(|| view! {
-                    <nav class="pager" aria-label="Seiten">
-                        {(start_page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(start_page - 1), open)>"Zurück"</a> })}
-                        <span class="num">"Seite "{start_page}" von "{pages_total}</span>
-                        {(start_page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(start_page + 1), open)>"Weiter"</a> })}
-                    </nav>
-                })}
-            </div>
+            {rows}
         </section>
+    }
+}
+
+/// One page of rows, as the server renders it: what the URL names, and links to the pages
+/// before and after it.
+#[component]
+fn PlainRows(
+    current: CatalogUrl,
+    rows: Vec<CatalogRow>,
+    start_page: u64,
+    pages_total: u64,
+    open: Memo<Option<String>>,
+    phone: RwSignal<bool>,
+    with_program: bool,
+    states: AnyView,
+) -> impl IntoView {
+    let base = current.clone();
+    view! {
+        <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows">
+            {states}
+            {rows.into_iter().map(|row| {
+                let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
+                let preview = Signal::derive(move || base.with_open(Some(&target)).path());
+                let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
+                view! { <Row row preview current phone with_program/> }
+            }).collect_view()}
+            {(pages_total > 1).then(|| view! {
+                <nav class="pager" aria-label="Seiten">
+                    {(start_page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(start_page - 1), open)>"Zurück"</a> })}
+                    <span class="num">"Seite "{start_page}" von "{pages_total}</span>
+                    {(start_page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(start_page + 1), open)>"Weiter"</a> })}
+                </nav>
+            })}
+        </div>
+    }
+}
+
+const ROWS_ID: &str = "rows";
+/// The element that holds the rows of the virtual list, as tall as the whole list.
+const VLIST_ID: &str = "rows-virtual";
+/// Rows rendered beyond what is visible, above and below: room for the keyboard to move and for
+/// a scroll to land before the next rows are there.
+const BUFFER: usize = 10;
+/// Pages of rows kept on either side of the visitor's place; farther ones are dropped and loaded
+/// again when the visitor comes back (a page is one query of a few milliseconds).
+const KEEP_PAGES: usize = 4;
+/// What a row is taken to be as tall as until it has been measured (the stylesheet's rows).
+const ROW_DESKTOP: f32 = 58.0;
+const ROW_PHONE: f32 = 88.0;
+
+/// The whole list, of which only what is on screen (and a little around it) is rendered: the
+/// rows stand at their offsets inside an element as tall as the list, so the scrollbar has the
+/// length of the list from the start. Rows are measured once they are rendered and estimated
+/// (at the average of the measured ones) until then; when a row above what is visible turns out
+/// taller or shorter than estimated, the list scrolls by the difference, so nothing jumps under
+/// the visitor's eyes. Pages of rows are loaded when their rows come near and dropped again
+/// when they are far. `page` in the URL follows the row at the top of the screen.
+#[component]
+fn VirtualRows(
+    current: CatalogUrl,
+    /// The rows of the page the URL names: what the server rendered, loaded already.
+    first: Vec<CatalogRow>,
+    total: u64,
+    open: Memo<Option<String>>,
+    page: Memo<u64>,
+    phone: RwSignal<bool>,
+    with_program: bool,
+    /// The row to scroll to once the list is there: the module the visitor comes back from.
+    reveal: Option<String>,
+    states: AnyView,
+) -> impl IntoView {
+    let total = usize::try_from(total).unwrap_or(0);
+    let per_page = usize::try_from(PAGE_SIZE).unwrap_or(50).max(1);
+    let pages_total = total.div_ceil(per_page).max(1);
+    let start_page = usize::try_from(current.page).unwrap_or(1).clamp(1, pages_total);
+    let query = StoredValue::new(current.query.clone());
+    let source = use_source().ok();
+    // The pages of rows the list holds, by page number.
+    let loaded: RwSignal<BTreeMap<usize, Vec<CatalogRow>>> = RwSignal::new(BTreeMap::from([(start_page, first)]));
+    // The height of every row that has been measured, the sum and the number of them (for the
+    // estimate of the others), and a counter that changes whenever a height does.
+    let heights: StoredValue<Vec<Option<f32>>> = StoredValue::new(vec![None; total]);
+    let measured = StoredValue::new((0.0f32, 0usize));
+    let layout = RwSignal::new(0u32);
+    // The rows that are rendered: `first..end`.
+    let window = RwSignal::new((0usize, (BUFFER * 3).min(total)));
+    // Frames, timeouts and the size watcher outlive the list when a filter replaces it: what
+    // they call must not touch the list's values after that (R2).
+    let alive = Arc::new(AtomicBool::new(true));
+    on_cleanup({
+        let alive = alive.clone();
+        move || alive.store(false, Ordering::Relaxed)
+    });
+
+    let estimate = move || {
+        let (sum, count) = measured.get_value();
+        match count {
+            0 => if phone.get_untracked() { ROW_PHONE } else { ROW_DESKTOP },
+            count => sum / count as f32,
+        }
+    };
+    let offset_of = move |index: usize| -> f32 {
+        let estimate = estimate();
+        heights.with_value(|heights| heights.iter().take(index).map(|height| height.unwrap_or(estimate)).sum())
+    };
+    let index_at = move |offset: f32| -> usize {
+        let estimate = estimate();
+        heights.with_value(|heights| {
+            let mut bottom = 0.0;
+            for (index, height) in heights.iter().enumerate() {
+                bottom += height.unwrap_or(estimate);
+                if bottom > offset {
+                    return index;
+                }
+            }
+            heights.len().saturating_sub(1)
+        })
+    };
+
+    // The pages whose rows are in `first..end` are loaded; pages far from there are dropped.
+    let ensure_loaded = move |first: usize, end: usize| {
+        let Some(source) = source.clone() else { return };
+        let (first_page, last_page) = (first / per_page + 1, end.saturating_sub(1) / per_page + 1);
+        let missing: Vec<usize> = (first_page..=last_page).filter(|p| loaded.with_untracked(|loaded| !loaded.contains_key(p))).collect();
+        let far: Vec<usize> = loaded.with_untracked(|loaded| loaded.keys().copied().filter(|p| *p + KEEP_PAGES < first_page || *p > last_page + KEEP_PAGES).collect());
+        if missing.is_empty() && far.is_empty() {
+            return;
+        }
+        let fetched: Vec<(usize, Vec<CatalogRow>)> = missing
+            .into_iter()
+            .filter_map(|p| {
+                let offset = u64::try_from((p - 1) * per_page).ok()?;
+                let rows = source.run(|db| catalog::queries::catalog_page(db, &query.get_value(), offset, PAGE_SIZE)).ok()?.rows;
+                Some((p, rows))
+            })
+            .collect();
+        loaded.update(|loaded| {
+            for p in far {
+                loaded.remove(&p);
+            }
+            for (p, rows) in fetched {
+                loaded.insert(p, rows);
+            }
+        });
+    };
+
+    // Where the visitor is: which rows to render, which pages to hold, and what `page` in the
+    // URL says (replacing the history entry, so Back still leaves the list in one step).
+    let navigate = use_navigate();
+    let base = StoredValue::new(current.clone());
+    let alive_follow = alive.clone();
+    let follow = move || {
+        if total == 0 || !alive_follow.load(Ordering::Relaxed) {
+            return;
+        }
+        let Some((offset, viewport)) = nav::list_viewport(ROWS_ID, VLIST_ID) else { return };
+        let first_visible = index_at(offset);
+        let last_visible = index_at(offset + viewport);
+        let range = (first_visible.saturating_sub(BUFFER), (last_visible + 1 + BUFFER).min(total));
+        ensure_loaded(range.0, range.1);
+        if window.get_untracked() != range {
+            window.set(range);
+        }
+        let seen = (first_visible / per_page + 1) as u64;
+        if seen != page.get_untracked() {
+            let target = base.get_value().with_page(seen).with_open(open.get_untracked().as_deref()).path();
+            navigate(&target, NavigateOptions { replace: true, scroll: false, ..Default::default() });
+        }
+    };
+
+    // The rendered rows are measured. A row that turns out to differ from what it was taken for
+    // moves everything below it; where that is above the visible part, the list scrolls by the
+    // difference and the visitor sees nothing move. `true` if any height changed.
+    let alive_measure = alive.clone();
+    let measure = move || -> bool {
+        if !alive_measure.load(Ordering::Relaxed) {
+            return false;
+        }
+        let Some((offset, _)) = nav::list_viewport(ROWS_ID, VLIST_ID) else { return false };
+        let estimate = estimate();
+        // (index, what it was taken for, what it is, whether it lies above the visible part)
+        let mut changes: Vec<(usize, f32, f32, bool)> = Vec::new();
+        for (index, height) in nav::measure_rows(VLIST_ID) {
+            let known = heights.with_value(|heights| heights.get(index).copied().flatten());
+            if known.is_some_and(|known| (known - height).abs() < 0.5) {
+                continue;
+            }
+            let was = known.unwrap_or(estimate);
+            changes.push((index, was, height, offset_of(index) + was <= offset + 0.5));
+        }
+        if changes.is_empty() {
+            return false;
+        }
+        let mut shift = 0.0;
+        for (index, was, now, above) in changes {
+            let known = heights.with_value(|heights| heights.get(index).is_some_and(Option::is_some));
+            heights.update_value(|heights| {
+                if let Some(slot) = heights.get_mut(index) {
+                    *slot = Some(now);
+                }
+            });
+            measured.update_value(|(sum, count)| {
+                if known {
+                    *sum += now - was;
+                } else {
+                    *sum += now;
+                    *count += 1;
+                }
+            });
+            if above {
+                shift += now - was;
+            }
+        }
+        if shift.abs() >= 0.5 {
+            nav::scroll_list_by(ROWS_ID, shift);
+        }
+        layout.update(|n| *n = n.wrapping_add(1));
+        true
+    };
+
+    // Rendered rows are measured once they are there, and again whenever the list changes its
+    // width (the filter panel is dragged, the window changes), which changes how titles wrap.
+    let (after_render, measure_rendered) = (follow.clone(), measure.clone());
+    Effect::new(move |_| {
+        window.track();
+        loaded.track();
+        let (follow, measure) = (after_render.clone(), measure_rendered.clone());
+        request_animation_frame(move || {
+            if measure() {
+                follow();
+            }
+        });
+    });
+    let (on_resize, measure_resized) = (follow.clone(), measure.clone());
+    Effect::new(move |_| {
+        let (follow, measure) = (on_resize.clone(), measure_resized.clone());
+        let watch = nav::watch_size(VLIST_ID, move || {
+            if measure() {
+                follow();
+            }
+        });
+        on_cleanup(move || drop(watch));
+    });
+    // On a phone the window scrolls, not the panel.
+    let follow_window = follow.clone();
+    Effect::new(move |_| {
+        let follow = follow_window.clone();
+        let handle = window_event_listener(leptos::ev::scroll, move |_| follow());
+        on_cleanup(move || handle.remove());
+    });
+
+    // Where the list starts: at the row the visitor comes back to (in the middle of the screen),
+    // else at the page the URL names. Once, when the list is there; and once more a moment later
+    // for a way back through the history, where the browser restores a scroll position of its own
+    // after this has run.
+    let (at_start, alive_start) = (follow.clone(), alive.clone());
+    let start_source = use_source().ok();
+    let start_query = current.query.clone();
+    Effect::new(move |_| {
+        let row = reveal.as_ref().and_then(|id| {
+            let source = start_source.clone()?;
+            source.run(|db| catalog::queries::catalog_position(db, &start_query, id)).ok().flatten()
+        });
+        let target = match row {
+            Some(index) => Some(usize::try_from(index).unwrap_or(0).min(total.saturating_sub(1))),
+            None if start_page > 1 => Some((start_page - 1) * per_page),
+            None => None,
+        };
+        let (follow, alive) = (at_start.clone(), alive_start.clone());
+        let go = move |center: bool| {
+            // The list may have been replaced by then (a filter, a moment after coming back).
+            if !alive.load(Ordering::Relaxed) {
+                return;
+            }
+            if let Some(index) = target {
+                let viewport = nav::list_viewport(ROWS_ID, VLIST_ID).map(|(_, viewport)| viewport).unwrap_or(0.0);
+                let offset = if center { offset_of(index) - (viewport - estimate()) / 2.0 } else { offset_of(index) };
+                nav::scroll_list_to(ROWS_ID, VLIST_ID, offset.max(0.0));
+            }
+            follow();
+        };
+        let (now, later) = (go.clone(), go);
+        let center = reveal.is_some();
+        request_animation_frame(move || now(center));
+        if center {
+            set_timeout(move || later(true), std::time::Duration::from_millis(220));
+        }
+    });
+
+    let on_scroll = follow.clone();
+    let row_at = move |index: usize| loaded.with(|loaded| loaded.get(&(index / per_page + 1)).and_then(|rows| rows.get(index % per_page)).cloned());
+    let base_rows = current.clone();
+    view! {
+        <div class="rows scroll virtual" id=ROWS_ID data-keep-scroll="rows" on:scroll=move |_| on_scroll()>
+            {states}
+            <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--h:{:.0}px", offset_of(total)) }>
+                <For each=move || { let (first, end) = window.get(); first..end } key=|index| *index children=move |index: usize| {
+                    let base = base_rows.clone();
+                    let top = move || {
+                        layout.track();
+                        format!("--top:{:.0}px", offset_of(index))
+                    };
+                    view! {
+                        {move || row_at(index).map(|row| {
+                            let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
+                            let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
+                            let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
+                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program/></div> }
+                        })}
+                    }
+                }/>
+            </div>
+            {(total > per_page).then(|| view! { <p class="list-end">"Ende der Liste · "{format::count(total as u64)}" Module"</p> })}
+        </div>
     }
 }
 
@@ -530,8 +761,6 @@ pub(crate) fn Row(
     #[prop(into)] current: Signal<bool>,
     phone: RwSignal<bool>,
     with_program: bool,
-    /// Set on the first row of a page: how the list knows which page is on screen.
-    starts_page: Option<u64>,
     /// In the list of marked modules a module whose mark was taken away stays where it is,
     /// dimmed, so that a slip is one click to undo.
     #[prop(optional)] dim_unmarked: bool,
@@ -559,12 +788,15 @@ pub(crate) fn Row(
     });
     view! {
         <div class="row-wrap" class:unmarked=move || unmarked.is_some_and(|unmarked| unmarked.get())>
-            <a class="row" href=href data-noscroll="" data-id=row.id.clone() data-page=starts_page aria-current=move || current.get().then_some("true")>
+            <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
                 <div class="t">
                     <b>{row.title.clone()}</b>
                     <small>
                         <span class="mono">{row.id.clone()}</span>
                         {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
+                        // Inside a program the study plan's semester stands at the row (the
+                        // list is in plan order, without headings between the semesters).
+                        {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{n}". Semester"</span> }))}
                         <OfferBadge status=row.offer_status.clone()/>
                         {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
                         {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">"begrenzte Plätze"</span> })}
@@ -588,67 +820,6 @@ pub(crate) fn Row(
     }
 }
 
-/// One page of the list.
-#[derive(Clone, PartialEq)]
-struct Chunk {
-    page: u64,
-    rows: Vec<CatalogRow>,
-}
-
-const ROWS_ID: &str = "rows";
-
-/// The rows of one page. They are direct children of the scrolling list (the wrapper has no box
-/// of its own), so a sticky group header stays in place for as long as its group is on screen,
-/// across the border between two pages.
-#[component]
-fn ChunkRows(
-    chunk: Chunk,
-    chunks: RwSignal<Vec<Chunk>>,
-    base: CatalogUrl,
-    by_plan: bool,
-    with_program: bool,
-    open: Memo<Option<String>>,
-    page: Memo<u64>,
-    phone: RwSignal<bool>,
-) -> impl IntoView {
-    // Group headers follow the study plan when the list is in plan order. A group that began on
-    // the page before (which may be loaded later, above this one) gets no second header.
-    let own_page = chunk.page;
-    let group_before = Memo::new(move |_| {
-        chunks.with(|all| {
-            let index = all.iter().position(|c| c.page == own_page)?;
-            all.get(index.checked_sub(1)?)?.rows.last().map(|row| row.plan_semester)
-        })
-    });
-    let header = |semester: Option<i64>| match semester {
-        Some(n) => format!("{n}. Semester"),
-        None => "Ohne Semesterangabe im Regelstudienplan".to_string(),
-    };
-    let mut last_group: Option<Option<i64>> = None;
-    let rows = chunk
-        .rows
-        .iter()
-        .enumerate()
-        .map(|(index, row)| {
-            let group = row.plan_semester;
-            let first = index == 0;
-            let new_group = by_plan && last_group != Some(group);
-            last_group = Some(group);
-            let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
-            let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
-            let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
-            view! {
-                {(new_group && first).then(|| view! {
-                    {move || (group_before.get() != Some(group)).then(|| view! { <div class="sem">{header(group)}</div> })}
-                })}
-                {(new_group && !first).then(|| view! { <div class="sem">{header(group)}</div> })}
-                <Row row=row.clone() preview current phone with_program starts_page=first.then_some(chunk.page)/>
-            }
-        })
-        .collect_view();
-    view! { <div class="chunk">{rows}</div> }
-}
-
 /// Whether this build is the browser app. Pages rendered on the server get plain form controls
 /// where the app has pickers, so they work without JavaScript.
 const APP: bool = cfg!(feature = "csr");
@@ -664,6 +835,7 @@ struct Facts {
     curricular_total: Option<u64>,
     fues_total: Option<u64>,
     plan_semesters: Vec<i64>,
+    areas: Vec<CatalogArea>,
     total: u64,
 }
 
@@ -674,9 +846,20 @@ impl Facts {
             curricular_total: data.curricular_total,
             fues_total: data.fues_total,
             plan_semesters: data.plan_semesters.clone(),
+            areas: data.areas.clone(),
             total: data.page.total,
         }
     }
+}
+
+/// An area as the picker offers it: its name, and under it where it sits in the tree (or how
+/// many modules it holds, where it sits at the top).
+fn area_item(area: &CatalogArea) -> ComboItem {
+    let detail = match area.path.rsplit_once(" / ") {
+        Some((parent, _)) => format!("{parent} · {} Module", area.modules),
+        None => format!("{} Module", area.modules),
+    };
+    ComboItem::new(area.id.to_string(), area.label.clone(), detail, 0)
 }
 
 /// What the pickers offer: the same for every filter, it changes only with the snapshot.
@@ -931,6 +1114,9 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
     // Parts that come and go are keyed on what they depend on, not on the whole filter.
     let program = Memo::new(move |_| facts.with(|f| f.program.clone()));
     let semesters = Memo::new(move |_| facts.with(|f| f.plan_semesters.clone()));
+    let areas = Memo::new(move |_| facts.with(|f| f.areas.clone()));
+    // The areas belong to the curriculum; the FÜS list of a program has none.
+    let curricular = Memo::new(move |_| query.with(|q| q.program.as_ref().is_none_or(|scope| scope.relation == ProgramRelation::Curricular)));
     let chosen_lecturers = Memo::new(move |_| {
         let mut names = query.with(|q| [q.lecturers_include.clone(), q.lecturers_exclude.clone()].concat());
         names.sort();
@@ -995,6 +1181,10 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                     move |q: &mut CatalogQuery| {
                         if let Some(scope) = q.program.as_mut() {
                             scope.relation = relation;
+                            // An area is part of the curriculum's tree: the FÜS list has none.
+                            if relation == ProgramRelation::Fues {
+                                scope.area = None;
+                            }
                         }
                     },
                 )
@@ -1047,6 +1237,46 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                 }
                 .into_any()
             };
+            // ---- area: „Wahlpflichtmodule Praktische Informatik" and the like, out of the tree ----
+            let area_part = move || {
+                let areas = areas.get();
+                (curricular.get() && !areas.is_empty()).then(|| {
+                    let picker = if APP {
+                        let items = StoredValue::new(areas.iter().map(area_item).collect::<Vec<_>>());
+                        let selected = Signal::derive(move || query.with(|q| q.program.as_ref().and_then(|scope| scope.area).map(|id| id.to_string())));
+                        let pick = Callback::new(move |id: Option<String>| {
+                            go.run(target_now(query, open, |q| {
+                                if let Some(scope) = q.program.as_mut() {
+                                    scope.area = id.and_then(|id| id.parse().ok());
+                                }
+                            }))
+                        });
+                        view! {
+                            <Combobox id="pick-area" label="Bereich" placeholder="Alle Bereiche" search_placeholder="Bereich suchen" icon="layout-list" min_width=440.0 items=Signal::derive(move || items.get_value()) selected on_select=pick/>
+                        }
+                        .into_any()
+                    } else {
+                        let selected = query.with_untracked(|q| q.program.as_ref().and_then(|scope| scope.area));
+                        view! {
+                            <span class="select-wrap plain">
+                                <select name="area" aria-label="Bereich">
+                                    <option value="">"Alle Bereiche"</option>
+                                    {areas.iter().map(|area| {
+                                        let indent = "– ".repeat(usize::try_from(area.depth.max(1) - 1).unwrap_or(0));
+                                        view! { <option value=area.id.to_string() selected=selected == Some(area.id)>{format!("{indent}{} ({})", area.label, area.modules)}</option> }
+                                    }).collect_view()}
+                                </select>
+                                <Icon name="chevrons-up-down"/>
+                            </span>
+                        }
+                        .into_any()
+                    };
+                    view! {
+                        <div class="flabel label">"Bereich"</div>
+                        {picker}
+                    }
+                })
+            };
             view! {
                 {segmented(query, open, "Liste", vec![
                     relation(ProgramRelation::Curricular, "Curriculum", Signal::derive(move || facts.with(|f| f.curricular_total))),
@@ -1059,6 +1289,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                             .iter().map(|k| chip(k.label(), None, kind(KindFilter::Stated(*k)))).collect_view()}
                         {chip("Nicht angegeben", None, kind(KindFilter::Unstated))}
                     </div>
+                    {area_part}
                     {semester_part}
                 </div>
             }
@@ -1161,7 +1392,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
             let pairs = url::parse_pairs(&CatalogUrl { query: query.get(), page: 1, open: open.get() }.to_query_string());
             pairs
                 .into_iter()
-                .filter(|(name, _)| !matches!(name.as_str(), "program" | "department" | "ects_min" | "ects_max"))
+                .filter(|(name, _)| !matches!(name.as_str(), "program" | "area" | "department" | "ects_min" | "ects_max"))
                 .map(|(name, value)| view! { <input type="hidden" name=name value=value/> })
                 .collect_view()
         })

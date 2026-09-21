@@ -150,16 +150,23 @@ pub fn Combobox(
     // Whatever moves the popup's anchor closes it: the panel scrolls, the window changes size.
     // A scroll event arrives a frame after the scrolling, possibly after a click that opened the
     // popup in the meantime, so what counts is whether the button has really moved since then.
+    // On a phone the popup is not anchored but in place, so neither matters there — and there
+    // the keyboard that opens for the search field changes the size of the window and scrolls
+    // the field into view, which used to close the popup the moment it opened.
     if let Some(ClosePopups(signal)) = use_context::<ClosePopups>() {
         Effect::new(move |_| {
             signal.track();
-            if open.get_untracked() && nav::popup_place(id, min_width) != place.get_untracked() {
+            if open.get_untracked() && !nav::is_phone() && nav::popup_place(id, min_width) != place.get_untracked() {
                 hide(false);
             }
         });
     }
     Effect::new(move |_| {
-        let handle = window_event_listener(leptos::ev::resize, move |_| hide(false));
+        let handle = window_event_listener(leptos::ev::resize, move |_| {
+            if !nav::is_phone() {
+                hide(false);
+            }
+        });
         on_cleanup(move || handle.remove());
     });
 

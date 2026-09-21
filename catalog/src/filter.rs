@@ -52,6 +52,10 @@ pub struct ProgramScope {
     pub kinds: Vec<KindFilter>,
     /// None of these.
     pub kinds_exclude: Vec<KindFilter>,
+    /// An area of the program's module tree (`v_program_module_area.area_id`): only the modules
+    /// the tree places in it or in an area below it. „Wahlpflichtmodule Praktische Informatik"
+    /// is such an area; the tree, not the plan, is the authority for structure.
+    pub area: Option<i64>,
 }
 
 /// Any of the ticked offers matches; nothing ticked means no turnus filter.
@@ -306,6 +310,7 @@ impl CatalogQuery {
             program.is_some(),
             program.is_some_and(|p| p.plan_semester.is_some()),
             program.is_some_and(|p| !p.kinds.is_empty() || !p.kinds_exclude.is_empty()),
+            program.is_some_and(|p| p.area.is_some()),
             self.department_id.is_some(),
             t.winter || t.summer || t.irregular || t.not_winter || t.not_summer || t.not_irregular || t.year_parity.is_some(),
             !self.teaching_forms.is_empty() || !self.teaching_forms_exclude.is_empty(),
@@ -372,6 +377,18 @@ impl CatalogQuery {
                     }
                     KindFilter::Unstated => conditions.push("pm.kind IS NOT NULL".to_string()),
                 }
+            }
+            if let Some(area) = scope.area {
+                // The area itself, or one below it: the path of a placement starts with the
+                // chosen area's path and a separator. A parent area without modules of its own has
+                // no row in the view, so the path (not a parent id) is what the tree is walked by.
+                conditions.push(
+                    "EXISTS (SELECT 1 FROM v_program_module_area a WHERE a.program_id = pm.program_id AND a.module_id = f.module_id \
+                     AND (a.area_id = ? OR SUBSTR(a.area, 1, LENGTH((SELECT MIN(c.area) FROM v_program_module_area c WHERE c.area_id = ?)) + 3) \
+                     = (SELECT MIN(c.area) FROM v_program_module_area c WHERE c.area_id = ?) || ' / '))"
+                        .to_string(),
+                );
+                params.extend([Value::Integer(area), Value::Integer(area), Value::Integer(area)]);
             }
         }
 
@@ -526,17 +543,20 @@ impl CatalogQuery {
 
     /// `ORDER BY` for the list; the module id makes every order total, so paging is stable.
     pub fn order_by(&self) -> String {
+        format!(" ORDER BY {}", self.order_terms())
+    }
+
+    /// The terms of that order, for a window (`ROW_NUMBER() OVER (ORDER BY …)`) as well.
+    pub fn order_terms(&self) -> String {
         let direction = if self.descending { "DESC" } else { "ASC" };
         match self.sort {
-            SortKey::Default if self.program.is_some() => format!(
-                " ORDER BY pm.plan_semester IS NULL, pm.plan_semester {direction}, m.title COLLATE NOCASE, f.module_id"
-            ),
-            SortKey::Default | SortKey::Title => format!(" ORDER BY m.title COLLATE NOCASE {direction}, f.module_id"),
-            SortKey::Id => format!(" ORDER BY f.module_id {direction}"),
-            SortKey::Credits => format!(" ORDER BY f.credits {direction}, m.title COLLATE NOCASE, f.module_id"),
-            SortKey::Events => {
-                format!(" ORDER BY f.teaching_events {direction}, m.title COLLATE NOCASE, f.module_id")
+            SortKey::Default if self.program.is_some() => {
+                format!("pm.plan_semester IS NULL, pm.plan_semester {direction}, m.title COLLATE NOCASE, f.module_id")
             }
+            SortKey::Default | SortKey::Title => format!("m.title COLLATE NOCASE {direction}, f.module_id"),
+            SortKey::Id => format!("f.module_id {direction}"),
+            SortKey::Credits => format!("f.credits {direction}, m.title COLLATE NOCASE, f.module_id"),
+            SortKey::Events => format!("f.teaching_events {direction}, m.title COLLATE NOCASE, f.module_id"),
         }
     }
 }
