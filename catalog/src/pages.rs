@@ -71,9 +71,33 @@ pub fn home(db: &dyn Database, entries: &[CatalogQuery]) -> Result<HomeData, DbE
 }
 
 /// The map of the current programs (`graph`). The web server calls this once per snapshot.
+/// The faculties are the derived ones of the program overview (`faculties`), grouped by their
+/// number: only numbered departments are faculties, and a number the snapshot lists under two
+/// names (before and after the restructuring) is named after the one with more modules.
 pub fn program_map(db: &dyn Database) -> Result<crate::graph::ProgramMap, DbError> {
-    let programs: Vec<Program> = queries::programs(db)?.into_iter().filter(|program| program.is_latest_po).collect();
-    Ok(crate::graph::program_map(&programs, &queries::curriculum_links(db)?))
+    use crate::graph::MapFaculty;
+    let ProgramsData { programs, departments, faculties } = programs_overview(db)?;
+    let programs: Vec<Program> = programs.into_iter().filter(|program| program.is_latest_po).collect();
+    let code_of = |program: &Program| {
+        let faculty = faculties.iter().find(|faculty| faculty.program_id == program.id)?;
+        let department = departments.iter().find(|department| department.id == faculty.department_id)?;
+        department.code.parse::<u32>().ok()
+    };
+    let codes: Vec<Option<u32>> = programs.iter().map(code_of).collect();
+    let mut numbers: Vec<u32> = codes.iter().flatten().copied().collect();
+    numbers.sort_unstable();
+    numbers.dedup();
+    let map_faculties: Vec<MapFaculty> = numbers
+        .iter()
+        .map(|number| {
+            let named = departments.iter().filter(|d| d.code.parse::<u32>().ok() == Some(*number)).max_by_key(|d| (d.modules, -d.id));
+            // „MINT - Mathematik, Informatik, …" is called „MINT".
+            let name = named.map(|d| d.name_de.split(" - ").next().unwrap_or(&d.name_de).trim().to_string()).unwrap_or_default();
+            MapFaculty { code: number.to_string(), name }
+        })
+        .collect();
+    let faculty: Vec<Option<usize>> = codes.iter().map(|code| code.and_then(|code| numbers.iter().position(|n| *n == code))).collect();
+    Ok(crate::graph::program_map(&programs, &queries::curriculum_links(db)?, map_faculties, &faculty))
 }
 
 /// What the pickers of the filter panel offer. The same for every filter, so the page loads it

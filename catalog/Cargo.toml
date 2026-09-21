@@ -19,6 +19,8 @@ rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 [dev-dependencies]
 # The tests run every query against a real snapshot (see src/tests.rs).
 rusqlite = { version = "0.32", features = ["bundled"] }
+# FOLIA_MAP_DUMP: the program map as JSON, to look at a layout.
+serde_json = "1.0"
 
 [lints.clippy]
 unwrap_used = "deny"

@@ -512,8 +512,23 @@ fetches it next to the database and keeps a copy in IndexedDB; `window.betulaMap
 the section is left out. The links are three `<path>` elements per sheet, the dots are SVG links
 with `<title>` (so the map works without JavaScript and search engines follow the dots to the
 programs). The app adds what a pointer over a dot shows (one signal, one overlay: its links, its
-relatives, a line of text) and takes clicks itself, because the router only knows HTML links.
-A halo of 5 units around every dot takes the pointer too (R14); the halos lie under all dots.
+relatives, a line of text) and takes clicks itself. **A click picks a program, it does not open
+it** (owner 2026-09-21: it happened by accident all the time): a card below the map (below, so
+the map does not move under the pointer) names its faculty and all its relatives as buttons and
+links to the program; a click beside the dots, the ✕ or Escape put it away. Modifier clicks stay
+plain links. A halo of 5 units around every dot takes the pointer too (R14); the halos lie under
+all dots.
+
+Faculties on the map: every program carries its derived faculty (`pages::faculties`, grouped by
+number, 1 to 6; the snapshot lists 1 to 4 under their old and new names). In the layout the
+faculty is only a faint hint (owner, twice: „wirklich nur ganz leicht"): all programs start mixed,
+a very weak pull to the faculty's middle, links across faculties pull a little less; what
+programs share decides. After the simulation every dot moves part of the way towards an even
+spread per axis (`EVEN`), so the sheet is filled without dense clumps and empty stretches. A
+faculty therefore lies in several places: its outline is one smooth shape per island (dots
+closer than about the spacing of an even sheet; `ISLAND`), each a blurred convex hull drawn a
+little generously, with the name at the largest island. The app shows only the outline of the
+picked program's faculty, and the programs of the other faculties step back a little.
 `node e2e/home.mjs` covers it.
 
 ### Search engines (`app/src/seo.rs`, 2026-09-20)

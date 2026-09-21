@@ -1,7 +1,8 @@
 // The landing page in the browser app: the map of the programs is drawn from what the server laid
 // out (nothing is computed in the browser), a pointer over a dot shows the program's relatives, a
-// click on a dot opens the program without loading a page, and the head describes the page that
-// is shown (not the one the visit started on). Needs radix serve-snapshot + folia running and a
+// click on a dot picks it (a card with its relatives, the outline of its faculty, the others step
+// back) instead of opening it, the card's link opens the program without loading a page, and the
+// head describes the page that is shown (not the one the visit started on). Needs radix serve-snapshot + folia running and a
 // fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { chromium } from "playwright-core";
@@ -42,9 +43,31 @@ await page.mouse.move(5, 5);
 await page.waitForFunction(() => !document.querySelector(".map.has-hot"));
 check((await page.textContent(".map-info")).includes("Bachelor"), "the legend does not come back");
 
-// A click on a dot opens the program in the app.
+// A click on a dot picks it: no navigation, a card below the map, the outline of its faculty.
 const href = await dot.getAttribute("href");
 await dot.click();
+await page.waitForSelector(".map-pick");
+check(await page.evaluate(() => location.pathname === "/"), "a click on a dot navigated");
+check((await page.textContent(".map-pick-title")).includes(name), "the card does not name the picked program");
+check(await page.evaluate(() => document.querySelectorAll(".map-wide .map-region.shown").length) === 1, "not exactly one faculty outline is shown");
+check(await page.evaluate(() => document.querySelectorAll(".map-wide .map-dot.outside").length) > 20, "the programs of the other faculties do not step back");
+// A relative in the card picks that one; a click beside the dots puts the card away.
+const relative = page.locator(".map-pick-relative").first();
+if (await relative.count()) {
+  const other = (await relative.textContent()).split(" · ")[0];
+  await relative.click();
+  await page.waitForFunction((text) => document.querySelector(".map-pick-title")?.textContent.includes(text.split(" ")[0]), other);
+}
+await page.click(".map-pick-close");
+await page.waitForFunction(() => !document.querySelector(".map-pick"));
+await dot.click();
+await page.waitForSelector(".map-pick");
+await page.evaluate(() => document.querySelector(".map-wide").dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 })));
+await page.waitForFunction(() => !document.querySelector(".map-pick") && !document.querySelector(".map-region.shown"));
+
+// The card's link opens the program in the app.
+await dot.click();
+await page.click(".map-pick-open");
 await page.waitForFunction((path) => location.pathname === path, href);
 await page.waitForSelector("[data-walk='program-page']");
 check(await page.evaluate(() => window.__marker === 1), "a click on a dot loaded a page");
