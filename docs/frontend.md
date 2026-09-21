@@ -580,7 +580,11 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   every current program with its views; `robots.txt` names it. Addresses are absolute and use
   `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
 - The browser app removes the server's tags from the head when it takes over and writes its own,
-  so the head describes the page that is shown.
+  so the head describes the page that is shown. What is the same on every page (the stylesheet,
+  the preloaded font, the icons) is part of the document (`app::shell`) and never written by the
+  app: it mounts fresh instead of hydrating, so a `leptos_meta` tag in `App` lands in the head a
+  second time. Two copies of `app.css`, one from the service worker and one from the network,
+  once mixed an old sheet into a new one (2026-09-21); `home.mjs` and `pwa.mjs` count them.
 - **Link previews** (messengers, Slack, Discord, X): the card is the page's own title and
   description with a picture (1200 × 630, absolute address, with type, size and alt text); X
   gets its `twitter:` twins, because only with them the large card shows everywhere. A preview

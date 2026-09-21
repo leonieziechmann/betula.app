@@ -22,7 +22,7 @@ pub mod ui;
 
 use catalog::url;
 use leptos::prelude::*;
-use leptos_meta::{provide_meta_context, Link, MetaTags, Stylesheet, Title};
+use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::{path, NavigateOptions, SsrMode};
@@ -89,6 +89,14 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="apple-touch-icon" href=TOUCH_ICON/>
                 <link rel="manifest" href=MANIFEST/>
                 <script inner_html=HEAD_SCRIPT></script>
+                // The font and the stylesheet are the same on every page, so they are part of the
+                // document and not of `App`: the browser app does not hydrate, it mounts fresh, and
+                // leptos_meta would add a second `<link>` to the head for each. Two copies of the
+                // stylesheet can come from different places (the service worker's cache, the
+                // network) and mix an old sheet into a new one. `as` comes first: after a value
+                // the macro would read it as a cast.
+                <link as="font" rel="preload" type="font/woff2" crossorigin="anonymous" href=FONT/>
+                <link rel="stylesheet" href=STYLESHEET/>
                 <MetaTags/>
                 <script defer src=ENHANCE_SCRIPT></script>
                 <script type="module" src=BOOT_SCRIPT></script>
@@ -107,8 +115,6 @@ pub fn App() -> impl IntoView {
     // The visitor's marked modules: from this browser's storage, empty on the server (R9).
     Bookmarks::provide();
     view! {
-        <Link rel="preload" href=FONT as_="font" type_="font/woff2" crossorigin="anonymous"/>
-        <Stylesheet href=STYLESHEET/>
         // Description, canonical address and the rest of what search engines read belong to the
         // page (`seo::Seo`), not to the app: a page must not carry two descriptions.
         <Title formatter=|title: String| if title.is_empty() { "Modulkatalog der BTU Cottbus-Senftenberg · Betula (inoffiziell)".to_string() } else { format!("{title} · Betula") }/>

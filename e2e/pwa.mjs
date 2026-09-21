@@ -41,6 +41,9 @@ const offline = async (path, ready, name) => {
     return;
   }
   await page.waitForFunction(ready, null, { timeout: 60000 }).catch(() => problems.push(`offline: ${name} did not show up`));
+  // The kept document brings the stylesheet, once, and the page is styled by it.
+  const sheets = await page.evaluate(() => [...document.querySelectorAll("link[rel=stylesheet]")].map((link) => Boolean(link.sheet?.cssRules.length)));
+  check(sheets.length === 1 && sheets[0], `offline: ${name} has ${sheets.length} stylesheets (${sheets})`);
 };
 await offline("/catalog?turnus=winter", () => window.__betulaApp === true && document.querySelectorAll(".rows a.row").length > 5 && location.search.includes("turnus=winter"), "the filtered catalog");
 await offline("/catalog/module/11101", () => window.__betulaApp === true && document.querySelector(".module-page h2"), "a module page never loaded before");
