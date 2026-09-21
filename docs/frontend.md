@@ -291,8 +291,14 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   the app's default on a large screen. **The server's HTML and the phone always draw the list,
   and offer nothing else** (owner, 2026-09-21: a phone has no room for the matrix, and a list is
   what a search engine or any other reader of the HTML reads best); on a phone the switch is not
-  there. Only what the plan puts into a single semester is added up in that
-  semester's column; a footnote says so where a plan has modules over several semesters.
+  there. **The matrix never runs into itself and never scrolls sideways** (owner, 2026-09-21: at
+  1200 px „Art" lay over „Modul"): the names are at least 200 px wide, „Art" gives way before
+  them, and where the page is narrower than the names and the semesters the app draws the list —
+  the switch then shows the list, the matrix greyed out with a line saying why, and the choice
+  stays: with room (a wider window, a narrower panel) the matrix comes back (`matrix_min_width`,
+  the same numbers as `.matrix` in app.css). Only what the plan puts into a single semester is
+  added up in that semester's column; a footnote says so where a plan has modules over several
+  semesters.
   **The page has a panel on the right** (`ui::Frame`'s `aside`, as wide as the catalog's preview,
   same handle, same remembered width): a module clicked in any of the three views opens in it
   (`?open=<id>`, the same panel as in the catalog, so a module reads the same wherever it is

@@ -119,6 +119,17 @@ pub fn watch_size(id: &str, on_change: impl Fn() + 'static) -> Option<send_wrapp
     None
 }
 
+/// How wide the element is on the screen, in CSS pixels. `None` on the server or without it.
+#[allow(unused_variables)]
+pub fn width_of(id: &str) -> Option<f64> {
+    #[cfg(feature = "csr")]
+    {
+        Some(web_sys::window()?.document()?.get_element_by_id(id)?.get_bounding_client_rect().width())
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
 /// Where the popup of a picker goes (fixed to the window, so no panel clips it): under its
 /// button, or above it when there is more room.
 #[derive(Clone, Copy, Debug, PartialEq)]
