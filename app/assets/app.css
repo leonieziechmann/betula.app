@@ -28,8 +28,11 @@
   --bark: #ffffff;
   --bark-ink: #10151f;
 
-  --accent: #2a55d6;
-  --accent-ink: #2347b8;
+  /* The accent is a muted birch-leaf green (owner, 2026-09-22): the hue of their tone
+     oklch(.6867 .0996 149), deep enough for white labels (5.1:1) and quieter in chroma. The same
+     green in both themes; text in the accent is --accent-ink (6.9:1 on white, 10:1 on dark). */
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
   --on-accent: #ffffff;
   --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--panel));
   --accent-line: color-mix(in srgb, var(--accent) 30%, transparent);
@@ -72,11 +75,11 @@
     --on-invert: #0d1017;
     --bark: #e9edf5;
     --bark-ink: #0d1017;
-    --accent: #6d8fff;
+    --accent: oklch(.53 .07 149);
     --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
     --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
-    --accent-ink: #9db4ff;
-    --on-accent: #0a0d14;
+    --accent-ink: oklch(.8 .06 149);
+    --on-accent: #ffffff;
     --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
     --ok: #4fd1a1;   --warn: #f0b861;   --no: #ff8f85;
     --no-soft: color-mix(in srgb, #ff8f85 12%, var(--panel));
@@ -98,11 +101,11 @@
   --on-invert: #0d1017;
   --bark: #e9edf5;
   --bark-ink: #0d1017;
-  --accent: #6d8fff;
+  --accent: oklch(.53 .07 149);
   --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
   --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
-  --accent-ink: #9db4ff;
-  --on-accent: #0a0d14;
+  --accent-ink: oklch(.8 .06 149);
+  --on-accent: #ffffff;
   --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
   --ok: #4fd1a1;   --warn: #f0b861;   --no: #ff8f85;
   --no-soft: color-mix(in srgb, #ff8f85 12%, var(--panel));

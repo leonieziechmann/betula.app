@@ -359,7 +359,12 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 - **Tokens:** `app/assets/app.css` starts with the token block (colors, radii, shadows); everything
   below uses tokens only. One look, light and dark: dark follows the system, the switch in the rail
   overrides it (`data-theme` on `<html>`, remembered in `localStorage`). Accent color only for
-  primary actions and the marker of the open row; selected chips are neutral (inverted).
+  primary actions and the marker of the open row; selected chips are neutral (inverted). The
+  accent is a muted birch-leaf green, `oklch(.53 .07 149)` in both themes (owner, 2026-09-22,
+  replacing the blue: "wir nennen das ding betula"): the hue of the owner's favourite tone
+  `oklch(.6867 .0996 149)`, deep enough for white labels. Labels on the accent are always white —
+  dark text on the green was "grauenhaft" — and the owner prefers toned-down colours to saturated
+  ones.
   Font: Inter (variable, latin subset, OFL), self-hosted. Icons: Lucide (ISC), inlined through
   `app/src/icons.rs`. The only `style` attributes carry data as custom properties: the week grid
   and the credit slider (`--from`, `--to`, `--at`), the place of a picker's popup, `ui::Hit`.
