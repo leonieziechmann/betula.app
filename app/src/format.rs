@@ -32,6 +32,14 @@ pub fn credits(value: Option<f64>) -> String {
 }
 
 /// `1234` → „1.234"
+/// „1 Modul", „17 Module".
+pub fn modules(count: impl Into<i64>) -> String {
+    match count.into() {
+        1 => "1 Modul".to_string(),
+        n => format!("{n} Module"),
+    }
+}
+
 pub fn count(value: u64) -> String {
     let digits = value.to_string();
     let mut out = String::with_capacity(digits.len() + digits.len() / 3);

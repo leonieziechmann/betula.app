@@ -939,14 +939,12 @@ impl Facts {
     }
 }
 
-/// An area as the picker offers it: its name, and under it where it sits in the tree (or how
-/// many modules it holds, where it sits at the top).
+/// An area as the picker offers it: its name and how many modules it holds, nothing else (owner,
+/// 2026-09-21: the path of the tree beside the name pushed the names into „Wahlpflichtmod…"). The
+/// path still finds the area when it is typed („Nebenfach" lists the areas under it).
 fn area_item(area: &CatalogArea) -> ComboItem {
-    let detail = match area.path.rsplit_once(" / ") {
-        Some((parent, _)) => format!("{parent} · {} Module", area.modules),
-        None => format!("{} Module", area.modules),
-    };
-    ComboItem::new(area.id.to_string(), area.label.clone(), detail, 0)
+    let above = area.path.rsplit_once(" / ").map(|(parent, _)| parent).unwrap_or_default();
+    ComboItem::new(area.id.to_string(), area.label.clone(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX)), 0).also_found_by(above)
 }
 
 /// What the pickers offer: the same for every filter, it changes only with the snapshot.
@@ -978,7 +976,7 @@ impl Choices {
                     ComboItem::new(p.slug.clone(), p.name.clone(), detail, i64::from(p.is_latest_po))
                 })
                 .collect(),
-            departments: data.departments.iter().map(|d| ComboItem::new(d.id.to_string(), d.label.clone(), format!("{} Module", d.modules), 0)).collect(),
+            departments: data.departments.iter().map(|d| ComboItem::new(d.id.to_string(), d.label.clone(), format::modules(d.modules), 0)).collect(),
             lecturers: data.lecturers.iter().map(|l| ComboItem::new(l.name.clone(), l.name.clone(), l.title.clone().unwrap_or_default(), 0)).collect(),
         }
     }

@@ -37,6 +37,12 @@ impl ComboItem {
         let (label, detail) = (label.into(), detail.into());
         Self { id: id.into(), search: format!("{label} {detail}"), label, detail, bonus }
     }
+
+    /// Words the entry is found by as well, without being shown (where it sits in a tree).
+    pub fn also_found_by(mut self, words: &str) -> Self {
+        self.search = format!("{} {words}", self.search);
+        self
+    }
 }
 
 /// A scrolling filter panel takes its popups away: bump this to close them all.

@@ -292,6 +292,9 @@ await step("all semesters again", () => page.click('#filters .seg[aria-label="Fa
 await step("area picker opens", () => page.click("#pick-area"), () => document.activeElement?.id === "pick-area-search" && document.querySelectorAll("#pick-area-list .combo-option").length > 3);
 const areaName = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option .combo-label")].map((el) => el.textContent).find((name) => /wahlpflicht/i.test(name)));
 check(Boolean(areaName), "area picker: no elective area is offered");
+// An entry is the name and the number of modules, nothing else: the path of the tree pushed the names out.
+const areaDetails = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option small")].map((el) => el.textContent));
+check(areaDetails.length > 3 && areaDetails.every((text) => /^\d+ Modul(e)?$/.test(text)), `area picker: an entry says more than its name and count (${areaDetails.find((text) => !/^\d+ Modul(e)?$/.test(text))})`);
 await page.fill("#pick-area-search", areaName.split(" ").slice(0, 2).join(" "));
 await page.waitForFunction((name) => document.querySelector("#pick-area-list .combo-option .combo-label")?.textContent === name, areaName);
 await step("area: Enter filters the list", () => page.keyboard.press("Enter"), (name) => /[?&]area=\d+/.test(location.search) && [...document.querySelectorAll(".tag")].some((tag) => tag.textContent.includes(name)) && !location.search.includes("page="), areaName);

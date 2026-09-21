@@ -89,8 +89,10 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     the links have set.
   - **The areas of a program** („Bereich", with a program selected, curriculum only): the areas
     of its module tree as the program page lists them (`pages::CatalogArea`, from
-    `v_program_module_area`), in tree order, each with where it sits and how many modules it
-    holds. An area filters to the modules the tree places in it or in an area below it; that is
+    `v_program_module_area`), in tree order, each with its name and how many modules it holds
+    and nothing else (owner, 2026-09-21: the path of the tree beside the name pushed the names
+    into „Wahlpflichtmod…"; the path still finds an area when typed). An area filters to the
+    modules the tree places in it or in an area below it; that is
     how the elective modules („Wahlpflichtmodule Praktische Informatik") of a program are
     listed, whatever the plan says about their semester.
   - **On a phone the panel is a sheet** from below, opened by the list's „Filter" button, and
