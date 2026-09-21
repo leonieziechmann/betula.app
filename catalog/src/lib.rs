@@ -9,6 +9,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod db;
+pub mod exam_reading;
 pub mod filter;
 pub mod fuzzy;
 pub mod graph;

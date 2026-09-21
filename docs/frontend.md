@@ -434,6 +434,33 @@ program. The second line of the link says what it lists („Praktische Informati
 areas for that (`ProgramScope::areas`, any of them). The server's page picks nothing, so its link
 is the program's (no part of the cache key changes). `node e2e/programs.mjs` walks it.
 
+### Exam dates the BTU cannot mean (`catalog/src/exam_reading.rs`, 2026-09-21)
+
+Owner: Analysis I (11103) listed two exams „So 01:00–02:30, 27.12.2015" under WiSe 2026/27; the
+page should correct that by itself and say that the data is odd. The raw QIS page says exactly
+that (no time-zone bug of ours), but it is no typo: of 1,078 exam dates with a time in the
+snapshot, 289 lie outside 06:00–22:00, and all follow one of two patterns. **262 × 01:00–02:30**
+on a Sunday or without weekday is how QIS enters an exam without a fixed date („mündliche
+Prüfung, Termin nach Vereinbarung", „IKMZ e-Klausur"); 207 of them carry a date nine to eleven
+years before their semester (205 × 27.12.2015), 54 none. **27 × 23:45–24:00** is the day a term
+paper or take-home exam is due. The first idea, shifting by twelve hours, would have turned all
+289 into times nobody set. Owner decisions (2026-09-21, all four as recommended):
+
+- The placeholder shows no weekday and no time: „Zeit offen", or „Termin offen" when its date is
+  dropped as well — which it is where it lies outside the semester (±1 semester, by month: repeat
+  exams reach up to 170 days past the end, none lies before the start). A date is never invented.
+- A deadline reads „So bis 24:00", unmarked (it is a reading, not a doubt); the original is the
+  row's tooltip.
+- Anything else outside 06:00–22:00, an end before the start, or a date outside the semester keeps
+  the source's value and is only marked (none in the snapshot of 2026-09-21).
+- A marked row carries a line with the info icon: what QIS says where the row shows something
+  else („In QIS: So 01:00–02:30 · 27.12.2015"), else what is odd. One note under the list explains
+  the marks. Radix and the snapshot keep the entry as read (provenance names what was read); the
+  reading is data (`ExamReading { stated, shown, reasons }`), not a string, so a later output
+  (structured data, a calendar) can use the same one. The unmerged `seo-maxing` branch has its own
+  `when::is_placeholder` (Sunday only) and deadline test (end ≥ 24:00); on a merge one of the two
+  should call the other.
+
 ### The area picker and the plan's rows on the real data (2026-09-21)
 
 The area picker and `areas_for_row` had been built against the synthetic snapshot only. Checked

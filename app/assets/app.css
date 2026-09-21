@@ -644,6 +644,8 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
 .ev .when { font-weight: 600; font-variant-numeric: tabular-nums; }
 .ev small { color: var(--text-3); grid-column: 2; }
 .ev .when + b { font-weight: 560; }
+.ev .odd { display: flex; gap: 5px; color: var(--warn); }
+.ev .odd .icon { flex: none; width: 13px; height: 13px; margin-top: 2px; }
 .note { display: flex; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: var(--r-row); background: var(--warn-soft); color: var(--warn); font-size: 12.5px; font-weight: 520; }
 .note .icon { width: 16px; height: 16px; margin-top: 1px; }
 .linklist { display: grid; gap: 4px; }

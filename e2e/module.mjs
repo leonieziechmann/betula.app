@@ -79,6 +79,39 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   await context.close();
 }
 
+// ---------- exam dates the BTU cannot mean (catalog/src/exam_reading.rs) ----------
+// Analysis I (11103) lists QIS's placeholder „So 01:00–02:30, 27.12.2015" twice; 12000 has a
+// deadline at 23:45–24:00. In the app's preview and in the server's page without JavaScript.
+{
+  const exams = (page) => page.evaluate(() => {
+    const section = document.querySelector("#pruefungstermine");
+    return section && {
+      when: [...section.querySelectorAll(".ev .when")].map((w) => [w.textContent, w.getAttribute("title")]),
+      odd: [...section.querySelectorAll(".ev .odd")].map((o) => o.textContent),
+      note: section.querySelector(".note")?.textContent ?? "",
+    };
+  });
+  const expect = (where, seen) => {
+    if (!seen) return problems.push(`exams (${where}): 11103 shows no exam dates`);
+    check(seen.when.every(([when]) => !when.includes("01:00")), `exams (${where}): the placeholder is shown as a time: ${JSON.stringify(seen.when)}`);
+    check(seen.odd.length === 0 || seen.note.includes("Platzhalter"), `exams (${where}): marked rows without the note: ${JSON.stringify(seen)}`);
+    check(seen.odd.some((line) => line.includes("In QIS: So 01:00–02:30 · 27.12.2015")) && seen.when.every(([when]) => when === "Termin offen"), `exams (${where}): 11103 does not read as „Termin offen" with the original beside it: ${JSON.stringify(seen)}`);
+  };
+  const { page, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog?q=analysis&open=11103");
+  await page.waitForSelector("#preview #pruefungstermine", { timeout: 8000 }).catch(() => {});
+  expect("preview", await exams(page));
+  await context.close();
+
+  const plain = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
+  const server = await plain.newPage();
+  await server.goto(base + "/catalog/module/11103");
+  expect("without JavaScript", await exams(server));
+  await server.goto(base + "/catalog/module/12000");
+  const deadline = await exams(server);
+  check(deadline?.when.some(([when, title]) => when === "So bis 24:00" && title === "In QIS: So 23:45–24:00") && deadline.odd.length === 0, `exams: the deadline of 12000 does not read „So bis 24:00", unmarked: ${JSON.stringify(deadline)}`);
+  await plain.close();
+}
+
 // ---------- phone ----------
 {
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
