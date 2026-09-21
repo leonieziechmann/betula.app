@@ -304,6 +304,8 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .seg a, .seg button { min-height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 580; font-size: 13px; color: var(--text-2); text-decoration: none; white-space: nowrap; user-select: none; }
 .seg a:hover, .seg button:hover { color: var(--text); }
 .seg a[aria-checked="true"], .seg button[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+/* An option there is no room for now (the matrix on a narrow page): quieter, and not a target. */
+.seg button[aria-disabled="true"], .seg button[aria-disabled="true"]:hover { color: var(--text-3); cursor: default; }
 .seg a span { color: var(--text-3); font-weight: 500; margin-left: 5px; }
 
 /* Toggles: the chips of a row share its whole width; the box on the left says "switch" and
@@ -973,7 +975,9 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
   min-width: calc(var(--name-min) + var(--kind) + var(--rest));
 }
 /* Every semester as wide as every other, and all of them never narrower than three, so that
-   „Leistungspunkte" fits above a plan of two. The page sets --sems. */
+   „Leistungspunkte" fits above a plan of two. The page sets --sems. Where the page is narrower
+   than the names at their minimum and the semesters, the app draws the list instead
+   (`matrix_min_width` in program.rs, with the same numbers). */
 .matrix { --sem: max(48px, 144px / var(--sems)); --rest: calc(var(--sems) * var(--sem)); }
 .planlist { --rest: 80px; }
 .matrix col:first-child, .planlist col:first-child { width: auto; }
