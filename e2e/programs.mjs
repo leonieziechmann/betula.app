@@ -324,31 +324,30 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await context.close();
 }
 
-// ---------- a program on a phone: the matrix scrolls, the page does not ----------
+// ---------- a program on a phone: the plan is a list, the page does not scroll sideways ----------
 {
   const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "/programs/bachelor-elektrotechnik-2022");
   const phone = await page.evaluate(() => {
-    const scroll = document.querySelector(".plan-block .table-scroll");
     return {
       wide: document.documentElement.scrollWidth <= innerWidth + 1,
-      scrolls: scroll.scrollWidth > scroll.clientWidth,
+      list: Boolean(document.querySelector("table.planlist")) && !document.querySelector("table.matrix") && !document.querySelector('#sidebar [aria-label="Darstellung des Regelstudienplans"]'),
       views: document.querySelector("#sidebar .toc.views").getBoundingClientRect().top < document.querySelector(".prog-head").getBoundingClientRect().top,
       facts: [...document.querySelectorAll(".prog-facts .pfact")].every((f) => f.getBoundingClientRect().right <= innerWidth),
     };
   });
   check(phone.wide, "phone: the program page scrolls sideways");
-  check(phone.scrolls, "phone: the matrix does not scroll inside its panel");
+  check(phone.list, "phone: the plan is not the list, or a switch to the matrix is offered");
   check(phone.views, "phone: the views of the program are not above the page");
   check(phone.facts, "phone: a number of the head stands outside the screen");
   // A module has no room beside the page here: one tap, and it is the page, in the program's
   // area (the address keeps `open=`), and „Zurück" is the program again.
   // Clicked through the DOM: the sticky top bar covers the first rows on a phone.
   const entries = await page.evaluate(() => history.length);
-  await page.evaluate(() => document.querySelector('table.matrix tbody a[data-walk="module"]')?.click());
-  await page.waitForFunction(() => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && document.querySelector(".module-page h2") && !document.querySelector("table.matrix"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not become the page"));
+  await page.evaluate(() => document.querySelector('table.planlist tbody a[data-walk="module"]')?.click());
+  await page.waitForFunction(() => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && document.querySelector(".module-page h2") && !document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not become the page"));
   check((await page.evaluate(() => history.length)) === entries + 1, "phone: opening a module took more than one history entry");
   await page.evaluate(() => document.querySelector('[data-action="back"]')?.click());
-  await page.waitForFunction(() => !location.search.includes("open=") && document.querySelector("table.matrix"), null, { timeout: 8000 }).catch(() => problems.push("phone: Zurück did not lead back to the program"));
+  await page.waitForFunction(() => !location.search.includes("open=") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: Zurück did not lead back to the program"));
   // An area, too, is the page on a phone, and a module picked from it leads back to it.
   await page.evaluate(() => [...document.querySelectorAll("#sidebar .toc.views a")].find((a) => a.getAttribute("href")?.endsWith("/areas"))?.click());
   await page.waitForFunction(() => location.pathname.endsWith("/areas") && document.querySelector('table.areas tr.group a[data-walk="area"]'), null, { timeout: 8000 }).catch(() => problems.push("phone: the areas did not open"));
@@ -386,6 +385,9 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await page.click('#sidebar a.chip:has-text("Doppelabschluss")');
   await page.waitForURL(/form=double/);
   check(page.url().includes("level=master") && (await page.locator(".program-pill").count()) < before, "no JS: a filter link lost the other filter, or did not filter");
+  // The server's page draws the plan as a list, and only as a list.
+  await page.goto(base + "/programs/bachelor-informatik-2008", { waitUntil: "domcontentloaded" });
+  check((await page.locator("table.planlist").count()) === 1 && (await page.locator("table.matrix").count()) === 0, "no JS: the server's plan is not the list");
   await context.close();
 }
 

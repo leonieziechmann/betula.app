@@ -287,8 +287,11 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   title. The plan is drawn as its regulations print it — a row per module, a column per semester,
   the credits in the cell, modules over several semesters spanning their columns, the sums
   underneath — or as a list, semester after semester with its sum. Which of the two is personal:
-  `localStorage`, the switch is in the sidebar and needs JavaScript (R9, R15); server HTML is
-  always the matrix. Only what the plan puts into a single semester is added up in that
+  `localStorage`, the switch is in the sidebar and needs JavaScript (R9, R15), and the matrix is
+  the app's default on a large screen. **The server's HTML and the phone always draw the list,
+  and offer nothing else** (owner, 2026-09-21: a phone has no room for the matrix, and a list is
+  what a search engine or any other reader of the HTML reads best); on a phone the switch is not
+  there. Only what the plan puts into a single semester is added up in that
   semester's column; a footnote says so where a plan has modules over several semesters.
   **The page has a panel on the right** (`ui::Frame`'s `aside`, as wide as the catalog's preview,
   same handle, same remembered width): a module clicked in any of the three views opens in it
@@ -953,7 +956,7 @@ coming back to the area), a requirement of the plan with its numbers and its way
 catalog's tab unchanged by a module seen in full screen out of a program, matrix and list with
 the choice remembered in this browser only, the areas as groups of rows with the sidebar leading
 to each of them without a history entry, all modules one line high with their area, and on a
-phone the matrix scrolling inside its panel while the page does not, a module becoming the page
+phone the plan as a list without a switch and a page that does not scroll sideways, a module becoming the page
 with one tap and one history entry and „Zurück" leading back, an area becoming the page and a
 module picked out of it leading back to the area.
 

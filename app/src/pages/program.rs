@@ -85,9 +85,13 @@ impl PlanShape {
         }
     }
 
-    /// What this browser chose last. The server and a browser without JavaScript draw the
-    /// matrix: server HTML is the same for everybody (R9).
+    /// What this browser chose last, the matrix where it chose nothing. The server draws the
+    /// list, and only the list (owner, 2026-09-21: what a search engine or any other reader of
+    /// the HTML gets is a list, the better read; server HTML is the same for everybody, R9).
     fn remembered() -> Self {
+        if !APP {
+            return PlanShape::List;
+        }
         match nav::local_get(PLAN_SHAPE_KEY).as_deref() {
             Some("list") => PlanShape::List,
             _ => PlanShape::Matrix,
@@ -126,6 +130,8 @@ pub fn ProgramPage() -> impl IntoView {
     let req = Memo::new(move |_| here.get().req);
     // What the rows of every table link to; what stands beside the page does not change them.
     let links = Memo::new(move |_| here.get().with_open(None));
+    // The drawing the visitor chose; `drawn` is the one on the screen: on a phone always the
+    // list, the matrix has no room there (owner, 2026-09-21), and there is nothing to switch.
     let shape = RwSignal::new(PlanShape::remembered());
     let source = use_source();
     let status = PageStatus::capture();
@@ -139,6 +145,7 @@ pub fn ProgramPage() -> impl IntoView {
     // a phone nothing stands beside a page: what is picked is the page, and the page is a
     // history entry of its own (one tap, one step back), never a preview and then a page.
     let phone = phone_layout();
+    let drawn = Signal::derive(move || if phone.get() { PlanShape::List } else { shape.get() });
     let filling = Memo::new(move |_| match (open.get(), full.get(), phone.get()) {
         (Some(id), true, _) | (Some(id), false, true) => Filling::Module(id),
         (Some(_), false, false) | (None, _, false) => Filling::Program,
@@ -172,7 +179,7 @@ pub fn ProgramPage() -> impl IntoView {
             Filling::Program => {
                 let sidebar = {
                     let data = data.clone();
-                    move || view! { <ProgramSidebar data=data.clone() tab shape links variant area req/> }
+                    move || view! { <ProgramSidebar data=data.clone() tab shape phone links variant area req/> }
                 };
                 let aside = {
                     let data = data.clone();
@@ -180,7 +187,7 @@ pub fn ProgramPage() -> impl IntoView {
                 };
                 view! {
                     <Frame title="Studiengang" sidebar sidebar_first=true aside aside_picked=picked>
-                        <ProgramView data tab variant shape links open area req/>
+                        <ProgramView data tab variant shape=drawn links open area req/>
                     </Frame>
                 }
                 .into_any()
@@ -257,6 +264,8 @@ fn ProgramSidebar(
     data: ProgramData,
     tab: ProgramTab,
     shape: RwSignal<PlanShape>,
+    /// The phone's layout: the plan is a list there, without a switch.
+    phone: RwSignal<bool>,
     links: Memo<ProgramUrl>,
     variant: Memo<usize>,
     area: Memo<Option<i64>>,
@@ -288,8 +297,9 @@ fn ProgramSidebar(
             }).collect_view()}
         </nav>
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
-        // JavaScript, so the switch is not there without it (R15).
-        {shapes.map(|_| view! {
+        // JavaScript, so the switch is not there without it (R15), nor on a phone, where the
+        // plan is always the list.
+        {move || shapes.filter(|_| !phone.get()).map(|_| view! {
             <div class="fgroup js-only">
                 <p class="flabel label">"Darstellung"</p>
                 <div class="seg" role="radiogroup" aria-label="Darstellung des Regelstudienplans">
@@ -362,7 +372,7 @@ fn ProgramView(
     data: ProgramData,
     tab: ProgramTab,
     variant: Memo<usize>,
-    shape: RwSignal<PlanShape>,
+    shape: Signal<PlanShape>,
     links: Memo<ProgramUrl>,
     open: Memo<Option<String>>,
     area: Memo<Option<i64>>,
@@ -1032,7 +1042,7 @@ fn PlanTab(
     /// What to say when there is no validated plan.
     missing: String,
     variant: Memo<usize>,
-    shape: RwSignal<PlanShape>,
+    shape: Signal<PlanShape>,
     links: Memo<ProgramUrl>,
     open: Memo<Option<String>>,
     req: Memo<Option<usize>>,
