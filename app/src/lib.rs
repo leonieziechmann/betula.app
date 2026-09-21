@@ -29,9 +29,15 @@ use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::bookmarks::Bookmarks;
 use crate::pages::bookmarks::BookmarksPage;
+use crate::pages::legal::{ImprintPage, PrivacyPage};
 use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, program::ProgramPage, programs::ProgramsPage};
 use crate::tabs::{Area, Tabs};
 use crate::ui::Icon;
+
+/// The release of Folia as the owner names it (2026-09-21: Folia and Radix are both
+/// alpha-0.2.0): this crate's version with the stage in front. Radix's is in the snapshot
+/// (`Meta::radix_version`).
+pub const VERSION: &str = concat!("alpha-", env!("CARGO_PKG_VERSION"));
 
 /// Where the host serves the files of `app/assets`.
 pub const STYLESHEET: &str = "/assets/app.css";
@@ -52,6 +58,8 @@ pub const THEME_DARK: &str = "#0a0c11";
 pub const FONT: &str = "/assets/inter-latin.woff2";
 /// The picture of link previews (1200 × 630, made from `design/og/og.html`).
 pub const OG_IMAGE: &str = "/assets/og.png";
+/// The screenshots of the start page's carousel: `<SHOTS>/<name>[-phone][-dark].webp`.
+pub const SHOTS: &str = "/assets/shots";
 pub const ENHANCE_SCRIPT: &str = "/assets/enhance.js";
 /// Loads the local database and the browser app, which then takes the page over.
 pub const BOOT_SCRIPT: &str = "/assets/boot.js";
@@ -167,6 +175,8 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/programs/:slug") view=ProgramPage ssr=SsrMode::Async/>
                         <Route path=path!("/programs/:slug/:tab") view=ProgramPage ssr=SsrMode::Async/>
                         <Route path=path!("/bookmarks") view=BookmarksPage ssr=SsrMode::Async/>
+                        <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
+                        <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
                     </Routes>
                 </main>
             </div>

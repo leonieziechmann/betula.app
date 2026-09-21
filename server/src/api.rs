@@ -199,7 +199,7 @@ fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
     // Fonts are compressed already.
-    let compressed = (wants_gzip && content_type != "font/woff2" && content_type != "image/png" && body.len() > 1024)
+    let compressed = (wants_gzip && !matches!(content_type, "font/woff2" | "image/png" | "image/webp") && body.len() > 1024)
         .then(|| {
             let mut cache = COMPRESSED.get_or_init(Default::default).lock().ok()?;
             Some(cache.entry(body.as_ptr() as usize).or_insert_with(|| crate::cache::gzip(body)).clone())
@@ -242,6 +242,27 @@ pub async fn stylesheet(State(state): State<AppState>, headers: HeaderMap) -> Re
 
 pub async fn favicon(State(state): State<AppState>, headers: HeaderMap) -> Response {
     asset(&state, &headers, "image/svg+xml", include_bytes!("../../app/assets/favicon.svg"))
+}
+
+/// `GET /assets/shots/<name>.webp`: the screenshots in the start page's carousel, light and dark,
+/// wide and for phones (`e2e/showcase-shots.mjs` takes them). Embedded like every other asset.
+pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+    let body: &'static [u8] = match file.as_str() {
+        "catalog.webp" => include_bytes!("../../app/assets/shots/catalog.webp"),
+        "catalog-dark.webp" => include_bytes!("../../app/assets/shots/catalog-dark.webp"),
+        "catalog-phone.webp" => include_bytes!("../../app/assets/shots/catalog-phone.webp"),
+        "catalog-phone-dark.webp" => include_bytes!("../../app/assets/shots/catalog-phone-dark.webp"),
+        "program.webp" => include_bytes!("../../app/assets/shots/program.webp"),
+        "program-dark.webp" => include_bytes!("../../app/assets/shots/program-dark.webp"),
+        "program-phone.webp" => include_bytes!("../../app/assets/shots/program-phone.webp"),
+        "program-phone-dark.webp" => include_bytes!("../../app/assets/shots/program-phone-dark.webp"),
+        "module.webp" => include_bytes!("../../app/assets/shots/module.webp"),
+        "module-dark.webp" => include_bytes!("../../app/assets/shots/module-dark.webp"),
+        "module-phone.webp" => include_bytes!("../../app/assets/shots/module-phone.webp"),
+        "module-phone-dark.webp" => include_bytes!("../../app/assets/shots/module-phone-dark.webp"),
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    asset(&state, &headers, "image/webp", body)
 }
 
 pub async fn og_image(State(state): State<AppState>, headers: HeaderMap) -> Response {

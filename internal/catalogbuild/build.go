@@ -14,6 +14,7 @@ import (
 
 	"github.com/leonieziechmann/betula/internal/catalogdb"
 	"github.com/leonieziechmann/betula/internal/oplog"
+	"github.com/leonieziechmann/betula/internal/version"
 )
 
 // derivedTables are replaced as a whole by every build, children first.
@@ -289,6 +290,8 @@ func (b *builder) writeMeta() error {
 	meta := map[string]string{
 		"built_at":         b.report.BuiltAt.Format(time.RFC3339),
 		"current_semester": current,
+		// Which Radix built this snapshot: the web app names it next to its own version.
+		"radix_version": version.Radix,
 	}
 	rows, err := b.tx.Query("SELECT source, MIN(fetched_at), MAX(fetched_at), COUNT(*) FROM raw_page WHERE http_status = 200 GROUP BY source")
 	if err != nil {

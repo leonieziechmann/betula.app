@@ -49,7 +49,7 @@ and the `plan*` tables is derived and replaced by each build.
 | `plan`, `plan_entry`, `plan_scan_status` | validated study plans; written transactionally by `SavePlan`, never touched by the build; not foreign-keyed to derived tables, so a plan survives an incomplete crawl | statute PDFs |
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date | QIS event pages; the module page decides which events belong to a module |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
-| `meta` | `built_at`, `current_semester`, oldest/newest fetch and page count per source | build |
+| `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
 
 ### Degree labels and new programs (decision Q4)
 

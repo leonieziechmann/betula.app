@@ -37,6 +37,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. The server renders an explanation, the same for everybody, `noindex` |
+| `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`), linked from the start page's sidebar. **Placeholders since 2026-09-21**: while `legal::PLACEHOLDER` is true they say so, list what is still owed and are `noindex`, and `deploy/ship.sh` refuses to ship an instance open to everybody (`FOLIA_ACCESS_GATE` not `on`). Before going public: the real texts (owner's name, address, contact; the privacy notice naming the edge's access log, the gate's cookie, what stays in the browser, the lecturers' names), `PLACEHOLDER = false`, and links from every page, not only the start page (§ 5 DDG: reachable at all times) |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -539,15 +540,61 @@ Owner decisions and open questions (2026-09-21):
 
 `/` answers three questions at a glance (`app/src/pages/home.rs`): what this is (headline, „inoffiziell"
 in the first line), what is in it (four figures, and the map as the one picture of the page), where
-to start (two buttons, example searches, entry links with their exact counts, the faculties). Below
+to start (two buttons, entry links with their exact counts, the faculties). Below
 that: what the app does, and questions and answers in plain text. That text is what the page is
 found by; it only says what the app really does (the search covers titles and numbers, so it says
 that).
 
+**Second round (2026-09-21, owner: „unaufgeräumt und anstrengend für die Augen"; the sidebar and the
+big map did not work; a fellow student missed colour; then: save height in the head, a carousel
+that behaves like one for pictures, more questions; round 4: the figures bare beside the text,
+„birch feeling", no example searches, snappy motion, autoplay with a pause button, the map dialog
+for wide screens, the page still behind it).** The first panel is flat: text and the two buttons on
+the left, the four figures on the right from a container width of 700 px on (the owner's notebook),
+under the text below it. The figures (`dl.birch`) stand on birch bark (`--bark`, light in both
+themes like the mark), one under the other with thin rules, and on each rule a stroke from
+alternating edges, the strokes of the mark; each number is set so large that all of them are about
+equally wide (`--em`, its width in units of its size, from `figure_em`; a single digit grows only
+as large as three), quiet in weight and colour (owner: „kleiner und etwas dezenter"). Under it a
+**carousel**: the map, then screenshots of the catalog, a study plan and a module page
+(`app/assets/shots/*.webp`, light and dark, wide and phone, made by
+`node e2e/showcase-shots.mjs <base-url>`, embedded in the binary, served under `/assets/shots/`; run
+it again when those pages change). The current picture stands in front, half of each neighbour shows
+behind it at its sides (owner: they overlap, as if behind it), it goes round (four slides on top of each other, placed by `--at`; before a move the one
+that comes in is put on its side without animation, then everything moves one frame later, so no
+picture crosses the frame; moves overshoot a little, `--spring`, and the caption of the picture
+that comes forward slides in). It turns on by itself when the bar in the current tab is full (a CSS
+animation; `animationend` moves it on), also under the pointer and where less motion is wanted (the
+owner wants it on by default; the pictures then change without moving). The pause button beside
+the tabs stops it; the browser remembers a stop (`localStorage` `betula.showcase` = `paused`,
+nothing while it plays, R20); the open map stops it too. The mark of the current tab slides to it
+(on a phone, where the names need their own widths, the tab itself is marked). The frame reaches
+14 px above and 44 px below its place (padding taken back by negative margins, pointer events
+passed through) so that shadows, the lift under the pointer and the overshoot are not cut. Arrows,
+tabs, arrow keys, a swipe and a click on a neighbour turn it; a click on the current screenshot
+opens its page, a click on the map opens it large in a `<dialog>` (the interactive map: hover,
+pick, faculty outline, link; the first Escape puts a pick away, the next closes; the page behind
+it does not scroll, `:root:has(.map-dialog[open])`). On a wide screen (≥ 1100 px and wider than
+7:5) the dialog is the 4:3 map as high as the screen allows with a column on its left: the head,
+the legend (with the line for shared modules) and what is shown — the program, its faculty, its
+five closest relatives with the number of shared modules, the link. Owner: the carousel and the dialog only have
+to work in the app; without JavaScript the map shows and leads to the program overview. Every
+screenshot is lazy with `loading` written before its address (the app sets attributes in order; an
+image with an address and no `loading` yet is fetched at once), so only what shows is fetched,
+never the hidden theme or the phone's pictures. Colour: washes of the faculties' palette behind the
+pictures, the ways into the catalog with a soft hue each (`--t-*`), the faculties in their map
+colours, the abilities in the accent's tint. The questions are an accordion in two groups, „Über
+Betula" and „Fürs Studium" (first semesters); the text stays in the page and in the FAQPage data.
+The sidebar: the sections (the current one follows the scroll, `nav[data-spy]` in `enhance.js`),
+the Datenstand and the versions as label | value rows — Folia's is `app::VERSION` („alpha-" + this
+crate's version), Radix's is `meta.radix_version` of the snapshot (`internal/version`; older
+snapshots say nothing, the page then says „nicht angegeben") — and at its foot Impressum and
+Datenschutz.
+
 The map (`catalog/src/graph.rs`): a dot per current program, a line where two curricula share
 modules (Jaccard; modules of more than 40 programs are ignored), a force layout without
 randomness. **The server lays it out once, when a snapshot is opened** (`Snapshot::open`,
-event `snapshot.map_built`), for a wide and a tall sheet; nothing is laid out while a page
+event `snapshot.map_built`), for a 4:3 sheet (the carousel; 2:1 until 2026-09-21) and a tall one; nothing is laid out while a page
 renders and nothing in the browser (owner decision). Server-rendered pages get it through context
 (`data::ProgramMapHandle`), the browser app as `GET /api/map.json` (about 8 KB gzip; `boot.js`
 fetches it next to the database and keeps a copy in IndexedDB; `window.betulaMap`). Without a map
@@ -555,9 +602,10 @@ the section is left out. The links are three `<path>` elements per sheet, the do
 with `<title>` (so the map works without JavaScript and search engines follow the dots to the
 programs). The app adds what a pointer over a dot shows (one signal, one overlay: its links, its
 relatives, a line of text) and takes clicks itself. **A click picks a program, it does not open
-it** (owner 2026-09-21: it happened by accident all the time): a card below the map (below, so
-the map does not move under the pointer) names its faculty and all its relatives as buttons and
-links to the program; a click beside the dots, the ✕ or Escape put it away. Modifier clicks stay
+it** (owner 2026-09-21: it happened by accident all the time): in the dialog the caption under the
+map names it, its faculty and its closest relatives and links to the program (until the carousel a
+card below the map listed all relatives as buttons; now they stand out on the map); a click beside
+the dots, the ✕ or Escape put it away. Modifier clicks stay
 plain links. A halo of 5 units around every dot takes the pointer too (R14); the halos lie under
 all dots.
 

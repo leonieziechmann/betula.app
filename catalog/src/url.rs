@@ -30,6 +30,9 @@ pub const CATALOG: &str = "/catalog";
 pub const PROGRAMS: &str = "/programs";
 /// „Merkliste": the modules the visitor has marked. The list itself lives in the browser.
 pub const BOOKMARKS: &str = "/bookmarks";
+/// The legal pages, under the German names people look for.
+pub const IMPRINT: &str = "/impressum";
+pub const PRIVACY: &str = "/datenschutz";
 
 pub fn module_path(id: &str) -> String {
     format!("/catalog/module/{}", encode(id))

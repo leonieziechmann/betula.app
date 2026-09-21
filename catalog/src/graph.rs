@@ -58,7 +58,9 @@ const ISLAND: f64 = 1.1;
 /// Room around the dots inside the outline of a faculty.
 const REGION_PAD: f64 = 9.0;
 
-/// The sheet a layout is made for. A phone gets a tall one: the same programs, laid out again.
+/// The sheet a layout is made for: `Wide` is the 4:3 picture in the start page's carousel
+/// (2026-09-21, before a 2:1 band across the page), a phone gets a tall one: the same programs,
+/// laid out again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Sheet {
     Wide,
@@ -68,7 +70,7 @@ enum Sheet {
 impl Sheet {
     fn size(self) -> (f64, f64) {
         match self {
-            Sheet::Wide => (1200.0, 600.0),
+            Sheet::Wide => (800.0, 600.0),
             Sheet::Tall => (600.0, 860.0),
         }
     }
@@ -76,14 +78,14 @@ impl Sheet {
     /// Height of the names in units of the sheet (a tall sheet is shown much smaller).
     fn font(self) -> f64 {
         match self {
-            Sheet::Wide => 12.0,
+            Sheet::Wide => 13.0,
             Sheet::Tall => 17.0,
         }
     }
 
     fn names(self) -> usize {
         match self {
-            Sheet::Wide => 20,
+            Sheet::Wide => 14,
             Sheet::Tall => 12,
         }
     }
@@ -91,7 +93,7 @@ impl Sheet {
     /// Dots are larger on the tall sheet for the same reason the names are.
     fn dot(self) -> f64 {
         match self {
-            Sheet::Wide => 1.0,
+            Sheet::Wide => 1.1,
             Sheet::Tall => 1.25,
         }
     }
@@ -239,6 +241,7 @@ pub struct ProgramMap {
     pub faculties: Vec<MapFaculty>,
     /// Sorted by (a, b), a < b.
     pub links: Vec<Link>,
+    /// For the start page's carousel: a 4:3 sheet.
     pub wide: Layout,
     /// For a phone: the same programs, laid out again on a tall sheet.
     pub tall: Layout,

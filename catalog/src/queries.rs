@@ -32,6 +32,7 @@ pub fn meta(db: &dyn Database) -> Result<Meta, DbError> {
                 "data_changed_at" => meta.data_changed_at = value,
                 "current_semester" => meta.current_semester = value,
                 "content_digest" => meta.content_digest = value,
+                "radix_version" => meta.radix_version = value,
                 _ => {}
             }
         }

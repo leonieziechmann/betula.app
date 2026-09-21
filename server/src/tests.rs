@@ -257,6 +257,16 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let home = String::from_utf8(body).unwrap();
     assert!(head(&home).contains("href=\"https://catalog.example/\" rel=\"canonical\"") && !head(&home).contains("noindex"));
     assert!(home.contains("class=\"map map-wide\"") && home.contains("class=\"map map-tall\""), "the landing page draws the map the snapshot was opened with");
+    // Impressum and Datenschutz: linked from the start page, and while they are placeholders they
+    // say so and are not indexed (deploy/ship.sh keeps them off an instance open to everybody).
+    for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
+        assert!(home.contains(&format!("href=\"{path}\"")), "the start page links {path}");
+        let (status, _, body) = request(&router, path, &[]).await;
+        let page = String::from_utf8(body).unwrap();
+        assert_eq!(status, StatusCode::OK, "{path}");
+        assert_eq!(page.contains("Platzhalter"), app::pages::legal::PLACEHOLDER, "{path}");
+        assert_eq!(head(&page).contains("noindex"), app::pages::legal::PLACEHOLDER, "{path}");
+    }
 
     // What a link preview and a home screen read: the card of the page with an absolute picture,
     // and the icons and the manifest of the site, each served as what it is.

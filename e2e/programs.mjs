@@ -119,7 +119,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await step("tab: Module returns to the filtered list", () => page.click('.rail a[data-area="catalog"]'), () => location.pathname === "/catalog" && location.search.includes("turnus=winter"));
   check((await tab("catalog")) === "/catalog", "tabs: on the list the own tab is not the plain list");
 
-  await step("home", () => page.click('.rail a[href="/"]'), () => location.pathname === "/" && document.querySelector(".home .intro"));
+  await step("home", () => page.click('.rail a[href="/"]'), () => location.pathname === "/" && document.querySelector(".home .home-hero"));
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), "home: the sidebar is not in the frame's place");
   await context.close();
 }

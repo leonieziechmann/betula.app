@@ -281,6 +281,31 @@
     return true;
   }
 
+  // ---- a table of contents follows the page (`<nav data-spy>`, the start page) ----
+  // The section whose top has passed the upper part of the scroller is the one the page is at; at
+  // the very end it is the last one, however short it is. Scroll events do not bubble, so they are
+  // caught on their way down; the work happens once per frame.
+  let spyFrame = 0;
+  const spy = () => {
+    spyFrame = 0;
+    const nav = document.querySelector("nav[data-spy]");
+    const scroller = document.getElementById("page-scroll");
+    if (!nav || !scroller) return;
+    const links = [...nav.querySelectorAll('a[href^="#"]')];
+    const line = scroller.getBoundingClientRect().top + 96;
+    let current = links[0];
+    for (const link of links) {
+      const section = document.getElementById(link.getAttribute("href").slice(1));
+      if (section && section.getBoundingClientRect().top <= line) current = link;
+    }
+    if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) current = links[links.length - 1];
+    for (const link of links) {
+      if (link === current) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    }
+  };
+  document.addEventListener("scroll", () => { if (!spyFrame) spyFrame = requestAnimationFrame(spy); }, { capture: true, passive: true });
+
   // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {
     // An open picker has the keyboard to itself (its Esc closes the picker, nothing else).
