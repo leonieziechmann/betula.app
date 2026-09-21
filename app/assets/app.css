@@ -922,7 +922,6 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .ptable > thead th, .ptable > thead td { border-top: 0; padding-top: 2px; padding-bottom: 7px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
 .ptable th:first-child, .ptable td:first-child { padding-left: 24px; }
 .ptable th:last-child, .ptable td:last-child { padding-right: 24px; }
-.matrix th:last-child, .matrix td:last-child { padding-right: 14px; }
 .ptable tbody tr:not(.group):hover { background: var(--panel-2); }
 /* The row whose module stands beside the page, marked as the catalog marks its open row. */
 .ptable tbody tr.open { background: var(--panel-3); }
@@ -959,24 +958,48 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .ptable tr.group.depth-2 .gname { padding-left: 14px; }
 .ptable tr.group.depth-3 .gname { padding-left: 28px; }
 .ptable tr.group.depth-4 .gname { padding-left: 42px; }
+/* The plan as its regulations print it: fixed columns, equal for every semester, and the name
+   takes what is left — never less than --name-min, so a name never stands a word to a line and
+   no column runs into the next one. Where the page is too narrow for that, „Art" gives way;
+   where it is too narrow even without it, the table scrolls sideways in its panel and keeps its
+   lines. A word longer than its column breaks instead of running into the next one. */
+.matrix, .planlist {
+  table-layout: fixed; width: 100%; overflow-wrap: break-word;
+  --name-min: 200px;
+  /* „Art" is as wide as its longest label („Abschlussarbeit"), or not there at all: a step,
+     taken where the name would get less than its minimum. 100cqi is the page, which the table
+     fills. --rest is what the columns right of it take. */
+  --kind: clamp(0px, (100cqi - var(--name-min) - 140px - var(--rest)) * 1000, 140px);
+  min-width: calc(var(--name-min) + var(--kind) + var(--rest));
+}
+/* Every semester as wide as every other, and all of them never narrower than three, so that
+   „Leistungspunkte" fits above a plan of two. The page sets --sems. */
+.matrix { --sem: max(48px, 144px / var(--sems)); --rest: calc(var(--sems) * var(--sem)); }
+.planlist { --rest: 80px; }
+.matrix col:first-child, .planlist col:first-child { width: auto; }
+.matrix col.c-kind-col, .planlist col.c-kind-col { width: var(--kind); }
+.matrix .c-kind, .planlist .c-kind { overflow: hidden; padding-left: min(10px, var(--kind)); padding-right: min(10px, var(--kind)); }
+.matrix col.c-sem-col { width: var(--sem); }
+.planlist col.c-area-col { width: 200px; }
+.planlist col.c-lp-col { width: 80px; }
 /* Where the page shares its room with the panel on the right, the columns that carry the least
-   give way first — never the name, the credits or the semester. */
+   give way first — never the name, the credits or the semester. In the fixed columns of the
+   plan a column gives way by getting narrow, not by leaving: a cell that left would move the
+   ones after it into the column before (the credits under „Bereich", away from the sums of the
+   semesters). After the widths above, so that the column gives its room back. */
 @container page (max-width: 860px) {
-  .ptable .c-area { display: none; }
+  .ptable:not(.planlist) .c-area { display: none; }
   .planlist col.c-area-col { width: 0; }
+  .planlist .c-area { overflow: hidden; padding-left: 0; padding-right: 0; }
 }
 @container page (max-width: 700px) { .ptable .c-turnus { display: none; } }
 @container page (max-width: 560px) { .ptable .c-id { display: none; } }
-/* The plan as its regulations print it: fixed columns, equal for every semester, and the name
-   takes what is left. */
-.matrix, .planlist { table-layout: fixed; width: 100%; }
-.matrix col:first-child, .planlist col:first-child { width: auto; }
-.matrix col.c-kind-col, .planlist col.c-kind-col { width: 112px; }
-.matrix col.c-sem-col { width: 48px; }
-.planlist col.c-area-col { width: 200px; }
-.planlist col.c-lp-col { width: 74px; }
 .matrix .c-group { text-align: center; color: var(--text-3); }
-.matrix .c-sem, .matrix td.lp, .matrix td.empty, .matrix tfoot td { text-align: center; border-left: 1px solid var(--line); }
+/* A semester is a box between two lines with its figure in the middle: 10px on both sides, also
+   where the box is the first cell of its row (the „1" of the head) or the last one. The line
+   stands left of every semester and nowhere else, also in the sums. */
+.matrix th.c-sem, .matrix th.c-group, .matrix td.lp, .matrix td.empty { padding-left: 10px; padding-right: 10px; }
+.matrix .c-sem, .matrix td.lp, .matrix td.empty { text-align: center; border-left: 1px solid var(--line); }
 .matrix .c-group { border-left: 1px solid var(--line); }
 .matrix td.lp { font-weight: 650; color: var(--text); }
 .matrix td.spans { background: var(--panel-2); }

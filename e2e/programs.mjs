@@ -5,8 +5,8 @@
 // faculty without a history entry → program page (views in the sidebar, „Zurück" and Esc lead back to the
 // program in the overview) → the rail's items are tabs that remember where their area was left → the
 // program page itself (head, one study plan per study direction, matrix or list, a module beside it
-// and the way back out of it, areas, all modules) → phone
-// (filters in a sheet) → the overview without JavaScript.
+// and the way back out of it, areas, all modules) → the plan at every window width (no column runs
+// into another) → phone (filters in a sheet) → the overview without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -322,6 +322,48 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   const fues = await row("Fachübergreifendes Studium");
   check(/Fachübergreifenden Studium/.test(fues.note) && !fues.shown.startsWith("Vermutlich") && fues.beside.length === 0, `plan row: the FÜS row reads „${fues.note.slice(0, 80)}" and points at ${fues.shown}`);
   await context.close();
+}
+
+// ---------- the plan at every width: no column runs into another ----------
+// Owner, 2026-09-21: at 1200 px „Art" lay over „Modul" and the names stood a word to a line. The page
+// shares the window with the sidebar and the panel on the right: „Art" gives way where the names would
+// get narrower than 200 px, and where even that is not enough the plan scrolls sideways in its panel.
+// At every width every cell keeps to its column, the semesters are equally wide, and the credits of
+// the list stand on one line with the sums of their semesters.
+{
+  const fits = (page) => page.evaluate(() => {
+    const table = document.querySelector("table.matrix, table.planlist");
+    const pad = (cell, side) => parseFloat(getComputedStyle(cell)[side]) || 0;
+    const found = [];
+    for (const cell of table.querySelectorAll("th, td")) {
+      const box = cell.getBoundingClientRect();
+      // A column that gave way is 0 px wide; the heading of a group cuts its own text.
+      if (box.width < 1 || cell.closest("tr.group")) continue;
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      const out = [...range.getClientRects()].some((r) => r.width > 0 && (r.left < box.left + pad(cell, "paddingLeft") - 0.5 || r.right > box.right - pad(cell, "paddingRight") + 0.5));
+      if (out) found.push(`„${cell.textContent.trim().slice(0, 24)}" runs out of its column`);
+    }
+    const name = table.querySelector("thead .c-name").getBoundingClientRect().width;
+    if (name < 199.5) found.push(`the names are ${Math.round(name)} px wide`);
+    if (new Set([...table.querySelectorAll("thead th.c-sem")].map((th) => Math.round(th.getBoundingClientRect().width))).size > 1) found.push("the semesters are not equally wide");
+    if (new Set([...table.querySelectorAll("td.c-lp")].map((td) => Math.round(td.getBoundingClientRect().right))).size > 1) found.push("the credits do not stand on one line");
+    return found;
+  });
+  // Six semesters in both drawings, and the matrices of two and of eight.
+  for (const [slug, shapes] of [["bachelor-informatik-2008", ["matrix", "list"]], ["master-forensic-sciences-and-engineering-2011", ["matrix"]], ["bachelor-pflegewissenschaft-2025-84", ["matrix"]]]) {
+    const { page, context } = await open({ viewport: { width: 1800, height: 900 } }, `/programs/${slug}/plan`);
+    for (const shape of shapes) {
+      if (shape === "list") await page.click("#sidebar .seg button:nth-of-type(2)");
+      await page.waitForSelector(shape === "list" ? "table.planlist" : "table.matrix");
+      for (const width of [1000, 1100, 1200, 1250, 1300, 1350, 1400, 1450, 1500, 1600, 1800]) {
+        await page.setViewportSize({ width, height: 900 });
+        const found = await fits(page);
+        check(found.length === 0, `plan (${slug}, ${shape}) at ${width} px: ${found.slice(0, 3).join("; ")}`);
+      }
+    }
+    await context.close();
+  }
 }
 
 // ---------- a program on a phone: the plan is a list, the page does not scroll sideways ----------
