@@ -260,7 +260,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     for tag in ["property=\"og:title\"", "property=\"og:description\"", "name=\"twitter:card\"", "name=\"twitter:image\"", "property=\"og:image:alt\""] {
         assert_eq!(module.matches(tag).count(), 1, "{tag} in {module}");
     }
-    for link in ["rel=\"manifest\"", "rel=\"apple-touch-icon\"", "href=\"/favicon.ico\"", "name=\"theme-color\""] {
+    for link in ["rel=\"manifest\"", "rel=\"apple-touch-icon\"", "href=\"/favicon.ico\"", "name=\"theme-color\"", "rel=\"stylesheet\"", "rel=\"preload\""] {
         assert_eq!(head(&home).matches(link).count(), 1, "{link}");
     }
     for (path, content_type, magic) in [
