@@ -278,6 +278,38 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await context.close();
 }
 
+// ---------- a row of the plan finds the area it names (Informatik B.Sc.) ----------
+{
+  const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/programs/bachelor-informatik-2008");
+  // The panel of the first row that reads exactly `name`: the area shown with its modules, and
+  // the areas named beside it.
+  const row = async (name) => {
+    await step(`plan row „${name}"`, () => page.evaluate((name) => [...document.querySelectorAll('table.matrix tbody a[data-walk="plan-row"]')].find((a) => a.textContent.replace(/\s+/g, " ").trim().startsWith(name + " ") || a.textContent.replace(/\s+/g, " ").trim() === name)?.click(), name), (name) => location.search.includes("req=") && document.querySelector("#preview .hero h2")?.textContent.trim() === name, name);
+    return page.evaluate(() => {
+      const sections = [...document.querySelectorAll("#preview .section")];
+      const labelled = (text) => sections.find((section) => section.querySelector(".label")?.textContent.startsWith(text));
+      return {
+        shown: [...(labelled("Vermutlich")?.querySelector(".label")?.childNodes ?? [])].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent).join("").trim(),
+        beside: [...(labelled("Passende Bereiche") ?? labelled("Kommt auch in Frage"))?.querySelectorAll(".pre b") ?? []].map((b) => b.textContent),
+        note: document.querySelector("#preview .note")?.textContent ?? "",
+      };
+    });
+  };
+  // Owner, 2026-09-21: „Komplex Praktische Informatik" is Praktische Informatik, and nothing else.
+  const praktisch = await row("Komplex Praktische Informatik");
+  check(praktisch.shown === "Vermutlich Praktische Informatik" && praktisch.beside.length === 0, `plan row: „Komplex Praktische Informatik" points at ${praktisch.shown} and ${praktisch.beside.join(" | ") || "nothing else"}`);
+  // „Anwendungsfach" is one of the Nebenfächer — not Praktische Mathematik, which has a row of its own.
+  const anwendung = await row("Anwendungsfach");
+  check([...anwendung.beside].sort().join(" | ") === "Bauingenieurwesen | Maschinenbau / Elektrotechnik | Mathematik | Physik | Wirtschaftswissenschaften", `plan row: „Anwendungsfach" points at ${anwendung.beside.join(" | ")}`);
+  // A row that lists three complexes means each of them.
+  const listed = await row("Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik");
+  check(listed.beside.join(" | ") === "Grundlagen der Informatik | Praktische Informatik | Angewandte und Technische Informatik", `plan row: the listing row points at ${listed.beside.join(" | ")}`);
+  // The FÜS by its name: its list, no area.
+  const fues = await row("Fachübergreifendes Studium");
+  check(/Fachübergreifenden Studium/.test(fues.note) && !fues.shown.startsWith("Vermutlich") && fues.beside.length === 0, `plan row: the FÜS row reads „${fues.note.slice(0, 80)}" and points at ${fues.shown}`);
+  await context.close();
+}
+
 // ---------- a program on a phone: the matrix scrolls, the page does not ----------
 {
   const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "/programs/bachelor-elektrotechnik-2022");

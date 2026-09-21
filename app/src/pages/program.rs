@@ -488,13 +488,11 @@ fn PlanRowPanel(
         None => entry.semester_span.clone().map(|span| format!("Semester {span}")),
     };
     let credits = plan_credits(&entry).map(|credits| format!("{credits} LP"));
-    let fues = entry.kind.as_ref().is_some_and(|kind| kind.is(ModuleKind::Fues));
+    // The FÜS by its kind or by its name („Fachübergreifendes Studium", „Modul aus dem FÜS-Katalog").
+    let fues = catalog::plan::is_fues(&entry);
     // A row the plan states as Pflicht (or as the thesis, or as the internship) means one module,
     // not a choice: the catalog simply does not know it under this name. Only a choice gets areas.
-    let one_module = entry
-        .kind
-        .as_ref()
-        .is_some_and(|kind| kind.is(ModuleKind::Compulsory) || kind.is(ModuleKind::Thesis) || kind.is(ModuleKind::Internship));
+    let one_module = catalog::plan::is_single_module(&entry);
     let area = entry.study_section.clone().or_else(|| entry.subject_area.clone());
     let mut fitting = if fues || one_module { Vec::new() } else { fitting };
     // The first is the area to show with its modules — unless several fit equally well.

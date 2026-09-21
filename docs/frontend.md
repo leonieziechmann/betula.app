@@ -98,12 +98,40 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     known to be fixed is not fixed). Each entry is the area's name and how many modules it holds,
     nothing else (the path of the tree beside the name had pushed the names into
     „Wahlpflichtmod…"), the name without a leading „Wahlpflichtmodule" (`CatalogArea::name`: every
-    area offered is one to choose from), under the heading of the area above it („Komplex
-    Nebenfach": Mathematik, Physik …; the plain `select` uses `optgroup`). The area above comes
-    from the tree itself (`program_area.parent_id`, joined in `queries::program_areas`), never
-    from splitting the path: a label may read „Maschinenbau / Elektrotechnik", and splitting had
-    made a heading „Maschinenbau" and two „Komplex Nebenfach" of it (owner, 2026-09-21). The
-    full label and the path still find an area when typed. An area filters to the modules the tree places in it or in
+    area offered is one to choose from), in **few, stable sections** (owner, 2026-09-21: never the
+    same heading twice, no node that only structures the tree as a heading; the plain `select`
+    uses `optgroup`). The rule, taken from the 179 real trees (`pages::catalog_areas`, numbers in
+    „The area picker and the plan's rows on the real data" below): the heading of an area is the
+    **highest node above it that names a field** — not a phase („Grundstudium", „Fachstudium",
+    „Hauptstudium"), not an account („Gesamtkonto …", „Total Account - …", „Module an der …",
+    „Modules at …") and not a label that says nothing but a kind („Pflichtmodule",
+    „Wahlpflichtmodule (KT)", „Compulsory Elective and Optional Modules"; `pages::is_structural`),
+    shown without a leading „Komplex" („Komplex Nebenfach" → „Nebenfach"; the trees say
+    „Nebenfach", „Anwendungen" or „Anwendungsbereiche", never „Anwendungsfach" — that word is the
+    plan's). One level of headings, however deep an area lies; a section of more than 12 areas
+    whose fields below hold them splits into those fields (Wirtschaftsingenieurwesen dual:
+    „Ingenieurwissenschaftlicher Schwerpunkt" → Produktionstechnik, Umwelttechnik …). A heading over
+    a single area is none, headings that read the same are one section, and the areas without a
+    heading — the program's own — come first, then the sections in the order of the tree. An area
+    whose label is only a kind takes the name of its field (Architektur: „Entwerfen", not five
+    times „Wahlpflichtmodule"), unless other areas stand under that field, then it keeps its label
+    there (Elektrotechnik M.Sc.: „Studienrichtung Kommunikationstechnik (KT)": „Wahlpflichtmodule
+    (KT)", „Zweite Fremdsprache"). Two areas that would read the same where they stand are told
+    apart by a node above them („Mathematik", „Mathematik (Anwendungen)"). For Informatik B.Sc.
+    that reads: Proseminar oder Praktikum, Grundlagen der Informatik, Praktische Informatik,
+    Angewandte und Technische Informatik, Seminar oder Praktikum aus der Informatik — then
+    „Nebenfach": Praktische Mathematik, Mathematik, Physik, Maschinenbau / Elektrotechnik,
+    Wirtschaftswissenschaften, Bauingenieurwesen. **Praktische Mathematik stands in the
+    Nebenfach** although the owner counted it among the own electives: the tree places it in the
+    Komplex Nebenfach, and nothing in the data tells it from the subjects beside it but its
+    label's „Wahlpflichtmodule", which Wirtschaftsmathematik's alternatives carry too (open
+    question for the owner, see below). The nodes above an area come from the tree itself
+    (`queries::program_area_tree`, every node of `program_area` with its `parent_id`), never from
+    splitting the path: a label may read „Maschinenbau / Elektrotechnik". The picker keeps each
+    section together while one types, too (`combobox::grouped`): the section of the best match
+    comes first, its heading with it; the areas without a heading are one section there as well,
+    set off by a line where they follow another. The full label and the path
+    still find an area when typed. An area filters to the modules the tree places in it or in
     an area below it; that is how the elective modules of a program are listed, whatever the plan
     says about their semester.
   - **On a phone the panel is a sheet** from below, opened by the list's „Filter" button, and
@@ -276,20 +304,37 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   text (see „The server's pages lay nothing beside themselves"). **No source links a row to an area**
   (`area_rules` is prose about credits), so the name does the work and the panel says so
   (`catalog::plan::areas_for_row`, rewritten 2026-09-21 after the owner found „Komplex Praktische
-  Informatik" pointing at four areas): only areas a student chooses from come into question (a
+  Informatik" pointing at four areas, and checked the same day against all 1 059 rows of the real
+  plans that name no module): only areas a student chooses from come into question (a
   requirement row never means the Pflichtmodule); the words that say what kind of thing a name is
-  („Komplex", „Wahlpflichtmodule", „Modul aus dem", articles) are dropped on both sides, and then
-  the same words as an area are that area and no other („Komplex Praktische Informatik" →
-  „Praktische Informatik"), a name within an area's name or the other way round fits next best
-  and all that fit equally well are meant („Wahlpflichtmodul aus der Informatik" → every
-  „… Informatik" area to choose from), some words in common count least and are only named as
-  also possible when they come near the best; a name that is an area above the leaves means the
-  leaves below it („Nebenfach" → Mathematik, Physik …); only the study directions the plan's
-  caption names are kept („MIT und EET" → never the areas of PA or IoT). A single best fit is
-  shown with its modules, and where several fit equally well all are named instead of one being
-  picked (R12). A row the plan states as
-  Pflicht, Abschlussarbeit or Praktikum means one module, not a choice: it gets no area at all,
-  only the honest note that the catalog does not know it under this name and a search for it. And with nothing picked the panel holds the
+  („Komplex", „Wahlpflichtmodule", „WP"/„WPF", „Modul aus dem", „Compulsory Elective Modules",
+  articles) and what the plans print around a name (numbering „5 …", footnotes glued to a word
+  „Wirtschaftswissenschaften2", references „gem. Anlage a5", „Prü/SL") are dropped on both sides;
+  a plural reads as its singular, a roman number as its digit, and „Anwendungsfach",
+  „Anwendungen", „Anwendungsbereiche" as „Nebenfach". Then the same words as an area are that
+  area and no other („Komplex Praktische Informatik" → „Praktische Informatik"); a row that lists
+  areas by name means each of them („Wahlpflicht: Komplex Grundlagen der Informatik / Komplex
+  Praktische Informatik / Komplex Angewandte und Technische Informatik", „Schwerpunkt A oder
+  Schwerpunkt B", „„A“, „B“ oder „C“"); a name within an area's name or the other way round fits
+  next best and all that fit equally well are meant („Wahlpflichtmodul aus der Informatik" →
+  every „… Informatik" area to choose from); words in common count least, only where they are at
+  least half of the row's words and never by numbers (so a module „Physics of Modern Devices" is
+  not the area „Technology and Devices", „Schwerpunkt 1" not „Konstruktiver Ingenieurbau - 1"),
+  and are only named as also possible when they come near the best. A name that is a node above
+  the leaves means the leaves below it — except those another row of the same plan names on
+  their own („Anwendungsfach" → Mathematik, Physik, Maschinenbau / Elektrotechnik,
+  Wirtschaftswissenschaften, Bauingenieurwesen; Praktische Mathematik has its row „Modul aus dem
+  Bereich Praktische Mathematik"). An area whose label is only a kind is known by its field
+  („Wahlpflichtmodul (MIT)" is the list of „Informatik (MIT)"). Only the study directions the
+  plan's caption names are kept, by their short names or a shorter spelling of them („PA und
+  IoT" → PAu, IoT) or by the name the tree puts in front of one („Studienrichtung
+  „Umwelttechnik“" → „Umwelttechnik (UMT)"). A single best fit is shown with its modules, and
+  where several fit equally well all are named instead of one being picked (R12). A row the plan
+  states as Pflicht, Abschlussarbeit or Praktikum means one module, not a choice: it gets no area
+  at all, only the honest note that the catalog does not know it under this name and a search for
+  it; a row that names the FÜS by kind **or by name** („Fachübergreifendes Studium", „Modul aus
+  dem FÜS-Katalog der BTU" — 112 of them are stated Wahlpflicht) leads to the FÜS list
+  (`plan::is_fues`). And with nothing picked the panel holds the
   numbers of the view one is looking at — for the
   plan the chosen study direction with its semesters, credits and how much of it the catalog
   links, plus the credits per semester as bars; for the other views the areas and how the modules
@@ -371,6 +416,65 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   without a module are one module the catalog does not know under that name; FÜS rows point to
   the program's FÜS list. The URL still says only the semester; the derived areas are part of the
   query the page ran (`CatalogData::effective`), which the endless list loads further pages with.
+
+### The area picker and the plan's rows on the real data (2026-09-21)
+
+The area picker and `areas_for_row` had been built against the synthetic snapshot only. Checked
+against the real one (export of 2026-09-20 23:21, 182 programs, 179 of them with a module tree,
+140 with a validated plan) with `catalog/examples/area_survey.rs`, which opens a snapshot and calls
+the crate's own functions — exactly what the app does — and prints every picker and every row:
+
+    cargo run -p folia-catalog --features native --example area_survey -- <catalog-*.db> [slug…]
+
+**Before** (heading = the node directly above, runs of equal headings, commit 42f004a): 10
+headings that came twice in one picker, 194 headings over a single area, 66 headings that only
+structure the tree („Grundstudium", „Gesamtkonto …", „Wahlpflichtmodule"). **After** (the rule in
+„The areas of a program" above): 0, 0 and 0. 111 pickers have no heading at all, 42 one, 25 two
+to seven, one (Umweltwissenschaften dual, six study directions twice) 13. Two pickers still show
+two entries that read the same where they stand, both from the source: Maschinenbau dual 2018 has
+two sibling nodes „Wahlpflichtmodule (STA)", Soziale Arbeit 2020 (double degree) two accounts that
+differ only three levels up.
+
+**Fixed or a choice** (`CatalogArea::choice`): of 1 614 areas with modules, 551 are fixed and not
+offered, 1 063 are offered: 597 hold a module known to be elective (or FÜS), 395 are offered only
+because no source gives any of their modules a kind — 16 programs have no kind in their whole tree
+(Architektur M.Sc., the Orientierungsstudium, Wirtschaftsingenieurwesen M.Sc. 2025 …) — and 71 hold
+nothing but fixed modules and one or more without a kind (Lehramt „Unterrichtsfach 1: Deutsch" 3
+Pflicht + 1 unknown, Elektrotechnik 2018 „Ingenieurtechnische Module" 16 + 5). No area with a known
+elective module is hidden. `stated_kind` along the path is already part of the module's kind (the
+tree's label, `v_program_module_area.kind`), and the module pages' remarks are one of the sources
+of `v_program_module.kind` (872 modules); nothing more is there to use without new sources. The
+rule stays as the owner set it (R12: not known to be fixed is not fixed); whether an area of
+mostly Pflicht with one unknown module should count as fixed is the owner's call (open).
+
+**Rows of the plans** that name no module (1 059, counted once per plan caption): 348 are stated
+Pflicht/Abschlussarbeit/Praktikum (one module), 152 name the FÜS (40 by their kind, 112 more by
+their name only). Of the other 559, **175 now point at one area, 56 at several** (all of them
+meant: a row listing areas, or two study directions of one plan) and 328 at none. Before: 166, 41
+and 464 (the FÜS rows among them). Of the 328 without an area most name a single module that is not
+linked („GT1-B 25102 Bau- und Stadtbaugeschichte 1", „Heritage Studies oder Heritage Studies
+(Online)") or say nothing but „Wahlpflichtmodul 3" — both rightly get none, the panel then points
+to every elective of the program. Checked by hand, the areas the rows now point at are right with
+few exceptions: „Wahlbereich Volkwirtschaftliche Grundlagen" (a typo in the plan) finds every
+„… Grundlagen" area of Wirtschaftsinformatik instead of „Volkswirtschaftliche Grundlagen", and
+double-degree plans whose areas lie in accounts are not found. The real labels are the tests'
+fixtures (`catalog/src/area_fixtures.rs`: Informatik B.Sc. and M.Sc., Elektrotechnik B.Sc. 2022
+with its study directions, Elektrotechnik M.Sc. 2018, Architektur, Wirtschaftsingenieurwesen
+dual), and the fixture generator (`internal/catalogbuild/folia_fixture_test.go`) builds its trees
+and the plan of Informatik in the same shapes, so the browser checks see what the real data has.
+
+Owner decisions and open questions (2026-09-21):
+- Decided by the owner: no fixed area in the picker; never a heading twice; no structural node as
+  a heading; for Informatik two sections, the own electives and the Anwendungs-/Nebenfach; a
+  data-driven rule, no special case for one program.
+- Taken as the default here, open to change: the heading is shown without „Komplex"; the areas
+  without a heading come first, whatever the tree order; 12 areas as the length at which a section
+  splits into its fields.
+- **Open:** Praktische Mathematik — the owner put it among the own electives, the tree puts it in
+  the Komplex Nebenfach, and the plan asks for it in a row of its own. The picker follows the tree;
+  the row „Anwendungsfach" leaves it out because of its own row. Moving it would need a rule the
+  data does not carry, or a curated exception.
+- **Open:** areas of Pflicht modules with a single module of unknown kind (71) — offered now.
 
 ### The landing page and the map of the programs (2026-09-20)
 
@@ -522,7 +626,10 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `<head>` has marked the document, which is before the first paint. What only the browser app
   can do (endless list, pickers) is rendered by the app alone or shown under `html.app`.
 - **R11. All SQL lives in `catalog/src/queries.rs`,** reads only `v_*` views, and every `pub fn`
-  there runs against a real snapshot in the tests (the build fails otherwise).
+  there runs against a real snapshot in the tests (the build fails otherwise). One exception, on
+  purpose: the nodes of the module tree (`queries::program_area_tree`) come from the table
+  `program_area`, because no view has the nodes that hold no module („Komplex Nebenfach") with
+  their `parent_id`; a view `v_program_area` needs a Radix migration and a new export (owed).
 - **R12. Unknown stays unknown:** `Option` in the row structs, „nicht angegeben" on the page.
   A code without a label is shown as it is (`labels::Code`), and the label test flags it.
 - **R20. What a visitor keeps stays with the visitor** (owner decision 2026-09-20: no data of a

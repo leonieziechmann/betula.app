@@ -19,7 +19,10 @@ await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 1
 
 // ---- the sheet: opened by the button, dimmed page behind it, closed by a drag at its head
 await page.tap(".sheet-toggle");
+// The sheet slides in: a finger on its head only counts once it stands still.
+const settled = () => document.getElementById("filters").classList.contains("open") && getComputedStyle(document.getElementById("filters")).transform === "none";
 await page.waitForFunction(() => document.getElementById("filters").classList.contains("open") && document.documentElement.classList.contains("sheet-open"), null, { timeout: 5000 }).catch(() => problems.push("sheet: did not open (or the page is not dimmed)"));
+await page.waitForFunction(settled, null, { timeout: 5000 }).catch(() => problems.push("sheet: it did not come to rest"));
 const head = await page.locator("#filters .panel-head").boundingBox();
 await page.mouse.move(head.x + head.width / 2, head.y + 12);
 await page.mouse.down();
@@ -31,7 +34,7 @@ check(during !== "none" && during.includes("matrix"), `sheet: it does not follow
 await page.waitForFunction(() => !document.getElementById("filters").classList.contains("open") && !document.documentElement.classList.contains("sheet-open"), null, { timeout: 5000 }).catch(() => problems.push("sheet: a drag down did not close it"));
 // A short drag lets it snap back.
 await page.tap(".sheet-toggle");
-await page.waitForFunction(() => document.getElementById("filters").classList.contains("open"));
+await page.waitForFunction(settled);
 const head2 = await page.locator("#filters .panel-head").boundingBox();
 await page.mouse.move(head2.x + 100, head2.y + 12);
 await page.mouse.down();

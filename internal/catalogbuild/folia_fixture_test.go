@@ -134,9 +134,10 @@ func TestWriteFoliaFixture(t *testing.T) {
 		}
 		return ids
 	}
-	// The tree as the real one of Informatik B.Sc. reads (owner, 2026-09-21): complexes whose
-	// labels say nothing about Pflicht or Wahlpflicht — the plan says what is compulsory — and
-	// the Nebenfach with its subjects below it. The thesis sits directly in the Fachstudium.
+	// The tree as the real one of Informatik B.Sc. reads (snapshot of 2026-09-21): complexes
+	// whose labels say nothing about Pflicht or Wahlpflicht — the plan says what is compulsory —
+	// and the Komplex Nebenfach with Praktische Mathematik and the subjects to choose from below
+	// it. The thesis sits directly in the Fachstudium.
 	informatik.areas = []fixtureArea{
 		{label: "Grundstudium", children: []fixtureArea{
 			{label: "Komplex Informatik", modules: take(9), children: []fixtureArea{
@@ -144,6 +145,7 @@ func TestWriteFoliaFixture(t *testing.T) {
 			}},
 			{label: "Komplex Mathematik", modules: take(3)},
 			{label: "Komplex Nebenfach", children: []fixtureArea{
+				{label: "Wahlpflichtmodule Praktische Mathematik", modules: take(5)},
 				{label: "Mathematik", modules: take(8)},
 				{label: "Physik", modules: take(4)},
 				{label: "Maschinenbau / Elektrotechnik", modules: take(6)}, // the separator in a label, as the real tree has it
@@ -155,16 +157,28 @@ func TestWriteFoliaFixture(t *testing.T) {
 			{label: "Grundlagen der Informatik", modules: take(7)},
 			{label: "Praktische Informatik", modules: take(10)},
 			{label: "Angewandte und Technische Informatik", modules: take(9)},
-			{label: "Seminar oder Praktikum (aus der Informatik)", modules: take(4)},
-			{label: "Wahlpflichtmodule Praktische Mathematik", modules: take(5)},
+			{label: "Seminar oder Praktikum aus der Informatik", modules: take(4)},
 		}},
 	}
+	// Informatik M.Sc. as the real tree reads: the Informatik-Vertiefung, and the Komplex
+	// Nebenfach with Mathematik and the Anwendungen below it — Mathematik twice.
 	informatikMaster.areas = []fixtureArea{
-		{label: "Pflichtmodule", modules: take(6)},
-		{label: "Wahlpflichtmodule Komplex Praktische Informatik", modules: take(25)},
-		{label: "Wahlpflichtmodule Komplex Theoretische Informatik", modules: take(20)},
-		{label: "Wahlpflichtmodule Komplex Angewandte Informatik", modules: take(20)},
-		{label: "Master-Arbeit", modules: take(1)},
+		{label: "Informatik-Vertiefung", children: []fixtureArea{
+			{label: "Grundlagen der Informatik", modules: take(6)},
+			{label: "Praktische Informatik", modules: take(11)},
+			{label: "Angewandte und Technische Informatik", modules: take(16)},
+			{label: "Seminare oder Praktika", modules: take(8)},
+		}},
+		{label: "Komplex Nebenfach", children: []fixtureArea{
+			{label: "Mathematik", modules: take(6)},
+			{label: "Anwendungen", children: []fixtureArea{
+				{label: "Mathematik", modules: take(8)},
+				{label: "Physik", modules: take(4)},
+				{label: "Maschinenbau / Elektrotechnik", modules: take(6)},
+				{label: "Wirtschaftsingenieurwesen", modules: take(4)},
+				{label: "Bauingenieurwesen", modules: take(3)},
+			}},
+		}},
 	}
 	maschinenbau.areas = []fixtureArea{
 		{label: "Grundlagen", children: []fixtureArea{
@@ -178,10 +192,14 @@ func TestWriteFoliaFixture(t *testing.T) {
 		}},
 		{label: "Bachelor-Arbeit", modules: take(1)},
 	}
+	// Architektur as the real tree reads: an account on top, and in each field its
+	// Pflichtmodule and Wahlpflichtmodule, labels that say nothing but the kind.
 	architektur.areas = []fixtureArea{
-		{label: "Pflichtmodule Entwerfen", modules: take(14)},
-		{label: "Wahlpflichtmodule Städtebau", modules: take(16)},
-		{label: "Wahlpflichtmodule Baukonstruktion", modules: take(14)},
+		{label: "Gesamtkonto Bachelor", children: []fixtureArea{
+			{label: "Entwerfen", children: []fixtureArea{{label: "Pflichtmodule", modules: take(14)}}},
+			{label: "Städtebau", children: []fixtureArea{{label: "Wahlpflichtmodule", modules: take(16)}}},
+			{label: "Baukonstruktion", children: []fixtureArea{{label: "Wahlpflichtmodule", modules: take(14)}}},
+		}},
 		{label: "Bachelor-Arbeit", modules: take(1)},
 	}
 	// 60 of the modules are on the FÜS list.
@@ -345,7 +363,7 @@ Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></t
 	}
 
 	// ---- a validated plan for Informatik B.Sc.: the compulsory modules of the two complexes over
-	// the first three semesters, then rows that name a complex or the Nebenfach without a module ----
+	// the first three semesters, then the rows the real plan has that name no module ----
 	var entries []catalogdb.PlanEntry
 	compulsory := append(append([]string{}, informatik.areas[0].children[0].modules...), informatik.areas[0].children[1].modules...)
 	for i, id := range compulsory {
@@ -358,16 +376,18 @@ Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></t
 	requirement := func(name string, semester int, credits float64, area string) {
 		entries = append(entries, catalogdb.PlanEntry{ModuleName: name, Semester: semester, StartSemester: semester, EndSemester: semester, Credits: credits, KindRaw: "Wahlpflicht", SubjectArea: area})
 	}
-	requirement("Nebenfach", 2, 6, "Grundstudium")
+	requirement("Anwendungsfach", 2, 6, "Grundstudium")
 	requirement("Proseminar oder Praktikum", 3, 6, "Grundstudium")
-	requirement("Nebenfach", 3, 6, "Grundstudium")
+	requirement("Modul aus dem Bereich Praktische Mathematik", 3, 6, "Grundstudium")
+	requirement("Anwendungsfach", 3, 6, "Grundstudium")
+	requirement("Fachübergreifendes Studium", 3, 6, "Grundstudium")
+	requirement("Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik", 4, 6, "Fachstudium")
 	requirement("Komplex Grundlagen der Informatik", 4, 12, "Fachstudium")
-	requirement("Nebenfach", 4, 6, "Grundstudium")
+	requirement("Anwendungsfach", 4, 6, "Grundstudium")
 	requirement("Komplex Praktische Informatik", 5, 12, "Fachstudium")
 	requirement("Komplex Angewandte und Technische Informatik", 5, 6, "Fachstudium")
 	requirement("Komplex Praktische Informatik", 6, 6, "Fachstudium")
 	requirement("Seminar oder Praktikum", 6, 6, "Fachstudium")
-	requirement("Wahlpflichtmodule Praktische Mathematik", 6, 6, "Fachstudium")
 	thesis := informatik.areas[1].modules[0]
 	entries = append(entries, catalogdb.PlanEntry{ModuleID: thesis, ModuleName: byID[thesis].title, Semester: 6, StartSemester: 6, EndSemester: 6, Credits: 12, KindRaw: "Abschlussarbeit"})
 	if err := db.SavePlan(catalogdb.Plan{ProgramID: "079-82-2008", SourceFile: "po.pdf", LayoutJSON: "{}", Entries: entries}); err != nil {
@@ -378,20 +398,21 @@ Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></t
 	// expect it (two plans of 180 LP, 30 LP in the first semester, rows that name no module).
 	elektrotechnik := fixtureProgram{name: "Elektrotechnik", stg: "042", abschl: "82", degree: "Bachelor (universitär)", pversion: "2022", po: "2022"}
 	etPool := func(from, n int) []string { return pool(from, n) }
+	// The tree as the real one reads: Grundstudium and Hauptstudium (phases, no headings), the
+	// electives of Informatik in a node below it that says nothing but its kind and direction.
 	elektrotechnik.areas = []fixtureArea{
 		{label: "Grundstudium", children: []fixtureArea{
 			{label: "Pflichtmodule Mathematik und Physik", modules: etPool(5, 12)},
 			{label: "Pflichtmodule Elektrotechnik", modules: etPool(105, 18)},
-		}},
-		{label: "Studienrichtungen", children: []fixtureArea{
-			{label: "Informatik (MIT)", modules: etPool(205, 8)},
-			{label: "Informatik (EET)", modules: etPool(305, 8)},
-			{label: "Studienrichtungsspezifische Vertiefungsmodule (MIT)", modules: etPool(405, 23)},
-			{label: "Studienrichtungsspezifische Vertiefungsmodule (EET)", modules: etPool(505, 20)},
+			{label: "Informatik (MIT)", children: []fixtureArea{{label: "Wahlpflichtmodul (MIT)", modules: etPool(205, 8)}}},
+			{label: "Informatik (EET)", children: []fixtureArea{{label: "Wahlpflichtmodul (EET)", modules: etPool(305, 8)}}},
 			{label: "Informatik (PAu)", modules: etPool(605, 6)},
 			{label: "Informatik (IoT)", modules: etPool(705, 6)},
 		}},
-		{label: "Bachelor-Arbeit", modules: etPool(805, 1)},
+		{label: "Hauptstudium", modules: etPool(805, 1), children: []fixtureArea{
+			{label: "Studienrichtungsspezifische Vertiefungsmodule (MIT)", modules: etPool(405, 23)},
+			{label: "Studienrichtungsspezifische Vertiefungsmodule (EET)", modules: etPool(505, 20)},
+		}},
 	}
 	programs = append(programs, elektrotechnik)
 	{
@@ -437,7 +458,7 @@ Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></t
 				etEntries = append(etEntries, catalogdb.PlanEntry{ModuleName: "Wahlpflichtmodule der Studienrichtung", Semester: semester, StartSemester: semester, EndSemester: semester, Credits: 18, KindRaw: "Wahlpflicht", StudySection: "Studienrichtung", Specialization: spec})
 				etEntries = append(etEntries, catalogdb.PlanEntry{ModuleName: "Wahlpflichtmodul aus der Informatik", Semester: semester, StartSemester: semester, EndSemester: semester, Credits: 6, KindRaw: "Wahlpflicht", StudySection: "Studienrichtung", Specialization: spec})
 			}
-			thesis := elektrotechnik.areas[2].modules[0]
+			thesis := elektrotechnik.areas[1].modules[0]
 			etEntries = append(etEntries, catalogdb.PlanEntry{ModuleID: thesis, ModuleName: byID[thesis].title, Semester: 6, StartSemester: 6, EndSemester: 6, Credits: 12, KindRaw: "Abschlussarbeit", Specialization: spec})
 			_ = v
 		}

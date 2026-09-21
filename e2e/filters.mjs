@@ -290,15 +290,34 @@ check(/Regelstudienplan sieht im 3\. Semester/.test(semester3.note) && /abgeleit
 check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by choosing a semester");
 await step("all semesters again", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("Alle")'), () => !location.search.includes("semester=") && !document.querySelector(".plan-note"));
 await step("area picker opens", () => page.click("#pick-area"), () => document.activeElement?.id === "pick-area-search" && document.querySelectorAll("#pick-area-list .combo-option").length > 3);
-// Only the areas a student chooses from are offered (the fixed complexes are not), under the
-// heading of the area above them, and named without „Wahlpflichtmodule".
+// Only the areas a student chooses from are offered (the fixed complexes are not), named without
+// „Wahlpflichtmodule", in sections (catalog::pages::catalog_areas): the own electives first,
+// without a heading, then the Nebenfach — never a phase of the studies or „Komplex" as a heading,
+// never a heading twice, never a heading over a single area.
 const areaNames = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option .combo-label")].map((el) => el.textContent).filter((name) => name !== "Alle Bereiche"));
-const areaGroups = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-group")].map((el) => el.textContent));
+const areaGroups = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-group:not(.combo-rule)")].map((el) => el.textContent));
+const areaSections = await page.evaluate(() => {
+  const sections = [{ heading: null, names: [] }];
+  for (const item of document.querySelectorAll("#pick-area-list li")) {
+    if (item.classList.contains("combo-group")) sections.push({ heading: item.textContent, names: [] });
+    else if (item.classList.contains("combo-option")) sections.at(-1).names.push(item.querySelector(".combo-label").textContent);
+  }
+  return sections.map((section) => ({ ...section, names: section.names.filter((name) => name !== "Alle Bereiche") }));
+});
 check(!areaNames.some((name) => /^Komplex (Informatik|Mathematik)$|^Fachstudium$/.test(name)) && areaNames.includes("Praktische Informatik") && areaNames.includes("Physik"), `area picker: offers ${areaNames.join(" | ")}`);
 check(!areaNames.some((name) => /wahlpflicht/i.test(name)) && areaNames.includes("Praktische Mathematik"), `area picker: a name still starts with „Wahlpflichtmodule“ (${areaNames.join(" | ")})`);
-check(areaGroups.includes("Komplex Nebenfach") && areaGroups.includes("Fachstudium"), `area picker: the headings are ${areaGroups.join(" | ")}`);
-// A heading once: the area above comes from the tree, not from the path („Maschinenbau / Elektrotechnik" is one area, not one below „Maschinenbau").
-check(new Set(areaGroups).size === areaGroups.length && !areaGroups.includes("Maschinenbau") && areaNames.includes("Maschinenbau / Elektrotechnik"), `area picker: a heading repeats or splits a name (${areaGroups.join(" | ")})`);
+check(areaGroups.join(" | ") === "Nebenfach", `area picker: the headings are ${areaGroups.join(" | ")}, not the Nebenfach alone`);
+check(areaSections[0].names.join(" | ") === "Proseminar oder Praktikum | Grundlagen der Informatik | Praktische Informatik | Angewandte und Technische Informatik | Seminar oder Praktikum aus der Informatik", `area picker: the own electives are ${areaSections[0].names.join(" | ")}`);
+check(areaSections[1]?.names.join(" | ") === "Praktische Mathematik | Mathematik | Physik | Maschinenbau / Elektrotechnik | Wirtschaftswissenschaften | Bauingenieurwesen", `area picker: the Nebenfach holds ${areaSections[1]?.names.join(" | ")}`);
+// A heading once: the sections come from the tree, not from the path („Maschinenbau / Elektrotechnik" is one area, not one below „Maschinenbau").
+check(new Set(areaGroups).size === areaGroups.length && !areaGroups.some((heading) => /^(Komplex |Grundstudium|Fachstudium|Maschinenbau$)/.test(heading)) && areaNames.includes("Maschinenbau / Elektrotechnik"), `area picker: a heading repeats, splits a name or only structures (${areaGroups.join(" | ")})`);
+check(areaSections.slice(1).every((section) => section.names.length >= 2), `area picker: a heading stands over a single area (${areaSections.map((section) => `${section.heading}: ${section.names.length}`).join(", ")})`);
+// Typing keeps each section together: a heading does not come twice in the results either.
+await page.fill("#pick-area-search", "mat");
+await page.waitForFunction(() => document.querySelectorAll("#pick-area-list .combo-option").length >= 2);
+const searchGroups = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-group:not(.combo-rule)")].map((el) => el.textContent));
+check(new Set(searchGroups).size === searchGroups.length, `area picker: while searching a heading comes twice (${searchGroups.join(" | ")})`);
+await page.fill("#pick-area-search", "");
 const areaName = areaNames.find((name) => name.split(" ").length >= 2);
 check(Boolean(areaName), "area picker: no elective area is offered");
 // An entry is the name and the number of modules, nothing else: the path of the tree pushed the names out.

@@ -44,8 +44,8 @@ pub fn is_single_module(entry: &PlanEntry) -> bool {
 
 /// A row that asks for a module of the Fachübergreifendes Studium: its modules are the
 /// program's FÜS list, not its tree. The plan says so by the kind, or only by the name („FÜS",
-/// „Fachübergreifendes Studium", „Modul aus dem FÜS-Katalog der BTU", „WPF FÜS"): 179 rows of
-/// the 2026-09-21 snapshot are stated Wahlpflicht and name the FÜS.
+/// „Fachübergreifendes Studium", „Modul aus dem FÜS-Katalog der BTU", „WPF FÜS"): in the plans of
+/// 2026-09-21, 112 rows say so only by their name.
 pub fn is_fues(entry: &PlanEntry) -> bool {
     let named = crate::search::fold(&entry.module_name)
         .split(|c: char| !c.is_alphanumeric())

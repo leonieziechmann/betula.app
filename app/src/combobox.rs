@@ -21,11 +21,12 @@ use leptos::web_sys;
 use crate::nav::{self, PopupPlace};
 use crate::ui::Icon;
 
-/// The ranked entries with each group together, so that no heading comes twice: the entries
-/// without a group first (the list's own, they have no heading to stand under), then the groups
-/// in the order of their best entry, each in the order of the ranking.
+/// The ranked entries with each group together, so that no heading comes twice: the groups in
+/// the order of their best entry (the entries without a group are one as well), each in the order
+/// of the ranking. Without a search the ranking is the order of the items, so the groups stand as
+/// they were given.
 fn grouped<'a>(ranked: &[usize], group: impl Fn(usize) -> &'a str) -> Vec<usize> {
-    let mut groups: Vec<(&str, Vec<usize>)> = vec![("", Vec::new())];
+    let mut groups: Vec<(&str, Vec<usize>)> = Vec::new();
     for &index in ranked {
         let name = group(index);
         match groups.iter_mut().find(|(known, _)| *known == name) {
@@ -286,14 +287,16 @@ pub fn Combobox(
                             (None, None) => entry.is_none(),
                             _ => false,
                         };
-                        let heading = item
-                            .as_ref()
-                            .map(|item| item.group.clone())
-                            .filter(|group| !group.is_empty() && *group != last_group)
-                            .map(|group| {
-                                last_group.clone_from(&group);
-                                view! { <li class="combo-group" role="presentation">{group}</li> }
-                            });
+                        // The entries without a group after a group's entries: a line, so that they
+                        // do not read as the group's.
+                        let heading = item.as_ref().map(|item| item.group.clone()).filter(|group| *group != last_group).map(|group| {
+                            last_group.clone_from(&group);
+                            if group.is_empty() {
+                                view! { <li class="combo-group combo-rule" role="presentation"></li> }.into_any()
+                            } else {
+                                view! { <li class="combo-group" role="presentation">{group}</li> }.into_any()
+                            }
+                        });
                         let (label, detail) = match item {
                             Some(item) => (item.label, item.detail),
                             None => (placeholder.to_string(), String::new()),
@@ -389,11 +392,14 @@ mod tests {
     use super::grouped;
 
     #[test]
-    fn a_heading_never_comes_twice_and_the_entries_without_one_come_first() {
+    fn a_heading_never_comes_twice_and_the_best_group_comes_first() {
         let groups = ["", "Nebenfach", "", "Nebenfach", "Informatik-Vertiefung"];
         let group = |index: usize| groups.get(index).copied().unwrap_or_default();
-        // Ranked by the search: a Nebenfach entry fits best, then one without a heading …
-        assert_eq!(grouped(&[3, 0, 4, 1, 2], group), vec![0, 2, 3, 1, 4]);
+        // Ranked by the search: a Nebenfach entry fits best, so the Nebenfach comes first, then
+        // the entries without a heading, then the rest.
+        assert_eq!(grouped(&[3, 0, 4, 1, 2], group), vec![3, 1, 0, 2, 4]);
+        // Without a search the order stays as given …
+        assert_eq!(grouped(&[0, 2, 1, 3, 4], group), vec![0, 2, 1, 3, 4]);
         // … and without groups the ranking stays as it is.
         assert_eq!(grouped(&[2, 0], |_| ""), vec![2, 0]);
     }
