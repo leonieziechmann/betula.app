@@ -4,9 +4,10 @@
 > and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`
 > and `folia-server` with the binary `folia`).
 
-> State: 2026-09-20. Every page is server-rendered and works without JavaScript; with
+> State: 2026-09-21. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
-> again. Not yet: the service worker of the PWA (the manifest and the icons exist), user data beyond the marked modules, context search.
+> again, and the app starts without a network (a service worker keeps its shell, IndexedDB the
+> catalog). Not yet: user data beyond the marked modules, context search.
 > Decisions and their evidence: `docs/frontend-phase0.md`.
 
 ## 1. Overview
@@ -22,18 +23,18 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, search), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
 | URL | Page |
 |---|---|
 | `/` | Landing page: every function with a link |
-| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
-| `/catalog?…&open=<id>` | The same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it |
+| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
+| `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it. The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — all of them are content, so they stand in the address, work without JavaScript and are part of the server's cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. On a phone `open` leads to the module's own page, as in the catalog |
+| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. The server renders an explanation, the same for everybody, `noindex` |
 | `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`), linked from the start page's sidebar. **Placeholders since 2026-09-21**: while `legal::PLACEHOLDER` is true they say so, list what is still owed and are `noindex`, and `deploy/ship.sh` refuses to ship an instance open to everybody (`FOLIA_ACCESS_GATE` not `on`). Before going public: the real texts (owner's name, address, contact; the privacy notice naming the edge's access log, the gate's cookie, what stays in the browser, the lecturers' names), `PLACEHOLDER = false`, and links from every page, not only the start page (§ 5 DDG: reachable at all times) |
@@ -77,13 +78,67 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     handler (the router turns the click into a navigation), work without JavaScript, carry
     `rel="nofollow"` and `data-noscroll`, and the space bar flips them like a checkbox.
     „One of a few" (list, plan semester, duration, years) is a segmented row of the same links.
-  - **Pickers** (`app/src/combobox.rs`: program, lecturers, department) have a search that
+  - **Pickers** (`app/src/combobox.rs`: program, area, lecturers, department) have a search that
     forgives typos and knows initials and abbreviations (`catalog::fuzzy`: „infomatik bsc"), arrow
     keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
-    opens in place. The module comment of the component lists what keeps it predictable (it is a
-    rewrite: the picker of the old frontend lost its mark to the mouse, closed the preview with
-    Esc and knew its selection by label). Without the app the same places hold a plain `select`
-    or text field inside a GET form, and hidden inputs carry what the links have set.
+    opens in place — and there nothing that moves the window closes it: the on-screen keyboard
+    that opens for the search field shrinks the window and scrolls the field into view, which
+    used to close the popup the moment it opened. The module comment of the component lists what
+    keeps it predictable (it is a rewrite: the picker of the old frontend lost its mark to the
+    mouse, closed the preview with Esc and knew its selection by label). Without the app the same
+    places hold a plain `select` or text field inside a GET form, and hidden inputs carry what
+    the links have set.
+  - **The areas of a program** („Bereich", with a program selected, curriculum only): of the
+    areas of its module tree (`pages::CatalogArea`, from `v_program_module_area`) only those a
+    student chooses from (owner, 2026-09-21: „eigentlich will man auch nur nach den Wahlpflicht­
+    modulen filtern, weil die anderen ja eh fix sind" — and not every node of the tree, no
+    „Grundstudium", „Fachstudium", „Komplex Informatik"). An area is fixed when every module the
+    tree places directly in it is known to be compulsory, the thesis or the internship, by what
+    the program's sources settle on for the module (`v_program_module.kind`: the plan, the module
+    page, the tree's own label); a module nobody says anything about counts as a choice (R12: not
+    known to be fixed is not fixed). Each entry is the area's name and how many modules it holds,
+    nothing else (the path of the tree beside the name had pushed the names into
+    „Wahlpflichtmod…"), the name without a leading „Wahlpflichtmodule" (`CatalogArea::name`: every
+    area offered is one to choose from), in **few, stable sections** (owner, 2026-09-21: never the
+    same heading twice, no node that only structures the tree as a heading; the plain `select`
+    uses `optgroup`). The rule, taken from the 179 real trees (`pages::catalog_areas`, numbers in
+    „The area picker and the plan's rows on the real data" below): the heading of an area is the
+    **highest node above it that names a field** — not a phase („Grundstudium", „Fachstudium",
+    „Hauptstudium"), not an account („Gesamtkonto …", „Total Account - …", „Module an der …",
+    „Modules at …") and not a label that says nothing but a kind („Pflichtmodule",
+    „Wahlpflichtmodule (KT)", „Compulsory Elective and Optional Modules"; `pages::is_structural`),
+    shown without a leading „Komplex" („Komplex Nebenfach" → „Nebenfach"; the trees say
+    „Nebenfach", „Anwendungen" or „Anwendungsbereiche", never „Anwendungsfach" — that word is the
+    plan's). One level of headings, however deep an area lies; a section of more than 12 areas
+    whose fields below hold them splits into those fields (Wirtschaftsingenieurwesen dual:
+    „Ingenieurwissenschaftlicher Schwerpunkt" → Produktionstechnik, Umwelttechnik …). A heading over
+    a single area is none, headings that read the same are one section, and the areas without a
+    heading — the program's own — come first, then the sections in the order of the tree. An area
+    whose label is only a kind takes the name of its field (Architektur: „Entwerfen", not five
+    times „Wahlpflichtmodule"), unless other areas stand under that field, then it keeps its label
+    there (Elektrotechnik M.Sc.: „Studienrichtung Kommunikationstechnik (KT)": „Wahlpflichtmodule
+    (KT)", „Zweite Fremdsprache"). Two areas that would read the same where they stand are told
+    apart by a node above them („Mathematik", „Mathematik (Anwendungen)"). For Informatik B.Sc.
+    that reads: Proseminar oder Praktikum, Grundlagen der Informatik, Praktische Informatik,
+    Angewandte und Technische Informatik, Seminar oder Praktikum aus der Informatik — then
+    „Nebenfach": Praktische Mathematik, Mathematik, Physik, Maschinenbau / Elektrotechnik,
+    Wirtschaftswissenschaften, Bauingenieurwesen. **Praktische Mathematik stands in the
+    Nebenfach** although the owner counted it among the own electives: the tree places it in the
+    Komplex Nebenfach, and nothing in the data tells it from the subjects beside it but its
+    label's „Wahlpflichtmodule", which Wirtschaftsmathematik's alternatives carry too (open
+    question for the owner, see below). The nodes above an area come from the tree itself
+    (`queries::program_area_tree`, every node of `program_area` with its `parent_id`), never from
+    splitting the path: a label may read „Maschinenbau / Elektrotechnik". The picker keeps each
+    section together while one types, too (`combobox::grouped`): the section of the best match
+    comes first, its heading with it; the areas without a heading are one section there as well,
+    set off by a line where they follow another. The full label and the path
+    still find an area when typed. An area filters to the modules the tree places in it or in
+    an area below it; that is how the elective modules of a program are listed, whatever the plan
+    says about their semester.
+  - **On a phone the panel is a sheet** from below, opened by the list's „Filter" button, and
+    closed the way a sheet is expected to close: dragged down at its head (it follows the finger
+    and is let go when pulled far or fast enough, else it slides back), with a tap on the page
+    behind it (dimmed while the sheet is open), with its button, or with Esc (`enhance.js`).
   - **Credits:** a slider with two knobs (0–30, the right end means „no upper limit") and the two
     exact numbers under it. The knobs cannot pass each other; the filter follows when a knob is
     let go.
@@ -196,6 +251,28 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   subject agree on. The sidebar says so, and programs without a clear answer have a section of
   their own („unknown stays unknown", R12). The 2026-09-19 snapshot: 106 by thesis, 34 by
   majority, 4 by subject, 4 without.
+- **The server's pages lay nothing beside themselves** (owner decision 2026-09-21: the server's
+  HTML is for crawlers, the browser app for people, and „die GET-Parameter sollen bei SSR nichts
+  fürs Seitenlayout machen"): `open`, `full`, `area` and `req` are the app's. The server renders
+  the catalog and a program's page as if they were not in the address (`CatalogPage` and
+  `ProgramPage` drop them where `APP` is false, `cache_key` too), and links pages of their own
+  where the app would open something beside the page: a row of the catalog's list and a module
+  of a program lead to `/catalog/module/<id>`, an area of a program to the catalog narrowed down
+  to it (`?program=<slug>&area=<id>`), a row of the plan that names no module is text. The app
+  keeps the preview, the panel beside the program and „Vollbild" in place, and turns a shared
+  address with these parameters into what it names.
+- **A module is shown where it was opened** (2026-09-21): on the desktop beside the list or the
+  page (`open=<id>`), and in full where „Vollbild" is asked for — the catalog's preview leads to
+  the module's own page (its area), the program's panel to `…&full=1` (the same page, rendered by
+  `ModuleFull` in place, so the programs tab, the history and „Zurück" stay what they were; before,
+  „Vollbild" out of a program switched to the catalog's address, and the back graph and the tabs
+  had to guess). On a phone nothing stands beside a page: what is tapped is the page, with one
+  tap and one history entry — a row of the catalog or of the marked modules leads to the
+  module's page; on a program's page a module, an area or a row of the plan becomes the page
+  (`Filling` in `app/src/pages/program.rs`), and „Zurück" leads to what it was picked from (a
+  module picked out of an area back to the area). No preview that then has to be opened in full,
+  no panel that unfolds under the page. Without the app the same HTML (the panel beside the
+  page) is shown as the page by the stylesheet (`.aside-picked`).
 - **The program page** (reworked 2026-09-20, second round; the first one was „unaufgeräumt"): the
   head is three lines that start on the same edge — where the visitor is („Zurück", the path),
   the name with the numbers of the program right of it on its baseline (Semester, LP, Module,
@@ -211,9 +288,18 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   title. The plan is drawn as its regulations print it — a row per module, a column per semester,
   the credits in the cell, modules over several semesters spanning their columns, the sums
   underneath — or as a list, semester after semester with its sum. Which of the two is personal:
-  `localStorage`, the switch is in the sidebar and needs JavaScript (R9, R15); server HTML is
-  always the matrix. Only what the plan puts into a single semester is added up in that
-  semester's column; a footnote says so where a plan has modules over several semesters.
+  `localStorage`, the switch is in the sidebar and needs JavaScript (R9, R15), and the matrix is
+  the app's default on a large screen. **The server's HTML and the phone always draw the list,
+  and offer nothing else** (owner, 2026-09-21: a phone has no room for the matrix, and a list is
+  what a search engine or any other reader of the HTML reads best); on a phone the switch is not
+  there. **The matrix never runs into itself and never scrolls sideways** (owner, 2026-09-21: at
+  1200 px „Art" lay over „Modul"): the names are at least 200 px wide, „Art" gives way before
+  them, and where the page is narrower than the names and the semesters the app draws the list —
+  the switch then shows the list, the matrix greyed out with a line saying why, and the choice
+  stays: with room (a wider window, a narrower panel) the matrix comes back (`matrix_min_width`,
+  the same numbers as `.matrix` in app.css). Only what the plan puts into a single semester is
+  added up in that semester's column; a footnote says so where a plan has modules over several
+  semesters.
   **The page has a panel on the right** (`ui::Frame`'s `aside`, as wide as the catalog's preview,
   same handle, same remembered width): a module clicked in any of the three views opens in it
   (`?open=<id>`, the same panel as in the catalog, so a module reads the same wherever it is
@@ -223,14 +309,42 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   closed); a row of the study plan that names no module of the catalog — most of them are
   requirements („Wahlpflichtmodule der Studienrichtung", „Wahlpflichtmodul aus der Informatik") —
   shows what the plan states about it and where the modules that can be chosen are listed
-  (`?req=<n>`, the row's place in the chosen plan). **No source links a row to an area**
-  (`area_rules` is prose about credits), so the name does the work and the panel says so: the
-  labels of the areas are scored against the row's name (a distinctive word counts, „Wahlpflicht­
-  modul" hardly), only the study directions the plan's caption names are kept („MIT und EET" →
-  never the areas of PA or IoT), a single best fit is shown with its modules, and where two fit
-  equally well both are named instead of one being picked (R12). A row the plan states as
-  Pflicht, Abschlussarbeit or Praktikum means one module, not a choice: it gets no area at all,
-  only the honest note that the catalog does not know it under this name and a search for it. And with nothing picked the panel holds the
+  (`?req=<n>`, the row's place in the chosen plan). All of this is the app's: the server's page
+  links the module's page and the catalog narrowed down to the area instead, and shows the row as
+  text (see „The server's pages lay nothing beside themselves"). **No source links a row to an area**
+  (`area_rules` is prose about credits), so the name does the work and the panel says so
+  (`catalog::plan::areas_for_row`, rewritten 2026-09-21 after the owner found „Komplex Praktische
+  Informatik" pointing at four areas, and checked the same day against all 1 059 rows of the real
+  plans that name no module): only areas a student chooses from come into question (a
+  requirement row never means the Pflichtmodule); the words that say what kind of thing a name is
+  („Komplex", „Wahlpflichtmodule", „WP"/„WPF", „Modul aus dem", „Compulsory Elective Modules",
+  articles) and what the plans print around a name (numbering „5 …", footnotes glued to a word
+  „Wirtschaftswissenschaften2", references „gem. Anlage a5", „Prü/SL") are dropped on both sides;
+  a plural reads as its singular, a roman number as its digit, and „Anwendungsfach",
+  „Anwendungen", „Anwendungsbereiche" as „Nebenfach". Then the same words as an area are that
+  area and no other („Komplex Praktische Informatik" → „Praktische Informatik"); a row that lists
+  areas by name means each of them („Wahlpflicht: Komplex Grundlagen der Informatik / Komplex
+  Praktische Informatik / Komplex Angewandte und Technische Informatik", „Schwerpunkt A oder
+  Schwerpunkt B", „„A“, „B“ oder „C“"); a name within an area's name or the other way round fits
+  next best and all that fit equally well are meant („Wahlpflichtmodul aus der Informatik" →
+  every „… Informatik" area to choose from); words in common count least, only where they are at
+  least half of the row's words and never by numbers (so a module „Physics of Modern Devices" is
+  not the area „Technology and Devices", „Schwerpunkt 1" not „Konstruktiver Ingenieurbau - 1"),
+  and are only named as also possible when they come near the best. A name that is a node above
+  the leaves means the leaves below it — except those another row of the same plan names on
+  their own („Anwendungsfach" → Mathematik, Physik, Maschinenbau / Elektrotechnik,
+  Wirtschaftswissenschaften, Bauingenieurwesen; Praktische Mathematik has its row „Modul aus dem
+  Bereich Praktische Mathematik"). An area whose label is only a kind is known by its field
+  („Wahlpflichtmodul (MIT)" is the list of „Informatik (MIT)"). Only the study directions the
+  plan's caption names are kept, by their short names or a shorter spelling of them („PA und
+  IoT" → PAu, IoT) or by the name the tree puts in front of one („Studienrichtung
+  „Umwelttechnik“" → „Umwelttechnik (UMT)"). A single best fit is shown with its modules, and
+  where several fit equally well all are named instead of one being picked (R12). A row the plan
+  states as Pflicht, Abschlussarbeit or Praktikum means one module, not a choice: it gets no area
+  at all, only the honest note that the catalog does not know it under this name and a search for
+  it; a row that names the FÜS by kind **or by name** („Fachübergreifendes Studium", „Modul aus
+  dem FÜS-Katalog der BTU" — 112 of them are stated Wahlpflicht) leads to the FÜS list
+  (`plan::is_fues`). And with nothing picked the panel holds the
   numbers of the view one is looking at — for the
   plan the chosen study direction with its semesters, credits and how much of it the catalog
   links, plus the credits per semester as bars; for the other views the areas and how the modules
@@ -252,7 +366,12 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 - **`assets/enhance.js`** (progressive enhancement until the browser app takes over): the plain
   fields of the filter form apply on change, panels keep their scroll position across page loads.
   In both modes: the shortcuts, the theme switch, the filter sheet, and the two resize handles. Page changes use
-  cross-document view transitions where the browser supports them.
+  cross-document view transitions where the browser supports them. Their opt-in
+  (`@view-transition`) is written inline into every head the server writes
+  (`app::VIEW_TRANSITION_STYLE`), not into app.css: Chromium decides when it first shows the new
+  page, from the style sheets applied by then, and the stylesheet (revalidated on every load) often
+  arrives after the parser has reached `<body>`. The page then came without the fade and with
+  "ViewTransition opt-in disabled" in the console (`e2e/gate.mjs` checks it with a slow stylesheet).
 - `design/prototype.html` is the clickable design prototype the direction was agreed on;
   `node e2e/shot.mjs <url> <out.png> [w] [h] [--dark]` takes review screenshots.
 
@@ -264,7 +383,11 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   loader of `catalog::pages` through `Source::run`; everything it shows comes from one snapshot.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
   request renders (5–100 ms) and later ones are a memory copy (2 ms), gzip included. A new
-  snapshot starts a new generation. ETag per generation → `304` without rendering.
+  snapshot starts a new generation. ETag per generation and build → `304` without rendering.
+  Pages are `public, no-cache`: the browser asks every time and mostly hears `304` (until
+  2026-09-21 they were `max-age=300, stale-while-revalidate=86400`, so after a deploy a browser
+  showed the old build's page with the new build's stylesheet for up to five minutes, and once
+  more after that; the server has only the files of its own build, whatever `?v=` asks for).
   `404`/`5xx` are `no-store`. Without a snapshot everything answers `503` + `Retry-After`.
 - **The browser app (owner decision: all queries run in the browser).** `assets/boot.js` opens
   the local copy of the snapshot (`/api/db`: 36.8 MB, 6.5 MB gzip; kept in IndexedDB with its ETag;
@@ -279,11 +402,139 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 - **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
   `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
   re-renders neither list nor filters, and a filter change leaves the preview alone.
-- **Endless list:** the list is a sequence of chunks, one per page of 50. The server renders the
-  page the URL names, with pager links (no JavaScript, search engines). In the browser app the
-  next chunk is appended when the visitor gets near the end, earlier ones are prepended on request
-  („Vorherige Module laden", scroll position kept), and `page` in the URL follows the chunk at the
-  top of the screen by replacing the history entry. A shared link with `page=7` starts there.
+- **The list is virtual** (`VirtualRows` in `app/src/pages/catalog.rs`, 2026-09-21; before,
+  chunks of 50 were appended and prepended, and a long scroll grew slow): an element as tall as
+  the whole list holds only the rows that are on screen and a few around them, each at its
+  offset, so the scrollbar has the length of the list from the start. Rows are measured once
+  rendered and estimated (at the average of the measured ones) until then; a row above what is
+  visible that turns out taller or shorter than estimated moves everything below it, so the list
+  scrolls by the difference and nothing jumps under the visitor's eyes. Pages of 50 are loaded
+  when their rows come near (one query, a few milliseconds) and dropped again when far. `page` in
+  the URL follows the row at the top of the screen (history entry replaced); a shared link with
+  `page=7` starts there, and coming back from a module the list centres on its row
+  (`queries::catalog_position`: the row's place in the ordered list, one window query, no pages
+  loaded before it). A filter change starts at the top: the list is rendered anew, but its panel
+  is the same element as before and keeps the scroll position, which the new list would otherwise
+  take for its own and write into the URL as its page (the first list of a visit is left as it
+  is: a page the browser restored). The server renders the page the URL names, with pager links (no JavaScript,
+  search engines). Inside a program the list is in plan order with the plan's semester at every
+  row; the headings between the semesters are gone (the semester filter is for that) — so the
+  elective modules, which the plan places in no semester, are simply the rows after the last
+  semester, and the area picker lists them by area.
+- **A semester lists what can be chosen for it, too** (`catalog::plan`, 2026-09-21): a plan
+  places the compulsory modules in semesters and asks for the rest with rows that name no module
+  („Wahlpflichtmodule der Informatik, 12 LP"), so „3. Semester" used to show two modules where
+  five are to be taken. Now `pages::catalog` reads the plan's requirement rows of the semester,
+  derives the areas their names point at (the same derivation the program page uses beside a row
+  of the plan: what the name and an area's label have in common, within the plan's study
+  direction) and fills them into the query: the list holds the modules the plan places in the
+  semester and, unplaced, the modules of those areas — or, where a row points at no area, every
+  elective the plan places nowhere. A note above the list says what the plan asks for, which
+  area each row was taken to mean (as links to the list narrowed down to it), and that this is
+  derived from names, never stated (R12). Rows stated as Pflicht, Abschlussarbeit or Praktikum
+  without a module are one module the catalog does not know under that name; FÜS rows point to
+  the program's FÜS list. The URL still says only the semester; the derived areas are part of the
+  query the page ran (`CatalogData::effective`), which the endless list loads further pages with.
+
+### From the program's page into the catalog (2026-09-21)
+
+Owner: the program's page and the catalog should work together, the way into the catalog first
+in the sidebar, with the right areas chosen. The first entry of the program's sidebar is
+„Im Modulkatalog" (`program::catalog_for`), and it takes along what is picked on the page: an
+area beside the page → the catalog narrowed down to that area; a row of the plan → the areas the
+row means, the same derivation as the row's panel (`plan::areas_for_row`; „Anwendungsfach" →
+`area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
+name of a single module, the program's electives where no area fits; nothing picked → the
+program. The second line of the link says what it lists („Praktische Informatik", „5 Bereiche",
+„109 Module"); the row's panel ends with the same link. The catalog's area filter takes several
+areas for that (`ProgramScope::areas`, any of them). The server's page picks nothing, so its link
+is the program's (no part of the cache key changes). `node e2e/programs.mjs` walks it.
+
+### Exam dates the BTU cannot mean (`catalog/src/exam_reading.rs`, 2026-09-21)
+
+Owner: Analysis I (11103) listed two exams „So 01:00–02:30, 27.12.2015" under WiSe 2026/27; the
+page should correct that by itself and say that the data is odd. The raw QIS page says exactly
+that (no time-zone bug of ours), but it is no typo: of 1,078 exam dates with a time in the
+snapshot, 289 lie outside 06:00–22:00, and all follow one of two patterns. **262 × 01:00–02:30**
+on a Sunday or without weekday is how QIS enters an exam without a fixed date („mündliche
+Prüfung, Termin nach Vereinbarung", „IKMZ e-Klausur"); 207 of them carry a date nine to eleven
+years before their semester (205 × 27.12.2015), 54 none. **27 × 23:45–24:00** is the day a term
+paper or take-home exam is due. The first idea, shifting by twelve hours, would have turned all
+289 into times nobody set. Owner decisions (2026-09-21, all four as recommended):
+
+- The placeholder shows no weekday and no time: „Zeit offen", or „Termin offen" when its date is
+  dropped as well — which it is where it lies outside the semester (±1 semester, by month: repeat
+  exams reach up to 170 days past the end, none lies before the start). A date is never invented.
+- A deadline reads „So bis 24:00", unmarked (it is a reading, not a doubt); the original is the
+  row's tooltip.
+- Anything else outside 06:00–22:00, an end before the start, or a date outside the semester keeps
+  the source's value and is only marked (none in the snapshot of 2026-09-21).
+- A marked row carries a line with the info icon: what QIS says where the row shows something
+  else („In QIS: So 01:00–02:30 · 27.12.2015"), else what is odd. One note under the list explains
+  the marks. Radix and the snapshot keep the entry as read (provenance names what was read); the
+  reading is data (`ExamReading { stated, shown, reasons }`), not a string, so a later output
+  (structured data, a calendar) can use the same one. The unmerged `seo-maxing` branch has its own
+  `when::is_placeholder` (Sunday only) and deadline test (end ≥ 24:00); on a merge one of the two
+  should call the other.
+
+### The area picker and the plan's rows on the real data (2026-09-21)
+
+The area picker and `areas_for_row` had been built against the synthetic snapshot only. Checked
+against the real one (export of 2026-09-20 23:21, 182 programs, 179 of them with a module tree,
+140 with a validated plan) with `catalog/examples/area_survey.rs`, which opens a snapshot and calls
+the crate's own functions — exactly what the app does — and prints every picker and every row:
+
+    cargo run -p folia-catalog --features native --example area_survey -- <catalog-*.db> [slug…]
+
+**Before** (heading = the node directly above, runs of equal headings, commit 42f004a): 10
+headings that came twice in one picker, 194 headings over a single area, 66 headings that only
+structure the tree („Grundstudium", „Gesamtkonto …", „Wahlpflichtmodule"). **After** (the rule in
+„The areas of a program" above): 0, 0 and 0. 111 pickers have no heading at all, 42 one, 25 two
+to seven, one (Umweltwissenschaften dual, six study directions twice) 13. Two pickers still show
+two entries that read the same where they stand, both from the source: Maschinenbau dual 2018 has
+two sibling nodes „Wahlpflichtmodule (STA)", Soziale Arbeit 2020 (double degree) two accounts that
+differ only three levels up.
+
+**Fixed or a choice** (`CatalogArea::choice`): of 1 614 areas with modules, 551 are fixed and not
+offered, 1 063 are offered: 597 hold a module known to be elective (or FÜS), 395 are offered only
+because no source gives any of their modules a kind — 16 programs have no kind in their whole tree
+(Architektur M.Sc., the Orientierungsstudium, Wirtschaftsingenieurwesen M.Sc. 2025 …) — and 71 hold
+nothing but fixed modules and one or more without a kind (Lehramt „Unterrichtsfach 1: Deutsch" 3
+Pflicht + 1 unknown, Elektrotechnik 2018 „Ingenieurtechnische Module" 16 + 5). No area with a known
+elective module is hidden. `stated_kind` along the path is already part of the module's kind (the
+tree's label, `v_program_module_area.kind`), and the module pages' remarks are one of the sources
+of `v_program_module.kind` (872 modules); nothing more is there to use without new sources. The
+rule stays as the owner set it (R12: not known to be fixed is not fixed); whether an area of
+mostly Pflicht with one unknown module should count as fixed is the owner's call (open).
+
+**Rows of the plans** that name no module (1 059, counted once per plan caption): 348 are stated
+Pflicht/Abschlussarbeit/Praktikum (one module), 152 name the FÜS (40 by their kind, 112 more by
+their name only). Of the other 559, **175 now point at one area, 56 at several** (all of them
+meant: a row listing areas, or two study directions of one plan) and 328 at none. Before: 166, 41
+and 464 (the FÜS rows among them). Of the 328 without an area most name a single module that is not
+linked („GT1-B 25102 Bau- und Stadtbaugeschichte 1", „Heritage Studies oder Heritage Studies
+(Online)") or say nothing but „Wahlpflichtmodul 3" — both rightly get none, the panel then points
+to every elective of the program. Checked by hand, the areas the rows now point at are right with
+few exceptions: „Wahlbereich Volkwirtschaftliche Grundlagen" (a typo in the plan) finds every
+„… Grundlagen" area of Wirtschaftsinformatik instead of „Volkswirtschaftliche Grundlagen", and
+double-degree plans whose areas lie in accounts are not found. The real labels are the tests'
+fixtures (`catalog/src/area_fixtures.rs`: Informatik B.Sc. and M.Sc., Elektrotechnik B.Sc. 2022
+with its study directions, Elektrotechnik M.Sc. 2018, Architektur, Wirtschaftsingenieurwesen
+dual), and the fixture generator (`internal/catalogbuild/folia_fixture_test.go`) builds its trees
+and the plan of Informatik in the same shapes, so the browser checks see what the real data has.
+
+Owner decisions and open questions (2026-09-21):
+- Decided by the owner: no fixed area in the picker; never a heading twice; no structural node as
+  a heading; for Informatik two sections, the own electives and the Anwendungs-/Nebenfach; a
+  data-driven rule, no special case for one program.
+- Taken as the default here, open to change: the heading is shown without „Komplex"; the areas
+  without a heading come first, whatever the tree order; 12 areas as the length at which a section
+  splits into its fields.
+- **Open:** Praktische Mathematik — the owner put it among the own electives, the tree puts it in
+  the Komplex Nebenfach, and the plan asks for it in a row of its own. The picker follows the tree;
+  the row „Anwendungsfach" leaves it out because of its own row. Moving it would need a rule the
+  data does not carry, or a curated exception.
+- **Open:** areas of Pflicht modules with a single module of unknown kind (71) — offered now.
 
 ### The landing page and the map of the programs (2026-09-20)
 
@@ -392,7 +643,11 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   every current program with its views; `robots.txt` names it. Addresses are absolute and use
   `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
 - The browser app removes the server's tags from the head when it takes over and writes its own,
-  so the head describes the page that is shown.
+  so the head describes the page that is shown. What is the same on every page (the stylesheet,
+  the preloaded font, the icons) is part of the document (`app::shell`) and never written by the
+  app: it mounts fresh instead of hydrating, so a `leptos_meta` tag in `App` lands in the head a
+  second time. Two copies of `app.css`, one from the service worker and one from the network,
+  once mixed an old sheet into a new one (2026-09-21); `home.mjs` and `pwa.mjs` count them.
 - **Link previews** (messengers, Slack, Discord, X): the card is the page's own title and
   description with a picture (1200 × 630, absolute address, with type, size and alt text); X
   gets its `twitter:` twins, because only with them the large card shows everywhere. A preview
@@ -421,7 +676,39 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   Messages), `/manifest.webmanifest` (name, colours, icons 192/512 and a maskable one) and
   `theme-color` (the page background; the head script and the theme switch turn it dark). The
   pictures are made from the mark's grids by `node design/logo/render-icons.mjs`. The manifest
-  makes the site installable; it does not make it work offline (no service worker yet).
+  makes the site installable; the service worker makes it start without a network.
+- **Offline (`app/assets/sw.js`, served as `/sw.js`, registered by `boot.js`; 2026-09-21):** the
+  worker keeps the shell of the app — a page of the site (the browser app renders whatever the
+  address names from the local catalog), the scripts, the styles, the bundle, the font, the icons,
+  the manifest — and nothing of the data: the catalog is in IndexedDB, where `boot.js` keeps it,
+  and `/api/*` is never intercepted. Pages come from the network first and are kept for the way
+  back (sixty of them); offline, the kept page, else the shell. Assets come from the cache first.
+  The server writes its build into the worker, so a new build installs a new worker, which caches
+  the new shell and drops the old one; the worker's own file is revalidated on every use like the
+  other assets. **A page and its files always come from one build** (2026-09-21): the document
+  links the stylesheet and the scripts with the build of the server that wrote it
+  (`/assets/app.css?v=<build>`, `app::BuildId`, the login page of closed testing too), `boot.js`
+  asks for the bundle and sql.js with the same `?v=`, and the worker keeps these files under
+  exactly these addresses. Before, the first load after a deploy was answered by the old worker:
+  the page from the network (new markup), the stylesheet, the scripts and the bundle from its
+  cache (old); only the next load was consistent. Now the new page asks for `?v=<new build>`,
+  which the old worker does not have, so the network answers. And a worker keeps only what its
+  own build answered: every answer of the server names its build in the header `x-build`, so the
+  old worker does not keep a page of the new build (offline it would show the new markup with
+  its old files: `deploy.mjs` caught exactly that), and kept pages are per build. Pages and the
+  files of an install are asked of the server (`cache: "no-cache"`), never taken from the
+  browser's HTTP cache, which may hold a page of an older build. The install skips only a file
+  the server does not have (a bundle not built yet, 404); no network, an error or an answer of
+  another build (the server moved on) fails it, and the worker in charge keeps its whole shell
+  until the next load tries again. The font, the icons and the manifest
+  keep plain addresses: they do not change with a build. The build is the version plus the
+  start time of the process, so a restart is a new build and a returning visitor loads the shell
+  once more, the bundle included. Assets stay `no-cache` with the build as ETag: the server
+  answers every `?v=` with the file it has, so such an address must not be cached as immutable.
+  `e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
+  `/api/status` unreachable offline and simply opens the copy it has. Once the app runs it says
+  nothing: the „Offline bereit" notice is gone (owner, 2026-09-21: „wenn es einfach
+  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
 `lastmod` per module (the snapshot has no date per module), English pages.
@@ -485,7 +772,10 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `<head>` has marked the document, which is before the first paint. What only the browser app
   can do (endless list, pickers) is rendered by the app alone or shown under `html.app`.
 - **R11. All SQL lives in `catalog/src/queries.rs`,** reads only `v_*` views, and every `pub fn`
-  there runs against a real snapshot in the tests (the build fails otherwise).
+  there runs against a real snapshot in the tests (the build fails otherwise). One exception, on
+  purpose: the nodes of the module tree (`queries::program_area_tree`) come from the table
+  `program_area`, because no view has the nodes that hold no module („Komplex Nebenfach") with
+  their `parent_id`; a view `v_program_area` needs a Radix migration and a new export (owed).
 - **R12. Unknown stays unknown:** `Option` in the row structs, „nicht angegeben" on the page.
   A code without a label is shown as it is (`labels::Code`), and the label test flags it.
 - **R20. What a visitor keeps stays with the visitor** (owner decision 2026-09-20: no data of a
@@ -540,11 +830,13 @@ Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /api/map.jso
 programs, with the snapshot's ETag), `GET /healthz` (200 while a snapshot is served and Radix was
 heard from; for an uptime monitor), `GET /livez` (200 while the process answers; for the container's
 healthcheck, which must not restart a server that still serves its last snapshot),
-`/assets/app.css`, `/assets/favicon.svg`,
+`/assets/app.css`, `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
 `/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/manifest.webmanifest`,
 `/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`, `/sitemap.xml`, and
-`GET`/`POST /access` (the login page of closed testing).
+`GET`/`POST /access` (the login page of closed testing). The stylesheet and the scripts answer
+under any `?v=<build>` as well (the page links them so, see Offline). Every answer carries the
+header `x-build` with the build of the process (version and start time, as in `/api/status`).
 
 ### Closed testing: the access gate (`server/src/access.rs`, 2026-09-21)
 
@@ -652,7 +944,19 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 cargo test
 ```
 
-needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one:
+needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one.
+Without a crawl, a synthetic one serves for development and for the browser checks below
+(`internal/catalogbuild/folia_fixture_test.go`: 1,200 modules with varied facets, 115 programs
+with trees, areas and degree labels, Informatik B.Sc. and Elektrotechnik B.Sc. with validated
+plans, a few events — numbers made up, nothing of it says anything about the BTU; the checks
+that compare pinned or real-data numbers fail on it, everything else runs):
+
+```bash
+BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteFoliaFixture -count=1
+./radix serve-snapshot --dir snapshot          # then cargo run -p folia-server as usual
+```
+
+What `cargo test` checks:
 
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
@@ -686,8 +990,10 @@ cd e2e && node spa.mjs
 ```
 
 drives the browser app in Edge: waits for the takeover, then opens a preview (the list must keep
-its scroll position), filters, closes with Esc, opens the full page, goes back, searches programs,
-and fails on any page load after the takeover or any console error.
+its scroll position), filters, closes with Esc, opens the full page, goes back, scrolls the
+virtual list (as long as the whole list from the start, a slice rendered, the last rows there at
+its end, `page` following, the length unchanged), searches programs, and fails on any page load
+after the takeover or any console error.
 
 ```bash
 cd e2e && node filters.mjs
@@ -698,9 +1004,14 @@ and keep the focus), rows of toggles filling the width, oversized hit areas, the
 aligned with the list, the program picker (typo, arrow keys against a resting mouse pointer, wrap
 around, Enter, focus back on the button, Esc closing only the picker, click outside, clear, no two
 entries alike), the lecturer picker, the slider (drag, keyboard, knobs not crossing, typed
-numbers), the panel's width (limits, `localStorage`, reset), the group header across the border
-of two pages, and the same panel without JavaScript (links keep the rest of the filter, the form
-keeps what the links set, nothing that needs JavaScript is visible).
+numbers), the panel's width (limits, `localStorage`, reset), the list of a program (plan order,
+the semester at every row, no headings, the second page reached by scrolling; a semester listing
+more than the plan places in it, with the note saying what the plan asks for and that it is
+derived) with the area picker (an elective area filters the list, the tag above it, the panel not
+rebuilt; only the areas to choose from, under the heading of the area above them, named without
+„Wahlpflichtmodule"), and the same panel without JavaScript (links keep the rest of the filter, the form keeps
+what the links set, nothing that needs JavaScript is visible, a shared address with `open` shows
+the plain list, a row leads to the module's page).
 
 ```bash
 cd e2e && node module.mjs
@@ -711,6 +1022,25 @@ filter panel was, the same order of sections in both, jumps without history entr
 for sidebar and filter panel, Esc back to the list with the row in view. Phone: a tap opens the
 page directly, the page starts with times and facts, back returns to the tapped row deep in the
 endless list, a shared preview link becomes the page.
+
+```bash
+cd e2e && node phone.mjs
+```
+
+drives the catalog on a phone: the filter sheet dragged down at its head (following the finger,
+snapping back after a short drag), a tap beside it closing it, the area picker staying open
+while the window shrinks (the on-screen keyboard) and filtering the list, and the virtual list
+with the window scrolling (the last rows at its end, the page keeping its height, no two rows
+overlapping, `page` following).
+
+```bash
+cd e2e && node pwa.mjs
+```
+
+installs the app with the network (the worker has the shell, the bundle included; no status
+pill once the app runs), then cuts the network and loads pages afresh: the catalog with a
+filter, a module page never seen before, the program page seen before, and a step inside the
+app out of the local catalog.
 
 ```bash
 cd e2e && node bookmarks.mjs
@@ -750,13 +1080,16 @@ in a sheet; and the filter links without JavaScript. On a program's page: the nu
 (and that none of them leaves its panel), one study plan per study direction (no module twice, the
 first semester at 30 LP, semester columns of equal width), switching the direction through the
 URL, a module opening beside the page (its row marked, the panel not lying over the table) and
-closing again, „Vollbild" and back to the program without a new history entry, Esc leaving the
-program instead of reopening the module, an area beside the page with its modules (and a module
-picked out of it coming back to the area), a requirement of the plan with its numbers and its
-ways on, the catalog's tab unchanged by a module seen in full screen out of a program, matrix and
-list with the choice remembered in this browser only, the areas as groups of rows
-with the sidebar leading to each of them without a history entry, all modules one line high with
-their area, and on a phone the matrix scrolling inside its panel while the page does not.
+closing again, „Vollbild" in place (`full=1`, the programs tab still current, the module's
+sidebar) and back to the program without a new history entry, Esc leaving the program instead of
+reopening the module, an area beside the page with its modules (and a module picked out of it
+coming back to the area), a requirement of the plan with its numbers and its ways on, the
+catalog's tab unchanged by a module seen in full screen out of a program, matrix and list with
+the choice remembered in this browser only, the areas as groups of rows with the sidebar leading
+to each of them without a history entry, all modules one line high with their area, and on a
+phone the plan as a list without a switch and a page that does not scroll sideways, a module becoming the page
+with one tap and one history entry and „Zurück" leading back, an area becoming the page and a
+module picked out of it leading back to the area.
 
 ```bash
 cd e2e && GATE_PASSWORD=… node gate.mjs http://127.0.0.1:8086
@@ -780,8 +1113,9 @@ follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
 
 ## 5. Not done yet
 
-- PWA: manifest, service worker (offline start), update prompt. User data beyond „Merken": passed
-  modules with the prerequisite check, „mein Studiengang". `wasm-opt` for the bundle.
+- PWA: an update prompt (the worker installs a new build silently; a page keeps the bundle it
+  started with). User data beyond „Merken": passed modules with the prerequisite check, „mein
+  Studiengang". `wasm-opt` for the bundle.
 - Phase 3: design system, weekly calendar, filter bottom sheet, search
   with context ranking (own concept, see `docs/frontend-phase0.md`).
 - Phase 4: CSP, CI. (Done 2026-09-21: Nix package and container, the Swarm stack

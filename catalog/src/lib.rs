@@ -9,11 +9,13 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod db;
+pub mod exam_reading;
 pub mod filter;
 pub mod fuzzy;
 pub mod graph;
 pub mod labels;
 pub mod pages;
+pub mod plan;
 pub mod queries;
 pub mod rows;
 pub mod rows_detail;
@@ -23,6 +25,8 @@ pub mod url;
 #[cfg(any(feature = "native", test))]
 pub mod native;
 
+#[cfg(test)]
+mod area_fixtures;
 #[cfg(test)]
 mod tests;
 

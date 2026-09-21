@@ -12,7 +12,7 @@ use crate::rows::{
     Semester,
 };
 use crate::rows_detail::{
-    AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
+    AreaNode, AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
     ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
 };
 
@@ -203,6 +203,29 @@ pub fn catalog_page(
     Ok(CatalogPage { total, offset, rows })
 }
 
+/// Where a module stands in the list a query orders (0-based), or `None` if it is not in it: the
+/// list scrolls to the row the visitor comes back to without loading every page before it.
+pub fn catalog_position(db: &dyn Database, query: &CatalogQuery, id: &str) -> Result<Option<u64>, DbError> {
+    let sql = query.to_sql();
+    let mut params = sql.params.clone();
+    params.push(Value::from(id));
+    let rows = db.query(
+        "catalog_position",
+        &format!(
+            "SELECT n FROM (SELECT f.module_id AS module_id, ROW_NUMBER() OVER (ORDER BY {}) AS n \
+             FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{}) WHERE module_id = ?",
+            query.order_terms(),
+            sql.joins,
+            sql.where_clause()
+        ),
+        &params,
+    )?;
+    Ok(match rows.rows.first().and_then(|row| row.first()) {
+        Some(Value::Integer(n)) if *n >= 1 => Some((*n - 1) as u64),
+        _ => None,
+    })
+}
+
 pub fn module(db: &dyn Database, id: &str) -> Result<Option<Module>, DbError> {
     fetch_optional(
         db,
@@ -376,9 +399,21 @@ pub fn program_areas(db: &dyn Database, program_id: &str) -> Result<Vec<AreaPlac
         db,
         "program_areas",
         "SELECT a.module_id, m.title AS module_title, m.credits AS module_credits, a.area_id, a.area, \
-         a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis \
-         FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id WHERE a.program_id = ? \
+         a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis, pm.kind AS module_kind \
+         FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id \
+         LEFT JOIN v_program_module pm ON pm.program_id = a.program_id AND pm.module_id = a.module_id \
+         WHERE a.program_id = ? \
          ORDER BY a.area_ord, a.area_id, m.title COLLATE NOCASE, a.module_id",
+        &[Value::from(program_id)],
+    )
+}
+
+/// Every node of the program's module tree in tree order, those without modules included.
+pub fn program_area_tree(db: &dyn Database, program_id: &str) -> Result<Vec<AreaNode>, DbError> {
+    fetch(
+        db,
+        "program_area_tree",
+        "SELECT id, parent_id, depth, label, stated_kind FROM program_area WHERE program_id = ? ORDER BY ord, id",
         &[Value::from(program_id)],
     )
 }

@@ -41,6 +41,7 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
 {
   const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog?program=bachelor-informatik-2008");
   await page.evaluate(() => { document.querySelector(".rows").scrollTop = 1200; });
+  await page.waitForTimeout(250); // the virtual list renders the rows of the new position on the next frame
   const id = await page.evaluate(() => { const rows = document.querySelector(".rows").getBoundingClientRect(); return [...document.querySelectorAll(".rows a.row")].find((r) => r.getBoundingClientRect().top > rows.top + 200).dataset.id; });
   await step("preview", () => page.click(`a.row[data-id="${id}"]`), () => Boolean(document.querySelector(".detail h2")));
   const previewOrder = await order(page, ".detail");
@@ -78,17 +79,48 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   await context.close();
 }
 
+// ---------- exam dates the BTU cannot mean (catalog/src/exam_reading.rs) ----------
+// Analysis I (11103) lists QIS's placeholder „So 01:00–02:30, 27.12.2015" twice; 12000 has a
+// deadline at 23:45–24:00. In the app's preview and in the server's page without JavaScript.
+{
+  const exams = (page) => page.evaluate(() => {
+    const section = document.querySelector("#pruefungstermine");
+    return section && {
+      when: [...section.querySelectorAll(".ev .when")].map((w) => [w.textContent, w.getAttribute("title")]),
+      odd: [...section.querySelectorAll(".ev .odd")].map((o) => o.textContent),
+      note: section.querySelector(".note")?.textContent ?? "",
+    };
+  });
+  const expect = (where, seen) => {
+    if (!seen) return problems.push(`exams (${where}): 11103 shows no exam dates`);
+    check(seen.when.every(([when]) => !when.includes("01:00")), `exams (${where}): the placeholder is shown as a time: ${JSON.stringify(seen.when)}`);
+    check(seen.odd.length === 0 || seen.note.includes("Platzhalter"), `exams (${where}): marked rows without the note: ${JSON.stringify(seen)}`);
+    check(seen.odd.some((line) => line.includes("In QIS: So 01:00–02:30 · 27.12.2015")) && seen.when.every(([when]) => when === "Termin offen"), `exams (${where}): 11103 does not read as „Termin offen" with the original beside it: ${JSON.stringify(seen)}`);
+  };
+  const { page, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog?q=analysis&open=11103");
+  await page.waitForSelector("#preview #pruefungstermine", { timeout: 8000 }).catch(() => {});
+  expect("preview", await exams(page));
+  await context.close();
+
+  const plain = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
+  const server = await plain.newPage();
+  await server.goto(base + "/catalog/module/11103");
+  expect("without JavaScript", await exams(server));
+  await server.goto(base + "/catalog/module/12000");
+  const deadline = await exams(server);
+  check(deadline?.when.some(([when, title]) => when === "So bis 24:00" && title === "In QIS: So 23:45–24:00") && deadline.odd.length === 0, `exams: the deadline of 12000 does not read „So bis 24:00", unmarked: ${JSON.stringify(deadline)}`);
+  await plain.close();
+}
+
 // ---------- phone ----------
 {
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
   const { page, step, context } = await open(phone, "/catalog");
-  // Deep in the endless list, so that coming back has something to prove.
-  for (let i = 0; i < 2; i++) {
-    const before = await page.evaluate(() => document.querySelectorAll(".rows a.row").length);
-    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
-    await page.waitForFunction((n) => document.querySelectorAll(".rows a.row").length > n, before, { timeout: 8000 }).catch(() => problems.push("phone: the list did not grow"));
-  }
-  const id = await page.evaluate(() => { const row = document.querySelectorAll(".rows a.row")[88]; row.scrollIntoView({ block: "center" }); return row.dataset.id; });
+  // Deep in the virtual list (the 89th row, on its second page), so that coming back has
+  // something to prove.
+  await page.evaluate(() => { const list = document.querySelector(".vlist"); scrollTo(0, list.getBoundingClientRect().top + scrollY + 88 * 88); });
+  await page.waitForFunction(() => document.querySelector('.vrow[data-i="88"] a.row'), null, { timeout: 8000 }).catch(() => problems.push("phone: the list did not render its 89th row"));
+  const id = await page.evaluate(() => { const row = document.querySelector('.vrow[data-i="88"] a.row'); row.scrollIntoView({ block: "center" }); return row.dataset.id; });
   await page.waitForTimeout(300);
   await step("phone: a tap opens the module's page", () => page.tap(`a.row[data-id="${id}"]`), (id) => location.pathname === `/catalog/module/${id}` && document.querySelector(".module-page h2"), id);
   check(!(await page.evaluate(() => location.search.includes("open="))), "phone: the preview was not skipped");

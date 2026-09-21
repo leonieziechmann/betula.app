@@ -45,6 +45,9 @@ await page.evaluate(() => { window.__marker = 1; });
 check(await page.evaluate(() => typeof window.betulaMap === "string" && window.betulaMap.length > 1000), "boot.js did not hand the map to the app");
 check(await page.evaluate(() => document.querySelectorAll("head meta[name=description]").length) === 1, "the head has not exactly one description after the takeover");
 check(await page.evaluate(() => document.querySelectorAll("head link[rel=canonical]").length) === 1, "the head has not exactly one canonical address after the takeover");
+// Two stylesheets could come from different places (the service worker, the network) and mix.
+check(await page.evaluate(() => document.querySelectorAll("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
+check(await page.evaluate(() => document.querySelectorAll("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
 check(await page.evaluate(() => /^alpha-/.test(document.querySelector(".kv .ver")?.textContent || "")), "the sidebar does not name Folia's version");
 // The first panel is flat: the figures stand beside the text, one under the other, and the ones
 // with several digits are about equally wide (the single digit only grows as large as three).

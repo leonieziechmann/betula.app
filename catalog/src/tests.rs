@@ -119,6 +119,9 @@ fn every_query_runs_against_the_snapshot() {
     assert_eq!(page.rows.len(), 50);
     let module = queries::module(&db, &page.rows[0].id).unwrap().expect("listed module has a page");
     assert_eq!(module.title, page.rows[0].title);
+    // The place of a row in the list is the place the page lists it at.
+    assert_eq!(queries::catalog_position(&db, &everything(), &page.rows[7].id).unwrap(), Some(7));
+    assert_eq!(queries::catalog_position(&db, &everything(), "00000").unwrap(), None);
     assert_eq!(queries::module(&db, "00000").unwrap(), None);
     queries::module_prerequisites(&db, &module.id).unwrap();
     assert!(!queries::search_suggestions(&db, "Algebra", 10).unwrap().is_empty());
@@ -150,6 +153,8 @@ fn every_query_runs_against_the_snapshot() {
     assert!(!queries::program_documents(&db, &id).unwrap().is_empty());
     let id = pick("SELECT program_id FROM v_program_module_area LIMIT 1");
     assert!(!queries::program_areas(&db, &id).unwrap().is_empty());
+    let tree = queries::program_area_tree(&db, &id).unwrap();
+    assert!(tree.iter().all(|node| node.parent_id.is_none_or(|parent| tree.iter().any(|above| above.id == parent))), "every parent is in the tree");
     let id = pick("SELECT program_id FROM v_program_plan LIMIT 1");
     assert!(queries::program_plan(&db, &id).unwrap().is_some_and(|plan| plan.layout_json.starts_with('{')));
     assert!(queries::program_department_counts(&db).unwrap().iter().any(|count| count.thesis_modules > 0));
@@ -180,7 +185,7 @@ fn catalog_filters_match_direct_sql() {
     let db = open();
     let program_id = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.").id;
     let scope = |relation, plan_semester, kinds: Vec<KindFilter>| {
-        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![] })
+        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![], areas: vec![], semester_areas: vec![], semester_electives: false })
     };
     let pm = format!("v_module_facets f JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = '{program_id}'");
 
@@ -356,6 +361,56 @@ fn catalog_filters_match_direct_sql() {
         assert_eq!(queries::catalog_count(&db, winter_exercise).unwrap(), 984);
         assert_eq!(queries::catalog_count(&db, &CatalogQuery::default()).unwrap(), 2781 + 451);
     }
+}
+
+/// A semester of a program lists what the plan places there and what can be chosen for the
+/// semester's requirement rows: the areas their names point at, else every unplaced elective.
+#[test]
+fn a_semester_lists_what_the_plan_asks_for() {
+    let db = open();
+    // Any program whose plan has a requirement row in a semester.
+    let found = db.query("test", "SELECT p.slug, e.semester FROM v_program_plan_entry e JOIN v_program p ON p.id = e.program_id WHERE e.module_id IS NULL AND e.semester IS NOT NULL ORDER BY p.slug, e.semester LIMIT 1", &[]).unwrap();
+    let Some(row) = found.rows.first() else {
+        eprintln!("note: no plan of the snapshot has a requirement row in a semester; nothing to check");
+        return;
+    };
+    let (slug, semester) = match row.as_slice() {
+        [Value::Text(slug), Value::Integer(semester)] => (slug.clone(), u8::try_from(*semester).unwrap()),
+        other => panic!("unexpected row {other:?}"),
+    };
+    let url = crate::url::CatalogUrl {
+        query: CatalogQuery {
+            program: Some(ProgramScope { program_slug: slug.clone(), plan_semester: Some(PlanSemesterFilter::Semester(semester)), ..Default::default() }),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let data = crate::pages::catalog(&db, &url).unwrap();
+    let plan = data.semester_plan.expect("the page says what the plan asks for");
+    assert_eq!(plan.semester, semester);
+    assert!(!plan.requirements.is_empty(), "the requirement row of the plan is part of it");
+    let scope = data.effective.program.as_ref().unwrap();
+    assert_eq!(scope.semester_areas, plan.area_ids());
+    assert_eq!(scope.semester_electives, plan.any_elective());
+    // The URL's query knows nothing of it; the page's does, and the total is that of the page's.
+    assert!(url.query.program.as_ref().unwrap().semester_areas.is_empty());
+    let program_id = queries::program_by_slug(&db, &slug).unwrap().unwrap().id;
+    let placed = scalar(&db, &format!("SELECT COUNT(*) FROM v_program_module pm WHERE pm.program_id = '{program_id}' AND pm.relation = 'curricular' AND pm.plan_semester = {semester}"));
+    let mut expected = format!("pm.plan_semester = {semester}");
+    if !scope.semester_areas.is_empty() {
+        let ids = scope.semester_areas.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",");
+        expected = format!("{expected} OR (pm.plan_semester IS NULL AND EXISTS (SELECT 1 FROM v_program_module_area a WHERE a.program_id = pm.program_id AND a.module_id = pm.module_id AND a.area_id IN ({ids})))");
+    }
+    if scope.semester_electives {
+        expected = format!("{expected} OR (pm.plan_semester IS NULL AND IFNULL(pm.kind, '') NOT IN ('compulsory', 'thesis', 'internship'))");
+    }
+    let total = scalar(&db, &format!("SELECT COUNT(*) FROM v_module_facets f JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = '{program_id}' AND pm.relation = 'curricular' WHERE ({expected})"));
+    assert_eq!(data.page.total as i64, total, "the list is what the plan asks for");
+    assert!(data.page.total as i64 >= placed, "at least what the plan places in the semester");
+    assert_eq!(queries::catalog_count(&db, &data.effective).unwrap(), data.page.total, "further pages come with the same query");
+    // The semesters the plan does not place anything in stay what they were.
+    let unstated = crate::url::CatalogUrl { query: CatalogQuery { program: Some(ProgramScope { program_slug: slug, plan_semester: Some(PlanSemesterFilter::Unstated), ..Default::default() }), ..Default::default() }, ..Default::default() };
+    assert!(crate::pages::catalog(&db, &unstated).unwrap().semester_plan.is_none());
 }
 
 #[test]
@@ -733,4 +788,81 @@ fn errors_are_reported_not_swallowed() {
 
     let missing = NativeDatabase::open(std::path::Path::new("no-such-snapshot.db"));
     assert!(matches!(missing, Err(DbError::Unavailable(_))));
+}
+
+/// Several areas list the modules of any of them: what a row of the plan that means several
+/// areas opens in the catalog („Anwendungsfach": the Nebenfächer).
+#[test]
+fn several_areas_list_the_modules_of_any_of_them() {
+    let db = open();
+    let program_id = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.").id;
+    let areas = crate::pages::catalog_areas(&queries::program_areas(&db, &program_id).unwrap(), &queries::program_area_tree(&db, &program_id).unwrap());
+    let physik = areas.iter().find(|area| area.label == "Physik").expect("Physik").id;
+    let mathe = areas.iter().find(|area| area.label == "Mathematik").expect("Mathematik").id;
+    let count = |ids: Vec<i64>| {
+        let query = CatalogQuery {
+            program: Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), areas: ids, ..Default::default() }),
+            offer: Some(OfferStatus::ALL.to_vec()),
+            ..Default::default()
+        };
+        queries::catalog_count(&db, &query).unwrap()
+    };
+    let (one, other, both) = (count(vec![physik]), count(vec![mathe]), count(vec![physik, mathe]));
+    let direct = scalar(
+        &db,
+        &format!("SELECT COUNT(DISTINCT module_id) FROM v_program_module_area WHERE program_id = '{program_id}' AND area_id IN ({physik}, {mathe})"),
+    ) as u64;
+    assert!(one > 0 && other > 0, "{one} {other}");
+    assert_eq!(both, direct, "the modules of either area, each once");
+    assert_eq!(count(vec![mathe, physik]), both);
+}
+
+/// How a page reads the exam dates of the whole snapshot (`exam_reading`): it never states a time
+/// or a date the source does not, and what lies outside 06:00–22:00 is either read (placeholder,
+/// deadline) or marked. The numbers go to stderr for the report; they move with the data.
+#[test]
+fn exam_readings_never_state_what_the_source_does_not() {
+    use crate::exam_reading::{self, Reason};
+    use std::collections::BTreeMap;
+
+    let db = open();
+    let semesters = queries::semesters(&db).unwrap();
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for id in column(&db, "SELECT DISTINCT module_id FROM v_module_exam") {
+        for date in queries::module_exams(&db, &id).unwrap() {
+            let semester = semesters.iter().find(|semester| semester.key == date.semester_key);
+            let reading = exam_reading::read(&date, semester);
+            let (stated, shown) = (&reading.stated, &reading.shown);
+            for (shown, stated) in [(&shown.start_time, &stated.start_time), (&shown.end_time, &stated.end_time), (&shown.first_date, &stated.first_date), (&shown.last_date, &stated.last_date)] {
+                assert!(shown.is_none() || shown == stated, "{id}: {reading:?}");
+            }
+            assert!(shown.weekday.is_none() || shown.weekday == stated.weekday, "{id}: {reading:?}");
+            assert_eq!(reading.reasons.is_empty(), shown == stated, "{id}: {reading:?}");
+
+            let minutes = |time: &Option<String>| time.as_deref().and_then(|t| Some(t.get(..2)?.parse::<i64>().ok()? * 60 + t.get(3..5)?.parse::<i64>().ok()?));
+            let outside = [minutes(&stated.start_time), minutes(&stated.end_time)].into_iter().flatten().any(|m| !(360..=1320).contains(&m));
+            if outside {
+                assert!(reading.has(Reason::PlaceholderTime) || reading.has(Reason::Deadline) || reading.has(Reason::UnusualTime), "{id}: {reading:?}");
+            }
+            if reading.has(Reason::PlaceholderTime) {
+                assert_eq!((&shown.start_time, &shown.end_time, shown.weekday), (&None, &None, None), "{id}");
+            }
+            *counts.entry(format!("{:?}", reading.reasons)).or_default() += 1;
+        }
+    }
+    eprintln!("exam readings by reasons (rows of v_module_exam, per module): {counts:#?}");
+
+    // Analysis I: two placeholders dated 27.12.2015 in the WiSe 2026/27, shown without either.
+    let semester = semesters.iter().find(|semester| semester.key == "2026W");
+    let analysis: Vec<_> = queries::module_exams(&db, "11103").unwrap().into_iter().filter(|date| date.semester_key == "2026W").collect();
+    if analysis.iter().any(|date| date.first_date.as_deref() == Some("2015-12-27")) {
+        for date in &analysis {
+            let reading = exam_reading::read(date, semester);
+            assert_eq!(reading.reasons, [Reason::PlaceholderTime, Reason::PlaceholderDate]);
+            assert_eq!(reading.shown, exam_reading::Slot::default());
+            assert_eq!(reading.stated.start_time.as_deref(), Some("01:00"));
+        }
+    } else {
+        eprintln!("note: 11103 no longer carries the 2015 placeholder; its reading is not asserted");
+    }
 }

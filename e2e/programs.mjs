@@ -5,8 +5,9 @@
 // faculty without a history entry → program page (views in the sidebar, „Zurück" and Esc lead back to the
 // program in the overview) → the rail's items are tabs that remember where their area was left → the
 // program page itself (head, one study plan per study direction, matrix or list, a module beside it
-// and the way back out of it, areas, all modules) → phone
-// (filters in a sheet) → the overview without JavaScript.
+// and the way back out of it, areas, all modules) → the plan at every window width (no column runs
+// into another, the list where the matrix has no room) → phone (filters in a sheet) → the overview
+// without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -187,11 +188,13 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
     variant: location.search.includes("variant=2"),
   }));
   check(picked.marked === 1 && picked.variant, `aside: ${picked.marked} rows are marked as open, the study direction was kept: ${picked.variant}`);
-  // The whole page and back: „Zurück" (and Esc) lead to the program the module was opened in,
-  // not to the catalog the module belongs to.
-  await step("the module as a whole page", () => page.click('#preview [data-action="fullscreen"]'), () => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page"));
+  // The whole page, in place: the address stays the program's (with `full=1`), so the area,
+  // its tab and the history do too; „Zurück" (and Esc) lead to the program with the module
+  // beside it again, and the page is the module's own page.
+  await step("the module as a whole page", () => page.click('#preview [data-action="fullscreen"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("full=1") && document.querySelector(".module-page h2") && document.getElementById("sidebar"));
+  check(await page.evaluate(() => document.querySelector('.rail a[data-area="programs"]')?.getAttribute("aria-current") === "page" && document.querySelector(".toc.jumps") !== null), "full page: the programs tab is not the current one, or the module's sidebar is missing");
   const entriesBefore = await page.evaluate(() => history.length);
-  await step("Zurück leads to the program", () => page.click('[data-action="back"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open="));
+  await step("Zurück leads to the program", () => page.click('[data-action="back"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && !location.search.includes("full=") && document.querySelector("table.matrix"));
   check((await page.evaluate(() => history.length)) === entriesBefore, "back from the module page added a history entry instead of walking back");
 
   await step("close it again", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("open=") && Boolean(document.querySelector("#preview .bars")));
@@ -276,26 +279,143 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await context.close();
 }
 
-// ---------- a program on a phone: the matrix scrolls, the page does not ----------
+// ---------- a row of the plan finds the area it names (Informatik B.Sc.) ----------
+{
+  const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/programs/bachelor-informatik-2008");
+  // The panel of the first row that reads exactly `name`: the area shown with its modules, and
+  // the areas named beside it.
+  const row = async (name) => {
+    await step(`plan row „${name}"`, () => page.evaluate((name) => [...document.querySelectorAll('table.matrix tbody a[data-walk="plan-row"]')].find((a) => a.textContent.replace(/\s+/g, " ").trim().startsWith(name + " ") || a.textContent.replace(/\s+/g, " ").trim() === name)?.click(), name), (name) => location.search.includes("req=") && document.querySelector("#preview .hero h2")?.textContent.trim() === name, name);
+    return page.evaluate(() => {
+      const sections = [...document.querySelectorAll("#preview .section")];
+      const labelled = (text) => sections.find((section) => section.querySelector(".label")?.textContent.startsWith(text));
+      return {
+        shown: [...(labelled("Vermutlich")?.querySelector(".label")?.childNodes ?? [])].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent).join("").trim(),
+        beside: [...(labelled("Passende Bereiche") ?? labelled("Kommt auch in Frage"))?.querySelectorAll(".pre b") ?? []].map((b) => b.textContent),
+        note: document.querySelector("#preview .note")?.textContent ?? "",
+      };
+    });
+  };
+  // Owner, 2026-09-21: „Komplex Praktische Informatik" is Praktische Informatik, and nothing else.
+  const praktisch = await row("Komplex Praktische Informatik");
+  check(praktisch.shown === "Vermutlich Praktische Informatik" && praktisch.beside.length === 0, `plan row: „Komplex Praktische Informatik" points at ${praktisch.shown} and ${praktisch.beside.join(" | ") || "nothing else"}`);
+  // „Anwendungsfach" is one of the Nebenfächer — not Praktische Mathematik, which has a row of its own.
+  const anwendung = await row("Anwendungsfach");
+  check([...anwendung.beside].sort().join(" | ") === "Bauingenieurwesen | Maschinenbau / Elektrotechnik | Mathematik | Physik | Wirtschaftswissenschaften", `plan row: „Anwendungsfach" points at ${anwendung.beside.join(" | ")}`);
+  // A row that lists three complexes means each of them.
+  const listed = await row("Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik");
+  check(listed.beside.join(" | ") === "Grundlagen der Informatik | Praktische Informatik | Angewandte und Technische Informatik", `plan row: the listing row points at ${listed.beside.join(" | ")}`);
+  // The way into the catalog is the first thing of the sidebar and takes along what is picked:
+  // the row „Anwendungsfach" opens the catalog with its five areas.
+  await row("Anwendungsfach");
+  const jump = await page.evaluate(() => {
+    const first = document.querySelector("#sidebar a, #sidebar button");
+    return { first: first?.textContent.replace(/\s+/g, " ").trim(), href: document.querySelector('#sidebar a[data-walk="catalog"]')?.getAttribute("href") };
+  });
+  check(jump.first?.startsWith("Im Modulkatalog"), `sidebar: the first entry is „${jump.first}", not the way into the catalog`);
+  const jumpAreas = new URL(jump.href ?? "/", base).searchParams.get("area")?.split(",") ?? [];
+  check(jumpAreas.length === 5 && new URL(jump.href, base).searchParams.get("program") === "bachelor-informatik-2008", `sidebar: the catalog link of „Anwendungsfach" is ${jump.href}`);
+  await step("into the catalog with the row's areas", () => page.click('#sidebar a[data-walk="catalog"]'), () => location.pathname === "/catalog" && document.querySelectorAll('.tag:has(em)').length >= 5 && document.querySelector("#pick-area")?.textContent.includes("5 Bereiche"));
+  const tags = await page.evaluate(() => [...document.querySelectorAll(".tag")].filter((tag) => tag.querySelector("em")?.textContent === "Bereich").map((tag) => tag.textContent.replace("Bereich", "").trim()).sort());
+  check(tags.join(" | ").includes("Physik") && tags.length === 5, `catalog: the areas of the row are ${tags.join(" | ")}`);
+  await step("back to the program", () => page.goBack(), () => location.pathname.startsWith("/programs/bachelor-informatik-2008") && location.search.includes("req="));
+  // The FÜS by its name: its list, no area.
+  const fues = await row("Fachübergreifendes Studium");
+  check(/Fachübergreifenden Studium/.test(fues.note) && !fues.shown.startsWith("Vermutlich") && fues.beside.length === 0, `plan row: the FÜS row reads „${fues.note.slice(0, 80)}" and points at ${fues.shown}`);
+  await context.close();
+}
+
+// ---------- the plan at every width: no column runs into another ----------
+// Owner, 2026-09-21: at 1200 px „Art" lay over „Modul" and the names stood a word to a line. The page
+// shares the window with the sidebar and the panel on the right: „Art" gives way where the names would
+// get narrower than 200 px, and where even that is not enough for the matrix, the plan is the list —
+// never a matrix that scrolls sideways; the switch says so, and with room the matrix comes back without
+// the choice being touched. At every width every cell keeps to its column, the semesters are equally
+// wide, and the credits of the list stand on one line with the sums of their semesters.
+{
+  const fits = (page, chosen, semesters) => page.evaluate(([chosen, semesters]) => {
+    const table = document.querySelector("table.matrix, table.planlist");
+    const panel = document.querySelector(".plan-block");
+    const scroll = panel.querySelector(".table-scroll");
+    // The names at their minimum and every semester (app.css, `matrix_min_width` in program.rs).
+    const room = panel.getBoundingClientRect().width + 1 >= 200 + semesters * Math.max(48, 144 / semesters);
+    const matrix = table.classList.contains("matrix");
+    const found = [];
+    if (matrix && scroll.scrollWidth > scroll.clientWidth + 1) found.push("the matrix scrolls sideways");
+    if (chosen === "matrix" && matrix !== room) found.push(room ? "the list is drawn although the matrix fits" : "the matrix is drawn without room for it");
+    const checked = document.querySelector('#sidebar .seg [aria-checked="true"]')?.textContent;
+    if (checked !== (matrix ? "Matrix" : "Liste")) found.push(`the switch says „${checked}"`);
+    const blocked = document.querySelector('#sidebar .seg button[aria-disabled="true"]')?.textContent;
+    if ((blocked === "Matrix") === room || Boolean(document.querySelector("#sidebar .seg + .hint")) === room) found.push(`the switch blocks „${blocked ?? "nothing"}" and ${room ? "says" : "does not say"} why`);
+    const pad = (cell, side) => parseFloat(getComputedStyle(cell)[side]) || 0;
+    for (const cell of table.querySelectorAll("th, td")) {
+      const box = cell.getBoundingClientRect();
+      // A column that gave way is 0 px wide; the heading of a group cuts its own text.
+      if (box.width < 1 || cell.closest("tr.group")) continue;
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      const out = [...range.getClientRects()].some((r) => r.width > 0 && (r.left < box.left + pad(cell, "paddingLeft") - 0.5 || r.right > box.right - pad(cell, "paddingRight") + 0.5));
+      if (out) found.push(`„${cell.textContent.trim().slice(0, 24)}" runs out of its column`);
+    }
+    const name = table.querySelector("thead .c-name").getBoundingClientRect().width;
+    if (name < 199.5) found.push(`the names are ${Math.round(name)} px wide`);
+    if (new Set([...table.querySelectorAll("thead th.c-sem")].map((th) => Math.round(th.getBoundingClientRect().width))).size > 1) found.push("the semesters are not equally wide");
+    if (new Set([...table.querySelectorAll("td.c-lp")].map((td) => Math.round(td.getBoundingClientRect().right))).size > 1) found.push("the credits do not stand on one line");
+    return found;
+  }, [chosen, semesters]);
+  // Six semesters in both drawings, and the matrices of two and of eight.
+  for (const [slug, semesters, shapes] of [["bachelor-informatik-2008", 6, ["matrix", "list"]], ["master-forensic-sciences-and-engineering-2011", 2, ["matrix"]], ["bachelor-pflegewissenschaft-2025-84", 8, ["matrix"]]]) {
+    const { page, context } = await open({ viewport: { width: 1800, height: 900 } }, `/programs/${slug}/plan`);
+    for (const shape of shapes) {
+      if (shape === "list") await page.click("#sidebar .seg button:nth-of-type(2)");
+      await page.waitForSelector(shape === "list" ? "table.planlist" : "table.matrix");
+      // From narrow to wide: the matrix has to come back by itself.
+      for (const width of [1000, 1100, 1200, 1250, 1300, 1350, 1400, 1450, 1500, 1600, 1800]) {
+        await page.setViewportSize({ width, height: 900 });
+        // The plan's panel is measured when the browser lays out the new width.
+        await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+        const found = await fits(page, shape, semesters);
+        check(found.length === 0, `plan (${slug}, ${shape}) at ${width} px: ${found.slice(0, 3).join("; ")}`);
+      }
+      if (shape === "matrix") check(await page.evaluate(() => localStorage.getItem("betula.plan.shape") === null), `plan (${slug}): a narrow window changed the chosen drawing`);
+    }
+    await context.close();
+  }
+}
+
+// ---------- a program on a phone: the plan is a list, the page does not scroll sideways ----------
 {
   const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "/programs/bachelor-elektrotechnik-2022");
   const phone = await page.evaluate(() => {
-    const scroll = document.querySelector(".plan-block .table-scroll");
     return {
       wide: document.documentElement.scrollWidth <= innerWidth + 1,
-      scrolls: scroll.scrollWidth > scroll.clientWidth,
+      list: Boolean(document.querySelector("table.planlist")) && !document.querySelector("table.matrix") && !document.querySelector('#sidebar [aria-label="Darstellung des Regelstudienplans"]'),
       views: document.querySelector("#sidebar .toc.views").getBoundingClientRect().top < document.querySelector(".prog-head").getBoundingClientRect().top,
       facts: [...document.querySelectorAll(".prog-facts .pfact")].every((f) => f.getBoundingClientRect().right <= innerWidth),
     };
   });
   check(phone.wide, "phone: the program page scrolls sideways");
-  check(phone.scrolls, "phone: the matrix does not scroll inside its panel");
+  check(phone.list, "phone: the plan is not the list, or a switch to the matrix is offered");
   check(phone.views, "phone: the views of the program are not above the page");
   check(phone.facts, "phone: a number of the head stands outside the screen");
-  // A module has no room beside the page here: it opens as its own page (as in the catalog).
+  // A module has no room beside the page here: one tap, and it is the page, in the program's
+  // area (the address keeps `open=`), and „Zurück" is the program again.
   // Clicked through the DOM: the sticky top bar covers the first rows on a phone.
-  await page.evaluate(() => document.querySelector('table.matrix tbody a[data-walk="module"]')?.click());
-  await page.waitForFunction(() => location.pathname.startsWith("/catalog/module/"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not open as its own page"));
+  const entries = await page.evaluate(() => history.length);
+  await page.evaluate(() => document.querySelector('table.planlist tbody a[data-walk="module"]')?.click());
+  await page.waitForFunction(() => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && document.querySelector(".module-page h2") && !document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not become the page"));
+  check((await page.evaluate(() => history.length)) === entries + 1, "phone: opening a module took more than one history entry");
+  await page.evaluate(() => document.querySelector('[data-action="back"]')?.click());
+  await page.waitForFunction(() => !location.search.includes("open=") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: Zurück did not lead back to the program"));
+  // An area, too, is the page on a phone, and a module picked from it leads back to it.
+  await page.evaluate(() => [...document.querySelectorAll("#sidebar .toc.views a")].find((a) => a.getAttribute("href")?.endsWith("/areas"))?.click());
+  await page.waitForFunction(() => location.pathname.endsWith("/areas") && document.querySelector('table.areas tr.group a[data-walk="area"]'), null, { timeout: 8000 }).catch(() => problems.push("phone: the areas did not open"));
+  await page.evaluate(() => document.querySelector('table.areas tr.group a[data-walk="area"]')?.click());
+  await page.waitForFunction(() => location.search.includes("area=") && document.querySelector("#preview .linklist .pre") && !document.querySelector("table.areas"), null, { timeout: 8000 }).catch(() => problems.push("phone: an area did not become the page"));
+  await page.evaluate(() => document.querySelector('#preview .linklist a[data-walk="module"]')?.click());
+  await page.waitForFunction(() => location.search.includes("area=") && location.search.includes("open=") && document.querySelector(".module-page h2"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module out of an area did not become the page"));
+  await page.evaluate(() => document.querySelector('[data-action="back"]')?.click());
+  await page.waitForFunction(() => location.search.includes("area=") && !location.search.includes("open=") && document.querySelector("#preview .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: Zurück from the module did not lead back to the area"));
   await context.close();
 }
 
@@ -324,6 +444,9 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await page.click('#sidebar a.chip:has-text("Doppelabschluss")');
   await page.waitForURL(/form=double/);
   check(page.url().includes("level=master") && (await page.locator(".program-pill").count()) < before, "no JS: a filter link lost the other filter, or did not filter");
+  // The server's page draws the plan as a list, and only as a list.
+  await page.goto(base + "/programs/bachelor-informatik-2008", { waitUntil: "domcontentloaded" });
+  check((await page.locator("table.planlist").count()) === 1 && (await page.locator("table.matrix").count()) === 0, "no JS: the server's plan is not the list");
   await context.close();
 }
 

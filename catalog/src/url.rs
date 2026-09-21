@@ -6,9 +6,10 @@
 //! `/bookmarks?…`                       the visitor's marked modules (`BookmarksUrl`); which ones
 //!                                      they are is never part of a URL, only how they are shown
 //! `/programs`                          program overview
-//! `/programs/<slug>[/plan|areas|modules][?variant=<n>][&open=<id>]`   program page, its tabs,
-//!                                      which of several study plans is shown and which module
-//!                                      stands beside it (`ProgramUrl`)
+//! `/programs/<slug>[/plan|areas|modules][?variant=<n>][&open=<id>][&full=1]`   program page, its
+//!                                      tabs, which of several study plans is shown, which module
+//!                                      stands beside it, and whether that module fills the page
+//!                                      (`ProgramUrl`)
 //!
 //! Most filters can also exclude: `exam=written&not-exam=presentation` lists modules with a
 //! written exam and without a presentation. A value that is both included and excluded counts
@@ -103,21 +104,27 @@ pub struct ProgramUrl {
     /// plan). Most of these rows are requirements the plan states without naming a module
     /// („Wahlpflichtmodule der Studienrichtung"), so they have nothing else to be named by.
     pub req: Option<usize>,
+    /// The module of `open` fills the page (`full=1`): the module's own page, shown inside the
+    /// program's area, so that „Vollbild" neither changes the area nor the tab. Nothing without
+    /// `open`.
+    pub full: bool,
 }
 
 impl ProgramUrl {
     pub fn new(slug: &str, tab: ProgramTab) -> Self {
-        Self { slug: slug.to_string(), tab, variant: 1, open: None, area: None, req: None }
+        Self { slug: slug.to_string(), tab, variant: 1, open: None, area: None, req: None, full: false }
     }
 
     pub fn parse(slug: &str, tab: ProgramTab, raw_query: &str) -> Self {
         let pairs = parse_pairs(raw_query);
         let first = |name: &str| pairs.iter().find(|(key, _)| key == name).map(|(_, value)| value.trim().to_string());
+        let open = first("open").filter(|id| is_module_id(id));
         Self {
             slug: slug.to_string(),
             tab,
             variant: first("variant").and_then(|value| value.parse::<usize>().ok()).filter(|n| (1..=MAX_PLAN_VARIANTS).contains(n)).unwrap_or(1),
-            open: first("open").filter(|id| id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')),
+            full: open.is_some() && first("full").as_deref() == Some("1"),
+            open,
             area: first("area").and_then(|value| value.parse::<i64>().ok()).filter(|id| *id > 0),
             req: first("req").and_then(|value| value.parse::<usize>().ok()).filter(|n| (1..=MAX_PLAN_ROWS).contains(n)),
         }
@@ -137,6 +144,9 @@ impl ProgramUrl {
         }
         if let Some(id) = &self.open {
             out.push(format!("open={}", encode(id)));
+            if self.full {
+                out.push("full=1".to_string());
+            }
         }
         match out.is_empty() {
             true => String::new(),
@@ -148,19 +158,25 @@ impl ProgramUrl {
         format!("{}{}", program_path(&self.slug, self.tab), self.query())
     }
 
-    /// The same page with this module beside it, or (`None`) without it.
+    /// The same page with this module beside it, or (`None`) without it. Beside it, not filling
+    /// it: what fills the page is asked for with `with_full`.
     pub fn with_open(&self, id: Option<&str>) -> Self {
-        Self { open: id.map(str::to_string), ..self.clone() }
+        Self { open: id.map(str::to_string), full: false, ..self.clone() }
+    }
+
+    /// The module beside the page fills it (`true`), or stands beside it again (`false`).
+    pub fn with_full(&self, full: bool) -> Self {
+        Self { full: full && self.open.is_some(), ..self.clone() }
     }
 
     /// The same page with this area beside it; what was shown so far makes way for it.
     pub fn with_area(&self, id: Option<i64>) -> Self {
-        Self { area: id, open: None, req: None, ..self.clone() }
+        Self { area: id, open: None, req: None, full: false, ..self.clone() }
     }
 
     /// The same page with this row of the study plan beside it.
     pub fn with_req(&self, row: Option<usize>) -> Self {
-        Self { req: row, open: None, area: None, ..self.clone() }
+        Self { req: row, open: None, area: None, full: false, ..self.clone() }
     }
 
     pub fn with_variant(&self, variant: usize) -> Self {
@@ -434,6 +450,9 @@ impl BookmarksUrl {
 /// How many modules one catalog page lists.
 pub const PAGE_SIZE: u64 = 50;
 
+/// How many areas one address may name (`area=12,7`): a row of the plan means at most a handful.
+pub const MAX_AREAS: usize = 20;
+
 /// What a catalog URL says: the filter and the page (1-based).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CatalogUrl {
@@ -537,6 +556,18 @@ impl CatalogUrl {
                 },
                 kinds_exclude: without(kinds_of("not-kind"), &kinds),
                 kinds,
+                areas: {
+                    let mut areas: Vec<i64> = Vec::new();
+                    for id in codes("area").iter().filter_map(|value| value.parse::<i64>().ok()).filter(|id| *id > 0) {
+                        if !areas.contains(&id) && areas.len() < MAX_AREAS {
+                            areas.push(id);
+                        }
+                    }
+                    areas
+                },
+                // Derived by the page loader, never read from an address.
+                semester_areas: Vec::new(),
+                semester_electives: false,
             }
         });
 
@@ -633,6 +664,9 @@ impl CatalogUrl {
                 Some(PlanSemesterFilter::Semester(n)) => out.push(("semester", n.to_string())),
                 Some(PlanSemesterFilter::Unstated) => out.push(("semester", "none".to_string())),
                 None => {}
+            }
+            if !scope.areas.is_empty() {
+                out.push(("area", scope.areas.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",")));
             }
             for (name, kinds) in [("kind", &scope.kinds), ("not-kind", &scope.kinds_exclude)] {
                 if !kinds.is_empty() {
@@ -858,6 +892,9 @@ mod tests {
                     plan_semester: Some(PlanSemesterFilter::Semester(3)),
                     kinds: vec![KindFilter::Stated(ModuleKind::Elective), KindFilter::Unstated],
                     kinds_exclude: vec![KindFilter::Stated(ModuleKind::Thesis)],
+                    areas: vec![17],
+                    semester_areas: Vec::new(),
+                    semester_electives: false,
                 }),
                 lecturers_include: vec!["Köhler, Ekkehard".into()],
                 lecturers_exclude: vec!["Meer, Klaus".into(), "Wachsmuth, Gerd".into()],
@@ -898,7 +935,7 @@ mod tests {
         let text = url.to_query_string();
         assert_eq!(
             text,
-            "q=Lineare+Algebra+%26+%C3%96kologie&program=bachelor-informatik-2008&list=fues&semester=3&kind=elective,none\
+            "q=Lineare+Algebra+%26+%C3%96kologie&program=bachelor-informatik-2008&list=fues&semester=3&area=17&kind=elective,none\
              &not-kind=thesis&lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
              &turnus=winter,irregular&not-turnus=summer&years=odd&form=lecture,exercise&not-form=seminar&duration=2&limited=no\
              &fues=only&exam=mca,oral&not-exam=presentation&graded=yes&status=all&ects_min=5&ects_max=7.5\
@@ -929,9 +966,14 @@ mod tests {
 
     #[test]
     fn nonsense_is_ignored_not_an_error() {
-        let url = CatalogUrl::parse("form=yoga,lecture,lecture&kind=compulsory&semester=99&page=-3&sort=random&%ZZ=1&=&&graded=maybe&ects_min=NaN");
+        let url = CatalogUrl::parse("form=yoga,lecture,lecture&kind=compulsory&semester=99&area=3&page=-3&sort=random&%ZZ=1&=&&graded=maybe&ects_min=NaN");
         assert_eq!(url.query.teaching_forms, vec![TeachingForm::Lecture]);
-        assert_eq!(url.query.program, None, "kind and semester mean nothing without a program");
+        assert_eq!(url.query.program, None, "kind, semester and area mean nothing without a program");
+        assert_eq!(CatalogUrl::parse("program=x&area=-3").query.program.map(|scope| scope.areas), Some(Vec::new()));
+        assert_eq!(CatalogUrl::parse("program=x&area=12").path(), "/catalog?program=x&area=12");
+        // Several areas, as a row of the plan means them; each once, in the order given.
+        assert_eq!(CatalogUrl::parse("program=x&area=12,7,x,12,-1").query.program.map(|scope| scope.areas), Some(vec![12, 7]));
+        assert_eq!(CatalogUrl::parse("program=x&area=12,7").path(), "/catalog?program=x&area=12,7");
         assert_eq!((url.page, url.query.sort, url.query.graded, url.query.credits_min), (1, SortKey::Default, None, None));
         assert_eq!(url.to_query_string(), "form=lecture");
     }
@@ -980,6 +1022,15 @@ mod tests {
         assert_eq!(plan.query(), "?variant=2&req=7");
         assert_eq!(plan.with_area(Some(3)).query(), "?variant=2&area=3");
         assert_eq!(plan.with_open(Some("11101")).query(), "?variant=2&req=7&open=11101");
+        // The module fills the page: only with a module, and beside the page again with `with_open`.
+        let full = ProgramUrl::parse("x", ProgramTab::Areas, "area=12&open=11101&full=1");
+        assert!(full.full);
+        assert_eq!(full.query(), "?area=12&open=11101&full=1");
+        assert_eq!(full.with_open(Some("11101")).query(), "?area=12&open=11101");
+        assert_eq!(full.with_open(None).query(), "?area=12");
+        assert_eq!(areas.with_full(true).query(), "?area=12&open=11101&full=1");
+        assert!(!ProgramUrl::parse("x", ProgramTab::Plan, "full=1").full);
+        assert!(!ProgramUrl::parse("x", ProgramTab::Plan, "open=11101&full=yes").full);
         assert_eq!(ProgramUrl::parse("x", ProgramTab::Plan, "req=0").req, None);
         assert_eq!(program.with_open(None).with_variant(1).path(), "/programs/bachelor-elektrotechnik-2022/plan");
         assert_eq!(ProgramUrl::parse("x", ProgramTab::Plan, "variant=0").variant, 1);

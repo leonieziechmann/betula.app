@@ -1,82 +1,133 @@
-//! Browser-only helpers: the endless list learns where the visitor is, pickers place their
-//! popups and move the focus. On the server (and before the browser app has taken over) all of
-//! them do nothing.
+//! Browser-only helpers: the virtual list learns where the visitor is and how tall its rows
+//! are, pickers place their popups and move the focus. On the server (and before the browser app
+//! has taken over) all of them do nothing.
 
-/// Where the visitor is in a list whose pages each start with a `[data-page]` row.
-pub struct ListPosition {
-    /// The page of the chunk at the top of what is visible.
-    pub page: Option<u64>,
-    /// Close enough to the end that the next chunk should be there before it is reached.
-    pub near_end: bool,
-}
-
-/// Reads the position from the DOM. The list scrolls inside its panel on the desktop and with
-/// the window on a phone; both are handled. `None` on the server or if the list is not there.
+/// What is visible of a virtual list: the offset of the top of the visible part within the
+/// list's content (`content_id`, the element that holds the rows), and the height of the visible
+/// part. The list scrolls inside its panel on the desktop and with the window on a phone. `None`
+/// on the server or if the list is not there.
 #[allow(unused_variables)]
-pub fn list_position(rows_id: &str) -> Option<ListPosition> {
+pub fn list_viewport(rows_id: &str, content_id: &str) -> Option<(f32, f32)> {
     #[cfg(feature = "csr")]
     {
-        use wasm_bindgen::JsCast;
         let window = web_sys::window()?;
         let document = window.document()?;
-        let rows = document.get_element_by_id(rows_id)?;
-        let own_scroll = rows.scroll_height() > rows.client_height() + 4;
-
-        let line = if own_scroll { rows.get_bounding_client_rect().top() + 60.0 } else { 140.0 };
-        // The page on screen is the last one that starts above the line.
-        let starts = rows.query_selector_all("[data-page]").ok()?;
-        let mut page = None;
-        for i in 0..starts.length() {
-            let Some(start) = starts.item(i).and_then(|node| node.dyn_into::<web_sys::Element>().ok()) else { continue };
-            if page.is_some() && start.get_bounding_client_rect().top() > line {
-                break;
-            }
-            page = start.get_attribute("data-page").and_then(|n| n.parse().ok());
+        let content = document.get_element_by_id(content_id)?.get_bounding_client_rect();
+        if is_phone() {
+            let height = window.inner_height().ok()?.as_f64()? as f32;
+            return Some(((-content.top() as f32).max(0.0), height));
         }
-
-        let near_end = if own_scroll {
-            f64::from(rows.scroll_height() - rows.scroll_top() - rows.client_height()) < 900.0
-        } else {
-            let root = document.document_element()?;
-            let viewport = window.inner_height().ok()?.as_f64()?;
-            f64::from(root.scroll_height()) - viewport - window.scroll_y().ok()? < 1200.0
-        };
-        Some(ListPosition { page, near_end })
+        let rows = document.get_element_by_id(rows_id)?;
+        let top = rows.get_bounding_client_rect().top() as f32;
+        Some(((top - content.top() as f32).max(0.0), rows.client_height() as f32))
     }
     #[cfg(not(feature = "csr"))]
     None
 }
 
-/// The height of the list's content, to be handed to `keep_position_after_prepend`.
+/// Puts the list at its start: the panel at the top, or (a phone) the window at the top of the page.
 #[allow(unused_variables)]
-pub fn list_height(rows_id: &str) -> f64 {
+pub fn scroll_list_to_start(rows_id: &str) {
     #[cfg(feature = "csr")]
     {
-        let rows = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(rows_id));
-        rows.map(|rows| f64::from(rows.scroll_height())).unwrap_or(0.0)
+        let Some(window) = web_sys::window() else { return };
+        if is_phone() {
+            let options = web_sys::ScrollToOptions::new();
+            options.set_top(0.0);
+            options.set_behavior(web_sys::ScrollBehavior::Instant);
+            window.scroll_to_with_scroll_to_options(&options);
+        } else if let Some(rows) = window.document().and_then(|d| d.get_element_by_id(rows_id)) {
+            rows.set_scroll_top(0);
+        }
     }
-    #[cfg(not(feature = "csr"))]
-    0.0
 }
 
-/// After rows were added above: move the scroll position by what was added, so that what the
-/// visitor was looking at stays where it was.
+/// Scrolls the list so that `offset` (within its content) is at the top of the visible part.
 #[allow(unused_variables)]
-pub fn keep_position_after_prepend(rows_id: &'static str, height_before: f64) {
+pub fn scroll_list_to(rows_id: &str, content_id: &str, offset: f32) {
+    if let Some((now, _)) = list_viewport(rows_id, content_id) {
+        scroll_list_by(rows_id, offset - now);
+    }
+}
+
+/// Scrolls the list by `by` pixels, at once (no smooth scrolling: what is compensated must not be seen).
+#[allow(unused_variables)]
+pub fn scroll_list_by(rows_id: &str, by: f32) {
     #[cfg(feature = "csr")]
-    leptos::prelude::request_animation_frame(move || {
+    {
         let Some(window) = web_sys::window() else { return };
-        let Some(rows) = window.document().and_then(|d| d.get_element_by_id(rows_id)) else { return };
-        let added = f64::from(rows.scroll_height()) - height_before;
-        if added <= 0.0 {
-            return;
+        if is_phone() {
+            let options = web_sys::ScrollToOptions::new();
+            options.set_top(f64::from(by));
+            options.set_behavior(web_sys::ScrollBehavior::Instant);
+            window.scroll_by_with_scroll_to_options(&options);
+        } else if let Some(rows) = window.document().and_then(|d| d.get_element_by_id(rows_id)) {
+            rows.set_scroll_top(rows.scroll_top() + by.round() as i32);
         }
-        if rows.scroll_height() > rows.client_height() + 4 {
-            rows.set_scroll_top(rows.scroll_top() + added as i32);
-        } else {
-            window.scroll_by_with_x_and_y(0.0, added);
-        }
-    });
+    }
+}
+
+/// The rendered rows of a virtual list (`[data-i]` children of `content_id`) with their heights.
+#[allow(unused_variables)]
+pub fn measure_rows(content_id: &str) -> Vec<(usize, f32)> {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let Some(content) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(content_id)) else { return Vec::new() };
+        let Ok(rows) = content.query_selector_all("[data-i]") else { return Vec::new() };
+        (0..rows.length())
+            .filter_map(|i| rows.item(i).and_then(|node| node.dyn_into::<web_sys::HtmlElement>().ok()))
+            .filter_map(|row| Some((row.get_attribute("data-i")?.parse().ok()?, row.offset_height() as f32)))
+            .collect()
+    }
+    #[cfg(not(feature = "csr"))]
+    Vec::new()
+}
+
+/// A `ResizeObserver` on one element; dropping it stops the watching. Wrapped so that a cleanup
+/// (which has to be `Send`) can hold it: the browser app has one thread.
+#[cfg(feature = "csr")]
+pub struct SizeWatch {
+    observer: web_sys::ResizeObserver,
+    _callback: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::js_sys::Array)>,
+}
+
+#[cfg(feature = "csr")]
+impl Drop for SizeWatch {
+    fn drop(&mut self) {
+        self.observer.disconnect();
+    }
+}
+
+#[cfg(not(feature = "csr"))]
+pub struct SizeWatch;
+
+/// Calls `on_change` whenever the element's size changes (the panel is dragged, the window
+/// changes, the preview opens). `None` on the server or without the element.
+#[allow(unused_variables)]
+pub fn watch_size(id: &str, on_change: impl Fn() + 'static) -> Option<send_wrapper::SendWrapper<SizeWatch>> {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let element = web_sys::window()?.document()?.get_element_by_id(id)?;
+        let callback = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::js_sys::Array)>::new(move |_entries| on_change());
+        let observer = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()).ok()?;
+        observer.observe(&element);
+        Some(send_wrapper::SendWrapper::new(SizeWatch { observer, _callback: callback }))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// How wide the element is on the screen, in CSS pixels. `None` on the server or without it.
+#[allow(unused_variables)]
+pub fn width_of(id: &str) -> Option<f64> {
+    #[cfg(feature = "csr")]
+    {
+        Some(web_sys::window()?.document()?.get_element_by_id(id)?.get_bounding_client_rect().width())
+    }
+    #[cfg(not(feature = "csr"))]
+    None
 }
 
 /// Where the popup of a picker goes (fixed to the window, so no panel clips it): under its

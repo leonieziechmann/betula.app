@@ -1,8 +1,20 @@
 // Starts the browser app: opens the local copy of the catalog (sql.js, cached in IndexedDB by
 // the snapshot's ETag), loads the WASM bundle and lets it take the page over. Until then, and
 // whenever anything here fails, the server-rendered site keeps working as it is.
+//
+// The service worker (`/sw.js`) keeps the shell of the app — the page, the scripts, the styles,
+// the bundle — so that the app starts without a network as well: the catalog itself is here in
+// IndexedDB, and the worker never touches it.
 const DB_NAME = "betula-catalog";
 const STORE = "snapshots";
+// The build of the page, as it linked this script (`?v=<build>`, `app::BuildId`). The bundle and
+// sql.js are asked for with it too, so they come from the same build as the page and its
+// stylesheet: a service worker of another build has nothing under these addresses.
+const BUILD = new URL(import.meta.url).search;
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch((error) => console.info("[catalog] no service worker:", error));
+}
 
 let statusState = null;
 function status(text, state) {
@@ -94,12 +106,11 @@ async function openDatabase() {
     // Work with the copy we have; fetch the new one in the background for the next start.
     download(0)
       .then((bytes) => idbPut("current", { etag: server.etag, bytes }))
-      .then(() => status("Neue Daten geladen · beim nächsten Start aktiv", "ok"))
       .catch((error) => console.warn("[catalog] update failed", error));
   }
 
-  await loadScript("/assets/sql-wasm.js");
-  const SQL = await window.initSqlJs({ locateFile: (file) => "/assets/" + file });
+  await loadScript("/assets/sql-wasm.js" + BUILD);
+  const SQL = await window.initSqlJs({ locateFile: (file) => "/assets/" + file + BUILD });
   const db = new SQL.Database(current.bytes);
   window.betulaDb = {
     etag: current.etag,
@@ -135,7 +146,7 @@ async function loadProgramMap() {
 
 try {
   const [app, , programMap] = await Promise.all([
-    import("/pkg/folia_client.js").then(async (module) => { await module.default("/pkg/folia_client_bg.wasm"); return module; }),
+    import("/pkg/folia_client.js" + BUILD).then(async (module) => { await module.default("/pkg/folia_client_bg.wasm" + BUILD); return module; }),
     openDatabase(),
     loadProgramMap(),
   ]);
@@ -143,8 +154,8 @@ try {
   window.__betulaApp = true;
   document.documentElement.classList.add("app");
   app.start();
-  status("Offline bereit", "ok");
-  setTimeout(() => { if (statusState && statusState.text === "Offline bereit") status(""); }, 4000);
+  // Once the app runs there is nothing to say: it simply works.
+  status("");
 } catch (error) {
   // Not fatal: the site stays a classic website.
   console.info("[catalog] browser app not started:", error);

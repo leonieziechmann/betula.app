@@ -21,6 +21,22 @@ use leptos::web_sys;
 use crate::nav::{self, PopupPlace};
 use crate::ui::Icon;
 
+/// The ranked entries with each group together, so that no heading comes twice: the groups in
+/// the order of their best entry (the entries without a group are one as well), each in the order
+/// of the ranking. Without a search the ranking is the order of the items, so the groups stand as
+/// they were given.
+fn grouped<'a>(ranked: &[usize], group: impl Fn(usize) -> &'a str) -> Vec<usize> {
+    let mut groups: Vec<(&str, Vec<usize>)> = Vec::new();
+    for &index in ranked {
+        let name = group(index);
+        match groups.iter_mut().find(|(known, _)| *known == name) {
+            Some((_, members)) => members.push(index),
+            None => groups.push((name, vec![index])),
+        }
+    }
+    groups.into_iter().flat_map(|(_, members)| members).collect()
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComboItem {
     pub id: String,
@@ -29,13 +45,27 @@ pub struct ComboItem {
     pub detail: String,
     /// Lifts an entry above others that match the search equally well.
     pub bonus: i64,
+    /// A heading the entry stands under; entries of one group follow each other. Empty: none.
+    pub group: String,
     search: String,
 }
 
 impl ComboItem {
     pub fn new(id: impl Into<String>, label: impl Into<String>, detail: impl Into<String>, bonus: i64) -> Self {
         let (label, detail) = (label.into(), detail.into());
-        Self { id: id.into(), search: format!("{label} {detail}"), label, detail, bonus }
+        Self { id: id.into(), search: format!("{label} {detail}"), label, detail, bonus, group: String::new() }
+    }
+
+    /// The heading the entry stands under.
+    pub fn in_group(mut self, group: impl Into<String>) -> Self {
+        self.group = group.into();
+        self
+    }
+
+    /// Words the entry is found by as well, without being shown (where it sits in a tree).
+    pub fn also_found_by(mut self, words: &str) -> Self {
+        self.search = format!("{} {words}", self.search);
+        self
     }
 }
 
@@ -59,6 +89,9 @@ pub fn Combobox(
     #[prop(into)] items: Signal<Vec<ComboItem>>,
     /// The id of the selected entry.
     #[prop(into)] selected: Signal<Option<String>>,
+    /// What the button says when no single entry is selected but more than nothing is („5
+    /// Bereiche"); clearable like a selection.
+    #[prop(optional, into)] summary: Option<Signal<Option<String>>>,
     /// The id of the picked entry; `None` when the selection was cleared.
     #[prop(into)] on_select: Callback<Option<String>>,
     #[prop(optional)] icon: Option<&'static str>,
@@ -87,15 +120,16 @@ pub fn Combobox(
             if clearable && text.trim().is_empty() {
                 rows.push(None);
             }
-            rows.extend(fuzzy::rank(&text, items.iter().map(|item| (item.search.as_str(), item.bonus))).into_iter().map(Some));
+            let ranked = fuzzy::rank(&text, items.iter().map(|item| (item.search.as_str(), item.bonus)));
+            rows.extend(grouped(&ranked, |index| items.get(index).map(|item| item.group.as_str()).unwrap_or_default()).into_iter().map(Some));
             rows
         })
     });
     let shown = move || rows.with(|rows| rows.len().min(MAX_SHOWN));
 
     let current = Memo::new(move |_| {
-        let id = selected.get()?;
-        items.with(|items| items.iter().find(|item| item.id == id).map(|item| (item.label.clone(), item.detail.clone())))
+        let picked = selected.get().and_then(|id| items.with(|items| items.iter().find(|item| item.id == id).map(|item| (item.label.clone(), item.detail.clone()))));
+        picked.or_else(|| summary.and_then(|summary| summary.get()).map(|text| (text, String::new())))
     });
 
     let show = {
@@ -150,16 +184,23 @@ pub fn Combobox(
     // Whatever moves the popup's anchor closes it: the panel scrolls, the window changes size.
     // A scroll event arrives a frame after the scrolling, possibly after a click that opened the
     // popup in the meantime, so what counts is whether the button has really moved since then.
+    // On a phone the popup is not anchored but in place, so neither matters there — and there
+    // the keyboard that opens for the search field changes the size of the window and scrolls
+    // the field into view, which used to close the popup the moment it opened.
     if let Some(ClosePopups(signal)) = use_context::<ClosePopups>() {
         Effect::new(move |_| {
             signal.track();
-            if open.get_untracked() && nav::popup_place(id, min_width) != place.get_untracked() {
+            if open.get_untracked() && !nav::is_phone() && nav::popup_place(id, min_width) != place.get_untracked() {
                 hide(false);
             }
         });
     }
     Effect::new(move |_| {
-        let handle = window_event_listener(leptos::ev::resize, move |_| hide(false));
+        let handle = window_event_listener(leptos::ev::resize, move |_| {
+            if !nav::is_phone() {
+                hide(false);
+            }
+        });
         on_cleanup(move || handle.remove());
     });
 
@@ -235,6 +276,9 @@ pub fn Combobox(
             let entries = move || {
                 let rows = rows.get();
                 let hidden = rows.len().saturating_sub(MAX_SHOWN);
+                // A heading where the entries of another group begin (`grouped` keeps each group
+                // together: what fits best comes first, its group's heading with it).
+                let mut last_group = String::new();
                 let entries = rows
                     .into_iter()
                     .take(MAX_SHOWN)
@@ -246,11 +290,22 @@ pub fn Combobox(
                             (None, None) => entry.is_none(),
                             _ => false,
                         };
+                        // The entries without a group after a group's entries: a line, so that they
+                        // do not read as the group's.
+                        let heading = item.as_ref().map(|item| item.group.clone()).filter(|group| *group != last_group).map(|group| {
+                            last_group.clone_from(&group);
+                            if group.is_empty() {
+                                view! { <li class="combo-group combo-rule" role="presentation"></li> }.into_any()
+                            } else {
+                                view! { <li class="combo-group" role="presentation">{group}</li> }.into_any()
+                            }
+                        });
                         let (label, detail) = match item {
                             Some(item) => (item.label, item.detail),
                             None => (placeholder.to_string(), String::new()),
                         };
                         view! {
+                            {heading}
                             <li
                                 class="combo-option"
                                 role="option"
@@ -332,5 +387,23 @@ pub fn Combobox(
             })}
             {popup}
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::grouped;
+
+    #[test]
+    fn a_heading_never_comes_twice_and_the_best_group_comes_first() {
+        let groups = ["", "Nebenfach", "", "Nebenfach", "Informatik-Vertiefung"];
+        let group = |index: usize| groups.get(index).copied().unwrap_or_default();
+        // Ranked by the search: a Nebenfach entry fits best, so the Nebenfach comes first, then
+        // the entries without a heading, then the rest.
+        assert_eq!(grouped(&[3, 0, 4, 1, 2], group), vec![3, 1, 0, 2, 4]);
+        // Without a search the order stays as given …
+        assert_eq!(grouped(&[0, 2, 1, 3, 4], group), vec![0, 2, 1, 3, 4]);
+        // … and without groups the ranking stays as it is.
+        assert_eq!(grouped(&[2, 0], |_| ""), vec![2, 0]);
     }
 }

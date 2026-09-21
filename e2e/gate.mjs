@@ -72,17 +72,24 @@ check(await page.getAttribute("#password", "aria-invalid") === "true", "the fiel
 check(await page.inputValue("input[name=next]") === wanted, "a wrong password lost the way back");
 check((await context.cookies()).length === 0, "a wrong password set a cookie");
 await layout("after a wrong password");
-// The page came with the stylesheet's view transition (.16s). Nobody types a password that fast,
-// but this script would: leaving a page in the middle of its transition is an error in the console.
-await page.waitForTimeout(400);
 // The refusal is a 401, which the browser notes in its console; nothing else may be there.
 check(errors.every((text) => text.includes("401")), `errors on the login page: ${errors.join(" | ")}`);
 refused.length = 0;
 errors.length = 0;
 
-// The right one: on to the wanted page, and the browser app takes over behind the gate.
+// The right one: on to the wanted page, with the fade between the pages, and the browser app takes
+// over behind the gate. The stylesheet answers late here, as over a real network (its 304 comes
+// after the parser has reached <body>): the page must still come with its transition, which it
+// only does when the opt-in is in the head itself (app::VIEW_TRANSITION_STYLE). Without, Chromium
+// drops it and says "ViewTransition opt-in disabled" in the console.
+await context.addInitScript(() => addEventListener("pagereveal", (event) => { window.__revealedWithTransition = !!event.viewTransition; }));
+await context.route((url) => url.pathname === "/assets/app.css", async (route) => { await new Promise((resolve) => setTimeout(resolve, 150)); await route.continue(); });
 await page.fill("#password", password);
 await Promise.all([page.waitForURL((url) => url.pathname === "/catalog"), page.click(".gate-panel .button")]);
+await page.waitForFunction(() => window.__revealedWithTransition !== undefined);
+check(await page.evaluate(() => window.__revealedWithTransition), "the page after the login came without the fade");
+// (Waits for what is still held back: the service worker fetches the stylesheet too.)
+await context.unrouteAll({ behavior: "wait" });
 check(page.url() === base + wanted, `the login led to ${page.url()}`);
 const [cookie] = await context.cookies();
 check(cookie?.name === "betula_access" && cookie.httpOnly && cookie.sameSite === "Lax", `the cookie is not what it should be: ${JSON.stringify(cookie)}`);

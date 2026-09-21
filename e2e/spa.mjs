@@ -1,8 +1,8 @@
 // Checks the browser app: after it has taken over, nothing loads a page again.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node spa.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Walks: catalog → preview (floats, list keeps its width) → resize by dragging → filter → Esc →
-// preview → F (full page) → Esc (back) → endless list (URL follows the position) → arrow keys and
-// Enter → programs search.
+// preview → F (full page) → Esc (back) → virtual list (the scrollbar has the whole length, only a
+// slice is rendered, the URL follows the position) → arrow keys and Enter → programs search.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -14,11 +14,11 @@ const timings = {};
 page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 300)); });
 page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
 
-const step = async (name, action, until) => {
+const step = async (name, action, until, arg = null) => {
   const started = Date.now();
   await action();
   try {
-    await page.waitForFunction(until, null, { timeout: 8000 });
+    await page.waitForFunction(until, arg, { timeout: 8000 });
   } catch {
     problems.push(`${name}: did not happen (${page.url()})`);
   }
@@ -71,14 +71,22 @@ await step("F opens the full page", () => page.keyboard.press("f"), () => locati
 if (!(await page.evaluate(() => [...document.querySelectorAll(".module-page .hero-top kbd")].some((k) => k.textContent === "Esc")))) problems.push("the module page does not show the shortcut Esc");
 await step("Esc goes back to the list", () => page.keyboard.press("Escape"), () => location.pathname === "/catalog" && location.search.includes("open=") && document.querySelector(".rows"));
 await step("Esc closes the preview", () => page.keyboard.press("Escape"), () => !location.search.includes("open="));
-// Endless list: scrolling to the end loads the next page, and `page` in the URL follows.
-await step("reset the filters", () => page.click('#filters a:has-text("Zurücksetzen")'), () => location.pathname === "/catalog" && !location.search.includes("turnus") && document.querySelectorAll(".rows a.row").length === 50);
+// The virtual list: as long as the whole list from the start, only what is on screen rendered,
+// the last rows there as soon as the list is scrolled to its end, and `page` in the URL follows.
+await step("reset the filters", () => page.click('#filters a:has-text("Zurücksetzen")'), () => location.pathname === "/catalog" && !location.search.includes("turnus") && document.querySelectorAll(".rows a.row").length > 10);
+const total = await page.evaluate(() => Number(document.querySelector(".count").textContent.replace(/\D/g, "")));
 const rowCount = () => page.evaluate(() => document.querySelectorAll(".rows a.row").length);
-const firstRows = await rowCount();
-await step("scrolling loads more", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = rows.scrollHeight; }), () => document.querySelectorAll(".rows a.row").length > 50);
-if ((await rowCount()) <= firstRows) problems.push(`endless list: still ${await rowCount()} rows`);
-await step("the URL follows the position", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = rows.scrollHeight; }), () => /[?&]page=[23]\b/.test(location.search));
-await step("and back to the top", () => page.evaluate(() => { document.querySelector(".rows").scrollTop = 0; }), () => !/[?&]page=/.test(location.search));
+const lastRendered = () => page.evaluate(() => Math.max(-1, ...[...document.querySelectorAll(".vrow")].map((row) => Number(row.dataset.i))));
+const listHeight = () => page.evaluate(() => document.querySelector(".rows").scrollHeight);
+const heightAtStart = await listHeight();
+if ((await rowCount()) >= total || (await rowCount()) > 60) problems.push(`virtual list: ${await rowCount()} of ${total} rows are rendered`);
+if (heightAtStart < total * 40) problems.push(`virtual list: the list is ${heightAtStart}px tall for ${total} rows`);
+await step("scrolling to the end renders the last rows", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = rows.scrollHeight; }), (total) => Math.max(-1, ...[...document.querySelectorAll(".vrow")].map((row) => Number(row.dataset.i))) === total - 1, total);
+if ((await rowCount()) > 60) problems.push(`virtual list: ${await rowCount()} rows rendered at the end of the list`);
+await step("the URL follows the position", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = rows.scrollHeight; }), (last) => new RegExp(`[?&]page=${last}\\b`).test(location.search), Math.ceil(total / 50));
+const heightAtEnd = await listHeight();
+if (Math.abs(heightAtEnd - heightAtStart) > heightAtStart * 0.05) problems.push(`virtual list: the scrollbar changed its length from ${heightAtStart}px to ${heightAtEnd}px`);
+await step("and back to the top", () => page.evaluate(() => { document.querySelector(".rows").scrollTop = 0; }), () => !/[?&]page=/.test(location.search) && document.querySelector('.vrow[data-i="0"]'));
 const historyBefore = await page.evaluate(() => history.length);
 
 // Keyboard: click a row, two rows down with the arrow keys, Enter opens that one.
