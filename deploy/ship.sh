@@ -8,8 +8,8 @@
 #
 # What happens, in this order:
 #   1. The release is the commit HEAD (git archive), not the working tree: what runs on the server
-#      can be looked up in git. Its tag is <date of the commit>-<short hash>, so shipping the same
-#      commit twice changes nothing.
+#      can be looked up in git. Its tag is <date>-<short hash> of the last commit that changed what
+#      the images are built from, so shipping the same sources twice changes nothing.
 #   2. nix build .#radix-image .#folia-image (flake.nix). A release whose images are on the server
 #      already is not built again.
 #   3. Each image goes through ssh into "docker load" and gets the release tag there. No registry.
@@ -113,8 +113,11 @@ cd "${REPO_DIR}"
 
 # ---------------------------------------------------------------- the release
 
-commit="$(git rev-parse --short=7 HEAD)"
-day="$(git log -1 --format=%cd --date=format:%Y-%m-%d HEAD)"
+# The last commit that changed what the images are built from: a commit to the docs or to
+# deploy/ is not a new release, and must not restart the services under a new tag.
+commit="$(git log -1 --format=%h --abbrev=7 HEAD -- "${BUILD_PATHS[@]}")"
+day="$(git log -1 --format=%cd --date=format:%Y-%m-%d HEAD -- "${BUILD_PATHS[@]}")"
+[[ -n "${commit}" && -n "${day}" ]] || die "no commit touches ${BUILD_PATHS[*]}: is this the repository?"
 if [[ "${SHIP_WORKTREE:-0}" == "1" ]]; then
   TAG="${day}-${commit}-wip-$(date +%H%M%S)"
   log "SHIP_WORKTREE=1: shipping the working tree as it is, as ${TAG}"
@@ -142,6 +145,16 @@ fi
 run_nix_side() { ${WSL[@]+"${WSL[@]}"} "$@"; }
 
 WORK="$(mktemp -d)"
+# native PATH -> the path as a native Windows program has to be told it. Git Bash converts no
+# arguments here (MSYS_NO_PATHCONV above), so git.exe would not find "/tmp/..."; and the tools of
+# Git Bash itself must keep the POSIX form, because GNU tar takes "C:/..." for a remote host.
+native() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
 cleanup() {
   if [[ "${SHIP_KEEP:-0}" == "1" || "${BUILD_ONLY}" == "1" ]]; then
     log "the image files stay in ${WORK}"
@@ -174,11 +187,24 @@ fi
 
 if [[ "${needs_build}" == "1" ]]; then
   log "exporting the sources"
+  tree="HEAD"
   if [[ "${SHIP_WORKTREE:-0}" == "1" ]]; then
-    git ls-files -co --exclude-standard -z -- "${BUILD_PATHS[@]}" | tar --null -T - -czf "${WORK}/src.tar.gz"
-  else
-    git archive --format=tar.gz -o "${WORK}/src.tar.gz" HEAD -- "${BUILD_PATHS[@]}"
+    # The working tree as a tree object, made with an index of its own: what git would commit
+    # (line endings included), tracked or not, never ignored files. The real index, HEAD and the
+    # working files are not touched.
+    tree="$(
+      GIT_INDEX_FILE="$(native "${WORK}/index")"
+      export GIT_INDEX_FILE
+      git read-tree HEAD
+      git add -A -- "${BUILD_PATHS[@]}"
+      git write-tree
+    )"
   fi
+  # As the repository stores them, byte for byte: the two settings pin the export to LF whatever
+  # this machine's checkout does. Seen on Windows with core.autocrlf=true (2026-09-21): an export
+  # without them carried CRLF in 168 files, and the carriage returns inside flake.nix ended up in
+  # the shell scripts of the build: "$'\r': command not found".
+  git -c core.autocrlf=false -c core.eol=lf archive --format=tar.gz -o "$(native "${WORK}/src.tar.gz")" "${tree}" -- "${BUILD_PATHS[@]}"
 
   # Runs where Nix is. The sources are unpacked into that side's own file system (a build on
   # /mnt/c would crawl), built as a "path:" flake (no git needed there), and the two image files
@@ -240,7 +266,9 @@ if [[ "${SEED}" == "yes" ]]; then
     files+=("$(basename "${SEED_DB}")-wal")
   fi
   log "packing ${files[*]} ($(du -h "${SEED_DB}" | cut -f1))"
-  tar -C "$(dirname "${SEED_DB}")" -cf - "${files[@]}" | gzip -1 >"${WORK}/seed.tar.gz"
+  # As root's files: Radix runs as root without capabilities, and a file of another user would
+  # be read-only to it (45-seed.sh makes sure of the same on its side).
+  tar -C "$(dirname "${SEED_DB}")" --owner=0 --group=0 --mode=0644 -cf - "${files[@]}" | gzip -1 >"${WORK}/seed.tar.gz"
   [[ "$(state_of "${SEED_DB}" "${SEED_DB}-wal")" == "${before}" ]] ||
     die "${SEED_DB} changed while it was being read: a Radix is writing to it. Stop it (or wait for its crawl to end) and run this again"
   log "seeding ${INSTANCE} with it ($(du -h "${WORK}/seed.tar.gz" | cut -f1) to upload)"

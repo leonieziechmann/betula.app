@@ -13,6 +13,7 @@ deploy/
     20-ssh-lockdown.sh    key-only ssh for deploy, root login off (with automatic rollback until --confirm)
     30-docker.sh          Docker Engine 29, swarm, overlay networks edge + monitoring, published-port filter
     40-stacks.sh          swarm secrets, stacks edge -> placeholder -> monitoring, waits for convergence
+    45-seed.sh            once per instance, before its first deploy: a Radix database (tar on stdin) into its volume
     50-app.sh             one instance of the application (stacks/betula.yml + stacks/<instance>.env) at a release tag
     90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 and 50
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
@@ -163,6 +164,23 @@ distribution `NixOS`, or on the PATH under Linux):
 SSH_TARGET=betula bash deploy/ship.sh canary
 ```
 
+The **first** deploy of an instance has to say where its data comes from:
+
+```bash
+SSH_TARGET=betula bash deploy/ship.sh canary --seed
+```
+
+`--seed` uploads the workstation's `radix.db` (`SEED_DB` names another one; no Radix may be
+writing to it) into the instance's volume before anything starts (`vps/45-seed.sh`), so the server
+does not crawl again what was crawled here: Radix builds and exports a snapshot from it within
+minutes and then only keeps it fresh. `--no-seed` starts empty: Radix crawls everything itself,
+politely, which takes hours and thousands of requests to the university's servers; until the first
+snapshot the site says that the catalog is not available yet (`/healthz` 503, `/livez` 200). The
+database has to fit the release (a database that a newer Radix migrated is not for an older
+image), one more reason to ship the commit that wrote it. `45-seed.sh` refuses an instance that
+is deployed or has a database already; starting over on purpose is `docker stack rm <instance>`,
+`docker volume rm <instance>_radix-data`, then `--seed` again.
+
 It ships the **commit** `HEAD` (uncommitted changes to what the images are built from stop it;
 `SHIP_WORKTREE=1` ships the working tree as it is, tagged `...-wip-<time>`): `nix build
 .#radix-image .#folia-image` from a `git archive`, each image through ssh into `docker load`, the tag
@@ -180,10 +198,9 @@ Swarm compares service definitions, not image contents: re-loading an existing t
 hence a tag per commit and never `latest`. Old versions stay until you remove them
 (`docker image rm ...`); the weekly prune timer only removes untagged images.
 
-First data: a fresh Radix crawls politely and needs hours for its first snapshot; until then the
-site says that the catalog is not available yet (`/healthz` answers 503, `/livez` 200). Study plans
-come from `radix download-statutes` and `radix scan-curriculum` (`docs/operations.md`), run with
-`docker exec` in the Radix container.
+Study plans travel with a seeded database. On the server they come from `radix download-statutes`
+and `radix scan-curriculum` (`docs/operations.md`), run with `docker exec` in the Radix container
+(the Gemini key is the optional secret above).
 
 ## 5. Secrets
 

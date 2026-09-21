@@ -60,13 +60,28 @@ if docker cp "${HELPER}:/data/radix.db" - >/dev/null 2>&1; then
 fi
 
 step "Database"
-# docker cp unpacks a tar from stdin and gives the files to the container's user (root, as whom
-# Radix runs). pipefail: a broken upload fails here and not at the size check.
-gzip -dc | docker cp - "${HELPER}:/data/"
-have="$(docker cp "${HELPER}:/data/radix.db" - | tar -tvf - | awk '$NF == "radix.db" { print $3 }')"
-if [[ "${have}" != "${EXPECTED_BYTES}" ]]; then
+# Unpacked here first, and packed again as root's files with mode 0644: docker cp keeps the owner
+# a tar names, and a tar from a workstation names the workstation's user (from Git Bash: uid
+# 197609). Radix runs as root WITHOUT capabilities (cap_drop ALL), so a file of somebody else is
+# read-only to it: "attempt to write a readonly database" (seen on the first seeded deploy,
+# 2026-09-21). /var/tmp: /tmp may be memory, and the database has 150 MB.
+# pipefail: a broken upload fails here and not at the size check.
+STAGE="$(mktemp -d /var/tmp/betula-seed.XXXXXXXX)"
+remove_stage() { rm -rf -- "${STAGE}"; }
+add_exit_hook remove_stage
+gzip -dc | tar -xf - -C "${STAGE}" --no-same-owner --no-same-permissions
+[[ -f "${STAGE}/radix.db" ]] || die "the upload holds no radix.db (it holds: $(ls -A "${STAGE}" | tr '\n' ' '))"
+members=(radix.db)
+if [[ -f "${STAGE}/radix.db-wal" ]]; then
+  members+=(radix.db-wal)
+fi
+tar -cf - -C "${STAGE}" --owner=0 --group=0 --mode=0644 "${members[@]}" | docker cp - "${HELPER}:/data/"
+listing="$(docker cp "${HELPER}:/data/radix.db" - | tar --numeric-owner -tvf -)"
+have="$(awk '$NF == "radix.db" { print $3 }' <<<"${listing}")"
+owner="$(awk '$NF == "radix.db" { print $2 }' <<<"${listing}")"
+if [[ "${have}" != "${EXPECTED_BYTES}" || "${owner}" != "0/0" ]]; then
   remove_helper
   docker volume rm "${VOLUME}" >/dev/null 2>&1 || true
-  die "radix.db arrived with ${have:-no} bytes instead of ${EXPECTED_BYTES}; the volume was removed again (remove it by hand if that failed: docker volume rm ${VOLUME})"
+  die "radix.db arrived with ${have:-no} bytes (expected ${EXPECTED_BYTES}) and owner ${owner:-?} (expected 0/0); the volume was removed again (remove it by hand if that failed: docker volume rm ${VOLUME})"
 fi
-log "radix.db is in ${VOLUME} (${have} bytes). Next: bash ${BETULA_ROOT}/vps/50-app.sh ${INSTANCE_STACK} ${TAG}"
+log "radix.db is in ${VOLUME} (${have} bytes, owner ${owner}). Next: bash ${BETULA_ROOT}/vps/50-app.sh ${INSTANCE_STACK} ${TAG}"
