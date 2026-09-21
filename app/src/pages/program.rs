@@ -132,7 +132,11 @@ pub fn ProgramPage() -> impl IntoView {
     let links = Memo::new(move |_| here.get().with_open(None));
     // The drawing the visitor chose; `drawn` is the one on the screen: on a phone always the
     // list, the matrix has no room there (owner, 2026-09-21), and there is nothing to switch.
+    // On a larger screen the list as well wherever the page is too narrow for the matrix of the
+    // plan on it (`room`, measured by the plan): rather the list than a matrix that scrolls
+    // sideways (owner, 2026-09-21). The choice stays; with room the matrix comes back.
     let shape = RwSignal::new(PlanShape::remembered());
+    let room = RwSignal::new(true);
     let source = use_source();
     let status = PageStatus::capture();
     // The program is loaded once per slug; switching tabs only re-renders.
@@ -145,7 +149,7 @@ pub fn ProgramPage() -> impl IntoView {
     // a phone nothing stands beside a page: what is picked is the page, and the page is a
     // history entry of its own (one tap, one step back), never a preview and then a page.
     let phone = phone_layout();
-    let drawn = Signal::derive(move || if phone.get() { PlanShape::List } else { shape.get() });
+    let drawn = Signal::derive(move || if phone.get() || !room.get() { PlanShape::List } else { shape.get() });
     let filling = Memo::new(move |_| match (open.get(), full.get(), phone.get()) {
         (Some(id), true, _) | (Some(id), false, true) => Filling::Module(id),
         (Some(_), false, false) | (None, _, false) => Filling::Program,
@@ -179,7 +183,7 @@ pub fn ProgramPage() -> impl IntoView {
             Filling::Program => {
                 let sidebar = {
                     let data = data.clone();
-                    move || view! { <ProgramSidebar data=data.clone() tab shape phone links variant area req/> }
+                    move || view! { <ProgramSidebar data=data.clone() tab shape drawn room phone links variant area req/> }
                 };
                 let aside = {
                     let data = data.clone();
@@ -187,7 +191,7 @@ pub fn ProgramPage() -> impl IntoView {
                 };
                 view! {
                     <Frame title="Studiengang" sidebar sidebar_first=true aside aside_picked=picked>
-                        <ProgramView data tab variant shape=drawn links open area req/>
+                        <ProgramView data tab variant shape=drawn room links open area req/>
                     </Frame>
                 }
                 .into_any()
@@ -264,6 +268,9 @@ fn ProgramSidebar(
     data: ProgramData,
     tab: ProgramTab,
     shape: RwSignal<PlanShape>,
+    /// The drawing on the screen, and whether the page has room for the matrix.
+    drawn: Signal<PlanShape>,
+    room: RwSignal<bool>,
     /// The phone's layout: the plan is a list there, without a switch.
     phone: RwSignal<bool>,
     links: Memo<ProgramUrl>,
@@ -298,19 +305,25 @@ fn ProgramSidebar(
         </nav>
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
         // JavaScript, so the switch is not there without it (R15), nor on a phone, where the
-        // plan is always the list.
+        // plan is always the list. Where the page is too narrow for the matrix, the switch shows
+        // the list that is drawn and says why the matrix is not there; the choice stays.
         {move || shapes.filter(|_| !phone.get()).map(|_| view! {
             <div class="fgroup js-only">
                 <p class="flabel label">"Darstellung"</p>
                 <div class="seg" role="radiogroup" aria-label="Darstellung des Regelstudienplans">
                     {PlanShape::ALL.iter().map(|option| {
                         let option = *option;
+                        let blocked = move || option == PlanShape::Matrix && !room.get();
                         view! {
                             <button
                                 type="button"
                                 role="radio"
-                                aria-checked=move || if shape.get() == option { "true" } else { "false" }
+                                aria-checked=move || if drawn.get() == option { "true" } else { "false" }
+                                aria-disabled=move || blocked().then_some("true")
                                 on:click=move |_| {
+                                    if blocked() {
+                                        return;
+                                    }
                                     shape.set(option);
                                     nav::local_set(PLAN_SHAPE_KEY, option.code());
                                 }
@@ -318,6 +331,9 @@ fn ProgramSidebar(
                         }
                     }).collect_view()}
                 </div>
+                {move || (!room.get()).then(|| view! {
+                    <p class="hint">"Für die Matrix ist die Seite gerade zu schmal. Mit mehr Platz kommt sie wieder."</p>
+                })}
             </div>
         })}
         {jumps.map(|_| view! {
@@ -373,6 +389,7 @@ fn ProgramView(
     tab: ProgramTab,
     variant: Memo<usize>,
     shape: Signal<PlanShape>,
+    room: RwSignal<bool>,
     links: Memo<ProgramUrl>,
     open: Memo<Option<String>>,
     area: Memo<Option<i64>>,
@@ -420,7 +437,7 @@ fn ProgramView(
                         .map(|status| status.label().to_string())
                         .unwrap_or_else(|| "Für diesen Studiengang liegt kein geprüfter Regelstudienplan vor".to_string());
                     let validated = data.plan.as_ref().and_then(|plan| plan.validated_at.clone());
-                    view! { <PlanTab plans=plans.clone() validated missing variant shape links open req/> }.into_any()
+                    view! { <PlanTab plans=plans.clone() validated missing variant shape room links open req/> }.into_any()
                 }
                 ProgramTab::Areas => view! { <AreasTab areas=data.areas.clone() known=known.clone() links open area/> }.into_any(),
                 ProgramTab::Modules => view! { <ModulesTab curricular=data.curricular.clone() fues=data.fues.clone() links open/> }.into_any(),
@@ -1043,6 +1060,8 @@ fn PlanTab(
     missing: String,
     variant: Memo<usize>,
     shape: Signal<PlanShape>,
+    /// Told whether the matrix of the chosen plan fits the page without scrolling sideways.
+    room: RwSignal<bool>,
     links: Memo<ProgramUrl>,
     open: Memo<Option<String>>,
     req: Memo<Option<usize>>,
@@ -1053,10 +1072,31 @@ fn PlanTab(
         }
         .into_any();
     }
+    // The panel is as wide as the page and the table fills it. It is measured whenever its width
+    // changes (the window, or the sidebar or the panel on the right is dragged), and whether the
+    // matrix of the chosen plan fits is told to the page, which draws the list where it does not.
+    // Only a change is told, so a resize does not draw the plan again, and nothing is told before
+    // the panel is measured.
+    let width = RwSignal::new(None::<f64>);
+    Effect::new(move |_| {
+        let watch = nav::watch_size(PLAN_BLOCK_ID, move || width.set(nav::width_of(PLAN_BLOCK_ID)));
+        on_cleanup(move || drop(watch));
+    });
+    let semesters: Vec<i64> = plans.iter().map(|plan| plan.semesters).collect();
+    Effect::new(move |_| {
+        let Some(width) = width.get() else { return };
+        let chosen = variant.get().min(semesters.len()).saturating_sub(1);
+        let needs = semesters.get(chosen).map_or(0.0, |semesters| matrix_min_width(*semesters));
+        // A pixel of slack: the page's width is not always a whole number.
+        let fits = width + 1.0 >= needs;
+        if room.get_untracked() != fits {
+            room.set(fits);
+        }
+    });
     let chips = plans.clone();
     let body = plans.clone();
     view! {
-        <section class="panel plan-block">
+        <section class="panel plan-block" id=PLAN_BLOCK_ID>
             <header class="block-head">
                 <h2>"Regelstudienplan"</h2>
                 <p>
@@ -1108,6 +1148,17 @@ fn PlanTab(
         </section>
     }
     .into_any()
+}
+
+/// The panel of the study plan, measured for the room the matrix needs.
+const PLAN_BLOCK_ID: &str = "plan";
+
+/// How wide the matrix of a plan must at least be to be drawn without scrolling sideways: the
+/// names at their minimum and every semester, without „Art", which gives way first. The numbers
+/// of `.matrix` in app.css (`--name-min`, `--sem`).
+fn matrix_min_width(semesters: i64) -> f64 {
+    let semesters = semesters.max(1) as f64;
+    200.0 + semesters * (144.0 / semesters).max(48.0)
 }
 
 /// The plan as its regulations print it: a row per module, a column per semester, the credits in

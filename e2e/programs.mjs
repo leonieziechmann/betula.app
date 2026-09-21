@@ -6,7 +6,8 @@
 // program in the overview) → the rail's items are tabs that remember where their area was left → the
 // program page itself (head, one study plan per study direction, matrix or list, a module beside it
 // and the way back out of it, areas, all modules) → the plan at every window width (no column runs
-// into another) → phone (filters in a sheet) → the overview without JavaScript.
+// into another, the list where the matrix has no room) → phone (filters in a sheet) → the overview
+// without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -327,14 +328,26 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
 // ---------- the plan at every width: no column runs into another ----------
 // Owner, 2026-09-21: at 1200 px „Art" lay over „Modul" and the names stood a word to a line. The page
 // shares the window with the sidebar and the panel on the right: „Art" gives way where the names would
-// get narrower than 200 px, and where even that is not enough the plan scrolls sideways in its panel.
-// At every width every cell keeps to its column, the semesters are equally wide, and the credits of
-// the list stand on one line with the sums of their semesters.
+// get narrower than 200 px, and where even that is not enough for the matrix, the plan is the list —
+// never a matrix that scrolls sideways; the switch says so, and with room the matrix comes back without
+// the choice being touched. At every width every cell keeps to its column, the semesters are equally
+// wide, and the credits of the list stand on one line with the sums of their semesters.
 {
-  const fits = (page) => page.evaluate(() => {
+  const fits = (page, chosen, semesters) => page.evaluate(([chosen, semesters]) => {
     const table = document.querySelector("table.matrix, table.planlist");
-    const pad = (cell, side) => parseFloat(getComputedStyle(cell)[side]) || 0;
+    const panel = document.querySelector(".plan-block");
+    const scroll = panel.querySelector(".table-scroll");
+    // The names at their minimum and every semester (app.css, `matrix_min_width` in program.rs).
+    const room = panel.getBoundingClientRect().width + 1 >= 200 + semesters * Math.max(48, 144 / semesters);
+    const matrix = table.classList.contains("matrix");
     const found = [];
+    if (matrix && scroll.scrollWidth > scroll.clientWidth + 1) found.push("the matrix scrolls sideways");
+    if (chosen === "matrix" && matrix !== room) found.push(room ? "the list is drawn although the matrix fits" : "the matrix is drawn without room for it");
+    const checked = document.querySelector('#sidebar .seg [aria-checked="true"]')?.textContent;
+    if (checked !== (matrix ? "Matrix" : "Liste")) found.push(`the switch says „${checked}"`);
+    const blocked = document.querySelector('#sidebar .seg button[aria-disabled="true"]')?.textContent;
+    if ((blocked === "Matrix") === room || Boolean(document.querySelector("#sidebar .seg + .hint")) === room) found.push(`the switch blocks „${blocked ?? "nothing"}" and ${room ? "says" : "does not say"} why`);
+    const pad = (cell, side) => parseFloat(getComputedStyle(cell)[side]) || 0;
     for (const cell of table.querySelectorAll("th, td")) {
       const box = cell.getBoundingClientRect();
       // A column that gave way is 0 px wide; the heading of a group cuts its own text.
@@ -349,18 +362,22 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
     if (new Set([...table.querySelectorAll("thead th.c-sem")].map((th) => Math.round(th.getBoundingClientRect().width))).size > 1) found.push("the semesters are not equally wide");
     if (new Set([...table.querySelectorAll("td.c-lp")].map((td) => Math.round(td.getBoundingClientRect().right))).size > 1) found.push("the credits do not stand on one line");
     return found;
-  });
+  }, [chosen, semesters]);
   // Six semesters in both drawings, and the matrices of two and of eight.
-  for (const [slug, shapes] of [["bachelor-informatik-2008", ["matrix", "list"]], ["master-forensic-sciences-and-engineering-2011", ["matrix"]], ["bachelor-pflegewissenschaft-2025-84", ["matrix"]]]) {
+  for (const [slug, semesters, shapes] of [["bachelor-informatik-2008", 6, ["matrix", "list"]], ["master-forensic-sciences-and-engineering-2011", 2, ["matrix"]], ["bachelor-pflegewissenschaft-2025-84", 8, ["matrix"]]]) {
     const { page, context } = await open({ viewport: { width: 1800, height: 900 } }, `/programs/${slug}/plan`);
     for (const shape of shapes) {
       if (shape === "list") await page.click("#sidebar .seg button:nth-of-type(2)");
       await page.waitForSelector(shape === "list" ? "table.planlist" : "table.matrix");
+      // From narrow to wide: the matrix has to come back by itself.
       for (const width of [1000, 1100, 1200, 1250, 1300, 1350, 1400, 1450, 1500, 1600, 1800]) {
         await page.setViewportSize({ width, height: 900 });
-        const found = await fits(page);
+        // The plan's panel is measured when the browser lays out the new width.
+        await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+        const found = await fits(page, shape, semesters);
         check(found.length === 0, `plan (${slug}, ${shape}) at ${width} px: ${found.slice(0, 3).join("; ")}`);
       }
+      if (shape === "matrix") check(await page.evaluate(() => localStorage.getItem("betula.plan.shape") === null), `plan (${slug}): a narrow window changed the chosen drawing`);
     }
     await context.close();
   }
