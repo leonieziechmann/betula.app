@@ -7,9 +7,11 @@
 #   bash /opt/betula/vps/50-app.sh canary                      # the release that runs now (after a
 #                                                              # change to canary.env or betula.yml)
 #
-# An instance is a file stacks/<instance>.env: the name of its stack, its public host name and
-# whether the site asks for the password of closed testing. Rollback = the previous tag again; it
-# is still loaded (docker image ls 'betula-*').
+# An instance is a file stacks/<instance>.env: the name of its stack, its public host name,
+# whether the site asks for the password of closed testing (FOLIA_ACCESS_GATE) and whether Radix
+# fetches anything from the university (RADIX_CRAWL; off = it only serves the snapshot it has,
+# stacks/betula.offline.yml). Rollback = the previous tag again; it is still loaded
+# (docker image ls 'betula-*').
 #
 # Idempotent: swarm only touches a service whose definition changed. Nothing is deployed unless
 # the images exist, the host name resolves to this machine (a router for a name that does not
@@ -31,6 +33,7 @@ require_ubuntu
 
 APP_FILE="${STACKS_DIR}/betula.yml"
 GEMINI_FILE="${STACKS_DIR}/betula.gemini.yml"
+OFFLINE_FILE="${STACKS_DIR}/betula.offline.yml"
 GEMINI_SECRET="gemini-api-key"
 GATE_SECRET="folia-access-password"
 TAG_PATTERN='^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$'
@@ -46,6 +49,42 @@ running_tag() {
   image="${image%%@*}"
   [[ "${image}" == *:* ]] || return 0
   printf '%s' "${image##*:}"
+}
+
+# in_radix_volume PATH - true when PATH exists in the instance's Radix volume. Asked through a
+# container that is never started: the image has no shell to look with.
+in_radix_volume() {
+  local helper="betula-look-${INSTANCE_STACK}" found=1
+  docker rm -f "${helper}" >/dev/null 2>&1 || true
+  docker create --name "${helper}" -v "${INSTANCE_STACK}_radix-data:/data" "${RADIX_IMAGE}" >/dev/null
+  if docker cp "${helper}:/data/$1" - >/dev/null 2>&1; then
+    found=0
+  fi
+  docker rm -f "${helper}" >/dev/null 2>&1 || true
+  return "${found}"
+}
+
+# Offline, Radix only serves the snapshot it has, so there has to be one. A volume that was
+# seeded and never ran has a database and no snapshot: the snapshot is made from it here, in a
+# container without a network (validate + export read nothing but the database).
+ensure_snapshot() {
+  step "Radix offline: a snapshot to serve"
+  if ! docker volume inspect "${INSTANCE_STACK}_radix-data" >/dev/null 2>&1; then
+    die "RADIX_CRAWL=off, but instance ${INSTANCE_STACK} has no data: there is no volume ${INSTANCE_STACK}_radix-data. Seed it first (deploy/ship.sh ${INSTANCE_STACK} --seed), or go online once (RADIX_CRAWL=on)"
+  fi
+  if in_radix_volume snapshot/current.json; then
+    log "there is one in ${INSTANCE_STACK}_radix-data"
+    return 0
+  fi
+  if docker service inspect "${INSTANCE_STACK}_radix" >/dev/null 2>&1; then
+    die "RADIX_CRAWL=off, but the Radix of ${INSTANCE_STACK} has not exported a snapshot yet. Let it finish its first cycle (docker service logs ${INSTANCE_STACK}_radix), then run this again"
+  fi
+  in_radix_volume radix.db ||
+    die "RADIX_CRAWL=off, but ${INSTANCE_STACK}_radix-data holds neither a snapshot nor a database. Seed it first (deploy/ship.sh ${INSTANCE_STACK} --seed)"
+  log "none yet: exporting one from the seeded database (no network, about a minute)"
+  docker run --rm --network none --cap-drop ALL -v "${INSTANCE_STACK}_radix-data:/data" "${RADIX_IMAGE}" \
+    export --db /data/radix.db --out /data/snapshot ||
+    die "the export failed: the database does not pass validation, or it does not fit this release. Nothing was deployed"
 }
 
 # ---------------------------------------------------------------- steps
@@ -65,7 +104,7 @@ preflight() {
   [[ "${facts}" == "overlay swarm true" ]] || die "overlay network edge is missing or not attachable (run vps/30-docker.sh)"
   stack_exists edge || die "stack edge is not deployed: nothing would route to the application (run vps/40-stacks.sh)"
 
-  log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, release ${TAG}"
+  log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, release ${TAG}"
   for image in "${RADIX_IMAGE}" "${FOLIA_IMAGE}"; do
     docker image inspect "${image}" >/dev/null 2>&1 ||
       die "image ${image} is not loaded on this server (deploy/ship.sh builds and loads it; loaded: $(docker image ls --format '{{.Repository}}:{{.Tag}}' "${image%%:*}" | tr '\n' ' '))"
@@ -97,6 +136,11 @@ deploy_app() {
   else
     log "${GEMINI_FILE##*/} is left out (no secret ${GEMINI_SECRET}): everything runs but \"radix scan-curriculum\""
   fi
+  if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+    # Last, so that its command and its health URL win over the files before it.
+    log "RADIX_CRAWL=off: adding ${OFFLINE_FILE##*/} (Radix sends nothing to the university and serves the snapshot it has)"
+    files+=("${OFFLINE_FILE}")
+  fi
   # Substituted into the stack files by "docker stack deploy".
   export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" RADIX_IMAGE FOLIA_IMAGE
   # never: the default asks a registry for the digest of the tag, and no registry knows these images.
@@ -110,6 +154,15 @@ deploy_app() {
     [[ "${image%%@*}" == "betula-${svc}:${TAG}" ]] ||
       die "service ${INSTANCE_STACK}_${svc} was given the image '${image}' instead of betula-${svc}:${TAG}: look at the image line of ${APP_FILE}"
   done
+  # The same for the promise that matters to somebody else: offline means that swarm starts
+  # "serve-snapshot", online that it starts the image's own "run".
+  local args
+  args="$(docker service inspect "${INSTANCE_STACK}_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
+  if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+    [[ "${args}" == serve-snapshot* ]] || die "RADIX_CRAWL=off, but ${INSTANCE_STACK}_radix was given the command \"${args:-run}\": it would crawl. Look at ${OFFLINE_FILE}"
+  else
+    [[ -z "${args}" ]] || die "RADIX_CRAWL=on, but ${INSTANCE_STACK}_radix was given the command \"${args}\" instead of the run of the image"
+  fi
   wait_for_stack "${INSTANCE_STACK}"
 }
 
@@ -122,7 +175,11 @@ report() {
   if [[ "${INSTANCE_GATE}" == "on" ]]; then
     log "https://${INSTANCE_HOST} asks for the access password (closed testing)"
   fi
-  log "a fresh Radix needs hours for its first snapshot; until then the site says that the catalog is not available yet"
+  if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+    log "Radix is offline: nothing is fetched from the university, the catalog stays as it was exported (RADIX_CRAWL=on in ${INSTANCE_STACK}.env brings it back)"
+  else
+    log "a Radix without a snapshot needs a cycle for its first one (minutes with a seeded database, hours without); until then the site says that the catalog is not available yet"
+  fi
   if [[ "${INSTANCE_HOST}" == "${SITE_HOST}" ]] && stack_exists placeholder; then
     log "the application owns https://${SITE_HOST} now; once it works: docker stack rm placeholder"
   fi
@@ -147,5 +204,8 @@ RADIX_IMAGE="betula-radix:${TAG}"
 FOLIA_IMAGE="betula-folia:${TAG}"
 
 preflight
+if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+  ensure_snapshot
+fi
 deploy_app
 report

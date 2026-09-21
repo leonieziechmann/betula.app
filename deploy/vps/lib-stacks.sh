@@ -35,6 +35,7 @@ STACK_DEPLOY_ARGS=()
 INSTANCE_STACK=""
 INSTANCE_HOST=""
 INSTANCE_GATE=""
+INSTANCE_CRAWL=""
 
 # ---------------------------------------------------------------- docker
 
@@ -235,8 +236,8 @@ instance_names() {
   done
 }
 
-# load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST and INSTANCE_GATE.
-# The file is read, never sourced: a value is data, whatever it looks like.
+# load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST, INSTANCE_GATE and
+# INSTANCE_CRAWL. The file is read, never sourced: a value is data, whatever it looks like.
 load_instance() {
   local name=$1 file line key value
   file="${STACKS_DIR}/${name}.env"
@@ -246,6 +247,7 @@ load_instance() {
   INSTANCE_STACK=""
   INSTANCE_HOST=""
   INSTANCE_GATE="on"
+  INSTANCE_CRAWL="on"
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -n "${line}" && "${line}" != \#* ]] || continue
     [[ "${line}" == *=* ]] || die "${file}: '${line}' is not NAME=value"
@@ -255,7 +257,8 @@ load_instance() {
       STACK_NAME) INSTANCE_STACK="${value}" ;;
       APP_HOST) INSTANCE_HOST="${value}" ;;
       FOLIA_ACCESS_GATE) INSTANCE_GATE="${value}" ;;
-      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE)" ;;
+      RADIX_CRAWL) INSTANCE_CRAWL="${value}" ;;
+      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL)" ;;
     esac
   done <"${file}"
   [[ "${INSTANCE_STACK}" == "${name}" ]] || die "${file}: STACK_NAME is '${INSTANCE_STACK}', the file says '${name}'; they have to agree"
@@ -264,6 +267,7 @@ load_instance() {
   esac
   [[ "${INSTANCE_HOST}" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || die "${file}: APP_HOST '${INSTANCE_HOST}' is not a host name"
   [[ "${INSTANCE_GATE}" == "on" || "${INSTANCE_GATE}" == "off" ]] || die "${file}: FOLIA_ACCESS_GATE is '${INSTANCE_GATE}', not on or off"
+  [[ "${INSTANCE_CRAWL}" == "on" || "${INSTANCE_CRAWL}" == "off" ]] || die "${file}: RADIX_CRAWL is '${INSTANCE_CRAWL}', not on or off"
 }
 
 # app_stack_for_host HOST -> the stack whose web server is routed for HOST (nothing when none is).

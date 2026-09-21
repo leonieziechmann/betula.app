@@ -7,6 +7,9 @@
 #   APP_HOST           the public host name, e.g. canary.betula.app
 #   FOLIA_ACCESS_GATE  on: the whole site asks for the password in the secret folia-access-password
 #                      (docs/frontend.md, "Closed testing"). off: open to everybody. Default: on.
+#   RADIX_CRAWL        on: Radix keeps the catalog fresh. off: it sends nothing to the university
+#                      and only serves the snapshot it has; 50-app.sh then adds the override
+#                      betula.offline.yml to this file. Default: on.
 #   RADIX_IMAGE, FOLIA_IMAGE   given per release (see "Images")
 #
 # Deployed by vps/50-app.sh (as deploy, no sudo), which deploy/ship.sh calls after it has built

@@ -189,6 +189,20 @@ It ships the **commit** `HEAD` (uncommitted changes to what the images are built
 `vps/91-verify-stacks.sh services app`. Shipping a commit a second time changes nothing.
 `bash deploy/ship.sh canary --build-only` builds the images and sends nothing anywhere.
 
+**Radix offline** (`RADIX_CRAWL=off` in the instance's file, `stacks/betula.offline.yml`): Radix
+is started as `radix serve-snapshot` instead of `radix run`. It sends nothing to the university's
+servers - no crawl, no cycle, no build - and only hands the snapshot it has to Folia, so the
+catalog stays as it was exported. `canary.env` says `off` for the time of the closed test (owner,
+2026-09-21): the crawler's User-Agent names betula.app, and while that site shows only a login
+page, requests in its name invite a block. `50-app.sh` makes sure there is a snapshot to serve (a
+seeded volume that never ran gets one from its database, in a container without a network) and
+checks that swarm really starts `serve-snapshot`; `91-verify-stacks.sh app` checks the same and
+reminds with a WARN that the data does not change. Back online: `RADIX_CRAWL=on`, sync,
+`50-app.sh <instance>`; Radix then fetches what has aged in the meantime at its usual pace (one
+request at a time with a pause after each, bulk only between 1 and 6 o'clock, a cap per source
+and cycle: `docs/operations.md` §1). `radix scan-curriculum` with `docker exec` works in both
+modes.
+
 By hand, on the server: `bash /opt/betula/vps/50-app.sh canary <tag>` deploys a release that is
 loaded already - that is also the **rollback** (`docker image ls 'betula-*'` lists what is there) -
 and `bash /opt/betula/vps/50-app.sh canary` applies a change of `canary.env` or `betula.yml` to the

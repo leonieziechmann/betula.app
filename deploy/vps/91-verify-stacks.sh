@@ -338,8 +338,8 @@ check_ports() {
 }
 
 check_app() {
-  section "application (every instance in stacks/*.env: router, release, certificate, alive, closed testing)"
-  local name url rule radix_tag folia_tag code out body path deployed=0
+  section "application (every instance in stacks/*.env: router, release, crawling, certificate, alive, closed testing)"
+  local name url rule radix_tag folia_tag radix_args code out body path deployed=0
   while IFS= read -r name; do
     [[ -n "${name}" ]] || continue
     load_instance "${name}"
@@ -360,6 +360,22 @@ check_app() {
     folia_tag="${folia_tag%%@*}"
     if [[ -n "${folia_tag}" && "${radix_tag##*:}" == "${folia_tag##*:}" ]]; then pass "${name}: both services run release ${folia_tag##*:}"; else
       warning "${name}: the services run different releases (${radix_tag:-no radix} / ${folia_tag:-no folia})"
+    fi
+
+    # Does Radix do what the instance's file promises? Offline it is started as "serve-snapshot"
+    # (no crawl, no cycle); online it runs the image's own "run".
+    radix_args="$(docker service inspect "${INSTANCE_STACK}_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
+    if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+      if [[ "${radix_args}" == serve-snapshot* ]]; then
+        pass "${name}: Radix is offline as ${name}.env says (it serves its snapshot and fetches nothing from the university)"
+        warning "${name}: the catalog does not change while Radix is offline (RADIX_CRAWL=on in ${name}.env, sync, 50-app.sh ${name} brings it back)"
+      else
+        fail "${name}: ${name}.env says RADIX_CRAWL=off, but Radix runs the command \"${radix_args:-run}\" and CRAWLS (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+      fi
+    elif [[ -z "${radix_args}" ]]; then
+      pass "${name}: Radix is online (it keeps the catalog fresh)"
+    else
+      fail "${name}: ${name}.env says RADIX_CRAWL=on, but Radix runs the command \"${radix_args}\" (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
     fi
 
     check_certificate "${INSTANCE_HOST}"
