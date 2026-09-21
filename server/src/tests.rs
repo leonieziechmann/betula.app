@@ -128,7 +128,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     assert_eq!(post(&router, "/api/db", &[], "").await.0, StatusCode::UNAUTHORIZED);
 
     // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away.
-    for path in [app::STYLESHEET, app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::MANIFEST] {
+    for path in [app::STYLESHEET, "/assets/app.css?v=test", app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::MANIFEST] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
     assert_eq!(request(&router, "/healthz", &[]).await.0, StatusCode::SERVICE_UNAVAILABLE, "answered by the health check (no snapshot here), not by the gate");
@@ -146,6 +146,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     assert!(html.starts_with("<!DOCTYPE html>") && html.contains("<form method=\"post\" action=\"/access\">") && html.contains("type=\"password\""), "{html}");
     assert!(html.contains("name=\"next\"") && !html.contains("<script>alert") && !html.contains("role=\"alert\""), "{html}");
     assert!(html.split("</head>").next().unwrap().contains(&format!("<style>{}</style>", app::VIEW_TRANSITION_STYLE)), "the login page fades like the site: {html}");
+    assert!(html.contains("rel=\"stylesheet\" href=\"/assets/app.css?v=test\""), "the stylesheet of this build: {html}");
 
     // A wrong password stays on the form and says so; the right one opens the gate for this
     // browser and leads to where the visitor wanted to go, and nowhere outside the site.
@@ -226,6 +227,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (status, headers, body) = request(&router, "/catalog?form=exercise&turnus=winter&status=all", &[]).await;
     let html = String::from_utf8(body).unwrap();
     assert_eq!((status, headers["x-cache"].to_str().unwrap()), (StatusCode::OK, "miss"));
+    assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache", "a page of the old build must not outlive a deploy in the browser");
     let expected = {
         let db = catalog::native::NativeDatabase::open(&snapshot_file()).unwrap();
         let url = catalog::url::CatalogUrl::parse("form=exercise&turnus=winter&status=all");
@@ -267,6 +269,24 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // The fade between pages is opted into in the head itself: from the stylesheet alone the
     // browser may learn of it too late (`app::VIEW_TRANSITION_STYLE`).
     assert_eq!(head(&home).matches(&format!("<style>{}</style>", app::VIEW_TRANSITION_STYLE)).count(), 1, "{home}");
+    // The stylesheet and the scripts are linked with the build that wrote the page, so that a
+    // service worker of another build never answers them from its cache; the address still
+    // leads to the file, whatever build it names.
+    for link in ["rel=\"stylesheet\" href=\"/assets/app.css?v=test\"", "src=\"/assets/enhance.js?v=test\"", "src=\"/assets/boot.js?v=test\""] {
+        assert_eq!(head(&home).matches(link).count(), 1, "{link} in {home}");
+    }
+    for path in ["/assets/app.css?v=test", "/assets/app.css?v=an-older-build", "/assets/boot.js?v=test", "/assets/sql-wasm.wasm?v=test"] {
+        assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
+    }
+    // The worker knows the build too: it keeps the files under the addresses this build links.
+    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    let worker = String::from_utf8(worker).unwrap();
+    assert!(worker.contains("const VERSION = \"test\";") && !worker.contains("__BUILD__"), "{worker}");
+    // Every answer names the build that gave it; the worker keeps only the answers of its own.
+    for path in ["/", "/catalog", "/assets/app.css?v=test", app::SERVICE_WORKER, "/manifest.webmanifest"] {
+        let (_, headers, _) = request(&router, path, &[]).await;
+        assert_eq!(headers.get(crate::BUILD_HEADER).and_then(|value| value.to_str().ok()), Some("test"), "{path}");
+    }
     for (path, content_type, magic) in [
         ("/assets/og.png", "image/png", &b"\x89PNG"[..]),
         ("/apple-touch-icon.png", "image/png", &b"\x89PNG"[..]),

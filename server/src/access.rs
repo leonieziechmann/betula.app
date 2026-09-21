@@ -266,7 +266,7 @@ fn redirect(to: &str) -> Response {
 pub async fn page(State(state): State<AppState>, Query(wanted): Query<Wanted>, headers: HeaderMap) -> Response {
     let next = way_back(wanted.next.as_deref());
     match state.gate.as_ref() {
-        Some(gate) if !gate.admits(&headers) => login_page(StatusCode::OK, &next, None),
+        Some(gate) if !gate.admits(&headers) => login_page(&state, StatusCode::OK, &next, None),
         _ => redirect(&next),
     }
 }
@@ -277,14 +277,14 @@ pub async fn enter(State(state): State<AppState>, headers: HeaderMap, Form(login
     let Some(gate) = state.gate.as_ref() else { return redirect(&next) };
 
     if let Some(seconds) = gate.closed_for() {
-        let mut response = login_page(StatusCode::TOO_MANY_REQUESTS, &next, Some("Zu viele falsche Versuche. Bitte versuche es in einer Minute noch einmal."));
+        let mut response = login_page(&state, StatusCode::TOO_MANY_REQUESTS, &next, Some("Zu viele falsche Versuche. Bitte versuche es in einer Minute noch einmal."));
         response.headers_mut().insert(header::RETRY_AFTER, HeaderValue::from(seconds));
         return response;
     }
     if !gate.knows(login.password.trim()) {
         let failures = gate.failed();
         tracing::warn!(component = "access", event = "access.denied", failures, closed = failures >= MAX_FAILURES, "a wrong access password was entered");
-        return login_page(StatusCode::UNAUTHORIZED, &next, Some("Das Passwort stimmt nicht."));
+        return login_page(&state, StatusCode::UNAUTHORIZED, &next, Some("Das Passwort stimmt nicht."));
     }
 
     let Some(token) = gate.token(unix_now() + VISIT.as_secs()) else { return StatusCode::INTERNAL_SERVER_ERROR.into_response() };
@@ -301,9 +301,11 @@ pub async fn enter(State(state): State<AppState>, headers: HeaderMap, Form(login
 }
 
 /// The login page: a document of its own with the site's stylesheet, no app and no script but
-/// the one that applies the remembered theme. Works without JavaScript.
-fn login_page(status: StatusCode, next: &str, problem: Option<&'static str>) -> Response {
+/// the one that applies the remembered theme. Works without JavaScript. The stylesheet carries
+/// the build like on every page (`app::BuildId`).
+fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<&'static str>) -> Response {
     let next = next.to_string();
+    let stylesheet = app::BuildId(state.build_id.clone()).asset(app::STYLESHEET);
     let html = view! {
         <!DOCTYPE html>
         <html lang="de">
@@ -319,7 +321,7 @@ fn login_page(status: StatusCode, next: &str, problem: Option<&'static str>) -> 
                 <link rel="apple-touch-icon" href=app::TOUCH_ICON/>
                 // `as` comes first: after a value the macro would read it as a cast.
                 <link as="font" rel="preload" type="font/woff2" crossorigin="anonymous" href=app::FONT/>
-                <link rel="stylesheet" href=app::STYLESHEET/>
+                <link rel="stylesheet" href=stylesheet/>
                 <style inner_html=app::VIEW_TRANSITION_STYLE></style>
                 <script inner_html=app::HEAD_SCRIPT></script>
             </head>

@@ -12,20 +12,32 @@ const page = await context.newPage();
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
+// Playwright's waitForFunction takes the promise of an async function for a truthy answer, so a
+// check that has to wait for the caches is polled here.
+async function until(check, ms) {
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise((resolve) => setTimeout(resolve, 250))) {
+    if (await page.evaluate(check).catch(() => false)) return true;
+  }
+  return false;
+}
 
 await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
-// The worker is there and has the shell, the bundle included.
-await page.waitForFunction(async () => {
+check(await page.evaluate(() => [...document.querySelectorAll("link[rel=stylesheet], script[src]")].every((tag) => /\?v=./.test(tag.href || tag.src))), "the stylesheet or a script is linked without the build");
+// The worker is there and has the shell, the bundle included, under the addresses a page of this
+// build asks for (`?v=<build>`, as the page linked `boot.js`).
+const installed = await until(async () => {
   const registration = await navigator.serviceWorker.getRegistration();
   if (!registration || !registration.active) return false;
+  const build = new URL(document.querySelector("script[type=module][src*='/assets/boot.js']").src).search;
   const names = await caches.keys();
   for (const name of names.filter((name) => name.startsWith("betula-shell-"))) {
     const cache = await caches.open(name);
-    if ((await cache.match("/pkg/folia_client_bg.wasm")) && (await cache.match("/assets/sql-wasm.wasm")) && (await cache.match("/"))) return true;
+    if ((await cache.match("/pkg/folia_client_bg.wasm" + build)) && (await cache.match("/assets/sql-wasm.wasm" + build)) && (await cache.match("/assets/app.css" + build)) && (await cache.match("/"))) return true;
   }
   return false;
-}, null, { timeout: 60000 }).catch(() => problems.push("the service worker did not cache the shell"));
+}, 120000);
+check(installed, "the service worker did not cache the shell");
 check(!(await page.evaluate(() => document.getElementById("db-status")?.getClientRects().length > 0)), "the status pill is still shown once the app runs");
 
 // A page seen with the network is kept; the rest comes from the shell.
