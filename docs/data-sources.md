@@ -5,7 +5,7 @@
 >
 > Deliverable 1 of `docs/backend-data-overhaul.md`.
 > **Historical audit.** The code paths and line numbers below refer to the v1 scraper as of commit
-> `0b043c9`. That code was removed after schema v2 replaced it; the defects P1–P6 are fixed.
+> `6393aca`. That code was removed after schema v2 replaced it; the defects P1–P6 are fixed.
 > Verified on 2026-09-19 against `btu_modules.db` (opened read-only), the scraper code,
 > 45 module pages + the FÜS list + the catalog list from `.cache`, and 2 live requests (§6).
 >

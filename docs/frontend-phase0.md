@@ -8,7 +8,7 @@
 
 | Deliverable | Where | State |
 |---|---|---|
-| Branch; stopgap committed separately | `4b2f504` | done; the rewrite does not build on it |
+| Branch; stopgap committed separately | `6cf4eca` | done; the rewrite does not build on it |
 | Shared data crate with the query test harness | `catalog/` | 8 tests green against the real snapshot; clippy clean; builds for `wasm32-unknown-unknown` |
 | Leptos version spike | `spikes/leptos-dispose/`, `spikes/leptos-ssr/` (deleted once the results below stood here; in the history) | done, results in §2 |
 | Browser smoke walk | `e2e/smoke-walk.js` (in-page), `e2e/run.mjs` (Playwright runner) | runs; verified against the SSR spike |
