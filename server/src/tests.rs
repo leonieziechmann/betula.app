@@ -312,13 +312,17 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (_, _, robots) = request(&router, "/robots.txt", &[]).await;
     assert!(String::from_utf8(robots).unwrap().contains("Sitemap: https://catalog.example/sitemap.xml"));
 
-    // The map of the programs is laid out once per snapshot and handed on as it is.
+    // The map of the programs is laid out once per snapshot and handed on as it is. Its ETag is
+    // its content's: a new layout of the same catalog must not be a „304" from a browser's cache.
     let (status, headers, body) = request(&router, "/api/map.json", &[]).await;
-    assert_eq!((status, headers[header::ETAG].to_str().unwrap()), (StatusCode::OK, "\"aaaa1111\""));
+    let map_etag = headers[header::ETAG].to_str().unwrap().to_string();
+    assert_eq!(status, StatusCode::OK);
+    assert!(map_etag.starts_with("\"map-") && map_etag != "\"aaaa1111\"", "{map_etag}");
     let map: catalog::graph::ProgramMap = serde_json::from_slice(&body).unwrap();
     assert_eq!(Some(&map), active.program_map.as_ref().map(|(map, ..)| map.as_ref()));
     assert!(map.programs.len() > 100 && map.wide.dots.len() == map.programs.len() && map.tall.dots.len() == map.programs.len());
-    assert_eq!(request(&router, "/api/map.json", &[("if-none-match", "\"aaaa1111\"")]).await.0, StatusCode::NOT_MODIFIED);
+    assert_eq!(request(&router, "/api/map.json", &[("if-none-match", map_etag.as_str())]).await.0, StatusCode::NOT_MODIFIED);
+    assert_eq!(request(&router, "/api/map.json", &[("if-none-match", "\"aaaa1111\"")]).await.0, StatusCode::OK);
     assert_eq!(request(&router, app::OG_IMAGE, &[]).await.0, StatusCode::OK);
 
     // Unknown things are 404 and never cached.

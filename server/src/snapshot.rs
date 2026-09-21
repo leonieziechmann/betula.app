@@ -32,11 +32,19 @@ pub struct Snapshot {
     pub meta: Meta,
     pub activated_at: SystemTime,
     /// The map of the programs on the landing page, laid out once when the snapshot is opened
-    /// (pages and `/api/map.json` only hand it on), with its JSON (plain, gzip).
-    pub program_map: Option<(Arc<catalog::graph::ProgramMap>, axum::body::Bytes, axum::body::Bytes)>,
+    /// (pages and `/api/map.json` only hand it on), with its JSON (plain, gzip) and its own ETag.
+    /// The ETag is the content's, not the snapshot's: a new layout of the same catalog (a new
+    /// Folia) must not be answered with „304, unchanged" from a browser's cache.
+    pub program_map: Option<(Arc<catalog::graph::ProgramMap>, axum::body::Bytes, axum::body::Bytes, String)>,
     /// `/sitemap.xml` (plain, gzip), made on first request.
     pub sitemap: std::sync::OnceLock<(axum::body::Bytes, axum::body::Bytes)>,
     pool: Mutex<Vec<NativeDatabase>>,
+}
+
+/// A strong ETag from the bytes themselves (FNV-1a, 64 bit: a fingerprint, not a secret).
+fn content_etag(bytes: &[u8]) -> String {
+    let hash = bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3));
+    format!("\"map-{hash:016x}\"")
 }
 
 impl Snapshot {
@@ -53,7 +61,8 @@ impl Snapshot {
             Ok((map, json)) => {
                 tracing::info!(component = "snapshot", event = "snapshot.map_built", programs = map.programs.len(), links = map.links.len(), ms = started.elapsed().as_millis() as u64, "program map laid out");
                 let compressed = crate::cache::gzip(&json);
-                Some((Arc::new(map), axum::body::Bytes::from(json), compressed))
+                let etag = content_etag(&json);
+                Some((Arc::new(map), axum::body::Bytes::from(json), compressed, etag))
             }
             Err(error) => {
                 tracing::warn!(component = "snapshot", event = "snapshot.map_failed", error = %error, "the program map could not be built; the landing page goes without it");

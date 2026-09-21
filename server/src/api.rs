@@ -91,7 +91,7 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
     };
     match &snapshot.program_map {
-        Some((_, json, compressed)) => per_snapshot(&headers, &snapshot.etag, "application/json", &(json.clone(), compressed.clone())),
+        Some((_, json, compressed, etag)) => per_snapshot(&headers, etag, "application/json", &(json.clone(), compressed.clone())),
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
