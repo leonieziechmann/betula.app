@@ -447,6 +447,9 @@ impl BookmarksUrl {
 /// How many modules one catalog page lists.
 pub const PAGE_SIZE: u64 = 50;
 
+/// How many areas one address may name (`area=12,7`): a row of the plan means at most a handful.
+pub const MAX_AREAS: usize = 20;
+
 /// What a catalog URL says: the filter and the page (1-based).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CatalogUrl {
@@ -550,7 +553,15 @@ impl CatalogUrl {
                 },
                 kinds_exclude: without(kinds_of("not-kind"), &kinds),
                 kinds,
-                area: first("area").and_then(|value| value.parse::<i64>().ok()).filter(|id| *id > 0),
+                areas: {
+                    let mut areas: Vec<i64> = Vec::new();
+                    for id in codes("area").iter().filter_map(|value| value.parse::<i64>().ok()).filter(|id| *id > 0) {
+                        if !areas.contains(&id) && areas.len() < MAX_AREAS {
+                            areas.push(id);
+                        }
+                    }
+                    areas
+                },
                 // Derived by the page loader, never read from an address.
                 semester_areas: Vec::new(),
                 semester_electives: false,
@@ -651,8 +662,8 @@ impl CatalogUrl {
                 Some(PlanSemesterFilter::Unstated) => out.push(("semester", "none".to_string())),
                 None => {}
             }
-            if let Some(area) = scope.area {
-                out.push(("area", area.to_string()));
+            if !scope.areas.is_empty() {
+                out.push(("area", scope.areas.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",")));
             }
             for (name, kinds) in [("kind", &scope.kinds), ("not-kind", &scope.kinds_exclude)] {
                 if !kinds.is_empty() {
@@ -878,7 +889,7 @@ mod tests {
                     plan_semester: Some(PlanSemesterFilter::Semester(3)),
                     kinds: vec![KindFilter::Stated(ModuleKind::Elective), KindFilter::Unstated],
                     kinds_exclude: vec![KindFilter::Stated(ModuleKind::Thesis)],
-                    area: Some(17),
+                    areas: vec![17],
                     semester_areas: Vec::new(),
                     semester_electives: false,
                 }),
@@ -955,8 +966,11 @@ mod tests {
         let url = CatalogUrl::parse("form=yoga,lecture,lecture&kind=compulsory&semester=99&area=3&page=-3&sort=random&%ZZ=1&=&&graded=maybe&ects_min=NaN");
         assert_eq!(url.query.teaching_forms, vec![TeachingForm::Lecture]);
         assert_eq!(url.query.program, None, "kind, semester and area mean nothing without a program");
-        assert_eq!(CatalogUrl::parse("program=x&area=-3").query.program.and_then(|scope| scope.area), None);
+        assert_eq!(CatalogUrl::parse("program=x&area=-3").query.program.map(|scope| scope.areas), Some(Vec::new()));
         assert_eq!(CatalogUrl::parse("program=x&area=12").path(), "/catalog?program=x&area=12");
+        // Several areas, as a row of the plan means them; each once, in the order given.
+        assert_eq!(CatalogUrl::parse("program=x&area=12,7,x,12,-1").query.program.map(|scope| scope.areas), Some(vec![12, 7]));
+        assert_eq!(CatalogUrl::parse("program=x&area=12,7").path(), "/catalog?program=x&area=12,7");
         assert_eq!((url.page, url.query.sort, url.query.graded, url.query.credits_min), (1, SortKey::Default, None, None));
         assert_eq!(url.to_query_string(), "form=lecture");
     }

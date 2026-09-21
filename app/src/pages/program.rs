@@ -172,7 +172,7 @@ pub fn ProgramPage() -> impl IntoView {
             Filling::Program => {
                 let sidebar = {
                     let data = data.clone();
-                    move || view! { <ProgramSidebar data=data.clone() tab shape links area/> }
+                    move || view! { <ProgramSidebar data=data.clone() tab shape links variant area req/> }
                 };
                 let aside = {
                     let data = data.clone();
@@ -233,7 +233,8 @@ fn picked_panel(data: &ProgramData, tab: ProgramTab, variant: usize, area: Optio
             let fitting = areas_for_row(&entry, chosen, &known, &areas);
             let plan = chosen.label.clone();
             let known: HashMap<String, ProgramModule> = data.curricular.iter().chain(data.fues.iter()).map(|m| (m.module_id.clone(), m.clone())).collect();
-            view! { <PlanRowPanel entry plan=(several).then_some(plan) program=data.program.clone() fitting known links page/> }.into_any()
+            let catalog = catalog_for(data, variant, None, req);
+            view! { <PlanRowPanel entry plan=(several).then_some(plan) program=data.program.clone() fitting known catalog links page/> }.into_any()
         }
         None if page => view! {
             <section class="panel detail aside" id="preview">
@@ -252,19 +253,33 @@ fn picked_panel(data: &ProgramData, tab: ProgramTab, variant: usize, area: Optio
 /// Views of the program, how the plan is drawn, where its areas are, what is related to it and
 /// what can be done with it.
 #[component]
-fn ProgramSidebar(data: ProgramData, tab: ProgramTab, shape: RwSignal<PlanShape>, links: Memo<ProgramUrl>, area: Memo<Option<i64>>) -> impl IntoView {
+fn ProgramSidebar(
+    data: ProgramData,
+    tab: ProgramTab,
+    shape: RwSignal<PlanShape>,
+    links: Memo<ProgramUrl>,
+    variant: Memo<usize>,
+    area: Memo<Option<i64>>,
+    req: Memo<Option<usize>>,
+) -> impl IntoView {
     let p = data.program.clone();
-    let catalog_link = CatalogUrl {
-        query: CatalogQuery { program: Some(ProgramScope { program_slug: p.slug.clone(), ..Default::default() }), ..Default::default() },
-        page: 1,
-        open: None,
-    }
-    .path();
+    // The catalog with what is picked on the page: first in the sidebar (owner, 2026-09-21).
+    let catalog = {
+        let data = data.clone();
+        Memo::new(move |_| catalog_for(&data, variant.get(), area.get(), req.get()))
+    };
     let related = data.counterpart.is_some() || !data.versions.is_empty();
     let areas = area_groups(&data.areas);
     let shapes = (tab == ProgramTab::Plan && !data.plan_entries.is_empty()).then_some(());
     let jumps = (tab == ProgramTab::Areas && !areas.is_empty()).then_some(());
     view! {
+        <div class="fgroup actions catalog-jump">
+            <a class="action" data-walk="catalog" href=move || catalog.with(|(href, _)| href.clone())>
+                <Icon name="layout-list"/>
+                <span>"Im Modulkatalog"<small>{move || catalog.with(|(_, what)| what.clone())}</small></span>
+                <Icon name="chevron-right"/>
+            </a>
+        </div>
         <nav class="toc views" aria-label="Ansichten des Studiengangs">
             <p class="flabel label">"Ansichten"</p>
             {ProgramTab::ALL.iter().map(|t| {
@@ -335,7 +350,6 @@ fn ProgramSidebar(data: ProgramData, tab: ProgramTab, shape: RwSignal<PlanShape>
         })}
         <div class="fgroup actions">
             <p class="flabel label">"Aktionen"</p>
-            <a class="action" href=catalog_link><Icon name="sliders-horizontal"/>"Module im Katalog filtern"</a>
             <span class="action soon" title="In Arbeit"><Icon name="star"/>"Als meinen Studiengang setzen"<em>"bald"</em></span>
             {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>"Ordnungen & Dokumente"</a> })}
             <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>"Im Verzeichnis der BTU"</a>
@@ -477,6 +491,8 @@ fn PlanRowPanel(
     fitting: Vec<AreaGroup>,
     /// What the catalog knows about the modules of this program.
     known: HashMap<String, ProgramModule>,
+    /// The catalog narrowed down to what the row means, and what it lists (`catalog_for`).
+    catalog: (String, String),
     links: Memo<ProgramUrl>,
     /// The panel is the page (a phone): „Zurück" instead of „Schließen".
     #[prop(optional)] page: bool,
@@ -503,26 +519,9 @@ fn PlanRowPanel(
     let first = (!ambiguous && !fitting.is_empty()).then(|| fitting.remove(0));
     let others = fitting;
     let has_fitting = first.is_some() || !others.is_empty();
-    // Where to look further: the name in the whole catalog for a single module, else the modules
-    // that can be chosen — the catalog scoped to this program.
-    let catalog = CatalogUrl {
-        query: if one_module {
-            CatalogQuery { text: entry.module_name.clone(), ..Default::default() }
-        } else {
-            CatalogQuery {
-                program: Some(ProgramScope {
-                    program_slug: program.slug.clone(),
-                    relation: if fues { ProgramRelation::Fues } else { ProgramRelation::Curricular },
-                    kinds: if fues { Vec::new() } else { vec![KindFilter::Stated(ModuleKind::Elective)] },
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }
-        },
-        page: 1,
-        open: None,
-    }
-    .path();
+    // Where to look further: the catalog with what the row means (`catalog_for`: its areas, the
+    // FÜS list, or the name of a single module).
+    let (catalog, catalog_what) = catalog;
 
     view! {
         <section class="panel detail aside" id="preview" aria-label="Zeile des Regelstudienplans">
@@ -616,8 +615,8 @@ fn PlanRowPanel(
                                 <Icon name="chevron-right"/>
                             </a>
                             <a class="pre" href=catalog>
-                                <b>{if fues { "FÜS-Module im Katalog" } else if one_module { "Diesen Namen im Katalog suchen" } else { "Wahlpflichtmodule im Katalog" }}</b>
-                                <small>{if one_module { entry.module_name.clone() } else { "mit allen Filtern".to_string() }}</small>
+                                <b>{if fues { "FÜS-Module im Katalog" } else if one_module { "Diesen Namen im Katalog suchen" } else { "Im Modulkatalog" }}</b>
+                                <small>{catalog_what}</small>
                                 <Icon name="chevron-right"/>
                             </a>
                         </div>
@@ -1302,6 +1301,40 @@ fn module_href(links: &ProgramUrl, id: &str) -> String {
     }
 }
 
+/// The catalog narrowed down to what is picked on the program's page, and what it lists (the
+/// second line of the link): an area shown beside the page is that area; a row of the plan is
+/// the areas its name means (the derivation of the row's panel, `plan::areas_for_row` — all of
+/// them where it means several), the FÜS list for a FÜS row, the name for a single module, else
+/// the program's electives; nothing picked is the program. The server's page picks nothing.
+fn catalog_for(data: &ProgramData, variant: usize, area: Option<i64>, req: Option<usize>) -> (String, String) {
+    let base = ProgramScope { program_slug: data.program.slug.clone(), ..Default::default() };
+    let path = |query: CatalogQuery| CatalogUrl { query, page: 1, open: None }.path();
+    let scoped = |scope: ProgramScope| path(CatalogQuery { program: Some(scope), ..Default::default() });
+    let known = pages::catalog_areas(&data.areas, &data.area_tree);
+    if let Some(id) = area {
+        let name = known.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| "Bereich".to_string());
+        return (scoped(ProgramScope { areas: vec![id], ..base }), name);
+    }
+    let plans = plan_variants(&data.plan_entries);
+    let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
+    let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row.checked_sub(1)?).map(|entry| (entry, plan))));
+    let Some((entry, plan)) = row else {
+        return (scoped(base), format!("{} Module", data.program.curricular_modules));
+    };
+    if catalog::plan::is_fues(entry) {
+        return (scoped(ProgramScope { relation: ProgramRelation::Fues, ..base }), "FÜS-Liste des Studiengangs".to_string());
+    }
+    if catalog::plan::is_single_module(entry) {
+        return (path(CatalogQuery { text: entry.module_name.clone(), ..Default::default() }), entry.module_name.clone());
+    }
+    let found = catalog::plan::areas_for_row(entry, &plan.full, &known, &plan.entries);
+    match found.areas.as_slice() {
+        [] => (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..base }), "Wahlpflichtmodule des Studiengangs".to_string()),
+        [one] => (scoped(ProgramScope { areas: vec![one.id], ..base }), one.name().to_string()),
+        several => (scoped(ProgramScope { areas: several.iter().map(|area| area.id).collect(), ..base }), format!("{} Bereiche", several.len())),
+    }
+}
+
 /// Where an area of the program leads: in the app beside the page (`?area=<id>`); on the
 /// server's page to the catalog narrowed down to the area, the page that lists what it holds.
 fn area_href(links: &ProgramUrl, id: i64) -> String {
@@ -1309,7 +1342,7 @@ fn area_href(links: &ProgramUrl, id: i64) -> String {
         links.with_area(Some(id)).path()
     } else {
         CatalogUrl {
-            query: CatalogQuery { program: Some(ProgramScope { program_slug: links.slug.clone(), area: Some(id), ..Default::default() }), ..Default::default() },
+            query: CatalogQuery { program: Some(ProgramScope { program_slug: links.slug.clone(), areas: vec![id], ..Default::default() }), ..Default::default() },
             page: 1,
             open: None,
         }

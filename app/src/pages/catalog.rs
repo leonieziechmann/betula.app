@@ -238,11 +238,12 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
                 }
             });
         }
-        if let Some(id) = scope.area {
+        // One tag per area: a row of the plan may have opened the list with several.
+        for id in scope.areas.clone() {
             let label = data.areas.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| format!("Bereich {id}"));
-            push("Bereich", label, &|q| {
+            push("Bereich", label, &move |q| {
                 if let Some(s) = q.program.as_mut() {
-                    s.area = None;
+                    s.areas.retain(|area| *area != id);
                 }
             });
         }
@@ -460,7 +461,7 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
     let area_link = |id: i64, label: &str| {
         let mut target = current.with_page(1);
         if let Some(scope) = target.query.program.as_mut() {
-            scope.area = Some(id);
+            scope.areas = vec![id];
         }
         view! { <a href=keep_open(target, open) data-noscroll="">"„"{label.to_string()}"“"</a> }
     };
@@ -476,7 +477,7 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
                 let mut target = current.with_page(1);
                 if let Some(scope) = target.query.program.as_mut() {
                     scope.relation = ProgramRelation::Fues;
-                    scope.area = None;
+                    scope.areas.clear();
                 }
                 keep_open(target, open)
             };
@@ -1270,7 +1271,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                             scope.relation = relation;
                             // An area is part of the curriculum's tree: the FÜS list has none.
                             if relation == ProgramRelation::Fues {
-                                scope.area = None;
+                                scope.areas.clear();
                             }
                         }
                     },
@@ -1332,24 +1333,48 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                 (curricular.get() && !sections.is_empty()).then(|| {
                     let picker = if APP {
                         let items = StoredValue::new(sections.iter().flat_map(|(_, areas)| areas.iter().map(area_item)).collect::<Vec<_>>());
-                        let selected = Signal::derive(move || query.with(|q| q.program.as_ref().and_then(|scope| scope.area).map(|id| id.to_string())));
+                        let chosen = move || query.with(|q| q.program.as_ref().map(|scope| scope.areas.clone()).unwrap_or_default());
+                        let selected = Signal::derive(move || match chosen().as_slice() {
+                            [id] => Some(id.to_string()),
+                            _ => None,
+                        });
+                        // Several areas (from a row of the plan): the button says how many, the
+                        // tags above the list say which; picking one replaces them.
+                        // One area the picker does not offer (a fixed one, opened from the program's
+                        // page) is named all the same.
+                        let summary = Signal::derive(move || match chosen().as_slice() {
+                            [] => None,
+                            [id] => areas.with(|areas| areas.iter().find(|area| area.id == *id && !area.choice).map(|area| area.name().to_string())),
+                            several => Some(format!("{} Bereiche", several.len())),
+                        });
                         let pick = Callback::new(move |id: Option<String>| {
                             go.run(target_now(query, open, |q| {
                                 if let Some(scope) = q.program.as_mut() {
-                                    scope.area = id.and_then(|id| id.parse().ok());
+                                    scope.areas = id.and_then(|id| id.parse().ok()).into_iter().collect();
                                 }
                             }))
                         });
                         view! {
-                            <Combobox id="pick-area" label="Bereich" placeholder="Alle Bereiche" search_placeholder="Bereich suchen" icon="layout-list" min_width=440.0 items=Signal::derive(move || items.get_value()) selected on_select=pick/>
+                            <Combobox id="pick-area" label="Bereich" placeholder="Alle Bereiche" search_placeholder="Bereich suchen" icon="layout-list" min_width=440.0 items=Signal::derive(move || items.get_value()) selected summary on_select=pick/>
                         }
                         .into_any()
                     } else {
-                        let selected = query.with_untracked(|q| q.program.as_ref().and_then(|scope| scope.area));
+                        let chosen = query.with_untracked(|q| q.program.as_ref().map(|scope| scope.areas.clone()).unwrap_or_default());
+                        let selected = match chosen.as_slice() {
+                            [id] => Some(*id),
+                            _ => None,
+                        };
+                        // Several areas stay one choice of the plain select, so that sending the
+                        // form keeps them.
+                        let several = (chosen.len() > 1).then(|| {
+                            let value = chosen.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",");
+                            view! { <option value=value selected=true>{format!("{} Bereiche", chosen.len())}</option> }
+                        });
                         view! {
                             <span class="select-wrap plain">
                                 <select name="area" aria-label="Bereich">
                                     <option value="">"Alle Bereiche"</option>
+                                    {several}
                                     {sections.into_iter().map(|(group, areas)| {
                                         let options = areas.into_iter().map(|area| view! {
                                             <option value=area.id.to_string() selected=selected == Some(area.id)>{format!("{} ({})", area.name(), area.modules)}</option>

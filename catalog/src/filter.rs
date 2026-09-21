@@ -52,10 +52,12 @@ pub struct ProgramScope {
     pub kinds: Vec<KindFilter>,
     /// None of these.
     pub kinds_exclude: Vec<KindFilter>,
-    /// An area of the program's module tree (`v_program_module_area.area_id`): only the modules
-    /// the tree places in it or in an area below it. „Wahlpflichtmodule Praktische Informatik"
-    /// is such an area; the tree, not the plan, is the authority for structure.
-    pub area: Option<i64>,
+    /// Areas of the program's module tree (`v_program_module_area.area_id`): only the modules
+    /// the tree places in one of them or in an area below one; empty means all. „Wahlpflicht­
+    /// module Praktische Informatik" is such an area; the tree, not the plan, is the authority
+    /// for structure. Several come from a row of the plan that means several areas
+    /// („Anwendungsfach": Mathematik, Physik …), opened from the program's page.
+    pub areas: Vec<i64>,
     /// Derived, never part of a URL (`pages::catalog` fills them in, like the marked modules):
     /// with a semester chosen, the areas whose modules can be chosen for the plan's requirement
     /// rows of that semester („Wahlpflichtmodule der Informatik", `plan::semester_plan`), listed
@@ -318,7 +320,7 @@ impl CatalogQuery {
             program.is_some(),
             program.is_some_and(|p| p.plan_semester.is_some()),
             program.is_some_and(|p| !p.kinds.is_empty() || !p.kinds_exclude.is_empty()),
-            program.is_some_and(|p| p.area.is_some()),
+            program.is_some_and(|p| !p.areas.is_empty()),
             self.department_id.is_some(),
             t.winter || t.summer || t.irregular || t.not_winter || t.not_summer || t.not_irregular || t.year_parity.is_some(),
             !self.teaching_forms.is_empty() || !self.teaching_forms_exclude.is_empty(),
@@ -401,17 +403,19 @@ impl CatalogQuery {
                     KindFilter::Unstated => conditions.push("pm.kind IS NOT NULL".to_string()),
                 }
             }
-            if let Some(area) = scope.area {
-                // The area itself, or one below it: the path of a placement starts with the
-                // chosen area's path and a separator. A parent area without modules of its own has
-                // no row in the view, so the path (not a parent id) is what the tree is walked by.
-                conditions.push(
-                    "EXISTS (SELECT 1 FROM v_program_module_area a WHERE a.program_id = pm.program_id AND a.module_id = f.module_id \
-                     AND (a.area_id = ? OR SUBSTR(a.area, 1, LENGTH((SELECT MIN(c.area) FROM v_program_module_area c WHERE c.area_id = ?)) + 3) \
-                     = (SELECT MIN(c.area) FROM v_program_module_area c WHERE c.area_id = ?) || ' / '))"
-                        .to_string(),
-                );
-                params.extend([Value::Integer(area), Value::Integer(area), Value::Integer(area)]);
+            if !scope.areas.is_empty() {
+                // An area itself, or one below it: the path of a placement starts with the chosen
+                // area's path and a separator. A parent area without modules of its own has no row
+                // in the view, so the path (not a parent id) is what the tree is walked by.
+                let one = "(a.area_id = ? OR SUBSTR(a.area, 1, LENGTH((SELECT MIN(c.area) FROM v_program_module_area c WHERE c.area_id = ?)) + 3) \
+                     = (SELECT MIN(c.area) FROM v_program_module_area c WHERE c.area_id = ?) || ' / ')";
+                conditions.push(format!(
+                    "EXISTS (SELECT 1 FROM v_program_module_area a WHERE a.program_id = pm.program_id AND a.module_id = f.module_id AND ({}))",
+                    vec![one; scope.areas.len()].join(" OR ")
+                ));
+                for area in &scope.areas {
+                    params.extend([Value::Integer(*area), Value::Integer(*area), Value::Integer(*area)]);
+                }
             }
         }
 

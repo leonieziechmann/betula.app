@@ -185,7 +185,7 @@ fn catalog_filters_match_direct_sql() {
     let db = open();
     let program_id = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.").id;
     let scope = |relation, plan_semester, kinds: Vec<KindFilter>| {
-        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![], area: None, semester_areas: vec![], semester_electives: false })
+        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![], areas: vec![], semester_areas: vec![], semester_electives: false })
     };
     let pm = format!("v_module_facets f JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = '{program_id}'");
 
@@ -773,4 +773,31 @@ fn errors_are_reported_not_swallowed() {
 
     let missing = NativeDatabase::open(std::path::Path::new("no-such-snapshot.db"));
     assert!(matches!(missing, Err(DbError::Unavailable(_))));
+}
+
+/// Several areas list the modules of any of them: what a row of the plan that means several
+/// areas opens in the catalog („Anwendungsfach": the Nebenfächer).
+#[test]
+fn several_areas_list_the_modules_of_any_of_them() {
+    let db = open();
+    let program_id = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.").id;
+    let areas = crate::pages::catalog_areas(&queries::program_areas(&db, &program_id).unwrap(), &queries::program_area_tree(&db, &program_id).unwrap());
+    let physik = areas.iter().find(|area| area.label == "Physik").expect("Physik").id;
+    let mathe = areas.iter().find(|area| area.label == "Mathematik").expect("Mathematik").id;
+    let count = |ids: Vec<i64>| {
+        let query = CatalogQuery {
+            program: Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), areas: ids, ..Default::default() }),
+            offer: Some(OfferStatus::ALL.to_vec()),
+            ..Default::default()
+        };
+        queries::catalog_count(&db, &query).unwrap()
+    };
+    let (one, other, both) = (count(vec![physik]), count(vec![mathe]), count(vec![physik, mathe]));
+    let direct = scalar(
+        &db,
+        &format!("SELECT COUNT(DISTINCT module_id) FROM v_program_module_area WHERE program_id = '{program_id}' AND area_id IN ({physik}, {mathe})"),
+    ) as u64;
+    assert!(one > 0 && other > 0, "{one} {other}");
+    assert_eq!(both, direct, "the modules of either area, each once");
+    assert_eq!(count(vec![mathe, physik]), both);
 }

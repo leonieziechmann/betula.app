@@ -304,6 +304,20 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   // A row that lists three complexes means each of them.
   const listed = await row("Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik");
   check(listed.beside.join(" | ") === "Grundlagen der Informatik | Praktische Informatik | Angewandte und Technische Informatik", `plan row: the listing row points at ${listed.beside.join(" | ")}`);
+  // The way into the catalog is the first thing of the sidebar and takes along what is picked:
+  // the row „Anwendungsfach" opens the catalog with its five areas.
+  await row("Anwendungsfach");
+  const jump = await page.evaluate(() => {
+    const first = document.querySelector("#sidebar a, #sidebar button");
+    return { first: first?.textContent.replace(/\s+/g, " ").trim(), href: document.querySelector('#sidebar a[data-walk="catalog"]')?.getAttribute("href") };
+  });
+  check(jump.first?.startsWith("Im Modulkatalog"), `sidebar: the first entry is „${jump.first}", not the way into the catalog`);
+  const jumpAreas = new URL(jump.href ?? "/", base).searchParams.get("area")?.split(",") ?? [];
+  check(jumpAreas.length === 5 && new URL(jump.href, base).searchParams.get("program") === "bachelor-informatik-2008", `sidebar: the catalog link of „Anwendungsfach" is ${jump.href}`);
+  await step("into the catalog with the row's areas", () => page.click('#sidebar a[data-walk="catalog"]'), () => location.pathname === "/catalog" && document.querySelectorAll('.tag:has(em)').length >= 5 && document.querySelector("#pick-area")?.textContent.includes("5 Bereiche"));
+  const tags = await page.evaluate(() => [...document.querySelectorAll(".tag")].filter((tag) => tag.querySelector("em")?.textContent === "Bereich").map((tag) => tag.textContent.replace("Bereich", "").trim()).sort());
+  check(tags.join(" | ").includes("Physik") && tags.length === 5, `catalog: the areas of the row are ${tags.join(" | ")}`);
+  await step("back to the program", () => page.goBack(), () => location.pathname.startsWith("/programs/bachelor-informatik-2008") && location.search.includes("req="));
   // The FÜS by its name: its list, no area.
   const fues = await row("Fachübergreifendes Studium");
   check(/Fachübergreifenden Studium/.test(fues.note) && !fues.shown.startsWith("Vermutlich") && fues.beside.length === 0, `plan row: the FÜS row reads „${fues.note.slice(0, 80)}" and points at ${fues.shown}`);

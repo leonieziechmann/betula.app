@@ -89,6 +89,9 @@ pub fn Combobox(
     #[prop(into)] items: Signal<Vec<ComboItem>>,
     /// The id of the selected entry.
     #[prop(into)] selected: Signal<Option<String>>,
+    /// What the button says when no single entry is selected but more than nothing is („5
+    /// Bereiche"); clearable like a selection.
+    #[prop(optional, into)] summary: Option<Signal<Option<String>>>,
     /// The id of the picked entry; `None` when the selection was cleared.
     #[prop(into)] on_select: Callback<Option<String>>,
     #[prop(optional)] icon: Option<&'static str>,
@@ -125,8 +128,8 @@ pub fn Combobox(
     let shown = move || rows.with(|rows| rows.len().min(MAX_SHOWN));
 
     let current = Memo::new(move |_| {
-        let id = selected.get()?;
-        items.with(|items| items.iter().find(|item| item.id == id).map(|item| (item.label.clone(), item.detail.clone())))
+        let picked = selected.get().and_then(|id| items.with(|items| items.iter().find(|item| item.id == id).map(|item| (item.label.clone(), item.detail.clone()))));
+        picked.or_else(|| summary.and_then(|summary| summary.get()).map(|text| (text, String::new())))
     });
 
     let show = {
