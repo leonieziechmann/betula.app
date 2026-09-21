@@ -136,7 +136,10 @@ fn page(body: Bytes, compressed: Bytes, etag: &str, cache_state: &'static str, w
     let mut response = Response::new(Body::from(if use_gzip { compressed } else { body }));
     let headers = response.headers_mut();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300, stale-while-revalidate=86400"));
+    // Asked again every time (the ETag makes it a 304 from memory): a page names the build of its
+    // stylesheet and scripts, and a page of the old build kept by the browser after a deploy would
+    // meet the files of the new one, which the server serves under every build's address.
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
     headers.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
     headers.insert("x-cache", HeaderValue::from_static(cache_state));
     if let Ok(value) = HeaderValue::from_str(etag) {
