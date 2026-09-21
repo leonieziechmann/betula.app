@@ -371,7 +371,11 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   loader of `catalog::pages` through `Source::run`; everything it shows comes from one snapshot.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
   request renders (5–100 ms) and later ones are a memory copy (2 ms), gzip included. A new
-  snapshot starts a new generation. ETag per generation → `304` without rendering.
+  snapshot starts a new generation. ETag per generation and build → `304` without rendering.
+  Pages are `public, no-cache`: the browser asks every time and mostly hears `304` (until
+  2026-09-21 they were `max-age=300, stale-while-revalidate=86400`, so after a deploy a browser
+  showed the old build's page with the new build's stylesheet for up to five minutes, and once
+  more after that; the server has only the files of its own build, whatever `?v=` asks for).
   `404`/`5xx` are `no-store`. Without a snapshot everything answers `503` + `Retry-After`.
 - **The browser app (owner decision: all queries run in the browser).** `assets/boot.js` opens
   the local copy of the snapshot (`/api/db`: 36.8 MB, 6.5 MB gzip; kept in IndexedDB with its ETag;
@@ -580,7 +584,11 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   every current program with its views; `robots.txt` names it. Addresses are absolute and use
   `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
 - The browser app removes the server's tags from the head when it takes over and writes its own,
-  so the head describes the page that is shown.
+  so the head describes the page that is shown. What is the same on every page (the stylesheet,
+  the preloaded font, the icons) is part of the document (`app::shell`) and never written by the
+  app: it mounts fresh instead of hydrating, so a `leptos_meta` tag in `App` lands in the head a
+  second time. Two copies of `app.css`, one from the service worker and one from the network,
+  once mixed an old sheet into a new one (2026-09-21); `home.mjs` and `pwa.mjs` count them.
 - **Link previews** (messengers, Slack, Discord, X): the card is the page's own title and
   description with a picture (1200 × 630, absolute address, with type, size and alt text); X
   gets its `twitter:` twins, because only with them the large card shows everywhere. A preview
@@ -618,10 +626,30 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   back (sixty of them); offline, the kept page, else the shell. Assets come from the cache first.
   The server writes its build into the worker, so a new build installs a new worker, which caches
   the new shell and drops the old one; the worker's own file is revalidated on every use like the
-  other assets. `boot.js` finds `/api/status` unreachable offline and simply opens the copy it
-  has. Once the app runs it says nothing: the „Offline bereit" notice is gone (owner, 2026-09-21:
-  „wenn es einfach funktioniert, dann passt das"); only the loading of the data on a first visit
-  is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh.
+  other assets. **A page and its files always come from one build** (2026-09-21): the document
+  links the stylesheet and the scripts with the build of the server that wrote it
+  (`/assets/app.css?v=<build>`, `app::BuildId`, the login page of closed testing too), `boot.js`
+  asks for the bundle and sql.js with the same `?v=`, and the worker keeps these files under
+  exactly these addresses. Before, the first load after a deploy was answered by the old worker:
+  the page from the network (new markup), the stylesheet, the scripts and the bundle from its
+  cache (old); only the next load was consistent. Now the new page asks for `?v=<new build>`,
+  which the old worker does not have, so the network answers. And a worker keeps only what its
+  own build answered: every answer of the server names its build in the header `x-build`, so the
+  old worker does not keep a page of the new build (offline it would show the new markup with
+  its old files: `deploy.mjs` caught exactly that), and kept pages are per build. Pages and the
+  files of an install are asked of the server (`cache: "no-cache"`), never taken from the
+  browser's HTTP cache, which may hold a page of an older build. The install skips only a file
+  the server does not have (a bundle not built yet, 404); no network, an error or an answer of
+  another build (the server moved on) fails it, and the worker in charge keeps its whole shell
+  until the next load tries again. The font, the icons and the manifest
+  keep plain addresses: they do not change with a build. The build is the version plus the
+  start time of the process, so a restart is a new build and a returning visitor loads the shell
+  once more, the bundle included. Assets stay `no-cache` with the build as ETag: the server
+  answers every `?v=` with the file it has, so such an address must not be cached as immutable.
+  `e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
+  `/api/status` unreachable offline and simply opens the copy it has. Once the app runs it says
+  nothing: the „Offline bereit" notice is gone (owner, 2026-09-21: „wenn es einfach
+  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
 `lastmod` per module (the snapshot has no date per module), English pages.
@@ -747,7 +775,9 @@ healthcheck, which must not restart a server that still serves its last snapshot
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
 `/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/manifest.webmanifest`,
 `/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`, `/sitemap.xml`, and
-`GET`/`POST /access` (the login page of closed testing).
+`GET`/`POST /access` (the login page of closed testing). The stylesheet and the scripts answer
+under any `?v=<build>` as well (the page links them so, see Offline). Every answer carries the
+header `x-build` with the build of the process (version and start time, as in `/api/status`).
 
 ### Closed testing: the access gate (`server/src/access.rs`, 2026-09-21)
 

@@ -22,7 +22,7 @@ pub mod ui;
 
 use catalog::url;
 use leptos::prelude::*;
-use leptos_meta::{provide_meta_context, Link, MetaTags, Stylesheet, Title};
+use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::{path, NavigateOptions, SsrMode};
@@ -59,6 +59,29 @@ pub const BOOT_SCRIPT: &str = "/assets/boot.js";
 /// registers it; the web server writes its build into it).
 pub const SERVICE_WORKER: &str = "/sw.js";
 
+/// The build of the server that writes the page (given by the host, server side only). The
+/// document links the stylesheet and the scripts with it (`/assets/app.css?v=<build>`), and
+/// `boot.js` hands the same `?v=` on to the bundle and to sql.js. A service worker of another
+/// build has nothing under such an address and asks the network, so a page always gets the
+/// stylesheet, the scripts and the bundle of its own build — also on the first load after a
+/// deploy, which the worker of the old build still answers. Every visitor gets the same build,
+/// so the server's HTML stays the same for everybody (R9).
+#[derive(Clone)]
+pub struct BuildId(pub std::sync::Arc<str>);
+
+impl BuildId {
+    /// The address under which a page of this build asks for `path`.
+    pub fn asset(&self, path: &str) -> String {
+        format!("{path}?v={}", self.0)
+    }
+}
+
+/// `path` as the page being rendered links it: with the build its host gave (`BuildId`), plain
+/// where no host gave one.
+pub fn asset(path: &str) -> String {
+    use_context::<BuildId>().map_or_else(|| path.to_string(), |build| build.asset(path))
+}
+
 /// Runs before the first paint: marks the document as scripted and applies what this browser
 /// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps; the
 /// colour of the browser's own chrome (`theme-color`, `THEME_DARK`) follows the theme. Such personal
@@ -89,9 +112,18 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="apple-touch-icon" href=TOUCH_ICON/>
                 <link rel="manifest" href=MANIFEST/>
                 <script inner_html=HEAD_SCRIPT></script>
+                // The font and the stylesheet are the same on every page, so they are part of the
+                // document and not of `App`: the browser app does not hydrate, it mounts fresh, and
+                // leptos_meta would add a second `<link>` to the head for each. Two copies of the
+                // stylesheet can come from different places (the service worker's cache, the
+                // network) and mix an old sheet into a new one. `as` comes first: after a value
+                // the macro would read it as a cast. The font is linked as it is: it never changes
+                // with a build, and `app.css` names it by the same plain address.
+                <link as="font" rel="preload" type="font/woff2" crossorigin="anonymous" href=FONT/>
+                <link rel="stylesheet" href=asset(STYLESHEET)/>
                 <MetaTags/>
-                <script defer src=ENHANCE_SCRIPT></script>
-                <script type="module" src=BOOT_SCRIPT></script>
+                <script defer src=asset(ENHANCE_SCRIPT)></script>
+                <script type="module" src=asset(BOOT_SCRIPT)></script>
             </head>
             <body>
                 <App/>
@@ -107,8 +139,6 @@ pub fn App() -> impl IntoView {
     // The visitor's marked modules: from this browser's storage, empty on the server (R9).
     Bookmarks::provide();
     view! {
-        <Link rel="preload" href=FONT as_="font" type_="font/woff2" crossorigin="anonymous"/>
-        <Stylesheet href=STYLESHEET/>
         // Description, canonical address and the rest of what search engines read belong to the
         // page (`seo::Seo`), not to the app: a page must not carry two descriptions.
         <Title formatter=|title: String| if title.is_empty() { "Modulkatalog der BTU Cottbus-Senftenberg · Betula (inoffiziell)".to_string() } else { format!("{title} · Betula") }/>

@@ -31,6 +31,9 @@ check(await page.evaluate(() => typeof window.betulaMap === "string" && window.b
 check(await page.evaluate(() => document.querySelectorAll(".map-wide .map-dot").length) > 100, "the app draws no dots");
 check(await page.evaluate(() => document.querySelectorAll("head meta[name=description]").length) === 1, "the head has not exactly one description after the takeover");
 check(await page.evaluate(() => document.querySelectorAll("head link[rel=canonical]").length) === 1, "the head has not exactly one canonical address after the takeover");
+// Two stylesheets could come from different places (the service worker, the network) and mix.
+check(await page.evaluate(() => document.querySelectorAll("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
+check(await page.evaluate(() => document.querySelectorAll("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
 
 // A pointer over a dot: its relatives stand out and the line above the map names them.
 const dot = page.locator(".map-wide .map-dot.bachelor").first();

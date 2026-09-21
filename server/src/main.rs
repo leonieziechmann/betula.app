@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use app::data::{CatalogSource, Source};
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::{header, HeaderValue};
 use axum::middleware::{self, Next};
 use axum::response::Response;
@@ -58,6 +58,9 @@ pub struct AppState {
     pub gate: Option<Arc<access::Gate>>,
 }
 
+/// The header that names the build of the server on every answer (`AppState::build_id`).
+pub const BUILD_HEADER: &str = "x-build";
+
 /// name → (etag, bytes, gzip)
 pub type Packages = Arc<std::sync::Mutex<std::collections::HashMap<String, (String, axum::body::Bytes, axum::body::Bytes)>>>;
 
@@ -89,13 +92,18 @@ fn init_logging(config: &Config) {
     }
 }
 
-async fn access_log(request: Request, next: Next) -> Response {
+async fn access_log(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let started = Instant::now();
     let method = request.method().clone();
     let path = request.uri().path().to_string();
     let mut response = next.run(request).await;
 
     let headers = response.headers_mut();
+    // The build that answered: the service worker keeps a page or a file only when it comes from
+    // its own build (`app/assets/sw.js`), so it never mixes the files of two builds.
+    if let Ok(build) = HeaderValue::from_str(&state.build_id) {
+        headers.insert(BUILD_HEADER, build);
+    }
     headers.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
     headers.insert("referrer-policy", HeaderValue::from_static("strict-origin-when-cross-origin"));
     headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
@@ -120,12 +128,14 @@ pub fn router(state: AppState) -> Router {
     let routes = generate_route_list(app::App);
     let options = state.leptos.clone();
     // What every rendered page gets from its host: the data, the name of the site from outside,
-    // and the map of the programs the active snapshot was opened with.
+    // the build its stylesheet and scripts are linked with, and the map of the programs the
+    // active snapshot was opened with.
     let provide = {
-        let (store, site) = (state.store.clone(), app::seo::SiteUrl(state.public_url.clone()));
+        let (store, site, build) = (state.store.clone(), app::seo::SiteUrl(state.public_url.clone()), app::BuildId(state.build_id.clone()));
         move || {
             provide_context(source.clone());
             provide_context(site.clone());
+            provide_context(build.clone());
             if let Some((map, ..)) = store.current().and_then(|snapshot| snapshot.program_map.clone()) {
                 provide_context(app::data::ProgramMapHandle(map));
             }
@@ -177,7 +187,7 @@ pub fn router(state: AppState) -> Router {
         .merge(pages)
         // Around everything above, the page cache included; the access log sees what it turns away.
         .layer(middleware::from_fn_with_state(state.clone(), access::gate))
-        .layer(middleware::from_fn(access_log))
+        .layer(middleware::from_fn_with_state(state.clone(), access_log))
         .with_state(state)
 }
 
