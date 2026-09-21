@@ -90,24 +90,27 @@ impl HtmlCache {
 }
 
 /// Equal pages get equal keys: the catalog by its canonical filter, every other page by its
-/// path alone (tracking parameters and the like do not change what is rendered).
+/// path alone (tracking parameters and the like do not change what is rendered). What the app
+/// lays beside a page or fills it with (`open`, `full`, `area`, `req`) changes nothing on the
+/// server's page, so it is no part of the key either.
 pub fn cache_key(uri: &Uri) -> String {
     let path = match uri.path().trim_end_matches('/') {
         "" => "/",
         path => path,
     };
     if path == catalog::url::CATALOG {
-        // The list with its filters and, if any, the previewed module.
-        CatalogUrl::parse(uri.query().unwrap_or_default()).path()
+        // The list with its filters.
+        CatalogUrl::parse(uri.query().unwrap_or_default()).with_open(None).path()
     } else if path == catalog::url::PROGRAMS {
         // The program overview with its filters; the search text folded, as the page matches it.
         let mut overview = catalog::url::ProgramsUrl::parse(uri.query().unwrap_or_default());
         overview.text = catalog::search::fold(&overview.text);
         overview.path()
     } else if path.starts_with("/programs/") {
-        // A program's page shows one of its study plans and, beside it, one of its modules.
+        // A program's page shows one of its study plans.
         let tab = path.rsplit('/').next().and_then(catalog::url::ProgramTab::from_segment).unwrap_or_default();
-        format!("{path}{}", catalog::url::ProgramUrl::parse("", tab, uri.query().unwrap_or_default()).query())
+        let url = catalog::url::ProgramUrl::parse("", tab, uri.query().unwrap_or_default());
+        format!("{path}{}", catalog::url::ProgramUrl { open: None, full: false, area: None, req: None, ..url }.query())
     } else {
         path.to_string()
     }
@@ -213,11 +216,13 @@ mod tests {
         assert_eq!(key("/catalog?page=1"), "/catalog");
         assert_ne!(key("/catalog?page=2"), key("/catalog"));
         assert_eq!(key("/catalog/module/11101?utm_source=x"), "/catalog/module/11101");
-        assert_eq!(key("/catalog?open=11101&form=exercise&turnus=winter"), "/catalog?turnus=winter&form=exercise&open=11101");
+        // What the app shows beside a page is not the server's: the page is the same without it.
+        assert_eq!(key("/catalog?open=11101&form=exercise&turnus=winter"), "/catalog?turnus=winter&form=exercise");
+        assert_eq!(key("/programs/x/plan?variant=2&open=11101&full=1&area=3&req=4"), "/programs/x/plan?variant=2");
         assert_eq!(key("/programs?q=+%C3%96ko"), "/programs?q=oko");
         assert_eq!(key("/programs/x/plan?utm_source=x"), "/programs/x/plan");
         // Which study plan of a program is shown belongs to the page, so also to its key.
-        assert_eq!(key("/programs/x/plan?variant=2&open=11101"), "/programs/x/plan?variant=2&open=11101");
+        assert_eq!(key("/programs/x/plan?variant=2"), "/programs/x/plan?variant=2");
         assert_eq!(key("/programs/x/plan?variant=1"), key("/programs/x/plan?variant=nonsense"));
         assert_eq!(key("/programs/x/plan?open=../etc"), "/programs/x/plan");
         assert_eq!(key("/programs/"), "/programs");

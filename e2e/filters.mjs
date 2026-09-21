@@ -310,7 +310,12 @@ check((await still.locator('#filters select[name="program"] option').count()) > 
 await still.goto(base + "/catalog?open=11101", { waitUntil: "domcontentloaded" });
 const leftovers = await still.evaluate(() => [...document.querySelectorAll("kbd, .resizer, .slider, .scale, .theme-toggle, .keys, .load-more")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
 check(leftovers.length === 0, `no JS: still visible: ${leftovers.join(", ")}`);
-check((await still.locator(".detail h2").count()) === 1, "no JS: the shared link with a preview does not show the module");
+// The preview is the app's: the server's page ignores `open` and every row leads to the module's own page.
+check((await still.locator(".detail").count()) === 0, "no JS: the server's page shows a preview for a shared link");
+check(/^\/catalog\/module\/[A-Za-z0-9_-]+$/.test(await still.getAttribute(".rows a.row", "href")), `no JS: a row leads to ${await still.getAttribute(".rows a.row", "href")}, not to the module's page`);
+await still.click(".rows a.row");
+await still.waitForURL(/\/catalog\/module\//);
+check((await still.locator(".module-page h2").count()) === 1, "no JS: the row's link did not open the module's page");
 await still.goto(base + "/catalog?exam=written&not-exam=presentation", { waitUntil: "domcontentloaded" });
 await still.click('#filters a.chip:has-text("Winter")');
 await still.waitForURL(/turnus=winter/);

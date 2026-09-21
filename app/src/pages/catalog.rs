@@ -33,7 +33,16 @@ use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 #[component]
 pub fn CatalogPage() -> impl IntoView {
     let location = use_location();
-    let url = Memo::new(move |_| CatalogUrl::parse(&location.search.get()));
+    // The server's page lays nothing beside itself: `open` (the preview) is the app's, so the
+    // server renders the list the address names as if it were not there, every row leading to
+    // the module's own page. The app turns such an address into the preview.
+    let url = Memo::new(move |_| {
+        let mut url = CatalogUrl::parse(&location.search.get());
+        if !APP {
+            url.open = None;
+        }
+        url
+    });
     // Three independent parts of the URL. The filter decides what the list is; `page` only says
     // where the visitor is in it (the list scrolls endlessly and keeps `page` up to date); `open`
     // is the preview. So scrolling and opening a preview re-render neither list nor filters.
@@ -502,8 +511,9 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
     }.into_any())
 }
 
-/// One page of rows, as the server renders it: what the URL names, and links to the pages
-/// before and after it.
+/// One page of rows, as the server renders it: what the URL names, each row leading to the
+/// module's own page (nothing stands beside the server's list), and links to the pages before
+/// and after it.
 #[component]
 fn PlainRows(
     current: CatalogUrl,
@@ -515,13 +525,12 @@ fn PlainRows(
     with_program: bool,
     states: AnyView,
 ) -> impl IntoView {
-    let base = current.clone();
     view! {
         <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows">
             {states}
             {rows.into_iter().map(|row| {
-                let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
-                let preview = Signal::derive(move || base.with_open(Some(&target)).path());
+                let (target, id) = (row.id.clone(), row.id.clone());
+                let preview = Signal::derive(move || url::module_path(&target));
                 let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
                 view! { <Row row preview current phone with_program/> }
             }).collect_view()}
@@ -831,8 +840,9 @@ fn VirtualRows(
 #[component]
 pub(crate) fn Row(
     row: CatalogRow,
-    /// Where the row leads on the desktop: its list with this module previewed next to it. On a
-    /// phone it leads to the module's own page.
+    /// Where the row leads on the desktop: in the app its list with this module previewed next
+    /// to it, on the server's page the module's own page. On a phone it leads to the module's
+    /// own page either way.
     #[prop(into)] preview: Signal<String>,
     /// This module is the one previewed.
     #[prop(into)] current: Signal<bool>,

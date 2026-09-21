@@ -31,10 +31,10 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 |---|---|
 | `/` | Landing page: every function with a link |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>` is an area of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in it or below it |
-| `/catalog?…&open=<id>` | The same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it |
+| `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it. The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — all of them are content, so they stand in the address, work without JavaScript and are part of the server's cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
+| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. The server renders an explanation, the same for everybody, `noindex` |
 
@@ -209,6 +209,16 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   subject agree on. The sidebar says so, and programs without a clear answer have a section of
   their own („unknown stays unknown", R12). The 2026-09-19 snapshot: 106 by thesis, 34 by
   majority, 4 by subject, 4 without.
+- **The server's pages lay nothing beside themselves** (owner decision 2026-09-21: the server's
+  HTML is for crawlers, the browser app for people, and „die GET-Parameter sollen bei SSR nichts
+  fürs Seitenlayout machen"): `open`, `full`, `area` and `req` are the app's. The server renders
+  the catalog and a program's page as if they were not in the address (`CatalogPage` and
+  `ProgramPage` drop them where `APP` is false, `cache_key` too), and links pages of their own
+  where the app would open something beside the page: a row of the catalog's list and a module
+  of a program lead to `/catalog/module/<id>`, an area of a program to the catalog narrowed down
+  to it (`?program=<slug>&area=<id>`), a row of the plan that names no module is text. The app
+  keeps the preview, the panel beside the program and „Vollbild" in place, and turns a shared
+  address with these parameters into what it names.
 - **A module is shown where it was opened** (2026-09-21): on the desktop beside the list or the
   page (`open=<id>`), and in full where „Vollbild" is asked for — the catalog's preview leads to
   the module's own page (its area), the program's panel to `…&full=1` (the same page, rendered by
@@ -248,7 +258,9 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   closed); a row of the study plan that names no module of the catalog — most of them are
   requirements („Wahlpflichtmodule der Studienrichtung", „Wahlpflichtmodul aus der Informatik") —
   shows what the plan states about it and where the modules that can be chosen are listed
-  (`?req=<n>`, the row's place in the chosen plan). **No source links a row to an area**
+  (`?req=<n>`, the row's place in the chosen plan). All of this is the app's: the server's page
+  links the module's page and the catalog narrowed down to the area instead, and shows the row as
+  text (see „The server's pages lay nothing beside themselves"). **No source links a row to an area**
   (`area_rules` is prose about credits), so the name does the work and the panel says so: the
   labels of the areas are scored against the row's name (a distinctive word counts, „Wahlpflicht­
   modul" hardly), only the study directions the plan's caption names are kept („MIT und EET" →
@@ -720,7 +732,8 @@ the semester at every row, no headings, the second page reached by scrolling; a 
 more than the plan places in it, with the note saying what the plan asks for and that it is
 derived) with the area picker (an elective area filters the list, the tag above it, the panel not
 rebuilt), and the same panel without JavaScript (links keep the rest of the filter, the form keeps
-what the links set, nothing that needs JavaScript is visible).
+what the links set, nothing that needs JavaScript is visible, a shared address with `open` shows
+the plain list, a row leads to the module's page).
 
 ```bash
 cd e2e && node module.mjs

@@ -43,6 +43,10 @@ use crate::seo::{self, Seo};
 use crate::tabs::Area;
 use crate::ui::{BackLink, EmptyState, ErrorState, Fact, Frame, Icon, NotFound, OfferBadge, Shortcut};
 
+/// The browser app (`csr`), or the server rendering the page for crawlers and for browsers
+/// without JavaScript.
+const APP: bool = cfg!(feature = "csr");
+
 /// What fills the page: the program itself (with what was picked beside it, on the desktop), or
 /// what was picked — the module in full, or on a phone also an area or a row of the plan.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -104,7 +108,17 @@ pub fn ProgramPage() -> impl IntoView {
     // The parts of the address: the view, the study plan it shows, and what the visitor picked
     // (a module beside the page or filling it, an area, a row of the plan). Each part re-renders
     // only what depends on it.
-    let here = Memo::new(move |_| ProgramUrl::parse(&slug.get(), tab.get().unwrap_or_default(), &location.search.get()));
+    // The server's page lays nothing beside itself and fills itself with nothing else: what is
+    // picked (`open`, `full`, `area`, `req`) is the app's, so the server renders the program's
+    // page as if it were not there, and links pages of their own instead (`module_href`,
+    // `area_href`). The app turns such an address into what it names.
+    let here = Memo::new(move |_| {
+        let mut here = ProgramUrl::parse(&slug.get(), tab.get().unwrap_or_default(), &location.search.get());
+        if !APP {
+            here = ProgramUrl { open: None, full: false, area: None, req: None, ..here };
+        }
+        here
+    });
     let variant = Memo::new(move |_| here.get().variant);
     let open = Memo::new(move |_| here.get().open);
     let full = Memo::new(move |_| here.get().full);
@@ -286,7 +300,7 @@ fn ProgramSidebar(data: ProgramData, tab: ProgramTab, shape: RwSignal<PlanShape>
                     let id = group.id;
                     view! {
                         <a
-                            href=move || links.get().with_area(Some(id)).path()
+                            href=move || area_href(&links.get(), id)
                             data-walk="area"
                             data-noscroll=""
                             class=format!("depth-{}", group.depth.clamp(1, 4))
@@ -568,7 +582,7 @@ fn PlanRowPanel(
                                 <p class="label">"Vermutlich " {label.clone()}<span>{count}" Module"</span></p>
                                 <p class="hint">"Aus dem Namen der Planzeile abgeleitet: der Plan selbst nennt keinen Bereich. "{path}</p>
                                 <div class="linklist">{area_module_links(&area.modules, &known, links)}</div>
-                                <a class="pre more-area" href=move || links.get().with_area(Some(id)).path() data-walk="area" data-noscroll="">
+                                <a class="pre more-area" href=move || area_href(&links.get(), id) data-walk="area" data-noscroll="">
                                     <b>"Diesen Bereich ganz ansehen"</b>
                                     <small>{label}</small>
                                     <Icon name="chevron-right"/>
@@ -583,7 +597,7 @@ fn PlanRowPanel(
                                 {others.clone().into_iter().map(|area| {
                                     let id = area.id;
                                     view! {
-                                        <a class="pre" href=move || links.get().with_area(Some(id)).path() data-walk="area" data-noscroll="">
+                                        <a class="pre" href=move || area_href(&links.get(), id) data-walk="area" data-noscroll="">
                                             <b>{area.label.clone()}</b>
                                             <small>{area.modules.len()}" Module"</small>
                                             <Icon name="chevron-right"/>
@@ -622,7 +636,7 @@ fn area_module_links(modules: &[AreaPlacement], known: &HashMap<String, ProgramM
             let id = placement.module_id.clone();
             let kind = placement.kind.clone().or_else(|| known.get(&placement.module_id).and_then(|m| m.kind.clone()));
             view! {
-                <a class="pre" href=move || links.get().with_open(Some(&id)).path() data-walk="module" data-noscroll="">
+                <a class="pre" href=move || module_href(&links.get(), &id) data-walk="module" data-noscroll="">
                     <span class="mono">{placement.module_id.clone()}</span>
                     <b>{placement.module_title.clone()}</b>
                     <small>
@@ -705,7 +719,7 @@ fn AreaPanel(
                             <p class="label">"Bereiche darin"<span>{children.len()}</span></p>
                             <div class="linklist">
                                 {children.into_iter().map(|(id, label, modules)| view! {
-                                    <a class="pre" href=move || links.get().with_area(Some(id)).path() data-noscroll="">
+                                    <a class="pre" href=move || area_href(&links.get(), id) data-noscroll="">
                                         <b>{label}</b>
                                         <small>{modules}" Module"</small>
                                         <Icon name="chevron-right"/>
@@ -1258,6 +1272,9 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
 fn plan_module(entry: &PlanEntry, row: usize, links: Memo<ProgramUrl>, open: Memo<Option<String>>) -> AnyView {
     match &entry.module_id {
         Some(id) => module_link(id, &entry.module_name, links, open),
+        // A row that names no module: in the app it opens beside the page (`?req=<n>`); the
+        // server's page has no page for it, so there it is what the plan says, as text.
+        None if !APP => view! { <span class="unstated">{entry.module_name.clone()}</span> }.into_any(),
         None => {
             let name = entry.module_name.clone();
             view! {
@@ -1270,12 +1287,37 @@ fn plan_module(entry: &PlanEntry, row: usize, links: Memo<ProgramUrl>, open: Mem
     }
 }
 
+/// Where a module of the program leads: in the app beside the page (`?open=<id>`, as in the
+/// catalog, with „Vollbild" there); on the server's page to the module's own page.
+fn module_href(links: &ProgramUrl, id: &str) -> String {
+    if APP {
+        links.with_open(Some(id)).path()
+    } else {
+        url::module_path(id)
+    }
+}
+
+/// Where an area of the program leads: in the app beside the page (`?area=<id>`); on the
+/// server's page to the catalog narrowed down to the area, the page that lists what it holds.
+fn area_href(links: &ProgramUrl, id: i64) -> String {
+    if APP {
+        links.with_area(Some(id)).path()
+    } else {
+        CatalogUrl {
+            query: CatalogQuery { program: Some(ProgramScope { program_slug: links.slug.clone(), area: Some(id), ..Default::default() }), ..Default::default() },
+            page: 1,
+            open: None,
+        }
+        .path()
+    }
+}
+
 /// A module of the program, opening beside the page (`?open=<id>`, as in the catalog).
 fn module_link(id: &str, title: &str, links: Memo<ProgramUrl>, open: Memo<Option<String>>) -> AnyView {
     let id = id.to_string();
     let href = {
         let id = id.clone();
-        move || links.get().with_open(Some(&id)).path()
+        move || module_href(&links.get(), &id)
     };
     view! {
         <a href=href data-walk="module" data-id=id.clone() data-noscroll="" aria-current=move || is_open(&Some(id.clone()), open).then_some("true")>
@@ -1543,7 +1585,7 @@ fn AreasTab(
                                 <tr class=format!("group depth-{}", group.depth.clamp(1, 4)) id=format!("area-{}", group.id) class:open=move || area.get() == Some(group.id)>
                                     <th colspan="6" scope="rowgroup">
                                         // The area itself is a link: it shows beside the page what it holds.
-                                        <a class="ginner" data-walk="area" data-noscroll="" href=move || links.get().with_area(Some(group.id)).path() aria-current=move || (area.get() == Some(group.id)).then_some("true")>
+                                        <a class="ginner" data-walk="area" data-noscroll="" href=move || area_href(&links.get(), group.id) aria-current=move || (area.get() == Some(group.id)).then_some("true")>
                                             <span class="gname">{group.label}</span>
                                             {group.parent.map(|parent| view! { <span class="gpath">{parent}</span> })}
                                             <span class="gcount">{count}" Module"{(sum > 0.0).then(|| format!(" · {} LP", format::number(sum)))}</span>
