@@ -25,7 +25,7 @@ use std::collections::HashMap;
 
 use catalog::filter::{KindFilter, ProgramRelation, ProgramScope};
 use catalog::labels::{Code, ModuleKind, OfferStatus, TurnusSeason};
-use catalog::pages::{self, ProgramData};
+use catalog::pages::{self, CatalogArea, ProgramData};
 use catalog::rows::{Program, ProgramModule};
 use catalog::rows_detail::{AreaPlacement, PlanEntry};
 use catalog::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
@@ -637,64 +637,16 @@ fn area_module_links(modules: &[AreaPlacement], known: &HashMap<String, ProgramM
         .into_any()
 }
 
-/// The study direction an area's label ends in („Informatik (MIT)" → „MIT").
-fn direction_of(label: &str) -> Option<&str> {
-    let (_, rest) = label.rsplit_once('(')?;
-    let (inside, _) = rest.split_once(')')?;
-    let inside = inside.trim();
-    (!inside.is_empty() && inside.len() <= 12).then_some(inside)
-}
-
-/// Which areas of the program a row of the plan is about, most fitting first. No source links the
-/// two, so the name does the work: what the row and an area have in common, and the study
-/// direction the plan is printed for („Wahlpflichtmodul aus der **Informatik**" in the plan of MIT
-/// and EET → „Informatik (MIT)", „Informatik (EET)", never the areas of PA or IoT). Derived, never
-/// stated — the panel says so, and where two areas fit equally well it names both instead of
-/// picking one (R12).
+/// Which areas of the program a row of the plan is about, most fitting first: what the name of
+/// the row and the areas have in common, within the study direction the plan is printed for
+/// (`catalog::plan::areas_for_row`; the catalog's semester lists rest on the same derivation).
+/// Derived, never stated — the panel says so, and where two areas fit equally well it names both
+/// instead of picking one (R12): the mark `AreaGroup::ambiguous` then stands in front of them.
 fn areas_for_row(entry: &PlanEntry, plan: &str, areas: &[AreaGroup]) -> Vec<AreaGroup> {
-    let words = |text: &str| -> Vec<String> {
-        catalog::search::fold(text).split(|c: char| !c.is_alphanumeric()).filter(|word| word.len() >= 4).map(str::to_string).collect()
-    };
-    // „Wahlpflichtmodul" says what kind it is, not which area: it may match, but weighs less.
-    let generic = ["wahlpflicht", "wahlpflichtmodul", "wahlpflichtmodule", "modul", "module", "pflicht", "pflichtmodul", "pflichtmodule", "studium", "katalog"];
-    let row_words = words(&entry.module_name);
-    // The directions this plan is printed for, as its caption spells them („MIT und EET").
-    let plan_parts: Vec<&str> = plan.split(|c: char| !c.is_alphanumeric()).filter(|part| !part.is_empty()).collect();
-    let directions: Vec<&str> = areas.iter().filter_map(|area| direction_of(&area.label)).filter(|direction| plan_parts.contains(direction)).collect();
-
-    let mut scored: Vec<(i32, AreaGroup)> = areas
-        .iter()
-        .filter_map(|area| {
-            let area_words = words(&area.label);
-            let matches = |a: &String, b: &String| a.starts_with(b.as_str()) || b.starts_with(a.as_str());
-            // The name has to carry the match: a word of the row that is not „Wahlpflichtmodul"
-            // and the like. The study direction only ranks what the name already found.
-            let mut score = 0;
-            for word in &row_words {
-                if area_words.iter().any(|other| matches(word, other)) {
-                    score += if generic.contains(&word.as_str()) { 1 } else { 3 };
-                }
-            }
-            if score < 3 {
-                return None;
-            }
-            // Where the plans are printed per study direction, only this plan's areas can be meant.
-            if !directions.is_empty() {
-                match direction_of(&area.label) {
-                    Some(direction) if directions.contains(&direction) => score += 3,
-                    Some(_) => return None,
-                    None => {}
-                }
-            }
-            Some((score, area.clone()))
-        })
-        .collect();
-    scored.sort_by(|(a, left), (b, right)| b.cmp(a).then(right.modules.len().cmp(&left.modules.len())));
-    // Only a single best fit is shown with its modules; ties are named, not decided.
-    let best = scored.first().map(|(score, _)| *score).unwrap_or(0);
-    let tied = scored.iter().filter(|(score, _)| *score == best).count();
-    let mut fitting: Vec<AreaGroup> = scored.into_iter().take(4).map(|(_, area)| area).collect();
-    if tied > 1 {
+    let known: Vec<CatalogArea> = areas.iter().map(AreaGroup::as_catalog_area).collect();
+    let found = catalog::plan::areas_for_row(entry, plan, &known);
+    let mut fitting: Vec<AreaGroup> = found.areas.iter().filter_map(|area| areas.iter().find(|group| group.id == area.id).cloned()).collect();
+    if found.ambiguous() {
         fitting.insert(0, AreaGroup::ambiguous());
     }
     fitting
@@ -1029,12 +981,7 @@ fn clip_plan_name(name: &str) -> String {
 
 /// Which semesters a row of the plan belongs to: one, a span, or none at all.
 fn semester_span(entry: &PlanEntry) -> Option<(i64, i64)> {
-    match (entry.semester, entry.start_semester, entry.end_semester) {
-        (Some(n), _, _) => Some((n, n)),
-        (None, Some(from), Some(to)) => Some((from.min(to), from.max(to))),
-        (None, Some(n), None) | (None, None, Some(n)) => Some((n, n)),
-        (None, None, None) => None,
-    }
+    catalog::plan::semester_span(entry)
 }
 
 /// „6" or „3–4": one number where all plans agree, the range where they do not. `None` where no
@@ -1503,6 +1450,11 @@ impl AreaGroup {
         self.id == 0
     }
 
+    /// The area as the catalog crate knows it (for the derivation shared with the catalog).
+    fn as_catalog_area(&self) -> CatalogArea {
+        CatalogArea { id: self.id, label: self.label.clone(), path: self.path.clone(), depth: self.depth, modules: self.modules.len() }
+    }
+
     #[cfg(test)]
     fn with_modules(mut self, count: usize) -> Self {
         self.modules = (0..count)
@@ -1712,7 +1664,7 @@ mod tests {
     }
 
     #[test]
-    fn a_row_of_the_plan_points_at_the_areas_of_its_own_study_direction() {
+    fn the_areas_a_row_points_at_are_the_page_s_groups_with_the_mark_of_a_tie() {
         let area = |id: i64, label: &str, modules: usize| AreaGroup {
             id,
             label: label.to_string(),
@@ -1723,14 +1675,7 @@ mod tests {
             children: Vec::new(),
         }
         .with_modules(modules);
-        let areas = vec![
-            area(1, "Informatik (MIT)", 1),
-            area(2, "Informatik (EET)", 1),
-            area(3, "Informatik (PAu)", 2),
-            area(4, "Informatik (IoT)", 2),
-            area(5, "Studienrichtungsspezifische Vertiefungsmodule (MIT)", 23),
-            area(6, "Mathematik und Physik (MIT)", 7),
-        ];
+        let areas = vec![area(1, "Informatik (MIT)", 1), area(2, "Informatik (EET)", 1), area(5, "Studienrichtungsspezifische Vertiefungsmodule (MIT)", 23)];
         let row = |name: &str| PlanEntry {
             module_id: None,
             module_name: name.to_string(),
@@ -1750,19 +1695,11 @@ mod tests {
             credits_differ_from_catalog: false,
         };
         let plan = "Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium";
-
-        // Only the directions of this plan, and with two of them nothing is picked as the one.
         let fitting = areas_for_row(&row("Wahlpflichtmodul aus der Informatik"), plan, &areas);
         assert!(fitting.first().is_some_and(AreaGroup::is_ambiguous), "two directions fit, so none is shown as the one");
-        let labels: Vec<&str> = fitting.iter().filter(|area| !area.is_ambiguous()).map(|area| area.label.as_str()).collect();
-        assert_eq!(labels, vec!["Informatik (MIT)", "Informatik (EET)"]);
-
-        // „der Studienrichtung" finds the area whose name starts the same way.
+        assert_eq!(fitting.iter().filter(|area| !area.is_ambiguous()).map(|area| area.id).collect::<Vec<_>>(), vec![1, 2]);
         let fitting = areas_for_row(&row("Wahlpflichtmodule der Studienrichtung"), plan, &areas);
-        let labels: Vec<&str> = fitting.iter().filter(|area| !area.is_ambiguous()).map(|area| area.label.as_str()).collect();
-        assert_eq!(labels.first(), Some(&"Studienrichtungsspezifische Vertiefungsmodule (MIT)"));
-
-        // A row that fits nothing keeps quiet.
+        assert_eq!(fitting.first().map(|area| area.id), Some(5));
         assert!(areas_for_row(&row("Bachelor-Arbeit"), plan, &areas).is_empty());
     }
 

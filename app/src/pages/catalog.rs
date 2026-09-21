@@ -12,6 +12,7 @@ use std::sync::Arc;
 use catalog::filter::{CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey};
 use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
 use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData};
+use catalog::plan::SemesterPlan;
 use catalog::rows::{CatalogRow, Program};
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
 use leptos::prelude::*;
@@ -90,6 +91,9 @@ pub fn CatalogPage() -> impl IntoView {
     let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
     let left_at = Tabs::expect().and_then(|tabs| tabs::page_below(&tabs.before(&now), "/catalog/module"));
     let come_back_to = StoredValue::new(open.get_untracked().or(left_at));
+    // The first list of this visit takes the page as it is; a list rendered after it replaces the
+    // one before, whose panel (the same element) still stands where the visitor left it.
+    let first_list = StoredValue::new(true);
     let preview = Memo::new(move |_| match open.get() {
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
@@ -131,7 +135,8 @@ pub fn CatalogPage() -> impl IntoView {
                     <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="filters" aria-label="Breite der Filter ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
                     {move || list.get().ok().map(|(current, data)| {
                         let reveal = come_back_to.try_update_value(Option::take).flatten();
-                        view! { <List current data open page phone reveal/> }
+                        let fresh = first_list.try_update_value(|first| std::mem::replace(first, false)).unwrap_or(false);
+                        view! { <List current data open page phone reveal fresh/> }
                     })}
                 }.into_any(),
             }}
@@ -335,6 +340,8 @@ fn List(
     phone: RwSignal<bool>,
     /// The row to scroll to once the list is there.
     reveal: Option<String>,
+    /// The first list of the visit (`true`), or one that replaces the list of the filter before.
+    fresh: bool,
 ) -> impl IntoView {
     let q = current.query.clone();
     let total = data.page.total;
@@ -394,7 +401,7 @@ fn List(
     // The browser app renders only what is on screen of the whole list; the server renders the
     // page the URL names, with pager links (no JavaScript, search engines).
     let rows = if APP {
-        view! { <VirtualRows current=current.clone() first=data.page.rows.clone() total open page phone with_program reveal states/> }.into_any()
+        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open page phone with_program reveal fresh states/> }.into_any()
     } else {
         view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program states/> }.into_any()
     };
@@ -420,6 +427,7 @@ fn List(
                         <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open) aria-label="Filter entfernen"><Icon name="x"/></a></span>
                     }).collect_view()}
                 </div>
+                {plan_note(data.semester_plan.as_ref(), &current, open)}
             </div>
             <div class="cols label">
                 {sort_link(if with_program { SortKey::Default } else { SortKey::Title }, "Modul", "")}
@@ -433,6 +441,65 @@ fn List(
             {rows}
         </section>
     }
+}
+
+/// With a semester of a program chosen: what its plan asks for there besides the modules it
+/// places in it, and what the list holds for that. Every row of it is derived from the name of a
+/// row of the plan, and says so; the areas are links to the list narrowed down to them.
+fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Option<String>>) -> Option<AnyView> {
+    let plan = plan.filter(|plan| !plan.requirements.is_empty())?;
+    let area_link = |id: i64, label: &str| {
+        let mut target = current.with_page(1);
+        if let Some(scope) = target.query.program.as_mut() {
+            scope.area = Some(id);
+        }
+        view! { <a href=keep_open(target, open) data-noscroll="">"„"{label.to_string()}"“"</a> }
+    };
+    let rows = plan
+        .requirements
+        .iter()
+        .map(|row| {
+            let name = match &row.credits {
+                Some(credits) => format!("„{}“ ({credits} LP)", row.name),
+                None => format!("„{}“", row.name),
+            };
+            let fues_list = {
+                let mut target = current.with_page(1);
+                if let Some(scope) = target.query.program.as_mut() {
+                    scope.relation = ProgramRelation::Fues;
+                    scope.area = None;
+                }
+                keep_open(target, open)
+            };
+            let links = |areas: &[CatalogArea]| areas.iter().enumerate().map(|(i, area)| view! {
+                {(i > 0).then(|| if i + 1 < areas.len() { ", " } else { " oder " })}
+                {area_link(area.id, &area.label)}
+            }).collect_view();
+            let also = (!row.others.is_empty()).then(|| view! { " Käme dem Namen nach auch in Frage: "{links(&row.others)}"." });
+            let what = if row.single {
+                view! { ": ein einzelnes Modul, das der Katalog unter diesem Namen nicht führt." }.into_any()
+            } else if row.fues {
+                view! { ": ein Modul aus dem Fachübergreifenden Studium, siehe die "<a href=fues_list data-noscroll="">"FÜS-Liste"</a>"." }.into_any()
+            } else if row.areas.is_empty() {
+                view! { ": welche Module dafür in Frage kommen, nennt der Plan nicht. Die Wahlpflichtmodule des Studiengangs stehen mit in der Liste." }.into_any()
+            } else if row.ambiguous() {
+                view! { ": dem Namen nach aus "{links(&row.areas)}" (gleich gut passend), die alle mit in der Liste stehen."{also} }.into_any()
+            } else {
+                view! { ": vermutlich aus "{links(&row.areas)}", die Module dieses Bereichs stehen mit in der Liste."{also} }.into_any()
+            };
+            view! { <p><b>{name}</b>{what}</p> }
+        })
+        .collect_view();
+    Some(view! {
+        <div class="plan-note">
+            <Icon name="info"/>
+            <div>
+                <p class="plan-note-lead">"Der Regelstudienplan sieht im "{plan.semester}". Semester außerdem vor:"</p>
+                {rows}
+                <p class="plan-note-hint">"Welche Module dafür gemeint sind, ist aus den Namen im Plan abgeleitet: der Plan selbst nennt keinen Bereich."</p>
+            </div>
+        </div>
+    }.into_any())
 }
 
 /// One page of rows, as the server renders it: what the URL names, and links to the pages
@@ -492,6 +559,8 @@ const ROW_PHONE: f32 = 88.0;
 #[component]
 fn VirtualRows(
     current: CatalogUrl,
+    /// The query the page ran: the URL's with what the page derived (`CatalogData::effective`).
+    query: CatalogQuery,
     /// The rows of the page the URL names: what the server rendered, loaded already.
     first: Vec<CatalogRow>,
     total: u64,
@@ -501,13 +570,16 @@ fn VirtualRows(
     with_program: bool,
     /// The row to scroll to once the list is there: the module the visitor comes back from.
     reveal: Option<String>,
+    /// The first list of the visit (`true`), or one that replaces the list of the filter before.
+    fresh: bool,
     states: AnyView,
 ) -> impl IntoView {
     let total = usize::try_from(total).unwrap_or(0);
     let per_page = usize::try_from(PAGE_SIZE).unwrap_or(50).max(1);
     let pages_total = total.div_ceil(per_page).max(1);
     let start_page = usize::try_from(current.page).unwrap_or(1).clamp(1, pages_total);
-    let query = StoredValue::new(current.query.clone());
+    let start_query = query.clone();
+    let query = StoredValue::new(query);
     let source = use_source().ok();
     // The pages of rows the list holds, by page number.
     let loaded: RwSignal<BTreeMap<usize, Vec<CatalogRow>>> = RwSignal::new(BTreeMap::from([(start_page, first)]));
@@ -689,8 +761,13 @@ fn VirtualRows(
     // after this has run.
     let (at_start, alive_start) = (follow.clone(), alive.clone());
     let start_source = use_source().ok();
-    let start_query = current.query.clone();
     Effect::new(move |_| {
+        // A list that replaces another (a filter changed) starts at the top: the panel is the
+        // element the list before scrolled, and where that stood would be taken for this list's
+        // page. Before anything measures: the frame after the render already follows the scroll.
+        if !fresh {
+            nav::scroll_list_to_start(ROWS_ID);
+        }
         let row = reveal.as_ref().and_then(|id| {
             let source = start_source.clone()?;
             source.run(|db| catalog::queries::catalog_position(db, &start_query, id)).ok().flatten()

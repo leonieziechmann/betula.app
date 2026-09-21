@@ -6,8 +6,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::db::{Database, DbError};
-use crate::filter::{CatalogQuery, ProgramRelation, ProgramScope, SortKey, TurnusFilter};
+use crate::filter::{CatalogQuery, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey, TurnusFilter};
 use crate::labels::{Labelled, OfferStatus};
+use crate::plan::{self, SemesterPlan};
 use crate::queries;
 use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
 use crate::rows_detail::{
@@ -130,6 +131,12 @@ pub struct CatalogData {
     pub plan_semesters: Vec<i64>,
     /// The areas of the selected program's module tree (empty without a program, or a tree).
     pub areas: Vec<CatalogArea>,
+    /// With a semester of the program chosen: what the plan asks for in it besides the modules
+    /// it places there, and what was listed for that (`plan::semester_plan`).
+    pub semester_plan: Option<SemesterPlan>,
+    /// The query the page ran: the URL's, with what the page derived filled in (the areas of the
+    /// semester's requirements). Further pages of the list are loaded with this one.
+    pub effective: CatalogQuery,
     /// For the name of the selected department (few rows; the long lists are `CatalogChoices`).
     pub departments: Vec<Department>,
     pub meta: Meta,
@@ -141,22 +148,6 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbErr
         None => None,
     };
 
-    // The two lists of a program are shown as tabs, each with its exact total.
-    let (mut curricular_total, mut fues_total) = (None, None);
-    if let (Some(scope), Some(_)) = (&url.query.program, &program) {
-        for relation in [ProgramRelation::Curricular, ProgramRelation::Fues] {
-            let other = CatalogQuery {
-                program: Some(ProgramScope { relation, ..scope.clone() }),
-                ..url.query.clone()
-            };
-            let total = Some(queries::catalog_count(db, &other)?);
-            match relation {
-                ProgramRelation::Curricular => curricular_total = total,
-                ProgramRelation::Fues => fues_total = total,
-            }
-        }
-    }
-
     let plan_semesters = match &program {
         Some(program) if program.has_plan => queries::program_plan_semesters(db, &program.id)?,
         _ => Vec::new(),
@@ -166,10 +157,41 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbErr
         None => Vec::new(),
     };
 
+    // A semester of the plan lists what the plan places there and what can be chosen for the
+    // semester's requirements („Wahlpflichtmodule der Informatik"): the modules of the areas the
+    // requirement's name points at, else every elective the plan places nowhere. The URL says
+    // the semester; what that means is derived here and filled into the query (R12: the page
+    // says that it is derived).
+    let mut query = url.query.clone();
+    let mut semester_plan = None;
+    if let (Some(scope), Some(program)) = (query.program.as_mut(), program.as_ref()) {
+        if let (Some(PlanSemesterFilter::Semester(semester)), true) = (scope.plan_semester, program.has_plan) {
+            let plan = plan::semester_plan(semester, &queries::program_plan_entries(db, &program.id)?, &areas);
+            scope.semester_areas = plan.area_ids();
+            scope.semester_electives = plan.any_elective();
+            semester_plan = Some(plan);
+        }
+    }
+
+    // The two lists of a program are shown as tabs, each with its exact total.
+    let (mut curricular_total, mut fues_total) = (None, None);
+    if let (Some(scope), Some(_)) = (&query.program, &program) {
+        for relation in [ProgramRelation::Curricular, ProgramRelation::Fues] {
+            let other = CatalogQuery { program: Some(ProgramScope { relation, ..scope.clone() }), ..query.clone() };
+            let total = Some(queries::catalog_count(db, &other)?);
+            match relation {
+                ProgramRelation::Curricular => curricular_total = total,
+                ProgramRelation::Fues => fues_total = total,
+            }
+        }
+    }
+
     Ok(CatalogData {
-        page: queries::catalog_page(db, &url.query, url.offset(), PAGE_SIZE)?,
+        page: queries::catalog_page(db, &query, url.offset(), PAGE_SIZE)?,
         plan_semesters,
         areas,
+        semester_plan,
+        effective: query,
         program,
         curricular_total,
         fues_total,

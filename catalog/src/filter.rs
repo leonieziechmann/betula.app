@@ -56,6 +56,14 @@ pub struct ProgramScope {
     /// the tree places in it or in an area below it. „Wahlpflichtmodule Praktische Informatik"
     /// is such an area; the tree, not the plan, is the authority for structure.
     pub area: Option<i64>,
+    /// Derived, never part of a URL (`pages::catalog` fills them in, like the marked modules):
+    /// with a semester chosen, the areas whose modules can be chosen for the plan's requirement
+    /// rows of that semester („Wahlpflichtmodule der Informatik", `plan::semester_plan`), listed
+    /// with the modules the plan places there …
+    pub semester_areas: Vec<i64>,
+    /// … and whether every elective module the plan places nowhere counts as well (a row of the
+    /// plan that points at no area).
+    pub semester_electives: bool,
 }
 
 /// Any of the ticked offers matches; nothing ticked means no turnus filter.
@@ -349,8 +357,23 @@ impl CatalogQuery {
 
             match scope.plan_semester {
                 Some(PlanSemesterFilter::Semester(n)) => {
-                    conditions.push("pm.plan_semester = ?".to_string());
+                    // What the plan places in the semester, and what can be chosen for the
+                    // semester's requirements: the modules of the areas those point at, or every
+                    // elective the plan places nowhere. What the plan places elsewhere is no choice.
+                    let mut asked = vec!["pm.plan_semester = ?".to_string()];
                     params.push(Value::Integer(i64::from(n)));
+                    if !scope.semester_areas.is_empty() {
+                        asked.push(format!(
+                            "(pm.plan_semester IS NULL AND EXISTS (SELECT 1 FROM v_program_module_area a \
+                             WHERE a.program_id = pm.program_id AND a.module_id = f.module_id AND a.area_id IN ({})))",
+                            placeholders(scope.semester_areas.len())
+                        ));
+                        params.extend(scope.semester_areas.iter().map(|id| Value::Integer(*id)));
+                    }
+                    if scope.semester_electives {
+                        asked.push("(pm.plan_semester IS NULL AND IFNULL(pm.kind, '') NOT IN ('compulsory', 'thesis', 'internship'))".to_string());
+                    }
+                    conditions.push(if asked.len() == 1 { asked.remove(0) } else { format!("({})", asked.join(" OR ")) });
                 }
                 Some(PlanSemesterFilter::Unstated) => conditions.push("pm.plan_semester IS NULL".to_string()),
                 None => {}

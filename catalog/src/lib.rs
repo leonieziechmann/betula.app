@@ -14,6 +14,7 @@ pub mod fuzzy;
 pub mod graph;
 pub mod labels;
 pub mod pages;
+pub mod plan;
 pub mod queries;
 pub mod rows;
 pub mod rows_detail;

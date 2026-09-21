@@ -224,6 +224,18 @@ fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body
     response
 }
 
+/// `GET /sw.js`: the service worker, with the build of this process written into it, so that a
+/// new build installs a new worker and drops the shell the old one kept. Revalidated on every use
+/// like the other assets (browsers check a worker for updates on their own as well).
+pub async fn service_worker(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    static SOURCE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
+    let body = SOURCE.get_or_init(|| {
+        let source = include_str!("../../app/assets/sw.js").replace("__BUILD__", &state.build_id);
+        Box::leak(source.into_boxed_str()).as_bytes()
+    });
+    asset(&state, &headers, "text/javascript; charset=utf-8", body)
+}
+
 pub async fn stylesheet(State(state): State<AppState>, headers: HeaderMap) -> Response {
     asset(&state, &headers, "text/css; charset=utf-8", include_bytes!("../../app/assets/app.css"))
 }

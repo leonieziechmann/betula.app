@@ -157,6 +157,7 @@ pub fn router(state: AppState) -> Router {
         .route(app::OG_IMAGE, get(api::og_image))
         .route(app::ENHANCE_SCRIPT, get(api::enhance_script))
         .route(app::BOOT_SCRIPT, get(api::boot_script))
+        .route(app::SERVICE_WORKER, get(api::service_worker))
         .route("/assets/sql-wasm.js", get(api::sql_js))
         .route("/assets/sql-wasm.wasm", get(api::sql_wasm))
         .route("/pkg/{file}", get(api::package))

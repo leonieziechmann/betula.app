@@ -6,7 +6,8 @@
 
 > State: 2026-09-21. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
-> again. Not yet: the service worker of the PWA (the manifest and the icons exist), user data beyond the marked modules, context search.
+> again, and the app starts without a network (a service worker keeps its shell, IndexedDB the
+> catalog). Not yet: user data beyond the marked modules, context search.
 > Decisions and their evidence: `docs/frontend-phase0.md`.
 
 ## 1. Overview
@@ -314,11 +315,28 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   the URL follows the row at the top of the screen (history entry replaced); a shared link with
   `page=7` starts there, and coming back from a module the list centres on its row
   (`queries::catalog_position`: the row's place in the ordered list, one window query, no pages
-  loaded before it). The server renders the page the URL names, with pager links (no JavaScript,
+  loaded before it). A filter change starts at the top: the list is rendered anew, but its panel
+  is the same element as before and keeps the scroll position, which the new list would otherwise
+  take for its own and write into the URL as its page (the first list of a visit is left as it
+  is: a page the browser restored). The server renders the page the URL names, with pager links (no JavaScript,
   search engines). Inside a program the list is in plan order with the plan's semester at every
   row; the headings between the semesters are gone (the semester filter is for that) — so the
   elective modules, which the plan places in no semester, are simply the rows after the last
   semester, and the area picker lists them by area.
+- **A semester lists what can be chosen for it, too** (`catalog::plan`, 2026-09-21): a plan
+  places the compulsory modules in semesters and asks for the rest with rows that name no module
+  („Wahlpflichtmodule der Informatik, 12 LP"), so „3. Semester" used to show two modules where
+  five are to be taken. Now `pages::catalog` reads the plan's requirement rows of the semester,
+  derives the areas their names point at (the same derivation the program page uses beside a row
+  of the plan: what the name and an area's label have in common, within the plan's study
+  direction) and fills them into the query: the list holds the modules the plan places in the
+  semester and, unplaced, the modules of those areas — or, where a row points at no area, every
+  elective the plan places nowhere. A note above the list says what the plan asks for, which
+  area each row was taken to mean (as links to the list narrowed down to it), and that this is
+  derived from names, never stated (R12). Rows stated as Pflicht, Abschlussarbeit or Praktikum
+  without a module are one module the catalog does not know under that name; FÜS rows point to
+  the program's FÜS list. The URL still says only the semester; the derived areas are part of the
+  query the page ran (`CatalogData::effective`), which the endless list loads further pages with.
 
 ### The landing page and the map of the programs (2026-09-20)
 
@@ -394,7 +412,19 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   Messages), `/manifest.webmanifest` (name, colours, icons 192/512 and a maskable one) and
   `theme-color` (the page background; the head script and the theme switch turn it dark). The
   pictures are made from the mark's grids by `node design/logo/render-icons.mjs`. The manifest
-  makes the site installable; it does not make it work offline (no service worker yet).
+  makes the site installable; the service worker makes it start without a network.
+- **Offline (`app/assets/sw.js`, served as `/sw.js`, registered by `boot.js`; 2026-09-21):** the
+  worker keeps the shell of the app — a page of the site (the browser app renders whatever the
+  address names from the local catalog), the scripts, the styles, the bundle, the font, the icons,
+  the manifest — and nothing of the data: the catalog is in IndexedDB, where `boot.js` keeps it,
+  and `/api/*` is never intercepted. Pages come from the network first and are kept for the way
+  back (sixty of them); offline, the kept page, else the shell. Assets come from the cache first.
+  The server writes its build into the worker, so a new build installs a new worker, which caches
+  the new shell and drops the old one; the worker's own file is revalidated on every use like the
+  other assets. `boot.js` finds `/api/status` unreachable offline and simply opens the copy it
+  has. Once the app runs it says nothing: the „Offline bereit" notice is gone (owner, 2026-09-21:
+  „wenn es einfach funktioniert, dann passt das"); only the loading of the data on a first visit
+  is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
 `lastmod` per module (the snapshot has no date per module), English pages.
@@ -513,7 +543,7 @@ Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /api/map.jso
 programs, with the snapshot's ETag), `GET /healthz` (200 while a snapshot is served and Radix was
 heard from; for an uptime monitor), `GET /livez` (200 while the process answers; for the container's
 healthcheck, which must not restart a server that still serves its last snapshot),
-`/assets/app.css`, `/assets/favicon.svg`,
+`/assets/app.css`, `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
 `/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/manifest.webmanifest`,
 `/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`, `/sitemap.xml`, and
@@ -686,10 +716,11 @@ aligned with the list, the program picker (typo, arrow keys against a resting mo
 around, Enter, focus back on the button, Esc closing only the picker, click outside, clear, no two
 entries alike), the lecturer picker, the slider (drag, keyboard, knobs not crossing, typed
 numbers), the panel's width (limits, `localStorage`, reset), the list of a program (plan order,
-the semester at every row, no headings, the second page reached by scrolling) with the area picker
-(an elective area filters the list, the tag above it, the panel not rebuilt), and the same panel
-without JavaScript (links keep the rest of the filter, the form keeps what the links set, nothing
-that needs JavaScript is visible).
+the semester at every row, no headings, the second page reached by scrolling; a semester listing
+more than the plan places in it, with the note saying what the plan asks for and that it is
+derived) with the area picker (an elective area filters the list, the tag above it, the panel not
+rebuilt), and the same panel without JavaScript (links keep the rest of the filter, the form keeps
+what the links set, nothing that needs JavaScript is visible).
 
 ```bash
 cd e2e && node module.mjs
@@ -710,6 +741,15 @@ snapping back after a short drag), a tap beside it closing it, the area picker s
 while the window shrinks (the on-screen keyboard) and filtering the list, and the virtual list
 with the window scrolling (the last rows at its end, the page keeping its height, no two rows
 overlapping, `page` following).
+
+```bash
+cd e2e && node pwa.mjs
+```
+
+installs the app with the network (the worker has the shell, the bundle included; no status
+pill once the app runs), then cuts the network and loads pages afresh: the catalog with a
+filter, a module page never seen before, the program page seen before, and a step inside the
+app out of the local catalog.
 
 ```bash
 cd e2e && node bookmarks.mjs
@@ -782,8 +822,9 @@ follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
 
 ## 5. Not done yet
 
-- PWA: manifest, service worker (offline start), update prompt. User data beyond „Merken": passed
-  modules with the prerequisite check, „mein Studiengang". `wasm-opt` for the bundle.
+- PWA: an update prompt (the worker installs a new build silently; a page keeps the bundle it
+  started with). User data beyond „Merken": passed modules with the prerequisite check, „mein
+  Studiengang". `wasm-opt` for the bundle.
 - Phase 3: design system, weekly calendar, filter bottom sheet, search
   with context ranking (own concept, see `docs/frontend-phase0.md`).
 - Phase 4: CSP, CI. (Done 2026-09-21: Nix package and container, the Swarm stack

@@ -551,6 +551,9 @@ impl CatalogUrl {
                 kinds_exclude: without(kinds_of("not-kind"), &kinds),
                 kinds,
                 area: first("area").and_then(|value| value.parse::<i64>().ok()).filter(|id| *id > 0),
+                // Derived by the page loader, never read from an address.
+                semester_areas: Vec::new(),
+                semester_electives: false,
             }
         });
 
@@ -876,6 +879,8 @@ mod tests {
                     kinds: vec![KindFilter::Stated(ModuleKind::Elective), KindFilter::Unstated],
                     kinds_exclude: vec![KindFilter::Stated(ModuleKind::Thesis)],
                     area: Some(17),
+                    semester_areas: Vec::new(),
+                    semester_electives: false,
                 }),
                 lecturers_include: vec!["Köhler, Ekkehard".into()],
                 lecturers_exclude: vec!["Meer, Klaus".into(), "Wachsmuth, Gerd".into()],

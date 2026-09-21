@@ -25,6 +25,23 @@ pub fn list_viewport(rows_id: &str, content_id: &str) -> Option<(f32, f32)> {
     None
 }
 
+/// Puts the list at its start: the panel at the top, or (a phone) the window at the top of the page.
+#[allow(unused_variables)]
+pub fn scroll_list_to_start(rows_id: &str) {
+    #[cfg(feature = "csr")]
+    {
+        let Some(window) = web_sys::window() else { return };
+        if is_phone() {
+            let options = web_sys::ScrollToOptions::new();
+            options.set_top(0.0);
+            options.set_behavior(web_sys::ScrollBehavior::Instant);
+            window.scroll_to_with_scroll_to_options(&options);
+        } else if let Some(rows) = window.document().and_then(|d| d.get_element_by_id(rows_id)) {
+            rows.set_scroll_top(0);
+        }
+    }
+}
+
 /// Scrolls the list so that `offset` (within its content) is at the top of the visible part.
 #[allow(unused_variables)]
 pub fn scroll_list_to(rows_id: &str, content_id: &str, offset: f32) {

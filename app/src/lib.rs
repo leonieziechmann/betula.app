@@ -55,6 +55,9 @@ pub const OG_IMAGE: &str = "/assets/og.png";
 pub const ENHANCE_SCRIPT: &str = "/assets/enhance.js";
 /// Loads the local database and the browser app, which then takes the page over.
 pub const BOOT_SCRIPT: &str = "/assets/boot.js";
+/// The service worker: keeps the shell of the app for a start without a network (`boot.js`
+/// registers it; the web server writes its build into it).
+pub const SERVICE_WORKER: &str = "/sw.js";
 
 /// Runs before the first paint: marks the document as scripted and applies what this browser
 /// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps; the

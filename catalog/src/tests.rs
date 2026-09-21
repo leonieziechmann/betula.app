@@ -183,7 +183,7 @@ fn catalog_filters_match_direct_sql() {
     let db = open();
     let program_id = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.").id;
     let scope = |relation, plan_semester, kinds: Vec<KindFilter>| {
-        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![], area: None })
+        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![], area: None, semester_areas: vec![], semester_electives: false })
     };
     let pm = format!("v_module_facets f JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = '{program_id}'");
 
@@ -359,6 +359,56 @@ fn catalog_filters_match_direct_sql() {
         assert_eq!(queries::catalog_count(&db, winter_exercise).unwrap(), 984);
         assert_eq!(queries::catalog_count(&db, &CatalogQuery::default()).unwrap(), 2781 + 451);
     }
+}
+
+/// A semester of a program lists what the plan places there and what can be chosen for the
+/// semester's requirement rows: the areas their names point at, else every unplaced elective.
+#[test]
+fn a_semester_lists_what_the_plan_asks_for() {
+    let db = open();
+    // Any program whose plan has a requirement row in a semester.
+    let found = db.query("test", "SELECT p.slug, e.semester FROM v_program_plan_entry e JOIN v_program p ON p.id = e.program_id WHERE e.module_id IS NULL AND e.semester IS NOT NULL ORDER BY p.slug, e.semester LIMIT 1", &[]).unwrap();
+    let Some(row) = found.rows.first() else {
+        eprintln!("note: no plan of the snapshot has a requirement row in a semester; nothing to check");
+        return;
+    };
+    let (slug, semester) = match row.as_slice() {
+        [Value::Text(slug), Value::Integer(semester)] => (slug.clone(), u8::try_from(*semester).unwrap()),
+        other => panic!("unexpected row {other:?}"),
+    };
+    let url = crate::url::CatalogUrl {
+        query: CatalogQuery {
+            program: Some(ProgramScope { program_slug: slug.clone(), plan_semester: Some(PlanSemesterFilter::Semester(semester)), ..Default::default() }),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let data = crate::pages::catalog(&db, &url).unwrap();
+    let plan = data.semester_plan.expect("the page says what the plan asks for");
+    assert_eq!(plan.semester, semester);
+    assert!(!plan.requirements.is_empty(), "the requirement row of the plan is part of it");
+    let scope = data.effective.program.as_ref().unwrap();
+    assert_eq!(scope.semester_areas, plan.area_ids());
+    assert_eq!(scope.semester_electives, plan.any_elective());
+    // The URL's query knows nothing of it; the page's does, and the total is that of the page's.
+    assert!(url.query.program.as_ref().unwrap().semester_areas.is_empty());
+    let program_id = queries::program_by_slug(&db, &slug).unwrap().unwrap().id;
+    let placed = scalar(&db, &format!("SELECT COUNT(*) FROM v_program_module pm WHERE pm.program_id = '{program_id}' AND pm.relation = 'curricular' AND pm.plan_semester = {semester}"));
+    let mut expected = format!("pm.plan_semester = {semester}");
+    if !scope.semester_areas.is_empty() {
+        let ids = scope.semester_areas.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",");
+        expected = format!("{expected} OR (pm.plan_semester IS NULL AND EXISTS (SELECT 1 FROM v_program_module_area a WHERE a.program_id = pm.program_id AND a.module_id = pm.module_id AND a.area_id IN ({ids})))");
+    }
+    if scope.semester_electives {
+        expected = format!("{expected} OR (pm.plan_semester IS NULL AND IFNULL(pm.kind, '') NOT IN ('compulsory', 'thesis', 'internship'))");
+    }
+    let total = scalar(&db, &format!("SELECT COUNT(*) FROM v_module_facets f JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = '{program_id}' AND pm.relation = 'curricular' WHERE ({expected})"));
+    assert_eq!(data.page.total as i64, total, "the list is what the plan asks for");
+    assert!(data.page.total as i64 >= placed, "at least what the plan places in the semester");
+    assert_eq!(queries::catalog_count(&db, &data.effective).unwrap(), data.page.total, "further pages come with the same query");
+    // The semesters the plan does not place anything in stay what they were.
+    let unstated = crate::url::CatalogUrl { query: CatalogQuery { program: Some(ProgramScope { program_slug: slug, plan_semester: Some(PlanSemesterFilter::Unstated), ..Default::default() }), ..Default::default() }, ..Default::default() };
+    assert!(crate::pages::catalog(&db, &unstated).unwrap().semester_plan.is_none());
 }
 
 #[test]
