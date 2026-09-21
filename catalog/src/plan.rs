@@ -56,70 +56,110 @@ fn direction_of(label: &str) -> Option<&str> {
     (!inside.is_empty() && inside.len() <= 12).then_some(inside)
 }
 
-/// The areas a row of the plan points at, most fitting first (at most four), and how many of
-/// them share the best fit: more than one, and none of them is the one — a page names them
-/// instead of picking one.
+/// An area's label without the study direction it ends in („Informatik (MIT)" → „Informatik").
+fn without_direction(label: &str) -> &str {
+    match direction_of(label) {
+        Some(_) => label.rsplit_once('(').map(|(name, _)| name.trim_end()).unwrap_or(label),
+        None => label,
+    }
+}
+
+/// The words of a name that say which area it is: folded, without the words that say what kind
+/// of thing it is („Komplex", „Wahlpflichtmodule", „Modul aus dem") and without articles, so that
+/// „Komplex Praktische Informatik" and „Praktische Informatik" read the same.
+fn distinctive(text: &str) -> Vec<String> {
+    const NOISE: &[&str] = &[
+        "komplex", "wahlpflicht", "wahlpflichtmodul", "wahlpflichtmodule", "wahlpflichtbereich", "wahlpflichtfach", "wahl", "modul", "module", "moduls",
+        "modulen", "pflicht", "pflichtmodul", "pflichtmodule", "bereich", "bereiche", "bereichs", "studium", "katalog", "lp", "ects", "aus", "dem",
+        "der", "des", "die", "das", "den", "im", "in", "und", "oder", "von", "vom", "zum", "zur", "mit", "ein", "eine", "einer",
+    ];
+    crate::search::fold(text).split(|c: char| !c.is_alphanumeric()).filter(|word| word.len() >= 2 && !NOISE.contains(word)).map(str::to_string).collect()
+}
+
+/// How well the words of a row fit the words of a name: the same words (100), the one within
+/// the other (60, a little more the more they share), some words in common (10 each; a word may
+/// be the start of the other: „Studienrichtung", „Studienrichtungsspezifische"), or nothing (0).
+fn fit(row: &[String], name: &[String]) -> i32 {
+    if row.is_empty() || name.is_empty() {
+        return 0;
+    }
+    let within = |inner: &[String], outer: &[String]| inner.iter().all(|word| outer.contains(word));
+    if row.len() == name.len() && within(row, name) {
+        return 100;
+    }
+    let shared = row.iter().filter(|word| name.contains(word)).count() as i32;
+    if within(row, name) || within(name, row) {
+        return 60 + 5 * shared;
+    }
+    let starts = |a: &String, b: &String| a.len() >= 5 && b.len() >= 5 && (a.starts_with(b.as_str()) || b.starts_with(a.as_str()));
+    10 * row.iter().filter(|word| name.iter().any(|other| starts(word, other))).count() as i32
+}
+
+/// The areas a row of the plan points at: those that fit best, equally well — one, or several,
+/// and then none of them is the one (a page names them instead of picking one) — and those that
+/// fit less well but not by far, named as also possible.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RowAreas {
     pub areas: Vec<CatalogArea>,
-    pub tied: usize,
+    pub others: Vec<CatalogArea>,
 }
 
 impl RowAreas {
     pub fn ambiguous(&self) -> bool {
-        self.tied > 1
+        self.areas.len() > 1
     }
 }
 
-/// Which areas of the program a row of the plan is about. What the row and an area have in
-/// common decides („Wahlpflichtmodul" and the like count little, a distinctive word counts), and
-/// the study direction the plan is printed for keeps the other directions out („Wahlpflichtmodul
-/// aus der **Informatik**" in the plan of MIT and EET → „Informatik (MIT)", „Informatik (EET)",
-/// never the areas of PA or IoT). `plan` is the caption of the plan („Regelstudienplan der
-/// Studienrichtungen MIT und EET …"), empty where a program has one plan.
+/// Which areas of the program a row of the plan is about. Only areas a student chooses from
+/// come into question (`CatalogArea::choice`): a requirement row never means the Pflichtmodule.
+/// The name decides: the same name as an area („Komplex Praktische Informatik" — „Praktische
+/// Informatik") is that area and no other; a name within an area's name or the other way round
+/// („Wahlpflichtmodul aus der Informatik" — every „… Informatik" area) fits next best, and all
+/// that fit equally well are meant; some words in common count least. A name that is an area
+/// above the leaves („Nebenfach" — „Komplex Nebenfach", with Mathematik, Physik … below it) means
+/// the areas below it. The study direction the plan is printed for keeps the other directions
+/// out („Wahlpflichtmodul aus der **Informatik**" in the plan of MIT and EET → „Informatik (MIT)",
+/// „Informatik (EET)", never the areas of PA or IoT). `plan` is the caption of the plan
+/// („Regelstudienplan der Studienrichtungen MIT und EET …"), empty where a program has one plan.
 pub fn areas_for_row(entry: &PlanEntry, plan: &str, areas: &[CatalogArea]) -> RowAreas {
-    let words = |text: &str| -> Vec<String> {
-        crate::search::fold(text).split(|c: char| !c.is_alphanumeric()).filter(|word| word.len() >= 4).map(str::to_string).collect()
-    };
-    // „Wahlpflichtmodul" says what kind it is, not which area: it may match, but weighs less —
-    // on either side, so „Freie Wahl" does not land in every „Wahlpflichtmodule …" area.
-    let generic = ["wahl", "wahlpflicht", "wahlpflichtmodul", "wahlpflichtmodule", "modul", "module", "pflicht", "pflichtmodul", "pflichtmodule", "studium", "katalog"];
-    let row_words = words(&entry.module_name);
+    let row_words = distinctive(&entry.module_name);
+    if row_words.is_empty() {
+        return RowAreas::default();
+    }
     // The directions this plan is printed for, as its caption spells them („MIT und EET").
     let plan_parts: Vec<&str> = plan.split(|c: char| !c.is_alphanumeric()).filter(|part| !part.is_empty()).collect();
     let directions: Vec<&str> = areas.iter().filter_map(|area| direction_of(&area.label)).filter(|direction| plan_parts.contains(direction)).collect();
 
     let mut scored: Vec<(i32, &CatalogArea)> = areas
         .iter()
+        .filter(|area| area.choice)
         .filter_map(|area| {
-            let area_words = words(&area.label);
-            let matches = |a: &String, b: &String| a.starts_with(b.as_str()) || b.starts_with(a.as_str());
-            // The name has to carry the match: a word of the row that is not „Wahlpflichtmodul"
-            // and the like. The study direction only ranks what the name already found.
-            let mut score = 0;
-            for word in &row_words {
-                if let Some(other) = area_words.iter().find(|other| matches(word, other)) {
-                    score += if generic.contains(&word.as_str()) || generic.contains(&other.as_str()) { 1 } else { 3 };
-                }
-            }
-            if score < 3 {
+            // Where the plans are printed per study direction, only this plan's areas can be meant.
+            let direction = direction_of(&area.label);
+            if !directions.is_empty() && direction.is_some_and(|direction| !directions.contains(&direction)) {
                 return None;
             }
-            // Where the plans are printed per study direction, only this plan's areas can be meant.
-            if !directions.is_empty() {
-                match direction_of(&area.label) {
-                    Some(direction) if directions.contains(&direction) => score += 3,
-                    Some(_) => return None,
-                    None => {}
-                }
+            let by_name = fit(&row_words, &distinctive(without_direction(&area.label)));
+            // A row that names an area above this one: it means what lies below („Nebenfach").
+            let by_ancestor = area
+                .path
+                .rsplit_once(" / ")
+                .map(|(above, _)| above.split(" / ").map(|ancestor| fit(&row_words, &distinctive(ancestor))).filter(|score| *score >= 60).max().unwrap_or(0))
+                .unwrap_or(0);
+            let mut score = by_name + by_ancestor / 2;
+            if score > 0 && direction.is_some() {
+                score += 5;
             }
-            Some((score, area))
+            (score > 0).then_some((score, area))
         })
         .collect();
     scored.sort_by(|(a, left), (b, right)| b.cmp(a).then(right.modules.cmp(&left.modules)));
     let best = scored.first().map(|(score, _)| *score).unwrap_or(0);
     let tied = scored.iter().filter(|(score, _)| *score == best).count();
-    RowAreas { areas: scored.into_iter().take(4).map(|(_, area)| area.clone()).collect(), tied }
+    RowAreas {
+        areas: scored.iter().take(tied.min(8)).map(|(_, area)| (*area).clone()).collect(),
+        others: scored.iter().skip(tied).filter(|(score, _)| *score * 2 >= best).take(3).map(|(_, area)| (*area).clone()).collect(),
+    }
 }
 
 /// A row of the plan in a semester that names no module of the catalog, and what can be chosen
@@ -187,8 +227,7 @@ pub fn semester_plan(semester: u8, entries: &[PlanEntry], areas: &[CatalogArea])
         let (single, fues) = (is_single_module(entry), is_fues(entry));
         let found = if single || fues { RowAreas::default() } else { areas_for_row(entry, entry.specialization.as_deref().unwrap_or_default(), areas) };
         let credits = credits_of(entry);
-        let mut listed = found.areas;
-        let others = listed.split_off(found.tied.min(listed.len()));
+        let (listed, others) = (found.areas, found.others);
         let add = |into: &mut Vec<CatalogArea>, areas: Vec<CatalogArea>| {
             for area in areas {
                 if !into.iter().any(|known| known.id == area.id) {
@@ -215,7 +254,12 @@ mod tests {
     use super::*;
 
     fn area(id: i64, label: &str, modules: usize) -> CatalogArea {
-        CatalogArea { id, label: label.to_string(), path: format!("Grundstudium / {label}"), depth: 2, modules }
+        CatalogArea { id, label: label.to_string(), path: format!("Grundstudium / {label}"), depth: 2, modules, choice: true }
+    }
+
+    fn under(id: i64, path: &str, modules: usize, choice: bool) -> CatalogArea {
+        let label = path.rsplit(" / ").next().unwrap_or(path).to_string();
+        CatalogArea { id, label, path: path.to_string(), depth: path.matches(" / ").count() as i64 + 1, modules, choice }
     }
 
     fn row(name: &str, semester: Option<i64>, kind: Option<ModuleKind>, specialization: Option<&str>) -> PlanEntry {
@@ -239,6 +283,81 @@ mod tests {
         }
     }
 
+    fn labels(areas: &[CatalogArea]) -> Vec<&str> {
+        areas.iter().map(|area| area.label.as_str()).collect()
+    }
+
+    /// The tree of Informatik B.Sc. as the owner described it (2026-09-21), with what is fixed
+    /// and what is chosen.
+    fn informatik() -> Vec<CatalogArea> {
+        vec![
+            under(1, "Grundstudium / Komplex Informatik", 9, false),
+            under(2, "Grundstudium / Komplex Informatik / Proseminar oder Praktikum", 3, true),
+            under(3, "Grundstudium / Komplex Mathematik", 3, false),
+            under(4, "Grundstudium / Komplex Nebenfach / Mathematik", 8, true),
+            under(5, "Grundstudium / Komplex Nebenfach / Physik", 4, true),
+            under(6, "Grundstudium / Komplex Nebenfach / Maschinenbau/Elektrotechnik", 6, true),
+            under(7, "Grundstudium / Komplex Nebenfach / Wirtschaftswissenschaften", 5, true),
+            under(8, "Grundstudium / Komplex Nebenfach / Bauingenieurwesen", 4, true),
+            under(9, "Fachstudium", 1, false),
+            under(10, "Fachstudium / Grundlagen der Informatik", 7, true),
+            under(11, "Fachstudium / Praktische Informatik", 10, true),
+            under(12, "Fachstudium / Angewandte und Technische Informatik", 9, true),
+            under(13, "Fachstudium / Seminar oder Praktikum (aus der Informatik)", 4, true),
+            under(14, "Fachstudium / Wahlpflichtmodule Praktische Mathematik", 5, true),
+        ]
+    }
+
+    #[test]
+    fn a_row_that_names_an_area_means_that_area_and_no_other() {
+        let areas = informatik();
+        // „Komplex" says nothing about which area; the rest is the area's name.
+        let found = areas_for_row(&row("Komplex Praktische Informatik", Some(5), Some(ModuleKind::Elective), None), "", &areas);
+        assert_eq!(labels(&found.areas), vec!["Praktische Informatik"]);
+        assert!(!found.ambiguous());
+        assert!(found.others.is_empty(), "nothing else comes near: {:?}", labels(&found.others));
+
+        let found = areas_for_row(&row("Komplex Angewandte und Technische Informatik", Some(5), None, None), "", &areas);
+        assert_eq!(labels(&found.areas), vec!["Angewandte und Technische Informatik"]);
+        let found = areas_for_row(&row("Proseminar oder Praktikum", Some(3), None, None), "", &areas);
+        assert_eq!(labels(&found.areas), vec!["Proseminar oder Praktikum"]);
+        assert!(found.others.is_empty());
+        // The leading „Wahlpflichtmodule" of the area's label says nothing either.
+        let found = areas_for_row(&row("Praktische Mathematik", Some(6), None, None), "", &areas);
+        assert_eq!(labels(&found.areas), vec!["Wahlpflichtmodule Praktische Mathematik"]);
+
+        // A fixed area is never meant, however well its name fits: what is left of this name is
+        // the Nebenfach of the same name, which is a choice.
+        let found = areas_for_row(&row("Komplex Mathematik", Some(1), None, None), "", &areas);
+        assert!(found.areas.iter().all(|area| area.id != 3), "{:?}", labels(&found.areas));
+        assert_eq!(found.areas.iter().map(|area| area.path.as_str()).collect::<Vec<_>>(), vec!["Grundstudium / Komplex Nebenfach / Mathematik"]);
+    }
+
+    #[test]
+    fn a_row_that_names_a_part_of_the_tree_means_all_that_fit_it() {
+        let areas = informatik();
+        // „aus der Informatik": every area to choose from whose name says Informatik, none of them the one.
+        let found = areas_for_row(&row("Wahlpflichtmodul aus der Informatik", Some(4), None, None), "", &areas);
+        assert!(found.ambiguous());
+        assert_eq!(labels(&found.areas), vec!["Praktische Informatik", "Angewandte und Technische Informatik", "Grundlagen der Informatik", "Seminar oder Praktikum (aus der Informatik)"]);
+        // The Proseminar lies in „Komplex Informatik", so it comes into question, less.
+        assert_eq!(labels(&found.others), vec!["Proseminar oder Praktikum"]);
+        assert!(!labels(&found.areas).contains(&"Komplex Informatik"), "the fixed complex is no choice");
+
+        // The name of an area above the leaves means the leaves below it.
+        let found = areas_for_row(&row("Nebenfach", Some(2), None, None), "", &areas);
+        assert!(found.ambiguous());
+        assert_eq!(labels(&found.areas), vec!["Mathematik", "Maschinenbau/Elektrotechnik", "Wirtschaftswissenschaften", "Physik", "Bauingenieurwesen"]);
+        // … and a leaf named with its area above is that leaf.
+        let found = areas_for_row(&row("Nebenfach Physik", Some(2), None, None), "", &areas);
+        assert_eq!(labels(&found.areas), vec!["Physik"]);
+        assert!(found.others.is_empty(), "{:?}", labels(&found.others));
+
+        // A name that fits nothing keeps quiet: every elective may be meant.
+        assert_eq!(areas_for_row(&row("Freie Wahl", Some(6), None, None), "", &areas), RowAreas::default());
+        assert_eq!(areas_for_row(&row("Bachelor-Arbeit", Some(6), None, None), "", &areas), RowAreas::default());
+    }
+
     #[test]
     fn a_row_of_the_plan_points_at_the_areas_of_its_own_study_direction() {
         let areas = vec![
@@ -254,35 +373,41 @@ mod tests {
         // Only the directions of this plan, and with two of them nothing is picked as the one.
         let found = areas_for_row(&row("Wahlpflichtmodul aus der Informatik", Some(2), None, None), plan, &areas);
         assert!(found.ambiguous(), "two directions fit, so none is shown as the one");
-        assert_eq!(found.areas.iter().map(|area| area.label.as_str()).collect::<Vec<_>>(), vec!["Informatik (MIT)", "Informatik (EET)"]);
+        assert_eq!(labels(&found.areas), vec!["Informatik (MIT)", "Informatik (EET)"]);
 
         // „der Studienrichtung" finds the area whose name starts the same way.
         let found = areas_for_row(&row("Wahlpflichtmodule der Studienrichtung", Some(2), None, None), plan, &areas);
-        assert_eq!(found.areas.first().map(|area| area.label.as_str()), Some("Studienrichtungsspezifische Vertiefungsmodule (MIT)"));
+        assert_eq!(labels(&found.areas), vec!["Studienrichtungsspezifische Vertiefungsmodule (MIT)"]);
         assert!(!found.ambiguous());
+        assert!(found.others.is_empty(), "{:?}", labels(&found.others));
 
-        // A row that fits nothing keeps quiet.
-        assert_eq!(areas_for_row(&row("Bachelor-Arbeit", Some(6), None, None), plan, &areas), RowAreas::default());
+        // Without a caption (one plan) the directions do not narrow anything down.
+        let found = areas_for_row(&row("Wahlpflichtmodul aus der Informatik", Some(2), None, None), "", &areas);
+        assert_eq!(found.areas.len(), 4);
     }
 
     #[test]
     fn a_semester_asks_for_what_its_rows_name() {
-        let areas = vec![area(1, "Wahlpflichtmodule Praktische Informatik", 30), area(2, "Wahlpflichtmodule Theoretische Informatik", 20), area(3, "Pflichtmodule Mathematik", 10)];
+        let areas = informatik();
         let entries = vec![
-            row("Wahlpflichtmodule Praktische Informatik", Some(3), Some(ModuleKind::Elective), None),
-            row("Wahlpflichtmodule Praktische Informatik", Some(3), Some(ModuleKind::Elective), Some("Regelstudienplan der Studienrichtung B")),
-            row("Wahlpflichtmodule Praktische Informatik", Some(4), Some(ModuleKind::Elective), None),
-            row("Freie Wahl", Some(3), Some(ModuleKind::Elective), None),
-            row("Bachelor-Arbeit", Some(3), Some(ModuleKind::Thesis), None),
-            row("Modul aus dem FÜS", Some(3), Some(ModuleKind::Fues), None),
-            PlanEntry { module_id: Some("11101".into()), ..row("Lineare Algebra", Some(3), Some(ModuleKind::Compulsory), None) },
+            row("Komplex Praktische Informatik", Some(5), Some(ModuleKind::Elective), None),
+            row("Komplex Praktische Informatik", Some(5), Some(ModuleKind::Elective), Some("Regelstudienplan der Studienrichtung B")),
+            row("Komplex Praktische Informatik", Some(6), Some(ModuleKind::Elective), None),
+            row("Wahlpflichtmodul aus der Informatik", Some(5), Some(ModuleKind::Elective), None),
+            row("Freie Wahl", Some(5), Some(ModuleKind::Elective), None),
+            row("Bachelor-Arbeit", Some(5), Some(ModuleKind::Thesis), None),
+            row("Modul aus dem FÜS", Some(5), Some(ModuleKind::Fues), None),
+            PlanEntry { module_id: Some("11101".into()), ..row("Lineare Algebra", Some(5), Some(ModuleKind::Compulsory), None) },
         ];
-        let plan = semester_plan(3, &entries, &areas);
+        let plan = semester_plan(5, &entries, &areas);
         let names: Vec<&str> = plan.requirements.iter().map(|row| row.name.as_str()).collect();
-        // The same row of two study directions is one; the linked row and the 4th semester are not here.
-        assert_eq!(names, vec!["Wahlpflichtmodule Praktische Informatik", "Freie Wahl", "Bachelor-Arbeit", "Modul aus dem FÜS"]);
-        assert_eq!(plan.area_ids(), vec![1], "only the area the choice fits best, not the thesis or the FÜS row");
-        assert_eq!(plan.requirements[0].others.iter().map(|area| area.id).collect::<Vec<_>>(), vec![2], "the area that fits less well is named, not listed");
+        // The same row of two study directions is one; the linked row and the 6th semester are not here.
+        assert_eq!(names, vec!["Komplex Praktische Informatik", "Wahlpflichtmodul aus der Informatik", "Freie Wahl", "Bachelor-Arbeit", "Modul aus dem FÜS"]);
+        assert_eq!(plan.requirements[0].areas.iter().map(|area| area.id).collect::<Vec<_>>(), vec![11]);
+        assert!(plan.requirements[0].others.is_empty());
+        assert_eq!(plan.requirements[1].areas.len(), 4);
+        assert_eq!(plan.requirements[1].others.iter().map(|area| area.id).collect::<Vec<_>>(), vec![2], "the Proseminar in the complex is named, not listed");
+        assert_eq!(plan.area_ids(), vec![11, 12, 10, 13], "the areas of the rows, each once, never the thesis or the FÜS row");
         assert!(plan.any_elective(), "a row that points at no area means every elective");
         assert!(plan.requirements.iter().any(|row| row.single && row.name == "Bachelor-Arbeit"));
         assert!(plan.requirements.iter().any(|row| row.fues));
@@ -294,5 +419,15 @@ mod tests {
         assert_eq!(semester_plan(4, &[spanning], &areas).requirements.len(), 0);
         assert_eq!(credits_of(&PlanEntry { credits: None, min_credits: Some(10.0), max_credits: Some(24.0), ..row("x", None, None, None) }).as_deref(), Some("10–24"));
         assert_eq!(credits_of(&PlanEntry { credits: Some(7.5), ..row("x", None, None, None) }).as_deref(), Some("7,5"));
+    }
+
+    #[test]
+    fn the_name_of_an_area_drops_the_word_that_says_it_is_a_choice() {
+        assert_eq!(crate::pages::short_name("Wahlpflichtmodule Praktische Mathematik"), "Praktische Mathematik");
+        assert_eq!(crate::pages::short_name("Wahlpflichtmodul aus dem Nebenfach"), "aus dem Nebenfach");
+        assert_eq!(crate::pages::short_name("Wahlpflichtmodule"), "Wahlpflichtmodule");
+        assert_eq!(crate::pages::short_name("Praktische Informatik"), "Praktische Informatik");
+        assert_eq!(under(1, "Grundstudium / Komplex Nebenfach / Physik", 1, true).parent(), Some("Komplex Nebenfach"));
+        assert_eq!(under(1, "Fachstudium", 1, true).parent(), None);
     }
 }

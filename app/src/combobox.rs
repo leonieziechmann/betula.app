@@ -29,13 +29,21 @@ pub struct ComboItem {
     pub detail: String,
     /// Lifts an entry above others that match the search equally well.
     pub bonus: i64,
+    /// A heading the entry stands under; entries of one group follow each other. Empty: none.
+    pub group: String,
     search: String,
 }
 
 impl ComboItem {
     pub fn new(id: impl Into<String>, label: impl Into<String>, detail: impl Into<String>, bonus: i64) -> Self {
         let (label, detail) = (label.into(), detail.into());
-        Self { id: id.into(), search: format!("{label} {detail}"), label, detail, bonus }
+        Self { id: id.into(), search: format!("{label} {detail}"), label, detail, bonus, group: String::new() }
+    }
+
+    /// The heading the entry stands under.
+    pub fn in_group(mut self, group: impl Into<String>) -> Self {
+        self.group = group.into();
+        self
     }
 
     /// Words the entry is found by as well, without being shown (where it sits in a tree).
@@ -248,6 +256,9 @@ pub fn Combobox(
             let entries = move || {
                 let rows = rows.get();
                 let hidden = rows.len().saturating_sub(MAX_SHOWN);
+                // A heading where the entries of another group begin (the search keeps the
+                // order of the groups: what fits best comes first, its group's heading with it).
+                let mut last_group = String::new();
                 let entries = rows
                     .into_iter()
                     .take(MAX_SHOWN)
@@ -259,11 +270,20 @@ pub fn Combobox(
                             (None, None) => entry.is_none(),
                             _ => false,
                         };
+                        let heading = item
+                            .as_ref()
+                            .map(|item| item.group.clone())
+                            .filter(|group| !group.is_empty() && *group != last_group)
+                            .map(|group| {
+                                last_group.clone_from(&group);
+                                view! { <li class="combo-group" role="presentation">{group}</li> }
+                            });
                         let (label, detail) = match item {
                             Some(item) => (item.label, item.detail),
                             None => (placeholder.to_string(), String::new()),
                         };
                         view! {
+                            {heading}
                             <li
                                 class="combo-option"
                                 role="option"

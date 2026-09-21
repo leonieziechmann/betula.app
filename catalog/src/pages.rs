@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::{Database, DbError};
 use crate::filter::{CatalogQuery, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey, TurnusFilter};
-use crate::labels::{Labelled, OfferStatus};
+use crate::labels::{Labelled, ModuleKind, OfferStatus};
 use crate::plan::{self, SemesterPlan};
 use crate::queries;
 use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
@@ -104,15 +104,63 @@ pub struct CatalogArea {
     pub depth: i64,
     /// How many modules the tree places directly in it.
     pub modules: usize,
+    /// Whether a student chooses here: a module placed directly in it is not known to be
+    /// compulsory, the thesis or the internship — by what the program's sources settle on for
+    /// the module (`v_program_module.kind`: the plan, the module page, the tree's own label),
+    /// unknown counting as a choice (R12: not known to be fixed is not fixed). A fixed area
+    /// („Komplex Mathematik" with its Pflichtmodule, the thesis) is no filter worth offering —
+    /// those modules are taken anyway — and no requirement row of a plan points at it (owner,
+    /// 2026-09-21).
+    pub choice: bool,
+}
+
+impl CatalogArea {
+    /// The name the pickers show: the label without a leading „Wahlpflichtmodule" and the like,
+    /// which says nothing among areas that are all there to choose from.
+    pub fn name(&self) -> &str {
+        short_name(&self.label)
+    }
+
+    /// The label of the area directly above it, if any: the group the pickers put it in.
+    pub fn parent(&self) -> Option<&str> {
+        self.path.rsplit_once(" / ").map(|(above, _)| above.rsplit(" / ").next().unwrap_or(above))
+    }
+}
+
+/// „Wahlpflichtmodule Praktische Mathematik" → „Praktische Mathematik"; a label that is nothing
+/// but such a word stays as it is.
+pub fn short_name(label: &str) -> &str {
+    for prefix in ["Wahlpflichtmodule ", "Wahlpflichtmodul ", "Wahlpflichtbereich ", "Wahlpflichtfach ", "Wahlpflicht "] {
+        if label.len() > prefix.len() && label.is_char_boundary(prefix.len()) && label[..prefix.len()].eq_ignore_ascii_case(prefix) {
+            let rest = label[prefix.len()..].trim_start_matches(|c: char| c == '-' || c == ':' || c.is_whitespace());
+            if rest.chars().count() >= 3 {
+                return rest;
+            }
+        }
+    }
+    label
+}
+
+/// Whether a student chooses among these modules (see `CatalogArea::choice`): any of them is
+/// not known to be compulsory, the thesis or the internship.
+pub fn is_choice<'a>(placements: impl IntoIterator<Item = &'a AreaPlacement>) -> bool {
+    placements.into_iter().any(|placement| {
+        let kind = placement.module_kind.as_ref().or(placement.kind.as_ref());
+        !kind.is_some_and(|kind| kind.is(ModuleKind::Compulsory) || kind.is(ModuleKind::Thesis) || kind.is(ModuleKind::Internship))
+    })
 }
 
 /// The areas of a program in tree order, one entry per area the tree places modules in.
 pub fn catalog_areas(placements: &[AreaPlacement]) -> Vec<CatalogArea> {
     let mut areas: Vec<CatalogArea> = Vec::new();
     for placement in placements {
+        let choice = is_choice([placement]);
         match areas.iter_mut().find(|area| area.id == placement.area_id) {
-            Some(area) => area.modules += 1,
-            None => areas.push(CatalogArea { id: placement.area_id, label: placement.area_label.clone(), path: placement.area.clone(), depth: placement.depth, modules: 1 }),
+            Some(area) => {
+                area.modules += 1;
+                area.choice |= choice;
+            }
+            None => areas.push(CatalogArea { id: placement.area_id, label: placement.area_label.clone(), path: placement.area.clone(), depth: placement.depth, modules: 1, choice }),
         }
     }
     areas

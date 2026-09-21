@@ -260,8 +260,12 @@ pub struct AreaPlacement {
     pub area_label: String,
     pub depth: i64,
     pub area_ord: i64,
+    /// What the tree's own labels say about the kind (`v_program_module_area.kind`).
     pub kind: Option<Code<ModuleKind>>,
     pub kind_basis: Option<Code<KindBasis>>,
+    /// What the program's sources settle on for the module (`v_program_module.kind`: the plan,
+    /// the module page, the tree's label, the strongest statement first); `None` where none says.
+    pub module_kind: Option<Code<ModuleKind>>,
 }
 
 impl FromRow for AreaPlacement {
@@ -277,6 +281,7 @@ impl FromRow for AreaPlacement {
             area_ord: row.int("area_ord")?,
             kind: Code::parse_opt(row.opt_text("kind")?),
             kind_basis: Code::parse_opt(row.opt_text("kind_basis")?),
+            module_kind: Code::parse_opt(row.opt_text("module_kind")?),
         })
     }
 }

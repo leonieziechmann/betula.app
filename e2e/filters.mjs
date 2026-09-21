@@ -286,11 +286,18 @@ const semester3 = await page.evaluate(() => ({
 }));
 check(semester3.first === "0" && semester3.top === 0 && !semester3.search.includes("page="), `semester: the list of the new filter does not start at the top (row ${semester3.first} at ${semester3.top}px, ${semester3.search})`);
 check(semester3.count > semester3.placed && semester3.placed > 0, `semester: ${semester3.count} modules listed, ${semester3.placed} of them placed in the semester by the plan`);
-check(/Wahlpflicht/.test(semester3.note) && /abgeleitet/.test(semester3.note), `semester: the note does not say what the plan asks for (${semester3.note.slice(0, 120)})`);
+check(/Regelstudienplan sieht im 3\. Semester/.test(semester3.note) && /abgeleitet/.test(semester3.note), `semester: the note does not say what the plan asks for (${semester3.note.slice(0, 120)})`);
 check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by choosing a semester");
 await step("all semesters again", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("Alle")'), () => !location.search.includes("semester=") && !document.querySelector(".plan-note"));
 await step("area picker opens", () => page.click("#pick-area"), () => document.activeElement?.id === "pick-area-search" && document.querySelectorAll("#pick-area-list .combo-option").length > 3);
-const areaName = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option .combo-label")].map((el) => el.textContent).find((name) => /wahlpflicht/i.test(name)));
+// Only the areas a student chooses from are offered (the fixed complexes are not), under the
+// heading of the area above them, and named without „Wahlpflichtmodule".
+const areaNames = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option .combo-label")].map((el) => el.textContent).filter((name) => name !== "Alle Bereiche"));
+const areaGroups = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-group")].map((el) => el.textContent));
+check(!areaNames.some((name) => /^Komplex (Informatik|Mathematik)$|^Fachstudium$/.test(name)) && areaNames.includes("Praktische Informatik") && areaNames.includes("Physik"), `area picker: offers ${areaNames.join(" | ")}`);
+check(!areaNames.some((name) => /wahlpflicht/i.test(name)) && areaNames.includes("Praktische Mathematik"), `area picker: a name still starts with „Wahlpflichtmodule“ (${areaNames.join(" | ")})`);
+check(areaGroups.includes("Komplex Nebenfach") && areaGroups.includes("Fachstudium"), `area picker: the headings are ${areaGroups.join(" | ")}`);
+const areaName = areaNames.find((name) => name.split(" ").length >= 2);
 check(Boolean(areaName), "area picker: no elective area is offered");
 // An entry is the name and the number of modules, nothing else: the path of the tree pushed the names out.
 const areaDetails = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option small")].map((el) => el.textContent));

@@ -87,14 +87,22 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     mouse, closed the preview with Esc and knew its selection by label). Without the app the same
     places hold a plain `select` or text field inside a GET form, and hidden inputs carry what
     the links have set.
-  - **The areas of a program** („Bereich", with a program selected, curriculum only): the areas
-    of its module tree as the program page lists them (`pages::CatalogArea`, from
-    `v_program_module_area`), in tree order, each with its name and how many modules it holds
-    and nothing else (owner, 2026-09-21: the path of the tree beside the name pushed the names
-    into „Wahlpflichtmod…"; the path still finds an area when typed). An area filters to the
-    modules the tree places in it or in an area below it; that is
-    how the elective modules („Wahlpflichtmodule Praktische Informatik") of a program are
-    listed, whatever the plan says about their semester.
+  - **The areas of a program** („Bereich", with a program selected, curriculum only): of the
+    areas of its module tree (`pages::CatalogArea`, from `v_program_module_area`) only those a
+    student chooses from (owner, 2026-09-21: „eigentlich will man auch nur nach den Wahlpflicht­
+    modulen filtern, weil die anderen ja eh fix sind" — and not every node of the tree, no
+    „Grundstudium", „Fachstudium", „Komplex Informatik"). An area is fixed when every module the
+    tree places directly in it is known to be compulsory, the thesis or the internship, by what
+    the program's sources settle on for the module (`v_program_module.kind`: the plan, the module
+    page, the tree's own label); a module nobody says anything about counts as a choice (R12: not
+    known to be fixed is not fixed). Each entry is the area's name and how many modules it holds,
+    nothing else (the path of the tree beside the name had pushed the names into
+    „Wahlpflichtmod…"), the name without a leading „Wahlpflichtmodule" (`CatalogArea::name`: every
+    area offered is one to choose from), under the heading of the area above it („Komplex
+    Nebenfach": Mathematik, Physik …; the plain `select` uses `optgroup`); the full label and the
+    path still find an area when typed. An area filters to the modules the tree places in it or in
+    an area below it; that is how the elective modules of a program are listed, whatever the plan
+    says about their semester.
   - **On a phone the panel is a sheet** from below, opened by the list's „Filter" button, and
     closed the way a sheet is expected to close: dragged down at its head (it follows the finger
     and is let go when pulled far or fast enough, else it slides back), with a tap on the page
@@ -263,11 +271,20 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   (`?req=<n>`, the row's place in the chosen plan). All of this is the app's: the server's page
   links the module's page and the catalog narrowed down to the area instead, and shows the row as
   text (see „The server's pages lay nothing beside themselves"). **No source links a row to an area**
-  (`area_rules` is prose about credits), so the name does the work and the panel says so: the
-  labels of the areas are scored against the row's name (a distinctive word counts, „Wahlpflicht­
-  modul" hardly), only the study directions the plan's caption names are kept („MIT und EET" →
-  never the areas of PA or IoT), a single best fit is shown with its modules, and where two fit
-  equally well both are named instead of one being picked (R12). A row the plan states as
+  (`area_rules` is prose about credits), so the name does the work and the panel says so
+  (`catalog::plan::areas_for_row`, rewritten 2026-09-21 after the owner found „Komplex Praktische
+  Informatik" pointing at four areas): only areas a student chooses from come into question (a
+  requirement row never means the Pflichtmodule); the words that say what kind of thing a name is
+  („Komplex", „Wahlpflichtmodule", „Modul aus dem", articles) are dropped on both sides, and then
+  the same words as an area are that area and no other („Komplex Praktische Informatik" →
+  „Praktische Informatik"), a name within an area's name or the other way round fits next best
+  and all that fit equally well are meant („Wahlpflichtmodul aus der Informatik" → every
+  „… Informatik" area to choose from), some words in common count least and are only named as
+  also possible when they come near the best; a name that is an area above the leaves means the
+  leaves below it („Nebenfach" → Mathematik, Physik …); only the study directions the plan's
+  caption names are kept („MIT und EET" → never the areas of PA or IoT). A single best fit is
+  shown with its modules, and where several fit equally well all are named instead of one being
+  picked (R12). A row the plan states as
   Pflicht, Abschlussarbeit or Praktikum means one module, not a choice: it gets no area at all,
   only the honest note that the catalog does not know it under this name and a search for it. And with nothing picked the panel holds the
   numbers of the view one is looking at — for the
@@ -733,7 +750,8 @@ numbers), the panel's width (limits, `localStorage`, reset), the list of a progr
 the semester at every row, no headings, the second page reached by scrolling; a semester listing
 more than the plan places in it, with the note saying what the plan asks for and that it is
 derived) with the area picker (an elective area filters the list, the tag above it, the panel not
-rebuilt), and the same panel without JavaScript (links keep the rest of the filter, the form keeps
+rebuilt; only the areas to choose from, under the heading of the area above them, named without
+„Wahlpflichtmodule"), and the same panel without JavaScript (links keep the rest of the filter, the form keeps
 what the links set, nothing that needs JavaScript is visible, a shared address with `open` shows
 the plain list, a row leads to the module's page).
 

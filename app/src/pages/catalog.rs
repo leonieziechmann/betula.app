@@ -239,7 +239,7 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
             });
         }
         if let Some(id) = scope.area {
-            let label = data.areas.iter().find(|area| area.id == id).map(|area| area.label.clone()).unwrap_or_else(|| format!("Bereich {id}"));
+            let label = data.areas.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| format!("Bereich {id}"));
             push("Bereich", label, &|q| {
                 if let Some(s) = q.program.as_mut() {
                     s.area = None;
@@ -482,7 +482,7 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
             };
             let links = |areas: &[CatalogArea]| areas.iter().enumerate().map(|(i, area)| view! {
                 {(i > 0).then(|| if i + 1 < areas.len() { ", " } else { " oder " })}
-                {area_link(area.id, &area.label)}
+                {area_link(area.id, area.name())}
             }).collect_view();
             let also = (!row.others.is_empty()).then(|| view! { " Käme dem Namen nach auch in Frage: "{links(&row.others)}"." });
             let what = if row.single {
@@ -940,11 +940,27 @@ impl Facts {
 }
 
 /// An area as the picker offers it: its name and how many modules it holds, nothing else (owner,
-/// 2026-09-21: the path of the tree beside the name pushed the names into „Wahlpflichtmod…"). The
-/// path still finds the area when it is typed („Nebenfach" lists the areas under it).
+/// 2026-09-21: the path of the tree beside the name pushed the names into „Wahlpflichtmod…"),
+/// under the heading of the area above it („Komplex Nebenfach": Mathematik, Physik …). The full
+/// label and the path still find the area when they are typed.
 fn area_item(area: &CatalogArea) -> ComboItem {
-    let above = area.path.rsplit_once(" / ").map(|(parent, _)| parent).unwrap_or_default();
-    ComboItem::new(area.id.to_string(), area.label.clone(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX)), 0).also_found_by(above)
+    ComboItem::new(area.id.to_string(), area.name().to_string(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX)), 0)
+        .also_found_by(&format!("{} {}", area.label, area.path))
+        .in_group(area.parent().unwrap_or_default())
+}
+
+/// The areas in the order they come, each run of one parent as a group (the heading of the
+/// plain select's `optgroup`; `None` for areas at the top of the tree).
+fn area_groups_for_select(areas: &[CatalogArea]) -> Vec<(Option<String>, Vec<CatalogArea>)> {
+    let mut groups: Vec<(Option<String>, Vec<CatalogArea>)> = Vec::new();
+    for area in areas {
+        let parent = area.parent().map(str::to_string);
+        match groups.last_mut() {
+            Some((group, members)) if *group == parent => members.push(area.clone()),
+            _ => groups.push((parent, vec![area.clone()])),
+        }
+    }
+    groups
 }
 
 /// What the pickers offer: the same for every filter, it changes only with the snapshot.
@@ -1322,9 +1338,10 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                 }
                 .into_any()
             };
-            // ---- area: „Wahlpflichtmodule Praktische Informatik" and the like, out of the tree ----
+            // ---- area: „Praktische Informatik" and the like, out of the tree — only the areas a
+            // student chooses from (the Pflichtmodule are taken anyway; owner, 2026-09-21) ----
             let area_part = move || {
-                let areas = areas.get();
+                let areas: Vec<CatalogArea> = areas.get().into_iter().filter(|area| area.choice).collect();
                 (curricular.get() && !areas.is_empty()).then(|| {
                     let picker = if APP {
                         let items = StoredValue::new(areas.iter().map(area_item).collect::<Vec<_>>());
@@ -1346,9 +1363,14 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                             <span class="select-wrap plain">
                                 <select name="area" aria-label="Bereich">
                                     <option value="">"Alle Bereiche"</option>
-                                    {areas.iter().map(|area| {
-                                        let indent = "– ".repeat(usize::try_from(area.depth.max(1) - 1).unwrap_or(0));
-                                        view! { <option value=area.id.to_string() selected=selected == Some(area.id)>{format!("{indent}{} ({})", area.label, area.modules)}</option> }
+                                    {area_groups_for_select(&areas).into_iter().map(|(group, areas)| {
+                                        let options = areas.into_iter().map(|area| view! {
+                                            <option value=area.id.to_string() selected=selected == Some(area.id)>{format!("{} ({})", area.name(), area.modules)}</option>
+                                        }).collect_view();
+                                        match group {
+                                            Some(group) => view! { <optgroup label=group>{options}</optgroup> }.into_any(),
+                                            None => options.into_any(),
+                                        }
                                     }).collect_view()}
                                 </select>
                                 <Icon name="chevrons-up-down"/>

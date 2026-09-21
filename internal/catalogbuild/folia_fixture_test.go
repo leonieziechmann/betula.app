@@ -134,21 +134,30 @@ func TestWriteFoliaFixture(t *testing.T) {
 		}
 		return ids
 	}
+	// The tree as the real one of Informatik B.Sc. reads (owner, 2026-09-21): complexes whose
+	// labels say nothing about Pflicht or Wahlpflicht — the plan says what is compulsory — and
+	// the Nebenfach with its subjects below it. The thesis sits directly in the Fachstudium.
 	informatik.areas = []fixtureArea{
 		{label: "Grundstudium", children: []fixtureArea{
-			{label: "Pflichtmodule Mathematik", modules: take(10)},
-			{label: "Pflichtmodule Informatik", modules: take(14)},
-		}},
-		{label: "Fachstudium", children: []fixtureArea{
-			{label: "Wahlpflichtmodule Praktische Informatik", modules: take(30)},
-			{label: "Wahlpflichtmodule Theoretische Informatik", modules: take(20)},
-			{label: "Wahlpflichtmodule Technische Informatik", modules: take(25)},
-			{label: "Anwendungsfach", children: []fixtureArea{
-				{label: "Wahlpflichtmodule Anwendungsfach Mathematik", modules: take(15)},
-				{label: "Wahlpflichtmodule Anwendungsfach Physik", modules: take(15)},
+			{label: "Komplex Informatik", modules: take(9), children: []fixtureArea{
+				{label: "Proseminar oder Praktikum", modules: take(3)},
+			}},
+			{label: "Komplex Mathematik", modules: take(3)},
+			{label: "Komplex Nebenfach", children: []fixtureArea{
+				{label: "Mathematik", modules: take(8)},
+				{label: "Physik", modules: take(4)},
+				{label: "Maschinenbau/Elektrotechnik", modules: take(6)},
+				{label: "Wirtschaftswissenschaften", modules: take(5)},
+				{label: "Bauingenieurwesen", modules: take(4)},
 			}},
 		}},
-		{label: "Abschlussarbeit", modules: take(1)},
+		{label: "Fachstudium", modules: take(1), children: []fixtureArea{
+			{label: "Grundlagen der Informatik", modules: take(7)},
+			{label: "Praktische Informatik", modules: take(10)},
+			{label: "Angewandte und Technische Informatik", modules: take(9)},
+			{label: "Seminar oder Praktikum (aus der Informatik)", modules: take(4)},
+			{label: "Wahlpflichtmodule Praktische Mathematik", modules: take(5)},
+		}},
 	}
 	informatikMaster.areas = []fixtureArea{
 		{label: "Pflichtmodule", modules: take(6)},
@@ -335,20 +344,31 @@ Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></t
 		put(catalogdb.SourceQISEvent, events[i], events[i+1])
 	}
 
-	// ---- a validated plan for Informatik B.Sc.: the compulsory modules over six semesters ----
+	// ---- a validated plan for Informatik B.Sc.: the compulsory modules of the two complexes over
+	// the first three semesters, then rows that name a complex or the Nebenfach without a module ----
 	var entries []catalogdb.PlanEntry
 	compulsory := append(append([]string{}, informatik.areas[0].children[0].modules...), informatik.areas[0].children[1].modules...)
 	for i, id := range compulsory {
 		semester := i/4 + 1
-		if semester > 6 {
-			semester = 6
+		if semester > 3 {
+			semester = 3
 		}
 		entries = append(entries, catalogdb.PlanEntry{ModuleID: id, ModuleName: byID[id].title, Semester: semester, StartSemester: semester, EndSemester: semester, Credits: 6, KindRaw: "Pflicht", SubjectArea: "Grundstudium"})
 	}
-	for semester := 3; semester <= 6; semester++ {
-		entries = append(entries, catalogdb.PlanEntry{ModuleName: "Wahlpflichtmodule der Informatik", Semester: semester, StartSemester: semester, EndSemester: semester, Credits: 12, KindRaw: "Wahlpflicht", SubjectArea: "Fachstudium"})
+	requirement := func(name string, semester int, credits float64, area string) {
+		entries = append(entries, catalogdb.PlanEntry{ModuleName: name, Semester: semester, StartSemester: semester, EndSemester: semester, Credits: credits, KindRaw: "Wahlpflicht", SubjectArea: area})
 	}
-	thesis := informatik.areas[2].modules[0]
+	requirement("Nebenfach", 2, 6, "Grundstudium")
+	requirement("Proseminar oder Praktikum", 3, 6, "Grundstudium")
+	requirement("Nebenfach", 3, 6, "Grundstudium")
+	requirement("Komplex Grundlagen der Informatik", 4, 12, "Fachstudium")
+	requirement("Nebenfach", 4, 6, "Grundstudium")
+	requirement("Komplex Praktische Informatik", 5, 12, "Fachstudium")
+	requirement("Komplex Angewandte und Technische Informatik", 5, 6, "Fachstudium")
+	requirement("Komplex Praktische Informatik", 6, 6, "Fachstudium")
+	requirement("Seminar oder Praktikum", 6, 6, "Fachstudium")
+	requirement("Wahlpflichtmodule Praktische Mathematik", 6, 6, "Fachstudium")
+	thesis := informatik.areas[1].modules[0]
 	entries = append(entries, catalogdb.PlanEntry{ModuleID: thesis, ModuleName: byID[thesis].title, Semester: 6, StartSemester: 6, EndSemester: 6, Credits: 12, KindRaw: "Abschlussarbeit"})
 	if err := db.SavePlan(catalogdb.Plan{ProgramID: "079-82-2008", SourceFile: "po.pdf", LayoutJSON: "{}", Entries: entries}); err != nil {
 		t.Fatalf("SavePlan failed: %v", err)

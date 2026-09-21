@@ -372,6 +372,8 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .combo-option.active { background: var(--panel-3); }
 .combo-option[aria-selected="true"] { color: var(--accent-ink); }
 .combo-empty { padding: 12px 10px; color: var(--text-3); font-size: 12.5px; text-align: center; }
+.combo-group { padding: 10px 10px 3px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.combo-group:first-child { padding-top: 6px; }
 .combo-foot { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; }
 .combo-foot kbd { padding: 2px 5px; margin-left: 6px; }
 .combo-foot kbd:first-child, .combo-foot kbd + kbd { margin-left: 0; }

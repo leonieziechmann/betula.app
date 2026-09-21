@@ -55,13 +55,18 @@ await page.waitForTimeout(400);
 check(await page.evaluate(() => Boolean(document.querySelector("#pick-area-list")) && document.querySelector("#pick-area").closest(".combo").hasAttribute("data-open")), "picker: the popup closed when the viewport shrank (the keyboard)");
 await page.keyboard.type("praktische");
 await page.waitForFunction(() => document.querySelector("#pick-area-list .combo-option .combo-label")?.textContent.includes("Praktische"), null, { timeout: 5000 }).catch(() => problems.push("picker: typing did not narrow the list"));
+// Enter takes the first entry; the list then holds as many modules as the entry says.
+const picked = await page.evaluate(() => {
+  const entry = document.querySelector("#pick-area-list .combo-option");
+  return { name: entry?.querySelector(".combo-label")?.textContent, count: Number(entry?.querySelector("small")?.textContent.replace(/\D/g, "")) };
+});
 await page.keyboard.press("Enter");
 await page.waitForFunction(() => /[?&]area=\d+/.test(location.search), null, { timeout: 5000 }).catch(() => problems.push("picker: Enter did not pick the area"));
 await page.setViewportSize({ width: 390, height: 844 });
 await page.tap('#filters .filter-actions .show');
 await page.waitForFunction(() => !document.getElementById("filters").classList.contains("open"));
 const inArea = await page.evaluate(() => Number(document.querySelector(".count").textContent.replace(/\D/g, "")));
-check(inArea === 30, `area: ${inArea} modules in Praktische Informatik, expected 30`);
+check(picked.count > 0 && inArea === picked.count, `area: ${inArea} modules in „${picked.name}", the picker said ${picked.count}`);
 
 // ---- the virtual list on a phone: the page scrolls, the last rows come when it is scrolled down
 await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });

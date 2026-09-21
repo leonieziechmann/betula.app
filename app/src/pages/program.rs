@@ -659,9 +659,13 @@ fn area_module_links(modules: &[AreaPlacement], known: &HashMap<String, ProgramM
 fn areas_for_row(entry: &PlanEntry, plan: &str, areas: &[AreaGroup]) -> Vec<AreaGroup> {
     let known: Vec<CatalogArea> = areas.iter().map(AreaGroup::as_catalog_area).collect();
     let found = catalog::plan::areas_for_row(entry, plan, &known);
-    let mut fitting: Vec<AreaGroup> = found.areas.iter().filter_map(|area| areas.iter().find(|group| group.id == area.id).cloned()).collect();
+    let group_of = |area: &CatalogArea| areas.iter().find(|group| group.id == area.id).cloned();
+    let mut fitting: Vec<AreaGroup> = found.areas.iter().filter_map(group_of).collect();
     if found.ambiguous() {
         fitting.insert(0, AreaGroup::ambiguous());
+    } else {
+        // The one, and after it what also comes into question.
+        fitting.extend(found.others.iter().filter_map(group_of));
     }
     fitting
 }
@@ -1494,7 +1498,7 @@ impl AreaGroup {
 
     /// The area as the catalog crate knows it (for the derivation shared with the catalog).
     fn as_catalog_area(&self) -> CatalogArea {
-        CatalogArea { id: self.id, label: self.label.clone(), path: self.path.clone(), depth: self.depth, modules: self.modules.len() }
+        CatalogArea { id: self.id, label: self.label.clone(), path: self.path.clone(), depth: self.depth, modules: self.modules.len(), choice: pages::is_choice(&self.modules) }
     }
 
     #[cfg(test)]
@@ -1511,6 +1515,7 @@ impl AreaGroup {
                 area_ord: 0,
                 kind: None,
                 kind_basis: None,
+                module_kind: None,
             })
             .collect();
         self

@@ -398,8 +398,10 @@ pub fn program_areas(db: &dyn Database, program_id: &str) -> Result<Vec<AreaPlac
         db,
         "program_areas",
         "SELECT a.module_id, m.title AS module_title, m.credits AS module_credits, a.area_id, a.area, \
-         a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis \
-         FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id WHERE a.program_id = ? \
+         a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis, pm.kind AS module_kind \
+         FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id \
+         LEFT JOIN v_program_module pm ON pm.program_id = a.program_id AND pm.module_id = a.module_id \
+         WHERE a.program_id = ? \
          ORDER BY a.area_ord, a.area_id, m.title COLLATE NOCASE, a.module_id",
         &[Value::from(program_id)],
     )
