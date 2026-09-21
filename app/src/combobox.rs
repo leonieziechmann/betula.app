@@ -21,6 +21,21 @@ use leptos::web_sys;
 use crate::nav::{self, PopupPlace};
 use crate::ui::Icon;
 
+/// The ranked entries with each group together, so that no heading comes twice: the entries
+/// without a group first (the list's own, they have no heading to stand under), then the groups
+/// in the order of their best entry, each in the order of the ranking.
+fn grouped<'a>(ranked: &[usize], group: impl Fn(usize) -> &'a str) -> Vec<usize> {
+    let mut groups: Vec<(&str, Vec<usize>)> = vec![("", Vec::new())];
+    for &index in ranked {
+        let name = group(index);
+        match groups.iter_mut().find(|(known, _)| *known == name) {
+            Some((_, members)) => members.push(index),
+            None => groups.push((name, vec![index])),
+        }
+    }
+    groups.into_iter().flat_map(|(_, members)| members).collect()
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComboItem {
     pub id: String,
@@ -101,7 +116,8 @@ pub fn Combobox(
             if clearable && text.trim().is_empty() {
                 rows.push(None);
             }
-            rows.extend(fuzzy::rank(&text, items.iter().map(|item| (item.search.as_str(), item.bonus))).into_iter().map(Some));
+            let ranked = fuzzy::rank(&text, items.iter().map(|item| (item.search.as_str(), item.bonus)));
+            rows.extend(grouped(&ranked, |index| items.get(index).map(|item| item.group.as_str()).unwrap_or_default()).into_iter().map(Some));
             rows
         })
     });
@@ -256,8 +272,8 @@ pub fn Combobox(
             let entries = move || {
                 let rows = rows.get();
                 let hidden = rows.len().saturating_sub(MAX_SHOWN);
-                // A heading where the entries of another group begin (the search keeps the
-                // order of the groups: what fits best comes first, its group's heading with it).
+                // A heading where the entries of another group begin (`grouped` keeps each group
+                // together: what fits best comes first, its group's heading with it).
                 let mut last_group = String::new();
                 let entries = rows
                     .into_iter()
@@ -365,5 +381,20 @@ pub fn Combobox(
             })}
             {popup}
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::grouped;
+
+    #[test]
+    fn a_heading_never_comes_twice_and_the_entries_without_one_come_first() {
+        let groups = ["", "Nebenfach", "", "Nebenfach", "Informatik-Vertiefung"];
+        let group = |index: usize| groups.get(index).copied().unwrap_or_default();
+        // Ranked by the search: a Nebenfach entry fits best, then one without a heading …
+        assert_eq!(grouped(&[3, 0, 4, 1, 2], group), vec![0, 2, 3, 1, 4]);
+        // … and without groups the ranking stays as it is.
+        assert_eq!(grouped(&[2, 0], |_| ""), vec![2, 0]);
     }
 }

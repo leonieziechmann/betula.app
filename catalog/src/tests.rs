@@ -153,6 +153,8 @@ fn every_query_runs_against_the_snapshot() {
     assert!(!queries::program_documents(&db, &id).unwrap().is_empty());
     let id = pick("SELECT program_id FROM v_program_module_area LIMIT 1");
     assert!(!queries::program_areas(&db, &id).unwrap().is_empty());
+    let tree = queries::program_area_tree(&db, &id).unwrap();
+    assert!(tree.iter().all(|node| node.parent_id.is_none_or(|parent| tree.iter().any(|above| above.id == parent))), "every parent is in the tree");
     let id = pick("SELECT program_id FROM v_program_plan LIMIT 1");
     assert!(queries::program_plan(&db, &id).unwrap().is_some_and(|plan| plan.layout_json.starts_with('{')));
     assert!(queries::program_department_counts(&db).unwrap().iter().any(|count| count.thesis_modules > 0));

@@ -25,6 +25,8 @@ pub mod url;
 pub mod native;
 
 #[cfg(test)]
+mod area_fixtures;
+#[cfg(test)]
 mod tests;
 
 pub use db::{Database, DbError, Value};

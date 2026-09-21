@@ -226,10 +226,12 @@ fn picked_panel(data: &ProgramData, tab: ProgramTab, variant: usize, area: Optio
         return view! { <AreaPanel group=group.snapshot() modules=data.curricular.clone() links page/> }.into_any();
     }
     let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
-    let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row - 1).cloned().map(|entry| (entry, plan.label.clone(), plans.len() > 1))));
+    let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row - 1).cloned().map(|entry| (entry, plan, plans.len() > 1))));
     match row {
-        Some((entry, plan, several)) => {
-            let fitting = areas_for_row(&entry, &plan, &areas);
+        Some((entry, chosen, several)) => {
+            let known = pages::catalog_areas(&data.areas, &data.area_tree);
+            let fitting = areas_for_row(&entry, chosen, &known, &areas);
+            let plan = chosen.label.clone();
             let known: HashMap<String, ProgramModule> = data.curricular.iter().chain(data.fues.iter()).map(|m| (m.module_id.clone(), m.clone())).collect();
             view! { <PlanRowPanel entry plan=(several).then_some(plan) program=data.program.clone() fitting known links page/> }.into_any()
         }
@@ -656,9 +658,10 @@ fn area_module_links(modules: &[AreaPlacement], known: &HashMap<String, ProgramM
 /// (`catalog::plan::areas_for_row`; the catalog's semester lists rest on the same derivation).
 /// Derived, never stated — the panel says so, and where two areas fit equally well it names both
 /// instead of picking one (R12): the mark `AreaGroup::ambiguous` then stands in front of them.
-fn areas_for_row(entry: &PlanEntry, plan: &str, areas: &[AreaGroup]) -> Vec<AreaGroup> {
-    let known: Vec<CatalogArea> = areas.iter().map(AreaGroup::as_catalog_area).collect();
-    let found = catalog::plan::areas_for_row(entry, plan, &known);
+/// `known` are the program's areas as the catalog crate knows them (`pages::catalog_areas`, with
+/// the nodes above each), `areas` the page's groups of the same areas.
+fn areas_for_row(entry: &PlanEntry, plan: &PlanVariant, known: &[CatalogArea], areas: &[AreaGroup]) -> Vec<AreaGroup> {
+    let found = catalog::plan::areas_for_row(entry, &plan.full, known, &plan.entries);
     let group_of = |area: &CatalogArea| areas.iter().find(|group| group.id == area.id).cloned();
     let mut fitting: Vec<AreaGroup> = found.areas.iter().filter_map(group_of).collect();
     if found.ambiguous() {
@@ -1474,8 +1477,6 @@ struct AreaGroup {
     path: String,
     /// Where the area sits in the tree (its path without the label).
     parent: Option<String>,
-    /// The label of the area directly above, from the tree itself.
-    parent_label: Option<String>,
     depth: i64,
     modules: Vec<AreaPlacement>,
     /// The areas one level below this one: (id, label, how many modules).
@@ -1491,16 +1492,11 @@ impl AreaGroup {
     /// Not an area: the mark that several fit a row of the plan equally well, so none is shown
     /// as the one. `areas_for_row` puts it in front of them.
     fn ambiguous() -> Self {
-        Self { id: 0, label: String::new(), path: String::new(), parent: None, parent_label: None, depth: 0, modules: Vec::new(), children: Vec::new() }
+        Self { id: 0, label: String::new(), path: String::new(), parent: None, depth: 0, modules: Vec::new(), children: Vec::new() }
     }
 
     fn is_ambiguous(&self) -> bool {
         self.id == 0
-    }
-
-    /// The area as the catalog crate knows it (for the derivation shared with the catalog).
-    fn as_catalog_area(&self) -> CatalogArea {
-        CatalogArea { id: self.id, label: self.label.clone(), path: self.path.clone(), depth: self.depth, modules: self.modules.len(), choice: pages::is_choice(&self.modules), parent: self.parent_label.clone() }
     }
 
     #[cfg(test)]
@@ -1518,7 +1514,6 @@ impl AreaGroup {
                 kind: None,
                 kind_basis: None,
                 module_kind: None,
-                parent_label: self.parent_label.clone(),
             })
             .collect();
         self
@@ -1537,7 +1532,6 @@ fn area_groups(areas: &[AreaPlacement]) -> Vec<AreaGroup> {
                 // The path without the label — cut off as a whole: the label itself may read
                 // „Maschinenbau / Elektrotechnik".
                 parent: placement.area.strip_suffix(placement.area_label.as_str()).and_then(|above| above.strip_suffix(" / ")).filter(|above| !above.is_empty()).map(str::to_string),
-                parent_label: placement.parent_label.clone(),
                 depth: placement.depth,
                 modules: vec![placement],
                 children: Vec::new(),
@@ -1723,13 +1717,13 @@ mod tests {
             label: label.to_string(),
             path: format!("Grundstudium / {label}"),
             parent: Some("Grundstudium".to_string()),
-            parent_label: Some("Grundstudium".to_string()),
             depth: 2,
             modules: Vec::new(),
             children: Vec::new(),
         }
         .with_modules(modules);
         let areas = vec![area(1, "Informatik (MIT)", 1), area(2, "Informatik (EET)", 1), area(5, "Studienrichtungsspezifische Vertiefungsmodule (MIT)", 23)];
+        let known: Vec<CatalogArea> = areas.iter().map(|group| CatalogArea::new(group.id, &group.label, &["Grundstudium"], group.modules.len(), true)).collect();
         let row = |name: &str| PlanEntry {
             module_id: None,
             module_name: name.to_string(),
@@ -1748,13 +1742,14 @@ mod tests {
             catalog_title: None,
             credits_differ_from_catalog: false,
         };
-        let plan = "Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium";
-        let fitting = areas_for_row(&row("Wahlpflichtmodul aus der Informatik"), plan, &areas);
+        let full = "Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium";
+        let plan = PlanVariant { label: "MIT und EET".to_string(), full: full.to_string(), semesters: 6, credits: 180.0, entries: Vec::new() };
+        let fitting = areas_for_row(&row("Wahlpflichtmodul aus der Informatik"), &plan, &known, &areas);
         assert!(fitting.first().is_some_and(AreaGroup::is_ambiguous), "two directions fit, so none is shown as the one");
         assert_eq!(fitting.iter().filter(|area| !area.is_ambiguous()).map(|area| area.id).collect::<Vec<_>>(), vec![1, 2]);
-        let fitting = areas_for_row(&row("Wahlpflichtmodule der Studienrichtung"), plan, &areas);
+        let fitting = areas_for_row(&row("Wahlpflichtmodule der Studienrichtung"), &plan, &known, &areas);
         assert_eq!(fitting.first().map(|area| area.id), Some(5));
-        assert!(areas_for_row(&row("Bachelor-Arbeit"), plan, &areas).is_empty());
+        assert!(areas_for_row(&row("Bachelor-Arbeit"), &plan, &known, &areas).is_empty());
     }
 
     #[test]

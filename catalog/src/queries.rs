@@ -12,7 +12,7 @@ use crate::rows::{
     Semester,
 };
 use crate::rows_detail::{
-    AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
+    AreaNode, AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
     ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
 };
 
@@ -398,13 +398,21 @@ pub fn program_areas(db: &dyn Database, program_id: &str) -> Result<Vec<AreaPlac
         db,
         "program_areas",
         "SELECT a.module_id, m.title AS module_title, m.credits AS module_credits, a.area_id, a.area, \
-         a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis, pm.kind AS module_kind, parent.label AS parent_label \
+         a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis, pm.kind AS module_kind \
          FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id \
          LEFT JOIN v_program_module pm ON pm.program_id = a.program_id AND pm.module_id = a.module_id \
-         JOIN program_area pa ON pa.id = a.area_id \
-         LEFT JOIN program_area parent ON parent.id = pa.parent_id \
          WHERE a.program_id = ? \
          ORDER BY a.area_ord, a.area_id, m.title COLLATE NOCASE, a.module_id",
+        &[Value::from(program_id)],
+    )
+}
+
+/// Every node of the program's module tree in tree order, those without modules included.
+pub fn program_area_tree(db: &dyn Database, program_id: &str) -> Result<Vec<AreaNode>, DbError> {
+    fetch(
+        db,
+        "program_area_tree",
+        "SELECT id, parent_id, depth, label, stated_kind FROM program_area WHERE program_id = ? ORDER BY ord, id",
         &[Value::from(program_id)],
     )
 }

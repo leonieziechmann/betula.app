@@ -266,9 +266,6 @@ pub struct AreaPlacement {
     /// What the program's sources settle on for the module (`v_program_module.kind`: the plan,
     /// the module page, the tree's label, the strongest statement first); `None` where none says.
     pub module_kind: Option<Code<ModuleKind>>,
-    /// The label of the area directly above this one (`program_area.parent_id`), from the tree
-    /// itself: the path cannot be split for it, a label may read „Maschinenbau / Elektrotechnik".
-    pub parent_label: Option<String>,
 }
 
 impl FromRow for AreaPlacement {
@@ -285,7 +282,31 @@ impl FromRow for AreaPlacement {
             kind: Code::parse_opt(row.opt_text("kind")?),
             kind_basis: Code::parse_opt(row.opt_text("kind_basis")?),
             module_kind: Code::parse_opt(row.opt_text("module_kind")?),
-            parent_label: row.opt_text("parent_label")?,
+        })
+    }
+}
+
+/// `program_area`: one node of the program's module tree, with or without modules of its own.
+/// The areas the tree places modules in (`AreaPlacement`) hang below nodes that hold none
+/// („Grundstudium", „Komplex Nebenfach"); the pickers need those to know what an area lies in.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AreaNode {
+    pub id: i64,
+    pub parent_id: Option<i64>,
+    pub depth: i64,
+    pub label: String,
+    /// What a label on the path states about the kind (`program_area.stated_kind`).
+    pub stated_kind: Option<Code<ModuleKind>>,
+}
+
+impl FromRow for AreaNode {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            id: row.int("id")?,
+            parent_id: row.opt_int("parent_id")?,
+            depth: row.int("depth")?,
+            label: row.text("label")?,
+            stated_kind: Code::parse_opt(row.opt_text("stated_kind")?),
         })
     }
 }

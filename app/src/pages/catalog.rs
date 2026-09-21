@@ -941,26 +941,12 @@ impl Facts {
 
 /// An area as the picker offers it: its name and how many modules it holds, nothing else (owner,
 /// 2026-09-21: the path of the tree beside the name pushed the names into „Wahlpflichtmod…"),
-/// under the heading of the area above it („Komplex Nebenfach": Mathematik, Physik …). The full
-/// label and the path still find the area when they are typed.
+/// under the heading of its section (`pages::catalog_areas`: „Nebenfach" for Mathematik,
+/// Physik …). The full label and the path still find the area when they are typed.
 fn area_item(area: &CatalogArea) -> ComboItem {
     ComboItem::new(area.id.to_string(), area.name().to_string(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX)), 0)
         .also_found_by(&format!("{} {}", area.label, area.path))
-        .in_group(area.parent().unwrap_or_default())
-}
-
-/// The areas in the order they come, each run of one parent as a group (the heading of the
-/// plain select's `optgroup`; `None` for areas at the top of the tree).
-fn area_groups_for_select(areas: &[CatalogArea]) -> Vec<(Option<String>, Vec<CatalogArea>)> {
-    let mut groups: Vec<(Option<String>, Vec<CatalogArea>)> = Vec::new();
-    for area in areas {
-        let parent = area.parent().map(str::to_string);
-        match groups.last_mut() {
-            Some((group, members)) if *group == parent => members.push(area.clone()),
-            _ => groups.push((parent, vec![area.clone()])),
-        }
-    }
-    groups
+        .in_group(area.section.clone().unwrap_or_default())
 }
 
 /// What the pickers offer: the same for every filter, it changes only with the snapshot.
@@ -1341,10 +1327,11 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
             // ---- area: „Praktische Informatik" and the like, out of the tree — only the areas a
             // student chooses from (the Pflichtmodule are taken anyway; owner, 2026-09-21) ----
             let area_part = move || {
-                let areas: Vec<CatalogArea> = areas.get().into_iter().filter(|area| area.choice).collect();
-                (curricular.get() && !areas.is_empty()).then(|| {
+                // The sections in the order the picker shows them: those without a heading first.
+                let sections = pages::area_sections(&areas.get());
+                (curricular.get() && !sections.is_empty()).then(|| {
                     let picker = if APP {
-                        let items = StoredValue::new(areas.iter().map(area_item).collect::<Vec<_>>());
+                        let items = StoredValue::new(sections.iter().flat_map(|(_, areas)| areas.iter().map(area_item)).collect::<Vec<_>>());
                         let selected = Signal::derive(move || query.with(|q| q.program.as_ref().and_then(|scope| scope.area).map(|id| id.to_string())));
                         let pick = Callback::new(move |id: Option<String>| {
                             go.run(target_now(query, open, |q| {
@@ -1363,7 +1350,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                             <span class="select-wrap plain">
                                 <select name="area" aria-label="Bereich">
                                     <option value="">"Alle Bereiche"</option>
-                                    {area_groups_for_select(&areas).into_iter().map(|(group, areas)| {
+                                    {sections.into_iter().map(|(group, areas)| {
                                         let options = areas.into_iter().map(|area| view! {
                                             <option value=area.id.to_string() selected=selected == Some(area.id)>{format!("{} ({})", area.name(), area.modules)}</option>
                                         }).collect_view();
