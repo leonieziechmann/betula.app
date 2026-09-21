@@ -66,6 +66,15 @@ pub const SERVICE_WORKER: &str = "/sw.js";
 /// the one document the server writes without the app: the login page of closed testing.
 pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px')}catch(e){}";
 
+/// The opt-in to the fade between pages, in the head of every document the server writes (this
+/// shell and the login page of closed testing). Not in app.css: Chromium decides whether a new
+/// page takes part in the transition when it shows it for the first time, from the style sheets it
+/// has applied by then, and the stylesheet, revalidated on every page load, often arrives after the
+/// parser has reached `<body>`. The page then came without the fade and with "Transition was
+/// aborted because of invalid state. ViewTransition opt-in disabled" in the console. Written
+/// inline, the rule is there before the body is. The duration stays in app.css.
+pub const VIEW_TRANSITION_STYLE: &str = "@view-transition{navigation:auto}";
+
 /// The HTML document around the app (server side only).
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     // The browser app does not hydrate this HTML: it mounts fresh once its local database is
@@ -97,6 +106,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 // the macro would read it as a cast.
                 <link as="font" rel="preload" type="font/woff2" crossorigin="anonymous" href=FONT/>
                 <link rel="stylesheet" href=STYLESHEET/>
+                <style inner_html=VIEW_TRANSITION_STYLE></style>
                 <MetaTags/>
                 <script defer src=ENHANCE_SCRIPT></script>
                 <script type="module" src=BOOT_SCRIPT></script>

@@ -115,7 +115,8 @@ body {
   -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
   display: grid; grid-template-columns: var(--rail) minmax(0, 1fr);
 }
-@view-transition { navigation: auto; }
+/* The fade between pages. Its opt-in (@view-transition) is written inline into the head of each
+   page (app::VIEW_TRANSITION_STYLE): from this file it can come too late for the browser. */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .16s; }
 h1, h2, h3, p { margin: 0; }
 ul { margin: 0; padding: 0; list-style: none; }
