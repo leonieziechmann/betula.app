@@ -155,6 +155,7 @@ pub fn router(state: AppState) -> Router {
         .route(app::FAVICON, get(api::favicon))
         .route(app::FONT, get(api::font))
         .route(app::OG_IMAGE, get(api::og_image))
+        .route("/assets/shots/{file}", get(api::showcase_shot))
         .route(app::ENHANCE_SCRIPT, get(api::enhance_script))
         .route(app::BOOT_SCRIPT, get(api::boot_script))
         .route("/assets/sql-wasm.js", get(api::sql_js))

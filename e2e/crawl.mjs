@@ -68,7 +68,9 @@ for (let i = 0; i < all.length && modulePages < moduleLimit; i += step) {
   modulePages++;
 }
 
-// A filter, a program scope with its FÜS list, and what must be a 404.
+// The legal pages, a filter, a program scope with its FÜS list, and what must be a 404.
+await get("/impressum");
+await get("/datenschutz");
 await get("/catalog?turnus=winter&form=exercise&lang=en");
 if (programs[0]) await get(`/catalog?program=${programs[0].split("/").pop()}&list=fues`);
 await get("/catalog/module/00000", 404);
