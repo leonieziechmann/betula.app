@@ -5,8 +5,9 @@
 //! search engines about the modules of the BTU: that text is what the page is found by.
 //!
 //! The map (`catalog::graph`) is laid out by the web server once per snapshot; this page only
-//! draws it (`data::ProgramMapHandle`). Without JavaScript it is a picture whose dots are links;
-//! the app adds what a pointer over a dot shows: the program's relatives.
+//! draws it (`data::ProgramMapHandle`), the faculties as areas. Without JavaScript it is a picture
+//! whose dots are links; the app adds what a pointer over a dot shows (its relatives) and turns a
+//! click into a pick: a card with the relatives and a link to the program, not a navigation.
 
 use std::sync::Arc;
 
@@ -18,7 +19,6 @@ use catalog::url::{self, CatalogUrl, ProgramTab};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::use_navigate;
 
 use crate::data::{use_source, PageStatus, ProgramMapHandle};
 use crate::format;
@@ -325,47 +325,117 @@ fn link_paths(map: &ProgramMap, layout: &Layout) -> [String; 3] {
     paths
 }
 
+/// The class that colours a faculty: `fac-1` … `fac-6` (app.css).
+fn faculty_class(map: &ProgramMap, faculty: usize) -> String {
+    map.faculties.get(faculty).map(|f| format!("fac-{}", f.code)).unwrap_or_default()
+}
+
 #[component]
 fn MapSection(map: Arc<ProgramMap>) -> impl IntoView {
-    // The program under the pointer or with the focus (the app only; server HTML has no state).
-    let hot = RwSignal::new(None::<usize>);
-    let navigate = use_navigate();
-    let slugs: Vec<String> = map.programs.iter().map(|program| program.slug.clone()).collect();
-    // The router takes clicks on HTML links only; the dots are SVG links.
+    // The app only (server HTML has no state): the program under the pointer or with the focus,
+    // and the one picked by a click. The map shows the first, else the second.
+    let hover = RwSignal::new(None::<usize>);
+    let picked = RwSignal::new(None::<usize>);
+    let shown = Memo::new(move |_| hover.get().or(picked.get()));
+    // The faculty of the picked program: its outline shows, the programs of the others step back.
+    let picked_faculty = {
+        let map = map.clone();
+        Memo::new(move |_| picked.get().and_then(|i| map.programs.get(i)).and_then(|program| program.faculty))
+    };
+    // The colour of what is shown is its faculty's (`--pick`), not the accent of the app: the
+    // highlight has to belong to the outline it stands in.
+    let pick_colour = {
+        let map = map.clone();
+        Memo::new(move |_| {
+            let code = shown.get().and_then(|i| map.programs.get(i)).and_then(|program| program.faculty).and_then(|f| map.faculties.get(f)).map(|f| f.code.clone());
+            code.map_or("var(--accent)".to_string(), |code| format!("var(--fac-{code})"))
+        })
+    };
+    // A click picks a program instead of opening it (owner wish 2026-09-21: too easily done by
+    // accident); the card below the map links to it. A click beside the dots puts it away. With
+    // a modifier the dot stays what it is without the app: a link.
     let on_click = move |ev: leptos::ev::MouseEvent| {
         if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key() {
             return;
         }
-        let Some(slug) = nav::index_under(ev.target()).and_then(|i| slugs.get(i).cloned()) else { return };
-        ev.prevent_default();
-        navigate(&url::program_path(&slug, ProgramTab::Plan), Default::default());
+        match nav::index_under(ev.target()) {
+            Some(i) => {
+                ev.prevent_default();
+                picked.update(|picked| *picked = if *picked == Some(i) { None } else { Some(i) });
+            }
+            None => picked.set(None),
+        }
     };
 
+    // Above the map, one line that never changes its height: the legend, or the program under the pointer.
     let info = {
         let map = map.clone();
         move || {
-            let Some((i, program)) = hot.get().and_then(|i| map.programs.get(i).map(|program| (i, program))) else {
+            let Some((i, program)) = hover.get().and_then(|i| map.programs.get(i).map(|program| (i, program))) else {
                 return view! {
                     <span class="map-legend">
                         <span><i class="dot-key bachelor"></i>"Bachelor"</span>
                         <span><i class="dot-key master"></i>"Master"</span>
                         <span><i class="dot-key other"></i>"Weitere"</span>
-                        <span class="quiet">"Größe: Module im Curriculum · Linie: gemeinsame Module"</span>
+                        <span class="quiet">"Linie: gemeinsame Module · Klick: Details und Fakultät"</span>
                     </span>
-                }.into_any();
+                }
+                .into_any();
             };
-            let relatives: Vec<String> = map
-                .relatives(i)
-                .into_iter()
-                .take(3)
-                .filter_map(|(other, shared)| map.programs.get(other).map(|other| format!("{shared} mit {}", other.title())))
-                .collect();
+            let named: Vec<String> = map.relatives(i).iter().take(3).filter_map(|(other, shared)| map.programs.get(*other).map(|other| format!("{shared} mit {}", other.title()))).collect();
             view! {
                 <span class="map-hot-info">
                     <b>{program.name.clone()}</b>" "{program.degree.clone()}{program.variant.as_ref().map(|variant| format!(" ({variant})"))}
-                    <span class="quiet">" · "{program.modules}" Module"{(!relatives.is_empty()).then(|| format!(" · teilt {}", relatives.join(", ")))}</span>
+                    <span class="quiet">" · "{program.modules}" Module"{(!named.is_empty()).then(|| format!(" · teilt {}", named.join(", ")))}</span>
                 </span>
-            }.into_any()
+            }
+            .into_any()
+        }
+    };
+
+    // Below the map, so that a click does not move the map under the pointer: the picked program.
+    let card = {
+        let map = map.clone();
+        move || {
+            let i = picked.get()?;
+            let program = map.programs.get(i)?;
+            let faculty = program.faculty.and_then(|f| map.faculties.get(f)).map(|f| f.title());
+            let relatives = map.relatives(i);
+            let count = relatives.len();
+            Some(view! {
+                <div class=format!("map-pick {}", program.faculty.map(|f| faculty_class(&map, f)).unwrap_or_default()) aria-live="polite">
+                    <div class="map-pick-head">
+                        <span class="map-pick-title">
+                            <b>{program.name.clone()}</b>" "{program.degree.clone()}{program.variant.as_ref().map(|variant| format!(" ({variant})"))}
+                            <span class="quiet">{faculty.map(|f| format!(" · {f}"))}" · "{program.modules}" Module im Curriculum"</span>
+                        </span>
+                        <a class="map-pick-open" href=url::program_path(&program.slug, ProgramTab::Plan)>"Zum Studiengang"<Icon name="chevron-right"/></a>
+                        <button type="button" class="map-pick-close" aria-label="Auswahl aufheben" on:click=move |_| picked.set(None)>
+                            <Icon name="x"/>
+                        </button>
+                    </div>
+                    {if count == 0 {
+                        view! { <p class="map-pick-none quiet">"Teilt keine Module mit anderen Studiengängen auf der Karte."</p> }.into_any()
+                    } else {
+                        view! {
+                            <div class="map-pick-relatives">
+                                <span class="quiet">{format!("Verbunden mit {count}:")}</span>
+                                {relatives.into_iter().filter_map(|(other, shared)| {
+                                    let relative = map.programs.get(other)?;
+                                    let class = format!("map-pick-relative {}", relative.faculty.map(|f| faculty_class(&map, f)).unwrap_or_default());
+                                    let hint = format!("{shared} gemeinsame Module");
+                                    Some(view! {
+                                        <button type="button" class=class title=hint on:click=move |_| picked.set(Some(other))>
+                                            <i></i>{relative.title()}<span class="quiet">{format!(" · {shared}")}</span>
+                                        </button>
+                                    })
+                                }).collect_view()}
+                            </div>
+                        }
+                        .into_any()
+                    }}
+                </div>
+            })
         }
     };
 
@@ -374,7 +444,7 @@ fn MapSection(map: Arc<ProgramMap>) -> impl IntoView {
         let hot_links = {
             let (map, layout) = (map.clone(), layout.clone());
             move || {
-                let i = hot.get()?;
+                let i = shown.get()?;
                 let from = *layout.dots.get(i)?;
                 let mut path = String::new();
                 let mut relatives = Vec::new();
@@ -396,7 +466,14 @@ fn MapSection(map: Arc<ProgramMap>) -> impl IntoView {
         };
         let [weak, medium, strong] = paths;
         view! {
-            <svg class=format!("map {class}") class:has-hot=move || hot.get().is_some() viewBox=format!("0 0 {} {}", layout.width, layout.height) style=format!("--map-font:{}px", layout.font)>
+            <svg class=format!("map {class}") class:has-hot=move || shown.get().is_some() class:has-pick=move || picked.get().is_some() viewBox=format!("0 0 {} {}", layout.width, layout.height) style=move || format!("--map-font:{}px;--pick:{}", layout.font, pick_colour.get())>
+                // The outline of the picked program's faculty, under everything else.
+                {layout.regions.iter().map(|region| {
+                    let f = region.faculty;
+                    view! {
+                        <g><path class=format!("map-region {}", faculty_class(&map, f)) class:shown=move || picked_faculty.get() == Some(f) d=region.path.clone()/></g>
+                    }
+                }).collect_view()}
                 <path class="map-links" d=weak/>
                 <path class="map-links medium" d=medium/>
                 <path class="map-links strong" d=strong/>
@@ -410,7 +487,9 @@ fn MapSection(map: Arc<ProgramMap>) -> impl IntoView {
                     </g>
                 }).collect_view()}
                 {map.programs.iter().zip(layout.dots.iter()).enumerate().map(|(i, (program, (x, y, r)))| {
-                    let label = format!("{} · {} Module", program.title(), program.modules);
+                    let program_faculty = program.faculty;
+                    let faculty = program.faculty.and_then(|f| map.faculties.get(f)).map(|f| format!(" · Fakultät {}", f.code)).unwrap_or_default();
+                    let label = format!("{} · {} Module{faculty}", program.title(), program.modules);
                     let tooltip = label.clone();
                     let class = match program.cycle {
                         Cycle::Bachelor => "map-dot bachelor",
@@ -419,7 +498,7 @@ fn MapSection(map: Arc<ProgramMap>) -> impl IntoView {
                     };
                     view! {
                         <g>
-                            <a class=class href=url::program_path(&program.slug, ProgramTab::Plan) data-i=i aria-label=label>
+                            <a class=class class:picked=move || picked.get() == Some(i) class:outside=move || picked_faculty.get().is_some_and(|f| program_faculty != Some(f)) href=url::program_path(&program.slug, ProgramTab::Plan) data-i=i aria-label=label>
                                 <title>{tooltip}</title>
                                 <circle cx=px(*x) cy=px(*y) r=px(*r)/>
                             </a>
@@ -430,6 +509,12 @@ fn MapSection(map: Arc<ProgramMap>) -> impl IntoView {
                 {layout.names.iter().filter_map(|name| map.programs.get(name.program).map(|program| view! {
                     <g><text class="map-name" x=px(name.x) y=px(name.y) text-anchor=name.anchor.code()>{program.name.clone()}</text></g>
                 })).collect_view()}
+                {layout.regions.iter().map(|region| {
+                    let f = region.faculty;
+                    view! {
+                        <g><text class=format!("map-faculty {}", faculty_class(&map, f)) class:shown=move || picked_faculty.get() == Some(f) x=px(region.x) y=px(region.y) text-anchor=region.anchor.code()>{region.label.clone()}</text></g>
+                    }
+                }).collect_view()}
             </svg>
         }
     });
@@ -439,21 +524,23 @@ fn MapSection(map: Arc<ProgramMap>) -> impl IntoView {
             <header class="block-head">
                 <h2 id="karte-titel">"Wie die Studiengänge zusammenhängen"</h2>
                 <p>
-                    "Jeder Punkt ist ein Studiengang. Eine Linie verbindet zwei, deren Curricula sich Module teilen; "
-                    "je mehr sie teilen, desto näher stehen sie beieinander. So werden die Nachbarschaften der Universität sichtbar."
+                    "Jeder Punkt ist ein Studiengang. Eine Linie verbindet zwei, deren Curricula sich Module teilen; je mehr sie teilen, "
+                    "desto näher stehen sie beieinander, Studiengänge einer Fakultät ein wenig näher. Ein Klick auf einen Punkt zeigt, mit wem er verbunden ist und wo seine Fakultät liegt."
                 </p>
             </header>
             <p class="map-info" aria-live="polite">{info}</p>
             <div
                 class="map-sheet"
                 on:click=on_click
-                on:pointerover=move |ev| hot.set(nav::index_under(ev.target()))
-                on:pointerleave=move |_| hot.set(None)
-                on:focusin=move |ev| hot.set(nav::index_under(ev.target()))
-                on:focusout=move |_| hot.set(None)
+                on:keydown=move |ev: leptos::ev::KeyboardEvent| if ev.key() == "Escape" { picked.set(None) }
+                on:pointerover=move |ev| hover.set(nav::index_under(ev.target()))
+                on:pointerleave=move |_| hover.set(None)
+                on:focusin=move |ev| hover.set(nav::index_under(ev.target()))
+                on:focusout=move |_| hover.set(None)
             >
                 {sheets}
             </div>
+            {card}
         </section>
     }
 }

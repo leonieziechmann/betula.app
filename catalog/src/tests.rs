@@ -672,6 +672,9 @@ fn the_program_map_is_stable_tidy_and_on_the_sheet() {
     let started = std::time::Instant::now();
     let map = pages::program_map(&db).unwrap();
     eprintln!("program map: {:?}, {} programs, {} links", started.elapsed(), map.programs.len(), map.links.len());
+    if let Ok(path) = std::env::var("FOLIA_MAP_DUMP") {
+        std::fs::write(path, serde_json::to_vec(&map).unwrap()).unwrap();
+    }
     assert_eq!(map, pages::program_map(&db).unwrap(), "the same snapshot gives the same map");
 
     let current = queries::programs(&db).unwrap().iter().filter(|p| p.is_latest_po).count();
@@ -682,7 +685,19 @@ fn the_program_map_is_stable_tidy_and_on_the_sheet() {
     let informatik = map.programs.iter().position(|p| p.slug == INFORMATIK_BSC);
     assert!(informatik.is_none_or(|i| map.programs[i].modules > 10));
 
+    // The six faculties, by number, and nearly every program in one of them.
+    let codes: Vec<&str> = map.faculties.iter().map(|f| f.code.as_str()).collect();
+    assert_eq!(codes, ["1", "2", "3", "4", "5", "6"]);
+    assert!(map.faculties.iter().all(|f| !f.name.is_empty() && !f.name.contains(" - ")), "{:?}", map.faculties);
+    let placed = map.programs.iter().filter(|p| p.faculty.is_some()).count();
+    assert!(placed * 10 >= current * 9, "{placed} of {current} programs have a faculty");
+
     for layout in [&map.wide, &map.tall] {
+        assert_eq!(layout.regions.iter().map(|r| r.faculty).collect::<Vec<_>>(), (0..map.faculties.len()).collect::<Vec<_>>());
+        for region in &layout.regions {
+            assert!(region.path.starts_with('M') && region.path.ends_with('Z'), "{region:?}");
+            assert!(region.x > 0.0 && region.x < layout.width && region.y > 0.0 && region.y < layout.height, "{region:?}");
+        }
         assert_eq!(layout.dots.len(), current);
         for (i, a) in layout.dots.iter().enumerate() {
             assert!(a.0 - a.2 >= 0.0 && a.0 + a.2 <= layout.width && a.1 - a.2 >= 0.0 && a.1 + a.2 <= layout.height, "dot {i} leaves the sheet: {a:?}");

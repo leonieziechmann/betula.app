@@ -36,6 +36,10 @@
   --ok: #0b7f58;      --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
   --no: #b3261e;      --no-soft: color-mix(in srgb, #b3261e 7%, var(--panel));
   --warn: #8f5a0a;    --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  /* The six faculties on the map of the programs: one lightness and a quiet chroma (OKLCH), so
+     no faculty shouts and each one carries the highlight of its programs. */
+  --fac-1: oklch(.5 .12 262); --fac-2: oklch(.52 .09 158); --fac-3: oklch(.56 .11 62);
+  --fac-4: oklch(.5 .11 330); --fac-5: oklch(.52 .08 212); --fac-6: oklch(.52 .12 30);
 
   --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
   --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
@@ -65,6 +69,7 @@
     --bark: #e9edf5;
     --bark-ink: #0d1017;
     --accent: #6d8fff;
+    --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
     --accent-ink: #9db4ff;
     --on-accent: #0a0d14;
     --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
@@ -89,6 +94,7 @@
   --bark: #e9edf5;
   --bark-ink: #0d1017;
   --accent: #6d8fff;
+  --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
   --accent-ink: #9db4ff;
   --on-accent: #0a0d14;
   --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
@@ -759,6 +765,26 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 /* The map of the programs. The server lays it out (catalog::graph); here it is only drawn. */
 .map-info { min-height: 36px; margin: 0 24px; padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-info .quiet { color: var(--text-3); }
+.map-pick { display: flex; flex-direction: column; gap: 8px; margin: 0 24px 18px; padding: 12px 0 0; border-top: 1px solid var(--line); font-size: 13px; }
+.map-pick-none { margin: 0; }
+.map-pick-head { display: flex; align-items: center; gap: 12px; }
+.map-pick-title { flex: 1 1 auto; min-width: 0; line-height: 1.4; }
+.map-pick-open { display: inline-flex; align-items: center; gap: 2px; flex: none; min-height: 34px; padding: 0 8px 0 12px; border-radius: var(--r-ctl); background: var(--invert); color: var(--on-invert); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.map-pick-open:hover { background: var(--fac, var(--accent)); color: var(--panel); text-decoration: none; }
+.map-pick-title::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: var(--fac, var(--accent)); vertical-align: 0; }
+.map-pick-close { display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-2); cursor: pointer; }
+.map-pick-close:hover { background: var(--panel-3); color: var(--text); }
+.map-pick-relatives { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.map-pick-relatives > .quiet { margin-right: 2px; }
+.map-pick-relative { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: 500 12.5px var(--font); cursor: pointer; }
+.map-pick-relative:hover { background: var(--panel-3); }
+.map-pick-relative i { width: 8px; height: 8px; border-radius: 50%; background: var(--fac, var(--text-3)); flex: none; }
+.fac-1 { --fac: var(--fac-1); } .fac-2 { --fac: var(--fac-2); } .fac-3 { --fac: var(--fac-3); }
+.fac-4 { --fac: var(--fac-4); } .fac-5 { --fac: var(--fac-5); } .fac-6 { --fac: var(--fac-6); }
+.map-region { fill: color-mix(in oklch, var(--fac, var(--text-3)) 7%, transparent); stroke: color-mix(in oklch, var(--fac, var(--text-3)) 55%, transparent); stroke-width: 1.25; stroke-linejoin: round; vector-effect: non-scaling-stroke; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.map-faculty { font: 650 calc(var(--map-font, 12px) * .8) var(--font); text-transform: uppercase; letter-spacing: .07em; fill: var(--fac, var(--text-2)); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; opacity: 0; transition: opacity .2s; }
+.map-region.shown, .map-faculty.shown { opacity: 1; }
+.map-dot.picked circle { stroke: var(--pick, var(--accent)); stroke-width: 3; }
 .map-legend { display: flex; align-items: center; gap: 16px; color: var(--text-2); font-weight: 550; }
 .map-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .map-legend .quiet { font-weight: 450; overflow: hidden; text-overflow: ellipsis; }
@@ -777,18 +803,21 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .map-dot.other circle { fill: var(--text-3); stroke: var(--text-3); }
 .map-halo circle { fill: transparent; }
 .map-dot, .map-halo { cursor: pointer; outline: 0; }
-.map-dot:hover circle, .map-dot:focus-visible circle { fill: var(--accent); stroke: var(--accent); }
+.map-dot:hover circle, .map-dot:focus-visible circle { fill: var(--pick, var(--accent)); stroke: var(--pick, var(--accent)); }
 .map-name { font: 560 var(--map-font, 12px) var(--font); letter-spacing: -.01em; fill: var(--text-2); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; transition: opacity .15s; }
 /* With a program under the pointer (the app): the rest steps back, its links and relatives stand out. */
 .map.has-hot .map-links { stroke-opacity: .08; }
 .map.has-hot .map-dot circle { opacity: .35; }
 .map.has-hot .map-name { opacity: .3; }
+/* A picked program: its faculty stays, the programs of the others step back a little. */
+.map.has-pick .map-dot circle { opacity: 1; }
+.map.has-pick .map-dot.outside circle { opacity: .4; }
 .map-hot { pointer-events: none; }
-.map-hot path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.map-hot circle { fill: var(--panel); stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.map-hot path { fill: none; stroke: var(--pick, var(--accent)); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.map-hot circle { fill: var(--panel); stroke: var(--pick, var(--accent)); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .map-hot circle.bachelor { fill: var(--text); }
 .map-hot circle.other { fill: var(--text-3); }
-.map-hot circle.self { fill: var(--accent); }
+.map-hot circle.self { fill: var(--pick, var(--accent)); }
 
 /* Two lists side by side, their rows on the same lines (every row is 56px). */
 .home-lists { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); scroll-margin-top: 14px; }
@@ -1145,6 +1174,10 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .figures dd { font-size: 22px; }
   .block-head { padding: 16px 8px 12px 16px; }
   .map-info { margin: 0 16px; }
+  .map-pick { margin: 0 16px 14px; }
+  .map-pick-head { flex-wrap: wrap; }
+  .map-pick-title { flex-basis: calc(100% - 46px); }
+  .map-pick-open { order: 3; }
   .map-sheet { padding: 8px 4px 12px; }
   .rowlink { height: 60px; padding: 0 12px 0 16px; }
   .ability, .qa-row { padding-left: 16px; padding-right: 16px; }
