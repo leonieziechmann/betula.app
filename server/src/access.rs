@@ -322,6 +322,7 @@ fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<
                 // `as` comes first: after a value the macro would read it as a cast.
                 <link as="font" rel="preload" type="font/woff2" crossorigin="anonymous" href=app::FONT/>
                 <link rel="stylesheet" href=stylesheet/>
+                <style inner_html=app::VIEW_TRANSITION_STYLE></style>
                 <script inner_html=app::HEAD_SCRIPT></script>
             </head>
             <body class="gate">

@@ -365,7 +365,12 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 - **`assets/enhance.js`** (progressive enhancement until the browser app takes over): the plain
   fields of the filter form apply on change, panels keep their scroll position across page loads.
   In both modes: the shortcuts, the theme switch, the filter sheet, and the two resize handles. Page changes use
-  cross-document view transitions where the browser supports them.
+  cross-document view transitions where the browser supports them. Their opt-in
+  (`@view-transition`) is written inline into every head the server writes
+  (`app::VIEW_TRANSITION_STYLE`), not into app.css: Chromium decides when it first shows the new
+  page, from the style sheets applied by then, and the stylesheet (revalidated on every load) often
+  arrives after the parser has reached `<body>`. The page then came without the fade and with
+  "ViewTransition opt-in disabled" in the console (`e2e/gate.mjs` checks it with a slow stylesheet).
 - `design/prototype.html` is the clickable design prototype the direction was agreed on;
   `node e2e/shot.mjs <url> <out.png> [w] [h] [--dark]` takes review screenshots.
 

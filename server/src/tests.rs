@@ -145,6 +145,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap(), headers["x-robots-tag"].to_str().unwrap()), (StatusCode::OK, "no-store", "noindex, nofollow"));
     assert!(html.starts_with("<!DOCTYPE html>") && html.contains("<form method=\"post\" action=\"/access\">") && html.contains("type=\"password\""), "{html}");
     assert!(html.contains("name=\"next\"") && !html.contains("<script>alert") && !html.contains("role=\"alert\""), "{html}");
+    assert!(html.split("</head>").next().unwrap().contains(&format!("<style>{}</style>", app::VIEW_TRANSITION_STYLE)), "the login page fades like the site: {html}");
     assert!(html.contains("rel=\"stylesheet\" href=\"/assets/app.css?v=test\""), "the stylesheet of this build: {html}");
 
     // A wrong password stays on the form and says so; the right one opens the gate for this
@@ -265,6 +266,9 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     for link in ["rel=\"manifest\"", "rel=\"apple-touch-icon\"", "href=\"/favicon.ico\"", "name=\"theme-color\"", "rel=\"stylesheet\"", "rel=\"preload\""] {
         assert_eq!(head(&home).matches(link).count(), 1, "{link}");
     }
+    // The fade between pages is opted into in the head itself: from the stylesheet alone the
+    // browser may learn of it too late (`app::VIEW_TRANSITION_STYLE`).
+    assert_eq!(head(&home).matches(&format!("<style>{}</style>", app::VIEW_TRANSITION_STYLE)).count(), 1, "{home}");
     // The stylesheet and the scripts are linked with the build that wrote the page, so that a
     // service worker of another build never answers them from its cache; the address still
     // leads to the file, whatever build it names.
