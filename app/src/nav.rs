@@ -200,8 +200,8 @@ pub fn session_set(key: &str, value: &str) {
 }
 
 /// What this browser remembers under `key` (`localStorage`, so it outlives the session): a
-/// personal view setting, never part of the URL and never part of server HTML (R9). `None` on
-/// the server, and in a browser that refuses storage.
+/// personal view setting or what a visitor keeps (R20), never part of the URL and never part of
+/// server HTML (R9). `None` on the server, and in a browser that refuses storage.
 #[allow(unused_variables)]
 pub fn local_get(key: &str) -> Option<String> {
     #[cfg(feature = "csr")]
@@ -212,11 +212,12 @@ pub fn local_get(key: &str) -> Option<String> {
     None
 }
 
+/// An empty value takes the key out: a browser that keeps nothing stores nothing.
 #[allow(unused_variables)]
 pub fn local_set(key: &str, value: &str) {
     #[cfg(feature = "csr")]
     if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
-        let _ = storage.set_item(key, value);
+        let _ = if value.is_empty() { storage.remove_item(key) } else { storage.set_item(key, value) };
     }
 }
 
@@ -262,4 +263,16 @@ pub fn reveal_row(rows_id: &str, module_id: &str) -> bool {
     }
     #[cfg(not(feature = "csr"))]
     false
+}
+
+/// The fragment of the address as the browser has it, with its `#`. The router learns of a
+/// fragment when a page is opened, not when only the fragment changes. Empty on the server,
+/// which never sees a fragment anyway: browsers do not send it.
+pub fn fragment() -> String {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|w| w.location().hash().ok()).unwrap_or_default()
+    }
+    #[cfg(not(feature = "csr"))]
+    String::new()
 }

@@ -9,6 +9,7 @@
 #![recursion_limit = "512"]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
+pub mod bookmarks;
 pub mod combobox;
 pub mod data;
 pub mod format;
@@ -26,6 +27,8 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::{path, NavigateOptions, SsrMode};
 
+use crate::bookmarks::Bookmarks;
+use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, program::ProgramPage, programs::ProgramsPage};
 use crate::tabs::{Area, Tabs};
 use crate::ui::Icon;
@@ -98,6 +101,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 pub fn App() -> impl IntoView {
     provide_meta_context();
     Tabs::provide();
+    // The visitor's marked modules: from this browser's storage, empty on the server (R9).
+    Bookmarks::provide();
     view! {
         <Link rel="preload" href=FONT as_="font" type_="font/woff2" crossorigin="anonymous"/>
         <Stylesheet href=STYLESHEET/>
@@ -118,6 +123,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/programs") view=ProgramsPage ssr=SsrMode::Async/>
                         <Route path=path!("/programs/:slug") view=ProgramPage ssr=SsrMode::Async/>
                         <Route path=path!("/programs/:slug/:tab") view=ProgramPage ssr=SsrMode::Async/>
+                        <Route path=path!("/bookmarks") view=BookmarksPage ssr=SsrMode::Async/>
                     </Routes>
                 </main>
             </div>
@@ -151,6 +157,18 @@ fn NavItems() -> impl IntoView {
         <a class="nav" data-area="home" href=url::HOME title="Start" aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/></span>"Start"</a>
         <a class="nav" data-area="catalog" href=move || href(Area::Catalog) title="Module" aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>"Module"</a>
         <a class="nav" data-area="programs" href=move || href(Area::Programs) title="Studiengänge" aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/></span>"Studium"</a>
+        // The marked modules exist in the browser app only (R15). How many there are is known
+        // there alone, so the number is never part of server HTML (R9).
+        <a class="nav js-only" data-area="bookmarks" href=move || href(Area::Bookmarks) title="Merkliste" aria-current=move || current(Area::Bookmarks)>
+            <span class="ind">
+                <Icon name="bookmark"/>
+                {move || {
+                    let marked = Bookmarks::expect().map(|bookmarks| bookmarks.count()).unwrap_or(0);
+                    (marked > 0).then(|| view! { <span class="nav-count num" aria-label=format!("{marked} gemerkt")>{if marked > 99 { "99+".to_string() } else { marked.to_string() }}</span> })
+                }}
+            </span>
+            "Merkliste"
+        </a>
     }
 }
 
@@ -160,7 +178,6 @@ fn Rail() -> impl IntoView {
         <aside class="rail">
             <a class="logo hit" href=url::HOME aria-label="Betula, zur Startseite"><ui::Mark/></a>
             <nav aria-label="Hauptnavigation"><NavItems/></nav>
-            <span class="nav soon" title="Merkliste (in Arbeit)"><span class="ind"><Icon name="bookmark"/></span>"Merkliste"</span>
             <span class="nav soon" title="Semesterplaner (geplant)"><span class="ind"><Icon name="calendar-range"/></span>"Planer"</span>
             <div class="rail-end">
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label="Hell oder dunkel">
@@ -211,6 +228,7 @@ fn TopBar() -> impl IntoView {
                 let (title, action, placeholder) = match area_now.get() {
                     Area::Programs => ("Studiengänge", url::PROGRAMS, "Studiengang suchen"),
                     Area::Catalog => ("Module", url::CATALOG, "Modul, Nummer oder Thema suchen"),
+                    Area::Bookmarks => ("Merkliste", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                     Area::Home => ("Start", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                 };
                 let initial = url::parse_pairs(&location.search.get_untracked())

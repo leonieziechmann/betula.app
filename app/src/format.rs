@@ -15,6 +15,8 @@ pub fn variant_short(variant: &Code<StudyVariant>) -> String {
 
 /// `6` → „6", `7.5` → „7,5"
 pub fn number(value: f64) -> String {
+    // An empty sum of floats is -0.0, which would read „-0".
+    let value = if value == 0.0 { 0.0 } else { value };
     if value.fract() == 0.0 {
         format!("{value:.0}")
     } else {
@@ -120,6 +122,7 @@ mod tests {
     fn formats() {
         assert_eq!(number(6.0), "6");
         assert_eq!(number(7.5), "7,5");
+        assert_eq!(number(Vec::<f64>::new().into_iter().sum()), "0");
         assert_eq!(count(3204), "3.204");
         assert_eq!(count(12), "12");
         assert_eq!(count(1_000_000), "1.000.000");

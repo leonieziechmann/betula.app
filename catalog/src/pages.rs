@@ -6,14 +6,15 @@
 use serde::{Deserialize, Serialize};
 
 use crate::db::{Database, DbError};
-use crate::filter::{CatalogQuery, ProgramRelation, ProgramScope};
+use crate::filter::{CatalogQuery, ProgramRelation, ProgramScope, SortKey, TurnusFilter};
+use crate::labels::{Labelled, OfferStatus};
 use crate::queries;
-use crate::rows::{CatalogPage, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
+use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
 use crate::rows_detail::{
     AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
     ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
 };
-use crate::url::{CatalogUrl, PAGE_SIZE};
+use crate::url::{BookmarkSort, CatalogUrl, Season, PAGE_SIZE};
 
 /// The landing page and the footer: how big and how fresh the catalog is.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -279,4 +280,76 @@ pub fn program(db: &dyn Database, slug: &str) -> Result<Option<ProgramData>, DbE
         plan_entries: queries::program_plan_entries(db, &id)?,
         program,
     }))
+}
+
+/// How many marked modules a browser keeps. Far more than anybody marks, and well below what a
+/// single `IN (…)` of the local SQLite takes.
+pub const MAX_BOOKMARKS: usize = 2000;
+
+/// The visitor's marked modules („Merkliste"). Which modules these are is personal: the list
+/// lives in the browser, and only the browser app calls this, with the ids it has stored. The
+/// server never sees them (R9).
+///
+/// The page gets every module once and decides itself what to show: a change of the half of the
+/// year, and a mark given or taken away, need no further query.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct BookmarksData {
+    /// The modules the snapshot knows, in the order asked for.
+    pub rows: Vec<CatalogRow>,
+    /// Which of them are offered in winter and which in summer, as the catalog's turnus filter
+    /// sees it (a module offered every semester is in both, one without a stated turnus in none).
+    pub winter: Vec<String>,
+    pub summer: Vec<String>,
+    /// Ids the snapshot does not know (no longer part of the BTU's catalog, or marked with a
+    /// newer snapshot than the local copy), in the order given.
+    pub missing: Vec<String>,
+}
+
+impl BookmarksData {
+    pub fn offered_in(&self, season: Season, id: &str) -> bool {
+        let offered = match season {
+            Season::Winter => &self.winter,
+            Season::Summer => &self.summer,
+        };
+        offered.iter().any(|offered| offered == id)
+    }
+}
+
+/// `ids` in the order of marking, the newest first: that is the order `BookmarkSort::Added` shows.
+pub fn bookmarks(db: &dyn Database, ids: &[String], sort: BookmarkSort, descending: bool) -> Result<BookmarksData, DbError> {
+    // What comes from a browser's storage is checked like what comes from a URL.
+    let mut seen = std::collections::BTreeSet::new();
+    let ids: Vec<String> = ids.iter().filter(|id| crate::url::is_module_id(id) && seen.insert(id.as_str())).take(MAX_BOOKMARKS).cloned().collect();
+    if ids.is_empty() {
+        return Ok(BookmarksData::default());
+    }
+    let limit = ids.len() as u64;
+    let marked = |season: Option<Season>| CatalogQuery {
+        only_ids: Some(ids.clone()),
+        // A marked module stays on the list when it is no longer offered.
+        offer: Some(OfferStatus::ALL.to_vec()),
+        turnus: TurnusFilter { winter: season == Some(Season::Winter), summer: season == Some(Season::Summer), ..Default::default() },
+        sort: match sort {
+            BookmarkSort::Added | BookmarkSort::Title => SortKey::Title,
+            BookmarkSort::Credits => SortKey::Credits,
+            BookmarkSort::Events => SortKey::Events,
+        },
+        descending: descending && sort != BookmarkSort::Added,
+        ..Default::default()
+    };
+    let offered_in = |season: Season| -> Result<Vec<String>, DbError> {
+        Ok(queries::catalog_page(db, &marked(Some(season)), 0, limit)?.rows.into_iter().map(|row| row.id).collect())
+    };
+
+    let mut rows = queries::catalog_page(db, &marked(None), 0, limit)?.rows;
+    if sort == BookmarkSort::Added {
+        let place = |id: &str| ids.iter().position(|marked| marked == id).unwrap_or(usize::MAX);
+        rows.sort_by_key(|row| place(&row.id));
+    }
+    Ok(BookmarksData {
+        missing: ids.iter().filter(|id| !rows.iter().any(|row| row.id == **id)).cloned().collect(),
+        winter: offered_in(Season::Winter)?,
+        summer: offered_in(Season::Summer)?,
+        rows,
+    })
 }

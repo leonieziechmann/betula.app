@@ -6,7 +6,7 @@
 
 > State: 2026-09-20. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
-> again. Not yet: the service worker of the PWA (the manifest and the icons exist), bookmarks and other user data, context search.
+> again. Not yet: the service worker of the PWA (the manifest and the icons exist), user data beyond the marked modules, context search.
 > Decisions and their evidence: `docs/frontend-phase0.md`.
 
 ## 1. Overview
@@ -29,11 +29,13 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | URL | Page |
 |---|---|
 | `/` | Landing page: every function with a link |
-| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
+| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation) |
 | `/catalog?…&open=<id>` | The same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — all of them are content, so they stand in the address, work without JavaScript and are part of the server's cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. On a phone `open` leads to the module's own page, as in the catalog |
+| `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
+| `/bookmarks?turnus=…&sort=…&desc=1&open=<id>` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. The server renders an explanation, the same for everybody, `noindex` |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -95,8 +97,62 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   side, the description on the left. The page keeps the frame of the catalog, so nothing jumps
   when a preview becomes a page: its sidebar has the width and the handle of the filter panel.
   The sidebar jumps to the sections of the page (without history entries, so Esc still leaves the
-  page) and holds the actions: copy the link, the original at the BTU, and the places where
-  „Merken" and the semester plan will live.
+  page) and holds the actions: „Merken", copy the link, the original at the BTU, and the place
+  where the semester plan will live.
+- **„Merken" (owner decision 2026-09-20: in the browser app only, and no data of a visitor on
+  the server; `app/src/bookmarks.rs`, `app/src/pages/bookmarks.rs`).** A visitor marks modules to
+  come back to. The marks live in this browser's `localStorage` (`betula.bookmarks.v1`, a line
+  per module: id and time of marking, the newest first) and nowhere else: not in a URL, not in
+  server HTML, in no request (R9, R13, R20). Another tab of the same browser follows through the
+  `storage` event; another device has a list of its own.
+  - **Where a module is marked:** at the end of its row in a list (a button *next to* the row's
+    link, in a wrapper, because a button inside a link is neither; the row keeps 48 px free for
+    it, quiet until the row is pointed at or the module is marked, always shown where nothing
+    hovers); in the line of the module's badges (credits, turnus, language) at its right end
+    (owner, 2026-09-20), in the preview and on its page, as a switch „Merken" / „Gemerkt" with
+    its shortcut; and among the actions of the module page's sidebar, which stays in view while
+    the page scrolls. All of them show one state. **`M`** marks what the visitor is
+    at: the row the keyboard is on, else the module that is open. A marked module is neutral and
+    strong (filled, inverted), like a chosen chip; the accent stays with primary actions.
+  - **The rail's fourth item** („Merkliste", also in the phone's bottom bar) carries the number
+    of marks. It is a tab like the others (R19).
+  - **„Gemerkt" filters the catalog** as well („Eigenschaften": only the marked ones, a second
+    click all but them, which is how one looks for what is still missing). The URL carries the
+    switch (`marked=only` / `marked=none`), never the ids: the browser fills them into the query
+    before it asks (`CatalogQuery::only_ids` / `without_ids`). A page that does not know the
+    marks therefore matches nothing with `marked=only` instead of answering as if nothing were
+    marked, and says so where the list would be empty — the app says that nothing of the
+    visitor's fits the other filters, the server that it cannot know.
+  - **The list of marked modules** is the catalog's list in the catalog's frame: sidebar, rows
+    with the same columns, the preview of `open=<id>` floating at the right edge, on a phone the
+    module's own page. The sidebar holds what belongs to the list as a whole: its numbers
+    (modules, credits), the halves of the year as a row of links with their counts („Alle",
+    „Winter", „Sommer": what the catalog's turnus filter would find among the marked), the order
+    (of marking, the newest first; by title, credits, teaching events; the column headers sort as
+    in the catalog), and the actions: copy the list as text, and empty it, which asks first and
+    can be taken back („Rückgängig").
+  - **A mark taken away on that page stays on the page,** dimmed, until the page is left: a slip
+    is one click to undo, and the list does not jump under the pointer. Marking changes numbers,
+    never the list: no query runs and the rows stay the same elements (each button reads the
+    marks through a memo of its own, R5).
+  - A marked module stays on the list when it is no longer offered, and one the snapshot does not
+    know (taken out of the BTU's catalog) is named under „Nicht im Modulkatalog", not dropped
+    (R12). What is stored is read like anything from outside: ids that cannot be ids are
+    dropped, a module counts once, the list ends at 2,000.
+  - A module opened from the marked modules (a tap on a phone, „Vollbild" of the preview) leads
+    back to them with „Zurück" and Esc, not to the catalog's list (`Tabs::came_from`).
+  - **To another device without a server in between:** „Auf anderes Gerät übertragen" copies a
+    link to the list with the marked modules in its *fragment* (`/bookmarks#add=11101,12204`).
+    A browser never sends the fragment of an address anywhere, neither with the request nor as a
+    referrer, so the ids reach neither the server nor its logs. The page that is opened with
+    such a link asks before it adds anything (a link must not fill somebody's list behind their
+    back), says how many of the modules are new, and either answer takes the ids out of the
+    address and out of the history entry. It also notices a fragment that arrives while the
+    list is open (`hashchange`; the router only learns of fragments when a page is opened).
+  - **Without the app** nothing of it shows: the buttons are not part of server-rendered rows
+    (their room is, so nothing moves at the takeover), the switch beside the badges and the
+    sidebar's action are rendered unpressed and kept invisible until the app runs
+    (`visibility`, so their room is kept too), and without JavaScript all of it is gone (R15).
 - **The areas are tabs (owner decision 2026-09-20, R19; `app/src/tabs.rs`):** the items of the
   rail (and of the phone's bottom bar) remember where their area was left. From another area a
   tab leads back to that place (the open program, the filtered list with its preview); on a page
@@ -369,6 +425,14 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   there runs against a real snapshot in the tests (the build fails otherwise).
 - **R12. Unknown stays unknown:** `Option` in the row structs, „nicht angegeben" on the page.
   A code without a label is shown as it is (`labels::Code`), and the label test flags it.
+- **R20. What a visitor keeps stays with the visitor** (owner decision 2026-09-20: no data of a
+  visitor on the server). Marked modules, and whatever follows them (passed modules, the own
+  program), live in `localStorage` under a versioned key (`betula.<what>.v<n>`), behind one
+  store per kind that is provided through context and is empty on the server
+  (`bookmarks::Bookmarks`). They never become part of a URL (URLs are requested from the server
+  and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
+  shown, never the data. What is read from storage is checked like what comes from a URL.
+  `e2e/bookmarks.mjs` watches every request of a session for marks.
 
 ## 3. Running it
 
@@ -586,6 +650,29 @@ page directly, the page starts with times and facts, back returns to the tapped 
 endless list, a shared preview link becomes the page.
 
 ```bash
+cd e2e && node bookmarks.mjs
+```
+
+drives „Merken". Desktop: the button at the end of a row (in its place, the column labels still
+over their columns, a click neither navigates nor renders the list again), `M` on the row the
+keyboard is on, in the preview and on the module's page, one state wherever a module shows, the
+switch keeping its width, the number at the rail, a reload keeping the marks; the list of marked
+modules (order of marking, numbers and credits, sorting by column and in the sidebar, the halves
+of the year with their counts, the floating preview, a mark taken away staying on the page,
+copying the list, the link for another device and what the other device does with it: asking
+first, counting what is new, taking the ids out of the address without a history entry;
+emptying with the question and „Rückgängig"); „Gemerkt" as a filter of the catalog (only the
+marked ones and all but them, the rest of the filter kept, the tag above the list, a mark made
+while it is on, the two empty states with and without the app); the rail's item as a tab;
+„Zurück" and Esc from a module opened from the marked modules; a mark made in another tab
+arriving; a module the snapshot does not know; garbage in the storage. Privacy: no request of the
+whole session carries a mark, none leaves the site, and server HTML shows nothing marked. Phone:
+a 44 px target, marking by touch, the bottom bar's count, a tap opening the module's page and
+„Zurück" returning. Without the app: nothing of it shows without JavaScript, `/bookmarks`
+explains itself and is `noindex`; with JavaScript but before the takeover the buttons are
+invisible and their room is kept (the heading is exactly as tall as once the app runs).
+
+```bash
 cd e2e && node programs.mjs
 ```
 
@@ -630,7 +717,7 @@ follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
 
 ## 5. Not done yet
 
-- PWA: manifest, service worker (offline start), update prompt. User data: bookmarks, passed
+- PWA: manifest, service worker (offline start), update prompt. User data beyond „Merken": passed
   modules with the prerequisite check, „mein Studiengang". `wasm-opt` for the bundle.
 - Phase 3: design system, weekly calendar, filter bottom sheet, search
   with context ranking (own concept, see `docs/frontend-phase0.md`).
@@ -648,3 +735,12 @@ follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
 - **A stated faculty per program** instead of the derived one: the BTU's pages of the study
   programmes name it. That is a new source for Radix (an additive column, a crawl the
   owner has to approve), not a frontend change.
+
+### „Merken": what is left (2026-09-20)
+
+- **Marks in the tables of a program's page** (plan, areas, all modules): `bookmarks::MarkButton`
+  with `MarkLook::Row` next to a row's link is made for it. Left out on purpose while the page
+  itself is being worked on (owner, 2026-09-20); the panel beside the page already has the switch,
+  because it is the catalog's module preview.
+- **What follows the marks** (R20 applies): passed modules with the prerequisite check, the own
+  program, the semester planner. A note per marked module would fit the same store.

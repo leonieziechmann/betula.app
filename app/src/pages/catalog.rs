@@ -17,6 +17,7 @@ use leptos_meta::Title;
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::NavigateOptions;
 
+use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
 use crate::data::{use_source, PageStatus};
 use crate::format;
@@ -34,6 +35,23 @@ pub fn CatalogPage() -> impl IntoView {
     // where the visitor is in it (the list scrolls endlessly and keeps `page` up to date); `open`
     // is the preview. So scrolling and opening a preview re-render neither list nor filters.
     let list_query = Memo::new(move |_| url.get().query);
+    // „Gemerkt" is a filter like any other, but what is marked lives in the browser: the URL
+    // says only whether the filter is on, and the query gets the ids here, where they never
+    // reach a link or the server (R20). Marking a module while the filter is on changes the
+    // list, and only then.
+    let bookmarks = Bookmarks::expect();
+    let asked = Memo::new(move |_| {
+        let mut query = list_query.get();
+        if let (Some(marked), Some(bookmarks)) = (query.marked, bookmarks) {
+            let ids: Vec<String> = bookmarks.marks().into_iter().map(|mark| mark.id).collect();
+            if marked {
+                query.only_ids = Some(ids);
+            } else {
+                query.without_ids = ids;
+            }
+        }
+        query
+    });
     let page = Memo::new(move |_| url.get().page);
     let open = Memo::new(move |_| url.get().open);
     let source = use_source();
@@ -42,7 +60,7 @@ pub fn CatalogPage() -> impl IntoView {
     let list_source = source.clone();
     let list = Memo::new(move |_| {
         // Start at the page the URL names at this moment; later page changes are scrolling.
-        let current = CatalogUrl { query: list_query.get(), page: page.get_untracked(), open: None };
+        let current = CatalogUrl { query: asked.get(), page: page.get_untracked(), open: None };
         list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current))).map(|data| (current, data))
     });
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
@@ -57,16 +75,8 @@ pub fn CatalogPage() -> impl IntoView {
 
     // On a phone a module opens as its own page, never as a preview (the preview would fill the
     // screen anyway, and the page has a history entry of its own to come back from).
-    let phone = RwSignal::new(nav::is_phone());
+    let phone = phone_layout();
     let navigate = use_navigate();
-    Effect::new(move |_| {
-        let handle = window_event_listener(leptos::ev::resize, move |_| {
-            if phone.get_untracked() != nav::is_phone() {
-                phone.set(nav::is_phone());
-            }
-        });
-        on_cleanup(move || handle.remove());
-    });
     Effect::new(move |_| {
         if let (true, Some(id)) = (phone.get(), open.get()) {
             navigate(&url::module_path(&id), NavigateOptions { replace: true, ..Default::default() });
@@ -145,6 +155,21 @@ pub fn CatalogPage() -> impl IntoView {
             }}
         </div>
     }
+}
+
+/// Whether the phone layout is in use, kept up to date while the window changes its size. A list
+/// needs it because its rows lead to the module's page there and to a preview elsewhere.
+pub(crate) fn phone_layout() -> RwSignal<bool> {
+    let phone = RwSignal::new(nav::is_phone());
+    Effect::new(move |_| {
+        let handle = window_event_listener(leptos::ev::resize, move |_| {
+            if phone.get_untracked() != nav::is_phone() {
+                phone.set(nav::is_phone());
+            }
+        });
+        on_cleanup(move || handle.remove());
+    });
+    phone
 }
 
 /// A link that keeps whatever preview is open at the time it is followed.
@@ -285,6 +310,9 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
     if q.offer.is_some() {
         push("Status", "auch nicht mehr angebotene".to_string(), &|q| q.offer = None);
     }
+    if let Some(marked) = q.marked {
+        push("Merkliste", if marked { "nur gemerkte" } else { "ohne gemerkte" }.to_string(), &|q| q.marked = None);
+    }
     out
 }
 
@@ -418,7 +446,7 @@ fn List(
                     <span class="count num">{format::count(total)}</span>
                     <span class="count-label">{label}</span>
                     <div class="list-tools">
-                        <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen"</span>
+                        <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau, M merkt das gewählte Modul"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen "<kbd>"M"</kbd>" merken"</span>
                         <a class="sheet-toggle" href="#filters" data-action="sheet-open">
                             <Icon name="sliders-horizontal"/>"Filter"{(active_count > 0).then(|| view! { <em>{active_count}</em> })}
                         </a>
@@ -446,8 +474,24 @@ fn List(
                 {unknown_program.then(|| view! {
                     <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
                 })}
-                {(total == 0 && !unknown_program).then(|| view! {
-                    <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
+                {(total == 0 && !unknown_program).then(|| match (q.marked == Some(true), APP) {
+                    (true, true) => view! {
+                        <div class="state">
+                            <p class="state-title">"Keine gemerkten Module in dieser Liste"</p>
+                            <p>"Kein gemerktes Modul passt zu den übrigen Filtern."</p>
+                            <a class="btn secondary" href=url::BOOKMARKS>"Zur Merkliste"</a>
+                        </div>
+                    }.into_any(),
+                    (true, false) => view! {
+                        <div class="state">
+                            <p class="state-title">"Deine Merkliste kennt nur dein Browser"</p>
+                            <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier deine gemerkten Module."</p>
+                            <a class="btn secondary" href=url::CATALOG>"Alle Module zeigen"</a>
+                        </div>
+                    }.into_any(),
+                    _ => view! {
+                        <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
+                    }.into_any(),
                 })}
                 {move || (first_loaded() > 1).then(|| {
                     let load_previous = load_previous.clone();
@@ -474,16 +518,23 @@ fn List(
     }
 }
 
+/// A module as a row of a list: the catalog's, and the list of marked modules. The whole row is
+/// a link; the mark at its end is a button next to the link, not inside it.
 #[component]
-fn Row(
+pub(crate) fn Row(
     row: CatalogRow,
-    base: CatalogUrl,
-    open: Memo<Option<String>>,
-    page: Memo<u64>,
+    /// Where the row leads on the desktop: its list with this module previewed next to it. On a
+    /// phone it leads to the module's own page.
+    #[prop(into)] preview: Signal<String>,
+    /// This module is the one previewed.
+    #[prop(into)] current: Signal<bool>,
     phone: RwSignal<bool>,
     with_program: bool,
     /// Set on the first row of a page: how the list knows which page is on screen.
     starts_page: Option<u64>,
+    /// In the list of marked modules a module whose mark was taken away stays where it is,
+    /// dimmed, so that a slip is one click to undo.
+    #[prop(optional)] dim_unmarked: bool,
 ) -> impl IntoView {
     let language = format::languages(row.teaches_german, row.teaches_english);
     let (turnus_icon, turnus_text) = match row.turnus_season.as_ref().and_then(|s| s.known()) {
@@ -499,39 +550,41 @@ fn Row(
         n => format!("{n} Termine"),
     };
     let has_events = row.teaching_events > 0;
-    let id = row.id.clone();
     let target = row.id.clone();
     // The preview next to the list; on a phone the module's own page.
-    let href = move || {
-        if phone.get() {
-            url::module_path(&target)
-        } else {
-            base.with_page(page.get()).with_open(Some(&target)).path()
-        }
-    };
+    let href = move || if phone.get() { url::module_path(&target) } else { preview.get() };
+    let unmarked = dim_unmarked.then(|| {
+        let (bookmarks, id) = (Bookmarks::expect(), row.id.clone());
+        Memo::new(move |_| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&id)))
+    });
     view! {
-        <a class="row" href=href data-noscroll="" data-id=row.id.clone() data-page=starts_page aria-current=move || (open.get().as_deref() == Some(id.as_str())).then_some("true")>
-            <div class="t">
-                <b>{row.title.clone()}</b>
-                <small>
-                    <span class="mono">{row.id.clone()}</span>
-                    {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
-                    <OfferBadge status=row.offer_status.clone()/>
-                    {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
-                    {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">"begrenzte Plätze"</span> })}
-                    <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
-                </small>
-            </div>
-            <span class="resp">{row.responsible.clone()}</span>
-            <span class="exam">{row.exam_form.as_ref().map(format::exam_short)}</span>
-            <span class="lp num">{row.credits.map(format::number)}<small>"LP"</small></span>
-            <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
-            <span class="lang" class:unknown=language.is_none()>{language.unwrap_or("k. A.")}</span>
-            <span class="events" class:none=!has_events>
-                {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
-                {if has_events { events } else { "noch keine".to_string() }}
-            </span>
-        </a>
+        <div class="row-wrap" class:unmarked=move || unmarked.is_some_and(|unmarked| unmarked.get())>
+            <a class="row" href=href data-noscroll="" data-id=row.id.clone() data-page=starts_page aria-current=move || current.get().then_some("true")>
+                <div class="t">
+                    <b>{row.title.clone()}</b>
+                    <small>
+                        <span class="mono">{row.id.clone()}</span>
+                        {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
+                        <OfferBadge status=row.offer_status.clone()/>
+                        {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
+                        {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">"begrenzte Plätze"</span> })}
+                        <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
+                    </small>
+                </div>
+                <span class="resp">{row.responsible.clone()}</span>
+                <span class="exam">{row.exam_form.as_ref().map(format::exam_short)}</span>
+                <span class="lp num">{row.credits.map(format::number)}<small>"LP"</small></span>
+                <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
+                <span class="lang" class:unknown=language.is_none()>{language.unwrap_or("k. A.")}</span>
+                <span class="events" class:none=!has_events>
+                    {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
+                    {if has_events { events } else { "noch keine".to_string() }}
+                </span>
+            </a>
+            // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
+            // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
+            {APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> })}
+        </div>
     }
 }
 
@@ -581,12 +634,15 @@ fn ChunkRows(
             let first = index == 0;
             let new_group = by_plan && last_group != Some(group);
             last_group = Some(group);
+            let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
+            let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
+            let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
             view! {
                 {(new_group && first).then(|| view! {
                     {move || (group_before.get() != Some(group)).then(|| view! { <div class="sem">{header(group)}</div> })}
                 })}
                 {(new_group && !first).then(|| view! { <div class="sem">{header(group)}</div> })}
-                <Row row=row.clone() base=base.clone() open page phone with_program starts_page=first.then_some(chunk.page)/>
+                <Row row=row.clone() preview current phone with_program starts_page=first.then_some(chunk.page)/>
             }
         })
         .collect_view();
@@ -1167,6 +1223,9 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                             {chip("Benotet", None, Toggle::flag(|q| q.graded, |q, value| q.graded = value))}
                             {chip("Begrenzte Plätze", None, Toggle::flag(|q| q.limited, |q, value| q.limited = value))}
                             {chip("FÜS-Liste", None, Toggle::flag(|q| q.fues, |q, value| q.fues = value))}
+                            // Marking works in the browser app only, so the filter is there only
+                            // (R15); without it the chip would promise what no link can keep.
+                            {APP.then(|| chip("Gemerkt", Some("bookmark"), Toggle::flag(|q| q.marked, |q, value| q.marked = value)))}
                         </div>
                     </div>
 
