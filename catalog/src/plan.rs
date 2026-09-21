@@ -254,12 +254,13 @@ mod tests {
     use super::*;
 
     fn area(id: i64, label: &str, modules: usize) -> CatalogArea {
-        CatalogArea { id, label: label.to_string(), path: format!("Grundstudium / {label}"), depth: 2, modules, choice: true }
+        CatalogArea { id, label: label.to_string(), path: format!("Grundstudium / {label}"), depth: 2, modules, choice: true, parent: Some("Grundstudium".to_string()) }
     }
 
     fn under(id: i64, path: &str, modules: usize, choice: bool) -> CatalogArea {
-        let label = path.rsplit(" / ").next().unwrap_or(path).to_string();
-        CatalogArea { id, label, path: path.to_string(), depth: path.matches(" / ").count() as i64 + 1, modules, choice }
+        let mut segments: Vec<&str> = path.split(" / ").collect();
+        let label = segments.pop().unwrap_or(path).to_string();
+        CatalogArea { id, label, path: path.to_string(), depth: segments.len() as i64 + 1, modules, choice, parent: segments.last().map(|parent| parent.to_string()) }
     }
 
     fn row(name: &str, semester: Option<i64>, kind: Option<ModuleKind>, specialization: Option<&str>) -> PlanEntry {
@@ -429,5 +430,9 @@ mod tests {
         assert_eq!(crate::pages::short_name("Praktische Informatik"), "Praktische Informatik");
         assert_eq!(under(1, "Grundstudium / Komplex Nebenfach / Physik", 1, true).parent(), Some("Komplex Nebenfach"));
         assert_eq!(under(1, "Fachstudium", 1, true).parent(), None);
+        // The parent comes from the tree, never from the path: a label may hold the separator.
+        let slashed = CatalogArea { label: "Maschinenbau / Elektrotechnik".to_string(), path: "Grundstudium / Komplex Nebenfach / Maschinenbau / Elektrotechnik".to_string(), ..under(1, "Grundstudium / Komplex Nebenfach / x", 1, true) };
+        assert_eq!(slashed.parent(), Some("Komplex Nebenfach"));
+        assert_eq!(slashed.name(), "Maschinenbau / Elektrotechnik");
     }
 }

@@ -266,6 +266,9 @@ pub struct AreaPlacement {
     /// What the program's sources settle on for the module (`v_program_module.kind`: the plan,
     /// the module page, the tree's label, the strongest statement first); `None` where none says.
     pub module_kind: Option<Code<ModuleKind>>,
+    /// The label of the area directly above this one (`program_area.parent_id`), from the tree
+    /// itself: the path cannot be split for it, a label may read „Maschinenbau / Elektrotechnik".
+    pub parent_label: Option<String>,
 }
 
 impl FromRow for AreaPlacement {
@@ -282,6 +285,7 @@ impl FromRow for AreaPlacement {
             kind: Code::parse_opt(row.opt_text("kind")?),
             kind_basis: Code::parse_opt(row.opt_text("kind_basis")?),
             module_kind: Code::parse_opt(row.opt_text("module_kind")?),
+            parent_label: row.opt_text("parent_label")?,
         })
     }
 }

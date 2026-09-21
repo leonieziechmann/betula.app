@@ -146,7 +146,7 @@ func TestWriteFoliaFixture(t *testing.T) {
 			{label: "Komplex Nebenfach", children: []fixtureArea{
 				{label: "Mathematik", modules: take(8)},
 				{label: "Physik", modules: take(4)},
-				{label: "Maschinenbau/Elektrotechnik", modules: take(6)},
+				{label: "Maschinenbau / Elektrotechnik", modules: take(6)}, // the separator in a label, as the real tree has it
 				{label: "Wirtschaftswissenschaften", modules: take(5)},
 				{label: "Bauingenieurwesen", modules: take(4)},
 			}},

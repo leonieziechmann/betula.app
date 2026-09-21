@@ -99,8 +99,11 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     nothing else (the path of the tree beside the name had pushed the names into
     „Wahlpflichtmod…"), the name without a leading „Wahlpflichtmodule" (`CatalogArea::name`: every
     area offered is one to choose from), under the heading of the area above it („Komplex
-    Nebenfach": Mathematik, Physik …; the plain `select` uses `optgroup`); the full label and the
-    path still find an area when typed. An area filters to the modules the tree places in it or in
+    Nebenfach": Mathematik, Physik …; the plain `select` uses `optgroup`). The area above comes
+    from the tree itself (`program_area.parent_id`, joined in `queries::program_areas`), never
+    from splitting the path: a label may read „Maschinenbau / Elektrotechnik", and splitting had
+    made a heading „Maschinenbau" and two „Komplex Nebenfach" of it (owner, 2026-09-21). The
+    full label and the path still find an area when typed. An area filters to the modules the tree places in it or in
     an area below it; that is how the elective modules of a program are listed, whatever the plan
     says about their semester.
   - **On a phone the panel is a sheet** from below, opened by the list's „Filter" button, and

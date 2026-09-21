@@ -297,6 +297,8 @@ const areaGroups = await page.evaluate(() => [...document.querySelectorAll("#pic
 check(!areaNames.some((name) => /^Komplex (Informatik|Mathematik)$|^Fachstudium$/.test(name)) && areaNames.includes("Praktische Informatik") && areaNames.includes("Physik"), `area picker: offers ${areaNames.join(" | ")}`);
 check(!areaNames.some((name) => /wahlpflicht/i.test(name)) && areaNames.includes("Praktische Mathematik"), `area picker: a name still starts with „Wahlpflichtmodule“ (${areaNames.join(" | ")})`);
 check(areaGroups.includes("Komplex Nebenfach") && areaGroups.includes("Fachstudium"), `area picker: the headings are ${areaGroups.join(" | ")}`);
+// A heading once: the area above comes from the tree, not from the path („Maschinenbau / Elektrotechnik" is one area, not one below „Maschinenbau").
+check(new Set(areaGroups).size === areaGroups.length && !areaGroups.includes("Maschinenbau") && areaNames.includes("Maschinenbau / Elektrotechnik"), `area picker: a heading repeats or splits a name (${areaGroups.join(" | ")})`);
 const areaName = areaNames.find((name) => name.split(" ").length >= 2);
 check(Boolean(areaName), "area picker: no elective area is offered");
 // An entry is the name and the number of modules, nothing else: the path of the tree pushed the names out.

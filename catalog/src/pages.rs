@@ -112,6 +112,9 @@ pub struct CatalogArea {
     /// those modules are taken anyway — and no requirement row of a plan points at it (owner,
     /// 2026-09-21).
     pub choice: bool,
+    /// The label of the area directly above it, from the tree (`program_area.parent_id`), not
+    /// from the path: a label may itself read „Maschinenbau / Elektrotechnik".
+    pub parent: Option<String>,
 }
 
 impl CatalogArea {
@@ -123,7 +126,7 @@ impl CatalogArea {
 
     /// The label of the area directly above it, if any: the group the pickers put it in.
     pub fn parent(&self) -> Option<&str> {
-        self.path.rsplit_once(" / ").map(|(above, _)| above.rsplit(" / ").next().unwrap_or(above))
+        self.parent.as_deref()
     }
 }
 
@@ -160,7 +163,15 @@ pub fn catalog_areas(placements: &[AreaPlacement]) -> Vec<CatalogArea> {
                 area.modules += 1;
                 area.choice |= choice;
             }
-            None => areas.push(CatalogArea { id: placement.area_id, label: placement.area_label.clone(), path: placement.area.clone(), depth: placement.depth, modules: 1, choice }),
+            None => areas.push(CatalogArea {
+                id: placement.area_id,
+                label: placement.area_label.clone(),
+                path: placement.area.clone(),
+                depth: placement.depth,
+                modules: 1,
+                choice,
+                parent: placement.parent_label.clone(),
+            }),
         }
     }
     areas

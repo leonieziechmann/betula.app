@@ -1474,6 +1474,8 @@ struct AreaGroup {
     path: String,
     /// Where the area sits in the tree (its path without the label).
     parent: Option<String>,
+    /// The label of the area directly above, from the tree itself.
+    parent_label: Option<String>,
     depth: i64,
     modules: Vec<AreaPlacement>,
     /// The areas one level below this one: (id, label, how many modules).
@@ -1489,7 +1491,7 @@ impl AreaGroup {
     /// Not an area: the mark that several fit a row of the plan equally well, so none is shown
     /// as the one. `areas_for_row` puts it in front of them.
     fn ambiguous() -> Self {
-        Self { id: 0, label: String::new(), path: String::new(), parent: None, depth: 0, modules: Vec::new(), children: Vec::new() }
+        Self { id: 0, label: String::new(), path: String::new(), parent: None, parent_label: None, depth: 0, modules: Vec::new(), children: Vec::new() }
     }
 
     fn is_ambiguous(&self) -> bool {
@@ -1498,7 +1500,7 @@ impl AreaGroup {
 
     /// The area as the catalog crate knows it (for the derivation shared with the catalog).
     fn as_catalog_area(&self) -> CatalogArea {
-        CatalogArea { id: self.id, label: self.label.clone(), path: self.path.clone(), depth: self.depth, modules: self.modules.len(), choice: pages::is_choice(&self.modules) }
+        CatalogArea { id: self.id, label: self.label.clone(), path: self.path.clone(), depth: self.depth, modules: self.modules.len(), choice: pages::is_choice(&self.modules), parent: self.parent_label.clone() }
     }
 
     #[cfg(test)]
@@ -1516,6 +1518,7 @@ impl AreaGroup {
                 kind: None,
                 kind_basis: None,
                 module_kind: None,
+                parent_label: self.parent_label.clone(),
             })
             .collect();
         self
@@ -1531,7 +1534,10 @@ fn area_groups(areas: &[AreaPlacement]) -> Vec<AreaGroup> {
                 id: placement.area_id,
                 label: placement.area_label.clone(),
                 path: placement.area.clone(),
-                parent: placement.area.rsplit_once(" / ").map(|(parent, _)| parent.to_string()),
+                // The path without the label — cut off as a whole: the label itself may read
+                // „Maschinenbau / Elektrotechnik".
+                parent: placement.area.strip_suffix(placement.area_label.as_str()).and_then(|above| above.strip_suffix(" / ")).filter(|above| !above.is_empty()).map(str::to_string),
+                parent_label: placement.parent_label.clone(),
                 depth: placement.depth,
                 modules: vec![placement],
                 children: Vec::new(),
@@ -1717,6 +1723,7 @@ mod tests {
             label: label.to_string(),
             path: format!("Grundstudium / {label}"),
             parent: Some("Grundstudium".to_string()),
+            parent_label: Some("Grundstudium".to_string()),
             depth: 2,
             modules: Vec::new(),
             children: Vec::new(),
