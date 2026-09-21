@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/version"
 )
 
 // The fixture is a miniature BTU: two programs (Informatik B.Sc. and M.Sc.), a German
@@ -360,6 +361,7 @@ func TestEventsSeparateExamsFromSchedule(t *testing.T) {
 	want(t, db, `SELECT key, label, teaching_events, exam_events FROM v_semester`, "2026S|SoSe 2026|1|1")
 	want(t, db, `SELECT id, last_date FROM event ORDER BY id`, "120285|2026-07-21", "120286|2026-08-06")
 	want(t, db, `SELECT COUNT(*) FROM v_meta WHERE key IN ('built_at', 'current_semester')`, "2")
+	want(t, db, `SELECT value FROM v_meta WHERE key = 'radix_version'`, version.Radix)
 }
 
 func TestBuildIsRepeatableAndKeepsPlans(t *testing.T) {

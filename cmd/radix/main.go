@@ -12,6 +12,7 @@ import (
 
 	"github.com/leonieziechmann/betula/internal/catalogdb"
 	"github.com/leonieziechmann/betula/internal/secrets"
+	"github.com/leonieziechmann/betula/internal/version"
 )
 
 const defaultDBPath = "radix.db"
@@ -83,7 +84,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Radix, the collector of Betula (catalog of BTU Cottbus-Senftenberg)\n\nUsage:\n  radix <command> [flags]      (radix <command> --help lists the flags)\n\nCommands:")
+	fmt.Println("Radix " + version.Radix + ", the collector of Betula (catalog of BTU Cottbus-Senftenberg)\n\nUsage:\n  radix <command> [flags]      (radix <command> --help lists the flags)\n\nCommands:")
 	for _, group := range commands {
 		for _, c := range group {
 			fmt.Printf("  %-20s %s\n", c.name, c.summary)

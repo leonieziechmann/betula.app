@@ -17,6 +17,8 @@ pub struct Meta {
     pub data_changed_at: Option<String>,
     pub current_semester: Option<String>,
     pub content_digest: Option<String>,
+    /// The Radix that built the snapshot (`internal/version`); older snapshots do not say.
+    pub radix_version: Option<String>,
 }
 
 /// `v_semester`
