@@ -1134,8 +1134,9 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
 
     view! {
         <div class="table-scroll">
-            <table class="ptable matrix">
-                // Fixed columns: every semester is exactly as wide as every other one.
+            // Fixed columns: every semester is exactly as wide as every other one. How many there
+            // are decides how wide the table must at least be (app.css).
+            <table class="ptable matrix" style=format!("--sems: {last}")>
                 <colgroup>
                     <col/>
                     <col class="c-kind-col"/>
