@@ -280,6 +280,14 @@ pub fn index_under(target: Option<leptos::web_sys::EventTarget>) -> Option<usize
     element.closest("[data-i]").ok()??.get_attribute("data-i")?.parse().ok()
 }
 
+/// The address a click on this element follows: the `href` of the link it is in, as written
+/// (`/catalog?…`). `None` outside a link.
+pub fn link_under(target: Option<leptos::web_sys::EventTarget>) -> Option<String> {
+    use leptos::wasm_bindgen::JsCast;
+    let element = target?.dyn_into::<leptos::web_sys::Element>().ok()?;
+    element.closest("a[href]").ok()??.get_attribute("href")
+}
+
 /// Scrolls the first element that matches `selector` into the middle of what scrolls around it.
 /// `false` if there is none.
 #[allow(unused_variables)]

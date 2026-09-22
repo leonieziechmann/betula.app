@@ -395,16 +395,19 @@ pub fn program_documents(db: &dyn Database, program_id: &str) -> Result<Vec<Docu
 
 /// The module tree of a program: every placement of a module in an area, in tree order.
 pub fn program_areas(db: &dyn Database, program_id: &str) -> Result<Vec<AreaPlacement>, DbError> {
+    // The program's own rows of `v_program_module` first (the same rows the join on program and
+    // module finds): joined as the view itself, SQLite read the whole view for every placement,
+    // 120 ms instead of 2 in the browser with every filter of a program.
     fetch(
         db,
         "program_areas",
         "SELECT a.module_id, m.title AS module_title, m.credits AS module_credits, a.area_id, a.area, \
          a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis, pm.kind AS module_kind \
          FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id \
-         LEFT JOIN v_program_module pm ON pm.program_id = a.program_id AND pm.module_id = a.module_id \
+         LEFT JOIN (SELECT module_id, kind FROM v_program_module WHERE program_id = ?) pm ON pm.module_id = a.module_id \
          WHERE a.program_id = ? \
          ORDER BY a.area_ord, a.area_id, m.title COLLATE NOCASE, a.module_id",
-        &[Value::from(program_id)],
+        &[Value::from(program_id), Value::from(program_id)],
     )
 }
 

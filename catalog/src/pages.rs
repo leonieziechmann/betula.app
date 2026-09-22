@@ -467,7 +467,73 @@ pub struct CatalogData {
 }
 
 pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbError> {
-    let program = match &url.query.program {
+    let scope = catalog_scope(db, &url.query)?;
+    Ok(CatalogData {
+        page: queries::catalog_page(db, &scope.effective, url.offset(), PAGE_SIZE)?,
+        plan_semesters: scope.plan_semesters,
+        areas: scope.areas,
+        semester_plan: scope.semester_plan,
+        effective: scope.effective,
+        program: scope.program,
+        curricular_total: scope.curricular_total,
+        fues_total: scope.fues_total,
+        departments: queries::departments(db)?,
+        meta: queries::meta(db)?,
+    })
+}
+
+/// What the filter panel says about a filter, without the list: the program with the semesters
+/// of its plan and its areas, the totals of the program's two lists, and how many modules the
+/// filter holds. The filter sheet of a phone asks for this with every tap and has the list
+/// loaded once, when it closes (`catalog`, which says the same about the same filter).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CatalogSummary {
+    pub program: Option<Program>,
+    pub curricular_total: Option<u64>,
+    pub fues_total: Option<u64>,
+    pub plan_semesters: Vec<i64>,
+    pub areas: Vec<CatalogArea>,
+    pub total: u64,
+}
+
+pub fn catalog_summary(db: &dyn Database, query: &CatalogQuery) -> Result<CatalogSummary, DbError> {
+    let scope = catalog_scope(db, query)?;
+    // The list a program's filter chose has been counted with the program's two lists already.
+    let counted = match (&scope.effective.program, &scope.program) {
+        (Some(chosen), Some(_)) => match chosen.relation {
+            ProgramRelation::Curricular => scope.curricular_total,
+            ProgramRelation::Fues => scope.fues_total,
+        },
+        _ => None,
+    };
+    let total = match counted {
+        Some(total) => total,
+        None => queries::catalog_count(db, &scope.effective)?,
+    };
+    Ok(CatalogSummary {
+        program: scope.program,
+        curricular_total: scope.curricular_total,
+        fues_total: scope.fues_total,
+        plan_semesters: scope.plan_semesters,
+        areas: scope.areas,
+        total,
+    })
+}
+
+/// What a filter means before a row of the list is read (`catalog` and `catalog_summary`).
+struct CatalogScope {
+    program: Option<Program>,
+    plan_semesters: Vec<i64>,
+    areas: Vec<CatalogArea>,
+    semester_plan: Option<SemesterPlan>,
+    /// The query as it is run: the URL's, with what the program's plan says filled in.
+    effective: CatalogQuery,
+    curricular_total: Option<u64>,
+    fues_total: Option<u64>,
+}
+
+fn catalog_scope(db: &dyn Database, query: &CatalogQuery) -> Result<CatalogScope, DbError> {
+    let program = match &query.program {
         Some(scope) => queries::program_by_slug(db, &scope.program_slug)?,
         None => None,
     };
@@ -486,7 +552,7 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbErr
     // requirement's name points at, else every elective the plan places nowhere. The URL says
     // the semester; what that means is derived here and filled into the query (R12: the page
     // says that it is derived).
-    let mut query = url.query.clone();
+    let mut query = query.clone();
     let mut semester_plan = None;
     if let (Some(scope), Some(program)) = (query.program.as_mut(), program.as_ref()) {
         if let (Some(PlanSemesterFilter::Semester(semester)), true) = (scope.plan_semester, program.has_plan) {
@@ -510,18 +576,7 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbErr
         }
     }
 
-    Ok(CatalogData {
-        page: queries::catalog_page(db, &query, url.offset(), PAGE_SIZE)?,
-        plan_semesters,
-        areas,
-        semester_plan,
-        effective: query,
-        program,
-        curricular_total,
-        fues_total,
-        departments: queries::departments(db)?,
-        meta: queries::meta(db)?,
-    })
+    Ok(CatalogScope { program, plan_semesters, areas, semester_plan, effective: query, curricular_total, fues_total })
 }
 
 /// What a derived faculty rests on, from strongest to weakest.

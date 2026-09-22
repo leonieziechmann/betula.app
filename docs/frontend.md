@@ -136,9 +136,28 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     an area below it; that is how the elective modules of a program are listed, whatever the plan
     says about their semester.
   - **On a phone the panel is a sheet** from below, opened by the list's „Filter" button, and
-    closed the way a sheet is expected to close: dragged down at its head (it follows the finger
-    and is let go when pulled far or fast enough, else it slides back), with a tap on the page
-    behind it (dimmed while the sheet is open), with its button, or with Esc (`enhance.js`).
+    closed the way a sheet is expected to close: swiped down (owner, 2026-09-22: „braucht
+    unbedingt eine Geste"; it follows the finger and is let go when pulled far or flicked, else
+    it slides back), with a tap on the page behind it, with its buttons, or with Esc
+    (`enhance.js`). A touch decides with its first move: downwards where nothing inside the sheet
+    is scrolled down (the head, the row of buttons, the top of its list) it drags the sheet,
+    anything else inside scrolls the sheet's list. **The page behind an open sheet stands still**
+    (owner: scrolling it along felt „richtig clunky"): `html.sheet-open` takes the page's
+    scrolling away, the sheet's list keeps its scroll to itself (`overscroll-behavior`), and a
+    touch on the dimmed page moves nothing.
+  - **What is picked in the sheet is a draft** (owner, 2026-09-22: every tap rebuilt the list
+    behind the sheet, 250–540 ms of a phone's time with the CPU throttled 4×; now the tap costs
+    the panel and one count). The panel shows the draft, its button counts the modules it holds
+    (`pages::catalog_summary`, which says what `pages::catalog` says about the same filter, the
+    semester of a plan included), and the list and the address follow once, when the sheet
+    closes, whichever way it closes. So a sheet adds one history entry, not one per tap. The
+    links of the panel stay links (they work without JavaScript and on the desktop, where every
+    change still applies at once): on a phone their address becomes the draft. This is the one
+    place where a filter lives outside the URL, for as long as the sheet is open.
+  - **Back closes the sheet**, as in an app: the open sheet of the browser app is a step of its
+    own in the history (`data-draft` on the panel; `enhance.js` pushes a same-address entry when
+    the sheet opens and takes it back before the list follows, so the list's own entry takes its
+    place). The programs overview's sheet applies every tap at once and has no such step.
   - **Credits:** a slider with two knobs (0–30, the right end means „no upper limit") and the two
     exact numbers under it. The knobs cannot pass each other; the filter follows when a knob is
     let go.
@@ -1034,11 +1053,16 @@ endless list, a shared preview link becomes the page.
 cd e2e && node phone.mjs
 ```
 
-drives the catalog on a phone: the filter sheet dragged down at its head (following the finger,
-snapping back after a short drag), a tap beside it closing it, the area picker staying open
-while the window shrinks (the on-screen keyboard) and filtering the list, and the virtual list
-with the window scrolling (the last rows at its end, the page keeping its height, no two rows
-overlapping, `page` following).
+drives the catalog on a phone, with real touches (`Input.dispatchTouchEvent`, so the browser
+scrolls as it would under a finger): the page behind the open sheet standing still (swipes on
+the dimmed page, the sheet's list scrolled past its end), the sheet swiped down from its list,
+its head and its buttons (following the finger, snapping back after a short slow pull), a mouse
+drag at its head and a tap beside it closing it, the draft (taps change the sheet's count but
+neither the list nor the address; its button, a swipe and the close button apply it with one
+history entry; „Zurücksetzen" empties it), the area picker staying open while the window
+shrinks (the on-screen keyboard) and counting its modules, and the virtual list with the window
+scrolling (the last rows at its end, the page keeping its height, no two rows overlapping,
+`page` following).
 
 ```bash
 cd e2e && node pwa.mjs
