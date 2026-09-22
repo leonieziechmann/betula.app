@@ -35,7 +35,8 @@ use crate::tabs::{Area, Tabs};
 use crate::ui::Icon;
 
 /// The release of Folia as the owner names it (2026-09-21: Folia and Radix are both
-/// alpha-0.2.0): this crate's version with the stage in front. Radix's is in the snapshot
+/// alpha-0.2.0; 2026-09-22: Folia alpha-0.2.1 with the phone's filter sheet): this crate's
+/// version with the stage in front, the same as the server's. Radix's is in the snapshot
 /// (`Meta::radix_version`).
 pub const VERSION: &str = concat!("alpha-", env!("CARGO_PKG_VERSION"));
 
