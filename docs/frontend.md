@@ -849,7 +849,7 @@ macros — is two minutes of the cold build. What that costs, on twelve cores:
 | | |
 |---|---|
 | cold build, empty cache | 6 min 44 s |
-| new worktree: fork the main checkout's cache, then build | 11 s + 2 min 42 s |
+| new worktree: fork the main checkout's cache, then build | 19 s + 2 min 42 s |
 | edit a page in `app/`, `cargo build` | 14 s |
 | edit `server/`, `cargo build` | 8 s |
 | `cargo build` with nothing to do | 0.9 s |
@@ -866,9 +866,10 @@ bash scripts/build-cache.sh gc       # drop the caches of worktrees that are gon
 The main checkout builds into `target/base`; `setup` in a worktree copies it to
 `target/wt-<worktree>` and points the worktree there. The copy carries the 339 dependencies, so
 only `folia-catalog`, `folia-app` and `folia-server` compile — once, after which every edit is
-incremental. The fork is 1.3 GB and takes 11 s; after its first build a worktree's cache is
-about 4.7 GB, which is why `gc` exists. Before it did, `target/` had grown to 140 GB across
-fifteen caches of branches long merged. Each cache records which worktree it belongs to, and
+incremental. The fork is 1.9 GB and takes 19 s (base holds the tests' and the browser app's
+dependencies too); after its first build a worktree's cache is about 4.7 GB, which is why `gc`
+exists. Before it did, `target/` had grown to 140 GB across fifteen caches of branches long
+merged. Each cache records which worktree it belongs to, and
 `gc` drops it once that directory is gone, so the caches follow the worktrees and not
 `git worktree list` (which still lists a worktree under its old path after the repository has
 moved, until `git worktree repair`).
