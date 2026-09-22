@@ -66,12 +66,16 @@ go test ./...                          # network-free, no API key needed
 ```
 
 ```bash
+bash scripts/build-cache.sh setup    # once per checkout: its own build cache, and rust-lld
+bash scripts/build-client.sh --dev   # the browser app, built in seconds instead of minutes
 cargo run -p folia-server
 ```
 
 Then open http://127.0.0.1:8080. Folia talks to Radix only through the snapshot
 endpoint. Flags, endpoints, log events and checks: `docs/frontend.md`. `cargo test --workspace`
-needs an exported snapshot (`radix export`).
+needs an exported snapshot (`radix export`). Leave `--dev` off to build the bundle that ships.
+In a new worktree, `setup` forks the main checkout's build cache, so only the workspace's own
+crates compile; what that costs and how the caches are kept and dropped: `docs/frontend.md` §3.
 
 ### Credentials
 
