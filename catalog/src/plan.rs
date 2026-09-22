@@ -505,7 +505,7 @@ mod tests {
         PlanTotal {
             ord: entries.first().copied().unwrap_or(0),
             label: label.to_string(),
-            scope: scope.to_string(),
+            scope: Code::parse(scope),
             specialization: None,
             start_semester: from,
             end_semester: to,

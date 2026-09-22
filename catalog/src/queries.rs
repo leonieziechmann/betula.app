@@ -451,16 +451,20 @@ pub fn program_plan_totals(db: &dyn Database, program_id: &str) -> Result<Vec<Pl
          min_credits, max_credits, is_choice, entry_count FROM v_program_plan_total WHERE program_id = ? ORDER BY ord",
         &[Value::from(program_id)],
     )?;
-    let members: Vec<PlanTotalEntry> = fetch(
-        db,
-        "program_plan_total_entries",
-        "SELECT total_ord, entry_ord FROM v_program_plan_total_entry WHERE program_id = ? ORDER BY total_ord, entry_ord",
-        &[Value::from(program_id)],
-    )?;
-    for member in members {
+    for member in program_plan_total_entries(db, program_id)? {
         if let Some(total) = totals.iter_mut().find(|total| total.ord == member.total_ord) {
             total.entries.push(member.entry_ord);
         }
     }
     Ok(totals)
+}
+
+/// Which row of the plan each of its sums counts. `program_plan_totals` joins the two.
+pub fn program_plan_total_entries(db: &dyn Database, program_id: &str) -> Result<Vec<PlanTotalEntry>, DbError> {
+    fetch(
+        db,
+        "program_plan_total_entries",
+        "SELECT total_ord, entry_ord FROM v_program_plan_total_entry WHERE program_id = ? ORDER BY total_ord, entry_ord",
+        &[Value::from(program_id)],
+    )
 }

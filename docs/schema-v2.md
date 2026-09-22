@@ -200,7 +200,7 @@ is kept all the same, because it is the only thing the plan says about that seme
 
 What this gives a reader: the credits of a program are the plan's own sums (180, not 166), a
 semester printed as a merged column has its figure, and a row with a range names the rows it is
-chosen with and what they come to together. Of the 139 plans of 2026-09-22, 129 state what they
+chosen with and what they come to together. Of the 139 plans of 2026-09-22, 122 state what they
 add up to.
 
 A „Summe Aufwand" line is not one of them: it counts the work of a semester, not the credits

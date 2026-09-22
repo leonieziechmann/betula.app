@@ -2022,7 +2022,7 @@ mod tests {
         let total = |ord: i64, label: &str, scope: &str, from: i64, to: i64, credits: f64, min: f64, max: f64, entries: Vec<i64>| PlanTotal {
             ord,
             label: label.to_string(),
-            scope: scope.to_string(),
+            scope: Code::parse(scope),
             specialization: None,
             start_semester: from,
             end_semester: to,

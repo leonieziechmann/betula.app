@@ -250,6 +250,14 @@ code_enum! {
 }
 
 code_enum! {
+    /// What a sum the regulation prints over rows of its plan covers.
+    PlanTotalScope {
+        Plan = "plan" => "Summe des Studienplans",
+        Section = "section" => "Summe eines Abschnitts",
+    }
+}
+
+code_enum! {
     /// Whether a program named on a module page is one of the catalog.
     ResolveStatus {
         Resolved = "resolved" => "Studiengang im Katalog",
@@ -340,6 +348,7 @@ pub fn code_sets() -> Vec<(&'static str, Vec<&'static str>)> {
         ("DocumentType", codes::<DocumentType>()),
         ("StudySection", codes::<StudySection>()),
         ("PlanStatus", codes::<PlanStatus>()),
+        ("PlanTotalScope", codes::<PlanTotalScope>()),
         ("ResolveStatus", codes::<ResolveStatus>()),
         ("Season", codes::<Season>()),
         ("EventCategory", codes::<EventCategory>()),

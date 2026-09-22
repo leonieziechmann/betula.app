@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::{DbError, FromRow, Row};
 use crate::labels::{
-    Campus, Code, DegreeLevel, DocumentType, KindBasis, KindSource, LecturerRole, ModuleKind, Relation,
-    ResolveStatus, Rhythm, TeachingForm, TextItemKind,
+    Campus, Code, DegreeLevel, DocumentType, KindBasis, KindSource, LecturerRole, ModuleKind, PlanTotalScope,
+    Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind,
 };
 
 /// `v_module_lecturer`
@@ -391,7 +391,7 @@ pub struct PlanTotal {
     /// As the regulation prints it: „Summe Studium", „Summe Komplex Mathematik".
     pub label: String,
     /// `plan`: everything these semesters hold. `section`: a named part of them.
-    pub scope: String,
+    pub scope: Code<PlanTotalScope>,
     /// The plan variant this sum belongs to, where the document prints several.
     pub specialization: Option<String>,
     pub start_semester: i64,
@@ -415,7 +415,7 @@ pub struct PlanTotal {
 impl PlanTotal {
     /// Whether this sum counts everything its semesters hold.
     pub fn is_whole_plan(&self) -> bool {
-        self.scope == "plan"
+        self.scope.is(PlanTotalScope::Plan)
     }
 }
 
@@ -424,7 +424,7 @@ impl FromRow for PlanTotal {
         Ok(Self {
             ord: row.int("ord")?,
             label: row.text("label")?,
-            scope: row.text("scope")?,
+            scope: Code::parse(&row.text("scope")?),
             specialization: row.opt_text("specialization")?,
             start_semester: row.int("start_semester")?,
             end_semester: row.int("end_semester")?,
