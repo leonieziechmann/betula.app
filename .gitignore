@@ -50,3 +50,6 @@ config.yaml
 *.secret
 .env
 node_modules/
+
+# Machine-local cargo settings (scripts/build-cache.sh)
+/.cargo/config.toml
