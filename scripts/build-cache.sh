@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One build cache per worktree, forked from the main checkout's.
 #
-#     bash scripts/build-cache.sh setup    once in every checkout, and again after `rustup update`
+#     bash scripts/build-cache.sh setup    in the main checkout, and again after `rustup update`
 #     bash scripts/build-cache.sh prime    in the main checkout, after a merge into master
 #     bash scripts/build-cache.sh gc       drop the caches of worktrees that are gone
 #
@@ -9,7 +9,8 @@
 # <main>/target/wt-<name> and points the worktree at the copy, so a new worktree starts with all
 # 339 dependencies built and compiles only the workspace's own crates: 3 min on a fork instead of
 # 7 min from nothing, and every edit after that 14-18 s. When the worktree is gone, `gc` drops
-# its cache.
+# its cache. In a new worktree both happen by themselves: scripts/hooks/post-checkout runs them
+# when `git worktree add` creates it, once `git config core.hooksPath scripts/hooks` is set.
 #
 # Why not one cache for everyone: rustc keeps one incremental session per crate, and two
 # worktrees building into the same target/ overwrite each other's session. Every switch between
@@ -74,6 +75,9 @@ fork() {
   echo "forking $base"
   echo "     to $cache"
   mkdir -p "$cache"
+  # The owner first: a gc started by another new worktree (the hook runs it in the background)
+  # drops every cache without one, and would take this one while it is still being copied.
+  printf '%s\n' "$here" > "$cache/.worktree"
   # Not the incremental sessions (bound to base's paths) and not the executables (the
   # workspace's own, 1.2 GB for the server alone): both are rebuilt here anyway. Build scripts'
   # executables sit deeper and are kept -- without them every build script would run again.

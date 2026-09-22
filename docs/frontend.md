@@ -858,9 +858,10 @@ Every checkout gets its own build cache, and a new worktree starts from a copy o
 checkout's:
 
 ```bash
-bash scripts/build-cache.sh setup    # once in every checkout, again after `rustup update`
-bash scripts/build-cache.sh prime    # in the main checkout, after a merge into master
-bash scripts/build-cache.sh gc       # drop the caches of worktrees that are gone
+git config core.hooksPath scripts/hooks   # once per clone: git does not carry it along
+bash scripts/build-cache.sh setup         # in the main checkout, and after `rustup update`
+bash scripts/build-cache.sh prime         # in the main checkout, after a merge into master
+bash scripts/build-cache.sh gc            # drop the caches of worktrees that are gone
 ```
 
 The main checkout builds into `target/base`; `setup` in a worktree copies it to
@@ -869,10 +870,18 @@ only `folia-catalog`, `folia-app` and `folia-server` compile — once, after whi
 incremental. The fork is 1.9 GB and takes 19 s (base holds the tests' and the browser app's
 dependencies too); after its first build a worktree's cache is about 4.7 GB, which is why `gc`
 exists. Before it did, `target/` had grown to 140 GB across fifteen caches of branches long
-merged. Each cache records which worktree it belongs to, and
-`gc` drops it once that directory is gone, so the caches follow the worktrees and not
-`git worktree list` (which still lists a worktree under its old path after the repository has
-moved, until `git worktree repair`).
+merged. Each cache records which worktree it belongs to, and `gc` drops it once that directory
+is gone, so the caches follow the worktrees and not `git worktree list` (which still lists a
+worktree under its old path after the repository has moved, until `git worktree repair`).
+
+A new worktree needs none of these commands. `git worktree add` runs
+`scripts/hooks/post-checkout` with the null commit as the previous HEAD, and the hook runs
+`setup` before `git worktree add` returns (16 s longer) and `gc` in the background after it —
+deleting a gone worktree's cache takes Windows half a minute per 2 GB, and nothing needs to wait
+for that. Branch switches and file checkouts leave the hook at its first line, and it never makes
+the checkout fail: a worktree without its cache is slower, not broken. Because `gc` may run while
+another worktree is being forked, `setup` records a cache's owner before it copies anything, or
+`gc` would take the half-copied cache for an orphan.
 
 What does not work, measured, so it is not tried again:
 
