@@ -59,9 +59,11 @@ const offline = async (path, ready, name) => {
 };
 await offline("/catalog?turnus=winter", () => window.__betulaApp === true && document.querySelectorAll(".rows a.row").length > 5 && location.search.includes("turnus=winter"), "the filtered catalog");
 await offline("/catalog/module/11101", () => window.__betulaApp === true && document.querySelector(".module-page h2"), "a module page never loaded before");
-await offline("/programs/bachelor-informatik-2008/plan", () => window.__betulaApp === true && document.querySelector("table.matrix"), "the program page seen before");
+// The plan is the matrix or, where the page has no room for it, the list (docs/frontend.md); either
+// has the links to its modules. The app draws the page afresh, so a link found once it runs is its.
+await offline("/programs/bachelor-informatik-2008/plan", () => window.__betulaApp === true && document.querySelector('#plan table.ptable tbody a[data-walk="module"]'), "the program page seen before");
 // And the app keeps working across a step: a module beside the program, out of the local catalog.
-await page.click('table.matrix tbody a[data-walk="module"]');
+await page.click('#plan table.ptable tbody a[data-walk="module"]');
 await page.waitForFunction(() => location.search.includes("open=") && document.querySelector("#preview .hero h2"), null, { timeout: 8000 }).catch(() => problems.push("offline: a module did not open beside the program"));
 await context.setOffline(false);
 
