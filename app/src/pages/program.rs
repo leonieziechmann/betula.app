@@ -899,11 +899,13 @@ fn credits_per_semester(plan: &PlanVariant) -> Vec<(i64, f64)> {
 }
 
 /// The last semesters of some plans share one column („5.–6."), and the regulation sums them
-/// together. Those semesters have no figure of their own; this is what they share.
+/// together. Those semesters have no figure of their own; this is what they share. A span whose
+/// semesters the plan also sums one by one is not one of them — the finer statement says more.
 fn shared_semester_totals(plan: &PlanVariant) -> Vec<(i64, i64, f64)> {
     plan.totals
         .iter()
         .filter(|total| total.is_whole_plan() && total.end_semester > total.start_semester)
+        .filter(|total| (total.start_semester..=total.end_semester).all(|semester| plan.stated_for(semester, semester).is_none()))
         .map(|total| (total.start_semester, total.end_semester, total.credits))
         .collect()
 }
@@ -2058,6 +2060,16 @@ mod tests {
         assert_eq!(plan.semester_credits(5), None, "5 and 6 share one sum and neither has one of its own");
         assert_eq!(shared_semester_totals(plan), vec![(5, 6, 56.0)]);
         assert_eq!(plan.stated_for(5, 6), Some(56.0));
+
+        // Where the plan also sums those semesters one by one, the finer statement says more.
+        let mut finer = totals.clone();
+        finer.push(total(4, "Summe Studium", "plan", 5, 5, 26.0, 20.0, 60.0, vec![2, 3, 4]));
+        finer.push(total(5, "Summe Studium", "plan", 6, 6, 30.0, 12.0, 52.0, vec![5]));
+        let plans = plan_variants(&entries, &finer);
+        assert!(shared_semester_totals(&plans[0]).is_empty(), "the span stands in for semesters that have no figure");
+        assert_eq!(plans[0].semester_credits(5), Some(26.0));
+        // The whole plan is still read by the widest line it prints.
+        assert_eq!(plans[0].credits, 64.0);
 
         // A row with a range knows the rows it is chosen with; one with a fixed value does not.
         let choice = plan.choice_for(&entries[1]).expect("the elective row is tied to the others");
