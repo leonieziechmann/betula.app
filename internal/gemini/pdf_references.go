@@ -42,7 +42,7 @@ func readCreditReferences(pages []layoutPage) map[string]creditReference {
 			lp, title, code := -1, -1, -1
 			for i, s := range header {
 				v := strings.ToLower(cellText(s))
-				if v == "lp" && lp < 0 {
+				if (v == "lp" || strings.Contains(v, "leistungspunkte") || strings.Contains(v, "kreditpunkte")) && lp < 0 {
 					lp = i
 				}
 				if strings.Contains(v, "modul") && !strings.Contains(v, "nr") {

@@ -71,6 +71,37 @@ func mergeStudyFragments(tables []pdfTable, g pdfPageGeometry) []pdfTable {
 	return out
 }
 
+// namedTrackEnd is the row after the block of the track starting at `start`.
+// The plan prints the extent of a section itself: its rows are the ones its own
+// „Summe LP" cell covers — a merged cell spanning them, or the value on the
+// heading row, which holds until the next section prints one. A heading that
+// carries no value at all is closed by the next heading. Everything after that
+// belongs to no track and is shared by both.
+func namedTrackEnd(t pdfTable, start int) int {
+	var own *pdfBox
+	for ri := start; ri < len(t.rows); ri++ {
+		row := t.rows[ri]
+		if len(row) < 3 {
+			continue
+		}
+		if ri > start && (isBareLabelRow(row) || totalRow.MatchString(strings.ToLower(cellText(row[0])))) {
+			return ri
+		}
+		last := len(row) - 1
+		if _, _, ok := parseCreditAmount(cellText(row[last])); !ok || t.boxes[ri][last] == nil {
+			continue
+		}
+		if own == nil {
+			own = t.boxes[ri][last]
+			continue
+		}
+		if t.boxes[ri][last].y0 >= own.y1-1 {
+			return ri
+		}
+	}
+	return len(t.rows)
+}
+
 func splitNamedTracks(t pdfTable) ([]pdfTable, []string) {
 	var starts []int
 	var names []string
@@ -95,8 +126,8 @@ func splitNamedTracks(t pdfTable) ([]pdfTable, []string) {
 	if len(starts) != 2 {
 		return nil, nil
 	}
-	end := len(t.rows)
-	for ri := starts[1] + 1; ri < len(t.rows); ri++ {
+	end := namedTrackEnd(t, starts[1])
+	for ri := starts[1] + 1; ri < end; ri++ {
 		label := strings.ToLower(cellText(t.rows[ri][0]))
 		if strings.Contains(label, "bachelor-arbeit") || strings.Contains(label, "master-arbeit") || label == "wahlpflicht-module" || totalRow.MatchString(label) {
 			end = ri
@@ -232,6 +263,15 @@ func splitStudyDirections(t pdfTable) ([]pdfTable, []string) {
 			owner[ri] = matchDirection(label, keys)
 			continue
 		}
+		// A bare label row -- a heading that carries nothing but its own text,
+		// not even a sum -- opens a new section. Where it names no direction,
+		// that section belongs to all of them ("Weitere Module" under the last
+		// direction's rows), exactly as a heading before the first direction does.
+		if isBareLabelRow(row) && matchDirection(label, keys) < 0 {
+			cur, closable = -1, false
+			owner[ri] = -1
+			continue
+		}
 		if cur >= 0 && closable && rowHasLastValue(row) {
 			cur = -1
 		}
@@ -270,6 +310,21 @@ func splitStudyDirections(t pdfTable) ([]pdfTable, []string) {
 		out = append(out, copy)
 	}
 	return out, names
+}
+
+// isBareLabelRow is a heading row: a label in the first column and nothing at
+// all in the others -- no per-semester value and no sum. isSectionRow is its
+// sibling for a heading that does print its section's sum.
+func isBareLabelRow(row []*string) bool {
+	if len(row) < 3 || cellText(row[0]) == "" {
+		return false
+	}
+	for ci := 1; ci < len(row); ci++ {
+		if cellText(row[ci]) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 func rowHasLastValue(row []*string) bool {

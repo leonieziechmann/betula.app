@@ -54,7 +54,7 @@ func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[st
 					continue
 				}
 				value := cellText(t.rows[ri][ci])
-				if value == "" {
+				if value == "" || legendBox.MatchString(value) {
 					continue
 				}
 				var semesters []int
@@ -89,15 +89,34 @@ func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[st
 					continue
 				}
 				if len(matches) == 0 {
-					if m := creditReferencePattern.FindStringSubmatch(value); m != nil {
-						if ref, found := refs[m[1]+":"+m[2]]; found {
-							c.Row = strings.TrimSpace(creditReferencePattern.ReplaceAllString(value, ""))
-							if ref.code != "" {
-								c.Row = ref.code + " " + c.Row
+					parts := splitReferencedModules(value)
+					if len(parts) > 0 {
+						resolved := make([]SourceCell, 0, len(parts))
+						ok := true
+						for pi, part := range parts {
+							ref, found := refs[part.annex+":"+part.number]
+							if !found || part.name == "" {
+								ok = false
+								break
 							}
-							c.Min, c.Max = ref.amount, ref.amount
-							c.CreditEvidence = ref.evidence
-							cells = append(cells, c)
+							p := c
+							if len(parts) > 1 {
+								p.ID = fmt.Sprintf("%sm%d", c.ID, pi+1)
+							}
+							p.Row = part.name
+							if ref.code != "" && !strings.ContainsRune(ref.code, ' ') {
+								p.Row = ref.code + " " + part.name
+							}
+							p.Min, p.Max = ref.amount, ref.amount
+							p.CreditEvidence = ref.evidence
+							p.AltGroup, p.AltIndex = part.altGroup, part.altIndex
+							if part.altGroup > 0 {
+								p.AltGroup = ri*1000 + ci + 1
+							}
+							resolved = append(resolved, p)
+						}
+						if ok {
+							cells = append(cells, resolved...)
 							continue
 						}
 					}
@@ -178,4 +197,59 @@ func captionBoxes(t pdfTable, ri int, headers []*pdfBox) map[int]string {
 		return nil
 	}
 	return labels
+}
+
+// legendBox is a box that explains the plan instead of requiring something of it:
+// the footnotes a box plan prints under its own total line. Such a box may well
+// name a credit value („Abweichungen in der Summe der LP von 30 LP je Semester"),
+// which would otherwise be read as a requirement of every semester it spans.
+var legendBox = regexp.MustCompile(`(?i)^\s*(erläuterung|legende|hinweis|anmerkung|fußnote|schattierung)`)
+
+// referencedModule is one module of a box that prints no credits of its own:
+// its name and the appendix row its credits stand in. „oder" between two of them
+// makes them alternatives, of which the plan's sums count one.
+type referencedModule struct {
+	name, annex, number string
+	altGroup, altIndex  int
+}
+
+// splitReferencedModules cuts a module box into the modules it names. A box may
+// hold more than one („Entwurfsprojekt 1 (Gemäß Anlage 1, Nr. 1) Integrationsmodul
+// (Gemäß Anlage 1, Nr. 7)"), and each name stands before its own reference.
+func splitReferencedModules(value string) []referencedModule {
+	locs := creditReferencePattern.FindAllStringSubmatchIndex(value, -1)
+	if len(locs) == 0 {
+		return nil
+	}
+	var out []referencedModule
+	prev := 0
+	for _, loc := range locs {
+		name := strings.TrimSpace(value[prev:loc[0]])
+		alt := 0
+		if i := strings.LastIndex(strings.ToLower(name), " oder "); i >= 0 {
+			name = strings.TrimSpace(name[i+6:])
+			alt = 1
+		} else if strings.HasPrefix(strings.ToLower(name), "oder ") {
+			name = strings.TrimSpace(name[5:])
+			alt = 1
+		}
+		out = append(out, referencedModule{name: name, annex: value[loc[2]:loc[3]], number: value[loc[4]:loc[5]], altGroup: alt})
+		prev = loc[1]
+	}
+	// „A (Nr. 1) oder B (Nr. 2)": every part of the box is one alternative of
+	// the same choice, numbered in printing order.
+	group := 0
+	for _, p := range out {
+		group += p.altGroup
+	}
+	if group > 0 {
+		for i := range out {
+			out[i].altGroup, out[i].altIndex = 1, i
+		}
+	} else {
+		for i := range out {
+			out[i].altGroup = 0
+		}
+	}
+	return out
 }

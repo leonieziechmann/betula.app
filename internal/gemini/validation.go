@@ -459,10 +459,22 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog model.Curriculu
 // those count; the other cells are alternatives, and a module that may be taken
 // in several semesters counts in the semester of its grey cell.
 func effectiveCells(l *PDFLayout) []SourceCell {
+	return planReading(l, unpaintedRowsThePrintedSumsAskFor(l))
+}
+
+// planReading is effectiveCells for one decision about the grey plan: keepRows
+// names the tables whose unpainted rows count as part of the plan.
+func planReading(l *PDFLayout, keepRows map[string]bool) []SourceCell {
 	tableHasPlan := map[string]bool{}
 	for _, c := range l.Cells {
 		if c.InPlan {
 			tableHasPlan[c.Table] = true
+		}
+	}
+	painted := map[string]bool{}
+	for _, c := range l.Cells {
+		if c.InPlan {
+			painted[fmt.Sprintf("%s|%d", c.Table, c.RowIndex)] = true
 		}
 	}
 	// Within one "oder" group the plan still expects one requirement per semester
@@ -499,7 +511,7 @@ func effectiveCells(l *PDFLayout) []SourceCell {
 			continue // a budget the plan prints on top of its own semester sums
 		}
 		if tableHasPlan[c.Table] {
-			if !c.InPlan {
+			if !c.InPlan && !(keepRows[c.Table] && !painted[fmt.Sprintf("%s|%d", c.Table, c.RowIndex)]) {
 				continue
 			}
 			if c.PlanSemester > 0 {
@@ -509,6 +521,87 @@ func effectiveCells(l *PDFLayout) []SourceCell {
 		out = append(out, c)
 	}
 	return out
+}
+
+// unpaintedRowsThePrintedSumsAskFor names the tables where the grey „possible
+// study plan" leaves a row unpainted that the plan's own semester sums need.
+//
+// Grey chooses between the placements a row offers; a row it painted nothing in
+// offered no choice, and the plan did not reject it — Stadtplanung und Städtebau
+// 2023 prints its whole elective budget as one such row, „(6)+(6)" under the
+// fifth and the sixth semester, and its grey plan never touches it. Such a row
+// is added back only where the source itself asks for it: the grey reading has
+// to contradict a printed semester total, adding exactly the unpainted rows has
+// to reach every contradicted total exactly, and no total the grey reading
+// already explains may change. Where that does not hold the grey reading stands
+// and the contradiction is reported, as before.
+func unpaintedRowsThePrintedSumsAskFor(l *PDFLayout) map[string]bool {
+	if l == nil {
+		return nil
+	}
+	hasUnpainted := map[string]bool{}
+	painted := map[string]bool{}
+	for _, c := range l.Cells {
+		if c.InPlan {
+			painted[fmt.Sprintf("%s|%d", c.Table, c.RowIndex)] = true
+		}
+	}
+	for _, c := range l.Cells {
+		if !c.InPlan && !painted[fmt.Sprintf("%s|%d", c.Table, c.RowIndex)] {
+			hasUnpainted[c.Table] = true
+		}
+	}
+	if len(hasUnpainted) == 0 {
+		return nil
+	}
+	grey := planReading(l, nil)
+	out := map[string]bool{}
+	for table := range hasUnpainted {
+		with := planReading(l, map[string]bool{table: true})
+		repaired := false
+		ok := true
+		for _, t := range dominantTotals(l.Totals) {
+			if t.Table != table || !totalRow.MatchString(strings.TrimSpace(t.Row)) || isAufwandRow(t) {
+				continue
+			}
+			start, end := t.Semesters[0], t.Semesters[len(t.Semesters)-1]
+			greyLo, greyHi := spanCredits(grey, table, start, end)
+			withLo, withHi := spanCredits(with, table, start, end)
+			if t.Max >= greyLo-0.01 && t.Min <= greyHi+0.01 {
+				// a semester the grey reading already explains must not move
+				ok = ok && greyLo == withLo && greyHi == withHi
+				continue
+			}
+			repaired = true
+			ok = ok && math.Abs(t.Min-withLo) < 0.01 && math.Abs(t.Max-withHi) < 0.01
+		}
+		if ok && repaired {
+			out[table] = true
+		}
+	}
+	return out
+}
+
+// spanCredits is what a reading gives for one printed sum: Min from the cells
+// that lie inside its semesters, Max from those and whatever a cell reaching
+// into them could add — the arithmetic the printed totals are checked with.
+func spanCredits(cells []SourceCell, table string, start, end int) (lo, hi float64) {
+	for _, c := range cells {
+		if c.Table != table {
+			continue
+		}
+		a, b := c.Semesters[0], c.Semesters[len(c.Semesters)-1]
+		if c.CreditSemester > 0 {
+			a, b = c.CreditSemester, c.CreditSemester
+		}
+		if a >= start && b <= end {
+			lo += c.Min
+			hi += c.Max
+		} else if a <= end && b >= start {
+			hi += c.Max
+		}
+	}
+	return lo, hi
 }
 
 func sortedKeys(m map[string][]string) []string {

@@ -179,44 +179,65 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 	var header []*pdfBox
 	headerFrom, headerTo := 0, 0
 	headerTerm := ""
-	var prefix strings.Builder
-	for ri := 0; ri < len(t.rows) && ri < 5; ri++ {
-		for _, s := range t.rows[ri] {
-			prefix.WriteString(cellText(s))
-			prefix.WriteByte(' ')
+	var headerCaptions []string
+	// Two passes: a table headed by plain semester numbers is read exactly as
+	// before, and only one that has no such header at all is offered the reading
+	// that allows a site label beside the number.
+	for _, withSite := range []bool{false, true} {
+		if hi >= 0 {
+			break
 		}
-		p := strings.ToLower(prefix.String())
-		var boxes []*pdfBox
-		valid, explicit := true, 0
-		first, last := -1, -1
-		term := ""
-		for ci, s := range t.rows[ri] {
-			n, isExplicit, season, ok := parseSemesterHeader(cellText(s))
-			if !ok {
-				continue
+		var prefix strings.Builder
+		for ri := 0; ri < len(t.rows) && ri < 5; ri++ {
+			for _, s := range t.rows[ri] {
+				prefix.WriteString(cellText(s))
+				prefix.WriteByte(' ')
 			}
-			if n != len(boxes)+1 || t.boxes[ri][ci] == nil {
-				valid = false
+			p := strings.ToLower(prefix.String())
+			var boxes []*pdfBox
+			var captions []string
+			valid, explicit, named := true, 0, 0
+			first, last := -1, -1
+			term := ""
+			for ci, s := range t.rows[ri] {
+				n, isExplicit, season, caption, ok := parseSemesterHeaderSite(cellText(s), withSite)
+				if !ok {
+					continue
+				}
+				if n != len(boxes)+1 || t.boxes[ri][ci] == nil {
+					valid = false
+					break
+				}
+				if isExplicit {
+					explicit++
+				}
+				if n == 1 {
+					term = season
+				}
+				if first < 0 {
+					first = ci
+				}
+				last = ci
+				captions = append(captions, caption)
+				if caption != "" {
+					named++
+				}
+				boxes = append(boxes, t.boxes[ri][ci])
+			}
+			// A caption is only kept where the plan gives every semester column
+			// one: a single labelled column among bare numbers names a column
+			// that is not a semester at all.
+			if named != len(boxes) {
+				captions = nil
+			}
+			headingOK := semesterHeading.MatchString(p) || explicit >= 2 || (len(workloadNotation) > 1 && workloadNotation[1] && (creditHeading.MatchString(p) || subtotalLabel.MatchString(p)))
+			if headingOK && valid && len(boxes) >= 2 {
+				hi = ri
+				header = boxes
+				headerCaptions = captions
+				headerFrom, headerTo, headerTerm = first, last, term
 				break
 			}
-			if isExplicit {
-				explicit++
-			}
-			if n == 1 {
-				term = season
-			}
-			if first < 0 {
-				first = ci
-			}
-			last = ci
-			boxes = append(boxes, t.boxes[ri][ci])
-		}
-		headingOK := semesterHeading.MatchString(p) || explicit >= 2 || (len(workloadNotation) > 1 && workloadNotation[1] && (creditHeading.MatchString(p) || subtotalLabel.MatchString(p)))
-		if headingOK && valid && len(boxes) >= 2 {
-			hi = ri
-			header = boxes
-			headerFrom, headerTo, headerTerm = first, last, term
-			break
 		}
 	}
 	if hi < 0 {
@@ -412,6 +433,12 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			}
 			if marked {
 				c.Marker = "+"
+			}
+			// The caption of the semester column („ECN", „BTU") names where that
+			// semester is spent. A cell over several semesters belongs to no
+			// single caption, so it keeps none.
+			if len(semesters) == 1 && semesters[0] <= len(headerCaptions) {
+				c.Section = headerCaptions[semesters[0]-1]
 			}
 			if subtotalLabel.MatchString(label) {
 				layout.Totals = append(layout.Totals, c)
