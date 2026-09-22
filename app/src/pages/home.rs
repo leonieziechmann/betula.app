@@ -7,10 +7,11 @@
 //! Owner, 2026-09-21 („unaufgeräumt und anstrengend für die Augen"; the sidebar and the big map
 //! did not work; a little more colour; then: save height in the head, a carousel that behaves like
 //! one for pictures, more questions; then: the figures as a stack of bare numbers beside the text,
-//! with something of the birch): a flat first panel — the text on the left, the figures on birch
-//! bark on the right, each set so large that all of them are about equally wide — and under it a
-//! carousel of pictures: the map of the programs, then screenshots of the catalog, a study plan
-//! and a module page (`e2e/showcase-shots.mjs`). The current picture stands in front, half of each
+//! with something of the birch): a flat first panel — the text on the left, the figures on the
+//! right between strokes of birch bark, each set so large that all of them are about equally
+//! wide, in the colours of the theme — and under it a carousel of pictures: the map of the
+//! programs, then screenshots of the catalog, a study plan and a module page
+//! (`e2e/showcase-shots.mjs`). The current picture stands in front, half of each
 //! neighbour shows behind it at its sides; it turns on by itself (the bar in the current tab shows
 //! when) until the pause button stops it, and goes round endlessly. A click on the current picture
 //! opens its page; the map opens large in a dialog (the page behind it stands still), where it is
@@ -302,7 +303,7 @@ pub fn HomePage() -> impl IntoView {
 }
 
 /// The first panel, flat: what this is and the two ways in on the left; the figures on the right
-/// (below the text on a narrow page), one under the other on birch bark.
+/// (below the text on a narrow page), one under the other between strokes of birch bark.
 #[component]
 fn Hero(home: Option<HomeData>) -> impl IntoView {
     let figures = home.map(|home| {
