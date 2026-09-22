@@ -1391,11 +1391,16 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .filters:target, .filters.open { transform: none; }
   .filters .panel-head::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
   .filters .panel-head { position: relative; padding-top: 22px; }
-  /* The sheet is closed the way one expects of a sheet, too: dragged down at its head (the
-     browser must not scroll there instead), or with a tap beside it, on the page it dims. */
+  /* The sheet is closed the way one expects of a sheet, too: swiped down (anywhere its list is
+     at the top; the head never scrolls, so the browser must not take a touch there), or with a
+     tap beside it, on the page it dims. */
   .filters .panel-head, .sidebar.sheet .panel-head { touch-action: none; cursor: grab; }
   .filters.dragging, .sidebar.sheet.dragging { transition: none; }
   html.sheet-open::after { content: ""; position: fixed; inset: 0; z-index: 39; background: rgba(15, 23, 42, .34); }
+  /* Open, a sheet holds the page behind it still: the page does not scroll (a touch on it moves
+     nothing, enhance.js), and the sheet's list keeps its scroll to itself at either end. */
+  html.sheet-open { overflow: hidden; overscroll-behavior: none; }
+  .filters .body, .sidebar.sheet .body { overscroll-behavior: contain; }
   /* What was picked beside a program (a module, an area, a row of the plan) has no room beside
      the page on a phone: it is the page until it is closed. The browser app renders it as a page
      of its own; this is for the same HTML without it. */

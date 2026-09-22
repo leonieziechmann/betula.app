@@ -664,6 +664,37 @@ fn check_constraints(table_sql: &str) -> Vec<(String, Vec<String>)> {
     found
 }
 
+/// The phone's filter sheet counts with `catalog_summary` and loads the list with `catalog` when
+/// it closes: the two must say the same about a filter, the semester of a plan (whose query the
+/// loader fills in) and a program's FÜS list included.
+#[test]
+fn the_summary_of_a_filter_is_what_its_page_says() {
+    use crate::pages;
+    use crate::url::CatalogUrl;
+
+    let db = open();
+    let searches = [
+        String::new(),
+        "turnus=winter&form=lecture&exam=written".to_string(),
+        format!("program={INFORMATIK_BSC}"),
+        format!("program={INFORMATIK_BSC}&list=fues"),
+        format!("program={INFORMATIK_BSC}&semester=1"),
+        format!("program={INFORMATIK_BSC}&semester=none&turnus=summer"),
+        "program=no-such-program".to_string(),
+    ];
+    for search in searches {
+        let url = CatalogUrl::parse(&search);
+        let page = pages::catalog(&db, &url).unwrap();
+        let summary = pages::catalog_summary(&db, &url.query).unwrap();
+        assert_eq!(summary.total, page.page.total, "{search}: the total");
+        assert_eq!(
+            (summary.program, summary.curricular_total, summary.fues_total, summary.plan_semesters, summary.areas),
+            (page.program, page.curricular_total, page.fues_total, page.plan_semesters, page.areas),
+            "{search}: what the panel shows"
+        );
+    }
+}
+
 #[test]
 fn page_loaders_return_everything_a_page_shows() {
     use crate::pages;

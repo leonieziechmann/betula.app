@@ -13,13 +13,45 @@
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
   // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
-  // Open, the page behind it is dimmed (html.sheet-open) and a tap on it closes the sheet.
+  // Open, the page behind it is dimmed and stands still (html.sheet-open), and a tap on it closes
+  // the sheet. However it goes (its buttons, a swipe down, a tap beside it, Esc, Back), the page
+  // hears `betula:sheet-closed`: the catalog's list follows what was picked in the sheet only
+  // then. A sheet whose page takes what is picked there as a draft (`data-draft`: the catalog in
+  // the browser app) is a step of its own in the history, as a sheet is in an app, so that Back
+  // closes it instead of leaving the page; where Back does leave the page with a sheet open, the
+  // page hears `betula:sheet-left`.
   const filters = () => document.getElementById("filters") || document.querySelector(".sidebar.sheet");
-  const openSheet = () => { const sheet = filters(); if (!sheet) return; sheet.classList.add("open"); root.classList.add("sheet-open"); };
-  const closeSheet = () => { filters()?.classList.remove("open"); root.classList.remove("sheet-open"); };
+  let step = false; // the current history entry is the open sheet's own step
+  let afterStep = null; // what follows once the browser has gone back past that step
+  const openSheet = () => {
+    const sheet = filters();
+    if (!sheet) return;
+    sheet.classList.add("open");
+    root.classList.add("sheet-open");
+    if (!step && phone() && sheet.hasAttribute("data-draft")) {
+      history.pushState({ betulaSheet: true }, "");
+      step = true;
+    }
+  };
+  const closeSheet = (how = "closed") => {
+    const sheet = filters();
+    const was = sheet?.classList.contains("open");
+    sheet?.classList.remove("open");
+    root.classList.remove("sheet-open");
+    if (!was) return;
+    const tell = () => sheet.dispatchEvent(new Event("betula:sheet-" + how, { bubbles: true }));
+    // The sheet's step goes before the list follows: the list's own entry takes its place.
+    const own = step && history.state?.betulaSheet === true;
+    step = false;
+    if (own) { afterStep = tell; history.back(); } else tell();
+  };
   // The app may replace the page under an open sheet (Back, a tab): nothing may stay dimmed.
   const tidySheet = () => { if (root.classList.contains("sheet-open") && !document.querySelector(".filters.open, .sidebar.sheet.open")) root.classList.remove("sheet-open"); };
-  addEventListener("popstate", closeSheet);
+  addEventListener("popstate", () => {
+    if (afterStep) { const then = afterStep; afterStep = null; then(); } // the sheet's own step, taken back above
+    else if (step) { step = false; closeSheet(); } // Back closes the sheet
+    else closeSheet("left");
+  });
 
   // ---- classic mode: scroll positions of the panels survive a page load ----
   const listKey = () => location.search.replace(/([?&])(page|open)=[^&]*/g, "$1");
@@ -92,29 +124,85 @@
     if (root.classList.contains("sheet-open") && e.target === root) { e.preventDefault(); closeSheet(); }
   }, true);
 
-  // The sheet is dragged down at its head to close it: it follows the finger, and is let go
-  // when it was pulled far or fast enough; otherwise it slides back.
+  // The sheet is swiped down to close it: it follows the finger, and is let go when it was pulled
+  // far enough, or flicked; otherwise it slides back. `to` takes how far the finger is below
+  // where the drag began, `since` is when the finger came down (a quick flick may reach the page
+  // as one single move, whose speed is then measured from there).
+  function dragSheet(sheet, since) {
+    let dy = 0, at = since, speed = 0;
+    sheet.classList.add("dragging");
+    return {
+      to(offset) {
+        const now = performance.now(), next = Math.max(0, offset);
+        // px per ms, mostly of the last moves: a flick at the end counts, a slow start does not.
+        if (now > at) speed = 0.7 * ((next - dy) / (now - at)) + 0.3 * speed;
+        dy = next;
+        at = now;
+        sheet.style.transform = `translateY(${dy}px)`;
+      },
+      release() {
+        const flicked = performance.now() - at < 100 && speed > 0.45;
+        sheet.style.transform = "";
+        sheet.classList.remove("dragging");
+        if (dy > Math.min(160, sheet.offsetHeight * 0.3) || (dy > 16 && flicked)) closeSheet();
+      },
+    };
+  }
+  const openSheetNow = () => (phone() ? document.querySelector(".filters.open, .sidebar.sheet.open") : null);
+  // What scrolls between the finger and the sheet: its body, or a picker's list in it.
+  const scrollerIn = (el, sheet) => {
+    for (let node = el; node && node !== sheet; node = node.parentElement) {
+      if (node.scrollHeight > node.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+    }
+    return null;
+  };
+  // Touches decide with their first move. Inside the sheet, one that starts downwards where
+  // nothing is scrolled down (the head, the button row, the top of the list) drags the sheet;
+  // everything else there scrolls the sheet's own list, which keeps the scroll to itself
+  // (`overscroll-behavior`). A touch on the dimmed page moves nothing: the stylesheet takes the
+  // page's scrolling away (`overflow: hidden`), this also holds browsers that scroll it anyway.
+  let touch = null;
+  document.addEventListener("touchstart", (e) => {
+    touch = null;
+    const sheet = openSheetNow();
+    if (!sheet || e.touches.length !== 1) return;
+    const inside = sheet.contains(e.target);
+    touch = { sheet, inside, scroller: inside ? scrollerIn(e.target, sheet) : null, x: e.touches[0].clientX, y: e.touches[0].clientY, at: performance.now(), mode: null, drag: null };
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!touch) return;
+    if (e.touches.length !== 1) { touch.drag?.release(); touch = null; return; }
+    const dx = e.touches[0].clientX - touch.x, dy = e.touches[0].clientY - touch.y;
+    if (!touch.mode) {
+      const down = dy > 0 && dy >= Math.abs(dx);
+      if (!touch.inside) touch.mode = "hold";
+      else if (e.target.closest?.('input[type="range"]')) touch.mode = "own"; // the knobs of the credit slider
+      // (A touch the browser does not let go of, one that lands in a fling, keeps scrolling.)
+      else if (down && e.cancelable && !(touch.scroller?.scrollTop > 0)) { touch.mode = "drag"; touch.drag = dragSheet(touch.sheet, touch.at); }
+      else touch.mode = touch.scroller ? "own" : "hold";
+    }
+    if (touch.mode !== "own" && e.cancelable) e.preventDefault();
+    if (touch.mode === "drag") touch.drag.to(dy - 6); // a tap that wobbles does not move the sheet
+  }, { passive: false });
+  const endTouch = () => { touch?.drag?.release(); touch = null; };
+  document.addEventListener("touchend", (e) => { if (!e.touches.length) endTouch(); });
+  document.addEventListener("touchcancel", endTouch);
+  // A mouse (a narrow window on a desktop) drags the sheet at its head.
   document.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "touch" || e.button !== 0) return;
     const head = e.target.closest?.(".filters .panel-head, .sidebar.sheet .panel-head");
     const sheet = head?.closest(".filters, .sidebar.sheet");
-    if (!sheet || !sheet.classList.contains("open") || !phone() || e.target.closest("a, button, input")) return;
+    if (!sheet || sheet !== openSheetNow() || e.target.closest("a, button, input")) return;
     e.preventDefault();
-    const startY = e.clientY, startAt = performance.now();
-    let dy = 0;
+    const startY = e.clientY;
+    const drag = dragSheet(sheet, performance.now());
     try { sheet.setPointerCapture(e.pointerId); } catch {}
-    const move = (ev) => {
-      dy = Math.max(0, ev.clientY - startY);
-      sheet.classList.add("dragging");
-      sheet.style.transform = `translateY(${dy}px)`;
-    };
+    const move = (ev) => drag.to(ev.clientY - startY);
     const stop = () => {
       sheet.removeEventListener("pointermove", move);
       sheet.removeEventListener("pointerup", stop);
       sheet.removeEventListener("pointercancel", stop);
-      const speed = dy / Math.max(1, performance.now() - startAt); // px per ms
-      sheet.style.transform = "";
-      sheet.classList.remove("dragging");
-      if (dy > Math.min(160, sheet.offsetHeight * 0.35) || (dy > 24 && speed > 0.6)) closeSheet();
+      drag.release();
     };
     sheet.addEventListener("pointermove", move);
     sheet.addEventListener("pointerup", stop);

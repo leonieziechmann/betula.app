@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use catalog::filter::{CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey};
 use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
-use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData};
+use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData, CatalogSummary};
 use catalog::plan::SemesterPlan;
 use catalog::rows::{CatalogRow, Program};
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
@@ -47,27 +47,13 @@ pub fn CatalogPage() -> impl IntoView {
     // where the visitor is in it (the list scrolls endlessly and keeps `page` up to date); `open`
     // is the preview. So scrolling and opening a preview re-render neither list nor filters.
     let list_query = Memo::new(move |_| url.get().query);
-    // „Gemerkt" is a filter like any other, but what is marked lives in the browser: the URL
-    // says only whether the filter is on, and the query gets the ids here, where they never
-    // reach a link or the server (R20). Marking a module while the filter is on changes the
-    // list, and only then.
     let bookmarks = Bookmarks::expect();
-    let asked = Memo::new(move |_| {
-        let mut query = list_query.get();
-        if let (Some(marked), Some(bookmarks)) = (query.marked, bookmarks) {
-            let ids: Vec<String> = bookmarks.marks().into_iter().map(|mark| mark.id).collect();
-            if marked {
-                query.only_ids = Some(ids);
-            } else {
-                query.without_ids = ids;
-            }
-        }
-        query
-    });
+    let asked = Memo::new(move |_| with_marks(list_query.get(), bookmarks));
     let page = Memo::new(move |_| url.get().page);
     let open = Memo::new(move |_| url.get().open);
     let source = use_source();
     let status = PageStatus::capture();
+    let phone = phone_layout();
 
     let list_source = source.clone();
     let list = Memo::new(move |_| {
@@ -85,9 +71,63 @@ pub fn CatalogPage() -> impl IntoView {
         loaded.map(|choices| Choices::of(&choices)).unwrap_or_default()
     });
 
+    // On a phone the filter panel is a sheet over the list, and what is picked there is a
+    // draft: the sheet shows it at once, with the number of modules it holds, and the list
+    // follows once, when the sheet goes. Rebuilding the list behind the sheet with every tap kept
+    // a phone busy for a third of a second each time (owner, 2026-09-22: „lagt ganz schön").
+    // `None`: the panel shows the filter of the URL.
+    let draft: RwSignal<Option<CatalogQuery>> = RwSignal::new(None);
+    let panel_query = Memo::new(move |_| draft.get().unwrap_or_else(|| list_query.get()));
+    let summary_source = source.clone();
+    let draft_facts = Memo::new(move |_| {
+        let query = with_marks(draft.get()?, bookmarks);
+        summary_source.clone().and_then(|source| source.run(|db| pages::catalog_summary(db, &query))).ok().map(|summary| Facts::of_summary(&summary))
+    });
+    let panel_facts = Memo::new(move |_| draft_facts.get().unwrap_or_else(|| facts.get()));
+    // A filter from elsewhere (the draft applied, a tag taken away above the list, Back) is what
+    // the panel shows from then on.
+    Effect::new(move |_| {
+        list_query.track();
+        if draft.with_untracked(Option::is_some) {
+            draft.set(None);
+        }
+    });
+    let navigate_to_draft = use_navigate();
+    let apply = move || {
+        let Some(query) = draft.get_untracked() else { return };
+        if query == list_query.get_untracked() {
+            draft.set(None);
+            return;
+        }
+        // A moment later: the sheet has begun to slide away by then, and the browser keeps that
+        // going while the list is built. (Not animation frames: a hidden tab has none, and the
+        // list would never follow.)
+        let path = CatalogUrl { query, page: 1, open: open.get_untracked() }.path();
+        let navigate = navigate_to_draft.clone();
+        set_timeout(move || navigate(&path, NavigateOptions { scroll: false, ..Default::default() }), std::time::Duration::from_millis(50));
+    };
+    // The sheet went (`enhance.js`: its buttons, a swipe down, a tap beside it, Esc, Back, which
+    // takes the sheet's own step in the history): the list follows the draft. Where Back left
+    // the page with the sheet open, the draft goes with it.
+    let on_close = apply.clone();
+    Effect::new(move |_| {
+        let on_close = on_close.clone();
+        let closed = window_event_listener_untyped("betula:sheet-closed", move |_| on_close());
+        let left = window_event_listener_untyped("betula:sheet-left", move |_| draft.set(None));
+        on_cleanup(move || {
+            closed.remove();
+            left.remove();
+        });
+    });
+    // A window that grows out of the phone's layout (a tablet turned) has no sheet any more.
+    Effect::new(move |_| {
+        if !phone.get() {
+            apply();
+        }
+    });
+
     // On a phone a module opens as its own page, never as a preview (the preview would fill the
     // screen anyway, and the page has a history entry of its own to come back from).
-    let phone = phone_layout();
     let navigate = use_navigate();
     Effect::new(move |_| {
         if let (true, Some(id)) = (phone.get(), open.get()) {
@@ -139,7 +179,7 @@ pub fn CatalogPage() -> impl IntoView {
                     view! { <div class="page"><ErrorState error/></div> }.into_any()
                 }
                 None => view! {
-                    <Filters query=list_query facts choices open/>
+                    <Filters query=panel_query facts=panel_facts choices open draft phone/>
                     // The handle for the panel's width sits in the gap between the two boxes.
                     <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="filters" aria-label="Breite der Filter ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
                     {move || list.get().ok().map(|(current, data)| {
@@ -186,6 +226,21 @@ pub(crate) fn phone_layout() -> RwSignal<bool> {
         on_cleanup(move || handle.remove());
     });
     phone
+}
+
+/// „Gemerkt" is a filter like any other, but what is marked lives in the browser: the URL says
+/// only whether the filter is on, and the query gets the ids here, where they never reach a link
+/// or the server (R20). Marking a module while the filter is on changes the list, and only then.
+fn with_marks(mut query: CatalogQuery, bookmarks: Option<Bookmarks>) -> CatalogQuery {
+    if let (Some(marked), Some(bookmarks)) = (query.marked, bookmarks) {
+        let ids: Vec<String> = bookmarks.marks().into_iter().map(|mark| mark.id).collect();
+        if marked {
+            query.only_ids = Some(ids);
+        } else {
+            query.without_ids = ids;
+        }
+    }
+    query
 }
 
 /// A link that keeps whatever preview is open at the time it is followed.
@@ -938,6 +993,18 @@ impl Facts {
             total: data.page.total,
         }
     }
+
+    /// The same for the draft of the phone's filter sheet, which has no list yet.
+    fn of_summary(summary: &CatalogSummary) -> Self {
+        Self {
+            program: summary.program.clone(),
+            curricular_total: summary.curricular_total,
+            fues_total: summary.fues_total,
+            plan_semesters: summary.plan_semesters.clone(),
+            areas: summary.areas.clone(),
+            total: summary.total,
+        }
+    }
 }
 
 /// An area as the picker offers it: its name and how many modules it holds, nothing else (owner,
@@ -992,11 +1059,11 @@ fn target(query: Memo<CatalogQuery>, open: Memo<Option<String>>, change: impl Fn
     CatalogUrl { query: next, page: 1, open: open.get() }.path()
 }
 
-/// The same from an event handler, which has nothing to track.
-fn target_now(query: Memo<CatalogQuery>, open: Memo<Option<String>>, change: impl FnOnce(&mut CatalogQuery)) -> String {
+/// The filter that `change` makes of the current one, from an event handler (nothing to track).
+fn changed(query: Memo<CatalogQuery>, change: impl FnOnce(&mut CatalogQuery)) -> CatalogQuery {
     let mut next = query.get_untracked();
     change(&mut next);
-    CatalogUrl { query: next, page: 1, open: open.get_untracked() }.path()
+    next
 }
 
 /// A filter value is off, wanted, or unwanted („keine Vorträge").
@@ -1192,10 +1259,36 @@ fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, label: &'sta
 /// The filter panel. It is rendered once and then follows `query`: every control is a link to
 /// the list it leads to (so it works without JavaScript, and in the app the router turns the
 /// click into a navigation), except the pickers and the credit slider, which have handlers.
+/// On a phone, where the panel is a sheet over the list, both change the sheet's `draft`
+/// instead, and the list follows when the sheet closes (`CatalogPage`).
 #[component]
-fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>, open: Memo<Option<String>>) -> impl IntoView {
+fn Filters(
+    query: Memo<CatalogQuery>,
+    facts: Memo<Facts>,
+    choices: Memo<Choices>,
+    open: Memo<Option<String>>,
+    draft: RwSignal<Option<CatalogQuery>>,
+    phone: RwSignal<bool>,
+) -> impl IntoView {
     let navigate = use_navigate();
-    let go = Callback::new(move |path: String| navigate(&path, NavigateOptions { scroll: false, ..Default::default() }));
+    let go = Callback::new(move |next: CatalogQuery| {
+        if phone.get_untracked() {
+            draft.set(Some(next));
+        } else {
+            navigate(&CatalogUrl { query: next, page: 1, open: open.get_untracked() }.path(), NavigateOptions { scroll: false, ..Default::default() });
+        }
+    });
+    // A link of the panel is the list it leads to, so on a phone its address is what the draft
+    // becomes; the router must not follow it then (it ignores a click whose default is prevented).
+    let into_draft = move |ev: leptos::ev::MouseEvent| {
+        if !phone.get_untracked() || ev.default_prevented() || ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key() {
+            return;
+        }
+        let Some(href) = nav::link_under(ev.target()) else { return };
+        let Some(search) = href.strip_prefix(url::CATALOG).filter(|rest| rest.is_empty() || rest.starts_with('?')) else { return };
+        ev.prevent_default();
+        draft.set(Some(CatalogUrl::parse(search).query));
+    };
     let close_popups = RwSignal::new(0u32);
     provide_context(ClosePopups(close_popups));
 
@@ -1229,7 +1322,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
         let items = Memo::new(move |_| choices.with(|c| c.programs.clone()));
         let selected = Memo::new(move |_| query.with(|q| q.program.as_ref().map(|scope| scope.program_slug.clone())));
         let pick = Callback::new(move |slug: Option<String>| {
-            go.run(target_now(query, open, |q| match slug {
+            go.run(changed(query, |q| match slug {
                 Some(slug) => q.program.get_or_insert_with(ProgramScope::default).program_slug = slug,
                 None => q.program = None,
             }))
@@ -1348,7 +1441,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                             several => Some(format!("{} Bereiche", several.len())),
                         });
                         let pick = Callback::new(move |id: Option<String>| {
-                            go.run(target_now(query, open, |q| {
+                            go.run(changed(query, |q| {
                                 if let Some(scope) = q.program.as_mut() {
                                     scope.areas = id.and_then(|id| id.parse().ok()).into_iter().collect();
                                 }
@@ -1457,7 +1550,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
         });
         let add = Callback::new(move |name: Option<String>| {
             if let Some(name) = name {
-                go.run(target_now(query, open, |q| q.lecturers_include.push(name)));
+                go.run(changed(query, |q| q.lecturers_include.push(name)));
             }
         });
         view! {
@@ -1481,7 +1574,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
     let department_picker = if APP {
         let items = Memo::new(move |_| choices.with(|c| c.departments.clone()));
         let selected = Memo::new(move |_| query.with(|q| q.department_id.map(|id| id.to_string())));
-        let pick = Callback::new(move |id: Option<String>| go.run(target_now(query, open, |q| q.department_id = id.and_then(|id| id.parse().ok()))));
+        let pick = Callback::new(move |id: Option<String>| go.run(changed(query, |q| q.department_id = id.and_then(|id| id.parse().ok()))));
         view! {
             <Combobox id="pick-department" label="Fachgebiet" placeholder="Alle Fachgebiete" search_placeholder="Fachgebiet suchen" icon="building-2" items selected on_select=pick/>
         }
@@ -1518,7 +1611,8 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
     };
 
     view! {
-        <aside class="panel filters" id="filters" aria-label="Filter">
+        // `data-draft`: the sheet of a phone is a step of its own in the history (`enhance.js`).
+        <aside class="panel filters" id="filters" aria-label="Filter" data-draft=APP.then_some("") on:click=into_draft>
             <form method="get" action=url::CATALOG data-autosubmit="" on:submit=move |ev| if APP { ev.prevent_default() }>
                 <div class="panel-head">
                     <h2>"Filter"</h2>
@@ -1560,7 +1654,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
                             {ExamPart::ALL.iter().map(|part| chip(part.short_label(), None, Toggle::in_lists(*part, |q| (&q.exam_parts, &q.exam_parts_exclude), |q| (&mut q.exam_parts, &mut q.exam_parts_exclude)))).collect_view()}
                         </div>
                     </div>
-                    <Credits query open go/>
+                    <Credits query go/>
                     <div class="fgroup">
                         <div class="flabel label">"Sprache"</div>
                         <div class="chips">
@@ -1635,7 +1729,7 @@ fn Filters(query: Memo<CatalogQuery>, facts: Memo<Facts>, choices: Memo<Choices>
 /// Credits: a slider with two thumbs for the usual range, and the two numbers next to it for
 /// exact values (they also are what a plain form submits).
 #[component]
-fn Credits(query: Memo<CatalogQuery>, open: Memo<Option<String>>, go: Callback<String>) -> impl IntoView {
+fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoView {
     let on_slider = |q: &CatalogQuery| {
         (q.credits_min.unwrap_or(0.0).clamp(0.0, CREDITS_MAX), q.credits_max.unwrap_or(CREDITS_MAX).clamp(0.0, CREDITS_MAX))
     };
@@ -1678,11 +1772,11 @@ fn Credits(query: Memo<CatalogQuery>, open: Memo<Option<String>>, go: Callback<S
                 <input type="range" min="0" max="30" step="1" aria-label="Leistungspunkte mindestens"
                     value=start_low.to_string() prop:value=move || low.get().to_string()
                     on:input=move |ev| { dragged(&ev, true); }
-                    on:change=move |ev| { let value = dragged(&ev, true); go.run(target_now(query, open, |q| q.credits_min = (value > 0.0).then_some(value))) }/>
+                    on:change=move |ev| { let value = dragged(&ev, true); go.run(changed(query, |q| q.credits_min = (value > 0.0).then_some(value))) }/>
                 <input type="range" min="0" max="30" step="1" aria-label="Leistungspunkte höchstens"
                     value=start_high.to_string() prop:value=move || high.get().to_string()
                     on:input=move |ev| { dragged(&ev, false); }
-                    on:change=move |ev| { let value = dragged(&ev, false); go.run(target_now(query, open, |q| q.credits_max = (value < CREDITS_MAX).then_some(value))) }/>
+                    on:change=move |ev| { let value = dragged(&ev, false); go.run(changed(query, |q| q.credits_max = (value < CREDITS_MAX).then_some(value))) }/>
             </div>
             // Each mark sits exactly under the place of the knob for its value.
             <div class="scale js-only" aria-hidden="true">
@@ -1694,12 +1788,12 @@ fn Credits(query: Memo<CatalogQuery>, open: Memo<Option<String>>, go: Callback<S
                 <input type="number" name="ects_min" min="0" max="60" step="0.5" inputmode="decimal" aria-label="Leistungspunkte mindestens" placeholder="von"
                     value=query.with_untracked(|q| q.credits_min.map(|n| n.to_string()))
                     prop:value=move || query.with(|q| q.credits_min.map(|n| n.to_string()).unwrap_or_default())
-                    on:change=move |ev| if APP { go.run(target_now(query, open, |q| q.credits_min = typed(&ev))) }/>
+                    on:change=move |ev| if APP { go.run(changed(query, |q| q.credits_min = typed(&ev))) }/>
                 <span>"–"</span>
                 <input type="number" name="ects_max" min="0" max="60" step="0.5" inputmode="decimal" aria-label="Leistungspunkte höchstens" placeholder="bis"
                     value=query.with_untracked(|q| q.credits_max.map(|n| n.to_string()))
                     prop:value=move || query.with(|q| q.credits_max.map(|n| n.to_string()).unwrap_or_default())
-                    on:change=move |ev| if APP { go.run(target_now(query, open, |q| q.credits_max = typed(&ev))) }/>
+                    on:change=move |ev| if APP { go.run(changed(query, |q| q.credits_max = typed(&ev))) }/>
             </div>
         </div>
     }
