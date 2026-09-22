@@ -70,7 +70,8 @@ type CurriculumTotal struct {
 	Specialization string  `json:"specialization,omitempty"`
 	StartSemester  int     `json:"start_semester"`
 	EndSemester    int     `json:"end_semester"`
-	Credits        float64 `json:"credits"`
+	Credits        float64 `json:"credits"`     // what the plan prints; its lower bound where the plan prints a range
+	CreditsMax     float64 `json:"credits_max"` // the upper bound of that range, equal to Credits where the plan prints a number
 	MinCredits     float64 `json:"min_credits"` // what the rows inside these semesters come to …
 	MaxCredits     float64 `json:"max_credits"` // … and what they and a row reaching into them could come to
 	IsChoice       bool    `json:"is_choice,omitempty"`

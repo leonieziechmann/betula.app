@@ -283,7 +283,7 @@ func BuildTotals(res *gemini.CurriculumExtractionResult, rows []model.Curriculum
 	for _, t := range res.Totals {
 		total := model.CurriculumTotal{
 			Label: t.Label, Scope: "section", StartSemester: t.Start, EndSemester: t.End,
-			Credits: t.Credits, MinCredits: t.Min, MaxCredits: t.Max, IsChoice: t.Choice, SourceEvidence: t.ID,
+			Credits: t.Credits, CreditsMax: t.CreditsMax, MinCredits: t.Min, MaxCredits: t.Max, IsChoice: t.Choice, SourceEvidence: t.ID,
 		}
 		if t.WholePlan {
 			total.Scope = "plan"

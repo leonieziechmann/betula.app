@@ -588,7 +588,9 @@ fn PlanRowPanel(
                     // A row that prints a range says nothing on its own: what pins it down is
                     // the line the regulation prints over it and its neighbours.
                     {choice.map(|choice| {
-                        let together = format::number(choice.total.credits);
+                        // The regulation may print a span here as well, and then that span is
+                        // everything it says: „28–32 LP", not a number we picked out of it.
+                        let together = printed_credits(&choice.total);
                         let least = format::number(choice.total.min_credits);
                         let most = format::number(choice.total.max_credits);
                         let label = choice.total.label.clone();
@@ -602,7 +604,7 @@ fn PlanRowPanel(
                                     {if others == 1 { "einer weiteren Zeile".to_string() } else { format!("{others} weiteren Zeilen") }}
                                     " zusammen aus — „"{label}"“: "{together.clone()}" LP in "{span}
                                     ". Einzeln lassen diese Zeilen "{least}" bis "{most}" LP zu; wie die "{together}
-                                    " LP auf sie verteilt werden, ist die Wahl der Studierenden."
+                                    " LP auf sie aufgeteilt werden, ist die Wahl der Studierenden."
                                 </p>
                                 <div class="linklist">
                                     {choice.with.into_iter().map(|(row, name)| view! {
@@ -835,7 +837,7 @@ fn ProgramNumbers(data: ProgramData, tab: ProgramTab, plans: Vec<PlanVariant>, #
                                 {match (tab, plan.clone()) {
                                     (ProgramTab::Plan, Some(plan)) => view! {
                                         <Fact icon="calendar-range" label="Fachsemester" value=Some(format!("{}", plan.semesters))/>
-                                        <Fact icon="award" label="Leistungspunkte" value=Some(format!("{} LP", format::number(plan.credits)))/>
+                                        <Fact icon="award" label="Leistungspunkte" value=Some(format!("{} LP", plan.credits_label()))/>
                                         <Fact icon="layout-list" label="Zeilen im Plan" value=Some(format!("{}", plan.entries.len()))/>
                                         <Fact icon="file-check-2" label="Im Katalog verlinkt" value=Some(format!("{}", plan.entries.iter().filter(|entry| entry.module_id.is_some()).count()))/>
                                     }.into_any(),
@@ -918,7 +920,7 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
     let level_link = url::ProgramsUrl { levels: vec![level], ..Default::default() }.path();
     // Length and size of the studies are what the validated plan says, not what a source states.
     let semesters = span_of(plans.iter().map(|plan| plan.semesters as f64));
-    let credits = span_of(plans.iter().map(|plan| plan.credits));
+    let credits = span_of(plans.iter().flat_map(|plan| [plan.credits, plan.credits_max]));
     view! {
         <header class="panel prog-head">
             <div class="hero-top">
@@ -965,8 +967,10 @@ struct PlanVariant {
     semesters: i64,
     /// What the whole plan comes to: the regulation's own sums where it prints them, else what
     /// its rows add up to. A plan with elective budgets („10–24 LP") has no other way of saying
-    /// it — three such rows are anything between 30 and 72 LP.
+    /// it — three such rows are anything between 30 and 72 LP. The two ends differ only where the
+    /// regulation prints a span for a semester instead of a number.
     credits: f64,
+    credits_max: f64,
     /// Whether the regulation states `credits` itself.
     stated: bool,
     entries: Vec<PlanEntry>,
@@ -975,15 +979,24 @@ struct PlanVariant {
 }
 
 impl PlanVariant {
+    /// What the plan comes to, as it is written: „180" or, where the regulation prints spans,
+    /// „116–126".
+    fn credits_label(&self) -> String {
+        match self.credits_max - self.credits > 0.01 {
+            true => format!("{}–{}", format::number(self.credits), format::number(self.credits_max)),
+            false => format::number(self.credits),
+        }
+    }
+
     /// What the plan states for exactly these semesters, if it states anything.
-    fn stated_for(&self, from: i64, to: i64) -> Option<f64> {
+    fn stated_for(&self, from: i64, to: i64) -> Option<(f64, f64)> {
         plan::stated_for_span(&self.totals.iter().collect::<Vec<_>>(), from, to)
     }
 
     /// What one semester holds: the regulation's own line where it prints one, else the rows the
     /// plan puts into that semester alone.
     fn semester_credits(&self, semester: i64) -> Option<f64> {
-        self.stated_for(semester, semester).or_else(|| {
+        self.stated_for(semester, semester).map(|(low, _)| low).or_else(|| {
             let sum: f64 = self
                 .entries
                 .iter()
@@ -1034,6 +1047,7 @@ fn plan_variants(entries: &[PlanEntry], totals: &[PlanTotal]) -> Vec<PlanVariant
                     full: full.clone(),
                     semesters: 0,
                     credits: 0.0,
+                    credits_max: 0.0,
                     stated: false,
                     entries: Vec::new(),
                     totals: plan::totals_of_variant(totals, &full).into_iter().cloned().collect(),
@@ -1047,14 +1061,17 @@ fn plan_variants(entries: &[PlanEntry], totals: &[PlanTotal]) -> Vec<PlanVariant
         if let Some((_, to)) = semester_span(entry) {
             plan.semesters = plan.semesters.max(to);
         }
-        plan.credits += entry.credits.or(entry.min_credits).unwrap_or(0.0);
+        let own = entry.credits.or(entry.min_credits).unwrap_or(0.0);
+        plan.credits += own;
+        plan.credits_max += own;
         plan.entries.push(entry.clone());
     }
     // What the rows add up to is a lower bound wherever they are budgets; the regulation's own
     // sums are the plan itself and win.
     for plan in plans.iter_mut() {
-        if let Some(stated) = plan::stated_credits(&plan.totals.iter().collect::<Vec<_>>()) {
-            plan.credits = stated;
+        if let Some((low, high)) = plan::stated_credits(&plan.totals.iter().collect::<Vec<_>>()) {
+            plan.credits = low;
+            plan.credits_max = high;
             plan.stated = true;
         }
     }
@@ -1247,7 +1264,7 @@ fn PlanTab(
                                         data-state=if chosen { "with" } else { "off" }
                                     >
                                         <span class="chip-label">{plan.label.clone()}</span>
-                                        <span class="chip-count num">{format::number(plan.credits)}" LP"</span>
+                                        <span class="chip-count num">{plan.credits_label()}" LP"</span>
                                     </a>
                                 }
                             }).collect_view()}
@@ -1437,7 +1454,7 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
                 {groups.into_iter().map(|(key, label, entries)| {
                     // What the regulation states for these semesters, else what the rows give —
                     // which for rows with a credit span is only their lower bound.
-                    let sum = plan.stated_for(key.0, key.1).unwrap_or_else(|| {
+                    let sum = plan.stated_for(key.0, key.1).map(|(low, _)| low).unwrap_or_else(|| {
                         entries.iter().map(|(_, entry)| entry.credits.or(entry.min_credits).unwrap_or(0.0)).sum()
                     });
                     let count = entries.len();
@@ -1983,6 +2000,7 @@ mod tests {
             full: full.to_string(),
             semesters: 6,
             credits: 180.0,
+            credits_max: 180.0,
             stated: false,
             entries: Vec::new(),
             totals: Vec::new(),
@@ -2027,6 +2045,7 @@ mod tests {
             start_semester: from,
             end_semester: to,
             credits,
+            credits_max: credits,
             min_credits: min,
             max_credits: max,
             is_choice: max - min > 0.01,
@@ -2059,7 +2078,7 @@ mod tests {
         assert_eq!(plan.semester_credits(1), Some(8.0));
         assert_eq!(plan.semester_credits(5), None, "5 and 6 share one sum and neither has one of its own");
         assert_eq!(shared_semester_totals(plan), vec![(5, 6, 56.0)]);
-        assert_eq!(plan.stated_for(5, 6), Some(56.0));
+        assert_eq!(plan.stated_for(5, 6), Some((56.0, 56.0)));
 
         // Where the plan also sums those semesters one by one, the finer statement says more.
         let mut finer = totals.clone();
@@ -2107,6 +2126,14 @@ mod tests {
         assert_eq!(span_of([6.0, 6.0].into_iter()).as_deref(), Some("6"));
         assert_eq!(span_of([4.0, 6.0, 0.0].into_iter()).as_deref(), Some("4–6"));
         assert_eq!(span_of([0.0].into_iter()), None);
+    }
+}
+
+/// What a sum prints: a number, or the span the regulation prints in its place.
+fn printed_credits(total: &PlanTotal) -> String {
+    match total.is_span() {
+        true => format!("{}–{}", format::number(total.credits), format::number(total.credits_max)),
+        false => format::number(total.credits),
     }
 }
 

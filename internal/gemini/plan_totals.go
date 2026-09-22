@@ -31,8 +31,11 @@ type PlanTotal struct {
 	// last two columns of the plan covers both.
 	Start int `json:"start_semester"`
 	End   int `json:"end_semester"`
-	// Credits is what the plan prints.
-	Credits float64 `json:"credits"`
+	// Credits is what the plan prints — its lower bound where the plan prints a
+	// range („28 - 32 LP"), which some regulations do wherever a semester holds
+	// an elective budget.
+	Credits    float64 `json:"credits"`
+	CreditsMax float64 `json:"credits_max"`
 	// Min and Max are what its rows come to: Min from the rows that lie entirely
 	// inside these semesters, Max from those and whatever a row reaching into
 	// them could add. Credits always lies between the two.
@@ -69,9 +72,18 @@ func DerivePlanTotals(layout *PDFLayout) []PlanTotal {
 	for _, c := range effectiveCells(layout) {
 		counted[c.ID] = c
 	}
+	// A budget printed as „+6" under a sum that counts the compulsory modules
+	// only is part of the plan, and the „+" says how to read the line: the
+	// semester holds the printed sum and this on top of it.
+	budgets := map[string][]SourceCell{}
+	for _, c := range layout.Cells {
+		if c.Additional {
+			budgets[c.Table] = append(budgets[c.Table], c)
+		}
+	}
 	var out []PlanTotal
 	for _, table := range tablesOf(layout) {
-		out = append(out, planTotalsOfTable(layout, table, counted)...)
+		out = append(out, planTotalsOfTable(layout, table, counted, budgets[table])...)
 	}
 	return out
 }
@@ -97,7 +109,7 @@ type sumLine struct {
 	values []SourceCell
 }
 
-func planTotalsOfTable(layout *PDFLayout, table string, counted map[string]SourceCell) []PlanTotal {
+func planTotalsOfTable(layout *PDFLayout, table string, counted map[string]SourceCell, budgets []SourceCell) []PlanTotal {
 	// The rows of the table, in printing order, and the sums between them.
 	rows := map[int][]SourceCell{}
 	var cellRows []int
@@ -116,9 +128,8 @@ func planTotalsOfTable(layout *PDFLayout, table string, counted map[string]Sourc
 	var lines []*sumLine
 	for _, t := range layout.Totals {
 		// „Summe Aufwand" counts the work of a semester, not the credits booked
-		// in it — a plan may print both lines with different numbers — and a sum
-		// printed as a range says nothing exact enough to bind rows to.
-		if t.Table != table || t.RowIndex == 0 || t.Min != t.Max || isAufwandRow(t) {
+		// in it: a plan may print both lines with different numbers.
+		if t.Table != table || t.RowIndex == 0 || isAufwandRow(t) {
 			continue
 		}
 		line := byRow[t.RowIndex]
@@ -130,6 +141,9 @@ func planTotalsOfTable(layout *PDFLayout, table string, counted map[string]Sourc
 		line.values = append(line.values, t)
 	}
 	sort.Slice(lines, func(i, j int) bool { return lines[i].row < lines[j].row })
+	if len(lines) == 0 {
+		return panelTotalsOfTable(layout, table, counted)
+	}
 
 	// Blocks of rows that a sum has already been bound to, oldest first. A sum
 	// that its own rows do not explain takes the block before it as well.
@@ -150,7 +164,7 @@ func planTotalsOfTable(layout *PDFLayout, table string, counted map[string]Sourc
 					members = append(members, rows[row]...)
 				}
 			}
-			if explains(members, line.values, counted) {
+			if explains(members, line.values, counted, budgets, compulsoryTotal.MatchString(line.label)) {
 				break
 			}
 			if absorbed >= len(blocks) {
@@ -167,14 +181,28 @@ func planTotalsOfTable(layout *PDFLayout, table string, counted map[string]Sourc
 		blocks = append(blocks, block{from, line.row})
 		boundary = line.row
 		whole := totalRow.MatchString(line.label)
+		compulsory := compulsoryTotal.MatchString(line.label)
 		for _, value := range line.values {
 			start, end := value.Semesters[0], value.Semesters[len(value.Semesters)-1]
 			total := PlanTotal{ID: value.ID, Table: table, Label: line.label, WholePlan: whole,
-				Start: start, End: end, Credits: value.Min, Page: value.Page, Raw: value.Raw}
+				Start: start, End: end, Credits: value.Min, CreditsMax: value.Max, Page: value.Page, Raw: value.Raw}
+			// „Summe LP (Pflichtmodule) 24" with „+ Wahlpflichtmodule +6" under it
+			// is a semester of 30 LP: the „+" is the plan's own arithmetic, and the
+			// elective rows above are the choices that budget stands for, not
+			// requirements of their own.
+			for _, b := range budgets {
+				if compulsory && within(b, start, end) {
+					total.Members = append(total.Members, b.ID)
+					total.Credits += b.Min
+					total.CreditsMax += b.Max
+					total.Min += b.Min
+					total.Max += b.Max
+				}
+			}
 			ranged, spilling := false, false
 			for _, m := range members {
 				c, ok := counted[m.ID]
-				if !ok {
+				if !ok || (compulsory && c.Elective) {
 					continue
 				}
 				switch {
@@ -209,7 +237,7 @@ func planTotalsOfTable(layout *PDFLayout, table string, counted map[string]Sourc
 // does belong to the line as a whole, and a block that holds a row outside the
 // semesters of the whole line reaches further than that line sums: such a block
 // is not what this sum is about.
-func explains(members []SourceCell, values []SourceCell, counted map[string]SourceCell) bool {
+func explains(members []SourceCell, values []SourceCell, counted map[string]SourceCell, budgets []SourceCell, compulsory bool) bool {
 	if len(members) == 0 || len(values) == 0 {
 		return false
 	}
@@ -226,9 +254,18 @@ func explains(members []SourceCell, values []SourceCell, counted map[string]Sour
 	for _, value := range values {
 		start, end := value.Semesters[0], value.Semesters[len(value.Semesters)-1]
 		low, high := 0.0, 0.0
+		printedLo, printedHi := value.Min, value.Max
+		for _, b := range budgets {
+			if compulsory && within(b, start, end) {
+				low += b.Min
+				high += b.Max
+				printedLo += b.Min
+				printedHi += b.Max
+			}
+		}
 		for _, m := range members {
 			c, ok := counted[m.ID]
-			if !ok {
+			if !ok || (compulsory && c.Elective) {
 				continue
 			}
 			switch {
@@ -239,7 +276,9 @@ func explains(members []SourceCell, values []SourceCell, counted map[string]Sour
 				high += c.Max
 			}
 		}
-		if value.Min < low-0.01 || value.Min > high+0.01 {
+		// Both sides may be ranges — the printed sum where the plan prints one, the
+		// rows where they are budgets — so they have to meet, not to be equal.
+		if printedHi < low-0.01 || printedLo > high+0.01 {
 			return false
 		}
 	}
@@ -272,11 +311,15 @@ func (t PlanTotal) Describe() string {
 	if t.End != t.Start {
 		where = fmt.Sprintf("semesters %d-%d", t.Start, t.End)
 	}
+	printed := trimFloat(t.Credits)
+	if t.CreditsMax-t.Credits > 0.01 {
+		printed += "–" + trimFloat(t.CreditsMax)
+	}
 	if t.Choice {
 		return fmt.Sprintf("%s: %s together %s LP in %s; their own ranges allow %s–%s LP.", t.Label,
-			plural(len(t.Members), "requirement"), trimFloat(t.Credits), where, trimFloat(t.Min), trimFloat(t.Max))
+			plural(len(t.Members), "requirement"), printed, where, trimFloat(t.Min), trimFloat(t.Max))
 	}
-	return fmt.Sprintf("%s: %s together %s LP in %s.", t.Label, plural(len(t.Members), "requirement"), trimFloat(t.Credits), where)
+	return fmt.Sprintf("%s: %s together %s LP in %s.", t.Label, plural(len(t.Members), "requirement"), printed, where)
 }
 
 func plural(n int, word string) string {
@@ -291,4 +334,56 @@ func trimFloat(v float64) string {
 		return fmt.Sprintf("%d", int(math.Round(v)))
 	}
 	return strings.TrimRight(fmt.Sprintf("%.1f", v), "0")
+}
+
+// panelTotalsOfTable reads a plan printed as one miniature table per semester
+// („1. Semester … LP 30" beside it, pdf_panels.go). There is no row order to walk:
+// a panel's sum stands beside its own panel and counts exactly the requirements in
+// it, so each sum is bound to the cells of its semesters directly. The value still
+// has to be reached by those cells, as everywhere else.
+func panelTotalsOfTable(layout *PDFLayout, table string, counted map[string]SourceCell) []PlanTotal {
+	var cells, totals []SourceCell
+	for _, c := range layout.Cells {
+		if c.Table == table {
+			cells = append(cells, c)
+		}
+	}
+	for _, t := range layout.Totals {
+		if t.Table == table && !isAufwandRow(t) && len(t.Semesters) > 0 {
+			totals = append(totals, t)
+		}
+	}
+	if len(cells) == 0 || len(totals) == 0 {
+		return nil
+	}
+	var out []PlanTotal
+	for _, value := range totals {
+		start, end := value.Semesters[0], value.Semesters[len(value.Semesters)-1]
+		total := PlanTotal{ID: value.ID, Table: table, Label: strings.TrimSpace(value.Row),
+			WholePlan: totalRow.MatchString(value.Row), Start: start, End: end,
+			Credits: value.Min, CreditsMax: value.Max, Page: value.Page, Raw: value.Raw}
+		ranged, spilling := false, false
+		for _, m := range cells {
+			c, ok := counted[m.ID]
+			if !ok {
+				continue
+			}
+			switch {
+			case within(m, start, end):
+				total.Members = append(total.Members, m.ID)
+				total.Min += c.Min
+				total.Max += c.Max
+				ranged = ranged || c.Max-c.Min > 0.01
+			case reaches(m, start, end):
+				total.Max += c.Max
+				spilling = true
+			}
+		}
+		if value.Max < total.Min-0.01 || value.Min > total.Max+0.01 {
+			continue // the panel's own requirements do not reach what it prints
+		}
+		total.Choice = ranged && !spilling
+		out = append(out, total)
+	}
+	return out
 }

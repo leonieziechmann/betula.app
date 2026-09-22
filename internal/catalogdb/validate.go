@@ -98,10 +98,12 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 	// whole point of plan_total is that a plan with elective budgets can be added
 	// up. A sum outside the interval of its own rows would be a misread cell.
 	v.count("plan totals their own rows cannot reach", StatusFail, `
-		SELECT COUNT(*) FROM plan_total WHERE credits < min_credits - 0.01 OR credits > max_credits + 0.01`,
+		SELECT COUNT(*) FROM plan_total WHERE credits_max < min_credits - 0.01 OR credits > max_credits + 0.01`,
 		`SELECT program_id || ' ' || label || ' (' || start_semester || '-' || end_semester || '): ' || credits
-		 || ' LP, rows give ' || min_credits || '-' || max_credits FROM plan_total
-		 WHERE credits < min_credits - 0.01 OR credits > max_credits + 0.01 ORDER BY 1`)
+		 || '-' || credits_max || ' LP, rows give ' || min_credits || '-' || max_credits FROM plan_total
+		 WHERE credits_max < min_credits - 0.01 OR credits > max_credits + 0.01 ORDER BY 1`)
+	v.count("plans whose regulation prints a span instead of a sum", StatusInfo,
+		"SELECT COUNT(DISTINCT program_id) FROM plan_total WHERE credits_max - credits > 0.01", "")
 	v.count("plan totals whose row count does not match their rows", StatusFail, `
 		SELECT COUNT(*) FROM plan_total t
 		WHERE t.entry_count <> (SELECT COUNT(*) FROM plan_total_entry te WHERE te.program_id = t.program_id AND te.total_ord = t.ord)`, "")

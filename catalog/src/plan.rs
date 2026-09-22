@@ -438,20 +438,22 @@ pub fn totals_of_variant<'a>(totals: &'a [PlanTotal], specialization: &str) -> V
         .collect()
 }
 
-/// What the whole plan comes to, as the regulation prints it: its own semester sums, each
-/// counted once. `None` where the plan prints none — the rows are then all there is.
-pub fn stated_credits(totals: &[&PlanTotal]) -> Option<f64> {
+/// What the whole plan comes to, as the regulation prints it: its own semester sums, each counted
+/// once. The two ends differ where the regulation prints a span for a semester instead of a number.
+/// `None` where the plan prints no sums at all — the rows are then all there is.
+pub fn stated_credits(totals: &[&PlanTotal]) -> Option<(f64, f64)> {
     let mut covered: Vec<(i64, i64)> = Vec::new();
-    let mut sum = 0.0;
+    let (mut low, mut high) = (0.0, 0.0);
     for total in whole_plan_totals(totals) {
         let overlaps = covered.iter().any(|(from, to)| total.start_semester <= *to && total.end_semester >= *from);
         if overlaps {
             continue;
         }
         covered.push((total.start_semester, total.end_semester));
-        sum += total.credits;
+        low += total.credits;
+        high += total.credits_max;
     }
-    (!covered.is_empty()).then_some(sum)
+    (!covered.is_empty()).then_some((low, high))
 }
 
 /// The plan's own sums, widest span first and, for the same span, the one that counts the most
@@ -463,12 +465,13 @@ fn whole_plan_totals<'a>(totals: &[&'a PlanTotal]) -> Vec<&'a PlanTotal> {
     out
 }
 
-/// What the plan states for exactly these semesters, if it states anything.
-pub fn stated_for_span(totals: &[&PlanTotal], from: i64, to: i64) -> Option<f64> {
+/// What the plan states for exactly these semesters, if it states anything: a number, or the span
+/// the regulation prints in its place.
+pub fn stated_for_span(totals: &[&PlanTotal], from: i64, to: i64) -> Option<(f64, f64)> {
     whole_plan_totals(totals)
         .into_iter()
         .find(|total| total.start_semester == from && total.end_semester == to)
-        .map(|total| total.credits)
+        .map(|total| (total.credits, total.credits_max))
 }
 
 /// The sum that ties a row to the other rows it is chosen with: the one over the fewest rows that
@@ -512,6 +515,7 @@ mod tests {
             credits,
             min_credits: min,
             max_credits: max,
+            credits_max: credits,
             is_choice: max - min > 0.01,
             entry_count: entries.len() as i64,
             entries: entries.to_vec(),
@@ -531,8 +535,8 @@ mod tests {
             total("Summe Komplexe des Fachstudiums", "section", 5, 6, 44.0, 30.0, 72.0, &[5, 6, 7]),
         ];
         let all: Vec<&PlanTotal> = totals.iter().collect();
-        assert_eq!(stated_credits(&all), Some(180.0));
-        assert_eq!(stated_for_span(&all, 5, 6), Some(60.0));
+        assert_eq!(stated_credits(&all), Some((180.0, 180.0)));
+        assert_eq!(stated_for_span(&all, 5, 6), Some((60.0, 60.0)));
         assert_eq!(stated_for_span(&all, 5, 5), None, "the plan sums 5 and 6 together and says nothing about either alone");
         assert_eq!(stated_credits(&[]), None, "a plan that prints no sums is added up from its rows");
 
@@ -549,8 +553,8 @@ mod tests {
         let mine = PlanTotal { specialization: Some(MIT_EET.to_string()), ..total("Summe Studium", "plan", 1, 1, 30.0, 30.0, 30.0, &[1]) };
         let other = PlanTotal { specialization: Some(PA_IOT.to_string()), ..total("Summe Studium", "plan", 1, 1, 28.0, 28.0, 28.0, &[2]) };
         let totals = vec![mine, other];
-        assert_eq!(stated_credits(&totals_of_variant(&totals, MIT_EET)), Some(30.0));
-        assert_eq!(stated_credits(&totals_of_variant(&totals, PA_IOT)), Some(28.0));
+        assert_eq!(stated_credits(&totals_of_variant(&totals, MIT_EET)), Some((30.0, 30.0)));
+        assert_eq!(stated_credits(&totals_of_variant(&totals, PA_IOT)), Some((28.0, 28.0)));
     }
 
     #[test]

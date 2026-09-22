@@ -397,8 +397,11 @@ pub struct PlanTotal {
     pub start_semester: i64,
     /// The same as `start_semester` unless the sum stands over a merged column.
     pub end_semester: i64,
-    /// What the regulation prints.
+    /// What the regulation prints. Some print a span instead of a number wherever a semester
+    /// holds an elective budget („28 – 32 LP"); `credits_max` is then the upper end of it, and
+    /// equal to `credits` otherwise.
     pub credits: f64,
+    pub credits_max: f64,
     /// What its rows come to: `min_credits` from the rows that lie entirely inside these
     /// semesters, `max_credits` from those and whatever a row reaching into them could add.
     /// `credits` always lies between the two.
@@ -413,6 +416,11 @@ pub struct PlanTotal {
 }
 
 impl PlanTotal {
+    /// Whether the regulation prints a span here instead of a number.
+    pub fn is_span(&self) -> bool {
+        self.credits_max - self.credits > 0.01
+    }
+
     /// Whether this sum counts everything its semesters hold.
     pub fn is_whole_plan(&self) -> bool {
         self.scope.is(PlanTotalScope::Plan)
@@ -429,6 +437,7 @@ impl FromRow for PlanTotal {
             start_semester: row.int("start_semester")?,
             end_semester: row.int("end_semester")?,
             credits: row.real("credits")?,
+            credits_max: row.real("credits_max")?,
             min_credits: row.real("min_credits")?,
             max_credits: row.real("max_credits")?,
             is_choice: row.opt_flag("is_choice")?.unwrap_or(false),

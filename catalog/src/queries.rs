@@ -447,7 +447,7 @@ pub fn program_plan_totals(db: &dyn Database, program_id: &str) -> Result<Vec<Pl
     let mut totals: Vec<PlanTotal> = fetch(
         db,
         "program_plan_totals",
-        "SELECT ord, label, scope, specialization, start_semester, end_semester, credits, \
+        "SELECT ord, label, scope, specialization, start_semester, end_semester, credits, credits_max, \
          min_credits, max_credits, is_choice, entry_count FROM v_program_plan_total WHERE program_id = ? ORDER BY ord",
         &[Value::from(program_id)],
     )?;

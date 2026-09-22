@@ -28,6 +28,7 @@ type PlanTotal struct {
 	StartSemester  int
 	EndSemester    int
 	Credits        float64
+	CreditsMax     float64
 	MinCredits     float64
 	MaxCredits     float64
 	// IsChoice marks a sum that is the only statement of how much its rows count
@@ -125,9 +126,9 @@ func savePlanTotalsTx(tx *sql.Tx, p Plan) error {
 	totals, err := tx.Prepare(`
 		INSERT INTO plan_total (
 			program_id, ord, label, scope, specialization,
-			start_semester, end_semester, credits, min_credits, max_credits,
+			start_semester, end_semester, credits, credits_max, min_credits, max_credits,
 			is_choice, entry_count, source_evidence
-		) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?)`)
+		) VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?)`)
 	if err != nil {
 		return err
 	}
@@ -146,7 +147,7 @@ func savePlanTotalsTx(tx *sql.Tx, p Plan) error {
 			return fmt.Errorf("plan %s: total %d has scope %q", p.ProgramID, i+1, t.Scope)
 		}
 		if _, err := totals.Exec(p.ProgramID, i+1, t.Label, t.Scope, nullIfZero(t.Specialization),
-			t.StartSemester, t.EndSemester, t.Credits, t.MinCredits, t.MaxCredits,
+			t.StartSemester, t.EndSemester, t.Credits, t.CreditsMax, t.MinCredits, t.MaxCredits,
 			boolToInt(t.IsChoice), len(t.Entries), nullIfZero(t.SourceEvidence)); err != nil {
 			return fmt.Errorf("plan %s: total %d: %w", p.ProgramID, i+1, err)
 		}

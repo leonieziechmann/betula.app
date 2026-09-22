@@ -330,7 +330,10 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   says so where a plan has modules over several semesters.
   A row that prints a range says in its panel which rows it is chosen with and what they come to
   together („zusammen 44 LP … einzeln 30 bis 72 LP"), each of them a link to its own row: that is
-  the only statement the sources make about how such a budget is split.
+  the only statement the sources make about how such a budget is split. Where a regulation prints
+  a span for a whole semester instead of a number, because several of its rows are budgets, the
+  program's LP are that span („116–126 LP", Angewandte Mathematik M.Sc.) — a number the sources
+  do not state is not put in its place.
   **The page has a panel on the right** (`ui::Frame`'s `aside`, as wide as the catalog's preview,
   same handle, same remembered width): a module clicked in any of the three views opens in it
   (`?open=<id>`, the same panel as in the catalog, so a module reads the same wherever it is

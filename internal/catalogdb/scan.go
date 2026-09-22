@@ -122,7 +122,7 @@ func PlanFromModules(programID, sourceFile, layoutJSON string, modules []model.C
 		p.Totals = append(p.Totals, PlanTotal{
 			Label: t.Label, Scope: t.Scope, Specialization: t.Specialization,
 			StartSemester: t.StartSemester, EndSemester: t.EndSemester,
-			Credits: t.Credits, MinCredits: t.MinCredits, MaxCredits: t.MaxCredits,
+			Credits: t.Credits, CreditsMax: t.CreditsMax, MinCredits: t.MinCredits, MaxCredits: t.MaxCredits,
 			IsChoice: t.IsChoice, SourceEvidence: t.SourceEvidence, Entries: t.Entries,
 		})
 	}

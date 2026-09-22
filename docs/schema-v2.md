@@ -200,12 +200,27 @@ is kept all the same, because it is the only thing the plan says about that seme
 
 What this gives a reader: the credits of a program are the plan's own sums (180, not 166), a
 semester printed as a merged column has its figure, and a row with a range names the rows it is
-chosen with and what they come to together. Of the 139 plans of 2026-09-22, 122 state what they
-add up to.
+chosen with and what they come to together.
 
 A „Summe Aufwand" line is not one of them: it counts the work of a semester, not the credits
 booked in it, and a plan may print both with different numbers (Elektrotechnik 2022 prints 27 and
 24 for its second semester). The reader keeps the credit line.
+
+Three ways of printing a sum took their own reading:
+
+- **A sum over the compulsory modules with a budget under it.** Städtebau und Stadtplanung 2019
+  prints „Summe LP (Pflichtmodule) 27 33 33 27 24 24" and, beneath it, „+ Wahlpflichtmodule (12 LP
+  müssen insg. belegt werden) … +6 +6". The elective rows above are the choices that budget stands
+  for, not requirements of their own, and the „+" is the plan's own arithmetic: the fifth semester
+  holds 24 + 6 = 30 LP. Adding every row instead made that degree 228 LP; it is 180.
+- **A plan of panels.** Medizininformatik 2016 prints one miniature table per semester with its
+  own „LP 28" beside it (`pdf_panels.go`). There is no row order to walk, so each sum is bound to
+  the requirements of its own panel directly.
+- **A sum that is itself a span.** Angewandte Mathematik 2019 prints „28 - 32" where other plans
+  print a number, because several of its rows are budgets. Both sides of the check are then
+  intervals and have to meet rather than to be equal; `credits`/`credits_max` keep what was
+  printed. That degree states 116–126 LP, which is what the page now says — adding the rows' lower
+  bounds said 110.
 
 ### Plans the reader passed over (2026-09-22)
 

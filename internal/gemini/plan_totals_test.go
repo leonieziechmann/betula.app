@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -96,6 +97,109 @@ func TestThePlansOwnLinesSayMoreThanItsRows(t *testing.T) {
 	}
 	if stated != 80 || rows != 66 {
 		t.Fatalf("the plan states %v LP, its rows give %v (want 80 and 66)", stated, rows)
+	}
+}
+
+// Städtebau und Stadtplanung 2019 prints „Summe LP (Pflichtmodule) … 24 24" and, under it,
+// „+ Wahlpflichtmodule (12 LP müssen insg. belegt werden) … +6 +6". The elective rows above are
+// the choices that budget stands for; adding them all made the degree 228 LP instead of 180.
+func TestASumOverTheCompulsoryModulesReadsTheBudgetUnderIt(t *testing.T) {
+	elective := func(c SourceCell) SourceCell { c.Elective = true; return c }
+	budget := func(c SourceCell) SourceCell { c.Additional = true; c.Raw = "+6"; return c }
+	layout := &PDFLayout{
+		Cells: []SourceCell{
+			cell("p1", 2, "Pflichtmodul im 5.", []int{5}, 24, 24),
+			elective(cell("w1", 3, "Wahlpflicht A", []int{5}, 6, 6)),
+			elective(cell("w2", 4, "Wahlpflicht B", []int{5}, 6, 6)),
+			elective(cell("w3", 5, "Wahlpflicht C", []int{5}, 6, 6)),
+			budget(cell("b1", 7, "+ Wahlpflichtmodule (12 LP müssen insg. belegt werden)", []int{5}, 6, 6)),
+		},
+		Totals:    []SourceCell{total("t1", 6, "Summe LP (Pflichtmodule)", []int{5}, 24)},
+		PlanNames: map[string]string{"t": "Regelstudienplan"},
+	}
+	got := DerivePlanTotals(layout)
+	if len(got) != 1 {
+		t.Fatalf("got %d sums: %+v", len(got), got)
+	}
+	// The plan's own arithmetic: 24 printed, +6 budget, so the semester holds 30.
+	if got[0].Credits != 30 || got[0].Min != 30 || got[0].Max != 30 {
+		t.Errorf("semester total = %v (rows %v-%v), want 30", got[0].Credits, got[0].Min, got[0].Max)
+	}
+	members := append([]string(nil), got[0].Members...)
+	sort.Strings(members)
+	if !reflect.DeepEqual(members, []string{"b1", "p1"}) {
+		t.Errorf("counts %v; the elective rows are what the budget stands for, not requirements of their own", members)
+	}
+}
+
+// Medizininformatik prints one miniature table per semester, each with its own „LP 28" beside it.
+// Those sums stand next to their panel, not under a row, so there is no row order to walk.
+func TestAPlanOfPanelsBindsEachSumToItsOwnPanel(t *testing.T) {
+	panelCell := func(id string, semester int, credits float64) SourceCell {
+		c := cell(id, 0, "Modul "+id, []int{semester}, credits, credits)
+		c.Table = "p1panels"
+		return c
+	}
+	panelTotal := func(id string, semester int, credits float64) SourceCell {
+		c := panelCell(id, semester, credits)
+		c.Row = "Summe"
+		return c
+	}
+	layout := &PDFLayout{
+		Cells: []SourceCell{
+			panelCell("a", 1, 20), panelCell("b", 1, 8),
+			panelCell("c", 2, 32),
+		},
+		Totals:    []SourceCell{panelTotal("s1", 1, 28), panelTotal("s2", 2, 32)},
+		PlanNames: map[string]string{"p1panels": "Regelstudienplan"},
+	}
+	got := DerivePlanTotals(layout)
+	if len(got) != 2 || got[0].Credits != 28 || got[1].Credits != 32 {
+		t.Fatalf("panel sums: %+v", got)
+	}
+	if len(got[0].Members) != 2 || len(got[1].Members) != 1 {
+		t.Errorf("a panel's sum counts its own panel: %v / %v", got[0].Members, got[1].Members)
+	}
+	// A panel whose modules do not reach what it prints is not bound to them.
+	layout.Totals[0].Min, layout.Totals[0].Max = 99, 99
+	if got := DerivePlanTotals(layout); len(got) != 1 {
+		t.Errorf("an unexplained panel sum was kept: %+v", got)
+	}
+}
+
+// Angewandte Mathematik 2019 prints „28 - 32" where other plans print one number: several of its
+// rows are budgets, so the semester itself is a span. Skipping those lines made the degree 110 LP
+// instead of the 116-126 it states.
+func TestAPrintedSumMayItselfBeASpan(t *testing.T) {
+	span := func(id string, row int, label string, semesters []int, lo, hi float64) SourceCell {
+		c := cell(id, row, label, semesters, lo, hi)
+		c.Raw = fmt.Sprintf("%v - %v", lo, hi)
+		return c
+	}
+	layout := &PDFLayout{
+		Cells: []SourceCell{
+			cell("c1", 2, "Modul aus dem Komplex Optimierung", []int{1}, 12, 12),
+			cell("c2", 3, "Modul aus dem Komplex Numerik", []int{1}, 6, 8),
+			span("c3", 4, "Schwerpunkt", []int{1}, 10, 14),
+		},
+		Totals:    []SourceCell{span("t1", 5, "Summe", []int{1}, 28, 32)},
+		PlanNames: map[string]string{"t": "Regelstudienplan"},
+	}
+	got := DerivePlanTotals(layout)
+	if len(got) != 1 {
+		t.Fatalf("the span was not read: %+v", got)
+	}
+	if got[0].Credits != 28 || got[0].CreditsMax != 32 {
+		t.Errorf("printed span = %v-%v, want 28-32", got[0].Credits, got[0].CreditsMax)
+	}
+	// Both sides are ranges, so they have to meet, not to be equal: the rows give 28-34 here.
+	if got[0].Min != 28 || got[0].Max != 34 {
+		t.Errorf("its rows give %v-%v, want 28-34", got[0].Min, got[0].Max)
+	}
+	// Two spans that do not meet are still no binding.
+	layout.Totals[0].Min, layout.Totals[0].Max = 40, 44
+	if got := DerivePlanTotals(layout); len(got) != 0 {
+		t.Errorf("a span its rows cannot reach was kept: %+v", got)
 	}
 }
 

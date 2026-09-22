@@ -26,7 +26,8 @@ CREATE TABLE plan_total (
 	specialization  TEXT,                      -- the plan variant this sum belongs to, where the document prints several
 	start_semester  INTEGER NOT NULL,
 	end_semester    INTEGER NOT NULL,          -- equals start_semester unless the sum covers a merged column
-	credits         REAL    NOT NULL,          -- what the plan prints
+	credits         REAL    NOT NULL,          -- what the plan prints …
+	credits_max     REAL    NOT NULL,          -- … and the upper bound where it prints a range („28 - 32 LP"); equal to credits otherwise
 	min_credits     REAL    NOT NULL,          -- what the rows inside these semesters come to …
 	max_credits     REAL    NOT NULL,          -- … and what they and a row reaching into them could come to
 	is_choice       INTEGER NOT NULL CHECK (is_choice IN (0, 1)),  -- every row named lies inside, and one of them prints a range: this sum is the only statement of how much they count for
@@ -48,7 +49,7 @@ CREATE INDEX plan_total_entry_by_entry ON plan_total_entry (program_id, entry_or
 -- The sums of a plan, in the order the document prints them.
 CREATE VIEW v_program_plan_total AS
 SELECT t.program_id, t.ord, t.label, t.scope, t.specialization,
-       t.start_semester, t.end_semester, t.credits, t.min_credits, t.max_credits,
+       t.start_semester, t.end_semester, t.credits, t.credits_max, t.min_credits, t.max_credits,
        t.is_choice, t.entry_count, t.source_evidence
 FROM plan_total t;
 
