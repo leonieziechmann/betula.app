@@ -45,6 +45,17 @@ opt-level = 3
 [profile.release]
 lto = "thin"
 
+# The browser app while working on it: built in seconds, not in minutes. Everything
+# `wasm-release` does for size (opt-level "z", fat LTO, a single codegen unit) is slow and
+# none of it helps while iterating. `scripts/build-client.sh --dev` builds with this one.
+[profile.wasm-dev]
+inherits = "dev"
+# Not 0: unoptimised the bundle is 39 MB (155 MB once wasm-bindgen has run), which the browser
+# then has to parse on every reload. opt-level 1 costs a second per rebuild and keeps it at 12 MB.
+opt-level = 1
+# Localhost only, and the Rust names stay in the WASM anyway: debug info would just add weight.
+debug = false
+
 # The WASM bundle of the browser app: size first.
 [profile.wasm-release]
 inherits = "release"
