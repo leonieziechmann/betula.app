@@ -788,19 +788,20 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .intro-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .intro-actions .btn { min-height: 46px; padding: 0 18px; font-size: 14.5px; }
 .intro-actions .btn .icon { width: 17px; height: 17px; }
-/* The figures, bare, on birch bark (--bark: light in both themes, as in the mark). Each is set so
-   large that all of them are about equally wide (--em, its width in units of its size, home.rs);
-   a single digit grows no larger than three would. Quiet: a moderate weight, not the ink's full
-   black. Between them thin rules, and on each a stroke of bark from alternating edges, the
-   strokes of the mark (13, 9 and 5 of 32). On a narrow page they stand under the text, the number
-   over its name. */
-.birch { container: birch / inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--line); background: var(--bark); color: var(--bark-ink); --fig-w: 50cqi; --rule: color-mix(in srgb, var(--bark-ink) 11%, transparent); }
+/* The figures, bare, in the colours of the theme: on the panel, in its text (owner, 2026-09-22;
+   before, they stood on --bark, light in both themes like the mark, a bright block on a dark page).
+   Each is set so large that all of them are about equally wide (--em, its width in units of its
+   size, home.rs); a single digit grows no larger than three would. Quiet: a moderate weight, not
+   the text's full strength. Between them thin rules, and on each a stroke of bark from alternating
+   edges, the strokes of the mark (13, 9 and 5 of 32). On a narrow page they stand under the text,
+   the number over its name. */
+.birch { container: birch / inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--line); --fig-w: 50cqi; --rule: color-mix(in srgb, var(--text) 11%, transparent); }
 .birch > div { position: relative; min-width: 0; display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 4px; padding: 14px 12px 14px 20px; container-type: inline-size; }
 .birch > div + div { border-left: 1px solid var(--rule); }
-.birch dd { margin: 0; color: color-mix(in srgb, var(--bark-ink) 86%, var(--bark)); font-size: calc(var(--fig-w) / max(var(--em), 1.74)); font-weight: 640; line-height: .92; letter-spacing: -.035em; white-space: nowrap; }
-.birch dt { color: color-mix(in srgb, var(--bark-ink) 66%, var(--bark)); font-size: 12.5px; font-weight: 580; line-height: 1.3; }
-.birch dt small { display: block; color: color-mix(in srgb, var(--bark-ink) 46%, var(--bark)); font-size: 11.5px; font-weight: 500; }
-.birch > div + div::before { content: ""; position: absolute; top: 0; left: 0; width: 40%; height: 3px; border-radius: 0 0 2px 0; background: var(--bark-ink); }
+.birch dd { margin: 0; color: color-mix(in srgb, var(--text) 86%, var(--panel)); font-size: calc(var(--fig-w) / max(var(--em), 1.74)); font-weight: 640; line-height: .92; letter-spacing: -.035em; white-space: nowrap; }
+.birch dt { color: color-mix(in srgb, var(--text) 66%, var(--panel)); font-size: 12.5px; font-weight: 580; line-height: 1.3; }
+.birch dt small { display: block; color: color-mix(in srgb, var(--text) 46%, var(--panel)); font-size: 11.5px; font-weight: 500; }
+.birch > div + div::before { content: ""; position: absolute; top: 0; left: 0; width: 40%; height: 3px; border-radius: 0 0 2px 0; background: var(--text); }
 .birch > div:nth-child(3)::before { width: 28%; }
 .birch > div:nth-child(4)::before { width: 16%; }
 

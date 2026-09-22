@@ -556,11 +556,13 @@ that behaves like one for pictures, more questions; round 4: the figures bare be
 „birch feeling", no example searches, snappy motion, autoplay with a pause button, the map dialog
 for wide screens, the page still behind it).** The first panel is flat: text and the two buttons on
 the left, the four figures on the right from a container width of 700 px on (the owner's notebook),
-under the text below it. The figures (`dl.birch`) stand on birch bark (`--bark`, light in both
-themes like the mark), one under the other with thin rules, and on each rule a stroke from
-alternating edges, the strokes of the mark; each number is set so large that all of them are about
-equally wide (`--em`, its width in units of its size, from `figure_em`; a single digit grows only
-as large as three), quiet in weight and colour (owner: „kleiner und etwas dezenter"). Under it a
+under the text below it. The figures (`dl.birch`) stand on the panel in the colours of the theme
+(owner, 2026-09-22: „sollten sich mit dem Thema anpassen", only the colours; until then they stood
+on `--bark`, light in both themes like the mark, a bright block on a dark page), one under the
+other with thin rules, and on each rule a stroke from alternating edges, the strokes of the mark;
+each number is set so large that all of them are about equally wide (`--em`, its width in units of
+its size, from `figure_em`; a single digit grows only as large as three), quiet in weight and
+colour (owner: „kleiner und etwas dezenter"). Under it a
 **carousel**: the map, then screenshots of the catalog, a study plan and a module page
 (`app/assets/shots/*.webp`, light and dark, wide and phone, made by
 `node e2e/showcase-shots.mjs <base-url>`, embedded in the binary, served under `/assets/shots/`; run
