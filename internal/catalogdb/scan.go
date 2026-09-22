@@ -105,8 +105,9 @@ func (db *DB) HasPlan(programID string) (bool, error) {
 	return exists, err
 }
 
-// PlanFromModules converts the rows of a validated extraction into a plan.
-func PlanFromModules(programID, sourceFile, layoutJSON string, modules []model.CurriculumModule) Plan {
+// PlanFromModules converts the rows of a validated extraction, and the sums the
+// regulation prints over them, into a plan.
+func PlanFromModules(programID, sourceFile, layoutJSON string, modules []model.CurriculumModule, totals []model.CurriculumTotal) Plan {
 	p := Plan{ProgramID: programID, SourceFile: sourceFile, LayoutJSON: layoutJSON}
 	for _, m := range modules {
 		p.Entries = append(p.Entries, PlanEntry{
@@ -115,6 +116,14 @@ func PlanFromModules(programID, sourceFile, layoutJSON string, modules []model.C
 			SemesterSpan: m.SemesterSpan, Credits: m.Credits, MinCredits: m.MinCredits, MaxCredits: m.MaxCredits,
 			KindRaw: m.ModuleType, StudySection: m.StudySection, SubjectArea: m.SubjectArea,
 			AreaRules: m.AreaRules, Specialization: m.Specialization, SourceEvidence: m.SourceEvidence,
+		})
+	}
+	for _, t := range totals {
+		p.Totals = append(p.Totals, PlanTotal{
+			Label: t.Label, Scope: t.Scope, Specialization: t.Specialization,
+			StartSemester: t.StartSemester, EndSemester: t.EndSemester,
+			Credits: t.Credits, MinCredits: t.MinCredits, MaxCredits: t.MaxCredits,
+			IsChoice: t.IsChoice, SourceEvidence: t.SourceEvidence, Entries: t.Entries,
 		})
 	}
 	return p

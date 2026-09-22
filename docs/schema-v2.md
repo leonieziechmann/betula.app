@@ -8,7 +8,7 @@
 ```
 crawl-qis-modules, crawl-modules, crawl-tree, crawl-events ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
       (network)                 (archive)   (no network, deterministic)       (gate)      snapshot/     ETag / 304
-scan-curriculum ──▶ plan, plan_entry  (validated PDF plans, a source of their own)
+scan-curriculum ──▶ plan, plan_entry, plan_total  (validated PDF plans, a source of their own)
 ```
 
 | Step | Command | Package | Notes |
@@ -47,6 +47,7 @@ and the `plan*` tables is derived and replaced by each build.
 | `module_program_ref` | every „Zuordnung zu Studiengängen" triple with `resolve_status` (`resolved`, `abroad`, `unresolved`) | module page |
 | `program_module_assertion` | one row per statement "module M is in program P" per source, with `kind`, `kind_basis` (`stated`/`inferred`) and area | module page, QIS tree, validated plan |
 | `plan`, `plan_entry`, `plan_scan_status` | validated study plans; written transactionally by `SavePlan`, never touched by the build; not foreign-keyed to derived tables, so a plan survives an incomplete crawl | statute PDFs |
+| `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date | QIS event pages; the module page decides which events belong to a module |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
@@ -92,6 +93,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_program_module` | program × module | `program_id, module_id, relation, kind, kind_source, kind_basis, precedence, area, section, in_tree, on_module_page, in_plan, module_title, module_credits, offer_status, turnus_season, plan_semester` |
 | `v_program_module_area` | tree placement | `program_id, module_id, area_id, area, area_label, depth, area_ord, section, kind, kind_basis` |
 | `v_program_plan`, `v_program_plan_entry` | validated plan / plan row | layout JSON; `program_id, ord, module_id, module_code_raw, module_name, semester, start_semester, end_semester, semester_span, credits, min_credits, max_credits, kind, kind_raw, study_section, subject_area, area_rules, specialization, source_evidence, catalog_title, catalog_credits, credits_differ_from_catalog` |
+| `v_program_plan_total`, `v_program_plan_total_entry` | a printed sum of a plan / the rows it counts | `program_id, ord, label, scope, specialization, start_semester, end_semester, credits, min_credits, max_credits, is_choice, entry_count, source_evidence` — `program_id, total_ord, entry_ord` |
 | `v_program_version` | program × other PO | `program_id, other_id, other_slug, po_version, po_year, is_latest_po` |
 | `v_program_counterpart` | program × Bachelor/Master counterpart | `program_id, counterpart_id, counterpart_slug, counterpart_name, counterpart_level, counterpart_po_version, match_score` (take the highest) |
 | `v_program_document` | program × document | `program_id, ord, title, doc_type, url` |
@@ -174,6 +176,60 @@ Also done: **the v1 code is gone** (`internal/storage`, `web`, `refresher`, `pro
 the Gemini path was run against the API on 2026-09-19 (Informatik B.Sc., dry run: 23 entries, 9
 linked, identical to the stored plan). The API key moved from `config.yaml` into the secret
 sources of `docs/operations.md` §3.
+
+### What a plan adds up to (2026-09-22)
+
+A plan row may print a range instead of a number: Informatik 2008 asks for „Komplex Grundlagen
+der Informatik, 10-24 LP" three times. Adding the lower bounds made that degree 166 LP instead of
+180, and its last two semesters — printed as one merged column — had no sum at all. The
+regulation does state the answer, in the lines it prints over its own rows: „Summe Komplexe des
+Fachstudiums 44" over exactly those three rows, and „Summe Studium 32 28 30 30 60" over the whole
+table. Those lines were read and used to validate the extraction, and then thrown away.
+
+`plan_total` keeps them (`internal/gemini/plan_totals.go`). A plan is printed like an account
+sheet, so a line sums the rows between it and the line before it, and where that does not add up,
+the line before it as well — „Summe Grundstudium" stands over three „Summe Komplex …" lines. The
+binding is kept only where the rows reach the printed value: exactly, or within the range their
+own budgets leave open. A sum nothing explains is dropped rather than guessed at, which `validate`
+checks again over the stored rows.
+
+A module over several semesters belongs to none of them alone, so it only raises the upper bound
+of a semester it reaches into — the same arithmetic the validation of the printed totals uses. A
+semester whose modules all reach into it that way names no row (`entry_count` 0); its printed sum
+is kept all the same, because it is the only thing the plan says about that semester.
+
+What this gives a reader: the credits of a program are the plan's own sums (180, not 166), a
+semester printed as a merged column has its figure, and a row with a range names the rows it is
+chosen with and what they come to together. Of the 139 plans of 2026-09-22, 129 state what they
+add up to.
+
+A „Summe Aufwand" line is not one of them: it counts the work of a semester, not the credits
+booked in it, and a plan may print both with different numbers (Elektrotechnik 2022 prints 27 and
+24 for its second semester). The reader keeps the credit line.
+
+### Plans the reader passed over (2026-09-22)
+
+Two documents held a study plan the reader would not take:
+
+- **Elektrotechnik dual (ausbildungsintegrierend), PO 2022.** Its Anlage b.2 heads one table with
+  „im dualen praxisintegrierenden **und** im dualen ausbildungsintegrierenden Studium" and tells
+  the two apart inside the table. The heading was read as the first of the two modes it names, so
+  both tracks were labelled „praxisintegrierend" and the program's own plan was dropped as the
+  wrong variant. A title naming both now names the dual study as such, and a track that names its
+  own mode keeps that name (`dualMode`, `selectProgramMode`).
+- **Physics M.Sc., PO 2021.** Its plan is one box per semester column, with „Specialization
+  Phase" and „Research Phase" printed over the columns and a line labelled „Leistungspunkte"
+  instead of „Summe". Both were read as modules that had lost their credits, and the document was
+  sent to review. A row of boxes that names no credits anywhere is now a caption — kept as the
+  `study_section` of the modules under it — and the credit line is read as the sum it is. A box
+  that points at its credits („Entwurfsprojekt 1 (Gemäß Anlage 1, Nr. 1)") stays a requirement
+  even where the appendix was not read, so nothing disappears into a caption.
+
+Of the 182 program versions, 139 now have a validated plan. What the remaining 43 need is a
+different kind of reading, not a fix: plans that mark a semester with „X" and print the credits in
+a block column (Environmental and Resource Management), plans whose boxes carry no credits at all
+(World Heritage Studies, Urban Design), documents that publish only an amendment, and programs
+whose regulation has no plan table at all (Orientierungsstudium).
 
 Open:
 

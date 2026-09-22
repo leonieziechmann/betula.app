@@ -57,6 +57,10 @@ type CurriculumExtractionResult struct {
 	StandardPeriodSemesters int               `json:"standard_period_semesters,omitempty"`
 	TotalCredits            float64           `json:"total_credits,omitempty"`
 	Modules                 []ExtractedModule `json:"modules"`
+	// Totals are the sums the plan prints over its own rows, bound to the rows
+	// they count (plan_totals.go). They say what a plan with elective budgets
+	// adds up to, which its rows alone cannot.
+	Totals []PlanTotal `json:"totals,omitempty"`
 }
 
 // Client interacts with the Google Gemini API.

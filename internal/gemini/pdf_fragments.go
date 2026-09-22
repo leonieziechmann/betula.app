@@ -140,7 +140,15 @@ func appendTrackVariants(l *PDFLayout, t pdfTable, page, number int, workload, i
 		if l.PlanNames == nil {
 			l.PlanNames = map[string]string{}
 		}
-		l.PlanNames[table] = prefix + names[i]
+		// The prefix names the dual mode of the whole Anlage. Where the track
+		// inside the table names one itself, it is the more precise of the two
+		// and the prefix would only repeat it („Dual praxisintegrierend · Dual
+		// praxisintegrierend").
+		name := prefix + names[i]
+		if dualMode(names[i]) != "" {
+			name = names[i]
+		}
+		l.PlanNames[table] = name
 	}
 	return found
 }

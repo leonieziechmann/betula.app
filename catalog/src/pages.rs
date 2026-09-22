@@ -13,7 +13,7 @@ use crate::queries;
 use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
 use crate::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
-    ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
+    PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
 };
 use crate::url::{BookmarkSort, CatalogUrl, Season, PAGE_SIZE};
 
@@ -699,6 +699,8 @@ pub struct ProgramData {
     pub area_tree: Vec<AreaNode>,
     pub plan: Option<Plan>,
     pub plan_entries: Vec<PlanEntry>,
+    /// What the regulation says its plan adds up to, and which rows each sum counts.
+    pub plan_totals: Vec<PlanTotal>,
 }
 
 pub fn program(db: &dyn Database, slug: &str) -> Result<Option<ProgramData>, DbError> {
@@ -714,6 +716,7 @@ pub fn program(db: &dyn Database, slug: &str) -> Result<Option<ProgramData>, DbE
         area_tree: queries::program_area_tree(db, &id)?,
         plan: queries::program_plan(db, &id)?,
         plan_entries: queries::program_plan_entries(db, &id)?,
+        plan_totals: queries::program_plan_totals(db, &id)?,
         program,
     }))
 }

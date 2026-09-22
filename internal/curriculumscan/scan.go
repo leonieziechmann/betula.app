@@ -42,6 +42,7 @@ type Outcome struct {
 	Message    string
 	Source     string
 	Modules    []model.CurriculumModule
+	Totals     []model.CurriculumTotal
 	LayoutJSON string
 	Validation gemini.ValidationReport
 	Reviews    []gemini.AmendmentReview
@@ -225,6 +226,7 @@ func Scan(ctx context.Context, prog model.OfficialStudyProgram, catalog model.Cu
 		return out
 	}
 	out.Modules = BuildModules(prog, res, catalog, out.Source)
+	out.Totals = BuildTotals(res, out.Modules)
 	layout, _ := json.Marshal(res.Layout)
 	out.LayoutJSON = string(layout)
 	out.Status = StatusSaved
@@ -259,7 +261,50 @@ func BuildModules(prog model.OfficialStudyProgram, res *gemini.CurriculumExtract
 			ModuleType: m.ModuleType, StudySection: m.StudySection, SubjectArea: m.SubjectArea,
 			AreaRules: m.AreaRules, Specialization: m.Specialization, SWS: m.SWS, ExamType: m.ExamType,
 			Graded: m.Graded, Prerequisites: m.Prerequisites, Remarks: m.Remarks, SourceFile: source,
+			SourceCell: m.SourceCell,
 		})
 	}
 	return rows
+}
+
+// BuildTotals converts the sums the plan prints over its rows into database
+// rows. A sum names the cells it counts; the plan stores rows, so each cell is
+// resolved to the row it became. A sum whose rows are not all in the plan — a
+// table the layout dropped as a supplement — is left out rather than stored
+// with a hole in it.
+func BuildTotals(res *gemini.CurriculumExtractionResult, rows []model.CurriculumModule) []model.CurriculumTotal {
+	at := make(map[string]int, len(rows))
+	for i, row := range rows {
+		if row.SourceCell != "" {
+			at[row.SourceCell] = i + 1
+		}
+	}
+	var out []model.CurriculumTotal
+	for _, t := range res.Totals {
+		total := model.CurriculumTotal{
+			Label: t.Label, Scope: "section", StartSemester: t.Start, EndSemester: t.End,
+			Credits: t.Credits, MinCredits: t.Min, MaxCredits: t.Max, IsChoice: t.Choice, SourceEvidence: t.ID,
+		}
+		if t.WholePlan {
+			total.Scope = "plan"
+		}
+		if res.Layout != nil && len(res.Layout.PlanNames) > 1 {
+			total.Specialization = res.Layout.PlanNames[t.Table]
+		}
+		complete := true
+		for _, member := range t.Members {
+			ord, ok := at[member]
+			if !ok {
+				complete = false
+				break
+			}
+			total.Entries = append(total.Entries, ord)
+		}
+		if !complete {
+			continue
+		}
+		sort.Ints(total.Entries)
+		out = append(out, total)
+	}
+	return out
 }

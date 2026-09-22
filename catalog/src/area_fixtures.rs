@@ -201,6 +201,7 @@ pub const WIRTSCHAFTSINGENIEURWESEN_DUAL: &[Node] = &[
 /// A row of a plan that names no module, as `v_program_plan_entry` has it.
 pub fn row(name: &str, semester: i64, kind: Option<ModuleKind>, plan: Option<&str>) -> PlanEntry {
     PlanEntry {
+        ord: 1,
         module_id: None,
         module_name: name.to_string(),
         semester: Some(semester),

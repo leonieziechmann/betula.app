@@ -9,9 +9,24 @@ import (
 
 var statusCell = regexp.MustCompile(`^(?:P|WP|W|Prü|SL|P / Prü|P Prü|WP Prü|WP / Prü|Pflicht|Wahlpflicht)$`)
 
+// dualModeOf is the dual variant a plan name stands for. A name is read from
+// its most precise part: „Dual · Dual ausbildungsintegrierend" is the
+// ausbildungsintegrierend plan, and a caption that names both variants says
+// only that the table belongs to the dual study.
+func dualModeOf(name string) string {
+	mode := ""
+	for _, part := range strings.Split(name, "·") {
+		if m := dualMode(part); m != "" {
+			mode = m
+		}
+	}
+	return mode
+}
+
 func selectProgramMode(l *PDFLayout, hint string) {
 	hint = strings.ToLower(hint)
 	dual := strings.Contains(hint, "dual") || strings.Contains(hint, "praxisintegrier") || strings.Contains(hint, "ausbildungsintegrier")
+	hintMode := dualMode(hint)
 	extended := strings.Contains(hint, "erweitert") || strings.Contains(hint, "240")
 	remove := map[string]bool{}
 	hasDual, hasRegular := false, false
@@ -24,7 +39,9 @@ func selectProgramMode(l *PDFLayout, hint string) {
 		n := strings.ToLower(name)
 		isDual := strings.Contains(n, "dual")
 		isExtended := strings.Contains(n, "240 lp") || strings.Contains(n, "erweitert")
-		wrongDualMode := (strings.Contains(hint, "praxisintegrier") && strings.Contains(n, "ausbildungsintegrier")) || (strings.Contains(hint, "ausbildungsintegrier") && strings.Contains(n, "praxisintegrier"))
+		planMode := dualModeOf(name)
+		// Both name one of the two dual modes, and they disagree.
+		wrongDualMode := hintMode != "" && planMode != "" && hintMode != "Dual" && planMode != "Dual" && hintMode != planMode
 		if (hasDual && hasRegular && isDual != dual) || (strings.Contains(n, "grundlagenorientiert") && extended) || (isExtended && !extended) || wrongDualMode {
 			remove[id] = true
 		}
@@ -166,7 +183,7 @@ func appendRowStudyTable(l *PDFLayout, t pdfTable, page, number int) {
 		if !ok || lo != hi || sem < 1 || sem > 12 {
 			return
 		}
-		total := SourceCell{ID: fmt.Sprintf("%sr%dtotal", id, ri+1), Table: id, Page: page, Row: "Summe", Semesters: []int{sem}, Raw: cellText(row[len(row)-1]), Min: lo, Max: hi}
+		total := SourceCell{ID: fmt.Sprintf("%sr%dtotal", id, ri+1), Table: id, Page: page, RowIndex: ri + 1, Row: "Summe", Semesters: []int{sem}, Raw: cellText(row[len(row)-1]), Min: lo, Max: hi}
 		totals = append(totals, total)
 		for ci := 1; ci < len(row)-1; ci++ {
 			b := t.boxes[ri][ci]
@@ -200,7 +217,7 @@ func appendRowStudyTable(l *PDFLayout, t pdfTable, page, number int) {
 			if len(spans) == 0 {
 				return
 			}
-			cells = append(cells, SourceCell{ID: fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1), Table: id, Page: page, Row: label, Semesters: spans, Raw: name, Min: amount, Max: amount, BBox: []float64{b.x0, b.y0, b.x1, b.y1}})
+			cells = append(cells, SourceCell{ID: fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1), Table: id, Page: page, RowIndex: ri + 1, Row: label, Semesters: spans, Raw: name, Min: amount, Max: amount, BBox: []float64{b.x0, b.y0, b.x1, b.y1}})
 		}
 	}
 	if len(totals) >= 2 && len(cells) > 0 {

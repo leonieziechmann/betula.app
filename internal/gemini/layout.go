@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -43,6 +44,12 @@ type SourceCell struct {
 	// counts the compulsory modules only; it is part of the plan but never of
 	// that printed sum.
 	Additional bool `json:"additional,omitempty"`
+	// Section is the caption the plan prints over this cell („Specialization
+	// Phase"); it names a part of the studies, not a requirement.
+	Section string `json:"section,omitempty"`
+	// RowIndex is the cell's row in its physical table, counted from the top of
+	// the table. The printed sums are bound to the rows above them by it.
+	RowIndex int `json:"row_index,omitempty"`
 }
 
 type PDFLayout struct {
@@ -191,6 +198,8 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 	for _, c := range layout.Cells {
 		cells[c.ID] = c
 	}
+	totals := DerivePlanTotals(layout)
+	res.Totals = totals
 	used := make(map[string]bool)
 	for i := range res.Modules {
 		m := &res.Modules[i]
@@ -213,6 +222,9 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 		// Source text is authoritative, including when the enrichment model
 		// shortens a title. It cannot rename a requirement or choose one option.
 		m.ModuleName = sourceName
+		if m.StudySection == "" {
+			m.StudySection = c.Section
+		}
 		if len(layout.PlanNames) > 1 {
 			m.Specialization = layout.PlanNames[c.Table]
 		}
@@ -254,11 +266,13 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 		} else {
 			m.MinCredits, m.MaxCredits = c.Min, c.Max
 		}
+		// A row that names a credit range, or spreads over several semesters,
+		// does not say on its own what it finally counts for. What the plan
+		// prints over it does, and the sum over the fewest rows says the most:
+		// „Summe Komplexe des Fachstudiums 44" over three rows of „10-24".
 		if m.SemesterSpan != "" || m.MaxCredits > 0 {
-			for _, total := range layout.Totals {
-				if total.Table == c.Table && totalRow.MatchString(strings.TrimSpace(total.Row)) && total.Min == total.Max && len(total.Semesters) > 0 && total.Semesters[0] <= m.StartSemester && total.Semesters[len(total.Semesters)-1] >= m.EndSemester {
-					m.AreaRules = strings.TrimSpace(m.AreaRules + fmt.Sprintf(" Source constraint: all requirements together total %.1f LP in semesters %d-%d.", total.Min, total.Semesters[0], total.Semesters[len(total.Semesters)-1]))
-				}
+			if narrow := narrowestTotals(totals, c.ID); len(narrow) > 0 {
+				m.AreaRules = strings.TrimSpace(m.AreaRules + " " + narrow[0].Describe())
 			}
 		}
 		if c.SharedRows {
@@ -289,4 +303,21 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 	res.StartTerm = layout.StartTerm
 	res.Layout = layout
 	return nil
+}
+
+// narrowestTotals are the sums a plan row belongs to, from the one over the
+// fewest rows to the one over the whole plan. A row belongs to several: its
+// section's sum, the sum of the part of the studies, and the plan's own total.
+func narrowestTotals(totals []PlanTotal, cell string) []PlanTotal {
+	var out []PlanTotal
+	for _, t := range totals {
+		for _, member := range t.Members {
+			if member == cell {
+				out = append(out, t)
+				break
+			}
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return len(out[i].Members) < len(out[j].Members) })
+	return out
 }

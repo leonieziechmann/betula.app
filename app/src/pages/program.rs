@@ -26,8 +26,9 @@ use std::collections::HashMap;
 use catalog::filter::{KindFilter, ProgramRelation, ProgramScope};
 use catalog::labels::{Code, ModuleKind, OfferStatus, TurnusSeason};
 use catalog::pages::{self, CatalogArea, ProgramData};
+use catalog::plan;
 use catalog::rows::{Program, ProgramModule};
-use catalog::rows_detail::{AreaPlacement, PlanEntry};
+use catalog::rows_detail::{AreaPlacement, PlanEntry, PlanTotal};
 use catalog::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
@@ -231,7 +232,7 @@ fn ProgramModuleFull(id: String, links: Memo<ProgramUrl>, phone: RwSignal<bool>)
 /// What stands beside the page with no module picked — the area, the row of the plan, else the
 /// numbers of the view — or, as `page`, what fills the page on a phone.
 fn picked_panel(data: &ProgramData, tab: ProgramTab, variant: usize, area: Option<i64>, req: Option<usize>, links: Memo<ProgramUrl>, page: bool) -> AnyView {
-    let plans = plan_variants(&data.plan_entries);
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals);
     let areas = area_groups(&data.areas);
     if let Some(group) = area.and_then(|id| areas.iter().find(|group| group.id == id)) {
         return view! { <AreaPanel group=group.snapshot() modules=data.curricular.clone() links page/> }.into_any();
@@ -245,7 +246,8 @@ fn picked_panel(data: &ProgramData, tab: ProgramTab, variant: usize, area: Optio
             let plan = chosen.label.clone();
             let known: HashMap<String, ProgramModule> = data.curricular.iter().chain(data.fues.iter()).map(|m| (m.module_id.clone(), m.clone())).collect();
             let catalog = catalog_for(data, variant, None, req);
-            view! { <PlanRowPanel entry plan=(several).then_some(plan) program=data.program.clone() fitting known catalog links page/> }.into_any()
+            let choice = chosen.choice_for(&entry);
+            view! { <PlanRowPanel entry plan=(several).then_some(plan) program=data.program.clone() fitting known catalog choice links page/> }.into_any()
         }
         None if page => view! {
             <section class="panel detail aside" id="preview">
@@ -396,7 +398,7 @@ fn ProgramView(
     req: Memo<Option<usize>>,
 ) -> impl IntoView {
     let p = data.program.clone();
-    let plans = plan_variants(&data.plan_entries);
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals);
     let description = format!(
         "{} ({}, PO {}) an der BTU Cottbus-Senftenberg: {} Module, Regelstudienplan, Wahlpflichtbereiche und Ordnungen.",
         p.name,
@@ -520,6 +522,8 @@ fn PlanRowPanel(
     known: HashMap<String, ProgramModule>,
     /// The catalog narrowed down to what the row means, and what it lists (`catalog_for`).
     catalog: (String, String),
+    /// Where the row's credits come from, when the regulation ties it to other rows.
+    choice: Option<Choice>,
     links: Memo<ProgramUrl>,
     /// The panel is the page (a phone): „Zurück" instead of „Schließen".
     #[prop(optional)] page: bool,
@@ -581,6 +585,36 @@ fn PlanRowPanel(
                             <Fact wide=true icon="sliders-horizontal" label="Bereich im Plan" value=area/>
                         </dl>
                     </div>
+                    // A row that prints a range says nothing on its own: what pins it down is
+                    // the line the regulation prints over it and its neighbours.
+                    {choice.map(|choice| {
+                        let together = format::number(choice.total.credits);
+                        let least = format::number(choice.total.min_credits);
+                        let most = format::number(choice.total.max_credits);
+                        let label = choice.total.label.clone();
+                        let span = choice_span(&choice.total);
+                        let others = choice.with.len();
+                        view! {
+                            <div class="section">
+                                <p class="label">"Zusammen zu belegen"<span>{together.clone()}" LP"</span></p>
+                                <p class="hint">
+                                    "Diese Zeile nennt eine Spanne, keine feste Zahl. Die Prüfungsordnung weist sie mit "
+                                    {if others == 1 { "einer weiteren Zeile".to_string() } else { format!("{others} weiteren Zeilen") }}
+                                    " zusammen aus — „"{label}"“: "{together.clone()}" LP in "{span}
+                                    ". Einzeln lassen diese Zeilen "{least}" bis "{most}" LP zu; wie die "{together}
+                                    " LP auf sie verteilt werden, ist die Wahl der Studierenden."
+                                </p>
+                                <div class="linklist">
+                                    {choice.with.into_iter().map(|(row, name)| view! {
+                                        <a class="pre" href=links.get_untracked().with_req(Some(row)).path() data-noscroll="">
+                                            <b>{name}</b>
+                                            <Icon name="chevron-right"/>
+                                        </a>
+                                    }).collect_view()}
+                                </div>
+                            </div>
+                        }
+                    })}
                     <p class="note">
                         <Icon name="info"/>
                         <span>
@@ -816,20 +850,35 @@ fn ProgramNumbers(data: ProgramData, tab: ProgramTab, plans: Vec<PlanVariant>, #
                         </div>
                         {(tab == ProgramTab::Plan).then(|| plan.as_ref().map(|plan| {
                             let per = credits_per_semester(plan);
-                            let most = per.iter().map(|(_, credits)| *credits).fold(0.0f64, f64::max);
-                            (!per.is_empty() && most > 0.0).then(|| view! {
+                            // Semesters the regulation sums together have no figure of their own; they
+                            // stand as one bar over the semesters they share.
+                            let shared = shared_semester_totals(plan);
+                            let bars: Vec<(String, i64, f64)> = per
+                                .iter()
+                                .filter_map(|(semester, credits)| match shared.iter().find(|(from, to, _)| semester >= from && semester <= to) {
+                                    Some((from, to, together)) if from == semester => Some((format!("{from}.–{to}."), to - from + 1, *together)),
+                                    Some(_) => None,
+                                    None => Some((format!("{semester}."), 1, *credits)),
+                                })
+                                .collect();
+                            let most = bars.iter().map(|(_, over, credits)| credits / *over as f64).fold(0.0f64, f64::max);
+                            let states = plan.stated;
+                            (!bars.is_empty() && most > 0.0).then(|| view! {
                                 <div class="section">
                                     <p class="label">"LP je Semester"</p>
                                     <ul class="bars">
-                                        {per.into_iter().map(|(semester, credits)| view! {
+                                        {bars.into_iter().map(|(label, over, credits)| view! {
                                             <li>
-                                                <span class="bar-n">{semester}"."</span>
-                                                <span class="bar" style=format!("--at:{:.1}%", credits / most * 100.0)></span>
+                                                <span class="bar-n">{label}</span>
+                                                <span class="bar" style=format!("--at:{:.1}%", credits / over as f64 / most * 100.0)></span>
                                                 <span class="bar-v num">{(credits > 0.0).then(|| format::number(credits))}</span>
                                             </li>
                                         }).collect_view()}
                                     </ul>
-                                    <p class="hint">"Nur Module, die der Plan einem einzelnen Semester zuordnet."</p>
+                                    <p class="hint">
+                                        {if states { "Die Summen je Semester, wie die Prüfungsordnung sie ausweist." }
+                                         else { "Nur Module, die der Plan einem einzelnen Semester zuordnet." }}
+                                    </p>
                                 </div>
                             })
                         }))}
@@ -841,20 +890,22 @@ fn ProgramNumbers(data: ProgramData, tab: ProgramTab, plans: Vec<PlanVariant>, #
     }
 }
 
-/// What the plan puts into each of its semesters. A module over several semesters belongs to no
-/// single one, so it is in none of these sums (the plan does not say how it splits).
+/// What each semester of the plan holds. Where the regulation prints a line per semester, that
+/// line is the answer, including for the semesters whose rows share one merged column. Otherwise
+/// only what the plan puts into one semester can be added up there: a module over several
+/// semesters belongs to no single one, and the plan does not say how it splits.
 fn credits_per_semester(plan: &PlanVariant) -> Vec<(i64, f64)> {
-    let mut per: Vec<(i64, f64)> = (1..=plan.semesters.max(1)).map(|semester| (semester, 0.0)).collect();
-    for entry in &plan.entries {
-        if let Some((from, to)) = semester_span(entry) {
-            if from == to {
-                if let Some((_, credits)) = per.iter_mut().find(|(semester, _)| *semester == from) {
-                    *credits += entry.credits.or(entry.min_credits).unwrap_or(0.0);
-                }
-            }
-        }
-    }
-    per
+    (1..=plan.semesters.max(1)).map(|semester| (semester, plan.semester_credits(semester).unwrap_or(0.0))).collect()
+}
+
+/// The last semesters of some plans share one column („5.–6."), and the regulation sums them
+/// together. Those semesters have no figure of their own; this is what they share.
+fn shared_semester_totals(plan: &PlanVariant) -> Vec<(i64, i64, f64)> {
+    plan.totals
+        .iter()
+        .filter(|total| total.is_whole_plan() && total.end_semester > total.start_semester)
+        .map(|total| (total.start_semester, total.end_semester, total.credits))
+        .collect()
 }
 
 /// The head of the page: where the visitor is, what the program is called, what it is in numbers
@@ -910,21 +961,81 @@ struct PlanVariant {
     full: String,
     /// The last semester the plan names.
     semesters: i64,
-    /// What the whole plan adds up to.
+    /// What the whole plan comes to: the regulation's own sums where it prints them, else what
+    /// its rows add up to. A plan with elective budgets („10–24 LP") has no other way of saying
+    /// it — three such rows are anything between 30 and 72 LP.
     credits: f64,
+    /// Whether the regulation states `credits` itself.
+    stated: bool,
     entries: Vec<PlanEntry>,
+    /// The sums the regulation prints over these rows, each with the rows it counts.
+    totals: Vec<PlanTotal>,
 }
 
-/// Splits the rows of the plan into the plans they were printed as. The order is the order of the
-/// document; rows without a name of their own form one unnamed plan.
-fn plan_variants(entries: &[PlanEntry]) -> Vec<PlanVariant> {
+impl PlanVariant {
+    /// What the plan states for exactly these semesters, if it states anything.
+    fn stated_for(&self, from: i64, to: i64) -> Option<f64> {
+        plan::stated_for_span(&self.totals.iter().collect::<Vec<_>>(), from, to)
+    }
+
+    /// What one semester holds: the regulation's own line where it prints one, else the rows the
+    /// plan puts into that semester alone.
+    fn semester_credits(&self, semester: i64) -> Option<f64> {
+        self.stated_for(semester, semester).or_else(|| {
+            let sum: f64 = self
+                .entries
+                .iter()
+                .filter(|entry| semester_span(entry) == Some((semester, semester)))
+                .map(|entry| entry.credits.or(entry.min_credits).unwrap_or(0.0))
+                .sum();
+            (sum > 0.0).then_some(sum)
+        })
+    }
+
+    /// The sum that ties a row to the rows it is chosen with, where the regulation prints one,
+    /// together with those rows: their number in this plan and their name.
+    fn choice_for(&self, entry: &PlanEntry) -> Option<Choice> {
+        let total = plan::choice_of(&self.totals.iter().collect::<Vec<_>>(), entry)?.clone();
+        let with = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, other)| other.ord != entry.ord && total.entries.contains(&other.ord))
+            .map(|(i, other)| (i + 1, other.module_name.clone()))
+            .collect();
+        Some(Choice { total, with })
+    }
+}
+
+/// What a row of the plan shares with the rows it is chosen together with. „Komplex Praktische
+/// Informatik, 10–24 LP" says nothing on its own; the regulation's line over it and its two
+/// neighbours („Summe Komplexe des Fachstudiums 44") is what makes the three add up.
+#[derive(Clone, Debug)]
+struct Choice {
+    total: PlanTotal,
+    /// The other rows the sum counts: their number in this plan and their name.
+    with: Vec<(usize, String)>,
+}
+
+/// Splits the rows of the plan into the plans they were printed as, and gives each the sums the
+/// regulation prints over its rows. The order is the order of the document; rows without a name
+/// of their own form one unnamed plan.
+fn plan_variants(entries: &[PlanEntry], totals: &[PlanTotal]) -> Vec<PlanVariant> {
     let mut plans: Vec<PlanVariant> = Vec::new();
     for entry in entries {
         let full = entry.specialization.clone().unwrap_or_default();
         let plan = match plans.iter_mut().find(|plan| plan.full == full) {
             Some(plan) => plan,
             None => {
-                plans.push(PlanVariant { label: String::new(), full: full.clone(), semesters: 0, credits: 0.0, entries: Vec::new() });
+                plans.push(PlanVariant {
+                    label: String::new(),
+                    full: full.clone(),
+                    semesters: 0,
+                    credits: 0.0,
+                    stated: false,
+                    entries: Vec::new(),
+                    totals: plan::totals_of_variant(totals, &full).into_iter().cloned().collect(),
+                });
                 match plans.last_mut() {
                     Some(plan) => plan,
                     None => continue,
@@ -936,6 +1047,14 @@ fn plan_variants(entries: &[PlanEntry]) -> Vec<PlanVariant> {
         }
         plan.credits += entry.credits.or(entry.min_credits).unwrap_or(0.0);
         plan.entries.push(entry.clone());
+    }
+    // What the rows add up to is a lower bound wherever they are budgets; the regulation's own
+    // sums are the plan itself and win.
+    for plan in plans.iter_mut() {
+        if let Some(stated) = plan::stated_credits(&plan.totals.iter().collect::<Vec<_>>()) {
+            plan.credits = stated;
+            plan.stated = true;
+        }
     }
     plans.truncate(url::MAX_PLAN_VARIANTS);
     // The chips say what tells the plans apart, which only all of them together can say.
@@ -1168,19 +1287,31 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
     let last = plan.semesters.max(1);
     let columns = (1..=last).collect::<Vec<i64>>();
     let width = usize::try_from(last).unwrap_or(1) + 2;
-    // Only what the plan puts into one semester can be added up in that semester's column.
-    let mut sums = vec![0.0f64; columns.len()];
-    let mut spread = false;
-    for entry in &plan.entries {
-        match semester_span(entry) {
-            Some((from, to)) if from == to => {
-                if let Some(sum) = usize::try_from(from - 1).ok().and_then(|i| sums.get_mut(i)) {
-                    *sum += entry.credits.or(entry.min_credits).unwrap_or(0.0);
-                }
+    // The foot of the table is the regulation's own line of sums where it prints one, column for
+    // column and, over semesters it sums together, as one cell across them. Without such a line
+    // only what the plan puts into a single semester can be added up in that semester's column.
+    let shared = shared_semester_totals(&plan);
+    let mut foot: Vec<(i64, Option<f64>)> = Vec::new();
+    let mut n = 1;
+    while n <= last {
+        match shared.iter().find(|(from, to, _)| n >= *from && n <= *to) {
+            Some((from, to, together)) => {
+                foot.push((to - from + 1, Some(*together)));
+                n = to + 1;
             }
-            _ => spread = true,
+            None => {
+                foot.push((1, plan.semester_credits(n)));
+                n += 1;
+            }
         }
     }
+    // A module over several semesters is in no single semester's sum — unless the regulation's
+    // own line covers exactly those semesters.
+    let spread = plan.entries.iter().any(|entry| match semester_span(entry) {
+        Some((from, to)) => from != to && !shared.iter().any(|(a, b, _)| from >= *a && to <= *b),
+        None => true,
+    });
+    let stated = plan.stated;
     let differs = plan.entries.iter().any(|entry| entry.credits_differ_from_catalog);
 
     view! {
@@ -1243,13 +1374,17 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
                     <tr>
                         <th scope="row" class="c-name">"Summe"</th>
                         <td class="c-kind"></td>
-                        {sums.iter().map(|sum| view! { <td class="lp num">{(*sum > 0.0).then(|| format::number(*sum))}</td> }).collect_view()}
+                        {foot.into_iter().map(|(over, sum)| {
+                            let spans = over > 1;
+                            view! { <td class="lp num" class:spans=spans colspan=over>{sum.map(format::number)}</td> }
+                        }).collect_view()}
                     </tr>
                 </tfoot>
             </table>
         </div>
-        {(spread || differs).then(|| view! {
+        {(spread || differs || stated).then(|| view! {
             <p class="hint footnote">
+                {stated.then_some("Die Summen sind die der Prüfungsordnung; Zeilen mit einer Spanne („10–24“) gehen in der Summe ihres Semesters auf. ")}
                 {spread.then_some("Module über mehrere Semester stehen über ihrem Zeitraum und sind in keiner Semestersumme enthalten. ")}
                 {differs.then_some("Markierte LP weichen vom Modulkatalog ab.")}
             </p>
@@ -1297,8 +1432,12 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
                         <th scope="col" class="c-lp num">"LP"</th>
                     </tr>
                 </thead>
-                {groups.into_iter().map(|(_, label, entries)| {
-                    let sum: f64 = entries.iter().map(|(_, entry)| entry.credits.or(entry.min_credits).unwrap_or(0.0)).sum();
+                {groups.into_iter().map(|(key, label, entries)| {
+                    // What the regulation states for these semesters, else what the rows give —
+                    // which for rows with a credit span is only their lower bound.
+                    let sum = plan.stated_for(key.0, key.1).unwrap_or_else(|| {
+                        entries.iter().map(|(_, entry)| entry.credits.or(entry.min_credits).unwrap_or(0.0)).sum()
+                    });
                     let count = entries.len();
                     view! {
                         <tbody>
@@ -1377,7 +1516,7 @@ fn catalog_for(data: &ProgramData, variant: usize, area: Option<i64>, req: Optio
         let name = known.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| "Bereich".to_string());
         return (scoped(ProgramScope { areas: vec![id], ..base }), name);
     }
-    let plans = plan_variants(&data.plan_entries);
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals);
     let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
     let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row.checked_sub(1)?).map(|entry| (entry, plan))));
     let Some((entry, plan)) = row else {
@@ -1818,6 +1957,7 @@ mod tests {
         let areas = vec![area(1, "Informatik (MIT)", 1), area(2, "Informatik (EET)", 1), area(5, "Studienrichtungsspezifische Vertiefungsmodule (MIT)", 23)];
         let known: Vec<CatalogArea> = areas.iter().map(|group| CatalogArea::new(group.id, &group.label, &["Grundstudium"], group.modules.len(), true)).collect();
         let row = |name: &str| PlanEntry {
+            ord: 1,
             module_id: None,
             module_name: name.to_string(),
             semester: Some(2),
@@ -1836,7 +1976,15 @@ mod tests {
             credits_differ_from_catalog: false,
         };
         let full = "Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium";
-        let plan = PlanVariant { label: "MIT und EET".to_string(), full: full.to_string(), semesters: 6, credits: 180.0, entries: Vec::new() };
+        let plan = PlanVariant {
+            label: "MIT und EET".to_string(),
+            full: full.to_string(),
+            semesters: 6,
+            credits: 180.0,
+            stated: false,
+            entries: Vec::new(),
+            totals: Vec::new(),
+        };
         let fitting = areas_for_row(&row("Wahlpflichtmodul aus der Informatik"), &plan, &known, &areas);
         assert!(fitting.first().is_some_and(AreaGroup::is_ambiguous), "two directions fit, so none is shown as the one");
         assert_eq!(fitting.iter().filter(|area| !area.is_ambiguous()).map(|area| area.id).collect::<Vec<_>>(), vec![1, 2]);
@@ -1845,9 +1993,84 @@ mod tests {
         assert!(areas_for_row(&row("Bachelor-Arbeit"), &plan, &known, &areas).is_empty());
     }
 
+    // Informatik B.Sc. 2008: three rows of „10–24 LP" in the last two semesters, which the plan
+    // prints as one merged column. Adding the rows up gave 166 LP and left those semesters empty;
+    // the regulation's own lines say 180, and 60 for the two of them together.
+    #[test]
+    fn what_a_plan_adds_up_to_is_what_the_regulation_states() {
+        let row = |ord: i64, name: &str, semester: Option<i64>, span: Option<(i64, i64)>, credits: Option<f64>, range: Option<(f64, f64)>| PlanEntry {
+            ord,
+            module_id: None,
+            module_name: name.to_string(),
+            semester,
+            start_semester: span.map(|(from, _)| from),
+            end_semester: span.map(|(_, to)| to),
+            semester_span: span.map(|(from, to)| format!("{from}-{to}")),
+            credits,
+            min_credits: range.map(|(min, _)| min),
+            max_credits: range.map(|(_, max)| max),
+            kind: None,
+            kind_raw: None,
+            study_section: None,
+            subject_area: None,
+            specialization: None,
+            catalog_title: None,
+            credits_differ_from_catalog: false,
+        };
+        let total = |ord: i64, label: &str, scope: &str, from: i64, to: i64, credits: f64, min: f64, max: f64, entries: Vec<i64>| PlanTotal {
+            ord,
+            label: label.to_string(),
+            scope: scope.to_string(),
+            specialization: None,
+            start_semester: from,
+            end_semester: to,
+            credits,
+            min_credits: min,
+            max_credits: max,
+            is_choice: max - min > 0.01,
+            entry_count: entries.len() as i64,
+            entries,
+        };
+        let entries = vec![
+            row(1, "Entwicklung von Softwaresystemen", Some(1), None, Some(8.0), None),
+            row(2, "Komplex Grundlagen der Informatik", None, Some((5, 6)), None, Some((10.0, 24.0))),
+            row(3, "Komplex Praktische Informatik", None, Some((5, 6)), None, Some((10.0, 24.0))),
+            row(4, "Komplex Angewandte und Technische Informatik", None, Some((5, 6)), None, Some((10.0, 24.0))),
+            row(5, "Bachelor-Arbeit", None, Some((5, 6)), Some(12.0), None),
+        ];
+        let totals = vec![
+            total(1, "Summe Komplexe des Fachstudiums", "section", 5, 6, 44.0, 30.0, 72.0, vec![2, 3, 4]),
+            total(2, "Summe Studium", "plan", 1, 1, 8.0, 8.0, 8.0, vec![1]),
+            total(3, "Summe Studium", "plan", 5, 6, 56.0, 42.0, 84.0, vec![2, 3, 4, 5]),
+        ];
+        // Adding the rows up gives 8 + 10 + 10 + 10 + 12 = 50; the plan states 8 + 56.
+        let plain = plan_variants(&entries, &[]);
+        assert_eq!(plain[0].credits, 50.0);
+        assert!(!plain[0].stated);
+        let plans = plan_variants(&entries, &totals);
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].credits, 64.0);
+        assert!(plans[0].stated);
+
+        // The semesters the plan sums together have one figure between them, not none each.
+        let plan = &plans[0];
+        assert_eq!(plan.semester_credits(1), Some(8.0));
+        assert_eq!(plan.semester_credits(5), None, "5 and 6 share one sum and neither has one of its own");
+        assert_eq!(shared_semester_totals(plan), vec![(5, 6, 56.0)]);
+        assert_eq!(plan.stated_for(5, 6), Some(56.0));
+
+        // A row with a range knows the rows it is chosen with; one with a fixed value does not.
+        let choice = plan.choice_for(&entries[1]).expect("the elective row is tied to the others");
+        assert_eq!(choice.total.credits, 44.0);
+        assert_eq!(choice.with.iter().map(|(row, _)| *row).collect::<Vec<_>>(), vec![3, 4]);
+        assert!(plan.choice_for(&entries[4]).is_none(), "the thesis has a number of its own");
+        assert!(plan.choice_for(&entries[0]).is_none());
+    }
+
     #[test]
     fn a_row_of_the_plan_knows_its_semesters() {
         let entry = |semester, start, end| PlanEntry {
+            ord: 1,
             module_id: None,
             module_name: "M".to_string(),
             semester,
@@ -1872,5 +2095,14 @@ mod tests {
         assert_eq!(span_of([6.0, 6.0].into_iter()).as_deref(), Some("6"));
         assert_eq!(span_of([4.0, 6.0, 0.0].into_iter()).as_deref(), Some("4–6"));
         assert_eq!(span_of([0.0].into_iter()), None);
+    }
+}
+
+/// The semesters a printed sum covers, as a sentence names them.
+fn choice_span(total: &PlanTotal) -> String {
+    if total.start_semester == total.end_semester {
+        format!("Semester {}", total.start_semester)
+    } else {
+        format!("den Semestern {} bis {}", total.start_semester, total.end_semester)
     }
 }

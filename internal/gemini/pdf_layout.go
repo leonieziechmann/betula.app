@@ -399,7 +399,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			if origin.page != 0 {
 				cellPage = origin.page
 			}
-			c := SourceCell{ID: fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1), Table: id, Page: cellPage, Row: label, Semesters: semesters, Raw: value, Min: lo, Max: hi, BBox: []float64{b.x0 + origin.dx, b.y0 + origin.dy, b.x1 + origin.dx, b.y1 + origin.dy}, SharedRows: len(labels) > 1}
+			c := SourceCell{ID: fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1), Table: id, Page: cellPage, RowIndex: ri + 1, Row: label, Semesters: semesters, Raw: value, Min: lo, Max: hi, BBox: []float64{b.x0 + origin.dx, b.y0 + origin.dy, b.x1 + origin.dx, b.y1 + origin.dy}, SharedRows: len(labels) > 1}
 			c.Workload, c.CreditSemester = workload, creditSemester
 			c.Optional, c.Additional = optional, additional
 			c.Elective = electiveStatus(statusOnly)

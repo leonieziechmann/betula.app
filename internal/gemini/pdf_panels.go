@@ -235,12 +235,18 @@ func lastAnlageTitle(heading string) int {
 	return all[len(all)-1][0]
 }
 
-// dualMode names the dual variant announced in a plan title, or "" for a regular plan.
+// dualMode names the dual variant announced in a plan title, or "" for a regular
+// plan. A title that announces both variants („im dualen praxisintegrierenden und
+// im dualen ausbildungsintegrierenden Studium", Elektrotechnik 2022) names the
+// dual study as such: the variants are told apart inside the table, not here.
 func dualMode(title string) string {
+	practice, training := practiceIntegrated.MatchString(title), trainingIntegrated.MatchString(title)
 	switch {
-	case practiceIntegrated.MatchString(title):
+	case practice && training:
+		return "Dual"
+	case practice:
 		return "Dual praxisintegrierend"
-	case trainingIntegrated.MatchString(title):
+	case training:
 		return "Dual ausbildungsintegrierend"
 	case dualStudy.MatchString(title):
 		return "Dual"

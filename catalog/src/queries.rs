@@ -13,7 +13,7 @@ use crate::rows::{
 };
 use crate::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
-    ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
+    PlanTotal, PlanTotalEntry, ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
 };
 
 const PROGRAM_COLUMNS: &str = "id, slug, name, degree_level, study_variant, degree_label, degree_raw, \
@@ -434,9 +434,33 @@ pub fn program_plan_entries(db: &dyn Database, program_id: &str) -> Result<Vec<P
     fetch(
         db,
         "program_plan_entries",
-        "SELECT module_id, module_name, semester, start_semester, end_semester, semester_span, credits, \
+        "SELECT ord, module_id, module_name, semester, start_semester, end_semester, semester_span, credits, \
          min_credits, max_credits, kind, kind_raw, study_section, subject_area, specialization, catalog_title, \
          credits_differ_from_catalog FROM v_program_plan_entry WHERE program_id = ? ORDER BY ord",
         &[Value::from(program_id)],
     )
+}
+
+/// The sums the regulation prints over the rows of its plan, each with the rows it counts. They
+/// are what a plan with elective budgets adds up to; its rows alone only give a range.
+pub fn program_plan_totals(db: &dyn Database, program_id: &str) -> Result<Vec<PlanTotal>, DbError> {
+    let mut totals: Vec<PlanTotal> = fetch(
+        db,
+        "program_plan_totals",
+        "SELECT ord, label, scope, specialization, start_semester, end_semester, credits, \
+         min_credits, max_credits, is_choice, entry_count FROM v_program_plan_total WHERE program_id = ? ORDER BY ord",
+        &[Value::from(program_id)],
+    )?;
+    let members: Vec<PlanTotalEntry> = fetch(
+        db,
+        "program_plan_total_entries",
+        "SELECT total_ord, entry_ord FROM v_program_plan_total_entry WHERE program_id = ? ORDER BY total_ord, entry_ord",
+        &[Value::from(program_id)],
+    )?;
+    for member in members {
+        if let Some(total) = totals.iter_mut().find(|total| total.ord == member.total_ord) {
+            total.entries.push(member.entry_ord);
+        }
+    }
+    Ok(totals)
 }

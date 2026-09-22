@@ -15,6 +15,26 @@ type Plan struct {
 	LayoutJSON  string
 	ValidatedAt time.Time
 	Entries     []PlanEntry
+	Totals      []PlanTotal
+}
+
+// PlanTotal is a sum the plan prints over its own rows: what the whole plan of
+// a semester costs, or what a group of rows has to reach together. Entries are
+// the 1-based positions of the rows it counts, in plan order.
+type PlanTotal struct {
+	Label          string
+	Scope          string // „plan": the whole plan of these semesters; „section": a part of it
+	Specialization string
+	StartSemester  int
+	EndSemester    int
+	Credits        float64
+	MinCredits     float64
+	MaxCredits     float64
+	// IsChoice marks a sum that is the only statement of how much its rows count
+	// for: every row it names lies inside it, and one of them prints a range.
+	IsChoice       bool
+	SourceEvidence string
+	Entries        []int
 }
 
 // PlanEntry is one row of a study plan. Zero values mean "the PDF does not say".
@@ -95,6 +115,50 @@ func savePlanTx(tx *sql.Tx, p Plan) error {
 			return fmt.Errorf("plan %s: entry %d: %w", p.ProgramID, i+1, err)
 		}
 	}
+	return savePlanTotalsTx(tx, p)
+}
+
+func savePlanTotalsTx(tx *sql.Tx, p Plan) error {
+	if len(p.Totals) == 0 {
+		return nil
+	}
+	totals, err := tx.Prepare(`
+		INSERT INTO plan_total (
+			program_id, ord, label, scope, specialization,
+			start_semester, end_semester, credits, min_credits, max_credits,
+			is_choice, entry_count, source_evidence
+		) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer totals.Close()
+	members, err := tx.Prepare("INSERT OR IGNORE INTO plan_total_entry (program_id, total_ord, entry_ord) VALUES (?,?,?)")
+	if err != nil {
+		return err
+	}
+	defer members.Close()
+
+	for i, t := range p.Totals {
+		if t.Label == "" || t.StartSemester < 1 || t.EndSemester < t.StartSemester {
+			return fmt.Errorf("plan %s: total %d has no label or no semesters", p.ProgramID, i+1)
+		}
+		if t.Scope != "plan" && t.Scope != "section" {
+			return fmt.Errorf("plan %s: total %d has scope %q", p.ProgramID, i+1, t.Scope)
+		}
+		if _, err := totals.Exec(p.ProgramID, i+1, t.Label, t.Scope, nullIfZero(t.Specialization),
+			t.StartSemester, t.EndSemester, t.Credits, t.MinCredits, t.MaxCredits,
+			boolToInt(t.IsChoice), len(t.Entries), nullIfZero(t.SourceEvidence)); err != nil {
+			return fmt.Errorf("plan %s: total %d: %w", p.ProgramID, i+1, err)
+		}
+		for _, ord := range t.Entries {
+			if ord < 1 || ord > len(p.Entries) {
+				return fmt.Errorf("plan %s: total %d names row %d, which the plan does not have", p.ProgramID, i+1, ord)
+			}
+			if _, err := members.Exec(p.ProgramID, i+1, ord); err != nil {
+				return fmt.Errorf("plan %s: total %d, row %d: %w", p.ProgramID, i+1, ord, err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -164,6 +228,13 @@ func (db *DB) SetPlanScanStatus(programID, status, message, source string) error
 			source = excluded.source, updated_at = excluded.updated_at`,
 		programID, status, nullIfZero(message), nullIfZero(source), time.Now().UTC().Format(time.RFC3339))
 	return err
+}
+
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 func nullIfZero[T comparable](v T) any {

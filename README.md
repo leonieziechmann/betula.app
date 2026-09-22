@@ -99,6 +99,13 @@ algorithm that moves modules between semesters.
 The PDF parser runs in the Go binary: no Python, CGO or external PDF commands. The PDF reader is
 pinned in `go.mod`. The key is resolved by `internal/secrets` (see above); `--model` or `GEMINI_MODEL` selects the model.
 
+**What a plan adds up to is read as well.** A row may print a range („Komplex Grundlagen der
+Informatik, 10-24 LP"), and three such rows are anything between 30 and 72 LP: the rows alone do
+not say what a degree costs. The regulation does, in the lines it prints over its own rows, and
+`plan_total` keeps each of them with the rows it counts — the line over those three rows, and the
+line over the whole table. A line is kept only where its rows reach the printed value, so a sum is
+evidence and not an assumption (`internal/gemini/plan_totals.go`, `docs/schema-v2.md` §6).
+
 A plan row is linked to a catalog module only where the catalog identifies it beyond doubt: by the
 printed module number, or by a title that names exactly one module. Titles repeat across the
 university — 68 modules are called „Bachelor-Arbeit", and both „Grundlagen der Elektrotechnik" are

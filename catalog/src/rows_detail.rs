@@ -333,6 +333,8 @@ impl FromRow for Plan {
 /// `v_program_plan_entry`: one row of the validated study plan.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlanEntry {
+    /// The row's place in the plan, counted from 1. A printed sum names its rows by it.
+    pub ord: i64,
     /// Set when the plan row is linked to a module of the catalog.
     pub module_id: Option<String>,
     pub module_name: String,
@@ -355,6 +357,7 @@ pub struct PlanEntry {
 impl FromRow for PlanEntry {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
         Ok(Self {
+            ord: row.int("ord")?,
             module_id: row.opt_text("module_id")?,
             module_name: row.text("module_name")?,
             semester: row.opt_int("semester")?,
@@ -372,5 +375,78 @@ impl FromRow for PlanEntry {
             catalog_title: row.opt_text("catalog_title")?,
             credits_differ_from_catalog: row.opt_flag("credits_differ_from_catalog")?.unwrap_or(false),
         })
+    }
+}
+
+/// `v_program_plan_total`: a sum the regulation prints over rows of its own plan.
+///
+/// A plan with elective budgets cannot be added up from its rows: „Komplex Praktische Informatik,
+/// 10–24 LP" three times is anything between 30 and 72 LP. The regulation prints what they come
+/// to — „Summe Komplexe des Fachstudiums 44" over exactly those three rows, „Summe Studium" over
+/// the whole table — and `scope` says which of the two a sum is: the plan of these semesters
+/// (`plan`), or a part of it (`section`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanTotal {
+    pub ord: i64,
+    /// As the regulation prints it: „Summe Studium", „Summe Komplex Mathematik".
+    pub label: String,
+    /// `plan`: everything these semesters hold. `section`: a named part of them.
+    pub scope: String,
+    /// The plan variant this sum belongs to, where the document prints several.
+    pub specialization: Option<String>,
+    pub start_semester: i64,
+    /// The same as `start_semester` unless the sum stands over a merged column.
+    pub end_semester: i64,
+    /// What the regulation prints.
+    pub credits: f64,
+    /// What its rows come to: `min_credits` from the rows that lie entirely inside these
+    /// semesters, `max_credits` from those and whatever a row reaching into them could add.
+    /// `credits` always lies between the two.
+    pub min_credits: f64,
+    pub max_credits: f64,
+    /// Whether this sum is the only statement of how much its rows count for: every row it names
+    /// lies inside it, and at least one of them prints a range („10–24 LP") instead of a number.
+    pub is_choice: bool,
+    pub entry_count: i64,
+    /// `ord` of every plan row this sum counts, in plan order.
+    pub entries: Vec<i64>,
+}
+
+impl PlanTotal {
+    /// Whether this sum counts everything its semesters hold.
+    pub fn is_whole_plan(&self) -> bool {
+        self.scope == "plan"
+    }
+}
+
+impl FromRow for PlanTotal {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            ord: row.int("ord")?,
+            label: row.text("label")?,
+            scope: row.text("scope")?,
+            specialization: row.opt_text("specialization")?,
+            start_semester: row.int("start_semester")?,
+            end_semester: row.int("end_semester")?,
+            credits: row.real("credits")?,
+            min_credits: row.real("min_credits")?,
+            max_credits: row.real("max_credits")?,
+            is_choice: row.opt_flag("is_choice")?.unwrap_or(false),
+            entry_count: row.int("entry_count")?,
+            entries: Vec::new(),
+        })
+    }
+}
+
+/// `v_program_plan_total_entry`: which row of the plan a sum counts.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanTotalEntry {
+    pub total_ord: i64,
+    pub entry_ord: i64,
+}
+
+impl FromRow for PlanTotalEntry {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { total_ord: row.int("total_ord")?, entry_ord: row.int("entry_ord")? })
     }
 }
