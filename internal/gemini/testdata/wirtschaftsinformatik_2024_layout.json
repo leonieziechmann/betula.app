@@ -5,10 +5,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "11112 Mathematik IT-1 (Diskrete Mathematik)",
+      "row_index": 4,
       "semesters": [
         1
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -24,10 +26,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "11113 Mathematik IT-2 (Lineare Algebra)",
+      "row_index": 5,
       "semesters": [
         2
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -43,10 +47,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "11213 Mathematik IT-3 (Analysis)",
+      "row_index": 6,
       "semesters": [
         3
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -62,10 +68,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Grundlagen der Statistik",
+      "row_index": 7,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -81,10 +89,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "13268 Einführung in die ökonometrische Datenanalyse",
+      "row_index": 8,
       "semesters": [
         5
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -100,10 +110,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Mathematische und methodische Grundlagen",
+      "row_index": 9,
       "semesters": [
         5
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -119,10 +131,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "12102 Programmierpraktikum",
+      "row_index": 12,
       "semesters": [
         1
       ],
       "raw": "4",
+      "Bold": false,
       "min": 4.0,
       "max": 4.0,
       "bbox": [
@@ -138,10 +152,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "12101 Algorithmieren und Programmieren",
+      "row_index": 13,
       "semesters": [
         2
       ],
       "raw": "10",
+      "Bold": false,
       "min": 10.0,
       "max": 10.0,
       "bbox": [
@@ -157,10 +173,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "12330 Datenbanken",
+      "row_index": 14,
       "semesters": [
         3
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -176,10 +194,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "12104 Entwicklung von Softwaresystemen",
+      "row_index": 15,
       "semesters": [
         3
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -195,10 +215,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Informatik-Grundlagen",
+      "row_index": 16,
       "semesters": [
         5
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -214,10 +236,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "12160 Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL",
+      "row_index": 19,
       "semesters": [
         1
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -233,10 +257,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Volkwirtschaftliche Grundlagen",
+      "row_index": 20,
       "semesters": [
         1
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -252,10 +278,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Betriebswirtschaftliche Grundlagen",
+      "row_index": 21,
       "semesters": [
         2
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -271,10 +299,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Betriebswirtschaftliche Grundlagen",
+      "row_index": 21,
       "semesters": [
         5
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -290,10 +320,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Weitere wirtschaftswissenschaftliche Grundlagen",
+      "row_index": 22,
       "semesters": [
         6
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -309,10 +341,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Seminar Wirtschaftswissenschaften",
+      "row_index": 23,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -328,10 +362,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "13977 Grundlagen der Wirtschaftsinformatik",
+      "row_index": 26,
       "semesters": [
         1
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -347,10 +383,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "14096 Betriebliche Informationssysteme",
+      "row_index": 27,
       "semesters": [
         2
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -366,10 +404,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "14097 Geschäftsprozessmodellierung und -management",
+      "row_index": 28,
       "semesters": [
         3
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -385,10 +425,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Wirtschaftsinformatik",
+      "row_index": 29,
       "semesters": [
         4
       ],
       "raw": "12",
+      "Bold": false,
       "min": 12.0,
       "max": 12.0,
       "bbox": [
@@ -404,10 +446,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Wirtschaftsinformatik",
+      "row_index": 29,
       "semesters": [
         5
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -423,10 +467,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Wirtschaftsinformatik",
+      "row_index": 29,
       "semesters": [
         6
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -442,10 +488,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Fachübergreifendes Studium (FÜS)",
+      "row_index": 32,
       "semesters": [
         6
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -461,10 +509,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Wahlbereich Praxis der Wirtschaftsinformatik",
+      "row_index": 33,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -480,10 +530,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Bachelor-Arbeit",
+      "row_index": 34,
       "semesters": [
         6
       ],
       "raw": "12",
+      "Bold": false,
       "min": 12.0,
       "max": 12.0,
       "bbox": [
@@ -501,10 +553,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 10,
       "semesters": [
         1
       ],
       "raw": "8",
+      "Bold": true,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -520,10 +574,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 10,
       "semesters": [
         2
       ],
       "raw": "8",
+      "Bold": true,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -539,10 +595,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 10,
       "semesters": [
         3
       ],
       "raw": "8",
+      "Bold": true,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -558,10 +616,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 10,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -577,10 +637,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 10,
       "semesters": [
         5
       ],
       "raw": "12",
+      "Bold": true,
       "min": 12.0,
       "max": 12.0,
       "bbox": [
@@ -596,10 +658,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 10,
       "semesters": [
         6
       ],
       "raw": "0",
+      "Bold": true,
       "min": 0.0,
       "max": 0.0,
       "bbox": [
@@ -615,10 +679,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 17,
       "semesters": [
         1
       ],
       "raw": "4",
+      "Bold": true,
       "min": 4.0,
       "max": 4.0,
       "bbox": [
@@ -634,10 +700,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 17,
       "semesters": [
         2
       ],
       "raw": "10",
+      "Bold": true,
       "min": 10.0,
       "max": 10.0,
       "bbox": [
@@ -653,10 +721,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 17,
       "semesters": [
         3
       ],
       "raw": "14",
+      "Bold": true,
       "min": 14.0,
       "max": 14.0,
       "bbox": [
@@ -672,10 +742,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 17,
       "semesters": [
         4
       ],
       "raw": "0",
+      "Bold": true,
       "min": 0.0,
       "max": 0.0,
       "bbox": [
@@ -691,10 +763,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 17,
       "semesters": [
         5
       ],
       "raw": "8",
+      "Bold": true,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -710,10 +784,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 17,
       "semesters": [
         6
       ],
       "raw": "0",
+      "Bold": true,
       "min": 0.0,
       "max": 0.0,
       "bbox": [
@@ -729,10 +805,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 24,
       "semesters": [
         1
       ],
       "raw": "12",
+      "Bold": true,
       "min": 12.0,
       "max": 12.0,
       "bbox": [
@@ -748,10 +826,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 24,
       "semesters": [
         2
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -767,10 +847,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 24,
       "semesters": [
         3
       ],
       "raw": "0",
+      "Bold": true,
       "min": 0.0,
       "max": 0.0,
       "bbox": [
@@ -786,10 +868,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 24,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -805,10 +889,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 24,
       "semesters": [
         5
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -824,10 +910,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 24,
       "semesters": [
         6
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -843,10 +931,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 30,
       "semesters": [
         1
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -862,10 +952,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 30,
       "semesters": [
         2
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -881,10 +973,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 30,
       "semesters": [
         3
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -900,10 +994,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 30,
       "semesters": [
         4
       ],
       "raw": "12",
+      "Bold": true,
       "min": 12.0,
       "max": 12.0,
       "bbox": [
@@ -919,10 +1015,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 30,
       "semesters": [
         5
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -938,10 +1036,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Subtotal",
+      "row_index": 30,
       "semesters": [
         6
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -957,10 +1057,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Summe",
+      "row_index": 35,
       "semesters": [
         1
       ],
       "raw": "30",
+      "Bold": true,
       "min": 30.0,
       "max": 30.0,
       "bbox": [
@@ -976,10 +1078,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Summe",
+      "row_index": 35,
       "semesters": [
         2
       ],
       "raw": "30",
+      "Bold": true,
       "min": 30.0,
       "max": 30.0,
       "bbox": [
@@ -995,10 +1099,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Summe",
+      "row_index": 35,
       "semesters": [
         3
       ],
       "raw": "28",
+      "Bold": true,
       "min": 28.0,
       "max": 28.0,
       "bbox": [
@@ -1014,10 +1120,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Summe",
+      "row_index": 35,
       "semesters": [
         4
       ],
       "raw": "30",
+      "Bold": true,
       "min": 30.0,
       "max": 30.0,
       "bbox": [
@@ -1033,10 +1141,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Summe",
+      "row_index": 35,
       "semesters": [
         5
       ],
       "raw": "32",
+      "Bold": true,
       "min": 32.0,
       "max": 32.0,
       "bbox": [
@@ -1052,10 +1162,12 @@
       "table": "p8t1",
       "page": 8,
       "row": "Summe",
+      "row_index": 35,
       "semesters": [
         6
       ],
       "raw": "30",
+      "Bold": true,
       "min": 30.0,
       "max": 30.0,
       "bbox": [
