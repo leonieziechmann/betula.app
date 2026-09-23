@@ -47,7 +47,10 @@
   };
   // The app may replace the page under an open sheet (Back, a tab): nothing may stay dimmed.
   const tidySheet = () => { if (root.classList.contains("sheet-open") && !document.querySelector(".filters.open, .sidebar.sheet.open")) root.classList.remove("sheet-open"); };
-  addEventListener("popstate", () => {
+  addEventListener("popstate", (e) => {
+    // The browser app hands a step of the history to its router a frame later, so that the page
+    // can answer first (app/src/pending.rs): that is the same step again, not another one.
+    if (e.betulaReplay) return;
     if (afterStep) { const then = afterStep; afterStep = null; then(); } // the sheet's own step, taken back above
     else if (step) { step = false; closeSheet(); } // Back closes the sheet
     else closeSheet("left");

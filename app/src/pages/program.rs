@@ -39,7 +39,9 @@ use crate::format;
 use crate::nav;
 use crate::pages::catalog::phone_layout;
 use crate::pages::module::{ModuleFull, ModulePanel};
+use crate::pending::{Change, Pending};
 use crate::seo::{self, Seo};
+use crate::skeleton::DetailSkeleton;
 use crate::tabs::Area;
 use crate::ui::{BackLink, EmptyState, ErrorState, Fact, Frame, Icon, NotFound, OfferBadge, Shortcut};
 
@@ -286,6 +288,13 @@ fn ProgramSidebar(
     };
     let related = data.counterpart.is_some() || !data.versions.is_empty();
     let areas = area_groups(&data.areas);
+    // The view the app is going to is the current one at once (`pending`); its page follows.
+    let going = Pending::expect();
+    let slug = p.slug.clone();
+    let shown_tab = Memo::new(move |_| {
+        let path = going.and_then(|going| going.path());
+        path.and_then(|path| ProgramTab::ALL.iter().copied().find(|t| path == url::program_path(&slug, *t) || (*t == ProgramTab::default() && path == url::program_path(&slug, *t).trim_end_matches(t.segment()).trim_end_matches('/')))).unwrap_or(tab)
+    });
     let shapes = (tab == ProgramTab::Plan && !data.plan_entries.is_empty()).then_some(());
     let jumps = (tab == ProgramTab::Areas && !areas.is_empty()).then_some(());
     view! {
@@ -299,8 +308,8 @@ fn ProgramSidebar(
         <nav class="toc views" aria-label="Ansichten des Studiengangs">
             <p class="flabel label">"Ansichten"</p>
             {ProgramTab::ALL.iter().map(|t| {
-                let active = *t == tab;
-                view! { <a data-walk="tab" href=url::program_path(&p.slug, *t) data-noscroll="" aria-current=active.then_some("page")>{t.label()}</a> }
+                let t = *t;
+                view! { <a data-walk="tab" href=url::program_path(&p.slug, t) data-noscroll="" aria-current=move || (shown_tab.get() == t).then_some("page")>{t.label()}</a> }
             }).collect_view()}
         </nav>
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
@@ -484,7 +493,10 @@ fn ProgramAside(
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
     });
+    // What was picked beside the page, before it is there (`pending`).
+    let going = Pending::expect();
     move || match module.get() {
+        _ if going.is_some_and(|going| going.waits(Change::Aside)) => view! { <DetailSkeleton aside=true/> }.into_any(),
         Ok(Some(Some(module))) => {
             let full_href = links.get().with_open(Some(&module.module.id)).with_full(true).path();
             view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href)/> }.into_any()
