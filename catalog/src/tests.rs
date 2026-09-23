@@ -187,6 +187,24 @@ fn every_query_runs_against_the_snapshot() {
     assert!(unnamed.is_empty(), "query names that are not the name of their function: {unnamed:?}");
 }
 
+/// The queries follow every migration of Radix, and the snapshot of the tests has them all. A
+/// migration that `SCHEMA_VERSION` did not follow would let browsers keep a copy the queries fail
+/// on: `boot.js` only refuses what is older than `SCHEMA_VERSION`.
+#[test]
+fn the_queries_are_written_for_the_newest_schema() {
+    let migrations = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../internal/catalogdb/migrations");
+    let newest = std::fs::read_dir(&migrations)
+        .unwrap_or_else(|e| panic!("{}: {e}", migrations.display()))
+        .filter_map(|entry| {
+            let name = entry.ok()?.file_name().into_string().ok()?;
+            name.strip_suffix(".sql")?.split_once('_')?.0.parse::<i64>().ok()
+        })
+        .max();
+    assert_eq!(newest, Some(crate::SCHEMA_VERSION), "the newest migration of Radix is not the schema the queries are written for (catalog::SCHEMA_VERSION)");
+    let snapshot = open().schema_version().unwrap();
+    assert!(snapshot >= crate::SCHEMA_VERSION, "the snapshot of the tests has schema {snapshot}, the queries are written for {}: export a new one", crate::SCHEMA_VERSION);
+}
+
 #[test]
 fn catalog_filters_match_direct_sql() {
     let db = open();

@@ -23,7 +23,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -436,8 +436,17 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   search are client-side navigation on the local database (measured: takeover 1.2 s on a first
   visit, preview 130 ms, filter 150 ms including the test driver). Until the takeover, and if
   anything fails, the site stays a classic website served from the HTML cache. A newer snapshot is
-  downloaded in the background and used from the next start. The server never answers data
-  queries for the app: its load is cached HTML, static files and one database file.
+  downloaded in the background and used from the next start, unless the copy is of an older
+  schema than the build reads (2026-09-23): such a copy is never opened. `boot.js` reads a copy's
+  schema from its SQLite header (`user_version`) and compares it with the build's
+  (`catalog::SCHEMA_VERSION`, Radix's newest migration, written in by the server); with the
+  network an older copy is replaced first, as on a first visit; offline the app does not start, and
+  the status says so. Before, a returning visitor worked on the old copy until the download behind
+  it had finished, and after 0008 the plan page failed with „no such column: source_pages". A
+  server whose own snapshot is older (Radix has not exported the new schema yet) says so in
+  `/api/status` and logs `snapshot.outdated`; nothing is downloaded from it, and the site stays a
+  classic website until Radix has. The server never answers data queries for the app: its load is
+  cached HTML, static files and one database file.
 - **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
   `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
   re-renders neither list nor filters, and a filter change leaves the preview alone.
@@ -747,9 +756,12 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   once more, the bundle included. Assets stay `no-cache` with the build as ETag: the server
   answers every `?v=` with the file it has, so such an address must not be cached as immutable.
   `e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
-  `/api/status` unreachable offline and simply opens the copy it has. Once the app runs it says
+  `/api/status` unreachable offline and simply opens the copy it has, unless that copy is of an
+  older schema than the build reads: then the app does not start, the page stays the one the
+  worker kept, and the status says „Offline – die Daten werden neu geladen, sobald du online
+  bist" (the only case in which a failed start says anything). Once the app runs it says
   nothing: the „Offline bereit" notice is gone (owner, 2026-09-21: „wenn es einfach
-  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh.
+  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh; `e2e/schema.mjs` plants a copy of an older schema and starts with and without a network.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
 `lastmod` per module (the snapshot has no date per module), English pages.
@@ -1090,7 +1102,7 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | Level | `event` | Meaning |
 |---|---|---|
 | INFO | `server.listening`, `server.shutdown` | lifecycle |
-| INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`) |
+| INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`; `schema_version` when activated) |
 | INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
@@ -1104,6 +1116,7 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
 | WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / served uncompressed |
 | ERROR | `snapshot.rejected` | a download is not a usable catalog; the previous snapshot stays active |
+| ERROR | `snapshot.outdated` | the active snapshot is of an older schema than this build reads (`schema_version`, `needs`): pages that need the newer columns fail, browsers do not start the app on it. Served all the same; Radix has to export a new one (with `RADIX_CRAWL=off` it never does by itself) |
 | ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
 | ERROR | `http.request` with `status >= 500`, `render.failed`, `snapshot.unreadable` | a request failed |
 | ERROR | `card.failed` | a card's text could not be read or the card could not be drawn; the preview got the standard picture |
@@ -1131,11 +1144,13 @@ What `cargo test` checks:
 
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
-  real data, the URL codec, the ranking of the pickers (`fuzzy`).
+  real data, the URL codec, the ranking of the pickers (`fuzzy`); `SCHEMA_VERSION` is the number
+  of Radix's newest migration, and the snapshot of the tests is not older.
 - `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
-  404 is never cached; `/api/db` with Radix's ETag, gzip and 304; a broken export is
-  rejected and the old snapshot stays; a new one invalidates pages; restart without Radix;
+  404 is never cached; `/api/db` with Radix's ETag, gzip and 304; `/api/status` with the
+  snapshot's schema, `boot.js` with the build's; a broken export is rejected and the old snapshot
+  stays; one of an older schema is served; a new one invalidates pages; restart without Radix;
   one description and one absolute canonical address per page, `noindex` on a filtered list,
   the sitemap, the map of the programs as laid out with the snapshot. Closed testing (needs no
   snapshot): pages lead to the login page, everything else answers 401, what stays open, the

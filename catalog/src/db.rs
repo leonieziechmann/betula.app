@@ -4,6 +4,14 @@
 use std::collections::HashMap;
 use std::fmt;
 
+/// The schema of the snapshot the queries of this crate are written for: its `PRAGMA
+/// user_version`, the number of the last migration of Radix (`internal/catalogdb/migrations`,
+/// docs/schema-v2.md §1). A copy of an older schema lacks what they select (before 0008,
+/// `v_program_plan` had no `source_pages`), so the browser does not start the app on one
+/// (`app/assets/boot.js`, into which the server writes this number), and the server reports it
+/// when it serves one. A test holds it to the newest migration.
+pub const SCHEMA_VERSION: i64 = 8;
+
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {

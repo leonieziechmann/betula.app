@@ -27,6 +27,10 @@ pub struct Snapshot {
     pub etag: String,
     pub path: PathBuf,
     pub bytes: u64,
+    /// The schema of the file (`PRAGMA user_version`, the number of Radix's last migration).
+    /// `/api/status` names it, so that a browser does not download a copy that is older than
+    /// the one its build reads (`catalog::SCHEMA_VERSION`).
+    pub schema_version: i64,
     /// The same file gzip-compressed, made once per snapshot.
     pub gzip: Option<(PathBuf, u64)>,
     pub meta: Meta,
@@ -50,6 +54,7 @@ fn content_etag(bytes: &[u8]) -> String {
 impl Snapshot {
     fn open(path: PathBuf, etag: String) -> Result<Self, DbError> {
         let db = NativeDatabase::open(&path)?;
+        let schema_version = db.schema_version()?;
         // The queries of the landing page touch modules, programs, semesters and meta.
         let overview = catalog::pages::overview(&db)?;
         if overview.modules == 0 || overview.programs == 0 {
@@ -72,7 +77,7 @@ impl Snapshot {
         let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let gzip_path = gzip_path_of(&path);
         let gzip = std::fs::metadata(&gzip_path).ok().map(|m| (gzip_path, m.len()));
-        Ok(Self { etag, path, bytes, gzip, meta: overview.meta, activated_at: SystemTime::now(), program_map, sitemap: std::sync::OnceLock::new(), pool: Mutex::new(vec![db]) })
+        Ok(Self { etag, path, bytes, schema_version, gzip, meta: overview.meta, activated_at: SystemTime::now(), program_map, sitemap: std::sync::OnceLock::new(), pool: Mutex::new(vec![db]) })
     }
 
     pub fn with_db(&self, job: &mut dyn FnMut(&dyn Database)) -> Result<(), DbError> {
@@ -149,13 +154,20 @@ impl SnapshotStore {
     fn activate(&self, snapshot: Snapshot) {
         let etag = snapshot.etag.clone();
         let bytes = snapshot.bytes;
+        let schema_version = snapshot.schema_version;
         let data_changed_at = snapshot.meta.data_changed_at.clone().unwrap_or_default();
         let keep = snapshot.path.clone();
         if let Ok(mut current) = self.current.write() {
             *current = Some(Arc::new(snapshot));
         }
         let generation = self.generation.fetch_add(1, Ordering::Relaxed) + 1;
-        tracing::info!(component = "snapshot", event = "snapshot.activated", etag = %etag, bytes, data_changed_at = %data_changed_at, generation, "snapshot active");
+        tracing::info!(component = "snapshot", event = "snapshot.activated", etag = %etag, bytes, schema_version, data_changed_at = %data_changed_at, generation, "snapshot active");
+        // Served all the same: the pages that do not need the newer columns work, and a refused
+        // snapshot would leave the server without any data after a restart where Radix does not
+        // export again (RADIX_CRAWL=off).
+        if schema_version < catalog::SCHEMA_VERSION {
+            tracing::error!(component = "snapshot", event = "snapshot.outdated", etag = %etag, schema_version, needs = catalog::SCHEMA_VERSION, "the snapshot is older than the schema this build reads: pages that need the newer columns fail, and browsers do not start the app on it until Radix exports a new one");
+        }
         self.remove_other_files(&keep);
     }
 
