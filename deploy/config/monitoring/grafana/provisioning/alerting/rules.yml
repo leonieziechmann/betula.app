@@ -31,7 +31,8 @@ groups:
       # Lines that are not JSON are skipped here (__error__) and handled by the next rule.
       # The web server has to log JSON (FOLIA_LOG_FORMAT=json; its image sets it, its default is text).
       # The stacks are the instances of the application (stacks/*.env): betula, and canary for the
-      # closed test. A new instance has to be named here and in rule (1b), or its errors stay silent.
+      # closed test, each with its second colour <name>-green (blue-green). A new instance has to be
+      # named here and in rule (1b), or its errors stay silent.
       # The window is 35m = one Radix cycle (30m) + margin: an error that comes back every cycle is
       # ONE continuous alert instead of a resolve/fire pair every half hour. No data = no errors = OK.
       - uid: betula-error-logs
@@ -50,7 +51,7 @@ groups:
                 type: loki
                 uid: loki
               editorMode: code
-              expr: "sum by (service, event, msg) (count_over_time({stack=~\"betula|canary\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
+              expr: "sum by (service, event, msg) (count_over_time({stack=~\"(betula|canary)(-green)?\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
               queryType: instant
               intervalMs: 1000
               maxDataPoints: 43200
@@ -129,7 +130,7 @@ groups:
                 type: loki
                 uid: loki
               editorMode: code
-              expr: "sum by (service) (count_over_time({stack=~\"betula|canary\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
+              expr: "sum by (service) (count_over_time({stack=~\"(betula|canary)(-green)?\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
               queryType: instant
               intervalMs: 1000
               maxDataPoints: 43200

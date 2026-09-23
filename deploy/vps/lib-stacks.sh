@@ -270,19 +270,85 @@ load_instance() {
   [[ "${INSTANCE_CRAWL}" == "on" || "${INSTANCE_CRAWL}" == "off" ]] || die "${file}: RADIX_CRAWL is '${INSTANCE_CRAWL}', not on or off"
 }
 
-# app_stack_for_host HOST -> the stack whose web server is routed for HOST (nothing when none is).
-# Read from the router label stacks/betula.yml sets, so it tells what is deployed, not what is planned.
-app_stack_for_host() {
+# Blue-green: two instances whose files name the same APP_HOST are two colours of one site
+# (canary.env and canary-green.env). Each is a stack of its own, with its own volumes and its own
+# router for the host. Traefik sends the host to the router with the higher priority, and only to
+# a service with a running task (swarm says "running" once the healthcheck passed): the priority
+# decides which colour is live, and the other one is the rollback that also catches the traffic
+# while the live one has no healthy task. 50-app.sh never moves the traffic (a stack that runs
+# keeps its priority, a new one next to a sibling starts at STANDBY_PRIORITY); 55-switch.sh does.
+#
+# Traefik's default priority is the length of the rule (25 for Host(`canary.betula.app`)), and 0 in
+# the label means that default. STANDBY_PRIORITY is below every default (the shortest rule,
+# Host(`a.bc`), has 12) and above the placeholder's 1.
+STANDBY_PRIORITY=2
+
+# app_stacks_for_host HOST -> every stack whose web server is routed for HOST, one per line. Read
+# from the router labels stacks/betula.yml sets, so it tells what is deployed, not what is planned.
+app_stacks_for_host() {
   local host=$1 svc stack
   while IFS= read -r svc; do
     [[ "${svc}" == *_folia ]] || continue
     stack="${svc%_folia}"
     if [[ "$(service_label "${svc}" "traefik.http.routers.${stack}-folia.rule")" == "Host(\`${host}\`)" ]]; then
-      printf '%s' "${stack}"
-      return 0
+      printf '%s\n' "${stack}"
     fi
   done < <(docker service ls --format '{{.Name}}' 2>/dev/null | sort)
   return 0
+}
+
+# router_priority STACK -> the priority Traefik gives the router of the stack's web server: its
+# label, or where that is unset or 0, Traefik's default (the length of the rule).
+router_priority() {
+  local value rule
+  value="$(service_label "$1_folia" "traefik.http.routers.$1-folia.priority")"
+  if [[ "${value}" =~ ^[0-9]{1,9}$ && "${value}" -gt 0 ]]; then
+    printf '%s' "$((10#${value}))"
+    return 0
+  fi
+  rule="$(service_label "$1_folia" "traefik.http.routers.$1-folia.rule")"
+  printf '%s' "${#rule}"
+}
+
+# app_stack_for_host HOST -> the stack Traefik sends HOST to: of the stacks routed for it, the one
+# with the highest router priority (nothing when none is).
+app_stack_for_host() {
+  local host=$1 stack priority best="" best_priority=-1
+  while IFS= read -r stack; do
+    [[ -n "${stack}" ]] || continue
+    priority="$(router_priority "${stack}")"
+    if [[ "${priority}" -gt "${best_priority}" ]]; then
+      best="${stack}"
+      best_priority="${priority}"
+    fi
+  done < <(app_stacks_for_host "${host}")
+  printf '%s' "${best}"
+}
+
+# folia_container STACK -> the ID of the container of the stack's web server that runs here.
+folia_container() {
+  docker ps -q --no-trunc --filter "label=com.docker.swarm.service.name=$1_folia" --filter status=running 2>/dev/null | head -n 1
+}
+
+# folia_address STACK -> the address of the stack's running web server on docker_gwbridge, where
+# this host reaches it directly, past Traefik (nothing when no task of it runs here).
+folia_address() {
+  local cid address
+  cid="$(folia_container "$1")"
+  [[ -n "${cid}" ]] || return 0
+  address="$(docker network inspect docker_gwbridge --format "{{with index .Containers \"${cid}\"}}{{.IPv4Address}}{{end}}" 2>/dev/null || true)"
+  printf '%s' "${address%/*}"
+}
+
+# snapshot_outdated STACK - true when the catalog the stack's web server shows is older than the
+# schema its build reads: its log says "snapshot.outdated" after the last "snapshot.activated".
+# /healthz does not tell, and such a site fails on every page that needs the newer columns.
+snapshot_outdated() {
+  local cid last
+  cid="$(folia_container "$1")"
+  [[ -n "${cid}" ]] || return 1
+  last="$(docker logs "${cid}" 2>&1 | grep -oE '"event":"snapshot\.(activated|outdated)"' | tail -n 1 || true)"
+  [[ "${last}" == *outdated* ]]
 }
 
 # ---------------------------------------------------------------- DNS

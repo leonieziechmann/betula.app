@@ -11,6 +11,10 @@
 #                      and only serves the snapshot it has; 50-app.sh then adds the override
 #                      betula.offline.yml to this file. Default: on.
 #   RADIX_IMAGE, FOLIA_IMAGE   given per release (see "Images")
+#   ROUTER_PRIORITY    the priority of the web server's router, set by 50-app.sh: 0 (Traefik's
+#                      default) for an instance alone on its host. Blue-green: two instance files
+#                      with the same APP_HOST are two colours of one site, and the router with the
+#                      higher priority gets the host (vps/lib-stacks.sh, vps/55-switch.sh).
 #
 # Deployed by vps/50-app.sh (as deploy, no sudo), which deploy/ship.sh calls after it has built
 # and loaded the images; never by vps/40-stacks.sh:
@@ -170,7 +174,10 @@ services:
         # is a burst); what it turns away never reaches the login form of closed testing.
         # compress: text types only; /api/db and the assets arrive pre-compressed and pass through.
         - "traefik.http.routers.${STACK_NAME}-folia.middlewares=secure-headers@file,rate-limit@file,compress@file"
-        # Default priority (rule length) beats the placeholder's priority 1 on the same host.
+        # 0 = Traefik's default (the length of the rule), which beats the placeholder's priority 1
+        # on the same host. Of two colours of one site the higher one is live (55-switch.sh). A
+        # label of the service, not of its tasks: changing it restarts nothing.
+        - "traefik.http.routers.${STACK_NAME}-folia.priority=${ROUTER_PRIORITY:-0}"
         - "traefik.http.routers.${STACK_NAME}-folia.service=${STACK_NAME}-folia"
         - "traefik.http.services.${STACK_NAME}-folia.loadbalancer.server.port=8080"
 

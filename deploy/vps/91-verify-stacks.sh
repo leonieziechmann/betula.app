@@ -166,6 +166,55 @@ check_certificate() {
   fi
 }
 
+# check_colours NAME - the live one of two colours of one site (blue-green, lib-stacks.sh): every
+# other stack routed for its host must have a lower priority, or Traefik picks either.
+check_colours() {
+  local name=$1 other own priority
+  own="$(router_priority "${INSTANCE_STACK}")"
+  while IFS= read -r other; do
+    [[ -n "${other}" && "${other}" != "${INSTANCE_STACK}" ]] || continue
+    priority="$(router_priority "${other}")"
+    if [[ "${priority}" -lt "${own}" ]]; then
+      pass "${name}: serves https://${INSTANCE_HOST} (router priority ${own}); ${other} is the standby (${priority}; rollback: bash ${BETULA_ROOT}/vps/55-switch.sh ${other})"
+    else
+      fail "${name} and ${other} are routed for ${INSTANCE_HOST} with the same priority (${own}): Traefik picks either. bash ${BETULA_ROOT}/vps/55-switch.sh <the one that should serve>"
+    fi
+  done < <(app_stacks_for_host "${INSTANCE_HOST}")
+}
+
+# check_standby NAME LIVE - an instance whose host another one serves (blue-green): its public URL
+# reaches LIVE, so it is asked directly, past Traefik - what 55-switch.sh asks before a switch.
+check_standby() {
+  local name=$1 live=$2 address path code
+  pass "${name}: standby for https://${INSTANCE_HOST}, which ${live} serves (router priority $(router_priority "${INSTANCE_STACK}") < $(router_priority "${live}"); switch: bash ${BETULA_ROOT}/vps/55-switch.sh ${name})"
+  address="$(folia_address "${INSTANCE_STACK}")"
+  if [[ -z "${address}" ]]; then
+    fail "${name}: no running container of ${INSTANCE_STACK}_folia to ask (docker service ps --no-trunc ${INSTANCE_STACK}_folia)"
+    return 0
+  fi
+  code="$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "http://${address}:8080/livez" 2>/dev/null || true)"
+  if [[ "${code}" == "200" ]]; then pass "${name}: /livez -> 200 (asked directly at ${address}:8080)"; else
+    fail "${name}: /livez -> ${code:-no answer} (asked directly at ${address}:8080; docker service logs ${INSTANCE_STACK}_folia)"
+  fi
+  code="$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "http://${address}:8080/healthz" 2>/dev/null || true)"
+  case "${code}" in
+    200) pass "${name}: /healthz -> 200 (asked directly: a snapshot is served and Radix was heard from)" ;;
+    503) warning "${name}: /healthz -> 503 (asked directly): no snapshot yet, or no answer from its Radix. Not ready to take ${INSTANCE_HOST} over" ;;
+    *) fail "${name}: /healthz -> ${code:-no answer} (asked directly at ${address}:8080)" ;;
+  esac
+  if snapshot_outdated "${INSTANCE_STACK}"; then
+    fail "${name}: its catalog is older than the schema its build reads (\"snapshot.outdated\" in the log of ${INSTANCE_STACK}_folia): export a new snapshot in ${INSTANCE_STACK}_radix before a switch"
+  fi
+  if [[ "${INSTANCE_GATE}" == "on" ]]; then
+    for path in /api/db /api/status; do
+      code="$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "http://${address}:8080${path}" 2>/dev/null || true)"
+      if [[ "${code}" == "401" ]]; then pass "${name}: ${path} -> 401 without the password (asked directly)"; else
+        fail "${name}: ${path} -> ${code:-no answer} without the password (asked directly), expected 401: a switch would make the catalog public"
+      fi
+    done
+  fi
+}
+
 # header_value HEADERS NAME -> value of the LAST response header NAME (case-insensitive), without CR.
 header_value() {
   awk -v want="$(tr 'A-Z' 'a-z' <<<"$2")" '
@@ -339,7 +388,7 @@ check_ports() {
 
 check_app() {
   section "application (every instance in stacks/*.env: router, release, crawling, certificate, alive, closed testing)"
-  local name url rule radix_tag folia_tag radix_args code out body path deployed=0
+  local name url rule radix_tag folia_tag radix_args code out body path live deployed=0
   while IFS= read -r name; do
     [[ -n "${name}" ]] || continue
     load_instance "${name}"
@@ -377,6 +426,14 @@ check_app() {
     else
       fail "${name}: ${name}.env says RADIX_CRAWL=on, but Radix runs the command \"${radix_args}\" (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
     fi
+
+    # Blue-green: of two instances with one host, the public URL only reaches the live one.
+    live="$(app_stack_for_host "${INSTANCE_HOST}")"
+    if [[ "${live}" != "${INSTANCE_STACK}" ]]; then
+      check_standby "${name}" "${live}"
+      continue
+    fi
+    check_colours "${name}"
 
     check_certificate "${INSTANCE_HOST}"
 
