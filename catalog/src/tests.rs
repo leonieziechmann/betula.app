@@ -766,7 +766,8 @@ fn page_loaders_return_everything_a_page_shows() {
     assert_eq!(department.code, "1", "{department:?}");
     assert!(overview.faculties.iter().any(|f| f.basis == pages::FacultyBasis::Thesis));
     assert!(overview.faculties.iter().any(|f| f.basis == pages::FacultyBasis::Majority));
-    assert!(overview.faculties.iter().any(|f| f.basis == pages::FacultyBasis::Counterpart));
+    // A faculty taken from the programs of the same subject is checked on its own
+    // (`pages::faculty_tests`): since a thesis is what its name says, no current program needs it.
 
     let page = pages::program(&db, INFORMATIK_BSC).unwrap().expect("program page");
     assert_eq!(page.curricular.len() as i64, page.program.curricular_modules);
