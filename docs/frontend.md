@@ -219,9 +219,11 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     back to them with „Zurück" and Esc, not to the catalog's list (`Tabs::came_from`).
   - **To another device without a server in between:** „Auf anderes Gerät übertragen" copies a
     link to the list with the marked modules in its *fragment*, as a code (`/bookmarks#m=…`,
-    `pack/`): the ids as numbers, each as its step from the one before, in the order of the list,
-    in characters an address carries as they are, and two check characters at the end. 20 marked
-    modules take about 50 characters (as ids one by one, `#add=11101,12204,…`, 124). A character
+    `pack/`): the ids as a set of numbers, in ascending order, each as its distance from the one
+    before, in characters an address carries as they are, and two check characters at the end.
+    The order of marking does not travel (owner, 2026-09-23: it does not matter); the other device
+    marks them all at once. 20 marked modules take 35 to 40 characters (as ids one by one,
+    `#add=11101,12204,…`, 124). A character
     typed wrong or two swapped are always noticed, a link cut short almost always; the page then
     says the link is broken, and offers nothing of it. Links with the ids one by one, as they were
     made before 2026-09-23, keep working (and are what a list too long for a code still gets).
@@ -937,7 +939,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   (`bookmarks::Bookmarks`). They never become part of a URL (URLs are requested from the server
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
-  `e2e/bookmarks.mjs` watches every request of a session for marks.
+  `e2e/bookmarks.mjs` watches every request of a session for marks. One exception is decided for
+  when it is built: the address of a calendar subscription carries the chosen events (§5).
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -1458,7 +1461,12 @@ to the result.
   program, the semester planner. A note per marked module would fit the same store.
 - **The timetable as a calendar subscription** (owner, 2026-09-23): an `.ics` address that
   carries the chosen events as a `pack` code (`pack::set` of the event ids), so that the server
-  keeps nothing and a calendar follows every change of the schedule. Unlike the list's link,
-  a calendar requests that address from the server: the code reaches the server and the edge's
-  access log. Before it is built: whether that is acceptable under R20, or the edge leaves that
-  path out of its log.
+  keeps nothing and a calendar follows every change of the schedule. Unlike the list's link, a
+  calendar requests that address from the server, so the code reaches the edge's access log.
+  Owner decision (2026-09-23): that is acceptable, an exception to R20 for this feature. What
+  matters is that Betula manages no data of its visitors, and here it manages none: the access
+  log keeps addresses 7 days in Loki (Docker's own log files on the host by size,
+  `deploy/README.md` §9), and the edge can leave the path out of its log once the feature
+  exists. The privacy notice then says what this convenience costs: the address of a
+  subscription carries the chosen events and lands in the access log like every request (an
+  entry in `PRIVACY_OWED`, `app/src/pages/legal.rs`, while the texts are placeholders).

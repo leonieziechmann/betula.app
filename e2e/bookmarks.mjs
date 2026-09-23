@@ -243,7 +243,9 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
     const entries = await device.evaluate(() => history.length);
     await device.click("#offer-add");
     await device.waitForFunction(() => document.querySelectorAll(".rows a.row").length === 3 && location.hash === "" && !document.querySelector(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: the list did not arrive, or the ids stayed in the address"));
-    check(JSON.stringify(await stored(device)) === JSON.stringify(carried) && JSON.stringify(await listIds(device)) === JSON.stringify(carried), `another device: what arrived: ${await stored(device)}`);
+    // The same modules; not in the same order, since the link carries them as a set.
+    const same = (ids) => JSON.stringify([...ids].sort()) === JSON.stringify([...carried].sort());
+    check(same(await stored(device)) && same(await listIds(device)), `another device: what arrived: ${await stored(device)}`);
     check((await device.evaluate(() => history.length)) === entries, "another device: answering left a history entry with the ids behind");
     // The same link again: nothing new. And one module more than the list has.
     await device.goto(link, { waitUntil: "domcontentloaded" });

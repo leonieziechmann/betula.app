@@ -191,9 +191,11 @@ fn now() -> u64 {
 /// anywhere (not with the request, not as a referrer), so the list reaches neither the server nor
 /// its logs; the page reads it, asks the visitor, and takes it out of the address.
 ///
-/// The code (`pack`) holds the ids as numbers, each as its step from the one before, and ends in
-/// two characters that check the rest: a link cut short or a character typed wrong is noticed
-/// instead of bringing other modules. 20 marked modules take about 50 characters instead of 120.
+/// The code (`pack`) holds the ids as a set of numbers, in ascending order, each as its distance
+/// from the one before, and ends in two characters that check the rest: a link cut short or a
+/// character typed wrong is noticed instead of bringing other modules. The order of the list does
+/// not travel (owner, 2026-09-23: it does not matter), which is what makes the code short: 20 marked
+/// modules take about 40 characters instead of 120.
 const TRANSFER: &str = "m=";
 /// The ids one by one (`/bookmarks#add=11101,12204`), as links made before the code carry them.
 /// Read, and written only for a list too long for a code.
@@ -203,47 +205,31 @@ const TRANSFER_BY_ID: &str = "add=";
 const KIND: &str = "bookmarks";
 
 /// The marked modules as a code carries them. A module id is five digits, so it travels as a
-/// number; an id that is none keeps its place in the list beside them.
+/// number; an id that is none travels as it is.
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 struct Transfer {
-    /// The ids that are numbers, in the order of the list.
-    #[serde(with = "pack::list")]
+    /// The ids that are numbers.
+    #[serde(with = "pack::set")]
     numbers: Vec<u64>,
-    /// Every other id, after its place in the list. Empty, this costs nothing: it ends the code.
-    others: Vec<(u32, String)>,
+    /// Every other id (the catalog has none). Empty, this costs nothing: it ends the code.
+    others: Vec<String>,
 }
 
 impl Transfer {
     fn of(ids: &[String]) -> Self {
         let mut transfer = Transfer::default();
-        for (place, id) in ids.iter().enumerate() {
+        for id in ids {
             match id.parse::<u64>().ok().filter(|number| number.to_string() == *id) {
                 Some(number) => transfer.numbers.push(number),
-                None => transfer.others.push((place as u32, id.clone())),
+                None => transfer.others.push(id.clone()),
             }
         }
         transfer
     }
 
-    /// The ids in the order of the list.
+    /// The ids: the numbers in ascending order, then the others.
     fn ids(self) -> Vec<String> {
-        let mut numbers = self.numbers.into_iter();
-        let mut others = self.others.into_iter().peekable();
-        let mut ids: Vec<String> = Vec::new();
-        loop {
-            let place = ids.len();
-            if let Some((_, id)) = others.next_if(|(at, _)| *at as usize <= place) {
-                ids.push(id);
-                continue;
-            }
-            match numbers.next() {
-                Some(number) => ids.push(number.to_string()),
-                None => break,
-            }
-        }
-        // A place beyond the end of the list: no writer puts one there, it goes last.
-        ids.extend(others.map(|(_, id)| id));
-        ids
+        self.numbers.into_iter().map(|number| number.to_string()).chain(self.others).collect()
     }
 }
 
@@ -368,11 +354,11 @@ mod tests {
     fn a_list_travels_in_the_fragment_of_a_link() {
         let ids = owned(&["12204", "11101", "13849"]);
         // Links with this code are out there: a change of the code or of `Transfer` breaks them.
-        assert_eq!(transfer_fragment(&ids), "m=0BZycFSvYFBK0");
-        assert_eq!(ids_from_fragment(&format!("#{}", transfer_fragment(&ids))), Ok(ids.clone()));
-        // In the order of the list, and ids that are no numbers (the catalog has none) in their place.
-        let mixed = owned(&["FUES-7", "41000", "11101", "0123", "99999999", "12204", "Z"]);
-        assert_eq!(ids_from_fragment(&transfer_fragment(&mixed)), Ok(mixed));
+        assert_eq!(transfer_fragment(&ids), "m=eCMhL6cwwJdh");
+        // The same modules, not the same order: the numbers ascending, then ids that are none.
+        assert_eq!(ids_from_fragment(&format!("#{}", transfer_fragment(&ids))), Ok(owned(&["11101", "12204", "13849"])));
+        let mixed = owned(&["FUES-7", "41000", "11101", "0123", "99999999", "12204", "Z", "11101"]);
+        assert_eq!(ids_from_fragment(&transfer_fragment(&mixed)), Ok(owned(&["11101", "12204", "41000", "99999999", "FUES-7", "0123", "Z"])));
         // Links made before the code keep working.
         assert_eq!(ids_from_fragment("#add=12204,11101"), Ok(owned(&["12204", "11101"])));
         // Whatever else a fragment may be, and whatever a link may have been filled with.
@@ -414,7 +400,7 @@ mod tests {
         ]);
         let fragment = transfer_fragment(&ids);
         let before = format!("add={}", ids.join(","));
-        assert!(fragment.len() <= 55 && fragment.len() * 2 < before.len(), "{} characters instead of {}", fragment.len(), before.len());
+        assert!(fragment.len() <= 40 && fragment.len() * 3 < before.len(), "{} characters instead of {}", fragment.len(), before.len());
     }
 
     #[test]
