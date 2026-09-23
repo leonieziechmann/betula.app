@@ -316,9 +316,24 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   them, and where the page is narrower than the names and the semesters the app draws the list —
   the switch then shows the list, the matrix greyed out with a line saying why, and the choice
   stays: with room (a wider window, a narrower panel) the matrix comes back (`matrix_min_width`,
-  the same numbers as `.matrix` in app.css). Only what the plan puts into a single semester is
-  added up in that semester's column; a footnote says so where a plan has modules over several
-  semesters.
+  the same numbers as `.matrix` in app.css).
+  **What a plan adds up to is the plan's own arithmetic, not ours** (owner, 2026-09-22: Informatik
+  B.Sc. said 166 LP and showed nothing for its last two semesters). A row may print a range —
+  „Komplex Grundlagen der Informatik, 10–24 LP" — and three of them are anything between 30 and
+  72 LP, so adding the rows up gives a lower bound, not the degree. The regulation prints the
+  answer in the lines over its own rows, and Radix keeps them with the rows each counts
+  (`plan_total`, `docs/schema-v2.md` §6). The head's „LP", the bars „LP je Semester", the sum
+  under the matrix and the sum of every semester group of the list are those printed lines where
+  a plan has them; the semesters a regulation sums together („5.–6.") stand as one figure across
+  them, which is why those semesters used to be empty. Without such lines nothing changes: only
+  what the plan puts into a single semester is added up in that semester's column, and a footnote
+  says so where a plan has modules over several semesters.
+  A row that prints a range says in its panel which rows it is chosen with and what they come to
+  together („zusammen 44 LP … einzeln 30 bis 72 LP"), each of them a link to its own row: that is
+  the only statement the sources make about how such a budget is split. Where a regulation prints
+  a span for a whole semester instead of a number, because several of its rows are budgets, the
+  program's LP are that span („116–126 LP", Angewandte Mathematik M.Sc.) — a number the sources
+  do not state is not put in its place.
   **The page has a panel on the right** (`ui::Frame`'s `aside`, as wide as the catalog's preview,
   same handle, same remembered width): a module clicked in any of the three views opens in it
   (`?open=<id>`, the same panel as in the catalog, so a module reads the same wherever it is

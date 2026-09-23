@@ -26,6 +26,8 @@ func readCreditReferences(pages []layoutPage) map[string]creditReference {
 	ambiguous := map[string]bool{}
 	uniform := map[string]float64{}
 	mixed := map[string]bool{}
+	anyValue := map[string]float64{}
+	anyMixed := map[string]bool{}
 	for _, pg := range pages {
 		for _, table := range pg.tables {
 			b := tableBounds(table)
@@ -42,7 +44,7 @@ func readCreditReferences(pages []layoutPage) map[string]creditReference {
 			lp, title, code := -1, -1, -1
 			for i, s := range header {
 				v := strings.ToLower(cellText(s))
-				if v == "lp" && lp < 0 {
+				if (v == "lp" || strings.Contains(v, "leistungspunkte") || strings.Contains(v, "kreditpunkte")) && lp < 0 {
 					lp = i
 				}
 				if strings.Contains(v, "modul") && !strings.Contains(v, "nr") {
@@ -60,7 +62,11 @@ func readCreditReferences(pages []layoutPage) map[string]creditReference {
 				if ri == 0 {
 					continue
 				}
-				amount, hi, ok := parseCreditAmount(cellText(row[lp]))
+				// „jeweils 6" and „je 6" state the value of each module listed,
+				// which is the value of the module the plan points at.
+				lpText := cellText(row[lp])
+				lpText = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(lpText, "jeweils"), "je"))
+				amount, hi, ok := parseCreditAmount(lpText)
 				if !ok || amount != hi || amount <= 0 {
 					continue
 				}
@@ -85,6 +91,10 @@ func readCreditReferences(pages []layoutPage) map[string]creditReference {
 						refs[key] = r
 					}
 				}
+				if v, seen := anyValue[annex]; seen && v != amount {
+					anyMixed[annex] = true
+				}
+				anyValue[annex] = amount
 				if r.code != "" && sourceModuleCode.MatchString(r.code+" x") {
 					if uniform[annex] > 0 && uniform[annex] != amount {
 						mixed[annex] = true
@@ -92,6 +102,13 @@ func readCreditReferences(pages []layoutPage) map[string]creditReference {
 					uniform[annex] = amount
 				}
 			}
+		}
+	}
+	// An appendix whose modules all carry the same value answers a reference to
+	// the appendix as a whole; one with differing values answers nothing.
+	for annex, v := range anyValue {
+		if !anyMixed[annex] && v > 0 {
+			refs[annex+":*"] = creditReference{amount: v, evidence: fmt.Sprintf("Anlage %s: every module listed carries %g LP", annex, v)}
 		}
 	}
 	for key, r := range refs {

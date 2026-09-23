@@ -139,6 +139,10 @@ impl Row<'_> {
         }
     }
 
+    pub fn real(&self, column: &str) -> Result<f64, DbError> {
+        self.opt_real(column)?.ok_or_else(|| self.error(column, "unexpected NULL"))
+    }
+
     /// A 0/1 column where NULL means "unknown". Unknown stays unknown.
     pub fn opt_flag(&self, column: &str) -> Result<Option<bool>, DbError> {
         match self.opt_int(column)? {
