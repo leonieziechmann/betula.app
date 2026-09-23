@@ -240,11 +240,59 @@ Two documents held a study plan the reader would not take:
   that points at its credits („Entwurfsprojekt 1 (Gemäß Anlage 1, Nr. 1)") stays a requirement
   even where the appendix was not read, so nothing disappears into a caption.
 
-Of the 182 program versions, 139 now have a validated plan. What the remaining 43 need is a
-different kind of reading, not a fix: plans that mark a semester with „X" and print the credits in
-a block column (Environmental and Resource Management), plans whose boxes carry no credits at all
-(World Heritage Studies, Urban Design), documents that publish only an amendment, and programs
-whose regulation has no plan table at all (Orientierungsstudium).
+Of the 182 program versions, 139 then had a validated plan.
+
+### Nine more shapes a plan is printed in (2026-09-23)
+
+Each of the 29 documents still without a plan was opened and read. All 29 hold one, and 25 state it
+without anything having to be guessed — what was missing was a reading, not the source. Nine of
+those readings are now in, taking the corpus from 139 to 156 of 182. Each is refused where the
+document does not verify it:
+
+- **A semester column headed by where the semester is spent** („1 ECN", „2 UNIZG", „3 BTU",
+  „4 Thesis"). The number decides the column as a bare number does, and the label is kept.
+  Read only where a table has no plain semester header at all, and never where the label counts
+  something else — „1. Studienjahr" spans two semesters, and reading it as the first would put
+  every module in the wrong semester *and still add up*, the one error `ValidateCurriculum` cannot
+  catch (`parseSemesterHeaderSite`, with its own negative test).
+- **A plan that points at another Anlage** for a block of its semesters („1. bis 5. Fachsemester
+  analog zu Anlage 2.1"). The referenced Anlage prints those semesters in full in the same
+  document; text and cell geometry must name exactly the same span, and the referencing plan's own
+  „Σ = 180 LP" line verifies the copy semester by semester (`pdf_annex_refs.go`).
+- **A choice printed as two named blocks** („entweder" · block with its own sum · „oder" · block).
+  A bare „oder" chain cannot read this because the branch headings end it. Read from the opening
+  „entweder" line instead, and only where each branch's rows reach the sum its own heading prints
+  (`entwederBlocks`, `blockReachesItsSum`).
+- **A grey „möglicher Studienplan" that leaves a row unpainted.** Grey chooses between the
+  placements a row offers; a row it painted nothing in offered no choice. Such a row is added back
+  only where the printed totals ask for it: the grey reading must contradict a total, adding
+  exactly the unpainted rows must reach every contradicted total exactly, and no total the grey
+  reading already explains may move (`unpaintedRowsThePrintedSumsAskFor`).
+- **Several study options in one document**, each under its own Anlage („Präsenzstudienprogramm",
+  „Fernstudienprogramm", „Doppelabschluss"). The tables look alike, so only the heading above them
+  says which program version a plan belongs to (`studyOptionOf`, `selectStudyOption`).
+- **A module box naming several modules**, each pointing at the appendix row its credits stand in,
+  with „oder" between two making them alternatives; and a box that explains the plan rather than
+  requiring anything of it (the footnotes under a total line) is no longer read as a requirement.
+- **A footnote that makes blocks alternatives** („Ein Schwerpunkt ist zu belegen").
+- **A semester column captioned on a second ruled header row** — a run of bare numbers with the
+  word they count under each. The pairing must be complete, so it is the document's and not the
+  reader's.
+- **A box plan closing its columns with bare amounts** („30 LP  30 LP  30 LP  30 LP"): the
+  semester sum, but only where every column holds exactly one box and each holds nothing but a
+  credit value.
+
+Two readings were built and then **not kept**, because a change that unlocks nothing is not worth
+its risk: a rule for the inset semester headers of Stadt- und Regionalplanung 2016 (it altered no
+plan anywhere in the corpus, and that document's real obstacle is „6(1+2)", six credits split
+across two semesters), and a loosening that would let a single column count as a semester header —
+the shape most likely to produce a false plan.
+
+What the remaining 26 need is still a different kind of reading: plans that mark a semester with
+„X" and print the credits in a block column (Environmental and Resource Management), plans whose
+boxes carry no credits at all (Urban Design), a transposed matrix whose credits stand in an annex,
+documents that publish only an amendment, and the four documents whose plan cannot be verified
+from the document alone — which, by R12, is a reason not to store it.
 
 Open:
 
