@@ -315,6 +315,13 @@ impl FromRow for AreaNode {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
     pub source_file: String,
+    /// The pages of the regulation the plan stands on, as a reader would write them („9", „9–11").
+    /// A regulation is dozens of pages of legal text with the plan somewhere in an appendix, so the
+    /// file alone does not let anyone check what is shown here.
+    pub source_pages: Option<String>,
+    /// The heading the plan stands under („Anlage 2.1 Regelstudienplan … – grundlagenorientiert").
+    /// A Lesefassung may print one plan per study branch; this says which of them was read.
+    pub source_label: Option<String>,
     /// The table layout of the plan as extracted from the PDF (input of the plan grid).
     pub layout_json: String,
     pub validated_at: Option<String>,
@@ -324,6 +331,8 @@ impl FromRow for Plan {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
         Ok(Self {
             source_file: row.text("source_file")?,
+            source_pages: row.opt_text("source_pages")?,
+            source_label: row.opt_text("source_label")?,
             layout_json: row.text("layout_json")?,
             validated_at: row.opt_text("validated_at")?,
         })
@@ -352,6 +361,9 @@ pub struct PlanEntry {
     pub specialization: Option<String>,
     pub catalog_title: Option<String>,
     pub credits_differ_from_catalog: bool,
+    /// The page of the regulation this row stands on. A plan continued across a page break has
+    /// rows on both, so it is kept per row and not only for the plan.
+    pub source_page: Option<i64>,
 }
 
 impl FromRow for PlanEntry {
@@ -374,6 +386,7 @@ impl FromRow for PlanEntry {
             specialization: row.opt_text("specialization")?,
             catalog_title: row.opt_text("catalog_title")?,
             credits_differ_from_catalog: row.opt_flag("credits_differ_from_catalog")?.unwrap_or(false),
+            source_page: row.opt_int("source_page")?,
         })
     }
 }

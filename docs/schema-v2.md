@@ -242,6 +242,24 @@ Two documents held a study plan the reader would not take:
 
 Of the 182 program versions, 139 then had a validated plan.
 
+### Where a plan stands in its regulation (2026-09-23)
+
+A regulation is dozens of pages of legal text with the Regelstudienplan somewhere in an appendix,
+and a Lesefassung may print four of them, one per study branch. `plan.source_file` named the
+document but not the place, so nobody could check what Betula shows without leafing through the
+PDF.
+
+`plan.source_pages` now names the pages the plan stands on, written as a reader would („9",
+„9–11", „9, 13"), `plan.source_label` the heading it stands under, and `plan_entry.source_page`
+says it per row, because a plan continued across a page break has rows on both. All three come
+from the cell each row was read from — the page is where the PDF drew the box and the label is the
+heading the reader already binds the table to — so a plan whose pages were not recorded says
+nothing rather than guessing.
+
+The program page prints it after the provenance line: „… geprüft am 23.09.2026. Dort auf Seite 11,
+unter „Dual ausbildungsintegrierend · Regelstudienplan …"." A heading that only reads
+„Regelstudienplan" is left out, because the page is already under that word.
+
 ### Nine more shapes a plan is printed in (2026-09-23)
 
 Each of the 29 documents still without a plan was opened and read. All 29 hold one, and 25 state it

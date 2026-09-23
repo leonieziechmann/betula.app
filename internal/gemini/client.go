@@ -44,6 +44,11 @@ type ExtractedModule struct {
 	Graded                 string  `json:"graded,omitempty"`
 	Prerequisites          string  `json:"prerequisites,omitempty"`
 	Remarks                string  `json:"remarks,omitempty"`
+	// Where in the regulation the row stands. Bound from the source cell, never
+	// proposed by the model.
+	SourcePage      int    `json:"source_page,omitempty"`
+	SourceTable     string `json:"source_table,omitempty"`
+	SourcePlanLabel string `json:"source_plan_label,omitempty"`
 }
 
 // CurriculumExtractionResult represents the structured extraction result from a study regulation PDF.

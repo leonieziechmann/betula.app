@@ -218,6 +218,7 @@ pub fn row(name: &str, semester: i64, kind: Option<ModuleKind>, plan: Option<&st
         specialization: plan.map(str::to_string),
         catalog_title: None,
         credits_differ_from_catalog: false,
+        source_page: None,
     }
 }
 

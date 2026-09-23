@@ -28,7 +28,7 @@ use catalog::labels::{Code, ModuleKind, OfferStatus, TurnusSeason};
 use catalog::pages::{self, CatalogArea, ProgramData};
 use catalog::plan;
 use catalog::rows::{Program, ProgramModule};
-use catalog::rows_detail::{AreaPlacement, PlanEntry, PlanTotal};
+use catalog::rows_detail::{AreaPlacement, Plan, PlanEntry, PlanTotal};
 use catalog::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
@@ -439,7 +439,8 @@ fn ProgramView(
                         .map(|status| status.label().to_string())
                         .unwrap_or_else(|| "Für diesen Studiengang liegt kein geprüfter Regelstudienplan vor".to_string());
                     let validated = data.plan.as_ref().and_then(|plan| plan.validated_at.clone());
-                    view! { <PlanTab plans=plans.clone() validated missing variant shape room links open req/> }.into_any()
+                    let source = data.plan.as_ref().and_then(plan_source);
+                    view! { <PlanTab plans=plans.clone() validated source missing variant shape room links open req/> }.into_any()
                 }
                 ProgramTab::Areas => view! { <AreasTab areas=data.areas.clone() known=known.clone() links open area/> }.into_any(),
                 ProgramTab::Modules => view! { <ModulesTab curricular=data.curricular.clone() fues=data.fues.clone() links open/> }.into_any(),
@@ -1190,10 +1191,44 @@ fn plan_credits(entry: &PlanEntry) -> Option<String> {
     }
 }
 
+/// How the plan's place in the regulation reads: „Seite 9" or „Seite 9–11", with the heading it
+/// stands under where the document prints one. A plan whose pages were not recorded says nothing
+/// rather than guessing.
+fn plan_source(plan: &Plan) -> Option<(String, Option<String>)> {
+    let pages = plan.source_pages.as_deref()?.trim();
+    if pages.is_empty() {
+        return None;
+    }
+    let word = if pages.contains(['\u{2013}', ',']) { "Seiten" } else { "Seite" };
+    Some((format!("{word} {pages}"), plan.source_label.as_deref().and_then(plan_heading)))
+}
+
+/// The heading worth repeating. A plan read from a table headed only „Regelstudienplan" is already
+/// under that word on this page, so naming it again says nothing; a heading that tells one branch
+/// of a Lesefassung from another does. A heading the PDF cut mid-parenthesis is closed, because it
+/// is printed as a quotation and an open bracket would swallow the sentence.
+fn plan_heading(label: &str) -> Option<String> {
+    let label = label.trim();
+    let plain = label.rsplit(" · ").next().unwrap_or(label).trim();
+    if plain.eq_ignore_ascii_case("Regelstudienplan") || plain.eq_ignore_ascii_case("Studienplan") {
+        return None;
+    }
+    let mut text = label.to_string();
+    let open = text.matches('(').count();
+    let close = text.matches(')').count();
+    if open > close {
+        text.push_str(&")".repeat(open - close));
+    }
+    Some(text)
+}
+
 #[component]
 fn PlanTab(
     plans: Vec<PlanVariant>,
     validated: Option<String>,
+    /// Where the plan stands in the regulation: the page a reader turns to, and the heading it
+    /// stands under where the document prints one.
+    source: Option<(String, Option<String>)>,
     /// What to say when there is no validated plan.
     missing: String,
     variant: Memo<usize>,
@@ -1240,6 +1275,10 @@ fn PlanTab(
                 <p>
                     "Aus der Prüfungs- und Studienordnung übernommen und geprüft"
                     {validated.as_deref().map(|at| format!(" am {}", format::date(at)))}"."
+                    {source.as_ref().map(|(pages, label)| view! {
+                        " Dort auf "{pages.clone()}
+                        {label.clone().map(|label| format!(", unter „{label}“"))}"."
+                    })}
                 </p>
             </header>
             {move || {
@@ -1993,6 +2032,7 @@ mod tests {
             specialization: None,
             catalog_title: None,
             credits_differ_from_catalog: false,
+            source_page: None,
         };
         let full = "Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium";
         let plan = PlanVariant {
@@ -2036,6 +2076,7 @@ mod tests {
             specialization: None,
             catalog_title: None,
             credits_differ_from_catalog: false,
+            source_page: None,
         };
         let total = |ord: i64, label: &str, scope: &str, from: i64, to: i64, credits: f64, min: f64, max: f64, entries: Vec<i64>| PlanTotal {
             ord,
@@ -2118,6 +2159,7 @@ mod tests {
             specialization: None,
             catalog_title: None,
             credits_differ_from_catalog: false,
+            source_page: None,
         };
         assert_eq!(semester_span(&entry(Some(3), Some(1), Some(2))), Some((3, 3)));
         assert_eq!(semester_span(&entry(None, Some(3), Some(2))), Some((2, 3)));
@@ -2126,6 +2168,23 @@ mod tests {
         assert_eq!(span_of([6.0, 6.0].into_iter()).as_deref(), Some("6"));
         assert_eq!(span_of([4.0, 6.0, 0.0].into_iter()).as_deref(), Some("4–6"));
         assert_eq!(span_of([0.0].into_iter()), None);
+    }
+    /// A heading is only worth repeating when it says which plan was read. „Regelstudienplan" is
+    /// the word the page is already under, and a heading the PDF cut mid-parenthesis is closed so
+    /// the quotation does not swallow the rest of the sentence.
+    #[test]
+    fn the_heading_of_a_plan_is_named_only_where_it_tells_plans_apart() {
+        assert_eq!(plan_heading("Regelstudienplan"), None);
+        assert_eq!(plan_heading("  Studienplan "), None);
+        assert_eq!(plan_heading("Dual · Regelstudienplan"), None);
+        assert_eq!(
+            plan_heading("Dual ausbildungsintegrierend · Regelstudienplan B.Sc. (180 LP"),
+            Some("Dual ausbildungsintegrierend · Regelstudienplan B.Sc. (180 LP)".to_string())
+        );
+        assert_eq!(
+            plan_heading("Regelstudienplan – praxisorientiert (240 LP)"),
+            Some("Regelstudienplan – praxisorientiert (240 LP)".to_string())
+        );
     }
 }
 

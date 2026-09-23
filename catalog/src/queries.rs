@@ -425,7 +425,8 @@ pub fn program_plan(db: &dyn Database, program_id: &str) -> Result<Option<Plan>,
     fetch_optional(
         db,
         "program_plan",
-        "SELECT source_file, layout_json, validated_at FROM v_program_plan WHERE program_id = ?",
+        "SELECT source_file, source_pages, source_label, layout_json, validated_at \
+         FROM v_program_plan WHERE program_id = ?",
         &[Value::from(program_id)],
     )
 }
@@ -436,7 +437,7 @@ pub fn program_plan_entries(db: &dyn Database, program_id: &str) -> Result<Vec<P
         "program_plan_entries",
         "SELECT ord, module_id, module_name, semester, start_semester, end_semester, semester_span, credits, \
          min_credits, max_credits, kind, kind_raw, study_section, subject_area, specialization, catalog_title, \
-         credits_differ_from_catalog FROM v_program_plan_entry WHERE program_id = ? ORDER BY ord",
+         credits_differ_from_catalog, source_page FROM v_program_plan_entry WHERE program_id = ? ORDER BY ord",
         &[Value::from(program_id)],
     )
 }

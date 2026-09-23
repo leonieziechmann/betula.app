@@ -261,7 +261,10 @@ func BuildModules(prog model.OfficialStudyProgram, res *gemini.CurriculumExtract
 			ModuleType: m.ModuleType, StudySection: m.StudySection, SubjectArea: m.SubjectArea,
 			AreaRules: m.AreaRules, Specialization: m.Specialization, SWS: m.SWS, ExamType: m.ExamType,
 			Graded: m.Graded, Prerequisites: m.Prerequisites, Remarks: m.Remarks, SourceFile: source,
-			SourceCell: m.SourceCell,
+			SourceCell:      m.SourceCell,
+			SourcePage:      m.SourcePage,
+			SourceTable:     m.SourceTable,
+			SourcePlanLabel: m.SourcePlanLabel,
 		})
 	}
 	return rows

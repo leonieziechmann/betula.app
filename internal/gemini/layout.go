@@ -240,6 +240,10 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 		if m.StudySection == "" {
 			m.StudySection = c.Section
 		}
+		// Where in the regulation this row stands: the page a reader turns to,
+		// and the heading of the plan it belongs to.
+		m.SourcePage, m.SourceTable = c.Page, c.Table
+		m.SourcePlanLabel = layout.PlanNames[c.Table]
 		if len(layout.PlanNames) > 1 {
 			m.Specialization = layout.PlanNames[c.Table]
 		}

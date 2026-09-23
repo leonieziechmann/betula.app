@@ -10,8 +10,13 @@ import (
 
 // Plan is a validated study plan of one program (source: statute PDF).
 type Plan struct {
-	ProgramID   string
+	ProgramID string
+	// SourceFile is the regulation the plan was read from; SourcePages the pages
+	// it stands on („9" or „9–11") and SourceLabel the heading it stands under,
+	// so a reader can turn to the table the figures came from.
 	SourceFile  string
+	SourcePages string
+	SourceLabel string
 	LayoutJSON  string
 	ValidatedAt time.Time
 	Entries     []PlanEntry
@@ -56,6 +61,7 @@ type PlanEntry struct {
 	AreaRules      string
 	Specialization string
 	SourceEvidence string
+	SourcePage     int // the page of the regulation this row stands on
 }
 
 // SavePlan replaces the validated plan of a program atomically: either the new
@@ -84,8 +90,9 @@ func savePlanTx(tx *sql.Tx, p Plan) error {
 	if _, err := tx.Exec("DELETE FROM plan WHERE program_id = ?", p.ProgramID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec("INSERT INTO plan (program_id, source_file, layout_json, validated_at) VALUES (?, ?, ?, ?)",
-		p.ProgramID, p.SourceFile, p.LayoutJSON, p.ValidatedAt.UTC().Format(time.RFC3339)); err != nil {
+	if _, err := tx.Exec("INSERT INTO plan (program_id, source_file, source_pages, source_label, layout_json, validated_at) VALUES (?, ?, ?, ?, ?, ?)",
+		p.ProgramID, p.SourceFile, nullIfZero(p.SourcePages), nullIfZero(p.SourceLabel),
+		p.LayoutJSON, p.ValidatedAt.UTC().Format(time.RFC3339)); err != nil {
 		return err
 	}
 
@@ -94,8 +101,9 @@ func savePlanTx(tx *sql.Tx, p Plan) error {
 			program_id, ord, module_id, module_code_raw, module_name,
 			semester, start_semester, end_semester, semester_span,
 			credits, min_credits, max_credits, kind, kind_raw,
-			study_section, subject_area, area_rules, specialization, source_evidence
-		) VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?,?)`)
+			study_section, subject_area, area_rules, specialization, source_evidence,
+			source_page
+		) VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -111,7 +119,7 @@ func savePlanTx(tx *sql.Tx, p Plan) error {
 			nullIfZero(e.Credits), nullIfZero(e.MinCredits), nullIfZero(e.MaxCredits),
 			nullIfZero(normalize.PlanKind(e.KindRaw)), nullIfZero(e.KindRaw),
 			nullIfZero(e.StudySection), nullIfZero(e.SubjectArea), nullIfZero(e.AreaRules),
-			nullIfZero(e.Specialization), nullIfZero(e.SourceEvidence))
+			nullIfZero(e.Specialization), nullIfZero(e.SourceEvidence), nullIfZero(e.SourcePage))
 		if err != nil {
 			return fmt.Errorf("plan %s: entry %d: %w", p.ProgramID, i+1, err)
 		}

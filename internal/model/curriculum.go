@@ -56,7 +56,10 @@ type CurriculumModule struct {
 	Remarks                string    `json:"remarks,omitempty"`
 	SourceFile             string    `json:"source_file,omitempty"`
 	ExtractedAt            time.Time `json:"extracted_at"`
-	SourceCell             string    `json:"source_cell,omitempty"` // the PDF cell this row was read from
+	SourceCell             string    `json:"source_cell,omitempty"`       // the PDF cell this row was read from
+	SourcePage             int       `json:"source_page,omitempty"`       // the page of the regulation this row stands on
+	SourceTable            string    `json:"source_table,omitempty"`      // the plan table it was read from („p9t1")
+	SourcePlanLabel        string    `json:"source_plan_label,omitempty"` // the heading that table stands under („Anlage 2.1 Regelstudienplan …")
 }
 
 // CurriculumTotal is a sum the regulation prints over rows of its own study
