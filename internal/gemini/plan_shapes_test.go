@@ -224,3 +224,35 @@ func TestAChoiceMarkerIsALineThatCarriesNothingElse(t *testing.T) {
 		}
 	}
 }
+
+// A table's rows need not be equally long. mergeShadedRuns walks the grid by
+// column, and taking its width from the first row made it read past the end of
+// every shorter one — a panic that took two working plans down with it.
+func TestJoiningShadedBoxesSurvivesRaggedRows(t *testing.T) {
+	cell := func(s string) *string { return &s }
+	box := func(x0, y0 float64, shaded bool) *pdfBox {
+		return &pdfBox{x0, y0, x0 + 50, y0 + 10, false, shaded}
+	}
+	tab := pdfTable{
+		rows: [][]*string{
+			{cell("a"), cell("b"), cell("c"), cell("d")},
+			{cell("e")},
+			{cell("f"), cell("g")},
+			nil,
+		},
+		boxes: [][]*pdfBox{
+			{box(0, 0, true), box(50, 0, true), box(100, 0, false), box(150, 0, true)},
+			{box(0, 10, true)},
+			{box(0, 20, true), box(50, 20, true)},
+			nil,
+		},
+	}
+	got := mergeShadedRuns(tab)
+	if len(got.rows) != len(tab.rows) {
+		t.Fatalf("got %d rows, want %d", len(got.rows), len(tab.rows))
+	}
+	// the first column's three shaded, touching cells are one box
+	if v := cellText(got.rows[0][0]); v != "a e f" {
+		t.Errorf("column 0 joined to %q, want %q", v, "a e f")
+	}
+}

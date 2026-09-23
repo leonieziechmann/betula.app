@@ -12,17 +12,28 @@ import (
 // it names no sum, so totalRow does not know it.
 var creditColumnLabel = regexp.MustCompile(`^(?:lp|kp|cp|ects|credits?|credit points|leistungspunkte|kreditpunkte)$`)
 
+// boxSemesterHeader is the „n. Semester" heading of a box plan's column. The
+// panel reader's own pattern is looser and matches a heading anywhere in the
+// cell, which a box plan's captions do not mean.
+var boxSemesterHeader = regexp.MustCompile(`^(\d{1,2})\.\s*Semester\b`)
+
+// annexOnlyReference points at a whole appendix rather than one of its rows:
+// „WP-Modul (gemäß Anlage 6)" names no module, so it is worth what every module
+// listed there is worth — and only where they are all worth the same.
+var annexOnlyReference = regexp.MustCompile(`(?i)\(?\s*gemäß\s+Anlage\s+(\d+)\s*\)?`)
+
 // Plans made of named module boxes underneath "n. Semester" headings.
 // Merged boxes keep their complete horizontal span; vertical height never
 // changes credit values or duplicates a module.
 func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[string]creditReference) {
+	t = mergeShadedRuns(t)
 	for hr, row := range t.rows {
 		if hr > 4 {
 			break
 		}
 		var headers []*pdfBox
 		for ci, s := range row {
-			m := panelSemester.FindStringSubmatch(cellText(s))
+			m := boxSemesterHeader.FindStringSubmatch(cellText(s))
 			if m == nil {
 				continue
 			}
@@ -95,6 +106,21 @@ func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[st
 						totals = append(totals, c)
 					}
 					continue
+				}
+				if len(matches) == 0 && !creditReferencePattern.MatchString(value) {
+					// „WP-Modul (gemäß Anlage 6)" names the appendix but no row
+					// of it: it is worth what every module listed there is
+					// worth, which the reference index only offers where they
+					// all carry the same value.
+					if m := annexOnlyReference.FindStringSubmatch(value); m != nil {
+						if ref, found := refs[m[1]+":*"]; found {
+							c.Row = strings.TrimSpace(strings.Trim(strings.TrimSpace(annexOnlyReference.ReplaceAllString(value, "")), "();, "))
+							c.Min, c.Max = ref.amount, ref.amount
+							c.CreditEvidence = ref.evidence
+							cells = append(cells, c)
+							continue
+						}
+					}
 				}
 				if len(matches) == 0 {
 					parts := splitReferencedModules(value)
@@ -194,7 +220,7 @@ func captionBoxes(t pdfTable, ri int, headers []*pdfBox) map[int]string {
 		// „Entwurfsprojekt 1 (Gemäß Anlage 1, Nr. 1)" is a module whose credits
 		// stand in an appendix — a requirement even where that appendix was not
 		// read, and never a caption.
-		if creditReferencePattern.MatchString(value) {
+		if creditReferencePattern.MatchString(value) || annexOnlyReference.MatchString(value) {
 			return nil
 		}
 		for _, semester := range semesters {
@@ -306,6 +332,71 @@ func semesterTotalRow(t pdfTable, ri int, headers []*pdfBox) []*semesterSum {
 	for _, s := range out {
 		if s == nil {
 			return nil
+		}
+	}
+	return out
+}
+
+// mergeShadedRuns joins the cells a module box drawn as a shaded paragraph is
+// cut into: such a box leaves one ruled cell per printed line, so its name and
+// its credit reference land in different rows of the grid and neither row says
+// what the box requires. Contiguous shaded cells that share a column's exact
+// x-span and touch vertically are one box; an empty cell ends the run.
+func mergeShadedRuns(t pdfTable) pdfTable {
+	if len(t.rows) == 0 {
+		return t
+	}
+	out := pdfTable{rows: make([][]*string, len(t.rows)), boxes: make([][]*pdfBox, len(t.rows)), origins: t.origins}
+	for ri := range t.rows {
+		out.rows[ri] = append([]*string(nil), t.rows[ri]...)
+		out.boxes[ri] = append([]*pdfBox(nil), t.boxes[ri]...)
+	}
+	// A table's rows need not be equally long, so every access is bounded by the
+	// row's own width, not by the first row's.
+	width := 0
+	for _, row := range t.rows {
+		if len(row) > width {
+			width = len(row)
+		}
+	}
+	for ci := 0; ci < width; ci++ {
+		for ri := 0; ri < len(t.rows); ri++ {
+			if ci >= len(out.boxes[ri]) || ci >= len(out.rows[ri]) {
+				continue
+			}
+			b := out.boxes[ri][ci]
+			if b == nil || !b.shaded || cellText(out.rows[ri][ci]) == "" {
+				continue
+			}
+			text := cellText(out.rows[ri][ci])
+			merged := *b
+			last := ri
+			for rj := ri + 1; rj < len(t.rows); rj++ {
+				if ci >= len(out.boxes[rj]) || ci >= len(out.rows[rj]) {
+					break
+				}
+				nb := out.boxes[rj][ci]
+				if nb == nil || !nb.shaded || nb.x0 != b.x0 || nb.x1 != b.x1 || nb.y0 > merged.y1+0.5 {
+					break
+				}
+				v := cellText(out.rows[rj][ci])
+				if v == "" {
+					break
+				}
+				text += " " + v
+				merged.y1 = nb.y1
+				last = rj
+			}
+			if last == ri {
+				continue
+			}
+			s := text
+			nbx := merged
+			out.rows[ri][ci], out.boxes[ri][ci] = &s, &nbx
+			for rj := ri + 1; rj <= last; rj++ {
+				out.rows[rj][ci], out.boxes[rj][ci] = nil, nil
+			}
+			ri = last
 		}
 	}
 	return out
