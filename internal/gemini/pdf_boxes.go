@@ -25,6 +25,13 @@ var annexOnlyReference = regexp.MustCompile(`(?i)\(?\s*gemäß\s+Anlage\s+(\d+)\
 // Plans made of named module boxes underneath "n. Semester" headings.
 // Merged boxes keep their complete horizontal span; vertical height never
 // changes credit values or duplicates a module.
+//
+// The columns are numbered as printed, which need not start at the first
+// semester: Materialchemie B.Sc. 2018 prints „a) Grundstudium" under „1.
+// Semester" and „2. Semester" and continues with „b) Fachstudium" under „3." to
+// „6. Semester". Such a table is the rest of the plan read just before it, and
+// only that: where no plan ends at the semester before its first column, it is
+// refused rather than stored as a plan that begins in its third semester.
 func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[string]creditReference) {
 	t = mergeShadedRuns(t)
 	for hr, row := range t.rows {
@@ -32,13 +39,17 @@ func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[st
 			break
 		}
 		var headers []*pdfBox
+		first := 0
 		for ci, s := range row {
 			m := boxSemesterHeader.FindStringSubmatch(cellText(s))
 			if m == nil {
 				continue
 			}
 			n, _ := strconv.Atoi(m[1])
-			if n != len(headers)+1 {
+			if len(headers) == 0 {
+				first = n
+			}
+			if n < 1 || n != first+len(headers) {
 				return
 			}
 			headers = append(headers, t.boxes[hr][ci])
@@ -179,6 +190,13 @@ func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[st
 				break
 			}
 		}
+		if len(cells) > 0 && first > 1 {
+			if last := lastPlanSemester(l); last != first-1 {
+				l.Issues = append(l.Issues, fmt.Sprintf("%s: the plan's columns begin at semester %d, and no plan read before it ends at semester %d", id, first, first-1))
+				return
+			}
+			cells, totals = shiftSemesters(cells, first-1), shiftSemesters(totals, first-1)
+		}
 		if len(cells) > 0 {
 			l.Cells = append(l.Cells, cells...)
 			l.Totals = append(l.Totals, totals...)
@@ -186,6 +204,37 @@ func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[st
 		}
 		return
 	}
+}
+
+// lastPlanSemester is the last semester of the plan table read most recently,
+// counting its printed sums as well as its modules, or 0 before any.
+func lastPlanSemester(l *PDFLayout) int {
+	if len(l.Cells) == 0 {
+		return 0
+	}
+	table, last := l.Cells[len(l.Cells)-1].Table, 0
+	for _, cells := range [][]SourceCell{l.Cells, l.Totals} {
+		for _, c := range cells {
+			if c.Table == table && len(c.Semesters) > 0 && c.Semesters[len(c.Semesters)-1] > last {
+				last = c.Semesters[len(c.Semesters)-1]
+			}
+		}
+	}
+	return last
+}
+
+// shiftSemesters moves cells counted from a table's own first column to the
+// semesters the plan prints. Cells of one box may share their semester slice,
+// so each gets a new one.
+func shiftSemesters(cells []SourceCell, by int) []SourceCell {
+	for i := range cells {
+		shifted := make([]int, len(cells[i].Semesters))
+		for j, s := range cells[i].Semesters {
+			shifted[j] = s + by
+		}
+		cells[i].Semesters = shifted
+	}
+	return cells
 }
 
 // captionBoxes reads a row of the box plan that carries labels but no credits

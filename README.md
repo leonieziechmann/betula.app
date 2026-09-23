@@ -112,6 +112,12 @@ not say what a degree costs. The regulation does, in the lines it prints over it
 line over the whole table. A line is kept only where its rows reach the printed value, so a sum is
 evidence and not an assumption (`internal/gemini/plan_totals.go`, `docs/schema-v2.md` §6).
 
+**A plan is read from its own regulation.** An issue of the Amtliches Mitteilungsblatt may print
+the Bachelor's and the Master's Prüfungsordnung of one subject one after the other, each with its
+own plan. A program reads only the pages its own regulation stands on, as the issue's table of
+contents names them; a document whose regulations cannot be told apart, or that has none for the
+program's degree, goes to review (`internal/gemini/pdf_regulations.go`).
+
 A plan row is linked to a catalog module only where the catalog identifies it beyond doubt: by the
 printed module number, or by a title that names exactly one module. Titles repeat across the
 university — 68 modules are called „Bachelor-Arbeit", and both „Grundlagen der Elektrotechnik" are

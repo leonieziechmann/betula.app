@@ -397,6 +397,49 @@ changes faculty on either path. The model and the offline reader now differ on 5
 cells instead of 227 of 297; „Betriebliche Phase 1" and „Schulpraktische Studien / Praktisches
 Studiensemester" do not say what they are in their name and stay the model's.
 
+### One issue, two regulations (2026-09-23)
+
+Materialchemie B.Sc. and M.Sc. 2018 had the same stored plan. Both regulations stand in one issue of
+the Amtliches Mitteilungsblatt (17/2018: the Bachelor's on pages 2–5, the Master's on pages 6–10),
+and the reader took the tables of the whole document, so the Bachelor had a Master-Arbeit and the
+Master the Bachelor's first two semesters. Eight documents of the corpus print regulations of two
+degrees, and three more plans were mixed the same way: Künstliche Intelligenz B.Sc. 2022 carried the
+Master's plan as a second variant, Künstliche Intelligenz Technologie B.Sc. 2022 had it among its own
+rows (35 of them, 300 LP, both tables being headed „Regelstudienplan"), and Bauingenieurwesen M.Sc.
+2014 carried nothing but the three plans of the Bachelor.
+
+A program now reads only the pages of its own regulation (`pdf_regulations.go`). The cover of every
+issue lists each regulation with the page it begins on, and that list decides. The running footers
+name the regulation too, but 07/2014 prints „Master-Studiengang" under two pages of the Bachelor's
+plans, which would have handed Bauingenieurwesen M.Sc. one of them. The contents count only where the
+pages agree — each regulation begins on a page that prints the number the contents give it — and a
+document whose regulations cannot be told apart, or that has none for the program's degree, goes to
+review. Reading the pages rather than sorting the tables afterwards also keeps the regulations'
+appendices apart: both have an „Anlage 1", and a box pointing at „Gemäß Anlage 1, Nr. 1" could have
+found the other one's row.
+
+The Bachelor's plan was also read only in part. Its Anlage 3 prints „a) Grundstudium" under „1.
+Semester" and „2. Semester" and continues with „b) Fachstudium" under „3." to „6. Semester", and a
+box plan was read only where its columns began at the first semester. A box table may now begin
+later where it is the rest of the plan read just before it — that plan ends at the semester before
+its first column — and its own „Summe LP" line verifies it like any other; one that begins after a
+gap is refused. Materialchemie B.Sc. now has 24 rows over six semesters and 180 LP, the modules of
+its Anlage 1.
+
+An offline scan of all 182 program versions before and after the change differs in exactly these
+five plans. Materialchemie B.Sc. goes from 20 rows to 24 (the ten of the Master out, the fourteen
+of its Fachstudium in), Materialchemie M.Sc. from 20 to 10, Künstliche Intelligenz B.Sc. from 32 to
+21 and Künstliche Intelligenz Technologie B.Sc. from 35 to 23; each is now one plan, of 180 LP for a
+Bachelor and 120 for the Master. Bauingenieurwesen M.Sc. 2014 has none: its own plan is a box plan
+pointing into its Anlage 1 that the reader cannot read yet, so 160 plans are valid instead of 161,
+and the refusal names the pages it read. The model is given the same cells as before for 159 of the
+164 stored model answers; the answers for the four others bind to their new layouts in the offline
+order and variants. No program moves to another faculty: each keeps a thesis of one department.
+
+A rescan does not remove the Bachelor's plans stored for Bauingenieurwesen M.Sc. 2014, because a
+plan that does not validate never replaces a stored one; until its own plan can be read, they have
+to be deleted by hand.
+
 Open:
 
 - **Web server (Rust) and frontend.** Both still read the v1 layout and do not work against a

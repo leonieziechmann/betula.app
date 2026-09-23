@@ -23,10 +23,17 @@ func writeTestPDF(t *testing.T, content, resources string, extraObjects ...strin
 		"<< /Type /Catalog /Pages 2 0 R >>",
 		"<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 500 500] >>",
 		"<< /Type /Page /Parent 2 0 R /Resources << " + resources + " >> /Contents 5 0 R >>",
-		"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding /FirstChar 0 /LastChar 255 /Widths [" + strings.Repeat("500 ", 256) + "] >>",
+		testPDFFont,
 		fmt.Sprintf("<< /Length %d >>\nstream\n%sendstream", len(content), content),
 	}
-	objects = append(objects, extraObjects...)
+	return writePDFObjects(t, append(objects, extraObjects...))
+}
+
+var testPDFFont = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding /FirstChar 0 /LastChar 255 /Widths [" + strings.Repeat("500 ", 256) + "] >>"
+
+// writePDFObjects writes objects 1, 2, … with their cross-reference table.
+func writePDFObjects(t *testing.T, objects []string) string {
+	t.Helper()
 	var b strings.Builder
 	b.WriteString("%PDF-1.4\n")
 	offsets := []int{0}

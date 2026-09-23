@@ -83,6 +83,7 @@ var layoutErrorMarkers = []string{
 	"incomplete table",
 	"unsupported or malformed PDF content",
 	"failed to read PDF file",
+	regulationError,
 }
 
 // IsLayoutError reports whether the document itself was rejected. Such a result
