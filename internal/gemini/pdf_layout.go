@@ -105,6 +105,7 @@ func extractPDFLayout(ctx context.Context, path string, selectedPages ...int) (l
 	layout = &PDFLayout{Cells: []SourceCell{}, Totals: []SourceCell{}, Tables: []json.RawMessage{}, Issues: []string{}, StartTerm: "unknown"}
 	var fullText strings.Builder
 	var pages []layoutPage
+	pageTexts := map[int]string{}
 	for pageNo := 1; pageNo <= reader.NumPage(); pageNo++ {
 		if len(selected) > 0 && !selected[pageNo] {
 			continue
@@ -116,6 +117,7 @@ func extractPDFLayout(ctx context.Context, path string, selectedPages ...int) (l
 		if err != nil {
 			return nil, fmt.Errorf("PDF page %d: %w", pageNo, err)
 		}
+		pageTexts[pageNo] = cleanPDFText(textInBox(geometry.glyphs, nil))
 		fullText.WriteString(textInBox(geometry.glyphs, nil))
 		fullText.WriteByte('\n')
 		tables, err := tableGeometry(ctx, geometry.edges, geometry.glyphs)
@@ -162,8 +164,10 @@ func extractPDFLayout(ctx context.Context, path string, selectedPages ...int) (l
 		appendSemesterPanels(layout, tables, geometry, pageNo)
 		nameStudyPlans(layout, tables, geometry, pageNo)
 	}
+	resolveAnnexReferences(layout, pages)
 	text := strings.ToLower(cleanPDFText(fullText.String()))
 	deduplicatePlanTables(layout)
+	applyChoiceFootnotes(layout, pageTexts)
 	applyStyleLegends(layout, strings.ToLower(cleanPDFText(fullText.String())))
 	winter, summer := winterIntake.MatchString(text), summerIntake.MatchString(text)
 	if winter && !summer {
@@ -230,7 +234,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			if named != len(boxes) {
 				captions = nil
 			}
-			headingOK := semesterHeading.MatchString(p) || explicit >= 2 || (len(workloadNotation) > 1 && workloadNotation[1] && (creditHeading.MatchString(p) || subtotalLabel.MatchString(p)))
+			headingOK := semesterHeading.MatchString(p) || explicit >= 2 || (len(workloadNotation) > 1 && workloadNotation[1] && (creditHeading.MatchString(p) || subtotalLabel.MatchString(p))) || captionedBelow(t, ri, boxes)
 			if headingOK && valid && len(boxes) >= 2 {
 				hi = ri
 				header = boxes
@@ -252,6 +256,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 	// semester) is read by appendSemesterPanels; leave no trace of this attempt
 	// when it found no credit values at all.
 	startTotals, startIssues, startTables := len(layout.Totals), len(layout.Issues), len(layout.Tables)
+	startRefs := len(layout.annexRefs)
 	textIssues := 0
 	defer func() {
 		accepted := len(layout.Cells) - firstNew
@@ -259,6 +264,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			layout.Cells, layout.Totals = layout.Cells[:firstNew], layout.Totals[:startTotals]
 			layout.Issues = layout.Issues[:startIssues]
 			layout.Tables = layout.Tables[:startTables]
+			layout.annexRefs = layout.annexRefs[:startRefs]
 		}
 	}()
 	data, _ := json.Marshal(struct {
@@ -267,7 +273,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 		Rows [][]*string `json:"rows"`
 	}{id, pageNo, t.rows})
 	layout.Tables = append(layout.Tables, data)
-	left, right := header[0].x0, header[len(header)-1].x1
+	left, right := headerBlock(t, hi, header)
 	alternatives := alternativeRows(t, hi)
 	for ri := hi + 1; ri < len(t.rows); ri++ {
 		if isCreditSubHeader(t.rows[ri], headerFrom, headerTo) {
@@ -286,6 +292,16 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			}
 			value := cellText(t.rows[ri][ci])
 			if len(semesters) == 0 || value == "" || value == "-" || value == "–" {
+				continue
+			}
+			// A merged block that names another Anlage instead of printing
+			// credits: it is resolved once every page has been read.
+			if ref, isRef := parseAnnexReference(value, semesters); isRef {
+				origin := t.origin(ri)
+				ref.table, ref.cell = id, fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1)
+				ref.page, ref.rowIndex = pageNo, ri+1
+				ref.bbox = []float64{b.x0 + origin.dx, b.y0 + origin.dy, b.x1 + origin.dx, b.y1 + origin.dy}
+				layout.annexRefs = append(layout.annexRefs, ref)
 				continue
 			}
 			var labels, statusOnly []string

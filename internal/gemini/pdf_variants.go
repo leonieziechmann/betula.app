@@ -35,6 +35,7 @@ func selectProgramMode(l *PDFLayout, hint string) {
 		hasDual = hasDual || strings.Contains(n, "dual")
 		hasRegular = hasRegular || (!strings.Contains(n, "dual") && !strings.Contains(n, "240 lp") && !strings.Contains(n, "erweitert"))
 	}
+	lengthOnly := map[string]bool{}
 	for id, name := range l.PlanNames {
 		n := strings.ToLower(name)
 		isDual := strings.Contains(n, "dual")
@@ -42,7 +43,26 @@ func selectProgramMode(l *PDFLayout, hint string) {
 		planMode := dualModeOf(name)
 		// Both name one of the two dual modes, and they disagree.
 		wrongDualMode := hintMode != "" && planMode != "" && hintMode != "Dual" && planMode != "Dual" && hintMode != planMode
-		if (hasDual && hasRegular && isDual != dual) || (strings.Contains(n, "grundlagenorientiert") && extended) || (isExtended && !extended) || wrongDualMode {
+		if (hasDual && hasRegular && isDual != dual) || (strings.Contains(n, "grundlagenorientiert") && extended) || wrongDualMode {
+			remove[id] = true
+			continue
+		}
+		// The length of the studies only tells two plans apart where the
+		// document still offers another one for this program. A dual plan of
+		// 240 LP is not an "extended" variant of anything when it is the only
+		// plan of its dual mode.
+		if isExtended && !extended {
+			lengthOnly[id] = true
+		}
+	}
+	for id := range lengthOnly {
+		remaining := 0
+		for other := range l.PlanNames {
+			if !remove[other] && !lengthOnly[other] {
+				remaining++
+			}
+		}
+		if remaining > 0 {
 			remove[id] = true
 		}
 	}

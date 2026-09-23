@@ -84,3 +84,105 @@ func TestAYearHeaderIsNotASemesterHeader(t *testing.T) {
 		}
 	}
 }
+
+// annexPlanPDF draws the shape of the Bauingenieurwesen Lesefassung: Anlage 2.1
+// prints a credit in every cell, and Anlage 3.1 below it lists the same rows but
+// replaces the first two semesters with one merged cell pointing back at it. ref
+// supplies that cell's text, so a reference the geometry contradicts can be
+// drawn too.
+func annexPlanPDF(ref string) string {
+	var b strings.Builder
+	xs := []float64{40, 190, 310, 430, 500}
+	draw := func(top float64, title string, rows [][]string, merged bool) {
+		fmt.Fprintf(&b, "BT /F1 9 Tf 1 0 0 1 40 %.1f Tm (%s) Tj ET\n", top+8, title)
+		for ri, row := range rows {
+			for ci, txt := range row {
+				if merged && ri > 0 && ci >= 1 && ci <= 2 {
+					continue
+				}
+				x, y, w, h := xs[ci], top-float64(ri+1)*22, xs[ci+1]-xs[ci], 22.0
+				fmt.Fprintf(&b, "%.1f %.1f %.1f %.1f re S\n", x, y, w, h)
+				if txt != "" {
+					fmt.Fprintf(&b, "BT /F1 7 Tf 1 0 0 1 %.1f %.1f Tm (%s) Tj ET\n", x+2, y+h-13, txt)
+				}
+			}
+		}
+		if merged {
+			// one cell over the first two semester columns of every module row,
+			// carrying the reference
+			h := float64(len(rows)-2) * 22
+			y := top - float64(len(rows)-1)*22
+			fmt.Fprintf(&b, "%.1f %.1f %.1f %.1f re S\n", xs[1], y, xs[3]-xs[1], h)
+			fmt.Fprintf(&b, "BT /F1 6 Tf 1 0 0 1 %.1f %.1f Tm (%s) Tj ET\n", xs[1]+2, y+h-13, ref)
+		}
+	}
+	draw(600, "Anlage 2.1 Regelstudienplan", [][]string{
+		{"Modul", "1. Sem", "2. Sem", "3. Sem"},
+		{"Hoehere Mathematik", "10", "", ""},
+		{"Baustatik", "", "10", ""},
+		{"Wasserbau", "", "", "10"},
+		{"Summe", "10", "10", "10"},
+	}, false)
+	draw(420, "Anlage 3.1 Regelstudienplan dual", [][]string{
+		{"Modul", "1. Sem", "2. Sem", "3. Sem"},
+		{"Hoehere Mathematik", "", "", ""},
+		{"Baustatik", "", "", ""},
+		{"Wasserbau", "", "", "10"},
+		{"Summe", "10", "10", "10"},
+	}, true)
+	return b.String()
+}
+
+// A cross reference is only followed where its text and the cell's own geometry
+// say the same thing. The span the text names has to be exactly the columns the
+// merged cell covers — otherwise the reader has understood neither, and the plan
+// keeps its gap rather than inventing credits for it.
+func TestAnAnnexReferenceMustAgreeWithTheCellItStandsIn(t *testing.T) {
+	for _, c := range []struct {
+		text      string
+		semesters []int
+		ok        bool
+		from, to  int
+		source    int
+		annex     string
+	}{
+		{"1. bis 5. Fachsemester analog zu Anlage 2.1", []int{1, 2, 3, 4, 5}, true, 1, 5, 1, "2.1"},
+		{"8. Fachsemester analog zu 6. Fachsemester gemäß Anlage 2.1", []int{8}, true, 8, 8, 6, "2.1"},
+		{"3. Fachsemester analog zu Anlage 4", []int{3}, true, 3, 3, 3, "4"},
+		// the text names more semesters than the cell covers, or fewer
+		{"1. bis 5. Fachsemester analog zu Anlage 2.1", []int{1, 2, 3}, false, 0, 0, 0, ""},
+		{"1. bis 2. Fachsemester analog zu Anlage 2.1", []int{3, 4}, false, 0, 0, 0, ""},
+		{"2. Fachsemester analog zu Anlage 2.1", []int{1, 2}, false, 0, 0, 0, ""},
+		// not a reference at all
+		{"Höhere Mathematik T1", []int{1}, false, 0, 0, 0, ""},
+		{"1. bis 5. Fachsemester siehe Anlage 2.1", []int{1, 2, 3, 4, 5}, false, 0, 0, 0, ""},
+	} {
+		ref, ok := parseAnnexReference(c.text, c.semesters)
+		if ok != c.ok {
+			t.Errorf("%q over %v: read=%t, want %t", c.text, c.semesters, ok, c.ok)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if ref.from != c.from || ref.to != c.to || ref.sourceFrom != c.source || ref.annex != c.annex {
+			t.Errorf("%q: got %d-%d from Anlage %s semester %d, want %d-%d from %s semester %d",
+				c.text, ref.from, ref.to, ref.annex, ref.sourceFrom, c.from, c.to, c.annex, c.source)
+		}
+	}
+}
+
+// A reference the plan's own geometry contradicts is not followed: the cell
+// spans two semester columns, so a text naming three of them is not understood
+// and the plan keeps its gap rather than inventing credits.
+func TestAnAnnexReferenceTheGeometryContradictsIsRefused(t *testing.T) {
+	l, err := ReadPDFLayout(context.Background(), writeTestPDF(t, annexPlanPDF("1. bis 3. Fachsemester analog zu Anlage 2.1"), ""))
+	if err != nil {
+		return // refusing the whole table is a correct outcome too
+	}
+	for _, c := range l.Cells {
+		if c.Table == "p1t2" && len(c.Semesters) == 1 && c.Semesters[0] <= 2 && c.Min > 0 {
+			t.Errorf("credits invented from a contradicted reference: %+v", c)
+		}
+	}
+}

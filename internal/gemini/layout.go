@@ -40,6 +40,10 @@ type SourceCell struct {
 	// AltGroup/AltIndex: rows separated by an "oder" line are alternatives; the
 	// first alternative (index 0) is the one the semester totals count.
 	AltGroup, AltIndex int
+	// Track is the heading the plan prints over this alternative
+	// („Schwerpunkt Philosophie, Ethik und Kulturwissenschaften"). It tells two
+	// alternatives apart where their rows are worded identically.
+	Track string `json:"track,omitempty"`
 	// Additional marks a budget printed as "+6" on top of a total line that
 	// counts the compulsory modules only; it is part of the plan but never of
 	// that printed sum.
@@ -62,6 +66,9 @@ type PDFLayout struct {
 	// Notes are remarks about what the reader ignored; they are reported as info.
 	Notes      []string          `json:"notes,omitempty"`
 	Amendments []AmendmentReview `json:"amendments,omitempty"`
+	// annexRefs are the merged cells that name another Anlage instead of
+	// printing credits; they are resolved once every page has been read.
+	annexRefs []annexReference
 }
 
 // ReadPDFLayout preserves the physical columns, including empty and merged cells.
@@ -227,6 +234,9 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 		}
 		if len(layout.PlanNames) > 1 {
 			m.Specialization = layout.PlanNames[c.Table]
+		}
+		if c.Track != "" {
+			m.Specialization = c.Track
 		}
 		if strings.Contains(strings.ToLower(sourceName), " oder ") || strings.Contains(strings.ToLower(sourceName), "wpf") || c.SharedRows {
 			m.ModuleCode = ""
