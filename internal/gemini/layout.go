@@ -198,7 +198,8 @@ func normalizedTitle(s string) string {
 var sourceModuleCode = regexp.MustCompile(`^([0-9]{5,6})\s+(.+)$`)
 
 // BindSourceCells is deliberately deterministic: the model labels cells, but never
-// decides semester columns or numeric credit values. Spans have no exact semester.
+// decides semester columns, numeric credit values, the order of the rows or the
+// variants a plan is split into. Spans have no exact semester.
 func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 	if len(res.Modules) == 0 {
 		return fmt.Errorf("model did not identify a matching study plan")
@@ -255,11 +256,24 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 		// and the heading of the plan it belongs to.
 		m.SourcePage, m.SourceTable = c.Page, c.Table
 		m.SourcePlanLabel = layout.PlanNames[c.Table]
+		// A plan is split into variants by specialization, so only the document
+		// names one: the heading of each of several plans, or the track an
+		// alternative is printed under. A label of the model's would split off
+		// a variant the document does not print.
+		m.Specialization = ""
 		if len(layout.PlanNames) > 1 {
 			m.Specialization = layout.PlanNames[c.Table]
 		}
 		if c.Track != "" {
 			m.Specialization = c.Track
+		}
+		// A thesis and the FÜS say what they are in their name, and the model
+		// does not always: it called „Bachelor-Arbeit" „Pflicht", which took
+		// Elektrotechnik its thesis and with it the faculty it is listed under.
+		// „Praktikum" stays the model's, because the word also names lab courses.
+		switch kind := ClassifyRequirement(c); kind {
+		case "Abschlussarbeit", "FÜS":
+			m.ModuleType = kind
 		}
 		if strings.Contains(strings.ToLower(sourceName), " oder ") || strings.Contains(strings.ToLower(sourceName), "wpf") || c.SharedRows {
 			m.ModuleCode = ""
@@ -320,6 +334,17 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 			return fmt.Errorf("source cell %s (%s) was omitted; incomplete extraction", c.ID, c.Row)
 		}
 	}
+	// The rows stand in the order of the document. The model may answer the
+	// tables of a plan per study direction in another order, and the rows it
+	// left out were appended above: in its order the shared first semesters
+	// stood after the sixth, and the plan took its heading from another table.
+	order := make(map[string]int, len(layout.Cells))
+	for i, c := range layout.Cells {
+		order[c.ID] = i
+	}
+	sort.SliceStable(res.Modules, func(i, j int) bool {
+		return order[res.Modules[i].SourceCell] < order[res.Modules[j].SourceCell]
+	})
 	// The standard period is what the plan's own semester columns show. A model
 	// guess must never turn a six-semester plan into out-of-bounds semesters.
 	highest := 0
