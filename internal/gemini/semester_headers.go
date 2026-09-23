@@ -66,3 +66,32 @@ func isCreditSubHeader(row []*string, from, to int) bool {
 	}
 	return seen > 0
 }
+
+// A plan run across partner universities prints, beside the semester number,
+// the place that semester is spent: „1 ECN", „2 UNIZG", „3 BTU", „4 Thesis".
+// The number is still the semester's own and the label names nothing else, so
+// the column means what a bare „1" means — and the label is worth keeping, for
+// it is all the plan says about where that semester happens.
+//
+// The label is a single short name, never a unit of credit or a period of study:
+// „1. Studienjahr" spans two semesters and reading it as the first one would put
+// every module in the wrong semester and still add up, which is the one error
+// ValidateCurriculum cannot catch.
+var semesterHeaderSiteLabel = regexp.MustCompile(`^(\d{1,2})\.?\s+(\p{L}[\p{L}\-.]{1,15})$`)
+
+var notASemesterLabel = regexp.MustCompile(`(?i)^(?:jahr|studienjahr|ausbildungsjahr|year|block|blockwoche|woche|monat|quartal|trimester|abschnitt|phase|stufe|teil|modul|module|lp|kp|cp|ects|sws|std|h)\.?$`)
+
+// parseSemesterHeaderSite is parseSemesterHeader with the site label allowed,
+// returning it as caption. It is only used as a second pass: a table whose
+// semester columns are already headed by plain numbers is read exactly as before.
+func parseSemesterHeaderSite(text string, withSite bool) (n int, explicit bool, term, caption string, ok bool) {
+	if n, explicit, term, ok = parseSemesterHeader(text); ok || !withSite {
+		return n, explicit, term, "", ok
+	}
+	m := semesterHeaderSiteLabel.FindStringSubmatch(cleanPDFText(text))
+	if m == nil || notASemesterLabel.MatchString(m[2]) {
+		return 0, false, "", "", false
+	}
+	n, _ = strconv.Atoi(m[1])
+	return n, false, "", m[2], n > 0
+}

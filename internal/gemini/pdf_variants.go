@@ -9,9 +9,25 @@ import (
 
 var statusCell = regexp.MustCompile(`^(?:P|WP|W|Prü|SL|P / Prü|P Prü|WP Prü|WP / Prü|Pflicht|Wahlpflicht)$`)
 
+// dualModeOf is the dual variant a plan name stands for. A name is read from
+// its most precise part: „Dual · Dual ausbildungsintegrierend" is the
+// ausbildungsintegrierend plan, and a caption that names both variants says
+// only that the table belongs to the dual study.
+func dualModeOf(name string) string {
+	mode := ""
+	for _, part := range strings.Split(name, "·") {
+		if m := dualMode(part); m != "" {
+			mode = m
+		}
+	}
+	return mode
+}
+
 func selectProgramMode(l *PDFLayout, hint string) {
 	hint = strings.ToLower(hint)
+	selectAlternativeBranch(l, dualMode(hint))
 	dual := strings.Contains(hint, "dual") || strings.Contains(hint, "praxisintegrier") || strings.Contains(hint, "ausbildungsintegrier")
+	hintMode := dualMode(hint)
 	extended := strings.Contains(hint, "erweitert") || strings.Contains(hint, "240")
 	remove := map[string]bool{}
 	hasDual, hasRegular := false, false
@@ -20,12 +36,34 @@ func selectProgramMode(l *PDFLayout, hint string) {
 		hasDual = hasDual || strings.Contains(n, "dual")
 		hasRegular = hasRegular || (!strings.Contains(n, "dual") && !strings.Contains(n, "240 lp") && !strings.Contains(n, "erweitert"))
 	}
+	lengthOnly := map[string]bool{}
 	for id, name := range l.PlanNames {
 		n := strings.ToLower(name)
 		isDual := strings.Contains(n, "dual")
 		isExtended := strings.Contains(n, "240 lp") || strings.Contains(n, "erweitert")
-		wrongDualMode := (strings.Contains(hint, "praxisintegrier") && strings.Contains(n, "ausbildungsintegrier")) || (strings.Contains(hint, "ausbildungsintegrier") && strings.Contains(n, "praxisintegrier"))
-		if (hasDual && hasRegular && isDual != dual) || (strings.Contains(n, "grundlagenorientiert") && extended) || (isExtended && !extended) || wrongDualMode {
+		planMode := dualModeOf(name)
+		// Both name one of the two dual modes, and they disagree.
+		wrongDualMode := hintMode != "" && planMode != "" && hintMode != "Dual" && planMode != "Dual" && hintMode != planMode
+		if (hasDual && hasRegular && isDual != dual) || (strings.Contains(n, "grundlagenorientiert") && extended) || wrongDualMode {
+			remove[id] = true
+			continue
+		}
+		// The length of the studies only tells two plans apart where the
+		// document still offers another one for this program. A dual plan of
+		// 240 LP is not an "extended" variant of anything when it is the only
+		// plan of its dual mode.
+		if isExtended && !extended {
+			lengthOnly[id] = true
+		}
+	}
+	for id := range lengthOnly {
+		remaining := 0
+		for other := range l.PlanNames {
+			if !remove[other] && !lengthOnly[other] {
+				remaining++
+			}
+		}
+		if remaining > 0 {
 			remove[id] = true
 		}
 	}
@@ -166,7 +204,7 @@ func appendRowStudyTable(l *PDFLayout, t pdfTable, page, number int) {
 		if !ok || lo != hi || sem < 1 || sem > 12 {
 			return
 		}
-		total := SourceCell{ID: fmt.Sprintf("%sr%dtotal", id, ri+1), Table: id, Page: page, Row: "Summe", Semesters: []int{sem}, Raw: cellText(row[len(row)-1]), Min: lo, Max: hi}
+		total := SourceCell{ID: fmt.Sprintf("%sr%dtotal", id, ri+1), Table: id, Page: page, RowIndex: ri + 1, Row: "Summe", Semesters: []int{sem}, Raw: cellText(row[len(row)-1]), Min: lo, Max: hi}
 		totals = append(totals, total)
 		for ci := 1; ci < len(row)-1; ci++ {
 			b := t.boxes[ri][ci]
@@ -200,7 +238,7 @@ func appendRowStudyTable(l *PDFLayout, t pdfTable, page, number int) {
 			if len(spans) == 0 {
 				return
 			}
-			cells = append(cells, SourceCell{ID: fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1), Table: id, Page: page, Row: label, Semesters: spans, Raw: name, Min: amount, Max: amount, BBox: []float64{b.x0, b.y0, b.x1, b.y1}})
+			cells = append(cells, SourceCell{ID: fmt.Sprintf("%sr%dc%d", id, ri+1, ci+1), Table: id, Page: page, RowIndex: ri + 1, Row: label, Semesters: spans, Raw: name, Min: amount, Max: amount, BBox: []float64{b.x0, b.y0, b.x1, b.y1}})
 		}
 	}
 	if len(totals) >= 2 && len(cells) > 0 {
@@ -214,4 +252,147 @@ func sortInts(s []int) {
 			s[j], s[j-1] = s[j-1], s[j]
 		}
 	}
+}
+
+// selectAlternativeBranch resolves an „entweder … oder …" choice whose branches
+// name the dual modes („Praxisintegrierende Studienphase" /
+// „Ausbildungsintegrierende duale Studienphase"): this program version is one of
+// them, so the branch it names is its compulsory block and the other is not its
+// plan at all. Where the hint or the headings do not name a mode the choice
+// stays open and both branches remain alternatives, as the source prints them.
+func selectAlternativeBranch(l *PDFLayout, hintMode string) {
+	if hintMode == "" || hintMode == "Dual" {
+		return
+	}
+	// A group is only resolved where every branch of it names a mode of its own
+	// and exactly one of them is this program's.
+	modes := map[int]map[int]string{}
+	for _, c := range l.Cells {
+		if c.AltGroup == 0 || c.AltLabel == "" {
+			continue
+		}
+		if modes[c.AltGroup] == nil {
+			modes[c.AltGroup] = map[int]string{}
+		}
+		modes[c.AltGroup][c.AltIndex] = dualMode(c.AltLabel)
+	}
+	resolved := map[int]int{}
+	for group, branches := range modes {
+		keep, named := -1, 0
+		for idx, mode := range branches {
+			if mode == "" {
+				named = -1
+				break
+			}
+			named++
+			if mode == hintMode {
+				keep = idx
+			}
+		}
+		if named == len(branches) && named > 1 && keep >= 0 {
+			resolved[group] = keep
+		}
+	}
+	if len(resolved) == 0 {
+		return
+	}
+	cells := l.Cells[:0]
+	for _, c := range l.Cells {
+		keep, ok := resolved[c.AltGroup]
+		if !ok {
+			cells = append(cells, c)
+			continue
+		}
+		if c.AltIndex != keep {
+			continue
+		}
+		// The program version has made the choice, so the block is compulsory.
+		c.AltGroup, c.AltIndex = 0, 0
+		cells = append(cells, c)
+	}
+	l.Cells = cells
+}
+
+// A regulation may print the plans of several Studienoptionen of one program in
+// one document, each in its own Anlage („Anlage 1 … Präsenzstudienprogramm",
+// „Anlage 3 … Fernstudienprogramm"). The tables look alike, so only the Anlage
+// they stand under says which program version they belong to.
+var studyOptions = []struct {
+	option   string
+	document *regexp.Regexp
+	program  *regexp.Regexp
+}{
+	{"fernstudium", regexp.MustCompile(`(?i)fernstudien|fernstudium`), regexp.MustCompile(`(?i)fernstudi`)},
+	{"doppelabschluss", regexp.MustCompile(`(?i)doppelabschluss|double degree`), regexp.MustCompile(`(?i)doppelabschluss|double degree`)},
+	{"präsenz", regexp.MustCompile(`(?i)präsenzstudien|präsenzstudium`), nil},
+}
+
+// studyOptionOf names the Studienoption of the last „Anlage N:" heading on a
+// page, or "" where the page opens no Anlage that names one.
+func studyOptionOf(pageText string) string {
+	text := cleanPDFText(pageText)
+	i := lastAnlageTitle(text)
+	if i < 0 {
+		return ""
+	}
+	title := text[i:]
+	if len(title) > 200 {
+		title = title[:200]
+	}
+	for _, o := range studyOptions {
+		if o.document.MatchString(title) {
+			return o.option
+		}
+	}
+	return ""
+}
+
+// selectStudyOption keeps the plans of the Studienoption this program version
+// is. A degree that names none of the options is the base option the others are
+// derived from („Präsenz"), which is how the university names these versions:
+// the other two carry their option in the degree itself.
+func selectStudyOption(l *PDFLayout, hint string) {
+	present := map[string]bool{}
+	for _, o := range l.PlanOptions {
+		present[o] = true
+	}
+	if len(present) < 2 {
+		return
+	}
+	want := "präsenz"
+	for _, o := range studyOptions {
+		if o.program != nil && o.program.MatchString(hint) {
+			want = o.option
+			break
+		}
+	}
+	// The document prints the plans of several options and none of them is this
+	// program's. Keeping another option's plan would store a curriculum this
+	// version does not have, so the document is left without one.
+	keep := func(cells []SourceCell) []SourceCell {
+		out := cells[:0]
+		for _, c := range cells {
+			if o, known := l.PlanOptions[c.Table]; !known || (present[want] && o == want) {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	l.Cells, l.Totals = keep(l.Cells), keep(l.Totals)
+	for table, o := range l.PlanOptions {
+		if o != want {
+			delete(l.PlanNames, table)
+		}
+	}
+	issues := l.Issues[:0]
+	for _, issue := range l.Issues {
+		drop := false
+		for table, o := range l.PlanOptions {
+			drop = drop || (o != want && (strings.HasPrefix(issue, table+"r") || strings.HasPrefix(issue, table+":")))
+		}
+		if !drop {
+			issues = append(issues, issue)
+		}
+	}
+	l.Issues = issues
 }

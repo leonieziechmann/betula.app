@@ -160,7 +160,14 @@ fn every_query_runs_against_the_snapshot() {
     assert!(queries::program_department_counts(&db).unwrap().iter().any(|count| count.thesis_modules > 0));
     let semesters = queries::program_plan_semesters(&db, &id).unwrap();
     assert!(semesters.first().is_some_and(|first| *first >= 1) && semesters.windows(2).all(|pair| pair[0] < pair[1]), "{semesters:?}");
-    assert!(!queries::program_plan_entries(&db, &id).unwrap().is_empty());
+    let entries = queries::program_plan_entries(&db, &id).unwrap();
+    assert!(!entries.is_empty());
+    // A sum the regulation prints over rows of its plan names those rows, and they reach it.
+    for total in queries::program_plan_totals(&db, &id).unwrap() {
+        assert_eq!(total.entries.len() as i64, total.entry_count, "{total:?}");
+        assert!(total.entries.iter().all(|ord| entries.iter().any(|entry| entry.ord == *ord)), "{total:?}");
+        assert!(total.credits >= total.min_credits - 0.01 && total.credits <= total.max_credits + 0.01, "{total:?}");
+    }
 
     let curriculum = queries::curriculum_links(&db).unwrap();
     assert!(curriculum.len() > 1000 && curriculum.iter().all(|(program, module)| !program.is_empty() && !module.is_empty()));

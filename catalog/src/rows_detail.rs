@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::{DbError, FromRow, Row};
 use crate::labels::{
-    Campus, Code, DegreeLevel, DocumentType, KindBasis, KindSource, LecturerRole, ModuleKind, Relation,
-    ResolveStatus, Rhythm, TeachingForm, TextItemKind,
+    Campus, Code, DegreeLevel, DocumentType, KindBasis, KindSource, LecturerRole, ModuleKind, PlanTotalScope,
+    Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind,
 };
 
 /// `v_module_lecturer`
@@ -315,6 +315,13 @@ impl FromRow for AreaNode {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
     pub source_file: String,
+    /// The pages of the regulation the plan stands on, as a reader would write them („9", „9–11").
+    /// A regulation is dozens of pages of legal text with the plan somewhere in an appendix, so the
+    /// file alone does not let anyone check what is shown here.
+    pub source_pages: Option<String>,
+    /// The heading the plan stands under („Anlage 2.1 Regelstudienplan … – grundlagenorientiert").
+    /// A Lesefassung may print one plan per study branch; this says which of them was read.
+    pub source_label: Option<String>,
     /// The table layout of the plan as extracted from the PDF (input of the plan grid).
     pub layout_json: String,
     pub validated_at: Option<String>,
@@ -324,6 +331,8 @@ impl FromRow for Plan {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
         Ok(Self {
             source_file: row.text("source_file")?,
+            source_pages: row.opt_text("source_pages")?,
+            source_label: row.opt_text("source_label")?,
             layout_json: row.text("layout_json")?,
             validated_at: row.opt_text("validated_at")?,
         })
@@ -333,6 +342,8 @@ impl FromRow for Plan {
 /// `v_program_plan_entry`: one row of the validated study plan.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlanEntry {
+    /// The row's place in the plan, counted from 1. A printed sum names its rows by it.
+    pub ord: i64,
     /// Set when the plan row is linked to a module of the catalog.
     pub module_id: Option<String>,
     pub module_name: String,
@@ -350,11 +361,15 @@ pub struct PlanEntry {
     pub specialization: Option<String>,
     pub catalog_title: Option<String>,
     pub credits_differ_from_catalog: bool,
+    /// The page of the regulation this row stands on. A plan continued across a page break has
+    /// rows on both, so it is kept per row and not only for the plan.
+    pub source_page: Option<i64>,
 }
 
 impl FromRow for PlanEntry {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
         Ok(Self {
+            ord: row.int("ord")?,
             module_id: row.opt_text("module_id")?,
             module_name: row.text("module_name")?,
             semester: row.opt_int("semester")?,
@@ -371,6 +386,89 @@ impl FromRow for PlanEntry {
             specialization: row.opt_text("specialization")?,
             catalog_title: row.opt_text("catalog_title")?,
             credits_differ_from_catalog: row.opt_flag("credits_differ_from_catalog")?.unwrap_or(false),
+            source_page: row.opt_int("source_page")?,
         })
+    }
+}
+
+/// `v_program_plan_total`: a sum the regulation prints over rows of its own plan.
+///
+/// A plan with elective budgets cannot be added up from its rows: „Komplex Praktische Informatik,
+/// 10–24 LP" three times is anything between 30 and 72 LP. The regulation prints what they come
+/// to — „Summe Komplexe des Fachstudiums 44" over exactly those three rows, „Summe Studium" over
+/// the whole table — and `scope` says which of the two a sum is: the plan of these semesters
+/// (`plan`), or a part of it (`section`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanTotal {
+    pub ord: i64,
+    /// As the regulation prints it: „Summe Studium", „Summe Komplex Mathematik".
+    pub label: String,
+    /// `plan`: everything these semesters hold. `section`: a named part of them.
+    pub scope: Code<PlanTotalScope>,
+    /// The plan variant this sum belongs to, where the document prints several.
+    pub specialization: Option<String>,
+    pub start_semester: i64,
+    /// The same as `start_semester` unless the sum stands over a merged column.
+    pub end_semester: i64,
+    /// What the regulation prints. Some print a span instead of a number wherever a semester
+    /// holds an elective budget („28 – 32 LP"); `credits_max` is then the upper end of it, and
+    /// equal to `credits` otherwise.
+    pub credits: f64,
+    pub credits_max: f64,
+    /// What its rows come to: `min_credits` from the rows that lie entirely inside these
+    /// semesters, `max_credits` from those and whatever a row reaching into them could add.
+    /// `credits` always lies between the two.
+    pub min_credits: f64,
+    pub max_credits: f64,
+    /// Whether this sum is the only statement of how much its rows count for: every row it names
+    /// lies inside it, and at least one of them prints a range („10–24 LP") instead of a number.
+    pub is_choice: bool,
+    pub entry_count: i64,
+    /// `ord` of every plan row this sum counts, in plan order.
+    pub entries: Vec<i64>,
+}
+
+impl PlanTotal {
+    /// Whether the regulation prints a span here instead of a number.
+    pub fn is_span(&self) -> bool {
+        self.credits_max - self.credits > 0.01
+    }
+
+    /// Whether this sum counts everything its semesters hold.
+    pub fn is_whole_plan(&self) -> bool {
+        self.scope.is(PlanTotalScope::Plan)
+    }
+}
+
+impl FromRow for PlanTotal {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            ord: row.int("ord")?,
+            label: row.text("label")?,
+            scope: Code::parse(&row.text("scope")?),
+            specialization: row.opt_text("specialization")?,
+            start_semester: row.int("start_semester")?,
+            end_semester: row.int("end_semester")?,
+            credits: row.real("credits")?,
+            credits_max: row.real("credits_max")?,
+            min_credits: row.real("min_credits")?,
+            max_credits: row.real("max_credits")?,
+            is_choice: row.opt_flag("is_choice")?.unwrap_or(false),
+            entry_count: row.int("entry_count")?,
+            entries: Vec::new(),
+        })
+    }
+}
+
+/// `v_program_plan_total_entry`: which row of the plan a sum counts.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanTotalEntry {
+    pub total_ord: i64,
+    pub entry_ord: i64,
+}
+
+impl FromRow for PlanTotalEntry {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { total_ord: row.int("total_ord")?, entry_ord: row.int("entry_ord")? })
     }
 }

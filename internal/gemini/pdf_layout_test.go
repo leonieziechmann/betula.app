@@ -91,10 +91,10 @@ func TestGoPDFLayoutMergedCells(t *testing.T) {
 		t.Fatalf("unexpected layout: %+v", l)
 	}
 	want := []SourceCell{
-		{ID: "p1t1r2c2", Table: "p1t1", Page: 1, Row: "Alpha", Semesters: []int{1}, Raw: "6", Min: 6, Max: 6},
-		{ID: "p1t1r3c3", Table: "p1t1", Page: 1, Row: "Beta", Semesters: []int{2}, Raw: "6", Min: 6, Max: 6},
-		{ID: "p1t1r4c2", Table: "p1t1", Page: 1, Row: "Optional", Semesters: []int{1, 2}, Raw: "4-8", Min: 4, Max: 8},
-		{ID: "p1t1r5c2", Table: "p1t1", Page: 1, Row: "Choice A / Choice B", Semesters: []int{1}, Raw: "6", Min: 6, Max: 6, SharedRows: true},
+		{ID: "p1t1r2c2", Table: "p1t1", Page: 1, RowIndex: 2, Row: "Alpha", Semesters: []int{1}, Raw: "6", Min: 6, Max: 6},
+		{ID: "p1t1r3c3", Table: "p1t1", Page: 1, RowIndex: 3, Row: "Beta", Semesters: []int{2}, Raw: "6", Min: 6, Max: 6},
+		{ID: "p1t1r4c2", Table: "p1t1", Page: 1, RowIndex: 4, Row: "Optional", Semesters: []int{1, 2}, Raw: "4-8", Min: 4, Max: 8},
+		{ID: "p1t1r5c2", Table: "p1t1", Page: 1, RowIndex: 5, Row: "Choice A / Choice B", Semesters: []int{1}, Raw: "6", Min: 6, Max: 6, SharedRows: true},
 	}
 	for i, g := range l.Cells {
 		if len(g.BBox) != 4 {

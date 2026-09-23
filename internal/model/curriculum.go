@@ -56,4 +56,28 @@ type CurriculumModule struct {
 	Remarks                string    `json:"remarks,omitempty"`
 	SourceFile             string    `json:"source_file,omitempty"`
 	ExtractedAt            time.Time `json:"extracted_at"`
+	SourceCell             string    `json:"source_cell,omitempty"`       // the PDF cell this row was read from
+	SourcePage             int       `json:"source_page,omitempty"`       // the page of the regulation this row stands on
+	SourceTable            string    `json:"source_table,omitempty"`      // the plan table it was read from („p9t1")
+	SourcePlanLabel        string    `json:"source_plan_label,omitempty"` // the heading that table stands under („Anlage 2.1 Regelstudienplan …")
+}
+
+// CurriculumTotal is a sum the regulation prints over rows of its own study
+// plan: what the whole plan of a semester costs („Summe Studium"), or what a
+// group of rows has to reach together („Summe Komplexe des Fachstudiums 44"
+// over three rows that each say „10-24 LP"). Without it a plan with elective
+// budgets cannot be added up: its rows only give a range.
+type CurriculumTotal struct {
+	Label          string  `json:"label"`
+	Scope          string  `json:"scope"` // "plan": the whole plan of these semesters; "section": a part of it
+	Specialization string  `json:"specialization,omitempty"`
+	StartSemester  int     `json:"start_semester"`
+	EndSemester    int     `json:"end_semester"`
+	Credits        float64 `json:"credits"`     // what the plan prints; its lower bound where the plan prints a range
+	CreditsMax     float64 `json:"credits_max"` // the upper bound of that range, equal to Credits where the plan prints a number
+	MinCredits     float64 `json:"min_credits"` // what the rows inside these semesters come to …
+	MaxCredits     float64 `json:"max_credits"` // … and what they and a row reaching into them could come to
+	IsChoice       bool    `json:"is_choice,omitempty"`
+	SourceEvidence string  `json:"source_evidence,omitempty"`
+	Entries        []int   `json:"entries"` // 1-based positions of the rows it counts
 }

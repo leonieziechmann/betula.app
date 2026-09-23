@@ -54,9 +54,21 @@ func TestScanAdaptersReadProgramsDocumentsAndCatalog(t *testing.T) {
 	plan := PlanFromModules("079-82-2008", "statutes/Informatik/6707_12_Informatik_B.Sc.pdf", `{"pages":[7]}`, []model.CurriculumModule{
 		{ModuleID: "11881", ModuleName: "Foundations of Data Mining", StartSemester: 5, EndSemester: 6, SemesterSpan: "5-6", ModuleType: "Wahlpflicht", SubjectArea: "Grundlagen der Informatik", SourceEvidence: `{"id":"p7t1r5c2"}`},
 		{ModuleName: "Bachelor-Arbeit", RecommendedSemester: 6, Credits: 12, ModuleType: "Abschlussarbeit"},
+	}, []model.CurriculumTotal{
+		{Label: "Summe Studium", Scope: "plan", StartSemester: 5, EndSemester: 6, Credits: 30, MinCredits: 12, MaxCredits: 36, SourceEvidence: "p7t1r9c6", Entries: []int{1, 2}},
 	})
 	if err := db.SavePlan(plan); err != nil {
 		t.Fatalf("SavePlan failed: %v", err)
+	}
+	var label string
+	var credits float64
+	var members int
+	err = db.SQL().QueryRow(`
+		SELECT t.label, t.credits, COUNT(te.entry_ord)
+		FROM plan_total t JOIN plan_total_entry te ON te.program_id = t.program_id AND te.total_ord = t.ord
+		WHERE t.program_id = '079-82-2008' AND t.scope = 'plan'`).Scan(&label, &credits, &members)
+	if err != nil || label != "Summe Studium" || credits != 30 || members != 2 {
+		t.Errorf("stored total: %q %v over %d rows (err %v)", label, credits, members, err)
 	}
 	if has, _ := db.HasPlan("079-82-2008"); !has {
 		t.Error("HasPlan after SavePlan = false")

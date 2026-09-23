@@ -270,10 +270,18 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog model.Curriculu
 	printedSemesters := map[string]map[int]bool{}
 	overlappingTotals := map[string]bool{}
 	coveredSemesters := make(map[string]map[int]bool)
+	grand := map[string]SourceCell{}
 	for _, t := range dominantTotals(res.Layout.Totals) {
 		// A printed total may itself be a range when the plan contains elective
 		// budgets ("28 - 32"); it is then checked as an interval.
 		if !totalRow.MatchString(strings.TrimSpace(t.Row)) {
+			continue
+		}
+		// The grand total of the per-row column covers every semester at once, so
+		// it is not one of the disjoint semester totals and must not be added to
+		// them. It is kept aside and used where those totals leave a row out.
+		if t.Grand {
+			grand[t.Table] = t
 			continue
 		}
 		checked++
@@ -429,6 +437,25 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog model.Curriculu
 			}
 		}
 		if totalHi < lo-.01 || totalLo > hi+.01 {
+			// A module whose box spans the whole plan is credited in no single
+			// semester, so the per-semester line may leave it out. That is only a
+			// reading the source itself makes: the plan's own grand total has to
+			// be the semester line plus exactly the rows it passes over.
+			if g, ok := grand[table]; ok {
+				spanLo, spanHi := 0.0, 0.0
+				for _, c := range planCells {
+					if c.Table != table || countedBySemesterTotal(c, res.Layout.Totals) {
+						continue
+					}
+					spanLo += c.Min
+					spanHi += c.Max
+				}
+				if spanLo > 0 && math.Abs(g.Min-(totalLo+spanLo)) < .01 && math.Abs(g.Max-(totalHi+spanHi)) < .01 &&
+					math.Abs(g.Min-lo) < .01 && math.Abs(g.Max-hi) < .01 {
+					add("info", "source_total_excludes_span", "", fmt.Sprintf("%s: the printed grand total %s LP is the semester line (%s LP) plus %.1f LP the plan credits to no single semester", table, amountRange(g.Min, g.Max), amountRange(totalLo, totalHi), spanLo))
+					continue
+				}
+			}
 			conflictTables[table] = true
 			add("error", "source_plan_total_conflict", "", fmt.Sprintf("%s: entire plan has %.1f–%.1f LP, disjoint printed semester totals sum to %s LP; inspect alternative tracks or duplicated requirements", table, lo, hi, amountRange(totalLo, totalHi)))
 		}
@@ -459,10 +486,22 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog model.Curriculu
 // those count; the other cells are alternatives, and a module that may be taken
 // in several semesters counts in the semester of its grey cell.
 func effectiveCells(l *PDFLayout) []SourceCell {
+	return planReading(l, unpaintedRowsThePrintedSumsAskFor(l))
+}
+
+// planReading is effectiveCells for one decision about the grey plan: keepRows
+// names the tables whose unpainted rows count as part of the plan.
+func planReading(l *PDFLayout, keepRows map[string]bool) []SourceCell {
 	tableHasPlan := map[string]bool{}
 	for _, c := range l.Cells {
 		if c.InPlan {
 			tableHasPlan[c.Table] = true
+		}
+	}
+	painted := map[string]bool{}
+	for _, c := range l.Cells {
+		if c.InPlan {
+			painted[fmt.Sprintf("%s|%d", c.Table, c.RowIndex)] = true
 		}
 	}
 	// Within one "oder" group the plan still expects one requirement per semester
@@ -473,33 +512,51 @@ func effectiveCells(l *PDFLayout) []SourceCell {
 		group int
 		span  string
 	}
+	type groupKey struct {
+		table string
+		group int
+	}
 	first := map[altKey]int{}
 	key := func(c SourceCell) altKey {
 		return altKey{c.Table, c.AltGroup, fmt.Sprint(c.Semesters)}
 	}
+	// A group whose options are one row each is one requirement wherever its
+	// rows sit, so which option counts is decided once for the whole group:
+	// „44106 Technische Thermodynamik" in the fourth semester and „31204
+	// Technische Thermodynamik" over the third and fourth are the same choice,
+	// and taking the first of each column would count both of its branches.
+	oneOf := map[groupKey]int{}
 	for _, c := range l.Cells {
 		if c.AltGroup == 0 {
+			continue
+		}
+		if c.AltOne {
+			g := groupKey{c.Table, c.AltGroup}
+			if idx, seen := oneOf[g]; !seen || c.AltIndex < idx {
+				oneOf[g] = c.AltIndex
+			}
 			continue
 		}
 		if idx, seen := first[key(c)]; !seen || c.AltIndex < idx {
 			first[key(c)] = c.AltIndex
 		}
 	}
-	counted := map[altKey]bool{}
 	var out []SourceCell
 	for _, c := range l.Cells {
 		if c.AltGroup > 0 {
-			k := key(c)
-			if c.AltIndex != first[k] || counted[k] {
+			want := first[key(c)]
+			if c.AltOne {
+				want = oneOf[groupKey{c.Table, c.AltGroup}]
+			}
+			if c.AltIndex != want {
 				continue // another alternative for this semester already counts
 			}
-			counted[k] = true
 		}
 		if c.Additional {
 			continue // a budget the plan prints on top of its own semester sums
 		}
 		if tableHasPlan[c.Table] {
-			if !c.InPlan {
+			if !c.InPlan && !(keepRows[c.Table] && !painted[fmt.Sprintf("%s|%d", c.Table, c.RowIndex)]) {
 				continue
 			}
 			if c.PlanSemester > 0 {
@@ -509,6 +566,87 @@ func effectiveCells(l *PDFLayout) []SourceCell {
 		out = append(out, c)
 	}
 	return out
+}
+
+// unpaintedRowsThePrintedSumsAskFor names the tables where the grey „possible
+// study plan" leaves a row unpainted that the plan's own semester sums need.
+//
+// Grey chooses between the placements a row offers; a row it painted nothing in
+// offered no choice, and the plan did not reject it — Stadtplanung und Städtebau
+// 2023 prints its whole elective budget as one such row, „(6)+(6)" under the
+// fifth and the sixth semester, and its grey plan never touches it. Such a row
+// is added back only where the source itself asks for it: the grey reading has
+// to contradict a printed semester total, adding exactly the unpainted rows has
+// to reach every contradicted total exactly, and no total the grey reading
+// already explains may change. Where that does not hold the grey reading stands
+// and the contradiction is reported, as before.
+func unpaintedRowsThePrintedSumsAskFor(l *PDFLayout) map[string]bool {
+	if l == nil {
+		return nil
+	}
+	hasUnpainted := map[string]bool{}
+	painted := map[string]bool{}
+	for _, c := range l.Cells {
+		if c.InPlan {
+			painted[fmt.Sprintf("%s|%d", c.Table, c.RowIndex)] = true
+		}
+	}
+	for _, c := range l.Cells {
+		if !c.InPlan && !painted[fmt.Sprintf("%s|%d", c.Table, c.RowIndex)] {
+			hasUnpainted[c.Table] = true
+		}
+	}
+	if len(hasUnpainted) == 0 {
+		return nil
+	}
+	grey := planReading(l, nil)
+	out := map[string]bool{}
+	for table := range hasUnpainted {
+		with := planReading(l, map[string]bool{table: true})
+		repaired := false
+		ok := true
+		for _, t := range dominantTotals(l.Totals) {
+			if t.Table != table || !totalRow.MatchString(strings.TrimSpace(t.Row)) || isAufwandRow(t) {
+				continue
+			}
+			start, end := t.Semesters[0], t.Semesters[len(t.Semesters)-1]
+			greyLo, greyHi := spanCredits(grey, table, start, end)
+			withLo, withHi := spanCredits(with, table, start, end)
+			if t.Max >= greyLo-0.01 && t.Min <= greyHi+0.01 {
+				// a semester the grey reading already explains must not move
+				ok = ok && greyLo == withLo && greyHi == withHi
+				continue
+			}
+			repaired = true
+			ok = ok && math.Abs(t.Min-withLo) < 0.01 && math.Abs(t.Max-withHi) < 0.01
+		}
+		if ok && repaired {
+			out[table] = true
+		}
+	}
+	return out
+}
+
+// spanCredits is what a reading gives for one printed sum: Min from the cells
+// that lie inside its semesters, Max from those and whatever a cell reaching
+// into them could add — the arithmetic the printed totals are checked with.
+func spanCredits(cells []SourceCell, table string, start, end int) (lo, hi float64) {
+	for _, c := range cells {
+		if c.Table != table {
+			continue
+		}
+		a, b := c.Semesters[0], c.Semesters[len(c.Semesters)-1]
+		if c.CreditSemester > 0 {
+			a, b = c.CreditSemester, c.CreditSemester
+		}
+		if a >= start && b <= end {
+			lo += c.Min
+			hi += c.Max
+		} else if a <= end && b >= start {
+			hi += c.Max
+		}
+	}
+	return lo, hi
 }
 
 func sortedKeys(m map[string][]string) []string {
@@ -541,6 +679,24 @@ func sortedFloatKeys(m map[string]float64) []string {
 // of the credits booked in that semester.
 func isAufwandRow(c SourceCell) bool {
 	return strings.Contains(strings.ToLower(c.Row), "aufwand")
+}
+
+// countedBySemesterTotal reports whether a printed semester total of the cell's
+// own table counts it: the cell lies inside the semesters that total covers.
+func countedBySemesterTotal(c SourceCell, totals []SourceCell) bool {
+	a, b := c.Semesters[0], c.Semesters[len(c.Semesters)-1]
+	if c.CreditSemester > 0 {
+		a, b = c.CreditSemester, c.CreditSemester
+	}
+	for _, t := range totals {
+		if t.Table != c.Table || t.Grand || len(t.Semesters) == 0 || !totalRow.MatchString(strings.TrimSpace(t.Row)) {
+			continue
+		}
+		if a >= t.Semesters[0] && b <= t.Semesters[len(t.Semesters)-1] {
+			return true
+		}
+	}
+	return false
 }
 
 // dominantTotals drops section subtotals that carry the same generic label as
