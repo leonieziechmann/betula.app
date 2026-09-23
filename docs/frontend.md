@@ -1,8 +1,8 @@
 # Folia, the web tier: architecture, rules, how to run it
 
 > Betula has two parts named after the birch: **Radix** (the root: the Go collector, `docs/operations.md`)
-> and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`
-> and `folia-server` with the binary `folia`).
+> and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`,
+> `folia-pack` and `folia-server` with the binary `folia`).
 
 > State: 2026-09-21. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
@@ -22,6 +22,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `catalog/` | The data contract in Rust: row structs, labels, `CatalogQuery` → SQL, every query, the page loaders (`pages.rs`) and the URL scheme (`url.rs`). No I/O; callers hand in a `Database`. Compiles natively and to WASM. |
 | `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
+| `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
 | `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
@@ -217,7 +218,15 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   - A module opened from the marked modules (a tap on a phone, „Vollbild" of the preview) leads
     back to them with „Zurück" and Esc, not to the catalog's list (`Tabs::came_from`).
   - **To another device without a server in between:** „Auf anderes Gerät übertragen" copies a
-    link to the list with the marked modules in its *fragment* (`/bookmarks#add=11101,12204`).
+    link to the list with the marked modules in its *fragment*, as a code (`/bookmarks#m=…`,
+    `pack/`): the ids as a set of numbers, in ascending order, each as its distance from the one
+    before, in characters an address carries as they are, and two check characters at the end.
+    The order of marking does not travel (owner, 2026-09-23: it does not matter); the other device
+    marks them all at once. 20 marked modules take 35 to 40 characters (as ids one by one,
+    `#add=11101,12204,…`, 124). A character
+    typed wrong or two swapped are always noticed, a link cut short almost always; the page then
+    says the link is broken, and offers nothing of it. Links with the ids one by one, as they were
+    made before 2026-09-23, keep working (and are what a list too long for a code still gets).
     A browser never sends the fragment of an address anywhere, neither with the request nor as a
     referrer, so the ids reach neither the server nor its logs. The page that is opened with
     such a link asks before it adds anything (a link must not fill somebody's list behind their
@@ -947,7 +956,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   (`bookmarks::Bookmarks`). They never become part of a URL (URLs are requested from the server
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
-  `e2e/bookmarks.mjs` watches every request of a session for marks.
+  `e2e/bookmarks.mjs` watches every request of a session for marks. One exception is decided for
+  when it is built: the address of a calendar subscription carries the chosen events (§5).
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -1257,6 +1267,11 @@ BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteF
 
 What `cargo test` checks:
 
+- `pack` (needs no snapshot): every shape of serde's data model there and back, the codes of
+  fixed values (the format is frozen), a field added at the end read from older codes, what the
+  format refuses; every character typed wrong, every swap of neighbours and of characters one
+  apart is caught in codes of several lengths and kinds; codes that check out but hold garbage
+  are refused without a panic, and without more work than their length allows.
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
   real data, the URL codec, the ranking of the pickers (`fuzzy`); `SCHEMA_VERSION` is the number
@@ -1461,3 +1476,14 @@ to the result.
   because it is the catalog's module preview.
 - **What follows the marks** (R20 applies): passed modules with the prerequisite check, the own
   program, the semester planner. A note per marked module would fit the same store.
+- **The timetable as a calendar subscription** (owner, 2026-09-23): an `.ics` address that
+  carries the chosen events as a `pack` code (`pack::set` of the event ids), so that the server
+  keeps nothing and a calendar follows every change of the schedule. Unlike the list's link, a
+  calendar requests that address from the server, so the code reaches the edge's access log.
+  Owner decision (2026-09-23): that is acceptable, an exception to R20 for this feature. What
+  matters is that Betula manages no data of its visitors, and here it manages none: the access
+  log keeps addresses 7 days in Loki (Docker's own log files on the host by size,
+  `deploy/README.md` §9), and the edge can leave the path out of its log once the feature
+  exists. The privacy notice then says what this convenience costs: the address of a
+  subscription carries the chosen events and lands in the access log like every request (an
+  entry in `PRIVACY_OWED`, `app/src/pages/legal.rs`, while the texts are placeholders).

@@ -22,7 +22,7 @@ use leptos_meta::Title;
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::NavigateOptions;
 
-use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, Mark, MarkButton, MarkLook};
+use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
 use crate::data::{use_source, DataError};
 use crate::format;
 use crate::nav;
@@ -173,9 +173,11 @@ pub fn BookmarksPage() -> impl IntoView {
 }
 
 /// A list brought over from another device: it arrives in the fragment of the address
-/// (`/bookmarks#add=…`, see `bookmarks::transfer_fragment`), which no browser sends to a server.
+/// (`/bookmarks#m=…`, see `bookmarks::transfer_fragment`), which no browser sends to a server.
 /// The page asks before it adds anything (a link must not fill somebody's list behind their
-/// back), and either answer takes the ids out of the address and out of the history entry.
+/// back), and either answer takes the list out of the address and out of the history entry. A
+/// list whose check characters do not fit (a link cut short, a character typed wrong) is named,
+/// and nothing of it is offered.
 #[component]
 fn Offer() -> impl IntoView {
     let bookmarks = Bookmarks::expect();
@@ -195,8 +197,8 @@ fn Offer() -> impl IntoView {
     let offered = Memo::new(move |_| ids_from_fragment(&fragment.get()));
     let navigate = use_navigate();
     let answered = Callback::new(move |add: bool| {
-        if let (true, Some(bookmarks)) = (add, bookmarks) {
-            bookmarks.add_all(&offered.get_untracked());
+        if let (true, Some(bookmarks), Ok(ids)) = (add, bookmarks, offered.get_untracked()) {
+            bookmarks.add_all(&ids);
         }
         // The same page without the fragment, in the same history entry.
         fragment.set(String::new());
@@ -204,10 +206,28 @@ fn Offer() -> impl IntoView {
         navigate(&here, NavigateOptions { replace: true, scroll: false, ..Default::default() });
     });
     move || {
-        let ids = offered.get();
-        (!ids.is_empty()).then(|| {
-            let new = ids.iter().filter(|id| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(id))).count();
-            let modules = |n: usize| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") };
+        let ids = match offered.get() {
+            Ok(ids) if ids.is_empty() => return None,
+            Ok(ids) => ids,
+            Err(BrokenLink) => {
+                return Some(
+                    view! {
+                        <div class="offer" role="status">
+                            <Icon name="info"/>
+                            <p>
+                                <b>"Der Link ist beschädigt. "</b>
+                                "Die Merkliste darin lässt sich nicht lesen: Vielleicht fehlt beim Kopieren ein Stück, oder ein Zeichen ist falsch abgetippt."
+                            </p>
+                            <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| answered.run(false)>"In Ordnung"</button>
+                        </div>
+                    }
+                    .into_any(),
+                )
+            }
+        };
+        let new = ids.iter().filter(|id| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(id))).count();
+        let modules = |n: usize| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") };
+        Some(
             view! {
                 <div class="offer" role="status">
                     <Icon name="bookmark"/>
@@ -223,7 +243,8 @@ fn Offer() -> impl IntoView {
                     <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| answered.run(false)>{if new > 0 { "Verwerfen" } else { "In Ordnung" }}</button>
                 </div>
             }
-        })
+            .into_any(),
+        )
     }
 }
 

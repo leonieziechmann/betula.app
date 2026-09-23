@@ -3,11 +3,12 @@ members = [
     "app",
     "catalog",
     "client",
+    "pack",
     "server",
 ]
 # `client` is the WASM build of the app (feature csr); building it together with the server
 # (feature ssr) would unify both into one leptos. Build it with scripts/build-client.sh.
-default-members = ["app", "catalog", "server"]
+default-members = ["app", "catalog", "pack", "server"]
 resolver = "2"
 
 # Leptos view types make full debug info enormous (a 1.8 GB server binary).

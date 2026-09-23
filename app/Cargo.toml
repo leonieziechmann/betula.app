@@ -18,6 +18,8 @@ leptos = "0.8.20"
 leptos_router = "0.8"
 leptos_meta = "0.8"
 folia-catalog = { path = "../catalog" }
+# The marked modules on their way to another device, as a code in the fragment of a link.
+folia-pack = { path = "../pack" }
 serde = { version = "1.0", features = ["derive"] }
 # Structured data for search engines (`seo`). Already part of every build through leptos.
 serde_json = "1.0"
