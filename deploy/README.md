@@ -15,10 +15,11 @@ deploy/
     40-stacks.sh          swarm secrets, stacks edge -> placeholder -> monitoring, waits for convergence
     45-seed.sh            once per instance, before its first deploy: a Radix database (tar on stdin) into its volume
     50-app.sh             one instance of the application (stacks/betula.yml + stacks/<instance>.env) at a release tag
-    90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 and 50
+    55-switch.sh          blue-green: hand a host name to the other of its two instances (the rollback is the same)
+    90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 55
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
-  stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml,
-                          betula(.gemini).yml, canary.env, monitoring.notify.example.yml, monitoring-secrets.sh
+  stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, betula(.gemini|.offline).yml,
+                          canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/
 ```
 
@@ -144,8 +145,8 @@ whether the site asks for the password of closed testing. `canary.env` is the cl
 https://canary.betula.app; the placeholder keeps https://betula.app until an instance gets
 `APP_HOST=betula.app` (its router outranks the placeholder's priority 1, so there is no gap; then
 `docker stack rm placeholder`). A new instance also has to be named in the two log rules of
-`config/monitoring/grafana/provisioning/alerting/rules.yml` (`stack=~"betula|canary"`), or its
-errors stay silent.
+`config/monitoring/grafana/provisioning/alerting/rules.yml` (`stack=~"(betula|canary)(-green)?"`),
+or its errors stay silent.
 
 Once per server: the DNS record of the instance's name, and the password of closed testing as a
 swarm secret - the value travels on stdin, never in argv (`docs/frontend.md`, "Closed testing"):
@@ -207,6 +208,32 @@ By hand, on the server: `bash /opt/betula/vps/50-app.sh canary <tag>` deploys a 
 loaded already - that is also the **rollback** (`docker image ls 'betula-*'` lists what is there) -
 and `bash /opt/betula/vps/50-app.sh canary` applies a change of `canary.env` or `betula.yml` to the
 release that runs. Opening the site: `FOLIA_ACCESS_GATE=off` in `canary.env`, sync, `50-app.sh canary`.
+
+**Blue-green** (owner, 2026-09-23): two instance files with the same `APP_HOST` are two colours of
+one site, `canary.env` (the stack that ran first) and `canary-green.env`. Each is a stack of its
+own with volumes of its own, and each has a router for the host. Traefik sends the host to the
+router with the higher priority (a label of the web server's service, `vps/lib-stacks.sh`), and
+only to a service whose task is healthy:
+
+1. `SSH_TARGET=betula bash deploy/ship.sh canary-green --seed` (a later release without `--seed`)
+   deploys the colour that does not serve as the **standby**: it runs, but gets no traffic.
+   `50-app.sh` never moves traffic: a stack that runs keeps its priority, a new one next to a
+   sibling starts below it. `91-verify-stacks.sh app` asks the standby directly, past Traefik.
+2. `ssh betula bash /opt/betula/vps/55-switch.sh canary-green` checks the standby once more
+   (converged, `/livez` and `/healthz` answered directly, closed testing in force, a catalog the
+   build can read), raises its router above the other one (nothing restarts) and waits until
+   Traefik's access log shows the host's requests arriving there.
+3. The other colour keeps running. It is the **rollback** (`55-switch.sh canary`, seconds), and
+   Traefik sends it the host's requests while the live one has no healthy task, so even an
+   in-place update of the live colour leaves no gap. Once the new one has proven itself:
+   `docker stack rm canary`; its volumes stay until you remove them.
+
+Only with `RADIX_CRAWL=off` in both files (two Radix that crawl would ask the university for
+everything twice) and the same `FOLIA_ACCESS_GATE`; `50-app.sh` refuses anything else. The next
+release goes to the colour that does not serve. Its volume keeps its database: for new data
+remove its stack and volume and ship it with `--seed` again; after a release with a new schema,
+export a new snapshot in its Radix (`docker exec <its radix container> /bin/radix export --db
+/data/radix.db --out /data/snapshot`; `55-switch.sh` refuses a catalog the build cannot read).
 
 Swarm compares service definitions, not image contents: re-loading an existing tag restarts nothing,
 hence a tag per commit and never `latest`. Old versions stay until you remove them

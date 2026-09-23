@@ -21,6 +21,10 @@
 #   6. vps/50-app.sh <instance> <tag> on the server: checks images, DNS and secrets, deploys the
 #      stack, waits until it has converged. Then vps/91-verify-stacks.sh services app.
 #
+# Blue-green (README.md section 4): an instance whose host another instance serves already
+# (canary-green next to canary) is deployed as its standby, without the host's traffic;
+# vps/55-switch.sh <instance> on the server hands the host over.
+#
 # An instance is a file stacks/<instance>.env (canary.env). Secrets are never part of this: the
 # server has to know folia-access-password already (50-app.sh says how to create it).
 # Rollback: ssh betula bash /opt/betula/vps/50-app.sh <instance> <previous tag>

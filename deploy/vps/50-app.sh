@@ -18,6 +18,11 @@
 # makes Traefik order a certificate that cannot be validated; Let's Encrypt counts those, 5 per
 # host name per hour) and the secrets exist. The value of a secret never passes through here.
 #
+# Blue-green (lib-stacks.sh): an instance whose host another instance serves already is deployed
+# as its standby - running, but without the host's traffic - and only when both files name the
+# same host, say RADIX_CRAWL=off and agree on FOLIA_ACCESS_GATE. This script never moves the
+# traffic of a host; vps/55-switch.sh does.
+#
 # Environment (all optional):
 #   PUBLIC_ADDRESSES="..."  this machine's public addresses, if they are not on an interface (NAT)
 #   CONVERGE_TIMEOUT=600    seconds to wait for the stack (Radix counts as started after its
@@ -37,6 +42,10 @@ OFFLINE_FILE="${STACKS_DIR}/betula.offline.yml"
 GEMINI_SECRET="gemini-api-key"
 GATE_SECRET="folia-access-password"
 TAG_PATTERN='^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$'
+# Set by preflight: the other stacks routed for this instance's host (blue-green), and the
+# priority this instance's router is deployed with.
+SIBLINGS=()
+ROUTER_PRIORITY=""
 
 usage() {
   die "usage: $(basename "$0") <instance> [<tag>]   (instances: $(instance_names | tr '\n' ' '))"
@@ -87,6 +96,45 @@ ensure_snapshot() {
     die "the export failed: the database does not pass validation, or it does not fit this release. Nothing was deployed"
 }
 
+# check_siblings - another stack routed for this instance's host is only allowed as the other colour
+# of blue-green: an instance whose own file names the same host, both offline, both closed or both
+# open. Two Radix that crawl would ask the university for everything twice, and a switch between
+# the colours must not open or close the site. Sets SIBLINGS.
+check_siblings() {
+  local other
+  local -a self=("${INSTANCE_STACK}" "${INSTANCE_HOST}" "${INSTANCE_GATE}" "${INSTANCE_CRAWL}")
+  SIBLINGS=()
+  while IFS= read -r other; do
+    [[ -n "${other}" && "${other}" != "${self[0]}" ]] || continue
+    [[ -f "${STACKS_DIR}/${other}.env" ]] ||
+      die "https://${self[1]} is served by stack ${other} already, which is no instance (no stacks/${other}.env): two routers for one name would take turns"
+    # Overwrites the INSTANCE_* values of this instance; they are restored below.
+    load_instance "${other}"
+    [[ "${INSTANCE_HOST}" == "${self[1]}" ]] ||
+      die "stack ${other} is routed for https://${self[1]}, but ${other}.env names ${INSTANCE_HOST}: bash ${BETULA_ROOT}/vps/50-app.sh ${other} first"
+    [[ "${self[3]}" == "off" && "${INSTANCE_CRAWL}" == "off" ]] ||
+      die "stack ${other} serves https://${self[1]} already. Two colours of one site need RADIX_CRAWL=off in both files (${self[0]}.env: ${self[3]}, ${other}.env: ${INSTANCE_CRAWL}): two Radix that crawl would ask the university for everything twice"
+    [[ "${INSTANCE_GATE}" == "${self[2]}" ]] ||
+      die "FOLIA_ACCESS_GATE is ${self[2]} in ${self[0]}.env and ${INSTANCE_GATE} in ${other}.env: switching between the two would open or close the site"
+    SIBLINGS+=("${other}")
+  done < <(app_stacks_for_host "${self[1]}")
+  INSTANCE_STACK="${self[0]}" INSTANCE_HOST="${self[1]}" INSTANCE_GATE="${self[2]}" INSTANCE_CRAWL="${self[3]}"
+}
+
+# priority_to_deploy -> the priority of this instance's router. A deployed web server keeps its
+# own (label unset = 0 = Traefik's default); a new one next to a sibling starts as its standby.
+priority_to_deploy() {
+  local value
+  if docker service inspect "${INSTANCE_STACK}_folia" >/dev/null 2>&1; then
+    value="$(service_label "${INSTANCE_STACK}_folia" "traefik.http.routers.${INSTANCE_STACK}-folia.priority")"
+    printf '%s' "${value:-0}"
+  elif [[ "${#SIBLINGS[@]}" -gt 0 ]]; then
+    printf '%s' "${STANDBY_PRIORITY}"
+  else
+    printf '0'
+  fi
+}
+
 # ---------------------------------------------------------------- steps
 
 preflight() {
@@ -114,9 +162,14 @@ preflight() {
     die "${RESOLVE_DETAIL}: create the DNS record first. A router for this name would make Traefik order a certificate that cannot be validated"
   log "${RESOLVE_DETAIL}"
 
-  owner="$(app_stack_for_host "${INSTANCE_HOST}")"
-  [[ -z "${owner}" || "${owner}" == "${INSTANCE_STACK}" ]] ||
-    die "https://${INSTANCE_HOST} is served by stack ${owner} already; two routers for one name would take turns"
+  check_siblings
+  ROUTER_PRIORITY="$(priority_to_deploy)"
+  [[ "${ROUTER_PRIORITY}" =~ ^[0-9]{1,9}$ ]] ||
+    die "the router of ${INSTANCE_STACK}_folia has the priority '${ROUTER_PRIORITY}', which is not a number (docker service inspect ${INSTANCE_STACK}_folia)"
+  if [[ "${#SIBLINGS[@]}" -gt 0 ]]; then
+    owner="$(app_stack_for_host "${INSTANCE_HOST}")"
+    log "blue-green: https://${INSTANCE_HOST} is routed to ${SIBLINGS[*]} as well; it is served by ${owner}, and this deploy does not change that (router priority ${ROUTER_PRIORITY})"
+  fi
 
   # Needed while the gate is off as well: the stack file always names it, so that closing the
   # site again is one value in the instance's file and nothing else.
@@ -142,7 +195,7 @@ deploy_app() {
     files+=("${OFFLINE_FILE}")
   fi
   # Substituted into the stack files by "docker stack deploy".
-  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" RADIX_IMAGE FOLIA_IMAGE
+  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY
   # never: the default asks a registry for the digest of the tag, and no registry knows these images.
   STACK_DEPLOY_ARGS=(--resolve-image never)
   deploy_stack "${INSTANCE_STACK}" "${files[@]}"
@@ -154,6 +207,11 @@ deploy_app() {
     [[ "${image%%@*}" == "betula-${svc}:${TAG}" ]] ||
       die "service ${INSTANCE_STACK}_${svc} was given the image '${image}' instead of betula-${svc}:${TAG}: look at the image line of ${APP_FILE}"
   done
+  # Which colour gets the host's traffic depends on it (blue-green).
+  local priority
+  priority="$(service_label "${INSTANCE_STACK}_folia" "traefik.http.routers.${INSTANCE_STACK}-folia.priority")"
+  [[ "${priority}" == "${ROUTER_PRIORITY}" ]] ||
+    die "the router of ${INSTANCE_STACK}_folia was given the priority '${priority}' instead of ${ROUTER_PRIORITY}: look at the priority label of ${APP_FILE}"
   # The same for the promise that matters to somebody else: offline means that swarm starts
   # "serve-snapshot", online that it starts the image's own "run".
   local args
@@ -182,6 +240,15 @@ report() {
   fi
   if [[ "${INSTANCE_HOST}" == "${SITE_HOST}" ]] && stack_exists placeholder; then
     log "the application owns https://${SITE_HOST} now; once it works: docker stack rm placeholder"
+  fi
+  if [[ "${#SIBLINGS[@]}" -gt 0 ]]; then
+    local owner
+    owner="$(app_stack_for_host "${INSTANCE_HOST}")"
+    if [[ "${owner}" == "${INSTANCE_STACK}" ]]; then
+      log "blue-green: ${INSTANCE_STACK} serves https://${INSTANCE_HOST}, ${SIBLINGS[*]} is the standby (rollback: bash ${BETULA_ROOT}/vps/55-switch.sh ${SIBLINGS[0]})"
+    else
+      log "blue-green: ${INSTANCE_STACK} is the standby, https://${INSTANCE_HOST} is still served by ${owner}. Check it (91-verify-stacks.sh asks it directly), then hand the host over: bash ${BETULA_ROOT}/vps/55-switch.sh ${INSTANCE_STACK}"
+    fi
   fi
   log "next: bash ${BETULA_ROOT}/vps/91-verify-stacks.sh services app"
 }
