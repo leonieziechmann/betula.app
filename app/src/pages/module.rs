@@ -121,8 +121,8 @@ fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
     ]
 }
 
-/// The preview next to a list. `close_href` is the same page without the preview. `docked` puts
-/// it into the right column of a frame (`ui::Frame`) instead of floating over the page.
+/// The preview next to a list. `close_href` is the same page without the preview. `docked` gives
+/// it the head of a frame's panel (`ui::Frame`); it floats over the page either way.
 /// `full_href` is where „Vollbild" leads: the module's own page unless the page beside which the
 /// module stands can show it in full itself (a program's page).
 #[component]

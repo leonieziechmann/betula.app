@@ -42,7 +42,7 @@ use crate::pages::catalog::phone_layout;
 use crate::pages::module::{ModuleFull, ModulePanel};
 use crate::seo::{self, Seo};
 use crate::tabs::Area;
-use crate::ui::{BackLink, EmptyState, ErrorState, Fact, Frame, Icon, NotFound, OfferBadge, Shortcut};
+use crate::ui::{BackLink, EmptyState, ErrorState, Frame, Icon, NotFound, OfferBadge, Shortcut};
 
 /// The browser app (`csr`), or the server rendering the page for crawlers and for browsers
 /// without JavaScript.
@@ -175,7 +175,7 @@ pub fn ProgramPage() -> impl IntoView {
                     <Title text=format!("{name}: {} · BTU Cottbus-Senftenberg", if matches!(filling.get_untracked(), Filling::Area(_)) { "Bereich" } else { "Regelstudienplan" })/>
                     <div class="work framed picked-page">
                         <div class="page" id="page-scroll">
-                            {picked_panel(&data, tab, variant.get_untracked(), area.get_untracked(), req.get_untracked(), links, true)}
+                            {picked_panel(&data, variant.get_untracked(), area.get_untracked(), req.get_untracked(), links, true)}
                         </div>
                     </div>
                 }
@@ -188,7 +188,7 @@ pub fn ProgramPage() -> impl IntoView {
                 };
                 let aside = {
                     let data = data.clone();
-                    move || view! { <ProgramAside data=data.clone() tab variant open area req links/> }
+                    move || view! { <ProgramAside data=data.clone() variant open area req links/> }
                 };
                 view! {
                     <Frame title="Studiengang" sidebar sidebar_first=true aside aside_picked=picked>
@@ -229,38 +229,71 @@ fn ProgramModuleFull(id: String, links: Memo<ProgramUrl>, phone: RwSignal<bool>)
     }
 }
 
-/// What stands beside the page with no module picked — the area, the row of the plan, else the
-/// numbers of the view — or, as `page`, what fills the page on a phone.
-fn picked_panel(data: &ProgramData, tab: ProgramTab, variant: usize, area: Option<i64>, req: Option<usize>, links: Memo<ProgramUrl>, page: bool) -> AnyView {
+/// What stands beside the page with no module picked — the area or the row of the plan one
+/// clicked — or, as `page`, what fills the page on a phone. With nothing picked nothing stands
+/// beside the page (`ui::Frame`).
+fn picked_panel(data: &ProgramData, variant: usize, area: Option<i64>, req: Option<usize>, links: Memo<ProgramUrl>, page: bool) -> AnyView {
     let plans = plan_variants(&data.plan_entries, &data.plan_totals);
     let areas = area_groups(&data.areas);
-    if let Some(group) = area.and_then(|id| areas.iter().find(|group| group.id == id)) {
-        return view! { <AreaPanel group=group.snapshot() modules=data.curricular.clone() links page/> }.into_any();
-    }
+    let known = pages::catalog_areas(&data.areas, &data.area_tree);
     let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
-    let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row - 1).cloned().map(|entry| (entry, plan, plans.len() > 1))));
+    let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row.checked_sub(1)?).cloned().map(|entry| (row, entry, plan))));
+    if let Some(group) = area.and_then(|id| areas.iter().find(|group| group.id == id)) {
+        let here = links.get_untracked();
+        // Opened out of a row of the plan, the area says how one got there and closing it
+        // returns to the row; else it is where the tree puts it, and closing it leaves the page.
+        let trail = row.as_ref().map(|(row, entry, plan)| row_trail(*row, entry, plan, group, &known, &areas, &here)).unwrap_or_default();
+        let close = match &row {
+            Some((row, ..)) => here.with_req(Some(*row)).path(),
+            None => here.with_area(None).path(),
+        };
+        let catalog = catalog_for(data, variant, Some(group.id), req);
+        return view! { <AreaPanel group=group.snapshot() modules=data.curricular.clone() trail catalog close links page/> }.into_any();
+    }
     match row {
-        Some((entry, chosen, several)) => {
-            let known = pages::catalog_areas(&data.areas, &data.area_tree);
+        Some((_, entry, chosen)) => {
             let fitting = areas_for_row(&entry, chosen, &known, &areas);
-            let plan = chosen.label.clone();
+            let plan = (plans.len() > 1).then(|| chosen.label.clone());
             let known: HashMap<String, ProgramModule> = data.curricular.iter().chain(data.fues.iter()).map(|m| (m.module_id.clone(), m.clone())).collect();
             let catalog = catalog_for(data, variant, None, req);
             let choice = chosen.choice_for(&entry);
-            view! { <PlanRowPanel entry plan=(several).then_some(plan) program=data.program.clone() fitting known catalog choice links page/> }.into_any()
+            view! { <PlanRowPanel entry plan program=data.program.clone() fitting known catalog choice links page/> }.into_any()
         }
-        None if page => view! {
+        None => view! {
             <section class="panel detail aside" id="preview">
                 <div class="state">
                     <p class="state-title">"Nicht gefunden"</p>
                     <p>"Diesen Bereich oder diese Zeile des Regelstudienplans gibt es nicht (mehr)."</p>
-                    <p><a class="button" href=links.get_untracked().with_area(None).path()>"Zum Studiengang"</a></p>
+                    <p><a class="button" href=links.get_untracked().with_area(None).path() data-action="close-detail">"Zum Studiengang"</a></p>
                 </div>
             </section>
         }
         .into_any(),
-        None => view! { <ProgramNumbers data=data.clone() tab plans variant=Signal::derive(move || variant)/> }.into_any(),
     }
+}
+
+/// How one got to an area opened out of a row of the plan: the row, then the areas from the one
+/// its name points at down to this one, without it — „Anwendungsfach / Mathematik" is the row and
+/// the area. Each step leads back to where it was: the row to its panel, an area to its own with
+/// the row kept.
+fn row_trail(row: usize, entry: &PlanEntry, plan: &PlanVariant, group: &AreaGroup, known: &[CatalogArea], areas: &[AreaGroup], here: &ProgramUrl) -> Vec<(String, String)> {
+    let mut steps = vec![(entry.module_name.clone(), here.with_req(Some(row)).path())];
+    let under = |above: &str, path: &str| path.starts_with(&format!("{above} / "));
+    let fitting = areas_for_row(entry, plan, known, areas);
+    // The area the row points at that holds this one (itself, or one above it in the tree).
+    if let Some(top) = fitting.iter().filter(|fit| fit.id != 0).find(|fit| fit.path == group.path || under(&fit.path, &group.path)) {
+        let mut between: Vec<&AreaGroup> =
+            areas.iter().filter(|g| g.id != group.id && (g.path == top.path || under(&top.path, &g.path)) && under(&g.path, &group.path)).collect();
+        between.sort_by_key(|g| g.path.len());
+        steps.extend(between.into_iter().map(|g| (g.label.clone(), here.with_area_keeping_req(g.id).path())));
+    }
+    // A row named like the area it leads to („Proseminar oder Praktikum") would read twice: it is
+    // named by the plan it is a row of instead, and still leads back to itself.
+    let next = steps.get(1).map_or(group.label.as_str(), |(label, _)| label.as_str());
+    if entry.module_name.trim().eq_ignore_ascii_case(next.trim()) {
+        steps[0].0 = "Regelstudienplan".to_string();
+    }
+    steps
 }
 
 /// Views of the program, how the plan is drawn, where its areas are, what is related to it and
@@ -469,13 +502,12 @@ fn ProgramView(
 
 // ---------- the panel on the right ----------
 
-/// What stands beside the page: the module the visitor picked, or — with none picked — the
-/// numbers of the view they are looking at. A module uses the same panel as in the catalog, so it
-/// reads the same wherever it is opened.
+/// What stands beside the page while the visitor picked something: the module, else the area or
+/// the row of the plan. A module uses the same panel as in the catalog, so it reads the same
+/// wherever it is opened.
 #[component]
 fn ProgramAside(
     data: ProgramData,
-    tab: ProgramTab,
     variant: Memo<usize>,
     open: Memo<Option<String>>,
     area: Memo<Option<i64>>,
@@ -502,8 +534,8 @@ fn ProgramAside(
             </section>
         }
         .into_any(),
-        // No module picked: the area or the row of the plan one clicked, else this view's numbers.
-        Ok(None) => picked_panel(&data, tab, variant.get(), area.get(), req.get(), links, false),
+        // No module picked: the area or the row of the plan one clicked.
+        Ok(None) => picked_panel(&data, variant.get(), area.get(), req.get(), links, false),
     }
 }
 
@@ -552,8 +584,26 @@ fn PlanRowPanel(
     let others = fitting;
     let has_fitting = first.is_some() || !others.is_empty();
     // Where to look further: the catalog with what the row means (`catalog_for`: its areas, the
-    // FÜS list, or the name of a single module).
+    // FÜS list, the name of a single module, else the program's electives). It is what the row
+    // asks one to do, so it comes first; what can be chosen follows under it.
     let (catalog, catalog_what) = catalog;
+    let (action_icon, action) = if fues {
+        ("sliders-horizontal", "FÜS-Module im Katalog")
+    } else if one_module {
+        ("search", "Im Katalog suchen")
+    } else if has_fitting {
+        ("sliders-horizontal", "Passende Module im Katalog")
+    } else {
+        ("sliders-horizontal", "Wahlpflichtmodule im Katalog")
+    };
+    // The head states the row once: its study direction and the area the plan prints it under
+    // on one line, credits, kind and semesters as badges. An area the row's name already says
+    // („Komplex Praktische Informatik" under „Komplex Praktische Informatik") is not repeated.
+    let named = entry.module_name.to_lowercase();
+    let area = area.filter(|area| !named.contains(&area.trim().to_lowercase()));
+    let context = [plan, area].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+    let kind = entry.kind.as_ref().map(|kind| kind.label().to_string()).or_else(|| entry.kind_raw.clone());
+    let note_class = if one_module { "note" } else { "note quiet" };
 
     view! {
         <section class="panel detail aside" id="preview" aria-label="Zeile des Regelstudienplans">
@@ -569,23 +619,68 @@ fn PlanRowPanel(
                         })}
                     </div>
                     <h2>{entry.module_name.clone()}</h2>
-                    {plan.map(|plan| view! { <p class="en">{plan}</p> })}
+                    {(!context.is_empty()).then(|| view! { <p class="en">{context}</p> })}
                     <p class="badges">
-                        {credits.clone().map(|credits| view! { <span class="badge strong num">{credits}</span> })}
-                        {entry.kind.clone().map(|kind| view! { <span class="badge">{kind.label().to_string()}</span> })}
-                        {semester.clone().map(|semester| view! { <span class="badge">{semester}</span> })}
+                        {credits.map(|credits| view! { <span class="badge strong num">{credits}</span> })}
+                        {kind.map(|kind| view! { <span class="badge">{kind}</span> })}
+                        {semester.map(|semester| view! { <span class="badge">{semester}</span> })}
                     </p>
                 </header>
                 <div class="dbody">
-                    <div class="section">
-                        <p class="label">"Was der Plan sagt"</p>
-                        <dl class="facts">
-                            <Fact icon="award" label="Leistungspunkte" value=credits/>
-                            <Fact icon="calendar-range" label="Semester" value=semester/>
-                            <Fact icon="star" label="Art" value=entry.kind.as_ref().map(|kind| kind.label().to_string()).or_else(|| entry.kind_raw.clone())/>
-                            <Fact wide=true icon="sliders-horizontal" label="Bereich im Plan" value=area/>
-                        </dl>
-                    </div>
+                    <a class="btn primary row-action" href=catalog title=catalog_what data-walk="catalog">
+                        <Icon name=action_icon/>{action}
+                    </a>
+                    // What can be chosen: the area the name points at with its modules, the
+                    // others as links.
+                    {first.map(|area| {
+                        let count = area.modules.len();
+                        let id = area.id;
+                        let label = area.label.clone();
+                        let path = area.path.clone();
+                        view! {
+                            <div class="section">
+                                <p class="label">"Vermutlich " {label.clone()}<span>{format::modules(count as i64)}</span></p>
+                                {(!path.is_empty()).then(|| view! { <p class="hint">{path}</p> })}
+                                <div class="linklist">{area_module_links(&area.modules, &known, links)}</div>
+                                <a class="pre more-area" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
+                                    <b>"Diesen Bereich ganz ansehen"</b>
+                                    <small>{label}</small>
+                                    <Icon name="chevron-right"/>
+                                </a>
+                            </div>
+                        }
+                    })}
+                    {(!others.is_empty()).then(|| view! {
+                        <div class="section">
+                            <p class="label">{if ambiguous { "Passende Bereiche" } else { "Kommt auch in Frage" }}<span>{others.len()}</span></p>
+                            <div class="linklist">
+                                {others.clone().into_iter().map(|area| {
+                                    let id = area.id;
+                                    view! {
+                                        <a class="pre" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
+                                            <b>{area.label.clone()}</b>
+                                            <small>{format::modules(area.modules.len() as i64)}</small>
+                                            <Icon name="chevron-right"/>
+                                        </a>
+                                    }
+                                }).collect_view()}
+                            </div>
+                        </div>
+                    })}
+                    // A choice the name points at no area of: the areas of the program are where
+                    // its modules are listed.
+                    {(!fues && !one_module && !has_fitting).then(|| view! {
+                        <div class="section">
+                            <p class="label">"Bereiche des Studiengangs"</p>
+                            <div class="linklist">
+                                <a class="pre" href=url::program_path(&program.slug, ProgramTab::Areas)>
+                                    <b>"Wahlpflicht & Bereiche"</b>
+                                    <small>"alle Bereiche"</small>
+                                    <Icon name="chevron-right"/>
+                                </a>
+                            </div>
+                        </div>
+                    })}
                     // A row that prints a range says nothing on its own: what pins it down is
                     // the line the regulation prints over it and its neighbours.
                     {choice.map(|choice| {
@@ -618,73 +713,24 @@ fn PlanRowPanel(
                             </div>
                         }
                     })}
-                    <p class="note">
+                    // Said once, under what it explains: no source names the modules of such a
+                    // row (R12). Only a module the catalog does not know is worth a warning.
+                    <p class=note_class>
                         <Icon name="info"/>
                         <span>
                             {if one_module {
-                                "Der Plan nennt hier ein einzelnes Modul, das der Modulkatalog unter diesem Namen nicht führt — es kann anders heißen oder nicht mehr angeboten werden.".to_string()
+                                "Der Plan nennt hier ein einzelnes Modul, das der Modulkatalog unter diesem Namen nicht führt — es kann anders heißen oder nicht mehr angeboten werden."
                             } else if fues {
-                                "Der Plan verlangt hier ein Modul aus dem Fachübergreifenden Studium. Welche Module dafür angerechnet werden können, steht in der FÜS-Liste dieses Studiengangs.".to_string()
+                                "Der Plan verlangt hier ein Modul aus dem Fachübergreifenden Studium. Angerechnet wird, was in der FÜS-Liste dieses Studiengangs steht."
                             } else if ambiguous {
-                                "Der Plan nennt für diese Zeile kein einzelnes Modul und verweist auf keinen Bereich. Dem Namen nach passen die Bereiche unten gleich gut dazu.".to_string()
+                                "Der Plan nennt für diese Zeile kein einzelnes Modul. Die Bereiche oben sind aus ihrem Namen abgeleitet und passen gleich gut."
                             } else if has_fitting {
-                                "Der Plan nennt für diese Zeile kein einzelnes Modul und verweist auf keinen Bereich. Der Bereich unten passt dem Namen nach dazu.".to_string()
+                                "Der Plan nennt für diese Zeile kein einzelnes Modul. Der Bereich oben ist aus ihrem Namen abgeleitet, nicht aus dem Plan."
                             } else {
-                                "Der Plan nennt für diese Zeile kein einzelnes Modul. Welche Module dafür in Frage kommen, steht in den Bereichen dieses Studiengangs.".to_string()
+                                "Der Plan nennt für diese Zeile kein einzelnes Modul. Welche Module in Frage kommen, steht in den Bereichen dieses Studiengangs."
                             }}
                         </span>
                     </p>
-                    // The area the name points at, with its modules; the others as links.
-                    {first.map(|area| {
-                        let count = area.modules.len();
-                        let id = area.id;
-                        let label = area.label.clone();
-                        let path = area.path.clone();
-                        view! {
-                            <div class="section">
-                                <p class="label">"Vermutlich " {label.clone()}<span>{count}" Module"</span></p>
-                                <p class="hint">"Aus dem Namen der Planzeile abgeleitet: der Plan selbst nennt keinen Bereich. "{path}</p>
-                                <div class="linklist">{area_module_links(&area.modules, &known, links)}</div>
-                                <a class="pre more-area" href=move || area_href(&links.get(), id) data-walk="area" data-noscroll="">
-                                    <b>"Diesen Bereich ganz ansehen"</b>
-                                    <small>{label}</small>
-                                    <Icon name="chevron-right"/>
-                                </a>
-                            </div>
-                        }
-                    })}
-                    {(!others.is_empty()).then(|| view! {
-                        <div class="section">
-                            <p class="label">{if ambiguous { "Passende Bereiche" } else { "Kommt auch in Frage" }}<span>{others.len()}</span></p>
-                            <div class="linklist">
-                                {others.clone().into_iter().map(|area| {
-                                    let id = area.id;
-                                    view! {
-                                        <a class="pre" href=move || area_href(&links.get(), id) data-walk="area" data-noscroll="">
-                                            <b>{area.label.clone()}</b>
-                                            <small>{area.modules.len()}" Module"</small>
-                                            <Icon name="chevron-right"/>
-                                        </a>
-                                    }
-                                }).collect_view()}
-                            </div>
-                        </div>
-                    })}
-                    <div class="section">
-                        <p class="label">"Weiter"</p>
-                        <div class="linklist">
-                            <a class="pre" href=url::program_path(&program.slug, if fues || one_module { ProgramTab::Modules } else { ProgramTab::Areas })>
-                                <b>{if fues { "FÜS-Liste des Studiengangs" } else if one_module { "Alle Module des Studiengangs" } else { "Wahlpflicht & Bereiche" }}</b>
-                                <small>{if fues { format!("{} Module", program.fues_modules) } else if one_module { format!("{} Module", program.curricular_modules) } else { "alle Bereiche".to_string() }}</small>
-                                <Icon name="chevron-right"/>
-                            </a>
-                            <a class="pre" href=catalog>
-                                <b>{if fues { "FÜS-Module im Katalog" } else if one_module { "Diesen Namen im Katalog suchen" } else { "Im Modulkatalog" }}</b>
-                                <small>{catalog_what}</small>
-                                <Icon name="chevron-right"/>
-                            </a>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -734,25 +780,33 @@ fn areas_for_row(entry: &PlanEntry, plan: &PlanVariant, known: &[CatalogArea], a
     fitting
 }
 
-/// What an area of the program holds: its numbers, the areas under it, and its modules. Opened by
-/// clicking the area in „Wahlpflicht & Bereiche"; a module picked from here keeps it, so closing
-/// the module comes back to this list.
+/// What an area of the program holds, in the shape of the panel of a row of the plan: the way
+/// into the catalog first, then what can be chosen — the areas under it and its modules (owner,
+/// 2026-09-23: one kind of panel, whatever was clicked). Opened out of a row of the plan it says
+/// how one got there („Anwendungsfach / Mathematik") and closing it returns to the row; opened in
+/// „Wahlpflicht & Bereiche" it says where the tree puts it. A module picked from here keeps it, so
+/// closing the module comes back to this list.
 #[component]
 fn AreaPanel(
     group: AreaGroup,
     modules: Vec<ProgramModule>,
+    /// The steps before this area where it was opened out of a row of the plan (`row_trail`),
+    /// each with where it leads back to.
+    trail: Vec<(String, String)>,
+    /// The catalog narrowed down to this area, and what it lists (`catalog_for`).
+    catalog: (String, String),
+    /// Where closing leads: the row the area was opened from, else the page.
+    close: String,
     links: Memo<ProgramUrl>,
     /// The panel is the page (a phone): „Zurück" instead of „Schließen".
     #[prop(optional)] page: bool,
 ) -> impl IntoView {
     let known: HashMap<String, ProgramModule> = modules.into_iter().map(|m| (m.module_id.clone(), m)).collect();
-    let close = links.get_untracked().with_area(None).path();
     let count = group.modules.len();
     let sum: f64 = group.modules.iter().filter_map(|placement| placement.module_credits).sum();
-    let kind_of = |placement: &AreaPlacement| placement.kind.clone().or_else(|| known.get(&placement.module_id).and_then(|m| m.kind.clone()));
-    let kinds = kind_counts(group.modules.iter().map(&kind_of));
     let children = group.children.clone();
     let path = group.path.clone();
+    let (catalog, catalog_what) = catalog;
 
     view! {
         <section class="panel detail aside" id="preview" aria-label="Bereich">
@@ -768,28 +822,34 @@ fn AreaPanel(
                         })}
                     </div>
                     <h2>{group.label.clone()}</h2>
-                    {(!path.is_empty()).then(|| view! { <p class="en">{path.clone()}</p> })}
+                    {if trail.is_empty() {
+                        (!path.is_empty() && path != group.label).then(|| view! { <p class="en">{path}</p> }).into_any()
+                    } else {
+                        view! {
+                            <p class="en trail">
+                                {trail.into_iter().map(|(label, href)| view! { <a href=href data-noscroll="">{label}</a><span class="sep">" / "</span> }).collect_view()}
+                                <span aria-current="page">{group.label.clone()}</span>
+                            </p>
+                        }
+                        .into_any()
+                    }}
                     <p class="badges">
-                        <span class="badge strong num">{count}" Module"</span>
+                        <span class="badge strong num">{format::modules(count as i64)}</span>
                         {(sum > 0.0).then(|| view! { <span class="badge num">{format::number(sum)}" LP"</span> })}
                     </p>
                 </header>
                 <div class="dbody">
-                    <div class="section">
-                        <p class="label">"Auf einen Blick"</p>
-                        <dl class="facts">
-                            {kinds.into_iter().map(|(icon, label, count)| view! { <Fact icon=icon label=label value=Some(count.to_string())/> }).collect_view()}
-                            <Fact icon="award" label="Leistungspunkte" value=(sum > 0.0).then(|| format!("{} LP", format::number(sum)))/>
-                        </dl>
-                    </div>
+                    <a class="btn primary row-action" href=catalog title=catalog_what data-walk="catalog">
+                        <Icon name="sliders-horizontal"/>"Passende Module im Katalog"
+                    </a>
                     {(!children.is_empty()).then(|| view! {
                         <div class="section">
                             <p class="label">"Bereiche darin"<span>{children.len()}</span></p>
                             <div class="linklist">
                                 {children.into_iter().map(|(id, label, modules)| view! {
-                                    <a class="pre" href=move || area_href(&links.get(), id) data-noscroll="">
+                                    <a class="pre" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
                                         <b>{label}</b>
-                                        <small>{modules}" Module"</small>
+                                        <small>{format::modules(modules as i64)}</small>
                                         <Icon name="chevron-right"/>
                                     </a>
                                 }).collect_view()}
@@ -804,101 +864,6 @@ fn AreaPanel(
             </div>
         </section>
     }
-}
-
-/// The numbers of the view one is looking at: what the plan of this study direction adds up to,
-/// or what the program has in areas and modules. Only what the data states, never a guess.
-#[component]
-fn ProgramNumbers(data: ProgramData, tab: ProgramTab, plans: Vec<PlanVariant>, #[prop(into)] variant: Signal<usize>) -> impl IntoView {
-    let p = data.program.clone();
-    let areas = area_groups(&data.areas).len();
-    let kinds = kind_counts(data.curricular.iter().map(|m| m.kind.clone()));
-
-    move || {
-        let plan = plans.get(variant.get().min(plans.len()).saturating_sub(1)).cloned();
-        let heading = match tab {
-            ProgramTab::Plan => "Regelstudienplan",
-            ProgramTab::Areas => "Wahlpflicht & Bereiche",
-            ProgramTab::Modules => "Alle Module",
-        };
-        let several = plans.len() > 1;
-        view! {
-            <section class="panel detail aside" id="preview" aria-label="Überblick">
-                <div class="scroll">
-                    <header class="hero">
-                        <h2>{heading}</h2>
-                        {(tab == ProgramTab::Plan).then(|| plan.as_ref().map(|plan| view! {
-                            <p class="en" title=plan.full.clone()>{if several { plan.label.clone() } else { "Aus der Prüfungs- und Studienordnung".to_string() }}</p>
-                        }))}
-                    </header>
-                    <div class="dbody">
-                        <div class="section">
-                            <p class="label">"Auf einen Blick"</p>
-                            <dl class="facts">
-                                {match (tab, plan.clone()) {
-                                    (ProgramTab::Plan, Some(plan)) => view! {
-                                        <Fact icon="calendar-range" label="Fachsemester" value=Some(format!("{}", plan.semesters))/>
-                                        <Fact icon="award" label="Leistungspunkte" value=Some(format!("{} LP", plan.credits_label()))/>
-                                        <Fact icon="layout-list" label="Zeilen im Plan" value=Some(format!("{}", plan.entries.len()))/>
-                                        <Fact icon="file-check-2" label="Im Katalog verlinkt" value=Some(format!("{}", plan.entries.iter().filter(|entry| entry.module_id.is_some()).count()))/>
-                                    }.into_any(),
-                                    _ => view! {
-                                        <Fact icon="layout-list" label="Module im Curriculum" value=Some(format!("{}", p.curricular_modules))/>
-                                        <Fact icon="sliders-horizontal" label="Bereiche" value=Some(format!("{areas}"))/>
-                                        {kinds.clone().into_iter().map(|(icon, label, count)| view! { <Fact icon=icon label=label value=Some(count.to_string())/> }).collect_view()}
-                                        <Fact icon="file-check-2" label="FÜS-Module" value=Some(format!("{}", p.fues_modules))/>
-                                    }.into_any(),
-                                }}
-                            </dl>
-                        </div>
-                        {(tab == ProgramTab::Plan).then(|| plan.as_ref().map(|plan| {
-                            let per = credits_per_semester(plan);
-                            // Semesters the regulation sums together have no figure of their own; they
-                            // stand as one bar over the semesters they share.
-                            let shared = shared_semester_totals(plan);
-                            let bars: Vec<(String, i64, f64)> = per
-                                .iter()
-                                .filter_map(|(semester, credits)| match shared.iter().find(|(from, to, _)| semester >= from && semester <= to) {
-                                    Some((from, to, together)) if from == semester => Some((format!("{from}.–{to}."), to - from + 1, *together)),
-                                    Some(_) => None,
-                                    None => Some((format!("{semester}."), 1, *credits)),
-                                })
-                                .collect();
-                            let most = bars.iter().map(|(_, over, credits)| credits / *over as f64).fold(0.0f64, f64::max);
-                            let states = plan.stated;
-                            (!bars.is_empty() && most > 0.0).then(|| view! {
-                                <div class="section">
-                                    <p class="label">"LP je Semester"</p>
-                                    <ul class="bars">
-                                        {bars.into_iter().map(|(label, over, credits)| view! {
-                                            <li>
-                                                <span class="bar-n">{label}</span>
-                                                <span class="bar" style=format!("--at:{:.1}%", credits / over as f64 / most * 100.0)></span>
-                                                <span class="bar-v num">{(credits > 0.0).then(|| format::number(credits))}</span>
-                                            </li>
-                                        }).collect_view()}
-                                    </ul>
-                                    <p class="hint">
-                                        {if states { "Die Summen je Semester, wie die Prüfungsordnung sie ausweist." }
-                                         else { "Nur Module, die der Plan einem einzelnen Semester zuordnet." }}
-                                    </p>
-                                </div>
-                            })
-                        }))}
-                        <p class="pick"><Icon name="info"/><span>"Ein Modul anklicken, um es hier zu lesen."</span></p>
-                    </div>
-                </div>
-            </section>
-        }
-    }
-}
-
-/// What each semester of the plan holds. Where the regulation prints a line per semester, that
-/// line is the answer, including for the semesters whose rows share one merged column. Otherwise
-/// only what the plan puts into one semester can be added up there: a module over several
-/// semesters belongs to no single one, and the plan does not say how it splits.
-fn credits_per_semester(plan: &PlanVariant) -> Vec<(i64, f64)> {
-    (1..=plan.semesters.max(1)).map(|semester| (semester, plan.semester_credits(semester).unwrap_or(0.0))).collect()
 }
 
 /// The last semesters of some plans share one column („5.–6."), and the regulation sums them
@@ -1394,7 +1359,7 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
                 </thead>
                 {section_groups(&plan.entries).into_iter().map(|(section, entries)| view! {
                     <tbody>
-                        {section.map(|name| view! { <tr class="group"><th colspan=width scope="rowgroup">{name}</th></tr> })}
+                        {section.map(|name| view! { <tr class="group"><th colspan=width scope="rowgroup"><span class="ginner"><span class="gname">{name}</span></span></th></tr> })}
                         {entries.into_iter().map(|(row, entry)| {
                             let span = semester_span(&entry);
                             let credits = plan_credits(&entry);
@@ -1594,6 +1559,17 @@ fn catalog_for(data: &ProgramData, variant: usize, area: Option<i64>, req: Optio
     }
 }
 
+/// Where an area leads out of a panel beside the page: to its own panel with the row of the plan
+/// kept, so that panel says how one got there (`ProgramUrl::with_area_keeping_req`). Panels are
+/// the app's; the server's page links the catalog instead (`area_href`).
+fn area_within_href(links: &ProgramUrl, id: i64) -> String {
+    if APP {
+        links.with_area_keeping_req(id).path()
+    } else {
+        area_href(links, id)
+    }
+}
+
 /// Where an area of the program leads: in the app beside the page (`?area=<id>`); on the
 /// server's page to the catalog narrowed down to the area, the page that lists what it holds.
 fn area_href(links: &ProgramUrl, id: i64) -> String {
@@ -1657,40 +1633,6 @@ fn section_groups(entries: &[PlanEntry]) -> Vec<RowGroup> {
 }
 
 // ---------- areas and modules: one table ----------
-
-/// How a list of modules splits by what the program states them as: every kind that occurs
-/// („Pflicht", „Wahlpflicht", „Abschlussarbeit", „Praktikum", „FÜS") and, where no source says,
-/// „Art nicht angegeben" (R12). Nothing is counted into a kind it was not stated as.
-fn kind_counts(kinds: impl Iterator<Item = Option<Code<ModuleKind>>>) -> Vec<(&'static str, String, usize)> {
-    let mut counts: Vec<(&'static str, String, usize)> = Vec::new();
-    let mut unstated = 0usize;
-    for kind in kinds {
-        let Some(kind) = kind else {
-            unstated += 1;
-            continue;
-        };
-        let label = kind.label().to_string();
-        match counts.iter_mut().find(|(_, existing, _)| *existing == label) {
-            Some((_, _, count)) => *count += 1,
-            None => counts.push((kind_icon(&kind), label, 1)),
-        }
-    }
-    if unstated > 0 {
-        counts.push(("info", "Art nicht angegeben".to_string(), unstated));
-    }
-    counts
-}
-
-fn kind_icon(kind: &Code<ModuleKind>) -> &'static str {
-    match kind.known() {
-        Some(ModuleKind::Compulsory) => "graduation-cap",
-        Some(ModuleKind::Elective) => "star",
-        Some(ModuleKind::Thesis) => "award",
-        Some(ModuleKind::Internship) => "layout-list",
-        Some(ModuleKind::Fues) => "arrow-up-right",
-        None => "info",
-    }
-}
 
 /// „Pflicht", „Wahlpflicht" … as a table cell; „–" where no source states the kind (the full
 /// wording stays in the title, so nothing is invented and nothing is claimed).

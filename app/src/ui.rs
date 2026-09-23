@@ -122,10 +122,11 @@ pub fn Prose(text: String) -> impl IntoView {
 /// holds what belongs to the page as a whole: its filters, its sections, its actions.
 /// The catalog is the one page that builds this frame itself (its sidebar is the filter form).
 ///
-/// A page can put a panel on the right as well (`aside`), as wide as the catalog's module
-/// preview and with the same handle and remembered width: what belongs to what the visitor
-/// picked. Unlike the catalog's preview it is a column of the layout, not a panel floating over
-/// the page, so the page keeps the room it has and nothing is covered.
+/// A page can put a panel on the right as well (`aside`): what belongs to what the visitor
+/// picked. It is the catalog's module preview in all but its content — as wide, with the same
+/// handle and remembered width, floating over the page docked to its right edge, and there only
+/// while something is picked (`aside_picked`). A column of its own left a 13-inch screen too
+/// little room for the page (owner, 2026-09-23).
 #[component]
 pub fn Frame(
     /// Heading of the sidebar.
@@ -141,10 +142,10 @@ pub fn Frame(
     /// The panel on the right, with its own handle. It brings its own box
     /// (`<section class="panel detail aside">`), so a module preview can be used as it is.
     #[prop(optional, into)] aside: Option<ViewFn>,
-    /// The panel on the right shows something the visitor picked (a module, an area). On a phone,
-    /// where nothing stands beside a page, it is then the page: the page and the sidebar step
-    /// back until it is closed. (The browser app renders such a pick as a page of its own; this
-    /// is for the same HTML without it.)
+    /// The visitor picked something (a module, an area): the panel on the right is there only
+    /// then. On a phone, where nothing stands beside a page, it is the page: the page and the
+    /// sidebar step back until it is closed. (The browser app renders such a pick as a page of
+    /// its own; this is for the same HTML without it.)
     #[prop(optional, into)] aside_picked: Signal<bool>,
     children: Children,
 ) -> impl IntoView {
@@ -162,11 +163,11 @@ pub fn Frame(
             </aside>
             <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
             <div class="page" id="page-scroll">{children()}</div>
-            {aside.map(|aside| view! {
+            {aside.map(|aside| move || aside_picked.get().then(|| view! {
                 // The handle is a sibling of the panel, as in the catalog: a child would be clipped.
                 <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
                 {aside.run()}
-            })}
+            }))}
         </div>
     }
 }
