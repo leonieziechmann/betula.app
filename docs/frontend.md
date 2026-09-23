@@ -489,6 +489,17 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   without a module are one module the catalog does not know under that name; FÜS rows point to
   the program's FÜS list. The URL still says only the semester; the derived areas are part of the
   query the page ran (`CatalogData::effective`), which the endless list loads further pages with.
+  **The note is a line a row and scrolls with the list** (owner, 2026-09-23: fixed above the
+  rows it left room for two of them on a laptop, and „viel Redundanz"): „≥ 6 LP Anwendungsfach:
+  „Mathematik“, … oder „Physik“" — how much (a choice at least that much), what the plan calls
+  the row and the areas; a name that only repeats its areas gives way to „aus dem Bereich" /
+  „aus den Bereichen" (`SemesterRequirement::named_by_areas`: „Modul aus dem Bereich Praktische
+  Mathematik", „Wahlpflicht: Komplex A / Komplex B"), and the areas the name fits less well are
+  no longer named. The note stands in the rows' scroll area above the heads of the columns, which
+  stick to its top (`.rows > .cols`, as tall as `--cols`, so that the skeleton of a filter on its
+  way sticks below them); the virtual list takes the visible part to begin below the heads
+  (`nav::list_viewport`) and scrolls to a row from where its content stands in the panel, not
+  from what is visible now (`nav::scroll_list_to`), since the note scrolls away on the way.
 
 ### A click answers first (2026-09-23)
 

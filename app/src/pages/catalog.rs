@@ -492,12 +492,29 @@ fn List(
     }
     .into_any();
 
+    // What stands above the rows scrolls with them: the note of a semester scrolls away, the heads
+    // of the columns stay at the top (owner, 2026-09-23: the note fixed above the list left room
+    // for two rows).
+    let head = view! {
+        {plan_note(data.semester_plan.as_ref(), &current, open)}
+        <div class="cols label" id=HEAD_ID>
+            {sort_link(if with_program { SortKey::Default } else { SortKey::Title }, "Modul", "")}
+            <span class="c-resp">"Verantwortlich"</span>
+            <span class="c-exam">"Prüfung"</span>
+            {sort_link(SortKey::Credits, "LP", "c-lp")}
+            <span class="c-turnus">"Turnus"</span>
+            <span class="c-lang">"Spr."</span>
+            {sort_link(SortKey::Events, "Termine", "c-events")}
+        </div>
+    }
+    .into_any();
+
     // The browser app renders only what is on screen of the whole list; the server renders the
     // page the URL names, with pager links (no JavaScript, search engines).
     let rows = if APP {
-        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal fresh states/> }.into_any()
+        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal fresh head states/> }.into_any()
     } else {
-        view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program states/> }.into_any()
+        view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program head states/> }.into_any()
     };
 
     // Another filter on its way: the rows it replaces stand as a skeleton (`pending`).
@@ -523,16 +540,6 @@ fn List(
                         <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open) aria-label="Filter entfernen"><Icon name="x"/></a></span>
                     }).collect_view()}
                 </div>
-                {plan_note(data.semester_plan.as_ref(), &current, open)}
-            </div>
-            <div class="cols label">
-                {sort_link(if with_program { SortKey::Default } else { SortKey::Title }, "Modul", "")}
-                <span class="c-resp">"Verantwortlich"</span>
-                <span class="c-exam">"Prüfung"</span>
-                {sort_link(SortKey::Credits, "LP", "c-lp")}
-                <span class="c-turnus">"Turnus"</span>
-                <span class="c-lang">"Spr."</span>
-                {sort_link(SortKey::Events, "Termine", "c-events")}
             </div>
             {rows}
         </section>
@@ -540,8 +547,12 @@ fn List(
 }
 
 /// With a semester of a program chosen: what its plan asks for there besides the modules it
-/// places in it, and what the list holds for that. Every row of it is derived from the name of a
-/// row of the plan, and says so; the areas are links to the list narrowed down to them.
+/// places in it, a line for each row — how much, what the plan calls it, and where the list takes
+/// the modules for it from: „≥ 6 LP Anwendungsfach: „Mathematik“, … oder „Physik“". A name that
+/// only repeats its areas is left out („≥ 6 LP aus dem Bereich: „Praktische Mathematik“" for
+/// „Modul aus dem Bereich Praktische Mathematik"; owner, 2026-09-23: „Viel Redundanz"), and so
+/// are the areas the name fits less well. Where the modules are taken from is derived from the
+/// names, and the note says so; the areas are links to the list narrowed down to them.
 fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Option<String>>) -> Option<AnyView> {
     let plan = plan.filter(|plan| !plan.requirements.is_empty())?;
     let area_link = |id: i64, label: &str| {
@@ -551,48 +562,58 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
         }
         view! { <a href=keep_open(target, open) data-noscroll="">"„"{label.to_string()}"“"</a> }
     };
+    let links = |areas: &[CatalogArea]| {
+        areas
+            .iter()
+            .enumerate()
+            .map(|(i, area)| view! {
+                {(i > 0).then(|| if i + 1 < areas.len() { ", " } else { " oder " })}
+                {area_link(area.id, area.name())}
+            })
+            .collect_view()
+    };
+    let fues_list = {
+        let mut target = current.with_page(1);
+        if let Some(scope) = target.query.program.as_mut() {
+            scope.relation = ProgramRelation::Fues;
+            scope.areas.clear();
+        }
+        keep_open(target, open)
+    };
     let rows = plan
         .requirements
         .iter()
         .map(|row| {
-            let name = match &row.credits {
-                Some(credits) => format!("„{}“ ({credits} LP)", row.name),
-                None => format!("„{}“", row.name),
-            };
-            let fues_list = {
-                let mut target = current.with_page(1);
-                if let Some(scope) = target.query.program.as_mut() {
-                    scope.relation = ProgramRelation::Fues;
-                    scope.areas.clear();
-                }
-                keep_open(target, open)
-            };
-            let links = |areas: &[CatalogArea]| areas.iter().enumerate().map(|(i, area)| view! {
-                {(i > 0).then(|| if i + 1 < areas.len() { ", " } else { " oder " })}
-                {area_link(area.id, area.name())}
-            }).collect_view();
-            let also = (!row.others.is_empty()).then(|| view! { " Käme dem Namen nach auch in Frage: "{links(&row.others)}"." });
+            // A choice asks for at least that much (a module of the area may have more); one
+            // module, or a range, is what it says.
+            let credits = row.credits.as_ref().map(|credits| {
+                let at_least = if row.single || credits.contains('–') { "" } else { "≥\u{a0}" };
+                view! { <b>{format!("{at_least}{credits}\u{a0}LP")}</b>" " }
+            });
             let what = if row.single {
-                view! { ": ein einzelnes Modul, das der Katalog unter diesem Namen nicht führt." }.into_any()
+                view! { {row.shown_name().to_string()}": unter diesem Namen nicht im Katalog" }.into_any()
             } else if row.fues {
-                view! { ": ein Modul aus dem Fachübergreifenden Studium, siehe die "<a href=fues_list data-noscroll="">"FÜS-Liste"</a>"." }.into_any()
+                view! { "Fachübergreifendes Studium: siehe "<a href=fues_list.clone() data-noscroll="">"FÜS-Liste"</a> }.into_any()
             } else if row.areas.is_empty() {
-                view! { ": welche Module dafür in Frage kommen, nennt der Plan nicht. Die Wahlpflichtmodule des Studiengangs stehen mit in der Liste." }.into_any()
-            } else if row.ambiguous() {
-                view! { ": dem Namen nach aus "{links(&row.areas)}" (gleich gut passend), die alle mit in der Liste stehen."{also} }.into_any()
+                view! { {row.shown_name().to_string()}": alle Wahlpflichtmodule" }.into_any()
+            } else if row.named_by_areas() {
+                view! { {if row.ambiguous() { "aus den Bereichen: " } else { "aus dem Bereich: " }}{links(&row.areas)} }.into_any()
             } else {
-                view! { ": vermutlich aus "{links(&row.areas)}", die Module dieses Bereichs stehen mit in der Liste."{also} }.into_any()
+                view! { {row.shown_name().to_string()}": "{links(&row.areas)} }.into_any()
             };
-            view! { <p><b>{name}</b>{what}</p> }
+            view! { <li>{credits}{what}</li> }
         })
         .collect_view();
+    // A row that names the FÜS or a single module is what it says; for every other one the list
+    // takes what the name points at.
+    let derived = plan.requirements.iter().any(|row| !row.single && !row.fues);
     Some(view! {
         <div class="plan-note">
             <Icon name="info"/>
             <div>
                 <p class="plan-note-lead">"Der Regelstudienplan sieht im "{plan.semester}". Semester außerdem vor:"</p>
-                {rows}
-                <p class="plan-note-hint">"Welche Module dafür gemeint sind, ist aus den Namen im Plan abgeleitet: der Plan selbst nennt keinen Bereich."</p>
+                <ul>{rows}</ul>
+                {derived.then(|| view! { <p class="plan-note-hint">"Welche Module gemeint sind, ist aus den Namen im Plan abgeleitet."</p> })}
             </div>
         </div>
     }.into_any())
@@ -610,10 +631,13 @@ fn PlainRows(
     open: Memo<Option<String>>,
     phone: RwSignal<bool>,
     with_program: bool,
+    /// What stands above the rows and scrolls with them (`List`).
+    head: AnyView,
     states: AnyView,
 ) -> impl IntoView {
     view! {
         <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows">
+            {head}
             {states}
             {rows.into_iter().map(|row| {
                 let (target, id) = (row.id.clone(), row.id.clone());
@@ -633,6 +657,8 @@ fn PlainRows(
 }
 
 const ROWS_ID: &str = "rows";
+/// The heads of the columns, which stay at the top of the list while its rows scroll under them.
+const HEAD_ID: &str = "rows-head";
 /// The element that holds the rows of the virtual list, as tall as the whole list.
 const VLIST_ID: &str = "rows-virtual";
 /// Rows rendered beyond what is visible, above and below: room for the keyboard to move and for
@@ -669,6 +695,8 @@ fn VirtualRows(
     reveal: Option<String>,
     /// The first list of the visit (`true`), or one that replaces the list of the filter before.
     fresh: bool,
+    /// What stands above the rows and scrolls with them (`List`).
+    head: AnyView,
     states: AnyView,
 ) -> impl IntoView {
     let total = usize::try_from(total).unwrap_or(0);
@@ -756,7 +784,7 @@ fn VirtualRows(
         if total == 0 || !alive_follow.load(Ordering::Relaxed) {
             return;
         }
-        let Some((offset, viewport)) = nav::list_viewport(ROWS_ID, VLIST_ID) else { return };
+        let Some((offset, viewport)) = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID) else { return };
         let first_visible = index_at(offset);
         let last_visible = index_at(offset + viewport);
         let range = (first_visible.saturating_sub(BUFFER), (last_visible + 1 + BUFFER).min(total));
@@ -779,7 +807,7 @@ fn VirtualRows(
         if !alive_measure.load(Ordering::Relaxed) {
             return false;
         }
-        let Some((offset, _)) = nav::list_viewport(ROWS_ID, VLIST_ID) else { return false };
+        let Some((offset, _)) = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID) else { return false };
         let estimate = estimate();
         // (index, what it was taken for, what it is, whether it lies above the visible part)
         let mut changes: Vec<(usize, f32, f32, bool)> = Vec::new();
@@ -881,9 +909,9 @@ fn VirtualRows(
                 return;
             }
             if let Some(index) = target {
-                let viewport = nav::list_viewport(ROWS_ID, VLIST_ID).map(|(_, viewport)| viewport).unwrap_or(0.0);
+                let viewport = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID).map(|(_, viewport)| viewport).unwrap_or(0.0);
                 let offset = if center { offset_of(index) - (viewport - estimate()) / 2.0 } else { offset_of(index) };
-                nav::scroll_list_to(ROWS_ID, VLIST_ID, offset.max(0.0));
+                nav::scroll_list_to(ROWS_ID, HEAD_ID, VLIST_ID, offset.max(0.0));
             }
             follow();
         };
@@ -901,6 +929,7 @@ fn VirtualRows(
     let going = Pending::expect();
     view! {
         <div class="rows scroll virtual" id=ROWS_ID data-keep-scroll="rows" on:scroll=move |_| on_scroll()>
+            {head}
             {move || going.is_some_and(|p| p.waits(Change::List)).then(|| view! { <RowsSkeleton/> })}
             {states}
             <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--h:{:.0}px", offset_of(total)) }>

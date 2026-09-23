@@ -159,16 +159,6 @@ fn fit(row: &[String], name: &[String]) -> i32 {
     if within(row, name) || within(name, row) {
         return 60 + 5 * shared;
     }
-    let akin = |a: &String, b: &String| {
-        let common = a.chars().zip(b.chars()).take_while(|(x, y)| x == y).count();
-        let shorter = a.chars().count().min(b.chars().count());
-        let longer = a.chars().count().max(b.chars().count());
-        // One the start of the other: an inflection („Kunst" — „Künste") or a long word
-        // („Studienrichtung" — „Studienrichtungsspezifische"), never a short word at the start
-        // of a compound („Stadt" — „Stadtbaugeschichte").
-        let prefix = common == shorter && (longer - shorter <= 2 || shorter >= 8);
-        shorter >= 5 && (prefix || (common >= 8 && common * 4 >= shorter * 3))
-    };
     let is_word = |word: &&String| !word.chars().all(|c| c.is_ascii_digit());
     let words: Vec<&String> = row.iter().filter(is_word).collect();
     let matched = words.iter().filter(|word| name.iter().filter(is_word).any(|other| akin(word, other))).count();
@@ -176,6 +166,18 @@ fn fit(row: &[String], name: &[String]) -> i32 {
         return 0;
     }
     10 * matched as i32
+}
+
+/// Two words that read as one: one the start of the other — an inflection („Kunst" — „Künste")
+/// or a long word („Studienrichtung" — „Studienrichtungsspezifische"), never a short word at the
+/// start of a compound („Stadt" — „Stadtbaugeschichte") — or with a long beginning in common
+/// („Rechtswissenschaften" — „Rechtswissenschaftlicher").
+fn akin(a: &str, b: &str) -> bool {
+    let common = a.chars().zip(b.chars()).take_while(|(x, y)| x == y).count();
+    let shorter = a.chars().count().min(b.chars().count());
+    let longer = a.chars().count().max(b.chars().count());
+    let prefix = common == shorter && (longer - shorter <= 2 || shorter >= 8);
+    shorter >= 5 && (prefix || (common >= 8 && common * 4 >= shorter * 3))
 }
 
 /// The areas a row of the plan points at: those that fit best, equally well — one, or several,
@@ -342,7 +344,8 @@ pub struct SemesterRequirement {
     /// those that fit equally well (none of them is then the one); empty where none fits, and
     /// then every elective module of the program may be meant.
     pub areas: Vec<CatalogArea>,
-    /// Further areas the name fits, less well: named, not listed.
+    /// Further areas the name fits, less well: not listed, and since 2026-09-23 no longer named
+    /// in the catalog's note either (the owner's short form of it leaves them out).
     pub others: Vec<CatalogArea>,
 }
 
@@ -350,6 +353,42 @@ impl SemesterRequirement {
     /// Several areas fit equally well: all of them are meant, none is the one.
     pub fn ambiguous(&self) -> bool {
         self.areas.len() > 1
+    }
+
+    /// Whether the name says nothing that the names of its areas do not, so that a page may name
+    /// the areas alone (owner, 2026-09-23: the note of a semester said everything twice): „Modul
+    /// aus dem Bereich Praktische Mathematik" beside „Praktische Mathematik", „Wahlpflicht:
+    /// Komplex A / Komplex B" beside A and B, „- Wahlpflicht Wirtschaftswissenschaften (gemäß
+    /// Anlage 3)" beside „Wirtschaftswissenschaftlicher Bereich". A word the areas lack says
+    /// more: „Anwendungsfach" what „Mathematik", „Physik" … are for, „Wahlpflichtmodule der
+    /// gewählten Studienrichtung" what „Wahlpflichtmodule (KT)" and „Zweite Fremdsprache" are.
+    /// Only the kind of group may be missing where the name spells the groups out („Module aus
+    /// dem gewählten Schwerpunkt „A“ oder „B“"). Where it is all the name has, it counts like
+    /// any word: „Module aus dem Schwerpunkt" says no more than „Schwerpunkt Marketing", and
+    /// „Schwerpunkt 1" more than „Geotechnik".
+    pub fn named_by_areas(&self) -> bool {
+        const GROUPS: &[&str] = &["schwerpunkt", "studienrichtung", "vertiefung"];
+        let names: Vec<String> = self.areas.iter().flat_map(|area| distinctive(area.name())).collect();
+        let known = |word: &String| names.iter().any(|name| name == word || akin(word, name));
+        let words = distinctive(self.shown_name());
+        let spelled: Vec<&String> = words.iter().filter(|word| !GROUPS.contains(&word.as_str())).collect();
+        if spelled.iter().any(|word| !word.chars().all(|c| c.is_ascii_digit())) {
+            spelled.into_iter().all(known)
+        } else {
+            !words.is_empty() && words.iter().all(known)
+        }
+    }
+
+    /// The name as a page shows it: without the dash a plan leads into a row or out of it with
+    /// („- Wahlpflicht Energiesysteme", „… (Sport, Musik oder Kunst) -") and without the marks of
+    /// its footnotes („Integrationsmodule**", „Informatik¹").
+    pub fn shown_name(&self) -> &str {
+        let trimmed = self.name.trim_matches(|c: char| c.is_whitespace() || matches!(c, '-' | '–' | '—' | '*' | '¹' | '²' | '³' | '⁴' | '⁵' | '⁶' | '⁷' | '⁸' | '⁹' | '⁰'));
+        if trimmed.is_empty() {
+            self.name.trim()
+        } else {
+            trimmed
+        }
     }
 }
 
@@ -748,5 +787,47 @@ mod tests {
         assert_eq!(semester_plan(4, &[spanning], &areas).requirements.len(), 0);
         assert_eq!(credits_of(&PlanEntry { credits: None, min_credits: Some(10.0), max_credits: Some(24.0), ..row("x", 1, None, None) }).as_deref(), Some("10–24"));
         assert_eq!(credits_of(&PlanEntry { credits: Some(7.5), ..row("x", 1, None, None) }).as_deref(), Some("7,5"));
+    }
+
+    // The note of a semester names the areas alone where the row's name says no more.
+    #[test]
+    fn a_name_that_only_repeats_its_areas_says_nothing() {
+        let areas = real::areas(real::INFORMATIK_BSC);
+        let rows = real::informatik_bsc_rows();
+        let requirement = |name: &str, areas: &[CatalogArea], rows: &[PlanEntry]| {
+            let found = areas_for_row(&row(name, 4, E, None), "", areas, rows);
+            SemesterRequirement { name: name.to_string(), credits: Some("6".into()), kind: None, single: false, fues: false, areas: found.areas, others: found.others }
+        };
+        // Informatik B.Sc., 3rd and 4th semester (owner, 2026-09-23).
+        assert!(requirement("Modul aus dem Bereich Praktische Mathematik", &areas, &rows).named_by_areas());
+        assert!(requirement("Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik", &areas, &rows).named_by_areas());
+        assert!(!requirement("Anwendungsfach", &areas, &rows).named_by_areas(), "what the areas are for");
+        assert!(!requirement("Wahlpflichtmodul 3", &areas, &rows).named_by_areas(), "no area at all");
+
+        // A word of the name that is a word of an area's name, or its start; a footnote says nothing.
+        let economics = real::areas(&[(1, "Wirtschaftswissenschaftlicher Bereich", &[(6, E)]), (1, "Rechtswissenschaftlicher Bereich", &[(4, E)])]);
+        assert!(requirement("- Wahlpflicht Wirtschaftswissenschaften (gemäß Anlage 3) Prü/SL", &economics, &[]).named_by_areas());
+        let own = real::areas(&[(1, "Fachspezifischer Wahlpflichtbereich", &[(6, E)])]);
+        assert!(requirement("Fachspezifischer Wahlpflichtbereich¹", &own, &[]).named_by_areas());
+
+        // The kind of group may go unnamed where the groups are spelled out, not where it is all
+        // the name says.
+        let focus = real::areas(&[(1, "Schwerpunkt Marketing", &[(5, E)]), (1, "Schwerpunkt Controlling", &[(5, E)])]);
+        assert!(requirement("Module aus dem Schwerpunkt", &focus, &[]).named_by_areas());
+        let spelled = real::areas(&[(1, "Wirtschaft, Arbeit und Unternehmenspraxis", &[(5, E)]), (1, "Kommunikation, Medien und Technologiegestaltung", &[(5, E)])]);
+        assert!(requirement("Module aus dem gewählten Schwerpunkt „Wirtschaft, Arbeit und Unternehmenspraxis“ oder „Kommunikation, Medien und Technologiegestaltung“", &spelled, &[]).named_by_areas());
+        let civil = real::areas(&[(1, "Geotechnik (BIW)", &[(5, E)]), (1, "Konstruktiver Ingenieurbau - 1 (BIW)", &[(5, E)])]);
+        let first = SemesterRequirement { areas: civil, ..requirement("- Schwerpunkt 1", &[], &[]) };
+        assert!(!first.named_by_areas(), "the plan's name for the row");
+        let master = real::areas(real::ELEKTROTECHNIK_MSC);
+        assert!(!requirement("Wahlpflichtmodule der gewählten Studienrichtung", &master, &[]).named_by_areas());
+
+        // What a plan prints around a name is not shown with it.
+        let shown = |name: &str| SemesterRequirement { name: name.to_string(), ..requirement("x", &[], &[]) }.shown_name().to_string();
+        assert_eq!(shown("- Wahlpflicht Energiesysteme"), "Wahlpflicht Energiesysteme");
+        assert_eq!(shown("Teilbereich Ästhetische Bildung (ÄB) - Wahlpflichtmodul 1 (Sport, Musik oder Kunst) -"), "Teilbereich Ästhetische Bildung (ÄB) - Wahlpflichtmodul 1 (Sport, Musik oder Kunst)");
+        assert_eq!(shown("Integrationsmodule**"), "Integrationsmodule");
+        assert_eq!(shown("Schwerpunktmodule³"), "Schwerpunktmodule");
+        assert_eq!(shown("Wahlpflichtmodul 3"), "Wahlpflichtmodul 3");
     }
 }

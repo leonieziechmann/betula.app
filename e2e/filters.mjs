@@ -3,8 +3,8 @@
 // Walks: toggles (with → without → off, the panel is not rebuilt) → rows of toggles fill the width →
 // program picker (typo-tolerant search, arrow keys, Enter, Esc, click outside, clear) → lecturer picker →
 // credit slider → width of the panel (limits, localStorage) → the area picker and the list of a
-// program (plan order, the semester at the row, the second page reached by scrolling) → the same
-// panel without JavaScript.
+// program (plan order, the semester at the row, the second page reached by scrolling, the note of
+// a semester scrolling away) → the same panel without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -279,6 +279,7 @@ const semester3 = await page.evaluate(() => ({
   placed: [...document.querySelectorAll(".rows .vrow .plan-sem")].filter((s) => s.textContent === "3. Semester").length,
   rows: document.querySelectorAll(".rows .vrow").length,
   note: document.querySelector(".plan-note")?.textContent || "",
+  items: document.querySelectorAll(".plan-note li").length,
   links: document.querySelectorAll(".plan-note a").length,
   first: document.querySelector(".rows .vrow")?.dataset.i,
   top: document.querySelector(".rows").scrollTop,
@@ -287,6 +288,19 @@ const semester3 = await page.evaluate(() => ({
 check(semester3.first === "0" && semester3.top === 0 && !semester3.search.includes("page="), `semester: the list of the new filter does not start at the top (row ${semester3.first} at ${semester3.top}px, ${semester3.search})`);
 check(semester3.count > semester3.placed && semester3.placed > 0, `semester: ${semester3.count} modules listed, ${semester3.placed} of them placed in the semester by the plan`);
 check(/Regelstudienplan sieht im 3\. Semester/.test(semester3.note) && /abgeleitet/.test(semester3.note), `semester: the note does not say what the plan asks for (${semester3.note.slice(0, 120)})`);
+// A line a row of the plan, how much and from where, each thing once (owner, 2026-09-23).
+check(semester3.items > 0 && /≥\s6\sLP/.test(semester3.note) && !/vermutlich|Käme dem Namen|gleich gut passend/.test(semester3.note), `semester: the note is not a line a row (${semester3.note.slice(0, 200)})`);
+// The note scrolls away with the rows; the heads of the columns stay at the top.
+const scrolled = await page.evaluate(async () => {
+  const rows = document.querySelector(".rows"), note = document.querySelector(".plan-note"), head = document.querySelector(".rows > .cols");
+  rows.scrollTop = 400;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const top = rows.getBoundingClientRect().top;
+  const at = { inRows: note.parentElement === rows, note: note.getBoundingClientRect().bottom - top, head: head.getBoundingClientRect().top - top, search: location.search };
+  rows.scrollTop = 0;
+  return at;
+});
+check(scrolled.inRows && scrolled.note < 0 && Math.abs(scrolled.head) < 1 && !scrolled.search.includes("page="), `semester: the note stays or the heads of the columns go (${JSON.stringify(scrolled)})`);
 check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by choosing a semester");
 await step("all semesters again", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("Alle")'), () => !location.search.includes("semester=") && !document.querySelector(".plan-note"));
 await step("area picker opens", () => page.click("#pick-area"), () => document.activeElement?.id === "pick-area-search" && document.querySelectorAll("#pick-area-list .combo-option").length > 3);

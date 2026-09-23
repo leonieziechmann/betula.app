@@ -4,10 +4,11 @@
 
 /// What is visible of a virtual list: the offset of the top of the visible part within the
 /// list's content (`content_id`, the element that holds the rows), and the height of the visible
-/// part. The list scrolls inside its panel on the desktop and with the window on a phone. `None`
-/// on the server or if the list is not there.
+/// part. The list scrolls inside its panel on the desktop and with the window on a phone. In the
+/// panel the heads of the columns (`head_id`) stay at the top while the rows scroll under them:
+/// the visible part begins below them. `None` on the server or if the list is not there.
 #[allow(unused_variables)]
-pub fn list_viewport(rows_id: &str, content_id: &str) -> Option<(f32, f32)> {
+pub fn list_viewport(rows_id: &str, head_id: &str, content_id: &str) -> Option<(f32, f32)> {
     #[cfg(feature = "csr")]
     {
         let window = web_sys::window()?;
@@ -18,11 +19,19 @@ pub fn list_viewport(rows_id: &str, content_id: &str) -> Option<(f32, f32)> {
             return Some(((-content.top() as f32).max(0.0), height));
         }
         let rows = document.get_element_by_id(rows_id)?;
-        let top = rows.get_bounding_client_rect().top() as f32;
-        Some(((top - content.top() as f32).max(0.0), rows.client_height() as f32))
+        let head = height_of(&document, head_id);
+        let top = rows.get_bounding_client_rect().top() as f32 + head;
+        Some(((top - content.top() as f32).max(0.0), rows.client_height() as f32 - head))
     }
     #[cfg(not(feature = "csr"))]
     None
+}
+
+/// How tall an element is; 0 without it (and on a phone, which shows no heads of columns).
+#[cfg(feature = "csr")]
+fn height_of(document: &web_sys::Document, id: &str) -> f32 {
+    use wasm_bindgen::JsCast;
+    document.get_element_by_id(id).and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok()).map_or(0.0, |element| element.offset_height() as f32)
 }
 
 /// Puts the list at its start: the panel at the top, or (a phone) the window at the top of the page.
@@ -44,8 +53,18 @@ pub fn scroll_list_to_start(rows_id: &str) {
 
 /// Scrolls the list so that `offset` (within its content) is at the top of the visible part.
 #[allow(unused_variables)]
-pub fn scroll_list_to(rows_id: &str, content_id: &str, offset: f32) {
-    if let Some((now, _)) = list_viewport(rows_id, content_id) {
+pub fn scroll_list_to(rows_id: &str, head_id: &str, content_id: &str, offset: f32) {
+    // In the panel, from where the content stands in it rather than from what is visible now:
+    // what stands above the rows (the note of a semester) scrolls away on the way there.
+    #[cfg(feature = "csr")]
+    if !is_phone() {
+        let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
+        let (Some(rows), Some(content)) = (document.get_element_by_id(rows_id), document.get_element_by_id(content_id)) else { return };
+        let start = content.get_bounding_client_rect().top() - rows.get_bounding_client_rect().top() + f64::from(rows.scroll_top());
+        rows.set_scroll_top((start + f64::from(offset) - f64::from(height_of(&document, head_id))).round() as i32);
+        return;
+    }
+    if let Some((now, _)) = list_viewport(rows_id, head_id, content_id) {
         scroll_list_by(rows_id, offset - now);
     }
 }

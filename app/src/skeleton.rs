@@ -48,8 +48,7 @@ fn frame(shape: Shape) -> AnyView {
                 </div>
                 <div class="panel list sk-sweep">
                     <div class="list-head"><div class="count-row">{bar("sk-count")}{bar("sk-w1")}{bar("sk-tools")}</div></div>
-                    <div class="cols label">{bar("sk-w1 sk-tall")}</div>
-                    <div class="rows scroll">{rows(12)}</div>
+                    <div class="rows scroll"><div class="cols label">{bar("sk-w1 sk-tall")}</div>{rows(12)}</div>
                 </div>
             </div>
         }
