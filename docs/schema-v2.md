@@ -264,7 +264,7 @@ unter „Dual ausbildungsintegrierend · Regelstudienplan …"." A heading that 
 
 Each of the 29 documents still without a plan was opened and read. All 29 hold one, and 25 state it
 without anything having to be guessed — what was missing was a reading, not the source. Nine of
-those readings are now in, taking the corpus from 139 to 156 of 182. Each is refused where the
+those readings are now in, taking the corpus from 139 to 161 of 182. Each is refused where the
 document does not verify it:
 
 - **A semester column headed by where the semester is spent** („1 ECN", „2 UNIZG", „3 BTU",
@@ -299,18 +299,39 @@ document does not verify it:
 - **A box plan closing its columns with bare amounts** („30 LP  30 LP  30 LP  30 LP"): the
   semester sum, but only where every column holds exactly one box and each holds nothing but a
   credit value.
+- **A module box pointing at a whole appendix** („WP-Modul (gemäß Anlage 6)") rather than one of
+  its rows: worth what every module listed there is worth, and only where they all carry the same
+  value. A box drawn as a shaded paragraph is joined back from the one cell per printed line the
+  ruling cut it into.
+- **The one figure a plan prints that its semesters leave out.** A doctoral thesis spanning every
+  semester belongs to none of them, so „Summe 8 6 8 6 2 30" leaves it out while the per-row total
+  column says 180. That column is read only where the table proves it twice: each row's value in
+  it equals the sum of that row's semester cells, and the rows add up to what the total row prints
+  there (`appendGrandTotal`).
+- **An „oder" at the end of a module name** („31205 Strömungslehre oder" over „43205 Technische
+  Hydromechanik"). It does not mean what an „oder" on a line of its own means: that one separates
+  blocks which may each hold a requirement per semester, so the choice is made per column, while
+  this one makes each alternative exactly one row, so the choice is decided once for the group
+  however its rows are spread (`inlineOderRows`, `AltOne`).
 
-Two readings were built and then **not kept**, because a change that unlocks nothing is not worth
-its risk: a rule for the inset semester headers of Stadt- und Regionalplanung 2016 (it altered no
-plan anywhere in the corpus, and that document's real obstacle is „6(1+2)", six credits split
-across two semesters), and a loosening that would let a single column count as a semester header —
-the shape most likely to produce a false plan.
+Three readings were built and then **not kept**, because a change that unlocks nothing is not
+worth its risk: a rule for the inset semester headers of Stadt- und Regionalplanung 2016 (it
+altered no plan anywhere in the corpus, and that document's real obstacle is „6(1+2)", six credits
+split across two semesters); a loosening that would let a single column count as a semester header,
+the shape most likely to produce a false plan; and a second reading of the per-row total column,
+whose one document `appendGrandTotal` already explains.
 
-What the remaining 26 need is still a different kind of reading: plans that mark a semester with
-„X" and print the credits in a block column (Environmental and Resource Management), plans whose
-boxes carry no credits at all (Urban Design), a transposed matrix whose credits stand in an annex,
+One reading was kept only after the corpus caught a fault in it. Joining a shaded box back
+together walked the grid by column and took its width from the first row, but a table's rows need
+not be equally long: it read past the end of a shorter row and panicked, taking two working plans
+down with it. The gate showed +2/−2 where the feature alone was +2; without the full-corpus pass
+that would have shipped.
+
+What the remaining 21 need is still a different kind of reading: plans that mark a semester with
+„X" and print the credits in a block column (Environmental and Resource Management), a transposed
+matrix whose credits stand in an annex, a plan of module boxes with no label column at all,
 documents that publish only an amendment, and the four documents whose plan cannot be verified
-from the document alone — which, by R12, is a reason not to store it.
+from the document alone — which, by R12, is a reason not to store it, not a reason to guess.
 
 Open:
 
