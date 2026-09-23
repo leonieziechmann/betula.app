@@ -267,12 +267,14 @@ func BindSourceCells(res *CurriculumExtractionResult, layout *PDFLayout) error {
 		if c.Track != "" {
 			m.Specialization = c.Track
 		}
-		// A thesis and the FÜS say what they are in their name, and the model
-		// does not always: it called „Bachelor-Arbeit" „Pflicht", which took
-		// Elektrotechnik its thesis and with it the faculty it is listed under.
-		// „Praktikum" stays the model's, because the word also names lab courses.
+		// A thesis, an internship and the FÜS say what they are in their name,
+		// and the model does not always: it called „Bachelor-Arbeit" „Pflicht",
+		// which took Elektrotechnik its thesis and with it the faculty it is
+		// listed under, and „Bachelor-Praktikum" and „Industrial Internship"
+		// „Pflicht" as well. A lab course such as „Programmierpraktikum" is no
+		// internship by name and keeps the model's kind.
 		switch kind := ClassifyRequirement(c); kind {
-		case "Abschlussarbeit", "FÜS":
+		case "Abschlussarbeit", "Praktikum", "FÜS":
 			m.ModuleType = kind
 		}
 		if strings.Contains(strings.ToLower(sourceName), " oder ") || strings.Contains(strings.ToLower(sourceName), "wpf") || c.SharedRows {

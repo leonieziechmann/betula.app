@@ -355,7 +355,7 @@ Bound again with the change, all 164 stored model answers give the offline order
 heading (seven did not before), so the seven programs read with `--offline` as a stopgap can be read
 with the model again.
 
-A thesis and the FÜS take their kind from their name, an internship from the model. The thesis
+A thesis and the FÜS take their kind from their name. The thesis
 matters beyond its row: a program's faculty is the department of its thesis module
 (`catalog::pages::faculties`), and the model called 105 of 199 Bachelor and Master theses „Pflicht"
 — Elektrotechnik B.Sc. 2022 and its dual variant lost their thesis and moved from MINT to Fakultät 3
@@ -368,10 +368,31 @@ two Elektrotechnik siblings in MINT. `validate` counts 104 pairs whose sources s
 the thesis now agrees with the QIS tree in 6 more pairs and disagrees in 12 more with the module
 pages and the parts of the tree that call it „compulsory".
 
-„Praktikum" stays the model's, because the name rule also catches what is no internship:
-„Programmierpraktikum" and „Laborpraktikum der Elektrotechnik" are lab courses, and
-„Bildungswissenschaften I (beinhaltet Integriertes Eingangspraktikum)" is a module with a school
-practicum in it — 148 cells. Taking it from the name raised the count to 122 and moves no faculty.
+An internship takes its kind from its name as well, now that its rule names one. The old rule took
+every name with a word ending in „praktikum", and 162 of those cells are no internship: 119 Lehramt
+modules with a school practicum in them („Fachdidaktik Mathematik (beinhaltet fachdidaktisches
+Tagespraktikum, fTP)"), 40 lab courses („Programmierpraktikum", „Laborpraktikum der
+Elektrotechnik", „Werkstofftechnik 2 mit Praktikum", „Physikalisches Praktikum I", „Praktikum
+Maschinelles Lernen"), two choices („Proseminar oder Praktikum") and „Projektpraktikum
+Medizininformatik", a name BTU also gives to labs. An internship is named by where it is served or
+by what it is in the degree: Berufs-, Berufsfeld-, Betriebs-, Industrie(fach)-, Ingenieur-, Pflicht-
+and Bachelor-Praktikum, „Außeruniversitäres Praktikum", Praxisphase, Praxismodul, internship and a
+bare „Praktikum". The regulations decide the doubtful names: an Integrationspraktikum is 800 hours
+in an administration, a company or an institution, a Forschungspraktikum 18 weeks at a research
+institution („ein Pflichtpraktikum"), a Wirtschaftspraktikum, „Praktikum Maschinenbau" and
+„Praktikum Wirtschaftsingenieurwesen" are served in a company, and the dual „Praxis Musikschule
+(Praktikum Dual)" at the partner music school. „Praktikum Maschinenbau" is matched by the program it
+names, because „Praktikum Medientechnik" is a lab.
+
+On the 161 saved plans, 64 cells become internships that the model called „Pflicht" (52), gave no
+kind (11) or „Wahlpflicht" (1: Elektrotechnik M.Sc. 2026's „Praktikum / Praxisphase", the slot for a
+Forschungs- or Industriefachpraktikum). `validate` still counts 104 pairs: Soziale Arbeit dual's
+„Praxismodul 1–6" now agree with the QIS tree, and six internships disagree with the module pages or
+tree nodes that call them „compulsory". The old rule would have given 127. Offline, where the rule
+decides alone, 160 cells are no longer internships and the count falls from 152 to 128. No program
+changes faculty on either path. The model and the offline reader now differ on 5 of 138 internship
+cells instead of 227 of 297; „Betriebliche Phase 1" and „Schulpraktische Studien / Praktisches
+Studiensemester" do not say what they are in their name and stay the model's.
 
 Open:
 
