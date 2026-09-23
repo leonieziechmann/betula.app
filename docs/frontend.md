@@ -23,7 +23,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -322,8 +322,8 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   „Komplex Grundlagen der Informatik, 10–24 LP" — and three of them are anything between 30 and
   72 LP, so adding the rows up gives a lower bound, not the degree. The regulation prints the
   answer in the lines over its own rows, and Radix keeps them with the rows each counts
-  (`plan_total`, `docs/schema-v2.md` §6). The head's „LP", the bars „LP je Semester", the sum
-  under the matrix and the sum of every semester group of the list are those printed lines where
+  (`plan_total`, `docs/schema-v2.md` §6). The head's „LP", the sum under the matrix and the sum
+  of every semester group of the list are those printed lines where
   a plan has them; the semesters a regulation sums together („5.–6.") stand as one figure across
   them, which is why those semesters used to be empty. Without such lines nothing changes: only
   what the plan puts into a single semester is added up in that semester's column, and a footnote
@@ -378,14 +378,18 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   at all, only the honest note that the catalog does not know it under this name and a search for
   it; a row that names the FÜS by kind **or by name** („Fachübergreifendes Studium", „Modul aus
   dem FÜS-Katalog der BTU" — 112 of them are stated Wahlpflicht) leads to the FÜS list
-  (`plan::is_fues`). And with nothing picked the panel holds the
-  numbers of the view one is looking at — for the
-  plan the chosen study direction with its semesters, credits and how much of it the catalog
-  links, plus the credits per semester as bars; for the other views the areas and how the modules
-  split by the kind the program states them as (every kind that occurs, „Art nicht angegeben"
-  where no source says; nothing is counted into a kind it was not stated as). Unlike the catalog's preview it is a column of
-  the layout, not a panel over the page: the tables keep the room that is left and give up the
-  columns that carry least (Bereich, Turnus, Nr.) as it gets narrower. Tried before and dropped
+  (`plan::is_fues`). The panel of an area is the same kind of panel (owner, 2026-09-23): the way
+  into the catalog narrowed down to the area first, then the areas under it and its modules;
+  opened out of a row of the plan the row stays in the address (`ProgramUrl::with_area_keeping_req`),
+  so the panel says how one got there — „Anwendungsfach / Mathematik", each step a link back —
+  and closing it returns to the row. **With nothing picked nothing stands beside the page**
+  (owner, 2026-09-23: on a 13-inch screen a third column left the plan too little room): the
+  panel floats over the page like the catalog's preview, docked to the right edge, and is there
+  only while a module, an area or a row is picked. What it held with nothing picked went: the
+  numbers of the head repeated, and the bars „LP je Semester" repeated the sum row of the plan
+  (moved to the sidebar first, then dropped by the owner the same day: redundant, and they pushed
+  what the sidebar is for out of view). Until then the panel was a column of the layout, and the
+  tables gave up the columns that carry least (Bereich, Turnus, Nr.) as it got narrower. Tried before and dropped
   (owner, 2026-09-20): the matrix as a centred block in a wide empty panel — „liest sich zwar
   leichter, sieht trotzdem komisch aus"; the width wants content, not air.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
@@ -420,6 +424,8 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   both sides (rusqlite on the server, sql.js in the browser), so there are no async resources,
   no loading states between pages and nothing to serialize into the HTML. A page calls one
   loader of `catalog::pages` through `Source::run`; everything it shows comes from one snapshot.
+  What the browser app shows between a click and the page is the page's skeleton, one frame
+  before the page is built („A click answers first" below), not a state the page waits in.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
   request renders (5–100 ms) and later ones are a memory copy (2 ms), gzip included. A new
   snapshot starts a new generation. ETag per generation and build → `304` without rendering.
@@ -436,8 +442,17 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   search are client-side navigation on the local database (measured: takeover 1.2 s on a first
   visit, preview 130 ms, filter 150 ms including the test driver). Until the takeover, and if
   anything fails, the site stays a classic website served from the HTML cache. A newer snapshot is
-  downloaded in the background and used from the next start. The server never answers data
-  queries for the app: its load is cached HTML, static files and one database file.
+  downloaded in the background and used from the next start, unless the copy is of an older
+  schema than the build reads (2026-09-23): such a copy is never opened. `boot.js` reads a copy's
+  schema from its SQLite header (`user_version`) and compares it with the build's
+  (`catalog::SCHEMA_VERSION`, Radix's newest migration, written in by the server); with the
+  network an older copy is replaced first, as on a first visit; offline the app does not start, and
+  the status says so. Before, a returning visitor worked on the old copy until the download behind
+  it had finished, and after 0008 the plan page failed with „no such column: source_pages". A
+  server whose own snapshot is older (Radix has not exported the new schema yet) says so in
+  `/api/status` and logs `snapshot.outdated`; nothing is downloaded from it, and the site stays a
+  classic website until Radix has. The server never answers data queries for the app: its load is
+  cached HTML, static files and one database file.
 - **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
   `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
   re-renders neither list nor filters, and a filter change leaves the preview alone.
@@ -475,6 +490,90 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   the program's FÜS list. The URL still says only the semester; the derived areas are part of the
   query the page ran (`CatalogData::effective`), which the endless list loads further pages with.
 
+### A click answers first (2026-09-23)
+
+Owner: „die js web app fühlt sich irgendwie ziemlich langsam an", switching pages and changing
+filters should not feel slow, the results should come as soon as they do, and where there is a
+wait, skeletons should bridge it. What was wrong, measured on the laptop of §3 with the dev
+bundle (Event Timing: from the click to the next frame): **a click showed nothing until the page
+was done.** The router takes a link in the click's own task and runs the queries and the new page
+in its microtasks, before the browser may paint. A filter toggle took 56 ms to its next frame, a
+module's page 80 ms, the program overview 88–120 ms, the start page 136 ms; with the CPU slowed
+down four times (a phone) 260–280, 340, 380–850 and 590–775 ms. Where that time goes (V8 profile
+of the same clicks): the queries 14 ms of a toggle and 50–72 ms of the start page and the
+overview, building the page 25–75 ms, style and layout the rest.
+
+- **Paint first, then work** (`app/src/pending.rs`). A navigation reaches the router one frame
+  later; in that frame what can be shown at once is shown. `Pending` takes over, before the
+  router's own listeners: clicks on the links the router would take (the same checks, and not
+  what another handler has claimed with `preventDefault`), Back and Forward (the browser's
+  `popstate`, handed to the router again a frame later; the replay is marked, `enhance.js`
+  ignores it), and what the app starts itself through `Pending::go` (the search of the top bar,
+  the pickers and the credit slider, the draft of the phone's filter sheet; the search goes
+  quietly, `go_quietly`: what is listed stays until the next result, since a skeleton with every
+  letter would flicker). A step that changes nothing the visitor sees (the fragment, the list's
+  `page`) goes to the router as before, and so does everything the app navigates on its own (the
+  list following the scroll position, a phone turning `open` into the module's page). What the
+  step changes decides what waits for it (`pending::Change`): another page, another column of
+  the same page (a view of a program, the program overview or the marked modules filtered or
+  ordered otherwise), the catalog's list, the module beside a list, what stands beside a
+  program's page.
+- **What was clicked is in its new state in the next frame**, because those parts read where
+  the app is going (`Pending::to`) and not only where the router is: the rail and the bottom bar,
+  the title and the search of the top bar, the catalog's filter panel and the tags above its list
+  (so the head of the list has its height before the rows come), the row whose module opens, the
+  views of a program, the toggles of the program overview, the sidebar of the marked modules.
+  Two clicks before the first has reached the page add up: the second link already leads from
+  where the first goes (the toggles' addresses follow the panel).
+- **What still has to be computed stands there as a skeleton** (`app/src/skeleton.rs`): the frame
+  of the page that comes, built from the layout classes of the real one (`.work`, `.framed`,
+  `.panel`, `.sidebar`, `.page`, `.row`, `.module-grid`), so every panel stands where the page will
+  put its own, in both layouts and both themes, and grey bars where the text will be; the
+  catalog's list keeps its frame and shows skeleton rows over the old ones; the module beside a
+  list or a program has a panel of its own. A band of light sweeps over it once the wait is
+  longer than .35 s, moved by the compositor, so it keeps moving while the page is being built.
+  Everything that is not layout has a class of its own (`sk-…`): nothing that looks for the parts
+  of a page (the count, a chip, a module's page), the checks included, finds a skeleton instead.
+  `main` says `aria-busy` meanwhile. A module that replaces its skeleton does not slide in
+  once more (`data-settling` for that frame), nor does a skeleton where a module stood already.
+- **A skeleton only where the wait is seen:** a change of the same kind that took at least 50 ms
+  the last time (`SLOW_MS`, smoothed), and always the first time. A result that comes quicker
+  would come about when the skeleton does, and the skeleton would only flash; then the click
+  shows its new state in the next frame and the result in the one after. On a laptop the
+  preview and most lists come that quickly; on a phone nearly everything waits long enough for
+  a skeleton.
+- **The answers of the local catalog are kept for the visit** (`client/src/lib.rs`, `Answers`):
+  by statement and parameters, up to about 24 MB (the oldest go first). The copy `boot.js` opened
+  is never written to and stays the same until the next start, and no query reads the clock, so
+  an answer holds for the whole visit. Coming back to a page, Back, and a filter taken back ask
+  sql.js nothing: the start page's queries alone take 70 ms of a laptop.
+
+After (same machine, bundle and measurement): from the click to the next frame 24–32 ms, the
+frame itself after 5–10 ms (the new state, perhaps a skeleton); with the CPU four times slower
+16–104 ms instead of 250–850. The result comes a frame later than before (8–18 ms, the skeleton
+a few of them): a toggle 36 ms (33–36 before), the preview 24 ms (16), a module's page 68 ms
+(58); coming back it comes sooner than before: the start page after about 50 ms instead of 100,
+the program overview after 27–32 instead of 65–73. The bundle that ships (`wasm-release`) does
+the same on this machine: 24–40 ms to the next frame, the frame itself after 6–9 ms.
+
+Asked by the owner and not done, measured:
+
+- **SQLite in the Rust bundle** (rusqlite on `sqlite-wasm-rs`) instead of sql.js behind a
+  JavaScript bridge. The catalog is in memory either way (sql.js keeps all 37 MB in its WASM
+  memory); what the bridge costs is handing each answer from sql.js to JavaScript and on to Rust:
+  10–13 ms of the 48–54 ms of queries of the start page and the program overview (SQLite itself
+  38–41 ms), 7 of 14 ms of a toggle. It would need a C toolchain for `wasm32` in
+  `build-client.sh` and in Nix, and `boot.js` to hand over the bytes instead. Kept answers take
+  away all of it on a second visit.
+- **The queries in a Web Worker**, so that the main thread can paint while they run. The larger
+  part of a click is building the page (25–75 ms), which stays on the main thread; and every page
+  would have to load asynchronously, with loading states, against „Data flow" above. A worker
+  only to warm the kept answers would hold a second copy of the catalog (37 MB) on a phone.
+- **Warming the answers ahead, in idle time.** A page's loader cannot be split (the start page's
+  is 70 ms of a laptop, 280 ms of a phone), and a tap that comes during it waits for it.
+
+`node e2e/snappy.mjs` checks all of it (§4).
+
 ### From the program's page into the catalog (2026-09-21)
 
 Owner: the program's page and the catalog should work together, the way into the catalog first
@@ -485,7 +584,9 @@ row means, the same derivation as the row's panel (`plan::areas_for_row`; „Anw
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
 name of a single module, the program's electives where no area fits; nothing picked → the
 program. The second line of the link says what it lists („Praktische Informatik", „5 Bereiche",
-„109 Module"); the row's panel ends with the same link. The catalog's area filter takes several
+„109 Module"); the row's panel opens with the same way in, as its first button, and lists what
+can be chosen under it (owner, 2026-09-23: it stated credits, kind and semester twice, as badges
+and as facts, and put the catalog last). The catalog's area filter takes several
 areas for that (`ProgramScope::areas`, any of them). The server's page picks nothing, so its link
 is the program's (no part of the cache key changes). `node e2e/programs.mjs` walks it.
 
@@ -747,9 +848,12 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   once more, the bundle included. Assets stay `no-cache` with the build as ETag: the server
   answers every `?v=` with the file it has, so such an address must not be cached as immutable.
   `e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
-  `/api/status` unreachable offline and simply opens the copy it has. Once the app runs it says
+  `/api/status` unreachable offline and simply opens the copy it has, unless that copy is of an
+  older schema than the build reads: then the app does not start, the page stays the one the
+  worker kept, and the status says „Offline – die Daten werden neu geladen, sobald du online
+  bist" (the only case in which a failed start says anything). Once the app runs it says
   nothing: the „Offline bereit" notice is gone (owner, 2026-09-21: „wenn es einfach
-  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh.
+  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh; `e2e/schema.mjs` plants a copy of an older schema and starts with and without a network.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
 `lastmod` per module (the snapshot has no date per module), English pages.
@@ -827,6 +931,12 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
   `e2e/bookmarks.mjs` watches every request of a session for marks.
+- **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
+  visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
+  `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
+  control that shows where the visitor is shows where the app is going as well (`Pending::to`,
+  `search_on`, `path`), and what takes a new page or list to compute has its skeleton
+  (`Pending::waits`, `skeleton`). A new page gets a `pending::Shape`, or one that looks like it.
 
 ## 3. Running it
 
@@ -1090,7 +1200,7 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | Level | `event` | Meaning |
 |---|---|---|
 | INFO | `server.listening`, `server.shutdown` | lifecycle |
-| INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`) |
+| INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`; `schema_version` when activated) |
 | INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
@@ -1104,6 +1214,7 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
 | WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / served uncompressed |
 | ERROR | `snapshot.rejected` | a download is not a usable catalog; the previous snapshot stays active |
+| ERROR | `snapshot.outdated` | the active snapshot is of an older schema than this build reads (`schema_version`, `needs`): pages that need the newer columns fail, browsers do not start the app on it. Served all the same; Radix has to export a new one (with `RADIX_CRAWL=off` it never does by itself) |
 | ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
 | ERROR | `http.request` with `status >= 500`, `render.failed`, `snapshot.unreadable` | a request failed |
 | ERROR | `card.failed` | a card's text could not be read or the card could not be drawn; the preview got the standard picture |
@@ -1131,11 +1242,13 @@ What `cargo test` checks:
 
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
-  real data, the URL codec, the ranking of the pickers (`fuzzy`).
+  real data, the URL codec, the ranking of the pickers (`fuzzy`); `SCHEMA_VERSION` is the number
+  of Radix's newest migration, and the snapshot of the tests is not older.
 - `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
-  404 is never cached; `/api/db` with Radix's ETag, gzip and 304; a broken export is
-  rejected and the old snapshot stays; a new one invalidates pages; restart without Radix;
+  404 is never cached; `/api/db` with Radix's ETag, gzip and 304; `/api/status` with the
+  snapshot's schema, `boot.js` with the build's; a broken export is rejected and the old snapshot
+  stays; one of an older schema is served; a new one invalidates pages; restart without Radix;
   one description and one absolute canonical address per page, `noindex` on a filtered list,
   the sitemap, the map of the programs as laid out with the snapshot. Closed testing (needs no
   snapshot): pages lead to the login page, everything else answers 401, what stays open, the
@@ -1286,6 +1399,20 @@ drives the landing page: the map is part of the server's HTML (dots are links); 
 from what `boot.js` handed over; a pointer over a dot shows its relatives; a click opens the
 program without loading a page; the head has one description and one canonical address and both
 follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
+
+```bash
+cd e2e && node snappy.mjs
+```
+
+drives a click answering first („A click answers first"), frame by frame after each interaction:
+a toggle, a row, Esc, the rail into the program overview, a program, one of its views, Back, the
+start page and the catalog as it was left, two toggles before the first has reached the list;
+then on a phone the bottom bar and a module. The first frame after each has to come within 80 ms
+and show what was clicked in its new state (and a skeleton, where the page or the list is being
+built for the first time), a later one the result without a skeleton, and no skeleton stays.
+All of it once more with the CPU slowed down four times (200 ms for the first frame), where the
+skeletons are what bridges the wait. The numbers it prints are the time to the first frame and
+to the result.
 
 ## 5. Not done yet
 

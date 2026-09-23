@@ -386,9 +386,9 @@ func TestModelAnswerBindsToTheOfflineOrderAndVariants(t *testing.T) {
 
 // A thesis and the FÜS say what they are in their name, and the name wins over
 // the model's label: the model called Elektrotechnik's „Bachelor-Arbeit"
-// „Pflicht", which took the program its thesis and with it its faculty.
-// „Praktikum" is left to the model, since the word also names lab courses, and
-// so is every row whose name says nothing about its kind.
+// „Pflicht", which took the program its thesis and with it its faculty. A lab
+// course named „…praktikum" is left to the model, and so is every row whose
+// name says nothing about its kind.
 func TestThesisAndFUESKindsComeFromTheName(t *testing.T) {
 	layout := &PDFLayout{Cells: []SourceCell{
 		{ID: "a", Table: "t", Row: "11477 Bachelor-Arbeit", Semesters: []int{6}, Min: 12, Max: 12},
@@ -416,6 +416,53 @@ func TestThesisAndFUESKindsComeFromTheName(t *testing.T) {
 		"d": "Praktikum",       // the name says nothing: the model's
 		"e": "Pflicht",         // a course about a thesis is not one
 		"f": "Wahlpflicht",     // a choice between two theses is a choice
+	}
+	for _, m := range res.Modules {
+		if m.ModuleType != want[m.SourceCell] {
+			t.Errorf("%s: %s, want %s", m.ModuleName, m.ModuleType, want[m.SourceCell])
+		}
+	}
+}
+
+// An internship says what it is in its name as well, and the name wins over the
+// model's label: the model called „Bachelor-Praktikum" and „Industrial
+// Internship" „Pflicht" and left „Praxis Musikschule (Praktikum Dual)" without a
+// kind. A lab course and a Lehramt module with a school practicum carry the
+// word too and keep the model's kind, and so does an internship whose name does
+// not say what it is.
+func TestInternshipKindComesFromTheName(t *testing.T) {
+	layout := &PDFLayout{Cells: []SourceCell{
+		{ID: "a", Table: "t", Row: "Bachelor-Praktikum", Semesters: []int{6}, Min: 18, Max: 18},
+		{ID: "b", Table: "t", Row: "Industrial Internship (siehe § 32 Abs. 5)", Semesters: []int{3}, Min: 12, Max: 12},
+		{ID: "c", Table: "t", Row: "14627 Praxis Musikschule (Praktikum Dual) I", Semesters: []int{1, 2}, Min: 12, Max: 12},
+		{ID: "d", Table: "t", Row: "Programmierpraktikum", Semesters: []int{1}, Min: 4, Max: 4},
+		{ID: "e", Table: "t", Row: "Fachdidaktik Mathematik (beinhaltet fachdidaktisches Tagespraktikum, fTP)", Semesters: []int{2}, Min: 6, Max: 6},
+		{ID: "f", Table: "t", Row: "Praktikum Maschinelles Lernen", Semesters: []int{5}, Min: 4, Max: 4},
+		{ID: "g", Table: "t", Row: "Betriebliche Phase 1", Semesters: []int{2}, Min: 15, Max: 15},
+		{ID: "h", Table: "t", Row: "14257 11920 Wirtschaftspraktikum Wirtschaftsingenieurwesen oder Ingenieurpraktikum Wirtschaftsingenieurwesen", Semesters: []int{2}, Min: 6, Max: 6, Elective: true},
+	}}
+	res := &CurriculumExtractionResult{Modules: []ExtractedModule{
+		{SourceCell: "a", ModuleName: "Bachelor-Praktikum", ModuleType: "Pflicht"},
+		{SourceCell: "b", ModuleName: "Industrial Internship", ModuleType: "Pflicht"},
+		{SourceCell: "c", ModuleName: "Praxis Musikschule (Praktikum Dual) I", ModuleType: "Modul"},
+		{SourceCell: "d", ModuleName: "Programmierpraktikum", ModuleType: "Pflicht"},
+		{SourceCell: "e", ModuleName: "Fachdidaktik Mathematik", ModuleType: "Pflicht"},
+		{SourceCell: "f", ModuleName: "Praktikum Maschinelles Lernen", ModuleType: "Pflicht"},
+		{SourceCell: "g", ModuleName: "Betriebliche Phase 1", ModuleType: "Praktikum"},
+		{SourceCell: "h", ModuleName: "Wirtschaftspraktikum oder Ingenieurpraktikum", ModuleType: "Praktikum"},
+	}}
+	if err := BindSourceCells(res, layout); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"a": "Praktikum",   // the name, over the model's „Pflicht"
+		"b": "Praktikum",   // the name, over the model's „Pflicht"
+		"c": "Praktikum",   // the name, where the model gave no kind
+		"d": "Pflicht",     // a lab course: the model's
+		"e": "Pflicht",     // a module with a school practicum in it: the model's
+		"f": "Pflicht",     // a lab course: the model's
+		"g": "Praktikum",   // the name says nothing: the model's
+		"h": "Wahlpflicht", // a choice between two internships is a choice
 	}
 	for _, m := range res.Modules {
 		if m.ModuleType != want[m.SourceCell] {

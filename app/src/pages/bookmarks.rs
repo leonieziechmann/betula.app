@@ -28,7 +28,9 @@ use crate::format;
 use crate::nav;
 use crate::pages::catalog::{phone_layout, Row};
 use crate::pages::module::ModulePanel;
+use crate::pending::{Change, Pending};
 use crate::seo::Seo;
+use crate::skeleton::DetailSkeleton;
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Icon};
 
@@ -89,6 +91,13 @@ pub fn BookmarksPage() -> impl IntoView {
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
     });
+    // Where the app is going (`pending`): the sidebar shows its order and half of the year at once,
+    // the row of a module being opened is marked, a preview being closed is gone.
+    let going = Pending::expect();
+    let going_to = Memo::new(move |_| going.and_then(|going| going.search_on(url::BOOKMARKS)).map(|search| BookmarksUrl::parse(&search)));
+    let shown_url = Memo::new(move |_| going_to.get().unwrap_or_else(|| url.get()));
+    let going_open = Memo::new(move |_| going.filter(|going| going.change() == Some(Change::Preview)).and_then(|_| going_to.with(|to| to.as_ref().map(|to| to.open.clone()))));
+    let marked = Memo::new(move |_| going_open.get().unwrap_or_else(|| open.get()));
 
     // Coming back from a module's page, the list shows the row the visitor left it at.
     let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
@@ -121,7 +130,7 @@ pub fn BookmarksPage() -> impl IntoView {
             />
             <aside class="panel sidebar" id="sidebar" aria-label="Merkliste">
                 <div class="panel-head"><h2>"Merkliste"</h2></div>
-                <div class="body scroll" data-keep-scroll="sidebar"><Sidebar url data/></div>
+                <div class="body scroll" data-keep-scroll="sidebar"><Sidebar url=shown_url data/></div>
             </aside>
             <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
             <section class="panel list" aria-live="polite">
@@ -131,11 +140,16 @@ pub fn BookmarksPage() -> impl IntoView {
                     let (season, (sort, descending)) = (season.get(), order.get());
                     match data.get() {
                         Err(error) => view! { <ErrorState error/> }.into_any(),
-                        Ok(data) => view! { <List data season sort descending open phone/> }.into_any(),
+                        Ok(data) => view! { <List data season sort descending open=marked phone/> }.into_any(),
                     }
                 }}
             </section>
             {move || {
+                match going_open.get() {
+                    Some(None) => return ().into_any(),
+                    Some(Some(_)) if going.is_some_and(|going| going.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some()/> }.into_any(),
+                    _ => {}
+                }
                 let close_href = url.get().with_open(None).path();
                 match preview.get() {
                     Ok(None) | Err(_) => ().into_any(),

@@ -26,7 +26,7 @@ http = { version = "1", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 # JavaScript handles (a ResizeObserver) kept until a component is cleaned up: cleanups are `Send`.
 send_wrapper = "0.6"
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit"] }
 
 [lints.clippy]
 unwrap_used = "deny"

@@ -22,6 +22,14 @@ impl NativeDatabase {
             .map_err(|e| DbError::Unavailable(format!("{}: not a catalog snapshot: {e}", path.display())))?;
         Ok(Self { conn })
     }
+
+    /// The schema of the file: its `PRAGMA user_version`, the number of the last migration of
+    /// Radix it was built with (`crate::SCHEMA_VERSION` is the one the queries need).
+    pub fn schema_version(&self) -> Result<i64, DbError> {
+        self.conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .map_err(|e| DbError::Sql { query: "schema_version", message: e.to_string() })
+    }
 }
 
 impl Database for NativeDatabase {

@@ -5,10 +5,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Entwicklung von Softwaresystemen",
+      "row_index": 5,
       "semesters": [
         1
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -24,10 +26,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Algorithmieren und Programmieren",
+      "row_index": 6,
       "semesters": [
         2
       ],
       "raw": "10",
+      "Bold": false,
       "min": 10.0,
       "max": 10.0,
       "bbox": [
@@ -43,10 +47,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Theoretische Informatik",
+      "row_index": 7,
       "semesters": [
         3
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -62,10 +68,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Betriebssysteme I",
+      "row_index": 8,
       "semesters": [
         4
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -81,10 +89,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Elektrische und elektronische Grundlagen der Informatik",
+      "row_index": 9,
       "semesters": [
         1
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -100,10 +110,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Digitaltechnik",
+      "row_index": 10,
       "semesters": [
         2
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -119,10 +131,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Programmierpraktikum",
+      "row_index": 11,
       "semesters": [
         1
       ],
       "raw": "4",
+      "Bold": false,
       "min": 4.0,
       "max": 4.0,
       "bbox": [
@@ -138,10 +152,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Softwarepraktikum",
+      "row_index": 12,
       "semesters": [
         3
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -157,10 +173,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Digitaltechnik-Praktikum",
+      "row_index": 13,
       "semesters": [
         4
       ],
       "raw": "4",
+      "Bold": false,
       "min": 4.0,
       "max": 4.0,
       "bbox": [
@@ -176,10 +194,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Proseminar oder Praktikum",
+      "row_index": 14,
       "semesters": [
         2
       ],
       "raw": "4",
+      "Bold": false,
       "min": 4.0,
       "max": 4.0,
       "bbox": [
@@ -195,10 +215,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Mathematik IT-1 (Diskrete Mathematik)",
+      "row_index": 17,
       "semesters": [
         1
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -214,10 +236,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Mathematik IT-2 (Lineare Algebra)",
+      "row_index": 18,
       "semesters": [
         2
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -233,10 +257,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Mathematik IT-3 (Analysis)",
+      "row_index": 19,
       "semesters": [
         3
       ],
       "raw": "8",
+      "Bold": false,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -252,10 +278,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Modul aus dem Bereich Praktische Mathematik",
+      "row_index": 22,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -271,10 +299,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Anwendungsfach",
+      "row_index": 23,
       "semesters": [
         3
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -290,10 +320,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Anwendungsfach",
+      "row_index": 23,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -309,10 +341,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Fachübergreifendes Studium",
+      "row_index": 24,
       "semesters": [
         1
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -328,10 +362,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik",
+      "row_index": 28,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -347,11 +383,13 @@
       "table": "p7t1",
       "page": 7,
       "row": "Komplex Grundlagen der Informatik",
+      "row_index": 28,
       "semesters": [
         5,
         6
       ],
       "raw": "10-24",
+      "Bold": false,
       "min": 10.0,
       "max": 24.0,
       "bbox": [
@@ -367,11 +405,13 @@
       "table": "p7t1",
       "page": 7,
       "row": "Komplex Praktische Informatik",
+      "row_index": 29,
       "semesters": [
         5,
         6
       ],
       "raw": "10-24",
+      "Bold": false,
       "min": 10.0,
       "max": 24.0,
       "bbox": [
@@ -387,11 +427,13 @@
       "table": "p7t1",
       "page": 7,
       "row": "Komplex Angewandte und Technische Informatik",
+      "row_index": 30,
       "semesters": [
         5,
         6
       ],
       "raw": "10-24",
+      "Bold": false,
       "min": 10.0,
       "max": 24.0,
       "bbox": [
@@ -407,11 +449,13 @@
       "table": "p7t1",
       "page": 7,
       "row": "Seminar oder Praktikum",
+      "row_index": 32,
       "semesters": [
         5,
         6
       ],
       "raw": "4",
+      "Bold": false,
       "min": 4.0,
       "max": 4.0,
       "bbox": [
@@ -427,11 +471,13 @@
       "table": "p7t1",
       "page": 7,
       "row": "Bachelor-Arbeit",
+      "row_index": 33,
       "semesters": [
         5,
         6
       ],
       "raw": "12",
+      "Bold": false,
       "min": 12.0,
       "max": 12.0,
       "bbox": [
@@ -449,10 +495,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Informatik",
+      "row_index": 15,
       "semesters": [
         1
       ],
       "raw": "18",
+      "Bold": true,
       "min": 18.0,
       "max": 18.0,
       "bbox": [
@@ -468,10 +516,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Informatik",
+      "row_index": 15,
       "semesters": [
         2
       ],
       "raw": "20",
+      "Bold": true,
       "min": 20.0,
       "max": 20.0,
       "bbox": [
@@ -487,10 +537,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Informatik",
+      "row_index": 15,
       "semesters": [
         3
       ],
       "raw": "16",
+      "Bold": true,
       "min": 16.0,
       "max": 16.0,
       "bbox": [
@@ -506,10 +558,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Informatik",
+      "row_index": 15,
       "semesters": [
         4
       ],
       "raw": "12",
+      "Bold": true,
       "min": 12.0,
       "max": 12.0,
       "bbox": [
@@ -525,10 +579,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Mathematik",
+      "row_index": 20,
       "semesters": [
         1
       ],
       "raw": "8",
+      "Bold": true,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -544,10 +600,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Mathematik",
+      "row_index": 20,
       "semesters": [
         2
       ],
       "raw": "8",
+      "Bold": true,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -563,10 +621,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Mathematik",
+      "row_index": 20,
       "semesters": [
         3
       ],
       "raw": "8",
+      "Bold": true,
       "min": 8.0,
       "max": 8.0,
       "bbox": [
@@ -582,10 +642,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Nebenfach",
+      "row_index": 25,
       "semesters": [
         1
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -601,10 +663,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Nebenfach",
+      "row_index": 25,
       "semesters": [
         3
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -620,10 +684,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplex Nebenfach",
+      "row_index": 25,
       "semesters": [
         4
       ],
       "raw": "12",
+      "Bold": true,
       "min": 12.0,
       "max": 12.0,
       "bbox": [
@@ -639,10 +705,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Grundstudium",
+      "row_index": 26,
       "semesters": [
         1
       ],
       "raw": "32",
+      "Bold": true,
       "min": 32.0,
       "max": 32.0,
       "bbox": [
@@ -658,10 +726,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Grundstudium",
+      "row_index": 26,
       "semesters": [
         2
       ],
       "raw": "28",
+      "Bold": true,
       "min": 28.0,
       "max": 28.0,
       "bbox": [
@@ -677,10 +747,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Grundstudium",
+      "row_index": 26,
       "semesters": [
         3
       ],
       "raw": "30",
+      "Bold": true,
       "min": 30.0,
       "max": 30.0,
       "bbox": [
@@ -696,10 +768,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Grundstudium",
+      "row_index": 26,
       "semesters": [
         4
       ],
       "raw": "24",
+      "Bold": true,
       "min": 24.0,
       "max": 24.0,
       "bbox": [
@@ -715,10 +789,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplexe des Fachstudiums",
+      "row_index": 31,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": false,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -734,11 +810,13 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Komplexe des Fachstudiums",
+      "row_index": 31,
       "semesters": [
         5,
         6
       ],
       "raw": "44",
+      "Bold": false,
       "min": 44.0,
       "max": 44.0,
       "bbox": [
@@ -754,10 +832,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Fachstudium",
+      "row_index": 34,
       "semesters": [
         4
       ],
       "raw": "6",
+      "Bold": true,
       "min": 6.0,
       "max": 6.0,
       "bbox": [
@@ -773,11 +853,13 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Fachstudium",
+      "row_index": 34,
       "semesters": [
         5,
         6
       ],
       "raw": "60",
+      "Bold": true,
       "min": 60.0,
       "max": 60.0,
       "bbox": [
@@ -793,10 +875,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Studium",
+      "row_index": 35,
       "semesters": [
         1
       ],
       "raw": "32",
+      "Bold": true,
       "min": 32.0,
       "max": 32.0,
       "bbox": [
@@ -812,10 +896,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Studium",
+      "row_index": 35,
       "semesters": [
         2
       ],
       "raw": "28",
+      "Bold": true,
       "min": 28.0,
       "max": 28.0,
       "bbox": [
@@ -831,10 +917,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Studium",
+      "row_index": 35,
       "semesters": [
         3
       ],
       "raw": "30",
+      "Bold": true,
       "min": 30.0,
       "max": 30.0,
       "bbox": [
@@ -850,10 +938,12 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Studium",
+      "row_index": 35,
       "semesters": [
         4
       ],
       "raw": "30",
+      "Bold": true,
       "min": 30.0,
       "max": 30.0,
       "bbox": [
@@ -869,11 +959,13 @@
       "table": "p7t1",
       "page": 7,
       "row": "Summe Studium",
+      "row_index": 35,
       "semesters": [
         5,
         6
       ],
       "raw": "60",
+      "Bold": true,
       "min": 60.0,
       "max": 60.0,
       "bbox": [

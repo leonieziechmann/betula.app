@@ -23,6 +23,7 @@ use leptos_router::hooks::use_location;
 use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::nav;
+use crate::pending::Pending;
 use crate::seo::Seo;
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Frame, Icon, ToggleLink};
@@ -271,10 +272,14 @@ pub fn ProgramsPage() -> impl IntoView {
         }
     });
 
-    // Every control of the sidebar is a link to the overview it leads to (as in the catalog).
+    // Every control of the sidebar is a link to the overview it leads to (as in the catalog). They
+    // show the filter the app is going to at once (`pending`); the matrix follows the address.
+    let going = Pending::expect();
+    let going_url = Memo::new(move |_| going.and_then(|going| going.search_on(url::PROGRAMS)).map(|search| ProgramsUrl::parse(&search)));
+    let shown_url = Memo::new(move |_| going_url.get().unwrap_or_else(|| url.get()));
     let toggled = move |change: fn(&mut ProgramsUrl, usize), index: usize| {
         Signal::derive(move || {
-            let mut next = url.get();
+            let mut next = shown_url.get();
             change(&mut next, index);
             next.path()
         })
@@ -300,7 +305,7 @@ pub fn ProgramsPage() -> impl IntoView {
                             <ToggleLink
                                 label=level.label()
                                 count=*count
-                                on=Signal::derive(move || url.with(|u| u.levels.contains(&level)))
+                                on=Signal::derive(move || shown_url.with(|u| u.levels.contains(&level)))
                                 href=toggled(|u, index| flip(&mut u.levels, LevelGroup::ALL, LevelGroup::ALL.get(index)), index)
                             />
                         }
@@ -316,7 +321,7 @@ pub fn ProgramsPage() -> impl IntoView {
                             <ToggleLink
                                 label=form.label()
                                 count=*count
-                                on=Signal::derive(move || url.with(|u| u.forms.contains(&form)))
+                                on=Signal::derive(move || shown_url.with(|u| u.forms.contains(&form)))
                                 href=toggled(|u, index| flip(&mut u.forms, FormGroup::ALL, FormGroup::ALL.get(index)), index)
                             />
                         }
