@@ -685,6 +685,7 @@ name = "folia-app"
 version = "0.2.1"
 dependencies = [
  "folia-catalog",
+ "folia-pack",
  "http",
  "leptos",
  "leptos_axum",

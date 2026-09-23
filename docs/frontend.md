@@ -218,7 +218,13 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   - A module opened from the marked modules (a tap on a phone, „Vollbild" of the preview) leads
     back to them with „Zurück" and Esc, not to the catalog's list (`Tabs::came_from`).
   - **To another device without a server in between:** „Auf anderes Gerät übertragen" copies a
-    link to the list with the marked modules in its *fragment* (`/bookmarks#add=11101,12204`).
+    link to the list with the marked modules in its *fragment*, as a code (`/bookmarks#m=…`,
+    `pack/`): the ids as numbers, each as its step from the one before, in the order of the list,
+    in characters an address carries as they are, and two check characters at the end. 20 marked
+    modules take about 50 characters (as ids one by one, `#add=11101,12204,…`, 124). A character
+    typed wrong or two swapped are always noticed, a link cut short almost always; the page then
+    says the link is broken, and offers nothing of it. Links with the ids one by one, as they were
+    made before 2026-09-23, keep working (and are what a list too long for a code still gets).
     A browser never sends the fragment of an address anywhere, neither with the request nor as a
     referrer, so the ids reach neither the server nor its logs. The page that is opened with
     such a link asks before it adds anything (a link must not fill somebody's list behind their
@@ -1450,3 +1456,9 @@ to the result.
   because it is the catalog's module preview.
 - **What follows the marks** (R20 applies): passed modules with the prerequisite check, the own
   program, the semester planner. A note per marked module would fit the same store.
+- **The timetable as a calendar subscription** (owner, 2026-09-23): an `.ics` address that
+  carries the chosen events as a `pack` code (`pack::set` of the event ids), so that the server
+  keeps nothing and a calendar follows every change of the schedule. Unlike the list's link,
+  a calendar requests that address from the server: the code reaches the server and the edge's
+  access log. Before it is built: whether that is acceptable under R20, or the edge leaves that
+  path out of its log.

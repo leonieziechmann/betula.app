@@ -187,29 +187,100 @@ fn now() -> u64 {
 }
 
 /// How a list travels to another device without a server in between: in the fragment of a link
-/// to the marked modules (`/bookmarks#add=11101,12204`). A browser never sends the fragment of an
-/// address anywhere (not with the request, not as a referrer), so the ids reach neither the
-/// server nor its logs; the page reads them, asks the visitor, and takes them out of the address.
-const TRANSFER: &str = "add=";
+/// to the marked modules (`/bookmarks#m=<code>`). A browser never sends the fragment of an address
+/// anywhere (not with the request, not as a referrer), so the list reaches neither the server nor
+/// its logs; the page reads it, asks the visitor, and takes it out of the address.
+///
+/// The code (`pack`) holds the ids as numbers, each as its step from the one before, and ends in
+/// two characters that check the rest: a link cut short or a character typed wrong is noticed
+/// instead of bringing other modules. 20 marked modules take about 50 characters instead of 120.
+const TRANSFER: &str = "m=";
+/// The ids one by one (`/bookmarks#add=11101,12204`), as links made before the code carry them.
+/// Read, and written only for a list too long for a code.
+const TRANSFER_BY_ID: &str = "add=";
+/// What a code of the list is for. It is part of what the check characters check, so a code of
+/// another kind is never taken for a list.
+const KIND: &str = "bookmarks";
+
+/// The marked modules as a code carries them. A module id is five digits, so it travels as a
+/// number; an id that is none keeps its place in the list beside them.
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+struct Transfer {
+    /// The ids that are numbers, in the order of the list.
+    #[serde(with = "pack::list")]
+    numbers: Vec<u64>,
+    /// Every other id, after its place in the list. Empty, this costs nothing: it ends the code.
+    others: Vec<(u32, String)>,
+}
+
+impl Transfer {
+    fn of(ids: &[String]) -> Self {
+        let mut transfer = Transfer::default();
+        for (place, id) in ids.iter().enumerate() {
+            match id.parse::<u64>().ok().filter(|number| number.to_string() == *id) {
+                Some(number) => transfer.numbers.push(number),
+                None => transfer.others.push((place as u32, id.clone())),
+            }
+        }
+        transfer
+    }
+
+    /// The ids in the order of the list.
+    fn ids(self) -> Vec<String> {
+        let mut numbers = self.numbers.into_iter();
+        let mut others = self.others.into_iter().peekable();
+        let mut ids: Vec<String> = Vec::new();
+        loop {
+            let place = ids.len();
+            if let Some((_, id)) = others.next_if(|(at, _)| *at as usize <= place) {
+                ids.push(id);
+                continue;
+            }
+            match numbers.next() {
+                Some(number) => ids.push(number.to_string()),
+                None => break,
+            }
+        }
+        // A place beyond the end of the list: no writer puts one there, it goes last.
+        ids.extend(others.map(|(_, id)| id));
+        ids
+    }
+}
 
 /// The fragment (without `#`) that carries these modules.
 pub fn transfer_fragment(ids: &[String]) -> String {
-    format!("{TRANSFER}{}", ids.join(","))
+    match pack::to_code(KIND, &Transfer::of(ids)) {
+        Ok(code) => format!("{TRANSFER}{code}"),
+        // Longer than a code may be (thousands of ids that are no numbers): one by one, as before.
+        Err(_) => format!("{TRANSFER_BY_ID}{}", ids.join(",")),
+    }
 }
 
-/// The modules a fragment carries, checked like anything from outside. Empty for any other fragment.
-pub fn ids_from_fragment(fragment: &str) -> Vec<String> {
-    let Some(list) = fragment.trim_start_matches('#').strip_prefix(TRANSFER) else { return Vec::new() };
+/// A fragment that carries a list, but not one that can be read: cut short, or a character of it
+/// typed wrong.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BrokenLink;
+
+/// The modules a fragment carries, checked like anything from outside. None for any other fragment.
+pub fn ids_from_fragment(fragment: &str) -> Result<Vec<String>, BrokenLink> {
+    let fragment = fragment.trim_start_matches('#');
+    let listed: Vec<String> = if let Some(code) = fragment.strip_prefix(TRANSFER) {
+        pack::from_code::<Transfer>(KIND, code.trim()).map_err(|_| BrokenLink)?.ids()
+    } else if let Some(list) = fragment.strip_prefix(TRANSFER_BY_ID) {
+        list.split(',').map(|id| id.trim().to_string()).collect()
+    } else {
+        return Ok(Vec::new());
+    };
     let mut ids: Vec<String> = Vec::new();
-    for id in list.split(',').map(str::trim).filter(|id| is_module_id(id)) {
-        if !ids.iter().any(|known| known == id) {
-            ids.push(id.to_string());
+    for id in listed.into_iter().filter(|id| is_module_id(id)) {
+        if !ids.contains(&id) {
+            ids.push(id);
         }
         if ids.len() == MAX_BOOKMARKS {
             break;
         }
     }
-    ids
+    Ok(ids)
 }
 
 /// Where a mark button stands decides what it looks like.
@@ -289,18 +360,61 @@ mod tests {
         assert_eq!(since.0.iter().map(|mark| (mark.id.as_str(), mark.at)).collect::<Vec<_>>(), [("13001", 50), ("12204", 45), ("11101", 10)]);
     }
 
+    fn owned(ids: &[&str]) -> Vec<String> {
+        ids.iter().map(|id| id.to_string()).collect()
+    }
+
     #[test]
     fn a_list_travels_in_the_fragment_of_a_link() {
-        let ids: Vec<String> = ["12204", "11101"].iter().map(|id| id.to_string()).collect();
-        assert_eq!(transfer_fragment(&ids), "add=12204,11101");
-        assert_eq!(ids_from_fragment("#add=12204,11101"), ids);
-        assert_eq!(ids_from_fragment(&transfer_fragment(&ids)), ids);
+        let ids = owned(&["12204", "11101", "13849"]);
+        // Links with this code are out there: a change of the code or of `Transfer` breaks them.
+        assert_eq!(transfer_fragment(&ids), "m=0BZycFSvYFBK0");
+        assert_eq!(ids_from_fragment(&format!("#{}", transfer_fragment(&ids))), Ok(ids.clone()));
+        // In the order of the list, and ids that are no numbers (the catalog has none) in their place.
+        let mixed = owned(&["FUES-7", "41000", "11101", "0123", "99999999", "12204", "Z"]);
+        assert_eq!(ids_from_fragment(&transfer_fragment(&mixed)), Ok(mixed));
+        // Links made before the code keep working.
+        assert_eq!(ids_from_fragment("#add=12204,11101"), Ok(owned(&["12204", "11101"])));
         // Whatever else a fragment may be, and whatever a link may have been filled with.
-        assert_eq!(ids_from_fragment("#termine"), Vec::<String>::new());
-        assert_eq!(ids_from_fragment(""), Vec::<String>::new());
-        assert_eq!(ids_from_fragment("#add=12204, 12204,<script>,../etc,,13001"), ["12204", "13001"]);
+        assert_eq!(ids_from_fragment("#termine"), Ok(Vec::new()));
+        assert_eq!(ids_from_fragment(""), Ok(Vec::new()));
+        assert_eq!(ids_from_fragment("#add=12204, 12204,<script>,../etc,,13001"), Ok(owned(&["12204", "13001"])));
         let many = format!("#add={}", (0..MAX_BOOKMARKS + 50).map(|n| n.to_string()).collect::<Vec<_>>().join(","));
-        assert_eq!(ids_from_fragment(&many).len(), MAX_BOOKMARKS);
+        assert_eq!(ids_from_fragment(&many).map(|ids| ids.len()), Ok(MAX_BOOKMARKS));
+        let many: Vec<String> = (0..MAX_BOOKMARKS + 50).map(|n| (10_000 + n).to_string()).collect();
+        assert_eq!(ids_from_fragment(&transfer_fragment(&many)), Ok(many[..MAX_BOOKMARKS].to_vec()));
+        // Too long for a code: one by one, as before.
+        let long: Vec<String> = (0..MAX_BOOKMARKS).map(|n| format!("x{n:031}")).collect();
+        let fragment = transfer_fragment(&long);
+        assert!(fragment.starts_with("add=x"));
+        assert_eq!(ids_from_fragment(&fragment), Ok(long));
+    }
+
+    #[test]
+    fn a_link_that_lost_or_changed_a_character_brings_nothing() {
+        let fragment = transfer_fragment(&owned(&["12204", "11101", "13849", "12205"]));
+        let typed_wrong: String = fragment.char_indices().map(|(at, c)| if at == 6 { if c == 'x' { 'y' } else { 'x' } } else { c }).collect();
+        let swapped: String = {
+            let mut chars: Vec<char> = fragment.chars().collect();
+            chars.swap(4, 5);
+            chars.into_iter().collect()
+        };
+        assert_ne!(swapped, fragment);
+        for broken in [typed_wrong, swapped, fragment[..fragment.len() - 1].to_string(), format!("{fragment}A"), "m=".to_string(), "m=12204".to_string()] {
+            assert_eq!(ids_from_fragment(&broken), Err(BrokenLink), "{broken}");
+        }
+    }
+
+    #[test]
+    fn a_marked_list_takes_a_few_characters_a_module() {
+        // 20 modules as somebody marks them: from three departments, several from one in a row.
+        let ids = owned(&[
+            "12204", "12205", "12311", "11101", "11103", "11205", "13849", "13850", "12402", "12450", "11304", "13901", "13902", "13911", "12207", "12230", "11110", "11115",
+            "13003", "12601",
+        ]);
+        let fragment = transfer_fragment(&ids);
+        let before = format!("add={}", ids.join(","));
+        assert!(fragment.len() <= 55 && fragment.len() * 2 < before.len(), "{} characters instead of {}", fragment.len(), before.len());
     }
 
     #[test]
