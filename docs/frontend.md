@@ -835,7 +835,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 ```
 
 ```bash
-bash scripts/build-client.sh
+bash scripts/build-client.sh --dev
 ```
 
 ```bash
@@ -844,7 +844,88 @@ cargo run -p folia-server
 
 The first command builds the browser app into `site/pkg` (needs the `wasm32-unknown-unknown`
 target and `wasm-bindgen` 0.2.128, which Trunk keeps in its cache); without it the site simply
-stays server-rendered.
+stays server-rendered. `--dev` builds it with the `wasm-dev` profile; leave the flag off to
+build the bundle that ships. Which one you want is a question of minutes:
+
+| | profile | edit a page, build again | `site/pkg` | gzipped |
+|---|---|---|---|---|
+| `--dev` | `wasm-dev` | 9 s | 29 MB | 2.4 MB |
+| (none) | `wasm-release` | 2 min 18 s | 19 MB | 1.4 MB |
+
+`wasm-release` owes those two minutes to fat LTO, `opt-level = "z"` and its single codegen unit,
+and all of it buys the megabyte that people who load the site once do not have to fetch. On
+localhost the difference arrives over the loopback; never deploy a bundle built with `--dev`.
+
+### Build times
+
+The workspace is around 20 000 lines of Rust on 339 crates, and `folia-app` alone — 384 `view!`
+macros — is two minutes of the cold build. What that costs, on twelve cores:
+
+| | |
+|---|---|
+| cold build, empty cache | 6 min 44 s |
+| new worktree: fork the main checkout's cache, then build | 19 s + 2 min 42 s |
+| edit a page in `app/`, `cargo build` | 14 s |
+| edit `server/`, `cargo build` | 8 s |
+| `cargo build` with nothing to do | 0.9 s |
+
+Every checkout gets its own build cache, and a new worktree starts from a copy of the main
+checkout's:
+
+```bash
+git config core.hooksPath scripts/hooks   # once per clone: git does not carry it along
+bash scripts/build-cache.sh setup         # in the main checkout, and after `rustup update`
+bash scripts/build-cache.sh prime         # in the main checkout, after a merge into master
+bash scripts/build-cache.sh gc            # drop the caches of worktrees that are gone
+```
+
+The main checkout builds into `target/base`; `setup` in a worktree copies it to
+`target/wt-<worktree>` and points the worktree there. The copy carries the 339 dependencies, so
+only `folia-catalog`, `folia-app` and `folia-server` compile — once, after which every edit is
+incremental. The fork is 1.9 GB and takes 19 s (base holds the tests' and the browser app's
+dependencies too); after its first build a worktree's cache is about 4.7 GB, which is why `gc`
+exists. Before it did, `target/` had grown to 140 GB across fifteen caches of branches long
+merged. Each cache records which worktree it belongs to, and `gc` drops it once that directory
+is gone, so the caches follow the worktrees and not `git worktree list` (which still lists a
+worktree under its old path after the repository has moved, until `git worktree repair`).
+
+A new worktree needs none of these commands. `git worktree add` runs
+`scripts/hooks/post-checkout` with the null commit as the previous HEAD, and the hook runs
+`setup` before `git worktree add` returns (16 s longer) and `gc` in the background after it —
+deleting a gone worktree's cache takes Windows half a minute per 2 GB, and nothing needs to wait
+for that. Branch switches and file checkouts leave the hook at its first line, and it never makes
+the checkout fail: a worktree without its cache is slower, not broken. Because `gc` may run while
+another worktree is being forked, `setup` records a cache's owner before it copies anything, or
+`gc` would take the half-copied cache for an orphan.
+
+What does not work, measured, so it is not tried again:
+
+- **One cache for all worktrees.** rustc keeps one incremental session per crate, and worktrees
+  building into the same target directory overwrite each other's. Alternating edits between
+  two of them cost 202 s, 196 s, 202 s instead of 14 s each.
+- **Reusing the workspace crates on a fork.** The incremental session records absolute paths and
+  is worthless at any other path, so it is left out of the copy together with the executables.
+  Cargo's `trim-paths`, which would change that, is nightly-only.
+- **Backdating the sources of a new worktree** so cargo takes the copied artefacts for its own.
+  The first build then takes 2 s, but the first edit 198 s, because there is no incremental
+  session to build on: the three minutes move, they do not go away. And cargo compares
+  timestamps, never contents, so a file that differs from what the cache was built from but
+  looks older would silently leave its old code in the binary. `setup` does the opposite: it
+  touches every workspace source after the fork, so nothing in the copy can pass for current.
+
+The one lever left on the 2 min 42 s is `folia-app` itself: one unit, 384 `view!` macros,
+compiled by a single rustc frontend. Splitting it along its pages would let those compile side by
+side.
+
+`setup` also writes the linker into `.cargo/config.toml`: the toolchain ships `rust-lld`, but
+`gcc` — the linker driver on `x86_64-pc-windows-gnu` — only finds it when pointed at the
+toolchain's `gcc-ld` shims. That is 24 s against 19 s on every rebuild, and a minute and a quarter
+on a cold one. Both settings are paths on this machine, so the file is generated and not in git;
+and one script writes both because base and forks must be built with the same flags, or the copy
+is of no use.
+
+With the cache outside the checkout, `scripts/build-client.sh` asks `cargo metadata` where the
+bundle landed instead of assuming `target/`.
 
 Open `http://127.0.0.1:8080`. The server fetches the snapshot over HTTP into `web-data/` and
 keeps serving the last good one when Radix is away, also after a restart.
