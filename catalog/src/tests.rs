@@ -160,7 +160,14 @@ fn every_query_runs_against_the_snapshot() {
     assert!(queries::program_department_counts(&db).unwrap().iter().any(|count| count.thesis_modules > 0));
     let semesters = queries::program_plan_semesters(&db, &id).unwrap();
     assert!(semesters.first().is_some_and(|first| *first >= 1) && semesters.windows(2).all(|pair| pair[0] < pair[1]), "{semesters:?}");
-    assert!(!queries::program_plan_entries(&db, &id).unwrap().is_empty());
+    let entries = queries::program_plan_entries(&db, &id).unwrap();
+    assert!(!entries.is_empty());
+    // A sum the regulation prints over rows of its plan names those rows, and they reach it.
+    for total in queries::program_plan_totals(&db, &id).unwrap() {
+        assert_eq!(total.entries.len() as i64, total.entry_count, "{total:?}");
+        assert!(total.entries.iter().all(|ord| entries.iter().any(|entry| entry.ord == *ord)), "{total:?}");
+        assert!(total.credits >= total.min_credits - 0.01 && total.credits <= total.max_credits + 0.01, "{total:?}");
+    }
 
     let curriculum = queries::curriculum_links(&db).unwrap();
     assert!(curriculum.len() > 1000 && curriculum.iter().all(|(program, module)| !program.is_empty() && !module.is_empty()));
@@ -178,6 +185,24 @@ fn every_query_runs_against_the_snapshot() {
     assert!(never_ran.is_empty(), "queries the tests never ran against the snapshot: {never_ran:?}");
     let unnamed: Vec<&&str> = ran.iter().filter(|name| !declared.contains(**name)).collect();
     assert!(unnamed.is_empty(), "query names that are not the name of their function: {unnamed:?}");
+}
+
+/// The queries follow every migration of Radix, and the snapshot of the tests has them all. A
+/// migration that `SCHEMA_VERSION` did not follow would let browsers keep a copy the queries fail
+/// on: `boot.js` only refuses what is older than `SCHEMA_VERSION`.
+#[test]
+fn the_queries_are_written_for_the_newest_schema() {
+    let migrations = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../internal/catalogdb/migrations");
+    let newest = std::fs::read_dir(&migrations)
+        .unwrap_or_else(|e| panic!("{}: {e}", migrations.display()))
+        .filter_map(|entry| {
+            let name = entry.ok()?.file_name().into_string().ok()?;
+            name.strip_suffix(".sql")?.split_once('_')?.0.parse::<i64>().ok()
+        })
+        .max();
+    assert_eq!(newest, Some(crate::SCHEMA_VERSION), "the newest migration of Radix is not the schema the queries are written for (catalog::SCHEMA_VERSION)");
+    let snapshot = open().schema_version().unwrap();
+    assert!(snapshot >= crate::SCHEMA_VERSION, "the snapshot of the tests has schema {snapshot}, the queries are written for {}: export a new one", crate::SCHEMA_VERSION);
 }
 
 #[test]

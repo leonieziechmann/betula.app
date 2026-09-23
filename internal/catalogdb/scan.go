@@ -1,6 +1,8 @@
 package catalogdb
 
 import (
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -105,9 +107,11 @@ func (db *DB) HasPlan(programID string) (bool, error) {
 	return exists, err
 }
 
-// PlanFromModules converts the rows of a validated extraction into a plan.
-func PlanFromModules(programID, sourceFile, layoutJSON string, modules []model.CurriculumModule) Plan {
+// PlanFromModules converts the rows of a validated extraction, and the sums the
+// regulation prints over them, into a plan.
+func PlanFromModules(programID, sourceFile, layoutJSON string, modules []model.CurriculumModule, totals []model.CurriculumTotal) Plan {
 	p := Plan{ProgramID: programID, SourceFile: sourceFile, LayoutJSON: layoutJSON}
+	p.SourcePages, p.SourceLabel = planLocation(modules)
 	for _, m := range modules {
 		p.Entries = append(p.Entries, PlanEntry{
 			ModuleID: m.ModuleID, ModuleCodeRaw: m.ModuleCode, ModuleName: m.ModuleName,
@@ -115,7 +119,55 @@ func PlanFromModules(programID, sourceFile, layoutJSON string, modules []model.C
 			SemesterSpan: m.SemesterSpan, Credits: m.Credits, MinCredits: m.MinCredits, MaxCredits: m.MaxCredits,
 			KindRaw: m.ModuleType, StudySection: m.StudySection, SubjectArea: m.SubjectArea,
 			AreaRules: m.AreaRules, Specialization: m.Specialization, SourceEvidence: m.SourceEvidence,
+			SourcePage: m.SourcePage,
+		})
+	}
+	for _, t := range totals {
+		p.Totals = append(p.Totals, PlanTotal{
+			Label: t.Label, Scope: t.Scope, Specialization: t.Specialization,
+			StartSemester: t.StartSemester, EndSemester: t.EndSemester,
+			Credits: t.Credits, CreditsMax: t.CreditsMax, MinCredits: t.MinCredits, MaxCredits: t.MaxCredits,
+			IsChoice: t.IsChoice, SourceEvidence: t.SourceEvidence, Entries: t.Entries,
 		})
 	}
 	return p
+}
+
+// planLocation says where in the regulation the plan stands: the pages its rows
+// were read from, written as a reader would („9", „9–11", „9, 13"), and the
+// heading the plan stands under where the document prints one.
+//
+// A plan continued across a page break has rows on consecutive pages, which
+// reads as a range; a document that prints a plan in two places keeps both
+// pages listed rather than spanning the text in between.
+func planLocation(modules []model.CurriculumModule) (pages, label string) {
+	seen := map[int]bool{}
+	var list []int
+	for _, m := range modules {
+		if m.SourcePage > 0 && !seen[m.SourcePage] {
+			seen[m.SourcePage] = true
+			list = append(list, m.SourcePage)
+		}
+		if label == "" {
+			label = m.SourcePlanLabel
+		}
+	}
+	sort.Ints(list)
+	var parts []string
+	for i := 0; i < len(list); {
+		j := i
+		for j+1 < len(list) && list[j+1] == list[j]+1 {
+			j++
+		}
+		switch {
+		case j == i:
+			parts = append(parts, strconv.Itoa(list[i]))
+		case j == i+1:
+			parts = append(parts, strconv.Itoa(list[i])+", "+strconv.Itoa(list[j]))
+		default:
+			parts = append(parts, strconv.Itoa(list[i])+"\u2013"+strconv.Itoa(list[j]))
+		}
+		i = j + 1
+	}
+	return strings.Join(parts, ", "), label
 }

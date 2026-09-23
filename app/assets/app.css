@@ -667,6 +667,14 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
 .ev .odd .icon { flex: none; width: 13px; height: 13px; margin-top: 2px; }
 .note { display: flex; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: var(--r-row); background: var(--warn-soft); color: var(--warn); font-size: 12.5px; font-weight: 520; }
 .note .icon { width: 16px; height: 16px; margin-top: 1px; }
+/* An explanation, not a warning: why a row of the plan names no module. */
+.note.quiet { background: var(--panel-2); color: var(--text-3); margin-top: 20px; }
+/* The first thing under the head of a plan row or an area: where its modules are chosen. */
+.row-action { width: 100%; margin-top: 20px; }
+/* How one got to an area („Anwendungsfach / Mathematik"): each step leads back. */
+.hero .trail a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.hero .trail a:hover { color: var(--text); text-decoration-color: currentColor; }
+.hero .trail .sep { color: var(--text-3); }
 .linklist { display: grid; gap: 4px; }
 .pre { min-height: 46px; display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 12px; border-radius: var(--r-row); box-shadow: inset 0 0 0 1px var(--line); color: inherit; text-decoration: none; }
 .pre:hover { background: var(--panel-2); text-decoration: none; }
@@ -1268,20 +1276,11 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
    right (a module, the numbers of the view): unlike the catalog's preview it is a column of the
    layout, so it covers nothing and the page keeps the room that is left. */
 .framed > .page { padding: 0 1px 24px 0; }
-.framed.with-aside { grid-template-columns: var(--filters) minmax(0, 1fr) var(--preview); }
-.work > .detail.aside { position: static; width: auto; box-shadow: var(--shadow-panel); animation: none; }
+/* A frame's panel on the right is the catalog's preview (`.work > .detail`): it floats over the
+   page, docked to the right edge, and is there only while something is picked (ui::Frame). */
 .detail.aside .hero { padding-top: 18px; }
 .detail.aside .hero h2 { margin-top: 0; font-size: 19px; }
 /* „Ein Modul anklicken …": what the panel shows once something is picked. */
-.pick { display: flex; gap: 9px; align-items: flex-start; margin-top: 22px; padding: 11px 12px; border-radius: var(--r-row); background: var(--panel-2); color: var(--text-3); font-size: 12.5px; }
-.pick .icon { width: 15px; height: 15px; margin-top: 1px; flex: none; }
-/* LP per semester: one bar per semester, all on the same two lines. */
-.bars { display: grid; gap: 2px; }
-.bars li { display: grid; grid-template-columns: 26px minmax(0, 1fr) 42px; align-items: center; gap: 10px; min-height: 26px; }
-.bars .bar-n { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
-.bars .bar { position: relative; height: 8px; border-radius: 4px; background: var(--panel-3); }
-.bars .bar::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--at, 0%); border-radius: 4px; background: var(--text-3); }
-.bars .bar-v { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .sidebar .panel-head .mono { padding: 3px 7px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); margin-right: 6px; }
 .sidebar .body { padding: 0 10px 12px; overflow-x: hidden; }
 .sidebar .fgroup.first { padding-top: 4px; }
@@ -1533,6 +1532,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .filter-actions, .js .filter-actions { display: flex; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
   .filter-actions .btn { min-height: 50px; }
   .work > .detail:not(.aside) { position: fixed; inset: 0; z-index: 45; width: auto; border-radius: 0; overflow-y: auto; display: block; box-shadow: none; animation: slide-in .28s var(--ease); }
+  .work > .detail.aside { position: static; width: auto; box-shadow: var(--shadow-panel); animation: none; }
   .framed.with-aside > .detail.aside { margin: 12px 12px 0; }
   .resizer { display: none; }
   .detail .scroll { overflow: visible; }

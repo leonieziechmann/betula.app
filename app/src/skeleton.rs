@@ -56,7 +56,6 @@ fn frame(shape: Shape) -> AnyView {
         .into_any(),
         Shape::Bookmarks => framed(
             Side::Filters(&[3, 4]),
-            false,
             view! {
                 <div class="panel sk-sweep sk-fill">
                     <div class="list-head"><div class="count-row">{bar("sk-count")}{bar("sk-w1")}</div></div>
@@ -66,8 +65,8 @@ fn frame(shape: Shape) -> AnyView {
             }
             .into_any(),
         ),
-        Shape::Module => framed(Side::Toc(8), false, module().into_any()),
-        Shape::Program => framed(Side::Toc(6), true, view! {
+        Shape::Module => framed(Side::Toc(8), module().into_any()),
+        Shape::Program => framed(Side::Toc(6), view! {
             <div class="page-inner">
                 <div class="panel sk-sweep sk-head">
                     {bar("sk-w1")}
@@ -80,7 +79,7 @@ fn frame(shape: Shape) -> AnyView {
                 </div>
             </div>
         }.into_any()),
-        Shape::Programs => framed(Side::Filters(&[4, 3, 1]), false, view! {
+        Shape::Programs => framed(Side::Filters(&[4, 3, 1]), view! {
             <div class="page-inner">
                 <div class="sk-summary">{bar("sk-count")}{bar("sk-w3")}</div>
                 {[8usize, 5, 4].iter().map(|rows| view! {
@@ -98,7 +97,7 @@ fn frame(shape: Shape) -> AnyView {
                 }).collect_view()}
             </div>
         }.into_any()),
-        Shape::Home => framed(Side::Toc(4), false, view! {
+        Shape::Home => framed(Side::Toc(4), view! {
             <div class="page-inner">
                 <div class="panel sk-sweep sk-home">
                     <div class="sk-block">
@@ -111,7 +110,7 @@ fn frame(shape: Shape) -> AnyView {
                 <div class="panel sk-sweep sk-stage"></div>
             </div>
         }.into_any()),
-        Shape::Text => framed(Side::Toc(3), false, view! {
+        Shape::Text => framed(Side::Toc(3), view! {
             <div class="panel sk-sweep sk-block">
                 {lines(&["sk-w4 sk-big", "sk-w6", "sk-w6", "sk-w5", "sk-w6", "sk-w3"])}
             </div>
@@ -125,9 +124,9 @@ enum Side {
     Filters(&'static [usize]),
 }
 
-/// A page in the frame every page has (`ui::Frame`): the sidebar, the page, perhaps the panel on
-/// the right.
-fn framed(side: Side, aside: bool, page: AnyView) -> AnyView {
+/// A page in the frame every page has (`ui::Frame`): the sidebar and the page. What stands beside
+/// a page is there only while something is picked, and has a skeleton of its own (`DetailSkeleton`).
+fn framed(side: Side, page: AnyView) -> AnyView {
     let sidebar = match side {
         Side::Toc(entries) => view! {
             <div class="sk-lines sk-toc">
@@ -139,19 +138,12 @@ fn framed(side: Side, aside: bool, page: AnyView) -> AnyView {
         Side::Filters(groups) => filter_groups(groups).into_any(),
     };
     view! {
-        <div class="work framed sk-frame" class:with-aside=aside>
+        <div class="work framed sk-frame">
             <div class="panel sidebar sk-sweep">
                 <div class="panel-head">{bar("sk-w3 sk-tall")}</div>
                 <div class="body">{sidebar}</div>
             </div>
             <div class="page">{page}</div>
-            {aside.then(|| view! {
-                <div class="panel detail aside sk-sweep sk-block">
-                    {lines(&["sk-w3 sk-tall", "sk-w5"])}
-                    <div class="sk-facts">{(0..4).map(|_| bar("sk-fact")).collect_view()}</div>
-                    {lines(&["sk-w2", "sk-w6", "sk-w5", "sk-w6", "sk-w4"])}
-                </div>
-            })}
         </div>
     }
     .into_any()
@@ -243,7 +235,7 @@ fn module() -> impl IntoView {
 /// The module's panel beside a list or a program while it is being opened.
 #[component]
 pub fn DetailSkeleton(
-    /// Beside a program's page it is a column of the layout (`aside`), beside a list it floats.
+    /// Beside a program's page it has the head of a frame's panel (`aside`); it floats either way.
     #[prop(optional)]
     aside: bool,
     /// A module was open there already: the panel stays where it is instead of sliding in.

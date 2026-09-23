@@ -10,11 +10,22 @@ import (
 )
 
 var (
-	thesisTitle = regexp.MustCompile(`(?i)\b(bachelor|master|diplom)[- ]?(arbeit|thesis)\b|\babschlussarbeit\b|\bkolloquium\b|\bthesis\b`)
-	// German compounds carry the noun as a suffix: Ingenieurpraktikum,
-	// Bachelor-Praktikum, Berufspraktikum.
-	internshipName = regexp.MustCompile(`(?i)praktikum\b|\bpraxisphase\b|\bpraxismodul\b|\binternship\b`)
-	fuesName       = regexp.MustCompile(`(?i)fachübergreifend|\bFÜS\b`)
+	// A name that is a thesis, not one that mentions it: „PhD Thesis Writing
+	// Skills" and „Status Seminar ERM: Progress Reports PhD Thesis" are courses.
+	thesisTitle = regexp.MustCompile(`(?i)\b(bachelor|master|diplom|doctoral)(?:'s|’s)?[- ]?(arbeit|thesis)\b|\babschlussarbeit\b|\bdissertation\b|\bkolloquium\b`)
+	// An internship is named by where it is served or by what it is in the
+	// degree: „Berufspraktikum", „Industriefachpraktikum", „Außeruniversitäres
+	// Praktikum", „Pflichtpraktikum", „Industrial Internship", a bare
+	// „Praktikum", and „Praktikum Maschinenbau", the internship of the program
+	// of that name. A lab course is named by its subject („Programmierpraktikum",
+	// „Physikalisches Praktikum I", „Praktikum Maschinelles Lernen"), and a
+	// Lehramt module by the school practicum it contains („Fachdidaktik
+	// Mathematik (beinhaltet fachdidaktisches Tagespraktikum, fTP)").
+	internshipName = regexp.MustCompile(`(?i)\b(?:bachelor-?|berufs(?:feld)?|betriebs|forschungs|industrie(?:fach)?|ingenieur|integrations|pflicht|wirtschafts)praktikum\b|\bau(?:ß|ss)eruniversitäres\s+praktikum\b|^(?:\d{5,6}\s+)?praktikum\W*$|\bpraktikum\s+(?:dual|maschinenbau|wirtschaftsingenieurwesen)\b|\bpraxisphase\b|\bpraxismodul\b|\binternship\b`)
+	// The Fachübergreifendes Studium itself, not every module that crosses
+	// subjects: „Fachübergreifende Projektarbeit" is a module of its own. A
+	// wrapped label may break the word („Fachübergreifenden Stu- / dium").
+	fuesName = regexp.MustCompile(`(?i)f(?:ach|ächer)übergreifende[ns]?\s+stu(?:-\s*/?\s*)?dium|\bFÜS\b`)
 )
 
 // ClassifyRequirement derives the module type from what the source itself

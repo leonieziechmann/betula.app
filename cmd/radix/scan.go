@@ -293,7 +293,7 @@ func runScanCurriculum(ctx context.Context, args []string) {
 			record(planaudit.CurriculumEvent{Level: "info", Code: "dry_run_valid", ProgramID: prog.ID, Program: prog.ProgramName, Message: "Valid extraction, not saved (dry run)", Status: "dry_run_valid"})
 			continue
 		}
-		if err := db.SavePlan(catalogdb.PlanFromModules(prog.ID, outcome.Source, outcome.LayoutJSON, outcome.Modules)); err != nil {
+		if err := db.SavePlan(catalogdb.PlanFromModules(prog.ID, outcome.Source, outcome.LayoutJSON, outcome.Modules, outcome.Totals)); err != nil {
 			rejected++
 			plog.Error("cannot store the plan; the previous plan is unchanged", "event", "scan.save_failed", oplog.Err(err))
 			record(planaudit.CurriculumEvent{Level: "error", Code: "database_write", ProgramID: prog.ID, Program: prog.ProgramName, Message: err.Error(), Status: "failed", Action: "Datenbanktransaktion und Schreibrechte prüfen."})

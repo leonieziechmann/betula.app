@@ -141,6 +141,7 @@ pub async fn status(State(state): State<AppState>) -> Response {
         json!({
             "etag": snapshot.etag,
             "bytes": snapshot.bytes,
+            "schema_version": snapshot.schema_version,
             "gzip_bytes": snapshot.gzip.as_ref().map(|(_, bytes)| *bytes),
             "data_changed_at": snapshot.meta.data_changed_at,
             "current_semester": snapshot.meta.current_semester,
@@ -407,8 +408,15 @@ pub async fn enhance_script(State(state): State<AppState>, headers: HeaderMap) -
     asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/enhance.js"))
 }
 
+/// `GET /assets/boot.js`, with the schema this build reads written into it
+/// (`catalog::SCHEMA_VERSION`): it refuses a local copy of the catalog of an older one.
 pub async fn boot_script(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/boot.js"))
+    static SOURCE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
+    let body = SOURCE.get_or_init(|| {
+        let source = include_str!("../../app/assets/boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string());
+        Box::leak(source.into_boxed_str()).as_bytes()
+    });
+    asset(&state, &headers, "text/javascript; charset=utf-8", body)
 }
 
 pub async fn sql_js(State(state): State<AppState>, headers: HeaderMap) -> Response {

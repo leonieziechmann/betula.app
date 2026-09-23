@@ -282,6 +282,195 @@ func TestSharedElectiveCellIsRecoveredOnce(t *testing.T) {
 	}
 }
 
+// offlineBinding is what the reader makes of a layout without the model.
+func offlineBinding(t *testing.T, layout func() *PDFLayout) *CurriculumExtractionResult {
+	t.Helper()
+	pdf := filepath.Join(t.TempDir(), "plan.pdf")
+	if err := os.WriteFile(pdf, []byte("%PDF"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient("", "")
+	client.layoutLoader = func(context.Context, string) (*PDFLayout, error) { return layout(), nil }
+	res, err := client.ExtractCurriculumOffline(context.Background(), pdf, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+// The model labels cells; which rows a plan has, in which order they stand and
+// which variants the plan is split into is the document's. Whatever the model
+// answers, the rows bind to what the offline reader makes of the same layout.
+func TestModelAnswerBindsToTheOfflineOrderAndVariants(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		layout func() *PDFLayout
+		model  []ExtractedModule
+	}{{
+		// Energietechnik und Energiewirtschaft prints a plan per study direction,
+		// each opening with the same rows. The model answered the second
+		// direction first and left the shared rows out: in that order „Höhere
+		// Mathematik - T1" stood after „Wahlpflicht-Modul 4", and the plan took
+		// its heading from the second table.
+		name: "a plan per study direction",
+		layout: func() *PDFLayout {
+			return &PDFLayout{
+				Cells: []SourceCell{
+					{ID: "p16t1r4c2", Table: "p16t1", Page: 16, Row: "Höhere Mathematik - T1", Semesters: []int{1}, Min: 8, Max: 8},
+					{ID: "p16t1r5c3", Table: "p16t1", Page: 16, Row: "Energiewirtschaft", Semesters: []int{2}, Min: 6, Max: 6},
+					{ID: "p16t1r6c7", Table: "p16t1", Page: 16, Row: "Wahlpflicht-Modul 4", Semesters: []int{6}, Min: 6, Max: 6},
+					{ID: "p16t2r4c2", Table: "p16t2", Page: 16, Row: "Höhere Mathematik - T1", Semesters: []int{1}, Min: 8, Max: 8},
+					{ID: "p16t2r5c3", Table: "p16t2", Page: 16, Row: "Elektrische Maschinen", Semesters: []int{2}, Min: 6, Max: 6},
+					{ID: "p16t2r6c7", Table: "p16t2", Page: 16, Row: "Wahlpflicht-Modul 4", Semesters: []int{6}, Min: 6, Max: 6},
+				},
+				PlanNames: map[string]string{"p16t1": "Studienrichtung Energieökonomie", "p16t2": "Studienrichtung Elektrische Energietechnik"},
+			}
+		},
+		model: []ExtractedModule{
+			{SourceCell: "p16t2r5c3", ModuleName: "Elektrische Maschinen", ModuleType: "Pflicht"},
+			{SourceCell: "p16t2r6c7", ModuleName: "Wahlpflicht-Modul 4", ModuleType: "Wahlpflicht"},
+			{SourceCell: "p16t1r5c3", ModuleName: "Energiewirtschaft", ModuleType: "Pflicht"},
+			{SourceCell: "p16t1r6c7", ModuleName: "Wahlpflicht-Modul 4", ModuleType: "Wahlpflicht"},
+		},
+	}, {
+		// Wirtschaftsmathematik prints one plan, and the model put „Komplex
+		// Vertiefung" on the two cells of its row „Module (gemäß Anlage 3)": a
+		// variant of two rows the document does not print. A track the plan
+		// prints over an alternative names one, whatever the model says.
+		name: "one plan",
+		layout: func() *PDFLayout {
+			return &PDFLayout{
+				Cells: []SourceCell{
+					{ID: "p8t1r4c3", Table: "p8t1", Page: 8, Row: "11101 Lineare Algebra und analytische Geometrie I", Semesters: []int{1}, Min: 8, Max: 8},
+					{ID: "p8t1r12c5", Table: "p8t1", Page: 8, Row: "Ethik", Semesters: []int{3}, Min: 6, Max: 6, AltGroup: 1, Track: "Schwerpunkt Philosophie"},
+					{ID: "p8t1r13c5", Table: "p8t1", Page: 8, Row: "Soziologie", Semesters: []int{3}, Min: 6, Max: 6, AltGroup: 1, AltIndex: 1, Track: "Schwerpunkt Gesellschaft"},
+					{ID: "p8t1r16c7", Table: "p8t1", Page: 8, Row: "Module (gemäß Anlage 3)", Semesters: []int{5}, Min: 10, Max: 10},
+					{ID: "p8t1r16c8", Table: "p8t1", Page: 8, Row: "Module (gemäß Anlage 3)", Semesters: []int{6}, Min: 10, Max: 10},
+				},
+				PlanNames: map[string]string{"p8t1": "Grundständig"},
+			}
+		},
+		model: []ExtractedModule{
+			{SourceCell: "p8t1r4c3", ModuleName: "Lineare Algebra und analytische Geometrie I", ModuleType: "Pflicht"},
+			{SourceCell: "p8t1r12c5", ModuleName: "Ethik", ModuleType: "Wahlpflicht", Specialization: "Komplex Vertiefung"},
+			{SourceCell: "p8t1r13c5", ModuleName: "Soziologie", ModuleType: "Wahlpflicht", Specialization: "Komplex Vertiefung"},
+			{SourceCell: "p8t1r16c7", ModuleName: "Module (gemäß Anlage 3)", ModuleType: "Wahlpflicht", Specialization: "Komplex Vertiefung"},
+			{SourceCell: "p8t1r16c8", ModuleName: "Module (gemäß Anlage 3)", ModuleType: "Wahlpflicht", Specialization: "Komplex Vertiefung"},
+		},
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			offline := offlineBinding(t, tc.layout)
+			layout := tc.layout()
+			for i, c := range layout.Cells {
+				if offline.Modules[i].SourceCell != c.ID {
+					t.Fatalf("the offline reader left the order of the document at row %d", i+1)
+				}
+			}
+			res := &CurriculumExtractionResult{Modules: tc.model}
+			if err := BindSourceCells(res, layout); err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Modules) != len(offline.Modules) {
+				t.Fatalf("%d rows, the offline reader has %d", len(res.Modules), len(offline.Modules))
+			}
+			for i, m := range res.Modules {
+				o := offline.Modules[i]
+				if m.SourceCell != o.SourceCell || m.Specialization != o.Specialization || m.SourcePlanLabel != o.SourcePlanLabel {
+					t.Errorf("row %d: %s in %q under %q; offline %s in %q under %q", i+1,
+						m.SourceCell, m.Specialization, m.SourcePlanLabel, o.SourceCell, o.Specialization, o.SourcePlanLabel)
+				}
+			}
+		})
+	}
+}
+
+// A thesis and the FÜS say what they are in their name, and the name wins over
+// the model's label: the model called Elektrotechnik's „Bachelor-Arbeit"
+// „Pflicht", which took the program its thesis and with it its faculty. A lab
+// course named „…praktikum" is left to the model, and so is every row whose
+// name says nothing about its kind.
+func TestThesisAndFUESKindsComeFromTheName(t *testing.T) {
+	layout := &PDFLayout{Cells: []SourceCell{
+		{ID: "a", Table: "t", Row: "11477 Bachelor-Arbeit", Semesters: []int{6}, Min: 12, Max: 12},
+		{ID: "b", Table: "t", Row: "Fachübergreifendes Studium (FÜS)", Semesters: []int{3}, Min: 6, Max: 6},
+		{ID: "c", Table: "t", Row: "Programmierpraktikum", Semesters: []int{1}, Min: 4, Max: 4},
+		{ID: "d", Table: "t", Row: "Betriebliche Phase 1", Semesters: []int{2}, Min: 15, Max: 15},
+		{ID: "e", Table: "t", Row: "PhD Thesis Writing Skills", Semesters: []int{1}, Min: 3, Max: 3},
+		{ID: "f", Table: "t", Row: "Master Thesis oder Master Thesis (Online)", Semesters: []int{4}, Min: 30, Max: 30},
+	}}
+	res := &CurriculumExtractionResult{Modules: []ExtractedModule{
+		{SourceCell: "a", ModuleName: "Bachelor-Arbeit", ModuleType: "Pflicht"},
+		{SourceCell: "b", ModuleName: "Fachübergreifendes Studium (FÜS)", ModuleType: "Wahlpflicht"},
+		{SourceCell: "c", ModuleName: "Programmierpraktikum", ModuleType: "Pflicht"},
+		{SourceCell: "d", ModuleName: "Betriebliche Phase 1", ModuleType: "Praktikum"},
+		{SourceCell: "e", ModuleName: "PhD Thesis Writing Skills", ModuleType: "Pflicht"},
+		{SourceCell: "f", ModuleName: "Master Thesis oder Master Thesis (Online)", ModuleType: "Abschlussarbeit"},
+	}}
+	if err := BindSourceCells(res, layout); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"a": "Abschlussarbeit", // the name, over the model's „Pflicht"
+		"b": "FÜS",             // the name, over the model's „Wahlpflicht"
+		"c": "Pflicht",         // a lab course: the model's
+		"d": "Praktikum",       // the name says nothing: the model's
+		"e": "Pflicht",         // a course about a thesis is not one
+		"f": "Wahlpflicht",     // a choice between two theses is a choice
+	}
+	for _, m := range res.Modules {
+		if m.ModuleType != want[m.SourceCell] {
+			t.Errorf("%s: %s, want %s", m.ModuleName, m.ModuleType, want[m.SourceCell])
+		}
+	}
+}
+
+// An internship says what it is in its name as well, and the name wins over the
+// model's label: the model called „Bachelor-Praktikum" and „Industrial
+// Internship" „Pflicht" and left „Praxis Musikschule (Praktikum Dual)" without a
+// kind. A lab course and a Lehramt module with a school practicum carry the
+// word too and keep the model's kind, and so does an internship whose name does
+// not say what it is.
+func TestInternshipKindComesFromTheName(t *testing.T) {
+	layout := &PDFLayout{Cells: []SourceCell{
+		{ID: "a", Table: "t", Row: "Bachelor-Praktikum", Semesters: []int{6}, Min: 18, Max: 18},
+		{ID: "b", Table: "t", Row: "Industrial Internship (siehe § 32 Abs. 5)", Semesters: []int{3}, Min: 12, Max: 12},
+		{ID: "c", Table: "t", Row: "14627 Praxis Musikschule (Praktikum Dual) I", Semesters: []int{1, 2}, Min: 12, Max: 12},
+		{ID: "d", Table: "t", Row: "Programmierpraktikum", Semesters: []int{1}, Min: 4, Max: 4},
+		{ID: "e", Table: "t", Row: "Fachdidaktik Mathematik (beinhaltet fachdidaktisches Tagespraktikum, fTP)", Semesters: []int{2}, Min: 6, Max: 6},
+		{ID: "f", Table: "t", Row: "Praktikum Maschinelles Lernen", Semesters: []int{5}, Min: 4, Max: 4},
+		{ID: "g", Table: "t", Row: "Betriebliche Phase 1", Semesters: []int{2}, Min: 15, Max: 15},
+		{ID: "h", Table: "t", Row: "14257 11920 Wirtschaftspraktikum Wirtschaftsingenieurwesen oder Ingenieurpraktikum Wirtschaftsingenieurwesen", Semesters: []int{2}, Min: 6, Max: 6, Elective: true},
+	}}
+	res := &CurriculumExtractionResult{Modules: []ExtractedModule{
+		{SourceCell: "a", ModuleName: "Bachelor-Praktikum", ModuleType: "Pflicht"},
+		{SourceCell: "b", ModuleName: "Industrial Internship", ModuleType: "Pflicht"},
+		{SourceCell: "c", ModuleName: "Praxis Musikschule (Praktikum Dual) I", ModuleType: "Modul"},
+		{SourceCell: "d", ModuleName: "Programmierpraktikum", ModuleType: "Pflicht"},
+		{SourceCell: "e", ModuleName: "Fachdidaktik Mathematik", ModuleType: "Pflicht"},
+		{SourceCell: "f", ModuleName: "Praktikum Maschinelles Lernen", ModuleType: "Pflicht"},
+		{SourceCell: "g", ModuleName: "Betriebliche Phase 1", ModuleType: "Praktikum"},
+		{SourceCell: "h", ModuleName: "Wirtschaftspraktikum oder Ingenieurpraktikum", ModuleType: "Praktikum"},
+	}}
+	if err := BindSourceCells(res, layout); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"a": "Praktikum",   // the name, over the model's „Pflicht"
+		"b": "Praktikum",   // the name, over the model's „Pflicht"
+		"c": "Praktikum",   // the name, where the model gave no kind
+		"d": "Pflicht",     // a lab course: the model's
+		"e": "Pflicht",     // a module with a school practicum in it: the model's
+		"f": "Pflicht",     // a lab course: the model's
+		"g": "Praktikum",   // the name says nothing: the model's
+		"h": "Wahlpflicht", // a choice between two internships is a choice
+	}
+	for _, m := range res.Modules {
+		if m.ModuleType != want[m.SourceCell] {
+			t.Errorf("%s: %s, want %s", m.ModuleName, m.ModuleType, want[m.SourceCell])
+		}
+	}
+}
+
 func TestSeasonValidationAndAmbiguousIdentity(t *testing.T) {
 	for _, tt := range []struct {
 		term, offering, duration string

@@ -23,7 +23,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -316,9 +316,24 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   them, and where the page is narrower than the names and the semesters the app draws the list —
   the switch then shows the list, the matrix greyed out with a line saying why, and the choice
   stays: with room (a wider window, a narrower panel) the matrix comes back (`matrix_min_width`,
-  the same numbers as `.matrix` in app.css). Only what the plan puts into a single semester is
-  added up in that semester's column; a footnote says so where a plan has modules over several
-  semesters.
+  the same numbers as `.matrix` in app.css).
+  **What a plan adds up to is the plan's own arithmetic, not ours** (owner, 2026-09-22: Informatik
+  B.Sc. said 166 LP and showed nothing for its last two semesters). A row may print a range —
+  „Komplex Grundlagen der Informatik, 10–24 LP" — and three of them are anything between 30 and
+  72 LP, so adding the rows up gives a lower bound, not the degree. The regulation prints the
+  answer in the lines over its own rows, and Radix keeps them with the rows each counts
+  (`plan_total`, `docs/schema-v2.md` §6). The head's „LP", the sum under the matrix and the sum
+  of every semester group of the list are those printed lines where
+  a plan has them; the semesters a regulation sums together („5.–6.") stand as one figure across
+  them, which is why those semesters used to be empty. Without such lines nothing changes: only
+  what the plan puts into a single semester is added up in that semester's column, and a footnote
+  says so where a plan has modules over several semesters.
+  A row that prints a range says in its panel which rows it is chosen with and what they come to
+  together („zusammen 44 LP … einzeln 30 bis 72 LP"), each of them a link to its own row: that is
+  the only statement the sources make about how such a budget is split. Where a regulation prints
+  a span for a whole semester instead of a number, because several of its rows are budgets, the
+  program's LP are that span („116–126 LP", Angewandte Mathematik M.Sc.) — a number the sources
+  do not state is not put in its place.
   **The page has a panel on the right** (`ui::Frame`'s `aside`, as wide as the catalog's preview,
   same handle, same remembered width): a module clicked in any of the three views opens in it
   (`?open=<id>`, the same panel as in the catalog, so a module reads the same wherever it is
@@ -363,14 +378,18 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   at all, only the honest note that the catalog does not know it under this name and a search for
   it; a row that names the FÜS by kind **or by name** („Fachübergreifendes Studium", „Modul aus
   dem FÜS-Katalog der BTU" — 112 of them are stated Wahlpflicht) leads to the FÜS list
-  (`plan::is_fues`). And with nothing picked the panel holds the
-  numbers of the view one is looking at — for the
-  plan the chosen study direction with its semesters, credits and how much of it the catalog
-  links, plus the credits per semester as bars; for the other views the areas and how the modules
-  split by the kind the program states them as (every kind that occurs, „Art nicht angegeben"
-  where no source says; nothing is counted into a kind it was not stated as). Unlike the catalog's preview it is a column of
-  the layout, not a panel over the page: the tables keep the room that is left and give up the
-  columns that carry least (Bereich, Turnus, Nr.) as it gets narrower. Tried before and dropped
+  (`plan::is_fues`). The panel of an area is the same kind of panel (owner, 2026-09-23): the way
+  into the catalog narrowed down to the area first, then the areas under it and its modules;
+  opened out of a row of the plan the row stays in the address (`ProgramUrl::with_area_keeping_req`),
+  so the panel says how one got there — „Anwendungsfach / Mathematik", each step a link back —
+  and closing it returns to the row. **With nothing picked nothing stands beside the page**
+  (owner, 2026-09-23: on a 13-inch screen a third column left the plan too little room): the
+  panel floats over the page like the catalog's preview, docked to the right edge, and is there
+  only while a module, an area or a row is picked. What it held with nothing picked went: the
+  numbers of the head repeated, and the bars „LP je Semester" repeated the sum row of the plan
+  (moved to the sidebar first, then dropped by the owner the same day: redundant, and they pushed
+  what the sidebar is for out of view). Until then the panel was a column of the layout, and the
+  tables gave up the columns that carry least (Bereich, Turnus, Nr.) as it got narrower. Tried before and dropped
   (owner, 2026-09-20): the matrix as a centred block in a wide empty panel — „liest sich zwar
   leichter, sieht trotzdem komisch aus"; the width wants content, not air.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
@@ -423,8 +442,17 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   search are client-side navigation on the local database (measured: takeover 1.2 s on a first
   visit, preview 130 ms, filter 150 ms including the test driver). Until the takeover, and if
   anything fails, the site stays a classic website served from the HTML cache. A newer snapshot is
-  downloaded in the background and used from the next start. The server never answers data
-  queries for the app: its load is cached HTML, static files and one database file.
+  downloaded in the background and used from the next start, unless the copy is of an older
+  schema than the build reads (2026-09-23): such a copy is never opened. `boot.js` reads a copy's
+  schema from its SQLite header (`user_version`) and compares it with the build's
+  (`catalog::SCHEMA_VERSION`, Radix's newest migration, written in by the server); with the
+  network an older copy is replaced first, as on a first visit; offline the app does not start, and
+  the status says so. Before, a returning visitor worked on the old copy until the download behind
+  it had finished, and after 0008 the plan page failed with „no such column: source_pages". A
+  server whose own snapshot is older (Radix has not exported the new schema yet) says so in
+  `/api/status` and logs `snapshot.outdated`; nothing is downloaded from it, and the site stays a
+  classic website until Radix has. The server never answers data queries for the app: its load is
+  cached HTML, static files and one database file.
 - **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
   `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
   re-renders neither list nor filters, and a filter change leaves the preview alone.
@@ -556,7 +584,9 @@ row means, the same derivation as the row's panel (`plan::areas_for_row`; „Anw
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
 name of a single module, the program's electives where no area fits; nothing picked → the
 program. The second line of the link says what it lists („Praktische Informatik", „5 Bereiche",
-„109 Module"); the row's panel ends with the same link. The catalog's area filter takes several
+„109 Module"); the row's panel opens with the same way in, as its first button, and lists what
+can be chosen under it (owner, 2026-09-23: it stated credits, kind and semester twice, as badges
+and as facts, and put the catalog last). The catalog's area filter takes several
 areas for that (`ProgramScope::areas`, any of them). The server's page picks nothing, so its link
 is the program's (no part of the cache key changes). `node e2e/programs.mjs` walks it.
 
@@ -818,9 +848,12 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   once more, the bundle included. Assets stay `no-cache` with the build as ETag: the server
   answers every `?v=` with the file it has, so such an address must not be cached as immutable.
   `e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
-  `/api/status` unreachable offline and simply opens the copy it has. Once the app runs it says
+  `/api/status` unreachable offline and simply opens the copy it has, unless that copy is of an
+  older schema than the build reads: then the app does not start, the page stays the one the
+  worker kept, and the status says „Offline – die Daten werden neu geladen, sobald du online
+  bist" (the only case in which a failed start says anything). Once the app runs it says
   nothing: the „Offline bereit" notice is gone (owner, 2026-09-21: „wenn es einfach
-  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh.
+  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh; `e2e/schema.mjs` plants a copy of an older schema and starts with and without a network.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
 `lastmod` per module (the snapshot has no date per module), English pages.
@@ -1167,7 +1200,7 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | Level | `event` | Meaning |
 |---|---|---|
 | INFO | `server.listening`, `server.shutdown` | lifecycle |
-| INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`) |
+| INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`; `schema_version` when activated) |
 | INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
@@ -1181,6 +1214,7 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
 | WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / served uncompressed |
 | ERROR | `snapshot.rejected` | a download is not a usable catalog; the previous snapshot stays active |
+| ERROR | `snapshot.outdated` | the active snapshot is of an older schema than this build reads (`schema_version`, `needs`): pages that need the newer columns fail, browsers do not start the app on it. Served all the same; Radix has to export a new one (with `RADIX_CRAWL=off` it never does by itself) |
 | ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
 | ERROR | `http.request` with `status >= 500`, `render.failed`, `snapshot.unreadable` | a request failed |
 | ERROR | `card.failed` | a card's text could not be read or the card could not be drawn; the preview got the standard picture |
@@ -1208,11 +1242,13 @@ What `cargo test` checks:
 
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
-  real data, the URL codec, the ranking of the pickers (`fuzzy`).
+  real data, the URL codec, the ranking of the pickers (`fuzzy`); `SCHEMA_VERSION` is the number
+  of Radix's newest migration, and the snapshot of the tests is not older.
 - `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
-  404 is never cached; `/api/db` with Radix's ETag, gzip and 304; a broken export is
-  rejected and the old snapshot stays; a new one invalidates pages; restart without Radix;
+  404 is never cached; `/api/db` with Radix's ETag, gzip and 304; `/api/status` with the
+  snapshot's schema, `boot.js` with the build's; a broken export is rejected and the old snapshot
+  stays; one of an older schema is served; a new one invalidates pages; restart without Radix;
   one description and one absolute canonical address per page, `noindex` on a filtered list,
   the sitemap, the map of the programs as laid out with the snapshot. Closed testing (needs no
   snapshot): pages lead to the login page, everything else answers 401, what stays open, the

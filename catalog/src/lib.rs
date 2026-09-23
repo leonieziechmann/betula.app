@@ -30,5 +30,5 @@ mod area_fixtures;
 #[cfg(test)]
 mod tests;
 
-pub use db::{Database, DbError, Value};
+pub use db::{Database, DbError, Value, SCHEMA_VERSION};
 pub use filter::CatalogQuery;

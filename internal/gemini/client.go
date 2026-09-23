@@ -44,6 +44,11 @@ type ExtractedModule struct {
 	Graded                 string  `json:"graded,omitempty"`
 	Prerequisites          string  `json:"prerequisites,omitempty"`
 	Remarks                string  `json:"remarks,omitempty"`
+	// Where in the regulation the row stands. Bound from the source cell, never
+	// proposed by the model.
+	SourcePage      int    `json:"source_page,omitempty"`
+	SourceTable     string `json:"source_table,omitempty"`
+	SourcePlanLabel string `json:"source_plan_label,omitempty"`
 }
 
 // CurriculumExtractionResult represents the structured extraction result from a study regulation PDF.
@@ -57,6 +62,10 @@ type CurriculumExtractionResult struct {
 	StandardPeriodSemesters int               `json:"standard_period_semesters,omitempty"`
 	TotalCredits            float64           `json:"total_credits,omitempty"`
 	Modules                 []ExtractedModule `json:"modules"`
+	// Totals are the sums the plan prints over its own rows, bound to the rows
+	// they count (plan_totals.go). They say what a plan with elective budgets
+	// adds up to, which its rows alone cannot.
+	Totals []PlanTotal `json:"totals,omitempty"`
 }
 
 // Client interacts with the Google Gemini API.

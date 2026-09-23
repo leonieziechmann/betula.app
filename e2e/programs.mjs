@@ -169,25 +169,19 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await step("plan: the other study direction", () => page.click(".chip-links a:nth-child(2)"), (before) => location.search === "?variant=2" && document.querySelector("table.matrix tbody .c-name")?.textContent.trim() !== before, first);
   check(await page.evaluate(() => document.querySelectorAll('[data-walk="plan-variant"][data-state="with"]').length === 1), "plan: two study directions are shown as chosen");
 
-  // A module opens in the panel on the right, which otherwise holds the numbers of the view.
-  const numbers = await page.evaluate(() => ({
-    panel: Boolean(document.querySelector("#preview .bars")),
-    facts: document.querySelectorAll("#preview .facts .fact").length,
-    over: (() => {
-      const table = document.querySelector("table.matrix").getBoundingClientRect();
-      const aside = document.querySelector("#preview").getBoundingClientRect();
-      return table.right > aside.left + 1;
-    })(),
-  }));
-  check(numbers.panel && numbers.facts >= 4, `aside: the numbers of the plan are not beside it (bars: ${numbers.panel}, facts: ${numbers.facts})`);
-  check(!numbers.over, "aside: the panel lies over the table instead of beside it");
+  // Owner, 2026-09-23: on a 13-inch screen a third column left the plan too little room. With
+  // nothing picked nothing stands beside the plan; what is picked opens in a panel floating over
+  // the page, as the catalog's preview.
+  check(!(await page.evaluate(() => Boolean(document.querySelector("#preview")))), "aside: with nothing picked a panel is beside the plan");
   await step("a module beside the plan", () => page.click('table.matrix tbody a[data-walk="module"]'), () => location.search.includes("open=") && document.querySelector("#preview .hero .mono"));
   const picked = await page.evaluate(() => ({
     id: document.querySelector("#preview .hero .mono").textContent.trim(),
     marked: document.querySelectorAll("table.matrix tbody tr.open").length,
     variant: location.search.includes("variant=2"),
+    floats: getComputedStyle(document.querySelector("#preview")).position === "absolute",
   }));
   check(picked.marked === 1 && picked.variant, `aside: ${picked.marked} rows are marked as open, the study direction was kept: ${picked.variant}`);
+  check(picked.floats, "aside: the panel is a column of the page instead of floating over it");
   // The whole page, in place: the address stays the program's (with `full=1`), so the area,
   // its tab and the history do too; „Zurück" (and Esc) lead to the program with the module
   // beside it again, and the page is the module's own page.
@@ -197,7 +191,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await step("Zurück leads to the program", () => page.click('[data-action="back"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && !location.search.includes("full=") && document.querySelector("table.matrix"));
   check((await page.evaluate(() => history.length)) === entriesBefore, "back from the module page added a history entry instead of walking back");
 
-  await step("close it again", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("open=") && Boolean(document.querySelector("#preview .bars")));
+  await step("close it again", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("open=") && !document.querySelector("#preview"));
   // Esc must now leave the program, not walk back into the module that was just closed.
   await step("Esc leaves the program", () => page.keyboard.press("Escape"), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 100);
   await step("back into the program", () => page.click('.program-pill[data-id^="bachelor-elektrotechnik"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && Boolean(document.querySelector("table.matrix")));
@@ -213,11 +207,14 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
     title: document.querySelector("#preview .hero h2")?.textContent.trim(),
     marked: document.querySelectorAll("table.matrix tbody tr.open").length,
     claims: Boolean(document.querySelector("#preview .note")),
-    ways: document.querySelectorAll("#preview .linklist .pre").length,
+    catalogFirst: document.querySelector("#preview .dbody > *")?.matches('a[data-walk="catalog"]') ?? false,
+    ways: document.querySelectorAll("#preview .dbody a[href]").length,
   }));
   check(Boolean(requirement.title) && requirement.marked === 1, `requirement: „${requirement.title}" is shown, ${requirement.marked} rows marked`);
-  check(requirement.claims && requirement.ways >= 2, "requirement: the panel does not say that the plan names no module, or offers no way on");
-  await step("closing the requirement", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("req=") && Boolean(document.querySelector("#preview .bars")));
+  // Owner, 2026-09-23: the way into the catalog is the first thing of the panel, what can be
+  // chosen follows under it.
+  check(requirement.claims && requirement.catalogFirst && requirement.ways >= 2, "requirement: the panel does not say that the plan names no module, does not lead into the catalog first, or offers no way on");
+  await step("closing the requirement", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("req=") && !document.querySelector("#preview"));
 
   // How the plan is drawn is personal: it stays in this browser, not in the URL (R9, R13).
   await step("plan: as a list", () => page.click("#sidebar .seg button:nth-of-type(2)"), () => document.querySelector("table.planlist") && !document.querySelector("table.matrix"));
@@ -253,7 +250,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   check(picked_area.marked === 1, `area: ${picked_area.marked} areas are marked as picked`);
   await step("a module out of the area", () => page.click('#preview .linklist a[data-walk="module"]'), () => location.search.includes("area=") && location.search.includes("open=") && document.querySelector("#preview .hero .mono"));
   await step("closing it returns to the area", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("open=") && location.search.includes("area=") && document.querySelector("#preview .linklist .pre"));
-  await step("closing the area too", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("area=") && Boolean(document.querySelector("#preview .facts")));
+  await step("closing the area too", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("area=") && !document.querySelector("#preview"));
 
   // The sidebar picks an area as the table does, and brings it into view.
   await step("an area from the sidebar", () => page.click("#sidebar .toc.jumps a:nth-of-type(2)"), () => location.search.includes("area=") && document.querySelector('#sidebar .toc.jumps a[aria-current="true"]'));
@@ -302,6 +299,15 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   // „Anwendungsfach" is one of the Nebenfächer — not Praktische Mathematik, which has a row of its own.
   const anwendung = await row("Anwendungsfach");
   check([...anwendung.beside].sort().join(" | ") === "Bauingenieurwesen | Maschinenbau / Elektrotechnik | Mathematik | Physik | Wirtschaftswissenschaften", `plan row: „Anwendungsfach" points at ${anwendung.beside.join(" | ")}`);
+  // Owner, 2026-09-23: an area opened out of a row is the same kind of panel — the catalog first —
+  // and says how one got there („Anwendungsfach / Mathematik"); closing it returns to the row.
+  await step("an area out of the row", () => page.evaluate(() => [...document.querySelectorAll('#preview .linklist a[data-walk="area"]')].find((a) => a.querySelector("b")?.textContent === "Mathematik")?.click()), () => location.search.includes("area=") && location.search.includes("req=") && document.querySelector("#preview .trail"));
+  const within = await page.evaluate(() => ({
+    trail: document.querySelector("#preview .trail")?.textContent.replace(/\s+/g, " ").trim(),
+    catalogFirst: document.querySelector("#preview .dbody > *")?.matches('a[data-walk="catalog"]') ?? false,
+  }));
+  check(within.trail === "Anwendungsfach / Mathematik" && within.catalogFirst, `area out of a row: the path reads „${within.trail}", the catalog first: ${within.catalogFirst}`);
+  await step("closing it returns to the row", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("area=") && location.search.includes("req=") && document.querySelector("#preview .hero h2")?.textContent.trim() === "Anwendungsfach");
   // A row that lists three complexes means each of them.
   const listed = await row("Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik");
   check(listed.beside.join(" | ") === "Grundlagen der Informatik | Praktische Informatik | Angewandte und Technische Informatik", `plan row: the listing row points at ${listed.beside.join(" | ")}`);

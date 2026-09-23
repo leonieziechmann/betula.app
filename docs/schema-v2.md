@@ -8,7 +8,7 @@
 ```
 crawl-qis-modules, crawl-modules, crawl-tree, crawl-events ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
       (network)                 (archive)   (no network, deterministic)       (gate)      snapshot/     ETag / 304
-scan-curriculum ──▶ plan, plan_entry  (validated PDF plans, a source of their own)
+scan-curriculum ──▶ plan, plan_entry, plan_total  (validated PDF plans, a source of their own)
 ```
 
 | Step | Command | Package | Notes |
@@ -27,7 +27,10 @@ any v2 command.
 Migrations live in `internal/catalogdb/migrations/NNNN_name.sql`, are applied in order inside
 a transaction each, and are recorded in `PRAGMA user_version`. A gap, a duplicate number, a
 failing statement or a database newer than the binary is an error. Every connection runs with
-`foreign_keys = ON`.
+`foreign_keys = ON`. The snapshot keeps `user_version`, and Folia is built for the newest
+migration: a new one raises `catalog::SCHEMA_VERSION` (a test of the `catalog` crate fails until
+it does), browsers do not open a local copy of an older schema, and a Folia that serves an older
+snapshot logs `snapshot.outdated` (docs/frontend.md, data flow).
 
 ## 2. Tables
 
@@ -47,6 +50,7 @@ and the `plan*` tables is derived and replaced by each build.
 | `module_program_ref` | every „Zuordnung zu Studiengängen" triple with `resolve_status` (`resolved`, `abroad`, `unresolved`) | module page |
 | `program_module_assertion` | one row per statement "module M is in program P" per source, with `kind`, `kind_basis` (`stated`/`inferred`) and area | module page, QIS tree, validated plan |
 | `plan`, `plan_entry`, `plan_scan_status` | validated study plans; written transactionally by `SavePlan`, never touched by the build; not foreign-keyed to derived tables, so a plan survives an incomplete crawl | statute PDFs |
+| `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date | QIS event pages; the module page decides which events belong to a module |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
@@ -92,6 +96,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_program_module` | program × module | `program_id, module_id, relation, kind, kind_source, kind_basis, precedence, area, section, in_tree, on_module_page, in_plan, module_title, module_credits, offer_status, turnus_season, plan_semester` |
 | `v_program_module_area` | tree placement | `program_id, module_id, area_id, area, area_label, depth, area_ord, section, kind, kind_basis` |
 | `v_program_plan`, `v_program_plan_entry` | validated plan / plan row | layout JSON; `program_id, ord, module_id, module_code_raw, module_name, semester, start_semester, end_semester, semester_span, credits, min_credits, max_credits, kind, kind_raw, study_section, subject_area, area_rules, specialization, source_evidence, catalog_title, catalog_credits, credits_differ_from_catalog` |
+| `v_program_plan_total`, `v_program_plan_total_entry` | a printed sum of a plan / the rows it counts | `program_id, ord, label, scope, specialization, start_semester, end_semester, credits, min_credits, max_credits, is_choice, entry_count, source_evidence` — `program_id, total_ord, entry_ord` |
 | `v_program_version` | program × other PO | `program_id, other_id, other_slug, po_version, po_year, is_latest_po` |
 | `v_program_counterpart` | program × Bachelor/Master counterpart | `program_id, counterpart_id, counterpart_slug, counterpart_name, counterpart_level, counterpart_po_version, match_score` (take the highest) |
 | `v_program_document` | program × document | `program_id, ord, title, doc_type, url` |
@@ -174,6 +179,223 @@ Also done: **the v1 code is gone** (`internal/storage`, `web`, `refresher`, `pro
 the Gemini path was run against the API on 2026-09-19 (Informatik B.Sc., dry run: 23 entries, 9
 linked, identical to the stored plan). The API key moved from `config.yaml` into the secret
 sources of `docs/operations.md` §3.
+
+### What a plan adds up to (2026-09-22)
+
+A plan row may print a range instead of a number: Informatik 2008 asks for „Komplex Grundlagen
+der Informatik, 10-24 LP" three times. Adding the lower bounds made that degree 166 LP instead of
+180, and its last two semesters — printed as one merged column — had no sum at all. The
+regulation does state the answer, in the lines it prints over its own rows: „Summe Komplexe des
+Fachstudiums 44" over exactly those three rows, and „Summe Studium 32 28 30 30 60" over the whole
+table. Those lines were read and used to validate the extraction, and then thrown away.
+
+`plan_total` keeps them (`internal/gemini/plan_totals.go`). A plan is printed like an account
+sheet, so a line sums the rows between it and the line before it, and where that does not add up,
+the line before it as well — „Summe Grundstudium" stands over three „Summe Komplex …" lines. The
+binding is kept only where the rows reach the printed value: exactly, or within the range their
+own budgets leave open. A sum nothing explains is dropped rather than guessed at, which `validate`
+checks again over the stored rows.
+
+A module over several semesters belongs to none of them alone, so it only raises the upper bound
+of a semester it reaches into — the same arithmetic the validation of the printed totals uses. A
+semester whose modules all reach into it that way names no row (`entry_count` 0); its printed sum
+is kept all the same, because it is the only thing the plan says about that semester.
+
+What this gives a reader: the credits of a program are the plan's own sums (180, not 166), a
+semester printed as a merged column has its figure, and a row with a range names the rows it is
+chosen with and what they come to together.
+
+A „Summe Aufwand" line is not one of them: it counts the work of a semester, not the credits
+booked in it, and a plan may print both with different numbers (Elektrotechnik 2022 prints 27 and
+24 for its second semester). The reader keeps the credit line.
+
+Three ways of printing a sum took their own reading:
+
+- **A sum over the compulsory modules with a budget under it.** Städtebau und Stadtplanung 2019
+  prints „Summe LP (Pflichtmodule) 27 33 33 27 24 24" and, beneath it, „+ Wahlpflichtmodule (12 LP
+  müssen insg. belegt werden) … +6 +6". The elective rows above are the choices that budget stands
+  for, not requirements of their own, and the „+" is the plan's own arithmetic: the fifth semester
+  holds 24 + 6 = 30 LP. Adding every row instead made that degree 228 LP; it is 180.
+- **A plan of panels.** Medizininformatik 2016 prints one miniature table per semester with its
+  own „LP 28" beside it (`pdf_panels.go`). There is no row order to walk, so each sum is bound to
+  the requirements of its own panel directly.
+- **A sum that is itself a span.** Angewandte Mathematik 2019 prints „28 - 32" where other plans
+  print a number, because several of its rows are budgets. Both sides of the check are then
+  intervals and have to meet rather than to be equal; `credits`/`credits_max` keep what was
+  printed. That degree states 116–126 LP, which is what the page now says — adding the rows' lower
+  bounds said 110.
+
+### Plans the reader passed over (2026-09-22)
+
+Two documents held a study plan the reader would not take:
+
+- **Elektrotechnik dual (ausbildungsintegrierend), PO 2022.** Its Anlage b.2 heads one table with
+  „im dualen praxisintegrierenden **und** im dualen ausbildungsintegrierenden Studium" and tells
+  the two apart inside the table. The heading was read as the first of the two modes it names, so
+  both tracks were labelled „praxisintegrierend" and the program's own plan was dropped as the
+  wrong variant. A title naming both now names the dual study as such, and a track that names its
+  own mode keeps that name (`dualMode`, `selectProgramMode`).
+- **Physics M.Sc., PO 2021.** Its plan is one box per semester column, with „Specialization
+  Phase" and „Research Phase" printed over the columns and a line labelled „Leistungspunkte"
+  instead of „Summe". Both were read as modules that had lost their credits, and the document was
+  sent to review. A row of boxes that names no credits anywhere is now a caption — kept as the
+  `study_section` of the modules under it — and the credit line is read as the sum it is. A box
+  that points at its credits („Entwurfsprojekt 1 (Gemäß Anlage 1, Nr. 1)") stays a requirement
+  even where the appendix was not read, so nothing disappears into a caption.
+
+Of the 182 program versions, 139 then had a validated plan.
+
+### Where a plan stands in its regulation (2026-09-23)
+
+A regulation is dozens of pages of legal text with the Regelstudienplan somewhere in an appendix,
+and a Lesefassung may print four of them, one per study branch. `plan.source_file` named the
+document but not the place, so nobody could check what Betula shows without leafing through the
+PDF.
+
+`plan.source_pages` now names the pages the plan stands on, written as a reader would („9",
+„9–11", „9, 13"), `plan.source_label` the heading it stands under, and `plan_entry.source_page`
+says it per row, because a plan continued across a page break has rows on both. All three come
+from the cell each row was read from — the page is where the PDF drew the box and the label is the
+heading the reader already binds the table to — so a plan whose pages were not recorded says
+nothing rather than guessing.
+
+The program page prints it after the provenance line: „… geprüft am 23.09.2026. Dort auf Seite 11,
+unter „Dual ausbildungsintegrierend · Regelstudienplan …"." A heading that only reads
+„Regelstudienplan" is left out, because the page is already under that word.
+
+### Nine more shapes a plan is printed in (2026-09-23)
+
+Each of the 29 documents still without a plan was opened and read. All 29 hold one, and 25 state it
+without anything having to be guessed — what was missing was a reading, not the source. Nine of
+those readings are now in, taking the corpus from 139 to 161 of 182. Each is refused where the
+document does not verify it:
+
+- **A semester column headed by where the semester is spent** („1 ECN", „2 UNIZG", „3 BTU",
+  „4 Thesis"). The number decides the column as a bare number does, and the label is kept.
+  Read only where a table has no plain semester header at all, and never where the label counts
+  something else — „1. Studienjahr" spans two semesters, and reading it as the first would put
+  every module in the wrong semester *and still add up*, the one error `ValidateCurriculum` cannot
+  catch (`parseSemesterHeaderSite`, with its own negative test).
+- **A plan that points at another Anlage** for a block of its semesters („1. bis 5. Fachsemester
+  analog zu Anlage 2.1"). The referenced Anlage prints those semesters in full in the same
+  document; text and cell geometry must name exactly the same span, and the referencing plan's own
+  „Σ = 180 LP" line verifies the copy semester by semester (`pdf_annex_refs.go`).
+- **A choice printed as two named blocks** („entweder" · block with its own sum · „oder" · block).
+  A bare „oder" chain cannot read this because the branch headings end it. Read from the opening
+  „entweder" line instead, and only where each branch's rows reach the sum its own heading prints
+  (`entwederBlocks`, `blockReachesItsSum`).
+- **A grey „möglicher Studienplan" that leaves a row unpainted.** Grey chooses between the
+  placements a row offers; a row it painted nothing in offered no choice. Such a row is added back
+  only where the printed totals ask for it: the grey reading must contradict a total, adding
+  exactly the unpainted rows must reach every contradicted total exactly, and no total the grey
+  reading already explains may move (`unpaintedRowsThePrintedSumsAskFor`).
+- **Several study options in one document**, each under its own Anlage („Präsenzstudienprogramm",
+  „Fernstudienprogramm", „Doppelabschluss"). The tables look alike, so only the heading above them
+  says which program version a plan belongs to (`studyOptionOf`, `selectStudyOption`).
+- **A module box naming several modules**, each pointing at the appendix row its credits stand in,
+  with „oder" between two making them alternatives; and a box that explains the plan rather than
+  requiring anything of it (the footnotes under a total line) is no longer read as a requirement.
+- **A footnote that makes blocks alternatives** („Ein Schwerpunkt ist zu belegen").
+- **A semester column captioned on a second ruled header row** — a run of bare numbers with the
+  word they count under each. The pairing must be complete, so it is the document's and not the
+  reader's.
+- **A box plan closing its columns with bare amounts** („30 LP  30 LP  30 LP  30 LP"): the
+  semester sum, but only where every column holds exactly one box and each holds nothing but a
+  credit value.
+- **A module box pointing at a whole appendix** („WP-Modul (gemäß Anlage 6)") rather than one of
+  its rows: worth what every module listed there is worth, and only where they all carry the same
+  value. A box drawn as a shaded paragraph is joined back from the one cell per printed line the
+  ruling cut it into.
+- **The one figure a plan prints that its semesters leave out.** A doctoral thesis spanning every
+  semester belongs to none of them, so „Summe 8 6 8 6 2 30" leaves it out while the per-row total
+  column says 180. That column is read only where the table proves it twice: each row's value in
+  it equals the sum of that row's semester cells, and the rows add up to what the total row prints
+  there (`appendGrandTotal`).
+- **An „oder" at the end of a module name** („31205 Strömungslehre oder" over „43205 Technische
+  Hydromechanik"). It does not mean what an „oder" on a line of its own means: that one separates
+  blocks which may each hold a requirement per semester, so the choice is made per column, while
+  this one makes each alternative exactly one row, so the choice is decided once for the group
+  however its rows are spread (`inlineOderRows`, `AltOne`).
+
+Three readings were built and then **not kept**, because a change that unlocks nothing is not
+worth its risk: a rule for the inset semester headers of Stadt- und Regionalplanung 2016 (it
+altered no plan anywhere in the corpus, and that document's real obstacle is „6(1+2)", six credits
+split across two semesters); a loosening that would let a single column count as a semester header,
+the shape most likely to produce a false plan; and a second reading of the per-row total column,
+whose one document `appendGrandTotal` already explains.
+
+One reading was kept only after the corpus caught a fault in it. Joining a shaded box back
+together walked the grid by column and took its width from the first row, but a table's rows need
+not be equally long: it read past the end of a shorter row and panicked, taking two working plans
+down with it. The gate showed +2/−2 where the feature alone was +2; without the full-corpus pass
+that would have shipped.
+
+What the remaining 21 need is still a different kind of reading: plans that mark a semester with
+„X" and print the credits in a block column (Environmental and Resource Management), a transposed
+matrix whose credits stand in an annex, a plan of module boxes with no label column at all,
+documents that publish only an amendment, and the four documents whose plan cannot be verified
+from the document alone — which, by R12, is a reason not to store it, not a reason to guess.
+
+### What the model does not decide (2026-09-23)
+
+The corpus gate reads offline, so the full Gemini scan of all 182 program versions was set beside an
+offline scan of the same database: 161 plans each, with the same totals, pages, credits and links.
+Two differences came from the model, and `BindSourceCells` now takes both from the document:
+
+- **The order of the rows.** The binding kept the order of the model's answer and appended the
+  cells it had left out. Where the model left out the rows the study directions share, they
+  („Höhere Mathematik T1", first semester) stood after „Wahlpflicht-Modul 4"; where it answered the
+  second table first, `plan.source_label` came from that one (211-88-2021: „Regelstudienplan"
+  instead of „Studienplan · Seite 12"). The rows now stand in the order of the layout's cells, the
+  order the offline reader gives them (211-82-2021, 211-88-2021, 216-82-2022, G19-P2-2022,
+  879-88-2018).
+- **The variant a row belongs to.** The model's `specialization` survived wherever the document
+  prints one plan and no track, and Folia splits a plan into variants by it: Wirtschaftsmathematik
+  (276-82-2023, D02-P2-2023) grew a variant „Komplex Vertiefung" of two rows. It now comes only
+  from the headings of several plans or the track printed over an alternative.
+
+Bound again with the change, all 164 stored model answers give the offline order, variants and
+heading (seven did not before), so the seven programs read with `--offline` as a stopgap can be read
+with the model again.
+
+A thesis and the FÜS take their kind from their name. The thesis
+matters beyond its row: a program's faculty is the department of its thesis module
+(`catalog::pages::faculties`), and the model called 105 of 199 Bachelor and Master theses „Pflicht"
+— Elektrotechnik B.Sc. 2022 and its dual variant lost their thesis and moved from MINT to Fakultät 3
+in the program overview. `ClassifyRequirement` now wins for these two kinds, and both of its rules
+name the thing instead of mentioning it: „PhD Thesis Writing Skills" and „Status Seminar ERM:
+Progress Reports PhD Thesis" are courses, „Fachübergreifende Projektarbeit" is a module of its own.
+Bound again with that, every program has its faculty of 2026-09-21 back, and G02-P2-2022 joins its
+two Elektrotechnik siblings in MINT. `validate` counts 104 pairs whose sources state different kinds
+(99 with the model's kinds on all 161 plans, 157 offline before the narrower rules and 152 after):
+the thesis now agrees with the QIS tree in 6 more pairs and disagrees in 12 more with the module
+pages and the parts of the tree that call it „compulsory".
+
+An internship takes its kind from its name as well, now that its rule names one. The old rule took
+every name with a word ending in „praktikum", and 162 of those cells are no internship: 119 Lehramt
+modules with a school practicum in them („Fachdidaktik Mathematik (beinhaltet fachdidaktisches
+Tagespraktikum, fTP)"), 40 lab courses („Programmierpraktikum", „Laborpraktikum der
+Elektrotechnik", „Werkstofftechnik 2 mit Praktikum", „Physikalisches Praktikum I", „Praktikum
+Maschinelles Lernen"), two choices („Proseminar oder Praktikum") and „Projektpraktikum
+Medizininformatik", a name BTU also gives to labs. An internship is named by where it is served or
+by what it is in the degree: Berufs-, Berufsfeld-, Betriebs-, Industrie(fach)-, Ingenieur-, Pflicht-
+and Bachelor-Praktikum, „Außeruniversitäres Praktikum", Praxisphase, Praxismodul, internship and a
+bare „Praktikum". The regulations decide the doubtful names: an Integrationspraktikum is 800 hours
+in an administration, a company or an institution, a Forschungspraktikum 18 weeks at a research
+institution („ein Pflichtpraktikum"), a Wirtschaftspraktikum, „Praktikum Maschinenbau" and
+„Praktikum Wirtschaftsingenieurwesen" are served in a company, and the dual „Praxis Musikschule
+(Praktikum Dual)" at the partner music school. „Praktikum Maschinenbau" is matched by the program it
+names, because „Praktikum Medientechnik" is a lab.
+
+On the 161 saved plans, 64 cells become internships that the model called „Pflicht" (52), gave no
+kind (11) or „Wahlpflicht" (1: Elektrotechnik M.Sc. 2026's „Praktikum / Praxisphase", the slot for a
+Forschungs- or Industriefachpraktikum). `validate` still counts 104 pairs: Soziale Arbeit dual's
+„Praxismodul 1–6" now agree with the QIS tree, and six internships disagree with the module pages or
+tree nodes that call them „compulsory". The old rule would have given 127. Offline, where the rule
+decides alone, 160 cells are no longer internships and the count falls from 152 to 128. No program
+changes faculty on either path. The model and the offline reader now differ on 5 of 138 internship
+cells instead of 227 of 297; „Betriebliche Phase 1" and „Schulpraktische Studien / Praktisches
+Studiensemester" do not say what they are in their name and stay the model's.
 
 Open:
 

@@ -94,6 +94,23 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 	v.count("plan entries matched to a module that is not in the catalog", StatusWarn,
 		"SELECT COUNT(*) FROM plan_entry WHERE module_id IS NOT NULL AND module_id NOT IN (SELECT id FROM module)",
 		"SELECT program_id || ': ' || module_id || ' ' || module_name FROM plan_entry WHERE module_id IS NOT NULL AND module_id NOT IN (SELECT id FROM module) ORDER BY 1")
+	// A printed sum is only worth storing where the rows it names reach it: the
+	// whole point of plan_total is that a plan with elective budgets can be added
+	// up. A sum outside the interval of its own rows would be a misread cell.
+	v.count("plan totals their own rows cannot reach", StatusFail, `
+		SELECT COUNT(*) FROM plan_total WHERE credits_max < min_credits - 0.01 OR credits > max_credits + 0.01`,
+		`SELECT program_id || ' ' || label || ' (' || start_semester || '-' || end_semester || '): ' || credits
+		 || '-' || credits_max || ' LP, rows give ' || min_credits || '-' || max_credits FROM plan_total
+		 WHERE credits_max < min_credits - 0.01 OR credits > max_credits + 0.01 ORDER BY 1`)
+	v.count("plans whose regulation prints a span instead of a sum", StatusInfo,
+		"SELECT COUNT(DISTINCT program_id) FROM plan_total WHERE credits_max - credits > 0.01", "")
+	v.count("plan totals whose row count does not match their rows", StatusFail, `
+		SELECT COUNT(*) FROM plan_total t
+		WHERE t.entry_count <> (SELECT COUNT(*) FROM plan_total_entry te WHERE te.program_id = t.program_id AND te.total_ord = t.ord)`, "")
+	v.count("plans that state what they add up to", StatusInfo,
+		"SELECT COUNT(DISTINCT program_id) FROM plan_total WHERE scope = 'plan'", "")
+	v.count("groups of rows a plan ties to one sum", StatusInfo,
+		"SELECT COUNT(*) FROM plan_total WHERE is_choice = 1", "")
 
 	// Conflicts between sources. Two *stated* kinds for one pair are a real disagreement;
 	// the precedence rule decides, and this list is what a human should look at.
