@@ -23,7 +23,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -424,6 +424,8 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   both sides (rusqlite on the server, sql.js in the browser), so there are no async resources,
   no loading states between pages and nothing to serialize into the HTML. A page calls one
   loader of `catalog::pages` through `Source::run`; everything it shows comes from one snapshot.
+  What the browser app shows between a click and the page is the page's skeleton, one frame
+  before the page is built („A click answers first" below), not a state the page waits in.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
   request renders (5–100 ms) and later ones are a memory copy (2 ms), gzip included. A new
   snapshot starts a new generation. ETag per generation and build → `304` without rendering.
@@ -487,6 +489,90 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   without a module are one module the catalog does not know under that name; FÜS rows point to
   the program's FÜS list. The URL still says only the semester; the derived areas are part of the
   query the page ran (`CatalogData::effective`), which the endless list loads further pages with.
+
+### A click answers first (2026-09-23)
+
+Owner: „die js web app fühlt sich irgendwie ziemlich langsam an", switching pages and changing
+filters should not feel slow, the results should come as soon as they do, and where there is a
+wait, skeletons should bridge it. What was wrong, measured on the laptop of §3 with the dev
+bundle (Event Timing: from the click to the next frame): **a click showed nothing until the page
+was done.** The router takes a link in the click's own task and runs the queries and the new page
+in its microtasks, before the browser may paint. A filter toggle took 56 ms to its next frame, a
+module's page 80 ms, the program overview 88–120 ms, the start page 136 ms; with the CPU slowed
+down four times (a phone) 260–280, 340, 380–850 and 590–775 ms. Where that time goes (V8 profile
+of the same clicks): the queries 14 ms of a toggle and 50–72 ms of the start page and the
+overview, building the page 25–75 ms, style and layout the rest.
+
+- **Paint first, then work** (`app/src/pending.rs`). A navigation reaches the router one frame
+  later; in that frame what can be shown at once is shown. `Pending` takes over, before the
+  router's own listeners: clicks on the links the router would take (the same checks, and not
+  what another handler has claimed with `preventDefault`), Back and Forward (the browser's
+  `popstate`, handed to the router again a frame later; the replay is marked, `enhance.js`
+  ignores it), and what the app starts itself through `Pending::go` (the search of the top bar,
+  the pickers and the credit slider, the draft of the phone's filter sheet; the search goes
+  quietly, `go_quietly`: what is listed stays until the next result, since a skeleton with every
+  letter would flicker). A step that changes nothing the visitor sees (the fragment, the list's
+  `page`) goes to the router as before, and so does everything the app navigates on its own (the
+  list following the scroll position, a phone turning `open` into the module's page). What the
+  step changes decides what waits for it (`pending::Change`): another page, another column of
+  the same page (a view of a program, the program overview or the marked modules filtered or
+  ordered otherwise), the catalog's list, the module beside a list, what stands beside a
+  program's page.
+- **What was clicked is in its new state in the next frame**, because those parts read where
+  the app is going (`Pending::to`) and not only where the router is: the rail and the bottom bar,
+  the title and the search of the top bar, the catalog's filter panel and the tags above its list
+  (so the head of the list has its height before the rows come), the row whose module opens, the
+  views of a program, the toggles of the program overview, the sidebar of the marked modules.
+  Two clicks before the first has reached the page add up: the second link already leads from
+  where the first goes (the toggles' addresses follow the panel).
+- **What still has to be computed stands there as a skeleton** (`app/src/skeleton.rs`): the frame
+  of the page that comes, built from the layout classes of the real one (`.work`, `.framed`,
+  `.panel`, `.sidebar`, `.page`, `.row`, `.module-grid`), so every panel stands where the page will
+  put its own, in both layouts and both themes, and grey bars where the text will be; the
+  catalog's list keeps its frame and shows skeleton rows over the old ones; the module beside a
+  list or a program has a panel of its own. A band of light sweeps over it once the wait is
+  longer than .35 s, moved by the compositor, so it keeps moving while the page is being built.
+  Everything that is not layout has a class of its own (`sk-…`): nothing that looks for the parts
+  of a page (the count, a chip, a module's page), the checks included, finds a skeleton instead.
+  `main` says `aria-busy` meanwhile. A module that replaces its skeleton does not slide in
+  once more (`data-settling` for that frame), nor does a skeleton where a module stood already.
+- **A skeleton only where the wait is seen:** a change of the same kind that took at least 50 ms
+  the last time (`SLOW_MS`, smoothed), and always the first time. A result that comes quicker
+  would come about when the skeleton does, and the skeleton would only flash; then the click
+  shows its new state in the next frame and the result in the one after. On a laptop the
+  preview and most lists come that quickly; on a phone nearly everything waits long enough for
+  a skeleton.
+- **The answers of the local catalog are kept for the visit** (`client/src/lib.rs`, `Answers`):
+  by statement and parameters, up to about 24 MB (the oldest go first). The copy `boot.js` opened
+  is never written to and stays the same until the next start, and no query reads the clock, so
+  an answer holds for the whole visit. Coming back to a page, Back, and a filter taken back ask
+  sql.js nothing: the start page's queries alone take 70 ms of a laptop.
+
+After (same machine, bundle and measurement): from the click to the next frame 24–32 ms, the
+frame itself after 5–10 ms (the new state, perhaps a skeleton); with the CPU four times slower
+16–104 ms instead of 250–850. The result comes a frame later than before (8–18 ms, the skeleton
+a few of them): a toggle 36 ms (33–36 before), the preview 24 ms (16), a module's page 68 ms
+(58); coming back it comes sooner than before: the start page after about 50 ms instead of 100,
+the program overview after 27–32 instead of 65–73. The bundle that ships (`wasm-release`) does
+the same on this machine: 24–40 ms to the next frame, the frame itself after 6–9 ms.
+
+Asked by the owner and not done, measured:
+
+- **SQLite in the Rust bundle** (rusqlite on `sqlite-wasm-rs`) instead of sql.js behind a
+  JavaScript bridge. The catalog is in memory either way (sql.js keeps all 37 MB in its WASM
+  memory); what the bridge costs is handing each answer from sql.js to JavaScript and on to Rust:
+  10–13 ms of the 48–54 ms of queries of the start page and the program overview (SQLite itself
+  38–41 ms), 7 of 14 ms of a toggle. It would need a C toolchain for `wasm32` in
+  `build-client.sh` and in Nix, and `boot.js` to hand over the bytes instead. Kept answers take
+  away all of it on a second visit.
+- **The queries in a Web Worker**, so that the main thread can paint while they run. The larger
+  part of a click is building the page (25–75 ms), which stays on the main thread; and every page
+  would have to load asynchronously, with loading states, against „Data flow" above. A worker
+  only to warm the kept answers would hold a second copy of the catalog (37 MB) on a phone.
+- **Warming the answers ahead, in idle time.** A page's loader cannot be split (the start page's
+  is 70 ms of a laptop, 280 ms of a phone), and a tap that comes during it waits for it.
+
+`node e2e/snappy.mjs` checks all of it (§4).
 
 ### From the program's page into the catalog (2026-09-21)
 
@@ -845,6 +931,12 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
   `e2e/bookmarks.mjs` watches every request of a session for marks.
+- **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
+  visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
+  `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
+  control that shows where the visitor is shows where the app is going as well (`Pending::to`,
+  `search_on`, `path`), and what takes a new page or list to compute has its skeleton
+  (`Pending::waits`, `skeleton`). A new page gets a `pending::Shape`, or one that looks like it.
 
 ## 3. Running it
 
@@ -1307,6 +1399,20 @@ drives the landing page: the map is part of the server's HTML (dots are links); 
 from what `boot.js` handed over; a pointer over a dot shows its relatives; a click opens the
 program without loading a page; the head has one description and one canonical address and both
 follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
+
+```bash
+cd e2e && node snappy.mjs
+```
+
+drives a click answering first („A click answers first"), frame by frame after each interaction:
+a toggle, a row, Esc, the rail into the program overview, a program, one of its views, Back, the
+start page and the catalog as it was left, two toggles before the first has reached the list;
+then on a phone the bottom bar and a module. The first frame after each has to come within 80 ms
+and show what was clicked in its new state (and a skeleton, where the page or the list is being
+built for the first time), a later one the result without a skeleton, and no skeleton stays.
+All of it once more with the CPU slowed down four times (200 ms for the first frame), where the
+skeletons are what bridges the wait. The numbers it prints are the time to the first frame and
+to the result.
 
 ## 5. Not done yet
 

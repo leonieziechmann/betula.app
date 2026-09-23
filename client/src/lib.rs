@@ -4,6 +4,9 @@
 //! `start()` is called once the database is open. It replaces the server-rendered page by
 //! the app; from then on every click is handled here and no page is loaded again.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::Arc;
 
 use app::data::{CatalogSource, Source};
@@ -29,45 +32,129 @@ fn js_error(value: &JsValue) -> String {
 /// `Database` on top of sql.js. Queries are synchronous, like rusqlite on the server.
 struct LocalDatabase;
 
+/// What the local catalog has answered in this visit, by statement and parameters. The copy
+/// `boot.js` opened is never written to and stays the same until the next start (a newer
+/// snapshot is only used from then on), and no query reads the clock, so an answer holds for the
+/// whole visit. Coming back to a page, going back in the history or taking a filter back then
+/// asks sql.js nothing: the start page's queries alone take 70 ms of a laptop's time, a phone's
+/// four times that. The oldest answers go once the kept ones reach `ANSWERS_BUDGET`.
+struct Answers {
+    kept: HashMap<String, Answer>,
+    bytes: usize,
+    clock: u64,
+}
+
+struct Answer {
+    rows: Rows,
+    bytes: usize,
+    used: u64,
+}
+
+/// About what the kept answers take in memory (estimated from their cells), a small part of
+/// the 37 MB of the catalog itself.
+const ANSWERS_BUDGET: usize = 24 << 20;
+
+thread_local! {
+    static ANSWERS: RefCell<Answers> = RefCell::new(Answers { kept: HashMap::new(), bytes: 0, clock: 0 });
+}
+
+impl Answers {
+    /// The statement and its parameters, each text with its length in front, so that no two
+    /// different questions read the same (a search may contain anything).
+    fn key(sql: &str, params: &[Value]) -> String {
+        let mut key = String::with_capacity(sql.len() + 16 * params.len() + 8);
+        let _ = write!(key, "{}:{sql}", sql.len());
+        for param in params {
+            let _ = match param {
+                Value::Null => write!(key, "|n"),
+                Value::Integer(i) => write!(key, "|i{i}"),
+                Value::Real(r) => write!(key, "|r{r:?}"),
+                Value::Text(s) => write!(key, "|t{}:{s}", s.len()),
+            };
+        }
+        key
+    }
+
+    fn get(&mut self, key: &str) -> Option<Rows> {
+        self.clock += 1;
+        let clock = self.clock;
+        self.kept.get_mut(key).map(|answer| {
+            answer.used = clock;
+            answer.rows.clone()
+        })
+    }
+
+    fn keep(&mut self, key: String, rows: &Rows) {
+        let bytes = key.len()
+            + rows.columns.iter().map(|c| c.len() + 24).sum::<usize>()
+            + rows.rows.iter().flatten().map(|cell| 24 + if let Value::Text(s) = cell { s.len() } else { 0 }).sum::<usize>();
+        if bytes > ANSWERS_BUDGET / 4 {
+            return;
+        }
+        while self.bytes + bytes > ANSWERS_BUDGET {
+            let Some(oldest) = self.kept.iter().min_by_key(|(_, answer)| answer.used).map(|(key, _)| key.clone()) else { break };
+            if let Some(answer) = self.kept.remove(&oldest) {
+                self.bytes -= answer.bytes;
+            }
+        }
+        self.clock += 1;
+        self.bytes += bytes;
+        if let Some(old) = self.kept.insert(key, Answer { rows: rows.clone(), bytes, used: self.clock }) {
+            self.bytes -= old.bytes;
+        }
+    }
+}
+
 impl Database for LocalDatabase {
     fn query(&self, name: &'static str, sql: &str, params: &[Value]) -> Result<Rows, DbError> {
-        let fail = |message: String| DbError::Sql { query: name, message };
-        let bound = js_sys::Array::new();
-        for param in params {
-            bound.push(&match param {
-                Value::Null => JsValue::NULL,
-                Value::Integer(i) => JsValue::from_f64(*i as f64),
-                Value::Real(r) => JsValue::from_f64(*r),
-                Value::Text(s) => JsValue::from_str(s),
+        let key = Answers::key(sql, params);
+        if let Some(rows) = ANSWERS.with_borrow_mut(|answers| answers.get(&key)) {
+            return Ok(rows);
+        }
+        let rows = ask(name, sql, params)?;
+        ANSWERS.with_borrow_mut(|answers| answers.keep(key, &rows));
+        Ok(rows)
+    }
+}
+
+/// One statement on sql.js.
+fn ask(name: &'static str, sql: &str, params: &[Value]) -> Result<Rows, DbError> {
+    let fail = |message: String| DbError::Sql { query: name, message };
+    let bound = js_sys::Array::new();
+    for param in params {
+        bound.push(&match param {
+            Value::Null => JsValue::NULL,
+            Value::Integer(i) => JsValue::from_f64(*i as f64),
+            Value::Real(r) => JsValue::from_f64(*r),
+            Value::Text(s) => JsValue::from_str(s),
+        });
+    }
+    let result = db_query(sql, bound).map_err(|e| fail(js_error(&e)))?;
+    let get = |key: &str| js_sys::Reflect::get(&result, &key.into()).map_err(|e| fail(js_error(&e)));
+
+    let columns: Vec<String> = js_sys::Array::from(&get("columns")?).iter().filter_map(|c| c.as_string()).collect();
+    let mut rows = Vec::new();
+    for row in js_sys::Array::from(&get("rows")?).iter() {
+        let mut values = Vec::with_capacity(columns.len());
+        for cell in js_sys::Array::from(&row).iter() {
+            values.push(if cell.is_null() || cell.is_undefined() {
+                Value::Null
+            } else if let Some(text) = cell.as_string() {
+                Value::Text(text)
+            } else if let Some(number) = cell.as_f64() {
+                // sql.js hands out every number as a double.
+                if number.fract() == 0.0 && number.abs() < 9.0e15 {
+                    Value::Integer(number as i64)
+                } else {
+                    Value::Real(number)
+                }
+            } else {
+                return Err(DbError::Decode { query: name, column: String::new(), message: "unexpected value type".to_string() });
             });
         }
-        let result = db_query(sql, bound).map_err(|e| fail(js_error(&e)))?;
-        let get = |key: &str| js_sys::Reflect::get(&result, &key.into()).map_err(|e| fail(js_error(&e)));
-
-        let columns: Vec<String> = js_sys::Array::from(&get("columns")?).iter().filter_map(|c| c.as_string()).collect();
-        let mut rows = Vec::new();
-        for row in js_sys::Array::from(&get("rows")?).iter() {
-            let mut values = Vec::with_capacity(columns.len());
-            for cell in js_sys::Array::from(&row).iter() {
-                values.push(if cell.is_null() || cell.is_undefined() {
-                    Value::Null
-                } else if let Some(text) = cell.as_string() {
-                    Value::Text(text)
-                } else if let Some(number) = cell.as_f64() {
-                    // sql.js hands out every number as a double.
-                    if number.fract() == 0.0 && number.abs() < 9.0e15 {
-                        Value::Integer(number as i64)
-                    } else {
-                        Value::Real(number)
-                    }
-                } else {
-                    return Err(DbError::Decode { query: name, column: String::new(), message: "unexpected value type".to_string() });
-                });
-            }
-            rows.push(values);
-        }
-        Ok(Rows { columns, rows })
+        rows.push(values);
     }
+    Ok(Rows { columns, rows })
 }
 
 struct LocalSource;

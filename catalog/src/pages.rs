@@ -915,3 +915,84 @@ mod area_tests {
         assert_eq!(display_label("Total Account - Home BTU"), "Home BTU");
     }
 }
+
+#[cfg(test)]
+mod faculty_tests {
+    use super::*;
+    use crate::labels::Code;
+
+    fn program(id: &str, name_key: &str) -> Program {
+        Program {
+            id: id.to_string(),
+            slug: id.to_string(),
+            name: name_key.to_string(),
+            degree_level: Code::parse("bachelor"),
+            study_variant: None,
+            degree_label: None,
+            degree_raw: String::new(),
+            degree_display: None,
+            po_version: "2022".to_string(),
+            po_year: Some(2022),
+            family_key: name_key.to_string(),
+            name_key: name_key.to_string(),
+            is_latest_po: true,
+            source_url: String::new(),
+            has_plan: true,
+            plan_status: None,
+            curricular_modules: 0,
+            fues_modules: 0,
+            documents: 0,
+        }
+    }
+
+    fn count(program: &str, department_id: i64, thesis_modules: i64, offered_modules: i64) -> ProgramDepartmentCount {
+        ProgramDepartmentCount { program_id: program.to_string(), department_id, thesis_modules, offered_modules }
+    }
+
+    /// The thesis's department, else the one offering at least half, else what the programs of the
+    /// subject agree on. Checked on its own because a day's snapshot need not hold every case:
+    /// since a thesis is what its name says (2026-09-23), no current program depends on its
+    /// subject any more.
+    #[test]
+    fn a_faculty_rests_on_the_thesis_the_majority_or_the_subject() {
+        let programs = [
+            program("b", "elektrotechnik"),
+            program("m", "elektrotechnik"),
+            program("d", "elektrotechnik-dual"),
+            program("x", "x"),
+            program("y1", "y"),
+            program("y2", "y"),
+            program("y3", "y"),
+        ];
+        let counts = [
+            // The thesis decides, although most of the curriculum is offered elsewhere.
+            count("b", 1, 1, 10),
+            count("b", 3, 0, 30),
+            // No thesis: the department that offers at least half.
+            count("m", 1, 0, 6),
+            count("m", 3, 0, 4),
+            // Two thesis departments and no majority: no answer of its own, and nothing of its
+            // subject to agree on either.
+            count("x", 1, 1, 4),
+            count("x", 2, 1, 3),
+            count("x", 3, 0, 3),
+            // The programs of a subject that disagree say nothing about the one that is silent.
+            count("y1", 1, 1, 5),
+            count("y2", 2, 1, 5),
+        ];
+        let mut found: Vec<(String, i64, FacultyBasis)> =
+            faculties(&programs, &counts).into_iter().map(|f| (f.program_id, f.department_id, f.basis)).collect();
+        found.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(
+            found,
+            vec![
+                ("b".to_string(), 1, FacultyBasis::Thesis),
+                // „Elektrotechnik - dual" is the subject „Elektrotechnik", whose programs agree.
+                ("d".to_string(), 1, FacultyBasis::Counterpart),
+                ("m".to_string(), 1, FacultyBasis::Majority),
+                ("y1".to_string(), 1, FacultyBasis::Thesis),
+                ("y2".to_string(), 2, FacultyBasis::Thesis),
+            ]
+        );
+    }
+}

@@ -16,7 +16,9 @@ pub mod format;
 pub mod icons;
 pub mod nav;
 pub mod pages;
+pub mod pending;
 pub mod seo;
+pub mod skeleton;
 pub mod tabs;
 pub mod ui;
 
@@ -24,13 +26,14 @@ use catalog::url;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::components::{Route, Router, Routes};
-use leptos_router::hooks::{use_location, use_navigate};
+use leptos_router::hooks::use_location;
 use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::bookmarks::Bookmarks;
 use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::legal::{ImprintPage, PrivacyPage};
 use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, program::ProgramPage, programs::ProgramsPage};
+use crate::pending::Pending;
 use crate::tabs::{Area, Tabs};
 use crate::ui::Icon;
 
@@ -157,17 +160,21 @@ pub fn App() -> impl IntoView {
     Tabs::provide();
     // The visitor's marked modules: from this browser's storage, empty on the server (R9).
     Bookmarks::provide();
+    // A click answers in the next frame and the page follows (`pending`): its listeners have to
+    // come before the router's, so before `<Router>` is built.
+    let pending = Pending::provide();
     view! {
         // Description, canonical address and the rest of what search engines read belong to the
         // page (`seo::Seo`), not to the app: a page must not carry two descriptions.
         <Title formatter=|title: String| if title.is_empty() { "Modulkatalog der BTU Cottbus-Senftenberg · Betula (inoffiziell)".to_string() } else { format!("{title} · Betula") }/>
         <Router>
+            <pending::Bind/>
             <FollowTabs/>
             <a class="skip-link" href="#content">"Zum Inhalt springen"</a>
             <Rail/>
             <div class="main">
                 <TopBar/>
-                <main class="content" id="content">
+                <main class="content" id="content" aria-busy=move || pending.busy().then_some("true")>
                     <Routes fallback=|| view! { <div class="page"><ui::NotFound title="Seite nicht gefunden" hint="Diese Adresse gibt es nicht (mehr)."/></div> }>
                         <Route path=path!("/") view=HomePage ssr=SsrMode::Async/>
                         <Route path=path!("/catalog") view=CatalogPage ssr=SsrMode::Async/>
@@ -179,6 +186,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
                         <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
                     </Routes>
+                    <skeleton::PendingPage/>
                 </main>
             </div>
             <nav class="bottomnav" aria-label="Navigation"><NavItems/></nav>
@@ -199,7 +207,9 @@ fn FollowTabs() -> impl IntoView {
 fn NavItems() -> impl IntoView {
     let location = use_location();
     let tabs = Tabs::expect();
-    let current = move |area: Area| (Area::of(&location.pathname.get()) == area).then_some("page");
+    // The tab of the page the app is going to is current at once, before the page is there.
+    let pending = Pending::expect();
+    let current = move |area: Area| (Area::of(&pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get())) == area).then_some("page");
     let href = move |area: Area| {
         let path = location.pathname.get();
         match tabs {
@@ -245,32 +255,34 @@ fn Rail() -> impl IntoView {
 #[component]
 fn TopBar() -> impl IntoView {
     let location = use_location();
-    let area_now = Memo::new(move |_| Area::of(&location.pathname.get()));
-    let navigate = use_navigate();
+    // Title and search belong to the page the app is at or going to (`pending`).
+    let going = Pending::expect();
+    let area_now = Memo::new(move |_| Area::of(&going.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get())));
     let pending = StoredValue::new(None::<TimeoutHandle>);
 
     // The search belongs to the page: programs on the program overview, modules everywhere else.
     // In the browser app it filters while typing (replacing the history entry, not adding one).
     let on_input = move |ev: leptos::ev::Event| {
         let text = event_target_value(&ev);
-        let navigate = navigate.clone();
         if let Some(handle) = pending.get_value() {
             handle.clear();
         }
         let run = move || {
+            // On top of where the visitor is headed: a filter clicked a moment ago stays.
+            let (path, search) = Pending::shown_of(going, location.pathname, location.search);
             let target = if area_now.get_untracked() == Area::Programs {
-                let on_overview = location.pathname.get_untracked() == url::PROGRAMS;
-                let mut next = if on_overview { url::ProgramsUrl::parse(&location.search.get_untracked()) } else { Default::default() };
+                let mut next = if path == url::PROGRAMS { url::ProgramsUrl::parse(&search) } else { Default::default() };
                 next.text = text.trim().to_string();
                 next.path()
             } else {
-                let on_catalog = location.pathname.get_untracked() == url::CATALOG;
-                let mut next = if on_catalog { url::CatalogUrl::parse(&location.search.get_untracked()) } else { Default::default() };
+                let mut next = if path == url::CATALOG { url::CatalogUrl::parse(&search) } else { Default::default() };
                 next.query.text = text.clone();
                 next.page = 1;
                 next.path()
             };
-            navigate(&target, NavigateOptions { replace: true, scroll: false, ..Default::default() });
+            if let Some(going) = going {
+                going.go_quietly(&target, NavigateOptions { replace: true, scroll: false, ..Default::default() });
+            }
         };
         pending.set_value(set_timeout_with_handle(run, std::time::Duration::from_millis(140)).ok());
     };
@@ -285,12 +297,11 @@ fn TopBar() -> impl IntoView {
                     Area::Bookmarks => ("Merkliste", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                     Area::Home => ("Start", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                 };
-                let initial = url::parse_pairs(&location.search.get_untracked())
+                let initial = url::parse_pairs(&Pending::shown_of(going, location.pathname, location.search).1)
                     .into_iter()
                     .find(|(key, _)| key == "q")
                     .map(|(_, value)| value)
                     .unwrap_or_default();
-                let on_input = on_input.clone();
                 // The start page carries the name: next to the mark in the rail it reads as the logo.
                 let home = area_now.get() == Area::Home;
                 let heading = if home {

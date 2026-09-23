@@ -40,7 +40,9 @@ use crate::format;
 use crate::nav;
 use crate::pages::catalog::phone_layout;
 use crate::pages::module::{ModuleFull, ModulePanel};
+use crate::pending::{Change, Pending};
 use crate::seo::{self, Seo};
+use crate::skeleton::DetailSkeleton;
 use crate::tabs::Area;
 use crate::ui::{BackLink, EmptyState, ErrorState, Frame, Icon, NotFound, OfferBadge, Shortcut};
 
@@ -160,7 +162,19 @@ pub fn ProgramPage() -> impl IntoView {
             (None, None) => Filling::Program,
         },
     });
-    let picked = Signal::derive(move || open.get().is_some() || area.get().is_some() || req.get().is_some());
+    // A pick on its way beside the page (`pending`, a change of what stands beside it): where it
+    // leads, read as the router will read it. The panel follows the click in the next frame —
+    // there at once for a pick, gone at once for a close — instead of the frame after.
+    let going = Pending::expect();
+    let target = Memo::new(move |_| {
+        let going = going.filter(|going| going.change() == Some(Change::Aside))?;
+        let search = going.search_on(&going.path()?)?;
+        Some(ProgramUrl::parse(&slug.get(), tab.get().unwrap_or_default(), &search))
+    });
+    let picked = Signal::derive(move || match target.get() {
+        Some(to) => to.open.is_some() || to.area.is_some() || to.req.is_some(),
+        None => open.get().is_some() || area.get().is_some() || req.get().is_some(),
+    });
 
     move || match (data.get(), tab.get()) {
         (Err(error), _) => {
@@ -188,7 +202,7 @@ pub fn ProgramPage() -> impl IntoView {
                 };
                 let aside = {
                     let data = data.clone();
-                    move || view! { <ProgramAside data=data.clone() variant open area req links/> }
+                    move || view! { <ProgramAside data=data.clone() variant open area req target links/> }
                 };
                 view! {
                     <Frame title="Studiengang" sidebar sidebar_first=true aside aside_picked=picked>
@@ -322,6 +336,13 @@ fn ProgramSidebar(
     };
     let related = data.counterpart.is_some() || !data.versions.is_empty();
     let areas = area_groups(&data.areas);
+    // The view the app is going to is the current one at once (`pending`); its page follows.
+    let going = Pending::expect();
+    let slug = p.slug.clone();
+    let shown_tab = Memo::new(move |_| {
+        let path = going.and_then(|going| going.path());
+        path.and_then(|path| ProgramTab::ALL.iter().copied().find(|t| path == url::program_path(&slug, *t) || (*t == ProgramTab::default() && path == url::program_path(&slug, *t).trim_end_matches(t.segment()).trim_end_matches('/')))).unwrap_or(tab)
+    });
     let shapes = (tab == ProgramTab::Plan && !data.plan_entries.is_empty()).then_some(());
     let jumps = (tab == ProgramTab::Areas && !areas.is_empty()).then_some(());
     view! {
@@ -335,8 +356,8 @@ fn ProgramSidebar(
         <nav class="toc views" aria-label="Ansichten des Studiengangs">
             <p class="flabel label">"Ansichten"</p>
             {ProgramTab::ALL.iter().map(|t| {
-                let active = *t == tab;
-                view! { <a data-walk="tab" href=url::program_path(&p.slug, *t) data-noscroll="" aria-current=active.then_some("page")>{t.label()}</a> }
+                let t = *t;
+                view! { <a data-walk="tab" href=url::program_path(&p.slug, t) data-noscroll="" aria-current=move || (shown_tab.get() == t).then_some("page")>{t.label()}</a> }
             }).collect_view()}
         </nav>
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
@@ -513,6 +534,8 @@ fn ProgramAside(
     open: Memo<Option<String>>,
     area: Memo<Option<i64>>,
     req: Memo<Option<usize>>,
+    /// Where a pick on its way leads (`pending`), before the router has it.
+    target: Memo<Option<ProgramUrl>>,
     links: Memo<ProgramUrl>,
 ) -> impl IntoView {
     let source = use_source();
@@ -520,23 +543,35 @@ fn ProgramAside(
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
     });
-    move || match module.get() {
-        Ok(Some(Some(module))) => {
-            let full_href = links.get().with_open(Some(&module.module.id)).with_full(true).path();
-            view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href)/> }.into_any()
+    // What was picked beside the page, before it is there (`pending`): its skeleton, where the
+    // wait is seen or where nothing stood beside the page yet — without sliding in again where a
+    // panel stood already.
+    let going = Pending::expect();
+    let picks = |to: &ProgramUrl| to.open.is_some() || to.area.is_some() || to.req.is_some();
+    move || {
+        let there = open.get().is_some() || area.get().is_some() || req.get().is_some();
+        let coming = target.with(|to| to.as_ref().is_some_and(picks));
+        if coming && (!there || going.is_some_and(|going| going.waits(Change::Aside))) {
+            return view! { <DetailSkeleton aside=true calm=there/> }.into_any();
         }
-        Ok(Some(None)) | Err(_) => view! {
-            <section class="panel detail aside" id="preview" aria-label="Modulvorschau">
-                <div class="state">
-                    <p class="state-title">"Modul nicht gefunden"</p>
-                    <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
-                    <p><a class="button" href=links.get().path()>"Vorschau schließen"</a></p>
-                </div>
-            </section>
+        match module.get() {
+            Ok(Some(Some(module))) => {
+                let full_href = links.get().with_open(Some(&module.module.id)).with_full(true).path();
+                view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href)/> }.into_any()
+            }
+            Ok(Some(None)) | Err(_) => view! {
+                <section class="panel detail aside" id="preview" aria-label="Modulvorschau">
+                    <div class="state">
+                        <p class="state-title">"Modul nicht gefunden"</p>
+                        <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
+                        <p><a class="button" href=links.get().path()>"Vorschau schließen"</a></p>
+                    </div>
+                </section>
+            }
+            .into_any(),
+            // No module picked: the area or the row of the plan one clicked.
+            Ok(None) => picked_panel(&data, variant.get(), area.get(), req.get(), links, false),
         }
-        .into_any(),
-        // No module picked: the area or the row of the plan one clicked.
-        Ok(None) => picked_panel(&data, variant.get(), area.get(), req.get(), links, false),
     }
 }
 

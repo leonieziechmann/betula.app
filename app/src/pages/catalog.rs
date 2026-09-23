@@ -13,7 +13,7 @@ use catalog::filter::{CatalogQuery, ExamPart, KindFilter, Language, PlanSemester
 use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
 use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData, CatalogSummary};
 use catalog::plan::SemesterPlan;
-use catalog::rows::{CatalogRow, Program};
+use catalog::rows::{CatalogRow, Department, Program};
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
 use leptos::prelude::*;
 use leptos_meta::Title;
@@ -26,7 +26,9 @@ use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::nav;
 use crate::pages::module::ModulePanel;
+use crate::pending::{Change, Pending};
 use crate::seo::Seo;
+use crate::skeleton::{DetailSkeleton, RowsSkeleton};
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 
@@ -77,7 +79,12 @@ pub fn CatalogPage() -> impl IntoView {
     // a phone busy for a third of a second each time (owner, 2026-09-22: „lagt ganz schön").
     // `None`: the panel shows the filter of the URL.
     let draft: RwSignal<Option<CatalogQuery>> = RwSignal::new(None);
-    let panel_query = Memo::new(move |_| draft.get().unwrap_or_else(|| list_query.get()));
+    // A filter on its way to the router (`pending`) is what the panel shows at once: the toggle
+    // is flipped in the frame after the click, the list follows in the next.
+    let going = Pending::expect();
+    let going_to = Memo::new(move |_| going.and_then(|p| p.search_on(url::CATALOG)).map(|search| CatalogUrl::parse(&search)));
+    let going_query = Memo::new(move |_| going_to.with(|to| to.as_ref().map(|to| to.query.clone())));
+    let panel_query = Memo::new(move |_| draft.get().or_else(|| going_query.get()).unwrap_or_else(|| list_query.get()));
     let summary_source = source.clone();
     let draft_facts = Memo::new(move |_| {
         let query = with_marks(draft.get()?, bookmarks);
@@ -92,7 +99,6 @@ pub fn CatalogPage() -> impl IntoView {
             draft.set(None);
         }
     });
-    let navigate_to_draft = use_navigate();
     let apply = move || {
         let Some(query) = draft.get_untracked() else { return };
         if query == list_query.get_untracked() {
@@ -103,16 +109,20 @@ pub fn CatalogPage() -> impl IntoView {
         // going while the list is built. (Not animation frames: a hidden tab has none, and the
         // list would never follow.)
         let path = CatalogUrl { query, page: 1, open: open.get_untracked() }.path();
-        let navigate = navigate_to_draft.clone();
-        set_timeout(move || navigate(&path, NavigateOptions { scroll: false, ..Default::default() }), std::time::Duration::from_millis(50));
+        set_timeout(
+            move || {
+                if let Some(going) = going {
+                    going.go(&path, NavigateOptions { scroll: false, ..Default::default() });
+                }
+            },
+            std::time::Duration::from_millis(50),
+        );
     };
     // The sheet went (`enhance.js`: its buttons, a swipe down, a tap beside it, Esc, Back, which
     // takes the sheet's own step in the history): the list follows the draft. Where Back left
     // the page with the sheet open, the draft goes with it.
-    let on_close = apply.clone();
     Effect::new(move |_| {
-        let on_close = on_close.clone();
-        let closed = window_event_listener_untyped("betula:sheet-closed", move |_| on_close());
+        let closed = window_event_listener_untyped("betula:sheet-closed", move |_| apply());
         let left = window_event_listener_untyped("betula:sheet-left", move |_| draft.set(None));
         on_cleanup(move || {
             closed.remove();
@@ -147,6 +157,10 @@ pub fn CatalogPage() -> impl IntoView {
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
     });
+    // The module being opened or closed beside the list (`Some` while that is on its way): its row
+    // is marked at once, and a closed preview is gone at once.
+    let going_open = Memo::new(move |_| going.filter(|p| p.change() == Some(Change::Preview)).and_then(|_| going_to.with(|to| to.as_ref().map(|to| to.open.clone()))));
+    let marked = Memo::new(move |_| going_open.get().unwrap_or_else(|| open.get()));
 
     let title = move || match list.get() {
         Ok((_, data)) => match &data.program {
@@ -185,11 +199,16 @@ pub fn CatalogPage() -> impl IntoView {
                     {move || list.get().ok().map(|(current, data)| {
                         let reveal = come_back_to.try_update_value(Option::take).flatten();
                         let fresh = first_list.try_update_value(|first| std::mem::replace(first, false)).unwrap_or(false);
-                        view! { <List current data open page phone reveal fresh/> }
+                        view! { <List current data open marked page phone reveal fresh/> }
                     })}
                 }.into_any(),
             }}
             {move || {
+                match going_open.get() {
+                    Some(None) => return ().into_any(),
+                    Some(Some(_)) if going.is_some_and(|p| p.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some()/> }.into_any(),
+                    _ => {}
+                }
                 let close_href = url.get().with_open(None).path();
                 match preview.get() {
                     Ok(None) | Err(_) => ().into_any(),
@@ -248,8 +267,9 @@ fn keep_open(target: CatalogUrl, open: Memo<Option<String>>) -> impl Fn() -> Str
     move || target.with_open(open.get().as_deref()).path()
 }
 
-/// The active filters as removable tags: (group, value, the list without it).
-fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, CatalogUrl)> {
+/// The active filters as removable tags: (group, value, the list without it). `areas` and
+/// `departments` name what the URL has as a number.
+fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department]) -> Vec<(String, String, CatalogUrl)> {
     let q = &current.query;
     let mut out: Vec<(String, String, CatalogUrl)> = Vec::new();
     let mut push = |group: &str, value: String, change: &dyn Fn(&mut CatalogQuery)| {
@@ -295,7 +315,7 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
         }
         // One tag per area: a row of the plan may have opened the list with several.
         for id in scope.areas.clone() {
-            let label = data.areas.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| format!("Bereich {id}"));
+            let label = areas.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| format!("Bereich {id}"));
             push("Bereich", label, &move |q| {
                 if let Some(s) = q.program.as_mut() {
                     s.areas.retain(|area| *area != id);
@@ -370,7 +390,7 @@ fn tags(current: &CatalogUrl, data: &CatalogData) -> Vec<(String, String, Catalo
         push("Dauer", format!("{n} Semester"), &|q| q.duration_semesters = None);
     }
     if let Some(id) = q.department_id {
-        let label = data.departments.iter().find(|d| d.id == id).map(|d| d.label.clone()).unwrap_or_else(|| id.to_string());
+        let label = departments.iter().find(|d| d.id == id).map(|d| d.label.clone()).unwrap_or_else(|| id.to_string());
         push("Fachgebiet", label, &|q| q.department_id = None);
     }
     for name in q.lecturers_include.clone() {
@@ -401,6 +421,8 @@ fn List(
     current: CatalogUrl,
     data: CatalogData,
     open: Memo<Option<String>>,
+    /// The row that is marked as open: `open`, or the module on its way there.
+    marked: Memo<Option<String>>,
     page: Memo<u64>,
     phone: RwSignal<bool>,
     /// The row to scroll to once the list is there.
@@ -420,8 +442,15 @@ fn List(
         _ if total == 1 => "Modul",
         _ => "Module",
     };
-    let active = tags(&current, &data);
-    let active_count = active.len();
+    // The tags are those of the filter on its way (`pending`) as soon as it is clicked, so that the
+    // head of the list has its height before the rows come.
+    let going = Pending::expect();
+    let going_url = Memo::new(move |_| going.filter(|going| going.change() == Some(Change::List)).and_then(|going| going.search_on(url::CATALOG)).map(|search| CatalogUrl::parse(&search)));
+    let active = {
+        let (current, areas, departments) = (current.clone(), data.areas.clone(), data.departments.clone());
+        Memo::new(move |_| tags(&going_url.get().unwrap_or_else(|| current.clone()), &areas, &departments))
+    };
+    let active_count = move || active.with(Vec::len);
 
     let sort_link = |key: SortKey, text: &'static str, class: &'static str| {
         let on = current.query.sort == key;
@@ -466,13 +495,15 @@ fn List(
     // The browser app renders only what is on screen of the whole list; the server renders the
     // page the URL names, with pager links (no JavaScript, search engines).
     let rows = if APP {
-        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open page phone with_program reveal fresh states/> }.into_any()
+        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal fresh states/> }.into_any()
     } else {
         view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program states/> }.into_any()
     };
 
+    // Another filter on its way: the rows it replaces stand as a skeleton (`pending`).
+    let waiting = move || going.is_some_and(|p| p.waits(Change::List));
     view! {
-        <section class="panel list" aria-live="polite">
+        <section class="panel list" aria-live="polite" data-pending=move || waiting().then_some("")>
             <div class="list-head">
                 <div class="count-row">
                     <span class="count num">{format::count(total)}</span>
@@ -480,7 +511,7 @@ fn List(
                     <div class="list-tools">
                         <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau, M merkt das gewählte Modul"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen "<kbd>"M"</kbd>" merken"</span>
                         <a class="sheet-toggle" href="#filters" data-action="sheet-open">
-                            <Icon name="sliders-horizontal"/>"Filter"{(active_count > 0).then(|| view! { <em>{active_count}</em> })}
+                            <Icon name="sliders-horizontal"/>"Filter"{move || (active_count() > 0).then(|| view! { <em>{active_count()}</em> })}
                         </a>
                         {data.program.as_ref().map(|p| view! {
                             <a class="ghost" href=url::program_path(&p.slug, ProgramTab::Plan)><Icon name="graduation-cap"/>"Studiengangsseite"</a>
@@ -488,7 +519,7 @@ fn List(
                     </div>
                 </div>
                 <div class="active-filters">
-                    {active.into_iter().map(|(group, value, target)| view! {
+                    {move || active.get().into_iter().map(|(group, value, target)| view! {
                         <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open) aria-label="Filter entfernen"><Icon name="x"/></a></span>
                     }).collect_view()}
                 </div>
@@ -630,6 +661,7 @@ fn VirtualRows(
     first: Vec<CatalogRow>,
     total: u64,
     open: Memo<Option<String>>,
+    marked: Memo<Option<String>>,
     page: Memo<u64>,
     phone: RwSignal<bool>,
     with_program: bool,
@@ -866,8 +898,10 @@ fn VirtualRows(
     let on_scroll = follow.clone();
     let row_at = move |index: usize| loaded.with(|loaded| loaded.get(&(index / per_page + 1)).and_then(|rows| rows.get(index % per_page)).cloned());
     let base_rows = current.clone();
+    let going = Pending::expect();
     view! {
         <div class="rows scroll virtual" id=ROWS_ID data-keep-scroll="rows" on:scroll=move |_| on_scroll()>
+            {move || going.is_some_and(|p| p.waits(Change::List)).then(|| view! { <RowsSkeleton/> })}
             {states}
             <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--h:{:.0}px", offset_of(total)) }>
                 <For each=move || { let (first, end) = window.get(); first..end } key=|index| *index children=move |index: usize| {
@@ -880,7 +914,7 @@ fn VirtualRows(
                         {move || row_at(index).map(|row| {
                             let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
                             let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
-                            let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
+                            let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
                             view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program/></div> }
                         })}
                     }
@@ -1270,12 +1304,12 @@ fn Filters(
     draft: RwSignal<Option<CatalogQuery>>,
     phone: RwSignal<bool>,
 ) -> impl IntoView {
-    let navigate = use_navigate();
+    let going = Pending::expect();
     let go = Callback::new(move |next: CatalogQuery| {
         if phone.get_untracked() {
             draft.set(Some(next));
-        } else {
-            navigate(&CatalogUrl { query: next, page: 1, open: open.get_untracked() }.path(), NavigateOptions { scroll: false, ..Default::default() });
+        } else if let Some(going) = going {
+            going.go(&CatalogUrl { query: next, page: 1, open: open.get_untracked() }.path(), NavigateOptions { scroll: false, ..Default::default() });
         }
     });
     // A link of the panel is the list it leads to, so on a phone its address is what the draft
