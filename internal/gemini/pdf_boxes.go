@@ -49,6 +49,14 @@ func appendBoxStudyTable(l *PDFLayout, t pdfTable, page, number int, refs map[st
 				}
 				continue
 			}
+			if line := semesterTotalRow(t, ri, headers); line != nil {
+				for _, s := range line {
+					s.ID = fmt.Sprintf("%sr%dc%d", id, ri+1, s.column+1)
+					s.Table, s.Page, s.RowIndex, s.Row = id, page, ri+1, "Summe"
+					totals = append(totals, s.SourceCell)
+				}
+				continue
+			}
 			for ci, b := range t.boxes[ri] {
 				if b == nil || b.x0 < headers[0].x0-1 {
 					continue
@@ -249,6 +257,55 @@ func splitReferencedModules(value string) []referencedModule {
 	} else {
 		for i := range out {
 			out[i].altGroup = 0
+		}
+	}
+	return out
+}
+
+// semesterTotalRow reads the unlabeled line a box plan prints under its columns:
+// one bare credit amount per semester („30 LP  30 LP  30 LP  30 LP"). It is a
+// sum, not a requirement, and only that: every column of the plan must hold
+// exactly one box, and every one of those boxes nothing but a credit value. A
+// row that names anything at all, or that misses a column, is read as modules.
+type semesterSum struct {
+	SourceCell
+	column int
+}
+
+func semesterTotalRow(t pdfTable, ri int, headers []*pdfBox) []*semesterSum {
+	out := make([]*semesterSum, len(headers))
+	for ci, b := range t.boxes[ri] {
+		if b == nil || b.x0 < headers[0].x0-1 {
+			continue
+		}
+		value := cellText(t.rows[ri][ci])
+		if value == "" {
+			continue
+		}
+		var semesters []int
+		for si, h := range headers {
+			if h != nil && (h.x0+h.x1)/2 >= b.x0 && (h.x0+h.x1)/2 < b.x1 {
+				semesters = append(semesters, si+1)
+			}
+		}
+		if len(semesters) != 1 {
+			return nil
+		}
+		amount := strings.TrimSpace(creditUnitSuffix.ReplaceAllString(value, ""))
+		lo, hi, ok := parseCreditAmount(amount)
+		if !ok {
+			return nil
+		}
+		si := semesters[0] - 1
+		if out[si] != nil {
+			return nil
+		}
+		out[si] = &semesterSum{SourceCell{Semesters: semesters, Raw: value, Min: lo, Max: hi,
+			BBox: []float64{b.x0, b.y0, b.x1, b.y1}}, ci}
+	}
+	for _, s := range out {
+		if s == nil {
+			return nil
 		}
 	}
 	return out

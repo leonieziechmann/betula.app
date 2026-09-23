@@ -134,8 +134,13 @@ func extractPDFLayout(ctx context.Context, path string, selectedPages ...int) (l
 	mergeContinuedTables(pages)
 	refs := readCreditReferences(pages)
 	section := ""
+	option := ""
 	for _, pg := range pages {
 		pageNo, geometry, tables := pg.number, pg.geometry, pg.tables
+		if o := studyOptionOf(textInBox(geometry.glyphs, nil)); o != "" {
+			option = o
+		}
+		firstCell, firstTotal := len(layout.Cells), len(layout.Totals)
 		for ti, t := range tables {
 			pageText := textInBox(geometry.glyphs, nil)
 			isPlan := strings.Contains(strings.ToLower(pageText), "studienplan") || strings.Contains(strings.ToLower(pageText), "studienpläne") || strings.Contains(strings.ToLower(pageText), "studienverlaufsplan")
@@ -167,6 +172,17 @@ func extractPDFLayout(ctx context.Context, path string, selectedPages ...int) (l
 			section = c[len(c)-1]
 		}
 		nameStudyPlans(layout, tables, geometry, pageNo, section)
+		if option != "" {
+			if layout.PlanOptions == nil {
+				layout.PlanOptions = map[string]string{}
+			}
+			for _, c := range layout.Cells[firstCell:] {
+				layout.PlanOptions[c.Table] = option
+			}
+			for _, c := range layout.Totals[firstTotal:] {
+				layout.PlanOptions[c.Table] = option
+			}
+		}
 	}
 	resolveAnnexReferences(layout, pages)
 	text := strings.ToLower(cleanPDFText(fullText.String()))

@@ -312,3 +312,87 @@ func selectAlternativeBranch(l *PDFLayout, hintMode string) {
 	}
 	l.Cells = cells
 }
+
+// A regulation may print the plans of several Studienoptionen of one program in
+// one document, each in its own Anlage („Anlage 1 … Präsenzstudienprogramm",
+// „Anlage 3 … Fernstudienprogramm"). The tables look alike, so only the Anlage
+// they stand under says which program version they belong to.
+var studyOptions = []struct {
+	option   string
+	document *regexp.Regexp
+	program  *regexp.Regexp
+}{
+	{"fernstudium", regexp.MustCompile(`(?i)fernstudien|fernstudium`), regexp.MustCompile(`(?i)fernstudi`)},
+	{"doppelabschluss", regexp.MustCompile(`(?i)doppelabschluss|double degree`), regexp.MustCompile(`(?i)doppelabschluss|double degree`)},
+	{"präsenz", regexp.MustCompile(`(?i)präsenzstudien|präsenzstudium`), nil},
+}
+
+// studyOptionOf names the Studienoption of the last „Anlage N:" heading on a
+// page, or "" where the page opens no Anlage that names one.
+func studyOptionOf(pageText string) string {
+	text := cleanPDFText(pageText)
+	i := lastAnlageTitle(text)
+	if i < 0 {
+		return ""
+	}
+	title := text[i:]
+	if len(title) > 200 {
+		title = title[:200]
+	}
+	for _, o := range studyOptions {
+		if o.document.MatchString(title) {
+			return o.option
+		}
+	}
+	return ""
+}
+
+// selectStudyOption keeps the plans of the Studienoption this program version
+// is. A degree that names none of the options is the base option the others are
+// derived from („Präsenz"), which is how the university names these versions:
+// the other two carry their option in the degree itself.
+func selectStudyOption(l *PDFLayout, hint string) {
+	present := map[string]bool{}
+	for _, o := range l.PlanOptions {
+		present[o] = true
+	}
+	if len(present) < 2 {
+		return
+	}
+	want := "präsenz"
+	for _, o := range studyOptions {
+		if o.program != nil && o.program.MatchString(hint) {
+			want = o.option
+			break
+		}
+	}
+	// The document prints the plans of several options and none of them is this
+	// program's. Keeping another option's plan would store a curriculum this
+	// version does not have, so the document is left without one.
+	keep := func(cells []SourceCell) []SourceCell {
+		out := cells[:0]
+		for _, c := range cells {
+			if o, known := l.PlanOptions[c.Table]; !known || (present[want] && o == want) {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	l.Cells, l.Totals = keep(l.Cells), keep(l.Totals)
+	for table, o := range l.PlanOptions {
+		if o != want {
+			delete(l.PlanNames, table)
+		}
+	}
+	issues := l.Issues[:0]
+	for _, issue := range l.Issues {
+		drop := false
+		for table, o := range l.PlanOptions {
+			drop = drop || (o != want && (strings.HasPrefix(issue, table+"r") || strings.HasPrefix(issue, table+":")))
+		}
+		if !drop {
+			issues = append(issues, issue)
+		}
+	}
+	l.Issues = issues
+}

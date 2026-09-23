@@ -66,6 +66,10 @@ type PDFLayout struct {
 	Issues    []string          `json:"issues"`
 	StartTerm string            `json:"start_term"`
 	PlanNames map[string]string `json:"plan_names,omitempty"`
+	// PlanOptions names the Studienoption („Anlage 3: … Fernstudienprogramm")
+	// a plan table was printed under, for documents that print the plans of
+	// several options of the same program.
+	PlanOptions map[string]string `json:"plan_options,omitempty"`
 	// Notes are remarks about what the reader ignored; they are reported as info.
 	Notes      []string          `json:"notes,omitempty"`
 	Amendments []AmendmentReview `json:"amendments,omitempty"`
@@ -95,6 +99,7 @@ func ReadPDFLayoutForProgram(ctx context.Context, path string, pages []int, hint
 		return nil, err
 	}
 	selectProgramMode(l, hint)
+	selectStudyOption(l, hint)
 	return validatePDFLayout(l)
 }
 
