@@ -290,8 +290,9 @@ fn row_trail(row: usize, entry: &PlanEntry, plan: &PlanVariant, group: &AreaGrou
     // A row named like the area it leads to („Proseminar oder Praktikum") would read twice: it is
     // named by the plan it is a row of instead, and still leads back to itself.
     let next = steps.get(1).map_or(group.label.as_str(), |(label, _)| label.as_str());
-    if entry.module_name.trim().eq_ignore_ascii_case(next.trim()) {
-        steps[0].0 = "Regelstudienplan".to_string();
+    let twice = entry.module_name.trim().eq_ignore_ascii_case(next.trim());
+    if let Some((label, _)) = steps.first_mut().filter(|_| twice) {
+        *label = "Regelstudienplan".to_string();
     }
     steps
 }
