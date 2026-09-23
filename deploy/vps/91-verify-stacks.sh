@@ -175,7 +175,7 @@ check_colours() {
     [[ -n "${other}" && "${other}" != "${INSTANCE_STACK}" ]] || continue
     priority="$(router_priority "${other}")"
     if [[ "${priority}" -lt "${own}" ]]; then
-      pass "${name}: serves https://${INSTANCE_HOST} (router priority ${own}); ${other} is the standby (${priority}; rollback: bash ${BETULA_ROOT}/vps/55-switch.sh ${other})"
+      pass "${name}: serves https://${INSTANCE_HOST} (router priority ${own}); ${other} is the standby (${priority}; the host goes to it with: bash ${BETULA_ROOT}/vps/55-switch.sh ${other})"
     else
       fail "${name} and ${other} are routed for ${INSTANCE_HOST} with the same priority (${own}): Traefik picks either. bash ${BETULA_ROOT}/vps/55-switch.sh <the one that should serve>"
     fi
