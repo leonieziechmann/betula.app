@@ -944,7 +944,12 @@ What does not work, measured, so it is not tried again:
   all 356 units of the cache are built again (5 min), and the cache holds them twice.
 
 What is left of the 57 s: `folia-catalog` 10 s, `folia-app` 35 s (23 s of it one frontend
-thread), `folia-server` 13 s.
+thread), `folia-server` 13 s. **`folia-app` in crates** (one per layer and per page, so that the
+pages compile side by side) was measured on top of the flag and not taken for now: the first
+build 57 s → 51 s, an edit in a page 10 s → 8 s, the same edit in the browser app 11 s → 6.3 s,
+but an edit in `ui` 9 s → 12.5 s (every page and the shell compile again), rustc's frontends
+23 s → 49 s in all, and the bundle that ships 3.6 % larger gzipped. Without the flag it is worth
+more (the first build 166 s → 128 s). The split is the branch `claude/web-tier-compile-time-0a192a`.
 
 `setup` also writes the linker into `.cargo/config.toml`: the toolchain ships `rust-lld`, but
 `gcc` — the linker driver on `x86_64-pc-windows-gnu` — only finds it when pointed at the
