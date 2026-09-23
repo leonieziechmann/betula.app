@@ -437,19 +437,27 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .js .filter-actions { display: none; }
 .sheet-toggle, .sheet-close { display: none; }
 
-.list { container: list / inline-size; }
+/* What stands above the rows scrolls with them (`List`): the note of a semester scrolls away, the
+   heads of the columns stay at the top while the rows scroll under them (owner, 2026-09-23: the
+   note fixed above the list left room for two rows). The heads are as tall as --cols says, so
+   that what sticks below them (`.rows-pending`) knows where they end. */
+.list { container: list / inline-size; --cols: 35px; }
 .list-head { padding: 8px 16px 0; }
+.rows > .cols { position: sticky; top: 0; z-index: 4; height: var(--cols); margin: 0 -8px; }
 .count-row { display: flex; align-items: center; gap: 10px; min-height: 40px; }
 .count { font-size: 22px; font-weight: 700; letter-spacing: -.035em; line-height: 1; }
 .count-label { color: var(--text-2); font-weight: 520; }
 .list-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
 .active-filters { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px 0 8px; min-height: 8px; }
 .tag { min-height: 26px; padding: 0 4px 0 10px; border-radius: 7px; display: inline-flex; align-items: center; gap: 4px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; font-weight: 560; color: var(--text); }
-/* With a semester chosen: what the plan asks for in it besides the modules it places there. */
-.plan-note { display: flex; gap: 10px; margin: 0 0 10px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
+/* With a semester chosen: what the plan asks for in it besides the modules it places there, a
+   line a row. */
+.plan-note { display: flex; gap: 10px; margin: 0 8px 10px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
 .plan-note > .icon { width: 16px; height: 16px; margin-top: 1px; flex: none; color: var(--text-3); }
 .plan-note > div { min-width: 0; }
-.plan-note p + p { margin-top: 3px; }
+.plan-note ul { margin-top: 3px; padding-left: 16px; list-style: disc; }
+.plan-note li + li { margin-top: 2px; }
+.plan-note li::marker { color: var(--text-3); }
 .plan-note b { color: var(--text); font-weight: 600; }
 .plan-note .plan-note-lead { font-weight: 600; color: var(--text); }
 .plan-note .plan-note-hint { color: var(--text-3); margin-top: 6px; }
@@ -1426,7 +1434,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
 .list[data-pending] .count { color: transparent; background: var(--sk); border-radius: 7px; }
 .list[data-pending] .plan-note { opacity: .4; }
 .list[data-pending] .rows { overflow: hidden; }
-.rows-pending { position: sticky; top: 0; z-index: 3; height: 0; }
+.rows-pending { position: sticky; top: var(--cols, 0px); z-index: 3; height: 0; }
 .rows-pending-fill { position: absolute; top: 0; left: -8px; right: -8px; height: 100vh; padding: 0 8px; background: var(--panel); }
 /* A module opened beside something that was already there comes without sliding in; neither does
    the module that replaces its skeleton (`data-settling`: the frame in which the page that was
@@ -1462,6 +1470,9 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   /* The virtual list places its rows itself; the gap between the cards is part of every row. */
   .rows.virtual { display: block; }
   .vlist > .vrow { padding-bottom: 8px; }
+  /* The note stands in line with the cards, as far above them in either list. */
+  .plan-note { margin: 0 0 10px; }
+  .rows.scroll:not(.virtual) > .plan-note { margin-bottom: 2px; }
   .app .keys { display: none; }
   .sem { top: 68px; background: var(--bg); padding: 12px 4px 4px; }
   .rows .row-wrap { contain-intrinsic-size: auto 84px; }

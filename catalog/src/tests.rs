@@ -263,6 +263,25 @@ fn catalog_filters_match_direct_sql() {
             "SELECT COUNT(*) FROM v_module_facets WHERE is_graded = 0".into(),
         ),
         (
+            "with published teaching events: what the list shows as „Termine“",
+            CatalogQuery { scheduled: Some(true), ..everything() },
+            "SELECT COUNT(*) FROM v_module_facets WHERE teaching_events > 0".into(),
+        ),
+        (
+            "none published yet („noch keine“)",
+            CatalogQuery { scheduled: Some(false), ..everything() },
+            "SELECT COUNT(*) FROM v_module_facets WHERE teaching_events = 0".into(),
+        ),
+        (
+            "Informatik B.Sc., third semester, with published teaching events",
+            CatalogQuery {
+                program: scope(ProgramRelation::Curricular, Some(PlanSemesterFilter::Semester(3)), vec![]),
+                scheduled: Some(true),
+                ..everything()
+            },
+            format!("SELECT COUNT(*) FROM {pm} AND pm.relation = 'curricular' WHERE pm.plan_semester = 3 AND f.teaching_events > 0"),
+        ),
+        (
             "exam: MCA or an oral part; limited; two semesters; not FÜS",
             CatalogQuery {
                 exam_forms: vec![ExamForm::Mca],

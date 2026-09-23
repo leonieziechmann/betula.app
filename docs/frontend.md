@@ -1,8 +1,8 @@
 # Folia, the web tier: architecture, rules, how to run it
 
 > Betula has two parts named after the birch: **Radix** (the root: the Go collector, `docs/operations.md`)
-> and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`
-> and `folia-server` with the binary `folia`).
+> and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`,
+> `folia-pack` and `folia-server` with the binary `folia`).
 
 > State: 2026-09-21. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
@@ -22,6 +22,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `catalog/` | The data contract in Rust: row structs, labels, `CatalogQuery` → SQL, every query, the page loaders (`pages.rs`) and the URL scheme (`url.rs`). No I/O; callers hand in a `Database`. Compiles natively and to WASM. |
 | `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
+| `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
 | `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
@@ -30,7 +31,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | URL | Page |
 |---|---|
 | `/` | Landing page: every function with a link |
-| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
+| `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it. The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
@@ -217,7 +218,15 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   - A module opened from the marked modules (a tap on a phone, „Vollbild" of the preview) leads
     back to them with „Zurück" and Esc, not to the catalog's list (`Tabs::came_from`).
   - **To another device without a server in between:** „Auf anderes Gerät übertragen" copies a
-    link to the list with the marked modules in its *fragment* (`/bookmarks#add=11101,12204`).
+    link to the list with the marked modules in its *fragment*, as a code (`/bookmarks#m=…`,
+    `pack/`): the ids as a set of numbers, in ascending order, each as its distance from the one
+    before, in characters an address carries as they are, and two check characters at the end.
+    The order of marking does not travel (owner, 2026-09-23: it does not matter); the other device
+    marks them all at once. 20 marked modules take 35 to 40 characters (as ids one by one,
+    `#add=11101,12204,…`, 124). A character
+    typed wrong or two swapped are always noticed, a link cut short almost always; the page then
+    says the link is broken, and offers nothing of it. Links with the ids one by one, as they were
+    made before 2026-09-23, keep working (and are what a list too long for a code still gets).
     A browser never sends the fragment of an address anywhere, neither with the request nor as a
     referrer, so the ids reach neither the server nor its logs. The page that is opened with
     such a link asks before it adds anything (a link must not fill somebody's list behind their
@@ -489,6 +498,23 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   without a module are one module the catalog does not know under that name; FÜS rows point to
   the program's FÜS list. The URL still says only the semester; the derived areas are part of the
   query the page ran (`CatalogData::effective`), which the endless list loads further pages with.
+  **The note is a line a row and scrolls with the list** (owner, 2026-09-23: fixed above the
+  rows it left room for two of them on a laptop, and „viel Redundanz"): „≥ 6 LP Anwendungsfach:
+  „Mathematik“, … oder „Physik“" — how much (a choice at least that much), what the plan calls
+  the row and the areas; a name that only repeats its areas gives way to „aus dem Bereich" /
+  „aus den Bereichen" (`SemesterRequirement::named_by_areas`: „Modul aus dem Bereich Praktische
+  Mathematik", „Wahlpflicht: Komplex A / Komplex B"), and the areas the name fits less well are
+  no longer named. The note stands in the rows' scroll area above the heads of the columns, which
+  stick to its top (`.rows > .cols`, as tall as `--cols`, so that the skeleton of a filter on its
+  way sticks below them); the virtual list takes the visible part to begin below the heads
+  (`nav::list_viewport`) and scrolls to a row from where its content stands in the panel, not
+  from what is visible now (`nav::scroll_list_to`), since the note scrolls away on the way.
+- **Termine bestätigt** (`events=yes|no`, owner 2026-09-23: hide the modules that probably do not
+  take place): a toggle right below the semesters of the plan (and below the program picker
+  without one) that keeps only the modules with published teaching events — exactly the rows
+  whose „Termine" say something other than „noch keine" (`v_module_facets.teaching_events`, the
+  events of the module's newest semester that has any; 1,776 of 4,936 modules on 2026-09-23,
+  1,496 of them in the WiSe 2026/27). Crossed out it keeps only those with none yet.
 
 ### A click answers first (2026-09-23)
 
@@ -930,7 +956,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   (`bookmarks::Bookmarks`). They never become part of a URL (URLs are requested from the server
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
-  `e2e/bookmarks.mjs` watches every request of a session for marks.
+  `e2e/bookmarks.mjs` watches every request of a session for marks. One exception is decided for
+  when it is built: the address of a calendar subscription carries the chosen events (§5).
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -1240,6 +1267,11 @@ BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteF
 
 What `cargo test` checks:
 
+- `pack` (needs no snapshot): every shape of serde's data model there and back, the codes of
+  fixed values (the format is frozen), a field added at the end read from older codes, what the
+  format refuses; every character typed wrong, every swap of neighbours and of characters one
+  apart is caught in codes of several lengths and kinds; codes that check out but hold garbage
+  are refused without a panic, and without more work than their length allows.
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
   real data, the URL codec, the ranking of the pickers (`fuzzy`); `SCHEMA_VERSION` is the number
@@ -1444,3 +1476,14 @@ to the result.
   because it is the catalog's module preview.
 - **What follows the marks** (R20 applies): passed modules with the prerequisite check, the own
   program, the semester planner. A note per marked module would fit the same store.
+- **The timetable as a calendar subscription** (owner, 2026-09-23): an `.ics` address that
+  carries the chosen events as a `pack` code (`pack::set` of the event ids), so that the server
+  keeps nothing and a calendar follows every change of the schedule. Unlike the list's link, a
+  calendar requests that address from the server, so the code reaches the edge's access log.
+  Owner decision (2026-09-23): that is acceptable, an exception to R20 for this feature. What
+  matters is that Betula manages no data of its visitors, and here it manages none: the access
+  log keeps addresses 7 days in Loki (Docker's own log files on the host by size,
+  `deploy/README.md` §9), and the edge can leave the path out of its log once the feature
+  exists. The privacy notice then says what this convenience costs: the address of a
+  subscription carries the chosen events and lands in the access log like every request (an
+  entry in `PRIVACY_OWED`, `app/src/pages/legal.rs`, while the texts are placeholders).

@@ -617,6 +617,7 @@ impl CatalogUrl {
             exam_parts_exclude: without(exam_parts_of("not-exam"), &exam_parts),
             exam_parts,
             graded: yes_no("graded"),
+            scheduled: yes_no("events"),
             offer: if status_codes.iter().any(|code| code == "all") {
                 Some(OfferStatus::ALL.to_vec())
             } else {
@@ -736,6 +737,9 @@ impl CatalogUrl {
         }
         if let Some(graded) = q.graded {
             out.push(("graded", yes_no(graded)));
+        }
+        if let Some(scheduled) = q.scheduled {
+            out.push(("events", yes_no(scheduled)));
         }
         if let Some(offer) = &q.offer {
             if offer.len() == OfferStatus::ALL.len() {
@@ -922,6 +926,7 @@ mod tests {
                 exam_parts: vec![ExamPart::Oral],
                 exam_parts_exclude: vec![ExamPart::Presentation],
                 graded: Some(true),
+                scheduled: Some(true),
                 offer: Some(OfferStatus::ALL.to_vec()),
                 credits_min: Some(5.0),
                 credits_max: Some(7.5),
@@ -945,7 +950,7 @@ mod tests {
             "q=Lineare+Algebra+%26+%C3%96kologie&program=bachelor-informatik-2008&list=fues&semester=3&area=17&kind=elective,none\
              &not-kind=thesis&lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
              &turnus=winter,irregular&not-turnus=summer&years=odd&form=lecture,exercise&not-form=seminar&duration=2&limited=no\
-             &fues=only&exam=mca,oral&not-exam=presentation&graded=yes&status=all&ects_min=5&ects_max=7.5\
+             &fues=only&exam=mca,oral&not-exam=presentation&graded=yes&events=yes&status=all&ects_min=5&ects_max=7.5\
              &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&marked=only&prereqs=met&sort=ects&desc=1&page=4&open=12104"
         );
         assert_eq!(CatalogUrl::parse(&text), url);

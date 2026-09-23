@@ -56,7 +56,7 @@ go test ./...                          # network-free, no API key needed
 | `internal/gemini`, `internal/curriculumscan`, `internal/statutes`, `internal/planaudit` | study plans from regulation PDFs, with audit trail |
 | `internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
 | `internal/oplog`, `internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
-| `catalog/`, `app/`, `client/`, `server/` | Folia, the web tier in Rust (`docs/frontend.md`): the data contract with every SQL query, the Leptos app, and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
+| `catalog/`, `app/`, `client/`, `pack/`, `server/` | Folia, the web tier in Rust (`docs/frontend.md`): the data contract with every SQL query, the Leptos app, the codes that carry a value in a link (a compact bit format for serde in base 66, with two check characters), and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
 | `e2e/` | crawl of the server-rendered site; Playwright smoke walk for the browser app |
 
 ### Web tier

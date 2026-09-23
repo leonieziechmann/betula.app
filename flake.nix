@@ -85,7 +85,7 @@
               rel = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
               top = builtins.head (pkgs.lib.splitString "/" rel);
             in
-            builtins.elem top [ "Cargo.toml" "Cargo.lock" "app" "catalog" "client" "server" ];
+            builtins.elem top [ "Cargo.toml" "Cargo.lock" "app" "catalog" "client" "pack" "server" ];
         };
 
         cargoLock = builtins.fromTOML (builtins.readFile ./Cargo.lock);

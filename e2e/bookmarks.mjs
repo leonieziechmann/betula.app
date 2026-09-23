@@ -224,7 +224,10 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   const carried = await stored(page);
   await step("copy the link for another device", () => page.click('[data-action="copy-text"][data-absolute]'), () => document.querySelector('[data-action="copy-text"][data-absolute] [data-label]').textContent === "Kopiert");
   const link = await page.evaluate(() => navigator.clipboard.readText());
-  check(link === `${base}/bookmarks#add=${carried.join(",")}`, `the link for another device: ${link}`);
+  // The list as a code (pack/): characters an address carries as they are, the last two check the
+  // rest, and the last one is a letter or a digit. Shorter than the ids one by one.
+  const code = link.slice(`${base}/bookmarks#m=`.length);
+  check(link.startsWith(`${base}/bookmarks#m=`) && /^[A-Za-z0-9._~-]*[A-Za-z0-9]$/.test(code) && link.length < `${base}/bookmarks#add=${carried.join(",")}`.length, `the link for another device: ${link}`);
   check(await page.evaluate(() => Boolean(document.querySelector('[data-action="copy-text"][data-absolute] small')?.textContent)), "copying the link lost the second line of its action");
   {
     const elsewhere = await browser.newContext({ viewport: { width: 1500, height: 900 } });
@@ -240,7 +243,9 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
     const entries = await device.evaluate(() => history.length);
     await device.click("#offer-add");
     await device.waitForFunction(() => document.querySelectorAll(".rows a.row").length === 3 && location.hash === "" && !document.querySelector(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: the list did not arrive, or the ids stayed in the address"));
-    check(JSON.stringify(await stored(device)) === JSON.stringify(carried) && JSON.stringify(await listIds(device)) === JSON.stringify(carried), `another device: what arrived: ${await stored(device)}`);
+    // The same modules; not in the same order, since the link carries them as a set.
+    const same = (ids) => JSON.stringify([...ids].sort()) === JSON.stringify([...carried].sort());
+    check(same(await stored(device)) && same(await listIds(device)), `another device: what arrived: ${await stored(device)}`);
     check((await device.evaluate(() => history.length)) === entries, "another device: answering left a history entry with the ids behind");
     // The same link again: nothing new. And one module more than the list has.
     await device.goto(link, { waitUntil: "domcontentloaded" });
@@ -253,7 +258,19 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
     await device.waitForFunction(() => document.querySelector(".offer")?.textContent.includes("2 Module aus einem Link") && document.querySelector(".offer").textContent.includes("Eins davon"), null, { timeout: 8000 }).catch(() => problems.push("another device: a link with one new module is not counted right"));
     await device.click("#offer-dismiss");
     check((await stored(device)).length === 3, "another device: „Verwerfen“ added something");
-    const told = sent.filter((r) => r.includes("add=") || carried.some((id) => r.includes(id)));
+    // A character typed wrong, two neighbours swapped: caught for certain by the check characters,
+    // named, and nothing of the list offered.
+    const at = [...code].findIndex((c, i) => i + 1 < code.length && c !== code[i + 1]);
+    const swapped = `${base}/bookmarks#m=${code.slice(0, at)}${code[at + 1]}${code[at]}${code.slice(at + 2)}`;
+    for (const broken of [link.replace(/.$/, (c) => (c === "A" ? "B" : "A")), swapped]) {
+      await device.goto(broken, { waitUntil: "domcontentloaded" });
+      await takeover(device);
+      await device.waitForFunction(() => document.querySelector(".offer")?.textContent.includes("beschädigt") && !document.getElementById("offer-add"), null, { timeout: 8000 }).catch(() => problems.push(`another device: a broken link is not named: ${broken}`));
+      await device.click("#offer-dismiss");
+      await device.waitForFunction(() => location.hash === "" && !document.querySelector(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: „In Ordnung“ did not take a broken link out of the address"));
+    }
+    check((await stored(device)).length === 3, "another device: a broken link added something");
+    const told = sent.filter((r) => r.includes("add=") || r.includes(code) || carried.some((id) => r.includes(id)));
     check(told.length === 0, `another device: requests that carry the list: ${told.slice(0, 3)}`);
     await elsewhere.close();
   }

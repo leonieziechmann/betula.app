@@ -231,6 +231,10 @@ pub struct CatalogQuery {
     /// None of these: „keine Vorträge".
     pub exam_parts_exclude: Vec<ExamPart>,
     pub graded: Option<bool>,
+    /// `Some(true)`: only modules with published teaching events (the list's „Termine"; owner,
+    /// 2026-09-23: hide what probably does not take place), `Some(false)`: only those with none
+    /// yet („noch keine"). The events are those of the module's newest semester that has any.
+    pub scheduled: Option<bool>,
     /// Any of these. `None` is the default, see `effective_offer`.
     pub offer: Option<Vec<OfferStatus>>,
     pub credits_min: Option<f64>,
@@ -329,6 +333,7 @@ impl CatalogQuery {
             self.fues.is_some(),
             !self.exam_forms.is_empty() || !self.exam_parts.is_empty() || !self.exam_parts_exclude.is_empty(),
             self.graded.is_some(),
+            self.scheduled.is_some(),
             self.offer.is_some(),
             self.credits_min.is_some() || self.credits_max.is_some(),
             !self.campuses.is_empty() || !self.campuses_exclude.is_empty(),
@@ -509,6 +514,9 @@ impl CatalogQuery {
         if let Some(graded) = self.graded {
             conditions.push("f.is_graded = ?".to_string());
             params.push(Value::from(graded));
+        }
+        if let Some(scheduled) = self.scheduled {
+            conditions.push(if scheduled { "f.teaching_events > 0" } else { "f.teaching_events = 0" }.to_string());
         }
         let offer = self.effective_offer();
         if !offer.is_empty() && offer.len() < OfferStatus::ALL.len() {
