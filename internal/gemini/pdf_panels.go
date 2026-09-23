@@ -120,7 +120,12 @@ func appendSemesterPanels(layout *PDFLayout, tables []pdfTable, g pdfPageGeometr
 	layout.PlanNames[id] = "Regelstudienplan"
 }
 
-func nameStudyPlans(layout *PDFLayout, tables []pdfTable, g pdfPageGeometry, page int) {
+// planSectionCaption is the „(Regelstudienplan – dual-praxisintegrierend)"
+// caption of an Anlage that heads several sub-Anlagen. It is printed once, over
+// the first of them; the sub-Anlagen that follow only name their Studienrichtung.
+var planSectionCaption = regexp.MustCompile(`\(\s*Regelstudienpl[^)]*\)`)
+
+func nameStudyPlans(layout *PDFLayout, tables []pdfTable, g pdfPageGeometry, page int, section string) {
 	for ti, t := range tables {
 		id := fmt.Sprintf("p%dt%d", page, ti+1)
 		found := false
@@ -154,7 +159,13 @@ func nameStudyPlans(layout *PDFLayout, tables []pdfTable, g pdfPageGeometry, pag
 		if i := lastAnlageTitle(heading); i >= 0 {
 			title = heading[i:]
 		}
-		if mode := dualMode(title); mode != "" {
+		mode := dualMode(title)
+		// A sub-Anlage („Anlage b.2.3: Studienrichtung …") names no study form of
+		// its own; the form is printed once, in the caption of the Anlage above it.
+		if mode == "" {
+			mode = dualMode(section)
+		}
+		if mode != "" {
 			name = mode + " · " + name
 		}
 		if layout.PlanNames == nil {

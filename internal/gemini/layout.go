@@ -40,6 +40,9 @@ type SourceCell struct {
 	// AltGroup/AltIndex: rows separated by an "oder" line are alternatives; the
 	// first alternative (index 0) is the one the semester totals count.
 	AltGroup, AltIndex int
+	// AltLabel is the heading of the branch a cell belongs to („Praxisinte-
+	// grierende Studienphase"), where the choice is printed as named blocks.
+	AltLabel string `json:"alt_label,omitempty"`
 	// Track is the heading the plan prints over this alternative
 	// („Schwerpunkt Philosophie, Ethik und Kulturwissenschaften"). It tells two
 	// alternatives apart where their rows are worded identically.

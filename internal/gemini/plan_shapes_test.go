@@ -186,3 +186,41 @@ func TestAnAnnexReferenceTheGeometryContradictsIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// „entweder" opens a choice the same way „oder" separates one. Both are read
+// only from a line that carries nothing else: a row naming a module as well is
+// a requirement, not a choice marker, and reading it as one would drop every
+// row of the branch it appears to open.
+func TestAChoiceMarkerIsALineThatCarriesNothingElse(t *testing.T) {
+	row := func(cells ...string) []*string {
+		out := make([]*string, len(cells))
+		for i := range cells {
+			c := cells[i]
+			out[i] = &c
+		}
+		return out
+	}
+	for _, c := range []struct {
+		cells          []string
+		entweder, oder bool
+	}{
+		{[]string{"entweder", "", ""}, true, false},
+		{[]string{"", "Entweder", ""}, true, false},
+		{[]string{"oder", "", ""}, false, true},
+		{[]string{"", "", "or"}, false, true},
+		// a line that says more than the marker is not a marker
+		{[]string{"entweder", "6", ""}, false, false},
+		{[]string{"entweder Modul A", "", ""}, false, false},
+		{[]string{"oder Wahlpflicht", "", ""}, false, false},
+		{[]string{"", "", ""}, false, false},
+		{[]string{"Bachelor-Arbeit", "", "12"}, false, false},
+	} {
+		r := row(c.cells...)
+		if got := isEntwederRow(r); got != c.entweder {
+			t.Errorf("%v: isEntwederRow=%t, want %t", c.cells, got, c.entweder)
+		}
+		if got := isOderRow(r); got != c.oder {
+			t.Errorf("%v: isOderRow=%t, want %t", c.cells, got, c.oder)
+		}
+	}
+}

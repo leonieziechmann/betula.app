@@ -202,13 +202,24 @@ func isStudyDirectionHeader(row []*string) bool {
 
 // isSectionRow is a label row that only carries a sum in its last column.
 func isSectionRow(row []*string) bool {
-	if len(row) < 3 || cellText(row[0]) == "" {
+	if len(row) < 3 {
 		return false
 	}
-	for ci := 1; ci < len(row)-1; ci++ {
-		if cellText(row[ci]) != "" {
+	label := -1
+	for ci := 0; ci < len(row)-1; ci++ {
+		if cellText(row[ci]) == "" {
+			continue
+		}
+		if label >= 0 {
 			return false
 		}
+		label = ci
+	}
+	if label < 0 {
+		return false
+	}
+	if _, _, num := parseCreditAmount(cellText(row[label])); num {
+		return false
 	}
 	_, _, ok := parseCreditAmount(cellText(row[len(row)-1]))
 	return ok

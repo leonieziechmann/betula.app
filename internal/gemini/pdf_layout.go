@@ -19,7 +19,7 @@ var (
 	semesterHeading  = regexp.MustCompile(`semester|se-\s*mester`)
 	creditHeading    = regexp.MustCompile(`\blp\b|\bkp\b|\bcp\b|ects|leistungspunkte|credit`)
 	creditUnitSuffix = regexp.MustCompile(`(?i)\s*(?:lp|kp|cp|ects)$`)
-	subtotalLabel    = regexp.MustCompile(`(?i)\bsumme\b|\bteilsummen?\b|\btotal\b|\bsubtotal\b|\bgesamt\b|\bgesamtsumme\b|\binsgesamt\b|^arbeitsaufwand\b|\baufteilung nach\b|^[Σ∑]?\s*=\s*\d+\s*(?:lp|kp|cp|ects)`)
+	subtotalLabel    = regexp.MustCompile(`(?i)\bsumme\b|\bteilsummen?\b|\btotal\b|\bsubtotal\b|\bgesamt\b|\bgesamtsumme\b|\binsgesamt\b|^arbeitsaufwand\b|\bstudentischer\s+aufwand\b|\baufteilung nach\b|^[Σ∑]?\s*=\s*\d+\s*(?:lp|kp|cp|ects)`)
 	winterIntake     = regexp.MustCompile(`studium kann nur im wintersemester|studienbeginn[^.]{0,70}wintersemester|studium (?:beginnt|kann)[^.]{0,80}wintersemester[^.]{0,30}(?:aufgenommen|begonnen)|studienaufnahme[^.]{0,50}wintersemester`)
 	summerIntake     = regexp.MustCompile(`studium kann nur im sommersemester|studienbeginn[^.]{0,70}sommersemester|studium (?:beginnt|kann)[^.]{0,80}sommersemester[^.]{0,30}(?:aufgenommen|begonnen)|studienaufnahme[^.]{0,50}sommersemester`)
 	workloadAmount   = regexp.MustCompile(`^\((\d+(?:[.,]\d+)?(?:\s*\+\s*\d+(?:[.,]\d+)?)+)\)\s*(\d+(?:[.,]\d+)?)$`)
@@ -133,6 +133,7 @@ func extractPDFLayout(ctx context.Context, path string, selectedPages ...int) (l
 	}
 	mergeContinuedTables(pages)
 	refs := readCreditReferences(pages)
+	section := ""
 	for _, pg := range pages {
 		pageNo, geometry, tables := pg.number, pg.geometry, pg.tables
 		for ti, t := range tables {
@@ -162,7 +163,10 @@ func extractPDFLayout(ctx context.Context, path string, selectedPages ...int) (l
 			appendBoxStudyTable(layout, t, pageNo, ti+1, refs)
 		}
 		appendSemesterPanels(layout, tables, geometry, pageNo)
-		nameStudyPlans(layout, tables, geometry, pageNo)
+		if c := planSectionCaption.FindAllString(cleanPDFText(textInBox(geometry.glyphs, nil)), -1); len(c) > 0 {
+			section = c[len(c)-1]
+		}
+		nameStudyPlans(layout, tables, geometry, pageNo, section)
 	}
 	resolveAnnexReferences(layout, pages)
 	text := strings.ToLower(cleanPDFText(fullText.String()))
@@ -274,7 +278,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 	}{id, pageNo, t.rows})
 	layout.Tables = append(layout.Tables, data)
 	left, right := headerBlock(t, hi, header)
-	alternatives := alternativeRows(t, hi)
+	alternatives, branchOf := alternativeRows(t, hi, left, right)
 	for ri := hi + 1; ri < len(t.rows); ri++ {
 		if isCreditSubHeader(t.rows[ri], headerFrom, headerTo) {
 			continue
@@ -441,7 +445,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			c.Optional, c.Additional = optional, additional
 			c.Elective = electiveStatus(statusOnly)
 			if alt, ok := alternatives[ri]; ok {
-				c.AltGroup, c.AltIndex = alt[0], alt[1]
+				c.AltGroup, c.AltIndex, c.AltLabel = alt[0], alt[1], branchOf[ri]
 			}
 			c.Bold, c.Shaded = b.bold, b.shaded
 			if optional && b.shaded {
@@ -548,16 +552,26 @@ func applyStyleLegends(layout *PDFLayout, text string) {
 	}
 }
 
-func isOderRow(row []*string) bool {
+func isOderRow(row []*string) bool { return isChoiceRow(row, "oder", "or") }
+
+// isEntwederRow opens an explicit choice: a line whose only word is „entweder".
+func isEntwederRow(row []*string) bool { return isChoiceRow(row, "entweder") }
+
+func isChoiceRow(row []*string, words ...string) bool {
 	seen := false
 	for _, s := range row {
-		switch strings.ToLower(cellText(s)) {
-		case "":
-		case "oder", "or":
-			seen = true
-		default:
+		t := strings.ToLower(cellText(s))
+		if t == "" {
+			continue
+		}
+		ok := false
+		for _, w := range words {
+			ok = ok || t == w
+		}
+		if !ok {
 			return false
 		}
+		seen = true
 	}
 	return seen
 }
@@ -565,11 +579,12 @@ func isOderRow(row []*string) bool {
 // alternativeRows numbers the module rows on both sides of an "oder" line:
 // group id and alternative index (0 for the first option). The options extend
 // to the neighboring section header, total line or next "oder".
-func alternativeRows(t pdfTable, header int) map[int][2]int {
-	out := map[int][2]int{}
+func alternativeRows(t pdfTable, header int, left, right float64) (map[int][2]int, map[int]string) {
+	out, labels := map[int][2]int{}, map[int]string{}
 	group := 0
+	claimed := entwederBlocks(t, header, left, right, out, labels, &group)
 	for ro, row := range t.rows {
-		if ro <= header || !isOderRow(row) {
+		if ro <= header || !isOderRow(row) || claimed[ro] {
 			continue
 		}
 		g, idx := 0, 0
@@ -586,7 +601,7 @@ func alternativeRows(t pdfTable, header int) map[int][2]int {
 			out[r] = [2]int{g, idx + 1}
 		}
 	}
-	return out
+	return out, labels
 }
 
 // alternativeBreak ends a chain of "oder" alternatives. Besides a section row
@@ -627,4 +642,76 @@ func electiveStatus(markers []string) bool {
 		}
 	}
 	return false
+}
+
+// entwederBlocks numbers the branches of an „entweder … oder …" choice whose
+// branches are blocks of their own: a heading carrying the branch's printed sum
+// and the module rows under it. Such a heading ends a bare „oder" chain, so the
+// choice is read from its opening „entweder" line instead — and only where the
+// source proves where each branch ends: the branch's rows have to reach the sum
+// its own heading prints.
+func entwederBlocks(t pdfTable, header int, left, right float64, out map[int][2]int, labels map[int]string, group *int) map[int]bool {
+	claimed := map[int]bool{}
+	for ro := header + 1; ro < len(t.rows); ro++ {
+		if !isEntwederRow(t.rows[ro]) {
+			continue
+		}
+		marks, named := map[int][2]int{}, map[int]string{}
+		g, branch, r, ok := *group+1, 0, ro+1, true
+		for r < len(t.rows) {
+			head, label := -1, ""
+			if isSectionRow(t.rows[r]) {
+				head, label, r = r, cellText(t.rows[r][0]), r+1
+			}
+			from := r
+			for r < len(t.rows) && !isOderRow(t.rows[r]) && !alternativeBreak(t.rows[r]) {
+				r++
+			}
+			if from == r || (head >= 0 && !blockReachesItsSum(t, head, from, r, left, right)) {
+				ok = false
+				break
+			}
+			for i := from; i < r; i++ {
+				marks[i], named[i] = [2]int{g, branch}, label
+			}
+			if r < len(t.rows) && isOderRow(t.rows[r]) {
+				branch, r = branch+1, r+1
+				continue
+			}
+			break
+		}
+		if !ok || branch == 0 {
+			continue
+		}
+		*group = g
+		for k, v := range marks {
+			out[k], labels[k] = v, named[k]
+		}
+		for i := ro; i < r; i++ {
+			claimed[i] = true
+		}
+		ro = r - 1
+	}
+	return claimed
+}
+
+// blockReachesItsSum reports whether the semester cells of rows [from,to) come
+// to what the block's heading prints in its total column.
+func blockReachesItsSum(t pdfTable, head, from, to int, left, right float64) bool {
+	printed, _, ok := parseCreditAmount(cellText(t.rows[head][len(t.rows[head])-1]))
+	if !ok {
+		return false
+	}
+	sum := 0.0
+	for ri := from; ri < to; ri++ {
+		for ci, b := range t.boxes[ri] {
+			if b == nil || b.x0 < left-1 || b.x0 >= right-1 {
+				continue
+			}
+			if v, _, ok := parseCreditAmount(cellText(t.rows[ri][ci])); ok {
+				sum += v
+			}
+		}
+	}
+	return math.Abs(sum-printed) < 0.01
 }

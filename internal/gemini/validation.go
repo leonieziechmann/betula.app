@@ -497,15 +497,10 @@ func planReading(l *PDFLayout, keepRows map[string]bool) []SourceCell {
 			first[key(c)] = c.AltIndex
 		}
 	}
-	counted := map[altKey]bool{}
 	var out []SourceCell
 	for _, c := range l.Cells {
-		if c.AltGroup > 0 {
-			k := key(c)
-			if c.AltIndex != first[k] || counted[k] {
-				continue // another alternative for this semester already counts
-			}
-			counted[k] = true
+		if c.AltGroup > 0 && c.AltIndex != first[key(c)] {
+			continue // another alternative for this semester already counts
 		}
 		if c.Additional {
 			continue // a budget the plan prints on top of its own semester sums

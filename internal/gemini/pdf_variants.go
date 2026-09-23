@@ -25,6 +25,7 @@ func dualModeOf(name string) string {
 
 func selectProgramMode(l *PDFLayout, hint string) {
 	hint = strings.ToLower(hint)
+	selectAlternativeBranch(l, dualMode(hint))
 	dual := strings.Contains(hint, "dual") || strings.Contains(hint, "praxisintegrier") || strings.Contains(hint, "ausbildungsintegrier")
 	hintMode := dualMode(hint)
 	extended := strings.Contains(hint, "erweitert") || strings.Contains(hint, "240")
@@ -251,4 +252,63 @@ func sortInts(s []int) {
 			s[j], s[j-1] = s[j-1], s[j]
 		}
 	}
+}
+
+// selectAlternativeBranch resolves an „entweder … oder …" choice whose branches
+// name the dual modes („Praxisintegrierende Studienphase" /
+// „Ausbildungsintegrierende duale Studienphase"): this program version is one of
+// them, so the branch it names is its compulsory block and the other is not its
+// plan at all. Where the hint or the headings do not name a mode the choice
+// stays open and both branches remain alternatives, as the source prints them.
+func selectAlternativeBranch(l *PDFLayout, hintMode string) {
+	if hintMode == "" || hintMode == "Dual" {
+		return
+	}
+	// A group is only resolved where every branch of it names a mode of its own
+	// and exactly one of them is this program's.
+	modes := map[int]map[int]string{}
+	for _, c := range l.Cells {
+		if c.AltGroup == 0 || c.AltLabel == "" {
+			continue
+		}
+		if modes[c.AltGroup] == nil {
+			modes[c.AltGroup] = map[int]string{}
+		}
+		modes[c.AltGroup][c.AltIndex] = dualMode(c.AltLabel)
+	}
+	resolved := map[int]int{}
+	for group, branches := range modes {
+		keep, named := -1, 0
+		for idx, mode := range branches {
+			if mode == "" {
+				named = -1
+				break
+			}
+			named++
+			if mode == hintMode {
+				keep = idx
+			}
+		}
+		if named == len(branches) && named > 1 && keep >= 0 {
+			resolved[group] = keep
+		}
+	}
+	if len(resolved) == 0 {
+		return
+	}
+	cells := l.Cells[:0]
+	for _, c := range l.Cells {
+		keep, ok := resolved[c.AltGroup]
+		if !ok {
+			cells = append(cells, c)
+			continue
+		}
+		if c.AltIndex != keep {
+			continue
+		}
+		// The program version has made the choice, so the block is compulsory.
+		c.AltGroup, c.AltIndex = 0, 0
+		cells = append(cells, c)
+	}
+	l.Cells = cells
 }
