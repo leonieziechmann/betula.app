@@ -40,7 +40,7 @@ SCRIPT="$(basename "$0")"
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${DEPLOY_DIR}/.." && pwd)"
 # What the two images are built from (flake.nix). A change anywhere else is not a new release.
-BUILD_PATHS=(flake.nix flake.lock Cargo.toml Cargo.lock go.mod go.sum app catalog client server cmd internal)
+BUILD_PATHS=(flake.nix flake.lock Cargo.toml Cargo.lock go.mod go.sum app catalog client pack server cmd internal)
 IMAGES=(radix folia)
 
 log() { printf '[%s] %s\n' "${SCRIPT}" "$*"; }
