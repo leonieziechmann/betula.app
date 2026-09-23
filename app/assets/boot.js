@@ -11,6 +11,10 @@ const STORE = "snapshots";
 // sql.js are asked for with it too, so they come from the same build as the page and its
 // stylesheet: a service worker of another build has nothing under these addresses.
 const BUILD = new URL(import.meta.url).search;
+// The schema of the catalog the queries of this build are written for: a snapshot's `PRAGMA
+// user_version`, the number of Radix's last migration (`catalog::SCHEMA_VERSION`, which the server
+// writes in here). A copy of an older schema lacks columns they select, so it is never opened.
+const SCHEMA = Number("__SCHEMA__");
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch((error) => console.info("[catalog] no service worker:", error));
@@ -77,6 +81,13 @@ async function download(total) {
   return bytes;
 }
 
+// The schema of a copy of the catalog, from the header of the SQLite file, without opening it
+// (`user_version`: four bytes at offset 60, big-endian). 0 for what is not a SQLite file.
+function schemaOf(bytes) {
+  if (bytes.length < 100 || new TextDecoder().decode(bytes.subarray(0, 15)) !== "SQLite format 3") return 0;
+  return new DataView(bytes.buffer, bytes.byteOffset, 100).getInt32(60);
+}
+
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
@@ -94,15 +105,30 @@ async function openDatabase() {
     const response = await fetch("/api/status", { cache: "no-store" });
     if (response.ok) server = (await response.json()).snapshot;
   } catch {}
+  // A copy of an older schema than this build reads is never opened: the queries of what came
+  // since would fail on it („no such column"). An older one on the server is not even fetched
+  // (Radix has not exported the new schema yet); without another, the site stays a classic website.
+  const serverFits = server && server.schema_version >= SCHEMA;
 
   let current = await idbGet("current"); // { etag, bytes }
+  if (current && schemaOf(current.bytes) < SCHEMA) {
+    // Replaced before the app starts, as on a first visit. Offline there is nothing to replace
+    // it with: the app does not start, and the page stays the one the service worker kept.
+    if (!server) {
+      const error = new Error("the local copy of the catalog is older than this build, and the server is not reachable");
+      error.notice = "Offline – die Daten werden neu geladen, sobald du online bist";
+      throw error;
+    }
+    current = null;
+  }
   if (!current) {
     if (!server) throw new Error("no local copy of the catalog and the server is not reachable");
+    if (!serverFits) throw new Error(`the server's catalog is of schema ${server.schema_version}, this build reads ${SCHEMA}`);
     status("Daten werden geladen …");
     current = { etag: server.etag, bytes: await download(server.bytes) };
     await idbPut("current", current);
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  } else if (server && server.etag !== current.etag) {
+  } else if (serverFits && server.etag !== current.etag) {
     // Work with the copy we have; fetch the new one in the background for the next start.
     download(0)
       .then((bytes) => idbPut("current", { etag: server.etag, bytes }))
@@ -157,7 +183,8 @@ try {
   // Once the app runs there is nothing to say: it simply works.
   status("");
 } catch (error) {
-  // Not fatal: the site stays a classic website.
+  // Not fatal: the site stays a classic website. The pill says nothing, unless the visitor needs
+  // to know why (`notice`).
   console.info("[catalog] browser app not started:", error);
-  status("");
+  status(error.notice || "");
 }

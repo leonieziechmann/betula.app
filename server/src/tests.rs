@@ -292,6 +292,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
     let worker = String::from_utf8(worker).unwrap();
     assert!(worker.contains("const VERSION = \"test\";") && !worker.contains("__BUILD__"), "{worker}");
+    // The boot knows the schema its build reads, and opens no local copy of an older one.
+    let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
+    let boot = String::from_utf8(boot).unwrap();
+    assert!(boot.contains(&format!("const SCHEMA = Number(\"{}\");", catalog::SCHEMA_VERSION)) && !boot.contains("__SCHEMA__"), "{boot}");
     // Every answer names the build that gave it; the worker keeps only the answers of its own.
     for path in ["/", "/catalog", "/assets/app.css?v=test", app::SERVICE_WORKER, "/manifest.webmanifest"] {
         let (_, headers, _) = request(&router, path, &[]).await;
@@ -377,11 +381,27 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let status_json: serde_json::Value = serde_json::from_slice(&status_body).unwrap();
     assert_eq!(status_json["snapshot"]["etag"], "\"aaaa1111\"");
     assert!(status_json["html_cache"]["pages"].as_u64().unwrap() >= 2);
+    // And its schema, which a browser compares with the one its build reads before it fetches it.
+    let schema = catalog::native::NativeDatabase::open(&snapshot_file()).unwrap().schema_version().unwrap();
+    assert_eq!((status_json["snapshot"]["schema_version"].as_i64(), active.schema_version), (Some(schema), schema));
 
     // A broken export must not replace a good snapshot.
     *radix.current.lock().unwrap() = Some(("\"bbbb2222\"".to_string(), b"this is not a database".to_vec()));
     assert!(matches!(sync_once(&store, &client, &url).await, Err(SyncError::Rejected(_))));
     assert_eq!(store.current().unwrap().etag, "\"aaaa1111\"");
+    assert_eq!(request(&router, "/catalog", &[]).await.0, StatusCode::OK);
+
+    // An export of an older schema than this build reads is served all the same: the pages that
+    // do not need the newer columns work, and a refused one would leave the server without data
+    // after a restart where Radix does not export again. The status names its schema, so that no
+    // browser fetches it for the app.
+    let mut older = real.clone();
+    older[60..64].copy_from_slice(&((catalog::SCHEMA_VERSION - 1) as u32).to_be_bytes());
+    *radix.current.lock().unwrap() = Some(("\"dddd4444\"".to_string(), older));
+    assert!(matches!(sync_once(&store, &client, &url).await, Ok(Sync::Activated)));
+    let (_, _, status_body) = request(&router, "/api/status", &[]).await;
+    let status_json: serde_json::Value = serde_json::from_slice(&status_body).unwrap();
+    assert_eq!((status_json["snapshot"]["etag"].as_str(), status_json["snapshot"]["schema_version"].as_i64()), (Some("\"dddd4444\""), Some(catalog::SCHEMA_VERSION - 1)));
     assert_eq!(request(&router, "/catalog", &[]).await.0, StatusCode::OK);
 
     // A new good export starts a new generation: old pages are gone, old ETags no longer match.

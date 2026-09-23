@@ -27,7 +27,10 @@ any v2 command.
 Migrations live in `internal/catalogdb/migrations/NNNN_name.sql`, are applied in order inside
 a transaction each, and are recorded in `PRAGMA user_version`. A gap, a duplicate number, a
 failing statement or a database newer than the binary is an error. Every connection runs with
-`foreign_keys = ON`.
+`foreign_keys = ON`. The snapshot keeps `user_version`, and Folia is built for the newest
+migration: a new one raises `catalog::SCHEMA_VERSION` (a test of the `catalog` crate fails until
+it does), browsers do not open a local copy of an older schema, and a Folia that serves an older
+snapshot logs `snapshot.outdated` (docs/frontend.md, data flow).
 
 ## 2. Tables
 
