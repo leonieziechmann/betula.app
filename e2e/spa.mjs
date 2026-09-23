@@ -95,7 +95,8 @@ await step("click a row", () => page.click("a.row >> nth=0"), () => location.sea
 await page.keyboard.press("ArrowDown");
 await page.keyboard.press("ArrowDown");
 if ((await page.evaluate(() => new URL(location.href).searchParams.get("open"))) !== ids[0]) problems.push("arrow keys: moving the selection already opened another module");
-await step("Enter opens the selected row", () => page.keyboard.press("Enter"), () => Boolean(document.querySelector(".detail h2")));
+// The clicked row's preview is open already: wait for another one.
+await step("Enter opens the selected row", () => page.keyboard.press("Enter"), (clicked) => new URL(location.href).searchParams.get("open") !== clicked && Boolean(document.querySelector(".detail h2")), ids[0]);
 const opened = await page.evaluate(() => new URL(location.href).searchParams.get("open"));
 if (opened !== ids[2]) problems.push(`arrow keys: expected module ${ids[2]}, the preview shows ${opened}`);
 if ((await page.evaluate(() => history.length)) > historyBefore + 2) problems.push("scrolling added history entries");
