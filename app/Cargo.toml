@@ -1,6 +1,6 @@
 [package]
 name = "folia-app"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "The web app of Betula: Leptos components, rendered on the server and again in the browser"
 
