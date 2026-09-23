@@ -53,22 +53,40 @@ write_config() {
     echo
     echo "[build]"
     echo "target-dir = \"$cache\""
-    case "$host" in
-      *-pc-windows-gnu)
-        if [ -d "$shims" ]; then
-          echo
-          echo "[target.$host]"
-          echo "# rust-lld instead of mingw's ld."
-          echo "rustflags = ["
-          echo "    \"-Clink-arg=-fuse-ld=lld\","
-          echo "    \"-Clink-arg=-B$shims\","
-          echo "]"
-        else
-          echo "no lld shims at $shims: linking with the default linker" >&2
-        fi
+    # Cargo reads the .cargo/config.toml of every directory above the one it runs in and joins
+    # their lists. A worktree inside the main checkout (.claude/worktrees/<name>) therefore has
+    # the main checkout's flags already; written here too, they would stand there twice, and
+    # since the flags are part of every unit's fingerprint, none of the fork's 415 units would
+    # count as built (5 min 20 s instead of 3 min). Such a worktree takes the flags from above,
+    # which are the ones base is built with.
+    case "$here/" in
+      "$main"/?*/)
+        echo
+        echo "# The flags: $main/.cargo/config.toml"
         ;;
+      *) flags "$host" "$shims" ;;
     esac
   } > .cargo/config.toml
+}
+
+# The flags every build is made with, base and forks alike.
+flags() {
+  local host=$1 shims=$2
+  case "$host" in
+    *-pc-windows-gnu)
+      if [ -d "$shims" ]; then
+        echo
+        echo "[target.$host]"
+        echo "# rust-lld instead of mingw's ld."
+        echo "rustflags = ["
+        echo "    \"-Clink-arg=-fuse-ld=lld\","
+        echo "    \"-Clink-arg=-B$shims\","
+        echo "]"
+      else
+        echo "no lld shims at $shims: linking with the default linker" >&2
+      fi
+      ;;
+  esac
 }
 
 fork() {
