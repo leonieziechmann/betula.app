@@ -721,6 +721,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "folia-pack"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "folia-server"
 version = "0.2.1"
 dependencies = [

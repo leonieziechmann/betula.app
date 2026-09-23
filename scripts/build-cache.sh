@@ -115,7 +115,7 @@ fork() {
   # is older than base's artefacts -- edited before base was last built -- would count as
   # built, and the worktree would run master's code. Newer than anything in the copy, every
   # workspace source is compiled again, as it would be on a fresh worktree anyway.
-  git ls-files -z -- app catalog client server | xargs -0 touch
+  git ls-files -z -- app catalog client pack server | xargs -0 touch
 }
 
 case "${1:-}" in
