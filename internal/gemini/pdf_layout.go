@@ -294,7 +294,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 	}{id, pageNo, t.rows})
 	layout.Tables = append(layout.Tables, data)
 	left, right := headerBlock(t, hi, header)
-	alternatives, branchOf := alternativeRows(t, hi, left, right)
+	alternatives, branchOf, oneOf := alternativeRows(t, hi, left, right)
 	for ri := hi + 1; ri < len(t.rows); ri++ {
 		if isCreditSubHeader(t.rows[ri], headerFrom, headerTo) {
 			continue
@@ -462,6 +462,7 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			c.Elective = electiveStatus(statusOnly)
 			if alt, ok := alternatives[ri]; ok {
 				c.AltGroup, c.AltIndex, c.AltLabel = alt[0], alt[1], branchOf[ri]
+				c.AltOne = oneOf[alt[0]]
 			}
 			c.Bold, c.Shaded = b.bold, b.shaded
 			if optional && b.shaded {
@@ -689,7 +690,7 @@ func isChoiceRow(row []*string, words ...string) bool {
 // alternativeRows numbers the module rows on both sides of an "oder" line:
 // group id and alternative index (0 for the first option). The options extend
 // to the neighboring section header, total line or next "oder".
-func alternativeRows(t pdfTable, header int, left, right float64) (map[int][2]int, map[int]string) {
+func alternativeRows(t pdfTable, header int, left, right float64) (map[int][2]int, map[int]string, map[int]bool) {
 	out, labels := map[int][2]int{}, map[int]string{}
 	group := 0
 	claimed := entwederBlocks(t, header, left, right, out, labels, &group)
@@ -711,7 +712,51 @@ func alternativeRows(t pdfTable, header int, left, right float64) (map[int][2]in
 			out[r] = [2]int{g, idx + 1}
 		}
 	}
-	return out, labels
+	return out, labels, inlineOderRows(t, header, out, &group)
+}
+
+// trailingOder is the „oder" a plan prints at the end of a module name instead
+// of on a line of its own: „31205 Strömungslehre oder" over „43205 Technische
+// Hydromechanik". A cell that is nothing but „oder" belongs to isOderRow.
+var trailingOder = regexp.MustCompile(`(?i)\boder$`)
+
+func endsWithOder(row []*string) bool {
+	for _, s := range row {
+		text := cellText(s)
+		if len(strings.Fields(text)) > 1 && trailingOder.MatchString(text) {
+			return true
+		}
+	}
+	return false
+}
+
+// inlineOderRows numbers the rows of a choice whose „oder" is printed at the end
+// of a module name. The row that ends in „oder" and the row under it are one
+// requirement; a chain of them („A oder", „B oder", „C") is a choice of three.
+// A dangling „oder" with nothing under it names no alternative and is ignored.
+func inlineOderRows(t pdfTable, header int, out map[int][2]int, group *int) map[int]bool {
+	oneOf := map[int]bool{}
+	for ro := header + 1; ro < len(t.rows); ro++ {
+		if _, taken := out[ro]; taken || !endsWithOder(t.rows[ro]) {
+			continue
+		}
+		end := ro
+		for end+1 < len(t.rows) && !alternativeBreak(t.rows[end+1]) && !isOderRow(t.rows[end+1]) {
+			end++
+			if _, taken := out[end]; taken || !endsWithOder(t.rows[end]) {
+				break
+			}
+		}
+		if end == ro {
+			continue
+		}
+		*group++
+		oneOf[*group] = true
+		for r := ro; r <= end; r++ {
+			out[r] = [2]int{*group, r - ro}
+		}
+	}
+	return oneOf
 }
 
 // alternativeBreak ends a chain of "oder" alternatives. Besides a section row

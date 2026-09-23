@@ -40,6 +40,12 @@ type SourceCell struct {
 	// AltGroup/AltIndex: rows separated by an "oder" line are alternatives; the
 	// first alternative (index 0) is the one the semester totals count.
 	AltGroup, AltIndex int
+	// AltOne marks a group that is one requirement however its options are
+	// spread over the semester columns: the „oder" is printed at the end of a
+	// module name, so each alternative is exactly one row. An „oder" printed on
+	// a line of its own separates blocks that may each hold a requirement per
+	// semester, and those are counted per column instead.
+	AltOne bool
 	// AltLabel is the heading of the branch a cell belongs to („Praxisinte-
 	// grierende Studienphase"), where the choice is printed as named blocks.
 	AltLabel string `json:"alt_label,omitempty"`

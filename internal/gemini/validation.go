@@ -512,12 +512,29 @@ func planReading(l *PDFLayout, keepRows map[string]bool) []SourceCell {
 		group int
 		span  string
 	}
+	type groupKey struct {
+		table string
+		group int
+	}
 	first := map[altKey]int{}
 	key := func(c SourceCell) altKey {
 		return altKey{c.Table, c.AltGroup, fmt.Sprint(c.Semesters)}
 	}
+	// A group whose options are one row each is one requirement wherever its
+	// rows sit, so which option counts is decided once for the whole group:
+	// „44106 Technische Thermodynamik" in the fourth semester and „31204
+	// Technische Thermodynamik" over the third and fourth are the same choice,
+	// and taking the first of each column would count both of its branches.
+	oneOf := map[groupKey]int{}
 	for _, c := range l.Cells {
 		if c.AltGroup == 0 {
+			continue
+		}
+		if c.AltOne {
+			g := groupKey{c.Table, c.AltGroup}
+			if idx, seen := oneOf[g]; !seen || c.AltIndex < idx {
+				oneOf[g] = c.AltIndex
+			}
 			continue
 		}
 		if idx, seen := first[key(c)]; !seen || c.AltIndex < idx {
@@ -526,8 +543,14 @@ func planReading(l *PDFLayout, keepRows map[string]bool) []SourceCell {
 	}
 	var out []SourceCell
 	for _, c := range l.Cells {
-		if c.AltGroup > 0 && c.AltIndex != first[key(c)] {
-			continue // another alternative for this semester already counts
+		if c.AltGroup > 0 {
+			want := first[key(c)]
+			if c.AltOne {
+				want = oneOf[groupKey{c.Table, c.AltGroup}]
+			}
+			if c.AltIndex != want {
+				continue // another alternative for this semester already counts
+			}
 		}
 		if c.Additional {
 			continue // a budget the plan prints on top of its own semester sums
