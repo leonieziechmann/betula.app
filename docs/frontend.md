@@ -829,12 +829,13 @@ cargo run -p folia-server
 
 The first command builds the browser app into `site/pkg` (needs the `wasm32-unknown-unknown`
 target and `wasm-bindgen` 0.2.128, which Trunk keeps in its cache); without it the site simply
-stays server-rendered. `--dev` builds it with the `wasm-dev` profile; leave the flag off to
-build the bundle that ships. Which one you want is a question of minutes:
+stays server-rendered. `--dev` builds it with the `wasm-dev` profile and the flags of
+`.cargo/config.toml` (`--cfg erase_components`, see „Build times"); leave it off to build the
+bundle that ships, as Nix builds it. Which one you want is a question of minutes:
 
 | | profile | edit a page, build again | `site/pkg` | gzipped |
 |---|---|---|---|---|
-| `--dev` | `wasm-dev` | 9 s | 29 MB | 2.4 MB |
+| `--dev` | `wasm-dev`, `erase_components` | 11 s | 7.4 MB | 1.4 MB |
 | (none) | `wasm-release` | 2 min 18 s | 19 MB | 1.4 MB |
 
 `wasm-release` owes those two minutes to fat LTO, `opt-level = "z"` and its single codegen unit,
@@ -843,16 +844,52 @@ localhost the difference arrives over the loopback; never deploy a bundle built 
 
 ### Build times
 
-The workspace is around 20 000 lines of Rust on 339 crates, and `folia-app` alone — 384 `view!`
-macros — is two minutes of the cold build. What that costs, on twelve cores:
+The workspace is around 20 000 lines of Rust on 339 crates, and most of `folia-app` is Leptos
+views (384 `view!` macros). What that costs on a laptop with six cores (Ryzen 5 PRO 4650U, twelve
+threads, 16 GB), measured 2026-09-23:
 
-| | |
-|---|---|
-| cold build, empty cache | 6 min 44 s |
-| new worktree: fork the main checkout's cache, then build | 19 s + 2 min 42 s |
-| edit a page in `app/`, `cargo build` | 14 s |
-| edit `server/`, `cargo build` | 8 s |
-| `cargo build` with nothing to do | 0.9 s |
+| | without `erase_components` | with it (since 2026-09-23) |
+|---|---|---|
+| cold build, empty cache | 5 min 21 s | 3 min 24 s |
+| new worktree: fork the main checkout's cache, then build | 19 s + 2 min 46 s | 19 s + 57 s |
+| edit a page in `app/` (the catalog's filter panel), `cargo build` | 19 s | 10 s |
+| edit `app/src/ui.rs`, `cargo build` | 14 s | 9 s |
+| edit `server/`, `cargo build` | 19 s | 6 s |
+| edit a page, `scripts/build-client.sh --dev` | 15 s | 11 s |
+| `cargo build` with nothing to do | 0.9 s | 0.9 s |
+
+The edits are real ones: a string grows by a character. An edit that keeps every length the same
+(a digit for a digit) costs the server 8 s instead of 19 s without the flag, and the rest a
+second less, so measuring with such an edit flatters.
+
+**`--cfg erase_components`.** Leptos gives every view a type of its own: an element is a type with
+its attributes and children, a component's `impl IntoView` the whole tree below it. rustc infers
+these types in one frontend thread for all of `folia-app`, and instantiates the code that renders
+them in `folia-server` and again in `folia-client`. With the flag, Leptos erases the type of every
+component and every list of children (`AnyView`; the documentation is at `src/lib.rs:264` of
+leptos 0.8.20), and little is left to infer or to instantiate. From the fork's first build:
+`folia-app` 96 s → 35 s (its frontend 67 s → 23 s), `folia-server` 61 s → 13 s; the debug server
+binary is 137 MB instead of 1.2 GB, the browser app of `--dev` 7.4 MB instead of 29 MB.
+
+It is a flag for rustc and not a feature, so it is one of the flags `scripts/build-cache.sh`
+writes into `.cargo/config.toml`, for the host and for `wasm32-unknown-unknown`, and base and
+forks are built with it alike. It is for working on the code: the bundle that ships
+(`build-client.sh` without `--dev`) is built without the flags of that file, and Nix never sees
+it. What the two builds do differently, checked on 6 500 pages (every address of the sitemap and
+1 100 lists and filters found on them):
+
+- The server's HTML carries more of Leptos's markers (`<!>`, `<!--<() />-->`): 2–5 % of a page,
+  about 1 % gzipped. Without its comments every page is the same, byte for byte.
+- Every reactive closure costs an `Arc<Mutex<_>>` and a call through a vtable. A page not yet
+  in the cache renders in 8.8 ms instead of 8.0 ms (median of 250, debug builds).
+- What compiles with the flag need not compile without it: the types it erases are deeper there,
+  and so closer to `recursion_limit`. Nix builds without it, and `deploy/ship.sh` builds with Nix
+  before it ships anything, so such a failure stops a release instead of slipping into one. To
+  see it earlier: `CARGO_ENCODED_RUSTFLAGS= cargo build` (every dependency once more, in the
+  same cache).
+
+A change of the flags is a change of every unit's fingerprint: after one, `setup` and `prime` in
+the main checkout, or every fork builds all 415 units again.
 
 Every checkout gets its own build cache, and a new worktree starts from a copy of the main
 checkout's:
@@ -873,6 +910,12 @@ exists. Before it did, `target/` had grown to 140 GB across fifteen caches of br
 merged. Each cache records which worktree it belongs to, and `gc` drops it once that directory
 is gone, so the caches follow the worktrees and not `git worktree list` (which still lists a
 worktree under its old path after the repository has moved, until `git worktree repair`).
+
+A worktree inside the main checkout (`.claude/worktrees/<name>`) takes its flags from the main
+checkout's `.cargo/config.toml` and writes only its target directory into its own. Cargo reads
+the config files of every directory above the one it runs in and joins their lists; written into
+both, the flags stood there twice, no unit of the fork matched, and the first build of such a
+worktree took 5 min 20 s instead of 2 min 46 s (until 2026-09-23).
 
 A new worktree needs none of these commands. `git worktree add` runs
 `scripts/hooks/post-checkout` with the null commit as the previous HEAD, and the hook runs
@@ -897,17 +940,23 @@ What does not work, measured, so it is not tried again:
   timestamps, never contents, so a file that differs from what the cache was built from but
   looks older would silently leave its old code in the binary. `setup` does the opposite: it
   touches every workspace source after the fork, so nothing in the copy can pass for current.
+- **Measuring with `CARGO_INCREMENTAL=0`.** The variable is part of every unit's fingerprint:
+  all 356 units of the cache are built again (5 min), and the cache holds them twice.
 
-The one lever left on the 2 min 42 s is `folia-app` itself: one unit, 384 `view!` macros,
-compiled by a single rustc frontend. Splitting it along its pages would let those compile side by
-side.
+What is left of the 57 s: `folia-catalog` 10 s, `folia-app` 35 s (23 s of it one frontend
+thread), `folia-server` 13 s. **`folia-app` in crates** (one per layer and per page, so that the
+pages compile side by side) was measured on top of the flag and not taken for now: the first
+build 57 s → 51 s, an edit in a page 10 s → 8 s, the same edit in the browser app 11 s → 6.3 s,
+but an edit in `ui` 9 s → 12.5 s (every page and the shell compile again), rustc's frontends
+23 s → 49 s in all, and the bundle that ships 3.6 % larger gzipped. Without the flag it is worth
+more (the first build 166 s → 128 s). The split is the branch `claude/web-tier-compile-time-0a192a`.
 
 `setup` also writes the linker into `.cargo/config.toml`: the toolchain ships `rust-lld`, but
 `gcc` — the linker driver on `x86_64-pc-windows-gnu` — only finds it when pointed at the
 toolchain's `gcc-ld` shims. That is 24 s against 19 s on every rebuild, and a minute and a quarter
-on a cold one. Both settings are paths on this machine, so the file is generated and not in git;
-and one script writes both because base and forks must be built with the same flags, or the copy
-is of no use.
+on a cold one. The linker is a path on this machine, so the file is generated and not in git; and
+one script writes the flags of base and forks because they must be built with the same ones, or
+the copy is of no use.
 
 With the cache outside the checkout, `scripts/build-client.sh` asks `cargo metadata` where the
 bundle landed instead of assuming `target/`.

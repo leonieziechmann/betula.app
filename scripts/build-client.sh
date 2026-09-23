@@ -7,15 +7,19 @@
 #   scripts/build-client.sh --dev    while working on the app: profile wasm-dev, seconds not minutes
 #
 # --dev drops fat LTO, `opt-level = "z"` and the single codegen unit, which is what makes the
-# release bundle small and its build slow: editing a page and rebuilding goes from 2 min 18 s to 9 s.
-# site/pkg then holds 29 MB instead of 19 MB, so it is for localhost only -- never deploy it.
+# release bundle small and its build slow, and builds with the flags of .cargo/config.toml
+# (--cfg erase_components): editing a page and rebuilding goes from 2 min 18 s to 11 s.
+# site/pkg then holds 7.4 MB instead of 19 MB, so it is for localhost only -- never deploy it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PROFILE=wasm-release
 case "${1:-}" in
   --dev) PROFILE=wasm-dev ;;
-  "") ;;
+  # The bundle that ships as Nix builds it: without the flags scripts/build-cache.sh writes into
+  # .cargo/config.toml for the builds while working (--cfg erase_components). An empty
+  # CARGO_ENCODED_RUSTFLAGS outranks every other source of flags.
+  "") export CARGO_ENCODED_RUSTFLAGS= ;;
   *) echo "usage: $0 [--dev]" >&2; exit 2 ;;
 esac
 

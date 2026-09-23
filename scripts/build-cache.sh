@@ -7,8 +7,8 @@
 #
 # The main checkout builds into <main>/target/base. `setup` in a worktree copies that cache to
 # <main>/target/wt-<name> and points the worktree at the copy, so a new worktree starts with all
-# 339 dependencies built and compiles only the workspace's own crates: 3 min on a fork instead of
-# 7 min from nothing, and every edit after that 14-18 s. When the worktree is gone, `gc` drops
+# 339 dependencies built and compiles only the workspace's own crates: 1 min on a fork instead of
+# 3.5 min from nothing, and every edit after that 6-11 s. When the worktree is gone, `gc` drops
 # its cache. In a new worktree both happen by themselves: scripts/hooks/post-checkout runs them
 # when `git worktree add` creates it, once `git config core.hooksPath scripts/hooks` is set.
 #
@@ -21,11 +21,13 @@
 # the executables. What the copy carries are the dependencies, which do not care where they
 # are used from.
 #
-# It also writes the linker: rust-lld instead of mingw's ld, which the toolchain ships but gcc
-# only finds when pointed at the toolchain's gcc-ld shims (24 s -> 19 s per rebuild). Both
-# settings are paths on this machine, so .cargo/config.toml is generated and not in git -- and
-# base and forks must be built with identical flags for the copy to be of any use, which is why
-# one script writes both.
+# It also writes the flags: --cfg erase_components, which spares rustc the types of the Leptos
+# components (folia-app 96 s -> 35 s, folia-server 61 s -> 13 s; the bundle that ships is built
+# without it), and rust-lld instead of mingw's ld, which the toolchain ships but gcc only finds
+# when pointed at the toolchain's gcc-ld shims (24 s -> 19 s per rebuild). The linker is a path
+# on this machine, so .cargo/config.toml is generated and not in git -- and base and forks must
+# be built with identical flags for the copy to be of any use, which is why one script writes
+# both.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -53,22 +55,47 @@ write_config() {
     echo
     echo "[build]"
     echo "target-dir = \"$cache\""
-    case "$host" in
-      *-pc-windows-gnu)
-        if [ -d "$shims" ]; then
-          echo
-          echo "[target.$host]"
-          echo "# rust-lld instead of mingw's ld."
-          echo "rustflags = ["
-          echo "    \"-Clink-arg=-fuse-ld=lld\","
-          echo "    \"-Clink-arg=-B$shims\","
-          echo "]"
-        else
-          echo "no lld shims at $shims: linking with the default linker" >&2
-        fi
+    # Cargo reads the .cargo/config.toml of every directory above the one it runs in and joins
+    # their lists. A worktree inside the main checkout (.claude/worktrees/<name>) therefore has
+    # the main checkout's flags already; written here too, they would stand there twice, and
+    # since the flags are part of every unit's fingerprint, none of the fork's 415 units would
+    # count as built (5 min 20 s instead of 3 min). Such a worktree takes the flags from above,
+    # which are the ones base is built with.
+    case "$here/" in
+      "$main"/?*/)
+        echo
+        echo "# The flags: $main/.cargo/config.toml"
         ;;
+      *) flags "$host" "$shims" ;;
     esac
   } > .cargo/config.toml
+}
+
+# The flags every build is made with, base and forks alike.
+flags() {
+  local host=$1 shims=$2
+  echo
+  echo "[target.$host]"
+  echo "rustflags = ["
+  echo "    # Leptos without the types of the components (docs/frontend.md §3)."
+  echo "    \"--cfg=erase_components\","
+  case "$host" in
+    *-pc-windows-gnu)
+      if [ -d "$shims" ]; then
+        echo "    # rust-lld instead of mingw's ld."
+        echo "    \"-Clink-arg=-fuse-ld=lld\","
+        echo "    \"-Clink-arg=-B$shims\","
+      else
+        echo "no lld shims at $shims: linking with the default linker" >&2
+      fi
+      ;;
+  esac
+  echo "]"
+  echo
+  echo "# The browser app as build-client.sh --dev builds it. The bundle that ships is built"
+  echo "# without the flags of this file, as Nix builds it."
+  echo "[target.wasm32-unknown-unknown]"
+  echo "rustflags = [\"--cfg=erase_components\"]"
 }
 
 fork() {
