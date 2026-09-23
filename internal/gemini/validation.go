@@ -270,10 +270,18 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog model.Curriculu
 	printedSemesters := map[string]map[int]bool{}
 	overlappingTotals := map[string]bool{}
 	coveredSemesters := make(map[string]map[int]bool)
+	grand := map[string]SourceCell{}
 	for _, t := range dominantTotals(res.Layout.Totals) {
 		// A printed total may itself be a range when the plan contains elective
 		// budgets ("28 - 32"); it is then checked as an interval.
 		if !totalRow.MatchString(strings.TrimSpace(t.Row)) {
+			continue
+		}
+		// The grand total of the per-row column covers every semester at once, so
+		// it is not one of the disjoint semester totals and must not be added to
+		// them. It is kept aside and used where those totals leave a row out.
+		if t.Grand {
+			grand[t.Table] = t
 			continue
 		}
 		checked++
@@ -429,6 +437,25 @@ func ValidateCurriculum(res *CurriculumExtractionResult, catalog model.Curriculu
 			}
 		}
 		if totalHi < lo-.01 || totalLo > hi+.01 {
+			// A module whose box spans the whole plan is credited in no single
+			// semester, so the per-semester line may leave it out. That is only a
+			// reading the source itself makes: the plan's own grand total has to
+			// be the semester line plus exactly the rows it passes over.
+			if g, ok := grand[table]; ok {
+				spanLo, spanHi := 0.0, 0.0
+				for _, c := range planCells {
+					if c.Table != table || countedBySemesterTotal(c, res.Layout.Totals) {
+						continue
+					}
+					spanLo += c.Min
+					spanHi += c.Max
+				}
+				if spanLo > 0 && math.Abs(g.Min-(totalLo+spanLo)) < .01 && math.Abs(g.Max-(totalHi+spanHi)) < .01 &&
+					math.Abs(g.Min-lo) < .01 && math.Abs(g.Max-hi) < .01 {
+					add("info", "source_total_excludes_span", "", fmt.Sprintf("%s: the printed grand total %s LP is the semester line (%s LP) plus %.1f LP the plan credits to no single semester", table, amountRange(g.Min, g.Max), amountRange(totalLo, totalHi), spanLo))
+					continue
+				}
+			}
 			conflictTables[table] = true
 			add("error", "source_plan_total_conflict", "", fmt.Sprintf("%s: entire plan has %.1f–%.1f LP, disjoint printed semester totals sum to %s LP; inspect alternative tracks or duplicated requirements", table, lo, hi, amountRange(totalLo, totalHi)))
 		}
@@ -629,6 +656,24 @@ func sortedFloatKeys(m map[string]float64) []string {
 // of the credits booked in that semester.
 func isAufwandRow(c SourceCell) bool {
 	return strings.Contains(strings.ToLower(c.Row), "aufwand")
+}
+
+// countedBySemesterTotal reports whether a printed semester total of the cell's
+// own table counts it: the cell lies inside the semesters that total covers.
+func countedBySemesterTotal(c SourceCell, totals []SourceCell) bool {
+	a, b := c.Semesters[0], c.Semesters[len(c.Semesters)-1]
+	if c.CreditSemester > 0 {
+		a, b = c.CreditSemester, c.CreditSemester
+	}
+	for _, t := range totals {
+		if t.Table != c.Table || t.Grand || len(t.Semesters) == 0 || !totalRow.MatchString(strings.TrimSpace(t.Row)) {
+			continue
+		}
+		if a >= t.Semesters[0] && b <= t.Semesters[len(t.Semesters)-1] {
+			return true
+		}
+	}
+	return false
 }
 
 // dominantTotals drops section subtotals that carry the same generic label as

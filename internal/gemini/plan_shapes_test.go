@@ -57,14 +57,18 @@ func TestASemesterHeaderMayNameWhereTheSemesterIsSpent(t *testing.T) {
 			t.Errorf("cell %d names %q, want %q", i, c.Section, want[i])
 		}
 	}
+	// One sum per semester, and the „Summe LP" column's own figure over all four.
 	totals := DerivePlanTotals(l)
-	if len(totals) != 4 {
-		t.Fatalf("got %d sums, want one per semester: %+v", len(totals), totals)
+	if len(totals) != 5 {
+		t.Fatalf("got %d sums, want one per semester and one over the plan: %+v", len(totals), totals)
 	}
-	for i, g := range totals {
+	for i, g := range totals[:4] {
 		if g.Credits != 30 || g.Start != i+1 || g.End != i+1 {
 			t.Errorf("sum %d is %v over %d-%d, want 30 in semester %d", i, g.Credits, g.Start, g.End, i+1)
 		}
+	}
+	if g := totals[4]; g.Credits != 120 || g.Start != 1 || g.End != 4 {
+		t.Errorf("the plan's own sum is %v over %d-%d, want 120 over 1-4", g.Credits, g.Start, g.End)
 	}
 }
 

@@ -483,7 +483,101 @@ func appendStudyTable(layout *PDFLayout, t pdfTable, pageNo, tableNo int, worklo
 			}
 		}
 	}
+	// Only for a table this reader actually took: a grand total on its own would
+	// keep a table the panel reader is meant to have instead.
+	if len(layout.Cells) > firstNew {
+		appendGrandTotal(layout, t, hi, header, id, pageNo)
+	}
 	mergeOptionalPlacements(layout, firstNew)
+}
+
+// appendGrandTotal reads the per-row total column a matrix plan may print to the
+// right of its last semester („Summe LP", „KP", „Σ") and takes its cell in the
+// plan's own total row as the grand total of the plan.
+//
+// The column is only believed where the table proves it twice: every module row's
+// value in it equals the sum of that row's own semester cells — a merged cell
+// over the whole band counts once, which is the point — and the module rows add
+// up to the value printed in the total row. A column of SWS, of exam forms or of
+// a module's full credit beside semester-wise workload fails the first test; a
+// plan whose rows are alternatives of one another fails the second. Neither is
+// read, and nothing downstream sees a grand total it cannot trust.
+//
+// This is the one figure that covers a row the per-semester line excludes: a
+// doctoral thesis whose box spans all six semesters is credited in none of them,
+// so „Summe 8 6 8 6 2 30" leaves it out while the column says 180.
+func appendGrandTotal(layout *PDFLayout, t pdfTable, hi int, header []*pdfBox, id string, pageNo int) {
+	left, right := header[0].x0, header[len(header)-1].x1
+	// The band of every module row, and the value printed beside it.
+	type rowSum struct{ band, printed float64 }
+	sums := map[int]rowSum{}
+	totalRi, totalCi, printedTotal := -1, -1, 0.0
+	for ri := hi + 1; ri < len(t.rows); ri++ {
+		band, cells, outside, oi, ranged := 0.0, 0, 0.0, -1, false
+		for ci, b := range t.boxes[ri] {
+			if b == nil {
+				continue
+			}
+			v, vhi, ok := parseCreditAmount(cellText(t.rows[ri][ci]))
+			if b.x0 >= right-1 {
+				if ok {
+					outside, oi, ranged = v, ci, ranged || v != vhi
+				}
+				continue
+			}
+			if !ok || b.x0 < left-1 {
+				continue
+			}
+			band += v
+			cells++
+			ranged = ranged || v != vhi
+		}
+		if cells == 0 && oi < 0 {
+			continue // a section heading or a blank line carries no credit at all
+		}
+		if subtotalLabel.MatchString(cellText(t.rows[ri][0])) {
+			if totalRi >= 0 || oi < 0 || ranged {
+				return // no single plainly printed total row: nothing to stand on
+			}
+			totalRi, totalCi, printedTotal = ri, oi, outside
+			continue
+		}
+		// Every credit-bearing row has to be readable in this column. A row that
+		// is skipped would drop out of the sum below while still standing in the
+		// printed total, and the column would appear to close when it does not.
+		if cells == 0 || oi < 0 || ranged || math.Abs(band-outside) > 0.01 {
+			return
+		}
+		sums[ri] = rowSum{band, outside}
+	}
+	if totalRi < 0 || len(sums) == 0 {
+		return
+	}
+	rows := 0.0
+	for _, s := range sums {
+		rows += s.printed
+	}
+	if math.Abs(rows-printedTotal) > 0.01 {
+		return // the column does not close: these rows are not simply added up
+	}
+	b := t.boxes[totalRi][totalCi]
+	origin := t.origin(totalRi)
+	cellPage := pageNo
+	if origin.page != 0 {
+		cellPage = origin.page
+	}
+	semesters := make([]int, 0, len(header))
+	for i := range header {
+		semesters = append(semesters, i+1)
+	}
+	layout.Totals = append(layout.Totals, SourceCell{
+		ID: fmt.Sprintf("%sr%dc%d", id, totalRi+1, totalCi+1), Table: id, Page: cellPage,
+		RowIndex: totalRi + 1, Row: cleanPDFText(cellText(t.rows[totalRi][0])), Semesters: semesters,
+		Raw: cellText(t.rows[totalRi][totalCi]), Min: printedTotal, Max: printedTotal,
+		BBox:  []float64{b.x0 + origin.dx, b.y0 + origin.dy, b.x1 + origin.dx, b.y1 + origin.dy},
+		Bold:  b.bold,
+		Grand: true,
+	})
 }
 
 // mergeOptionalPlacements joins the bracketed cells "(6) (6)" of one row into a

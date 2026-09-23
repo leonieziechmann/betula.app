@@ -57,6 +57,11 @@ type SourceCell struct {
 	// RowIndex is the cell's row in its physical table, counted from the top of
 	// the table. The printed sums are bound to the rows above them by it.
 	RowIndex int `json:"row_index,omitempty"`
+	// Grand marks the plan's own grand total: the cell of the per-row total
+	// column ("Summe LP") in the total row. It covers every semester at once and
+	// counts every row, including one the per-semester line leaves out, so it is
+	// never one of the disjoint semester totals.
+	Grand bool `json:"grand,omitempty"`
 }
 
 type PDFLayout struct {
