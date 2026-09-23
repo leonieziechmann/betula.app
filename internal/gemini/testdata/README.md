@@ -11,9 +11,13 @@ against the rendered pages. They are deliberately independent of the AI response
 Informatik includes a vertically merged elective cell and horizontal 5–6 spans;
 Wirtschaftsinformatik includes unnamed subtotal rows and repeated elective slots.
 
-Optional integration tests compare the Go extractor to these unchanged snapshots.
-Cell identity, labels, semester spans, credits and intake must match exactly;
-border coordinates may differ by at most 0.25 PDF points due to stroke averaging.
+Optional integration tests compare the Go extractor to these snapshots.
+Cell identity, labels, semester spans, credits, row indices, bold type and intake
+must match exactly; border coordinates may differ by at most 0.25 PDF points due
+to stroke averaging. `row_index` and `Bold` came to the reader after the snapshots
+were taken. They were recorded from the Go reader (2026-09-23) and checked against
+the PDFs: each row index is the row in the cell's id, and `Bold` is set exactly
+where the PDF prints the value in Arial-BoldMT. Every other value is pdfplumber's.
 Set RADIX_PDF_TEST_DIR to the absolute statutes directory. No Python runtime is used.
 The default regression tests also generate real PDFs entirely in Go and do not
 make API calls.
