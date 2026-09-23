@@ -104,14 +104,32 @@ func ReadPDFLayoutPages(ctx context.Context, path string, pages []int) (*PDFLayo
 	return validatePDFLayout(layout)
 }
 
+// ReadPDFLayoutForProgram reads the plan of one program. Without a page
+// selection it reads the whole document, or, where the document prints the
+// regulations of several degrees, the pages of the program's own.
 func ReadPDFLayoutForProgram(ctx context.Context, path string, pages []int, hint string) (*PDFLayout, error) {
+	note := ""
+	if len(pages) == 0 {
+		var err error
+		if pages, note, err = programPages(ctx, path, hint); err != nil {
+			return nil, err
+		}
+	}
 	l, err := extractPDFLayout(ctx, path, pages...)
 	if err != nil {
 		return nil, err
 	}
+	if note != "" {
+		l.Notes = append(l.Notes, note)
+	}
 	selectProgramMode(l, hint)
 	selectStudyOption(l, hint)
-	return validatePDFLayout(l)
+	l, err = validatePDFLayout(l)
+	if err != nil && note != "" {
+		// The document does print plans; say which pages were this program's.
+		return nil, fmt.Errorf("%w (%s)", err, note)
+	}
+	return l, err
 }
 
 func validatePDFLayout(layout *PDFLayout) (*PDFLayout, error) {
