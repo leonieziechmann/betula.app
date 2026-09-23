@@ -322,8 +322,8 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   „Komplex Grundlagen der Informatik, 10–24 LP" — and three of them are anything between 30 and
   72 LP, so adding the rows up gives a lower bound, not the degree. The regulation prints the
   answer in the lines over its own rows, and Radix keeps them with the rows each counts
-  (`plan_total`, `docs/schema-v2.md` §6). The head's „LP", the bars „LP je Semester", the sum
-  under the matrix and the sum of every semester group of the list are those printed lines where
+  (`plan_total`, `docs/schema-v2.md` §6). The head's „LP", the sum under the matrix and the sum
+  of every semester group of the list are those printed lines where
   a plan has them; the semesters a regulation sums together („5.–6.") stand as one figure across
   them, which is why those semesters used to be empty. Without such lines nothing changes: only
   what the plan puts into a single semester is added up in that semester's column, and a footnote
@@ -378,14 +378,18 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   at all, only the honest note that the catalog does not know it under this name and a search for
   it; a row that names the FÜS by kind **or by name** („Fachübergreifendes Studium", „Modul aus
   dem FÜS-Katalog der BTU" — 112 of them are stated Wahlpflicht) leads to the FÜS list
-  (`plan::is_fues`). And with nothing picked the panel holds the
-  numbers of the view one is looking at — for the
-  plan the chosen study direction with its semesters, credits and how much of it the catalog
-  links, plus the credits per semester as bars; for the other views the areas and how the modules
-  split by the kind the program states them as (every kind that occurs, „Art nicht angegeben"
-  where no source says; nothing is counted into a kind it was not stated as). Unlike the catalog's preview it is a column of
-  the layout, not a panel over the page: the tables keep the room that is left and give up the
-  columns that carry least (Bereich, Turnus, Nr.) as it gets narrower. Tried before and dropped
+  (`plan::is_fues`). The panel of an area is the same kind of panel (owner, 2026-09-23): the way
+  into the catalog narrowed down to the area first, then the areas under it and its modules;
+  opened out of a row of the plan the row stays in the address (`ProgramUrl::with_area_keeping_req`),
+  so the panel says how one got there — „Anwendungsfach / Mathematik", each step a link back —
+  and closing it returns to the row. **With nothing picked nothing stands beside the page**
+  (owner, 2026-09-23: on a 13-inch screen a third column left the plan too little room): the
+  panel floats over the page like the catalog's preview, docked to the right edge, and is there
+  only while a module, an area or a row is picked. What it held with nothing picked went: the
+  numbers of the head repeated, and the bars „LP je Semester" repeated the sum row of the plan
+  (moved to the sidebar first, then dropped by the owner the same day: redundant, and they pushed
+  what the sidebar is for out of view). Until then the panel was a column of the layout, and the
+  tables gave up the columns that carry least (Bereich, Turnus, Nr.) as it got narrower. Tried before and dropped
   (owner, 2026-09-20): the matrix as a centred block in a wide empty panel — „liest sich zwar
   leichter, sieht trotzdem komisch aus"; the width wants content, not air.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
@@ -485,7 +489,9 @@ row means, the same derivation as the row's panel (`plan::areas_for_row`; „Anw
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
 name of a single module, the program's electives where no area fits; nothing picked → the
 program. The second line of the link says what it lists („Praktische Informatik", „5 Bereiche",
-„109 Module"); the row's panel ends with the same link. The catalog's area filter takes several
+„109 Module"); the row's panel opens with the same way in, as its first button, and lists what
+can be chosen under it (owner, 2026-09-23: it stated credits, kind and semester twice, as badges
+and as facts, and put the catalog last). The catalog's area filter takes several
 areas for that (`ProgramScope::areas`, any of them). The server's page picks nothing, so its link
 is the program's (no part of the cache key changes). `node e2e/programs.mjs` walks it.
 

@@ -174,6 +174,13 @@ impl ProgramUrl {
         Self { area: id, open: None, req: None, full: false, ..self.clone() }
     }
 
+    /// The area opened out of the row of the plan beside the page: the row stays in the address,
+    /// so the area's panel says how one got there („Anwendungsfach / Mathematik") and closing it
+    /// returns to the row (owner, 2026-09-23). Without a row the same as `with_area`.
+    pub fn with_area_keeping_req(&self, id: i64) -> Self {
+        Self { area: Some(id), open: None, full: false, ..self.clone() }
+    }
+
     /// The same page with this row of the study plan beside it.
     pub fn with_req(&self, row: Option<usize>) -> Self {
         Self { req: row, open: None, area: None, full: false, ..self.clone() }
@@ -1022,6 +1029,12 @@ mod tests {
         assert_eq!(plan.query(), "?variant=2&req=7");
         assert_eq!(plan.with_area(Some(3)).query(), "?variant=2&area=3");
         assert_eq!(plan.with_open(Some("11101")).query(), "?variant=2&req=7&open=11101");
+        // An area opened out of the row keeps the row, and so does a module opened out of that.
+        let within = plan.with_area_keeping_req(3);
+        assert_eq!(within.query(), "?variant=2&area=3&req=7");
+        assert_eq!(within.with_open(Some("11101")).query(), "?variant=2&area=3&req=7&open=11101");
+        assert_eq!(within.with_req(Some(7)).query(), "?variant=2&req=7");
+        assert_eq!(areas.with_area_keeping_req(4).query(), "?area=4");
         // The module fills the page: only with a module, and beside the page again with `with_open`.
         let full = ProgramUrl::parse("x", ProgramTab::Areas, "area=12&open=11101&full=1");
         assert!(full.full);
