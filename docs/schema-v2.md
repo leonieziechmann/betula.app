@@ -333,6 +333,39 @@ matrix whose credits stand in an annex, a plan of module boxes with no label col
 documents that publish only an amendment, and the four documents whose plan cannot be verified
 from the document alone — which, by R12, is a reason not to store it, not a reason to guess.
 
+### What the model does not decide (2026-09-23)
+
+The corpus gate reads offline, so the full Gemini scan of all 182 program versions was set beside an
+offline scan of the same database: 161 plans each, with the same totals, pages, credits and links.
+Two differences came from the model, and `BindSourceCells` now takes both from the document:
+
+- **The order of the rows.** The binding kept the order of the model's answer and appended the
+  cells it had left out. Where the model left out the rows the study directions share, they
+  („Höhere Mathematik T1", first semester) stood after „Wahlpflicht-Modul 4"; where it answered the
+  second table first, `plan.source_label` came from that one (211-88-2021: „Regelstudienplan"
+  instead of „Studienplan · Seite 12"). The rows now stand in the order of the layout's cells, the
+  order the offline reader gives them (211-82-2021, 211-88-2021, 216-82-2022, G19-P2-2022,
+  879-88-2018).
+- **The variant a row belongs to.** The model's `specialization` survived wherever the document
+  prints one plan and no track, and Folia splits a plan into variants by it: Wirtschaftsmathematik
+  (276-82-2023, D02-P2-2023) grew a variant „Komplex Vertiefung" of two rows. It now comes only
+  from the headings of several plans or the track printed over an alternative.
+
+Bound again with the change, all 164 stored model answers give the offline order, variants and
+heading (seven did not before), so the seven programs read with `--offline` as a stopgap can be read
+with the model again.
+
+The requirement kind stays the model's. With the same links, tree and module pages, `validate`
+counts 99 pairs whose sources state different kinds when all 161 plans carry the model's kinds (102
+in the database, where the seven are offline) and 157 with `ClassifyRequirement`'s. Taking thesis,
+internship or FÜS from the name on top of the model's kinds gives 108, 122 and 100 (132 for all
+three), because the name rules also catch what is none of these: „Programmierpraktikum" and
+„Laborpraktikum der Elektrotechnik" are lab courses and „Bildungswissenschaften I (beinhaltet
+Integriertes Eingangspraktikum)" is a module with a school practicum in it — 148 cells that are not
+internships — and „PhD Thesis Writing Skills" is a course. What the model misses is milder: it calls
+105 of 199 Bachelor and Master theses „Pflicht" and 76 FÜS slots „Wahlpflicht" — true, only less
+precise.
+
 Open:
 
 - **Web server (Rust) and frontend.** Both still read the v1 layout and do not work against a
