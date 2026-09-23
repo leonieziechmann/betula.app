@@ -245,7 +245,7 @@ report() {
     local owner
     owner="$(app_stack_for_host "${INSTANCE_HOST}")"
     if [[ "${owner}" == "${INSTANCE_STACK}" ]]; then
-      log "blue-green: ${INSTANCE_STACK} serves https://${INSTANCE_HOST}, ${SIBLINGS[*]} is the standby (rollback: bash ${BETULA_ROOT}/vps/55-switch.sh ${SIBLINGS[0]})"
+      log "blue-green: ${INSTANCE_STACK} serves https://${INSTANCE_HOST}, ${SIBLINGS[*]} is the standby (the host goes to it with: bash ${BETULA_ROOT}/vps/55-switch.sh ${SIBLINGS[0]})"
     else
       log "blue-green: ${INSTANCE_STACK} is the standby, https://${INSTANCE_HOST} is still served by ${owner}. Check it (91-verify-stacks.sh asks it directly), then hand the host over: bash ${BETULA_ROOT}/vps/55-switch.sh ${INSTANCE_STACK}"
     fi
