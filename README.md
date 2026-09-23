@@ -67,7 +67,7 @@ go test ./...                          # network-free, no API key needed
 
 ```bash
 git config core.hooksPath scripts/hooks   # once per clone: new worktrees set themselves up
-bash scripts/build-cache.sh setup         # once in the main checkout: its build cache, rust-lld
+bash scripts/build-cache.sh setup         # once in the main checkout: its build cache and flags
 bash scripts/build-client.sh --dev        # the browser app, built in seconds instead of minutes
 cargo run -p folia-server
 ```
