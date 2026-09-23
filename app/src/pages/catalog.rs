@@ -323,6 +323,9 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
             });
         }
     }
+    if let Some(scheduled) = q.scheduled {
+        push("Termine", if scheduled { "bestätigt" } else { "noch keine" }.to_string(), &|q| q.scheduled = None);
+    }
     if q.turnus.winter {
         push("Turnus", "Winter".to_string(), &|q| q.turnus.winter = false);
     }
@@ -1687,6 +1690,14 @@ fn Filters(
                     {program_picker}
                     {program_part}
 
+                    // Next to the semesters of the plan (owner, 2026-09-23): a module without
+                    // published dates probably does not take place.
+                    <div class="fgroup">
+                        <div class="flabel label">"Termine"</div>
+                        <div class="chips">
+                            {chip("Bestätigt", Some("calendar-check-2"), Toggle::flag(|q| q.scheduled, |q, value| q.scheduled = value))}
+                        </div>
+                    </div>
                     <div class="fgroup">
                         <div class="flabel label">"Angeboten im"<span class="legend"><i class="box with"><Icon name="check"/></i>"mit"<i class="box without"><Icon name="x"/></i>"ohne"</span></div>
                         <div class="chips">

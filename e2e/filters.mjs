@@ -4,7 +4,7 @@
 // program picker (typo-tolerant search, arrow keys, Enter, Esc, click outside, clear) → lecturer picker →
 // credit slider → width of the panel (limits, localStorage) → the area picker and the list of a
 // program (plan order, the semester at the row, the second page reached by scrolling, the note of
-// a semester scrolling away) → the same panel without JavaScript.
+// a semester scrolling away, confirmed dates only) → the same panel without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -301,6 +301,16 @@ const scrolled = await page.evaluate(async () => {
   return at;
 });
 check(scrolled.inRows && scrolled.note < 0 && Math.abs(scrolled.head) < 1 && !scrolled.search.includes("page="), `semester: the note stays or the heads of the columns go (${JSON.stringify(scrolled)})`);
+// „Termine: bestätigt" keeps the rows with published teaching events, none that says „noch keine" (owner, 2026-09-23).
+await step("events: confirmed only", () => page.click('#filters a.chip:has-text("Bestätigt")'), () => new URL(location.href).searchParams.get("events") === "yes" && [...document.querySelectorAll(".tag")].some((tag) => tag.textContent.includes("Termine")));
+const confirmed = await page.evaluate(() => ({
+  count: Number(document.querySelector(".count").textContent.replace(/\D/g, "")),
+  rows: document.querySelectorAll(".rows .vrow").length,
+  none: document.querySelectorAll(".rows .vrow .events.none").length,
+  semester: new URL(location.href).searchParams.get("semester"),
+}));
+check(confirmed.rows > 0 && confirmed.none === 0 && confirmed.count <= semester3.count && confirmed.semester === "3", `events: ${confirmed.none} of ${confirmed.rows} rows without dates, ${confirmed.count} of ${semester3.count} listed (${JSON.stringify(confirmed)})`);
+await step("events: the tag takes it out again", () => page.click('.tag:has(em:text("Termine")) a'), () => !location.search.includes("events="));
 check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by choosing a semester");
 await step("all semesters again", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("Alle")'), () => !location.search.includes("semester=") && !document.querySelector(".plan-note"));
 await step("area picker opens", () => page.click("#pick-area"), () => document.activeElement?.id === "pick-area-search" && document.querySelectorAll("#pick-area-list .combo-option").length > 3);
