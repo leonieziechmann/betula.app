@@ -10,11 +10,16 @@ import (
 )
 
 var (
-	thesisTitle = regexp.MustCompile(`(?i)\b(bachelor|master|diplom)[- ]?(arbeit|thesis)\b|\babschlussarbeit\b|\bkolloquium\b|\bthesis\b`)
+	// A name that is a thesis, not one that mentions it: „PhD Thesis Writing
+	// Skills" and „Status Seminar ERM: Progress Reports PhD Thesis" are courses.
+	thesisTitle = regexp.MustCompile(`(?i)\b(bachelor|master|diplom|doctoral)(?:'s|’s)?[- ]?(arbeit|thesis)\b|\babschlussarbeit\b|\bdissertation\b|\bkolloquium\b`)
 	// German compounds carry the noun as a suffix: Ingenieurpraktikum,
 	// Bachelor-Praktikum, Berufspraktikum.
 	internshipName = regexp.MustCompile(`(?i)praktikum\b|\bpraxisphase\b|\bpraxismodul\b|\binternship\b`)
-	fuesName       = regexp.MustCompile(`(?i)fachübergreifend|\bFÜS\b`)
+	// The Fachübergreifendes Studium itself, not every module that crosses
+	// subjects: „Fachübergreifende Projektarbeit" is a module of its own. A
+	// wrapped label may break the word („Fachübergreifenden Stu- / dium").
+	fuesName = regexp.MustCompile(`(?i)f(?:ach|ächer)übergreifende[ns]?\s+stu(?:-\s*/?\s*)?dium|\bFÜS\b`)
 )
 
 // ClassifyRequirement derives the module type from what the source itself

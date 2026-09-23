@@ -384,6 +384,46 @@ func TestModelAnswerBindsToTheOfflineOrderAndVariants(t *testing.T) {
 	}
 }
 
+// A thesis and the FÜS say what they are in their name, and the name wins over
+// the model's label: the model called Elektrotechnik's „Bachelor-Arbeit"
+// „Pflicht", which took the program its thesis and with it its faculty.
+// „Praktikum" is left to the model, since the word also names lab courses, and
+// so is every row whose name says nothing about its kind.
+func TestThesisAndFUESKindsComeFromTheName(t *testing.T) {
+	layout := &PDFLayout{Cells: []SourceCell{
+		{ID: "a", Table: "t", Row: "11477 Bachelor-Arbeit", Semesters: []int{6}, Min: 12, Max: 12},
+		{ID: "b", Table: "t", Row: "Fachübergreifendes Studium (FÜS)", Semesters: []int{3}, Min: 6, Max: 6},
+		{ID: "c", Table: "t", Row: "Programmierpraktikum", Semesters: []int{1}, Min: 4, Max: 4},
+		{ID: "d", Table: "t", Row: "Betriebliche Phase 1", Semesters: []int{2}, Min: 15, Max: 15},
+		{ID: "e", Table: "t", Row: "PhD Thesis Writing Skills", Semesters: []int{1}, Min: 3, Max: 3},
+		{ID: "f", Table: "t", Row: "Master Thesis oder Master Thesis (Online)", Semesters: []int{4}, Min: 30, Max: 30},
+	}}
+	res := &CurriculumExtractionResult{Modules: []ExtractedModule{
+		{SourceCell: "a", ModuleName: "Bachelor-Arbeit", ModuleType: "Pflicht"},
+		{SourceCell: "b", ModuleName: "Fachübergreifendes Studium (FÜS)", ModuleType: "Wahlpflicht"},
+		{SourceCell: "c", ModuleName: "Programmierpraktikum", ModuleType: "Pflicht"},
+		{SourceCell: "d", ModuleName: "Betriebliche Phase 1", ModuleType: "Praktikum"},
+		{SourceCell: "e", ModuleName: "PhD Thesis Writing Skills", ModuleType: "Pflicht"},
+		{SourceCell: "f", ModuleName: "Master Thesis oder Master Thesis (Online)", ModuleType: "Abschlussarbeit"},
+	}}
+	if err := BindSourceCells(res, layout); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"a": "Abschlussarbeit", // the name, over the model's „Pflicht"
+		"b": "FÜS",             // the name, over the model's „Wahlpflicht"
+		"c": "Pflicht",         // a lab course: the model's
+		"d": "Praktikum",       // the name says nothing: the model's
+		"e": "Pflicht",         // a course about a thesis is not one
+		"f": "Wahlpflicht",     // a choice between two theses is a choice
+	}
+	for _, m := range res.Modules {
+		if m.ModuleType != want[m.SourceCell] {
+			t.Errorf("%s: %s, want %s", m.ModuleName, m.ModuleType, want[m.SourceCell])
+		}
+	}
+}
+
 func TestSeasonValidationAndAmbiguousIdentity(t *testing.T) {
 	for _, tt := range []struct {
 		term, offering, duration string

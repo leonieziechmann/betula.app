@@ -355,16 +355,23 @@ Bound again with the change, all 164 stored model answers give the offline order
 heading (seven did not before), so the seven programs read with `--offline` as a stopgap can be read
 with the model again.
 
-The requirement kind stays the model's. With the same links, tree and module pages, `validate`
-counts 99 pairs whose sources state different kinds when all 161 plans carry the model's kinds (102
-in the database, where the seven are offline) and 157 with `ClassifyRequirement`'s. Taking thesis,
-internship or FÜS from the name on top of the model's kinds gives 108, 122 and 100 (132 for all
-three), because the name rules also catch what is none of these: „Programmierpraktikum" and
-„Laborpraktikum der Elektrotechnik" are lab courses and „Bildungswissenschaften I (beinhaltet
-Integriertes Eingangspraktikum)" is a module with a school practicum in it — 148 cells that are not
-internships — and „PhD Thesis Writing Skills" is a course. What the model misses is milder: it calls
-105 of 199 Bachelor and Master theses „Pflicht" and 76 FÜS slots „Wahlpflicht" — true, only less
-precise.
+A thesis and the FÜS take their kind from their name, an internship from the model. The thesis
+matters beyond its row: a program's faculty is the department of its thesis module
+(`catalog::pages::faculties`), and the model called 105 of 199 Bachelor and Master theses „Pflicht"
+— Elektrotechnik B.Sc. 2022 and its dual variant lost their thesis and moved from MINT to Fakultät 3
+in the program overview. `ClassifyRequirement` now wins for these two kinds, and both of its rules
+name the thing instead of mentioning it: „PhD Thesis Writing Skills" and „Status Seminar ERM:
+Progress Reports PhD Thesis" are courses, „Fachübergreifende Projektarbeit" is a module of its own.
+Bound again with that, every program has its faculty of 2026-09-21 back, and G02-P2-2022 joins its
+two Elektrotechnik siblings in MINT. `validate` counts 104 pairs whose sources state different kinds
+(99 with the model's kinds on all 161 plans, 157 offline before the narrower rules and 152 after):
+the thesis now agrees with the QIS tree in 6 more pairs and disagrees in 12 more with the module
+pages and the parts of the tree that call it „compulsory".
+
+„Praktikum" stays the model's, because the name rule also catches what is no internship:
+„Programmierpraktikum" and „Laborpraktikum der Elektrotechnik" are lab courses, and
+„Bildungswissenschaften I (beinhaltet Integriertes Eingangspraktikum)" is a module with a school
+practicum in it — 148 cells. Taking it from the name raised the count to 122 and moves no faculty.
 
 Open:
 

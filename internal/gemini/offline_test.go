@@ -32,8 +32,18 @@ func TestClassifyRequirementUsesSourceEvidence(t *testing.T) {
 		want string
 	}{
 		{SourceCell{Row: "Bachelor-Arbeit"}, "Abschlussarbeit"},
+		{SourceCell{Row: "Master’s Thesis"}, "Abschlussarbeit"},
+		{SourceCell{Row: "Doctoral Thesis – Dissertation"}, "Abschlussarbeit"},
+		// A course about a thesis is not one.
+		{SourceCell{Row: "PhD Thesis Writing Skills"}, "Pflicht"},
+		{SourceCell{Row: "Status Seminar ERM: Progress Reports PhD Thesis"}, "Pflicht"},
+		{SourceCell{Row: "Thesis-Entwicklung"}, "Pflicht"},
 		{SourceCell{Row: "Ingenieurpraktikum"}, "Praktikum"},
 		{SourceCell{Row: "Modul des FÜS"}, "FÜS"},
+		{SourceCell{Row: "Modul zum Fachübergreifenden Stu- / dium"}, "FÜS"},
+		{SourceCell{Row: "Fächerübergreifendes Studium (gemäß BTU-FÜSModulangebot)"}, "FÜS"},
+		// A module that crosses subjects is not the FÜS.
+		{SourceCell{Row: "Fachübergreifende Projektarbeit"}, "Pflicht"},
 		{SourceCell{Row: "Wahlbereich", Elective: true}, "Wahlpflicht"},
 		{SourceCell{Row: "Alternative A", AltGroup: 1}, "Wahlpflicht"},
 		{SourceCell{Row: "Mathematik 1"}, "Pflicht"},
