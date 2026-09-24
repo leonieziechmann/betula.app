@@ -9,7 +9,12 @@
 //!
 //! „Termine" is the agenda (`Timetable::agenda`): every date by week and day, what is cancelled
 //! and why, the holidays, the exams, and the weeks of a break with nothing in them as one line.
-//! It opens at the current week (the page reads the clock once, `PlanCtx::today`).
+//! What it cannot place on a day (a Termin „nach Vereinbarung", an exam whose date is open)
+//! stands under „Ohne Datum". It opens at the current week (the page reads the clock once,
+//! `PlanCtx::today`).
+//!
+//! A view comes back to where the visitor left it for a module (`Place`): after „Vollbild" and
+//! „Zurück", and on a phone, where the module was the page, when it is closed.
 //!
 //! Both views read the timetable and the address without what stands beside the plan (`base`),
 //! two siblings of the address (R16). The slot or date being opened is marked from where the app
@@ -22,6 +27,7 @@ use std::collections::BTreeMap;
 
 use catalog::labels::Rhythm;
 use catalog::rows_detail::EventDate;
+use catalog::search::fold;
 use catalog::timetable::day::{clock, Day};
 use catalog::timetable::exams::{ExamShape, Termin};
 use catalog::timetable::facts::SemesterFacts;
@@ -35,14 +41,20 @@ use leptos::prelude::*;
 
 use super::PlanCtx;
 use crate::format;
+use crate::nav;
 use crate::pages::catalog::phone_layout;
 use crate::pending::Pending;
 use crate::ui::Icon;
 use crate::week::{GridSlot, WeekGrid};
 
-/// The tones of the plan's modules as the `t-…` classes of app.css, in the order of
-/// `Event::tone` (1 … 8: the module's place in the plan, round again after the eighth).
+/// The tones of the plan's modules, in the order of `app.css`'s `t-…` classes: the first planned
+/// module of a semester is ice, the ninth ice again (the timetable's `Event::tone`, 1–8).
+// The same as `head::HUES`, `head::hue` and `head::tone_at` of WP17: whichever lane is merged
+// second keeps one copy of the three.
 const HUES: [&str; 8] = ["t-ice", "t-sun", "t-violet", "t-teal", "t-green", "t-coral", "t-rose", "t-slate"];
+
+/// Where this browser tab remembers the link the visitor last left a view by (`Place`).
+const LEFT_KEY: &str = "betula.studyplan.left";
 
 const WEEKDAYS: [&str; 7] = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
@@ -73,6 +85,18 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
         });
         view! { <WeekGrid slots=grid/> }.into_any()
     };
+
+    // Back from a module that filled the page („Vollbild", then „Zurück"; the address names it
+    // still): at the line it was opened from. On a phone the module beside the plan is the page:
+    // there the plan comes back when it is closed.
+    Effect::new(move |_| {
+        let here = ctx.url.get_untracked();
+        if here.open.is_some() && !nav::is_phone() {
+            come_back(&here, None);
+        }
+    });
+    back_on_phone(ctx, || None);
+
     view! {
         {week}
         <Loose title="Ohne feste Zeit" lines=loose/>
@@ -90,24 +114,42 @@ pub(super) fn DatesView(ctx: PlanCtx) -> impl IntoView {
     });
     let loose = Memo::new(move |_| {
         let base = base.get();
-        ctx.table.with(|table| table.as_ref().map(|table| loose_lines(table, &base, &undated(table))).unwrap_or_default())
+        ctx.table.with(|table| {
+            table
+                .as_ref()
+                .map(|table| loose_lines(table, &base, &undated(table)).into_iter().chain(open_exams(table, &base)).collect())
+                .unwrap_or_default()
+        })
     });
+    // The current week, as the agenda has it now; `None` without a clock.
+    let current = move |blocks: &[Block]| today.and_then(|today| scroll_target(blocks, today));
 
-    // The agenda opens at the current week, once: when it first has something to show. Later
-    // changes of what is shown leave the page where the visitor put it.
-    if let Some(today) = today {
-        let done = StoredValue::new(false);
-        Effect::new(move |_| {
-            if done.get_value() {
-                return;
-            }
-            let Some(target) = blocks.with(|blocks| (!blocks.is_empty()).then(|| scroll_target(blocks, today))) else { return };
-            done.set_value(true);
-            if let Some(id) = target {
-                reveal(id);
-            }
-        });
-    }
+    // The agenda opens once, when it first has something to show: at the current week, or back
+    // from a module that filled the page (the address names it still) at the date it was opened
+    // from. Later changes of what is shown leave the page where the visitor put it. On a phone,
+    // while the module beside the plan is the page, the plan is not shown: it opens when the
+    // module is closed (`back_on_phone`).
+    let done = StoredValue::new(false);
+    Effect::new(move |_| {
+        if done.get_value() {
+            return;
+        }
+        let Some(week) = blocks.with(|blocks| (!blocks.is_empty()).then(|| current(blocks))) else { return };
+        let here = ctx.url.get_untracked();
+        if here.open.is_some() && nav::is_phone() {
+            return;
+        }
+        done.set_value(true);
+        match (&here.open, week) {
+            (Some(_), week) => come_back(&here, week),
+            (None, Some(week)) => reveal(week),
+            (None, None) => {}
+        }
+    });
+    back_on_phone(ctx, move || {
+        done.set_value(true);
+        blocks.with_untracked(|blocks| current(blocks))
+    });
 
     view! {
         <div class="agenda">
@@ -139,25 +181,163 @@ fn picked_of(ctx: PlanCtx) -> Memo<Picked> {
     })
 }
 
-/// Scrolls the week `id` to the top of what scrolls around it (the page's column, on a phone the
-/// window), a frame later: after the router has put a page it opened at its top.
+/// Scrolls the week `id` to the top a frame later: after the router has put a page it opened at
+/// its top.
 #[allow(unused_variables)]
 fn reveal(id: String) {
     #[cfg(feature = "csr")]
     request_animation_frame(move || {
-        let Some(window) = web_sys::window() else { return };
-        let Some(document) = window.document() else { return };
-        let Some(element) = document.get_element_by_id(&id) else { return };
+        week_to_top(&id);
+    });
+}
+
+/// Scrolls the week `id` to the top of what scrolls around it (the page's column, on a phone the
+/// window). `false` if the agenda has no such week.
+#[allow(unused_variables)]
+fn week_to_top(id: &str) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        let Some(window) = web_sys::window() else { return false };
+        let Some(document) = window.document() else { return false };
+        let Some(element) = document.get_element_by_id(id) else { return false };
         let options = web_sys::ScrollIntoViewOptions::new();
         options.set_block(web_sys::ScrollLogicalPosition::Start);
         element.scroll_into_view_with_scroll_into_view_options(&options);
         // On a phone the window scrolls under the top bar, which stays: the week goes below it.
-        if crate::nav::is_phone() {
+        if nav::is_phone() {
             if let Some(bar) = document.query_selector(".topbar").ok().flatten() {
                 window.scroll_by_with_x_and_y(0.0, -bar.get_bounding_client_rect().bottom());
             }
         }
+        true
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// On a phone the module beside the plan is the page, and the plan waits unseen (with the window
+/// scrolled for the module). Closing the module brings the view back where the visitor left it
+/// (`come_back`), else at `week`.
+fn back_on_phone(ctx: PlanCtx, week: impl Fn() -> Option<String> + 'static) {
+    Effect::new(move |before: Option<StudyplanUrl>| {
+        let here = ctx.url.get();
+        if let Some(left) = before.filter(|before| before.open.is_some()) {
+            if here.open.is_none() && nav::is_phone() {
+                come_back(&left, week());
+            }
+        }
+        here
     });
+}
+
+/// Scrolls back to where the visitor left `left` (an address with the module beside the view):
+/// to the link they opened, else to its week, else to `week`. Once in the next frame and once more
+/// after the browser has restored its own idea of the scroll position (a step back through the
+/// history), as the Merkliste does.
+fn come_back(left: &StudyplanUrl, week: Option<String>) {
+    let place = nav::session_get(LEFT_KEY).as_deref().and_then(Place::restored).filter(|place| place.left(left));
+    let pass = move || {
+        if let Some(place) = &place {
+            if nav::reveal_selector(&place.selector()) || place.week().is_some_and(week_to_top) {
+                return;
+            }
+        }
+        if let Some(week) = &week {
+            week_to_top(week);
+        }
+    };
+    #[cfg(feature = "csr")]
+    {
+        let again = pass.clone();
+        request_animation_frame(pass);
+        set_timeout(again, std::time::Duration::from_millis(220));
+    }
+    // The server renders no plan and scrolls nothing.
+    #[cfg(not(feature = "csr"))]
+    let _ = pass;
+}
+
+/// What holds a link a view is left by: a week of the agenda (its anchor), the phone's list of
+/// days, the lines without a fixed time or date.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Within {
+    Week(String),
+    Days,
+    Loose,
+}
+
+/// The link the visitor last opened a module by, and what holds it: where the view comes back to
+/// (`come_back`). Kept for the browser tab (`LEFT_KEY`), since a view that the module's whole page
+/// replaced is built anew.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Place {
+    within: Within,
+    href: String,
+}
+
+impl Place {
+    /// „kw-2026-50 /studyplan?…", „days /studyplan?…", „loose /studyplan?…".
+    fn stored(&self) -> String {
+        let within = match &self.within {
+            Within::Week(id) => id.as_str(),
+            Within::Days => "days",
+            Within::Loose => "loose",
+        };
+        format!("{within} {}", self.href)
+    }
+
+    /// What `stored` wrote, checked like anything read from storage: an anchor as the agenda
+    /// writes it, and a link of the plan made of the characters its addresses have (it becomes
+    /// part of a selector).
+    fn restored(text: &str) -> Option<Place> {
+        let (within, href) = text.split_once(' ')?;
+        let within = match within {
+            "days" => Within::Days,
+            "loose" => Within::Loose,
+            id if is_week_id(id) => Within::Week(id.to_string()),
+            _ => return None,
+        };
+        let plain = |c: char| c.is_ascii_alphanumeric() || "/?&=-_.%+".contains(c);
+        let ours = href.strip_prefix(url::STUDYPLAN).is_some_and(|rest| rest.starts_with('?')) && href.chars().all(plain);
+        ours.then(|| Place { within, href: href.to_string() })
+    }
+
+    /// The link in the page: `#kw-2026-50 a[href="…"]`, `.sp-daylist a[href="…"]`.
+    fn selector(&self) -> String {
+        let within = match &self.within {
+            Within::Week(id) => format!("#{id}"),
+            Within::Days => ".sp-daylist".to_string(),
+            Within::Loose => ".sp-loose".to_string(),
+        };
+        format!("{within} a[href=\"{}\"]", self.href)
+    }
+
+    fn week(&self) -> Option<&str> {
+        match &self.within {
+            Within::Week(id) => Some(id),
+            Within::Days | Within::Loose => None,
+        }
+    }
+
+    /// Whether the visitor left `url` here: the same semester and view, the same module beside it.
+    /// (Another module opened since, from the legend or the notes, is not left from here.)
+    fn left(&self, url: &StudyplanUrl) -> bool {
+        let there = StudyplanUrl::parse(self.href.split_once('?').map_or("", |(_, query)| query));
+        (&there.sem, there.view, &there.open) == (&url.sem, url.view, &url.open)
+    }
+}
+
+/// `kw-2026-41`, as `week_id` writes it.
+fn is_week_id(id: &str) -> bool {
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit());
+    id.strip_prefix("kw-").and_then(|rest| rest.split_once('-')).is_some_and(|(year, week)| digits(year) && digits(week))
+}
+
+/// Remembers the link a click in `within` follows (`Place`).
+fn remember(within: Within, ev: &leptos::ev::MouseEvent) {
+    if let Some(href) = nav::link_under(ev.target()) {
+        nav::session_set(LEFT_KEY, &Place { within, href }.stored());
+    }
 }
 
 // ---------- the Regelwoche ----------
@@ -217,7 +397,7 @@ fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem) -> Option<
 
     // The tooltip says in full what the slot shortens: the kind as QIS names it, the whole time,
     // the rooms, and the dates of single ones.
-    let mut title = vec![type_text(event), event.title.clone(), format!("{} {}–{}", day_short(item.day), clock(item.from), clock(item.to))];
+    let mut title = vec![event_text(event), format!("{} {}–{}", day_short(item.day), clock(item.from), clock(item.to))];
     title.extend(notes.iter().cloned());
     title.extend(rooms(rows.iter().map(|row| &row.date)));
     if matches!(item.label, WeekLabel::Once { dates, .. } if dates > 1) {
@@ -234,7 +414,7 @@ fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem) -> Option<
         day: item.day,
         from: item.from,
         to: item.to,
-        label: format!("{} {}", kind_short(event), event.title),
+        label: slot_label(event),
         small: slot_small(&item.label, every, item.alt, item.from, &table.facts),
         title: title.join(" · "),
         class: if once { "once" } else { "tinted" },
@@ -248,7 +428,7 @@ fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem) -> Option<
         day: item.day,
         class: classes(hue, &[(item.alt.is_some(), "alt"), (item.clash, "clash")]),
         time: format!("{}–{}", clock(item.from), clock(item.to)),
-        text: format!("{} · {}", type_text(event), event.title),
+        text: event_text(event),
         note: notes.join(" · "),
         href,
         modules: event.modules.clone(),
@@ -359,7 +539,7 @@ fn DayList(slots: Memo<Vec<PlanSlot>>, picked: Memo<Picked>) -> impl IntoView {
         }
     };
     view! {
-        <div class="sp-daylist">
+        <div class="sp-daylist" on:click=|ev| remember(Within::Days, &ev)>
             <For each=move || groups.get() key=|group| group.clone() children=day/>
         </div>
     }
@@ -504,7 +684,7 @@ fn teaching_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &Agenda
         _ if rows.iter().any(|row| row.occ.all_day) => "ganztägig".to_string(),
         _ => "Zeit offen".to_string(),
     };
-    let text = format!("{} · {}", type_text(event), event.title);
+    let text = event_text(event);
     let rooms = rooms(rows.iter().map(|row| &row.date));
 
     let mut small = Vec::new();
@@ -538,17 +718,15 @@ fn exam_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &AgendaItem
     let exam = table.exams.get(x)?;
     let first = exam.rows.get(item.row)?;
     let module = exam.modules.first()?;
-    // An exam takes the tone of its first planned module, as that module's events do.
-    let position = table.modules.iter().position(|planned| planned == module).unwrap_or_default();
-    let tone = u8::try_from(position % HUES.len()).unwrap_or_default().saturating_add(1);
     let time = match first.shape {
         ExamShape::Sitting { from, to, .. } => format!("{}–{}", clock(from), clock(to)),
         ExamShape::Deadline { .. } => format!("bis {}", first.date.end_time.as_deref().unwrap_or("24:00")),
         ExamShape::Window { last, .. } => format!("bis {}", last.short()),
         ExamShape::DayOnly { .. } => "Zeit offen".to_string(),
-        ExamShape::Open => "Termin offen".to_string(),
+        // The agenda has no day for it: it stands under „Ohne Datum" (`open_exams`).
+        ExamShape::Open => return None,
     };
-    let text = format!("Prüfung · {}", exam.title);
+    let text = kind_and_title(EXAM, &exam.title);
     let rooms = rooms(item.rows.iter().filter_map(|r| exam.rows.get(*r)).map(|row| &row.date));
     let small: Vec<String> = (first.rank == 2).then(|| "2. Termin".to_string()).into_iter().chain(rooms).collect();
     // A warning names a module's Termin by its day and start; this sitting is that Termin.
@@ -556,7 +734,7 @@ fn exam_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &AgendaItem
     let warn = table.exam_warnings.iter().any(|warning| warning.day == day && (named(&warning.a) || named(&warning.b)));
     let title: Vec<String> = [text.clone(), format!("{} {time}", day.german())].into_iter().chain(small.iter().cloned()).collect();
     Some(ItemLine {
-        class: classes(hue(tone), &[(true, "exam")]),
+        class: classes(exam_hue(table, module), &[(true, "exam")]),
         time,
         text,
         small: small.join(" · "),
@@ -583,8 +761,9 @@ fn block_view(block: Block) -> impl IntoView {
         Block::Break { id, text, .. } => view! { <p class="agenda-break" id=id>{text}</p> }.into_any(),
         Block::Week { id, head, days, .. } => {
             let empty = days.is_empty().then(|| view! { <small>" · keine Termine"</small> });
+            let within = Within::Week(id.clone());
             view! {
-                <section class="agenda-week" id=id>
+                <section class="agenda-week" id=id on:click=move |ev| remember(within.clone(), &ev)>
                     <h3>{head}{empty}</h3>
                     {days.into_iter().map(day_view).collect_view()}
                 </section>
@@ -643,7 +822,7 @@ fn loose_lines(table: &Timetable, base: &StudyplanUrl, entries: &[(usize, Option
             let row = r.and_then(|r| event.rows.get(r));
             Some(LooseLine {
                 hue: hue(event.tone),
-                text: format!("{} · {}", type_text(event), event.title),
+                text: event_text(event),
                 small: row.map_or_else(|| "ohne Termine".to_string(), |row| row_facts(&row.date)),
                 href: base.with_open(Some(module.as_str()), row.and_then(|row| row.key)).path(),
             })
@@ -667,6 +846,29 @@ fn undated(table: &Timetable) -> Vec<(usize, Option<usize>)> {
         }
     }
     entries
+}
+
+/// The shown exam Termine without a date (QIS lists the exam, its date is open), in the plan's
+/// order: the agenda has no day for them. „Prüfungen" names them as well.
+fn open_exams(table: &Timetable, base: &StudyplanUrl) -> Vec<LooseLine> {
+    let mut lines = Vec::new();
+    for exam in table.exams.iter().filter(|exam| exam.hidden.is_none()) {
+        let Some(module) = exam.modules.first() else { continue };
+        for row in exam.rows.iter().filter(|row| row.hidden.is_none() && matches!(row.shape, ExamShape::Open)) {
+            let small: Vec<String> = std::iter::once("Termin offen".to_string()).chain(rooms(std::iter::once(&row.date))).collect();
+            let line = LooseLine {
+                hue: exam_hue(table, module),
+                text: kind_and_title(EXAM, &exam.title),
+                small: small.join(" · "),
+                href: base.with_open(Some(module.as_str()), row.key).path(),
+            };
+            // Two open dates of one exam that say the same are one line (and one key of the list).
+            if !lines.contains(&line) {
+                lines.push(line);
+            }
+        }
+    }
+    lines
 }
 
 /// A row as QIS gives it, in what it has: weekday and time, rhythm, dates, room.
@@ -693,7 +895,7 @@ fn row_facts(date: &EventDate) -> String {
         .chain(date.room.clone().filter(|room| !room.trim().is_empty()))
         .collect();
     if parts.is_empty() {
-        return "keine Angaben".to_string();
+        return "nicht angegeben".to_string();
     }
     parts.join(" · ")
 }
@@ -716,7 +918,7 @@ fn Loose(title: &'static str, lines: Memo<Vec<LooseLine>>) -> impl IntoView {
         some.get().then(|| {
             view! {
                 <h3 class="label">{title}</h3>
-                <div class="sp-loose">
+                <div class="sp-loose" on:click=|ev| remember(Within::Loose, &ev)>
                     <For each=move || lines.get() key=|line| line.clone() children=line/>
                 </div>
             }
@@ -726,8 +928,23 @@ fn Loose(title: &'static str, lines: Memo<Vec<LooseLine>>) -> impl IntoView {
 
 // ---------- words ----------
 
+/// What an exam is called in the plan's lines.
+const EXAM: &str = "Prüfung";
+
+/// The class of a module's tone (`Event::tone`, 1–8); a tone out of range is the first.
 fn hue(tone: u8) -> &'static str {
-    HUES.get(usize::from(tone.saturating_sub(1)) % HUES.len()).copied().unwrap_or("t-slate")
+    HUES.get(usize::from(tone.saturating_sub(1)) % HUES.len()).copied().unwrap_or("t-ice")
+}
+
+/// The tone of the module at `position` in the semester's plan: the tone the timetable gives the
+/// module's events.
+fn tone_at(position: usize) -> u8 {
+    u8::try_from(position % HUES.len()).map_or(1, |tone| tone + 1)
+}
+
+/// An exam takes the tone of its first planned module, as that module's events do.
+fn exam_hue(table: &Timetable, module: &str) -> &'static str {
+    hue(tone_at(table.modules.iter().position(|planned| planned == module).unwrap_or_default()))
 }
 
 /// The tone first, then the names of the flags that are on.
@@ -746,6 +963,44 @@ fn type_text(event: &Event) -> String {
 /// The kinds in a slot's few letters: „VL", „Ü", „VL/Ü".
 fn kind_short(event: &Event) -> String {
     event.kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/")
+}
+
+/// „Übung · Entwicklung von Softwaresystemen": what an event is, then its title.
+fn event_text(event: &Event) -> String {
+    kind_and_title(&type_text(event), &event.title)
+}
+
+/// A slot's label: the kinds in their few letters, then the title („VL Entwicklung von
+/// Softwaresystemen"); the title alone where it says what the event is.
+fn slot_label(event: &Event) -> String {
+    let short = kind_short(event);
+    if short.is_empty() || names_kind(&event.title, &type_text(event)) {
+        event.title.trim().to_string()
+    } else {
+        format!("{short} {}", event.title.trim())
+    }
+}
+
+/// „<kind> · <title>", or the title alone where it begins with what it is („Tutorium Höhere
+/// Mathematik W-1", not „Tutorium · Tutorium Höhere Mathematik W-1"), or the kind alone
+/// without a title.
+fn kind_and_title(kind: &str, title: &str) -> String {
+    let title = title.trim();
+    if title.is_empty() {
+        kind.to_string()
+    } else if names_kind(title, kind) {
+        title.to_string()
+    } else {
+        format!("{kind} · {title}")
+    }
+}
+
+/// Whether `title` begins with the first word of `kind`, folded („Praktikum: Betriebssysteme"
+/// for „Praktikum", „Schulpraktische Studien: …" for „Schulpraktische Studien (SPS)"). Not for a
+/// type of two kinds („Seminar/Übung"), of which a title names one.
+fn names_kind(title: &str, kind: &str) -> bool {
+    let first = |text: &str| fold(text).split(|c: char| !c.is_alphanumeric()).find(|word| !word.is_empty()).map(str::to_string);
+    !kind.contains('/') && first(kind).is_some_and(|word| first(title) == Some(word))
 }
 
 /// The rooms of rows, each once, as QIS writes them: „HG 0.20 / HG 0.19".
@@ -835,10 +1090,44 @@ mod tests {
     }
 
     fn table(schedule: &[DateRow]) -> Timetable {
+        planned(&["12104"], schedule, &[])
+    }
+
+    /// The timetable of `modules` planned in this order, with teaching and exam rows.
+    fn planned(modules: &[&str], schedule: &[DateRow], exams: &[DateRow]) -> Timetable {
         let facts = winter();
-        let modules = ["12104".to_string()];
-        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule, exams: &[], sws: &[] };
+        let modules: Vec<String> = modules.iter().map(|id| id.to_string()).collect();
+        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule, exams, sws: &[] };
         Timetable::build(&input, &Selection::default())
+    }
+
+    /// An exam row: module, event, ord, title, its dates (none: the date is open), its times
+    /// (empty: none), its room.
+    fn exam(module: &str, event: &str, ord: i64, title: &str, dates: Option<(&str, &str)>, time: (&str, &str), room: Option<&str>) -> DateRow {
+        let time_of = |t: &str| Some(t.to_string()).filter(|t| !t.is_empty());
+        let mut exam = row(event, ord, "Prüfung", "single", 1, ("", ""), ("", ""));
+        exam.module_id = module.into();
+        exam.date.event_title = title.into();
+        exam.date.event_type = None;
+        (exam.date.weekday, exam.date.rhythm) = (None, None);
+        (exam.date.start_time, exam.date.end_time) = (time_of(time.0), time_of(time.1));
+        exam.date.first_date = dates.map(|(first, _)| first.into());
+        exam.date.last_date = dates.map(|(_, last)| last.into());
+        exam.date.room = room.map(str::to_string);
+        exam
+    }
+
+    /// The items of the agenda with their day („Do 11.02.").
+    fn agenda_items(blocks: &[Block]) -> Vec<(String, &ItemLine)> {
+        blocks
+            .iter()
+            .filter_map(|block| match block {
+                Block::Week { days, .. } => Some(days),
+                Block::Break { .. } => None,
+            })
+            .flatten()
+            .flat_map(|day| day.items.iter().map(move |item| (day.when.clone(), item)))
+            .collect()
     }
 
     fn plain() -> StudyplanUrl {
@@ -991,15 +1280,7 @@ mod tests {
         lecture.cancelled_dates = Some("13.10.2026: Projektwoche 19.01.2027: Raumwechsel".into());
         let table = table(&[lecture]);
         let blocks = agenda_blocks(&table, &table.agenda(), &plain(), Some(d("2026-10-06")));
-        let items: Vec<(String, &ItemLine)> = blocks
-            .iter()
-            .filter_map(|block| match block {
-                Block::Week { days, .. } => Some(days),
-                Block::Break { .. } => None,
-            })
-            .flatten()
-            .flat_map(|day| day.items.iter().map(move |item| (day.when.clone(), item)))
-            .collect();
+        let items = agenda_items(&blocks);
         let (when, first) = items.first().unwrap();
         assert_eq!((when.as_str(), first.time.as_str(), first.text.as_str()), ("Di 06.10.", "11:30–13:00", "Vorlesung · Entwicklung von Softwaresystemen"));
         assert_eq!((first.class.as_str(), first.small.as_str()), ("t-ice", "HG 0.20"));
@@ -1012,6 +1293,97 @@ mod tests {
         assert!(blocks.iter().any(|block| matches!(block, Block::Week { days, .. } if days.iter().any(|day| day.today && day.when == "Di 06.10."))));
         assert!(blocks.iter().any(|block| matches!(block, Block::Break { text, .. } if text == "21.12.–03.01. vorlesungsfrei")));
         assert!(blocks.iter().any(|block| matches!(block, Block::Week { days, .. } if days.iter().any(|day| day.holiday == Some("Reformationstag") && day.when == "Sa 31.10."))));
+    }
+
+    #[test]
+    fn the_agenda_says_when_each_exam_is_and_which_collide() {
+        let exams = [
+            // 12104: a first sitting that overlaps 12107's, a second one a month later, a
+            // deadline; 12107: that sitting, a window, a day without a time, an open date.
+            exam("12104", "90", 1, "Entwicklung von Softwaresystemen", Some(("2027-02-11", "2027-02-11")), ("11:00", "13:00"), Some("Audimax 1")),
+            exam("12104", "90", 2, "Entwicklung von Softwaresystemen", Some(("2027-03-12", "2027-03-12")), ("11:00", "13:00"), Some("Audimax 1")),
+            exam("12104", "94", 1, "Abgabe Softwareprojekt", Some(("2027-02-14", "2027-02-14")), ("", "24:00"), None),
+            exam("12107", "91", 1, "Prüfung Mathematik", Some(("2027-02-11", "2027-02-11")), ("12:00", "14:00"), Some("HG 0.20")),
+            exam("12107", "92", 1, "Hausarbeit", Some(("2027-02-01", "2027-02-05")), ("", ""), None),
+            exam("12107", "93", 1, "Kolloquium", Some(("2027-02-15", "2027-02-15")), ("", ""), None),
+            exam("12107", "95", 1, "Klausur Statistik", None, ("", ""), Some("HG 0.19")),
+            exam("12107", "95", 2, "Klausur Statistik", None, ("", ""), Some("HG 0.19")),
+        ];
+        let table = planned(&["12104", "12107"], &[], &exams);
+        let blocks = agenda_blocks(&table, &table.agenda(), &plain(), None);
+        let shown: Vec<(String, &str, &str, &str, &str, bool)> = agenda_items(&blocks)
+            .into_iter()
+            .map(|(when, item)| (when, item.time.as_str(), item.text.as_str(), item.small.as_str(), item.class.as_str(), item.warn))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                // A window stands on its first day only.
+                ("Mo 01.02.".to_string(), "bis 05.02.", "Prüfung · Hausarbeit", "", "t-sun exam", false),
+                // The two sittings that overlap both carry the warning; a title that says it is
+                // an exam stands alone.
+                ("Do 11.02.".to_string(), "11:00–13:00", "Prüfung · Entwicklung von Softwaresystemen", "Audimax 1", "t-ice exam", true),
+                ("Do 11.02.".to_string(), "12:00–14:00", "Prüfung Mathematik", "HG 0.20", "t-sun exam", true),
+                ("So 14.02.".to_string(), "bis 24:00", "Prüfung · Abgabe Softwareprojekt", "", "t-ice exam", false),
+                ("Mo 15.02.".to_string(), "Zeit offen", "Prüfung · Kolloquium", "", "t-sun exam", false),
+                // The later sitting of a module says so first, and on its own day it warns of nothing.
+                ("Fr 12.03.".to_string(), "11:00–13:00", "Prüfung · Entwicklung von Softwaresystemen", "2. Termin · Audimax 1", "t-ice exam", false),
+            ]
+        );
+        let (_, first) = agenda_items(&blocks).into_iter().find(|(when, _)| when == "Do 11.02.").unwrap();
+        assert!(first.href.starts_with("/studyplan?sem=2026W&open=12104&row=90-"), "{}", first.href);
+
+        // The open date has no day: it stands under „Ohne Datum", in its module's tone, once
+        // however often QIS lists it.
+        let open = open_exams(&table, &plain());
+        let lines: Vec<(&str, &str, &str)> = open.iter().map(|line| (line.hue, line.text.as_str(), line.small.as_str())).collect();
+        assert_eq!(lines, [("t-sun", "Prüfung · Klausur Statistik", "Termin offen · HG 0.19")]);
+        assert!(open.iter().all(|line| line.href.starts_with("/studyplan?sem=2026W&open=12107")), "{open:?}");
+    }
+
+    #[test]
+    fn a_title_that_says_what_it_is_stands_alone() {
+        assert_eq!(kind_and_title("Übung", "Entwicklung von Softwaresystemen"), "Übung · Entwicklung von Softwaresystemen");
+        assert_eq!(kind_and_title("Tutorium", "Tutorium Höhere Mathematik W-1"), "Tutorium Höhere Mathematik W-1");
+        assert_eq!(kind_and_title("Diplomandenseminar", "Diplomandenseminar"), "Diplomandenseminar");
+        assert_eq!(kind_and_title("Praktikum", "Praktikum: Programmiersprachen"), "Praktikum: Programmiersprachen");
+        assert_eq!(kind_and_title("Übung", "übung wissenschaftliches Arbeiten"), "übung wissenschaftliches Arbeiten");
+        assert_eq!(kind_and_title("Schulpraktische Studien (SPS)", "Schulpraktische Studien: Vorbereitung"), "Schulpraktische Studien: Vorbereitung");
+        // A word that only begins like the kind is another word; a type of two kinds stays.
+        assert_eq!(kind_and_title("Seminar", "Seminare der Informatik"), "Seminar · Seminare der Informatik");
+        assert_eq!(kind_and_title("Seminar/Übung", "Seminar Infrastrukturplanung"), "Seminar/Übung · Seminar Infrastrukturplanung");
+        assert_eq!(kind_and_title("Vorlesung", " "), "Vorlesung");
+
+        let mut tutorial = row("150001", 1, "Tutorium", "weekly", 3, ("09:15", "10:45"), ("2026-10-07", "2027-01-27"));
+        tutorial.date.event_title = "Tutorium Höhere Mathematik W-1".into();
+        let table = table(&[tutorial, row("148701", 1, "Vorlesung", "weekly", 2, ("11:30", "13:00"), ("2026-10-06", "2027-01-26"))]);
+        let labels: Vec<(String, String)> = table.events.iter().map(|event| (slot_label(event), event_text(event))).collect();
+        assert!(labels.contains(&("Tutorium Höhere Mathematik W-1".to_string(), "Tutorium Höhere Mathematik W-1".to_string())), "{labels:?}");
+        assert!(labels.contains(&("VL Entwicklung von Softwaresystemen".to_string(), "Vorlesung · Entwicklung von Softwaresystemen".to_string())), "{labels:?}");
+    }
+
+    #[test]
+    fn a_view_remembers_the_link_it_was_left_by() {
+        let href = "/studyplan?sem=2026W&view=dates&open=12104&row=148701-b7025";
+        let place = Place { within: Within::Week("kw-2026-50".into()), href: href.into() };
+        assert_eq!(Place::restored(&place.stored()), Some(place.clone()));
+        assert_eq!(place.selector(), format!("#kw-2026-50 a[href=\"{href}\"]"));
+        assert_eq!(place.week(), Some("kw-2026-50"));
+        let days = Place { within: Within::Days, href: "/studyplan?open=12104".into() };
+        assert_eq!(Place::restored(&days.stored()), Some(days.clone()));
+        assert_eq!((days.selector().as_str(), days.week()), (".sp-daylist a[href=\"/studyplan?open=12104\"]", None));
+        assert_eq!(Place::restored("loose /studyplan?view=dates&open=12107").map(|place| place.within), Some(Within::Loose));
+        // What is read back is checked: a week's anchor, a link of the plan, nothing that would
+        // break out of the selector.
+        for bad in ["kw-2026 /studyplan?open=1", "week /studyplan?open=1", "days /catalog?open=1", "days /studyplan?open=1\"]", "days /studyplanx", "days"] {
+            assert_eq!(Place::restored(bad), None, "{bad}");
+        }
+        // It is where the visitor left the view only for the same semester, view and module.
+        assert!(place.left(&StudyplanUrl::parse("sem=2026W&view=dates&open=12104")));
+        assert!(place.left(&StudyplanUrl::parse("sem=2026W&view=dates&open=12104&row=148701-aaaaa")));
+        assert!(!place.left(&StudyplanUrl::parse("sem=2026W&view=dates&open=12107")));
+        assert!(!place.left(&StudyplanUrl::parse("sem=2026W&open=12104")));
+        assert!(!place.left(&StudyplanUrl::parse("sem=2027S&view=dates&open=12104")));
     }
 
     #[test]
@@ -1037,5 +1409,9 @@ mod tests {
         assert_eq!(lines.last().map(|line| line.href.as_str()), Some("/studyplan?sem=2026W&open=12104"));
         // The agenda places neither, so its „Ohne Datum" has both.
         assert_eq!(undated(&table), table.loose());
+        // A row that says nothing says so (R12).
+        let mut nothing = row("150002", 1, "Seminar", "other", 1, ("", ""), ("", ""));
+        nothing.date = EventDate { weekday: None, start_time: None, end_time: None, rhythm: None, first_date: None, last_date: None, room: None, ..nothing.date };
+        assert_eq!(row_facts(&nothing.date), "nicht angegeben");
     }
 }
