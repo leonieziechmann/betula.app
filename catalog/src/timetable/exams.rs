@@ -10,14 +10,19 @@
 //! A module's sittings in one semester are alternatives of each other: the first and the second
 //! Termin, or a retake event shared by many modules. The Termine of a planned module are the
 //! distinct days and times of its visible sittings, so two rooms or two events at the same time
-//! are one Termin. A sitting is rank 1 when it is the earliest Termin of a planned module it
-//! belongs to, else rank 2 („2. Termin"); the calendar feed marks rank 2 and retakes tentative.
+//! are one Termin, and rows sharing a row key are one Termin until their latest end, as the feed
+//! merges them. A sitting is rank 1 when it lies on the day of the earliest Termin of a planned
+//! module it belongs to, else rank 2 („2. Termin"); the calendar feed marks rank 2 and retakes
+//! tentative.
 //!
 //! Two modules' Termine on one day warn when their times overlap, or when the hop between their
 //! campuses is too short: under `CITY_GAP` between Cottbus and Senftenberg, under `SITE_GAP`
-//! between two Cottbus sites. A warning is hard only when no combination of the two modules'
-//! Termine avoids it: a false warning costs a line, a missed exam costs a semester. Where a campus
-//! is not known the hop cannot be judged, and the day gets a muted line instead of a warning.
+//! between two Cottbus sites. Only an exam event both modules share is one exam; a shared room is
+//! not, since the big halls hold several exams at once. A warning is hard only when no
+//! combination of the two modules' Termine avoids it: a false warning costs a line, a missed exam
+//! costs a semester. Where a campus is not known the hop cannot be judged, and the day gets a
+//! muted line instead of a warning. `collision` is that rule for one pair of Termine, so the
+//! finder checks a candidate's Termine by it too.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -72,8 +77,9 @@ pub struct ExamRow {
     pub shape: ExamShape,
     /// The exam's reason when the whole exam is hidden, else `Row` when this Termin is.
     pub hidden: Option<HiddenBy>,
-    /// 1 = the earliest Termin of a planned module it belongs to; 2 = a later one; 0 = no visible
-    /// sitting (another shape, or hidden).
+    /// 1 = on the day of the earliest Termin of a planned module it belongs to; 2 = on a later
+    /// day; 0 = no visible sitting (another shape, or hidden). Visible sittings of one row key
+    /// share day and start, so they always carry one rank.
     pub rank: u8,
 }
 
@@ -112,13 +118,14 @@ pub struct ExamWarning {
 }
 
 /// A Termin of one planned module: its visible sittings at one day and time, wherever held. The
-/// day is the warning's (or the one `termine` pairs it with).
+/// day is the warning's (or its `TerminAt`'s).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Termin {
     pub module_id: String,
     /// The exam event of its first sitting.
     pub event_id: String,
     pub from: u16,
+    /// The latest end of its sittings.
     pub to: u16,
     /// The campuses of its sittings, each once, in the order met; a sitting without a campus adds
     /// none.
@@ -127,14 +134,38 @@ pub struct Termin {
     pub room: Option<String>,
 }
 
-/// In a folded exam title: a retake („Wiederholungsprüfung", „Nachprüfung", „Nachklausur",
-/// „Nach-/Wiederholungsprüfung").
-const RETAKE_WORDS: [&str; 4] = ["wiederhol", "nachprüf", "nachklausur", "nach-/"];
+/// A Termin at its day, with what `collision` compares beyond it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TerminAt {
+    pub day: Day,
+    pub termin: Termin,
+    /// Every exam event with a sitting in this Termin, each once: two modules that share one sit
+    /// one exam.
+    pub events: Vec<String>,
+    /// Some sitting has no campus, or one in no known town: its hops cannot be judged.
+    pub unplaced: bool,
+}
 
-/// Whether an exam title names a retake.
+/// In a folded exam title: a retake („Wiederholungsprüfung", „Nachprüfung", „Nachklausur",
+/// „Nach-/Wiederholungsprüfung", „only for retake exams").
+const RETAKE_WORDS: [&str; 5] = ["wiederhol", "nachprüf", "nachklausur", "nach-/", "retake"];
+
+/// Whole words of a folded exam title that name a retake by an abbreviation: „WMAP", the
+/// Wiederholungs-MAP of the health and teacher programs, and „Wdh.".
+const RETAKE_TAGS: [&str; 2] = ["wmap", "wdh"];
+
+/// The whole word of a first attempt, the Modulabschlussprüfung. A title that names it beside a
+/// retake („(MAP+V) und WMAP"; „W-/MAP", first attempt or retake) is a first attempt too.
+const FIRST_TAG: &str = "map";
+
+/// Whether an exam title names a retake, and no first attempt beside it.
 pub fn retake(title: &str) -> bool {
     let folded = fold(title);
-    RETAKE_WORDS.iter().any(|word| folded.contains(word))
+    let words: Vec<&str> = folded.split(|c: char| !c.is_alphanumeric()).filter(|word| !word.is_empty()).collect();
+    if words.contains(&FIRST_TAG) {
+        return false;
+    }
+    RETAKE_WORDS.iter().any(|word| folded.contains(word)) || words.iter().any(|word| RETAKE_TAGS.contains(word))
 }
 
 /// The shape of an exam date as the reading shows it: a deadline is one; two different days are a
@@ -281,18 +312,18 @@ fn visible_sitting(row: &ExamRow) -> Option<(Day, u16, u16)> {
     }
 }
 
-/// Sets the ranks: a visible sitting is 1 when it is the earliest Termin of at least one of its
-/// planned modules, else 2; every other row is 0. Hiding a module's first sitting makes its next
-/// one the first.
+/// Sets the ranks: a visible sitting is 1 when it lies on the day of the earliest Termin of at
+/// least one of its planned modules, else 2; every other row is 0. By day, not by time: the
+/// sittings of one day are one attempt, whether rows of one key with two ends (150907's
+/// 09:00–11:00 and 09:00–11:30 in one room), two parts (12128's 08:00 and 09:15) or the two towns'
+/// exams of a track module no town was chosen for (11107's 11:00 in Senftenberg and 14:00 at
+/// Zentralcampus). Hiding a module's first sitting makes its next one the first.
 fn rank(exams: &mut [Exam]) {
-    let mut earliest: BTreeMap<String, (Day, u16, u16)> = BTreeMap::new();
+    let mut first_day: BTreeMap<String, Day> = BTreeMap::new();
     for exam in exams.iter() {
-        for sitting in exam.rows.iter().filter_map(visible_sitting) {
+        for (day, ..) in exam.rows.iter().filter_map(visible_sitting) {
             for module in &exam.modules {
-                earliest
-                    .entry(module.clone())
-                    .and_modify(|first| *first = (*first).min(sitting))
-                    .or_insert(sitting);
+                first_day.entry(module.clone()).and_modify(|first| *first = (*first).min(day)).or_insert(day);
             }
         }
     }
@@ -300,7 +331,7 @@ fn rank(exams: &mut [Exam]) {
         let Exam { modules, rows, .. } = exam;
         for row in rows.iter_mut() {
             row.rank = match visible_sitting(row) {
-                Some(sitting) if modules.iter().any(|module| earliest.get(module) == Some(&sitting)) => 1,
+                Some((day, ..)) if modules.iter().any(|module| first_day.get(module) == Some(&day)) => 1,
                 Some(_) => 2,
                 None => 0,
             };
@@ -308,21 +339,20 @@ fn rank(exams: &mut [Exam]) {
     }
 }
 
-/// A Termin with what the warnings compare beyond it.
-struct Held {
-    day: Day,
-    termin: Termin,
-    /// Every exam event with a sitting at this day and time.
-    events: Vec<String>,
-    /// Every room named, each once.
-    rooms: Vec<String>,
-    /// Some sitting names no room.
-    roomless: bool,
-    /// Some sitting has no campus, or one in no known town: its hops cannot be judged.
-    unplaced: bool,
+/// The latest end of the visible sittings of each row key at a day and start. Rows sharing a key
+/// are one calendar entry, which the feed merges to the latest end (149685's 09:00–13:30 and
+/// 09:00–17:00), so they are one Termin until then: the longer sitting is the one that collides.
+fn latest_ends(exams: &[Exam]) -> BTreeMap<(RowKey, Day, u16), u16> {
+    let mut ends: BTreeMap<(RowKey, Day, u16), u16> = BTreeMap::new();
+    for row in exams.iter().flat_map(|exam| &exam.rows) {
+        if let (Some(key), Some((day, from, to))) = (row.key, visible_sitting(row)) {
+            ends.entry((key, day, from)).and_modify(|end| *end = (*end).max(to)).or_insert(to);
+        }
+    }
+    ends
 }
 
-impl Held {
+impl TerminAt {
     fn new(module_id: &str, event_id: &str, day: Day, from: u16, to: u16) -> Self {
         let termin = Termin {
             module_id: module_id.to_string(),
@@ -332,7 +362,7 @@ impl Held {
             campus: Vec::new(),
             room: None,
         };
-        Held { day, termin, events: Vec::new(), rooms: Vec::new(), roomless: false, unplaced: false }
+        TerminAt { day, termin, events: Vec::new(), unplaced: false }
     }
 
     fn add(&mut self, event_id: &str, date: &EventDate) {
@@ -348,59 +378,71 @@ impl Held {
             }
             None => self.unplaced = true,
         }
-        match date.room.as_deref().map(str::trim).filter(|room| !room.is_empty()) {
-            Some(room) => {
-                if !self.rooms.iter().any(|known| known == room) {
-                    self.rooms.push(room.to_string());
-                }
-            }
-            None => self.roomless = true,
-        }
-        self.termin.room = match (self.roomless, self.rooms.as_slice()) {
-            (false, [room]) => Some(room.clone()),
-            _ => None,
-        };
     }
 }
 
 /// The Termine of each planned module, in plan order, each earliest first.
-fn held(exams: &[Exam], modules: &[String]) -> Vec<Vec<Held>> {
+fn held(exams: &[Exam], modules: &[String]) -> Vec<Vec<TerminAt>> {
+    let ends = latest_ends(exams);
     modules
         .iter()
         .map(|module| {
-            let mut termine: Vec<Held> = Vec::new();
+            // Each Termin with the rooms its sittings name, each once (`None` for a sitting
+            // without one).
+            let mut termine: Vec<(TerminAt, Vec<Option<&str>>)> = Vec::new();
             for exam in exams.iter().filter(|exam| exam.hidden.is_none() && exam.modules.contains(module)) {
                 for row in &exam.rows {
                     let Some((day, from, to)) = visible_sitting(row) else {
                         continue;
                     };
-                    let index = match termine.iter().position(|t| (t.day, t.termin.from, t.termin.to) == (day, from, to)) {
+                    let to = row.key.and_then(|key| ends.get(&(key, day, from)).copied()).unwrap_or(to);
+                    let at = (day, from, to);
+                    let index = match termine.iter().position(|(t, _)| (t.day, t.termin.from, t.termin.to) == at) {
                         Some(index) => index,
                         None => {
-                            termine.push(Held::new(module, &exam.event_id, day, from, to));
+                            termine.push((TerminAt::new(module, &exam.event_id, day, from, to), Vec::new()));
                             termine.len() - 1
                         }
                     };
-                    if let Some(termin) = termine.get_mut(index) {
+                    if let Some((termin, rooms)) = termine.get_mut(index) {
                         termin.add(&exam.event_id, &row.date);
+                        let room = row.date.room.as_deref().map(str::trim).filter(|room| !room.is_empty());
+                        if !rooms.contains(&room) {
+                            rooms.push(room);
+                        }
                     }
                 }
             }
-            termine.sort_by_key(|t| (t.day, t.termin.from, t.termin.to));
+            termine.sort_by_key(|(t, _)| (t.day, t.termin.from, t.termin.to));
             termine
+                .into_iter()
+                .map(|(mut termin, rooms)| {
+                    termin.termin.room = match rooms.as_slice() {
+                        [Some(room)] => Some(room.to_string()),
+                        _ => None,
+                    };
+                    termin
+                })
+                .collect()
         })
         .collect()
 }
 
 /// The Termine of each planned module, in plan order: the distinct days and times of its visible
-/// sittings, earliest first. The finder compares a plan's fixed Termine (a module with exactly
-/// one) by them.
-pub fn termine(exams: &[Exam], modules: &[String]) -> Vec<(String, Vec<(Day, Termin)>)> {
-    modules
-        .iter()
-        .zip(held(exams, modules))
-        .map(|(module, termine)| (module.clone(), termine.into_iter().map(|held| (held.day, held.termin)).collect()))
-        .collect()
+/// sittings, earliest first. The finder takes a plan's fixed Termine (a module with exactly one)
+/// from them and checks a candidate's against those with `collision`.
+pub fn termine(exams: &[Exam], modules: &[String]) -> Vec<(String, Vec<TerminAt>)> {
+    modules.iter().cloned().zip(held(exams, modules)).collect()
+}
+
+/// Whether two Termine of different modules collide, by the rule `exam_warnings` warns with: an
+/// overlap, or a hop too short for its campuses, on one day, unless they share an exam event.
+/// `None` also when a campus is unknown and the hop may be too short: unknown is never a conflict.
+pub fn collision(a: &TerminAt, b: &TerminAt) -> Option<WarningKind> {
+    match judge(a, b) {
+        Judged::Issue { kind, .. } => Some(kind),
+        Judged::Unplaced | Judged::Fine => None,
+    }
 }
 
 /// What one combination of two modules' Termine says.
@@ -412,14 +454,14 @@ enum Judged {
     Fine,
 }
 
-/// Two Termine of different modules. Other days, one exam event (a shared exam) and a joint
-/// sitting (the same time in a room both name) never collide.
-fn judge(a: &Held, b: &Held) -> Judged {
+/// Two Termine of different modules. Other days and one exam event (a shared exam) never collide.
+/// Two events at one time in one room do: the big halls hold several exams at once (148689
+/// „Entwicklung von Softwaresystemen" and 152385 „Softwaresystemtechnik" in Audimax 1 on
+/// 12.03.2027 at 11:00, and three programs hold both modules), while one exam held under two
+/// titles costs a student who plans both only a line.
+fn judge(a: &TerminAt, b: &TerminAt) -> Judged {
     let (ta, tb) = (&a.termin, &b.termin);
     if a.day != b.day || a.events.iter().any(|event| b.events.contains(event)) {
-        return Judged::Fine;
-    }
-    if (ta.from, ta.to) == (tb.from, tb.to) && a.rooms.iter().any(|room| b.rooms.contains(room)) {
         return Judged::Fine;
     }
     let a_first = ta.from <= tb.from;
@@ -441,7 +483,7 @@ fn judge(a: &Held, b: &Held) -> Judged {
 /// The campuses of a hop that `gap` minutes do not allow: every pairing of the earlier Termin's
 /// campuses with the later one's must be far enough. A hop between the towns is named before one
 /// between Cottbus sites.
-fn too_close(earlier: &Held, later: &Held, gap: u16) -> Option<(Code<Campus>, Code<Campus>)> {
+fn too_close(earlier: &TerminAt, later: &TerminAt, gap: u16) -> Option<(Code<Campus>, Code<Campus>)> {
     let pairs = || {
         earlier.termin.campus.iter().flat_map(|from| later.termin.campus.iter().map(move |to| (from, to)))
     };
@@ -453,7 +495,7 @@ fn too_close(earlier: &Held, later: &Held, gap: u16) -> Option<(Code<Campus>, Co
 
 /// The day of the Termin that avoids a soft warning's issue: of the combinations without one,
 /// those that change one module's Termin come first, then the earliest day.
-fn avoiding(mine: &[Held], theirs: &[Held], issue: (usize, usize), free: &[(usize, usize)]) -> Option<Day> {
+fn avoiding(mine: &[TerminAt], theirs: &[TerminAt], issue: (usize, usize), free: &[(usize, usize)]) -> Option<Day> {
     free.iter()
         .filter_map(|&(x, y)| {
             let (a, b) = (mine.get(x)?, theirs.get(y)?);
@@ -656,10 +698,30 @@ mod tests {
             "Statistik(Service)/Statistik für Anwender - Wiederholung",
             "Nachklausur  Analysis",
             "NACHPRÜFUNG Physik",
+            // The retakes of the health and teacher programs, and English and short ones (2026W).
+            "BP36c Statistik in den Gesundheits- und Sozialberufen - 13199 (WMAP) - Wahlpflicht",
+            "BT11 Physiotherapie im orthopädischen Handlungsfeld -12112 (WMAP)",
+            "PW1 Steuerung und Gestaltung von Pflegeprozessen (14695) WMAP",
+            "BP15 Praxismodul Pflege III - 12061 (WMAP+V)",
+            "Power Plant Technology 1 - only for retake exams",
+            "Wdh. Klimaschutzrecht und das Recht der Energiewende",
+            "Wdh.Prüfung Unternehmensnachfolge",
         ] {
             assert!(retake(title), "{title}");
         }
-        for title in ["Analysis I", "Nachhaltigkeit im Bauwesen", "Nach Absprache", "Entwicklung von Softwaresystemen"] {
+        for title in [
+            "Analysis I",
+            "Nachhaltigkeit im Bauwesen",
+            "Nach Absprache",
+            "Entwicklung von Softwaresystemen",
+            "BT27 Gesundheits-/ Sozial- und Berufspolitik, Recht - 12128 (MAP) BAP SP (FG 1,3)",
+            // A first attempt beside the retake, or either of them.
+            "BP7 Pflegephänomene im Kontext von Stoffwechselprozessen - Ausscheidung - 12053 (MAP+V) und WMAP",
+            "6. Schulpraktische Studien (SPS) / Praktisches Studiensemester - 11670 (MAP / WMAP)",
+            "1.1/2.1/3.1 Pflegewissenschaft und Pflegeforschung I - 11652 (WMAP) / Therapiewissenschaft und \
+             Therapieforschung I - 12296 (W-/MAP)",
+            "Bildungswissenschaften II (14007) W-/MAP",
+        ] {
             assert!(!retake(title), "{title}");
         }
     }
@@ -725,6 +787,41 @@ mod tests {
         let e148005 = exams.iter().find(|e| e.event_id == "148005").unwrap();
         let rows: Vec<(Option<HiddenBy>, u8)> = e148005.rows.iter().map(|r| (r.hidden, r.rank)).collect();
         assert_eq!(rows, [(Some(HiddenBy::Row), 0), (None, 1)]);
+    }
+
+    #[test]
+    fn the_sittings_of_one_day_are_one_attempt() {
+        // Two rows of one key with two ends (150907), two parts of one exam (12128's 150494), the
+        // two towns' exams of a track module (11107), and a second attempt on a later day.
+        let rows = [
+            row("P", "150907", 1, "2027-03-12", "09:00", "11:00", Some(SFB)),
+            row("P", "150907", 2, "2027-03-12", "09:00", "11:30", Some(SFB)),
+            row("P", "150907", 3, "2027-03-26", "09:00", "11:00", Some(SFB)),
+            row("Q", "150494", 1, "2027-02-04", "08:00", "08:45", Some(SFB)),
+            row("Q", "150494", 2, "2027-02-04", "09:15", "12:15", Some(SFB)),
+            row("T", "149694", 1, "2027-02-08", "11:00", "13:00", Some(SFB)),
+            row("T", "149541", 1, "2027-02-08", "14:00", "16:00", Some(ZC)),
+        ];
+        assert_eq!(RowKey::of(&rows[0].date), RowKey::of(&rows[1].date));
+        let modules = ["P", "Q", "T"];
+        let exams = plan(&rows, &modules, &Selection::default());
+        let ranks: Vec<(&str, Vec<u8>)> =
+            exams.iter().map(|e| (e.event_id.as_str(), e.rows.iter().map(|r| r.rank).collect())).collect();
+        let expected: [(&str, Vec<u8>); 4] =
+            [("150907", vec![1, 1, 2]), ("150494", vec![1, 1]), ("149541", vec![1]), ("149694", vec![1])];
+        assert_eq!(ranks, expected);
+
+        // Rows of one key are one Termin until the later end, as the feed merges them; so a
+        // sitting at 11:15 in the same hall overlaps it, and only the second attempt avoids that.
+        let found = termine(&exams, &ids(&modules));
+        let p: Vec<(Day, u16, u16)> = found[0].1.iter().map(|t| (t.day, t.termin.from, t.termin.to)).collect();
+        assert_eq!(p, [(day("2027-03-12"), 540, 690), (day("2027-03-26"), 540, 660)]);
+        let mut next = rows.to_vec();
+        next.push(row("R", "1", 1, "2027-03-12", "11:15", "12:00", Some(SFB)));
+        let (warnings, _) = warn(&next, &["P", "R"]);
+        assert_eq!(warnings.len(), 1);
+        let w = &warnings[0];
+        assert_eq!((w.kind.clone(), w.hard, w.avoid), (WarningKind::Overlap, false, Some(day("2027-03-26"))));
     }
 
     #[test]
@@ -796,14 +893,16 @@ mod tests {
         let found = termine(&exams, &modules);
         assert_eq!(found[0].0, "12104");
         assert_eq!(found[0].1.len(), 1);
-        let (on, termin) = &found[0].1[0];
+        let TerminAt { day: on, termin, events, unplaced } = &found[0].1[0];
         assert_eq!(*on, day("2027-03-12"));
         assert_eq!((termin.event_id.as_str(), termin.from, termin.to), ("148689", 660, 780));
         assert_eq!(termin.campus, [Code::parse(ZC), Code::parse(SFB)]);
         assert_eq!(termin.room, None, "two rooms");
-        let second: Vec<Day> = found[1].1.iter().map(|(d, _)| *d).collect();
+        assert_eq!(*events, ["148689", "150664", "150665"]);
+        assert!(!unplaced);
+        let second: Vec<Day> = found[1].1.iter().map(|t| t.day).collect();
         assert_eq!(second, [day("2027-03-12"), day("2027-03-26")]);
-        assert_eq!(found[1].1[0].1.room.as_deref(), Some("Seminarraum 2"));
+        assert_eq!(found[1].1[0].termin.room.as_deref(), Some("Seminarraum 2"));
     }
 
     #[test]
@@ -952,33 +1051,62 @@ mod tests {
     }
 
     #[test]
-    fn joint_sittings_and_shared_exams_never_warn() {
+    fn shared_exams_never_warn_and_shared_rooms_do() {
         // One event of two modules is one exam.
         let shared = [
             row("A", "1", 1, "2027-02-08", "08:00", "10:00", Some(ZC)),
             row("B", "1", 1, "2027-02-08", "08:00", "10:00", Some(ZC)),
         ];
         assert_eq!(warn(&shared, &["A", "B"]), (vec![], vec![]));
-        // Two events at one time in one room are one sitting („Thermische Turbomaschinen" and
-        // „Thermal Turbo Machines").
-        let room = "Lehrgebäude 3A - 352 - Zentralcampus";
-        let joint = [
-            in_room(row("A", "1", 1, "2027-03-11", "08:00", "10:00", Some(ZC)), room),
-            in_room(row("B", "2", 1, "2027-03-11", "08:00", "10:00", Some(ZC)), room),
+        // Two events at one time in one hall are two exams („Entwicklung von Softwaresystemen"
+        // and „Softwaresystemtechnik" in Audimax 1).
+        let room = "Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus";
+        let hall = [
+            in_room(row("A", "1", 1, "2027-03-12", "11:00", "13:00", Some(ZC)), room),
+            in_room(row("B", "2", 1, "2027-03-12", "11:00", "13:00", Some(ZC)), room),
         ];
-        assert_eq!(warn(&joint, &["A", "B"]), (vec![], vec![]));
-        // In two rooms, or with another end, they are two exams.
-        let mut apart = joint.clone();
-        apart[1].date.room = Some("Lehrgebäude 3A - 406 - Zentralcampus".into());
-        assert_eq!(warn(&apart, &["A", "B"]).0.len(), 1);
-        let mut longer = joint.clone();
-        longer[1].date.end_time = Some("11:00".into());
-        assert_eq!(warn(&longer, &["A", "B"]).0.len(), 1);
-        // Without a room nothing says they are one.
-        let mut roomless = joint;
-        roomless[0].date.room = None;
-        roomless[1].date.room = None;
-        assert_eq!(warn(&roomless, &["A", "B"]).0.len(), 1);
+        let (warnings, unknown) = warn(&hall, &["A", "B"]);
+        assert_eq!(warnings.len(), 1);
+        assert_eq!((warnings[0].kind.clone(), warnings[0].hard), (WarningKind::Overlap, true));
+        assert_eq!((warnings[0].a.room.as_deref(), warnings[0].b.room.as_deref()), (Some(room), Some(room)));
+        assert_eq!(unknown, []);
+        // A Termin of B that shares A's event is still one exam with it, whatever else it holds.
+        let mut both = hall.to_vec();
+        both.push(in_room(row("B", "1", 1, "2027-03-12", "11:00", "13:00", Some(ZC)), room));
+        assert_eq!(warn(&both, &["A", "B"]), (vec![], vec![]));
+    }
+
+    #[test]
+    fn the_finder_asks_one_pair_of_termine_at_a_time() {
+        // A candidate C with two Termine, each colliding with another fixed Termin of the plan:
+        // no pair of modules is hard, yet no Termin of C avoids both.
+        let rows = [
+            row("P", "1", 1, "2027-02-08", "09:00", "11:00", Some(ZC)),
+            row("Q", "2", 1, "2027-03-10", "09:00", "11:00", Some(ZC)),
+            row("C", "3", 1, "2027-02-08", "10:00", "12:00", Some(ZC)),
+            row("C", "3", 2, "2027-03-10", "11:30", "13:00", Some(SFB)),
+            row("S", "4", 1, "2027-02-08", "13:00", "14:00", None),
+            row("U", "3", 1, "2027-02-08", "10:00", "12:00", Some(ZC)),
+        ];
+        let modules = ["P", "Q", "C", "S", "U"];
+        let (warnings, _) = warn(&rows, &["P", "Q", "C"]);
+        assert!(warnings.iter().all(|w| !w.hard), "{warnings:?}");
+        let exams = plan(&rows, &modules, &Selection::default());
+        let found = termine(&exams, &ids(&modules));
+        let at = |module: usize, index: usize| &found[module].1[index];
+        let (p, q, c1, c2, s, u) = (at(0, 0), at(1, 0), at(2, 0), at(2, 1), at(3, 0), at(4, 0));
+        assert_eq!(collision(c1, p), Some(WarningKind::Overlap));
+        assert_eq!(collision(p, c1), Some(WarningKind::Overlap), "either way round");
+        assert_eq!(collision(c1, q), None, "another day");
+        assert_eq!(collision(c2, p), None);
+        let hop = WarningKind::Tight { gap: 30, from: Code::parse(ZC), to: Code::parse(SFB) };
+        assert_eq!(collision(q, c2), Some(hop.clone()));
+        assert_eq!(collision(c2, q), Some(hop));
+        assert!([c1, c2].iter().all(|c| [p, q].iter().any(|fixed| collision(c, fixed).is_some())));
+        // An unknown campus is no conflict, and a shared exam event is one exam.
+        assert_eq!((collision(s, c1), collision(s, p)), (None, None));
+        assert!(s.unplaced);
+        assert_eq!(collision(u, c1), None);
     }
 
     #[test]
@@ -1032,18 +1160,20 @@ mod tests {
         assert_eq!(exam_warnings(&exams, &modules), (vec![], vec![]));
     }
 
-    /// What holds for any plan: modules and rows once, a rank exactly for visible sittings (1 for a
-    /// module's first Termin), Termine in order, and warnings between two planned modules.
+    /// What holds for any plan: modules and rows once, a rank exactly for visible sittings (1 on
+    /// the day of a module's first Termin), one rank per row key, Termine in order, and warnings
+    /// between two planned modules.
     fn invariants(exams: &[Exam], modules: &[String], (warnings, unknown): &Warned) {
         let position = |id: &str| modules.iter().position(|m| m == id).unwrap_or_else(|| panic!("{id} is not planned"));
         let found = termine(exams, modules);
-        let firsts: BTreeMap<&str, (Day, u16, u16)> = found
-            .iter()
-            .filter_map(|(module, termine)| termine.first().map(|(day, t)| (module.as_str(), (*day, t.from, t.to))))
-            .collect();
-        for (_, termine) in &found {
-            assert!(termine.windows(2).all(|w| (w[0].0, w[0].1.from, w[0].1.to) < (w[1].0, w[1].1.from, w[1].1.to)));
+        let firsts: BTreeMap<&str, Day> =
+            found.iter().filter_map(|(module, termine)| termine.first().map(|t| (module.as_str(), t.day))).collect();
+        for (module, termine) in &found {
+            let at = |t: &TerminAt| (t.day, t.termin.from, t.termin.to);
+            assert!(termine.windows(2).all(|w| at(&w[0]) < at(&w[1])), "{module}");
+            assert!(termine.iter().all(|t| t.termin.module_id == *module && t.events.contains(&t.termin.event_id)));
         }
+        let mut ranks: BTreeMap<RowKey, u8> = BTreeMap::new();
         for exam in exams {
             assert!(!exam.modules.is_empty(), "{}", exam.event_id);
             let positions: Vec<usize> = exam.modules.iter().map(|m| position(m)).collect();
@@ -1055,8 +1185,12 @@ mod tests {
                 match (&row.shape, row.hidden) {
                     (ExamShape::Sitting { day, from, to }, None) => {
                         assert!(from <= to);
-                        let first = exam.modules.iter().any(|m| firsts.get(m.as_str()) == Some(&(*day, *from, *to)));
+                        let first = exam.modules.iter().any(|m| firsts.get(m.as_str()) == Some(day));
                         assert_eq!(row.rank, if first { 1 } else { 2 }, "{}/{:?}", exam.event_id, row.ord);
+                        if let Some(key) = row.key {
+                            let rank = *ranks.entry(key).or_insert(row.rank);
+                            assert_eq!(row.rank, rank, "{}: one rank per key", key.text());
+                        }
                     }
                     _ => assert_eq!(row.rank, 0, "{}/{:?}", exam.event_id, row.ord),
                 }
@@ -1143,7 +1277,8 @@ mod tests {
         assert_eq!(exams.iter().map(|e| e.event_id.as_str()).collect::<Vec<_>>(), ["148689", "150664"]);
         let found = termine(&exams, &alone);
         assert_eq!(found[0].1.len(), 1);
-        assert_eq!(found[0].1[0].1.campus, [Code::Known(Campus::Zentralcampus), Code::Known(Campus::Senftenberg)]);
+        let campus = [Code::Known(Campus::Zentralcampus), Code::Known(Campus::Senftenberg)];
+        assert_eq!(found[0].1[0].termin.campus, campus);
         assert!(exams.iter().all(|e| e.rows.iter().all(|r| r.rank == 1)));
         assert_eq!(warned, (vec![], vec![]));
         // Betriebssysteme I's retake at the same hour.
@@ -1151,6 +1286,35 @@ mod tests {
         assert_eq!((w.kind, w.day, w.a.from, w.hard), (WarningKind::Overlap, day("2027-03-12"), 660, true));
         let (exams, _) = planned(&db, winter, &ids(&["12204"]));
         assert!(exams.iter().any(|e| e.retake), "{exams:?}");
+        // Softwaresystemtechnik in the same hall at the same hour is another exam: three programs
+        // hold both modules.
+        let w = pair(&["12104", "12209"]);
+        assert_eq!((w.kind, w.day, w.a.from, w.hard), (WarningKind::Overlap, day("2027-03-12"), 660, true));
+        assert_eq!((w.a.event_id.as_str(), w.b.event_id.as_str()), ("148689", "152385"));
+        assert_eq!(w.a.room, None, "two rooms");
+        assert_eq!(w.b.room.as_deref(), Some("Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus"));
+
+        // Pharmazeutische Chemie's two rows of one key, 09:00–11:00 and 09:00–11:30 in one room:
+        // one rank, one Termin until 11:30.
+        let (exams, _) = planned(&db, winter, &ids(&["12749"]));
+        let e150907 = exams.iter().find(|e| e.event_id == "150907").unwrap();
+        let rows: Vec<(Option<String>, u8)> = e150907.rows.iter().map(|r| (r.key.map(RowKey::text), r.rank)).collect();
+        let key = Some("150907-61a1a".to_string());
+        assert_eq!(rows, [(key.clone(), 1), (key, 1)]);
+        let found = termine(&exams, &ids(&["12749"]));
+        let at: Vec<(Day, u16, u16)> = found[0].1.iter().map(|t| (t.day, t.termin.from, t.termin.to)).collect();
+        assert_eq!(at, [(day("2027-03-12"), 540, 690)]);
+        // No town chosen for a track module: its Senftenberg and its Cottbus exam of one day are
+        // both its first Termin.
+        let (exams, _) = planned(&db, winter, &ids(&["11107"]));
+        let ranks: Vec<(&str, Vec<u8>)> =
+            exams.iter().map(|e| (e.event_id.as_str(), e.rows.iter().map(|r| r.rank).collect())).collect();
+        let expected: [(&str, Vec<u8>); 2] = [("149694", vec![1]), ("149541", vec![1, 1])];
+        assert_eq!(ranks, expected);
+        // A Wiederholungs-MAP, the only dated exam of its module.
+        let (exams, _) = planned(&db, winter, &ids(&["13199"]));
+        let e152826 = exams.iter().find(|e| e.event_id == "152826").unwrap();
+        assert!(e152826.retake, "{}", e152826.title);
 
         // Switching Technologies sits twice: the second is „2. Termin".
         let (exams, _) = planned(&db, winter, &ids(&["11473"]));
