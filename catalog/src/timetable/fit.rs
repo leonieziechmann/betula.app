@@ -4,8 +4,10 @@
 //! A candidate is every module with a dated row in the semester, teaching or exam, built as a plan
 //! of its own: its own SWS decide its choices, the visitor's hidden kinds apply, and a module taught
 //! as two city courses is taken in the plan's town, or in whichever town fits better when the plan
-//! names none. That part does not depend on the plan, so it is built once per semester, compared
-//! classes, hidden kinds and town (`CandidateSet`), and a change of the plan re-runs only `fits`.
+//! names none. The Studienplan then shows both courses until a town is chosen, so when the other
+//! one fits worse, the note names the town the verdict is for („nur in Senftenberg"). The part that
+//! does not depend on the plan is built once per semester, compared classes, hidden kinds and town
+//! (`CandidateSet`), and a change of the plan re-runs only `fits`.
 //!
 //! `fits` holds each candidate against what the plan already asks of the visitor's weeks. All its
 //! lectures must be free, since every lecture is attended. Of its other events (Übungen, Seminare,
@@ -14,7 +16,8 @@
 //! „passt" costs one look. Of its exam Termine one must avoid the plan's fixed ones (a planned
 //! module's only Termin), by the rule the exam warnings use. Only compared classes meet each other,
 //! so a lecture is not held against an Übung while „Übungen" is off, and an event the plan already
-//! holds is attended once and never clashes.
+//! holds is attended once and never clashes. One the plan hides as the other town's course of its
+//! modules is not held, though: a candidate without city tracks that links it brings it back.
 //!
 //! The plan's open choices („1 von 4 wählen") are no obstacle as long as the plan can still take a
 //! free option of each. Whether it can is `clash`'s own weighing, run over the plan and the
@@ -22,8 +25,11 @@
 //! each choice one free option, but not all of them at once, does not fit.
 //!
 //! What cannot be compared is never a conflict and never a fit: a module whose rows have no time
-//! in a compared class is kept as unknown („keine festen Termine"). A retake is not compared either:
-//! it is sat only after a first attempt, so it says nothing about a module one plans to take.
+//! in a compared class is kept as unknown („keine festen Termine"). A retake is sat only after a
+//! first attempt, so a free one says nothing about a module one plans to take, and a module whose
+//! only Termine are retakes is unknown as well („nur Wiederholungsprüfung"). A retake the plan's
+//! fixed Termine leave no room for is a conflict all the same: once the module is planned, the
+//! Studienplan names it as a hard exam overlap.
 
 use std::borrow::Cow;
 use std::collections::btree_map::Entry;
@@ -31,11 +37,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::clash;
 use super::day::Day;
-use super::exams::{self, Exam, TerminAt, WarningKind};
+use super::exams::{self, TerminAt, WarningKind};
 use super::facts::SemesterFacts;
 use super::kind::{Class, KindSet};
 use super::model::{Attendance, Event, Input, Row, Timetable};
-use super::select::{FitOptions, Selection, Town, TownChoice};
+use super::select::{FitOptions, HiddenBy, Selection, Town, TownChoice};
 use super::semester::SemesterKey;
 use crate::rows::Semester;
 use crate::rows_detail::{DateRow, ModuleSws};
@@ -43,12 +49,23 @@ use crate::rows_detail::{DateRow, ModuleSws};
 /// The note of a module whose rows have no time to compare.
 pub const UNKNOWN_NOTE: &str = "keine festen Termine";
 
+/// The note of a module whose only exam Termine are retakes, one of them free, and that has no
+/// teaching to compare: a retake is sat after a failed first attempt, so it says nothing about
+/// taking the module.
+pub const RETAKE_NOTE: &str = "nur Wiederholungsprüfung";
+
 /// The note of a module whose first exam Termin overlaps one the plan holds, while it has another
 /// Termin, or whose exam meets the Erstermin of a planned module that has another.
 pub const EXAM_OVERLAP_NOTE: &str = "Prüfung überschneidet sich mit Erstermin";
 
 /// The same for a hop between campuses that is too short (`exams::CITY_GAP`, `exams::SITE_GAP`).
 pub const EXAM_TIGHT_NOTE: &str = "Prüfung zu knapp am Erstermin";
+
+/// The note of a module with city tracks whose course in `town` fits better than the other, in a
+/// plan that names no town: the Studienplan shows both courses until a town is chosen.
+pub fn town_note(town: Town) -> String {
+    format!("nur in {}", town.label())
+}
 
 /// How a module fits the plan.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,7 +76,7 @@ pub enum Verdict {
     Partly,
     /// A compared class fails, or the plan would lose an open choice: the module is not listed.
     Clashes,
-    /// Dated rows, but none with a time in a compared class.
+    /// Dated rows, but none with a time in a compared class, or only free retakes.
     Unknown,
 }
 
@@ -101,13 +118,18 @@ pub struct Candidate {
 /// A module as it is taken in one town, or wherever it is taught.
 #[derive(Clone, Debug, PartialEq)]
 struct Course {
+    /// The town of this course when the module has city tracks and the plan names no town.
+    town: Option<Town>,
     /// Every teaching event of the module, shown or not. An event the plan holds as well is the
     /// plan's: attended once, it never clashes with the module's own events.
     ids: BTreeSet<String>,
     /// Its shown events of the compared teaching classes that have a Termin with a time.
     events: Vec<Event>,
-    /// Its exam Termine, earliest first, when exams are compared; retakes are left out.
+    /// Its exam Termine with a first attempt, earliest first, when exams are compared.
     termine: Vec<TerminAt>,
+    /// Its Termine of retakes alone, earliest first: a free one does not make the module fit, but
+    /// they are Termine the Studienplan warns about once it is planned.
+    retakes: Vec<TerminAt>,
 }
 
 /// Builds every module of the semester's rows as a plan of one. `selection` gives the hidden kinds
@@ -147,10 +169,10 @@ pub fn candidates(
             let courses: Vec<Course> = if town.is_none() && !table.tracks.is_empty() {
                 [Town::Cottbus, Town::Senftenberg]
                     .into_iter()
-                    .map(|t| course(build(TownChoice::Only(t)), options))
+                    .map(|t| course(build(TownChoice::Only(t)), options, Some(t)))
                     .collect()
             } else {
-                vec![course(table, options)]
+                vec![course(table, options, None)]
             };
             Candidate { module_id: id.to_string(), courses }
         })
@@ -171,6 +193,7 @@ pub fn fits(plan: &Timetable, set: &CandidateSet) -> Vec<Fit> {
     let (fixed, firsts) = plan_termine(plan, options);
     let context = Context {
         index: plan.events.iter().enumerate().map(|(i, event)| (event.id.as_str(), i)).collect(),
+        events: &plan.events,
         hard: Busy::of(&shown, |open, row| !(open && row.option.is_some())),
         soft: Busy::of(&shown, |open, row| open && row.option.is_some()),
         fixed,
@@ -183,16 +206,45 @@ pub fn fits(plan: &Timetable, set: &CandidateSet) -> Vec<Fit> {
         .iter()
         .filter(|candidate| !planned.contains(candidate.module_id.as_str()))
         .map(|candidate| {
-            // With two city courses, the one that fits better; at a tie, the first.
-            let best = candidate
+            let judged: Vec<(Option<Town>, Verdict, Option<String>)> = candidate
                 .courses
                 .iter()
-                .map(|course| judge(&candidate.module_id, course, &context, &mut choices))
-                .min_by_key(|(verdict, _)| preference(*verdict));
-            let (verdict, note) = best.unwrap_or_else(|| (Verdict::Unknown, Some(UNKNOWN_NOTE.to_string())));
+                .map(|course| {
+                    let (verdict, note) = judge(&candidate.module_id, course, &context, &mut choices);
+                    (course.town, verdict, note)
+                })
+                .collect();
+            let (verdict, note) = best_course(&judged);
             Fit { module_id: candidate.module_id.clone(), verdict, note }
         })
         .collect()
+}
+
+/// The verdict of the course that fits better; at a tie, the first. With two city courses the plan
+/// names no town, and the Studienplan shows both of them until one is chosen: when the other
+/// course clashes, or fits only partly where this one fits, the note names this one's town and a
+/// fit is a partial one.
+fn best_course(judged: &[(Option<Town>, Verdict, Option<String>)]) -> (Verdict, Option<String>) {
+    let best = judged.iter().min_by_key(|(_, verdict, _)| preference(*verdict));
+    let Some((town, verdict, note)) = best.cloned() else {
+        return (Verdict::Unknown, Some(UNKNOWN_NOTE.to_string()));
+    };
+    let worse = |other: Verdict| {
+        matches!(other, Verdict::Partly | Verdict::Clashes) && preference(other) > preference(verdict)
+    };
+    let other_worse = verdict != Verdict::Clashes && judged.iter().any(|(_, other, _)| worse(*other));
+    match town.filter(|_| other_worse) {
+        Some(town) => {
+            let only = town_note(town);
+            let note = match note {
+                Some(note) => format!("{note} · {only}"),
+                None => only,
+            };
+            let verdict = if verdict == Verdict::Fits { Verdict::Partly } else { verdict };
+            (verdict, Some(note))
+        }
+        None => (verdict, note),
+    }
 }
 
 /// Whether the finder compares events of `class`.
@@ -238,22 +290,28 @@ fn part<'m, T: Clone>(modules: &'m BTreeMap<&str, Cow<'_, [T]>>, id: &str) -> &'
     modules.get(id).map(|rows| rows.as_ref()).unwrap_or_default()
 }
 
-/// What `fits` keeps of a candidate's timetable.
-fn course(table: Timetable, options: FitOptions) -> Course {
+/// What `fits` keeps of a candidate's timetable, the course in `town` when it names one.
+fn course(table: Timetable, options: FitOptions, town: Option<Town>) -> Course {
     let ids = table.events.iter().map(|event| event.id.clone()).collect();
+    let (termine, retakes) = if options.exams {
+        // A Termin is a retake's when every sitting in it is one: a first attempt at the same
+        // time is a first attempt all the same.
+        let retake: BTreeSet<&str> =
+            table.exams.iter().filter(|exam| exam.retake).map(|exam| exam.event_id.as_str()).collect();
+        exams::termine(&table.exams, &table.modules)
+            .into_iter()
+            .flat_map(|(_, termine)| termine)
+            .partition(|termin| termin.events.iter().any(|event| !retake.contains(event.as_str())))
+    } else {
+        (Vec::new(), Vec::new())
+    };
     let events = table
         .events
         .into_iter()
         .filter(|event| event.hidden.is_none() && compared(event.class, options))
         .filter(|event| event.rows.iter().any(|row| placed(row).is_some()))
         .collect();
-    let termine = if options.exams {
-        let exams: Vec<Exam> = table.exams.into_iter().filter(|exam| !exam.retake).collect();
-        exams::termine(&exams, &table.modules).into_iter().flat_map(|(_, termine)| termine).collect()
-    } else {
-        Vec::new()
-    };
-    Course { ids, events, termine }
+    Course { town, ids, events, termine, retakes }
 }
 
 /// A shown row's times when it has a day to be compared on: held days, or a pattern of its
@@ -286,6 +344,8 @@ fn plan_termine(plan: &Timetable, options: FitOptions) -> (Vec<TerminAt>, Vec<Te
 struct Context<'t> {
     /// The plan's events by id, shown or not, to their index.
     index: BTreeMap<&'t str, usize>,
+    /// The plan's events, for their modules and why they are hidden.
+    events: &'t [Event],
     /// The plan's rows a candidate must not meet: the shown rows of its shown events of the
     /// compared classes, except the options of open choices.
     hard: Busy<'t>,
@@ -296,6 +356,20 @@ struct Context<'t> {
     fixed: Vec<TerminAt>,
     /// The first Termin of each planned module that has another.
     firsts: Vec<TerminAt>,
+}
+
+impl Context<'_> {
+    /// The plan's events that an event linked by the planned `modules` is not compared with: those
+    /// the candidate shares (`shared`), and those of these modules, which are their own business.
+    fn exempt(&self, shared: &BTreeSet<usize>, modules: &[String]) -> BTreeSet<usize> {
+        let theirs = self
+            .events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| event.modules.iter().any(|module| modules.contains(module)))
+            .map(|(i, _)| i);
+        shared.iter().copied().chain(theirs).collect()
+    }
 }
 
 /// A row of the plan in a `Busy`: its event and times.
@@ -380,8 +454,9 @@ impl Choices {
     /// Whether planning `module` with its `own` events (those the plan does not hold) blocks one of
     /// the plan's open choices. The plan's events that are the module's too (`ids`) gain it as a
     /// linking module for the time of the check, as they would once it is planned, so they do not
-    /// meet its own events.
-    fn blocked_by(&mut self, module: &str, ids: &BTreeSet<String>, own: &[&Event]) -> bool {
+    /// meet its own events; an own event the plan hides as the other town's course of its modules
+    /// is linked by them as well.
+    fn blocked_by(&mut self, module: &str, ids: &BTreeSet<String>, own: &[Own<'_>]) -> bool {
         if self.open.is_empty() {
             return false;
         }
@@ -393,7 +468,11 @@ impl Choices {
                 linked.push(i);
             }
         }
-        self.base.extend(own.iter().map(|event| (*event).clone()));
+        self.base.extend(own.iter().map(|own| {
+            let mut event = own.event.clone();
+            event.modules = own.linked.iter().chain(&event.modules).cloned().collect();
+            event
+        }));
         let (_, blocked) = clash::clashes(&self.base);
         self.base.truncate(len);
         for i in linked {
@@ -423,14 +502,26 @@ impl Tally {
     }
 }
 
+/// A candidate's event that the plan does not hold, as it will be once the candidate is planned.
+struct Own<'a> {
+    event: &'a Event,
+    /// The plan's events it is not compared with (`Busy::meets`).
+    exempt: Cow<'a, BTreeSet<usize>>,
+    /// The planned modules that link it too: those of an event the plan hides as the other town's
+    /// course of its modules, which the candidate brings back.
+    linked: &'a [String],
+}
+
 /// What a candidate's exam Termine say against the plan's.
 enum ExamFit {
     /// No Termin to compare.
     Unknown,
+    /// Only retakes, and one of them is free: that says nothing about a first attempt.
+    Retake,
     Free,
     /// One is free, but not the first, or the one taken meets a planned module's Erstermin.
     Note(&'static str),
-    /// Every Termin collides with a fixed one.
+    /// Every Termin of a first attempt collides with a fixed one; with retakes alone, every retake.
     Fails,
 }
 
@@ -439,13 +530,24 @@ fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Cho
     // The plan's events that are the module's too: attended once, they never clash.
     let shared: BTreeSet<usize> = course.ids.iter().filter_map(|id| context.index.get(id.as_str()).copied()).collect();
     let (mut lectures, mut others) = (Tally::default(), Tally::default());
-    let mut own: Vec<&Event> = Vec::new();
+    let mut own: Vec<Own<'_>> = Vec::new();
     for event in &course.events {
-        let in_plan = context.index.contains_key(event.id.as_str());
-        if !in_plan {
-            own.push(event);
-        }
-        let free = |row: &Row| in_plan || !context.hard.meets(row, &shared);
+        let planned = context.index.get(event.id.as_str()).and_then(|i| context.events.get(*i));
+        let mine = match planned {
+            // Attended once with the plan: it never clashes.
+            Some(planned) if !matches!(planned.hidden, Some(HiddenBy::Town(_))) => None,
+            // The plan hides it as the other town's course of its modules, which all have tracks.
+            // The candidate has none, since its own course shows the event, so once planned it
+            // brings the event back (`model::event_hidden`). Then it meets the plan as the
+            // candidate's own events do, except for the events of its modules there.
+            Some(planned) => Some(Own {
+                event,
+                exempt: Cow::Owned(context.exempt(&shared, &planned.modules)),
+                linked: &planned.modules,
+            }),
+            None => Some(Own { event, exempt: Cow::Borrowed(&shared), linked: &[] }),
+        };
+        let free = |row: &Row| mine.as_ref().is_none_or(|own| !context.hard.meets(row, &own.exempt));
         let (units, free_units, choice) = match &event.attendance {
             Attendance::All => (1, usize::from(event.rows.iter().all(free)), false),
             Attendance::OneOf { .. } => {
@@ -465,25 +567,30 @@ fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Cho
             tally.units += units;
             tally.free_units += free_units;
         }
+        own.extend(mine);
     }
 
-    let exam = exam_fit(&course.termine, context);
+    let exam = exam_fit(course, context);
     let fails = lectures.free_events < lectures.events
         || (others.events > 0 && others.free_events == 0)
         || matches!(exam, ExamFit::Fails);
     if fails {
         return (Verdict::Clashes, None);
     }
-    if lectures.events + others.events == 0 && matches!(exam, ExamFit::Unknown) {
-        return (Verdict::Unknown, Some(UNKNOWN_NOTE.to_string()));
+    if lectures.events + others.events == 0 {
+        match exam {
+            ExamFit::Unknown => return (Verdict::Unknown, Some(UNKNOWN_NOTE.to_string())),
+            ExamFit::Retake => return (Verdict::Unknown, Some(RETAKE_NOTE.to_string())),
+            ExamFit::Free | ExamFit::Note(_) | ExamFit::Fails => {}
+        }
     }
-    let touches = own.iter().any(|event| event.rows.iter().any(|row| context.soft.meets(row, &shared)));
+    let touches = own.iter().any(|own| own.event.rows.iter().any(|row| context.soft.meets(row, &own.exempt)));
     if touches && choices.blocked_by(module, &course.ids, &own) {
         return (Verdict::Clashes, None);
     }
     let exam_note = match exam {
         ExamFit::Note(note) => Some(note.to_string()),
-        ExamFit::Unknown | ExamFit::Free | ExamFit::Fails => None,
+        ExamFit::Unknown | ExamFit::Retake | ExamFit::Free | ExamFit::Fails => None,
     };
     let notes: Vec<String> =
         [lectures.note("Vorlesung"), others.note("Übung"), exam_note].into_iter().flatten().collect();
@@ -494,16 +601,23 @@ fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Cho
     }
 }
 
-/// A candidate's exam Termine against the plan's: the first that avoids every fixed Termin is the
-/// one taken, and when none does, the module fails. When the taken one is not the first, or it
-/// meets a planned module's Erstermin, a note names the kind of that collision.
-fn exam_fit(termine: &[TerminAt], context: &Context<'_>) -> ExamFit {
-    let Some(first) = termine.first() else {
-        return ExamFit::Unknown;
-    };
+/// A course's exam Termine against the plan's: the first Termin of a first attempt that avoids
+/// every fixed Termin is the one taken, and when none does, the module fails. When the taken one is
+/// not the first, or it meets a planned module's Erstermin, a note names the kind of that
+/// collision. A course with retakes alone fails when every one of them collides with a fixed
+/// Termin, as the Studienplan's warning is hard then; a free one leaves it unknown.
+fn exam_fit(course: &Course, context: &Context<'_>) -> ExamFit {
     let collision =
         |termin: &TerminAt, against: &[TerminAt]| against.iter().find_map(|other| exams::collision(termin, other));
-    let Some(taken) = termine.iter().position(|termin| collision(termin, &context.fixed).is_none()) else {
+    let free = |termin: &TerminAt| collision(termin, &context.fixed).is_none();
+    let Some(first) = course.termine.first() else {
+        return match (course.retakes.is_empty(), course.retakes.iter().any(free)) {
+            (true, _) => ExamFit::Unknown,
+            (false, true) => ExamFit::Retake,
+            (false, false) => ExamFit::Fails,
+        };
+    };
+    let Some(taken) = course.termine.iter().position(free) else {
         return ExamFit::Fails;
     };
     let issue = if taken == 0 { collision(first, &context.firsts) } else { collision(first, &context.fixed) };
@@ -523,6 +637,7 @@ mod tests {
     use crate::labels::Code;
     use crate::queries;
     use crate::rows_detail::EventDate;
+    use crate::timetable::exams::ExamWarning;
     use crate::timetable::kind::EventKind;
     use crate::timetable::model::tests::{ids, invariants, sws, teaching, winter, Fixture};
 
@@ -814,8 +929,10 @@ mod tests {
     fn one_exam_termin_must_be_free() {
         let zc = "zentralcampus";
         let sfb = "senftenberg";
-        let mut retake = exam("F", "65", 1, "2027-02-08", "11:00", "13:00", zc);
-        retake.date.event_title = "Wiederholungsprüfung 65".into();
+        let retake = |mut row: DateRow| {
+            row.date.event_title = format!("Wiederholungsprüfung {}", row.date.event_id);
+            row
+        };
         let exams = [
             // P's only Termin is fixed; R has two, the first on 10.02.
             exam("P", "50", 1, "2027-02-08", "10:00", "12:00", zc),
@@ -828,13 +945,20 @@ mod tests {
             exam("D", "63", 1, "2027-02-08", "12:30", "14:00", sfb),
             exam("E", "64", 1, "2027-02-08", "12:30", "14:00", sfb),
             exam("E", "64", 2, "2027-03-01", "12:30", "14:00", sfb),
-            // F's only exam in the winter is a retake.
-            retake,
+            // F's only exam in the winter is a retake, and it meets P's.
+            retake(exam("F", "65", 1, "2027-02-08", "11:00", "13:00", zc)),
             exam("G", "66", 1, "2027-02-15", "10:00", "12:00", zc),
             // H sits P's exam with it: one exam, not two.
             exam("H", "50", 1, "2027-02-08", "10:00", "12:00", zc),
             // I's is QIS's placeholder: no Termin.
             exam("I", "67", 1, "2015-12-27", "01:00", "02:30", zc),
+            // J's only exam is a retake that is free; K's first attempt meets P's and only its
+            // retake is free; L's first attempt is free and its retake meets P's.
+            retake(exam("J", "68", 1, "2027-02-16", "10:00", "12:00", zc)),
+            exam("K", "69", 1, "2027-02-08", "10:30", "12:00", zc),
+            retake(exam("K", "71", 1, "2027-03-15", "10:00", "12:00", zc)),
+            exam("L", "72", 1, "2027-02-17", "10:00", "12:00", zc),
+            retake(exam("L", "73", 1, "2027-02-08", "11:00", "13:00", zc)),
         ];
         let expected = [
             clashes("A"),
@@ -842,12 +966,23 @@ mod tests {
             partly("C", EXAM_OVERLAP_NOTE),
             clashes("D"),
             partly("E", EXAM_TIGHT_NOTE),
-            unknown("F"),
+            clashes("F"),
             fits_("G"),
             fits_("H"),
             unknown("I"),
+            fit("J", Verdict::Unknown, Some(RETAKE_NOTE)),
+            clashes("K"),
+            fits_("L"),
         ];
         assert_eq!(finder(&[], &exams, &["P", "R"], &Selection::default(), ALL), expected);
+        // The Studienplan with F planned beside P and R warns of a hard overlap; with J or L it
+        // does not. K's free retake would avoid one too, but it is no first attempt.
+        let hard = |module: &str| {
+            let table = plan_of(&winter(), &[], &exams, &[], &ids(&["P", "R", module]), &Selection::default());
+            table.exam_warnings.iter().any(|warning| warning.hard)
+        };
+        assert!(hard("F"));
+        assert!(!hard("J") && !hard("K") && !hard("L"));
         let off: Vec<_> = expected.iter().map(|(module, ..)| unknown(module)).collect();
         assert_eq!(finder(&[], &exams, &["P", "R"], &Selection::default(), NO_EXAMS), off);
         // Exams hidden as a kind: the plan's and the candidates' alike.
@@ -870,23 +1005,86 @@ mod tests {
             teaching("T", "72", 1, "Übung", 3, "09:15", "10:45"),
             teaching("T", "73", 1, "Vorlesung", 1, "11:30", "13:00").campus(sfb),
             teaching("T", "74", 1, "Übung", 4, "09:15", "10:45").campus(sfb),
+            // U: both courses free.
+            teaching("U", "75", 1, "Vorlesung", 1, "15:00", "16:30"),
+            teaching("U", "76", 1, "Übung", 3, "15:00", "16:30"),
+            teaching("U", "77", 1, "Vorlesung", 4, "15:00", "16:30").campus(sfb),
+            teaching("U", "78", 1, "Übung", 5, "15:00", "16:30").campus(sfb),
+            // V: Cottbus' lecture meets C's, one of Senftenberg's two Übungen does.
+            teaching("V", "79", 1, "Vorlesung", 2, "09:00", "10:30"),
+            teaching("V", "80", 1, "Übung", 3, "08:00", "09:30"),
+            teaching("V", "81", 1, "Vorlesung", 5, "08:00", "09:30").campus(sfb),
+            teaching("V", "82", 1, "Übung", 2, "09:15", "10:45").campus(sfb),
+            teaching("V", "83", 1, "Übung", 5, "11:00", "12:30").campus(sfb),
         ];
         let town = |choice: TownChoice| Selection { town: choice, ..Selection::default() };
         let verdict = |choice| finder(&rows, &[], &["C"], &town(choice), ALL);
-        // The plan's town, derived or chosen, takes T's course there.
-        assert_eq!(verdict(TownChoice::Derive), [clashes("T")]);
-        assert_eq!(verdict(TownChoice::Only(Town::Cottbus)), [clashes("T")]);
-        assert_eq!(verdict(TownChoice::Only(Town::Senftenberg)), [fits_("T")]);
-        // Both towns: the course that fits.
-        assert_eq!(verdict(TownChoice::Both), [fits_("T")]);
+        // The plan's town, derived or chosen, takes a course there.
+        let cottbus = [clashes("T"), fits_("U"), clashes("V")];
+        assert_eq!(verdict(TownChoice::Derive), cottbus);
+        assert_eq!(verdict(TownChoice::Only(Town::Cottbus)), cottbus);
+        assert_eq!(
+            verdict(TownChoice::Only(Town::Senftenberg)),
+            [fits_("T"), fits_("U"), partly("V", "Übung 1 von 2 frei")]
+        );
+        // Both towns: the course that fits, and when the other fits worse, its town in the note.
+        assert_eq!(
+            verdict(TownChoice::Both),
+            [
+                partly("T", "nur in Senftenberg"),
+                fits_("U"),
+                partly("V", "Übung 1 von 2 frei · nur in Senftenberg")
+            ]
+        );
+        // For the Studienplan shows both courses then: T's Cottbus lecture meets C's.
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
+        let both = plan_of(&winter(), &schedule, &[], &[], &ids(&["C", "T"]), &town(TownChoice::Both));
+        assert_eq!(both.town, None);
+        assert!(!both.clashes.is_empty());
         let input = Candidates { schedule: &schedule, exams: &[], sws: &[] };
         let courses = |town| {
             let set = candidates(&input, &winter(), None, &Selection::default(), town, ALL);
             set.modules.iter().map(|c| (c.module_id.clone(), c.courses.len())).collect::<Vec<_>>()
         };
-        assert_eq!(courses(None), [("C".to_string(), 1), ("T".to_string(), 2)]);
-        assert_eq!(courses(Some(Town::Cottbus)), [("C".to_string(), 1), ("T".to_string(), 1)]);
+        let counted = |counts: [usize; 4]| {
+            ["C", "T", "U", "V"].into_iter().map(str::to_string).zip(counts).collect::<Vec<_>>()
+        };
+        assert_eq!(courses(None), counted([1, 2, 2, 2]));
+        assert_eq!(courses(Some(Town::Cottbus)), counted([1, 1, 1, 1]));
+    }
+
+    #[test]
+    fn an_event_the_plan_hides_as_the_other_towns_course_comes_back() {
+        let sfb = Some("senftenberg");
+        let rows = [
+            teaching("C", "68", 1, "Vorlesung", 2, "09:15", "10:45"),
+            teaching("C", "69", 1, "Übung", 5, "09:15", "10:45"),
+            // T is taken in Cottbus, where C is: its Senftenberg course is hidden.
+            teaching("T", "71", 1, "Vorlesung", 3, "11:00", "12:30"),
+            teaching("T", "72", 1, "Übung", 4, "09:15", "10:45"),
+            teaching("T", "73", 1, "Vorlesung", 2, "09:15", "10:45").campus(sfb),
+            teaching("T", "74", 1, "Übung", 4, "09:15", "10:45").campus(sfb),
+            // S, without tracks, shares T's Senftenberg lecture, which meets C's. W shares its
+            // Senftenberg Übung, which meets only T's own Cottbus Übung.
+            teaching("S", "73", 1, "Vorlesung", 2, "09:15", "10:45").campus(sfb),
+            teaching("W", "74", 1, "Übung", 4, "09:15", "10:45").campus(sfb),
+        ];
+        let selection = Selection::default();
+        let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
+        let plan = |modules: &[&str]| plan_of(&winter(), &schedule, &[], &[], &ids(modules), &selection);
+        let hidden = plan(&["C", "T"]);
+        assert_eq!(hidden.town, Some(Town::Cottbus));
+        let town_hidden = |e: &&Event| e.hidden == Some(HiddenBy::Town(Town::Cottbus));
+        let ids_hidden: Vec<&str> = hidden.events.iter().filter(town_hidden).map(|e| e.id.as_str()).collect();
+        assert_eq!(ids_hidden, ["73", "74"]);
+        assert_eq!(finder(&rows, &[], &["C", "T"], &selection, ALL), [clashes("S"), fits_("W")]);
+        // The Studienplan agrees: planned, S brings the lecture back into a clash with C's, and W
+        // its Übung beside T's, which is T's own business.
+        for (module, clashing) in [("S", true), ("W", false)] {
+            let with = plan(&["C", "T", module]);
+            assert_eq!(with.town, Some(Town::Cottbus), "{module}");
+            assert_eq!(!with.clashes.is_empty(), clashing, "{module}");
+        }
     }
 
     #[test]
@@ -978,7 +1176,8 @@ mod tests {
 
     /// The design's pinned plan: Informatik's first semester with 12102's second offering at
     /// Sachsendorf hidden (H.2), every class compared. On any snapshot, what holds for every plan:
-    /// the finder and the Studienplan agree about the plan's open choices.
+    /// the finder and the Studienplan agree about the plan's open choices, hard clashes and hard
+    /// exam overlaps.
     #[test]
     fn the_finder_lists_what_was_checked_and_fits() {
         let pinned = crate::tests::studyplan_db("the_finder_lists_what_was_checked_and_fits");
@@ -1019,34 +1218,47 @@ mod tests {
         let judged: BTreeSet<&str> = verdicts.iter().map(|f| f.module_id.as_str()).collect();
         assert_eq!(judged, dated.iter().copied().filter(|id| !fs1.iter().any(|m| m == id)).collect());
         for f in &verdicts {
+            // An unknown's note comes first; with no town, the town the verdict is for follows.
+            let first = f.note.as_deref().and_then(|note| note.split(" · ").next());
             match f.verdict {
                 Verdict::Fits | Verdict::Clashes => assert_eq!(f.note, None, "{}", f.module_id),
                 Verdict::Partly => assert!(f.note.is_some(), "{}", f.module_id),
-                Verdict::Unknown => assert_eq!(f.note.as_deref(), Some(UNKNOWN_NOTE), "{}", f.module_id),
+                Verdict::Unknown => {
+                    assert!(matches!(first, Some(UNKNOWN_NOTE | RETAKE_NOTE)), "{}: {:?}", f.module_id, f.note);
+                }
             }
         }
         // The Studienplan with a listed candidate planned too has no open choice more blocked
-        // than the plan alone, and none of the listed module's lectures is in a hard clash. Both
-        // hold while the town stays (the module's own events may tip a derived one) and, for the
-        // lectures, while the plan blocks no choice (a blocked choice's options are no obstacle to
-        // the finder, but the Studienplan names their clashes).
+        // than the plan alone, no hard exam warning that names the module, none of its lectures in
+        // a hard clash, and none of its events when it fits. That holds while the town stays (the
+        // module's own events may tip a derived one) and is known (without one, the Studienplan
+        // shows both courses of a module with city tracks, and the note names the town the verdict
+        // is for), and for the clashes, while the plan blocks no choice (a blocked choice's
+        // options are no obstacle to the finder, but the Studienplan names their clashes).
         let open: BTreeSet<String> = plan.events.iter().filter(|e| e.unresolved()).map(|e| e.id.clone()).collect();
         let blocked: BTreeSet<String> = plan.blocked.iter().map(|i| plan.events[*i].id.clone()).collect();
+        let before: BTreeSet<&str> =
+            clash::hard_rows(&plan.events).into_iter().map(|(e, _)| plan.events[e].id.as_str()).collect();
         for f in
             verdicts.iter().filter(|f| f.verdict != Verdict::Clashes).take(if is_pinned { usize::MAX } else { 200 })
         {
             let modules = [fs1.clone(), vec![f.module_id.clone()]].concat();
             let both = Timetable::build(&Input { modules: &modules, ..plan_input }, &selection);
-            if both.town != plan.town {
+            if both.town != plan.town || plan.town.is_none() {
                 assert!(!is_pinned, "{}: the town moved", f.module_id);
                 continue;
             }
             let now: BTreeSet<String> = both.blocked.iter().map(|i| both.events[*i].id.clone()).collect();
             assert!(now.iter().all(|id| blocked.contains(id) || !open.contains(id)), "{}: {now:?}", f.module_id);
+            let names = |w: &&ExamWarning| w.hard && (w.a.module_id == f.module_id || w.b.module_id == f.module_id);
+            let hard = both.exam_warnings.iter().find(names);
+            assert!(hard.is_none(), "{} {:?}: {hard:?}", f.module_id, f.verdict);
             for (event, _) in clash::hard_rows(&both.events).into_iter().filter(|_| blocked.is_empty()) {
                 let e = &both.events[event];
                 let theirs = e.modules.iter().all(|m| *m == f.module_id);
                 assert!(!(theirs && e.class == Class::Lecture), "{}: {} in a hard clash", f.module_id, e.id);
+                let added = e.modules.contains(&f.module_id) && !before.contains(e.id.as_str());
+                assert!(!(added && f.verdict == Verdict::Fits), "{} fits: {} in a hard clash", f.module_id, e.id);
             }
         }
         if !is_pinned {
@@ -1063,8 +1275,13 @@ mod tests {
         assert_eq!(verdict(&verdicts, "13583"), Some(Verdict::Clashes));
         // Datenbanken's Monday Übung takes only one of 148369's four times.
         assert_eq!(verdict(&verdicts, "12330"), Some(Verdict::Fits));
-        // Algorithmieren und Programmieren has only a retake in the winter.
+        // Algorithmieren und Programmieren has only a retake in the winter, and it is free.
         assert_eq!(verdict(&verdicts, "12101"), Some(Verdict::Unknown));
+        let note = verdicts.iter().find(|f| f.module_id == "12101").and_then(|f| f.note.as_deref());
+        assert_eq!(note, Some(RETAKE_NOTE));
+        // So has Betriebssysteme I, but its 148696 („Wiederholungsprüfung") sits at 12104's only
+        // Termin, 148689 on 12.03.2027 at 11:00: planned, the Studienplan warns of a hard overlap.
+        assert_eq!(verdict(&verdicts, "12204"), Some(Verdict::Clashes));
         // Grundlagen der Rechnernetze has no dated row in 2026W.
         assert_eq!(verdict(&verdicts, "11454"), None);
         let lenient = candidates(&input, &facts, row, &selection, plan.town, NO_EXERCISES);
