@@ -710,7 +710,8 @@ pub struct Import {
     pub modules: Vec<(SemesterKey, String)>,
     /// With pid 0: `PlanDoc::apply` numbers them.
     pub placeholders: Vec<Placeholder>,
-    /// Rows left out because the plan holds them already („3 schon geplant").
+    /// Modules and placeholder rows left out because the plan holds them already („3 schon
+    /// geplant"); a module the plan names twice counts once.
     pub skipped: usize,
     /// The preview: one entry per Fachsemester that gets something, in order.
     pub by_fs: Vec<ImportFs>,
@@ -732,8 +733,8 @@ pub struct ImportFs {
 /// Every row whose span (`plan::semester_span`) ends at or after `from_fs` is taken, at
 /// Fachsemester `max(span start, from_fs)`: a row over several semesters stands once, in the first
 /// of them that is taken. A row naming a module plans that module; one the plan holds in any
-/// semester is left out and counted as „schon geplant", and one the plan names twice is taken
-/// once, at its first Fachsemester. Every other row becomes a placeholder under its own name,
+/// semester is left out and counted as „schon geplant", and one the plan names twice is taken or
+/// counted once, at its first Fachsemester. Every other row becomes a placeholder under its own name,
 /// credits, kind, span and the caption of its plan; one whose row (`program_id`, `ord`) has a
 /// placeholder already, filled or not, in whatever semester, is left out and counted. Rows of
 /// prose, with neither credits nor a kind, are left out. So importing twice adds nothing.
@@ -766,11 +767,13 @@ pub fn import(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Option<
         let is_module = match entry.module_id.as_deref() {
             Some(id) if !url::is_module_id(id) => continue,
             Some(id) => {
-                if !doc.planned_in(id).is_empty() {
-                    out.skipped += 1;
+                // A repeat first: a module the plan names twice counts once, as it is added once,
+                // so a second import's „schon geplant" is what the first one added.
+                if !taken.insert(id) {
                     continue;
                 }
-                if !taken.insert(id) {
+                if !doc.planned_in(id).is_empty() {
+                    out.skipped += 1;
                     continue;
                 }
                 out.modules.push((semester, id.to_string()));
@@ -1324,12 +1327,13 @@ mod tests {
     fn a_store_full_at_every_cap_is_read_back_whole() {
         let semesters: Vec<SemesterKey> = (0..24).map(|n| key("2020W").plus(n).unwrap()).collect();
         let mut doc = PlanDoc::default();
-        // The longest fields there are: 4-byte characters in names, 3-byte dashes in credits.
+        // The longest fields there are: 4-byte characters in names, 3-byte dashes in credits, the
+        // largest ord in every program, 4-digit pids.
         let long = |n: usize| Placeholder {
             pid: 0,
             semester: semesters[n % 24],
-            program_id: "ABCDEFGH-ABCDEFGH-ABCDEFGH-ABCDEFGH-ABCDEFGH".to_string(),
-            ord: MAX_ORD - n as i64,
+            program_id: format!("{n:08}-ABCDEFGH-ABCDEFGH-ABCDEFGH-ABCDEFGH"),
+            ord: MAX_ORD,
             span: (MAX_SPAN, MAX_SPAN),
             credits: Some("–".repeat(MAX_CREDITS)),
             kind: Some("internship".to_string()),
@@ -1338,11 +1342,16 @@ mod tests {
         };
         assert_eq!(doc.apply(&with_placeholders((0..MAX_PLACEHOLDERS).map(long).collect()), 0), (0, MAX_PLACEHOLDERS));
         assert_eq!(doc.apply(&with_placeholders(vec![Placeholder { ord: 1, ..long(0) }]), 0), (0, 0), "100 placeholders");
+        // `apply` numbers them from 1; the stored text may hold any pid up to 9999.
+        for (p, pid) in doc.placeholders.iter_mut().zip(url::MAX_PID + 1 - MAX_PLACEHOLDERS as u32..) {
+            p.pid = pid;
+        }
+        assert_eq!(doc.placeholders.last().map(|p| p.pid), Some(url::MAX_PID));
         let mut n = 0;
         for s in &semesters {
             for _ in 0..MAX_MODULES {
                 if n < MAX_PLANNED {
-                    assert!(doc.plan(*s, &format!("M{n:031}"), u64::MAX, Some(100)));
+                    assert!(doc.plan(*s, &format!("M{n:031}"), u64::MAX, Some(url::MAX_PID)));
                     n += 1;
                 }
             }
@@ -1724,12 +1733,13 @@ town	cottbus
         assert_eq!(first.placeholders.iter().map(|p| (p.semester, p.ord)).collect::<Vec<_>>(), [(key("2027S"), 4)]);
         assert_eq!(first.skipped, 0);
 
-        // Twice: nothing new, and every row that would have been counted.
+        // Twice: nothing new, and „schon geplant" is what the first import added: 10001, named
+        // twice, counts once.
         let mut doc = PlanDoc::default();
         assert_eq!(doc.apply(&first, 7), (3, 1));
         assert_eq!(doc.placeholders[0].pid, 1);
         let again = import(&doc, program, &core, None, w, 1);
-        assert_eq!((again.modules.len(), again.placeholders.len(), again.skipped), (0, 0, 5));
+        assert_eq!((again.modules.len(), again.placeholders.len(), again.skipped), (0, 0, 4));
         assert!(again.by_fs.is_empty());
         assert_eq!(doc.apply(&again, 8), (0, 0));
 
@@ -1765,7 +1775,7 @@ town	cottbus
                 assert_eq!(doc.apply(&first, 1), (first.modules.len(), first.placeholders.len()), "{} {}", program.id, core.full);
                 let again = import(&doc, &program.id, core, page, w, 1);
                 assert!(again.modules.is_empty() && again.placeholders.is_empty(), "{} {}", program.id, core.full);
-                assert!(again.skipped >= first.modules.len() + first.placeholders.len());
+                assert_eq!(again.skipped, first.modules.len() + first.placeholders.len(), "{} {}", program.id, core.full);
                 assert_eq!(PlanDoc::restored(&doc.stored()), doc, "{} {}", program.id, core.full);
                 for p in &doc.placeholders {
                     assert!(matches!(resolve_placeholder(p, Some(&variants)), Resolved::Row(_, entry) if entry.ord == p.ord), "{} {}: {}", program.id, core.full, p.name);
