@@ -14,14 +14,8 @@ import (
 
 var (
 	germanDate = regexp.MustCompile(`(\d{1,2})\.(\d{1,2})\.(\d{4})`)
-	clockTime  = regexp.MustCompile(`^\d{1,2}:\d{2}`)
 	firstFloat = regexp.MustCompile(`\d+(?:[.,]\d+)?`)
 )
-
-var weekdays = map[string]int{
-	"mo": 1, "di": 2, "mi": 3, "do": 4, "fr": 5, "sa": 6, "so": 7,
-	"mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6, "sun": 7,
-}
 
 // writeEvents writes the archived QIS events and links them to the modules whose
 // page lists them. Exams are a category of their own, so that consumers can keep
@@ -111,8 +105,8 @@ func (b *builder) writeEvents() error {
 				INSERT INTO event_date (event_id, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw,
 					first_date, last_date, room, campus, instructor, comment, cancelled_dates)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				id, i+1, null(s.GroupName), null(weekdays[strings.Trim(strings.ToLower(s.DayOfWeek), ". ")]),
-				clock(s.StartTime), clock(s.EndTime), null(rhythm(s.Rhythm)), null(s.Rhythm),
+				id, i+1, null(s.GroupName), null(normalize.Weekday(s.DayOfWeek)),
+				null(normalize.Clock(s.StartTime)), null(normalize.Clock(s.EndTime)), null(rhythm(s.Rhythm)), null(s.Rhythm),
 				null(dates[i].first), null(dates[i].last), null(s.Room), null(normalize.Campus(s.Room)),
 				null(s.Instructor), null(s.Comment), null(s.CancelledDates))
 			if err != nil {
@@ -204,18 +198,6 @@ func isoDate(m []string) string {
 	day, _ := strconv.Atoi(m[1])
 	month, _ := strconv.Atoi(m[2])
 	return fmt.Sprintf("%s-%02d-%02d", m[3], month, day)
-}
-
-// clock keeps only a well-formed HH:MM.
-func clock(raw string) any {
-	m := clockTime.FindString(strings.TrimSpace(raw))
-	if m == "" {
-		return nil
-	}
-	if len(m) == 4 {
-		m = "0" + m
-	}
-	return m
 }
 
 func parseFloat(raw string) float64 {

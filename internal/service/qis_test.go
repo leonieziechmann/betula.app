@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,19 +17,39 @@ import (
 )
 
 // fakeQIS serves the module table of QIS in the shape the crawler pages through,
-// and one description per module.
+// and one description per module, each under the head that names the semester QIS
+// calls current.
 type fakeQIS struct {
 	srv     *httptest.Server
 	modules int
-	hits    map[string]int
-	views   map[string]string // pordnr → the objLanguage it was asked for
+
+	mu       sync.Mutex
+	semester string         // the head of every page, „WiSe 2026/27"
+	credits  map[int]string // module number → the credits its row states, "6" by default
+	hits     map[string]int
+	views    map[string]string // pordnr → the objLanguage it was asked for
+	served   []string          // module numbers whose description was served, in order
+}
+
+// takeServed returns the module numbers whose description was served since the last call.
+func (f *fakeQIS) takeServed() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	served := f.served
+	f.served = nil
+	sort.Strings(served)
+	return served
 }
 
 func newFakeQIS(t *testing.T, modules int) *fakeQIS {
-	f := &fakeQIS{modules: modules, hits: make(map[string]int), views: make(map[string]string)}
+	f := &fakeQIS{modules: modules, semester: "WiSe 2026/27", credits: make(map[int]string), hits: make(map[string]int), views: make(map[string]string)}
 	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(f.srv.Close)
 	return f
+}
+
+func (f *fakeQIS) head() string {
+	return `<div class="services"><ol><li><a href="/rds?state=change&amp;getglobal=semester" id="choosesemester" title="Semester wählen ...">` + f.semester + `</a></li></ol></div>`
 }
 
 func (f *fakeQIS) endpoints() Endpoints {
@@ -38,21 +60,27 @@ func (f *fakeQIS) endpoints() Endpoints {
 }
 
 func (f *fakeQIS) serve(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.hits[r.URL.Path+"?"+r.URL.RawQuery]++
 	switch r.URL.Path {
 	case "/table":
 		start, _ := strconv.Atoi(r.URL.Query().Get("P_start"))
 		count, _ := strconv.Atoi(r.URL.Query().Get("P_anzahl"))
 		var b strings.Builder
-		b.WriteString(`<table summary="Suchergebnis"><tr><th>Nr.</th><th>Modultitel</th></tr>`)
+		b.WriteString(f.head() + `<table summary="Suchergebnis"><tr><th>Nr.</th><th>Modultitel</th></tr>`)
 		for i := start; i < start+count && i < f.modules; i++ {
 			id := 20000 + i
 			language := "Deutsch"
 			if i%2 == 1 {
 				language = "Englisch"
 			}
+			credits := f.credits[id]
+			if credits == "" {
+				credits = "6"
+			}
 			fmt.Fprintf(&b, `<tr><td>%d</td><td><a href="%s/module?nodeID=pordnr=%d&amp;pord.pordnr=%d">Modul %d</a></td>`+
-				`<td>%s</td><td>6</td><td></td><td></td></tr>`, id, f.srv.URL, 900+i, 900+i, id, language)
+				`<td>%s</td><td>%s</td><td></td><td></td></tr>`, id, f.srv.URL, 900+i, 900+i, id, language, credits)
 		}
 		b.WriteString(`</table>`)
 		fmt.Fprint(w, b.String())
@@ -61,7 +89,8 @@ func (f *fakeQIS) serve(w http.ResponseWriter, r *http.Request) {
 		pordnr := r.URL.Query().Get("pord.pordnr")
 		n, _ := strconv.Atoi(pordnr)
 		id := 20000 + n - 900
-		fmt.Fprintf(w, `<table>
+		f.served = append(f.served, strconv.Itoa(id))
+		fmt.Fprintf(w, f.head()+`<table>
 			<tr><td class="tabelle1_alignleft">Modulnummer:</td><td class="tabelle2inhalt">%d</td></tr>
 			<tr><td class="tabelle1_alignleft">Modultitel:</td><td class="tabelle2inhalt">Modul %d</td></tr>
 			<tr><td class="tabelle1_alignleft">Veranstaltungen im aktuellen Semester:</td>
@@ -89,7 +118,7 @@ func TestCrawlQISModuleListPagesThroughTheTable(t *testing.T) {
 	f := newFakeQIS(t, modules)
 	db := openTestDB(t)
 
-	stats, err := CrawlQISModuleList(context.Background(), db, f.endpoints(), Pace{})
+	stats, _, err := CrawlQISModuleList(context.Background(), db, f.endpoints(), Pace{})
 	if err != nil {
 		t.Fatalf("CrawlQISModuleList: %v", err)
 	}
@@ -128,7 +157,7 @@ func TestCrawlQISModuleListDropsChunksBehindTheEnd(t *testing.T) {
 		t.Fatalf("PutPage: %v", err)
 	}
 
-	if _, err := CrawlQISModuleList(context.Background(), db, f.endpoints(), Pace{}); err != nil {
+	if _, _, err := CrawlQISModuleList(context.Background(), db, f.endpoints(), Pace{}); err != nil {
 		t.Fatalf("CrawlQISModuleList: %v", err)
 	}
 
@@ -151,10 +180,10 @@ func TestCrawlQISModules(t *testing.T) {
 	f := newFakeQIS(t, 3)
 	db := openTestDB(t)
 
-	if _, err := CrawlQISModuleList(context.Background(), db, f.endpoints(), Pace{}); err != nil {
+	if _, _, err := CrawlQISModuleList(context.Background(), db, f.endpoints(), Pace{}); err != nil {
 		t.Fatalf("CrawlQISModuleList: %v", err)
 	}
-	stats, err := CrawlQISModules(context.Background(), db, f.endpoints(), Pace{Workers: 2})
+	stats, err := CrawlQISModules(context.Background(), db, f.endpoints(), ModulePace{Pace: Pace{Workers: 2}}, nil)
 	if err != nil {
 		t.Fatalf("CrawlQISModules: %v", err)
 	}
@@ -190,5 +219,169 @@ func TestCrawlQISModules(t *testing.T) {
 		if !want[id] {
 			t.Errorf("LinkedEventIDs = %v, unexpected %s", ids, id)
 		}
+	}
+}
+
+// A row of the module table that changed is reported, so that the description of its
+// module, which states the same facts, is read again.
+func TestCrawlQISModuleListReportsChangedRows(t *testing.T) {
+	f := newFakeQIS(t, 3)
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	if _, changed, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{}); err != nil || len(changed) != 0 {
+		t.Fatalf("first reading: changed %v, %v", changed, err)
+	}
+	f.mu.Lock()
+	f.credits[20001] = "8"
+	f.mu.Unlock()
+	if _, changed, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{}); err != nil || len(changed) != 1 || !changed["20001"] {
+		t.Errorf("after the credits of 20001 changed: changed %v, %v", changed, err)
+	}
+	if _, changed, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{}); err != nil || len(changed) != 0 {
+		t.Errorf("read again unchanged: changed %v, %v", changed, err)
+	}
+	// Within its age the table is not read at all.
+	stats, changed, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{MaxAge: time.Hour})
+	if err != nil || stats.Fetched != 0 || len(changed) != 0 {
+		t.Errorf("within its age: %+v, changed %v, %v", stats, changed, err)
+	}
+}
+
+// A description is read once a month, unless something it depends on changed: its row in
+// the module table, or the semester QIS calls current, which decides the events it names.
+func TestQISModulesFollowWhatTheyDependOn(t *testing.T) {
+	f := newFakeQIS(t, 3)
+	db := openTestDB(t)
+	ctx := context.Background()
+	pace := ModulePace{Pace: Pace{MaxAge: 30 * 24 * time.Hour, Spread: true}, UnsettledMaxAge: 7 * 24 * time.Hour}
+	crawlModules := func() []string {
+		t.Helper()
+		_, changed, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{})
+		if err != nil {
+			t.Fatalf("CrawlQISModuleList: %v", err)
+		}
+		if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, changed); err != nil {
+			t.Fatalf("CrawlQISModules: %v", err)
+		}
+		return f.takeServed()
+	}
+
+	if got := crawlModules(); strings.Join(got, ",") != "20000,20001,20002" {
+		t.Fatalf("first run read %v", got)
+	}
+	if got := crawlModules(); len(got) != 0 {
+		t.Errorf("read %v although nothing changed", got)
+	}
+
+	f.mu.Lock()
+	f.credits[20002] = "9"
+	f.mu.Unlock()
+	if got := crawlModules(); strings.Join(got, ",") != "20002" {
+		t.Errorf("read %v, want the module whose row changed", got)
+	}
+
+	// QIS moves on to the summer semester: every description named the winter's events.
+	f.mu.Lock()
+	f.semester = "SoSe 2027"
+	f.mu.Unlock()
+	if got := crawlModules(); strings.Join(got, ",") != "20000,20001,20002" {
+		t.Errorf("read %v, want every description after the semester moved on", got)
+	}
+	if got := crawlModules(); len(got) != 0 {
+		t.Errorf("read %v again", got)
+	}
+
+	// A month and a half on, past the day of its own every description has in the month,
+	// every description is read again.
+	for _, id := range []string{"20000", "20001", "20002"} {
+		age(t, db, catalogdb.SourceQISModulePage, id, 46*24*time.Hour)
+	}
+	if got := crawlModules(); len(got) != 3 {
+		t.Errorf("read %v after a month and a half, want all three", got)
+	}
+}
+
+// Descriptions read in the same night, as a whole archive is after a semester switch, do
+// not come due in the same night a month later: each has a day of its own in the month.
+func TestQISModulesReadTogetherComeDueApart(t *testing.T) {
+	const modules = 60
+	f := newFakeQIS(t, modules)
+	db := openTestDB(t)
+	ctx := context.Background()
+	pace := ModulePace{Pace: Pace{MaxAge: 30 * 24 * time.Hour, Spread: true}}
+	if _, _, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{}); err != nil {
+		t.Fatalf("CrawlQISModuleList: %v", err)
+	}
+	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
+		t.Fatalf("CrawlQISModules: %v", err)
+	}
+	if got := f.takeServed(); len(got) != modules {
+		t.Fatalf("first run read %d descriptions, want %d", len(got), modules)
+	}
+
+	// A month on, the descriptions whose day came in the second half of the month are due:
+	// about half. (Of these 60 module numbers, every half month holds the days of 24 to 36.)
+	for i := 0; i < modules; i++ {
+		age(t, db, catalogdb.SourceQISModulePage, fmt.Sprint(20000+i), 30*24*time.Hour)
+	}
+	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
+		t.Fatalf("CrawlQISModules: %v", err)
+	}
+	spread := len(f.takeServed())
+	if spread < 20 || spread > 40 {
+		t.Errorf("read %d of %d descriptions a month after one night, want about half", spread, modules)
+	}
+
+	// Without Spread, every description a month old is due at once.
+	pace.Spread = false
+	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
+		t.Fatalf("CrawlQISModules: %v", err)
+	}
+	if got := len(f.takeServed()); got != modules-spread {
+		t.Errorf("without Spread read %d, want the other %d", got, modules-spread)
+	}
+}
+
+// BTU publishes the events of a semester module by module. A module offered in the
+// semester the catalog presents whose description names none of its events is read
+// weekly until it does.
+func TestQISModulesOfferedWithoutEventsAreReadWeekly(t *testing.T) {
+	f := newFakeQIS(t, 3)
+	db := openTestDB(t)
+	ctx := context.Background()
+	pace := ModulePace{Pace: Pace{MaxAge: 30 * 24 * time.Hour, Spread: true}, UnsettledMaxAge: 7 * 24 * time.Hour}
+	if _, _, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{}); err != nil {
+		t.Fatalf("CrawlQISModuleList: %v", err)
+	}
+	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
+		t.Fatalf("CrawlQISModules: %v", err)
+	}
+	f.takeServed()
+
+	// What the last build found: 20000 is offered in winter and names no winter event,
+	// 20001 is offered every semester and names one, 20002 is offered in summer only.
+	_, err := db.SQL().Exec(`
+		INSERT INTO meta (key, value) VALUES ('current_semester', '2026W');
+		INSERT INTO semester (key, season, year, label, starts_on, ends_on) VALUES ('2026W', 'winter', 2026, 'WiSe 2026/27', '2026-10-01', '2027-03-31');
+		INSERT INTO module (id, title, detail_status, offer_status, is_fues, turnus_season) VALUES
+			('20000', 'Modul 20000', 'ok', 'active', 0, 'winter'),
+			('20001', 'Modul 20001', 'ok', 'active', 0, 'both'),
+			('20002', 'Modul 20002', 'ok', 'active', 0, 'summer');
+		INSERT INTO event (id, title, category, semester_key, source_url, fetched_at) VALUES ('500901', 'Vorlesung', 'teaching', '2026W', 'u', '2026-09-24T01:00:00Z');
+		INSERT INTO module_event (module_id, event_id) VALUES ('20001', '500901');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Eleven days: past a week and a half, whatever day of the week is 20000's own, and
+	// within half a month, whatever day of the month is the others'.
+	for _, id := range []string{"20000", "20001", "20002"} {
+		age(t, db, catalogdb.SourceQISModulePage, id, 11*24*time.Hour)
+	}
+	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
+		t.Fatalf("CrawlQISModules: %v", err)
+	}
+	if got := f.takeServed(); strings.Join(got, ",") != "20000" {
+		t.Errorf("read %v, want the winter module without winter events", got)
 	}
 }

@@ -274,6 +274,30 @@ func Campus(room string) string {
 	return ""
 }
 
+var weekdays = map[string]int{
+	"mo": 1, "di": 2, "mi": 3, "do": 4, "fr": 5, "sa": 6, "so": 7,
+	"montag": 1, "dienstag": 2, "mittwoch": 3, "donnerstag": 4, "freitag": 5, "samstag": 6, "sonntag": 7,
+	"mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6, "sun": 7,
+	"monday": 1, "tuesday": 2, "wednesday": 3, "thursday": 4, "friday": 5, "saturday": 6, "sunday": 7,
+}
+
+// Weekday reads the day of a date as QIS writes it: „Mi." on an event page, „Mittwoch" in
+// the event search. 1 is Monday; 0 is unknown, as „keine Angabe" is.
+func Weekday(raw string) int {
+	return weekdays[strings.Trim(fold(raw), ". ")]
+}
+
+var clockTime = regexp.MustCompile(`^\d{1,2}:\d{2}`)
+
+// Clock keeps a well-formed time of day as HH:MM, and "" for anything else.
+func Clock(raw string) string {
+	m := clockTime.FindString(strings.TrimSpace(raw))
+	if len(m) == 4 {
+		m = "0" + m
+	}
+	return m
+}
+
 var (
 	semesterYear  = regexp.MustCompile(`(\d{4}|\d{2})(?:\s*/\s*\d{2,4})?`)
 	poYear        = regexp.MustCompile(`\b(19|20)\d{2}\b`)

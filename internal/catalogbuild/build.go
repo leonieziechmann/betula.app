@@ -61,6 +61,7 @@ type Report struct {
 	PlansWithoutProgram      []string
 
 	Events              int
+	EventsFromList      int // events whose dates come from the event search: no page yet, or one older than a change the list shows
 	EventLinksNoArchive int // events a module page links that are not archived yet
 
 	// Unused lists archived pages that are not part of the current dataset: module pages
@@ -102,7 +103,7 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	warn(len(report.UnpairedEnglishDep), "build.unpaired_departments", "English department names have no German counterpart", "names", report.UnpairedEnglishDep)
 
 	log.Info("build finished", "event", "build.finished", "duration_ms", time.Since(start).Milliseconds(),
-		"modules", report.Modules, "programs", report.Programs, "events", report.Events,
+		"modules", report.Modules, "programs", report.Programs, "events", report.Events, "events_from_list", report.EventsFromList,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil

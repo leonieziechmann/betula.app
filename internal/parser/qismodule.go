@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -99,4 +100,18 @@ func qisRowCells(tr *html.Node) (label, value *html.Node) {
 		return nil, nil
 	}
 	return label, value
+}
+
+var reQISSemester = regexp.MustCompile(`id="choosesemester"[^>]*>([^<]*)<`)
+
+// QISSemester reads the semester QIS calls current from the head of any of its pages
+// („WiSe 2026/27", the link to choose another semester). A module description names the
+// events of that semester, so a description read under another one is out of date.
+// "" when the page has no such head.
+func QISSemester(body []byte) string {
+	m := reQISSemester.FindSubmatch(body)
+	if m == nil {
+		return ""
+	}
+	return CleanSingleLine(html.UnescapeString(string(m[1])))
 }

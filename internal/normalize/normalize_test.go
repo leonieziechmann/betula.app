@@ -188,6 +188,25 @@ func TestSemesterKeyAndPOVersion(t *testing.T) {
 	}
 }
 
+// An event page abbreviates the day, the event search spells it out; both are the same date.
+func TestWeekdayAndClock(t *testing.T) {
+	days := map[string]int{
+		"Mo.": 1, "Mi.": 3, "So.": 7, "Mittwoch": 3, "Sonntag": 7, "Wed": 3,
+		"keine Angabe": 0, "": 0,
+	}
+	for raw, want := range days {
+		if got := Weekday(raw); got != want {
+			t.Errorf("Weekday(%q) = %d, want %d", raw, got, want)
+		}
+	}
+	clocks := map[string]string{"07:30": "07:30", "7:30": "07:30", " 16:00 ": "16:00", "24:00": "24:00", "": "", "c.t.": ""}
+	for raw, want := range clocks {
+		if got := Clock(raw); got != want {
+			t.Errorf("Clock(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
 func TestDegreeMeetsAcrossLanguages(t *testing.T) {
 	pairs := [][2]string{
 		{"Bachelor (universitär)", "Bachelor (research-oriented)"},

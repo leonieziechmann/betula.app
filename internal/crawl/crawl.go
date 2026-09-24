@@ -42,6 +42,7 @@ type Options struct {
 	Delay     time.Duration // pause per worker after each request, ±30 % jitter
 	Backoff   time.Duration // first pause after a failed request, doubled per attempt (default 30 s)
 	MaxAge    time.Duration // skip pages archived more recently than this; 0 fetches everything
+	Spread    bool          // MaxAge is a period: every page is fetched once per period, at a time of its own (Due)
 	UserAgent string
 	Client    *http.Client
 	Progress  func(done, total int, stats Stats)
@@ -144,7 +145,7 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 					fetchedAt, err := db.PageFetchedAt(job.Source, job.Key)
 					if err != nil {
 						log.Error("cannot read the archive", "event", "crawl.archive_error", "key", job.Key, oplog.Err(err))
-					} else if !fetchedAt.IsZero() && time.Since(fetchedAt) < opt.MaxAge {
+					} else if opt.fresh(job.Key, fetchedAt) {
 						record(func(s *Stats) { s.Skipped++ }, false, nil)
 						continue
 					}
@@ -194,6 +195,27 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 // fetchAndArchive retries transient failures with a growing pause. 200 and 404
 // are final answers and are archived; everything else is an error.
 func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options, log *slog.Logger) (int, bool, error) {
+	status, body, err := fetchWithRetries(ctx, job, opt, log)
+	if err != nil {
+		return 0, false, err
+	}
+	changed, err := db.PutPageChanged(catalogdb.RawPage{
+		Source:     job.Source,
+		Key:        job.Key,
+		URL:        job.URL,
+		FetchedAt:  time.Now(),
+		HTTPStatus: status,
+		Body:       body,
+	})
+	if err != nil {
+		return status, false, fmt.Errorf("failed to archive: %w", err)
+	}
+	return status, changed, nil
+}
+
+// fetchWithRetries retries transient failures with a growing pause. 200 and 404 are
+// final answers (a 404 without its body); everything else is an error.
+func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logger) (int, []byte, error) {
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		begin := time.Now()
@@ -206,25 +228,14 @@ func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options
 			if status == http.StatusNotFound {
 				body = nil
 			}
-			changed, err := db.PutPageChanged(catalogdb.RawPage{
-				Source:     job.Source,
-				Key:        job.Key,
-				URL:        job.URL,
-				FetchedAt:  time.Now(),
-				HTTPStatus: status,
-				Body:       body,
-			})
-			if err != nil {
-				return status, false, fmt.Errorf("failed to archive: %w", err)
-			}
-			return status, changed, nil
+			return status, body, nil
 		}
 		if err == nil {
 			err = fmt.Errorf("unexpected status %d", status)
 		}
 		lastErr = err
 		if ctx.Err() != nil {
-			return 0, false, lastErr
+			return 0, nil, lastErr
 		}
 		if attempt < maxAttempts {
 			pause := opt.Backoff * time.Duration(1<<(attempt-1))
@@ -233,7 +244,7 @@ func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options
 			sleep(ctx, pause)
 		}
 	}
-	return 0, false, lastErr
+	return 0, nil, lastErr
 }
 
 func fetch(ctx context.Context, pageURL string, opt Options) (int, []byte, error) {

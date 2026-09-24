@@ -198,8 +198,26 @@ func loadSources(ctx context.Context, db *catalogdb.DB, report *Report) (*source
 		return nil, err
 	}
 
+	if err := loadEvents(ctx, db, src, report); err != nil {
+		return nil, err
+	}
+	return src, nil
+}
+
+// loadEvents reads the two statements QIS makes about an event: its entry in the event
+// search, which Radix reads every night, and its page, which Radix fetches when the entry
+// changes and which adds what the list leaves out (the remarks of the dates, the full
+// names and roles of the persons, the campus of every room). Where the two agree, the page
+// is used. Where they differ, the entry wins if it changed after the page was fetched, so
+// that a change of the dates reaches the catalog as soon as the search shows it; otherwise
+// the page, which then is the newer reading of the same state. The list names a room by
+// building and number only; a room some page names gets that page's name, campus included.
+func loadEvents(ctx context.Context, db *catalogdb.DB, src *sources, report *Report) error {
 	eventParser := parser.NewEventParser()
-	err = db.EachPage(catalogdb.SourceQISEvent, func(p *catalogdb.RawPage) error {
+	err := db.EachPage(catalogdb.SourceQISEvent, func(p *catalogdb.RawPage) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if p.HTTPStatus != 200 || len(p.Body) == 0 {
 			return nil
 		}
@@ -211,10 +229,68 @@ func loadSources(ctx context.Context, db *catalogdb.DB, report *Report) (*source
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return src, nil
+	rooms := roomNames(src.events)
+	listParser := parser.NewEventListParser()
+	return db.EachPage(catalogdb.SourceQISEventEntry, func(p *catalogdb.RawPage) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if p.HTTPStatus != 200 || len(p.Body) == 0 {
+			return nil // the search does not show the event; its page is all there is
+		}
+		entry, err := listParser.Parse(bytes.NewReader(p.Body), p.Key, p.URL)
+		if err != nil {
+			return fmt.Errorf("event entry %s: %w", p.Key, err)
+		}
+		page := src.events[p.Key]
+		switch {
+		case page != nil && parser.SameSchedule(entry, page.detail):
+			// The list confirms the page, so the page is as current as the entry.
+			if p.FetchedAt.After(page.fetchedAt) {
+				page.fetchedAt = p.FetchedAt
+			}
+		case page == nil || p.ChangedAt.After(page.fetchedAt):
+			for i := range entry.Schedules {
+				if name, ok := rooms[parser.RoomID(entry.Schedules[i].RoomURL)]; ok {
+					entry.Schedules[i].Room = name
+				}
+			}
+			src.events[p.Key] = &eventPage{detail: entry, url: p.URL, fetchedAt: p.FetchedAt}
+			report.EventsFromList++
+		}
+		return nil
+	})
+}
+
+// roomNames maps the QIS ID of a room to the name the event pages give it
+// („Forschungszentrum 3H - 1.06 - Zentralcampus"); a room renamed since is known by the
+// name of the most recently fetched page.
+func roomNames(pages map[string]*eventPage) map[string]string {
+	ids := make([]string, 0, len(pages))
+	for id := range pages {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	names := make(map[string]string)
+	fetched := make(map[string]time.Time)
+	for _, id := range ids {
+		page := pages[id]
+		for _, s := range page.detail.Schedules {
+			room := parser.RoomID(s.RoomURL)
+			if room == "" || s.Room == "" {
+				continue
+			}
+			if at, ok := fetched[room]; ok && !page.fetchedAt.After(at) {
+				continue
+			}
+			names[room], fetched[room] = s.Room, page.fetchedAt
+		}
+	}
+	return names
 }
 
 // mergeEventLinks keeps the links of both descriptions of a module, the current
