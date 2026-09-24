@@ -188,9 +188,12 @@ pub fn occurrences(row: &DateRow, facts: &SemesterFacts) -> Occurrences {
 
 /// The days of a recurring row without a range: the lecture period's days of its weekday, for
 /// A and B rows those of their weeks. `None` when the period, or for A and B the anchor, is
-/// unknown, and always for a four-weekly row, which nothing anchors.
+/// unknown, and always for a four-weekly row, which nothing anchors. The period is whole weeks,
+/// the half-year need not be (2026S begins on a Wednesday): no day before or after the half-year
+/// is assumed.
 fn assumed(every: Every, weekday: u8, facts: &SemesterFacts) -> Option<Vec<Day>> {
-    let (start, end) = facts.lecture?;
+    let (period_start, period_end) = facts.lecture?;
+    let (start, end) = (period_start.max(facts.bounds.0), period_end.min(facts.bounds.1));
     let base = start.monday();
     let monday = match every {
         Every::Week => base,
@@ -225,6 +228,7 @@ mod tests {
 
     use super::*;
     use crate::queries;
+    use crate::timetable::day;
     use crate::timetable::semester::SemesterKey;
 
     fn d(iso: &str) -> Day {
@@ -250,6 +254,11 @@ mod tests {
     /// The same winter with nothing the data could say: no period, no anchor.
     fn unknown() -> SemesterFacts {
         SemesterFacts::derive(SemesterKey::parse("2026W").unwrap(), None, &[])
+    }
+
+    /// 2026S without data: the half-year 01.04.–30.09., a Wednesday to a Wednesday.
+    fn summer() -> SemesterFacts {
+        SemesterFacts::derive(SemesterKey::parse("2026S").unwrap(), None, &[])
     }
 
     #[derive(Clone, Copy)]
@@ -414,6 +423,28 @@ mod tests {
     }
 
     #[test]
+    fn assumed_dates_stay_inside_the_half_year() {
+        // Lectures from Wednesday 01.04. to Wednesday 30.09.: the period is whole weeks, from
+        // Monday 30.03. to Sunday 04.10., and its first two and last four days are not 2026S's.
+        let facts = SemesterFacts { lecture: Some((d("2026-03-30"), d("2026-10-04"))), ..summer() };
+        let dated = |weekday: i64| {
+            let o = occ(Fixture { weekday: Some(weekday), range: None, ..WEEKLY }, &facts);
+            assert!(o.assumed);
+            let mut all = o.days.clone();
+            all.extend(o.skipped.iter().map(|(day, _)| *day));
+            all.sort_unstable();
+            (all.first().map(|day| day.iso()), all.last().map(|day| day.iso()))
+        };
+        assert_eq!(dated(2), (Some("2026-04-07".into()), Some("2026-09-29".into())), "not Tuesday 31.03.");
+        assert_eq!(dated(3), (Some("2026-04-01".into()), Some("2026-09-30".into())));
+        assert_eq!(dated(4), (Some("2026-04-02".into()), Some("2026-09-24".into())), "not Thursday 01.10.");
+        // Ostermontag is the summer's first Monday.
+        let monday = occ(Fixture { weekday: Some(1), range: None, ..WEEKLY }, &facts);
+        assert_eq!(skipped(&monday), [("2026-04-06".into(), "Ostermontag"), ("2026-05-25".into(), "Pfingstmontag")]);
+        assert_eq!(monday.days.first().copied(), Some(d("2026-04-13")));
+    }
+
+    #[test]
     fn four_weekly_rows_and_other_rhythms() {
         let vierw = Fixture {
             rhythm: Some("other"),
@@ -495,6 +526,27 @@ mod tests {
     }
 
     #[test]
+    fn holidays_past_the_half_year_are_skipped_too() {
+        // 145750's „Block+SaSo" of 2026S runs from 28.09. into the winter's first days.
+        let block = Fixture {
+            rhythm: Some("block"),
+            raw: Some("Block+SaSo"),
+            weekday: None,
+            time: Some(("08:30", "20:00")),
+            range: Some(("2026-09-28", "2026-10-03")),
+            cancelled: None,
+        };
+        let o = occ(block, &summer());
+        assert_eq!(isos(&o.days), ["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"]);
+        assert_eq!(skipped(&o), [("2026-10-03".into(), "Tag der Deutschen Einheit")]);
+        // A weekly row that runs on past the half-year the same.
+        let saturday = Fixture { weekday: Some(6), range: Some(("2026-09-26", "2026-10-10")), ..WEEKLY };
+        let o = occ(saturday, &summer());
+        assert_eq!(isos(&o.days), ["2026-09-26", "2026-10-10"]);
+        assert_eq!(skipped(&o), [("2026-10-03".into(), "Tag der Deutschen Einheit")]);
+    }
+
+    #[test]
     fn cancellations_and_room_notes() {
         let noted = |cancelled: &'static str| occ(Fixture { cancelled: Some(cancelled), ..WEEKLY }, &winter());
         let o = noted("12.10.2026: 19.10.2026: Raumwechsel");
@@ -572,14 +624,24 @@ mod tests {
         let o = occ(block, &winter());
         assert!(o.days.len() + o.skipped.len() <= MAX_OCCURRENCES);
         assert!(o.days.len() > 250);
+        // Its holidays past the winter are skipped like those inside it.
+        assert!(o.skipped.contains(&(d("2026-12-25"), "1. Weihnachtstag")));
+        assert!(o.skipped.contains(&(d("2027-05-06"), "Christi Himmelfahrt")));
+        assert!(o.days.iter().all(|day| !is_holiday(*day)));
         let o = occ(Fixture { range: Some(("2026-10-05", "2099-12-31")), ..WEEKLY }, &winter());
         assert_eq!(o.days.len() + o.skipped.len(), MAX_OCCURRENCES);
         let o = occ(Fixture { range: Some(("2027-01-25", "2026-10-05")), ..WEEKLY }, &winter());
         assert_eq!(o, Occurrences::default(), "a range backwards has no date");
     }
 
+    /// Whether the law makes `day` a public holiday, asked without any semester's facts.
+    fn is_holiday(day: Day) -> bool {
+        day::holidays(day.ymd().0).iter().any(|(holiday, _)| *holiday == day)
+    }
+
     /// What holds for every row: each date in one list, lists in order, the guard, patterns
-    /// without days, assumed days inside the period, and the weekday of recurring rows.
+    /// without days, assumed days inside the period and the half-year, no recurring or block day
+    /// held on a holiday, and the weekday of recurring rows.
     fn invariants(row: &DateRow, o: &Occurrences, facts: &SemesterFacts) {
         let what = format!("{}/{:?}", row.date.event_id, row.ord);
         let mut all: Vec<Day> = o.days.clone();
@@ -597,10 +659,16 @@ mod tests {
         }
         if o.assumed {
             let (start, end) = facts.lecture.unwrap();
+            let (first, last) = facts.bounds;
             assert!(all.iter().all(|day| start <= *day && *day <= end), "{what}");
+            assert!(all.iter().all(|day| first <= *day && *day <= last), "{what}: assumed outside the half-year");
         }
+        let is_block = row.date.rhythm.as_ref().is_some_and(|r| r.is(Rhythm::Block));
         if o.all_day {
-            assert!(row.date.rhythm.as_ref().is_some_and(|r| r.is(Rhythm::Block)), "{what}");
+            assert!(is_block, "{what}");
+        }
+        if Every::of(&row.date).is_some() || is_block {
+            assert!(o.days.iter().all(|day| !is_holiday(*day)), "{what}: held on a public holiday");
         }
         if Every::of(&row.date).is_some() {
             let weekday = row.date.weekday.and_then(|w| u8::try_from(w).ok());
@@ -619,7 +687,7 @@ mod tests {
         let pinned = crate::tests::studyplan_db("occurrences_follow_rhythm_and_exceptions");
         let is_pinned = pinned.is_some();
         let db = pinned.unwrap_or_else(crate::tests::open);
-        let mut winter = None;
+        let mut semesters = std::collections::BTreeMap::new();
         for semester in queries::semesters(&db).unwrap() {
             let key = SemesterKey::parse(&semester.key).unwrap();
             let counts = queries::semester_date_counts(&db, &semester.key).unwrap();
@@ -628,18 +696,17 @@ mod tests {
             for row in &rows {
                 invariants(row, &occurrences(row, &facts), &facts);
             }
-            if semester.key == "2026W" {
-                winter = Some((facts, rows));
-            }
+            semesters.insert(semester.key.clone(), (facts, rows));
         }
         if !is_pinned {
             return;
         }
-        let (facts, rows) = winter.unwrap();
-        let of = |event: &str, ord: i64| {
+        let of_in = |semester: &str, event: &str, ord: i64| {
+            let (facts, rows) = &semesters[semester];
             let row = rows.iter().find(|row| row.date.event_id == event && row.ord == Some(ord)).unwrap();
-            occurrences(row, &facts)
+            occurrences(row, facts)
         };
+        let of = |event: &str, ord: i64| of_in("2026W", event, ord);
         // Mathematik IT-1, Mondays: 17 in the range, the two of the break skipped.
         let o = of("148303", 1);
         assert_eq!(o.days.len(), 15);
@@ -693,5 +760,9 @@ mod tests {
         assert_eq!(isos(&of("148293", 1).days), ["2026-10-12", "2026-11-09", "2026-12-07"]);
         assert_eq!(isos(&of("148293", 2).days), ["2027-01-11"]);
         assert_eq!(of("150397", 5).template, Some(Template { weekday: 4, every: Every::FourWeeks }));
+        // A summer block that runs into the winter skips the winter's holiday.
+        let o = of_in("2026S", "145750", 1);
+        assert_eq!(isos(&o.days), ["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"]);
+        assert_eq!(skipped(&o), [("2026-10-03".into(), "Tag der Deutschen Einheit")]);
     }
 }

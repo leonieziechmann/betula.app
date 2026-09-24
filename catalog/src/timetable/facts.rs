@@ -49,7 +49,9 @@ pub struct SemesterFacts {
     /// `v_semester`'s `starts_on..=ends_on`, else the half-year of the key.
     pub bounds: (Day, Day),
     /// Monday of the first lecture week ..= Sunday of the last; `None` when the data does not
-    /// say. Always inside `bounds`.
+    /// say. Always inside the weeks of `bounds`: the half-year may begin or end within the
+    /// period's first or last week (2026S begins on a Wednesday), so a day of the period is not
+    /// always a day of the semester.
     pub lecture: Option<(Day, Day)>,
     /// Weeks without lectures inside the period, Monday ..= Sunday, consecutive weeks merged.
     pub breaks: Vec<(Day, Day)>,
@@ -64,8 +66,11 @@ impl SemesterFacts {
     /// snapshot has one (not for a semester without data, like the next summer).
     pub fn derive(key: SemesterKey, semester: Option<&Semester>, counts: &[DateCount]) -> Self {
         let bounds = semester.and_then(|s| stated_bounds(key, s)).unwrap_or_else(|| key.bounds());
-        // A period outside the half-year is not one the semester's rows can mean.
-        let lecture = lecture_period(counts).filter(|(first, last)| bounds.0 <= *first && *last <= bounds.1);
+        // A period outside the half-year is not one the semester's rows can mean. The period is
+        // whole weeks and the half-year is not, so their weeks are compared: lectures from
+        // Wednesday 01.04. make a period from Monday 30.03., which is still this summer's.
+        let weeks = (bounds.0.monday(), bounds.1.monday().plus(6));
+        let lecture = lecture_period(counts).filter(|(first, last)| weeks.0 <= *first && *last <= weeks.1);
         let breaks = lecture.map(|period| breaks(period, counts)).unwrap_or_default();
         let a_week = lecture.and_then(|(first, _)| a_week(first, counts));
         let (first_year, _, _) = bounds.0.ymd();
@@ -82,9 +87,17 @@ impl SemesterFacts {
         self.breaks.iter().any(|(first, last)| *first <= day && day <= *last)
     }
 
-    /// The name of the public holiday on `day`, if it is one inside the semester.
+    /// The name of the public holiday on `day`, if it is one. A semester's rows reach past its
+    /// half-year (145750's „Block+SaSo" of 2026S runs to 03.10.), so a day outside `bounds` is
+    /// looked up in the law of its year rather than taken as a working day.
     pub fn holiday(&self, day: Day) -> Option<&'static str> {
-        self.holidays.iter().find(|(date, _)| *date == day).map(|(_, name)| *name)
+        let named =
+            |holidays: &[(Day, &'static str)]| holidays.iter().find(|(date, _)| *date == day).map(|(_, name)| *name);
+        if self.bounds.0 <= day && day <= self.bounds.1 {
+            named(&self.holidays)
+        } else {
+            named(&day::holidays(day.ymd().0))
+        }
     }
 }
 
@@ -301,8 +314,27 @@ mod tests {
         );
         assert_eq!(facts.holiday(d("2026-10-31")), Some("Reformationstag"));
         assert_eq!(facts.holiday(d("2026-11-01")), None);
-        // Neujahr 2026 lies before the winter.
-        assert_eq!(facts.holiday(d("2026-01-01")), None);
+        // Neujahr 2026 and Christi Himmelfahrt 2027 lie outside the winter: not in its list, but a
+        // row that reaches them is still told they are holidays.
+        assert_eq!(facts.holiday(d("2026-01-01")), Some("Neujahr"));
+        assert_eq!(facts.holiday(d("2027-05-06")), Some("Christi Himmelfahrt"));
+        assert_eq!(facts.holiday(d("2027-05-07")), None);
+    }
+
+    #[test]
+    fn the_period_is_compared_with_the_weeks_of_the_half_year() {
+        let summer = SemesterKey::parse("2026S").unwrap();
+        // 2026S runs from Wednesday 01.04. to Wednesday 30.09. Lectures from the first day to the
+        // last fill the first and the last week, so the period is those whole weeks.
+        let wednesdays = [count("weekly", "2026-04-01", "2026-09-30", 30)];
+        let facts = SemesterFacts::derive(summer, None, &wednesdays);
+        assert_eq!(facts.bounds, (d("2026-04-01"), d("2026-09-30")));
+        assert_eq!(facts.lecture, Some((d("2026-03-30"), d("2026-10-04"))));
+        // A week earlier or a week later is another half-year's.
+        let early = [count("weekly", "2026-03-27", "2026-07-15", 30)];
+        assert_eq!(SemesterFacts::derive(summer, None, &early).lecture, None);
+        let late = [count("weekly", "2026-04-01", "2026-10-05", 30)];
+        assert_eq!(SemesterFacts::derive(summer, None, &late).lecture, None);
     }
 
     #[test]
@@ -451,7 +483,9 @@ mod tests {
             assert_eq!((first.iso(), last.iso()), (semester.starts_on.clone(), semester.ends_on.clone()));
             match facts.lecture {
                 Some((start, end)) => {
-                    assert!(first <= start && end <= last, "{}: lecture inside the bounds", semester.key);
+                    // Whole weeks against a half-year that may begin and end mid-week.
+                    let inside = first.monday() <= start && end <= last.monday().plus(6);
+                    assert!(inside, "{}: lecture inside the weeks of the bounds", semester.key);
                     assert_eq!((start.weekday(), end.weekday()), (1, 7));
                     for (from, to) in &facts.breaks {
                         assert!(start < *from && *to < end && from < to, "{}: break inside the period", semester.key);
