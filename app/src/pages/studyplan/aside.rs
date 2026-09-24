@@ -10,16 +10,18 @@
 //! counts for, and „Entfernen". At the end, the module's clashes and exam warnings in the words of
 //! the semester's notes, each leading to the other module where there is one.
 //!
-//! The semester is the page's when the module is planned there. Otherwise (the Übersicht shows
-//! every semester at once, and a module moved to another semester stays open) it is the semester
-//! the module is planned in nearest to the page's, and the panel loads that semester's plan itself:
-//! the queries of that semester's page, answered from the visit's cache the second time.
+//! The semester is the page's when the module is planned there (the Übersicht names the one of the
+//! row clicked in `sem` as well). Otherwise (a module moved to another semester stays open) it is
+//! the semester the module is planned in nearest to the page's, and the panel loads that
+//! semester's plan itself: the queries of that semester's page, answered from the visit's cache the
+//! second time. A module planned in several semesters says where else, and leads there.
 //!
 //! Choosing asks the catalog nothing (the store, then the selection and the timetable), so it is
 //! written in the click. Moving and removing change what is planned, which the pages query for:
 //! the control answers first and the store follows after the next frame (R21). What the panel
 //! lists (its events, Termine and the choices made) and what is hidden of it are two memos, so an
-//! eye button flips its own state in place and keeps the focus.
+//! eye button flips its own state in place and keeps the focus; the events are a keyed list, so a
+//! choice rebuilds its own event only and hands the focus to the button that took its place.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -36,6 +38,7 @@ use catalog::timetable::occur::Every;
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::select::{HiddenBy, Town, TownChoice};
 use catalog::timetable::semester::{fachsemester, of_fachsemester, SemesterKey};
+use catalog::url::{PlanView, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
@@ -81,7 +84,7 @@ enum Loaded {
     /// It is planned in another semester: that semester's plan, loaded for the panel.
     Other(Result<StudyplanData, DataError>),
     /// It is planned nowhere: its row of the catalog, when it has one.
-    Nowhere(Option<CatalogRow>),
+    Nowhere(Result<Option<CatalogRow>, DataError>),
 }
 
 /// What the panel knows of the module and its semester besides the timetable.
@@ -118,6 +121,8 @@ struct Choices {
     /// The placeholders it can count for, with their labels.
     placeholders: Vec<(u32, String)>,
     fills: Option<u32>,
+    /// The other semesters it is planned in (a module over two semesters, a retake).
+    elsewhere: Vec<SemesterKey>,
 }
 
 /// What the panel lists: the module's events and exams in its semester, with their Termine and
@@ -129,6 +134,32 @@ struct Body {
     /// A line above the events: no dates in this semester, or no plan.
     lead: Option<String>,
     blocks: Vec<Block>,
+}
+
+/// Which event or exam of a semester a block is: its key in the panel's keyed list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct BlockKey {
+    sem: SemesterKey,
+    exam: bool,
+    index: usize,
+}
+
+impl BlockKey {
+    /// The block's name in the page (`data-block`), where the focus is handed on inside it: „e3"
+    /// for the semester's fourth event, „x0" for its first exam.
+    fn name(self) -> String {
+        format!("{}{}", if self.exam { "x" } else { "e" }, self.index)
+    }
+
+    /// The block of this key in what the panel lists.
+    fn block(self, body: &Body) -> Option<&Block> {
+        body.blocks.iter().find(|block| block.exam == self.exam && block.index == self.index)
+    }
+
+    /// What is shown of this key's block now.
+    fn state(self, shown: &[BlockShown]) -> Option<&BlockShown> {
+        shown.iter().find(|state| state.exam == self.exam && state.index == self.index)
+    }
 }
 
 /// An event or an exam of the module.
@@ -203,6 +234,9 @@ impl RowText {
 /// What is shown of a block now. It changes with every eye button.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct BlockShown {
+    /// The block's `exam` and `index`: whose state this is.
+    exam: bool,
+    index: usize,
     hidden: Option<HiddenBy>,
     /// Why it is hidden when the reason lies elsewhere: „Übungen ausgeblendet", „Standort …".
     reason: Option<String>,
@@ -266,9 +300,11 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
                 Some(source) => source.run(|db| pages::studyplan(db, sem, &place.ids)),
                 None => Err(unavailable()),
             })),
-            None => Loaded::Nowhere(ctx.source.with_value(|source| {
-                let (rows, _) = source.as_ref()?.run(|db| pages::studyplan_modules(db, std::slice::from_ref(&place.id))).ok()?;
-                rows.into_iter().next()
+            None => Loaded::Nowhere(ctx.source.with_value(|source| match source {
+                Some(source) => {
+                    source.run(|db| pages::studyplan_modules(db, std::slice::from_ref(&place.id))).map(|(rows, _)| rows.into_iter().next())
+                }
+                None => Err(unavailable()),
             })),
         };
         Some((place, loaded))
@@ -300,7 +336,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
             Some(match loaded {
                 Loaded::Page => ctx.data.with(|data| info_of(place, data.as_ref())),
                 Loaded::Other(data) => info_of(place, data.as_ref()),
-                Loaded::Nowhere(row) => info_nowhere(place, row.as_ref()),
+                Loaded::Nowhere(row) => info_nowhere(place, row.as_ref().map(Option::as_ref)),
             })
         })
     });
@@ -322,6 +358,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
             Some(Choices {
                 semesters: semester_choices(&doc.semesters(), current, start, sem),
                 placeholders: placeholder_choices(doc, sem, start, fills),
+                elsewhere: doc.planned_in(&id).into_iter().filter(|other| *other != sem).collect(),
                 id,
                 sem,
                 fills,
@@ -359,18 +396,16 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
             }
         })
     };
-    let body_view = move || {
-        let body = body.get();
-        if let Some(error) = body.error {
-            return view! { <ErrorState error/> }.into_any();
-        }
-        let lead = body.lead.map(|lead| view! { <p class="note quiet">{lead}</p> });
-        let Some(sem) = body.sem else {
-            return lead.into_any();
-        };
-        let blocks = body.blocks.into_iter().enumerate().map(|(index, block)| view! { <BlockView ctx sem index block shown/> }).collect_view();
-        view! { {lead}{blocks} }.into_any()
-    };
+    // The events as a keyed list (R5): a choice rebuilds the lines of its own event, and every
+    // other event stays as it is.
+    let error = Memo::new(move |_| body.with(|body| body.error.clone()));
+    let lead = Memo::new(move |_| body.with(|body| body.lead.clone()));
+    let keys = Memo::new(move |_| {
+        body.with(|body| match body.sem {
+            Some(sem) => body.blocks.iter().map(|block| BlockKey { sem, exam: block.exam, index: block.index }).collect(),
+            None => Vec::new(),
+        })
+    });
     let notes_view = move || {
         let notes = notes.get();
         (!notes.is_empty()).then(|| view! { <div class="section sp-notes">{notes.into_iter().map(|note| note_view(ctx, note)).collect_view()}</div> })
@@ -390,15 +425,29 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
                     {heading}
                     <Actions ctx going head place table choices/>
                 </header>
-                <div class="dbody">{body_view}{notes_view}</div>
+                <div class="dbody">
+                    {move || error.get().map(|error| view! { <ErrorState error/> })}
+                    {move || lead.get().map(|lead| view! { <p class="note quiet">{lead}</p> })}
+                    <For each=move || keys.get() key=|key| *key children=move |key: BlockKey| view! { <BlockView ctx key body shown/> }/>
+                    {notes_view}
+                </div>
             </div>
         </section>
     }
 }
 
 /// Under the title: the credits, and where the module is planned — the semester (moving it), the
-/// placeholder it counts for, „Entfernen". Moving and removing answer in the next frame and change
-/// the plan after it (R21); „Entfernen" closes the panel, since the module is no longer there.
+/// placeholder it counts for, „Entfernen" — and the other semesters it is planned in. Moving and
+/// removing answer in the next frame and change the plan after it (R21); „Entfernen" closes the
+/// panel, since the module is no longer there.
+///
+/// A move keeps what the semester it leaves hides and has chosen of the module's events: no
+/// timetable and no subscription of that semester holds events of a module not planned there, so
+/// the lines cost nothing, and a step back finds the module's choices as they were. (Only
+/// „Entfernen" clears them, B.2.) The arrow keys on a closed select step through its options, and
+/// Chromium on Windows reports a `change` for each step: looking through the semesters must not
+/// move the module at every step, so a step by key moves it only on Enter or when the focus leaves
+/// the select, to the semester the select shows then.
 #[component]
 fn Actions(
     ctx: PlanCtx,
@@ -413,34 +462,61 @@ fn Actions(
     let semesters = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.semesters.clone()).unwrap_or_default()));
     let placeholders = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.placeholders.clone()).unwrap_or_default()));
     let fills = Memo::new(move |_| choices.with(|c| c.as_ref().and_then(|c| c.fills)));
+    let elsewhere = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.elsewhere.clone()).unwrap_or_default()));
     // A move on its way: (module, from, to) until the plan has it.
-    let moving: RwSignal<Option<(String, SemesterKey, SemesterKey)>> = RwSignal::new(None);
+    let moving: RwSignal<Option<Move>> = RwSignal::new(None);
+    // The semester the keys stepped to, not moved to yet; and whether the key held down now steps.
+    let stepped: RwSignal<Option<Move>> = RwSignal::new(None);
+    let stepping = StoredValue::new(false);
     let removing = RwSignal::new(false);
     let value = Memo::new(move |_| {
         let (id, sem) = choices.with(|c| c.as_ref().map(|c| (c.id.clone(), c.sem)))?;
-        let to = moving.with(|moving| moving.as_ref().filter(|(module, from, _)| *module == id && *from == sem).map(|(_, _, to)| *to));
-        Some(to.unwrap_or(sem))
+        let to = |pending: &Option<Move>| pending.as_ref().filter(|(module, from, _)| *module == id && *from == sem).map(|(_, _, to)| *to);
+        Some(moving.with(to).or_else(|| stepped.with(to)).unwrap_or(sem))
     });
 
-    let move_to = move |ev: leptos::ev::Event| {
-        let Some(plan) = ctx.plan else { return };
-        let Some(to) = SemesterKey::parse(&event_target_value(&ev)) else { return };
-        let Some((id, from)) = choices.with_untracked(|c| c.as_ref().map(|c| (c.id.clone(), c.sem))) else { return };
-        if to == from {
-            return;
-        }
-        let events = table.with_untracked(|t| t.as_ref().filter(|t| t.key == from).map(|t| only_its_events(t, &id)).unwrap_or_default());
-        moving.set(Some((id.clone(), from, to)));
+    // Handlers may run as the panel goes (a blur as it is taken out), so they touch its signals
+    // with `try_`.
+    let move_to = move |(id, from, to): Move| {
+        stepped.try_set(None);
+        let Some(plan) = ctx.plan.filter(|_| to != from) else { return };
+        moving.try_set(Some((id.clone(), from, to)));
         nav::after_paint(move || {
-            plan.update(|doc| {
-                doc.move_to(from, to, &id);
-                // What the old semester hid of the module goes with it, as on „Entfernen".
-                if !doc.is_planned(from, &id) {
-                    doc.unplan(from, &id, &events);
-                }
-            });
+            plan.update(|doc| doc.move_to(from, to, &id));
             moving.try_set(None);
         });
+    };
+    let changed = move |ev: leptos::ev::Event| {
+        let Some(to) = SemesterKey::parse(&event_target_value(&ev)) else { return };
+        let Some((id, from)) = choices.with_untracked(|c| c.as_ref().map(|c| (c.id.clone(), c.sem))) else { return };
+        if stepping.try_get_value().unwrap_or(false) {
+            stepped.try_set(Some((id, from, to)));
+        } else {
+            move_to((id, from, to));
+        }
+    };
+    let key_down = move |ev: leptos::ev::KeyboardEvent| {
+        let key = ev.key();
+        if key == "Enter" {
+            if let Some(step) = stepped.try_get_untracked().flatten() {
+                move_to(step);
+            }
+            return;
+        }
+        // The keys that change a closed select's option: arrows, Home, End, the page keys, and a
+        // letter or digit (it jumps to the option starting with it). Alt+↓ and space open it.
+        let steps = matches!(key.as_str(), "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown")
+            || (key.chars().count() == 1 && key != " ");
+        stepping.try_set_value(steps && !ev.alt_key() && !ev.ctrl_key() && !ev.meta_key());
+    };
+    let key_up = move |_: leptos::ev::KeyboardEvent| {
+        stepping.try_set_value(false);
+    };
+    let left = move |_: leptos::ev::FocusEvent| {
+        stepping.try_set_value(false);
+        if let Some(step) = stepped.try_get_untracked().flatten() {
+            move_to(step);
+        }
     };
     let set_fills = move |ev: leptos::ev::Event| {
         let Some(plan) = ctx.plan else { return };
@@ -453,8 +529,10 @@ fn Actions(
         let Some((id, sem)) = place.with_untracked(|place| place.as_ref().and_then(|place| Some((place.id.clone(), place.sem?)))) else { return };
         let events = table.with_untracked(|t| t.as_ref().filter(|t| t.key == sem).map(|t| only_its_events(t, &id)).unwrap_or_default());
         removing.set(true);
+        // In place of the panel's own entry: Back leads to where the visitor was before opening
+        // the module, not to a panel of a module the plan no longer holds.
         if let Some(going) = going {
-            going.go(&ctx.url.with_untracked(|url| url.with_open(None, None).path()), NavigateOptions { scroll: false, ..Default::default() });
+            going.go(&ctx.url.with_untracked(|url| url.with_open(None, None).path()), NavigateOptions { replace: true, scroll: false, ..Default::default() });
         }
         plan.update_after_paint(move |doc| doc.unplan(sem, &id, &events));
     };
@@ -462,7 +540,7 @@ fn Actions(
     let selects = move || {
         planned.get().then(|| {
             view! {
-                <select aria-label="Semester" title="In ein anderes Semester verschieben" on:change=move_to>
+                <select aria-label="Semester" title="In ein anderes Semester verschieben" on:change=changed on:keydown=key_down on:keyup=key_up on:blur=left>
                     {move || semesters.get().into_iter().map(|(sem, label)| view! {
                         <option value=sem.key() prop:selected=move || value.get() == Some(sem)>{label}</option>
                     }).collect_view()}
@@ -479,6 +557,28 @@ fn Actions(
             }
         })
     };
+    // „Auch geplant: WiSe 2027/28": the module in another of its semesters, beside the same view
+    // (on the Übersicht only the panel changes).
+    let also = move || {
+        let others = elsewhere.get();
+        (!others.is_empty()).then(|| {
+            let links = others
+                .into_iter()
+                .enumerate()
+                .map(|(n, sem)| {
+                    let href = move || {
+                        ctx.url.with(|url| {
+                            let open = url.open.clone();
+                            StudyplanUrl { sem: Some(sem.key()), open, row: None, ..url.clone() }.path()
+                        })
+                    };
+                    let overview = move || ctx.url.with(|url| (url.view == PlanView::Overview).then_some(""));
+                    view! { {(n > 0).then_some(", ")}<a href=href data-noscroll=overview>{sem.label()}</a> }
+                })
+                .collect_view();
+            view! { <p class="hint sp-also">"Auch geplant: "{links}</p> }
+        })
+    };
     view! {
         {move || credits.get().map(|credits| view! {
             <div class="sp-actions">
@@ -486,64 +586,94 @@ fn Actions(
                 {selects}
             </div>
         })}
+        {also}
     }
 }
 
-/// An event or an exam of the module, with its Termine.
+/// A move of a module: (module, from, to).
+type Move = (String, SemesterKey, SemesterKey);
+
+/// An event or an exam of the module, with its Termine. What it lists follows `body` (a choice
+/// changes its lines), what is hidden of it `shown`; its head stays, and so does its eye.
 #[component]
-fn BlockView(ctx: PlanCtx, sem: SemesterKey, index: usize, block: Block, shown: Memo<Vec<BlockShown>>) -> impl IntoView {
-    let state = Memo::new(move |_| shown.with(|shown| shown.get(index).map(|s| (s.hidden, s.reason.clone(), s.open)).unwrap_or_default()));
+fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<BlockShown>>) -> impl IntoView {
+    let sem = key.sem;
+    // The key names one event or exam of the semester, so its number and its link stay; its head
+    // names the module's title, which another module sharing the event has otherwise.
+    let (event, qis) = body.with_untracked(|body| key.block(body).map(|block| (block.event, block.qis.clone())).unwrap_or_default());
+    let head = Memo::new(move |_| body.with(|body| key.block(body).map(|block| block.head.clone()).unwrap_or_default()));
+    let items = Memo::new(move |_| body.with(|body| key.block(body).map(|block| block.items.clone()).unwrap_or_default()));
+    let state = Memo::new(move |_| shown.with(|shown| key.state(shown).map(|s| (s.hidden, s.reason.clone(), s.open)).unwrap_or_default()));
     let pressed = Memo::new(move |_| state.with(|s| s.0 == Some(HiddenBy::Event)));
-    // The eye stays while the event is shown or hidden by it; another reason is said instead.
+    // The eye stays while the event is shown or hidden by it; another reason is said instead, and
+    // an eye that cannot be pressed keeps the head's place.
     let eye = Memo::new(move |_| state.with(|s| matches!(s.0, None | Some(HiddenBy::Event))));
+    let elsewhere = Memo::new(move |_| state.with(|s| s.0.is_some_and(|by| by != HiddenBy::Event)));
     let reason = Memo::new(move |_| state.with(|s| s.1.clone()));
     let open = Memo::new(move |_| state.with(|s| s.2));
-    let (event, exam) = (block.event, block.exam);
     let toggle = move |_: leptos::ev::MouseEvent| {
         if let (Some(plan), Some(event)) = (ctx.plan, event) {
             let hide = !pressed.get_untracked();
             plan.update(|doc| doc.set_event(sem, event, hide));
         }
     };
-    let label = move || match (exam, pressed.get()) {
+    let label = move || match (key.exam, pressed.get()) {
         (false, false) => "Veranstaltung ausblenden",
         (false, true) => "Veranstaltung einblenden",
         (true, false) => "Prüfung ausblenden",
         (true, true) => "Prüfung einblenden",
     };
-    let items = block
-        .items
-        .into_iter()
-        .enumerate()
-        .map(|(item, it)| {
-            let state = Memo::new(move |_| shown.with(|shown| shown.get(index).and_then(|s| s.items.get(item)).copied().unwrap_or_default()));
-            item_view(ctx, sem, event, it, state, open)
-        })
-        .collect_view();
+    let lines = move || {
+        items
+            .get()
+            .into_iter()
+            .enumerate()
+            .map(|(item, it)| {
+                let state = Memo::new(move |_| shown.with(|shown| key.state(shown).and_then(|s| s.items.get(item).copied()).unwrap_or_default()));
+                item_view(ctx, key, event, it, state, open)
+            })
+            .collect_view()
+    };
     let hidden = Memo::new(move |_| state.with(|s| s.0.is_some()));
     view! {
-        <div class="sp-event" data-hidden=move || hidden.get().then_some("")>
+        <div class="sp-event" data-block=key.name() data-hidden=move || hidden.get().then_some("")>
             <h3>
-                {move || (event.is_some() && eye.get()).then(|| view! {
-                    <button class="eye" type="button" on:click=toggle aria-pressed=move || if pressed.get() { "true" } else { "false" } aria-label=label title=label>
-                        {move || eye_icon(pressed.get())}
-                    </button>
-                })}
-                <span>{block.head}</span>
-                {block.qis.map(|href| view! { <a href=href rel="noopener">"In QIS"</a> })}
+                {move || match (event.is_some() && eye.get(), elsewhere.get()) {
+                    (true, _) => view! {
+                        <button class="eye" type="button" on:click=toggle aria-pressed=move || if pressed.get() { "true" } else { "false" } aria-label=label title=label>
+                            {move || eye_icon(pressed.get())}
+                        </button>
+                    }
+                    .into_any(),
+                    // An `i`: the head's title is its `span`, which takes the rest of the line.
+                    (false, true) => view! { <i class="eye" aria-hidden="true"><Icon name="eye-off"/></i> }.into_any(),
+                    (false, false) => view! { <i class="eye" aria-hidden="true"></i> }.into_any(),
+                }}
+                <span>{move || head.get()}</span>
+                {qis.map(|href| view! { <a href=href rel="noopener">"In QIS"</a> })}
             </h3>
             {move || reason.get().map(|reason| view! { <p class="sp-choice">{reason}</p> })}
-            {items}
+            {lines}
         </div>
     }
 }
 
-/// One item of an event: a Termin, or a line of its choice.
-fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, state: Memo<ItemShown>, open: Memo<Option<usize>>) -> AnyView {
+/// One item of an event: a Termin, or a line of its choice. „Nur diesen" and „Alle zeigen" take
+/// their own button away; the focus goes on to the button that takes its place in the event
+/// („Alle zeigen", the first „Nur diesen"), so the keyboard stays where it was.
+fn item_view(ctx: PlanCtx, block: BlockKey, event: Option<u32>, item: Item, state: Memo<ItemShown>, open: Memo<Option<usize>>) -> AnyView {
+    let sem = block.sem;
+    let hand_on = move |to: &'static str| {
+        let selector = format!("#preview .sp-event[data-block=\"{}\"] [data-action=\"{to}\"]", block.name());
+        nav::after_paint(move || {
+            nav::focus_selector(&selector);
+        });
+    };
     let choose = move |key: Option<RowKey>| {
         move |_: leptos::ev::MouseEvent| {
             if let (Some(plan), Some(event), Some(key)) = (ctx.plan, event, key) {
                 plan.update(|doc| doc.choose(sem, event, Some(key)));
+                hand_on("show-all");
             }
         }
     };
@@ -555,10 +685,11 @@ fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, sta
             let all = move |_: leptos::ev::MouseEvent| {
                 if let (Some(plan), Some(event)) = (ctx.plan, event) {
                     plan.update(|doc| doc.choose(sem, event, None));
+                    hand_on("choose");
                 }
             };
             view! {
-                <p class="sp-choice"><span>{format!("Gewählt: {name}")}</span><button class="mini" type="button" on:click=all>"Alle zeigen"</button></p>
+                <p class="sp-choice"><span>{format!("Gewählt: {name}")}</span><button class="mini" type="button" data-action="show-all" on:click=all>"Alle zeigen"</button></p>
             }
             .into_any()
         }
@@ -567,7 +698,7 @@ fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, sta
             view! {
                 <p class="sp-choice">
                     <span>{name}</span>
-                    {move || choosable.get().then(|| view! { <button class="mini" type="button" on:click=pick>{if group { "Nur diese" } else { "Nur diesen" }}</button> })}
+                    {move || choosable.get().then(|| view! { <button class="mini" type="button" data-action="choose" on:click=pick>{if group { "Nur diese" } else { "Nur diesen" }}</button> })}
                 </p>
             }
             .into_any()
@@ -605,7 +736,7 @@ where
             <span>{line.text.main()}{line.text.detail().map(|detail| view! { <br/><small>{detail}</small> })}</span>
             {move || clash.get().then(|| view! { <small class="clash">"Überschneidung"</small> })}
             {move || second.get().then(|| view! { <small>"2. Termin"</small> })}
-            {line.choose.is_some().then_some(move || choosable.get().then(|| view! { <button class="mini" type="button" on:click=pick>"Nur diesen"</button> }))}
+            {line.choose.is_some().then_some(move || choosable.get().then(|| view! { <button class="mini" type="button" data-action="choose" on:click=pick>"Nur diesen"</button> }))}
             {key.is_some().then_some(move || eye.get().then(|| view! {
                 <button class="eye" type="button" on:click=toggle aria-pressed=move || if pressed.get() { "true" } else { "false" } aria-label=label title=label>
                     {move || eye_icon(pressed.get())}
@@ -677,16 +808,22 @@ fn info_of(place: &Place, data: Result<&StudyplanData, &DataError>) -> Info {
     info
 }
 
-fn info_nowhere(place: &Place, row: Option<&CatalogRow>) -> Info {
+/// A module planned nowhere: its row of the catalog; a failed query is an error, not a module
+/// the catalog does not know (R3).
+fn info_nowhere(place: &Place, row: Result<Option<&CatalogRow>, &DataError>) -> Info {
+    let (row, error) = match row {
+        Ok(row) => (row, None),
+        Err(error) => (None, Some(error.clone())),
+    };
     Info {
         place: place.clone(),
         title: row.map(|row| row.title.clone()),
         credits: row.and_then(|row| row.credits),
         turnus: row.and_then(|row| row.turnus_season.as_ref().and_then(Code::known)),
-        missing: row.is_none(),
+        missing: row.is_none() && error.is_none(),
         dated: false,
         titles: BTreeMap::new(),
-        error: None,
+        error,
     }
 }
 
@@ -698,12 +835,12 @@ fn head_of(info: &Info) -> Head {
 /// timetable of that semester is not there yet).
 fn shown_of_panel(info: &Info, table: Option<&Timetable>) -> Shown {
     let place = &info.place;
+    if let Some(error) = &info.error {
+        return Shown { body: Body { sem: place.sem, error: Some(error.clone()), ..Body::default() }, ..Shown::default() };
+    }
     let Some(sem) = place.sem else {
         return Shown { body: Body { lead: Some("Nicht im Studienplan.".to_string()), ..Body::default() }, ..Shown::default() };
     };
-    if let Some(error) = &info.error {
-        return Shown { body: Body { sem: Some(sem), error: Some(error.clone()), ..Body::default() }, ..Shown::default() };
-    }
     let Some(t) = table.filter(|t| t.key == sem) else {
         return Shown { body: Body { sem: Some(sem), ..Body::default() }, ..Shown::default() };
     };
@@ -715,17 +852,19 @@ fn shown_of_panel(info: &Info, table: Option<&Timetable>) -> Shown {
     }
 }
 
-/// The line above the events where the semester has none of the module's (A.5).
+/// The line above the events where the semester has none of the module's (A.5). A semester before
+/// the current one is over, whether the data still holds some of its dates or none at all
+/// (retention removes them): its dates are not still to come.
 fn lead_of(info: &Info, t: &Timetable, sem: SemesterKey) -> Option<String> {
     let label = sem.label();
-    if !info.dated {
-        return Some(format!("{label}: noch keine Termine veröffentlicht."));
-    }
-    if !t.without_dates.contains(&info.place.id) {
+    if info.dated && !t.without_dates.contains(&info.place.id) {
         return None;
     }
     if info.place.current.is_some_and(|current| sem < current) {
         return Some(format!("{label} ist vorbei; vergangene Termine fehlen im Datenstand."));
+    }
+    if !info.dated {
+        return Some(format!("{label}: noch keine Termine veröffentlicht."));
     }
     let season = match (info.turnus, sem.winter) {
         (Some(TurnusSeason::Summer), true) => " (laut Beschreibung im Sommer)",
@@ -856,8 +995,9 @@ fn shown_of(t: &Timetable, blocks: &[Block]) -> Vec<BlockShown> {
     blocks
         .iter()
         .map(|block| {
+            let none = BlockShown { exam: block.exam, index: block.index, ..BlockShown::default() };
             if block.exam {
-                let Some(exam) = t.exams.get(block.index) else { return BlockShown::default() };
+                let Some(exam) = t.exams.get(block.index) else { return none };
                 let items = block
                     .items
                     .iter()
@@ -869,9 +1009,10 @@ fn shown_of(t: &Timetable, blocks: &[Block]) -> Vec<BlockShown> {
                         _ => ItemShown::default(),
                     })
                     .collect();
-                return BlockShown { hidden: exam.hidden, reason: reason_text(exam.hidden, KindSet::default().with(EventKind::Exam), exam.town()), open: None, items };
+                let reason = reason_text(exam.hidden, KindSet::default().with(EventKind::Exam), exam.town());
+                return BlockShown { hidden: exam.hidden, reason, open: None, items, ..none };
             }
-            let Some(event) = t.events.get(block.index) else { return BlockShown::default() };
+            let Some(event) = t.events.get(block.index) else { return none };
             let visible = event.visible_options();
             let open = (event.hidden.is_none() && visible.len() >= 2).then_some(visible.len());
             let items = block
@@ -888,7 +1029,7 @@ fn shown_of(t: &Timetable, blocks: &[Block]) -> Vec<BlockShown> {
                     _ => ItemShown::default(),
                 })
                 .collect();
-            BlockShown { hidden: event.hidden, reason: reason_text(event.hidden, event.kinds, event.town()), open, items }
+            BlockShown { hidden: event.hidden, reason: reason_text(event.hidden, event.kinds, event.town()), open, items, ..none }
         })
         .collect()
 }
@@ -1262,7 +1403,7 @@ fn event_number(id: &str) -> Option<u32> {
 }
 
 /// The events and exams only `id` links in `t`: what the store keeps hidden or chosen of them
-/// goes when the module leaves the semester (B.2).
+/// goes when the module is removed from the semester (B.2).
 fn only_its_events(t: &Timetable, id: &str) -> Vec<u32> {
     let only = |modules: &[String]| matches!(modules, [only] if only == id);
     t.events
@@ -1545,6 +1686,8 @@ mod tests {
             ]
         );
         let shown = shown_of(&t, &blocks);
+        // Each state names its block: the keyed list finds it by that, not by its place.
+        assert_eq!(shown.iter().map(|s| (s.exam, s.index)).collect::<Vec<_>>(), blocks.iter().map(|b| (b.exam, b.index)).collect::<Vec<_>>());
         assert_eq!(shown.first().unwrap().open, Some(4));
         assert!(shown.first().unwrap().items.iter().skip(1).all(|item| item.choosable));
 
@@ -1649,6 +1792,59 @@ mod tests {
         assert!(notes_of(&t, "12104", &titles, TownChoice::Derive).is_empty());
         // Removing 12102 takes what the store keeps of its own event along, not 12107's.
         assert_eq!(only_its_events(&t, "12102"), vec![149408]);
+    }
+
+    #[test]
+    fn a_semester_without_the_modules_dates_says_why() {
+        let info = |id: &str, sem: &str, dated: bool, turnus: Option<TurnusSeason>| Info {
+            place: Place {
+                id: id.into(),
+                shown: key(sem),
+                sem: Some(key(sem)),
+                ids: vec![id.into()],
+                current: Some(key("2026W")),
+                town: TownChoice::Derive,
+            },
+            title: None,
+            credits: None,
+            turnus,
+            missing: false,
+            dated,
+            titles: BTreeMap::new(),
+            error: None,
+        };
+        // 12104 has a Termin, 11103 none.
+        let t = table(&[teaching("7", 1, "Vorlesung", 2, "11:30", "13:00")], &[], &["12104", "11103"], &[], &Selection::default());
+        let lead = |info: Info| lead_of(&info, &t, info.place.sem.unwrap());
+        // A semester before the current one is over, whether the data still has dates of it or
+        // none at all (retention removes them).
+        let over = Some("WiSe 2025/26 ist vorbei; vergangene Termine fehlen im Datenstand.".to_string());
+        assert_eq!(lead(info("11103", "2025W", false, None)), over);
+        assert_eq!(lead(info("11103", "2025W", true, None)), over);
+        assert_eq!(lead(info("12104", "2025W", false, None)), over);
+        assert_eq!(lead(info("12104", "2025W", true, None)), None);
+        // A later one without any data: its dates are still to come.
+        assert_eq!(lead(info("11103", "2027S", false, None)).as_deref(), Some("SoSe 2027: noch keine Termine veröffentlicht."));
+        // A semester with data but none of the module's, and what its description says.
+        assert_eq!(
+            lead(info("11103", "2026W", true, Some(TurnusSeason::Summer))).as_deref(),
+            Some("Keine Termine im WiSe 2026/27 (laut Beschreibung im Sommer).")
+        );
+        assert_eq!(lead(info("11103", "2026W", true, Some(TurnusSeason::Both))).as_deref(), Some("Keine Termine im WiSe 2026/27."));
+        assert_eq!(lead(info("12104", "2026W", true, None)), None);
+    }
+
+    #[test]
+    fn a_failed_query_is_an_error_not_a_module_the_catalog_lacks() {
+        let place = Place { id: "11103".into(), shown: key("2026W"), sem: None, ids: Vec::new(), current: Some(key("2026W")), town: TownChoice::Derive };
+        let error = DataError { unavailable: false, message: "database is locked".into() };
+        let failed = info_nowhere(&place, Err(&error));
+        assert!(!failed.missing);
+        let shown = shown_of_panel(&failed, None);
+        assert_eq!((shown.body.error, shown.body.lead), (Some(error), None));
+        let unknown = info_nowhere(&place, Ok(None));
+        assert!(unknown.missing);
+        assert_eq!(shown_of_panel(&unknown, None).body.lead.as_deref(), Some("Nicht im Studienplan."));
     }
 
     #[test]

@@ -26,7 +26,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use catalog::url::{self, BookmarksUrl, CatalogUrl, LocalView, ProgramTab, ProgramUrl};
+use catalog::url::{self, BookmarksUrl, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::location::Location;
@@ -409,16 +409,24 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
 /// Within the Studienplan: another semester, view or Regelstudienplan being taken over is its
 /// column; the module beside it is the aside, and on a phone, where nothing stands beside a page,
 /// the plan's panel of the module is the page until it is closed. „Vollbild" fills the page with
-/// the module's whole page, on a phone as well (`PlanAddress`).
+/// the module's whole page, on a phone as well (`PlanAddress`). The Übersicht shows every
+/// semester: there `sem` only says which of its semesters a module planned twice is shown in
+/// beside it, so it is the aside's.
 fn studyplan_change(from: &PlanAddress, to: &PlanAddress, phone: bool) -> Option<Change> {
     let after_module = if phone && to.url.open.is_some() { Change::Page(Shape::Text) } else { Change::Column(Shape::Studyplan) };
     if let Some(change) = local_change(from, to, false, after_module) {
         return Some(change);
     }
     let (from, to) = (&from.url, &to.url);
-    if (&from.sem, from.view, &from.import, from.variant) != (&to.sem, to.view, &to.import, to.variant) {
+    fn column_sem(url: &StudyplanUrl) -> Option<&str> {
+        if url.view == PlanView::Overview { None } else { url.sem.as_deref() }
+    }
+    fn beside(url: &StudyplanUrl) -> (Option<&str>, Option<&str>, Option<&str>) {
+        (url.open.as_deref(), url.row.as_deref(), url.open.as_ref().and(url.sem.as_deref()))
+    }
+    if (column_sem(from), from.view, &from.import, from.variant) != (column_sem(to), to.view, &to.import, to.variant) {
         Some(Change::Column(Shape::Studyplan))
-    } else if (&from.open, &from.row) != (&to.open, &to.row) {
+    } else if beside(from) != beside(to) {
         Some(match (phone, &to.open) {
             (false, _) => Change::Aside,
             (true, Some(_)) => Change::Page(Shape::Text),
@@ -593,6 +601,13 @@ mod tests {
         assert_eq!(change("/studyplan", "", "/studyplan", "open=12104", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "open=12104", "/studyplan", "open=12104&row=148369-aaf38", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "open=12104", "/studyplan", "", false), Some(Change::Aside));
+        // On the Übersicht `sem` names the semester of the module beside it, not the column's.
+        assert_eq!(change("/studyplan", "view=all", "/studyplan", "sem=2027W&view=all&open=12204", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "sem=2027S&view=all&open=12204", "/studyplan", "sem=2027W&view=all&open=12204", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "sem=2027W&view=all&open=12204", "/studyplan", "sem=2027W&view=all", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "sem=2027S&view=all", "/studyplan", "sem=2027W&view=all", false), None);
+        assert_eq!(change("/studyplan", "sem=2027W&view=all", "/studyplan", "sem=2027W", false), Some(Change::Column(Shape::Studyplan)));
+        assert_eq!(change("/studyplan", "sem=2027S&open=12204", "/studyplan", "sem=2027W&open=12204", false), Some(Change::Column(Shape::Studyplan)));
         // On a phone the plan's panel of the module is the page, and closing it is the plan again.
         assert_eq!(change("/studyplan", "", "/studyplan", "open=12104", true), Some(Change::Page(Shape::Text)));
         assert_eq!(change("/studyplan", "open=12104", "/studyplan", "", true), Some(Change::Column(Shape::Studyplan)));

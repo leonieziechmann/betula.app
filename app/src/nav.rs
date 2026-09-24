@@ -356,6 +356,22 @@ pub fn reveal_selector(selector: &str) -> bool {
     false
 }
 
+/// Moves the focus to the first element that matches `selector` (scrolled to only if it is out of
+/// view), for a control that took the place of the one the visitor used: without it the focus
+/// falls back to the start of the page. `false` if there is none.
+#[allow(unused_variables)]
+pub fn focus_selector(selector: &str) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let found = web_sys::window().and_then(|w| w.document()).and_then(|d| d.query_selector(selector).ok().flatten());
+        let Some(element) = found.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return false };
+        element.focus().is_ok()
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
 /// Scrolls the list so that the row of this module is in the middle. `false` if the row is not
 /// (yet) part of the list.
 #[allow(unused_variables)]
