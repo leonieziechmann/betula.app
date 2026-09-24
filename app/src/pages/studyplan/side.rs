@@ -48,6 +48,9 @@ const STARTS_BEFORE: i32 = 12;
 /// The id of the „Studienbeginn" select.
 const START_ID: &str = "sp-start";
 
+/// The id of „Plan leeren", where the focus returns from „Abbrechen" and „Rückgängig".
+const CLEAR_ID: &str = "sp-clear";
+
 #[component]
 pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
     let empty = Memo::new(move |_| ctx.plan.is_none_or(Studyplan::is_empty));
@@ -100,11 +103,14 @@ fn SemesterGroup(ctx: PlanCtx) -> impl IntoView {
         }
         Some(ctx.plan.map_or_else(|| key_of(&shown, current, &PlanDoc::default(), ctx.today), |plan| plan.with(|doc| key_of(&shown, current, doc, ctx.today))))
     });
+    // The semester of the address being shown is listed at once too, so ‹ › to a semester the
+    // plan does not hold mark it in the next frame. `shown` alone, never with `ctx.url` it is
+    // derived from (R16).
     let semesters = Memo::new(move |_| {
-        let (url, current) = (ctx.url.get(), ctx.current.get());
+        let (shown, current) = (shown.get(), ctx.current.get());
         let (held, key) = match ctx.plan {
-            Some(plan) => plan.with(|doc| (doc.semesters(), key_of(&url, current, doc, ctx.today))),
-            None => (Vec::new(), key_of(&url, current, &PlanDoc::default(), ctx.today)),
+            Some(plan) => plan.with(|doc| (doc.semesters(), key_of(&shown, current, doc, ctx.today))),
+            None => (Vec::new(), key_of(&shown, current, &PlanDoc::default(), ctx.today)),
         };
         toc_semesters(&held, current, key)
     });
@@ -590,7 +596,13 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
             *doc = before;
             note.set(None);
             restoring.set(false);
+            // „Rückgängig" makes way for „Plan leeren", which takes the focus it had.
+            request_animation_frame(|| nav::focus_by_id(CLEAR_ID));
         });
+    };
+    let cancel = move |_| {
+        confirming.set(false);
+        request_animation_frame(|| nav::focus_by_id(CLEAR_ID));
     };
 
     // The group stays while its note does, so emptying the plan under it keeps the focus on
@@ -619,12 +631,12 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
                             <p class="action note-action ask">
                                 <span>"Wirklich leeren?"</span>
                                 <button class="mini danger hit" type="button" id="sp-clear-yes" on:click=clear>"Leeren"</button>
-                                <button class="mini hit" type="button" on:click=move |_| confirming.set(false)>"Abbrechen"</button>
+                                <button class="mini hit" type="button" on:click=cancel>"Abbrechen"</button>
                             </p>
                         }
                         .into_any(),
                         (false, false) => view! {
-                            <button class="action" type="button" on:click=ask><Icon name="trash-2"/><span>"Plan leeren"</span></button>
+                            <button class="action" type="button" id=CLEAR_ID on:click=ask><Icon name="trash-2"/><span>"Plan leeren"</span></button>
                         }
                         .into_any(),
                     }}

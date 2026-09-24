@@ -345,7 +345,8 @@ fn offered(data: &BookmarksData, key: SemesterKey, planned: &[String]) -> Vec<(S
 }
 
 /// „Aus der Merkliste (n)": the marked modules this semester could still take, closed until asked,
-/// each with „Einplanen". Only for the current semester and later ones: the past is not planned.
+/// each with „Einplanen". A past semester has it too, as it has „+ Modul": a plan taken over from
+/// a later Fachsemester fills its first semesters with what was taken.
 #[component]
 pub(super) fn FromBookmarks(ctx: PlanCtx) -> impl IntoView {
     let bookmarks = Bookmarks::expect();
@@ -360,13 +361,15 @@ pub(super) fn FromBookmarks(ctx: PlanCtx) -> impl IntoView {
     // The semester and what is planned into it, from the semester's data (its ids are the plan's).
     let list = Memo::new(move |_| {
         ctx.data.with(|data| match data {
-            Ok(data) if !is_past(data) => loaded.with(|marked| marked.as_ref().map(|marked| offered(marked, data.key, &data.ids)).unwrap_or_default()),
-            _ => Vec::new(),
+            Ok(data) => loaded.with(|marked| marked.as_ref().map(|marked| offered(marked, data.key, &data.ids)).unwrap_or_default()),
+            Err(_) => Vec::new(),
         })
     });
     let any = Memo::new(move |_| list.with(|list| !list.is_empty()));
-    // The modules whose „Einplanen" was clicked: the button answers at once, the plan follows after
-    // the next frame (R21), and then the module leaves the list.
+    // The modules whose „Einplanen" was clicked and whose write has not landed yet: the button
+    // answers at once, the plan follows after the next frame (R21), and then the module leaves the
+    // list. The write takes the module out of this set again, so wherever the list offers it next
+    // (another semester, or this one after it was taken out) it can be planned once more.
     let planning = RwSignal::new(BTreeSet::<String>::new());
 
     move || {
@@ -386,6 +389,7 @@ pub(super) fn FromBookmarks(ctx: PlanCtx) -> impl IntoView {
                                 let plan_it = {
                                     let id = id.clone();
                                     move |_| {
+                                        let Some(plan) = ctx.plan else { return };
                                         if busy.get_untracked() {
                                             return;
                                         }
@@ -394,11 +398,16 @@ pub(super) fn FromBookmarks(ctx: PlanCtx) -> impl IntoView {
                                         });
                                         let key = ctx.key.get_untracked();
                                         let id = id.clone();
-                                        if let Some(plan) = ctx.plan {
-                                            plan.update_after_paint(move |doc| {
-                                                doc.plan(key, &id, now_secs(), None);
+                                        plan.update_after_paint(move |doc| {
+                                            doc.plan(key, &id, now_secs(), None);
+                                            // The pages hear of the write in the same pass as of
+                                            // this, so a planned module leaves the list without a
+                                            // flash of „Einplanen"; one the plan refused (a full
+                                            // semester) is offered again.
+                                            planning.update(|planning| {
+                                                planning.remove(&id);
                                             });
-                                        }
+                                        });
                                     }
                                 };
                                 view! {
@@ -525,33 +534,39 @@ fn campus_name(campus: &Code<Campus>) -> String {
     }
 }
 
-/// What avoids a soft exam warning: a Termin on the `avoid` day, of either module, free of the
-/// other module's Termin in the warning — „Zweittermin 11.03. passt", or „Erstermin 25.02.
-/// passt" where it is that module's earliest; else („andere Termine passen") only a change of
-/// both. (`ExamWarning::avoid` is only a day, so the Termine on it are looked up.)
-fn avoid_text(warning: &ExamWarning, avoid: Day, termine: &[(String, Vec<TerminAt>)]) -> String {
+/// What avoids a soft exam warning, and whose Termin that is: a Termin on the `avoid` day of one of
+/// the two modules, free of the other module's Termin in the warning. The line names two modules,
+/// so it names this one — „Mathematik IT-1: Zweittermin 11.03. passt", „…: Erstermin 25.02. passt"
+/// where it is that module's earliest — and opens it, where the Termin is to be seen. Else
+/// („andere Termine passen", no module) only a change of both avoids it. (`ExamWarning::avoid` is
+/// only a day, so the Termine on it are looked up.)
+fn avoid_text(warning: &ExamWarning, avoid: Day, termine: &[(String, Vec<TerminAt>)], about: &About) -> (String, Option<String>) {
     let list = |module: &str| termine.iter().find(|(id, _)| id == module).map_or(&[][..], |(_, list)| list.as_slice());
     let issue = |termin: &Termin| list(&termin.module_id).iter().find(|at| at.day == warning.day && at.termin == *termin);
+    let both = || ("andere Termine passen".to_string(), None);
     let (Some(a), Some(b)) = (issue(&warning.a), issue(&warning.b)) else {
-        return "andere Termine passen".to_string();
+        return both();
     };
     for (mine, other) in [(a, b), (b, a)] {
-        let own = list(&mine.termin.module_id);
-        if let Some(index) = own.iter().position(|at| at.day == avoid && at != mine && exams::collision(at, other).is_none()) {
+        let module = &mine.termin.module_id;
+        if let Some(index) = list(module).iter().position(|at| at.day == avoid && at != mine && exams::collision(at, other).is_none()) {
             let rank = if index == 0 { "Erstermin" } else { "Zweittermin" };
-            return format!("{rank} {} passt", avoid.short());
+            return (format!("{}: {rank} {} passt", about.title(module), avoid.short()), Some(module.clone()));
         }
     }
-    "andere Termine passen".to_string()
+    both()
 }
 
-/// An exam warning as the notes say it: „Prüfungen gleichzeitig: Mo 08.02.2027 11:00 · A · B", „0
-/// min von Zentralcampus nach Senftenberg: Mo 08.02.2027 · A bis 10:00 · B ab 10:00"; a soft one is
-/// quiet and says what avoids it. It opens the later exam's module.
+/// An exam warning as the notes say it: „Prüfungen gleichzeitig: Mo 08.02.2027 11:00 · A · B" (at
+/// the start of the overlap, as a clash says it), „0 min von Zentralcampus nach Senftenberg: Mo
+/// 08.02.2027 · A bis 10:00 · B ab 10:00". It opens the later exam's module. A soft one is quiet
+/// and says what avoids it; it opens the module whose Termin does, where there is one.
 fn exam_note(warning: &ExamWarning, about: &About, termine: &[(String, Vec<TerminAt>)]) -> Note {
     let (a, b) = (about.title(&warning.a.module_id), about.title(&warning.b.module_id));
     let mut text = match &warning.kind {
-        WarningKind::Overlap => format!("Prüfungen gleichzeitig: {} {} · {a} · {b}", day_name(warning.day), clock(warning.a.from)),
+        WarningKind::Overlap => {
+            format!("Prüfungen gleichzeitig: {} {} · {a} · {b}", day_name(warning.day), clock(warning.a.from.max(warning.b.from)))
+        }
         WarningKind::Tight { gap, from, to } => format!(
             "{gap} min von {} nach {}: {} · {a} bis {} · {b} ab {}",
             campus_name(from),
@@ -561,15 +576,81 @@ fn exam_note(warning: &ExamWarning, about: &About, termine: &[(String, Vec<Termi
             clock(warning.b.from)
         ),
     };
-    let module = Some(warning.b.module_id.clone());
+    let later = Some(warning.b.module_id.clone());
     if warning.hard {
-        return Note::warn(text, module, None);
+        return Note::warn(text, later, None);
     }
-    if let Some(avoid) = warning.avoid {
-        text.push_str(" · ");
-        text.push_str(&avoid_text(warning, avoid, termine));
+    let Some(avoid) = warning.avoid else {
+        return Note::quiet(text, later, None);
+    };
+    let (avoids, whose) = avoid_text(warning, avoid, termine, about);
+    text.push_str(" · ");
+    text.push_str(&avoids);
+    Note::quiet(text, whose.or(later), None)
+}
+
+/// The clashes that open one Termin at one weekday and start, as one line of the notes.
+struct ClashLine {
+    /// The Termin the line opens, `(event, row)`: the later side of each of its clashes.
+    b: (usize, usize),
+    weekday: u8,
+    /// The start of the overlap.
+    from: Option<u16>,
+    /// Whether the rows have held days; two patterns meet only on a weekday.
+    dated: bool,
+    /// The first day of its clashes.
+    first: Day,
+    /// The held days on the line's weekday that the rows its clashes name share.
+    shared: BTreeSet<Day>,
+    /// The days of its clashes beyond those: a clash names the rows of its first day, and other
+    /// rows of the same two events may meet on further days.
+    beyond: usize,
+    /// What meets the Termin, by title: each kind of it („Vorlesung, A-Woche") once.
+    others: Vec<(String, Vec<String>)>,
+}
+
+impl ClashLine {
+    /// On how many days the Termin meets another: a day that two others meet it on counts once
+    /// (a lecture met by a lecture and a Praktikum on the same 15 Tuesdays is 15, not 30), the
+    /// A weeks of one and the B weeks of another add up.
+    fn days(&self) -> usize {
+        self.shared.len() + self.beyond
     }
-    Note::quiet(text, module, None)
+}
+
+/// The clashes of a timetable as the notes say them: one line per Termin they open, weekday and
+/// start, so a lecture met by another module's lecture in A weeks and by its Übung in B weeks is
+/// one line („15 Termine überschneiden sich: Di 07:30 · Programmierpraktikum (Vorlesung) ·
+/// Elektrische … (Vorlesung, A-Woche; Übung, B-Woche)"), not two that open the same Termin.
+fn clash_lines(table: &Timetable, about: &About) -> Vec<ClashLine> {
+    let mut lines: Vec<ClashLine> = Vec::new();
+    for clash in &table.clashes {
+        let (Some(a), Some(b)) = (table.events.get(clash.a.0), table.events.get(clash.b.0)) else { continue };
+        let (Some(row_a), Some(row_b)) = (a.rows.get(clash.a.1), b.rows.get(clash.b.1)) else { continue };
+        // The overlap starts with the later of the two.
+        let (from, weekday, dated) = (row_a.from.max(row_b.from), clash.first.weekday(), clash.days > 0);
+        let same = |line: &ClashLine| line.b == clash.b && line.weekday == weekday && line.from == from && line.dated == dated;
+        let index = match lines.iter().position(same) {
+            Some(index) => index,
+            None => {
+                lines.push(ClashLine { b: clash.b, weekday, from, dated, first: clash.first, shared: BTreeSet::new(), beyond: 0, others: Vec::new() });
+                lines.len() - 1
+            }
+        };
+        let Some(line) = lines.get_mut(index) else { continue };
+        let held: BTreeSet<Day> = row_a.occ.days.iter().copied().filter(|day| day.weekday() == weekday).collect();
+        let shared: Vec<Day> = row_b.occ.days.iter().copied().filter(|day| held.contains(day)).collect();
+        line.beyond += clash.days.saturating_sub(shared.len());
+        line.shared.extend(shared);
+        line.first = line.first.min(clash.first);
+        let (title, what) = (about.title_of(a), format!("{}{}", kind_word(a), week_of(a, clash.a.1)));
+        match line.others.iter_mut().find(|(other, _)| *other == title) {
+            Some((_, whats)) if whats.contains(&what) => {}
+            Some((_, whats)) => whats.push(what),
+            None => line.others.push((title, vec![what])),
+        }
+    }
+    lines
 }
 
 /// The notes of a semester's timetable (A.5), warnings first: Termine that overlap, a choice with
@@ -582,27 +663,20 @@ pub(super) fn notes(table: &Timetable, about: &About, choice: TownChoice) -> Vec
     let mut quiet = Vec::new();
     let termine = exams::termine(&table.exams, &table.modules);
 
-    for clash in &table.clashes {
-        let (Some(a), Some(b)) = (table.events.get(clash.a.0), table.events.get(clash.b.0)) else { continue };
-        let (Some(row_a), Some(row_b)) = (a.rows.get(clash.a.1), b.rows.get(clash.b.1)) else { continue };
-        // The overlap starts with the later of the two.
-        let from = row_a.from.max(row_b.from).map(clock).unwrap_or_default();
-        let lead = match clash.days {
+    for line in clash_lines(table, about) {
+        let Some(b) = table.events.get(line.b.0) else { continue };
+        let from = line.from.map(clock).unwrap_or_default();
+        let lead = match (line.dated, line.days()) {
             // Two patterns without a date: only the weekday is known.
-            0 => format!("Überschneidung: {} {from}", weekday_name(clash.first.weekday())),
-            1 => format!("1 Termin überschneidet sich: {} {from}", day_name(clash.first)),
-            days => format!("{days} Termine überschneiden sich: {} {from}", weekday_name(clash.first.weekday())),
+            (false, _) => format!("Überschneidung: {} {from}", weekday_name(line.weekday)),
+            (true, 1) => format!("1 Termin überschneidet sich: {} {from}", day_name(line.first)),
+            (true, days) => format!("{days} Termine überschneiden sich: {} {from}", weekday_name(line.weekday)),
         };
-        let text = format!(
-            "{lead} · {} ({}{}) · {} ({}{})",
-            about.title_of(a),
-            kind_word(a),
-            week_of(a, clash.a.1),
-            about.title_of(b),
-            kind_word(b),
-            week_of(b, clash.b.1)
-        );
-        warnings.push(Note::warn(text, b.modules.first().cloned(), row_b.key));
+        // The Termin the line opens first, then what meets it.
+        let others: Vec<String> = line.others.iter().map(|(title, whats)| format!("{title} ({})", whats.join("; "))).collect();
+        let text = format!("{lead} · {} ({}{}) · {}", about.title_of(b), kind_word(b), week_of(b, line.b.1), others.join(" · "));
+        let row = b.rows.get(line.b.1).and_then(|row| row.key);
+        warnings.push(Note::warn(text, b.modules.first().cloned(), row));
     }
     for event in table.blocked.iter().filter_map(|index| table.events.get(*index)) {
         let options = event.visible_options().len();
@@ -633,7 +707,9 @@ pub(super) fn notes(table: &Timetable, about: &About, choice: TownChoice) -> Vec
         quiet.push(Note::quiet(text, modules.first().cloned(), None));
     }
     if about.dated && !about.past {
-        for module in &table.without_dates {
+        // A module the catalog does not know has no Termine either; the legend says it is not in
+        // the catalog, which is the reason.
+        for module in table.without_dates.iter().filter(|module| about.titles.contains_key(*module)) {
             let season = match about.turnus.get(module) {
                 Some(TurnusSeason::Summer) if table.key.winter => " (laut Beschreibung im Sommer)",
                 Some(TurnusSeason::Winter) if !table.key.winter => " (laut Beschreibung im Winter)",
@@ -898,7 +974,7 @@ mod tests {
         assert_eq!(
             texts,
             vec![
-                (true, "8 Termine überschneiden sich: Di 07:30 · Elektrische und elektronische Grundlagen der Informatik (Vorlesung, A-Woche) · Programmierpraktikum (Vorlesung)"),
+                (true, "8 Termine überschneiden sich: Di 07:30 · Programmierpraktikum (Vorlesung) · Elektrische und elektronische Grundlagen der Informatik (Vorlesung, A-Woche)"),
                 (true, "0 von 4 Übungsterminen frei: Entwicklung von Softwaresystemen"),
                 (true, "Prüfungen gleichzeitig: Mo 08.02.2027 11:00 · Mathematik IT-1 · Entwicklung von Softwaresystemen"),
                 (false, "1 von 3 wählen: Übung · Mathematik IT-1"),
@@ -915,6 +991,82 @@ mod tests {
         assert!(!notes(&table, &past, TownChoice::Derive).iter().any(|note| note.text.starts_with("Keine Termine")));
         let undated = About { dated: false, ..about.clone() };
         assert!(!notes(&table, &undated, TownChoice::Derive).iter().any(|note| note.text.starts_with("Keine Termine")));
+        // Nor of a module the catalog does not know: the legend says that.
+        let mut unknown = about.clone();
+        unknown.titles.remove("13000");
+        assert!(!notes(&table, &unknown, TownChoice::Derive).iter().any(|note| note.text.starts_with("Keine Termine")));
+    }
+
+    #[test]
+    fn a_termin_met_twice_is_one_line() {
+        let (mut table, about) = first_semester();
+        // 12107's Übung in B weeks meets 149408 as its lecture does in A weeks.
+        table.events.push(event("148135", "Übung", "12107", vec![row("148135", 3, 2, ("07:30", "09:00"), "week_b", None)], Attendance::All));
+        table.clashes.push(Clash { a: (4, 0), b: (3, 0), first: day("2026-10-13"), days: 7 });
+        let lines = notes(&table, &about, TownChoice::Derive);
+        let clashes: Vec<&Note> = lines.iter().filter(|note| note.text.contains("überschneid")).collect();
+        assert_eq!(
+            clashes.iter().map(|note| note.text.as_str()).collect::<Vec<_>>(),
+            vec!["15 Termine überschneiden sich: Di 07:30 · Programmierpraktikum (Vorlesung) · Elektrische und elektronische Grundlagen der Informatik (Vorlesung, A-Woche; Übung, B-Woche)"]
+        );
+        assert_eq!(clashes.first().map(|note| note.row), Some(Some(RowKey { event: 149408, fp: 2 })));
+        // A day two Termine meet it on counts once: 149408 held on 15 Tuesdays, the lecture on the
+        // A weeks' 8 of them, the Übung on the same 8 instead of the B weeks' 7.
+        let tuesdays: Vec<Day> = (0..15).map(|week| day("2026-10-06").plus(week * 7)).collect();
+        let a_weeks: Vec<Day> = tuesdays.iter().copied().step_by(2).collect();
+        let b_weeks: Vec<Day> = tuesdays.iter().copied().skip(1).step_by(2).collect();
+        let held = |table: &mut Timetable, event: usize, days: &[Day]| {
+            if let Some(row) = table.events.get_mut(event).and_then(|event| event.rows.get_mut(0)) {
+                row.occ.days = days.to_vec();
+            }
+        };
+        held(&mut table, 3, &tuesdays);
+        held(&mut table, 0, &a_weeks);
+        held(&mut table, 4, &b_weeks);
+        assert!(notes(&table, &about, TownChoice::Derive)[0].text.starts_with("15 Termine überschneiden sich: Di 07:30 · "));
+        held(&mut table, 4, &a_weeks);
+        table.clashes[1].days = 8;
+        assert!(notes(&table, &about, TownChoice::Derive)[0].text.starts_with("8 Termine überschneiden sich: Di 07:30 · "));
+        // Another start is another line.
+        if let Some(row) = table.events.get_mut(4).and_then(|event| event.rows.get_mut(0)) {
+            row.from = minutes("08:00");
+        }
+        assert_eq!(notes(&table, &about, TownChoice::Derive).iter().filter(|note| note.text.contains("überschneid")).count(), 2);
+    }
+
+    fn at(day_text: &str, termin: Termin) -> TerminAt {
+        TerminAt { day: day(day_text), events: vec![termin.event_id.clone()], termin, unplaced: false }
+    }
+
+    #[test]
+    fn a_soft_exam_warning_names_the_module_whose_termin_passes() {
+        let about = About {
+            titles: [("11405", "Algorithmische Graphentheorie"), ("11112", "Mathematik IT-1")].iter().map(|(id, title)| (id.to_string(), title.to_string())).collect(),
+            ..About::default()
+        };
+        let (first, second) = (termin("11405", "7", "10:00", "12:00", "zentralcampus"), termin("11112", "8", "11:00", "13:00", "zentralcampus"));
+        let warning = |avoid: &str| ExamWarning {
+            kind: WarningKind::Overlap,
+            day: day("2027-03-10"),
+            a: first.clone(),
+            b: second.clone(),
+            hard: false,
+            avoid: Some(day(avoid)),
+        };
+        let lead = "Prüfungen gleichzeitig: Mi 10.03.2027 11:00 · Algorithmische Graphentheorie · Mathematik IT-1 · ";
+        // The earlier module's Erstermin: the line opens that module, not the later one.
+        let termine = vec![
+            ("11405".to_string(), vec![at("2027-02-25", termin("11405", "6", "10:00", "12:00", "zentralcampus")), at("2027-03-10", first.clone())]),
+            ("11112".to_string(), vec![at("2027-03-10", second.clone()), at("2027-03-24", termin("11112", "9", "11:00", "13:00", "zentralcampus"))]),
+        ];
+        let note = exam_note(&warning("2027-02-25"), &about, &termine);
+        assert_eq!((note.warn, note.text.as_str(), note.module.as_deref()), (false, &*format!("{lead}Algorithmische Graphentheorie: Erstermin 25.02. passt"), Some("11405")));
+        // The later module's Zweittermin.
+        let note = exam_note(&warning("2027-03-24"), &about, &termine);
+        assert_eq!((note.text.as_str(), note.module.as_deref()), (&*format!("{lead}Mathematik IT-1: Zweittermin 24.03. passt"), Some("11112")));
+        // Only a change of both: the later module.
+        let note = exam_note(&warning("2027-03-31"), &about, &termine);
+        assert_eq!((note.text.as_str(), note.module.as_deref()), (&*format!("{lead}andere Termine passen"), Some("11112")));
     }
 
     #[test]
