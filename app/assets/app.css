@@ -662,9 +662,26 @@ button.action:hover { background: var(--panel-3); }
 .week .d { text-align: center; font-size: 11.5px; font-weight: 650; color: var(--text-3); padding-bottom: 8px; }
 .week .hours { grid-row: 2; display: grid; grid-auto-rows: 48px; font-size: 10.5px; color: var(--text-3); text-align: right; padding-right: 4px; }
 .week .col { grid-row: 2; position: relative; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px 48px); height: calc(var(--span) * 24px); }
-.slot { position: absolute; left: 1px; right: 1px; top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px 6px; font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); }
+/* Slots that overlap on a day stand side by side: `--lane` of `--lanes` (week.rs). One lane is the
+   whole column less 1px each side, as before lanes; neighbours keep 2px between them. The side
+   padding is at most a quarter of the slot's width (a percentage of the column, like `left` and
+   `width`): a border box is never narrower than its padding, so a fixed 6px made the slots of five
+   or more lanes 12px wide, over their neighbours and out of the column. */
+.slot { position: absolute; left: calc(1px + 100% * var(--lane, 0) / var(--lanes, 1)); width: calc(100% / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px clamp(0px, calc((100% / var(--lanes, 1) - 2px) / 4), 6px); font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); }
+a.slot { text-decoration: none; }
 .slot small { display: block; font-weight: 500; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot.other { background: var(--panel-3); color: var(--text-2); box-shadow: inset 2.5px 0 0 var(--text-3); }
+/* A module of the Studienplan, in its tint (`t-…`). */
+.slot.tinted { background: color-mix(in oklch, var(--tint) 16%, var(--panel)); color: var(--text); box-shadow: inset 2.5px 0 0 var(--tint); }
+/* Single dates: they do not happen every week, so they do not look like what does. */
+.slot.once { background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* Another planned module beside a module's own slots. */
+.slot.planned { background: transparent; color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* An option of a choice not yet made. */
+.slot.alt { background: transparent; box-shadow: none; outline: 1px dashed var(--tint, var(--line-strong)); outline-offset: -1px; }
+.slot.clash { box-shadow: inset 2.5px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
+/* The slot of what is open beside the grid. */
+.slot[aria-current="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .evlist { display: grid; gap: 4px; margin-top: 10px; }
 .ev { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 2px 12px; padding: 9px 12px; border-radius: var(--r-row); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; color: inherit; text-decoration: none; }
 a.ev:hover { background: var(--panel-2); text-decoration: none; }

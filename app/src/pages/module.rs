@@ -12,11 +12,15 @@
 //! and inside a program's area (`/programs/<slug>/<tab>?…&open=<id>&full=1`, and on a phone for
 //! whatever `open` names), where „Vollbild" must neither change the area nor the tab.
 
+use std::collections::BTreeSet;
+
 use catalog::exam_reading::{self, ExamReading, Reason, Slot};
-use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, TeachingForm, TextItemKind, TurnusSeason};
+use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind, TurnusSeason};
 use catalog::pages::{self, ModuleData};
 use catalog::rows::Prerequisite;
 use catalog::rows_detail::EventDate;
+use catalog::timetable::day::{clock, minutes, Day};
+use catalog::timetable::kind::{class_of, kinds_of, Class};
 use catalog::url::{self, ProgramTab};
 use leptos::prelude::*;
 use leptos_meta::Title;
@@ -28,6 +32,7 @@ use crate::format;
 use crate::seo::{self, Seo};
 use crate::tabs::{self, Area, Tabs};
 use crate::ui::{BackLink, ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
+use crate::week::{GridSlot, WeekGrid};
 
 /// What both the preview panel and the full page show about a module, precomputed once.
 #[derive(Clone)]
@@ -447,21 +452,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     let exam_semester = data.exams.first().map(|d| (d.semester_key.clone(), d.semester_label.clone()));
     let exams: Vec<EventDate> = data.exams.iter().filter(|d| exam_semester.as_ref().is_some_and(|(key, _)| *key == d.semester_key)).cloned().collect();
 
-    // Week grid: only dates with a weekday and both times, Monday to Friday (Saturday if used).
-    let slots: Vec<(i64, f64, f64, EventDate)> = teaching
-        .iter()
-        .filter_map(|d| {
-            let from = format::half_hours(d.start_time.as_deref()?)?;
-            let to = format::half_hours(d.end_time.as_deref()?)?;
-            let day = d.weekday.filter(|day| (1..=6).contains(day))?;
-            (to > from).then(|| (day, from, to, d.clone()))
-        })
-        .collect();
-    let days: i64 = if slots.iter().any(|(day, ..)| *day == 6) { 6 } else { 5 };
-    let first = slots.iter().map(|(_, from, ..)| (from / 2.0).floor() * 2.0).fold(f64::INFINITY, f64::min).min(16.0);
-    let last = slots.iter().map(|(_, _, to, _)| (to / 2.0).ceil() * 2.0).fold(0.0, f64::max).max(first + 8.0);
-    let span = last - first;
-    let day_names = ["Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+    let slots = own_slots(&teaching);
 
     // An exam date is shown as read (`catalog::exam_reading`): the BTU's placeholder is no time,
     // a deadline reads „bis 24:00", and the original stays in the row.
@@ -507,28 +498,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     view! {
         <div class="section" id="termine">
             <p class="label">"Termine"{newest.as_ref().map(|(_, label)| view! { <span>{label.clone()}</span> })}</p>
-            {(!slots.is_empty()).then(|| view! {
-                <div class="week" style=format!("--days:{days};--first:{first};--span:{span}")>
-                    <span></span>
-                    {day_names.iter().take(days as usize).map(|name| view! { <span class="d">{*name}</span> }).collect_view()}
-                    <div class="hours">
-                        {(0..(span as i64 / 2)).map(|i| view! { <span>{(first as i64 / 2) + i}</span> }).collect_view()}
-                    </div>
-                    {(1..=days).map(|day| view! {
-                        <div class="col">
-                            {slots.iter().filter(|(d, ..)| *d == day).map(|(_, from, to, date)| {
-                                let lecture = date.event_type.as_deref().is_some_and(|t| t.to_lowercase().contains("vorlesung"));
-                                view! {
-                                    <div class="slot" class:other=!lecture style=format!("--from:{from};--to:{to}") title=date.event_title.clone()>
-                                        {date.event_type.clone().unwrap_or_else(|| "Termin".to_string())}
-                                        <small>{date.start_time.clone()}</small>
-                                    </div>
-                                }
-                            }).collect_view()}
-                        </div>
-                    }).collect_view()}
-                </div>
-            })}
+            <WeekGrid slots/>
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
             {(!teaching.is_empty()).then(|| view! { <div class="evlist">{event_list(teaching.into_iter().map(|d| (d, None)).collect())}</div> })}
@@ -541,6 +511,57 @@ fn Schedule(data: ModuleData) -> impl IntoView {
             </div>
         })}
     }
+}
+
+/// The week grid's slots of a module's teaching rows (one semester's): every row with a weekday
+/// and both times, 24:00 included. Rows of one event and group at the same weekday and times are
+/// one slot (the same time in two rooms, or a date range QIS splits in two). A date that happens
+/// once (a single date, or a range of one day) is not drawn as a weekly slot: the single dates of
+/// such a key are one `.once` slot that counts them („3 Termine", „1 Termin · 23.02.").
+fn own_slots(teaching: &[EventDate]) -> Vec<GridSlot> {
+    /// Once, weekday, from, to, event, group.
+    type Key<'a> = (bool, u8, u16, u16, &'a str, Option<&'a str>);
+    let mut groups: Vec<(Key<'_>, &EventDate, BTreeSet<Option<&str>>)> = Vec::new();
+    for date in teaching {
+        let day = date.weekday.and_then(|day| u8::try_from(day).ok()).filter(|day| (1..=7).contains(day));
+        let from = date.start_time.as_deref().and_then(minutes);
+        let to = date.end_time.as_deref().and_then(minutes);
+        let (Some(day), Some(from), Some(to)) = (day, from, to) else { continue };
+        if to <= from {
+            continue;
+        }
+        let once = date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Single)) || (date.first_date.is_some() && date.first_date == date.last_date);
+        let key = (once, day, from, to, date.event_id.as_str(), date.group_name.as_deref());
+        match groups.iter_mut().find(|(known, ..)| *known == key) {
+            Some((_, _, dates)) => {
+                dates.insert(date.first_date.as_deref());
+            }
+            None => groups.push((key, date, BTreeSet::from([date.first_date.as_deref()]))),
+        }
+    }
+    groups
+        .into_iter()
+        .map(|((once, day, from, to, ..), date, dates)| {
+            let label = date.event_type.clone().unwrap_or_else(|| "Termin".to_string());
+            if !once {
+                let lecture = class_of(kinds_of(date.event_type.as_deref())) == Class::Lecture;
+                return GridSlot { day, from, to, label, small: clock(from), title: date.event_title.clone(), class: if lecture { "" } else { "other" }, ..GridSlot::default() };
+            }
+            let days: Vec<Day> = dates.iter().filter_map(|date| date.and_then(Day::parse)).collect();
+            let small = match (dates.len(), days.as_slice()) {
+                (1, [only]) => format!("1 Termin · {}", only.short()),
+                (1, _) => "1 Termin".to_string(),
+                (n, _) => format!("{n} Termine"),
+            };
+            // The tooltip names the dates the small line only counts.
+            let title = if days.is_empty() {
+                date.event_title.clone()
+            } else {
+                format!("{} · {}", date.event_title, days.iter().map(|day| day.german()).collect::<Vec<_>>().join(", "))
+            };
+            GridSlot { day, from, to, label, small, title, class: "once", ..GridSlot::default() }
+        })
+        .collect()
 }
 
 /// „Mo 09:15–10:45", and „Mo bis 24:00" for a deadline (an end without a start).
@@ -687,6 +708,81 @@ mod tests {
             comment: None,
             source_url: None,
         }
+    }
+
+    /// A teaching row: event, type, group, weekday, times, rhythm and dates.
+    #[allow(clippy::too_many_arguments)]
+    fn teaching(event: &str, kind: &str, group: &str, weekday: i64, times: (&str, &str), rhythm: &str, first: &str, last: &str) -> EventDate {
+        EventDate {
+            event_id: event.into(),
+            event_title: "Allgemeine Betriebswirtschaftslehre II".into(),
+            event_type: Some(kind.into()),
+            group_name: Some(group.into()),
+            rhythm: Some(catalog::labels::Code::parse(rhythm)),
+            last_date: Some(last.into()),
+            ..exam(Some(weekday), Some(times.0), Some(times.1), Some(first))
+        }
+    }
+
+    #[test]
+    fn a_single_date_is_a_slot_apart_from_the_weekly_ones() {
+        // Module 12229 in WiSe 2026/27: the Tuesday single date of the Vorlesung covered the
+        // Übung of the 2-Gruppe while both were drawn as weekly slots.
+        let rows = [
+            teaching("148019", "Vorlesung", "[unbenannt]", 2, ("11:45", "15:00"), "single", "2027-02-23", "2027-02-23"),
+            teaching("148019", "Vorlesung", "[unbenannt]", 4, ("11:30", "13:00"), "weekly", "2026-10-08", "2027-01-28"),
+            teaching("148130", "Übung", "1-Gruppe", 1, ("13:45", "15:15"), "weekly", "2026-10-12", "2027-01-25"),
+            teaching("148130", "Übung", "2-Gruppe", 2, ("13:45", "15:15"), "weekly", "2026-10-13", "2027-01-26"),
+        ];
+        let slots = own_slots(&rows);
+        let shown: Vec<(u8, u16, u16, &str, &str, &str)> = slots.iter().map(|s| (s.day, s.from, s.to, s.label.as_str(), s.small.as_str(), s.class)).collect();
+        assert_eq!(
+            shown,
+            [
+                (2, 705, 900, "Vorlesung", "1 Termin · 23.02.", "once"),
+                (4, 690, 780, "Vorlesung", "11:30", ""),
+                (1, 825, 915, "Übung", "13:45", "other"),
+                (2, 825, 915, "Übung", "13:45", "other"),
+            ]
+        );
+        assert_eq!(slots.first().map(|s| s.title.as_str()), Some("Allgemeine Betriebswirtschaftslehre II · 23.02.2027"));
+        // The two Tuesday slots stand side by side.
+        let (_, styles) = crate::week::geometry(&slots, crate::week::MIN_HOURS).unwrap();
+        assert!(styles[0].ends_with("--lane:0;--lanes:2") && styles[3].ends_with("--lane:1;--lanes:2"), "{styles:?}");
+        assert!(styles[1].ends_with("--lane:0;--lanes:1") && styles[2].ends_with("--lane:0;--lanes:1"), "{styles:?}");
+    }
+
+    #[test]
+    fn rows_of_one_slot_are_one() {
+        let rows = [
+            // The same weekly time in two rooms, and a range QIS splits in two: one slot.
+            teaching("148369", "Übung", "1-Gruppe", 1, ("15:30", "17:00"), "weekly", "2026-10-12", "2026-11-23"),
+            teaching("148369", "Übung", "1-Gruppe", 1, ("15:30", "17:00"), "weekly", "2026-12-07", "2027-01-25"),
+            // Three single dates at one time: one slot that counts them.
+            teaching("148370", "Vorlesung/Übung", "[unbenannt]", 3, ("09:15", "10:45"), "single", "2026-11-04", "2026-11-04"),
+            teaching("148370", "Vorlesung/Übung", "[unbenannt]", 3, ("09:15", "10:45"), "single", "2026-11-18", "2026-11-18"),
+            teaching("148370", "Vorlesung/Übung", "[unbenannt]", 3, ("09:15", "10:45"), "single", "2026-11-11", "2026-11-11"),
+            // A weekly row whose range is one day happens once.
+            teaching("148371", "Seminar", "A", 5, ("08:00", "09:30"), "weekly", "2026-10-16", "2026-10-16"),
+            // A Sunday slot until midnight is drawn; a row without an end is not.
+            teaching("148372", "Projekt", "B", 7, ("22:00", "24:00"), "weekly", "2026-10-11", "2027-01-31"),
+            teaching("148373", "Tutorium", "C", 2, ("10:00", ""), "weekly", "2026-10-13", "2027-01-26"),
+        ];
+        let slots = own_slots(&rows);
+        let shown: Vec<(u8, &str, &str, &str)> = slots.iter().map(|s| (s.day, s.small.as_str(), s.class, s.title.as_str())).collect();
+        assert_eq!(
+            shown,
+            [
+                (1, "15:30", "other", "Allgemeine Betriebswirtschaftslehre II"),
+                (3, "3 Termine", "once", "Allgemeine Betriebswirtschaftslehre II · 04.11.2026, 11.11.2026, 18.11.2026"),
+                (5, "1 Termin · 16.10.", "once", "Allgemeine Betriebswirtschaftslehre II · 16.10.2026"),
+                (7, "22:00", "other", "Allgemeine Betriebswirtschaftslehre II"),
+            ]
+        );
+        assert_eq!(slots.get(3).map(|s| s.to), Some(1440));
+        // A „Vorlesung/Übung" is a lecture.
+        let weekly = teaching("148370", "Vorlesung/Übung", "[unbenannt]", 3, ("09:15", "10:45"), "weekly", "2026-10-14", "2027-01-27");
+        assert_eq!(own_slots(&[weekly]).first().map(|s| s.class), Some(""));
     }
 
     fn read(date: &EventDate) -> ExamReading {
