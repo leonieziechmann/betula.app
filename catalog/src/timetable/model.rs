@@ -251,19 +251,34 @@ impl Timetable {
 
     /// The kinds of the semester's events and exams with the number of events of each, hidden
     /// ones included, in the kinds' order: the chips „Vorlesung 5", „Übung 4", „Prüfung 4". A
-    /// „Vorlesung/Übung" counts for both.
+    /// „Vorlesung/Übung" counts for both. The other town's course of a module with city tracks is
+    /// not the visitor's, whatever else hides it: a chip counts what its click can show, and
+    /// Senftenberg's student of 11107 has no Tutorium to show (only the Cottbus course has one).
     pub fn kinds_present(&self) -> Vec<(EventKind, usize)> {
+        let theirs = |modules: &[String], own: Option<Town>| other_course(modules, own, self.town, &self.tracks);
         EventKind::ALL
             .into_iter()
             .filter_map(|kind| {
                 let count = match kind {
-                    EventKind::Exam => self.exams.len(),
-                    _ => self.events.iter().filter(|event| event.kinds.contains(kind)).count(),
+                    EventKind::Exam => self.exams.iter().filter(|exam| !theirs(&exam.modules, exam.town())).count(),
+                    _ => self
+                        .events
+                        .iter()
+                        .filter(|event| event.kinds.contains(kind) && !theirs(&event.modules, event.town()))
+                        .count(),
                 };
                 (count > 0).then_some((kind, count))
             })
             .collect()
     }
+}
+
+/// Whether what `modules` link, held in `own` town, is the other town's course while `shown` is
+/// the town they are taken in: every one of the modules has city tracks, and the towns differ. An
+/// event or exam of mixed or unknown town, or one a module without tracks links too, is anyone's.
+fn other_course(modules: &[String], own: Option<Town>, shown: Option<Town>, tracks: &BTreeSet<String>) -> bool {
+    let all_tracks = !modules.is_empty() && modules.iter().all(|module| tracks.contains(module));
+    all_tracks && own.zip(shown).is_some_and(|(own, shown)| own != shown)
 }
 
 /// The planned ids in plan order, each once.
@@ -521,8 +536,7 @@ fn event_hidden(
         return Some(HiddenBy::Kinds);
     }
     let shown = town?;
-    let all_tracks = !event.modules.is_empty() && event.modules.iter().all(|module| tracks.contains(module));
-    (all_tracks && event.town().is_some_and(|own| own != shown)).then_some(HiddenBy::Town(shown))
+    other_course(&event.modules, event.town(), Some(shown), tracks).then_some(HiddenBy::Town(shown))
 }
 
 /// A `veranstid` as the selection keeps it: digits without a leading zero that fit a `u32`.
@@ -810,7 +824,16 @@ pub(crate) mod tests {
         }
         let chips = t.kinds_present();
         assert!(chips.iter().all(|(_, n)| *n > 0) && chips.windows(2).all(|w| w[0].0 < w[1].0));
-        assert_eq!(chips.iter().any(|(k, _)| *k == EventKind::Exam), !t.exams.is_empty());
+        let theirs = |modules: &[String], own: Option<Town>| other_course(modules, own, t.town, &t.tracks);
+        let exams_of_mine = t.exams.iter().any(|exam| !theirs(&exam.modules, exam.town()));
+        assert_eq!(chips.iter().any(|(k, _)| *k == EventKind::Exam), exams_of_mine);
+        // What the other town's course alone holds is no chip; everything shown has one.
+        for event in t.events.iter().filter(|event| event.hidden.is_none()) {
+            assert!(event.kinds.iter().all(|kind| chips.iter().any(|(k, _)| *k == kind)), "{}", event.id);
+        }
+        for event in t.events.iter().filter(|event| matches!(event.hidden, Some(HiddenBy::Town(_)))) {
+            assert!(theirs(&event.modules, event.town()), "{}", event.id);
+        }
         assert!(!t.town_derived || t.town.is_some());
         for m in &t.without_dates {
             assert!(t.events.iter().all(|e| e.rows.is_empty() || !e.modules.contains(m)), "{m}");
@@ -1297,5 +1320,54 @@ pub(crate) mod tests {
         let t = planned(&db, "2026W", &fs1, &both);
         assert!(t.events.iter().all(|e| e.hidden.is_none()) && t.exams.iter().all(|e| e.hidden.is_none()));
         assert_eq!(t.town, None);
+    }
+
+    /// The chips count the visitor's course of a module with city tracks, not the other town's:
+    /// with both courses counted, Elektrotechnik's first semester in Senftenberg read „Übung 7"
+    /// and „Tutorium 2" for three Übungen and no Tutorium (the audit of 2026-09-24).
+    #[test]
+    fn the_chips_count_the_course_of_the_town_taken() {
+        use EventKind::{Exam, Exercise, Lecture, Practical, Seminar, Tutorial};
+        let senftenberg = Some("senftenberg");
+        let rows = [
+            teaching("T", "100", 1, "Vorlesung", 1, "09:15", "10:45"),
+            teaching("T", "101", 1, "Übung", 2, "09:15", "10:45"),
+            teaching("T", "102", 1, "Vorlesung", 1, "09:15", "10:45").campus(senftenberg),
+            teaching("T", "103", 1, "Übung", 2, "09:15", "10:45").campus(senftenberg),
+            // Only the Senftenberg course has a Tutorium.
+            teaching("T", "104", 1, "Tutorium", 3, "09:15", "10:45").campus(senftenberg),
+            teaching("C", "130", 1, "Seminar", 5, "13:45", "15:15"),
+        ];
+        let chips = |selection: &Selection| table(&rows, &["T", "C"], &[], selection).kinds_present();
+        // Cottbus, derived from C: the Senftenberg course counts for nothing, also while its kinds
+        // are hidden as well (then `HiddenBy::Kinds` is the first reason, not the town).
+        let cottbus = [(Lecture, 1), (Exercise, 1), (Seminar, 1)];
+        assert_eq!(chips(&Selection::default()), cottbus);
+        let hidden = KindSet::default().with(Exercise).with(Tutorial);
+        assert_eq!(chips(&Selection { hidden_kinds: hidden, ..Selection::default() }), cottbus);
+        let chosen = Selection { town: TownChoice::Only(Town::Senftenberg), ..Selection::default() };
+        assert_eq!(chips(&chosen), [(Lecture, 1), (Exercise, 1), (Seminar, 1), (Tutorial, 1)]);
+        let both = Selection { town: TownChoice::Both, ..Selection::default() };
+        assert_eq!(chips(&both), [(Lecture, 2), (Exercise, 2), (Seminar, 1), (Tutorial, 1)]);
+
+        let Some(db) = crate::tests::studyplan_db("the_chips_count_the_course_of_the_town_taken") else {
+            return;
+        };
+        // Informatik's first semester in Cottbus: 12104's Senftenberg lecture, Übung and exam
+        // (149406, 149407, 150664) are not counted; with both towns they are.
+        let fs1 = ids(&["12104", "12107", "12102", "11112"]);
+        let t = planned(&db, "2026W", &fs1, &Selection::default());
+        let mine = [(Lecture, 5), (Exercise, 3), (Practical, 2), (Tutorial, 1), (Exam, 3)];
+        assert_eq!(t.kinds_present(), mine);
+        let t = planned(&db, "2026W", &fs1, &both);
+        assert_eq!(t.kinds_present(), [(Lecture, 6), (Exercise, 4), (Practical, 2), (Tutorial, 1), (Exam, 4)]);
+        // Elektrotechnik 2022, PA und IoT, first semester: Senftenberg is derived, so the Cottbus
+        // courses of 11107 and 12105 (with the only two Tutorien, 150018 and 152343) are not
+        // counted.
+        let et = ids(&["13694", "13693", "11107", "12761", "12105"]);
+        let t = planned(&db, "2026W", &et, &Selection::default());
+        assert_eq!((t.town, t.town_derived), (Some(Town::Senftenberg), true));
+        let mine = [(Lecture, 5), (Exercise, 3), (Seminar, 2), (Practical, 2), (Exam, 7)];
+        assert_eq!(t.kinds_present(), mine);
     }
 }

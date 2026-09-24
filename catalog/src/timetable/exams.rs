@@ -67,6 +67,16 @@ pub struct Exam {
     pub source_url: Option<String>,
 }
 
+impl Exam {
+    /// The one town all its rows with a known campus are in; `None` when they are in both towns
+    /// or no campus is known. The town a track module's exam belongs to (`exams_of`).
+    pub fn town(&self) -> Option<Town> {
+        let mut towns = self.rows.iter().filter_map(|row| row.date.campus.as_ref().and_then(town_of));
+        let first = towns.next()?;
+        towns.all(|town| town == first).then_some(first)
+    }
+}
+
 /// One date of an exam event.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExamRow {
