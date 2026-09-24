@@ -379,16 +379,42 @@ impl SemesterRequirement {
         }
     }
 
-    /// The name as a page shows it: without the dash a plan leads into a row or out of it with
-    /// („- Wahlpflicht Energiesysteme", „… (Sport, Musik oder Kunst) -") and without the marks of
-    /// its footnotes („Integrationsmodule**", „Informatik¹").
+    /// The name as a page shows it (`shown_name`).
     pub fn shown_name(&self) -> &str {
-        let trimmed = self.name.trim_matches(|c: char| c.is_whitespace() || matches!(c, '-' | '–' | '—' | '*' | '¹' | '²' | '³' | '⁴' | '⁵' | '⁶' | '⁷' | '⁸' | '⁹' | '⁰'));
-        if trimmed.is_empty() {
-            self.name.trim()
-        } else {
-            trimmed
-        }
+        shown_name(&self.name)
+    }
+}
+
+/// The name of a plan row as a page shows it: without the dash a plan leads into a row or out of
+/// it with („- Wahlpflicht Energiesysteme", „… (Sport, Musik oder Kunst) -") and without the marks
+/// of its footnotes („Integrationsmodule**", „Informatik¹"). A name of nothing but such marks
+/// stays as it is, trimmed.
+pub fn shown_name(name: &str) -> &str {
+    let trimmed = name.trim_matches(|c: char| c.is_whitespace() || matches!(c, '-' | '–' | '—' | '*' | '¹' | '²' | '³' | '⁴' | '⁵' | '⁶' | '⁷' | '⁸' | '⁹' | '⁰'));
+    if trimmed.is_empty() {
+        name.trim()
+    } else {
+        trimmed
+    }
+}
+
+/// What a row of the plan that names no module asks for: one module the catalog does not know
+/// under this name, a module of the FÜS, or a choice from the areas its name points at. `caption`
+/// is the caption of the plan the row belongs to (`""` where a program has one plan), `rows` the
+/// rows of that plan, which tell what this row does not mean (`areas_for_row`). A semester's
+/// requirements are these, merged across study directions (`semester_plan`); the Studienplan's
+/// placeholders read their row the same way.
+pub fn requirement_of(entry: &PlanEntry, caption: &str, areas: &[CatalogArea], rows: &[PlanEntry]) -> SemesterRequirement {
+    let (single, fues) = (is_single_module(entry), is_fues(entry));
+    let found = if single || fues { RowAreas::default() } else { areas_for_row(entry, caption, areas, rows) };
+    SemesterRequirement {
+        name: entry.module_name.clone(),
+        credits: credits_of(entry),
+        kind: entry.kind.clone(),
+        single,
+        fues,
+        areas: found.areas,
+        others: found.others,
     }
 }
 
@@ -427,16 +453,13 @@ pub fn semester_plan(semester: u8, entries: &[PlanEntry], areas: &[CatalogArea])
         if !in_semester || entry.module_name.trim().is_empty() {
             continue;
         }
-        let (single, fues) = (is_single_module(entry), is_fues(entry));
-        let found = if single || fues {
-            RowAreas::default()
-        } else {
-            // The rows of the same plan (one per study direction) tell what this row does not mean.
-            let rows: Vec<PlanEntry> = entries.iter().filter(|other| other.specialization == entry.specialization).cloned().collect();
-            areas_for_row(entry, entry.specialization.as_deref().unwrap_or_default(), areas, &rows)
+        // The rows of the same plan (one per study direction) tell what this row does not mean;
+        // a single module and a FÜS row point at no area, so they need none.
+        let rows: Vec<PlanEntry> = match is_single_module(entry) || is_fues(entry) {
+            true => Vec::new(),
+            false => entries.iter().filter(|other| other.specialization == entry.specialization).cloned().collect(),
         };
-        let credits = credits_of(entry);
-        let (listed, others) = (found.areas, found.others);
+        let requirement = requirement_of(entry, entry.specialization.as_deref().unwrap_or_default(), areas, &rows);
         let add = |into: &mut Vec<CatalogArea>, areas: Vec<CatalogArea>| {
             for area in areas {
                 if !into.iter().any(|known| known.id == area.id) {
@@ -444,15 +467,15 @@ pub fn semester_plan(semester: u8, entries: &[PlanEntry], areas: &[CatalogArea])
                 }
             }
         };
-        match plan.requirements.iter_mut().find(|row| row.name == entry.module_name && row.credits == credits && row.kind == entry.kind) {
+        match plan.requirements.iter_mut().find(|row| row.name == requirement.name && row.credits == requirement.credits && row.kind == requirement.kind) {
             Some(row) => {
                 // The same row in the plan of another study direction: its areas count as well.
-                add(&mut row.areas, listed);
-                add(&mut row.others, others);
+                add(&mut row.areas, requirement.areas);
+                add(&mut row.others, requirement.others);
                 let listed: Vec<i64> = row.areas.iter().map(|area| area.id).collect();
                 row.others.retain(|area| !listed.contains(&area.id));
             }
-            None => plan.requirements.push(SemesterRequirement { name: entry.module_name.clone(), credits, kind: entry.kind.clone(), single, fues, areas: listed, others }),
+            None => plan.requirements.push(requirement),
         }
     }
     plan
@@ -789,6 +812,51 @@ mod tests {
         assert_eq!(credits_of(&PlanEntry { credits: Some(7.5), ..row("x", 1, None, None) }).as_deref(), Some("7,5"));
     }
 
+    #[test]
+    fn a_row_of_the_plan_knows_its_semesters() {
+        let entry = |semester, start, end| PlanEntry { semester, start_semester: start, end_semester: end, ..row("M", 1, None, None) };
+        assert_eq!(semester_span(&entry(Some(3), Some(1), Some(2))), Some((3, 3)));
+        assert_eq!(semester_span(&entry(None, Some(3), Some(2))), Some((2, 3)));
+        assert_eq!(semester_span(&entry(None, None, Some(4))), Some((4, 4)));
+        assert_eq!(semester_span(&entry(None, None, None)), None);
+    }
+
+    // The per-row half of a semester's requirements is `requirement_of`: for Informatik B.Sc.,
+    // whose one plan names no row twice in a semester, a semester's requirements are its rows.
+    #[test]
+    fn a_requirement_is_what_the_semester_says_about_its_row() {
+        let areas = real::areas(real::INFORMATIK_BSC);
+        let rows = real::informatik_bsc_rows();
+        let mut seen = 0;
+        for semester in 1..=6u8 {
+            let listed: Vec<SemesterRequirement> = rows
+                .iter()
+                .filter(|entry| semester_span(entry).is_some_and(|(from, to)| from <= i64::from(semester) && i64::from(semester) <= to))
+                .map(|entry| requirement_of(entry, "", &areas, &rows))
+                .collect();
+            seen += listed.len();
+            assert_eq!(semester_plan(semester, &rows, &areas).requirements, listed, "semester {semester}");
+        }
+        assert_eq!(seen, rows.len());
+
+        // The plan of the snapshot, its areas and all: the same, semester by semester.
+        let db = crate::tests::open();
+        let entries = crate::queries::program_plan_entries(&db, "079-82-2008").unwrap();
+        let placements = crate::queries::program_areas(&db, "079-82-2008").unwrap();
+        let tree = crate::queries::program_area_tree(&db, "079-82-2008").unwrap();
+        let areas = crate::pages::catalog_areas(&placements, &tree);
+        assert!(entries.iter().any(|entry| entry.module_id.is_none()), "Informatik B.Sc. has rows that name no module");
+        for semester in 1..=6u8 {
+            let listed: Vec<SemesterRequirement> = entries
+                .iter()
+                .filter(|entry| entry.module_id.is_none() && !entry.module_name.trim().is_empty())
+                .filter(|entry| semester_span(entry).is_some_and(|(from, to)| from <= i64::from(semester) && i64::from(semester) <= to))
+                .map(|entry| requirement_of(entry, entry.specialization.as_deref().unwrap_or_default(), &areas, &entries))
+                .collect();
+            assert_eq!(semester_plan(semester, &entries, &areas).requirements, listed, "semester {semester}");
+        }
+    }
+
     // The note of a semester names the areas alone where the row's name says no more.
     #[test]
     fn a_name_that_only_repeats_its_areas_says_nothing() {
@@ -829,5 +897,8 @@ mod tests {
         assert_eq!(shown("Integrationsmodule**"), "Integrationsmodule");
         assert_eq!(shown("Schwerpunktmodule³"), "Schwerpunktmodule");
         assert_eq!(shown("Wahlpflichtmodul 3"), "Wahlpflichtmodul 3");
+        // The free function is the method's body, for a name without a requirement around it.
+        assert_eq!(shown_name("- Wahlpflicht Energiesysteme"), "Wahlpflicht Energiesysteme");
+        assert_eq!(shown_name(" -- "), "--");
     }
 }
