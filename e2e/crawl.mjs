@@ -71,6 +71,9 @@ for (let i = 0; i < all.length && modulePages < moduleLimit; i += step) {
 // The legal pages, a filter, a program scope with its FÜS list, and what must be a 404.
 await get("/impressum");
 await get("/datenschutz");
+// The Studienplan lives in the browser: the server's page is one explanation, for no index.
+const plan = await get("/studyplan");
+if (!plan.includes('content="noindex')) failures.push("/studyplan: offered to search engines");
 await get("/catalog?turnus=winter&form=exercise&lang=en");
 if (programs[0]) await get(`/catalog?program=${programs[0].split("/").pop()}&list=fues`);
 await get("/catalog/module/00000", 404);

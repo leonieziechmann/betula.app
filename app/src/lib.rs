@@ -34,10 +34,13 @@ use leptos_router::hooks::use_location;
 use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::bookmarks::Bookmarks;
+use crate::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::legal::{ImprintPage, PrivacyPage};
+use crate::pages::studyplan::StudyplanPage;
 use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, program::ProgramPage, programs::ProgramsPage};
 use crate::pending::Pending;
+use crate::studyplan::Studyplan;
 use crate::tabs::{Area, Tabs};
 use crate::ui::Icon;
 
@@ -162,8 +165,12 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 pub fn App() -> impl IntoView {
     provide_meta_context();
     Tabs::provide();
-    // The visitor's marked modules: from this browser's storage, empty on the server (R9).
+    // The visitor's marked modules, Studienplan and „Mein Studiengang": from this browser's
+    // storage, empty on the server (R9). What the catalog knows of the program follows the store.
     Bookmarks::provide();
+    Studyplan::provide();
+    MyProgram::provide();
+    MineResolved::provide();
     // A click answers in the next frame and the page follows (`pending`): its listeners have to
     // come before the router's, so before `<Router>` is built.
     let pending = Pending::provide();
@@ -187,6 +194,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/programs/:slug") view=ProgramPage ssr=SsrMode::Async/>
                         <Route path=path!("/programs/:slug/:tab") view=ProgramPage ssr=SsrMode::Async/>
                         <Route path=path!("/bookmarks") view=BookmarksPage ssr=SsrMode::Async/>
+                        <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
                         <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
                         <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
                     </Routes>
@@ -237,6 +245,8 @@ fn NavItems() -> impl IntoView {
             </span>
             "Merkliste"
         </a>
+        // The Studienplan lives in the browser app alone, like the Merkliste (R15).
+        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title="Studienplan" aria-current=move || current(Area::Studyplan)><span class="ind"><Icon name="calendar-range"/></span>"Plan"</a>
     }
 }
 
@@ -246,7 +256,6 @@ fn Rail() -> impl IntoView {
         <aside class="rail">
             <a class="logo hit" href=url::HOME aria-label="Betula, zur Startseite"><ui::Mark/></a>
             <nav aria-label="Hauptnavigation"><NavItems/></nav>
-            <span class="nav soon" title="Semesterplaner (geplant)"><span class="ind"><Icon name="calendar-range"/></span>"Planer"</span>
             <div class="rail-end">
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label="Hell oder dunkel">
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
@@ -299,6 +308,7 @@ fn TopBar() -> impl IntoView {
                     Area::Programs => ("Studiengänge", url::PROGRAMS, "Studiengang suchen"),
                     Area::Catalog => ("Module", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                     Area::Bookmarks => ("Merkliste", url::CATALOG, "Modul, Nummer oder Thema suchen"),
+                    Area::Studyplan => ("Studienplan", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                     Area::Home => ("Start", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                 };
                 let initial = url::parse_pairs(&Pending::shown_of(going, location.pathname, location.search).1)
