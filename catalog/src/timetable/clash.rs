@@ -13,9 +13,14 @@
 //! Touching ends (one ends at 11:30, the next begins at 11:30) do not clash, and a row with an
 //! unclear time never does.
 //!
-//! An option of an open choice („1 von 4 wählen") that clashes is no conflict while another option
-//! is free: the student takes that one. Only when every visible option clashes is the choice
-//! blocked („0 von 4 Übungsterminen frei"), and then its clashes count.
+//! An option of an open choice („1 von 4 wählen") that clashes is no conflict while the student
+//! can take another one. The plan's open choices are weighed together: an option is free when it
+//! meets no required Termin, and when every open choice can take a free option with no two picks
+//! meeting, none of their clashes counts (two Übungen whose Friday slots meet leave each other
+//! their other slots). A choice whose every option meets a required Termin is blocked („0 von 4
+//! Übungsterminen frei"). When some choices cannot be placed together, those of them that cannot
+//! move away from the others are blocked too. The clashes of blocked choices count, so each one
+//! is named by a clash the page can show.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -62,12 +67,206 @@ struct Found {
     meeting: Meeting,
 }
 
-/// The hard clashes of the visible rows of `events`, and the open choices whose every visible
-/// option clashes. A clash is dropped when one side is an option of an open choice that has
-/// another visible option without any clash. The rest are reported once per pair of events,
-/// weekday and start of the overlap, with the first common day and the number of common days, in
-/// the order of the events.
+/// An option of an open choice: `(event, option)`.
+type Pick = (usize, usize);
+
+/// The most picks the search for free options tries per group of choices. A plan has a handful of
+/// open choices with a few options each and needs far fewer; a pathological one falls back to
+/// weighing each choice alone instead of stalling the page.
+const MAX_STEPS: usize = 10_000;
+
+/// The hard clashes of the visible rows of `events`, and the open choices that cannot take a free
+/// option (see the module's text). A clash is dropped when one side is an option of an open
+/// choice that is not blocked. The rest are reported once per pair of events, weekday and start
+/// of the overlap, with the first common day and the number of common days, in the order of the
+/// events.
 pub fn clashes(events: &[Event]) -> (Vec<Clash>, Vec<usize>) {
+    let Weighed { hard, blocked } = weigh(events);
+
+    // Hard clashes by pair of events, weekday and start: the common days, and the pair of rows of
+    // the earliest one.
+    let mut groups: BTreeMap<(usize, usize, u8, u16), Group> = BTreeMap::new();
+    for f in &hard {
+        match &f.meeting {
+            Meeting::Days(days) => {
+                for day in days {
+                    let group = groups.entry((f.a.0, f.b.0, day.weekday(), f.from)).or_insert_with(|| Group::new(f));
+                    group.add(*day, f);
+                }
+            }
+            Meeting::Pattern(weekday) => {
+                groups.entry((f.a.0, f.b.0, *weekday, f.from)).or_insert_with(|| Group::new(f));
+            }
+        }
+    }
+    let clashes = groups
+        .into_iter()
+        .map(|((.., weekday, _), group)| Clash {
+            a: group.a,
+            b: group.b,
+            first: group.days.first().copied().unwrap_or_else(|| pattern_day(weekday)),
+            days: group.days.len(),
+        })
+        .collect();
+    (clashes, blocked)
+}
+
+/// Every row in a hard clash, as `(event, row)`. A reported `Clash` names only the rows of its
+/// first common day; another row of the same pair of events, weekday and start is in the clash
+/// too (148661's B-week Thursday behind the single on its first Thursday), and the Regelwoche and
+/// a module page's overlay mark it.
+pub fn hard_rows(events: &[Event]) -> BTreeSet<(usize, usize)> {
+    weigh(events).hard.iter().flat_map(|f| [f.a, f.b]).collect()
+}
+
+/// The meetings that count, and the blocked choices by event index.
+struct Weighed {
+    hard: Vec<Found>,
+    blocked: Vec<usize>,
+}
+
+/// Weighs the open choices of `events` against their meetings. An option is free when it meets
+/// no required row: a visible row that belongs to no option, or a row of an event that is not an
+/// open choice. A choice without a free option is blocked. The others are grouped by free options
+/// that meet each other, and a group is settled when each of its choices can take a free option
+/// with no two picks meeting. A group that cannot be (or whose search runs out of steps) is
+/// weighed choice by choice: a choice moves away when it has an option that meets only options of
+/// choices that move away (at first: settled ones, or nothing at all); the rest are blocked. A
+/// meeting counts unless one side is an option of a choice that moves away.
+fn weigh(events: &[Event]) -> Weighed {
+    let found = meetings(events);
+    let open: BTreeMap<usize, Vec<usize>> = events
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| event.unresolved())
+        .map(|(i, event)| (i, event.visible_options()))
+        .collect();
+    let pick_of = |(event, index): (usize, usize)| -> Option<Pick> {
+        if !open.contains_key(&event) {
+            return None;
+        }
+        events.get(event)?.rows.get(index)?.option.map(|option| (event, option))
+    };
+
+    // What each option of an open choice meets: `None` is a required row.
+    let mut partners: BTreeMap<Pick, Vec<Option<Pick>>> = BTreeMap::new();
+    for f in &found {
+        let (a, b) = (pick_of(f.a), pick_of(f.b));
+        if let Some(a) = a {
+            partners.entry(a).or_default().push(b);
+        }
+        if let Some(b) = b {
+            partners.entry(b).or_default().push(a);
+        }
+    }
+    let meets: BTreeSet<(Pick, Pick)> =
+        partners.iter().flat_map(|(pick, others)| others.iter().flatten().map(move |other| (*pick, *other))).collect();
+    let free: BTreeMap<usize, Vec<usize>> = open
+        .iter()
+        .map(|(event, options)| {
+            let free = options
+                .iter()
+                .copied()
+                .filter(|option| !partners.get(&(*event, *option)).is_some_and(|p| p.iter().any(Option::is_none)))
+                .collect();
+            (*event, free)
+        })
+        .collect();
+
+    // The choices with a free option, in groups linked by free options that meet.
+    let (mut settled, mut failed) = (BTreeSet::new(), BTreeSet::new());
+    let mut seen = BTreeSet::new();
+    for (start, options) in &free {
+        if options.is_empty() || !seen.insert(*start) {
+            continue;
+        }
+        let mut group = vec![*start];
+        let mut next = 0;
+        while let Some(event) = group.get(next).copied() {
+            next += 1;
+            for option in free.get(&event).into_iter().flatten() {
+                for other in partners.get(&(event, *option)).into_iter().flatten().flatten() {
+                    let linked = free.get(&other.0).is_some_and(|options| options.contains(&other.1));
+                    if linked && seen.insert(other.0) {
+                        group.push(other.0);
+                    }
+                }
+            }
+        }
+        // Fewest options first: a dead end shows early.
+        let mut choices: Vec<(usize, &[usize])> =
+            group.iter().filter_map(|event| Some((*event, free.get(event)?.as_slice()))).collect();
+        choices.sort_by_key(|(event, options)| (options.len(), *event));
+        let mut steps = MAX_STEPS;
+        if place(&choices, &mut Vec::new(), &meets, &mut steps) {
+            settled.extend(group);
+        } else {
+            failed.extend(group);
+        }
+    }
+
+    // The choices that move away: the settled ones, then, while one is found, a failed one with
+    // an option that meets only options of choices that move away.
+    let mut away = settled;
+    loop {
+        let more: Vec<usize> = failed
+            .iter()
+            .copied()
+            .filter(|event| !away.contains(event))
+            .filter(|event| {
+                open.get(event).into_iter().flatten().any(|option| {
+                    partners
+                        .get(&(*event, *option))
+                        .into_iter()
+                        .flatten()
+                        .all(|other| matches!(other, Some((mover, _)) if away.contains(mover)))
+                })
+            })
+            .collect();
+        if more.is_empty() {
+            break;
+        }
+        away.extend(more);
+    }
+
+    let blocked = open.keys().copied().filter(|event| !away.contains(event)).collect();
+    let moves = |side: (usize, usize)| pick_of(side).is_some_and(|(event, _)| away.contains(&event));
+    let hard = found.into_iter().filter(|f| !moves(f.a) && !moves(f.b)).collect();
+    Weighed { hard, blocked }
+}
+
+/// Whether each choice can take one of its options with no two picks meeting: a depth-first
+/// search that tries at most `steps` picks. Running out of steps counts as no.
+fn place(
+    choices: &[(usize, &[usize])],
+    picked: &mut Vec<Pick>,
+    meets: &BTreeSet<(Pick, Pick)>,
+    steps: &mut usize,
+) -> bool {
+    let Some(((event, options), rest)) = choices.split_first() else {
+        return true;
+    };
+    for option in options.iter() {
+        let Some(left) = steps.checked_sub(1) else {
+            return false;
+        };
+        *steps = left;
+        let pick = (*event, *option);
+        if picked.iter().any(|other| meets.contains(&(pick, *other))) {
+            continue;
+        }
+        picked.push(pick);
+        if place(rest, picked, meets, steps) {
+            return true;
+        }
+        picked.pop();
+    }
+    false
+}
+
+/// Every two visible, timed rows that meet: of different events without a common planned module,
+/// overlapping in time, on a common held day.
+fn meetings(events: &[Event]) -> Vec<Found> {
     let placed: Vec<Placed<'_>> = events
         .iter()
         .enumerate()
@@ -99,46 +298,7 @@ pub fn clashes(events: &[Event]) -> (Vec<Clash>, Vec<usize>) {
             }
         }
     }
-
-    // The options that clash with anything, and for each open choice whether one of its visible
-    // options is free.
-    let option_of = |(event, index): (usize, usize)| events.get(event)?.rows.get(index)?.option.map(|o| (event, o));
-    let clashing: BTreeSet<(usize, usize)> = found.iter().flat_map(|f| [f.a, f.b]).filter_map(option_of).collect();
-    let open: BTreeMap<usize, bool> = events
-        .iter()
-        .enumerate()
-        .filter(|(_, event)| event.unresolved())
-        .map(|(i, event)| (i, event.visible_options().into_iter().any(|option| !clashing.contains(&(i, option)))))
-        .collect();
-    let avoidable = |side: (usize, usize)| option_of(side).is_some_and(|(event, _)| open.get(&event) == Some(&true));
-    let blocked = open.iter().filter(|(_, free)| !**free).map(|(event, _)| *event).collect();
-
-    // Hard clashes by pair of events, weekday and start: the common days, and the pair of rows of
-    // the earliest one.
-    let mut groups: BTreeMap<(usize, usize, u8, u16), Group> = BTreeMap::new();
-    for f in found.iter().filter(|f| !avoidable(f.a) && !avoidable(f.b)) {
-        match &f.meeting {
-            Meeting::Days(days) => {
-                for day in days {
-                    let group = groups.entry((f.a.0, f.b.0, day.weekday(), f.from)).or_insert_with(|| Group::new(f));
-                    group.add(*day, f);
-                }
-            }
-            Meeting::Pattern(weekday) => {
-                groups.entry((f.a.0, f.b.0, *weekday, f.from)).or_insert_with(|| Group::new(f));
-            }
-        }
-    }
-    let clashes = groups
-        .into_iter()
-        .map(|((.., weekday, _), group)| Clash {
-            a: group.a,
-            b: group.b,
-            first: group.days.first().copied().unwrap_or_else(|| pattern_day(weekday)),
-            days: group.days.len(),
-        })
-        .collect();
-    (clashes, blocked)
+    found
 }
 
 /// The rows and days of one reported clash.
@@ -503,5 +663,148 @@ mod tests {
         let hide = Selection { hidden_events: [149333].into(), ..Selection::default() };
         let t = planned(&db, "2026W", &fs3, &hide);
         assert!(t.clashes.is_empty() && t.blocked.is_empty());
+    }
+
+    /// An open choice of named groups: one Übung per slot, `(weekday, from, to)`.
+    fn groups(module: &str, event: &str, slots: &[(i64, &str, &str)]) -> Vec<Fixture> {
+        slots
+            .iter()
+            .zip(1i64..)
+            .map(|((weekday, from, to), ord)| {
+                teaching(module, event, ord, "Übung", *weekday, from, to).group(&format!("{ord}-Gruppe"))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn open_choices_are_weighed_together() {
+        // B's Monday meets A's lecture and its Friday slots meet two of C's, but B on Friday 11:30
+        // and C on Friday 07:30 meet nothing (Bauingenieurwesen's 150941 and 148590): no choice
+        // is blocked, and no clash counts.
+        let lecture = teaching("A", "1", 1, "Vorlesung", 1, "11:30", "13:00");
+        let b = groups("B", "4", &[(5, "11:30", "13:00"), (5, "13:45", "15:15"), (1, "11:30", "13:00")]);
+        let c = groups("C", "5", &[(5, "07:30", "09:00"), (5, "11:30", "13:00"), (5, "13:45", "15:15")]);
+        let t =
+            table(&[vec![lecture], b.clone(), c.clone()].concat(), &["A", "B", "C"], &no_sws(), &Selection::default());
+        assert!(event(&t, "4").unresolved() && event(&t, "5").unresolved());
+        assert_eq!((named(&t), blocked(&t)), (vec![], vec![]));
+        assert!(hard_rows(&t.events).is_empty());
+        // B's Friday slots alone meet only C's: B is not blocked by meetings no clash would name
+        // (Physiotherapie's 150390).
+        let t = table(&[b[..2].to_vec(), c].concat(), &["B", "C"], &no_sws(), &Selection::default());
+        assert_eq!((named(&t), blocked(&t)), (vec![], vec![]));
+
+        // Three choices that cannot be placed together (Wirtschaftsinformatik's 148936, 148130 and
+        // 151699): B and C each have one slot free of A's lectures, and D's free slots are theirs.
+        // All three are blocked, and their clashes count.
+        let lectures = [
+            teaching("A", "1", 1, "Vorlesung", 1, "11:30", "13:00"),
+            teaching("A", "1", 2, "Vorlesung", 2, "13:45", "15:15"),
+            teaching("A", "1", 3, "Vorlesung", 3, "15:30", "17:00"),
+        ];
+        let b = groups("B", "4", &[(1, "15:30", "17:00"), (3, "15:30", "17:00")]);
+        let c = groups("C", "5", &[(1, "13:45", "15:15"), (2, "13:45", "15:15")]);
+        let d = groups("D", "6", &[(1, "11:30", "13:00"), (1, "13:45", "15:15"), (1, "15:30", "17:00")]);
+        let rows = [lectures.to_vec(), b, c, d].concat();
+        let t = table(&rows, &["A", "B", "C", "D"], &no_sws(), &Selection::default());
+        assert_eq!(blocked(&t), ["4", "5", "6"]);
+        assert_eq!(
+            named(&t),
+            [
+                clash(("1", 3), ("4", 2), "2026-10-07", 15),
+                clash(("1", 2), ("5", 2), "2026-10-06", 15),
+                clash(("1", 1), ("6", 1), "2026-10-05", 15),
+                clash(("4", 1), ("6", 3), "2026-10-05", 15),
+                clash(("5", 1), ("6", 2), "2026-10-05", 15)
+            ]
+        );
+        // With A's Monday Termin hidden, D takes Monday 11:30 and nothing is left.
+        let hide = Selection { hidden_rows: [lectures[0].key()].into(), ..Selection::default() };
+        let t = table(&rows, &["A", "B", "C", "D"], &no_sws(), &hide);
+        assert_eq!((named(&t), blocked(&t)), (vec![], vec![]));
+
+        // A choice with no slot free of the lectures is blocked on its own; C's Monday slot meets
+        // only B's, so C stays open (150585 beside 150349 in 216-82-2022).
+        let lectures = [
+            teaching("A", "1", 1, "Vorlesung", 1, "11:30", "13:00"),
+            teaching("A", "1", 2, "Vorlesung", 2, "11:30", "13:00"),
+        ];
+        let b = groups("B", "4", &[(1, "12:15", "13:45"), (2, "12:15", "13:45")]);
+        let c = groups("C", "5", &[(1, "13:00", "14:30"), (2, "11:30", "13:00")]);
+        let t = table(&[lectures.to_vec(), b, c].concat(), &["A", "B", "C"], &no_sws(), &Selection::default());
+        assert_eq!(blocked(&t), ["4"]);
+        assert!(event(&t, "5").unresolved());
+        assert_eq!(
+            named(&t),
+            [clash(("1", 1), ("4", 1), "2026-10-05", 15), clash(("1", 2), ("4", 2), "2026-10-06", 15)]
+        );
+    }
+
+    #[test]
+    fn hard_rows_hold_every_row_of_a_clash() {
+        // 148661's case: a single on the first Thursday and the B weeks' Thursdays after it, at one
+        // time, meet B's weekly Übung. The clash names the single; both rows are hard.
+        let single =
+            teaching("A", "1", 1, "Vorlesung", 4, "09:30", "11:00").rhythm("single").range("2026-10-08", "2026-10-08");
+        let b_weeks =
+            teaching("A", "1", 2, "Vorlesung", 4, "09:30", "11:00").rhythm("week_b").range("2026-10-15", "2027-01-21");
+        let weekly = teaching("B", "2", 1, "Übung", 4, "09:00", "11:30");
+        // C's Thursday slot meets all three, but C can take Friday: its rows are in no clash.
+        let c = groups("C", "3", &[(4, "09:30", "11:00"), (5, "09:30", "11:00")]);
+        let rows = [vec![single, b_weeks, weekly], c].concat();
+        let t = table(&rows, &["A", "B", "C"], &no_sws(), &Selection::default());
+        assert_eq!(named(&t), [clash(("1", 1), ("2", 1), "2026-10-08", 8)]);
+        assert_eq!(hard_rows(&t.events), BTreeSet::from([(0, 0), (0, 1), (1, 0)]));
+    }
+
+    /// Plans of 2026W where open choices meet each other: those that can be placed together are
+    /// not blocked, and a plan whose choices cannot be keeps them blocked.
+    #[test]
+    fn open_choices_of_real_plans() {
+        let Some(db) = crate::tests::studyplan_db("open_choices_of_real_plans") else {
+            return;
+        };
+        // Bauingenieurwesen 017-82-2022, FS1: Vermessung's Übung (150941) takes Friday 11:30 and
+        // the Tutorium 148590 Friday 07:30; 150941's Monday meets 148750, which does not count.
+        let bau = ids(&["11281", "13700", "11517", "11520", "11542"]);
+        let t = planned(&db, "2026W", &bau, &Selection::default());
+        let e150941 = t.events.iter().position(|e| e.id == "150941").unwrap();
+        assert!(t.events[e150941].unresolved() && event(&t, "148590").unresolved());
+        assert!(t.blocked.is_empty());
+        assert!(t.clashes.iter().all(|c| c.a.0 != e150941 && c.b.0 != e150941));
+        // Physiotherapie 901-84-2017, FS3: 150390's slots meet only other choices' slots.
+        let t = planned(&db, "2026W", &ids(&["12099", "12100", "12112", "12113"]), &Selection::default());
+        assert!(event(&t, "150390").unresolved() && t.blocked.is_empty());
+        // 216-82-2022, FS1: 150585 has no slot free of 150349's required Termine; 150349's second
+        // group meets only 150585's slot, so 150349 stays open.
+        let t = planned(&db, "2026W", &ids(&["11107", "12761", "12537", "11777"]), &Selection::default());
+        assert_eq!(blocked(&t), ["150585"]);
+        assert!(event(&t, "150349").unresolved());
+        // Wirtschaftsinformatik 021-82-2024, FS1: 148936 must take Mo 15:30 and 148130 Mo 13:45,
+        // and 151699's Mo 11:30 meets 148935: the three cannot be placed together.
+        let wi = ids(&["11109", "12160", "12229", "13977", "13980"]);
+        let t = planned(&db, "2026W", &wi, &Selection::default());
+        assert_eq!(blocked(&t), ["148936", "148130", "151699"]);
+        assert_eq!(
+            named(&t),
+            [
+                clash(("148934", 1), ("148130", 2), "2026-10-13", 14),
+                clash(("148935", 1), ("151699", 1), "2026-10-05", 15),
+                clash(("148936", 2), ("150199", 1), "2026-10-07", 15),
+                clash(("148936", 1), ("151699", 3), "2026-10-05", 15),
+                clash(("148130", 1), ("151699", 2), "2026-10-12", 14)
+            ]
+        );
+        // 017-82-2017, FS5: 148661's single on 08.10. and its B-week Thursdays at 09:30 meet
+        // 148041; the clash names the single, and both rows are hard.
+        let t = planned(&db, "2026W", &ids(&["11540", "11538"]), &Selection::default());
+        assert!(named(&t).contains(&clash(("148661", 3), ("148041", 1), "2026-10-08", 8)));
+        let e148661 = t.events.iter().position(|e| e.id == "148661").unwrap();
+        let hard: Vec<i64> = hard_rows(&t.events)
+            .into_iter()
+            .filter(|(e, _)| *e == e148661)
+            .map(|(e, r)| t.events[e].rows[r].ord.unwrap())
+            .collect();
+        assert_eq!(hard, [3, 4]);
     }
 }

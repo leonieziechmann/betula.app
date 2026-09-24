@@ -92,7 +92,9 @@ pub struct Timetable {
     pub town_derived: bool,
     /// Hard teaching clashes (`clash::clashes`).
     pub clashes: Vec<Clash>,
-    /// Open choices (`Event::unresolved`) whose every visible option clashes, by event index.
+    /// Open choices (`Event::unresolved`) that cannot take an option free of clashes, by event
+    /// index (`clash::clashes`). A clash names each of them; the rows of all hard clashes are
+    /// `clash::hard_rows`.
     pub blocked: Vec<usize>,
     /// Exam warnings (`exams::exam_warnings`).
     pub exam_warnings: Vec<ExamWarning>,
@@ -787,6 +789,24 @@ pub(crate) mod tests {
             } else {
                 assert!(ra.occ.template.is_some() && rb.occ.template.is_some());
             }
+        }
+        // Every blocked choice is named by a clash; a clash names an option of an open choice only
+        // when that choice is blocked; the rows the clashes name are hard rows.
+        for b in &t.blocked {
+            assert!(
+                t.clashes.iter().any(|c| c.a.0 == *b || c.b.0 == *b),
+                "{} blocked, named by no clash",
+                t.events[*b].id
+            );
+        }
+        let hard = clash::hard_rows(&t.events);
+        assert!(t.clashes.iter().all(|c| hard.contains(&c.a) && hard.contains(&c.b)));
+        for (event, row) in &hard {
+            let e = &t.events[*event];
+            let r = &e.rows[*row];
+            assert!(e.hidden.is_none() && r.hidden.is_none() && r.from.is_some());
+            assert!(r.option.is_none() || !e.unresolved() || t.blocked.contains(event), "{}/{:?}", e.id, r.ord);
+            assert!(t.clashes.iter().any(|c| c.a.0 == *event || c.b.0 == *event), "{}", e.id);
         }
         let chips = t.kinds_present();
         assert!(chips.iter().all(|(_, n)| *n > 0) && chips.windows(2).all(|w| w[0].0 < w[1].0));
