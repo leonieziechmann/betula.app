@@ -13,7 +13,9 @@
 //! The gate lies around everything, the page cache included. Open stay only what a login page, a
 //! home screen and a supervisor need: `/access`, the stylesheet, the font, the icons, the
 //! manifest (browsers fetch it without cookies), `/healthz` and `/livez`, and a `/robots.txt`
-//! that turns every crawler away.
+//! that turns every crawler away; and a Studienplan's calendar subscription
+//! (`/calendar/<code>.ics`, only with a code that decodes): calendar services fetch it from their
+//! own servers and send no cookie.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -211,7 +213,12 @@ fn resolve(name: &str, docker_secrets: &Path) -> Result<Option<(String, String)>
 /// Middleware around the whole site.
 pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let Some(gate) = state.gate.as_ref() else { return next.run(request).await };
-    if OPEN.contains(&request.uri().path()) {
+    let path = request.uri().path();
+    // A calendar feed passes when its code decodes: the owner's decision of 2026-09-24, since a
+    // calendar service has no password to give. The check characters turn guesses away before any
+    // handler runs, and what it shows is the QIS schedule of the modules the code names; every
+    // other path under `/calendar/` stays behind the gate. Its answer is `private` already.
+    if OPEN.contains(&path) || catalog::timetable::subscription::is_feed_path(path) {
         return next.run(request).await;
     }
     if !gate.admits(request.headers()) {

@@ -317,9 +317,12 @@ at `https://betula.app/`.
 | Grafana's own log in Loki | address of whoever logs in to Grafana | 30 days |
 | fail2ban database | banned addresses | 8 days |
 
-The web server logs method, path and status without the address, and the placeholder's nginx writes no
-access log. The privacy notice of the site has to name the first two rows. Levers: drop `ClientHost`
-in `stacks/edge.yml` (loses abuse analysis) or shorten the period in `loki.yml`.
+Folia's own log keeps paths (no addresses) 30 days in Loki, except `/calendar/…`, which it writes as
+`/calendar/….ics`. Traefik logs full paths with the client address 7 days in Loki and in Docker's local
+log files until they rotate (5 × 10 MB); a subscribed calendar appears there on every poll (Google about
+daily). The placeholder's nginx writes no access log. The privacy notice of the site has to name the
+first two rows (`PRIVACY_OWED` in `app/src/pages/legal.rs`). Levers: drop `ClientHost` in
+`stacks/edge.yml` (loses abuse analysis) or shorten the period in `loki.yml`.
 
 ## 10. Break-glass
 

@@ -12,6 +12,9 @@ use axum::http::{header, HeaderMap, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
+use catalog::native::NativeDatabase;
+use catalog::timetable::semester::SemesterKey;
+use catalog::timetable::subscription::{self, Subscription};
 use leptos::prelude::LeptosOptions;
 use tower::ServiceExt;
 
@@ -28,6 +31,119 @@ fn snapshot_file() -> PathBuf {
         .unwrap_or_else(|e| panic!("no catalog snapshot for the tests ({e}); run `radix export` or set FOLIA_TEST_SNAPSHOT"));
     let pointer: serde_json::Value = serde_json::from_str(&pointer).unwrap();
     dir.join(pointer["file"].as_str().unwrap())
+}
+
+/// `content_digest` of the snapshot the Studienplan's checks were pinned to
+/// (`catalog-abca4baa1d8f8d8e.db`, the catalog crate's `STUDYPLAN_DIGEST`): what the feed of a
+/// code holds event by event is asserted on this one only.
+const STUDYPLAN_DIGEST: &str = "4b65e821a0e33b858b589963e6c6f879a990612fe5efdccdfbe39415b4c0d50f";
+
+/// Informatik B.Sc. in WiSe 2026/27, the first semester of its plan: 11112, 12102, 12104 and
+/// 12107, the Sachsendorf lecture 149408 hidden and „Nur diesen" on the Übung 148369-a4d12. The
+/// catalog crate pins this code (`subscription.rs`); subscribed codes never change.
+const FIRST_SEMESTER_CODE: &str = "CQpJeFAKchJKBgdlgf0e7Hwl_4S";
+
+/// Codes `pack` writes with the kind `calendar` that no calendar reads, made once with
+/// `pack::to_code("calendar", …)` of a `Subscription` for 2026W (`Subscription::code` refuses to
+/// write them): 61 modules (11100 to 11160), one more than a semester of a plan holds; no module.
+const TOO_MANY_MODULES_CODE: &str = "klQmrQrk_T";
+const NO_MODULE_CODE: &str = "A9zBjf";
+
+/// The snapshot for the feed's checks and whether it is the pinned one. As in the catalog crate:
+/// `FOLIA_STUDYPLAN_SNAPSHOT` names the pinned file and fails the test when it is another one;
+/// without it the tests' own snapshot serves, and the event-level checks are skipped out loud
+/// unless it happens to be the pinned one.
+fn feed_snapshot(test: &str) -> (PathBuf, bool) {
+    use std::io::Write;
+    let digest = |file: &PathBuf| NativeDatabase::open(file).and_then(|db| catalog::queries::meta(&db)).unwrap().content_digest;
+    if let Some(path) = std::env::var("FOLIA_STUDYPLAN_SNAPSHOT").ok().filter(|path| !path.is_empty()) {
+        let file = PathBuf::from(&path);
+        assert_eq!(digest(&file).as_deref(), Some(STUDYPLAN_DIGEST), "FOLIA_STUDYPLAN_SNAPSHOT={path} is not the snapshot the Studienplan's checks were pinned to");
+        return (file, true);
+    }
+    let file = snapshot_file();
+    let found = digest(&file);
+    if found.as_deref() == Some(STUDYPLAN_DIGEST) {
+        return (file, true);
+    }
+    // Straight to the handle: libtest swallows `eprintln!` of a test that passes.
+    let _ = writeln!(
+        std::io::stderr(),
+        "studyplan: pinned checks of {test} skipped: snapshot digest {}, pinned {STUDYPLAN_DIGEST}; set FOLIA_STUDYPLAN_SNAPSHOT=…/snapshot/catalog-abca4baa1d8f8d8e.db",
+        found.as_deref().unwrap_or("none")
+    );
+    (file, false)
+}
+
+/// A store with `file` active, the way a restart finds its snapshot.
+fn store_with(name: &str, file: &PathBuf) -> Arc<SnapshotStore> {
+    let dir = temp_dir(name);
+    let store = SnapshotStore::new(dir.clone()).unwrap();
+    std::fs::copy(file, dir.join("catalog-test.db")).unwrap();
+    std::fs::write(dir.join("current.json"), r#"{"file":"catalog-test.db","etag":"\"test\""}"#).unwrap();
+    assert!(store.restore());
+    store
+}
+
+/// The text of a calendar with its folded lines joined again (RFC 5545 §3.1), so a check does not
+/// depend on where a long line was folded.
+fn unfolded(ics: &str) -> String {
+    ics.replace("\r\n ", "")
+}
+
+/// What the log of this thread says, for the checks of the log.
+#[derive(Clone, Default)]
+struct Captured(Arc<std::sync::Mutex<Vec<u8>>>);
+
+thread_local! {
+    static CAPTURING: std::cell::RefCell<Option<Captured>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Where a line of the tests' log goes: into the capture running on this thread, else nowhere.
+struct ThisThread;
+
+impl std::io::Write for ThisThread {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        CAPTURING.with(|capturing| {
+            if let Some(captured) = capturing.borrow().as_ref() {
+                captured.0.lock().unwrap().extend_from_slice(bytes);
+            }
+        });
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Ends a capture when dropped.
+struct Capturing;
+
+impl Drop for Capturing {
+    fn drop(&mut self) {
+        CAPTURING.with(|capturing| *capturing.borrow_mut() = None);
+    }
+}
+
+impl Captured {
+    /// Everything down to DEBUG that this thread logs, until the guard is dropped: a request sent
+    /// with `request` runs its middleware and handler here. One subscriber for the whole process,
+    /// set once: scoped subscribers of tests running side by side race on tracing's global cache
+    /// of which levels are wanted, and lose lines.
+    fn start(&self) -> Capturing {
+        static LOGGING: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        LOGGING.get_or_init(|| {
+            let subscriber = tracing_subscriber::fmt().with_max_level(tracing::Level::DEBUG).with_ansi(false).with_writer(|| ThisThread).finish();
+            tracing::subscriber::set_global_default(subscriber).unwrap();
+        });
+        CAPTURING.with(|capturing| *capturing.borrow_mut() = Some(self.clone()));
+        Capturing
+    }
+
+    fn text(&self) -> String {
+        String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
+    }
 }
 
 type Served = Arc<std::sync::Mutex<Option<(String, Vec<u8>)>>>;
@@ -103,8 +219,9 @@ async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str)
     (parts.status, parts.headers, String::from_utf8(body).unwrap())
 }
 
-/// Closed testing (`access`): nothing but the login page and what it needs answers without the
-/// password; with it the site is what it was. Needs no snapshot.
+/// Closed testing (`access`): nothing but the login page and what it needs, and a calendar
+/// subscription with a valid code, answers without the password; with it the site is what it
+/// was. Needs no snapshot.
 #[tokio::test(flavor = "multi_thread")]
 async fn closed_testing_asks_for_the_password_before_anything_else() {
     let gated = |name: &str| {
@@ -127,7 +244,8 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     }
     assert_eq!(post(&router, "/api/db", &[], "").await.0, StatusCode::UNAUTHORIZED);
 
-    // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away.
+    // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away
+    // from everything but the calendar feeds (Google Calendar asks robots.txt before fetching one).
     for path in [app::STYLESHEET, "/assets/app.css?v=test", app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::MANIFEST] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
@@ -136,7 +254,17 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     let (status, headers, body) = request(&router, crate::api::LIVENESS, &[]).await;
     assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap(), body.as_slice()), (StatusCode::OK, "no-store", &b"ok\n"[..]));
     let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
-    assert_eq!((status, String::from_utf8(robots).unwrap().as_str()), (StatusCode::OK, "User-agent: *\nDisallow: /\n"));
+    assert_eq!((status, String::from_utf8(robots).unwrap().as_str()), (StatusCode::OK, "User-agent: *\nAllow: /calendar/\nDisallow: /\n"));
+    // A calendar service has no password: a subscription whose code decodes passes, also with a
+    // character of it escaped (here it meets no snapshot, so the feed itself answers 503; the
+    // feed's own test serves one). Anything else under `/calendar/` stays behind the gate.
+    for path in [subscription::path(FIRST_SEMESTER_CODE), format!("/calendar/%43{}.ics", &FIRST_SEMESTER_CODE[1..])] {
+        assert_eq!(request(&router, &path, &[]).await.0, StatusCode::SERVICE_UNAVAILABLE, "{path}");
+    }
+    for path in ["/calendar/abc".to_string(), "/calendar/Ab.ics.ics".to_string(), "/calendar/x.ics".to_string(), "/calendar/a/b.ics".to_string(), subscription::path(TOO_MANY_MODULES_CODE)] {
+        let (status, headers, _) = request(&router, &path, &[("accept", "*/*")]).await;
+        assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::UNAUTHORIZED, "no-store"), "{path}");
+    }
 
     // The login page: a form that works without JavaScript, carries the way back as text (never
     // as markup) and is nothing a search engine or a cache may keep.
@@ -429,4 +557,171 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(restarted.current().unwrap().etag, "\"cccc3333\"");
     let leftovers: Vec<String> = std::fs::read_dir(&data_dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
     assert!(leftovers.iter().all(|name| !name.starts_with("download-")), "{leftovers:?}");
+}
+
+/// A Studienplan as a calendar subscription (`GET /calendar/<code>.ics`): the loader's calendar of
+/// the code, made anew from the snapshot, revalidated by its content, compressed on request,
+/// reachable in closed testing without a cookie, and in the log by its size, never by its code.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_studyplan_is_a_calendar_feed() {
+    use std::io::Read;
+    let (file, pinned) = feed_snapshot("a_studyplan_is_a_calendar_feed");
+    let store = store_with("feed", &file);
+    let router = crate::router(state(store.clone()));
+    let log = Captured::default();
+    let logging = log.start();
+    let path = subscription::path(FIRST_SEMESTER_CODE);
+
+    let (status, headers, body) = request(&router, &path, &[]).await;
+    let ics = String::from_utf8(body).unwrap();
+    assert_eq!(status, StatusCode::OK, "{ics}");
+    let named = |name: &str| headers.get(name).and_then(|value| value.to_str().ok()).unwrap_or_default().to_string();
+    assert_eq!(named("content-type"), "text/calendar; charset=utf-8");
+    assert_eq!(named("cache-control"), "private, max-age=900", "one person's plan: no shared cache keeps it");
+    assert_eq!((named("vary"), named("x-robots-tag")), ("Accept-Encoding".to_string(), "noindex, nofollow".to_string()));
+    assert_eq!(named("content-disposition"), "inline; filename=\"studienplan-2026W.ics\"");
+    assert!(ics.starts_with("BEGIN:VCALENDAR\r\n") && ics.ends_with("END:VCALENDAR\r\n"), "{ics}");
+    // The feed is the loader's calendar of the code, byte for byte: the text the page offers as a
+    // download is made by the same function from the same rows.
+    let db = NativeDatabase::open(&file).unwrap();
+    assert_eq!(ics, catalog::pages::calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap()).unwrap());
+    if pinned {
+        let text = unfolded(&ics);
+        assert!(text.contains("UID:148701-a2633-20261013@betula.app") && text.contains("UID:148369-a4d12-") && text.contains("Entwicklung von Softwaresystemen"), "{text}");
+        // Not 12104's Senftenberg track (the plan's other modules make it Cottbus), not the hidden
+        // Sachsendorf lecture, not the Übungen beside the chosen one.
+        for absent in ["UID:149406-", "UID:149408-", "UID:148369-aaf38-"] {
+            assert!(!text.contains(absent), "{absent}");
+        }
+        assert_eq!(text.matches("BEGIN:VEVENT").count(), 249);
+    }
+
+    // An unchanged plan in an unchanged snapshot has the same tag: a calendar that asks again
+    // hears „304".
+    let etag = named("etag");
+    assert!(etag.starts_with("\"ics-"), "{etag}");
+    let (status, again, body) = request(&router, &path, &[("if-none-match", &etag)]).await;
+    assert_eq!((status, again[header::ETAG].to_str().unwrap(), again[header::CACHE_CONTROL].to_str().unwrap(), body.len()), (StatusCode::NOT_MODIFIED, etag.as_str(), "private, max-age=900", 0));
+    // Compressed here on request (the edge's compression does not take `text/calendar`).
+    let (status, zipped, body) = request(&router, &path, &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!((status, zipped[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "gzip"));
+    let mut unzipped = String::new();
+    flate2::read::GzDecoder::new(body.as_slice()).read_to_string(&mut unzipped).unwrap();
+    assert_eq!(unzipped, ics);
+    // A calendar that escapes a character of the code asks for the same feed.
+    let escaped = format!("/calendar/%43{}.ics", &FIRST_SEMESTER_CODE[1..]);
+    assert_eq!(request(&router, &escaped, &[]).await.2, ics.as_bytes());
+
+    // A semester without Termine in the snapshot yet: a calendar without entries that says so,
+    // which fills by itself once QIS publishes them.
+    let later = Subscription { semester: SemesterKey::parse("2027S").unwrap().index(), modules: vec![12104], ..Subscription::default() }.code().unwrap();
+    let (status, headers, body) = request(&router, &subscription::path(&later), &[]).await;
+    let empty = unfolded(&String::from_utf8(body).unwrap());
+    assert_eq!((status, headers[header::CONTENT_DISPOSITION].to_str().unwrap()), (StatusCode::OK, "inline; filename=\"studienplan-2027S.ics\""));
+    assert!(empty.starts_with("BEGIN:VCALENDAR\r\n"), "{empty}");
+    if pinned {
+        assert!(!empty.contains("BEGIN:VEVENT") && empty.contains("Noch keine Termine veröffentlicht"), "{empty}");
+    }
+
+    // In closed testing the calendar service has no password: the feed passes the gate without a
+    // cookie and stays what it is, private.
+    let mut closed = state(store);
+    closed.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+    let closed = crate::router(closed);
+    for path in [path.as_str(), escaped.as_str()] {
+        let (status, headers, body) = request(&closed, path, &[]).await;
+        assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap(), body.as_slice()), (StatusCode::OK, "private, max-age=900", ics.as_bytes()), "{path}");
+    }
+
+    // The log says that feeds were made, how large and how fast, and never which.
+    drop(logging);
+    let log = log.text();
+    // Seven feeds were made above: the 304 is made too, since its tag is the content's.
+    assert_eq!(log.matches("calendar.served").count(), 7, "{log}");
+    assert!(log.contains("/calendar/….ics"), "{log}");
+    for code in [FIRST_SEMESTER_CODE, &FIRST_SEMESTER_CODE[1..], later.as_str()] {
+        assert!(!log.contains(code), "{code} in {log}");
+    }
+}
+
+/// Every address under `/calendar/` that is not a calendar's is a plain 404 that nothing keeps:
+/// never a 5xx, which the log would report as an error a human has to act on.
+#[tokio::test(flavor = "multi_thread")]
+async fn broken_calendar_codes_are_404() {
+    let router = crate::router(state(SnapshotStore::new(temp_dir("calendar-404")).unwrap()));
+    // The Merkliste's code of the same kind of list: its kind is part of the check characters.
+    let bookmarks = app::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]);
+    let bookmarks = bookmarks.strip_prefix("m=").unwrap();
+    // These have the shape of a feed's address; what they carry is what no calendar reads.
+    for code in [bookmarks, TOO_MANY_MODULES_CODE, NO_MODULE_CODE, "Ab.ics"] {
+        assert!(subscription::code_of_path(&subscription::path(code)).is_some(), "{code}");
+    }
+    let paths = [
+        "/calendar/x.ics".to_string(),
+        "/calendar/Ab.ics.ics".to_string(),
+        subscription::path(bookmarks),
+        format!("/calendar/{}.ics", "A".repeat(subscription::MAX_CODE + 1)),
+        subscription::path(TOO_MANY_MODULES_CODE),
+        subscription::path(NO_MODULE_CODE),
+        "/calendar/%3Cx%3E.ics".to_string(),
+        "/calendar/%FF.ics".to_string(),
+        "/calendar/abc".to_string(),
+        format!("/calendar/{FIRST_SEMESTER_CODE}"),
+    ];
+    for path in &paths {
+        let (status, headers, _) = request(&router, path, &[]).await;
+        assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::NOT_FOUND, "no-store"), "{path}");
+    }
+    // The address is checked first: a good code meets no snapshot here and hears so.
+    assert_eq!(request(&router, &subscription::path(FIRST_SEMESTER_CODE), &[]).await.0, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+/// Folia's own log, kept 30 days in Loki, writes every path under `/calendar/` as one fixed text,
+/// whatever the answer and whoever gave it (the feed, the gate, the pages' fallback).
+#[tokio::test(flavor = "multi_thread")]
+async fn the_log_keeps_no_calendar_code() {
+    assert_eq!(subscription::redacted_path(&subscription::path(FIRST_SEMESTER_CODE)), "/calendar/….ics");
+    for other in ["/calendar", "/calendarx/a.ics", "/catalog/module/12104", "/"] {
+        assert_eq!(subscription::redacted_path(other), other);
+    }
+
+    let open = crate::router(state(SnapshotStore::new(temp_dir("log-open")).unwrap()));
+    let mut gated = state(SnapshotStore::new(temp_dir("log-gated")).unwrap());
+    gated.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+    let gated = crate::router(gated);
+    let asked = [subscription::path(FIRST_SEMESTER_CODE), format!("/calendar/%43{}.ics", &FIRST_SEMESTER_CODE[1..]), "/calendar/Ab.ics.ics".to_string(), "/calendar/secret-a/b.ics".to_string()];
+    let log = Captured::default();
+    let logging = log.start();
+    for router in [&open, &gated] {
+        for path in &asked {
+            request(router, path, &[]).await;
+        }
+    }
+    drop(logging);
+    let log = log.text();
+    assert_eq!(log.matches("http.request").count(), 2 * asked.len(), "one line per request: {log}");
+    assert_eq!(log.matches("/calendar/….ics").count(), 2 * asked.len(), "{log}");
+    for secret in [&FIRST_SEMESTER_CODE[1..], "Ab.ics", "secret", "%43"] {
+        assert!(!log.contains(secret), "{secret} in {log}");
+    }
+}
+
+/// Google Calendar reads robots.txt before it fetches a subscription, so neither answer of
+/// robots.txt may disallow a feed (the feed keeps itself out of indexes with `X-Robots-Tag:
+/// noindex`). The service worker never keeps one (in Cache Storage, or as the shell offline).
+#[tokio::test(flavor = "multi_thread")]
+async fn calendar_services_may_fetch_feeds() {
+    let mut gated = state(SnapshotStore::new(temp_dir("robots-gated")).unwrap());
+    gated.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+    let (status, _, robots) = request(&crate::router(gated), "/robots.txt", &[]).await;
+    let robots = String::from_utf8(robots).unwrap();
+    let (allow, disallow) = (robots.find("\nAllow: /calendar/\n"), robots.find("\nDisallow: /\n"));
+    assert!(status == StatusCode::OK && allow.is_some() && disallow.is_some() && allow < disallow, "{robots}");
+
+    let router = crate::router(state(SnapshotStore::new(temp_dir("robots")).unwrap()));
+    let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
+    let robots = String::from_utf8(robots).unwrap();
+    assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
+    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|cards\\/|calendar\\/)/;"));
 }
