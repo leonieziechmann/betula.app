@@ -14,6 +14,8 @@
 //! control that was clicked flips its own state first, so the click answers in the next frame
 //! (R21) whatever the work then costs.
 
+use std::collections::BTreeSet;
+
 use catalog::labels::TurnusSeason;
 use catalog::studyplan::PlanDoc;
 use catalog::timetable::select::{Selection, TownChoice};
@@ -86,6 +88,11 @@ impl Studyplan {
         self.0.with(PlanDoc::is_empty)
     }
 
+    /// How many modules are planned (`planned_modules`). Tracked: read it in a memo.
+    pub fn count(self) -> usize {
+        self.0.with(planned_modules)
+    }
+
     /// The modules planned into a semester, in the order they were planned. Tracked.
     pub fn modules_in(self, s: SemesterKey) -> Vec<String> {
         self.0.with(|doc| doc.modules_in(s))
@@ -114,6 +121,12 @@ fn restored(stored: Option<&str>) -> PlanDoc {
     stored.map(PlanDoc::restored).unwrap_or_default()
 }
 
+/// How many modules a plan holds, each once however many semesters it is planned into (a retake):
+/// the number the rail's „Plan" shows.
+fn planned_modules(doc: &PlanDoc) -> usize {
+    doc.modules.iter().map(|planned| planned.module_id.as_str()).collect::<BTreeSet<_>>().len()
+}
+
 /// The text a plan is stored as. Empty only when there is nothing at all to keep, and then the key
 /// goes (`nav::local_set`): a plan without modules may still hold hidden Termine, a subscription's
 /// code or a newer build's lines, which must survive (`PlanDoc::is_empty` is not the test).
@@ -122,7 +135,8 @@ fn stored_text(doc: &PlanDoc) -> String {
 }
 
 /// What a page asks „Einplanen" to plan into: the semester the catalog's „Passt in meinen Plan"
-/// was checked against (`plan=`), and the placeholder a module found for it would fill (`fill=`).
+/// was checked against (`plan=`), and the placeholder a module found for it would fill (`fill=`),
+/// whose semester wins (`target_semester`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanHint {
     pub semester: Option<SemesterKey>,
@@ -130,13 +144,18 @@ pub struct PlanHint {
 }
 
 /// The semester „Einplanen" plans a module into (A.9), the first that applies: the page's hint
-/// (its semester, else the semester of the placeholder it fills); the semester of the module's
-/// newest events, when that is not over; the next semester whose half of the year the module is
-/// offered in; the current one.
+/// (the semester of the placeholder it fills while the plan still has it, else the semester the
+/// finder checked); the semester of the module's newest events, when that is not over; the next
+/// semester whose half of the year the module is offered in; the current one.
+///
+/// The placeholder wins over the finder's semester: a module planned for a placeholder fills it
+/// (`fills=<pid>`, A.7), which means something only in the placeholder's own semester. The two
+/// differ once the finder's switch was turned off and on again (it then checks the current
+/// semester) while `fill` stayed in the address.
 pub fn target_semester(current: SemesterKey, newest: Option<SemesterKey>, turnus: Option<TurnusSeason>, hint: Option<&PlanHint>, doc: &PlanDoc) -> SemesterKey {
     if let Some(hint) = hint {
         let filled = hint.fill.and_then(|pid| doc.placeholders.iter().find(|p| p.pid == pid)).map(|p| p.semester);
-        if let Some(semester) = hint.semester.or(filled) {
+        if let Some(semester) = filled.or(hint.semester) {
             return semester;
         }
     }
@@ -245,6 +264,16 @@ mod tests {
     }
 
     #[test]
+    fn the_rail_counts_each_planned_module_once() {
+        let mut doc = PlanDoc::default();
+        assert_eq!(planned_modules(&doc), 0);
+        assert!(doc.plan(key("2026W"), "12104", 1, None) && doc.plan(key("2026W"), "12107", 1, None));
+        // A retake in the next winter is the same module.
+        assert!(doc.plan(key("2027W"), "12104", 2, None));
+        assert_eq!(planned_modules(&doc), 2);
+    }
+
+    #[test]
     fn einplanen_aims_at_the_semester_that_fits() {
         let now = key("2026W");
         let doc = PlanDoc::default();
@@ -280,9 +309,15 @@ mod tests {
         });
         let fill = PlanHint { semester: None, fill: Some(3) };
         assert_eq!(target_semester(now, Some(now), None, Some(&fill), &with_placeholder), key("2027W"));
-        // One the plan no longer has changes nothing.
+        // The finder checked another semester („Passt in meinen Plan" off and on again, `fill`
+        // kept): the placeholder still decides, so the module lands where it fills it.
+        let both = PlanHint { semester: Some(now), fill: Some(3) };
+        assert_eq!(target_semester(now, Some(now), None, Some(&both), &with_placeholder), key("2027W"));
+        // One the plan no longer has changes nothing: the finder's semester, else the module's.
         let gone = PlanHint { semester: None, fill: Some(9) };
         assert_eq!(target_semester(now, Some(now), None, Some(&gone), &with_placeholder), now);
+        let gone_but_checked = PlanHint { semester: Some(key("2027S")), fill: Some(9) };
+        assert_eq!(target_semester(now, Some(now), None, Some(&gone_but_checked), &with_placeholder), key("2027S"));
     }
 
     #[test]

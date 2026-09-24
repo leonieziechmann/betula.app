@@ -48,7 +48,7 @@ const open = async (options, path, requests) => {
   return { page, step, context };
 };
 const stored = (page) => page.evaluate((key) => (localStorage.getItem(key) || "").split("\n").filter(Boolean).map((line) => line.split("\t")[0]), KEY);
-const badge = (page) => page.evaluate(() => document.querySelector(".rail .nav-count")?.textContent ?? null);
+const badge = (page) => page.evaluate(() => document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent ?? null);
 const pressed = (page, selector) => page.evaluate((s) => document.querySelector(s)?.getAttribute("aria-pressed") ?? null, selector);
 const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".rows a.row")].map((row) => row.dataset.id));
 
@@ -341,7 +341,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   const ids = (await listIds(page)).slice(0, 8);
   const marked = [ids[1], ids[3], ids[5]];
   for (const id of marked) await page.click(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`);
-  await page.waitForFunction((n) => document.querySelector(".rail .nav-count")?.textContent === String(n), marked.length, { timeout: 8000 }).catch(() => problems.push("filter: the marks were not made"));
+  await page.waitForFunction((n) => document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent === String(n), marked.length, { timeout: 8000 }).catch(() => problems.push("filter: the marks were not made"));
 
   const chip = '.filters .chip:has(.chip-label:text-is("Gemerkt"))';
   await step("only the marked ones", () => page.click(chip), () => location.search.includes("marked=only") && document.querySelectorAll(".rows a.row").length === 3);
@@ -389,7 +389,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   await step("phone: a tap marks", () => page.tap(`.row-wrap:has(a.row[data-id="${ids[1]}"]) > .mark-toggle`), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "true", ids[1]);
   check(page.url() === base + "/catalog", `phone: marking opened something: ${page.url()}`);
   await page.tap(`.row-wrap:has(a.row[data-id="${ids[3]}"]) > .mark-toggle`);
-  check(await page.evaluate(() => document.querySelector(".bottomnav .nav-count")?.textContent === "2"), "phone: the bottom bar does not count");
+  check(await page.evaluate(() => document.querySelector('.bottomnav .nav[data-area="bookmarks"] .nav-count')?.textContent === "2"), "phone: the bottom bar does not count");
 
   await step("phone: the bottom bar leads to the marked modules", () => page.tap('.bottomnav .nav[data-area="bookmarks"]'), () => location.pathname === "/bookmarks" && document.querySelectorAll(".rows a.row").length === 2);
   const layout = await page.evaluate(() => { const [list, side] = [document.querySelector(".panel.list"), document.getElementById("sidebar")].map((el) => el.getBoundingClientRect()); return { below: side.top >= list.bottom - 1, overflow: document.documentElement.scrollWidth > innerWidth }; });

@@ -5,7 +5,7 @@
 //   3 persistence: the plan and „Mein Studiengang" live in this browser, survive a reload, follow
 //     another tab, read garbage as an empty plan, and never reach the server's HTML; the plan is an
 //     area of its own (its tab, the module beside it and in full, „Zurück");
-//   5 without the app: the explanation, and no „Plan" in the rail.
+//   5 without the app: the explanation, no „Plan" in the rail, and on a phone the app's frame.
 // Needs the snapshot whose current semester is WiSe 2026/27 (the plans below are of that
 // semester); another snapshot skips the blocks with a note. Prints {timings, problems} (block 7)
 // and fails on a page load after takeover, a console error, or a step that does not show up.
@@ -84,9 +84,10 @@ async function persistence() {
     title: document.querySelector(".crumb h1")?.textContent,
     frame: document.querySelector(".sidebar .panel-head h2")?.textContent,
     hint: document.querySelector(".sidebar .storage-hint")?.textContent ?? "",
+    count: Boolean(document.querySelector('.nav[data-area="studyplan"] .nav-count')),
   }));
   check(JSON.stringify(fresh.links) === JSON.stringify([["Regelstudienplan übernehmen", "/studyplan?view=all&import=mine"], ["Module suchen", "/catalog"]]), `the empty plan's ways on: ${JSON.stringify(fresh.links)}`);
-  check(!fresh.week && fresh.tab === "page" && fresh.title === "Studienplan" && fresh.frame === "Anpassen", `the empty plan: ${JSON.stringify(fresh)}`);
+  check(!fresh.week && fresh.tab === "page" && fresh.title === "Studienplan" && fresh.frame === "Anpassen" && !fresh.count, `the empty plan: ${JSON.stringify(fresh)}`);
   check(fresh.hint.includes("nur in diesem Browser"), "the sidebar does not say where the plan lives");
   check((await stored(page, PLAN)) === null && (await stored(page, MINE)) === null, "a fresh browser stored something by looking at the plan");
 
@@ -98,6 +99,9 @@ async function persistence() {
   await page.waitForFunction(aPlan, null, { timeout: 8000 }).catch(() => problems.push("a stored plan does not show after a reload"));
   await page.evaluate(() => { window.__marker = 1; });
   check((await stored(page, PLAN)) === FS1 && (await stored(page, MINE)) === MINE_FS1, "a reload changed what is stored");
+  // The rail's „Plan" counts the planned modules, as the Merkliste counts the marked ones.
+  const count = () => page.evaluate(() => { const count = document.querySelector('.rail .nav[data-area="studyplan"] .nav-count'); return count ? [count.textContent, count.getAttribute("aria-label")] : null; });
+  check(JSON.stringify(await count()) === JSON.stringify(["4", "4 geplant"]), `the rail's „Plan“ counts ${JSON.stringify(await count())} instead of 4 modules`);
   await page.reload({ waitUntil: "domcontentloaded" });
   await takeover(page);
   await page.waitForFunction(aPlan, null, { timeout: 8000 }).catch(() => problems.push("a second reload lost the plan"));
@@ -111,6 +115,7 @@ async function persistence() {
   await takeover(other);
   await other.evaluate((key) => localStorage.removeItem(key), PLAN);
   await page.waitForFunction(emptyPlan, null, { timeout: 8000 }).catch(() => problems.push("another tab emptied the plan, this one did not follow"));
+  check((await count()) === null, "an empty plan still has a count in the rail");
   await other.evaluate(([key, text]) => localStorage.setItem(key, text), [PLAN, FS1]);
   await page.waitForFunction(aPlan, null, { timeout: 8000 }).catch(() => problems.push("another tab stored a plan, this one did not follow"));
   check(await page.evaluate(() => window.__marker === 1), "following another tab loaded the page again");
@@ -146,7 +151,7 @@ async function persistence() {
   // The server's HTML knows nothing of any of it, and is the same for every address of the plan.
   const html = await (await context.request.get(base + "/studyplan")).text();
   const again = await (await context.request.get(base + "/studyplan?sem=2026W&view=dates&open=12104&row=148369-aaf38")).text();
-  check(!html.includes("12104") && !html.includes("148369"), "the server's HTML of the plan names a module or an event");
+  check(!html.includes("12104") && !html.includes("148369") && !html.includes("nav-count"), "the server's HTML of the plan names a module or an event, or counts them");
   check(html === again, "the server's HTML of the plan depends on the address");
 
   // No request of the session carried the plan (the module's own page aside, opened on purpose).
@@ -175,9 +180,15 @@ async function withoutTheApp() {
   check(response.status() === 200 && plain.title === "Dein Studienplan liegt in deinem Browser." && plain.h1 === 1 && plain.heading === "Studienplan", `without JavaScript the plan does not explain itself: ${JSON.stringify(plain)}`);
   check(plain.rail === 0 && plain.bottom === 0, `without JavaScript the rail offers the plan: ${JSON.stringify(plain)}`);
   check(plain.robots.startsWith("noindex") && !plain.aside && plain.hint.includes("nur in diesem Browser"), `without JavaScript: ${JSON.stringify(plain)}`);
-  // A phone without JavaScript: the sidebar is no sheet there, its note stays reachable.
+  // A phone: the frame is the app's, its sidebar a closed sheet, so nothing of the page vanishes
+  // when the app takes over (R15); the explanation says where the plan lives.
   await page.setViewportSize({ width: 390, height: 844 });
-  check(await page.evaluate(() => { const hint = document.querySelector(".sidebar .storage-hint").getBoundingClientRect(); return hint.height > 0 && hint.top > 0 && document.documentElement.scrollWidth <= innerWidth; }), "a phone without JavaScript: the storage note is out of reach, or the page is wider than the screen");
+  const phone = await page.evaluate(() => {
+    const sidebar = document.querySelector(".sidebar");
+    const state = document.querySelector(".sp-body .state").getBoundingClientRect();
+    return { sheet: sidebar.classList.contains("sheet"), closed: sidebar.getBoundingClientRect().top >= innerHeight, state: state.height > 0 && state.bottom <= innerHeight, wide: document.documentElement.scrollWidth > innerWidth };
+  });
+  check(phone.sheet && phone.closed && phone.state && !phone.wide, `a phone without JavaScript: ${JSON.stringify(phone)}`);
   await context.close();
 }
 

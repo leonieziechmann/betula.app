@@ -246,6 +246,10 @@ pub fn StudyplanPage() -> impl IntoView {
                 <PlanSeo/>
                 <div class="page-inner sp">
                     <section class="panel sp-body">
+                        // An empty plan taking a Regelstudienplan over shows neither a view's head
+                        // nor the empty state, which carry „Anpassen" otherwise: on a phone it
+                        // stands at the top right, where the heads have it.
+                        {move || (importing.get() && empty.get()).then(|| view! { <SheetToggle/> })}
                         {move || importing.get().then(|| view! { <ImportPanel ctx/> })}
                         {move || match (empty.get(), overview.get()) {
                             // Taking a Regelstudienplan over is all an empty plan has to show.
@@ -305,7 +309,8 @@ fn EmptyPlan() -> impl IntoView {
 }
 
 /// „Anpassen": opens the sidebar, which on a phone is a sheet from below. Shown on a phone only
-/// (`.sheet-toggle`); the heads of the views carry it at their right end.
+/// (`.sheet-toggle`); the heads of the views carry it at their right end, the empty plan among its
+/// actions, and the page itself while an empty plan takes a Regelstudienplan over.
 #[component]
 pub(super) fn SheetToggle() -> impl IntoView {
     view! { <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>"Anpassen"</a> }
@@ -331,10 +336,14 @@ fn PlanSeo() -> impl IntoView {
 
 /// What the server renders for every address of the plan (R9): the frame, and the explanation in
 /// the place of the plan. The app replaces it with the plan once it runs.
+///
+/// The frame is the app's, a sheet on a phone included: a sidebar in the page that the takeover
+/// turns into a closed sheet would vanish from under the explanation (R15). Without JavaScript
+/// nothing is missing, since the explanation already says where the plan lives.
 fn server_page() -> impl IntoView {
     view! {
         <Title text="Studienplan"/>
-        <Frame title="Anpassen" sidebar=|| view! { <StorageHint/> }>
+        <Frame title="Anpassen" sheet=true sidebar=|| view! { <StorageHint/> }>
             <PlanSeo/>
             <div class="page-inner sp">
                 <section class="panel sp-body">

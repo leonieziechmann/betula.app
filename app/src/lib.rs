@@ -229,6 +229,8 @@ fn NavItems() -> impl IntoView {
             None => area.root().to_string(),
         }
     };
+    let plan = Studyplan::expect();
+    let planned = Memo::new(move |_| plan.map(Studyplan::count).unwrap_or(0));
     view! {
         <a class="nav" data-area="home" href=url::HOME title="Start" aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/></span>"Start"</a>
         <a class="nav" data-area="catalog" href=move || href(Area::Catalog) title="Module" aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>"Module"</a>
@@ -245,8 +247,19 @@ fn NavItems() -> impl IntoView {
             </span>
             "Merkliste"
         </a>
-        // The Studienplan lives in the browser app alone, like the Merkliste (R15).
-        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title="Studienplan" aria-current=move || current(Area::Studyplan)><span class="ind"><Icon name="calendar-range"/></span>"Plan"</a>
+        // The Studienplan lives in the browser app alone, like the Merkliste (R15), and so does the
+        // number of its modules (R9). The number is a memo of its own: most changes of the plan
+        // (a hidden Termin, a move) leave it as it is.
+        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title="Studienplan" aria-current=move || current(Area::Studyplan)>
+            <span class="ind">
+                <Icon name="calendar-range"/>
+                {move || {
+                    let planned = planned.get();
+                    (planned > 0).then(|| view! { <span class="nav-count num" aria-label=format!("{planned} geplant")>{if planned > 99 { "99+".to_string() } else { planned.to_string() }}</span> })
+                }}
+            </span>
+            "Plan"
+        </a>
     }
 }
 
