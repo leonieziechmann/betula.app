@@ -221,7 +221,8 @@ mod tests {
         (shared.len(), differ(|d| &d.end_time), differ(|d| &d.last_date))
     }
 
-    /// Rows that share a key, both semesters of the pinned snapshot. A changed number means the
+    /// Rows that share a key, both semesters of the pinned snapshot, and the frozen keys of
+    /// `the_fingerprint_is_frozen` read from the rows themselves. A changed number means the
     /// fingerprint or the data moved: read it before changing the frozen key. On any snapshot,
     /// every row has a key.
     #[test]
@@ -257,6 +258,25 @@ mod tests {
         if is_pinned {
             assert_eq!(teaching_groups, (196, 11, 9), "teaching: groups, differing end_time, differing last_date");
             assert_eq!(exam_groups, (63, 4, 0), "exams: groups, differing end_time, differing last_date");
+            // The hand-typed rows above cannot see a change in how a row is read (the weekday, the
+            // group and rhythm columns, the NULLs of an exam), and the counts survive a shift of
+            // every key alike. Either would move subscribed codes and UIDs, so the frozen keys are
+            // also taken from the rows. A row listed under several modules has one key in each.
+            for (rows, event, ord, expected) in [
+                (&teaching, "148701", 1, "148701-a2633"),
+                (&teaching, "148369", 1, "148369-aaf38"),
+                (&teaching, "148369", 2, "148369-a4d12"),
+                (&teaching, "148369", 3, "148369-467cf"),
+                (&teaching, "148369", 4, "148369-f09d2"),
+                (&exams, "148689", 1, "148689-485e5"),
+            ] {
+                let keys: std::collections::BTreeSet<String> = rows
+                    .iter()
+                    .filter(|row| row.date.event_id == event && row.ord == ord)
+                    .map(|row| key(&row.date))
+                    .collect();
+                assert_eq!(keys, std::collections::BTreeSet::from([expected.to_string()]), "{event}/{ord}");
+            }
         }
     }
 }
