@@ -1367,7 +1367,7 @@ fn module_href(links: &ProgramUrl, id: &str) -> String {
 /// nothing.
 fn catalog_for(data: &ProgramData, variant: usize, area: Option<i64>, req: Option<usize>) -> (String, String) {
     let base = ProgramScope { program_slug: data.program.slug.clone(), ..Default::default() };
-    let path = |query: CatalogQuery| CatalogUrl { query, page: 1, open: None }.path();
+    let path = |query: CatalogQuery| CatalogUrl { query, page: 1, open: None, fill: None }.path();
     let scoped = |scope: ProgramScope| path(CatalogQuery { program: Some(scope), ..Default::default() });
     let known = pages::catalog_areas(&data.areas, &data.area_tree);
     if let Some(id) = area {
@@ -1405,6 +1405,7 @@ fn area_href(links: &ProgramUrl, id: i64) -> String {
             query: CatalogQuery { program: Some(ProgramScope { program_slug: links.slug.clone(), areas: vec![id], ..Default::default() }), ..Default::default() },
             page: 1,
             open: None,
+            fill: None,
         }
         .path()
     }

@@ -37,30 +37,39 @@ pub fn CatalogPage() -> impl IntoView {
     let location = use_location();
     // The server's page lays nothing beside itself: `open` (the preview) is the app's, so the
     // server renders the list the address names as if it were not there, every row leading to
-    // the module's own page. The app turns such an address into the preview.
+    // the module's own page. The app turns such an address into the preview. The placeholder a
+    // list looks for (`fill`) is the app's too: only its plan button reads it. The server caches
+    // the page under the address without it, so the page must be that address's page, canonical
+    // address and robots line included.
     let url = Memo::new(move |_| {
         let mut url = CatalogUrl::parse(&location.search.get());
         if !APP {
             url.open = None;
+            url.fill = None;
         }
         url
     });
-    // Three independent parts of the URL. The filter decides what the list is; `page` only says
-    // where the visitor is in it (the list scrolls endlessly and keeps `page` up to date); `open`
-    // is the preview. So scrolling and opening a preview re-render neither list nor filters.
+    // Independent parts of the URL. The filter decides what the list is; `page` only says where
+    // the visitor is in it (the list scrolls endlessly and keeps `page` up to date); `open` is the
+    // preview. So scrolling and opening a preview re-render neither list nor filters. `fill` is
+    // the placeholder a module found here would fill, kept by every link of the list.
     let list_query = Memo::new(move |_| url.get().query);
     let bookmarks = Bookmarks::expect();
     let asked = Memo::new(move |_| with_marks(list_query.get(), bookmarks));
     let page = Memo::new(move |_| url.get().page);
     let open = Memo::new(move |_| url.get().open);
+    let fill = Memo::new(move |_| url.get().fill);
     let source = use_source();
     let status = PageStatus::capture();
     let phone = phone_layout();
 
     let list_source = source.clone();
     let list = Memo::new(move |_| {
-        // Start at the page the URL names at this moment; later page changes are scrolling.
-        let current = CatalogUrl { query: asked.get(), page: page.get_untracked(), open: None };
+        // Start at the page the URL names at this moment; later page changes are scrolling. The
+        // list is the base of its rows, pager, sort and tag links and of the address scrolling
+        // writes, so it carries `fill`, tracked rather than read once like `page`: a row whose
+        // link named another placeholder than the address would plan into the wrong one.
+        let current = CatalogUrl { query: asked.get(), page: page.get_untracked(), open: None, fill: fill.get() };
         list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current))).map(|data| (current, data))
     });
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
@@ -108,7 +117,7 @@ pub fn CatalogPage() -> impl IntoView {
         // A moment later: the sheet has begun to slide away by then, and the browser keeps that
         // going while the list is built. (Not animation frames: a hidden tab has none, and the
         // list would never follow.)
-        let path = CatalogUrl { query, page: 1, open: open.get_untracked() }.path();
+        let path = CatalogUrl { query, page: 1, open: open.get_untracked(), fill: None }.path();
         set_timeout(
             move || {
                 if let Some(going) = going {
@@ -1122,7 +1131,7 @@ impl Choices {
 fn target(query: Memo<CatalogQuery>, open: Memo<Option<String>>, change: impl FnOnce(&mut CatalogQuery)) -> String {
     let mut next = query.get();
     change(&mut next);
-    CatalogUrl { query: next, page: 1, open: open.get() }.path()
+    CatalogUrl { query: next, page: 1, open: open.get(), fill: None }.path()
 }
 
 /// The filter that `change` makes of the current one, from an event handler (nothing to track).
@@ -1341,7 +1350,7 @@ fn Filters(
         if phone.get_untracked() {
             draft.set(Some(next));
         } else if let Some(going) = going {
-            going.go(&CatalogUrl { query: next, page: 1, open: open.get_untracked() }.path(), NavigateOptions { scroll: false, ..Default::default() });
+            going.go(&CatalogUrl { query: next, page: 1, open: open.get_untracked(), fill: None }.path(), NavigateOptions { scroll: false, ..Default::default() });
         }
     });
     // A link of the panel is the list it leads to, so on a phone its address is what the draft
@@ -1667,7 +1676,7 @@ fn Filters(
     // Without the app the pickers above are form fields; what the links set travels with them.
     let carried = move || {
         (!APP).then(|| {
-            let pairs = url::parse_pairs(&CatalogUrl { query: query.get(), page: 1, open: open.get() }.to_query_string());
+            let pairs = url::parse_pairs(&CatalogUrl { query: query.get(), page: 1, open: open.get(), fill: None }.to_query_string());
             pairs
                 .into_iter()
                 .filter(|(name, _)| !matches!(name.as_str(), "program" | "area" | "department" | "ects_min" | "ects_max"))
