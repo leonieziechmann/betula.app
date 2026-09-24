@@ -14,13 +14,16 @@ pub mod combobox;
 pub mod data;
 pub mod format;
 pub mod icons;
+pub mod myprogram;
 pub mod nav;
 pub mod pages;
 pub mod pending;
 pub mod seo;
 pub mod skeleton;
+pub mod studyplan;
 pub mod tabs;
 pub mod ui;
+pub mod week;
 
 use catalog::url;
 use leptos::prelude::*;

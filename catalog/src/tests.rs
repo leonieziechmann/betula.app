@@ -5,6 +5,7 @@
 //! fail: a green run must mean that every query ran against real data. Counts that depend
 //! on the day's data are compared with direct SQL on the views; the exact numbers of
 //! docs/frontend-rewrite.md §4 are asserted only for the snapshot they were taken from.
+//! The Studienplan's checks pin a snapshot of their own (`studyplan_db`).
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -44,13 +45,54 @@ fn snapshot_path() -> PathBuf {
     dir.join(file)
 }
 
-fn open() -> NativeDatabase {
+pub(crate) fn open() -> NativeDatabase {
     let path = snapshot_path();
     NativeDatabase::open(&path).unwrap_or_else(|e| panic!("{e}"))
 }
 
+/// `content_digest` of the snapshot the Studienplan's pinned checks were taken from
+/// (`catalog-abca4baa1d8f8d8e.db`, data of 2026-09-23): the event-level expectations of
+/// `timetable`, `studyplan` and `pages` hold for this one only.
+pub(crate) const STUDYPLAN_DIGEST: &str = "4b65e821a0e33b858b589963e6c6f879a990612fe5efdccdfbe39415b4c0d50f";
+
+/// The snapshot for the pinned checks of the Studienplan named `test`, or `None` when there is
+/// none to pin against; the test then asserts only what holds on any snapshot.
+///
+/// `FOLIA_STUDYPLAN_SNAPSHOT` names the pinned file. It stays in the main checkout's `snapshot/`
+/// beside newer ones, so Radix's refetch every three days never silences these checks for whoever
+/// sets the variable. A file with another digest fails the test: the pinned file was replaced, and
+/// a green run would claim checks that did not run. Without the variable, the tests' own snapshot
+/// serves when it is the pinned one; else the skip is said on stderr, once per test.
+// The timetable's checks call it as they land (kind.rs, rowkey.rs and on); until then it has no
+// caller, and dead code in a test build is a warning.
+#[allow(dead_code)]
+pub(crate) fn studyplan_db(test: &str) -> Option<NativeDatabase> {
+    if let Some(path) = std::env::var("FOLIA_STUDYPLAN_SNAPSHOT").ok().filter(|p| !p.is_empty()) {
+        let db = NativeDatabase::open(&PathBuf::from(&path))
+            .unwrap_or_else(|e| panic!("FOLIA_STUDYPLAN_SNAPSHOT: {e}"));
+        let digest = queries::meta(&db).unwrap().content_digest;
+        assert_eq!(
+            digest.as_deref(),
+            Some(STUDYPLAN_DIGEST),
+            "FOLIA_STUDYPLAN_SNAPSHOT={path} is not the snapshot the Studienplan's checks were pinned to"
+        );
+        return Some(db);
+    }
+    let db = open();
+    let digest = queries::meta(&db).unwrap().content_digest;
+    if digest.as_deref() == Some(STUDYPLAN_DIGEST) {
+        return Some(db);
+    }
+    let d = digest.as_deref().unwrap_or("none");
+    eprintln!(
+        "studyplan: pinned checks of {test} skipped: snapshot digest {d}, pinned {STUDYPLAN_DIGEST}; \
+         set FOLIA_STUDYPLAN_SNAPSHOT=…/snapshot/catalog-abca4baa1d8f8d8e.db"
+    );
+    None
+}
+
 /// Direct SQL on the snapshot, to compare the query layer against.
-fn scalar(db: &dyn Database, sql: &str) -> i64 {
+pub(crate) fn scalar(db: &dyn Database, sql: &str) -> i64 {
     let rows = db.query("test", sql, &[]).unwrap_or_else(|e| panic!("{sql}: {e}"));
     match rows.rows.first().and_then(|r| r.first()) {
         Some(Value::Integer(n)) => *n,
@@ -58,7 +100,7 @@ fn scalar(db: &dyn Database, sql: &str) -> i64 {
     }
 }
 
-fn column(db: &dyn Database, sql: &str) -> Vec<String> {
+pub(crate) fn column(db: &dyn Database, sql: &str) -> Vec<String> {
     let rows = db.query("test", sql, &[]).unwrap_or_else(|e| panic!("{sql}: {e}"));
     rows.rows
         .iter()

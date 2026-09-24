@@ -7,3 +7,4 @@ pub mod legal;
 pub mod module;
 pub mod program;
 pub mod programs;
+pub mod studyplan;

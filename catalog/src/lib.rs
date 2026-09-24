@@ -5,6 +5,10 @@
 //! (`rows`) and one German label per enum code (`labels`). The crate has no I/O of its
 //! own: callers hand in a `Database`, rusqlite on the server (`native`, behind the
 //! feature of the same name) and sql.js in the browser.
+//!
+//! The Studienplan's logic lives here for the same reason (`timetable`, `studyplan`,
+//! `variants`): the calendar the server hands to a subscription and the one the browser shows
+//! come from one function over the same rows.
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
@@ -20,7 +24,10 @@ pub mod queries;
 pub mod rows;
 pub mod rows_detail;
 pub mod search;
+pub mod studyplan;
+pub mod timetable;
 pub mod url;
+pub mod variants;
 
 #[cfg(any(feature = "native", test))]
 pub mod native;
