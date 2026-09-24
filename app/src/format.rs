@@ -115,11 +115,12 @@ pub fn exam_short(form: &Code<catalog::labels::ExamForm>) -> String {
     }
 }
 
-/// `09:15` → 18.5 half hours since midnight; `None` for anything that is not a time.
+/// `09:15` → 18.5 half hours since midnight; `None` for anything that is not a time. `24:00` is
+/// the end of the day (48): QIS ends late events and deadlines there.
 pub fn half_hours(time: &str) -> Option<f64> {
     let (h, m) = time.split_once(':')?;
     let (h, m) = (h.trim().parse::<u32>().ok()?, m.get(..2)?.parse::<u32>().ok()?);
-    (h < 24 && m < 60).then(|| f64::from(h) * 2.0 + f64::from(m) / 30.0)
+    ((h < 24 && m < 60) || (h, m) == (24, 0)).then(|| f64::from(h) * 2.0 + f64::from(m) / 30.0)
 }
 
 #[cfg(test)]
@@ -143,5 +144,9 @@ mod tests {
         let odd = Code::Known(TurnusParity::Odd);
         assert_eq!(turnus(Some(&winter), Some(&odd)), "WiSe (ungerade Jahre)");
         assert_eq!(turnus(None, None), "Turnus nicht angegeben");
+        assert_eq!(half_hours("09:15"), Some(18.5));
+        assert_eq!(half_hours("24:00"), Some(48.0));
+        assert_eq!(half_hours("24:01"), None);
+        assert_eq!(half_hours("offen"), None);
     }
 }
