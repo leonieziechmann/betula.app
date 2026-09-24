@@ -37,7 +37,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
-| `/bookmarks?turnus=…&sort=…&desc=1&open=<id>` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. The server renders an explanation, the same for everybody, `noindex` |
+| `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
 | `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`), linked from the start page's sidebar. **Placeholders since 2026-09-21**: while `legal::PLACEHOLDER` is true they say so, list what is still owed and are `noindex`, and `deploy/ship.sh` refuses to ship an instance open to everybody (`FOLIA_ACCESS_GATE` not `on`). Before going public: the real texts (owner's name, address, contact; the privacy notice naming the edge's access log, the gate's cookie, what stays in the browser, the lecturers' names), `PLACEHOLDER = false`, and links from every page, not only the start page (§ 5 DDG: reachable at all times) |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
@@ -201,12 +201,12 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     visitor's fits the other filters, the server that it cannot know.
   - **The list of marked modules** is the catalog's list in the catalog's frame: sidebar, rows
     with the same columns, the preview of `open=<id>` floating at the right edge, on a phone the
-    module's own page. The sidebar holds what belongs to the list as a whole: its numbers
-    (modules, credits), the halves of the year as a row of links with their counts („Alle",
-    „Winter", „Sommer": what the catalog's turnus filter would find among the marked), the order
-    (of marking, the newest first; by title, credits, teaching events; the column headers sort as
-    in the catalog), and the actions: copy the list as text, and empty it, which asks first and
-    can be taken back („Rückgängig").
+    module's whole page in the list's place. The sidebar holds what belongs to the list as a
+    whole: its numbers (modules, credits), the halves of the year as a row of links with their
+    counts („Alle", „Winter", „Sommer": what the catalog's turnus filter would find among the
+    marked), the order (of marking, the newest first; by title, credits, teaching events; the
+    column headers sort as in the catalog), and the actions: copy the list as text, and empty it,
+    which asks first and can be taken back („Rückgängig").
   - **A mark taken away on that page stays on the page,** dimmed, until the page is left: a slip
     is one click to undo, and the list does not jump under the pointer. Marking changes numbers,
     never the list: no query runs and the rows stay the same elements (each button reads the
@@ -215,8 +215,17 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     know (taken out of the BTU's catalog) is named under „Nicht im Modulkatalog", not dropped
     (R12). What is stored is read like anything from outside: ids that cannot be ids are
     dropped, a module counts once, the list ends at 2,000.
-  - A module opened from the marked modules (a tap on a phone, „Vollbild" of the preview) leads
-    back to them with „Zurück" and Esc, not to the catalog's list (`Tabs::came_from`).
+  - **A module opened from the marked modules stays among them** (owner, 2026-09-24: „Vollbild"
+    used to switch to the catalog's address, so the catalog's tab kept the module open and its
+    „Zurück" led back to the marked modules): „Vollbild" of the preview shows the module's whole
+    page in the list's place (`&full=1`), and on a phone a tap on a row does (`open` alone), as on
+    a program's page (a local view, `app/src/local.rs`). The tab „Merkliste" stays the current one
+    and remembers the module, „Zurück" and Esc lead to the list — with the module beside it again,
+    through the history, on a phone without it — and show the row it was opened from; the
+    catalog's tab never hears of it. What is listed stays meanwhile: a mark taken away on the
+    module's page leaves the module on the list, dimmed. A module's own page reached from there (a
+    successor named on the page) belongs to the marked modules as well: its „Zurück" leads back
+    (`Tabs::came_from`), and the catalog's tab still leads to its list.
   - **To another device without a server in between:** „Auf anderes Gerät übertragen" copies a
     link to the list with the marked modules in its *fragment*, as a code (`/bookmarks#m=…`,
     `pack/`): the ids as a set of numbers, in ascending order, each as its distance from the one
@@ -248,15 +257,19 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   up, not back to the other area). And it tells a list which row to show again: the catalog
   scrolls to the module whose page was open just before, the program overview to the program.
   The memory is personal state: `sessionStorage`, never the URL, never server HTML; without the
-  app every tab is the plain link to its area. **A module opened out of a program does not become
-  what the catalog remembers** (owner, 2026-09-20): its tab keeps leading to the list as it was
-  left, and that list does not reveal a module the visitor never picked there. A module opened
-  beside a program and then taken to
-  its own page („Vollbild") leads **back to that program**, not to the catalog: the step before
-  answers, and after a reload the area's own memory does (it was left at a program page that
-  names this module in `open`). Where „Zurück" leads is read again on every change of the
-  address, so after closing the module beside a program Esc follows the link out of the program
-  instead of walking the history back into the module it has just closed.
+  app every tab is the plain link to its area. **A module opened out of an area that shows its
+  modules in place does not become what the catalog remembers** (a program, the marked modules:
+  `Area::shows_in_place`; owner, 2026-09-20 and 2026-09-24): its tab keeps leading to the list
+  as it was left, and that list does not reveal a module the visitor never picked there. Such a
+  module stays in its area anyway (`app/src/local.rs`); a module's own page reached from there (a
+  successor named on the module's page) leads **back into that area**, not to the catalog: the
+  step before answers, and after a reload the programs' own memory does (it was left at a
+  program page that names this module in `open`). Not where the page is what the catalog was
+  left at: the visitor came back to it (the catalog's tab, Back), and „Zurück" leads up to the
+  catalog's list, not across to the area they were in between. Where „Zurück" leads is read
+  again on every change of the address, so after closing the module beside a program Esc follows
+  the link out of the program instead of walking the history back into the module it has just
+  closed.
 - **Every page has the same frame (owner decision 2026-09-20, R17):** a sidebar as wide as the
   catalog's filter panel, with the same handle and the same remembered width, and the page next
   to it (`ui::Frame`; the catalog builds it itself, its sidebar is the filter form). Going from
@@ -291,16 +304,29 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   address with these parameters into what it names.
 - **A module is shown where it was opened** (2026-09-21): on the desktop beside the list or the
   page (`open=<id>`), and in full where „Vollbild" is asked for — the catalog's preview leads to
-  the module's own page (its area), the program's panel to `…&full=1` (the same page, rendered by
-  `ModuleFull` in place, so the programs tab, the history and „Zurück" stay what they were; before,
-  „Vollbild" out of a program switched to the catalog's address, and the back graph and the tabs
-  had to guess). On a phone nothing stands beside a page: what is tapped is the page, with one
-  tap and one history entry — a row of the catalog or of the marked modules leads to the
-  module's page; on a program's page a module, an area or a row of the plan becomes the page
-  (`Filling` in `app/src/pages/program.rs`), and „Zurück" leads to what it was picked from (a
-  module picked out of an area back to the area). No preview that then has to be opened in full,
-  no panel that unfolds under the page. Without the app the same HTML (the panel beside the
-  page) is shown as the page by the stylesheet (`.aside-picked`).
+  the module's own page (its area), the program's panel and the preview beside the marked
+  modules to `…&full=1` (the same page, rendered by `ModuleFull` in place, so the tab, the history
+  and „Zurück" stay what they were; before, „Vollbild" out of a program and out of the marked
+  modules switched to the catalog's address, and the back graph and the tabs had to guess). On a
+  phone nothing stands beside a page: what is tapped is the page, with one tap and one history
+  entry — a row of the catalog leads to the module's page, a row of the marked modules to the
+  module in the list's place; on a program's page a module, an area or a row of the plan becomes
+  the page (`Filling` in `app/src/pages/program.rs`), and „Zurück" leads to what it was picked
+  from (a module picked out of an area back to the area). No preview that then has to be opened
+  in full, no panel that unfolds under the page. Without the app the same HTML (the panel beside
+  the page) is shown as the page by the stylesheet (`.aside-picked`).
+- **Local views (owner, 2026-09-24: „so, dass man das in jedem Tab ganz einfach implementieren
+  kann als lokale Ansicht"; `app/src/local.rs`):** showing a module in place is one mechanism,
+  not a feature of a page. The program page and the marked modules use it, and so will the
+  semester plan. An area that lists modules gets it with five parts: its address implements
+  `url::LocalView` (`open`, `full`, read and written by `url::local_from_pairs` and
+  `url::local_pairs`); its page asks `local::filling` whether the module fills it (after
+  „Vollbild", and on a phone whatever is opened) and then shows `local::ModuleInPlace` with
+  `local::back_href` as „Zurück", else its own content with `ModulePanel` beside it and
+  `local::full_href` as „Vollbild"; its rows lead to the module beside the page on a phone as
+  well (`Row` with `in_place`); `pending::change` names its steps with `local_change` (the
+  module coming to fill the page is the module's page, going back is the page's column); and its
+  `tabs::Area` says `shows_in_place`.
 - **The program page** (reworked 2026-09-20, second round; the first one was „unaufgeräumt"): the
   head is three lines that start on the same edge — where the visitor is („Zurück", the path),
   the name with the numbers of the program right of it on its baseline (Semester, LP, Module,
@@ -1378,13 +1404,16 @@ first, counting what is new, taking the ids out of the address without a history
 emptying with the question and „Rückgängig"); „Gemerkt" as a filter of the catalog (only the
 marked ones and all but them, the rest of the filter kept, the tag above the list, a mark made
 while it is on, the two empty states with and without the app); the rail's item as a tab;
-„Zurück" and Esc from a module opened from the marked modules; a mark made in another tab
-arriving; a module the snapshot does not know; garbage in the storage. Privacy: no request of the
+„Vollbild" of a module opened from the marked modules in place (`full=1`, the tab „Merkliste"
+still the current one, the module's sidebar, the catalog's tab untouched), „Zurück" and Esc back
+to the list with the module beside it and without a new history entry; a mark made in another
+tab arriving; a module the snapshot does not know; garbage in the storage. Privacy: no request of the
 whole session carries a mark, none leaves the site, and server HTML shows nothing marked. Phone:
-a 44 px target, marking by touch, the bottom bar's count, a tap opening the module's page and
-„Zurück" returning. Without the app: nothing of it shows without JavaScript, `/bookmarks`
-explains itself and is `noindex`; with JavaScript but before the takeover the buttons are
-invisible and their room is kept (the heading is exactly as tall as once the app runs).
+a 44 px target, marking by touch, the bottom bar's count, a tap opening the module in the list's
+place (the address still the list's) and „Zurück" returning. Without the app: nothing of it
+shows without JavaScript, `/bookmarks` explains itself and is `noindex`; with JavaScript but
+before the takeover the buttons are invisible and their room is kept (the heading is exactly as
+tall as once the app runs).
 
 ```bash
 cd e2e && node programs.mjs
