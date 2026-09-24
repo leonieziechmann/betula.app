@@ -14,6 +14,7 @@ pub mod combobox;
 pub mod data;
 pub mod format;
 pub mod icons;
+pub mod local;
 pub mod nav;
 pub mod pages;
 pub mod pending;

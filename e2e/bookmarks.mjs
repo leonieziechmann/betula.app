@@ -4,11 +4,11 @@
 // rendered again), M on a row, in the preview and on the module's page, the same state wherever a
 // module shows, the number at the rail, a reload keeps the marks; the list of marked modules
 // (order of marking, numbers, sorting, halves of the year, preview, a mark taken away stays on the
-// page dimmed, emptying with „Rückgängig"); „Gemerkt" as a filter of the catalog; the rail's item as a tab; „Zurück" from a module that
-// was opened from the marked modules; another tab of the same browser; what the snapshot does not
-// know; garbage in the storage.
+// page dimmed, emptying with „Rückgängig"); „Gemerkt" as a filter of the catalog; the rail's item as a tab; „Vollbild" of a
+// module opened from the marked modules in place, and „Zurück" from it; another tab of the same
+// browser; what the snapshot does not know; garbage in the storage.
 // Privacy: no request ever carries a marked id, and server HTML shows nothing marked.
-// Phone: marking by touch, a tap on a marked module opens its page and „Zurück" returns.
+// Phone: marking by touch, a tap on a marked module opens it in the list's place and „Zurück" returns.
 // Without the app: nothing of it shows without JavaScript, and with JavaScript the places are
 // kept so that nothing moves at the takeover.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
@@ -289,10 +289,20 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   await step("to the catalog", () => page.click('.rail .nav[data-area="catalog"]'), () => location.pathname.startsWith("/catalog"));
   await step("the tab leads back to the list as it was left", () => page.click('.rail .nav[data-area="bookmarks"]'), () => location.pathname === "/bookmarks" && location.search === "?sort=events");
 
-  // A module opened from the marked modules leads back to them.
-  await step("preview, then full page", async () => { await page.click(`a.row[data-id="${marked[0]}"]`); await page.waitForSelector(".detail h2"); await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press("f"); }, (id) => location.pathname === `/catalog/module/${id}`, marked[0]);
-  check(await page.evaluate(() => document.querySelector('[data-action="back"]').getAttribute("href").startsWith("/bookmarks")), "„Zurück“ of a module opened from the marked modules leads elsewhere");
-  await step("Esc leads back to the marked modules", () => page.keyboard.press("Escape"), () => location.pathname === "/bookmarks" && location.search.includes("open=") && document.querySelectorAll(".rows a.row").length === 3);
+  // A module opened from the marked modules stays among them (owner, 2026-09-24): „Vollbild" fills
+  // the list's place, the address stays the list's, the tab stays the current one, and the
+  // catalog's tab does not hear of the module. „Zurück" and Esc lead back to the list with the
+  // module beside it, through the history.
+  const catalogTab = () => page.getAttribute('.rail .nav[data-area="catalog"]', "href");
+  const catalogBefore = await catalogTab();
+  await step("preview, then full page", async () => { await page.click(`a.row[data-id="${marked[0]}"]`); await page.waitForSelector(".detail h2"); await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press("f"); }, (id) => location.pathname === "/bookmarks" && location.search.includes(`open=${id}&full=1`) && Boolean(document.querySelector(".module-page h2")) && Boolean(document.querySelector("#sidebar .toc.jumps")), marked[0]);
+  check(await page.evaluate(() => document.querySelector('.rail .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page"), "full page: the tab of the marked modules is not the current one");
+  check((await catalogTab()) === catalogBefore, `full page: the catalog's tab leads to ${await catalogTab()} instead of ${catalogBefore}`);
+  check(await page.evaluate(() => { const back = document.querySelector('[data-action="back"]').getAttribute("href"); return back.startsWith("/bookmarks?") && back.includes("open=") && !back.includes("full="); }), "„Zurück“ of a module opened from the marked modules leads elsewhere");
+  check((await pressed(page, ".module-page .mark-switch")) === "true", "full page: the module's page does not know the mark");
+  const entries = await page.evaluate(() => history.length);
+  await step("Esc leads back to the marked modules", () => page.keyboard.press("Escape"), () => location.pathname === "/bookmarks" && location.search.includes("open=") && !location.search.includes("full=") && document.querySelectorAll(".rows a.row").length === 3 && Boolean(document.querySelector(".detail h2")));
+  check((await page.evaluate(() => history.length)) === entries, "back from the full page added a history entry instead of walking back");
   await page.keyboard.press("Escape");
 
   // Another tab of the same browser marks a module: this one follows.
@@ -384,10 +394,12 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   await step("phone: the bottom bar leads to the marked modules", () => page.tap('.bottomnav .nav[data-area="bookmarks"]'), () => location.pathname === "/bookmarks" && document.querySelectorAll(".rows a.row").length === 2);
   const layout = await page.evaluate(() => { const [list, side] = [document.querySelector(".panel.list"), document.getElementById("sidebar")].map((el) => el.getBoundingClientRect()); return { below: side.top >= list.bottom - 1, overflow: document.documentElement.scrollWidth > innerWidth }; });
   check(layout.below && !layout.overflow, `phone: the sidebar is not under the list, or the page is wider than the screen: ${JSON.stringify(layout)}`);
-  await step("phone: a tap opens the module's page", () => page.tap(`a.row[data-id="${ids[1]}"]`), (id) => location.pathname === `/catalog/module/${id}` && Boolean(document.querySelector(".module-page .mark-switch")), ids[1]);
+  // The module is the page, in the list's place: the address and the tab stay the list's.
+  await step("phone: a tap opens the module in the list's place", () => page.tap(`a.row[data-id="${ids[1]}"]`), (id) => location.pathname === "/bookmarks" && location.search === `?open=${id}` && Boolean(document.querySelector(".module-page .mark-switch")), ids[1]);
+  check(await page.evaluate(() => document.querySelector('.bottomnav .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page" && !document.querySelector('.bottomnav .nav[data-area="catalog"]').getAttribute("href").startsWith("/catalog/module/")), "phone: the module is not the marked modules' page, or the catalog's tab heard of it");
   const button = await page.evaluate(() => { const r = document.querySelector(".module-page .mark-switch").getBoundingClientRect(); return { height: r.height, pressed: document.querySelector(".module-page .mark-switch").getAttribute("aria-pressed"), seen: r.top < innerHeight }; });
   check(button.height >= 44 && button.pressed === "true" && button.seen, `phone: the switch on the module's page: ${JSON.stringify(button)}`);
-  await step("phone: „Zurück“ returns to the marked modules", () => page.click('[data-action="back"]'), () => location.pathname === "/bookmarks" && document.querySelectorAll(".rows a.row").length === 2);
+  await step("phone: „Zurück“ returns to the marked modules", () => page.click('[data-action="back"]'), () => location.pathname === "/bookmarks" && location.search === "" && document.querySelectorAll(".rows a.row").length === 2);
   await context.close();
 }
 
