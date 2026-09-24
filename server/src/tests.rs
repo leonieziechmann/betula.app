@@ -253,6 +253,18 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert!(module.contains("href=\"https://catalog.example/catalog/module/11101\" rel=\"canonical\""), "{module}");
     assert!(module.contains("application/ld+json") && module.contains("\"@type\":\"Course\"") && !module.contains("noindex"), "{module}");
     assert!(head(&html).contains("content=\"noindex, follow\""), "a filtered list is a view of /catalog");
+    // The placeholder a list looks for (`fill`) is the app's, and the cache keeps the page under
+    // the address without it: the server's page must be that address's page, or the first
+    // `?fill=` would make the one listed catalog page unlisted for everybody.
+    let (_, headers, body) = request(&router, "/catalog?fill=p3", &[]).await;
+    let filled = head(&String::from_utf8(body).unwrap());
+    assert_eq!(headers["x-cache"], "miss");
+    assert!(filled.contains("href=\"https://catalog.example/catalog\" rel=\"canonical\"") && !filled.contains("noindex"), "{filled}");
+    let (_, headers, body) = request(&router, "/catalog", &[]).await;
+    assert_eq!((headers["x-cache"].to_str().unwrap(), head(&String::from_utf8(body).unwrap())), ("hit", filled));
+    let (_, _, body) = request(&router, "/catalog?turnus=winter&fill=p9", &[]).await;
+    let filtered = head(&String::from_utf8(body).unwrap());
+    assert!(filtered.contains("href=\"https://catalog.example/catalog?turnus=winter\" rel=\"canonical\"") && !filtered.contains("fill="), "{filtered}");
     let (_, _, body) = request(&router, "/", &[]).await;
     let home = String::from_utf8(body).unwrap();
     assert!(head(&home).contains("href=\"https://catalog.example/\" rel=\"canonical\"") && !head(&home).contains("noindex"));
