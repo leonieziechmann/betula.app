@@ -39,6 +39,7 @@ use catalog::timetable::views::{AgendaItem, AgendaWeek, Reach, WeekItem, WeekLab
 use catalog::url::{self, StudyplanUrl};
 use leptos::prelude::*;
 
+use super::head::{hue, tone_at};
 use super::PlanCtx;
 use crate::format;
 use crate::nav;
@@ -46,12 +47,6 @@ use crate::pages::catalog::phone_layout;
 use crate::pending::Pending;
 use crate::ui::Icon;
 use crate::week::{GridSlot, WeekGrid};
-
-/// The tones of the plan's modules, in the order of `app.css`'s `t-…` classes: the first planned
-/// module of a semester is ice, the ninth ice again (the timetable's `Event::tone`, 1–8).
-// The same as `head::HUES`, `head::hue` and `head::tone_at` of WP17: whichever lane is merged
-// second keeps one copy of the three.
-const HUES: [&str; 8] = ["t-ice", "t-sun", "t-violet", "t-teal", "t-green", "t-coral", "t-rose", "t-slate"];
 
 /// Where this browser tab remembers the link the visitor last left a view by (`Place`).
 const LEFT_KEY: &str = "betula.studyplan.left";
@@ -930,17 +925,6 @@ fn Loose(title: &'static str, lines: Memo<Vec<LooseLine>>) -> impl IntoView {
 
 /// What an exam is called in the plan's lines.
 const EXAM: &str = "Prüfung";
-
-/// The class of a module's tone (`Event::tone`, 1–8); a tone out of range is the first.
-fn hue(tone: u8) -> &'static str {
-    HUES.get(usize::from(tone.saturating_sub(1)) % HUES.len()).copied().unwrap_or("t-ice")
-}
-
-/// The tone of the module at `position` in the semester's plan: the tone the timetable gives the
-/// module's events.
-fn tone_at(position: usize) -> u8 {
-    u8::try_from(position % HUES.len()).map_or(1, |tone| tone + 1)
-}
 
 /// An exam takes the tone of its first planned module, as that module's events do.
 fn exam_hue(table: &Timetable, module: &str) -> &'static str {
