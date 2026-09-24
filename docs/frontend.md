@@ -918,8 +918,10 @@ plain values from the router; nothing page-owned is read after unmount; no panic
 URL, UI state never triggers a query; keyed lists; one source of truth; design tokens only, no
 inline styles; keyboard and phone usable. Added in phase 0/1:
 
-- **R9. Server HTML is user-independent.** Bookmarks, passed modules and the chosen major live
-  in the browser and are applied after the app took over, never during the first render.
+- **R9. Server HTML is user-independent.** Merkliste, Studienplan, Mein Studiengang and the
+  finder switch („Passt in meinen Plan") follow the Merkliste: they live in the browser, the
+  server renders them empty, and they are applied after the takeover, never during the first
+  render (passed modules will do the same).
 - **R10. Shortcuts are written next to their button** (`kbd`): Esc closes the filter sheet or the
   module preview and, on a module's own page, goes back to where the visitor came from; `F` opens
   the previewed module full screen; ↑/↓ move through the list (rows are links, so this is just
@@ -982,8 +984,20 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   (`bookmarks::Bookmarks`). They never become part of a URL (URLs are requested from the server
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
-  `e2e/bookmarks.mjs` watches every request of a session for marks. One exception is decided for
-  when it is built: the address of a calendar subscription carries the chosen events (§5).
+  `e2e/bookmarks.mjs` watches every request of a session for marks. Exceptions, decided by the
+  owner (2026-09-23/24): the address of a calendar subscription (`/calendar/<code>.ics`,
+  `catalog::timetable::subscription`) carries the semester, the planned modules and what is
+  hidden or chosen (kinds, events, Termine, the Standort) as a `pack` code of kind `calendar`; the
+  server resolves it anew on every fetch and keeps nothing; Folia's own log writes
+  `/calendar/….ics`; the edge's access log keeps the address like every address, 7 days in the
+  monitoring and in the host's log files until they rotate. And „Mein Studiengang" (kept in the
+  browser as `program.id`, never in an address) may stand in a catalog address as a chosen
+  program does (`/catalog?program=<slug>`), only where the catalog is filtered by it — the
+  catalog tab's first entry of a session; the app never carries it along into other addresses
+  and never re-adds it once removed. Like the Merkliste's `open`, the Studienplan's address names
+  the one module and Termin shown beside it (`open`, `row`), and the catalog's app-only
+  `fill=p<n>` names a placeholder by its local number (it says nothing about the visitor; the
+  server drops it) — never a list of what is planned.
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -1204,6 +1218,20 @@ FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
   without cookies), `/healthz` (uptime monitor), `/livez` (the container's healthcheck) and
   `/robots.txt`, which says `Disallow: /` while the gate is on. The login page is `noindex` and
   `no-store`.
+- **And a Studienplan's calendar subscription** (owner decision 2026-09-24): `/calendar/<code>.ics`
+  answers without the password when its code decodes (`subscription::is_feed_path`: the `pack`
+  alphabet, 1 to 1,024 characters, `.ics` and nothing else, `%HH` escapes of alphabet characters
+  read as those characters; then the check characters, the kind `calendar` and the caps), because
+  calendar services fetch it from their own servers and send no cookie. What that opens is the
+  QIS schedule of the modules a code names, which every module page shows behind the gate, and
+  nothing about a visitor; the check characters turn guesses away before any handler runs. Every
+  other path under `/calendar/` (`/calendar/abc`, `/calendar/Ab.ics.ics`, a Merkliste code with
+  `.ics`) stays behind the gate. The feed answers `private` already, so the gate leaves its
+  `Cache-Control` alone. Tests in `server/src/tests.rs`:
+  `closed_testing_asks_for_the_password_before_anything_else` (what passes and what not),
+  `a_studyplan_is_a_calendar_feed` (the gated feed with a snapshot), `broken_calendar_codes_are_404`,
+  `the_log_keeps_no_calendar_code`, `robots_disallow_the_calendar`; the shapes in
+  `catalog/src/timetable/subscription.rs`.
 - **Behind the gate** the site is what it was, the page cache included (the gate lies around it);
   only `Cache-Control: public` becomes `private`, so no cache between server and browser keeps a
   page for somebody else. Link previews of messengers show nothing while the gate is on: their
@@ -1257,8 +1285,9 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
-| INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`) |
+| INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` (a code names somebody's plan) |
 | DEBUG | `http.request` with `path=/livez` | the container's own probe, twice a minute |
+| DEBUG | `calendar.served` | a calendar feed was made (`bytes`, `ms`; never the code or the modules) |
 | INFO | `access.gate_on` | closed testing is on (`source`: where the password was found, never the password) |
 | INFO | `access.granted` | the access password was entered |
 | WARN | `access.denied` | a wrong access password (`failures` in this minute, `closed` when the form closed; at most ten lines a minute) |
@@ -1271,6 +1300,7 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
 | ERROR | `http.request` with `status >= 500`, `render.failed`, `snapshot.unreadable` | a request failed |
 | ERROR | `card.failed` | a card's text could not be read or the card could not be drawn; the preview got the standard picture |
+| ERROR | `calendar.failed` | a calendar feed could not be read from the snapshot (or its task failed); the calendar service got a 500 and asks again later |
 | ERROR | `server.start_failed`, `server.failed` | the server cannot run |
 
 ## 4. Checks
@@ -1505,14 +1535,15 @@ to the result.
   because it is the catalog's module preview.
 - **What follows the marks** (R20 applies): passed modules with the prerequisite check, the own
   program, the semester planner. A note per marked module would fit the same store.
-- **The timetable as a calendar subscription** (owner, 2026-09-23): an `.ics` address that
-  carries the chosen events as a `pack` code (`pack::set` of the event ids), so that the server
-  keeps nothing and a calendar follows every change of the schedule. Unlike the list's link, a
-  calendar requests that address from the server, so the code reaches the edge's access log.
-  Owner decision (2026-09-23): that is acceptable, an exception to R20 for this feature. What
-  matters is that Betula manages no data of its visitors, and here it manages none: the access
-  log keeps addresses 7 days in Loki (Docker's own log files on the host by size,
-  `deploy/README.md` §9), and the edge can leave the path out of its log once the feature
-  exists. The privacy notice then says what this convenience costs: the address of a
-  subscription carries the chosen events and lands in the access log like every request (an
-  entry in `PRIVACY_OWED`, `app/src/pages/legal.rs`, while the texts are placeholders).
+- **The timetable as a calendar subscription** is built (2026-09-24): `/calendar/<code>.ics`,
+  one semester of the Studienplan per code (semester, planned modules, hidden kinds, events and
+  Termine, chosen Termine, the Standort; `catalog::timetable::subscription`), made anew from the
+  active snapshot on every fetch. R20 has the owner's decision, §3 the gate and the log, „Der
+  Studienplan" in §1 the rest; the privacy notice's entry is „Das Kalender-Abo" in
+  `PRIVACY_OWED` (`app/src/pages/legal.rs`). The note of 2026-09-23 (a code of event ids) is
+  superseded: a code of modules and hide rules also brings the exams QIS publishes later. Still
+  open: the edge logs the address like every address, 7 days in Loki and in Docker's log files
+  on the host until they rotate (`deploy/README.md` §9); a Traefik router for `/calendar/` with
+  `observability.accessLogs=false` would leave it out, but needs the blue-green priority label
+  in `deploy/vps/50-app.sh`, `55-switch.sh`, `lib-stacks.sh` and `91-verify-stacks.sh`. And a
+  subscription over several semesters: today the next semester needs a new address.

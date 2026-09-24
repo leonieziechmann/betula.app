@@ -3,7 +3,9 @@
 // What it keeps is the shell of the app — a page of the site (any one: the browser app renders
 // the page the address names from the local catalog), the scripts, the styles, the WASM bundle,
 // the font, the icons and the manifest. The catalog itself (`/api/db`) lives in IndexedDB,
-// where `boot.js` keeps it, and the worker never touches it or the other `/api/*` answers.
+// where `boot.js` keeps it, and the worker never touches it or the other `/api/*` answers. Nor a
+// Studienplan's calendar feed (`/calendar/…`): a calendar service fetches it from its own servers,
+// and a feed kept here would be somebody's plan in Cache Storage, or the shell offline.
 //
 // Versions: the server writes its build into this file, so a new build installs a new worker,
 // which caches the new shell and drops the old one. A page names the build that wrote it in the
@@ -47,7 +49,7 @@ const PRECACHE = [
   "/manifest.webmanifest",
 ];
 const ASSET = /^\/(assets\/|pkg\/|favicon\.ico$|apple-touch-icon(-precomposed)?\.png$|manifest\.webmanifest$)/;
-const NEVER = /^\/(api\/|access|sw\.js$|cards\/)/;
+const NEVER = /^\/(api\/|access|sw\.js$|cards\/|calendar\/)/;
 
 // Did this build answer? Only such answers are kept.
 const ours = (response) => response.ok && response.headers.get("x-build") === VERSION;
