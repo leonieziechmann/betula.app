@@ -12,17 +12,24 @@
 //! and inside an area that shows its modules in place (`crate::local`: a program's page, the
 //! marked modules — `…&open=<id>&full=1`, and on a phone whatever `open` names), where „Vollbild"
 //! must neither change the area nor the tab.
+//!
+//! What the visitor planned meets the module in the browser app alone (R9): „Einplanen" beside
+//! „Merken" and among the sidebar's actions (`studyplan::PlanButton`), and the other modules
+//! planned into the semester of its Termine, drawn beside them in its week (`plan_overlay`).
 
 use std::collections::BTreeSet;
 
 use catalog::exam_reading::{self, ExamReading, Reason, Slot};
 use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind, TurnusSeason};
-use catalog::pages::{self, ModuleData};
+use catalog::pages::{self, ModuleData, Overlay};
 use catalog::rows::Prerequisite;
 use catalog::rows_detail::EventDate;
 use catalog::timetable::day::{clock, minutes, Day};
+use catalog::timetable::grid;
 use catalog::timetable::kind::{class_of, kinds_of, Class};
-use catalog::url::{self, ProgramTab};
+use catalog::timetable::rowkey::RowKey;
+use catalog::timetable::semester::SemesterKey;
+use catalog::url::{self, ModuleHint, ProgramTab};
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::{use_location, use_params_map};
@@ -30,10 +37,15 @@ use leptos_router::hooks::{use_location, use_params_map};
 use crate::bookmarks::{MarkButton, MarkLook};
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::myprogram::MyProgram;
 use crate::seo::{self, Seo};
+use crate::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
 use crate::tabs::{self, Area, Tabs};
 use crate::ui::{BackLink, ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
-use crate::week::{GridSlot, WeekGrid};
+use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
+
+/// The browser app (`csr`): only there is a plan to meet.
+const APP: bool = cfg!(feature = "csr");
 
 /// What both the preview panel and the full page show about a module, precomputed once.
 #[derive(Clone)]
@@ -130,11 +142,27 @@ fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
 /// The preview next to a list. `close_href` is the same page without the preview. `docked` gives
 /// it the head of a frame's panel (`ui::Frame`); it floats over the page either way.
 /// `full_href` is where „Vollbild" leads: the module's own page unless the page beside which the
-/// module stands can show it in full itself (a program's page).
+/// module stands can show it in full itself (a program's page). `hint` says where „Einplanen"
+/// plans to when the list beside it was asked for a semester or a placeholder (the finder).
 #[component]
-pub fn ModulePanel(data: ModuleData, close_href: String, #[prop(optional)] docked: bool, #[prop(optional_no_strip)] full_href: Option<String>) -> impl IntoView {
+pub fn ModulePanel(
+    data: ModuleData,
+    close_href: String,
+    #[prop(optional)] docked: bool,
+    #[prop(optional_no_strip)] full_href: Option<String>,
+    #[prop(optional, into)] hint: Signal<Option<PlanHint>>,
+) -> impl IntoView {
     let id = data.module.id.clone();
-    let full_href = full_href.unwrap_or_else(|| url::module_path(&id));
+    // The module's own page keeps the hint (`?plan=…&fill=…`, as on a phone), so „Einplanen"
+    // aims there as it does here. The browser app's alone: the server's pages carry no hint.
+    let full_href = {
+        let id = id.clone();
+        move || match (&full_href, hint.get().filter(|_| APP)) {
+            (Some(href), _) => href.clone(),
+            (None, Some(hint)) => format!("{}{}", url::module_path(&id), hint.query()),
+            (None, None) => url::module_path(&id),
+        }
+    };
     view! {
         <section class="panel detail" class:aside=docked id="preview" aria-label="Modulvorschau">
             <div class="scroll" data-keep-scroll="detail">
@@ -145,7 +173,7 @@ pub fn ModulePanel(data: ModuleData, close_href: String, #[prop(optional)] docke
                         <a class="ghost" href=full_href data-action="fullscreen" title="Als ganze Seite öffnen (F)"><Icon name="maximize-2"/>"Vollbild"<Shortcut keys="F"/></a>
                         <a class="ghost" href=close_href data-action="close-detail" title="Vorschau schließen (Esc)"><Icon name="x"/>"Schließen"<Shortcut keys="Esc"/></a>
                     </div>
-                    <Heading data=data.clone()/>
+                    <Heading data=data.clone() hint/>
                 </header>
                 <div class="dbody">
                     <Side data=data.clone()/>
@@ -181,10 +209,11 @@ fn sections(data: &ModuleData) -> Vec<(&'static str, &'static str)> {
 }
 
 /// The sidebar of the module's page: the sections of the page, and what can be done with the
-/// module. It stays in view while the page scrolls, so „Merken" is here as well as beside the
-/// badges of the heading. The semester plan is announced here, where it will live.
+/// module. It stays in view while the page scrolls, so „Merken" and „Einplanen" are here as well
+/// as beside the badges of the heading; here „Einplanen" also names its semester and offers the
+/// others.
 #[component]
-fn Sidebar(data: ModuleData) -> impl IntoView {
+fn Sidebar(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
     let source_url = data.module.source_url.clone();
     let (id, title) = (data.module.id.clone(), data.module.title.clone());
     view! {
@@ -197,7 +226,7 @@ fn Sidebar(data: ModuleData) -> impl IntoView {
         <div class="fgroup actions">
             <p class="flabel label">"Aktionen"</p>
             <MarkButton id title look=MarkLook::Action/>
-            <span class="action soon" title="Geplant"><Icon name="calendar-range"/>"Ins Semester einplanen"<em>"bald"</em></span>
+            {plan_button(&data, hint, PlanLook::Action)}
             <JsOnly><a class="action" href="#" data-action="copy-link"><Icon name="share-2"/><span>"Link kopieren"</span></a></JsOnly>
             {source_url.map(|href| view! { <a class="action" href=href rel="noopener"><Icon name="arrow-up-right"/>"Original bei der BTU"</a> })}
         </div>
@@ -244,6 +273,11 @@ pub fn ModulePage() -> impl IntoView {
     let id = Memo::new(move |_| params.read().get("id").unwrap_or_default());
     let source = use_source();
     let status = PageStatus::capture();
+    // Where „Einplanen" plans to when the finder sent the visitor here (`?plan=…&fill=…`, a
+    // phone's way from the catalog): the browser app's alone, like the plan (the server keys the
+    // page by its path and renders the button as for everybody).
+    let location = use_location();
+    let hint = Memo::new(move |_| if APP { PlanHint::of(&ModuleHint::parse(&location.search.get())) } else { None });
 
     move || {
         let id = id.get();
@@ -260,7 +294,7 @@ pub fn ModulePage() -> impl IntoView {
                 // „Zurück" leads where the visitor came from: the program whose page had this
                 // module open beside it (its „Vollbild"), else the catalog's list as it was left.
                 let back = back_to(&id);
-                view! { <ModuleFull data back_area=back.0 back_to=back.1/> }.into_any()
+                view! { <ModuleFull data back_area=back.0 back_to=back.1 hint/> }.into_any()
             }
         }
     }
@@ -270,9 +304,15 @@ pub fn ModulePage() -> impl IntoView {
 /// screen. One component wherever the page is shown; `back_area` and `back_to` say where
 /// „Zurück" leads (the list of the area, or the page `back_to` names). `noindex` marks the page
 /// as a view of another one (a module shown in full inside a program): search engines follow
-/// it, its address for them stays the module's own.
+/// it, its address for them stays the module's own. `hint` aims „Einplanen" (`ModulePanel`).
 #[component]
-pub fn ModuleFull(data: ModuleData, back_area: Area, #[prop(optional_no_strip)] back_to: Option<String>, #[prop(optional)] noindex: bool) -> impl IntoView {
+pub fn ModuleFull(
+    data: ModuleData,
+    back_area: Area,
+    #[prop(optional_no_strip)] back_to: Option<String>,
+    #[prop(optional)] noindex: bool,
+    #[prop(optional, into)] hint: Signal<Option<PlanHint>>,
+) -> impl IntoView {
     let derived = derive(&data);
     view! {
         // The name first (what people search for), then number and university.
@@ -280,7 +320,7 @@ pub fn ModuleFull(data: ModuleData, back_area: Area, #[prop(optional_no_strip)] 
         <Frame
             title="Modul"
             head={ let id = data.module.id.clone(); move || view! { <span class="mono">{id.clone()}</span> } }
-            sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone()/> } }
+            sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone() hint/> } }
         >
                 <Seo
                     title=format!("{} ({})", data.module.title, data.module.id)
@@ -296,7 +336,7 @@ pub fn ModuleFull(data: ModuleData, back_area: Area, #[prop(optional_no_strip)] 
                             <BackLink area=back_area to=back_to/>
                             <span class="mono">{data.module.id.clone()}</span>
                         </div>
-                        <Heading data=data.clone()/>
+                        <Heading data=data.clone() hint/>
                     </header>
                     // Same parts, same order as the preview; side by side where there is room.
                     <div class="module-grid">
@@ -308,8 +348,26 @@ pub fn ModuleFull(data: ModuleData, back_area: Area, #[prop(optional_no_strip)] 
     }
 }
 
+/// The snapshot's current semester, and the semester of the module's newest Termine (teaching or
+/// exams): what „Einplanen" aims with (`studyplan::target_semester`).
+fn semesters_of(data: &ModuleData) -> (Option<SemesterKey>, Option<SemesterKey>) {
+    let current = data.semesters.iter().find(|s| s.is_current).and_then(|s| SemesterKey::parse(&s.key));
+    let newest = data.schedule.iter().chain(&data.exams).filter_map(|d| SemesterKey::parse(&d.semester_key)).max();
+    (current, newest)
+}
+
+/// „Einplanen" for the module. A snapshot always names its current semester; should one not, the
+/// module's newest one stands in, and without either there is nothing to plan into.
+fn plan_button(data: &ModuleData, hint: Signal<Option<PlanHint>>, look: PlanLook) -> Option<impl IntoView> {
+    let (current, newest) = semesters_of(data);
+    let m = &data.module;
+    current.or(newest).map(|current| {
+        view! { <PlanButton id=m.id.clone() title=m.title.clone() turnus=m.turnus_season.clone() current newest hint look/> }
+    })
+}
+
 #[component]
-fn Heading(data: ModuleData) -> impl IntoView {
+fn Heading(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
     let m = data.module.clone();
     let derived = derive(&data);
     view! {
@@ -324,8 +382,9 @@ fn Heading(data: ModuleData) -> impl IntoView {
             // „Merken" stands in the line of the credits, at its right end (owner, 2026-09-20), in
             // the preview and on the module's page alike. Marking belongs to the browser app: the
             // switch is part of server HTML so that nothing moves at the takeover, and the
-            // stylesheet shows it once the app runs (R9, R15).
+            // stylesheet shows it once the app runs (R9, R15). „Einplanen" beside it, the same way.
             <MarkButton id=m.id.clone() title=m.title.clone() look=MarkLook::Hero/>
+            {plan_button(&data, hint, PlanLook::Hero)}
         </p>
     }
 }
@@ -457,7 +516,25 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     let exam_semester = data.exams.first().map(|d| (d.semester_key.clone(), d.semester_label.clone()));
     let exams: Vec<EventDate> = data.exams.iter().filter(|d| exam_semester.as_ref().is_some_and(|(key, _)| *key == d.semester_key)).cloned().collect();
 
-    let slots = own_slots(&teaching);
+    // The Studienplan beside the week (A.9): nothing on the server, so its HTML is the module's
+    // alone; in the app the other modules planned into the semester of these Termine.
+    let overlay = plan_overlay(&m.id, newest_key.as_deref().and_then(SemesterKey::parse), current.and_then(|c| SemesterKey::parse(&c.key)));
+    let own = own_groups(&teaching);
+    let slots = Memo::new(move |_| overlay.with(|overlay| with_overlay(&own, overlay)));
+    let week_line = move || {
+        overlay.with(|overlay| overlay.line.clone()).map(|(warn, text)| match warn {
+            true => view! { <p class="note"><Icon name="triangle-alert"/><span>{text}</span></p> }.into_any(),
+            false => view! { <p class="hint">{text}</p> }.into_any(),
+        })
+    };
+    // The exam line speaks of the plan's semester: under these exams only when they are of it.
+    let exams_of_plan = exam_semester.as_ref().map(|(key, _)| key.clone()) == newest_key;
+    let exam_line = move || {
+        exams_of_plan
+            .then(|| overlay.with(|overlay| overlay.exam_line.clone()))
+            .flatten()
+            .map(|text| view! { <p class="note"><Icon name="triangle-alert"/><span>{text}</span></p> })
+    };
 
     // An exam date is shown as read (`catalog::exam_reading`): the BTU's placeholder is no time,
     // a deadline reads „bis 24:00", and the original stays in the row.
@@ -504,6 +581,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
         <div class="section" id="termine">
             <p class="label">"Termine"{newest.as_ref().map(|(_, label)| view! { <span>{label.clone()}</span> })}</p>
             <WeekGrid slots/>
+            {week_line}
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
             {(!teaching.is_empty()).then(|| view! { <div class="evlist">{event_list(teaching.into_iter().map(|d| (d, None)).collect())}</div> })}
@@ -512,6 +590,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
             <div class="section" id="pruefungstermine">
                 <p class="label">"Prüfungstermine"<span>{label}</span></p>
                 <div class="evlist">{event_list(exams)}</div>
+                {exam_line}
                 {exam_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             </div>
         })}
@@ -523,10 +602,19 @@ fn Schedule(data: ModuleData) -> impl IntoView {
 /// one slot (the same time in two rooms, or a date range QIS splits in two). A date that happens
 /// once (a single date, or a range of one day) is not drawn as a weekly slot: the single dates of
 /// such a key are one `.once` slot that counts them („3 Termine", „1 Termin · 23.02.").
+#[cfg(test)]
 fn own_slots(teaching: &[EventDate]) -> Vec<GridSlot> {
+    own_groups(teaching).into_iter().map(|(slot, _)| slot).collect()
+}
+
+/// `own_slots`, each with the keys of the rows it stands for (`RowKey`): what the Studienplan
+/// names when one of them clashes with it.
+fn own_groups(teaching: &[EventDate]) -> Vec<(GridSlot, Vec<RowKey>)> {
     /// Once, weekday, from, to, event, group.
     type Key<'a> = (bool, u8, u16, u16, &'a str, Option<&'a str>);
-    let mut groups: Vec<(Key<'_>, &EventDate, BTreeSet<Option<&str>>)> = Vec::new();
+    /// A slot's key, its first row, the days of its single dates, and the keys of its rows.
+    type Group<'a> = (Key<'a>, &'a EventDate, BTreeSet<Option<&'a str>>, Vec<RowKey>);
+    let mut groups: Vec<Group<'_>> = Vec::new();
     for date in teaching {
         let day = date.weekday.and_then(|day| u8::try_from(day).ok()).filter(|day| (1..=7).contains(day));
         let from = date.start_time.as_deref().and_then(minutes);
@@ -537,36 +625,123 @@ fn own_slots(teaching: &[EventDate]) -> Vec<GridSlot> {
         }
         let once = date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Single)) || (date.first_date.is_some() && date.first_date == date.last_date);
         let key = (once, day, from, to, date.event_id.as_str(), date.group_name.as_deref());
+        let row = RowKey::of(date);
         match groups.iter_mut().find(|(known, ..)| *known == key) {
-            Some((_, _, dates)) => {
+            Some((_, _, dates, rows)) => {
                 dates.insert(date.first_date.as_deref());
+                rows.extend(row);
             }
-            None => groups.push((key, date, BTreeSet::from([date.first_date.as_deref()]))),
+            None => groups.push((key, date, BTreeSet::from([date.first_date.as_deref()]), row.into_iter().collect())),
         }
     }
     groups
         .into_iter()
-        .map(|((once, day, from, to, ..), date, dates)| {
-            let label = date.event_type.clone().unwrap_or_else(|| "Termin".to_string());
-            if !once {
-                let lecture = class_of(kinds_of(date.event_type.as_deref())) == Class::Lecture;
-                return GridSlot { day, from, to, label, small: clock(from), title: date.event_title.clone(), class: if lecture { "" } else { "other" }, ..GridSlot::default() };
-            }
-            let days: Vec<Day> = dates.iter().filter_map(|date| date.and_then(Day::parse)).collect();
-            let small = match (dates.len(), days.as_slice()) {
-                (1, [only]) => format!("1 Termin · {}", only.short()),
-                (1, _) => "1 Termin".to_string(),
-                (n, _) => format!("{n} Termine"),
-            };
-            // The tooltip names the dates the small line only counts.
-            let title = if days.is_empty() {
-                date.event_title.clone()
-            } else {
-                format!("{} · {}", date.event_title, days.iter().map(|day| day.german()).collect::<Vec<_>>().join(", "))
-            };
-            GridSlot { day, from, to, label, small, title, class: "once", ..GridSlot::default() }
-        })
+        .map(|((once, day, from, to, ..), date, dates, rows)| (own_slot(once, day, from, to, date, &dates), rows))
         .collect()
+}
+
+/// The slot of one group of rows (`own_groups`): `date` is its first row, `dates` the days of its
+/// single dates.
+fn own_slot(once: bool, day: u8, from: u16, to: u16, date: &EventDate, dates: &BTreeSet<Option<&str>>) -> GridSlot {
+    let label = date.event_type.clone().unwrap_or_else(|| "Termin".to_string());
+    if !once {
+        let lecture = class_of(kinds_of(date.event_type.as_deref())) == Class::Lecture;
+        return GridSlot { day, from, to, label, small: clock(from), title: date.event_title.clone(), class: if lecture { "" } else { "other" }, ..GridSlot::default() };
+    }
+    let days: Vec<Day> = dates.iter().filter_map(|date| date.and_then(Day::parse)).collect();
+    let small = match (dates.len(), days.as_slice()) {
+        (1, [only]) => format!("1 Termin · {}", only.short()),
+        (1, _) => "1 Termin".to_string(),
+        (n, _) => format!("{n} Termine"),
+    };
+    // The tooltip names the dates the small line only counts.
+    let title = if days.is_empty() {
+        date.event_title.clone()
+    } else {
+        format!("{} · {}", date.event_title, days.iter().map(|day| day.german()).collect::<Vec<_>>().join(", "))
+    };
+    GridSlot { day, from, to, label, small, title, class: "once", ..GridSlot::default() }
+}
+
+/// Whether a module's week shows the Studienplan beside it (A.9): its Termine are of the current
+/// semester or a later one — a past semester is not compared with a plan — and the plan holds
+/// other modules in that semester.
+fn overlay_wanted(newest: Option<SemesterKey>, current: Option<SemesterKey>, others: &[String]) -> bool {
+    matches!((newest, current), (Some(newest), Some(current)) if newest >= current) && !others.is_empty()
+}
+
+/// The Studienplan beside a module's week (A.9), in the browser app: the other modules planned
+/// into `newest`, the semester of the module's Termine, as `pages::overlay` sees them against the
+/// module. Empty on the server, without a plan in that semester, and when the catalog cannot
+/// answer (the overlay only adds to the page).
+///
+/// Two memos, so that a change of the plan elsewhere (another semester, a module's placeholder)
+/// asks the catalog nothing: `asked` reads the stores alone (R16) and keeps what the overlay is
+/// made of; the overlay reads `asked` alone. Its questions are the same for every module shown
+/// beside the same plan, so only the module's own three are new (`pages::overlay`).
+fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterKey>) -> Memo<Overlay> {
+    let plan = Studyplan::expect().filter(|_| APP);
+    let mine = MyProgram::expect();
+    let source = use_source().ok();
+    let asked = {
+        let id = id.to_string();
+        Memo::new(move |_| {
+            let (plan, key) = (plan?, newest?);
+            let town = mine.map(MyProgram::town).unwrap_or_default();
+            let (others, selection) = plan.with(|doc| (doc.modules_in(key).into_iter().filter(|other| *other != id).collect::<Vec<_>>(), doc.selection(key, town)));
+            overlay_wanted(Some(key), current, &others).then_some((key, others, selection))
+        })
+    };
+    let id = id.to_string();
+    Memo::new(move |_| {
+        let (Some((key, others, selection)), Some(source)) = (asked.get(), source.as_ref()) else {
+            return Overlay::default();
+        };
+        source
+            .run(|db| {
+                let plan = pages::studyplan(db, key, &others)?;
+                pages::overlay(db, &plan, &id, &selection)
+            })
+            .unwrap_or_default()
+    })
+}
+
+/// The module's own slots with the plan beside them (A.9): its slots in a hard clash marked, and
+/// the other planned modules' Termine as quiet `.planned` slots cut to the days and hours the
+/// module's own week spans, so that the grid never grows when the plan arrives. Planned Termine
+/// at the same time are one slot that names each module once: the plan is the context here, and
+/// every slot beside the module's own takes a lane of its width.
+fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay) -> Vec<GridSlot> {
+    let mut slots: Vec<GridSlot> = own.iter().map(|(slot, rows)| GridSlot { clash: rows.iter().any(|row| overlay.clashing.contains(row)), ..slot.clone() }).collect();
+    if slots.is_empty() {
+        return slots;
+    }
+    let span = grid::span(&slots.iter().map(GridSlot::placed).collect::<Vec<_>>(), MIN_HOURS.saturating_mul(60));
+    /// Day, from and to as drawn; the modules' titles; each title with its whole time (the tooltip).
+    type Time<'a> = ((u8, u16, u16), Vec<&'a str>, Vec<String>);
+    let mut times: Vec<Time<'_>> = Vec::new();
+    for planned in &overlay.planned {
+        let (from, to) = (planned.from.max(span.first), planned.to.min(span.last));
+        if !(1..=span.days).contains(&planned.day) || to <= from {
+            continue;
+        }
+        let when = format::time_slot(Some(i64::from(planned.day)), Some(&clock(planned.from)), Some(&clock(planned.to))).unwrap_or_default();
+        let line = format!("{} · {when}", planned.short);
+        let at = (planned.day, from, to);
+        match times.iter_mut().find(|(known, ..)| *known == at) {
+            Some((_, names, lines)) => {
+                if !names.contains(&planned.short.as_str()) {
+                    names.push(&planned.short);
+                }
+                if !lines.contains(&line) {
+                    lines.push(line);
+                }
+            }
+            None => times.push((at, vec![&planned.short], vec![line])),
+        }
+    }
+    slots.extend(times.into_iter().map(|((day, from, to), names, lines)| GridSlot { day, from, to, small: names.join(" · "), title: lines.join("\n"), class: "planned", ..GridSlot::default() }));
+    slots
 }
 
 /// „Mo 09:15–10:45", and „Mo bis 24:00" for a deadline (an end without a start).
@@ -788,6 +963,82 @@ mod tests {
         // A „Vorlesung/Übung" is a lecture.
         let weekly = teaching("148370", "Vorlesung/Übung", "[unbenannt]", 3, ("09:15", "10:45"), "weekly", "2026-10-14", "2027-01-27");
         assert_eq!(own_slots(&[weekly]).first().map(|s| s.class), Some(""));
+    }
+
+    fn key(text: &str) -> SemesterKey {
+        SemesterKey::parse(text).unwrap()
+    }
+
+    #[test]
+    fn the_plan_stands_beside_a_week_of_now_or_later() {
+        let others = vec!["12104".to_string()];
+        assert!(overlay_wanted(Some(key("2026W")), Some(key("2026W")), &others));
+        assert!(overlay_wanted(Some(key("2027S")), Some(key("2026W")), &others));
+        // A module whose newest Termine are past is not compared with a plan.
+        assert!(!overlay_wanted(Some(key("2026S")), Some(key("2026W")), &others));
+        // Nothing else planned in the semester: no overlay, and no line.
+        assert!(!overlay_wanted(Some(key("2026W")), Some(key("2026W")), &[]));
+        // No Termine, or no current semester: nothing to compare.
+        assert!(!overlay_wanted(None, Some(key("2026W")), &others));
+        assert!(!overlay_wanted(Some(key("2026W")), None, &others));
+    }
+
+    #[test]
+    fn the_plan_beside_a_week_keeps_the_week_s_frame() {
+        use catalog::pages::OverlaySlot;
+        // Analysis I's Übung on Tuesday 09:15 and its lecture on Thursday 11:30.
+        let rows = [
+            teaching("150132", "Übung", "1-Gruppe", 2, ("09:15", "10:45"), "weekly", "2026-10-13", "2027-01-26"),
+            teaching("148663", "Vorlesung", "[unbenannt]", 4, ("11:30", "13:00"), "weekly", "2026-10-15", "2027-01-28"),
+        ];
+        let own = own_groups(&rows);
+        let clashing = own.first().and_then(|(_, rows)| rows.first().copied());
+        let named = |name: &str, day, from: &str, to: &str| OverlaySlot { module: "12102".into(), short: name.into(), day, from: minutes(from).unwrap(), to: minutes(to).unwrap() };
+        let planned = |day, from: &str, to: &str| named("Programmierpraktikum", day, from, to);
+        let overlay = Overlay {
+            planned: vec![
+                // Inside the frame, beside the Übung it clashes with; two modules at one time are
+                // one slot.
+                planned(2, "09:15", "10:45"),
+                named("Elektrische und elektronische Grundlagen der Informatik", 2, "09:15", "10:45"),
+                // Reaching past the frame: cut to it (08:00–13:00).
+                planned(4, "12:30", "14:00"),
+                planned(1, "07:30", "09:00"),
+                // Wholly outside it, or on a Saturday the week does not have: left out.
+                planned(3, "16:00", "17:30"),
+                planned(6, "09:00", "12:00"),
+            ],
+            clashing: clashing.into_iter().collect(),
+            ..Overlay::default()
+        };
+        let slots = with_overlay(&own, &overlay);
+        let shown: Vec<(u8, String, String, &str, bool)> = slots.iter().map(|s| (s.day, clock(s.from), clock(s.to), s.class, s.clash)).collect();
+        assert_eq!(
+            shown,
+            [
+                (2, "09:15".into(), "10:45".into(), "other", true),
+                (4, "11:30".into(), "13:00".into(), "", false),
+                (2, "09:15".into(), "10:45".into(), "planned", false),
+                (4, "12:30".into(), "13:00".into(), "planned", false),
+                (1, "08:00".into(), "09:00".into(), "planned", false),
+            ]
+        );
+        // The grid's frame is the module's own, with the plan beside it or not.
+        let own_slots: Vec<GridSlot> = own.iter().map(|(slot, _)| slot.clone()).collect();
+        let frame = |slots: &[GridSlot]| crate::week::geometry(slots, MIN_HOURS).map(|(week, _)| week);
+        assert_eq!(frame(&slots), frame(&own_slots));
+        // A planned slot names its modules small, and their times in the tooltip.
+        assert_eq!(
+            slots.get(2).map(|s| (s.label.as_str(), s.small.as_str(), s.title.as_str())),
+            Some((
+                "",
+                "Programmierpraktikum · Elektrische und elektronische Grundlagen der Informatik",
+                "Programmierpraktikum · Di 09:15–10:45\nElektrische und elektronische Grundlagen der Informatik · Di 09:15–10:45"
+            ))
+        );
+        assert_eq!(slots.get(3).map(|s| s.title.as_str()), Some("Programmierpraktikum · Do 12:30–14:00"));
+        // Without a plan the week is the module's alone.
+        assert_eq!(with_overlay(&own, &Overlay::default()), own_slots);
     }
 
     fn read(date: &EventDate) -> ExamReading {

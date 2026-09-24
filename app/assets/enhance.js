@@ -3,7 +3,7 @@
 // makes the classic site smoother: filters apply on change, panels keep their scroll position
 // across page loads. In both modes: the shortcuts (Esc closes the preview or leaves the module
 // page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search; in the app
-// M marks the module the visitor is at), the theme
+// M marks the module the visitor is at and P plans it into the Studienplan), the theme
 // switch, the filter sheet, and the widths of the filter panel and the module preview (dragged,
 // kept in localStorage).
 (() => {
@@ -432,6 +432,13 @@
       const row = document.activeElement?.closest?.(".row-wrap");
       const mark = row ? row.querySelector('[data-action="mark"]') : document.querySelector('.hero [data-action="mark"]');
       if (mark) { e.preventDefault(); mark.click(); }
+    } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns()) {
+      // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
+      // button of their own. The keyboard on another row of the list than the open one would make
+      // it ambiguous which module is meant, so P waits there.
+      const row = document.activeElement?.closest?.(".row-wrap");
+      const plan = row && !row.querySelector('[aria-current="true"]') ? null : document.querySelector('.hero [data-action="plan"]');
+      if (plan) { e.preventDefault(); plan.click(); }
     } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();
       const search = document.getElementById("topsearch");
