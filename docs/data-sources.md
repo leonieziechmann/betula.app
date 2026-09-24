@@ -513,14 +513,15 @@ changed, in doubt for three days, or 30 days old.
 ## 12. How often the rest is read (2026-09-24)
 
 Owner, 2026-09-24: Betula should fly under the radar and cause the university no trouble, so
-nothing is read more often than it changes. Most of what a module states changes once in years;
-what changes each semester are the events a description names.
+nothing is read from QIS more often than it changes. Most of what a module states changes once
+in years; what changes each semester are the events a description names. The copy on b-tu.de is
+another server (the CMS, fast, with logs of its own) and is read weekly.
 
 | What | Every | Sooner when |
 |---|---|---|
 | module index: catalog list, FÜS list, QIS module table | second night (40 h) | — |
-| QIS module description | 30 days | its row in the module table changed (title, language, credits, FÜS, limitation): the same night. QIS calls another semester current than when the description was read: all of them, spread by the limit of 600 a night. The module is offered in the semester the catalog presents and its description names none of the semester's events yet: weekly |
-| module page on b-tu.de (the copy) | 30 days | — |
+| QIS module description | 30 days | its row in the module table changed (title, language, credits, FÜS, limitation): the same night. QIS calls another semester current than when the description was read: all of them, 200 a cycle, over about three nights. The module is offered in the semester the catalog presents and its description names none of the semester's events yet: weekly |
+| module page on b-tu.de (the copy, not QIS) | 7 days | — |
 | QIS program tree | 30 days | — |
 
 The semester QIS calls current stands in the head of every QIS page (`id="choosesemester"`,
@@ -531,3 +532,8 @@ module table is compared with the same row before the table was read again
 (`parser.TableRowStatements`), so a changed row is known in the run that reads it and its
 description follows in the same stage. Which modules are offered without events comes from the
 last build: `module.turnus_season` against `meta.current_semester`, and `module_event`.
+
+The limits are per cycle, and the off-peak window holds about five cycles. What comes at once, a
+new semester, is spread: 200 QIS module descriptions and 200 event pages a cycle. Meanwhile the
+dates of the new events come from the event search, which states them before their pages are
+fetched.

@@ -29,10 +29,12 @@ type Config struct {
 	OffPeakStart, OffPeakEnd int
 
 	// The module index (the two lists and the QIS module table) is read every second night;
-	// module pages and the program tree change seldom and are read once a month. A QIS
-	// module description is read again sooner when something it depends on changed: its
-	// row in the module table, the semester QIS calls current, or, weekly, while it names
-	// none of the events of a semester the module is offered in.
+	// QIS module descriptions and the program tree change seldom and are read once a month,
+	// the copy of the module pages on b-tu.de, a server of its own, weekly. A QIS module
+	// description is read again sooner when something it depends on changed: its row in the
+	// module table, the semester QIS calls current, or, weekly, while it names none of the
+	// events of a semester the module is offered in. A Limit is per cycle; the off-peak
+	// window has about five.
 	Lists, Modules, Tree Pace
 	QISModules           ModulePace
 
@@ -50,13 +52,17 @@ type Config struct {
 	StaleAfter     time.Duration        // health: unhealthy without a successful cycle for this long
 }
 
-// DefaultConfig is a polite setup for the BTU servers, which asks for what changes as often
-// as it changes: the module index every second night; a module page, a QIS module
-// description and a page of the program tree once a month, a description sooner when
-// something it depends on changed; the dates of all events in about ten requests of the
-// event search a night, and those not settled yet in a request or two an hour; an event
-// page when the search shows a change, every three days while its dates are in doubt, and
-// otherwise once a month.
+// DefaultConfig is a polite setup for the BTU servers, which asks QIS for what changes as
+// often as it changes: the module index every second night; a QIS module description and a
+// page of the program tree once a month, a description sooner when something it depends on
+// changed; the dates of all events in about ten requests of the event search a night, and
+// those not settled yet in a request or two an hour; an event page when the search shows a
+// change, every three days while its dates are in doubt, and otherwise once a month. The
+// copy of the module pages on b-tu.de is read weekly: another server, and a fast one.
+//
+// The limits spread what comes at once, a new semester, over a few nights: 200 QIS module
+// descriptions and 200 event pages a cycle, about five cycles a night. The dates of a new
+// semester's events come from the event search meanwhile.
 func DefaultConfig() Config {
 	return Config{
 		Endpoints:    BTUEndpoints(),
@@ -66,14 +72,14 @@ func DefaultConfig() Config {
 		OffPeakEnd:   6,
 		// 40 hours: every second night, whatever time of the night the last reading was.
 		Lists:   Pace{Delay: time.Second, MaxAge: 40 * time.Hour},
-		Modules: Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 30 * 24 * time.Hour, Limit: 400},
+		Modules: Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 7 * 24 * time.Hour, Limit: 400},
 		QISModules: ModulePace{
-			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 30 * 24 * time.Hour, Limit: 600},
+			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 30 * 24 * time.Hour, Limit: 200},
 			UnsettledMaxAge: 7 * 24 * time.Hour,
 		},
 		EventList: EventListPace{Pace: Pace{Delay: 2 * time.Second, MaxAge: 12 * time.Hour}, UnsettledMaxAge: time.Hour},
 		Events: EventPagePace{
-			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 600},
+			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 200},
 			ConfirmedMaxAge: 30 * 24 * time.Hour,
 			EntryFresh:      24 * time.Hour, // twice the list's MaxAge: a search that stopped working vouches for nothing after a day
 			DayLimit:        50,
