@@ -476,21 +476,29 @@ event page stays a source, and the search decides when it is worth fetching.
 
 **How the two are used.** `parser.SameSchedule` compares everything both of them state (the room
 by its ID) and nothing else. Where the entry agrees with the page, the build uses the page, as
-current as the entry. Where they differ, the newer of them wins: a date the search has moved is
-in the catalog the night the search shows it, and the page is fetched in the same night, first
-after pages that were never fetched. An event without a page takes its dates from its entry, and
-a room it names gets the name, campus included, that any event page gives the same room ID. An
-event the search does not show keeps its page as its only source, fetched every three days as
-before. A page the search confirms is fetched again after 30 days, for its remarks. An entry
-older than twice the search's own age (a day) confirms nothing, so a search that stopped working
-leaves the pages at their three days.
+current as the entry. Where they differ, the entry wins if it changed after the page was
+fetched: a date the search has moved is in the catalog as soon as the search shows it, and the
+page is fetched in the same cycle, by day as well (at most 50 a cycle). Otherwise the page wins,
+as the newer reading of the same state. What counts is when the entry last *changed*
+(`raw_page.changed_at`), not when it was last read: a difference in reading between the list
+and the page then costs one fetch of the page, not one every time the list is read, and the
+catalog never swings back and forth. An event without a page takes its dates from its entry, and
+a room it names gets the name, campus included, that any event page gives the same room ID.
 
-**Events without dates.** BTU publishes a semester event by event, and the dates of an exam often
-weeks later. An event that does not say yet when it takes place is looked up every three hours,
-also by day: no date, or none with a time and a day, or only the placeholder QIS enters for an
-exam without a date, 01:00 to 02:30 on a Sunday or without a weekday (27.12.2015 in the WiSe
-2026/27; Folia reads it the same way, `catalog/src/exam_reading.rs`). Every other event is looked
-up once a night, in the off-peak window.
+A page the search vouches for (same dates, and settled) is fetched again after 30 days, for its
+remarks. A page in doubt is fetched every three days, as before: its dates are not settled, the
+search does not show the event, the two disagree, or the entry is older than twice the search's
+own age (a day), so that a search that stopped working leaves the pages at their three days.
+
+**Dates in doubt.** BTU publishes a semester event by event, and the dates of an exam often
+weeks later. An event whose dates are not settled is looked up every hour, also by day; asking
+again costs a share of one request, and in doubt the answer is the same. Not settled
+(`parser.Unsettled`) means: no date, or none with a time and a day; the placeholder QIS enters
+for an exam without a date, 01:00 to 02:30 on a Sunday or without a weekday (27.12.2015 in the
+WiSe 2026/27); a date that looks wrong the way Folia marks it (`catalog/src/exam_reading.rs`): a
+time before 06:00 or after 22:00 that is not a deadline, an end before its start, a day more
+than six months from the semester; or an event the search does not show. Every other event is
+looked up once a night, in the off-peak window.
 
 **When the search answers something else.** The answer must state as many hits as it shows, and
 show only events that were asked for; a page without a number of hits is not a result of the
@@ -499,5 +507,27 @@ ignored the list of IDs, the answer would be the first page of all events of the
 semester, and every event asked for would look deleted.
 
 **Requests.** Before: up to 600 event pages a night. Now: about ten requests of the search a
-night for all events, one to three every three hours for the events without dates, and the pages
-that are new, changed or 30 days old (about 80 a night for 2,500 events).
+night for all events, one to three an hour for the events in doubt, and the pages that are new,
+changed, in doubt for three days, or 30 days old.
+
+## 12. How often the rest is read (2026-09-24)
+
+Owner, 2026-09-24: Betula should fly under the radar and cause the university no trouble, so
+nothing is read more often than it changes. Most of what a module states changes once in years;
+what changes each semester are the events a description names.
+
+| What | Every | Sooner when |
+|---|---|---|
+| module index: catalog list, FÜS list, QIS module table | second night (40 h) | — |
+| QIS module description | 30 days | its row in the module table changed (title, language, credits, FÜS, limitation): the same night. QIS calls another semester current than when the description was read: all of them, spread by the limit of 600 a night. The module is offered in the semester the catalog presents and its description names none of the semester's events yet: weekly |
+| module page on b-tu.de (the copy) | 30 days | — |
+| QIS program tree | 30 days | — |
+
+The semester QIS calls current stands in the head of every QIS page (`id="choosesemester"`,
+„WiSe 2026/27"; seen on the module table, a module description, event pages, the event search
+and a room page). A description's own head says under which semester it was read; the most
+recently fetched QIS page says the semester now, the module table winning a tie. A row of the
+module table is compared with the same row before the table was read again
+(`parser.TableRowStatements`), so a changed row is known in the run that reads it and its
+description follows in the same stage. Which modules are offered without events comes from the
+last build: `module.turnus_season` against `meta.current_semester`, and `module_event`.

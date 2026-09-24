@@ -102,16 +102,93 @@ func words(s string) string {
 // (Folia reads it the same way, catalog/src/exam_reading.rs).
 func AwaitsDates(d *model.EventDetail) bool {
 	for _, s := range d.Schedules {
-		start, end := normalize.Clock(s.StartTime), normalize.Clock(s.EndTime)
-		weekday := normalize.Weekday(s.DayOfWeek)
 		first, _ := DayRange(s.Duration)
-		if start == "" || (weekday == 0 && first == "") {
-			continue
-		}
-		if start == "01:00" && end == "02:30" && (weekday == 7 || weekday == 0) {
+		if normalize.Clock(s.StartTime) == "" || (normalize.Weekday(s.DayOfWeek) == 0 && first == "") || isPlaceholder(s) {
 			continue
 		}
 		return false
 	}
 	return true
+}
+
+func isPlaceholder(s model.EventSchedule) bool {
+	weekday := normalize.Weekday(s.DayOfWeek)
+	return normalize.Clock(s.StartTime) == "01:00" && normalize.Clock(s.EndTime) == "02:30" && (weekday == 7 || weekday == 0)
+}
+
+// Unsettled reports whether the dates of an event are not settled, so that they are worth
+// asking about more often: the event awaits its dates, or one of its dates is the
+// placeholder of an exam or looks wrong the way Folia marks it (catalog/src/exam_reading.rs):
+// a time before 06:00 or after 22:00 that is not a deadline („bis 24:00"), an end before the
+// start, or a day more than six months away from the event's own semester.
+func Unsettled(d *model.EventDetail) bool {
+	if AwaitsDates(d) {
+		return true
+	}
+	from, to, known := semesterMonths(d.Semester)
+	for _, s := range d.Schedules {
+		if isPlaceholder(s) {
+			return true
+		}
+		start, end := minutes(s.StartTime), minutes(s.EndTime)
+		deadline := end == 24*60 && (start < 0 || start >= 22*60) // the day something is due
+		if !deadline && (outsideDay(start) || outsideDay(end) || (start >= 0 && end >= 0 && end < start)) {
+			return true
+		}
+		if !known {
+			continue
+		}
+		first, last := DayRange(s.Duration)
+		for _, day := range []string{first, last} {
+			if m, ok := month(day); ok && (m < from || m > to) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// minutes returns a time of day in minutes, -1 when there is none.
+func minutes(raw string) int {
+	clock := normalize.Clock(raw)
+	if clock == "" {
+		return -1
+	}
+	h, _ := strconv.Atoi(clock[:2])
+	m, _ := strconv.Atoi(clock[3:])
+	return h*60 + m
+}
+
+func outsideDay(t int) bool {
+	return t >= 0 && (t < 6*60 || t > 22*60)
+}
+
+// semesterMonths is the span of months a date of the semester can lie in: the semester and
+// six months on either side, as months counted from year 0.
+func semesterMonths(semester string) (from, to int, ok bool) {
+	key := normalize.SemesterKey(semester)
+	if key == "" {
+		return 0, 0, false
+	}
+	year, err := strconv.Atoi(key[:len(key)-1])
+	if err != nil {
+		return 0, 0, false
+	}
+	starts := year*12 + 3 // April
+	if strings.HasSuffix(key, "W") {
+		starts = year*12 + 9 // October
+	}
+	return starts - 6, starts + 5 + 6, true
+}
+
+func month(isoDay string) (int, bool) {
+	if len(isoDay) < 7 {
+		return 0, false
+	}
+	year, errY := strconv.Atoi(isoDay[:4])
+	m, errM := strconv.Atoi(isoDay[5:7])
+	if errY != nil || errM != nil {
+		return 0, false
+	}
+	return year*12 + m - 1, true
 }

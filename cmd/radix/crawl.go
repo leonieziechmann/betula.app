@@ -101,10 +101,11 @@ func runCrawlQISModules(ctx context.Context, args []string) {
 	db := openDB(*dbPath)
 	defer db.Close()
 
-	if stats, err := service.CrawlQISModuleList(ctx, db, service.BTUEndpoints(), service.Pace{Delay: pace().Delay, MaxAge: time.Hour}); err != nil || stats.Failed > 0 {
+	stats, changedRows, err := service.CrawlQISModuleList(ctx, db, service.BTUEndpoints(), service.Pace{Delay: pace().Delay, MaxAge: time.Hour})
+	if err != nil || stats.Failed > 0 {
 		finishCrawl("crawl-qis-modules", stats, err)
 	}
-	stats, err := service.CrawlQISModules(ctx, db, service.BTUEndpoints(), pace())
+	stats, err = service.CrawlQISModules(ctx, db, service.BTUEndpoints(), service.ModulePace{Pace: pace(), UnsettledMaxAge: pace().MaxAge}, changedRows)
 	finishCrawl("crawl-qis-modules", stats, err)
 }
 
@@ -116,8 +117,8 @@ func runCrawlEvents(ctx context.Context, args []string) {
 	dbPath := fs.String("db", defaultDBPath, "Database path")
 	pace := addPaceFlags(fs, 1, 500, def.Events.MaxAge)
 	listMaxAge := fs.Duration("list-max-age", def.EventList.MaxAge, "Look an event up in the event search again after this long")
-	placeholderMaxAge := fs.Duration("placeholder-max-age", def.EventList.PlaceholderMaxAge, "Look an event without dates up again after this long")
-	pageMaxAge := fs.Duration("page-max-age", def.Events.ConfirmedMaxAge, "Fetch the page of an event the event search confirms again after this long")
+	unsettledMaxAge := fs.Duration("unsettled-max-age", def.EventList.UnsettledMaxAge, "Look an event with unsettled dates up again after this long")
+	pageMaxAge := fs.Duration("page-max-age", def.Events.ConfirmedMaxAge, "Fetch the page of an event the event search vouches for again after this long")
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
@@ -126,12 +127,12 @@ func runCrawlEvents(ctx context.Context, args []string) {
 	db := openDB(*dbPath)
 	defer db.Close()
 
-	list := service.EventListPace{Pace: service.Pace{Delay: 4 * pace().Delay, MaxAge: *listMaxAge}, PlaceholderMaxAge: *placeholderMaxAge}
+	list := service.EventListPace{Pace: service.Pace{Delay: 4 * pace().Delay, MaxAge: *listMaxAge}, UnsettledMaxAge: *unsettledMaxAge}
 	if stats, err := service.CrawlEventList(ctx, db, service.BTUEndpoints(), list, true); err != nil || stats.Failed > 0 {
 		finishCrawl("crawl-events", stats, err)
 	}
 	pages := service.EventPagePace{Pace: pace(), ConfirmedMaxAge: *pageMaxAge, EntryFresh: 2 * *listMaxAge}
-	stats, err := service.CrawlEvents(ctx, db, service.BTUEndpoints(), pages)
+	stats, err := service.CrawlEvents(ctx, db, service.BTUEndpoints(), pages, true)
 	finishCrawl("crawl-events", stats, err)
 }
 

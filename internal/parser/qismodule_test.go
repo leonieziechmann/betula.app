@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -135,5 +136,27 @@ func TestQISModuleParserSingleTitle(t *testing.T) {
 	}
 	if d.TitleDE != "Bachelor-Arbeit" || d.TitleEN != "" {
 		t.Errorf("titles = %q / %q", d.TitleDE, d.TitleEN)
+	}
+}
+
+// Every QIS page names the semester QIS calls current in its head, a module description
+// and the module table as much as the event search (2026-09-24).
+func TestQISSemester(t *testing.T) {
+	head := `<div class="services"><ol><li>
+		<a href="https://www.b-tu.de/qisserver3/rds?state=change&amp;type=6&amp;moduleParameter=semesterSelect" id="choosesemester" title="Semester wählen ...">
+		   WiSe 2026/27
+		</a></li></ol></div>`
+	if got := QISSemester([]byte(head)); got != "WiSe 2026/27" {
+		t.Errorf("QISSemester = %q", got)
+	}
+	list, err := os.ReadFile("testdata/qis_event_list.html")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	if got := QISSemester(list); got != "WiSe 2026/27" {
+		t.Errorf("QISSemester(event search) = %q", got)
+	}
+	if got := QISSemester([]byte(`<html><body>no head</body></html>`)); got != "" {
+		t.Errorf("QISSemester without a head = %q", got)
 	}
 }

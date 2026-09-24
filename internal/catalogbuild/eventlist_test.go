@@ -61,7 +61,8 @@ func TestBuildReadsEventsFromTheListAndThePage(t *testing.T) {
 		<tr><td>13921</td><td><a href="/rds?pord.pordnr=9001">Lightweight Design and Construction</a></td><td>Englisch</td><td>6</td><td></td><td></td></tr>
 	</table>`, night)
 	put(catalogdb.SourceQISModulePage, "13921", qisModulePage("13921", "Lightweight Design and Construction", "6",
-		qisEventLink("151102", "Vorlesung")+qisEventLink("147988", "Vorlesung/Übung")+qisEventLink("151278", "Konsultation")+qisEventLink("152864", "Vorlesung")), night)
+		qisEventLink("151102", "Vorlesung")+qisEventLink("147988", "Vorlesung/Übung")+qisEventLink("151278", "Konsultation")+
+			qisEventLink("152864", "Vorlesung")+qisEventLink("151296", "Übung/Praktikum")), night)
 
 	// The list confirms the page of 151102: the page is used, remark and campus included.
 	put(catalogdb.SourceQISEvent, "151102", string(fixture("qis_event_151102.html")), night.Add(-72*time.Hour))
@@ -75,13 +76,19 @@ func TestBuildReadsEventsFromTheListAndThePage(t *testing.T) {
 	// The page of 152864 is newer than the list: the page wins.
 	put(catalogdb.SourceQISEventEntry, "152864", strings.Replace(entry("152864"), "16:30", "17:00", 1), night)
 	put(catalogdb.SourceQISEvent, "152864", string(fixture("qis_event_152864.html")), night.Add(time.Hour))
+	// The page of 151296 was fetched after its entry last changed, and the entry was read
+	// again since, unchanged. What counts is the change: the page stays, although it differs.
+	moved := strings.Replace(entry("151296"), "07:30", "08:15", 1)
+	put(catalogdb.SourceQISEventEntry, "151296", moved, night.Add(-2*time.Hour))
+	put(catalogdb.SourceQISEvent, "151296", string(fixture("qis_event_151296.html")), night.Add(-time.Hour))
+	put(catalogdb.SourceQISEventEntry, "151296", moved, night)
 
 	report, err := Build(context.Background(), db)
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
-	if report.Events != 4 || report.EventsFromList != 2 {
-		t.Errorf("events = %d, from the list %d; want 4 and 2", report.Events, report.EventsFromList)
+	if report.Events != 5 || report.EventsFromList != 2 {
+		t.Errorf("events = %d, from the list %d; want 5 and 2", report.Events, report.EventsFromList)
 	}
 
 	want(t, db, "SELECT start_time, room, campus, comment FROM event_date WHERE event_id = '151102' ORDER BY ord",
@@ -105,5 +112,8 @@ func TestBuildReadsEventsFromTheListAndThePage(t *testing.T) {
 	want(t, db, "SELECT start_time, cancelled_dates FROM event_date WHERE event_id = '152864' ORDER BY ord",
 		"16:30|∅", "16:30|14.10.2026: findet ersatzweise im HS 11.301 statt.")
 
-	want(t, db, "SELECT event_id FROM module_event WHERE module_id = '13921' ORDER BY event_id", "147988", "151102", "151278", "152864")
+	want(t, db, "SELECT start_time FROM event_date WHERE event_id = '151296' AND ord = 1", "11:30")
+	want(t, db, "SELECT COUNT(*) FROM event_date WHERE event_id = '151296' AND start_time = '08:15'", "0")
+
+	want(t, db, "SELECT event_id FROM module_event WHERE module_id = '13921' ORDER BY event_id", "147988", "151102", "151278", "151296", "152864")
 }

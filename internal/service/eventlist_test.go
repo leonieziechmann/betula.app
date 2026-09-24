@@ -147,7 +147,7 @@ func TestEventListLooksUpTheLinkedEvents(t *testing.T) {
 	}
 	linkEvents(t, db, ids...)
 
-	stats, err := CrawlEventList(context.Background(), db, f.endpoints(), EventListPace{Pace: Pace{MaxAge: 12 * time.Hour}, PlaceholderMaxAge: 3 * time.Hour}, true)
+	stats, err := CrawlEventList(context.Background(), db, f.endpoints(), EventListPace{Pace: Pace{MaxAge: 12 * time.Hour}, UnsettledMaxAge: time.Hour}, true)
 	if err != nil {
 		t.Fatalf("CrawlEventList: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestEventListLooksUpTheLinkedEvents(t *testing.T) {
 
 	// Looked up a moment ago: nothing is due, by night or by day.
 	for _, all := range []bool{true, false} {
-		if _, err := CrawlEventList(context.Background(), db, f.endpoints(), EventListPace{Pace: Pace{MaxAge: 12 * time.Hour}, PlaceholderMaxAge: 3 * time.Hour}, all); err != nil {
+		if _, err := CrawlEventList(context.Background(), db, f.endpoints(), EventListPace{Pace: Pace{MaxAge: 12 * time.Hour}, UnsettledMaxAge: time.Hour}, all); err != nil {
 			t.Fatalf("CrawlEventList: %v", err)
 		}
 	}
@@ -184,33 +184,45 @@ func TestEventListLooksUpTheLinkedEvents(t *testing.T) {
 	}
 }
 
-// By day only the events that do not say yet when they take place are looked up again,
-// and only while a module page links them.
-func TestEventListChecksPlaceholdersByDay(t *testing.T) {
+// By day the events whose dates are not settled are looked up again every hour: those
+// without dates, those with a placeholder, and those the search did not show. Only while a
+// module page links them.
+func TestEventListChecksUnsettledEventsByDay(t *testing.T) {
 	f := newFakeEventSearch(t)
 	db := openTestDB(t)
-	linkEvents(t, db, "151296", "152864", "150708", "149030")
-	pace := EventListPace{Pace: Pace{MaxAge: 12 * time.Hour}, PlaceholderMaxAge: 3 * time.Hour}
+	ids := []string{"151296", "152864", "150708", "149030", "900000"}
+	linkEvents(t, db, ids...)
+	pace := EventListPace{Pace: Pace{MaxAge: 12 * time.Hour}, UnsettledMaxAge: time.Hour}
 	if _, err := CrawlEventList(context.Background(), db, f.endpoints(), pace, true); err != nil {
 		t.Fatalf("CrawlEventList: %v", err)
 	}
 	f.takeSearches()
 
-	for _, id := range []string{"151296", "152864", "150708", "149030"} {
-		age(t, db, catalogdb.SourceQISEventEntry, id, 4*time.Hour)
+	// Within the hour nothing is asked again.
+	if _, err := CrawlEventList(context.Background(), db, f.endpoints(), pace, false); err != nil {
+		t.Fatalf("CrawlEventList: %v", err)
+	}
+	if searches := f.takeSearches(); len(searches) != 0 {
+		t.Errorf("searched again within the hour: %v", searches)
+	}
+
+	for _, id := range ids {
+		age(t, db, catalogdb.SourceQISEventEntry, id, 2*time.Hour)
 	}
 	if _, err := CrawlEventList(context.Background(), db, f.endpoints(), pace, false); err != nil {
 		t.Fatalf("CrawlEventList: %v", err)
 	}
-	// 149030 has no date, 150708 only the placeholder of an exam without a date.
-	if searches := f.takeSearches(); len(searches) != 1 || strings.Join(searches[0], ",") != "149030,150708" {
-		t.Errorf("searched for %v, want the two events without dates", searches)
+	// 149030 has no date, 150708 only the placeholder of an exam, and the search did not
+	// show 900000; the dates of 151296 and 152864 are settled.
+	if searches := f.takeSearches(); len(searches) != 1 || strings.Join(searches[0], ",") != "149030,150708,900000" {
+		t.Errorf("searched for %v, want the three events in doubt", searches)
 	}
 
 	// An event no module page links any more is left to age.
 	linkEvents(t, db, "151296", "152864", "150708")
-	age(t, db, catalogdb.SourceQISEventEntry, "150708", 4*time.Hour)
-	age(t, db, catalogdb.SourceQISEventEntry, "149030", 4*time.Hour)
+	for _, id := range ids {
+		age(t, db, catalogdb.SourceQISEventEntry, id, 2*time.Hour)
+	}
 	if _, err := CrawlEventList(context.Background(), db, f.endpoints(), pace, false); err != nil {
 		t.Fatalf("CrawlEventList: %v", err)
 	}
@@ -236,67 +248,138 @@ func TestEventListRefusesAnAnswerToAnotherQuestion(t *testing.T) {
 	}
 }
 
-// The page of an event is fetched when it is missing, when the list states other dates,
-// or when it is past its age; a page the list confirms ages by a month instead of three
-// days, and a list that stopped working confirms nothing.
+var (
+	testEventList  = EventListPace{Pace: Pace{MaxAge: 12 * time.Hour}, UnsettledMaxAge: time.Hour}
+	testEventPages = EventPagePace{Pace: Pace{MaxAge: 72 * time.Hour}, ConfirmedMaxAge: 30 * 24 * time.Hour, EntryFresh: 24 * time.Hour, DayLimit: 2}
+)
+
+// crawlEvents runs both event stages, as a cycle does, and returns the pages fetched.
+func crawlEvents(t *testing.T, f *fakeEventSearch, db *catalogdb.DB, all bool) []string {
+	t.Helper()
+	if _, err := CrawlEventList(context.Background(), db, f.endpoints(), testEventList, all); err != nil {
+		t.Fatalf("CrawlEventList: %v", err)
+	}
+	if _, err := CrawlEvents(context.Background(), db, f.endpoints(), testEventPages, all); err != nil {
+		t.Fatalf("CrawlEvents: %v", err)
+	}
+	return f.takePages()
+}
+
+// The page of an event is fetched when it is missing, when the search has news for it, or
+// when it is past its age; a page the search vouches for ages by a month instead of three
+// days, and a search that stopped working vouches for nothing.
 func TestEventPagesFollowTheList(t *testing.T) {
 	f := newFakeEventSearch(t)
 	db := openTestDB(t)
 	ids := []string{"151296", "152864", "147988"}
 	linkEvents(t, db, ids...)
-	list := EventListPace{Pace: Pace{MaxAge: 12 * time.Hour}, PlaceholderMaxAge: 3 * time.Hour}
-	pages := EventPagePace{Pace: Pace{MaxAge: 72 * time.Hour}, ConfirmedMaxAge: 30 * 24 * time.Hour, EntryFresh: 24 * time.Hour}
-	crawlBoth := func() []string {
-		t.Helper()
-		if _, err := CrawlEventList(context.Background(), db, f.endpoints(), list, true); err != nil {
-			t.Fatalf("CrawlEventList: %v", err)
-		}
-		if _, err := CrawlEvents(context.Background(), db, f.endpoints(), pages); err != nil {
-			t.Fatalf("CrawlEvents: %v", err)
-		}
-		return f.takePages()
-	}
 
-	if got := crawlBoth(); strings.Join(got, ",") != "147988,151296,152864" {
+	if got := crawlEvents(t, f, db, true); strings.Join(got, ",") != "147988,151296,152864" {
 		t.Fatalf("first run fetched %v, want every page", got)
 	}
-	if got := crawlBoth(); len(got) != 0 {
-		t.Errorf("fetched %v although the list confirms every page", got)
+	if got := crawlEvents(t, f, db, true); len(got) != 0 {
+		t.Errorf("fetched %v although the search vouches for every page", got)
 	}
 
-	// Past the three days that were the rule before the list: still confirmed, not fetched.
+	// Past the three days that were the rule before the search: still vouched for.
 	for _, id := range ids {
 		age(t, db, catalogdb.SourceQISEvent, id, 4*24*time.Hour)
 	}
-	if got := crawlBoth(); len(got) != 0 {
-		t.Errorf("fetched %v, pages the list confirms wait a month", got)
+	if got := crawlEvents(t, f, db, true); len(got) != 0 {
+		t.Errorf("fetched %v, pages the search vouches for wait a month", got)
 	}
 
-	// The list moves a date of 152864: its page is fetched, the others are not.
+	// The search moves a date of 152864: its page is fetched, the others are not.
 	f.mu.Lock()
 	f.entries["152864"] = strings.Replace(f.entries["152864"], "16:30", "17:00", 1)
 	f.mu.Unlock()
 	age(t, db, catalogdb.SourceQISEventEntry, "152864", 13*time.Hour)
-	if got := crawlBoth(); strings.Join(got, ",") != "152864" {
-		t.Errorf("fetched %v, want the page of the event the list changed", got)
+	if got := crawlEvents(t, f, db, true); strings.Join(got, ",") != "152864" {
+		t.Errorf("fetched %v, want the page of the event the search changed", got)
+	}
+	// The page still says 16:30. Reading the same entry again is no news: the page is
+	// not fetched again and again for a difference the next fetch would not settle.
+	age(t, db, catalogdb.SourceQISEventEntry, "152864", 13*time.Hour)
+	if got := crawlEvents(t, f, db, true); len(got) != 0 {
+		t.Errorf("fetched %v again for an entry that did not change", got)
 	}
 
-	// A month on, a confirmed page is fetched again for its remarks.
+	// A month on, a vouched page is fetched again for its remarks.
 	age(t, db, catalogdb.SourceQISEvent, "151296", 31*24*time.Hour)
-	if got := crawlBoth(); strings.Join(got, ",") != "151296" {
+	if got := crawlEvents(t, f, db, true); strings.Join(got, ",") != "151296" {
 		t.Errorf("fetched %v, want the page past a month", got)
 	}
 
-	// Without a working list, the pages fall back to their three days.
+	// Without a working search, the pages fall back to their three days.
 	for _, id := range ids {
 		age(t, db, catalogdb.SourceQISEventEntry, id, 2*24*time.Hour)
 		age(t, db, catalogdb.SourceQISEvent, id, 4*24*time.Hour)
 	}
-	if _, err := CrawlEvents(context.Background(), db, f.endpoints(), pages); err != nil {
+	if _, err := CrawlEvents(context.Background(), db, f.endpoints(), testEventPages, true); err != nil {
 		t.Fatalf("CrawlEvents: %v", err)
 	}
 	if got := f.takePages(); strings.Join(got, ",") != "147988,151296,152864" {
-		t.Errorf("fetched %v, want every page once the list is two days old", got)
+		t.Errorf("fetched %v, want every page once the search is two days old", got)
+	}
+}
+
+// The search cannot vouch for what it does not state. The page of an event whose dates are
+// not settled, and of one the search does not show, ages by three days: a remark such as
+// „Termin nach Vereinbarung" is on the page only.
+func TestEventPagesInDoubtAgeByDays(t *testing.T) {
+	f := newFakeEventSearch(t)
+	db := openTestDB(t)
+	ids := []string{"151296", "150708", "149030"}
+	linkEvents(t, db, append(ids, "151278")...)
+	f.mu.Lock()
+	delete(f.entries, "151278") // a page, but no entry in the search
+	f.mu.Unlock()
+
+	if got := crawlEvents(t, f, db, true); strings.Join(got, ",") != "149030,150708,151278,151296" {
+		t.Fatalf("first run fetched %v", got)
+	}
+	for _, id := range append(ids, "151278") {
+		age(t, db, catalogdb.SourceQISEvent, id, 4*24*time.Hour)
+	}
+	if got := crawlEvents(t, f, db, true); strings.Join(got, ",") != "149030,150708,151278" {
+		t.Errorf("fetched %v, want the pages in doubt and not the vouched one", got)
+	}
+}
+
+// By day a page is fetched only when the search has news for it, so that a change reaches
+// the catalog with its remarks within the cycle; pages past their age wait for the night.
+func TestEventPagesByDay(t *testing.T) {
+	f := newFakeEventSearch(t)
+	db := openTestDB(t)
+	linkEvents(t, db, "151296", "152864", "150708", "149030")
+	if got := crawlEvents(t, f, db, true); len(got) != 4 {
+		t.Fatalf("first run fetched %v", got)
+	}
+
+	// Pages past their age, and unsettled entries read again without a change: nothing by day.
+	for _, id := range []string{"151296", "152864", "150708", "149030"} {
+		age(t, db, catalogdb.SourceQISEvent, id, 40*24*time.Hour)
+		age(t, db, catalogdb.SourceQISEventEntry, id, 2*time.Hour)
+	}
+	if got := crawlEvents(t, f, db, false); len(got) != 0 {
+		t.Errorf("fetched %v by day, want nothing", got)
+	}
+	if got := crawlEvents(t, f, db, true); len(got) != 4 {
+		t.Errorf("fetched %v at night, want the four pages past their age", got)
+	}
+
+	// The exam of 150708 gets its date, and the event without dates gets dates: the
+	// hourly look at unsettled events sees it, and the pages follow at once.
+	f.mu.Lock()
+	f.entries["150708"] = strings.Replace(f.entries["150708"], "01:00", "10:00", 1)
+	f.entries["149030"] = strings.ReplaceAll(f.entries["150708"], "150708", "149030") // dates that appeared
+	f.mu.Unlock()
+	for _, id := range []string{"150708", "149030"} {
+		age(t, db, catalogdb.SourceQISEvent, id, time.Hour) // the night was an hour ago
+		age(t, db, catalogdb.SourceQISEventEntry, id, 2*time.Hour)
+	}
+	if got := crawlEvents(t, f, db, false); strings.Join(got, ",") != "149030,150708" {
+		t.Errorf("fetched %v by day, want the two pages the search has news for", got)
 	}
 }
 

@@ -76,6 +76,12 @@ func TestPutPageRoundTripAndChangeTracking(t *testing.T) {
 		t.Fatalf("unchanged body: fetched_at=%v changed_at=%v, want %v / %v", p.FetchedAt, p.ChangedAt, second, first)
 	}
 
+	// PageStates says the same without reading a body.
+	states, err := db.PageStates(SourceModulePage)
+	if st := states["11101"]; err != nil || !st.FetchedAt.Equal(second) || !st.ChangedAt.Equal(first) || st.HTTPStatus != 200 {
+		t.Fatalf("PageStates = %+v, %v", states, err)
+	}
+
 	put(third, "<html>Vorlesung</html>")
 	p, _ = db.GetPage(SourceModulePage, "11101")
 	if !p.ChangedAt.Equal(third) {

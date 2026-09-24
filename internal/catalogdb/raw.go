@@ -176,6 +176,39 @@ func scanRawPage(scanner interface{ Scan(...interface{}) error }) (*RawPage, err
 	return &p, nil
 }
 
+// PageState is when a page was fetched and when its content last changed, and how the
+// server answered.
+type PageState struct {
+	FetchedAt, ChangedAt time.Time
+	HTTPStatus           int
+}
+
+// PageStates returns the state of every archived page of a source, without reading a body.
+func (db *DB) PageStates(source string) (map[string]PageState, error) {
+	rows, err := db.sql.Query("SELECT key, fetched_at, changed_at, http_status FROM raw_page WHERE source = ?", source)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]PageState)
+	for rows.Next() {
+		var key, fetchedAt, changedAt string
+		var st PageState
+		if err := rows.Scan(&key, &fetchedAt, &changedAt, &st.HTTPStatus); err != nil {
+			return nil, err
+		}
+		if st.FetchedAt, err = time.Parse(time.RFC3339, fetchedAt); err != nil {
+			return nil, fmt.Errorf("raw page %s/%s: invalid fetched_at: %w", source, key, err)
+		}
+		if st.ChangedAt, err = time.Parse(time.RFC3339, changedAt); err != nil {
+			return nil, fmt.Errorf("raw page %s/%s: invalid changed_at: %w", source, key, err)
+		}
+		result[key] = st
+	}
+	return result, rows.Err()
+}
+
 // FetchTimes returns when each page of a source was last fetched.
 func (db *DB) FetchTimes(source string) (map[string]time.Time, error) {
 	rows, err := db.sql.Query("SELECT key, fetched_at FROM raw_page WHERE source = ?", source)

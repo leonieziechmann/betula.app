@@ -162,7 +162,7 @@ func newTestService(t *testing.T, site *fakeBTU) (*Service, Config) {
 	cfg := Config{
 		Endpoints:   site.endpoints(),
 		SnapshotDir: filepath.Join(t.TempDir(), "snapshot"),
-		Lists:       fast, Modules: fast, QISModules: fast, Tree: fast,
+		Lists:       fast, Modules: fast, QISModules: ModulePace{Pace: fast}, Tree: fast,
 		EventList: EventListPace{Pace: fast}, Events: EventPagePace{Pace: fast},
 		StaleAfter: time.Hour,
 	}
@@ -326,15 +326,19 @@ func TestBulkCrawlingWaitsForOffPeakExceptOnFirstStart(t *testing.T) {
 	if r := svc.RunCycle(ctx); stage(r, "modules").Crawl == nil || stage(r, "modules").Crawl.Fetched != 2 {
 		t.Fatalf("bootstrap cycle = %+v", r)
 	}
-	// Afterwards bulk stages wait for the night; the lists are still checked.
+	// Afterwards bulk stages wait for the night, the module index as well. The event
+	// stages run, but by day they only ask about what is not settled and fetch the pages
+	// the search has news for: here nothing.
 	r := svc.RunCycle(ctx)
-	for _, name := range []string{"modules", "tree", "events"} {
+	for _, name := range []string{"lists", "modules", "qis-modules", "tree"} {
 		if stage(r, name).Skipped == "" {
 			t.Errorf("stage %s ran outside the off-peak window: %+v", name, stage(r, name))
 		}
 	}
-	if stage(r, "lists").Crawl == nil || stage(r, "lists").Crawl.Fetched != 2 {
-		t.Errorf("lists stage = %+v", stage(r, "lists"))
+	for _, name := range []string{"event-list", "events"} {
+		if s := stage(r, name); s.Skipped != "" || s.Crawl == nil || s.Crawl.Fetched != 0 || s.Crawl.Failed != 0 {
+			t.Errorf("stage %s by day = %+v", name, s)
+		}
 	}
 
 	svc.now = func() time.Time { return time.Date(2026, 9, 20, 2, 0, 0, 0, time.Local) }

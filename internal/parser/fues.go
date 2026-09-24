@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -106,3 +107,47 @@ func (p *FUESParser) Parse(r io.Reader) ([]model.FUESModule, error) {
 
 	return results, nil
 }
+
+// TableRowStatements reads what each row of the QIS module table states (the FÜS list has
+// the same columns): one string per module number, of the text of every cell and the
+// pordnr of the description the row links. Two readings of the table give a module a
+// different string exactly when one of its facts changed: title, language, credits, FÜS
+// approval or limitation.
+func TableRowStatements(r io.Reader) (map[string]string, error) {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the module table: %w", err)
+	}
+	var table *html.Node
+	for _, tbl := range FindAllByTag(doc, atom.Table) {
+		if strings.Contains(strings.ToLower(GetAttr(tbl, "summary")), "suchergebnis") {
+			table = tbl
+			break
+		}
+	}
+	statements := make(map[string]string)
+	if table == nil {
+		return statements, nil
+	}
+	for _, tr := range FindAllByTag(table, atom.Tr) {
+		tds := FindAllByTag(tr, atom.Td)
+		if len(tds) < 2 {
+			continue
+		}
+		cells := make([]string, 0, len(tds)+1)
+		for _, td := range tds {
+			cells = append(cells, CleanSingleLine(NodeText(td)))
+		}
+		if a := FindFirstByTag(tds[1], atom.A); a != nil {
+			if m := rePordnrLink.FindStringSubmatch(GetAttr(a, "href")); m != nil {
+				cells = append(cells, m[1])
+			}
+		}
+		if cells[0] != "" {
+			statements[cells[0]] = strings.Join(cells, "\x1f")
+		}
+	}
+	return statements, nil
+}
+
+var rePordnrLink = regexp.MustCompile(`pord\.pordnr=(\d+)`)

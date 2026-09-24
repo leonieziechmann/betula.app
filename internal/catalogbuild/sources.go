@@ -208,9 +208,10 @@ func loadSources(ctx context.Context, db *catalogdb.DB, report *Report) (*source
 // search, which Radix reads every night, and its page, which Radix fetches when the entry
 // changes and which adds what the list leaves out (the remarks of the dates, the full
 // names and roles of the persons, the campus of every room). Where the two agree, the page
-// is used; where they differ, the newer of them, so that a change of the dates reaches the
-// catalog the night the list shows it. The list names a room by building and number only;
-// a room some page names gets that page's name, campus included.
+// is used. Where they differ, the entry wins if it changed after the page was fetched, so
+// that a change of the dates reaches the catalog as soon as the search shows it; otherwise
+// the page, which then is the newer reading of the same state. The list names a room by
+// building and number only; a room some page names gets that page's name, campus included.
 func loadEvents(ctx context.Context, db *catalogdb.DB, src *sources, report *Report) error {
 	eventParser := parser.NewEventParser()
 	err := db.EachPage(catalogdb.SourceQISEvent, func(p *catalogdb.RawPage) error {
@@ -251,7 +252,7 @@ func loadEvents(ctx context.Context, db *catalogdb.DB, src *sources, report *Rep
 			if p.FetchedAt.After(page.fetchedAt) {
 				page.fetchedAt = p.FetchedAt
 			}
-		case page == nil || p.FetchedAt.After(page.fetchedAt):
+		case page == nil || p.ChangedAt.After(page.fetchedAt):
 			for i := range entry.Schedules {
 				if name, ok := rooms[parser.RoomID(entry.Schedules[i].RoomURL)]; ok {
 					entry.Schedules[i].Room = name

@@ -248,3 +248,42 @@ func TestAwaitsDates(t *testing.T) {
 		t.Errorf("a deadline is a date")
 	}
 }
+
+// Unsettled are the events worth asking about more often: those without dates, and those
+// with a date Folia marks as looking wrong.
+func TestUnsettled(t *testing.T) {
+	list := readEventList(t)
+	for id, want := range map[string]bool{
+		"149030": true,  // no date
+		"150708": true,  // the placeholder of an exam
+		"151296": false, // a schedule
+		"145503": false, // an exam of the summer semester on 16.09.2026
+		"147828": false, // a lecture of the summer semester
+	} {
+		if got := Unsettled(listEntry(t, list, id)); got != want {
+			t.Errorf("Unsettled(%s) = %v, want %v", id, got, want)
+		}
+	}
+
+	lecture := model.EventSchedule{DayOfWeek: "Dienstag", StartTime: "09:15", EndTime: "10:45", Rhythm: "A/B", Duration: "13.10.2026 bis 02.02.2027"}
+	event := func(dates ...model.EventSchedule) *model.EventDetail {
+		return &model.EventDetail{Semester: "WS 2026/27", Schedules: append([]model.EventSchedule{lecture}, dates...)}
+	}
+	cases := map[string]struct {
+		date model.EventSchedule
+		want bool
+	}{
+		"exam placeholder next to real dates": {model.EventSchedule{DayOfWeek: "Sonntag", StartTime: "01:00", EndTime: "02:30", Duration: "am 27.12.2015"}, true},
+		"a time in the night":                 {model.EventSchedule{DayOfWeek: "Freitag", StartTime: "04:00", EndTime: "06:00", Duration: "am 12.02.2027"}, true},
+		"an end before the start":             {model.EventSchedule{DayOfWeek: "Freitag", StartTime: "14:00", EndTime: "12:00", Duration: "am 12.02.2027"}, true},
+		"a day years before the semester":     {model.EventSchedule{DayOfWeek: "Freitag", StartTime: "10:00", EndTime: "12:00", Duration: "am 12.02.2021"}, true},
+		"a repeat exam in September":          {model.EventSchedule{DayOfWeek: "Freitag", StartTime: "10:00", EndTime: "12:00", Duration: "am 17.09.2027"}, false},
+		"a deadline":                          {model.EventSchedule{DayOfWeek: "Freitag", StartTime: "23:45", EndTime: "24:00", Duration: "am 12.02.2027"}, false},
+		"an evening until 22:00":              {model.EventSchedule{DayOfWeek: "Freitag", StartTime: "18:00", EndTime: "22:00", Duration: "am 12.02.2027"}, false},
+	}
+	for name, c := range cases {
+		if got := Unsettled(event(c.date)); got != c.want {
+			t.Errorf("%s: Unsettled = %v, want %v", name, got, c.want)
+		}
+	}
+}
