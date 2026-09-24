@@ -663,8 +663,11 @@ button.action:hover { background: var(--panel-3); }
 .week .hours { grid-row: 2; display: grid; grid-auto-rows: 48px; font-size: 10.5px; color: var(--text-3); text-align: right; padding-right: 4px; }
 .week .col { grid-row: 2; position: relative; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px 48px); height: calc(var(--span) * 24px); }
 /* Slots that overlap on a day stand side by side: `--lane` of `--lanes` (week.rs). One lane is the
-   whole column less 1px each side, as before lanes; neighbours keep 2px between them. */
-.slot { position: absolute; left: calc(1px + 100% * var(--lane, 0) / var(--lanes, 1)); width: calc(100% / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px 6px; font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); }
+   whole column less 1px each side, as before lanes; neighbours keep 2px between them. The side
+   padding is at most a quarter of the slot's width (a percentage of the column, like `left` and
+   `width`): a border box is never narrower than its padding, so a fixed 6px made the slots of five
+   or more lanes 12px wide, over their neighbours and out of the column. */
+.slot { position: absolute; left: calc(1px + 100% * var(--lane, 0) / var(--lanes, 1)); width: calc(100% / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px clamp(0px, calc((100% / var(--lanes, 1) - 2px) / 4), 6px); font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); }
 a.slot { text-decoration: none; }
 .slot small { display: block; font-weight: 500; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot.other { background: var(--panel-3); color: var(--text-2); box-shadow: inset 2.5px 0 0 var(--text-3); }
