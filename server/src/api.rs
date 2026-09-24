@@ -553,11 +553,16 @@ pub async fn package(State(state): State<AppState>, Path(file): Path<String>, he
 }
 
 pub async fn robots(State(state): State<AppState>) -> Response {
-    // In closed testing (`access`) there is nothing for a crawler but a login page.
+    // Calendar feeds are allowed in both answers: Google Calendar reads robots.txt before it
+    // fetches a subscription and gives up on a disallowed one („robots.txt prevents us from
+    // crawling the url"). A feed stays out of search indexes by its own `X-Robots-Tag: noindex`,
+    // which a crawler only sees when it may fetch the address.
+    // In closed testing (`access`) there is nothing else for a crawler but a login page. The
+    // longer rule wins (RFC 9309); `Allow` comes first for crawlers that take the first match.
     if state.gate.is_some() {
-        return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], "User-agent: *\nDisallow: /\n").into_response();
+        let body = format!("User-agent: *\nAllow: {}\nDisallow: /\n", subscription::CALENDAR_PREFIX);
+        return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], body).into_response();
     }
-    // A calendar feed is somebody's plan, not a page (its answer says `noindex` as well).
-    let body = format!("User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: {}\n\nSitemap: {}/sitemap.xml\n", subscription::CALENDAR_PREFIX, state.public_url);
+    let body = format!("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {}/sitemap.xml\n", state.public_url);
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
 }

@@ -1216,8 +1216,8 @@ FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
 - **Open without the password** is only what the login page, a home screen and a supervisor
   need: `/access`, the stylesheet, the font, the icons, `/manifest.webmanifest` (browsers fetch it
   without cookies), `/healthz` (uptime monitor), `/livez` (the container's healthcheck) and
-  `/robots.txt`, which says `Disallow: /` while the gate is on. The login page is `noindex` and
-  `no-store`.
+  `/robots.txt`, which says `Disallow: /` while the gate is on, except `Allow: /calendar/`. The
+  login page is `noindex` and `no-store`.
 - **And a Studienplan's calendar subscription** (owner decision 2026-09-24): `/calendar/<code>.ics`
   answers without the password when its code decodes (`subscription::is_feed_path`: the `pack`
   alphabet, 1 to 1,024 characters, `.ics` and nothing else, `%HH` escapes of alphabet characters
@@ -1227,10 +1227,13 @@ FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
   nothing about a visitor; the check characters turn guesses away before any handler runs. Every
   other path under `/calendar/` (`/calendar/abc`, `/calendar/Ab.ics.ics`, a Merkliste code with
   `.ics`) stays behind the gate. The feed answers `private` already, so the gate leaves its
-  `Cache-Control` alone. Tests in `server/src/tests.rs`:
+  `Cache-Control` alone. No robots.txt disallows a feed, gate on or off: Google Calendar reads
+  robots.txt before it fetches a subscription and gives up on a disallowed address; the feed's
+  `X-Robots-Tag: noindex` keeps it out of indexes, and a crawler only sees that header when it
+  may fetch. Tests in `server/src/tests.rs`:
   `closed_testing_asks_for_the_password_before_anything_else` (what passes and what not),
   `a_studyplan_is_a_calendar_feed` (the gated feed with a snapshot), `broken_calendar_codes_are_404`,
-  `the_log_keeps_no_calendar_code`, `robots_disallow_the_calendar`; the shapes in
+  `the_log_keeps_no_calendar_code`, `calendar_services_may_fetch_feeds`; the shapes in
   `catalog/src/timetable/subscription.rs`.
 - **Behind the gate** the site is what it was, the page cache included (the gate lies around it);
   only `Cache-Control: public` becomes `private`, so no cache between server and browser keeps a

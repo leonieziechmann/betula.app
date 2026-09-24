@@ -244,7 +244,8 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     }
     assert_eq!(post(&router, "/api/db", &[], "").await.0, StatusCode::UNAUTHORIZED);
 
-    // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away.
+    // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away
+    // from everything but the calendar feeds (Google Calendar asks robots.txt before fetching one).
     for path in [app::STYLESHEET, "/assets/app.css?v=test", app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::MANIFEST] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
@@ -253,7 +254,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     let (status, headers, body) = request(&router, crate::api::LIVENESS, &[]).await;
     assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap(), body.as_slice()), (StatusCode::OK, "no-store", &b"ok\n"[..]));
     let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
-    assert_eq!((status, String::from_utf8(robots).unwrap().as_str()), (StatusCode::OK, "User-agent: *\nDisallow: /\n"));
+    assert_eq!((status, String::from_utf8(robots).unwrap().as_str()), (StatusCode::OK, "User-agent: *\nAllow: /calendar/\nDisallow: /\n"));
     // A calendar service has no password: a subscription whose code decodes passes, also with a
     // character of it escaped (here it meets no snapshot, so the feed itself answers 503; the
     // feed's own test serves one). Anything else under `/calendar/` stays behind the gate.
@@ -705,15 +706,22 @@ async fn the_log_keeps_no_calendar_code() {
     }
 }
 
-/// A calendar feed is somebody's plan, not a page: crawlers are told to stay away, and the
-/// service worker never keeps one (in Cache Storage, or as the shell offline).
+/// Google Calendar reads robots.txt before it fetches a subscription, so neither answer of
+/// robots.txt may disallow a feed (the feed keeps itself out of indexes with `X-Robots-Tag:
+/// noindex`). The service worker never keeps one (in Cache Storage, or as the shell offline).
 #[tokio::test(flavor = "multi_thread")]
-async fn robots_disallow_the_calendar() {
+async fn calendar_services_may_fetch_feeds() {
+    let mut gated = state(SnapshotStore::new(temp_dir("robots-gated")).unwrap());
+    gated.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+    let (status, _, robots) = request(&crate::router(gated), "/robots.txt", &[]).await;
+    let robots = String::from_utf8(robots).unwrap();
+    let (allow, disallow) = (robots.find("\nAllow: /calendar/\n"), robots.find("\nDisallow: /\n"));
+    assert!(status == StatusCode::OK && allow.is_some() && disallow.is_some() && allow < disallow, "{robots}");
+
     let router = crate::router(state(SnapshotStore::new(temp_dir("robots")).unwrap()));
     let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
     let robots = String::from_utf8(robots).unwrap();
-    assert_eq!(status, StatusCode::OK);
-    assert!(robots.contains("\nDisallow: /calendar/\n") && robots.contains("\nDisallow: /api/\n"), "{robots}");
+    assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
     assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|cards\\/|calendar\\/)/;"));
 }
