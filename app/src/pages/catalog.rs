@@ -60,7 +60,7 @@ pub fn CatalogPage() -> impl IntoView {
     let list_source = source.clone();
     let list = Memo::new(move |_| {
         // Start at the page the URL names at this moment; later page changes are scrolling.
-        let current = CatalogUrl { query: asked.get(), page: page.get_untracked(), open: None };
+        let current = CatalogUrl { query: asked.get(), page: page.get_untracked(), open: None, fill: None };
         list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current))).map(|data| (current, data))
     });
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
@@ -108,7 +108,7 @@ pub fn CatalogPage() -> impl IntoView {
         // A moment later: the sheet has begun to slide away by then, and the browser keeps that
         // going while the list is built. (Not animation frames: a hidden tab has none, and the
         // list would never follow.)
-        let path = CatalogUrl { query, page: 1, open: open.get_untracked() }.path();
+        let path = CatalogUrl { query, page: 1, open: open.get_untracked(), fill: None }.path();
         set_timeout(
             move || {
                 if let Some(going) = going {
@@ -1122,7 +1122,7 @@ impl Choices {
 fn target(query: Memo<CatalogQuery>, open: Memo<Option<String>>, change: impl FnOnce(&mut CatalogQuery)) -> String {
     let mut next = query.get();
     change(&mut next);
-    CatalogUrl { query: next, page: 1, open: open.get() }.path()
+    CatalogUrl { query: next, page: 1, open: open.get(), fill: None }.path()
 }
 
 /// The filter that `change` makes of the current one, from an event handler (nothing to track).
@@ -1341,7 +1341,7 @@ fn Filters(
         if phone.get_untracked() {
             draft.set(Some(next));
         } else if let Some(going) = going {
-            going.go(&CatalogUrl { query: next, page: 1, open: open.get_untracked() }.path(), NavigateOptions { scroll: false, ..Default::default() });
+            going.go(&CatalogUrl { query: next, page: 1, open: open.get_untracked(), fill: None }.path(), NavigateOptions { scroll: false, ..Default::default() });
         }
     });
     // A link of the panel is the list it leads to, so on a phone its address is what the draft
@@ -1667,7 +1667,7 @@ fn Filters(
     // Without the app the pickers above are form fields; what the links set travels with them.
     let carried = move || {
         (!APP).then(|| {
-            let pairs = url::parse_pairs(&CatalogUrl { query: query.get(), page: 1, open: open.get() }.to_query_string());
+            let pairs = url::parse_pairs(&CatalogUrl { query: query.get(), page: 1, open: open.get(), fill: None }.to_query_string());
             pairs
                 .into_iter()
                 .filter(|(name, _)| !matches!(name.as_str(), "program" | "area" | "department" | "ects_min" | "ects_max"))

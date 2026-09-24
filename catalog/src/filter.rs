@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::Value;
 use crate::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
+use crate::timetable::select::FitOptions;
+use crate::timetable::semester::SemesterKey;
 
 /// Which modules of a program to list.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -190,6 +192,65 @@ fn campus_column(campus: Campus) -> Option<&'static str> {
     }
 }
 
+/// „Passt in meinen Plan": the semester whose timetable a module must fit, which classes are
+/// compared, and whether modules without dated rows are listed too. The URL carries it
+/// (`fits=2026W&fits-skip=exercise&fits-undated=1`), since a semester is public and says nothing
+/// about the visitor; which modules fit is worked out by the browser from the plan it keeps
+/// (`CatalogQuery::fits_ids`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct FitsFilter {
+    /// `SemesterKey::key()`: `2026W`.
+    pub semester: String,
+    /// Lectures are compared (all of a module's lectures must be free).
+    pub lectures: bool,
+    /// Everything taught that is not a lecture is compared (one of a module's events must be free).
+    pub exercises: bool,
+    /// Exams are compared (one sitting must avoid the plan's fixed exams).
+    pub exams: bool,
+    /// Modules without a dated row in the semester are listed too. They cannot be checked, so
+    /// by default they are not: 2,013 of the 3,232 modules on offer have none in WiSe 2026/27, and
+    /// listing them would say they fit.
+    pub undated: bool,
+}
+
+impl FitsFilter {
+    /// The codes of `fits-skip`, in the order the address writes them.
+    pub const CLASSES: [&'static str; 3] = ["lecture", "exercise", "exam"];
+
+    /// What the switch turns on: every class compared, modules without dates left out. A key is
+    /// written as `SemesterKey` writes it (`2026w` → `2026W`), so equal filters give equal
+    /// addresses.
+    pub fn all(semester: &str) -> Self {
+        let semester = SemesterKey::parse(semester).map(SemesterKey::key).unwrap_or_else(|| semester.trim().to_string());
+        Self { semester, lectures: true, exercises: true, exams: true, undated: false }
+    }
+
+    /// The classes the finder compares.
+    pub fn options(&self) -> FitOptions {
+        FitOptions { lectures: self.lectures, exercises: self.exercises, exams: self.exams }
+    }
+
+    /// The codes of the classes that are not compared, in canonical order (`fits-skip`).
+    pub fn skipped(&self) -> Vec<&'static str> {
+        let [lecture, exercise, exam] = Self::CLASSES;
+        [(self.lectures, lecture), (self.exercises, exercise), (self.exams, exam)]
+            .into_iter()
+            .filter(|(compared, _)| !compared)
+            .map(|(_, code)| code)
+            .collect()
+    }
+}
+
+/// Which modules the fit switch lists, filled in by the browser from the plan it keeps and never
+/// part of a URL (R20, like the marked modules): only these (the modules that were checked and
+/// fit), or every module but these (the clashing and the planned ones, when modules without dates
+/// are listed too or the semester has no dates yet).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum FitIds {
+    Only(Vec<String>),
+    Without(Vec<String>),
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SortKey {
     /// By title; inside a program in the order of its study plan (semester, then title).
@@ -260,6 +321,12 @@ pub struct CatalogQuery {
     pub prerequisites_met_by: Option<Vec<String>>,
     pub sort: SortKey,
     pub descending: bool,
+    /// „Passt in meinen Plan": the URL carries the switch, the browser fills `fits_ids` from the
+    /// plan before it asks. Where nothing filled them, nothing is listed: a page that does not know
+    /// the plan (the server's) must not answer as if every module fit.
+    pub fits: Option<FitsFilter>,
+    /// Derived from the plan, never part of a URL; ignored without `fits`.
+    pub fits_ids: Option<FitIds>,
 }
 
 /// A WHERE clause over `v_module_facets f JOIN v_module m` (and `v_program_module pm`
@@ -340,6 +407,7 @@ impl CatalogQuery {
             !self.languages.is_empty() || !self.languages_exclude.is_empty(),
             self.prerequisites_met_by.is_some(),
             self.marked.is_some(),
+            self.fits.is_some(),
         ]
         .iter()
         .filter(|active| **active)
@@ -560,6 +628,23 @@ impl CatalogQuery {
         if self.marked == Some(true) && self.only_ids.is_none() {
             conditions.push("0".to_string());
         }
+        if self.fits.is_some() {
+            match &self.fits_ids {
+                // The plan is unknown here: the server's page.
+                None => conditions.push("0".to_string()),
+                // Nothing fits.
+                Some(FitIds::Only(ids)) if ids.is_empty() => conditions.push("0".to_string()),
+                Some(FitIds::Only(ids)) => {
+                    conditions.push(format!("f.module_id IN ({})", placeholders(ids.len())));
+                    params.extend(ids.iter().map(Value::from));
+                }
+                Some(FitIds::Without(ids)) if ids.is_empty() => {}
+                Some(FitIds::Without(ids)) => {
+                    conditions.push(format!("f.module_id NOT IN ({})", placeholders(ids.len())));
+                    params.extend(ids.iter().map(Value::from));
+                }
+            }
+        }
 
         if let Some(passed) = &self.prerequisites_met_by {
             let not_passed = if passed.is_empty() {
@@ -593,5 +678,69 @@ impl CatalogQuery {
             SortKey::Credits => format!("f.credits {direction}, m.title COLLATE NOCASE, f.module_id"),
             SortKey::Events => format!("f.teaching_events {direction}, m.title COLLATE NOCASE, f.module_id"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fitting(ids: Option<FitIds>) -> CatalogQuery {
+        CatalogQuery { fits: Some(FitsFilter::all("2026W")), fits_ids: ids, ..Default::default() }
+    }
+
+    fn ids(ids: &[&str]) -> Vec<String> {
+        ids.iter().map(|id| id.to_string()).collect()
+    }
+
+    /// The switch adds one condition to what the query asks without it, or none.
+    fn added(query: &CatalogQuery) -> (Vec<String>, Vec<Value>) {
+        let plain = CatalogQuery::default().to_sql();
+        let sql = query.to_sql();
+        assert_eq!(sql.conditions.get(..plain.conditions.len()), Some(plain.conditions.as_slice()));
+        assert_eq!(sql.params.get(..plain.params.len()), Some(plain.params.as_slice()));
+        (sql.conditions[plain.conditions.len()..].to_vec(), sql.params[plain.params.len()..].to_vec())
+    }
+
+    #[test]
+    fn the_fit_filter_is_a_switch() {
+        let two = ids(&["12330", "11103"]);
+        let texts = two.iter().map(Value::from).collect::<Vec<_>>();
+        // Off: nothing is asked, whatever ids are around.
+        assert_eq!(added(&CatalogQuery { fits_ids: Some(FitIds::Only(Vec::new())), ..Default::default() }), (vec![], vec![]));
+        // On where nobody filled in the plan (the server's page): nothing is listed.
+        assert_eq!(added(&fitting(None)), (vec!["0".to_string()], vec![]));
+        assert_eq!(added(&fitting(Some(FitIds::Only(two.clone())))), (vec!["f.module_id IN (?, ?)".to_string()], texts.clone()));
+        assert_eq!(added(&fitting(Some(FitIds::Only(Vec::new())))), (vec!["0".to_string()], vec![]));
+        assert_eq!(added(&fitting(Some(FitIds::Without(two)))), (vec!["f.module_id NOT IN (?, ?)".to_string()], texts));
+        assert_eq!(added(&fitting(Some(FitIds::Without(Vec::new())))), (vec![], vec![]));
+        // One filter, however it is set.
+        assert_eq!(fitting(None).active_filters(), 1);
+        assert_eq!(CatalogQuery { fits: Some(FitsFilter { undated: true, exams: false, ..FitsFilter::all("2026W") }), ..Default::default() }.active_filters(), 1);
+    }
+
+    #[test]
+    fn the_fit_filter_asks_the_snapshot() {
+        let db = crate::tests::open();
+        let count = |query: &CatalogQuery| crate::queries::catalog_count(&db, query).unwrap();
+        let everything = || CatalogQuery { offer: Some(OfferStatus::ALL.to_vec()), ..Default::default() };
+        let all = count(&everything());
+        let two = ids(&["12104", "12107"]);
+        let with = |fits_ids: Option<FitIds>| CatalogQuery { fits: Some(FitsFilter::all("2026W")), fits_ids, ..everything() };
+        assert_eq!(count(&with(None)), 0);
+        assert_eq!(count(&with(Some(FitIds::Only(two.clone())))), 2);
+        assert_eq!(count(&with(Some(FitIds::Without(two)))), all - 2);
+        assert_eq!(count(&with(Some(FitIds::Without(Vec::new())))), all);
+    }
+
+    #[test]
+    fn a_fit_filter_names_what_it_leaves_out() {
+        let all = FitsFilter::all(" 2026w ");
+        assert_eq!(all, FitsFilter { semester: "2026W".into(), lectures: true, exercises: true, exams: true, undated: false });
+        assert_eq!(all.options(), FitOptions { lectures: true, exercises: true, exams: true });
+        assert!(all.skipped().is_empty());
+        let fewer = FitsFilter { lectures: false, exams: false, ..all };
+        assert_eq!(fewer.skipped(), vec!["lecture", "exam"]);
+        assert_eq!(fewer.options(), FitOptions { lectures: false, exercises: true, exams: false });
     }
 }
