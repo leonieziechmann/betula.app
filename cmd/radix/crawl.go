@@ -119,6 +119,7 @@ func runCrawlEvents(ctx context.Context, args []string) {
 	listMaxAge := fs.Duration("list-max-age", def.EventList.MaxAge, "Look an event up in the event search again after this long")
 	unsettledMaxAge := fs.Duration("unsettled-max-age", def.EventList.UnsettledMaxAge, "Look an event with unsettled dates up again after this long")
 	pageMaxAge := fs.Duration("page-max-age", def.Events.ConfirmedMaxAge, "Fetch the page of an event the event search vouches for again after this long")
+	unsettledPageMaxAge := fs.Duration("unsettled-page-max-age", def.Events.UnsettledMaxAge, "Fetch the page of an event the event search confirms while its dates are not settled again after this long")
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
@@ -131,7 +132,7 @@ func runCrawlEvents(ctx context.Context, args []string) {
 	if stats, err := service.CrawlEventList(ctx, db, service.BTUEndpoints(), list, true); err != nil || stats.Failed > 0 {
 		finishCrawl("crawl-events", stats, err)
 	}
-	pages := service.EventPagePace{Pace: pace(), ConfirmedMaxAge: *pageMaxAge, EntryFresh: 2 * *listMaxAge}
+	pages := service.EventPagePace{Pace: pace(), ConfirmedMaxAge: *pageMaxAge, UnsettledMaxAge: *unsettledPageMaxAge, EntryFresh: 2 * *listMaxAge}
 	stats, err := service.CrawlEvents(ctx, db, service.BTUEndpoints(), pages, true)
 	finishCrawl("crawl-events", stats, err)
 }

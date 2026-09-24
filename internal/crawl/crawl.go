@@ -42,6 +42,7 @@ type Options struct {
 	Delay     time.Duration // pause per worker after each request, ±30 % jitter
 	Backoff   time.Duration // first pause after a failed request, doubled per attempt (default 30 s)
 	MaxAge    time.Duration // skip pages archived more recently than this; 0 fetches everything
+	Spread    bool          // MaxAge is a period: every page is fetched once per period, at a time of its own (Due)
 	UserAgent string
 	Client    *http.Client
 	Progress  func(done, total int, stats Stats)
@@ -144,7 +145,7 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 					fetchedAt, err := db.PageFetchedAt(job.Source, job.Key)
 					if err != nil {
 						log.Error("cannot read the archive", "event", "crawl.archive_error", "key", job.Key, oplog.Err(err))
-					} else if !fetchedAt.IsZero() && time.Since(fetchedAt) < opt.MaxAge {
+					} else if opt.fresh(job.Key, fetchedAt) {
 						record(func(s *Stats) { s.Skipped++ }, false, nil)
 						continue
 					}

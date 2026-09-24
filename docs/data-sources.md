@@ -485,20 +485,25 @@ and the page then costs one fetch of the page, not one every time the list is re
 catalog never swings back and forth. An event without a page takes its dates from its entry, and
 a room it names gets the name, campus included, that any event page gives the same room ID.
 
-A page the search vouches for (same dates, and settled) is fetched again after 30 days, for its
-remarks. A page in doubt is fetched every three days, as before: its dates are not settled, the
-search does not show the event, the two disagree, or the entry is older than twice the search's
-own age (a day), so that a search that stopped working leaves the pages at their three days.
+A page the search vouches for (same dates, and settled) is fetched again once in 30 days, for
+its remarks. A page whose dates the search confirms while they are not settled is fetched weekly:
+the search, asked about those dates every two hours, shows when they come, and the page follows
+in the same cycle; the weekly reading is for what the page states alone, a remark such as
+„Termin nach Vereinbarung". A page in doubt is fetched every three days, as before: the search
+does not show the event, the two disagree, or the entry is older than twice the search's own age
+(a day), so that a search that stopped working leaves the pages at their three days. Every page
+has a day of its own in its period (§12).
 
 **Dates in doubt.** BTU publishes a semester event by event, and the dates of an exam often
-weeks later. An event whose dates are not settled is looked up every hour, also by day; asking
-again costs a share of one request, and in doubt the answer is the same. Not settled
-(`parser.Unsettled`) means: no date, or none with a time and a day; the placeholder QIS enters
-for an exam without a date, 01:00 to 02:30 on a Sunday or without a weekday (27.12.2015 in the
-WiSe 2026/27); a date that looks wrong the way Folia marks it (`catalog/src/exam_reading.rs`): a
-time before 06:00 or after 22:00 that is not a deadline, an end before its start, a day more
-than six months from the semester; or an event the search does not show. Every other event is
-looked up once a night, in the off-peak window.
+weeks later. An event whose dates are not settled is looked up every two hours, also by day
+(owner, 2026-09-24: current within two hours is more than enough); asking again costs a share of
+one request, and in doubt the answer is the same. Not settled (`parser.Unsettled`) means: no
+date, or none with a time and a day; the placeholder QIS enters for an exam without a date,
+01:00 to 02:30 on a Sunday or without a weekday (27.12.2015 in the WiSe 2026/27); a date that
+looks wrong the way Folia marks it (`catalog/src/exam_reading.rs`): a time before 06:00 or after
+22:00 that is not a deadline, an end before its start, a day more than six months from the
+semester; or an event the search does not show. Every other event is looked up once a night, in
+the off-peak window.
 
 **When the search answers something else.** The answer must state as many hits as it shows, and
 show only events that were asked for; a page without a number of hits is not a result of the
@@ -507,8 +512,9 @@ ignored the list of IDs, the answer would be the first page of all events of the
 semester, and every event asked for would look deleted.
 
 **Requests.** Before: up to 600 event pages a night. Now: about ten requests of the search a
-night for all events, one to three an hour for the events in doubt, and the pages that are new,
-changed, in doubt for three days, or 30 days old.
+night for all events, a few every two hours for the events whose dates are not settled, and the
+pages that are new or changed, and each of the others on its day: weekly while its dates are not
+settled, every three days while in doubt, once in 30 days otherwise (§12 counts them).
 
 ## 12. How often the rest is read (2026-09-24)
 
@@ -537,3 +543,39 @@ The limits are per cycle, and the off-peak window holds about five cycles. What 
 new semester, is spread: 200 QIS module descriptions and 200 event pages a cycle. Meanwhile the
 dates of the new events come from the event search, which states them before their pages are
 fetched.
+
+**Every page on a day of its own.** A rhythm alone does not spread the load. The archive is read
+in a few nights, after the first start and again after a semester switch, and with plain ages it
+would come due in the same few nights a month later, 1,000 QIS module descriptions and more a
+night, every month. So every page of a weekly or monthly rhythm (QIS module descriptions, event
+pages, tree pages, the module pages on b-tu.de) has a time of its own in its period, derived from
+its key (SHA-256 of the module number, event ID or address; `crawl.Due`), and it is read once
+that time has come at least half a period after its last reading. In the steady state every page
+is read once per period, and every night carries the same share. A page read out of turn,
+because something it depends on changed, waits for its time in the next period: half a period
+to one and a half after that reading. What is read in one piece keeps its plain age: the lists,
+the module table (its rows are compared as a whole) and the event search (250 events a request).
+
+After the first deploy of this rule the monthly pages, all read within the last few days, rest
+for about two weeks and then come due evenly.
+
+**QIS requests in a night of the semester**, estimated from 3,237 modules and 2,652 tree pages
+(counted), about 3,000 linked events of which about 1,200 are not settled (half of a sample of
+750; fewer once the exams have their dates), and about 300 modules offered without events:
+
+| What | Rhythm | A night |
+|---|---|---|
+| module table, FÜS list | second night | 2–3 |
+| QIS module descriptions | 30 days; weekly for the modules offered without events | about 140 |
+| program tree | 30 days | about 90 |
+| event search, all linked events | every night | about 12 |
+| event search, dates not settled | every two hours | about 10, and about 50 by day |
+| event pages the search vouches for | 30 days | about 60 |
+| event pages whose dates are not settled | weekly | about 170 |
+| event pages in doubt | 3 days | a few |
+| event pages the search has news for | the same cycle, by day as well | about 30 |
+| **all** | | **about 510**, and about 50 by day |
+
+Before the event search and these rhythms, a night was about 2,500 QIS requests: 1,080 module
+descriptions, 1,000 event pages, 380 tree pages and the table. The module pages on b-tu.de add a
+seventh of their number a night, on their own server.

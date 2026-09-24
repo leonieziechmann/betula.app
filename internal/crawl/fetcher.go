@@ -51,7 +51,7 @@ func (f *Fetcher) Get(ctx context.Context, job Job) ([]byte, error) {
 	log := oplog.For("crawl").With("source", job.Source)
 
 	if f.opt.MaxAge > 0 {
-		if page, err := f.db.GetPage(job.Source, job.Key); err == nil && time.Since(page.FetchedAt) < f.opt.MaxAge {
+		if page, err := f.db.GetPage(job.Source, job.Key); err == nil && f.opt.fresh(job.Key, page.FetchedAt) {
 			f.stats.Skipped++
 			if page.HTTPStatus != http.StatusOK || len(page.Body) == 0 {
 				return nil, ErrNotFound

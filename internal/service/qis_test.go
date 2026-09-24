@@ -254,7 +254,7 @@ func TestQISModulesFollowWhatTheyDependOn(t *testing.T) {
 	f := newFakeQIS(t, 3)
 	db := openTestDB(t)
 	ctx := context.Background()
-	pace := ModulePace{Pace: Pace{MaxAge: 30 * 24 * time.Hour}, UnsettledMaxAge: 7 * 24 * time.Hour}
+	pace := ModulePace{Pace: Pace{MaxAge: 30 * 24 * time.Hour, Spread: true}, UnsettledMaxAge: 7 * 24 * time.Hour}
 	crawlModules := func() []string {
 		t.Helper()
 		_, changed, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{})
@@ -292,12 +292,54 @@ func TestQISModulesFollowWhatTheyDependOn(t *testing.T) {
 		t.Errorf("read %v again", got)
 	}
 
-	// A month on, every description is read again.
+	// A month and a half on, past the day of its own every description has in the month,
+	// every description is read again.
 	for _, id := range []string{"20000", "20001", "20002"} {
-		age(t, db, catalogdb.SourceQISModulePage, id, 31*24*time.Hour)
+		age(t, db, catalogdb.SourceQISModulePage, id, 46*24*time.Hour)
 	}
 	if got := crawlModules(); len(got) != 3 {
-		t.Errorf("read %v after a month, want all three", got)
+		t.Errorf("read %v after a month and a half, want all three", got)
+	}
+}
+
+// Descriptions read in the same night, as a whole archive is after a semester switch, do
+// not come due in the same night a month later: each has a day of its own in the month.
+func TestQISModulesReadTogetherComeDueApart(t *testing.T) {
+	const modules = 60
+	f := newFakeQIS(t, modules)
+	db := openTestDB(t)
+	ctx := context.Background()
+	pace := ModulePace{Pace: Pace{MaxAge: 30 * 24 * time.Hour, Spread: true}}
+	if _, _, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{}); err != nil {
+		t.Fatalf("CrawlQISModuleList: %v", err)
+	}
+	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
+		t.Fatalf("CrawlQISModules: %v", err)
+	}
+	if got := f.takeServed(); len(got) != modules {
+		t.Fatalf("first run read %d descriptions, want %d", len(got), modules)
+	}
+
+	// A month on, the descriptions whose day came in the second half of the month are due:
+	// about half. (Of these 60 module numbers, every half month holds the days of 24 to 36.)
+	for i := 0; i < modules; i++ {
+		age(t, db, catalogdb.SourceQISModulePage, fmt.Sprint(20000+i), 30*24*time.Hour)
+	}
+	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
+		t.Fatalf("CrawlQISModules: %v", err)
+	}
+	spread := len(f.takeServed())
+	if spread < 20 || spread > 40 {
+		t.Errorf("read %d of %d descriptions a month after one night, want about half", spread, modules)
+	}
+
+	// Without Spread, every description a month old is due at once.
+	pace.Spread = false
+	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
+		t.Fatalf("CrawlQISModules: %v", err)
+	}
+	if got := len(f.takeServed()); got != modules-spread {
+		t.Errorf("without Spread read %d, want the other %d", got, modules-spread)
 	}
 }
 
@@ -308,7 +350,7 @@ func TestQISModulesOfferedWithoutEventsAreReadWeekly(t *testing.T) {
 	f := newFakeQIS(t, 3)
 	db := openTestDB(t)
 	ctx := context.Background()
-	pace := ModulePace{Pace: Pace{MaxAge: 30 * 24 * time.Hour}, UnsettledMaxAge: 7 * 24 * time.Hour}
+	pace := ModulePace{Pace: Pace{MaxAge: 30 * 24 * time.Hour, Spread: true}, UnsettledMaxAge: 7 * 24 * time.Hour}
 	if _, _, err := CrawlQISModuleList(ctx, db, f.endpoints(), Pace{}); err != nil {
 		t.Fatalf("CrawlQISModuleList: %v", err)
 	}
@@ -331,8 +373,10 @@ func TestQISModulesOfferedWithoutEventsAreReadWeekly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Eleven days: past a week and a half, whatever day of the week is 20000's own, and
+	// within half a month, whatever day of the month is the others'.
 	for _, id := range []string{"20000", "20001", "20002"} {
-		age(t, db, catalogdb.SourceQISModulePage, id, 8*24*time.Hour)
+		age(t, db, catalogdb.SourceQISModulePage, id, 11*24*time.Hour)
 	}
 	if _, err := CrawlQISModules(ctx, db, f.endpoints(), pace, nil); err != nil {
 		t.Fatalf("CrawlQISModules: %v", err)

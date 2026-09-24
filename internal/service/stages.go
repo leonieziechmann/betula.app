@@ -29,8 +29,19 @@ type Pace struct {
 	Workers int
 	Delay   time.Duration
 	MaxAge  time.Duration // pages archived more recently are not fetched again
+	Spread  bool          // MaxAge is a period instead: every page is fetched once per period, at a time of its own in it (crawl.Due); the stages of single pages honour it, lists are read in one piece
 	Limit   int           // at most this many pages are requested per run, oldest first; 0 = no limit
 	Backoff time.Duration // first pause after a failed request (default 30 s)
+}
+
+// due says whether a page fetched at fetched (zero: never) is due at now when it is to be
+// fetched once per period: with Spread at its own time in the period, otherwise as soon
+// as it is older.
+func (p Pace) due(key string, fetched, now time.Time, period time.Duration) bool {
+	if p.Spread {
+		return crawl.Due(key, fetched, now, period)
+	}
+	return period <= 0 || fetched.IsZero() || now.Sub(fetched) >= period
 }
 
 // Endpoints are the pages the service reads. Tests point them at a local server.
@@ -251,8 +262,10 @@ const (
 // descriptions never fetched; those whose row in the module table changed (changedRows,
 // from CrawlQISModuleList); those read while QIS called another semester current than it
 // does now, which name the events of the old one; then the modules offered in the
-// semester the catalog presents whose description names none of its events, after
-// pace.UnsettledMaxAge; all others after pace.MaxAge. Oldest first within each.
+// semester the catalog presents whose description names none of its events, once per
+// pace.UnsettledMaxAge; all others once per pace.MaxAge. Oldest first within each. With
+// pace.Spread every description has a day of its own in these periods, so that
+// descriptions read in the same night do not come due in the same night again.
 //
 // Log events: crawl.modules_due, crawl.up_to_date, and those of crawl.Run.
 func CrawlQISModules(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace ModulePace, changedRows map[string]bool) (crawl.Stats, error) {
@@ -308,16 +321,15 @@ func CrawlQISModules(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace M
 	now := time.Now()
 	for _, r := range refs {
 		rd, fetched := readings[r.ModuleID]
-		age := now.Sub(rd.at)
 		rank := -1
 		switch {
 		case !fetched:
 			rank = moduleNew
 		case changedRows[r.ModuleID], rd.semester != "" && nowSemester != "" && rd.semester != nowSemester:
 			rank = moduleChanged
-		case unsettled[r.ModuleID] && (pace.UnsettledMaxAge <= 0 || age >= pace.UnsettledMaxAge):
+		case unsettled[r.ModuleID] && pace.due(r.ModuleID, rd.at, now, pace.UnsettledMaxAge):
 			rank = moduleUnsettled
-		case pace.MaxAge <= 0 || age >= pace.MaxAge:
+		case pace.due(r.ModuleID, rd.at, now, pace.MaxAge):
 			rank = modulePastAge
 		}
 		if rank < 0 {
@@ -404,7 +416,9 @@ func CrawlTree(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (
 	start := time.Now()
 	log.Info("tree crawl started", "event", "crawl.started", "delay_ms", pace.Delay.Milliseconds(), "max_age", pace.MaxAge.String(), "limit", pace.Limit)
 
-	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff})
+	// With Spread every page once per MaxAge, each at a time of its own, so that the tree
+	// does not come due in one piece.
+	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, MaxAge: pace.MaxAge, Spread: pace.Spread, Backoff: pace.Backoff})
 	errLimit := errors.New("page limit reached")
 
 	result, err := qistree.Walk(ctx, ep.TreeRootURL,
@@ -434,8 +448,10 @@ func CrawlTree(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (
 	return stats, err
 }
 
-// runOldestFirst orders jobs by the age of their archived page (never fetched
-// first), drops the fresh ones, applies the limit, and crawls the rest.
+// runOldestFirst fetches every page once per pace.MaxAge (with pace.Spread each on a day
+// of its own in that period, so that pages read together do not come due together again).
+// It orders the due jobs by the age of their archived page (never fetched first), applies
+// the limit, and crawls them.
 func runOldestFirst(ctx context.Context, db *catalogdb.DB, jobs []crawl.Job, pace Pace) (crawl.Stats, error) {
 	if len(jobs) == 0 {
 		return crawl.Stats{}, nil
@@ -449,7 +465,7 @@ func runOldestFirst(ctx context.Context, db *catalogdb.DB, jobs []crawl.Job, pac
 	fresh := 0
 	now := time.Now()
 	for _, j := range jobs {
-		if at, ok := fetched[j.Key]; ok && pace.MaxAge > 0 && now.Sub(at) < pace.MaxAge {
+		if at, ok := fetched[j.Key]; ok && !pace.due(j.Key, at, now, pace.MaxAge) {
 			fresh++
 			continue
 		}

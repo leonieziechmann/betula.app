@@ -24,8 +24,8 @@ type Config struct {
 	Interval    time.Duration // pause between cycles
 
 	// Crawling only happens between these local hours, [start, end), except for the
-	// event search's hourly look at the events in doubt and the pages it has news for.
-	// Equal values mean any time.
+	// event search's look at the events in doubt every two hours and the pages it has
+	// news for. Equal values mean any time.
 	OffPeakStart, OffPeakEnd int
 
 	// The module index (the two lists and the QIS module table) is read every second night;
@@ -33,16 +33,17 @@ type Config struct {
 	// the copy of the module pages on b-tu.de, a server of its own, weekly. A QIS module
 	// description is read again sooner when something it depends on changed: its row in the
 	// module table, the semester QIS calls current, or, weekly, while it names none of the
-	// events of a semester the module is offered in. A Limit is per cycle; the off-peak
-	// window has about five.
+	// events of a semester the module is offered in. With Spread every page has a day of its
+	// own in its period (crawl.Due), so that each night carries an even share of the month
+	// or week. A Limit is per cycle; the off-peak window has about five.
 	Lists, Modules, Tree Pace
 	QISModules           ModulePace
 
 	// EventList asks the QIS event search about the linked events, 250 to a request:
 	// every event once per MaxAge in the off-peak window, and an event whose dates are not
 	// settled every UnsettledMaxAge at any hour. Events fetches the page of an event when
-	// the search has news for it, at any hour, and in the off-peak window also when the
-	// page is past its age.
+	// the search has news for it, at any hour, and in the off-peak window also when its
+	// day in its period has come.
 	EventList EventListPace
 	Events    EventPagePace
 
@@ -56,9 +57,12 @@ type Config struct {
 // often as it changes: the module index every second night; a QIS module description and a
 // page of the program tree once a month, a description sooner when something it depends on
 // changed; the dates of all events in about ten requests of the event search a night, and
-// those not settled yet in a request or two an hour; an event page when the search shows a
-// change, every three days while its dates are in doubt, and otherwise once a month. The
-// copy of the module pages on b-tu.de is read weekly: another server, and a fast one.
+// those not settled yet every two hours, 250 to a request; an event page when the search
+// shows a change, weekly while the search confirms dates that are not settled yet, every
+// three days while its dates are in doubt, and otherwise once a month. The copy of the
+// module pages on b-tu.de is read weekly: another server, and a fast one. Every page of a
+// weekly or monthly rhythm has a day of its own in it, so that the nights carry the same
+// load instead of an archive read in a few nights coming due in a few nights again.
 //
 // The limits spread what comes at once, a new semester, over a few nights: 200 QIS module
 // descriptions and 200 event pages a cycle, about five cycles a night. The dates of a new
@@ -72,19 +76,20 @@ func DefaultConfig() Config {
 		OffPeakEnd:   6,
 		// 40 hours: every second night, whatever time of the night the last reading was.
 		Lists:   Pace{Delay: time.Second, MaxAge: 40 * time.Hour},
-		Modules: Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 7 * 24 * time.Hour, Limit: 400},
+		Modules: Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 7 * 24 * time.Hour, Spread: true, Limit: 400},
 		QISModules: ModulePace{
-			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 30 * 24 * time.Hour, Limit: 200},
+			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 30 * 24 * time.Hour, Spread: true, Limit: 200},
 			UnsettledMaxAge: 7 * 24 * time.Hour,
 		},
-		EventList: EventListPace{Pace: Pace{Delay: 2 * time.Second, MaxAge: 12 * time.Hour}, UnsettledMaxAge: time.Hour},
+		EventList: EventListPace{Pace: Pace{Delay: 2 * time.Second, MaxAge: 12 * time.Hour}, UnsettledMaxAge: 2 * time.Hour},
 		Events: EventPagePace{
-			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 200},
+			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Spread: true, Limit: 200},
 			ConfirmedMaxAge: 30 * 24 * time.Hour,
+			UnsettledMaxAge: 7 * 24 * time.Hour,
 			EntryFresh:      24 * time.Hour, // twice the list's MaxAge: a search that stopped working vouches for nothing after a day
 			DayLimit:        50,
 		},
-		Tree:           Pace{Delay: time.Second, MaxAge: 30 * 24 * time.Hour, Limit: 300},
+		Tree:           Pace{Delay: time.Second, MaxAge: 30 * 24 * time.Hour, Spread: true, Limit: 300},
 		EventRetention: 30 * 24 * time.Hour,
 		ArchiveGrace:   7 * 24 * time.Hour,
 		Baselines:      catalogdb.BTUBaselines,
@@ -226,9 +231,9 @@ func (s *Service) RunCycle(ctx context.Context) (result CycleResult) {
 	})
 	crawlStage("tree", true, catalogdb.SourceQISTree, func() (crawl.Stats, error) { return CrawlTree(ctx, s.db, s.cfg.Endpoints, s.cfg.Tree) })
 	// The event search runs in every cycle: at night it reads the dates of every linked
-	// event, by day only those of events whose dates are not settled, which is a request
-	// or two. The event pages come after it, because what they need depends on what it
-	// found: by day only the pages it has news for.
+	// event, by day only those of events whose dates are not settled, every two hours. The
+	// event pages come after it, because what they need depends on what it found: by day
+	// only the pages it has news for.
 	crawlStage("event-list", false, catalogdb.SourceQISEventEntry, func() (crawl.Stats, error) {
 		all := s.inOffPeak(s.now()) || !s.archived(catalogdb.SourceQISEventEntry)
 		return CrawlEventList(ctx, s.db, s.cfg.Endpoints, s.cfg.EventList, all)

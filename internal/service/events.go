@@ -19,9 +19,9 @@ import (
 // The dates of an event come from two readings of QIS: its entry in the event search,
 // which states the dates of 250 events in one request, and its own page, which adds what
 // the search leaves out, the remarks of the dates above all (docs/data-sources.md §11).
-// The search is asked every night about every linked event, and every hour about the
+// The search is asked every night about every linked event, and every two hours about the
 // events whose dates are not settled; a page is fetched when the search has news for it,
-// and otherwise when it is past its age.
+// and otherwise once per its period.
 
 // EventListPace is how often the event search is asked about the linked events.
 type EventListPace struct {
@@ -31,8 +31,9 @@ type EventListPace struct {
 
 // EventPagePace is how often the page of an event is fetched.
 type EventPagePace struct {
-	Pace                          // MaxAge: a page the event search does not vouch for
+	Pace                          // MaxAge: a page in doubt, one the event search does not confirm
 	ConfirmedMaxAge time.Duration // a page the event search vouches for: it states the same dates, and they are settled; 0 vouches for nothing
+	UnsettledMaxAge time.Duration // a page the event search confirms while its dates are not settled (parser.Unsettled); 0 leaves it in doubt
 	EntryFresh      time.Duration // an entry speaks for its event only while it was read within this long
 	DayLimit        int           // outside the off-peak window only pages the search has news for are fetched, at most this many per run
 }
@@ -316,38 +317,46 @@ const (
 	pagePastItsAge = 2
 )
 
-// pageRank says whether the page of an event is due, and whether the search vouches for it.
+// pageRank says whether the page of event id is due, and whether the search vouches for it.
 // The search has news for a page when its entry changed after the page was fetched and now
 // states other dates: a change, not a difference in reading, so that no page is fetched
 // again and again for the same entry. It vouches for a page that states the same dates when
-// they are settled; any other page is in doubt and ages by pace.MaxAge, as every page did
-// before the search was asked (a search that stopped working vouches for nothing).
-func pageRank(st *eventState, pace EventPagePace, now time.Time) (rank int, vouched bool) {
+// they are settled: the page is read once per pace.ConfirmedMaxAge. A page that states the
+// same dates while they are not settled is read once per pace.UnsettledMaxAge: the search,
+// asked about those dates every two hours, shows when they come, and the page is read for
+// what it states alone, a remark such as „Termin nach Vereinbarung". Any other page is in
+// doubt and is read once per pace.MaxAge, as every page was before the search was asked (a
+// search that stopped working vouches for nothing). With pace.Spread each page has a day
+// of its own in its period, so that pages read in the same night do not come due together
+// again.
+func pageRank(id string, st *eventState, pace EventPagePace, now time.Time) (rank int, vouched bool) {
 	listed := st.entryListed && pace.EntryFresh > 0 && now.Sub(st.entryAt) < pace.EntryFresh
 	agrees := listed && st.paged && parser.SameSchedule(st.entry, st.page)
-	age := now.Sub(st.pageAt)
+	due := func(period time.Duration) int {
+		if pace.due(id, st.pageAt, now, period) {
+			return pagePastItsAge
+		}
+		return pageNotDue
+	}
 	switch {
 	case st.pageAt.IsZero():
 		return pageNew, false
 	case listed && !agrees && st.entryChangedAt.After(st.pageAt):
 		return pageListNews, false
 	case agrees && pace.ConfirmedMaxAge > 0 && !parser.Unsettled(st.entry):
-		if age >= pace.ConfirmedMaxAge {
-			return pagePastItsAge, true
-		}
-		return pageNotDue, true
-	case pace.MaxAge <= 0 || age >= pace.MaxAge:
-		return pagePastItsAge, false
+		return due(pace.ConfirmedMaxAge), true
+	case agrees && pace.UnsettledMaxAge > 0 && parser.Unsettled(st.entry):
+		return due(pace.UnsettledMaxAge), false
 	}
-	return pageNotDue, false
+	return due(pace.MaxAge), false
 }
 
 // CrawlEvents archives the QIS pages of the events that module pages link. With all (the
 // off-peak window, or nothing archived yet), every page that is due, in the order of
-// pageRank: pages never fetched, pages the search has news for, pages past their age,
-// oldest first. At other hours only the first two, at most pace.DayLimit, so that a change
-// the search shows by day reaches the catalog with its remarks within the cycle. Events
-// removed by retention are not fetched again.
+// pageRank: pages never fetched, pages the search has news for, pages whose day in their
+// period has come, oldest first. At other hours only the first two, at most pace.DayLimit,
+// so that a change the search shows by day reaches the catalog with its remarks within the
+// cycle. Events removed by retention are not fetched again.
 //
 // Log events: crawl.pages_due, crawl.up_to_date, and those of crawl.Run.
 func CrawlEvents(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace EventPagePace, all bool) (crawl.Stats, error) {
@@ -412,7 +421,7 @@ func CrawlEvents(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Event
 		if st == nil {
 			st = &eventState{}
 		}
-		rank, v := pageRank(st, pace, now)
+		rank, v := pageRank(id, st, pace, now)
 		if v {
 			vouched++
 		}
