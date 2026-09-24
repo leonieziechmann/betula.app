@@ -65,12 +65,15 @@ pub fn NotFound(#[prop(into)] title: String, #[prop(into)] hint: String) -> impl
     }
 }
 
+/// Nothing to show: what is missing, and a hint. `children` are the ways on from here (links
+/// or buttons, the first the one to take), set in a row under the hint.
 #[component]
-pub fn EmptyState(#[prop(into)] title: String, #[prop(into)] hint: String) -> impl IntoView {
+pub fn EmptyState(#[prop(into)] title: String, #[prop(into)] hint: String, #[prop(optional)] children: Option<Children>) -> impl IntoView {
     view! {
         <div class="state state-empty">
             <p class="state-title">{title}</p>
             <p>{hint}</p>
+            {children.map(|children| view! { <div class="state-actions">{children()}</div> })}
         </div>
     }
 }

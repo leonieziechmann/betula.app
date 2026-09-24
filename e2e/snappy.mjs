@@ -134,6 +134,13 @@ for (const slow of [1, 4]) {
     result: () => location.pathname === "/" && document.querySelector(".home-hero h1"),
     skeleton: true,
   }, slow);
+  // The Studienplan: the tab and the title in the first frame, the frame of the plan as its
+  // skeleton, then the plan (an empty one: this browser has planned nothing).
+  await watch(page, "the rail: Studienplan" + tag, click(page, '.rail a.nav[data-area="studyplan"]'), {
+    feedback: () => document.querySelector('.rail a.nav[data-area="studyplan"]')?.getAttribute("aria-current") === "page" && document.querySelector(".crumb h1")?.textContent === "Studienplan",
+    result: () => location.pathname === "/studyplan" && document.querySelector(".sp-body .state-actions"),
+    skeleton: true,
+  }, slow);
   // The second time the start page's queries are answered from memory, and its kind has a
   // measured duration: a skeleton only if that was long.
   await watch(page, "the rail: the catalog as it was left" + tag, click(page, '.rail a.nav[data-area="catalog"]'), {
@@ -165,6 +172,11 @@ for (const slow of [1, 4]) {
   await watch(small, "phone: a module" + tag, tap(small, ".rows a.row >> nth=1"), {
     feedback: () => document.querySelector(".pending-page") || document.querySelector(".module-page"),
     result: () => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page h2"),
+    skeleton: true,
+  }, slow);
+  await watch(small, "phone: the bottom bar: Studienplan" + tag, tap(small, '.bottomnav a.nav[data-area="studyplan"]'), {
+    feedback: () => document.querySelector('.bottomnav a.nav[data-area="studyplan"]')?.getAttribute("aria-current") === "page",
+    result: () => location.pathname === "/studyplan" && document.querySelector(".sp-body .state-actions"),
     skeleton: true,
   }, slow);
   await phone.close();

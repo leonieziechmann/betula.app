@@ -1361,6 +1361,187 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 
 .bottomnav { display: none; }
 
+/* ---------- studyplan (app/src/pages/studyplan, app/src/studyplan.rs) ----------
+   The Studienplan: the frame of every page, the sidebar „Anpassen", and the plan in one panel of
+   the main column (.sp-body) that fills the page's height. The views are built by the parts of
+   app/src/pages/studyplan/*.rs; the markup each rule expects is named beside it. A module's tone is
+   a `t-…` class (--tint), as on the start page and in the week grid. */
+/* One column that never grows past the page: its grid items hold lines that do not wrap. */
+.page-inner.sp { min-height: 100%; grid-template-columns: minmax(0, 1fr); }
+/* The panel ends where the sidebar ends (the page keeps no room under it). */
+@media (min-width: 901px) { .framed > .page:has(> .page-inner.sp) { padding-bottom: 1px; } }
+.sp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; padding: 16px 24px 24px; overflow: visible; overflow-wrap: break-word; }
+.sp-body > .hint, .sp-body > .note { margin-top: 0; }
+/* The empty plan and the server's explanation: what is missing, the ways on in a row under it. */
+.sp-body > .state { margin: 64px auto; }
+.sp-body > .state p { text-wrap: balance; }
+.state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+/* The head: ‹ „WiSe 2026/27" › (links to the semesters around it), on a phone „Anpassen" at the
+   right; under it the numbers, first: „1. FS · 5 Module · 32 LP" (p.sp-sum). */
+.sp-head { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-left: -8px; }
+.sp-head h2 { font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; padding: 0 4px; }
+.sp-head .icon-btn { width: 34px; height: 34px; --hit: 3px; }
+.sp-head .icon-btn[aria-disabled="true"] { opacity: .35; pointer-events: none; }
+.sp-head .sheet-toggle { margin-left: auto; }
+.sp-sum { margin-top: -10px; color: var(--text-2); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.sp-sum small { color: var(--text-3); font-size: 12.5px; }
+/* The planned modules of the semester (ul.sp-mods > li > a.t-…): the tone, number, title and
+   credits of each, a link to the module beside the plan; the last item is „+ Modul" (a.mini). */
+.sp-mods { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-mods li { min-width: 0; max-width: 100%; }
+.sp-mods a:not(.mini) { --hit: 3px; min-height: 32px; max-width: 100%; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px 0 9px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font-weight: 560; font-size: 13px; text-decoration: none; transition: background .12s, box-shadow .12s; }
+.sp-mods a:not(.mini):hover { background: var(--panel-3); text-decoration: none; }
+.sp-mods a[aria-current="true"] { box-shadow: inset 0 0 0 1.5px var(--text); }
+.sp-mods a > i { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--tint, var(--text-3)); }
+.sp-mods a > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mods .mono { flex: none; color: var(--text-3); font-size: 11.5px; }
+.sp-mods small { flex: none; color: var(--text-3); font-weight: 450; font-size: 12px; }
+.sp-mods .mini { display: inline-flex; align-items: center; min-height: 32px; text-decoration: none; color: var(--text-2); }
+/* „Aus der Merkliste (n)": closed until asked, a line per module with its „Einplanen". */
+.sp-marked > summary { cursor: pointer; min-height: 28px; display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 580; font-size: 13px; }
+.sp-marked > summary::after { content: "+"; color: var(--text-3); font-weight: 500; }
+.sp-marked[open] > summary::after { content: "–"; }
+.sp-marked ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin-top: 6px; }
+.sp-marked li { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 4px 0 10px; border-radius: var(--r-s); font-size: 13px; }
+.sp-marked li:hover { background: var(--panel-2); }
+.sp-marked li .mini { margin-left: auto; }
+/* The notes of a semester: warnings (p.note, a triangle) first, then quiet lines; each a link to
+   the module beside the plan. At most four, „+2 weitere" (button.mini) shows the rest in place. */
+.sp-notes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; justify-items: start; }
+.sp-notes .note { margin: 0; width: 100%; align-items: flex-start; }
+.sp-notes a.note { text-decoration: none; }
+.sp-notes a.note:hover { text-decoration: underline; text-underline-offset: 3px; }
+.sp-notes .note.quiet { color: var(--text-2); }
+/* Where the plan has no fixed time: „Ohne feste Zeit" (h3.label) and its lines. */
+.sp-body h3.label { margin-top: 4px; }
+.sp-loose { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; font-size: 13px; color: var(--text-2); }
+
+/* The Regelwoche in the plan: a slot is a link to its module beside the plan (a.slot.tinted.t-…),
+   an option of a choice not made is dashed (.alt). Single dates keep their tone quietly. */
+.sp-body .week { margin-top: 2px; }
+.slot.once[class*=" t-"] { background: color-mix(in oklch, var(--tint) 7%, var(--panel)); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); }
+a.slot { cursor: pointer; transition: filter .12s; }
+a.slot:hover { filter: brightness(.96); }
+/* On a phone the week is a list of days (div.sp-daylist > section > h3.label + a …): the time, then
+   what it is; the tone as a bar on the left, a choice not made dashed, a clash red. */
+.sp-daylist { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.sp-daylist section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.sp-daylist a { min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 3px 0 0 var(--tint, var(--text-3)); color: var(--text); font-size: 14px; text-decoration: none; }
+.sp-daylist a .t { flex: none; min-width: 92px; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.sp-daylist a small { display: block; color: var(--text-3); font-size: 12.5px; }
+.sp-daylist a.alt { background: transparent; box-shadow: inset 3px 0 0 var(--tint, var(--text-3)), inset 0 0 0 1px var(--line-strong); }
+.sp-daylist a.clash { background: var(--no-soft); box-shadow: inset 3px 0 0 var(--no); }
+.sp-daylist a[aria-current="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* „Termine": a week a section (section.agenda-week#kw-<year>-<week> > h3 + .agenda-day …), a day a
+   row: the day on the left (.when), its items on the right (.agenda-item > i + span.t + span, the
+   time, then what and where); a cancelled item strikes its span through, and says why in a small
+   beside it (a sibling, so the reason is not struck). Off-screen weeks are not laid out (R18:
+   about 450 items a semester). */
+.agenda { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.agenda-week { content-visibility: auto; contain-intrinsic-size: auto 240px; scroll-margin-top: 12px; }
+.agenda-week > h3 { margin-bottom: 4px; color: var(--text-2); font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.agenda-week > h3 small { color: var(--text-3); font-weight: 500; font-size: 12px; }
+.agenda-day { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 2px 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.agenda-day > .when { padding-top: 1px; color: var(--text-3); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.agenda-day.today > .when { color: var(--accent-ink); font-weight: 650; }
+.agenda-day > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; min-width: 0; }
+.agenda-day .holiday { color: var(--text-3); font-size: 12.5px; }
+.agenda-item { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 13px; color: var(--text); text-decoration: none; }
+a.agenda-item:hover { text-decoration: none; color: var(--text); }
+a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-offset: 3px; }
+.agenda-item > i { flex: none; align-self: center; width: 8px; height: 8px; border-radius: 2px; background: var(--tint, var(--text-3)); }
+.agenda-item .t { flex: none; min-width: 84px; color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.agenda-item > span:not(.t) { min-width: 0; }
+.agenda-item small { color: var(--text-3); font-size: 12px; }
+.agenda-item > small { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-item.exam { font-weight: 650; }
+.agenda-item.exam .icon { width: 14px; height: 14px; align-self: center; color: var(--warn); }
+.agenda-item.alt { color: var(--text-2); }
+.agenda-item.cancelled > span:not(.t) { color: var(--text-3); text-decoration: line-through; }
+.agenda-break { padding: 8px 12px; border-radius: var(--r-row); background: var(--panel-2); color: var(--text-3); font-size: 12.5px; }
+
+/* „Prüfungen": a sitting a row (.sp-exam: .when, what and where, the eye), „2. Termin" small;
+   a hidden sitting steps back ([data-hidden]). */
+.sp-exams { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.sp-exam { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; min-height: 48px; padding: 6px 6px 6px 12px; border-radius: var(--r-row); background: var(--panel-2); font-size: 13px; }
+.sp-exam .when { font-weight: 620; font-variant-numeric: tabular-nums; }
+.sp-exam small { display: block; color: var(--text-3); font-weight: 450; font-size: 12px; }
+.sp-exam[data-hidden] { opacity: .5; }
+
+/* The module beside the plan (PlanModulePanel, section.panel.detail.aside): its events
+   (.sp-event > h3 + .sp-rowline …), each Termin a line with its eye, the one the address points
+   at current; an open choice under „1 von 4 wählen" (.sp-choice); what is hidden dimmed. */
+.sp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.sp-actions select { min-height: 32px; max-width: 100%; padding: 0 8px; border: 0; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
+.sp-event { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--line); }
+/* The first event stands right under the head, whose rule is enough. */
+.dbody > .sp-event:first-child { border-top: 0; margin-top: 0; }
+.sp-event > h3 { display: flex; align-items: center; gap: 6px; min-height: 32px; font-size: 13.5px; font-weight: 640; }
+.sp-event > h3 > span { min-width: 0; flex: 1; }
+.sp-event > h3 > a { flex: none; font-weight: 520; font-size: 12.5px; color: var(--text-3); }
+.sp-event > h3 > a:hover { color: var(--text); }
+.sp-choice { display: flex; align-items: center; gap: 8px; min-height: 30px; padding-left: 8px; color: var(--text-3); font-size: 12.5px; font-weight: 560; }
+.sp-choice .mini { margin-left: auto; }
+.sp-rowline { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 2px 2px 2px 10px; border-radius: var(--r-s); color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.sp-rowline > span:first-child { flex: 1; min-width: 0; }
+.sp-rowline small { color: var(--text-3); font-size: 12px; }
+.sp-rowline[aria-current="true"] { background: var(--panel-3); color: var(--text); box-shadow: inset 2.5px 0 0 var(--accent); }
+.sp-rowline[data-hidden] { color: var(--text-3); }
+.sp-rowline[data-hidden] > span:first-child { text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.sp-rowline .clash { color: var(--no); font-weight: 600; }
+/* The eye: hide or show an event, a Termin, a sitting (aria-pressed: hidden). */
+.eye { --hit: 3px; flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-s); color: var(--text-3); transition: background .12s, color .12s; }
+.eye:hover { background: var(--panel-3); color: var(--text); }
+.eye .icon { width: 16px; height: 16px; }
+.eye[aria-pressed="true"] { color: var(--text); }
+
+/* „Übersicht": a semester a section (.sp-term > h3 with „jetzt" and „Woche →"), a module or a
+   placeholder a row (.sp-row, .sp-row.placeholder dashed, its modules .sp-row.filler under it). */
+.sp-term { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.sp-term > h3 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-height: 28px; font-size: 14px; font-weight: 650; }
+.sp-term > h3 small { color: var(--accent-ink); font-size: 11.5px; font-weight: 650; }
+.sp-term > h3 .num { color: var(--text-2); font-weight: 520; font-size: 13px; }
+.sp-term > h3 > a { margin-left: auto; font-weight: 560; font-size: 13px; }
+.sp-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 4px 4px 12px; border-radius: var(--r-row); background: var(--panel-2); color: var(--text); font-size: 13px; text-decoration: none; }
+a.sp-row:hover, .sp-row > a:hover { text-decoration: none; }
+.sp-row > .mono { flex: none; color: var(--text-3); }
+.sp-row > span:not(.mono):not(.lp) { flex: 1; min-width: 0; }
+.sp-row small { color: var(--text-3); font-size: 12px; }
+.sp-row .lp { margin-left: auto; flex: none; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sp-row .icon-btn { width: 32px; height: 32px; }
+.sp-row.placeholder { background: transparent; border: 1px dashed var(--line-strong); padding-left: 11px; }
+.sp-row.placeholder b { font-weight: 650; }
+.sp-row.filler { margin-left: 18px; background: var(--accent-soft); }
+.sp-row.gone > span:not(.mono) { color: var(--text-3); }
+/* Taking a Regelstudienplan over (section.sp-import): a label and its control a line
+   (.sp-field > span + control), the preview a box, then the checkbox and „Übernehmen". */
+.sp-import { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.sp-import > h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
+.sp-field { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 4px 12px; align-items: center; }
+.sp-field > span { color: var(--text-2); font-size: 13px; }
+.sp-field > .seg { margin-top: 0; justify-self: start; min-width: min(100%, 320px); }
+.sp-field > select { min-height: 36px; max-width: 320px; padding: 0 10px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
+.sp-preview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.sp-preview small { display: block; color: var(--text-3); font-size: 12px; }
+.sp-import .check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.sp-import .btn { justify-self: start; }
+.btn[aria-busy="true"] { opacity: .7; cursor: progress; }
+
+/* The sidebar's „Kalender": „Abonnieren" opens the four ways to subscribe under it. */
+.sp-sub { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 2px 0 4px 17px; padding-left: 8px; border-left: 2px solid var(--line); }
+.sp-sub .hint { margin: 4px 0 2px 10px; }
+.sidebar .note { margin-top: 6px; }
+
+/* „Einplanen" on a module's page and „Mein Studiengang" on a program's: part of server HTML (R9,
+   unpressed), kept in place but not shown until the app runs, and gone without JavaScript (R15) —
+   the pattern of .mark-toggle, so nothing moves at the takeover. */
+.plan-toggle, .mine-toggle { visibility: hidden; }
+.app .plan-toggle, .app .mine-toggle { visibility: visible; }
+html:not(.js) .plan-toggle, html:not(.js) .mine-toggle { display: none; }
+.plan-toggle[aria-busy="true"] { cursor: progress; }
+.mine-toggle[aria-pressed="true"] .icon { fill: currentColor; color: var(--text); }
+
 /* ---------- closed testing: the login page ----------
    A document of its own (server/src/access.rs): no rail, no app, one column in the middle of the
    screen. The lockup stands on the page as in the app (on a panel the light mark would vanish),
@@ -1413,6 +1594,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
 .sk.sk-button { width: 190px; height: 46px; border-radius: var(--r-ctl); }
 .sk.sk-fact { width: auto; height: 56px; border-radius: var(--r-ctl); }
 .sk.sk-week { width: auto; height: 250px; border-radius: var(--r-ctl); }
+.sk.sk-week-tall { height: 420px; }
 .sk.sk-figure { width: 110px; height: 34px; border-radius: 8px; }
 .sk.sk-tools { width: 250px; margin-left: auto; }
 .sk-frame .panel-head { min-height: 50px; }
@@ -1597,6 +1779,41 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }
   .soon-line { padding: 14px 16px 16px; }
+  /* The Studienplan on a phone: the panel and its parts in finger sizes. */
+  /* Long German words („Programmierpraktikum") break with a hyphen rather than past the edge. */
+  .sp-body { padding: 14px 14px 18px; gap: 12px; hyphens: auto; }
+  .sp-rowline, .sp-event > h3 { hyphens: auto; }
+  .sp-body > .state { margin: 36px auto; }
+  .state-actions .sheet-toggle { min-height: 44px; padding: 0 16px; box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 620; }
+  .sp-head { gap: 0; }
+  .sp-head h2 { font-size: 19px; }
+  .sp-head .icon-btn { width: 40px; height: 44px; --hit: 0px; }
+  .sp-head .sheet-toggle, .sp-body > .sheet-toggle { padding: 0 12px; }
+  /* An empty plan taking a Regelstudienplan over has no head: „Anpassen" stands where one has it. */
+  .sp-body > .sheet-toggle { justify-self: end; }
+  .sp-head .seg { flex: 1 1 100%; margin-top: 4px; }
+  .sp-sum { margin-top: -8px; }
+  .sp-mods a:not(.mini), .sp-mods .mini { min-height: 40px; }
+  .slot small { display: none; }
+  .eye { width: 44px; height: 44px; --hit: 0px; }
+  /* A Termin's line: its text across the panel, its controls under it at the right. */
+  .sp-rowline { min-height: 44px; flex-wrap: wrap; row-gap: 0; padding-top: 4px; padding-bottom: 2px; }
+  .sp-rowline > span:first-child { flex-basis: 100%; }
+  .sp-rowline > :nth-child(2) { margin-left: auto; }
+  .sp-daylist a { min-height: 48px; }
+  /* The day in two short lines („Mo" over „05.10."), the items get the room. */
+  .agenda-day { grid-template-columns: 44px minmax(0, 1fr); gap: 2px 8px; }
+  .agenda-item { flex-wrap: wrap; gap: 0 8px; }
+  .agenda-item .t { min-width: 76px; }
+  .agenda-item > span:not(.t) { flex: 1 1 150px; }
+  .agenda-item > small { flex-basis: 100%; max-width: none; padding-left: 92px; white-space: normal; }
+  .sp-exam { grid-template-columns: minmax(0, 1fr) auto; }
+  .sp-exam .eye { grid-column: 2; grid-row: 1 / span 2; }
+  .sp-field { grid-template-columns: minmax(0, 1fr); }
+  .sp-field > .seg, .sp-field > select { max-width: none; width: 100%; }
+  .sp-row { min-height: 48px; }
+  .sp-actions select { min-height: 44px; }
+  .sk.sk-week-tall { height: 300px; }
 }
 .back { display: none; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
