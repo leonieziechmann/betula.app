@@ -20,6 +20,7 @@ use crate::filter::{
 use crate::labels::{self, Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
 use crate::native::NativeDatabase;
 use crate::queries;
+use crate::rows_detail::DateRow;
 
 /// `content_digest` of the snapshot the pinned numbers below were taken from (2026-09-19).
 const PINNED_DIGEST: &str = "14dc847aef858b5c61763a67a093279ee9d6d1570e23e692b0397c757c159fc0";
@@ -64,9 +65,6 @@ pub(crate) const STUDYPLAN_DIGEST: &str = "4b65e821a0e33b858b589963e6c6f879a9906
 /// sets the variable. A file with another digest fails the test: the pinned file was replaced, and
 /// a green run would claim checks that did not run. Without the variable, the tests' own snapshot
 /// serves when it is the pinned one; else the skip is said on stderr, once per test.
-// The timetable's checks call it as they land (kind.rs, rowkey.rs and on); until then it has no
-// caller, and dead code in a test build is a warning.
-#[allow(dead_code)]
 pub(crate) fn studyplan_db(test: &str) -> Option<NativeDatabase> {
     if let Some(path) = std::env::var("FOLIA_STUDYPLAN_SNAPSHOT").ok().filter(|p| !p.is_empty()) {
         let db = NativeDatabase::open(&PathBuf::from(&path))
@@ -220,6 +218,8 @@ fn every_query_runs_against_the_snapshot() {
     let ids = queries::module_ids(&db).unwrap();
     assert!(ids.len() >= page.total as usize && ids.contains(&module.id));
 
+    the_studyplan_queries(&db, meta.current_semester.as_deref().expect("a current semester"));
+
     // Every `pub fn` of queries.rs must have run above.
     let declared: BTreeSet<&str> = include_str!("queries.rs")
         .lines()
@@ -231,6 +231,144 @@ fn every_query_runs_against_the_snapshot() {
     assert!(never_ran.is_empty(), "queries the tests never ran against the snapshot: {never_ran:?}");
     let unnamed: Vec<&&str> = ran.iter().filter(|name| !declared.contains(**name)).collect();
     assert!(unnamed.is_empty(), "query names that are not the name of their function: {unnamed:?}");
+}
+
+/// The Studienplan's queries, run through the recording database of
+/// `every_query_runs_against_the_snapshot`: some modules of a semester, and the whole semester for
+/// the finder. On any snapshot they say what direct SQL on the views says; the rows themselves are
+/// asserted on the pinned snapshot only.
+fn the_studyplan_queries(db: &Recording, semester: &str) {
+    use std::collections::BTreeMap;
+
+    let direct = |sql: String| scalar(&db.inner, &sql);
+    // Four modules taught in the semester whose pages state SWS, so every answer has rows.
+    let planned = column(
+        &db.inner,
+        &format!(
+            "SELECT s.module_id FROM v_module_schedule s WHERE s.semester_key = '{semester}' AND s.ord IS NOT NULL \
+             AND EXISTS (SELECT 1 FROM v_module_teaching_form f WHERE f.module_id = s.module_id \
+             AND f.sws IS NOT NULL AND f.form IS NOT NULL) GROUP BY s.module_id ORDER BY s.module_id LIMIT 4"
+        ),
+    );
+    assert_eq!(planned.len(), 4, "four modules taught in {semester}");
+    let asked: BTreeSet<&str> = planned.iter().map(String::as_str).collect();
+    let listed = planned.iter().map(|id| format!("'{id}'")).collect::<Vec<_>>().join(", ");
+
+    let schedule = queries::modules_schedule(db, &planned, semester).unwrap();
+    assert!(!schedule.is_empty(), "{planned:?} in {semester}");
+    assert!(schedule.iter().all(|row| asked.contains(row.module_id.as_str()) && row.date.semester_key == semester), "{schedule:?}");
+    assert_eq!(schedule.len() as i64, direct(format!("SELECT COUNT(*) FROM v_module_schedule WHERE semester_key = '{semester}' AND module_id IN ({listed})")));
+    let order = |row: &DateRow| (row.date.event_id.clone(), row.ord, row.module_id.clone());
+    assert!(schedule.windows(2).all(|pair| order(&pair[0]) <= order(&pair[1])), "by event, row and module");
+    // The same set asks the same question, whatever else the list holds; a list without a module
+    // id asks nothing (and never everything).
+    let mut shuffled: Vec<String> = planned.iter().rev().cloned().collect();
+    shuffled.extend([planned[0].clone(), "1 OR 1=1".to_string(), String::new()]);
+    assert_eq!(queries::modules_schedule(db, &shuffled, semester).unwrap(), schedule);
+    assert!(queries::modules_schedule(db, &[], semester).unwrap().is_empty());
+    assert!(queries::modules_schedule(db, &["1 OR 1=1".to_string()], semester).unwrap().is_empty());
+
+    // The finder's rows are the full ones without what it does not compare.
+    let lean = |row: &DateRow, room: bool| {
+        let mut row = row.clone();
+        row.date.event_number = None;
+        row.date.instructor = None;
+        row.date.comment = None;
+        row.date.source_url = None;
+        if !room {
+            row.date.room = None;
+        }
+        row
+    };
+    let whole = queries::semester_schedule(db, semester).unwrap();
+    assert_eq!(whole.len() as i64, direct(format!("SELECT COUNT(*) FROM v_module_schedule WHERE semester_key = '{semester}' AND ord IS NOT NULL")));
+    let first = &planned[0];
+    let full: Vec<DateRow> = schedule.iter().filter(|row| &row.module_id == first && row.ord.is_some()).map(|row| lean(row, false)).collect();
+    assert_eq!(whole.iter().filter(|row| &row.module_id == first).cloned().collect::<Vec<_>>(), full, "{first}");
+
+    // Every dated row of the semester is counted once, however many modules link its event.
+    let counts = queries::semester_date_counts(db, semester).unwrap();
+    assert!(!counts.is_empty());
+    assert_eq!(
+        counts.iter().map(|count| count.dates).sum::<i64>(),
+        direct(format!("SELECT COUNT(DISTINCT event_id || '/' || ord) FROM v_module_schedule WHERE semester_key = '{semester}' AND first_date IS NOT NULL"))
+    );
+
+    let sws = queries::modules_teaching_sws(db, &planned).unwrap();
+    assert!(!sws.is_empty() && sws.iter().all(|row| asked.contains(row.module_id.as_str()) && row.sws >= 0.0), "{sws:?}");
+    assert_eq!(sws.len() as i64, direct(format!("SELECT COUNT(*) FROM (SELECT 1 FROM v_module_teaching_form WHERE sws IS NOT NULL AND form IS NOT NULL AND module_id IN ({listed}) GROUP BY module_id, form)")));
+    let taught: BTreeSet<String> = column(&db.inner, &format!("SELECT DISTINCT module_id FROM v_module_schedule WHERE semester_key = '{semester}'")).into_iter().collect();
+    let semester_sws = queries::semester_teaching_sws(db, semester).unwrap();
+    assert!(!semester_sws.is_empty() && semester_sws.iter().all(|row| taught.contains(&row.module_id)));
+    assert!(sws.iter().all(|row| semester_sws.contains(row)), "the finder's answer holds the plan's");
+
+    // Exams: the newest semester that has a dated one, which need not be the current.
+    let pick = |sql: String| column(&db.inner, &sql).pop().unwrap_or_else(|| panic!("no row for: {sql}"));
+    let exam_semester = pick("SELECT semester_key FROM v_module_exam WHERE first_date IS NOT NULL ORDER BY semester_key DESC LIMIT 1".into());
+    let examined = pick(format!("SELECT module_id FROM v_module_exam WHERE semester_key = '{exam_semester}' AND first_date IS NOT NULL ORDER BY module_id LIMIT 1"));
+    let exams = queries::modules_exams(db, std::slice::from_ref(&examined), &exam_semester).unwrap();
+    assert_eq!(exams.len() as i64, direct(format!("SELECT COUNT(*) FROM v_module_exam WHERE semester_key = '{exam_semester}' AND module_id = '{examined}'")));
+    assert!(
+        exams.iter().all(|row| row.module_id == examined
+            && row.date.event_type.is_none()
+            && row.date.group_name.is_none()
+            && row.date.rhythm.is_none()
+            && row.cancelled_dates.is_none()),
+        "an exam row has no type, group, rhythm or cancellations: {exams:?}"
+    );
+    let all_exams = queries::semester_exams(db, &exam_semester).unwrap();
+    assert_eq!(all_exams.len() as i64, direct(format!("SELECT COUNT(*) FROM v_module_exam WHERE semester_key = '{exam_semester}' AND first_date IS NOT NULL")));
+    let full: Vec<DateRow> = exams.iter().filter(|row| row.date.first_date.is_some()).map(|row| lean(row, true)).collect();
+    assert_eq!(all_exams.iter().filter(|row| row.module_id == examined).cloned().collect::<Vec<_>>(), full, "{examined}: the room stays");
+    assert!(queries::modules_exams(db, &[], &exam_semester).unwrap().is_empty());
+    assert!(queries::modules_teaching_sws(db, &["1 OR 1=1".to_string()]).unwrap().is_empty());
+
+    // Informatik B.Sc.'s first semester on the snapshot the Studienplan's checks were pinned to.
+    let Some(pinned) = studyplan_db("every_query_runs_against_the_snapshot") else { return };
+    let fs1: Vec<String> = ["12104", "12107", "12102", "11112"].map(String::from).to_vec();
+    let mut per_module: BTreeMap<String, usize> = BTreeMap::new();
+    for row in queries::modules_schedule(&pinned, &fs1, "2026W").unwrap() {
+        assert!(fs1.contains(&row.module_id), "{row:?}");
+        *per_module.entry(row.module_id).or_default() += 1;
+    }
+    let expected: BTreeMap<String, usize> = [("11112", 6), ("12102", 7), ("12104", 9), ("12107", 3)].map(|(id, n)| (id.to_string(), n)).into();
+    assert_eq!(per_module, expected);
+    // 12104 is examined at Zentralcampus and in Senftenberg at the same hour: one sitting per town.
+    let sittings = queries::modules_exams(&pinned, &["12104".to_string()], "2026W").unwrap();
+    type Sitting<'a> = (&'a str, Option<i64>, Option<&'a str>, Option<&'a str>, Option<&'a str>);
+    fn sitting(row: &DateRow) -> Sitting<'_> {
+        let date = &row.date;
+        let campus = date.campus.as_ref().map(|campus| campus.code());
+        (date.event_id.as_str(), row.ord, date.first_date.as_deref(), date.start_time.as_deref(), campus)
+    }
+    assert_eq!(
+        sittings.iter().map(sitting).collect::<Vec<_>>(),
+        [
+            ("148689", Some(1), Some("2027-03-12"), Some("11:00"), Some("zentralcampus")),
+            ("150664", Some(1), Some("2027-03-12"), Some("11:00"), Some("senftenberg")),
+        ]
+    );
+    assert_eq!(queries::semester_schedule(&pinned, "2026W").unwrap().len(), 4330);
+    assert_eq!(queries::semester_exams(&pinned, "2026W").unwrap().len(), 911);
+    assert_eq!(queries::semester_date_counts(&pinned, "2026W").unwrap().len(), 478);
+    assert_eq!(queries::semester_teaching_sws(&pinned, "2026W").unwrap().len(), 2537);
+    let sws: Vec<(String, String, f64)> = queries::modules_teaching_sws(&pinned, &fs1)
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.module_id, row.form.code().to_string(), row.sws))
+        .collect();
+    let stated = [
+        ("11112", "exercise", 2.0),
+        ("11112", "lecture", 4.0),
+        ("12102", "lecture", 1.0),
+        ("12102", "practical", 2.0),
+        ("12104", "exercise", 2.0),
+        ("12104", "lecture", 4.0),
+        ("12107", "exercise", 1.0),
+        ("12107", "lecture", 3.0),
+    ]
+    .map(|(id, form, sws)| (id.to_string(), form.to_string(), sws));
+    assert_eq!(sws, stated);
 }
 
 /// The queries follow every migration of Radix, and the snapshot of the tests has them all. A

@@ -3,7 +3,11 @@
 //! Rules (docs/frontend-rewrite.md §4): read only `v_*` views and `program_coverage`;
 //! filter and sort on view columns; `LIKE` only against `v_module_search`; every list
 //! comes with an exact total. `tests::every_query_runs_against_the_snapshot` fails for
-//! a `pub fn` in this file that the tests never ran.
+//! a `pub fn` in this file that the tests never ran. The Studienplan's lists of module ids
+//! go in as one parameter read by `json_each(?)`: a function over the parameter, which reads
+//! no table.
+
+use std::collections::BTreeSet;
 
 use crate::db::{fetch, fetch_count, fetch_optional, Database, DbError, Value};
 use crate::filter::{like_pattern, CatalogQuery, ProgramRelation};
@@ -12,9 +16,11 @@ use crate::rows::{
     Semester,
 };
 use crate::rows_detail::{
-    AreaNode, AreaPlacement, Counterpart, Document, EventDate, Lecturer, LecturerName, ModuleTeachingForm, Plan, PlanEntry,
-    PlanTotal, PlanTotalEntry, ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor, TextItem,
+    AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleSws,
+    ModuleTeachingForm, Plan, PlanEntry, PlanTotal, PlanTotalEntry, ProgramDepartmentCount, ProgramLink, ProgramVersion,
+    Successor, TextItem,
 };
+use crate::url::is_module_id;
 
 const PROGRAM_COLUMNS: &str = "id, slug, name, degree_level, study_variant, degree_label, degree_raw, \
      degree_display, po_version, po_year, family_key, name_key, is_latest_po, source_url, has_plan, plan_status, \
@@ -468,4 +474,172 @@ pub fn program_plan_total_entries(db: &dyn Database, program_id: &str) -> Result
         "SELECT total_ord, entry_ord FROM v_program_plan_total_entry WHERE program_id = ? ORDER BY total_ord, entry_ord",
         &[Value::from(program_id)],
     )
+}
+
+/// The most module ids one Studienplan query takes: the store's cap of planned modules in all
+/// semesters (`studyplan`), so a whole plan is one answer.
+pub const MAX_PLANNED: usize = 400;
+
+/// What `id_json` gives for a list without a single module id.
+const NO_IDS: &str = "[]";
+
+/// The ids as a JSON array for `json_each(?)`: `url::is_module_id` only, sorted, deduplicated,
+/// capped. Constant SQL text (rusqlite's statement cache); equal sets give equal parameters
+/// (the client's answer cache). The id charset needs no JSON escaping.
+fn id_json(module_ids: &[String]) -> String {
+    let ids: BTreeSet<&str> = module_ids.iter().map(String::as_str).filter(|id| is_module_id(id)).collect();
+    let mut json = String::from("[");
+    for (n, id) in ids.into_iter().take(MAX_PLANNED).enumerate() {
+        if n > 0 {
+            json.push(',');
+        }
+        json.push('"');
+        json.push_str(id);
+        json.push('"');
+    }
+    json.push(']');
+    json
+}
+
+/// The columns of `DateRow` from `v_module_schedule`.
+const DATE_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
+     event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, \
+     campus, instructor, comment, cancelled_dates, source_url";
+
+/// The columns of `DateRow` from `v_module_exam`, which has no type, group, rhythm, instructor or
+/// cancellations: the same row struct reads teaching and exam rows.
+const EXAM_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
+     NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, \
+     first_date, last_date, room, campus, NULL AS instructor, comment, NULL AS cancelled_dates, source_url";
+
+/// The teaching rows of the planned modules in one semester, events without dates included (the
+/// Studienplan lists them „ohne feste Zeit"). An event linked to two of the modules comes once for
+/// each; the timetable merges them.
+pub fn modules_schedule(db: &dyn Database, module_ids: &[String], semester_key: &str) -> Result<Vec<DateRow>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "modules_schedule",
+        &format!(
+            "SELECT {DATE_ROW_COLUMNS} FROM v_module_schedule \
+             WHERE semester_key = ? AND module_id IN (SELECT value FROM json_each(?)) ORDER BY event_id, ord, module_id"
+        ),
+        &[Value::from(semester_key), Value::from(ids)],
+    )
+}
+
+/// The exam rows of the planned modules in one semester, undated sittings included.
+pub fn modules_exams(db: &dyn Database, module_ids: &[String], semester_key: &str) -> Result<Vec<DateRow>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "modules_exams",
+        &format!(
+            "SELECT {EXAM_ROW_COLUMNS} FROM v_module_exam \
+             WHERE semester_key = ? AND module_id IN (SELECT value FROM json_each(?)) ORDER BY event_id, ord, module_id"
+        ),
+        &[Value::from(semester_key), Value::from(ids)],
+    )
+}
+
+/// Every dated teaching row of a semester, with only what the finder compares („Passt in meinen
+/// Plan"): no rooms, persons or links, so the whole semester stays one answer of about a megabyte.
+pub fn semester_schedule(db: &dyn Database, semester_key: &str) -> Result<Vec<DateRow>, DbError> {
+    fetch(
+        db,
+        "semester_schedule",
+        "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, event_type, ord, \
+         group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, NULL AS room, campus, \
+         NULL AS instructor, NULL AS comment, cancelled_dates, NULL AS source_url \
+         FROM v_module_schedule WHERE semester_key = ? AND ord IS NOT NULL ORDER BY module_id, event_id, ord",
+        &[Value::from(semester_key)],
+    )
+}
+
+/// Every dated exam row of a semester, as lean as `semester_schedule`. The room stays: two
+/// modules examined in the same room at the same time sit one joint exam, not two that clash.
+pub fn semester_exams(db: &dyn Database, semester_key: &str) -> Result<Vec<DateRow>, DbError> {
+    fetch(
+        db,
+        "semester_exams",
+        "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, \
+         NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, \
+         NULL AS rhythm_raw, first_date, last_date, room, campus, NULL AS instructor, NULL AS comment, \
+         NULL AS cancelled_dates, NULL AS source_url \
+         FROM v_module_exam WHERE semester_key = ? AND first_date IS NOT NULL ORDER BY module_id, event_id, ord",
+        &[Value::from(semester_key)],
+    )
+}
+
+/// The dated teaching rows of a semester, counted by rhythm and date range: the evidence for its
+/// lecture period, breaks and A/B weeks (`timetable::facts`).
+pub fn semester_date_counts(db: &dyn Database, semester_key: &str) -> Result<Vec<DateCount>, DbError> {
+    fetch(
+        db,
+        "semester_date_counts",
+        "SELECT rhythm, first_date, last_date, COUNT(DISTINCT event_id || '/' || ord) AS dates \
+         FROM v_module_schedule WHERE semester_key = ? AND first_date IS NOT NULL \
+         GROUP BY rhythm, first_date, last_date ORDER BY rhythm, first_date, last_date",
+        &[Value::from(semester_key)],
+    )
+}
+
+/// The SWS per teaching form of the planned modules, whatever the semester: a module page states
+/// them once.
+pub fn modules_teaching_sws(db: &dyn Database, module_ids: &[String]) -> Result<Vec<ModuleSws>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "modules_teaching_sws",
+        "SELECT module_id, form, SUM(sws) AS sws FROM v_module_teaching_form \
+         WHERE sws IS NOT NULL AND form IS NOT NULL AND module_id IN (SELECT value FROM json_each(?)) \
+         GROUP BY module_id, form ORDER BY module_id, form",
+        &[Value::from(ids)],
+    )
+}
+
+/// The SWS per teaching form of every module taught in a semester: the finder's candidates.
+pub fn semester_teaching_sws(db: &dyn Database, semester_key: &str) -> Result<Vec<ModuleSws>, DbError> {
+    fetch(
+        db,
+        "semester_teaching_sws",
+        "SELECT module_id, form, SUM(sws) AS sws FROM v_module_teaching_form \
+         WHERE sws IS NOT NULL AND form IS NOT NULL \
+         AND module_id IN (SELECT module_id FROM v_module_schedule WHERE semester_key = ?) \
+         GROUP BY module_id, form ORDER BY module_id, form",
+        &[Value::from(semester_key)],
+    )
+}
+
+#[cfg(test)]
+mod id_tests {
+    use super::{id_json, MAX_PLANNED};
+
+    fn json(ids: &[&str]) -> String {
+        id_json(&ids.iter().map(|id| id.to_string()).collect::<Vec<_>>())
+    }
+
+    /// One parameter per set of modules: the same set in another order, twice or beside what is no
+    /// module id asks the same question, and what is no module id never reaches the SQL.
+    #[test]
+    fn a_set_of_modules_is_one_parameter() {
+        assert_eq!(json(&[]), "[]");
+        assert_eq!(json(&["12107", "12104", "12107"]), r#"["12104","12107"]"#);
+        assert_eq!(json(&["12104", "12107"]), json(&["12107", "1 OR 1=1", "12104", ""]));
+        assert_eq!(json(&["1 OR 1=1", "\"]", "a\\b", "x'y"]), "[]");
+
+        let many: Vec<String> = (0..MAX_PLANNED + 10).rev().map(|n| format!("{n:05}")).collect();
+        let capped = id_json(&many);
+        assert_eq!(capped.matches(',').count(), MAX_PLANNED - 1);
+        assert!(capped.starts_with(r#"["00000","00001","#) && capped.ends_with(r#""00399"]"#), "{capped}");
+    }
 }
