@@ -19,8 +19,8 @@ use crate::rows_detail::{
     TextItem,
 };
 use crate::timetable::clash;
-use crate::timetable::day::clock;
-use crate::timetable::exams::{ExamWarning, WarningKind};
+use crate::timetable::day::{clock, Day};
+use crate::timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
 use crate::timetable::export;
 use crate::timetable::facts::SemesterFacts;
 use crate::timetable::fit::{self, CandidateSet, Candidates, Verdict};
@@ -822,8 +822,8 @@ pub struct StudyplanData {
     pub semester: Option<Semester>,
     pub meta: Meta,
     /// The requested ids that look like a module id, each once, in the order asked for: the
-    /// plan's order, which the timetable's tones and events follow. The SQL takes them sorted, so
-    /// a plan reordered asks the same questions.
+    /// plan's order, which the timetable's tones and events follow. Every query takes them sorted
+    /// (`id_json`, `catalog_rows`), so a plan reordered asks the same questions.
     pub ids: Vec<String>,
     /// The catalog's rows of those ids, whatever their offer status, by title (`catalog_page`).
     pub modules: Vec<CatalogRow>,
@@ -948,13 +948,18 @@ fn catalog_rows(db: &dyn Database, ids: &[String]) -> Result<(Vec<CatalogRow>, V
     if ids.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
+    // The ids go into the SQL sorted and each once: the browser's answer cache keys on the SQL and
+    // its parameters, so a plan that is only reordered is answered from the visit's cache. The
+    // rows come by title either way.
+    let only: Vec<String> = ids.iter().collect::<BTreeSet<_>>().into_iter().cloned().collect();
+    let limit = only.len() as u64;
     let query = CatalogQuery {
-        only_ids: Some(ids.to_vec()),
+        only_ids: Some(only),
         offer: Some(OfferStatus::ALL.to_vec()),
         sort: SortKey::Title,
         ..Default::default()
     };
-    let rows = queries::catalog_page(db, &query, 0, ids.len() as u64)?.rows;
+    let rows = queries::catalog_page(db, &query, 0, limit)?.rows;
     let missing = ids.iter().filter(|id| !rows.iter().any(|row| row.id == **id)).cloned().collect();
     Ok((rows, missing))
 }
@@ -1205,9 +1210,10 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, label: &str, mod
     let mut warnings: Vec<&ExamWarning> =
         t.exam_warnings.iter().filter(|w| w.a.module_id == module_id || w.b.module_id == module_id).collect();
     warnings.sort_by_key(|w| (!w.hard, w.day));
+    let termine = if warnings.is_empty() { Vec::new() } else { exams::termine(&t.exams, &t.modules) };
     let mut texts: Vec<String> = Vec::new();
     for warning in warnings {
-        let text = exam_text(warning, module_id, &title);
+        let text = exam_text(warning, module_id, &termine, &title);
         if !texts.contains(&text) {
             texts.push(text);
         }
@@ -1302,13 +1308,11 @@ fn choice_line(t: &Timetable, own: &dyn Fn(&Event) -> bool) -> Option<String> {
         if free.is_empty() || free.len() == options.len() {
             continue;
         }
-        let mut times: Vec<String> = Vec::new();
-        for option in free {
-            if let Some(time) = option_time(event, option).filter(|time| !times.contains(time)) {
-                times.push(time);
-            }
-        }
+        // By time, not by option: the options follow the order of their groups in the source.
+        let times: BTreeSet<(u8, u16)> = free.into_iter().filter_map(|option| option_time(event, option)).collect();
         if !times.is_empty() {
+            let times: Vec<String> =
+                times.into_iter().map(|(weekday, from)| format!("{} {}", weekday_name(weekday), clock(from))).collect();
             parts.push(format!("{} {}", kind_word(event), times.join(" oder ")));
         }
     }
@@ -1325,8 +1329,8 @@ fn meets(a: &Row, b: &Row) -> bool {
     }
 }
 
-/// „Do 13:45": the earliest shown Termin with a time of an option.
-fn option_time(event: &Event, option: usize) -> Option<String> {
+/// The weekday and start of the earliest shown Termin with a time of an option („Do 13:45").
+fn option_time(event: &Event, option: usize) -> Option<(u8, u16)> {
     event
         .rows
         .iter()
@@ -1336,7 +1340,6 @@ fn option_time(event: &Event, option: usize) -> Option<String> {
             Some((weekday, row.from?))
         })
         .min()
-        .map(|(weekday, from)| format!("{} {}", weekday_name(weekday), clock(from)))
 }
 
 /// What an event is called in a line: its type as QIS writes it, else its first kind.
@@ -1349,11 +1352,16 @@ fn kind_word(event: &Event) -> String {
 
 /// An exam warning as the module page says it: „Prüfung gleichzeitig mit Mathematik IT-1
 /// (10.03.2027 11:00)", „45 min bis Senftenberg nach Kraftwerkstechnik I" (the module's exam is
-/// the later one) or „… zu Kraftwerkstechnik I" (the earlier one); an avoidable one adds the day
-/// that avoids it.
-fn exam_text(warning: &ExamWarning, module_id: &str, title: &dyn Fn(&str) -> String) -> String {
+/// the later one) or „… zu Kraftwerkstechnik I" (the earlier one); an avoidable one adds what
+/// avoids it (`avoid_text`). `termine`: the plan's Termine by module (`exams::termine`).
+fn exam_text(
+    warning: &ExamWarning,
+    module_id: &str,
+    termine: &[(String, Vec<TerminAt>)],
+    title: &dyn Fn(&str) -> String,
+) -> String {
     let mine_first = warning.a.module_id == module_id;
-    let other = if mine_first { &warning.b } else { &warning.a };
+    let (mine, other) = if mine_first { (&warning.a, &warning.b) } else { (&warning.b, &warning.a) };
     let name = title(&other.module_id);
     let mut text = match &warning.kind {
         WarningKind::Overlap => {
@@ -1362,10 +1370,50 @@ fn exam_text(warning: &ExamWarning, module_id: &str, title: &dyn Fn(&str) -> Str
         WarningKind::Tight { gap, to, .. } if mine_first => format!("{gap} min bis {} zu {name}", to.label()),
         WarningKind::Tight { gap, to, .. } => format!("{gap} min bis {} nach {name}", to.label()),
     };
-    if let Some(day) = warning.avoid.filter(|_| !warning.hard) {
-        text.push_str(&format!(" · Zweittermin {} passt", day.short()));
+    if let Some(avoid) = warning.avoid.filter(|_| !warning.hard) {
+        let (mine, theirs) = ((mine, termine_of(termine, module_id)), (other, termine_of(termine, &other.module_id)));
+        text.push_str(" · ");
+        text.push_str(&avoid_text(warning.day, avoid, mine, theirs, &name));
     }
     text
+}
+
+/// The Termine of `module` in `exams::termine`'s list, earliest first.
+fn termine_of<'a>(termine: &'a [(String, Vec<TerminAt>)], module: &str) -> &'a [TerminAt] {
+    termine.iter().find(|(id, _)| id == module).map_or(&[], |(_, list)| list.as_slice())
+}
+
+/// What avoids a soft exam warning on `day`, said from the module's side. `avoid` is only a day:
+/// of the module's own Termin, of the other module's, or the later of both when only a change of
+/// both avoids the issue (`exams::avoiding`); so the Termine on that day are looked up. The
+/// module's own, free of the other's Termin in the warning, is its „Zweittermin 11.03. passt", or
+/// „Erstermin 25.02. passt" when it is its earliest (the warning is about a later one); the other
+/// module's, free of the module's, is „Mathematik IT-1 am 25.02. passt"; otherwise „andere Termine
+/// passen".
+fn avoid_text(
+    day: Day,
+    avoid: Day,
+    mine: (&Termin, &[TerminAt]),
+    theirs: (&Termin, &[TerminAt]),
+    name: &str,
+) -> String {
+    let both = || "andere Termine passen".to_string();
+    let my_issue = mine.1.iter().find(|at| at.day == day && at.termin == *mine.0);
+    let their_issue = theirs.1.iter().find(|at| at.day == day && at.termin == *theirs.0);
+    let (Some(my_issue), Some(their_issue)) = (my_issue, their_issue) else {
+        return both();
+    };
+    let instead = |list: &[TerminAt], issue: &TerminAt, against: &TerminAt| {
+        list.iter().position(|at| at.day == avoid && at != issue && exams::collision(at, against).is_none())
+    };
+    if let Some(index) = instead(mine.1, my_issue, their_issue) {
+        let rank = if index == 0 { "Erstermin" } else { "Zweittermin" };
+        return format!("{rank} {} passt", avoid.short());
+    }
+    if instead(theirs.1, their_issue, my_issue).is_some() {
+        return format!("{name} am {} passt", avoid.short());
+    }
+    both()
 }
 
 /// The calendar text of a subscription (the server's feed): the timetable is made anew from the
@@ -1859,6 +1907,36 @@ mod studyplan_tests {
         assert!(overlay.planned.iter().all(|slot| slot.short == plan.titles()[&slot.module]));
     }
 
+    /// What avoids an exam overlap, as the pinned snapshot has it: the module's own earlier sitting
+    /// or the planned module's; and the free Übungen of an open choice by time.
+    #[test]
+    fn the_overlay_says_which_termin_avoids_an_exam() {
+        let (db, is_pinned, key) = snapshot("the_overlay_says_which_termin_avoids_an_exam");
+        if !is_pinned {
+            return;
+        }
+        let line = |plan: &[&str], module: &str| {
+            overlay(&db, &studyplan(&db, key, &ids(plan)).unwrap(), module, &sachsendorf_hidden()).unwrap()
+        };
+
+        // Algorithmische Graphentheorie (152760) sits on 25.02., 10.03. and 11.03.; its 10.03. meets
+        // Mathematik IT-1's only sitting (148664), its first does not.
+        let own = "Prüfung gleichzeitig mit Mathematik IT-1 (Diskrete Mathematik) (10.03.2027 11:00) · \
+                   Erstermin 25.02. passt";
+        assert_eq!(line(&FS1, "11405").exam_line.as_deref(), Some(own));
+        // The other way round, Mathematik IT-1 has no other sitting: the planned module's avoids it.
+        let theirs = "Prüfung gleichzeitig mit Algorithmische Graphentheorie (10.03.2027 10:00) · \
+                      Algorithmische Graphentheorie am 25.02. passt";
+        assert_eq!(line(&["11405"], "11112").exam_line.as_deref(), Some(theirs));
+        // 12079 (150766) sits on 12.03. and 16.03.; the second meets Theoretische Informatik.
+        assert_eq!(
+            line(&["11787", "12202", "11213"], "12079").exam_line.as_deref(),
+            Some("Prüfung gleichzeitig mit Theoretische Informatik (16.03.2027 11:00) · Erstermin 12.03. passt")
+        );
+        // Two free Übungen of one Thursday, the later one first among the options.
+        assert_eq!(line(&FS1, "12112").line, Some((false, "Passt mit Übung Do 14:30 oder Do 16:30".to_string())));
+    }
+
     /// An exam row as `modules_exams` delivers it: one day with its times, at `campus`.
     fn exam(module: &str, event: &str, on: &str, from: &str, to: &str, campus: &str) -> DateRow {
         DateRow {
@@ -1964,6 +2042,19 @@ mod studyplan_tests {
         let choice = overlay_in(&rows, &[], &["P", "Q", "M"]);
         assert!(choice.clashing.is_empty());
         assert_eq!(choice.line, Some((false, "Passt mit Übung Do 13:45".to_string())));
+        // Two free groups, the later one first in the source: they are named by time.
+        let groups = [(4, "16:30", "18:00"), (1, "09:15", "10:45"), (4, "14:30", "16:00")]
+            .into_iter()
+            .zip(1..)
+            .map(|((weekday, from, to), ord)| {
+                teaching("M", "5", ord, "Übung", weekday, from, to).group(&format!("{ord}-Gruppe"))
+            });
+        let rows: Vec<Fixture> = [teaching("P", "1", 1, "Vorlesung", 1, "09:15", "10:45"), friday_lecture.clone()]
+            .into_iter()
+            .chain(groups)
+            .collect();
+        let by_time = overlay_in(&rows, &[], &["P", "M"]);
+        assert_eq!(by_time.line, Some((false, "Passt mit Übung Do 14:30 oder Do 16:30".to_string())));
 
         // Nothing meets: it fits.
         let friday = overlay_in(&[plan.as_slice(), &[friday_lecture]].concat(), &[], &["P", "Q", "M"]);
@@ -2004,6 +2095,42 @@ mod studyplan_tests {
         let avoided = "Prüfung gleichzeitig mit Analysis I (11.02.2027 11:00) · Zweittermin 11.03. passt";
         assert_eq!(soft.exam_line.as_deref(), Some(avoided));
         assert_eq!(exam_line(exam("M", "91", "2027-02-12", "11:00", "13:00", "zentralcampus")), None);
+
+        // M's earlier sitting avoids the overlap of its later one: that is its Erstermin.
+        let first = exam("M", "93", "2027-02-04", "11:00", "13:00", "zentralcampus");
+        let earlier = overlay_in(
+            &[],
+            &[p.clone(), exam("M", "91", "2027-02-11", "11:00", "13:00", "zentralcampus"), first],
+            &["P", "M"],
+        );
+        let avoided = "Prüfung gleichzeitig mit Analysis I (11.02.2027 11:00) · Erstermin 04.02. passt";
+        assert_eq!(earlier.exam_line.as_deref(), Some(avoided));
+        // Only P's other sitting avoids it: P's is named.
+        let theirs = overlay_in(
+            &[],
+            &[
+                p.clone(),
+                exam("P", "94", "2027-02-18", "11:00", "13:00", "zentralcampus"),
+                exam("M", "91", "2027-02-11", "11:00", "13:00", "zentralcampus"),
+            ],
+            &["P", "M"],
+        );
+        let avoided = "Prüfung gleichzeitig mit Analysis I (11.02.2027 11:00) · Analysis I am 18.02. passt";
+        assert_eq!(theirs.exam_line.as_deref(), Some(avoided));
+        // Only a change of both avoids it: P at 08:00 meets M at 08:00 and M at 09:00, M at 08:00
+        // meets P at 09:00, and the two at 09:00 are one exam of both.
+        let both = overlay_in(
+            &[],
+            &[
+                exam("P", "90", "2027-02-11", "08:00", "10:00", "zentralcampus"),
+                exam("M", "91", "2027-02-11", "08:00", "10:00", "zentralcampus"),
+                exam("P", "95", "2027-02-11", "09:00", "11:00", "zentralcampus"),
+                exam("M", "95", "2027-02-11", "09:00", "11:00", "zentralcampus"),
+            ],
+            &["P", "M"],
+        );
+        let avoided = "Prüfung gleichzeitig mit Analysis I (11.02.2027 08:00) · andere Termine passen";
+        assert_eq!(both.exam_line.as_deref(), Some(avoided));
     }
 
     /// A program's plans for the import, and „Mein Studiengang" with an id the snapshot has or
