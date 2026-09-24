@@ -446,7 +446,7 @@ mod tests {
         let scope = ProgramScope { program_slug: SLUG.to_string(), ..Default::default() };
         let scoped = |scope: ProgramScope| CatalogQuery { program: Some(scope), ..Default::default() };
         let ask = |name: &str, kind: Option<ModuleKind>| row_query(SLUG, &variant, &row(name, 3, kind, None), &areas);
-        let path = |query: CatalogQuery| CatalogUrl { query, page: 1, open: None }.path();
+        let path = |query: CatalogQuery| CatalogUrl { query, ..Default::default() }.path();
 
         // FÜS: the program's FÜS list, by the name as well as by the kind.
         let fues = (scoped(ProgramScope { relation: ProgramRelation::Fues, ..scope.clone() }), "FÜS-Liste des Studiengangs".to_string());
