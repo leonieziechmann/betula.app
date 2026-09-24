@@ -2,6 +2,11 @@
 //! catalog's, in the same frame: a sidebar as wide as the filter panel, the list, and the preview
 //! of the module that is open (`/bookmarks?…&open=<id>`) floating at the right edge.
 //!
+//! A module opened here stays here (a local view, `crate::local`): „Vollbild" of the preview
+//! shows the module's whole page in the list's place (`&full=1`), and on a phone a tap on a row
+//! does, so the address, the tab, the history and „Zurück" stay the marked modules' — as on a
+//! program's page — and the catalog's tab does not hear of the module.
+//!
 //! The page exists in the browser app only. Which modules are marked is known to this browser
 //! and to nobody else: the server renders the same explanation for everybody (R9), the URL says
 //! how the list is shown and never what is on it (R13), and everything the page shows about the
@@ -16,7 +21,7 @@
 
 use catalog::pages::{self, BookmarksData};
 use catalog::rows::CatalogRow;
-use catalog::url::{self, BookmarkSort, BookmarksUrl, Season};
+use catalog::url::{self, BookmarkSort, BookmarksUrl, LocalView, Season};
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::{use_location, use_navigate};
@@ -25,13 +30,14 @@ use leptos_router::NavigateOptions;
 use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
 use crate::data::{use_source, DataError};
 use crate::format;
+use crate::local::{self, ModuleInPlace};
 use crate::nav;
 use crate::pages::catalog::{phone_layout, Row};
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending};
 use crate::seo::Seo;
 use crate::skeleton::DetailSkeleton;
-use crate::tabs::{self, Tabs};
+use crate::tabs::{self, Area, Tabs};
 use crate::ui::{ErrorState, Icon};
 
 /// Whether this build is the browser app: only there is anything marked.
@@ -79,14 +85,12 @@ pub fn BookmarksPage() -> impl IntoView {
         list_source.clone().and_then(|source| source.run(|db| pages::bookmarks(db, &ids, sort, descending)))
     });
 
-    // On a phone a module opens as its own page, never as a preview (as in the catalog).
+    // What fills the page: the list, or the module opened from it where that is shown in full —
+    // after „Vollbild", and on a phone, where nothing stands beside a page, whatever is opened
+    // (`local`). What is listed stays meanwhile: a mark taken away on the module's page leaves the
+    // module on the list, dimmed, as it does in the preview.
     let phone = phone_layout();
-    let navigate = use_navigate();
-    Effect::new(move |_| {
-        if let (true, Some(id)) = (phone.get(), open.get()) {
-            navigate(&url::module_path(&id), NavigateOptions { replace: true, ..Default::default() });
-        }
-    });
+    let filling = Memo::new(move |_| url.with(|url| local::filling(url, phone.get())));
     let preview = Memo::new(move |_| match open.get() {
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
@@ -99,77 +103,99 @@ pub fn BookmarksPage() -> impl IntoView {
     let going_open = Memo::new(move |_| going.filter(|going| going.change() == Some(Change::Preview)).and_then(|_| going_to.with(|to| to.as_ref().map(|to| to.open.clone()))));
     let marked = Memo::new(move |_| going_open.get().unwrap_or_else(|| open.get()));
 
-    // Coming back from a module's page, the list shows the row the visitor left it at.
+    // Coming back to the list from a module's page — the module that filled the page here, or
+    // its own page (a link on it) — the list shows the row the visitor left it at.
     let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
-    if let Some(id) = Tabs::expect().and_then(|tabs| tabs::page_below(&tabs.before(&now), "/catalog/module")) {
-        Effect::new(move |_| {
-            let (next_frame, later) = (id.clone(), id.clone());
-            request_animation_frame(move || {
-                nav::reveal_row(ROWS_ID, &next_frame);
-            });
-            // Once more after the browser has restored its own idea of the scroll position.
-            set_timeout(
-                move || {
-                    nav::reveal_row(ROWS_ID, &later);
-                },
-                std::time::Duration::from_millis(220),
-            );
-        });
-    }
+    let left_at = StoredValue::new(Tabs::expect().and_then(|tabs| tabs::page_below(&tabs.before(&now), "/catalog/module")));
 
-    view! {
-        <Title text="Merkliste"/>
-        <div class="work framed">
-            // A page of one visitor: the same address for everybody, nothing to list. What the
-            // server renders here is the explanation, so that is what a link preview shows.
-            <Seo
-                title="Merkliste"
-                description="Module der BTU Cottbus-Senftenberg merken und wiederfinden. Die Merkliste liegt nur im eigenen Browser: kein Konto, keine Daten auf dem Server."
-                path=url::BOOKMARKS
-                noindex=true
-            />
-            <aside class="panel sidebar" id="sidebar" aria-label="Merkliste">
-                <div class="panel-head"><h2>"Merkliste"</h2></div>
-                <div class="body scroll" data-keep-scroll="sidebar"><Sidebar url=shown_url data/></div>
-            </aside>
-            <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
-            <section class="panel list" aria-live="polite">
-                <Offer/>
+    move || {
+        if let Some(id) = filling.get() {
+            left_at.set_value(Some(id.clone()));
+            let back = url.with_untracked(|url| local::back_href(url, phone.get_untracked()));
+            return view! { <ModuleInPlace id area=Area::Bookmarks back/> }.into_any();
+        }
+        if let Some(id) = left_at.try_update_value(Option::take).flatten() {
+            reveal_row_soon(id);
+        }
+        view! {
+            <Title text="Merkliste"/>
+            <div class="work framed">
+                // A page of one visitor: the same address for everybody, nothing to list. What the
+                // server renders here is the explanation, so that is what a link preview shows.
+                <Seo
+                    title="Merkliste"
+                    description="Module der BTU Cottbus-Senftenberg merken und wiederfinden. Die Merkliste liegt nur im eigenen Browser: kein Konto, keine Daten auf dem Server."
+                    path=url::BOOKMARKS
+                    noindex=true
+                />
+                <aside class="panel sidebar" id="sidebar" aria-label="Merkliste">
+                    <div class="panel-head"><h2>"Merkliste"</h2></div>
+                    <div class="body scroll" data-keep-scroll="sidebar"><Sidebar url=shown_url data/></div>
+                </aside>
+                <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                <section class="panel list" aria-live="polite">
+                    <Offer/>
+                    {move || {
+                        // The parts of the URL first, then what is derived from them (R16).
+                        let (season, (sort, descending)) = (season.get(), order.get());
+                        match data.get() {
+                            Err(error) => view! { <ErrorState error/> }.into_any(),
+                            Ok(data) => view! { <List data season sort descending open=marked phone/> }.into_any(),
+                        }
+                    }}
+                </section>
                 {move || {
-                    // The parts of the URL first, then what is derived from them (R16).
-                    let (season, (sort, descending)) = (season.get(), order.get());
-                    match data.get() {
-                        Err(error) => view! { <ErrorState error/> }.into_any(),
-                        Ok(data) => view! { <List data season sort descending open=marked phone/> }.into_any(),
+                    match going_open.get() {
+                        Some(None) => return ().into_any(),
+                        Some(Some(_)) if going.is_some_and(|going| going.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some()/> }.into_any(),
+                        _ => {}
+                    }
+                    let here = url.get();
+                    let close_href = here.with_open(None).path();
+                    match preview.get() {
+                        Ok(None) | Err(_) => ().into_any(),
+                        Ok(Some(Some(data))) => {
+                            // „Vollbild" stays among the marked modules: the module fills the list's place.
+                            let full_href = local::full_href(&here, &data.module.id);
+                            view! {
+                                <ModulePanel data close_href full_href=Some(full_href)/>
+                                <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                            }
+                            .into_any()
+                        }
+                        Ok(Some(None)) => view! {
+                            <section class="panel detail">
+                                <div class="state">
+                                    <p class="state-title">"Modul nicht gefunden"</p>
+                                    <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
+                                    <a class="btn secondary" href=close_href>"Vorschau schließen"</a>
+                                </div>
+                            </section>
+                        }.into_any(),
                     }
                 }}
-            </section>
-            {move || {
-                match going_open.get() {
-                    Some(None) => return ().into_any(),
-                    Some(Some(_)) if going.is_some_and(|going| going.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some()/> }.into_any(),
-                    _ => {}
-                }
-                let close_href = url.get().with_open(None).path();
-                match preview.get() {
-                    Ok(None) | Err(_) => ().into_any(),
-                    Ok(Some(Some(data))) => view! {
-                        <ModulePanel data close_href/>
-                        <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
-                    }.into_any(),
-                    Ok(Some(None)) => view! {
-                        <section class="panel detail">
-                            <div class="state">
-                                <p class="state-title">"Modul nicht gefunden"</p>
-                                <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
-                                <a class="btn secondary" href=close_href>"Vorschau schließen"</a>
-                            </div>
-                        </section>
-                    }.into_any(),
-                }
-            }}
-        </div>
+            </div>
+        }
+        .into_any()
     }
+}
+
+/// Scrolls the list to the row of this module once the list is there, and once more after the
+/// browser has restored its own idea of the scroll position (a step back through the history).
+fn reveal_row_soon(id: String) {
+    // An effect runs in the browser only, after the list has been rendered.
+    Effect::new(move |_| {
+        let (next_frame, later) = (id.clone(), id.clone());
+        request_animation_frame(move || {
+            nav::reveal_row(ROWS_ID, &next_frame);
+        });
+        set_timeout(
+            move || {
+                nav::reveal_row(ROWS_ID, &later);
+            },
+            std::time::Duration::from_millis(220),
+        );
+    });
 }
 
 /// A list brought over from another device: it arrives in the fragment of the address
@@ -265,7 +291,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
     let nothing_left = !nothing_marked && rows.is_empty() && missing.is_empty();
     let has_list = APP && !nothing_marked;
 
-    let here = BookmarksUrl { season, sort, descending, open: None };
+    let here = BookmarksUrl { season, sort, descending, ..Default::default() };
     let credits: Vec<(String, Option<f64>)> = rows.iter().map(|row| (row.id.clone(), row.credits)).collect();
     let missing_ids: Vec<(String, Option<f64>)> = missing.iter().map(|id| (id.clone(), None)).collect();
     let numbers = Memo::new(move |_| {
@@ -354,7 +380,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
                 let (target, id, here) = (row.id.clone(), row.id.clone(), here.clone());
                 let preview = Signal::derive(move || here.with_open(Some(&target)).path());
                 let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
-                view! { <Row row preview current phone with_program=false dim_unmarked=true/> }
+                view! { <Row row preview current phone with_program=false dim_unmarked=true in_place=true/> }
             }).collect_view()}
             {(!missing.is_empty()).then(|| view! {
                 <div class="sem">"Nicht im Modulkatalog"</div>

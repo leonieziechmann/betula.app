@@ -9,8 +9,9 @@
 //! to do with the module.
 //!
 //! The page is one component (`ModuleFull`) wherever it is shown: at the module's own address,
-//! and inside a program's area (`/programs/<slug>/<tab>?…&open=<id>&full=1`, and on a phone for
-//! whatever `open` names), where „Vollbild" must neither change the area nor the tab.
+//! and inside an area that shows its modules in place (`crate::local`: a program's page, the
+//! marked modules — `…&open=<id>&full=1`, and on a phone whatever `open` names), where „Vollbild"
+//! must neither change the area nor the tab.
 
 use std::collections::BTreeSet;
 
@@ -204,22 +205,26 @@ fn Sidebar(data: ModuleData) -> impl IntoView {
 }
 
 /// Where „Zurück" leads from a module's page, as an area and (where one page answers it) that
-/// page: the program whose page had the module open beside it, the marked modules if the module
-/// was opened from them, else the catalog's list as it was left. The step the visitor took
-/// decides; a reload forgets it, and then the memory of the programs answers, because a program
-/// page names the module it has open (`open=<id>`).
+/// page: the page it was opened on in an area that shows its modules in place (a program, the
+/// marked modules: a link on the module shown there), else the catalog's list as it was left.
+/// The step the visitor took decides — except where this page is what the catalog was left at:
+/// the visitor came back to it (the catalog's tab, Back), and „Zurück" leads up to the catalog's
+/// list, not across to where the visitor was in between. A reload forgets the step, and then the
+/// memory of the programs answers, because a program page names the module it has open
+/// (`open=<id>`).
 fn back_to(id: &str) -> (Area, Option<String>) {
     let location = use_location();
     let Some(tabs) = Tabs::expect() else { return (Area::Catalog, None) };
     let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
     let before = tabs.before(&now);
-    if tabs::page_below(&before, url::PROGRAMS).is_some() {
-        return (Area::Programs, Some(before));
+    if tabs.left(Area::Catalog).as_deref() == Some(now.as_str()) {
+        return (Area::Catalog, None);
     }
-    if tabs.came_from(&now) == Area::Bookmarks {
-        return (Area::Bookmarks, None);
+    let came_from = tabs.came_from(&now);
+    if came_from.shows_in_place() {
+        return (came_from, Some(before));
     }
-    match tabs.left(Area::Programs).filter(|left| shows_module(left, id)) {
+    match tabs.left(Area::Programs).filter(|left| before.is_empty() && shows_module(left, id)) {
         Some(program) => (Area::Programs, Some(program)),
         None => (Area::Catalog, None),
     }

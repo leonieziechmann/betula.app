@@ -28,12 +28,20 @@ pub enum Area {
     Home,
     Catalog,
     Programs,
-    /// „Merkliste": the visitor's marked modules. It is one page; a module opened from it is a
-    /// page of the catalog whose „Zurück" leads back here (`Tabs::came_from`).
+    /// „Merkliste": the visitor's marked modules. It is one page, and a module opened from it is
+    /// shown on it (`crate::local`), beside the list or in full.
     Bookmarks,
 }
 
 impl Area {
+    /// The area shows the modules it lists in place (`crate::local`): beside its page and in full,
+    /// without leaving the area. What is opened there stays the area's: a module's own page
+    /// reached from it (a link on the module's page) does not become what the catalog remembers,
+    /// and its „Zurück" leads back into the area (`Tabs::came_from`).
+    pub fn shows_in_place(self) -> bool {
+        matches!(self, Area::Programs | Area::Bookmarks)
+    }
+
     pub fn of(path: &str) -> Self {
         if path.starts_with(url::PROGRAMS) {
             Area::Programs
@@ -89,10 +97,11 @@ impl Memory {
             return;
         }
         let path = path_of(&location).to_string();
-        // A module opened out of a program (its preview, „Vollbild") belongs to that program, not
-        // to the catalog: the catalog's tab keeps leading to the list as it was left, and that
-        // list does not reveal a module the visitor never picked there (owner, 2026-09-20).
-        if path.starts_with("/catalog/module/") && Area::of(path_of(&self.current)) == Area::Programs {
+        // A module's page opened out of an area that shows its modules in place (a program, the
+        // marked modules: a link on the module shown there) belongs to that area, not to the
+        // catalog: the catalog's tab keeps leading to the list as it was left, and that list does
+        // not reveal a module the visitor never picked there (owner, 2026-09-20).
+        if path.starts_with("/catalog/module/") && Area::of(path_of(&self.current)).shows_in_place() {
             self.previous = std::mem::replace(&mut self.current, location);
             return;
         }
@@ -202,8 +211,9 @@ impl Tabs {
         self.0.with_untracked(|memory| if memory.current == now { memory.previous.clone() } else { memory.current.clone() })
     }
 
-    /// The area the visitor was in before `now`. A module's page asks this: a module opened from
-    /// the marked modules leads back to them, not to the catalog's list.
+    /// The area the visitor was in before `now`. A module's page asks this: opened out of an area
+    /// that shows its modules in place (`Area::shows_in_place`), it leads back into that area, not
+    /// to the catalog's list.
     pub fn came_from(self, now: &str) -> Area {
         Area::of(path_of(&self.before(now)))
     }
@@ -252,12 +262,18 @@ mod tests {
     fn the_marked_modules_are_an_area_of_their_own() {
         assert_eq!(Area::of("/bookmarks"), Area::Bookmarks);
         let mut memory = Memory::default();
-        for location in ["/catalog?turnus=winter", "/bookmarks?sort=ects&open=11112", "/catalog/module/11112"] {
+        for location in ["/catalog?turnus=winter", "/bookmarks?sort=ects&open=11112", "/bookmarks?sort=ects&open=11112&full=1"] {
             memory.visit(location.to_string());
         }
-        assert_eq!(memory.bookmarks.as_deref(), Some("/bookmarks?sort=ects&open=11112"));
-        // The module was opened from the marked modules: that is where its „Zurück" leads.
-        assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog_list.as_deref()), (Area::Bookmarks, Some("/catalog?turnus=winter")));
+        // „Vollbild" stays among the marked modules: their tab remembers it, the catalog's does not
+        // hear of it.
+        assert_eq!(memory.bookmarks.as_deref(), Some("/bookmarks?sort=ects&open=11112&full=1"));
+        assert_eq!((memory.catalog.as_deref(), memory.catalog_list.as_deref()), (Some("/catalog?turnus=winter"), Some("/catalog?turnus=winter")));
+        // A module's own page reached from there (a successor named on the page) is theirs as well:
+        // its „Zurück" leads back to them, and the catalog's tab still leads to its list.
+        memory.visit("/catalog/module/11113".to_string());
+        assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog.as_deref()), (Area::Bookmarks, Some("/catalog?turnus=winter")));
+        assert!(Area::Bookmarks.shows_in_place() && Area::Programs.shows_in_place() && !Area::Catalog.shows_in_place() && !Area::Home.shows_in_place());
         // A reload keeps it, and what an older version stored (four lines) still reads.
         assert_eq!(Memory::restored(&memory.stored()).bookmarks, memory.bookmarks);
         assert_eq!(Memory::restored("/catalog\n/catalog\n\n\n"), Memory { catalog: Some("/catalog".into()), catalog_list: Some("/catalog".into()), ..Default::default() });

@@ -26,7 +26,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use catalog::url::{self, BookmarksUrl, CatalogUrl, ProgramTab, ProgramUrl};
+use catalog::url::{self, BookmarksUrl, CatalogUrl, LocalView, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::location::Location;
@@ -357,10 +357,12 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
         }
         Shape::Bookmarks => {
             let (from, to) = (BookmarksUrl::parse(from_search), BookmarksUrl::parse(to_search));
-            if (from.season, from.sort, from.descending) != (to.season, to.sort, to.descending) {
+            if let Some(change) = local_change(&from, &to, phone, Change::Column(Shape::Bookmarks)) {
+                Some(change)
+            } else if (from.season, from.sort, from.descending) != (to.season, to.sort, to.descending) {
                 Some(Change::Column(Shape::Bookmarks))
             } else if from.open != to.open {
-                Some(if phone { Change::Page(Shape::Module) } else { Change::Preview })
+                Some(Change::Preview)
             } else {
                 None
             }
@@ -381,16 +383,33 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
     if from == to {
         return None;
     }
-    if to.full && to.open.is_some() && (!from.full || from.open != to.open) {
-        return Some(Change::Page(Shape::Module));
+    // On a phone an area or a row of the plan is the page as well: what comes back where a module
+    // filled the page, or what takes its place.
+    let picked_page = phone && (to.area.is_some() || to.req.is_some());
+    let after_module = if picked_page { Change::Page(Shape::Text) } else { Change::Column(Shape::Program) };
+    if let Some(change) = local_change(from, to, phone, after_module) {
+        return Some(change);
     }
-    if phone && (to.open.is_some() || to.area.is_some() || to.req.is_some()) {
-        return Some(Change::Page(if to.open.is_some() { Shape::Module } else { Shape::Text }));
+    if picked_page {
+        return Some(Change::Page(Shape::Text));
     }
-    if from.tab != to.tab || from.variant != to.variant || from.full != to.full || (phone && (from.open.is_some() || from.area.is_some() || from.req.is_some())) {
+    if from.tab != to.tab || from.variant != to.variant || from.full != to.full || (phone && (from.area.is_some() || from.req.is_some())) {
         return Some(Change::Column(Shape::Program));
     }
     Some(Change::Aside)
+}
+
+/// A step within a page that shows its modules in place (`crate::local`), as far as what fills
+/// the page decides it: a module coming to fill it is a page of its own, the module's, and the
+/// page coming back where a module filled it is `after_module` (the page's column, or on a phone
+/// whatever else is picked there). `None` where the same fills the page before and after: the
+/// step is the page's own business then (another view or order, what stands beside the page).
+fn local_change(from: &impl LocalView, to: &impl LocalView, phone: bool, after_module: Change) -> Option<Change> {
+    match (crate::local::filling(from, phone), crate::local::filling(to, phone)) {
+        (before, Some(now)) if before.as_ref() != Some(&now) => Some(Change::Page(Shape::Module)),
+        (Some(_), None) => Some(after_module),
+        _ => None,
+    }
 }
 
 #[cfg(feature = "csr")]
@@ -526,6 +545,25 @@ mod tests {
         assert_eq!(change("/programs", "", "/programs", "level=bachelor", false), Some(Change::Column(Shape::Programs)));
         assert_eq!(change("/bookmarks", "", "/bookmarks", "sort=title", false), Some(Change::Column(Shape::Bookmarks)));
         assert_eq!(change("/catalog/module/11103", "", "/impressum", "", false), Some(Change::Page(Shape::Text)));
+    }
+
+    #[test]
+    fn a_module_filling_a_page_in_place_is_a_page() {
+        // The marked modules: the preview beside the list, „Vollbild" in place, and back.
+        assert_eq!(change("/bookmarks", "sort=title", "/bookmarks", "sort=title&open=11103", false), Some(Change::Preview));
+        assert_eq!(change("/bookmarks", "sort=title&open=11103", "/bookmarks", "sort=title&open=11104", false), Some(Change::Preview));
+        assert_eq!(change("/bookmarks", "sort=title&open=11103", "/bookmarks", "sort=title&open=11103&full=1", false), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/bookmarks", "sort=title&open=11103&full=1", "/bookmarks", "sort=title&open=11103", false), Some(Change::Column(Shape::Bookmarks)));
+        // On a phone a tap on a row is the module's page, and „Zurück" the list again.
+        assert_eq!(change("/bookmarks", "sort=title", "/bookmarks", "sort=title&open=11103", true), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/bookmarks", "sort=title&open=11103", "/bookmarks", "sort=title", true), Some(Change::Column(Shape::Bookmarks)));
+        // A program: the same, and on a phone what the module was picked from comes back as the page.
+        assert_eq!(change("/programs/informatik/plan", "open=11103&full=1", "/programs/informatik/plan", "open=11103", false), Some(Change::Column(Shape::Program)));
+        assert_eq!(change("/programs/informatik/plan", "open=11103&full=1", "/programs/informatik/plan", "open=11104&full=1", false), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/programs/informatik/areas", "area=4", "/programs/informatik/areas", "area=4&open=11103", true), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/programs/informatik/areas", "area=4&open=11103", "/programs/informatik/areas", "area=4", true), Some(Change::Page(Shape::Text)));
+        assert_eq!(change("/programs/informatik/plan", "open=11103", "/programs/informatik/plan", "", true), Some(Change::Column(Shape::Program)));
+        assert_eq!(change("/programs/informatik/areas", "area=4", "/programs/informatik/areas", "", true), Some(Change::Column(Shape::Program)));
     }
 
     #[test]

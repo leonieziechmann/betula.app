@@ -973,7 +973,7 @@ pub(crate) fn Row(
     row: CatalogRow,
     /// Where the row leads on the desktop: in the app its list with this module previewed next
     /// to it, on the server's page the module's own page. On a phone it leads to the module's
-    /// own page either way.
+    /// own page either way, unless the list shows its modules `in_place`.
     #[prop(into)] preview: Signal<String>,
     /// This module is the one previewed.
     #[prop(into)] current: Signal<bool>,
@@ -982,6 +982,9 @@ pub(crate) fn Row(
     /// In the list of marked modules a module whose mark was taken away stays where it is,
     /// dimmed, so that a slip is one click to undo.
     #[prop(optional)] dim_unmarked: bool,
+    /// The list shows its modules in place (a local view, `crate::local`): on a phone as well
+    /// the row leads to `preview`, where the module is the page, not to the module's own page.
+    #[prop(optional)] in_place: bool,
 ) -> impl IntoView {
     let language = format::languages(row.teaches_german, row.teaches_english);
     let (turnus_icon, turnus_text) = match row.turnus_season.as_ref().and_then(|s| s.known()) {
@@ -998,8 +1001,9 @@ pub(crate) fn Row(
     };
     let has_events = row.teaching_events > 0;
     let target = row.id.clone();
-    // The preview next to the list; on a phone the module's own page.
-    let href = move || if phone.get() { url::module_path(&target) } else { preview.get() };
+    // The preview next to the list; on a phone the module's own page, or where the list shows it
+    // in place, the module filling the list's page.
+    let href = move || if phone.get() && !in_place { url::module_path(&target) } else { preview.get() };
     let unmarked = dim_unmarked.then(|| {
         let (bookmarks, id) = (Bookmarks::expect(), row.id.clone());
         Memo::new(move |_| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&id)))

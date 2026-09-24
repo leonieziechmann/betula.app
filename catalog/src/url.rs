@@ -9,8 +9,10 @@
 //!                                      the server's page and its cache key drop it
 //! `/catalog/module/<id>`               module page; `?plan=<semester>&fill=p<n>` is the app's hint
 //!                                      of where its plan button plans to (`ModuleHint`)
-//! `/bookmarks?…`                       the visitor's marked modules (`BookmarksUrl`); which ones
-//!                                      they are is never part of a URL, only how they are shown
+//! `/bookmarks?…[&open=<id>][&full=1]`  the visitor's marked modules (`BookmarksUrl`); which ones
+//!                                      they are is never part of a URL, only how they are shown,
+//!                                      which module stands beside them, and whether that module
+//!                                      fills the page
 //! `/programs`                          program overview
 //! `/programs/<slug>[/plan|areas|modules][?variant=<n>][&open=<id>][&full=1]`   program page, its
 //!                                      tabs, which of several study plans is shown, which module
@@ -23,6 +25,9 @@
 //! `/calendar/<code>.ics`               a calendar subscription, served by the server (not a page):
 //!                                      the code says semester, modules and what is hidden
 //!                                      (`timetable::subscription`)
+//!
+//! `open` and `full` mean the same on every page that has them (`LocalView`): the module shown
+//! in place, beside the page or filling it, without leaving the page's area.
 //!
 //! Most filters can also exclude: `exam=written&not-exam=presentation` lists modules with a
 //! written exam and without a presentation. A value that is both included and excluded counts
@@ -103,6 +108,58 @@ pub const MAX_PLAN_VARIANTS: usize = 20;
 /// How many rows of one study plan can be told apart in the URL (the longest has 29).
 pub const MAX_PLAN_ROWS: usize = 200;
 
+/// The address of a page that shows the modules it lists in place, as a *local view* (owner,
+/// 2026-09-24: „als lokale Ansicht in jedem Tab"): a module opened there stands beside the page
+/// (`open=<id>`), and „Vollbild" lets it fill the page with the module's whole page
+/// (`open=<id>&full=1`). Either way the address stays the page's, so the area, its tab, the
+/// history and „Zurück" stay what they were. The program page and the marked modules are such
+/// pages (the semester plan will be one). The catalog is not: its modules have their own page
+/// (`module_path`), which is in the catalog's area anyway.
+///
+/// The two parameters are read and written the same way wherever they are (`local_from_pairs`,
+/// `local_pairs`); the browser app does the rest for every such page (`app::local`).
+pub trait LocalView: Clone {
+    /// The module beside the page, or filling it (`open`).
+    fn open(&self) -> Option<&str>;
+    /// That module fills the page (`full=1`). Never without `open`.
+    fn full(&self) -> bool;
+    /// The same page with `open` beside it, or filling it (`full`, only with a module).
+    fn with_module(&self, open: Option<&str>, full: bool) -> Self;
+    /// The address, as links write it.
+    fn path(&self) -> String;
+
+    /// The same page with this module beside it, or (`None`) with none. Beside it, not filling
+    /// it: what fills the page is asked for with `with_full`.
+    fn with_open(&self, id: Option<&str>) -> Self {
+        self.with_module(id, false)
+    }
+
+    /// The module beside the page fills it (`true`), or stands beside it again (`false`).
+    fn with_full(&self, full: bool) -> Self {
+        self.with_module(self.open(), full)
+    }
+}
+
+/// `open` and `full` of a local view (`LocalView`), from the pairs of a query: an `open` that is
+/// no module id is not there, and `full` is nothing without `open`, nor anything but `full=1`.
+pub fn local_from_pairs(pairs: &[(String, String)]) -> (Option<String>, bool) {
+    let first = |name: &str| pairs.iter().find(|(key, _)| key == name).map(|(_, value)| value.trim());
+    let open = first("open").filter(|id| is_module_id(id)).map(str::to_string);
+    let full = open.is_some() && first("full") == Some("1");
+    (open, full)
+}
+
+/// The same as pairs of a query, not yet encoded, in the order they end an address: `open`, then
+/// `full`.
+pub fn local_pairs(open: Option<&str>, full: bool) -> Vec<(&'static str, String)> {
+    let Some(id) = open else { return Vec::new() };
+    let mut out = vec![("open", id.to_string())];
+    if full {
+        out.push(("full", "1".to_string()));
+    }
+    out
+}
+
 /// What a program's address says besides the program itself: which view, which of its study
 /// plans, and which of its modules is shown next to it.
 ///
@@ -125,8 +182,8 @@ pub struct ProgramUrl {
     /// („Wahlpflichtmodule der Studienrichtung"), so they have nothing else to be named by.
     pub req: Option<usize>,
     /// The module of `open` fills the page (`full=1`): the module's own page, shown inside the
-    /// program's area, so that „Vollbild" neither changes the area nor the tab. Nothing without
-    /// `open`.
+    /// program's area, so that „Vollbild" neither changes the area nor the tab (a local view,
+    /// `LocalView`). Nothing without `open`.
     pub full: bool,
 }
 
@@ -138,13 +195,13 @@ impl ProgramUrl {
     pub fn parse(slug: &str, tab: ProgramTab, raw_query: &str) -> Self {
         let pairs = parse_pairs(raw_query);
         let first = |name: &str| pairs.iter().find(|(key, _)| key == name).map(|(_, value)| value.trim().to_string());
-        let open = first("open").filter(|id| is_module_id(id));
+        let (open, full) = local_from_pairs(&pairs);
         Self {
             slug: slug.to_string(),
             tab,
             variant: first("variant").and_then(|value| value.parse::<usize>().ok()).filter(|n| (1..=MAX_PLAN_VARIANTS).contains(n)).unwrap_or(1),
-            full: open.is_some() && first("full").as_deref() == Some("1"),
             open,
+            full,
             area: first("area").and_then(|value| value.parse::<i64>().ok()).filter(|id| *id > 0),
             req: first("req").and_then(|value| value.parse::<usize>().ok()).filter(|n| (1..=MAX_PLAN_ROWS).contains(n)),
         }
@@ -162,12 +219,7 @@ impl ProgramUrl {
         if let Some(row) = self.req {
             out.push(format!("req={row}"));
         }
-        if let Some(id) = &self.open {
-            out.push(format!("open={}", encode(id)));
-            if self.full {
-                out.push("full=1".to_string());
-            }
-        }
+        out.extend(local_pairs(self.open.as_deref(), self.full).into_iter().map(|(key, value)| format!("{key}={}", encode(&value))));
         match out.is_empty() {
             true => String::new(),
             false => format!("?{}", out.join("&")),
@@ -176,17 +228,6 @@ impl ProgramUrl {
 
     pub fn path(&self) -> String {
         format!("{}{}", program_path(&self.slug, self.tab), self.query())
-    }
-
-    /// The same page with this module beside it, or (`None`) without it. Beside it, not filling
-    /// it: what fills the page is asked for with `with_full`.
-    pub fn with_open(&self, id: Option<&str>) -> Self {
-        Self { open: id.map(str::to_string), full: false, ..self.clone() }
-    }
-
-    /// The module beside the page fills it (`true`), or stands beside it again (`false`).
-    pub fn with_full(&self, full: bool) -> Self {
-        Self { full: full && self.open.is_some(), ..self.clone() }
     }
 
     /// The same page with this area beside it; what was shown so far makes way for it.
@@ -212,6 +253,26 @@ impl ProgramUrl {
 
     pub fn with_tab(&self, tab: ProgramTab) -> Self {
         Self { tab, ..self.clone() }
+    }
+}
+
+impl LocalView for ProgramUrl {
+    fn open(&self) -> Option<&str> {
+        self.open.as_deref()
+    }
+
+    fn full(&self) -> bool {
+        self.full
+    }
+
+    /// What else stands beside the page stays: a module opened out of an area keeps it, so
+    /// closing the module returns to the area.
+    fn with_module(&self, open: Option<&str>, full: bool) -> Self {
+        Self { open: open.map(str::to_string), full: full && open.is_some(), ..self.clone() }
+    }
+
+    fn path(&self) -> String {
+        ProgramUrl::path(self)
     }
 }
 
@@ -440,6 +501,10 @@ pub struct BookmarksUrl {
     pub descending: bool,
     /// The module previewed next to the list (`open=<id>`), as in the catalog.
     pub open: Option<String>,
+    /// The module of `open` fills the page (`full=1`): its whole page, shown in the list's place,
+    /// so that „Vollbild" stays among the marked modules (a local view, `LocalView`), as it does
+    /// on a program's page. Nothing without `open`.
+    pub full: bool,
 }
 
 impl BookmarksUrl {
@@ -447,11 +512,13 @@ impl BookmarksUrl {
         let pairs = parse_pairs(raw_query);
         let first = |name: &str| pairs.iter().find(|(key, value)| key == name && !value.trim().is_empty()).map(|(_, value)| value.trim().to_ascii_lowercase());
         let sort = first("sort").and_then(|code| BookmarkSort::ALL.iter().copied().find(|sort| sort.code() == code)).unwrap_or_default();
+        let (open, full) = local_from_pairs(&pairs);
         Self {
             season: first("turnus").and_then(|code| Season::ALL.iter().copied().find(|season| season.code() == code)),
             sort,
             descending: sort != BookmarkSort::Added && first("desc").is_some(),
-            open: pairs.iter().find(|(key, _)| key == "open").map(|(_, id)| id.trim().to_string()).filter(|id| is_module_id(id)),
+            open,
+            full,
         }
     }
 
@@ -466,18 +533,29 @@ impl BookmarksUrl {
                 out.push(("desc", "1".to_string()));
             }
         }
-        if let Some(id) = &self.open {
-            out.push(("open", id.clone()));
-        }
+        out.extend(local_pairs(self.open.as_deref(), self.full));
         if out.is_empty() {
             return BOOKMARKS.to_string();
         }
         format!("{BOOKMARKS}?{}", out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&"))
     }
+}
 
-    /// The same list with this module's preview open, or (`None`) with the preview closed.
-    pub fn with_open(&self, id: Option<&str>) -> Self {
-        Self { open: id.map(str::to_string), ..self.clone() }
+impl LocalView for BookmarksUrl {
+    fn open(&self) -> Option<&str> {
+        self.open.as_deref()
+    }
+
+    fn full(&self) -> bool {
+        self.full
+    }
+
+    fn with_module(&self, open: Option<&str>, full: bool) -> Self {
+        Self { open: open.map(str::to_string), full: full && open.is_some(), ..self.clone() }
+    }
+
+    fn path(&self) -> String {
+        BookmarksUrl::path(self)
     }
 }
 
@@ -1410,11 +1488,37 @@ mod tests {
         assert_eq!(url.path(), "/bookmarks?turnus=winter&sort=ects&desc=1&open=11101");
         assert_eq!(BookmarksUrl::parse(url.path().split_once('?').map(|(_, query)| query).unwrap_or_default()), url);
         assert_eq!(url.with_open(None).path(), "/bookmarks?turnus=winter&sort=ects&desc=1");
+        // „Vollbild" stays among the marked modules: the module fills the list's place, and
+        // beside the list again with `with_full(false)` or `with_open`.
+        let full = url.with_full(true);
+        assert_eq!(full.path(), "/bookmarks?turnus=winter&sort=ects&desc=1&open=11101&full=1");
+        assert_eq!(BookmarksUrl::parse(full.path().split_once('?').map(|(_, query)| query).unwrap_or_default()), full);
+        assert_eq!(full.with_full(false), url);
+        assert_eq!(full.with_open(Some("12204")).path(), "/bookmarks?turnus=winter&sort=ects&desc=1&open=12204");
+        assert_eq!(full.with_open(None).with_full(true).path(), "/bookmarks?turnus=winter&sort=ects&desc=1");
+        assert!(!BookmarksUrl::parse("full=1").full && !BookmarksUrl::parse("open=11101&full=yes").full);
         // The order of marking has one direction, and nonsense is ignored.
         assert_eq!(BookmarksUrl::parse("sort=added&desc=1").path(), "/bookmarks");
-        assert_eq!(BookmarksUrl::parse("sort=random&turnus=spring&open=../../etc&desc=1"), BookmarksUrl::default());
+        assert_eq!(BookmarksUrl::parse("sort=random&turnus=spring&open=../../etc&full=1&desc=1"), BookmarksUrl::default());
         assert!(is_module_id("11101") && is_module_id("FÜS-1".replace('Ü', "U").as_str()));
         assert!(!is_module_id("") && !is_module_id("1 OR 1=1") && !is_module_id(&"9".repeat(33)) && !is_module_id("a\tb"));
+    }
+
+    #[test]
+    fn local_views_read_and_write_open_and_full_alike() {
+        let read = |query: &str| local_from_pairs(&parse_pairs(query));
+        assert_eq!(read("open=+11101+&full=1"), (Some("11101".to_string()), true));
+        assert_eq!(read("open=11101&open=12204&full=1&full=0"), (Some("11101".to_string()), true), "the first of each counts");
+        assert_eq!(read("full=1"), (None, false));
+        assert_eq!(read("open=1%20OR%201&full=1"), (None, false));
+        assert_eq!(read("open=11101&full=true"), (Some("11101".to_string()), false));
+        assert_eq!(local_pairs(Some("11101"), true), vec![("open", "11101".to_string()), ("full", "1".to_string())]);
+        assert_eq!(local_pairs(Some("11101"), false), vec![("open", "11101".to_string())]);
+        assert!(local_pairs(None, true).is_empty());
+        // Both pages that have them write them the same way, at the end of the address.
+        let program = ProgramUrl::parse("x", ProgramTab::Plan, "full=1&open=11101&variant=2");
+        let marked = BookmarksUrl::parse("full=1&open=11101&sort=title");
+        assert_eq!((program.query(), marked.path()), ("?variant=2&open=11101&full=1".to_string(), "/bookmarks?sort=title&open=11101&full=1".to_string()));
     }
 
     #[test]
@@ -1461,6 +1565,8 @@ mod tests {
         assert_eq!(areas.with_full(true).query(), "?area=12&open=11101&full=1");
         assert!(!ProgramUrl::parse("x", ProgramTab::Plan, "full=1").full);
         assert!(!ProgramUrl::parse("x", ProgramTab::Plan, "open=11101&full=yes").full);
+        assert_eq!(full.with_full(false).query(), "?area=12&open=11101");
+        assert_eq!(LocalView::path(&full), full.path());
         assert_eq!(ProgramUrl::parse("x", ProgramTab::Plan, "req=0").req, None);
         assert_eq!(program.with_open(None).with_variant(1).path(), "/programs/bachelor-elektrotechnik-2022/plan");
         assert_eq!(ProgramUrl::parse("x", ProgramTab::Plan, "variant=0").variant, 1);

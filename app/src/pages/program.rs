@@ -16,10 +16,10 @@
 //! that panel holds the numbers of the view one is looking at.
 //!
 //! „Vollbild" of the module beside the page shows the module's whole page in place
-//! (`&full=1`): the address stays in the programs area, so the tab, the history and „Zurück" do
-//! too. On a phone nothing stands beside a page: whatever is picked — a module, an area, a row of
-//! the plan — is the page, opened with one tap and one history entry, and „Zurück" leads to what
-//! it was picked from.
+//! (`&full=1`, a local view, `crate::local`): the address stays in the programs area, so the tab,
+//! the history and „Zurück" do too. On a phone nothing stands beside a page: whatever is picked —
+//! a module, an area, a row of the plan — is the page, opened with one tap and one history entry,
+//! and „Zurück" leads to what it was picked from.
 
 use std::collections::HashMap;
 
@@ -29,7 +29,7 @@ use catalog::pages::{self, CatalogArea, ProgramData};
 use catalog::plan;
 use catalog::rows::{Program, ProgramModule};
 use catalog::rows_detail::{AreaPlacement, Plan, PlanEntry, PlanTotal};
-use catalog::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
+use catalog::url::{self, CatalogUrl, LocalView, ProgramTab, ProgramUrl};
 use catalog::variants::{self, plan_variants, Choice, PlanVariant};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
@@ -38,9 +38,10 @@ use leptos_router::hooks::{use_location, use_params_map};
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::local::{self, ModuleInPlace};
 use crate::nav;
 use crate::pages::catalog::phone_layout;
-use crate::pages::module::{ModuleFull, ModulePanel};
+use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending};
 use crate::seo::{self, Seo};
 use crate::skeleton::DetailSkeleton;
@@ -129,7 +130,6 @@ pub fn ProgramPage() -> impl IntoView {
     });
     let variant = Memo::new(move |_| here.get().variant);
     let open = Memo::new(move |_| here.get().open);
-    let full = Memo::new(move |_| here.get().full);
     let area = Memo::new(move |_| here.get().area);
     let req = Memo::new(move |_| here.get().req);
     // What the rows of every table link to; what stands beside the page does not change them.
@@ -154,14 +154,14 @@ pub fn ProgramPage() -> impl IntoView {
     // history entry of its own (one tap, one step back), never a preview and then a page.
     let phone = phone_layout();
     let drawn = Signal::derive(move || if phone.get() || !room.get() { PlanShape::List } else { shape.get() });
-    let filling = Memo::new(move |_| match (open.get(), full.get(), phone.get()) {
-        (Some(id), true, _) | (Some(id), false, true) => Filling::Module(id),
-        (Some(_), false, false) | (None, _, false) => Filling::Program,
-        (None, _, true) => match (area.get(), req.get()) {
+    let filling = Memo::new(move |_| match here.with(|here| local::filling(here, phone.get())) {
+        Some(id) => Filling::Module(id),
+        None if phone.get() => match (area.get(), req.get()) {
             (Some(id), _) => Filling::Area(id),
             (None, Some(row)) => Filling::Req(row),
             (None, None) => Filling::Program,
         },
+        None => Filling::Program,
     });
     // A pick on its way beside the page (`pending`, a change of what stands beside it): where it
     // leads, read as the router will read it. The panel follows the click in the next frame —
@@ -183,7 +183,13 @@ pub fn ProgramPage() -> impl IntoView {
             view! { <div class="page"><ErrorState error/></div> }.into_any()
         }
         (Ok(Some(data)), Some(tab)) => match filling.get() {
-            Filling::Module(id) => view! { <ProgramModuleFull id links phone/> }.into_any(),
+            // The module in full, inside the program's area: „Zurück" leads to the program — with
+            // the module beside it again on the desktop, without it on a phone (and to the area
+            // it was picked from, where it was).
+            Filling::Module(id) => {
+                let back = here.with_untracked(|here| local::back_href(here, phone.get_untracked()));
+                view! { <ModuleInPlace id area=Area::Programs back/> }.into_any()
+            }
             Filling::Area(_) | Filling::Req(_) => {
                 let name = format!("{} ({})", data.program.name, data.program.degree());
                 view! {
@@ -216,30 +222,6 @@ pub fn ProgramPage() -> impl IntoView {
         _ => {
             status.set(404);
             view! { <div class="page"><NotFound title="Studiengang nicht gefunden" hint="Diesen Studiengang oder diese Ansicht gibt es nicht (mehr)."/></div> }.into_any()
-        }
-    }
-}
-
-/// The module in full, inside the program's area: the same page as the module's own, with
-/// „Zurück" leading to the program — with the module beside it again on the desktop, without it
-/// on a phone (and to the area it was picked from, where it was).
-#[component]
-fn ProgramModuleFull(id: String, links: Memo<ProgramUrl>, phone: RwSignal<bool>) -> impl IntoView {
-    let source = use_source();
-    let status = PageStatus::capture();
-    let loaded = source.and_then(|source| source.run(|db| pages::module(db, &id)));
-    match loaded {
-        Err(error) => {
-            status.for_error(&error);
-            view! { <div class="page"><ErrorState error/></div> }.into_any()
-        }
-        Ok(None) => {
-            status.set(404);
-            view! { <div class="page"><NotFound title="Modul nicht gefunden" hint="Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."/></div> }.into_any()
-        }
-        Ok(Some(data)) => {
-            let back = links.with_untracked(|links| if phone.get_untracked() { links.path() } else { links.with_open(Some(&id)).path() });
-            view! { <ModuleFull data back_area=Area::Programs back_to=Some(back) noindex=true/> }.into_any()
         }
     }
 }
@@ -557,7 +539,7 @@ fn ProgramAside(
         }
         match module.get() {
             Ok(Some(Some(module))) => {
-                let full_href = links.get().with_open(Some(&module.module.id)).with_full(true).path();
+                let full_href = local::full_href(&links.get(), &module.module.id);
                 view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href)/> }.into_any()
             }
             Ok(Some(None)) | Err(_) => view! {
