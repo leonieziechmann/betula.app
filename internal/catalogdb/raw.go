@@ -18,6 +18,7 @@ const (
 	SourceModuleCatalog = "module_catalog"
 	SourceModulePage    = "module_page"
 	SourceQISEvent      = "qis_event"
+	SourceQISEventEntry = "qis_event_entry" // an event's entry in the QIS event search, keyed like its page
 	SourceQISFUESList   = "qis_fues_list"
 	SourceQISModuleList = "qis_module_list"
 	SourceQISModulePage = "qis_module_page"

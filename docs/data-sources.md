@@ -440,3 +440,64 @@ published means at least 100 modules have a dated teaching event in it. The thre
 keeps a single early event from moving the whole catalog, as one Polish course nearly did on
 2026-09-19. The value is part of the content digest, or a semester that moves without any other
 change would never be exported to a browser.
+
+## 11. The dates come from the event search (2026-09-24)
+
+**What it cost.** Every event had a request of its own: about 2,500 events that module
+descriptions link, each page fetched again after three days, up to 600 requests a night. The
+event search of QIS (`state=wsearchv&search=1`) prints in its long view (`P.vx=lang`) every event
+it finds with all its dates, and it takes a comma-separated list of event IDs
+(`veranstaltung.veranstid=151296,148362,…`) across semesters: four IDs from SoSe 2026 and WiSe
+2026/27 gave exactly those four events, 300 IDs gave 300 events in one answer of 1.4 MB in 2.2 s
+(an event page takes 1 to 1.7 s). So all linked events are about ten requests. For comparison,
+the whole WiSe 2026/27 has 4,331 events in the search; 500 of them are one answer of 1.9 MB in
+2.6 s. An entry is the same byte for byte in two answers (298 of 299 entries; the other differed
+in a line break at the end of the page), and an answer carries no session ID.
+
+These numbers come from 16 requests made by hand on 2026-09-24 (the search, one room page, nine
+event pages), with a browser's user agent, not Radix's, spaced by seconds.
+
+**What an entry states.** Compared on nine events, whose entries and pages are the fixtures in
+`internal/parser/testdata`:
+
+| | event page | entry in the search |
+|---|---|---|
+| title, number, type, semester, SWS, participants expected and allowed | yes | yes („20 erwartet 100 maximal") |
+| every date: group, day, time, rhythm, days, instructor | yes | yes; the day spelled out („Mittwoch"), the rhythm with its days („A/B 07.10.2026 bis 27.01.2027") |
+| cancelled dates and their note | „14.10.2026: findet ersatzweise im HS 11.301 statt." | the same, without the colon |
+| room | „Forschungszentrum 3H - 1.06 - Zentralcampus" | „Forschungszentrum 3H / 1.06", with the same room ID (`raum.rgid`) |
+| remark of a date | „nur online", „MCA-Teilleistung", „zu Beginn des Semesters wir entschieden ob die Prüfung mündlich oder schriftlich stattfindet." | no: the „Bemerkung" column of the list holds the maximum of participants of the date |
+| persons | full name, title and role | surname |
+| modules, study programs | yes | no |
+
+The remarks settle it: the search alone would lose what students most need to know about a date
+(online or not, oral or written), and the catalog shows the remark next to every date. So the
+event page stays a source, and the search decides when it is worth fetching.
+
+**How the two are used.** `parser.SameSchedule` compares everything both of them state (the room
+by its ID) and nothing else. Where the entry agrees with the page, the build uses the page, as
+current as the entry. Where they differ, the newer of them wins: a date the search has moved is
+in the catalog the night the search shows it, and the page is fetched in the same night, first
+after pages that were never fetched. An event without a page takes its dates from its entry, and
+a room it names gets the name, campus included, that any event page gives the same room ID. An
+event the search does not show keeps its page as its only source, fetched every three days as
+before. A page the search confirms is fetched again after 30 days, for its remarks. An entry
+older than twice the search's own age (a day) confirms nothing, so a search that stopped working
+leaves the pages at their three days.
+
+**Events without dates.** BTU publishes a semester event by event, and the dates of an exam often
+weeks later. An event that does not say yet when it takes place is looked up every three hours,
+also by day: no date, or none with a time and a day, or only the placeholder QIS enters for an
+exam without a date, 01:00 to 02:30 on a Sunday or without a weekday (27.12.2015 in the WiSe
+2026/27; Folia reads it the same way, `catalog/src/exam_reading.rs`). Every other event is looked
+up once a night, in the off-peak window.
+
+**When the search answers something else.** The answer must state as many hits as it shows, and
+show only events that were asked for; a page without a number of hits is not a result of the
+search. Otherwise the stage fails before anything is archived from the answer: if QIS ever
+ignored the list of IDs, the answer would be the first page of all events of the current
+semester, and every event asked for would look deleted.
+
+**Requests.** Before: up to 600 event pages a night. Now: about ten requests of the search a
+night for all events, one to three every three hours for the events without dates, and the pages
+that are new, changed or 30 days old (about 80 a night for 2,500 events).

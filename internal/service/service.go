@@ -28,7 +28,14 @@ type Config struct {
 	// request each and are checked in every cycle.
 	OffPeakStart, OffPeakEnd int
 
-	Lists, Modules, QISModules, Events, Tree Pace
+	Lists, Modules, QISModules, Tree Pace
+
+	// EventList asks the QIS event search about the linked events, 250 to a request:
+	// every event once per MaxAge in the off-peak window, and an event without dates
+	// every PlaceholderMaxAge at any hour. Events fetches the page of an event when the
+	// list has news for it, or when the page is past its age.
+	EventList EventListPace
+	Events    EventPagePace
 
 	EventRetention time.Duration        // keep an event this long after its last date; 0 keeps everything
 	ArchiveGrace   time.Duration        // remove archived pages nothing leads to any more, this long after their fetch; 0 keeps them
@@ -36,19 +43,26 @@ type Config struct {
 	StaleAfter     time.Duration        // health: unhealthy without a successful cycle for this long
 }
 
-// DefaultConfig is a polite setup for the BTU servers: about 700 module pages, 1,200
-// event pages and 400 tree pages per night keep everything within its maximum age.
+// DefaultConfig is a polite setup for the BTU servers: about 700 module pages and 400 tree
+// pages per night keep everything within its maximum age. The dates of all events take
+// about ten requests of the event search a night; an event page is fetched when the list
+// shows a change, and otherwise once a month.
 func DefaultConfig() Config {
 	return Config{
-		Endpoints:      BTUEndpoints(),
-		SnapshotDir:    "snapshot",
-		Interval:       30 * time.Minute,
-		OffPeakStart:   1,
-		OffPeakEnd:     6,
-		Lists:          Pace{Delay: time.Second, MaxAge: 12 * time.Hour},
-		Modules:        Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 7 * 24 * time.Hour, Limit: 400},
-		QISModules:     Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 600},
-		Events:         Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 600},
+		Endpoints:    BTUEndpoints(),
+		SnapshotDir:  "snapshot",
+		Interval:     30 * time.Minute,
+		OffPeakStart: 1,
+		OffPeakEnd:   6,
+		Lists:        Pace{Delay: time.Second, MaxAge: 12 * time.Hour},
+		Modules:      Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 7 * 24 * time.Hour, Limit: 400},
+		QISModules:   Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 600},
+		EventList:    EventListPace{Pace: Pace{Delay: 2 * time.Second, MaxAge: 12 * time.Hour}, PlaceholderMaxAge: 3 * time.Hour},
+		Events: EventPagePace{
+			Pace:            Pace{Workers: 1, Delay: 500 * time.Millisecond, MaxAge: 3 * 24 * time.Hour, Limit: 600},
+			ConfirmedMaxAge: 30 * 24 * time.Hour,
+			EntryFresh:      24 * time.Hour, // twice the list's MaxAge: a list that stopped working confirms nothing after a day
+		},
 		Tree:           Pace{Delay: time.Second, MaxAge: 7 * 24 * time.Hour, Limit: 300},
 		EventRetention: 30 * 24 * time.Hour,
 		ArchiveGrace:   7 * 24 * time.Hour,
@@ -189,6 +203,13 @@ func (s *Service) RunCycle(ctx context.Context) (result CycleResult) {
 		return CrawlQISModules(ctx, s.db, s.cfg.Endpoints, s.cfg.QISModules)
 	})
 	crawlStage("tree", true, catalogdb.SourceQISTree, func() (crawl.Stats, error) { return CrawlTree(ctx, s.db, s.cfg.Endpoints, s.cfg.Tree) })
+	// The event search runs in every cycle: at night it reads the dates of every linked
+	// event, by day only those of events without dates yet, which is a request or two.
+	// The event pages come after it, because what they need depends on what it found.
+	crawlStage("event-list", false, catalogdb.SourceQISEventEntry, func() (crawl.Stats, error) {
+		all := s.inOffPeak(s.now()) || !s.archived(catalogdb.SourceQISEventEntry)
+		return CrawlEventList(ctx, s.db, s.cfg.Endpoints, s.cfg.EventList, all)
+	})
 	crawlStage("events", true, catalogdb.SourceQISEvent, func() (crawl.Stats, error) { return CrawlEvents(ctx, s.db, s.cfg.Endpoints, s.cfg.Events) })
 	if ctx.Err() != nil {
 		result.Result = "interrupted"

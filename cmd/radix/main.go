@@ -33,7 +33,7 @@ var commands = [][]command{
 		{"crawl-modules", "Archive the module catalog list, the FÜS list and all module pages", runCrawlModules},
 		{"crawl-qis-modules", "Archive the QIS module descriptions (the source b-tu.de copies)", runCrawlQISModules},
 		{"crawl-tree", "Walk the QIS program tree; fetch what is missing or stale", runCrawlTree},
-		{"crawl-events", "Archive the QIS event pages that module pages link", runCrawlEvents},
+		{"crawl-events", "Look the linked events up in the QIS event search; fetch the event pages it has news for", runCrawlEvents},
 		{"prune", "Remove what is not the current dataset: past events, archive pages nothing leads to", runPrune},
 		{"build", "Derive the canonical tables from the raw page archive (no network)", runBuild},
 		{"validate", "Check invariants, source conflicts and count baselines; exit 1 on failures", runValidate},

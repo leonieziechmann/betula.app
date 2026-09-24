@@ -19,7 +19,8 @@ One cycle, every `--interval` (30 min):
 | `modules` | off-peak only | module pages older than `--module-max-age` (7 d), oldest first, at most 400 per cycle |
 | `qis-modules` | off-peak only | the QIS module table (in chunks, if older than 12 h) and the QIS module descriptions older than `--qis-module-max-age` (3 d), at most 600 per cycle. These are the source of the module fields and of the events of the current semester (`docs/data-sources.md` §10) |
 | `tree` | off-peak only | QIS program tree; pages older than `--tree-max-age` (7 d), at most 300 requests per cycle; discovers new programs and PO versions |
-| `events` | off-peak only | QIS pages of the events module pages link; older than `--event-max-age` (3 d), at most 600 per cycle |
+| `event-list` | every cycle | the events module pages link, looked up in the QIS event search, 250 to a request: off-peak every event whose entry is older than `--event-list-max-age` (12 h), which is about ten requests a night; at other hours only the events without dates yet (none, or only the placeholder of an exam without a date), once their entry is older than `--event-placeholder-max-age` (3 h). Each entry is archived on its own (`qis_event_entry`); an event the search does not show is archived as 404 (`docs/data-sources.md` §11) |
+| `events` | off-peak only | QIS pages of the linked events, at most 600 per cycle: pages never fetched first, then pages whose dates the event search states otherwise, then pages past their age: `--event-page-max-age` (30 d) for a page the search confirms, `--event-max-age` (3 d) for one it does not (the search does not show the event, or its entry is older than twice `--event-list-max-age`). The page adds what the search leaves out: the remarks of the dates, the persons' roles, the campus |
 | `retention` | every cycle | removes events `--event-retention` (30 d) after their last date, and events no module page links any more; remembers them, so they are not fetched again |
 | `build` | every cycle | raw archive → canonical tables, one transaction, about 20 s. **Only the current dataset is built:** modules on the current lists, tree pages the current QIS root leads to |
 | `archive` | every cycle | removes archived pages nothing leads to any more, `--archive-grace` (7 d) after their fetch |
@@ -46,8 +47,9 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--addr` | `RADIX_ADDR` | `127.0.0.1:8090` |
 | `--interval` | `RADIX_INTERVAL` | `30m` |
 | `--offpeak` | `RADIX_OFFPEAK` | `1-6` |
-| `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay) |
+| `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay, event search: four times) |
 | `--module-max-age`, `--qis-module-max-age`, `--event-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_MAX_AGE`, `RADIX_EVENT_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `72h`, `72h`, `168h` |
+| `--event-list-max-age`, `--event-placeholder-max-age`, `--event-page-max-age` | `RADIX_EVENT_LIST_MAX_AGE`, `RADIX_EVENT_PLACEHOLDER_MAX_AGE`, `RADIX_EVENT_PAGE_MAX_AGE` | `12h`, `3h`, `720h` |
 | `--event-retention` | `RADIX_EVENT_RETENTION` | `720h` (0 keeps everything) |
 | `--archive-grace` | `RADIX_ARCHIVE_GRACE` | `168h` (0 keeps unused pages) |
 | `--stale-after` | `RADIX_STALE_AFTER` | `26h` |
@@ -92,6 +94,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | ERROR | `http.request` with `status >= 500` | |
 | WARN | `crawl.retry`, `crawl.slow` | a request failed and is retried / took longer than 15 s |
 | WARN | `crawl.not_found` | a listed page answers 404 |
+| WARN | `crawl.not_listed` | the event search does not show events that module pages link (`count`, `examples`); their pages stay their only source |
 | WARN | `cycle.finished` with `result=degraded` | crawl problems; published data intact |
 | WARN | `validate.check_warned` | e.g. kind conflicts between sources, programs without tree modules |
 | WARN | `build.unresolved_refs`, `build.tree_leaves_without_module`, `build.tree_pages_missing`, `build.unlisted_module_pages`, `build.unreachable_tree_pages`, `build.modules_without_page`, `build.plans_without_program`, `build.plan_entries_unknown_module`, `build.unpaired_departments` | source data the build could not use, with counts and examples |
@@ -99,6 +102,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | ERROR | `scan.failed`, `scan.extraction_failed`, `scan.save_failed`, `statutes.download_failed` | study plan scan: cannot run / a document could not be read / a plan could not be stored (the previous plan is unchanged) / a PDF could not be downloaded |
 | WARN | `scan.rejected`, `scan.gemini_disabled`, `statutes.blocked` | a plan failed validation and was not stored / no API key, deterministic reader only / a PDF is behind bot protection |
 | INFO | `crawl.list_chunks_dropped` | the QIS module table got shorter; chunks behind its end were removed |
+| INFO | `crawl.pages_due` | why event pages are fetched: `never_fetched`, `changed_in_list`, `past_age`, and how many the event search confirms. A `changed_in_list` that stays high night after night means the event search and the page parser read an event differently. `build.finished` counts the events whose dates come from the search (`events_from_list`) |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
 | INFO | `cycle.started`, `cycle.finished`, `crawl.started`, `crawl.progress`, `crawl.finished`, `crawl.up_to_date`, `build.started`, `build.finished`, `validate.finished`, `export.finished`, `retention.pruned`, `retention.archive_pruned` | progress, with counts and durations |
 

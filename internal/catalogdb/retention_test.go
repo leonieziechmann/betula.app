@@ -19,6 +19,13 @@ func TestPruneEventsRemovesOldEventsAndRemembersThem(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// The entries of the event search go with their events; an event known from its entry
+	// alone is removed like one with a page.
+	for _, id := range []string{"ended-long-ago", "undated-linked", "listed-only-ended"} {
+		if err := db.PutPage(RawPage{Source: SourceQISEventEntry, Key: id, URL: id, HTTPStatus: 200, Body: []byte(id), FetchedAt: old}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	// What the last build knew about these events.
 	_, err := db.SQL().Exec(`
 		INSERT INTO module (id, title, detail_status, offer_status, is_fues) VALUES ('11101', 'Lineare Algebra', 'ok', 'active', 0);
@@ -28,20 +35,27 @@ func TestPruneEventsRemovesOldEventsAndRemembersThem(t *testing.T) {
 			('undated-unlinked', 'c', 'other',    NULL,         'u', '2026-06-21T12:00:00Z'),
 			('undated-linked',   'd', 'other',    NULL,         'u', '2026-06-21T12:00:00Z'),
 			('undated-fresh',    'e', 'other',    NULL,         'u', '2026-09-19T12:00:00Z'),
-			('future-unlinked-stale', 'f', 'teaching', '2027-02-05', 'u', '2026-06-21T12:00:00Z');
+			('future-unlinked-stale', 'f', 'teaching', '2027-02-05', 'u', '2026-06-21T12:00:00Z'),
+			('listed-only-ended', 'g', 'teaching', '2026-07-21', 'u', '2026-06-21T12:00:00Z');
 		INSERT INTO module_event (module_id, event_id) VALUES ('11101', 'undated-linked'), ('11101', 'ended-last-week');`)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	removed, err := db.PruneEvents(now, 30*24*time.Hour)
-	if err != nil || removed != 3 {
-		t.Fatalf("PruneEvents = %d, %v; want 3", removed, err)
+	if err != nil || removed != 4 {
+		t.Fatalf("PruneEvents = %d, %v; want 4", removed, err)
 	}
 
 	tombstones, err := db.EventTombstones()
-	if err != nil || len(tombstones) != 3 || !tombstones["ended-long-ago"] || !tombstones["undated-unlinked"] || !tombstones["future-unlinked-stale"] {
+	if err != nil || len(tombstones) != 4 || !tombstones["ended-long-ago"] || !tombstones["undated-unlinked"] || !tombstones["future-unlinked-stale"] || !tombstones["listed-only-ended"] {
 		t.Fatalf("tombstones = %v (err %v)", tombstones, err)
+	}
+	for id, wantArchived := range map[string]bool{"ended-long-ago": false, "listed-only-ended": false, "undated-linked": true} {
+		_, err := db.GetPage(SourceQISEventEntry, id)
+		if archived := err == nil; archived != wantArchived {
+			t.Errorf("entry of %s archived = %v, want %v", id, archived, wantArchived)
+		}
 	}
 	for id, wantArchived := range map[string]bool{
 		"ended-long-ago": false, "undated-unlinked": false, "future-unlinked-stale": false, // no module page links it and nothing refreshes it

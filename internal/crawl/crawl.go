@@ -194,6 +194,27 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 // fetchAndArchive retries transient failures with a growing pause. 200 and 404
 // are final answers and are archived; everything else is an error.
 func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options, log *slog.Logger) (int, bool, error) {
+	status, body, err := fetchWithRetries(ctx, job, opt, log)
+	if err != nil {
+		return 0, false, err
+	}
+	changed, err := db.PutPageChanged(catalogdb.RawPage{
+		Source:     job.Source,
+		Key:        job.Key,
+		URL:        job.URL,
+		FetchedAt:  time.Now(),
+		HTTPStatus: status,
+		Body:       body,
+	})
+	if err != nil {
+		return status, false, fmt.Errorf("failed to archive: %w", err)
+	}
+	return status, changed, nil
+}
+
+// fetchWithRetries retries transient failures with a growing pause. 200 and 404 are
+// final answers (a 404 without its body); everything else is an error.
+func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logger) (int, []byte, error) {
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		begin := time.Now()
@@ -206,25 +227,14 @@ func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options
 			if status == http.StatusNotFound {
 				body = nil
 			}
-			changed, err := db.PutPageChanged(catalogdb.RawPage{
-				Source:     job.Source,
-				Key:        job.Key,
-				URL:        job.URL,
-				FetchedAt:  time.Now(),
-				HTTPStatus: status,
-				Body:       body,
-			})
-			if err != nil {
-				return status, false, fmt.Errorf("failed to archive: %w", err)
-			}
-			return status, changed, nil
+			return status, body, nil
 		}
 		if err == nil {
 			err = fmt.Errorf("unexpected status %d", status)
 		}
 		lastErr = err
 		if ctx.Err() != nil {
-			return 0, false, lastErr
+			return 0, nil, lastErr
 		}
 		if attempt < maxAttempts {
 			pause := opt.Backoff * time.Duration(1<<(attempt-1))
@@ -233,7 +243,7 @@ func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options
 			sleep(ctx, pause)
 		}
 	}
-	return 0, false, lastErr
+	return 0, nil, lastErr
 }
 
 func fetch(ctx context.Context, pageURL string, opt Options) (int, []byte, error) {

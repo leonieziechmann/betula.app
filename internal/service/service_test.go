@@ -41,6 +41,7 @@ func (f *fakeBTU) endpoints() Endpoints {
 		QISModuleList: f.srv.URL + "/qis-table?P_start=%d&P_anzahl=%d",
 		QISModuleURL:  f.srv.URL + "/qis-modul?nodeID=pordnr=%[1]s&objLanguage=%[2]s&pord.pordnr=%[1]s",
 		EventURL:      f.srv.URL + "/event?veranstaltung.veranstid=%s",
+		EventListURL:  f.srv.URL + "/search?veranstaltung.veranstid=%[1]s&P_anzahl=%[2]d",
 		TreeRootURL:   f.srv.URL + "/tree?nodeID=auswahlBaum",
 	}
 }
@@ -110,6 +111,20 @@ func (f *fakeBTU) serve(w http.ResponseWriter, r *http.Request) {
 			<tr><td class="tabelle1_alignleft">Zuordnung zu Studiengängen:</td><td class="tabelle2inhalt"><ul>
 				<li>Bachelor (universitär) / Informatik / PO 2008 - 2. SÄ 2024</li></ul></td></tr>
 			%s</table>`, id, id, credits, events)
+	case r.URL.Path == "/search":
+		// The event search: the entry of every event asked for, stating what its page states.
+		var entries strings.Builder
+		ids := strings.Split(r.URL.Query().Get("veranstaltung.veranstid"), ",")
+		for _, id := range ids {
+			fmt.Fprintf(&entries, `<div class="abstand_veranstaltung"></div>
+				<div><h3><a href="%s/rds?state=verpublish&amp;publishid=%s&amp;publishSubDir=veranstaltung">Data Mining</a></h3></div>
+				<div>WS 2026/27&nbsp;&nbsp;&nbsp;
+				Vorlesung &nbsp;&nbsp;</div>
+				<div><h3>Termin</h3></div>
+				<table summary="Übersicht über alle Veranstaltungstermine"><tr><th>Tag</th><th>Zeit</th><th>Rhythmus</th><th>Dauer</th><th>fällt aus am</th><th>Lehrperson</th><th>Raum</th><th>Bemerkung</th></tr>
+				<tr><td>Dienstag</td><td>09:15 bis<br>10:45</td><td>A/B 13.10.2026 bis 02.02.2027</td><td>13.10.2026 bis<br/>02.02.2027</td><td></td><td>&nbsp;</td><td>Lehrgebäude 1A - 0.22 - Zentralcampus</td><td></td></tr></table>`, f.srv.URL, id)
+		}
+		fmt.Fprintf(w, `<form><div class="InfoLeiste">%d Treffer</div>%s<div class="abstand_veranstaltung"></div></form>`, len(ids), entries.String())
 	case r.URL.Path == "/event":
 		fmt.Fprint(w, `<h1>Data Mining - Einzelansicht</h1><table summary="Grunddaten zur Veranstaltung">
 			<tr><th>Veranstaltungsart</th><td>Vorlesung</td><th>Semester</th><td>WS 2026/27</td></tr></table>
@@ -147,7 +162,8 @@ func newTestService(t *testing.T, site *fakeBTU) (*Service, Config) {
 	cfg := Config{
 		Endpoints:   site.endpoints(),
 		SnapshotDir: filepath.Join(t.TempDir(), "snapshot"),
-		Lists:       fast, Modules: fast, QISModules: fast, Events: fast, Tree: fast,
+		Lists:       fast, Modules: fast, QISModules: fast, Tree: fast,
+		EventList: EventListPace{Pace: fast}, Events: EventPagePace{Pace: fast},
 		StaleAfter: time.Hour,
 	}
 	return New(db, cfg, nil), cfg
@@ -180,7 +196,14 @@ func TestCyclePublishesOnlyWhenContentChanges(t *testing.T) {
 	if s := stage(first, "qis-modules"); s.Crawl == nil || s.Crawl.Fetched != 2 || s.Crawl.Failed != 0 {
 		t.Errorf("qis-modules stage = %+v", s)
 	}
-	// One event from the copy on b-tu.de, one only the QIS description names.
+	// One event from the copy on b-tu.de, one only the QIS description names: both are
+	// looked up in the event search, in one request, and then their pages are fetched.
+	if s := stage(first, "event-list"); s.Crawl == nil || s.Crawl.Fetched != 2 || s.Crawl.NotFound != 0 {
+		t.Errorf("event-list stage = %+v", s)
+	}
+	if site.hits["/search"] != 1 {
+		t.Errorf("%d requests of the event search, want 1", site.hits["/search"])
+	}
 	if s := stage(first, "events"); s.Crawl == nil || s.Crawl.Fetched != 2 {
 		t.Errorf("events stage = %+v", s)
 	}

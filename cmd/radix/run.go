@@ -55,7 +55,10 @@ func runService(ctx context.Context, args []string) {
 	qisDelay := fs.Int("qis-delay", envInt("RADIX_QIS_DELAY_MS", int(def.Events.Delay.Milliseconds())), "Pause between QIS requests in ms (env RADIX_QIS_DELAY_MS)")
 	moduleMaxAge := fs.Duration("module-max-age", envDuration("RADIX_MODULE_MAX_AGE", def.Modules.MaxAge), "Refetch a module page after this long (env RADIX_MODULE_MAX_AGE)")
 	qisModuleMaxAge := fs.Duration("qis-module-max-age", envDuration("RADIX_QIS_MODULE_MAX_AGE", def.QISModules.MaxAge), "Refetch a QIS module description after this long (env RADIX_QIS_MODULE_MAX_AGE)")
-	eventMaxAge := fs.Duration("event-max-age", envDuration("RADIX_EVENT_MAX_AGE", def.Events.MaxAge), "Refetch an event page after this long (env RADIX_EVENT_MAX_AGE)")
+	eventListMaxAge := fs.Duration("event-list-max-age", envDuration("RADIX_EVENT_LIST_MAX_AGE", def.EventList.MaxAge), "Look every linked event up in the event search again after this long, off-peak (env RADIX_EVENT_LIST_MAX_AGE)")
+	eventPlaceholderMaxAge := fs.Duration("event-placeholder-max-age", envDuration("RADIX_EVENT_PLACEHOLDER_MAX_AGE", def.EventList.PlaceholderMaxAge), "Look an event without dates up again after this long, at any hour (env RADIX_EVENT_PLACEHOLDER_MAX_AGE)")
+	eventPageMaxAge := fs.Duration("event-page-max-age", envDuration("RADIX_EVENT_PAGE_MAX_AGE", def.Events.ConfirmedMaxAge), "Refetch an event page the event search confirms after this long (env RADIX_EVENT_PAGE_MAX_AGE)")
+	eventMaxAge := fs.Duration("event-max-age", envDuration("RADIX_EVENT_MAX_AGE", def.Events.MaxAge), "Refetch an event page the event search does not confirm after this long (env RADIX_EVENT_MAX_AGE)")
 	treeMaxAge := fs.Duration("tree-max-age", envDuration("RADIX_TREE_MAX_AGE", def.Tree.MaxAge), "Refetch a QIS tree page after this long (env RADIX_TREE_MAX_AGE)")
 	retention := fs.Duration("event-retention", envDuration("RADIX_EVENT_RETENTION", def.EventRetention), "Remove an event this long after its last date, 0 keeps all (env RADIX_EVENT_RETENTION)")
 	archiveGrace := fs.Duration("archive-grace", envDuration("RADIX_ARCHIVE_GRACE", def.ArchiveGrace), "Remove archived pages nothing leads to any more this long after their fetch, 0 keeps them (env RADIX_ARCHIVE_GRACE)")
@@ -77,8 +80,13 @@ func runService(ctx context.Context, args []string) {
 	cfg.Modules.MaxAge = *moduleMaxAge
 	cfg.QISModules.Delay = time.Duration(*qisDelay) * time.Millisecond
 	cfg.QISModules.MaxAge = *qisModuleMaxAge
+	cfg.EventList.Delay = 4 * time.Duration(*qisDelay) * time.Millisecond
+	cfg.EventList.MaxAge = *eventListMaxAge
+	cfg.EventList.PlaceholderMaxAge = *eventPlaceholderMaxAge
 	cfg.Events.Delay = time.Duration(*qisDelay) * time.Millisecond
 	cfg.Events.MaxAge = *eventMaxAge
+	cfg.Events.ConfirmedMaxAge = *eventPageMaxAge
+	cfg.Events.EntryFresh = 2 * *eventListMaxAge
 	cfg.Tree.Delay = 2 * time.Duration(*qisDelay) * time.Millisecond
 	cfg.Tree.MaxAge = *treeMaxAge
 	cfg.EventRetention = *retention

@@ -108,11 +108,16 @@ func runCrawlQISModules(ctx context.Context, args []string) {
 	finishCrawl("crawl-qis-modules", stats, err)
 }
 
-// runCrawlEvents archives the QIS event pages that module pages link.
+// runCrawlEvents looks the events that module pages link up in the QIS event search and
+// then archives the event pages the search has news for, or that are past their age.
 func runCrawlEvents(ctx context.Context, args []string) {
+	def := service.DefaultConfig()
 	fs := flag.NewFlagSet("crawl-events", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "Database path")
-	pace := addPaceFlags(fs, 1, 500, 72*time.Hour)
+	pace := addPaceFlags(fs, 1, 500, def.Events.MaxAge)
+	listMaxAge := fs.Duration("list-max-age", def.EventList.MaxAge, "Look an event up in the event search again after this long")
+	placeholderMaxAge := fs.Duration("placeholder-max-age", def.EventList.PlaceholderMaxAge, "Look an event without dates up again after this long")
+	pageMaxAge := fs.Duration("page-max-age", def.Events.ConfirmedMaxAge, "Fetch the page of an event the event search confirms again after this long")
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
@@ -121,7 +126,12 @@ func runCrawlEvents(ctx context.Context, args []string) {
 	db := openDB(*dbPath)
 	defer db.Close()
 
-	stats, err := service.CrawlEvents(ctx, db, service.BTUEndpoints(), pace())
+	list := service.EventListPace{Pace: service.Pace{Delay: 4 * pace().Delay, MaxAge: *listMaxAge}, PlaceholderMaxAge: *placeholderMaxAge}
+	if stats, err := service.CrawlEventList(ctx, db, service.BTUEndpoints(), list, true); err != nil || stats.Failed > 0 {
+		finishCrawl("crawl-events", stats, err)
+	}
+	pages := service.EventPagePace{Pace: pace(), ConfirmedMaxAge: *pageMaxAge, EntryFresh: 2 * *listMaxAge}
+	stats, err := service.CrawlEvents(ctx, db, service.BTUEndpoints(), pages)
 	finishCrawl("crawl-events", stats, err)
 }
 

@@ -5,8 +5,9 @@ import (
 	"time"
 )
 
-// PruneEvents removes archived event pages that are no longer current and leaves a
-// tombstone, so that they are not fetched again while a module page still links them:
+// PruneEvents removes archived events that are no longer current, their page and their
+// entry in the event search, and leaves a tombstone, so that they are not fetched again
+// while a module page still links them:
 //
 //   - an event whose last date is more than keep ago;
 //   - an event that no module page links any more and that has not been refreshed
@@ -42,13 +43,17 @@ func (db *DB) PruneEvents(now time.Time, keep time.Duration) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to mark events: %w", err)
 	}
-	res, err := tx.Exec(`DELETE FROM raw_page WHERE source = ? AND key IN (SELECT event_id FROM event_tombstone WHERE pruned_at = ?)`,
-		SourceQISEvent, prunedAt)
+	var removed int
+	err = tx.QueryRow(`SELECT COUNT(DISTINCT key) FROM raw_page WHERE source IN (?, ?) AND key IN (SELECT event_id FROM event_tombstone WHERE pruned_at = ?)`,
+		SourceQISEvent, SourceQISEventEntry, prunedAt).Scan(&removed)
 	if err != nil {
+		return 0, fmt.Errorf("failed to count the events to remove: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM raw_page WHERE source IN (?, ?) AND key IN (SELECT event_id FROM event_tombstone WHERE pruned_at = ?)`,
+		SourceQISEvent, SourceQISEventEntry, prunedAt); err != nil {
 		return 0, fmt.Errorf("failed to remove event pages: %w", err)
 	}
-	removed, _ := res.RowsAffected()
-	return int(removed), tx.Commit()
+	return removed, tx.Commit()
 }
 
 // EventTombstones returns the IDs of events that were removed by retention.
