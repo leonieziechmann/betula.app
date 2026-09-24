@@ -11,7 +11,12 @@
 //! Only what is shown is in a view: hidden events and Termine, and the options a made choice left
 //! out, are not. Neither are the recurring dates the break or a holiday takes: the agenda names
 //! the holiday on its day and marks the break's weeks instead of listing every lecture that does
-//! not take place.
+//! not take place. A row whose every date they take stands with what has no fixed time, so that
+//! a Termin QIS set into the break on purpose is not lost.
+//!
+//! The agenda shows a Termin once per date, as the calendar feed does: rows that share a
+//! `RowKey` (one slot in two rooms, C.5) are one item that names all of them, and an exam in two
+//! rooms at one time is one sitting (C.11).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,6 +26,7 @@ use super::exams::ExamShape;
 use super::facts::SemesterFacts;
 use super::model::{Event, Row, Timetable};
 use super::occur::Every;
+use super::rowkey::RowKey;
 
 /// Days a recurring Termin's first or last week may lie from the lecture period's first or last
 /// week and still run through it: many Übungen begin a week late or end a week early, and „ab
@@ -92,7 +98,9 @@ impl WeekLabel {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgendaWeek {
     pub monday: Day,
-    /// ISO year and week of the Monday („KW 41"); the page's anchor `kw-<week>`.
+    /// ISO year and week of the Monday („KW 41"). The page's anchor needs both, `kw-2026-41`:
+    /// rows can run for more than a year (147307's block of 2026S, 2026 to 2028), and then a
+    /// week number comes twice.
     pub iso_week: (i32, u8),
     /// A week of a break (`SemesterFacts::breaks`): the page collapses it when it holds nothing.
     pub break_week: bool,
@@ -110,24 +118,93 @@ pub struct AgendaDay {
     pub items: Vec<AgendaItem>,
 }
 
-/// One date of the agenda: a teaching row's (`event`) or an exam row's (`exam`), never both.
+/// One date of the agenda: a teaching Termin's (`event`) or an exam's (`exam`), never both.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgendaItem {
     /// Index into `Timetable::events`.
     pub event: Option<usize>,
     /// Index into `Timetable::exams`.
     pub exam: Option<usize>,
-    /// Index into that event's or exam's rows.
+    /// Index into that event's or exam's rows: the first of `rows`, the one a click opens.
     pub row: usize,
-    /// The times in minutes: a teaching row's, an exam sitting's. `None` for a row without a
-    /// clear time, a block without times, and an exam that is no sitting (its shape says which:
-    /// a window stands on its first day, a deadline and a day without a time on theirs).
+    /// Every row behind the date, in order, for its rooms („Raum A / Raum B"): a teaching date
+    /// gathers the rows of one Termin (`RowKey`) and option that are held, or that are cancelled,
+    /// on the day; an exam date the rows of one exam with one shape and time.
+    pub rows: Vec<usize>,
+    /// The times in minutes, from the earliest start to the latest end of the rows (the feed's
+    /// merge): a teaching row's, an exam sitting's. `None` for a row without a clear time, a
+    /// block without times, and an exam that is no sitting (its shape says which: a window
+    /// stands on its first day, a deadline and a day without a time on theirs).
     pub from: Option<u16>,
     pub to: Option<u16>,
-    /// `Some` when QIS cancels this date, with the reason as written (empty when there is none).
+    /// `Some` when QIS cancels this date, with the reason as written (empty when there is none;
+    /// the rows' different reasons joined with „; ").
     pub cancelled: Option<String>,
     /// Room notes of a held date („Raumwechsel"), several joined with „; ".
     pub note: Option<String>,
+}
+
+/// Which teaching rows are one Termin on a date: those that share a `RowKey`, or a row without
+/// a key alone.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Termin {
+    Key(RowKey),
+    Row(usize),
+}
+
+/// What makes the dates of one day one agenda item.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ItemKey {
+    /// A teaching date: the event, its Termin, the option, and whether it is cancelled.
+    Teaching(usize, Termin, Option<usize>, bool),
+    /// An exam date: the exam, its times, and its shape (`shape_order`).
+    Exam(usize, Option<u16>, Option<u16>, u8),
+}
+
+/// An agenda item while the rows of its date are gathered.
+struct Gathered {
+    item: AgendaItem,
+    /// The cancellation reasons and the room notes of its rows, each once, in order.
+    reasons: Vec<String>,
+    notes: Vec<String>,
+}
+
+impl Gathered {
+    fn new(event: Option<usize>, exam: Option<usize>, row: usize, cancelled: bool) -> Self {
+        let cancelled = cancelled.then(String::new);
+        let item = AgendaItem { event, exam, row, rows: Vec::new(), from: None, to: None, cancelled, note: None };
+        Gathered { item, reasons: Vec::new(), notes: Vec::new() }
+    }
+
+    /// Adds row `r` with its times, the reason QIS gives when it cancels the date, and the row's
+    /// room notes of the day.
+    fn add(&mut self, r: usize, times: (Option<u16>, Option<u16>), reason: Option<&str>, notes: &[&str]) {
+        self.item.rows.push(r);
+        self.item.from = self.item.from.into_iter().chain(times.0).min();
+        self.item.to = self.item.to.into_iter().chain(times.1).max();
+        let once = |texts: &mut Vec<String>, text: &str| {
+            if !text.is_empty() && !texts.iter().any(|known| known == text) {
+                texts.push(text.to_string());
+            }
+        };
+        if let Some(reason) = reason {
+            once(&mut self.reasons, reason);
+        }
+        for note in notes {
+            once(&mut self.notes, note);
+        }
+    }
+
+    fn done(self) -> AgendaItem {
+        let mut item = self.item;
+        item.rows.sort_unstable();
+        item.row = item.rows.first().copied().unwrap_or(item.row);
+        if item.cancelled.is_some() {
+            item.cancelled = Some(self.reasons.join("; "));
+        }
+        item.note = (!self.notes.is_empty()).then(|| self.notes.join("; "));
+        item
+    }
 }
 
 /// A Regelwoche slot while its rows are gathered: the rows of one event at one weekday and time,
@@ -177,8 +254,9 @@ impl Timetable {
     /// time. Rows of one event at one weekday, time and rhythm and of one option are one slot:
     /// one slot in two rooms, or in two ranges one after the other. A recurring slot reads as
     /// running through the lecture period, as a part of it, or as one date when its range holds
-    /// no other. A recurring row whose every date is cancelled or skipped has no slot (the agenda
-    /// lists its cancellations), and what has no time or no date at all is `loose`.
+    /// no other. A recurring row whose every date is cancelled has no slot (the agenda lists its
+    /// cancellations); one whose every date the break or a holiday takes, and what has no time
+    /// or no date at all, is `loose`.
     pub fn regular_week(&self) -> Vec<WeekItem> {
         // One pairwise comparison for the whole week, not one per slot.
         let hard = clash::hard_rows(&self.events);
@@ -257,39 +335,40 @@ impl Timetable {
     /// a holiday. Items are the held and the cancelled dates of the visible rows, and the visible
     /// exam dates that have a day: a sitting at its time, a deadline and a day without a time on
     /// their day, a window on its first day. Dates the break or a holiday takes are no items.
+    /// A Termin is one item per date however many rooms it has: the rows of one `RowKey` and
+    /// option held on a day are one item, those cancelled on it another, and the rows of an exam
+    /// with one shape and time on a day are one sitting.
     pub fn agenda(&self) -> Vec<AgendaWeek> {
-        let mut by_day: BTreeMap<Day, Vec<AgendaItem>> = BTreeMap::new();
+        let mut gathered: BTreeMap<(Day, ItemKey), Gathered> = BTreeMap::new();
         for (e, _, r, row) in shown(&self.events) {
-            let item = |cancelled: Option<String>, note: Option<String>| AgendaItem {
-                event: Some(e),
-                exam: None,
-                row: r,
-                from: row.from,
-                to: row.to,
-                cancelled,
-                note,
-            };
+            let termin = row.key.map_or(Termin::Row(r), Termin::Key);
+            let times = (row.from, row.to);
             for day in &row.occ.days {
                 let notes: Vec<&str> =
                     row.occ.notes.iter().filter(|(on, _)| on == day).map(|(_, note)| note.as_str()).collect();
-                let note = (!notes.is_empty()).then(|| notes.join("; "));
-                by_day.entry(*day).or_default().push(item(None, note));
+                let key = ItemKey::Teaching(e, termin, row.option, false);
+                let item = gathered.entry((*day, key)).or_insert_with(|| Gathered::new(Some(e), None, r, false));
+                item.add(r, times, None, &notes);
             }
             for (day, reason, _) in &row.occ.cancelled {
-                by_day.entry(*day).or_default().push(item(Some(reason.clone().unwrap_or_default()), None));
+                let key = ItemKey::Teaching(e, termin, row.option, true);
+                let item = gathered.entry((*day, key)).or_insert_with(|| Gathered::new(Some(e), None, r, true));
+                item.add(r, times, Some(reason.as_deref().unwrap_or_default()), &[]);
             }
         }
         for (x, exam) in self.exams.iter().enumerate().filter(|(_, exam)| exam.hidden.is_none()) {
             for (r, row) in exam.rows.iter().enumerate().filter(|(_, row)| row.hidden.is_none()) {
-                let (day, from, to) = match row.shape {
-                    ExamShape::Sitting { day, from, to } => (day, Some(from), Some(to)),
-                    ExamShape::Deadline { day } | ExamShape::DayOnly { day } => (day, None, None),
-                    ExamShape::Window { first, .. } => (first, None, None),
-                    ExamShape::Open => continue,
+                let Some((day, from, to)) = exam_date(&row.shape) else {
+                    continue;
                 };
-                let item = AgendaItem { event: None, exam: Some(x), row: r, from, to, cancelled: None, note: None };
-                by_day.entry(day).or_default().push(item);
+                let key = ItemKey::Exam(x, from, to, shape_order(&row.shape));
+                let item = gathered.entry((day, key)).or_insert_with(|| Gathered::new(None, Some(x), r, false));
+                item.add(r, (from, to), None, &[]);
             }
+        }
+        let mut by_day: BTreeMap<Day, Vec<AgendaItem>> = BTreeMap::new();
+        for ((day, _), item) in gathered {
+            by_day.entry(day).or_default().push(item.done());
         }
 
         let mut mondays: BTreeSet<Day> = by_day.keys().map(|day| day.monday()).collect();
@@ -321,9 +400,10 @@ impl Timetable {
     }
 
     /// „Ohne feste Zeit": the visible events without any dated row (`(event, None)`), and the
-    /// visible rows that neither view can place: without a clear time, or without any date or
-    /// pattern (a rhythm like „nach Absprache", a recurring row without a weekday, a block
-    /// without a range). By event, then row. A row with dates but no time is in the agenda too.
+    /// visible rows that neither view can place: without a clear time, or without a held or
+    /// cancelled date or a pattern (a rhythm like „nach Absprache", a recurring row without a
+    /// weekday, a block without a range, a weekly row whose every date the break or a holiday
+    /// takes). By event, then row. A row with dates but no time is in the agenda too.
     pub fn loose(&self) -> Vec<(usize, Option<usize>)> {
         let mut loose = Vec::new();
         for (e, event) in self.events.iter().enumerate().filter(|(_, event)| event.hidden.is_none()) {
@@ -331,12 +411,41 @@ impl Timetable {
                 loose.push((e, None));
             }
             for (r, row) in event.rows.iter().enumerate().filter(|(_, row)| row.hidden.is_none()) {
-                if row.from.is_none() || (dates(row).next().is_none() && row.occ.template.is_none()) {
+                if row.from.is_none() || unplaced(row) {
                     loose.push((e, Some(r)));
                 }
             }
         }
         loose
+    }
+}
+
+/// Whether a row has nothing either view shows: no held or cancelled date, and no pattern. Its
+/// dates may all be skipped: QIS can set a weekly Termin into the break on purpose, and a row
+/// the app hid would be missed.
+fn unplaced(row: &Row) -> bool {
+    row.occ.days.is_empty() && row.occ.cancelled.is_empty() && row.occ.template.is_none()
+}
+
+/// The day and times an exam row stands at in the agenda, `None` for an open one.
+fn exam_date(shape: &ExamShape) -> Option<(Day, Option<u16>, Option<u16>)> {
+    match *shape {
+        ExamShape::Sitting { day, from, to } => Some((day, Some(from), Some(to))),
+        ExamShape::Deadline { day } | ExamShape::DayOnly { day } => Some((day, None, None)),
+        ExamShape::Window { first, .. } => Some((first, None, None)),
+        ExamShape::Open => None,
+    }
+}
+
+/// Which kind of shape an exam row has, so that a window and a deadline of one exam on one day
+/// stay two items.
+fn shape_order(shape: &ExamShape) -> u8 {
+    match shape {
+        ExamShape::Sitting { .. } => 0,
+        ExamShape::Deadline { .. } => 1,
+        ExamShape::DayOnly { .. } => 2,
+        ExamShape::Window { .. } => 3,
+        ExamShape::Open => 4,
     }
 }
 
@@ -479,8 +588,8 @@ mod tests {
     }
 
     /// The days of the agenda's week of `monday`: the day, its holiday, and its items as „10/1
-    /// 09:15" (teaching), „Prüfung 90/1 11:00" (an exam), „—" without a time, with „fällt aus:
-    /// …" and „Raum: …".
+    /// 09:15" (teaching), „Prüfung 90/1 11:00" (an exam), „31/1+2" for the rows of one item,
+    /// „—" without a time, with „fällt aus: …" and „Raum: …".
     fn week_of(t: &Timetable, monday: &str) -> Vec<(String, Option<&'static str>, Vec<String>)> {
         let agenda = t.agenda();
         let week = agenda.iter().find(|w| w.monday == d(monday)).unwrap_or_else(|| panic!("no week {monday}"));
@@ -491,14 +600,19 @@ mod tests {
                     .items
                     .iter()
                     .map(|item| {
-                        let (what, ord) = match (item.event, item.exam) {
-                            (Some(e), None) => (t.events[e].id.clone(), t.events[e].rows[item.row].ord),
-                            (None, Some(x)) => {
-                                (format!("Prüfung {}", t.exams[x].event_id), t.exams[x].rows[item.row].ord)
+                        let (what, ords): (String, Vec<Option<i64>>) = match (item.event, item.exam) {
+                            (Some(e), None) => {
+                                (t.events[e].id.clone(), item.rows.iter().map(|r| t.events[e].rows[*r].ord).collect())
                             }
+                            (None, Some(x)) => (
+                                format!("Prüfung {}", t.exams[x].event_id),
+                                item.rows.iter().map(|r| t.exams[x].rows[*r].ord).collect(),
+                            ),
                             _ => panic!("an item of neither or both"),
                         };
-                        let mut text = format!("{what}/{} {}", ord.unwrap(), item.from.map_or("—".to_string(), clock));
+                        let ords: Vec<String> = ords.iter().map(|ord| ord.unwrap().to_string()).collect();
+                        let from = item.from.map_or("—".to_string(), clock);
+                        let mut text = format!("{what}/{} {from}", ords.join("+"));
                         if let Some(reason) = &item.cancelled {
                             text.push_str(&format!(" fällt aus: {reason}"));
                         }
@@ -521,7 +635,8 @@ mod tests {
     /// order, labels that fit their rows, choices and clashes marked as the timetable has them,
     /// and every such row in a slot; loose rows that no view can place; an agenda by week and
     /// day with the lecture period's weeks, the breaks and the holidays, that holds every held
-    /// and every cancelled date of a visible row and every dated visible exam row once.
+    /// and every cancelled date of a visible row and every dated visible exam row once, one item
+    /// per Termin (or sitting) and day; and every visible row in some view.
     pub(crate) fn invariants(t: &Timetable) {
         let week = t.regular_week();
         let hard = clash::hard_rows(&t.events);
@@ -575,15 +690,16 @@ mod tests {
             }
         }
 
-        for (e, r) in t.loose() {
-            let event = &t.events[e];
+        let loose = t.loose();
+        for (e, r) in &loose {
+            let event = &t.events[*e];
             assert!(event.hidden.is_none());
             match r {
                 None => assert!(event.rows.is_empty()),
                 Some(r) => {
-                    let row = &event.rows[r];
+                    let row = &event.rows[*r];
                     assert!(row.hidden.is_none());
-                    assert!(row.from.is_none() || (dates(row).next().is_none() && row.occ.template.is_none()));
+                    assert!(row.from.is_none() || unplaced(row));
                 }
             }
         }
@@ -597,7 +713,13 @@ mod tests {
                 monday = monday.plus(7);
             }
         }
+        let anchors: BTreeSet<(i32, u8)> = agenda.iter().map(|w| w.iso_week).collect();
+        assert_eq!(anchors.len(), agenda.len(), "the page's anchors kw-<year>-<week> once");
+        // A row's date is in one item, and the rows of one Termin held (or cancelled) on a day, or
+        // of one exam sitting, are in one.
         let (mut teaching, mut exams) = (0, 0);
+        let mut items: BTreeSet<(Day, ItemKey)> = BTreeSet::new();
+        let mut placed: BTreeSet<(usize, usize)> = BTreeSet::new();
         for w in &agenda {
             assert_eq!(w.monday.weekday(), 1);
             assert_eq!(w.iso_week, w.monday.iso_week());
@@ -609,24 +731,44 @@ mod tests {
                 assert!(!day.items.is_empty() || day.holiday.is_some(), "an empty day {}", day.day.iso());
                 assert!(day.items.windows(2).all(|p| item_order(&p[0]) <= item_order(&p[1])));
                 for item in &day.items {
+                    assert!(item.rows.windows(2).all(|p| p[0] < p[1]) && item.rows.first() == Some(&item.row));
                     match (item.event, item.exam) {
                         (Some(e), None) => {
-                            let (event, row) = (&t.events[e], &t.events[e].rows[item.row]);
-                            assert!(event.hidden.is_none() && row.hidden.is_none());
-                            assert_eq!((item.from, item.to), (row.from, row.to));
-                            match &item.cancelled {
-                                Some(_) => {
-                                    assert!(row.occ.cancelled.iter().any(|c| c.0 == day.day) && item.note.is_none())
+                            let event = &t.events[e];
+                            let rows: Vec<&Row> = item.rows.iter().map(|r| &event.rows[*r]).collect();
+                            let first = rows[0];
+                            let termin = first.key.map_or(Termin::Row(item.row), Termin::Key);
+                            let key = ItemKey::Teaching(e, termin, first.option, item.cancelled.is_some());
+                            assert!(items.insert((day.day, key)), "{} twice on {}", event.id, day.day.iso());
+                            assert!(event.hidden.is_none(), "{}", event.id);
+                            for (r, row) in item.rows.iter().zip(&rows) {
+                                assert!(row.hidden.is_none() && row.option == first.option, "{}", event.id);
+                                assert!((row.key.is_some() && row.key == first.key) || item.rows.len() == 1);
+                                match &item.cancelled {
+                                    Some(_) => assert!(row.occ.cancelled.iter().any(|c| c.0 == day.day)),
+                                    None => assert!(row.occ.days.contains(&day.day)),
                                 }
-                                None => assert!(row.occ.days.contains(&day.day)),
+                                placed.insert((e, *r));
                             }
-                            teaching += 1;
+                            assert!(item.cancelled.is_none() || item.note.is_none());
+                            let froms = rows.iter().filter_map(|row| row.from);
+                            let tos = rows.iter().filter_map(|row| row.to);
+                            assert_eq!((item.from, item.to), (froms.min(), tos.max()), "{}", event.id);
+                            teaching += item.rows.len();
                         }
                         (None, Some(x)) => {
-                            let (exam, row) = (&t.exams[x], &t.exams[x].rows[item.row]);
-                            assert!(exam.hidden.is_none() && row.hidden.is_none() && row.shape != ExamShape::Open);
-                            assert!(item.cancelled.is_none() && item.note.is_none());
-                            exams += 1;
+                            let exam = &t.exams[x];
+                            assert!(exam.hidden.is_none() && item.cancelled.is_none() && item.note.is_none());
+                            let shape = shape_order(&exam.rows[item.row].shape);
+                            let key = ItemKey::Exam(x, item.from, item.to, shape);
+                            assert!(items.insert((day.day, key)), "{} twice on {}", exam.event_id, day.day.iso());
+                            for r in &item.rows {
+                                let row = &exam.rows[*r];
+                                assert!(row.hidden.is_none(), "{}", exam.event_id);
+                                assert_eq!(exam_date(&row.shape), Some((day.day, item.from, item.to)));
+                                assert_eq!(shape_order(&row.shape), shape);
+                            }
+                            exams += item.rows.len();
                         }
                         _ => panic!("an item of neither or both"),
                     }
@@ -635,6 +777,13 @@ mod tests {
         }
         let held: usize = shown(&t.events).map(|(.., row)| row.occ.days.len() + row.occ.cancelled.len()).sum();
         assert_eq!(teaching, held, "every held and cancelled date once");
+        // Every visible row is in a view: with a date in the agenda, with only its pattern in the
+        // Regelwoche, else loose.
+        for (e, event, r, row) in shown(&t.events) {
+            let patterned = row.occ.template.is_some() && row.from.is_some();
+            let seen = placed.contains(&(e, r)) || patterned || loose.contains(&(e, Some(r)));
+            assert!(seen, "{}/{:?} in no view", event.id, row.ord);
+        }
         let dated = t
             .exams
             .iter()
@@ -647,7 +796,7 @@ mod tests {
 
     /// Two modules' events: a weekly lecture with a cancelled date and a room note, one in a part
     /// of the period and one on Saturdays over Reformationstag, beside an Übung in A weeks with
-    /// single dates, one of which meets the lecture; and two exams.
+    /// single dates, one of which meets the lecture; and two exams, one written in two rooms.
     #[test]
     fn the_week_and_the_dates_of_two_events() {
         let mut monday = teaching("A", "10", 1, "Vorlesung", 1, "09:15", "10:45");
@@ -663,8 +812,11 @@ mod tests {
             single("B", "20", 4, "2026-11-02", "09:15", "10:45"),
             single("B", "20", 5, "2027-02-10", "10:00", "11:00"),
         ];
+        let mut second_hall = exam("A", "90", 2, Some(("2027-02-11", "2027-02-11")), "11:00", "13:00");
+        second_hall.date.room = Some("Audimax 2".into());
         let exams = [
             exam("A", "90", 1, Some(("2027-02-11", "2027-02-11")), "11:00", "13:00"),
+            second_hall,
             exam("B", "91", 1, Some(("2027-02-15", "2027-02-19")), "", ""),
             exam("B", "91", 2, None, "", ""),
         ];
@@ -744,24 +896,35 @@ mod tests {
             ]
         );
         assert_eq!(week_of(&t, "2026-12-28"), [("2027-01-01".into(), Some("Neujahr"), vec![])]);
-        // After the lecture period: a single date and an exam sitting; a window on its first day;
-        // the open exam date nowhere.
+        // After the lecture period: a single date and an exam sitting, once for its two rooms; a
+        // window on its first day; the open exam date nowhere.
         assert_eq!(
             week_of(&t, "2027-02-08"),
             [
                 ("2027-02-10".into(), None, texts(&["20/5 10:00"])),
-                ("2027-02-11".into(), None, texts(&["Prüfung 90/1 11:00"])),
+                ("2027-02-11".into(), None, texts(&["Prüfung 90/1+2 11:00"])),
             ]
         );
         assert_eq!(week_of(&t, "2027-02-15"), [("2027-02-15".into(), None, texts(&["Prüfung 91/1 —"]))]);
     }
 
-    /// Rows of one slot gather, choices and patterns are marked, and what has no time or no date
-    /// stands apart.
+    /// Rows of one slot gather, choices and patterns are marked, what has no time or no date
+    /// stands apart, and a Termin in three rooms is one agenda item per date.
     #[test]
     fn slots_gather_rows_and_the_rest_stands_apart() {
+        // One Termin (one `RowKey`) in three rooms, the third until 12:00: the first two are
+        // cancelled on 21.10., the second alone on 14.10., and the second has a room note on
+        // 28.10.
+        let mut first_room = teaching("A", "31", 1, "Vorlesung", 3, "09:15", "10:45");
+        first_room.0.date.room = Some("Raum 1".into());
+        first_room.0.cancelled_dates = Some("21.10.2026: Krankheit".into());
         let mut second_room = teaching("A", "31", 2, "Vorlesung", 3, "09:15", "10:45");
         second_room.0.date.room = Some("Raum 2".into());
+        second_room.0.cancelled_dates =
+            Some("14.10.2026: Krankheit 21.10.2026: Krankheit 28.10.2026: Raumwechsel".into());
+        let mut third_room = teaching("A", "31", 3, "Vorlesung", 3, "09:15", "12:00");
+        third_room.0.date.room = Some("Raum 3".into());
+        assert!(first_room.key() == second_room.key() && second_room.key() == third_room.key());
         let mut pattern = teaching("B", "33", 1, "Seminar", 4, "11:30", "13:00").rhythm("other").undated();
         pattern.0.date.rhythm_raw = Some("vierwöch.".into());
         let mut untimed = single("B", "33", 2, "2026-10-05", "09:15", "10:45");
@@ -776,15 +939,17 @@ mod tests {
             teaching("A", "30", 1, "Übung", 1, "13:45", "15:15").group("1-Gruppe"),
             teaching("A", "30", 2, "Übung", 2, "13:45", "15:15").group("2-Gruppe"),
             single("A", "30", 3, "2026-10-15", "13:45", "15:15").group("1-Gruppe"),
-            // One slot in two rooms, and one in two ranges one after the other.
-            teaching("A", "31", 1, "Vorlesung", 3, "09:15", "10:45"),
+            // One slot in two rooms (the third room's end makes another), and one in two ranges
+            // one after the other.
+            first_room,
             second_room,
+            third_room,
             teaching("A", "32", 1, "Vorlesung", 5, "09:15", "10:45").range("2026-10-09", "2026-11-27"),
             teaching("A", "32", 2, "Vorlesung", 5, "09:15", "10:45").range("2026-12-04", "2027-01-29"),
             pattern,
             untimed,
             by_arrangement,
-            // Every date in the break: nothing to show.
+            // Every date in the break: no slot and no date, so it stands apart.
             teaching("B", "33", 4, "Seminar", 1, "11:30", "13:00").range("2026-12-21", "2026-12-28"),
             no_rows,
             teaching("B", "35", 1, "Tutorium", 5, "13:45", "15:15"),
@@ -802,6 +967,7 @@ mod tests {
                 ("30".into(), 1, 1, group.clone(), every(Every::Week), Some((2, 0)), false),
                 ("30".into(), 2, 2, group.clone(), every(Every::Week), Some((2, 1)), false),
                 ("31".into(), 1, 3, "09:15–10:45".into(), every(Every::Week), None, false),
+                ("31".into(), 3, 3, "09:15–12:00".into(), every(Every::Week), None, false),
                 (
                     "36".into(),
                     1,
@@ -816,10 +982,32 @@ mod tests {
                 ("32".into(), 1, 5, "09:15–10:45".into(), every(Every::Week), None, false),
             ]
         );
-        assert_eq!(loose(&t), [("33".into(), Some(2)), ("33".into(), Some(3)), ("34".into(), None)]);
+        assert_eq!(
+            loose(&t),
+            [("33".into(), Some(2)), ("33".into(), Some(3)), ("33".into(), Some(4)), ("34".into(), None)]
+        );
         // The untimed date is in the agenda too, before the timed ones of its day; the row in the
         // break has no date there.
         assert_eq!(week_of(&t, "2026-10-05")[0], ("2026-10-05".into(), None, texts(&["33/2 —", "30/1 13:45"])));
+        // The Termin in three rooms: one item a date, from the first start to the last end; the
+        // rooms held and those cancelled on one date apart, the cancelled ones together.
+        let wednesday = |monday: &str| week_of(&t, monday).into_iter().find(|day| d(&day.0).weekday() == 3);
+        assert_eq!(wednesday("2026-10-05"), Some(("2026-10-07".into(), None, texts(&["31/1+2+3 09:15"]))));
+        let lecture = t.events.iter().position(|e| e.id == "31").unwrap();
+        let agenda = t.agenda();
+        let first = &agenda[0].days.iter().find(|day| day.day == d("2026-10-07")).unwrap().items[0];
+        assert_eq!((first.event, first.row, first.rows.as_slice()), (Some(lecture), 0, [0, 1, 2].as_slice()));
+        assert_eq!((first.from, first.to), (Some(555), Some(720)));
+        let fourteenth = texts(&["31/2 09:15 fällt aus: Krankheit", "31/1+3 09:15", "36/1 15:30"]);
+        assert_eq!(wednesday("2026-10-12"), Some(("2026-10-14".into(), None, fourteenth)));
+        assert_eq!(
+            wednesday("2026-10-19"),
+            Some(("2026-10-21".into(), None, texts(&["31/1+2 09:15 fällt aus: Krankheit", "31/3 09:15"])))
+        );
+        assert_eq!(
+            wednesday("2026-10-26"),
+            Some(("2026-10-28".into(), None, texts(&["31/1+2+3 09:15 Raum: Raumwechsel"])))
+        );
         let seminar = t.events.iter().position(|e| e.id == "33").unwrap();
         let agenda = t.agenda();
         let items: Vec<&AgendaItem> = agenda.iter().flat_map(|w| &w.days).flat_map(|day| &day.items).collect();
@@ -927,5 +1115,26 @@ mod tests {
             options,
             [("148369".into(), 2, 1, "17:30–19:00".into(), WeekLabel::Every(Every::Week), None, false)]
         );
+
+        // One Termin in four rooms is one date a week (13262's 149674, Wednesdays at 09:15), and
+        // an exam in two halls one sitting (13102's 148703 and 11212's 148325 at 08:00).
+        let dates_of = |plan: &str, id: &str| -> Vec<(String, usize)> {
+            let t = planned(&db, "2026W", &ids(&[plan]), &Selection::default());
+            let mut dates = Vec::new();
+            for day in t.agenda().into_iter().flat_map(|w| w.days) {
+                for item in &day.items {
+                    let of = item.event.map(|e| &t.events[e].id).or(item.exam.map(|x| &t.exams[x].event_id));
+                    if of.is_some_and(|of| of == id) {
+                        dates.push((day.day.iso(), item.rows.len()));
+                    }
+                }
+            }
+            dates
+        };
+        let wednesdays = dates_of("13262", "149674");
+        assert_eq!(wednesdays.len(), 15);
+        assert!(wednesdays.iter().all(|(day, rows)| d(day).weekday() == 3 && *rows == 4));
+        assert_eq!(dates_of("13102", "148703"), [("2027-02-12".to_string(), 2)]);
+        assert_eq!(dates_of("11212", "148325"), [("2027-02-17".to_string(), 2)]);
     }
 }
