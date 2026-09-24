@@ -9,6 +9,7 @@
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;
+use std::io::Write;
 use std::path::PathBuf;
 
 use crate::db::{fetch, Database, DbError, FromRow, Row, Rows, Value};
@@ -84,7 +85,10 @@ pub(crate) fn studyplan_db(test: &str) -> Option<NativeDatabase> {
         return Some(db);
     }
     let d = digest.as_deref().unwrap_or("none");
-    eprintln!(
+    // Straight to the handle, not `eprintln!`: libtest swallows the macro's output of a test that
+    // passes, and a skip nobody sees is the silent green run this function exists to prevent.
+    let _ = writeln!(
+        std::io::stderr(),
         "studyplan: pinned checks of {test} skipped: snapshot digest {d}, pinned {STUDYPLAN_DIGEST}; \
          set FOLIA_STUDYPLAN_SNAPSHOT=…/snapshot/catalog-abca4baa1d8f8d8e.db"
     );
