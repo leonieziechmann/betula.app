@@ -977,7 +977,8 @@ pub struct PlanSource {
     /// The areas of the program's module tree (`catalog_areas`), for `plan::areas_for_row`.
     pub areas: Vec<CatalogArea>,
     /// The catalog's rows of every module a plan row names, whatever their offer status, by title
-    /// (the turnus decides the intake season, `studyplan::intake_season`).
+    /// (their turnus decides the intake season where the plan's caption does not name it,
+    /// `studyplan::intake_season`).
     pub linked: Vec<CatalogRow>,
 }
 

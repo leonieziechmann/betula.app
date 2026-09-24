@@ -996,11 +996,18 @@ fn stored_entry(p: &Placeholder) -> PlanEntry {
     }
 }
 
-/// Whether a plan is for a winter or a summer intake. No source says so; the modules do: those the
-/// plan puts into one odd Fachsemester (1, 3, 5 …, the semesters of the intake's season) are
-/// offered in that season. A season wins with at least twice as many modules as the other; else,
-/// or with none, `None`. `linked` are the catalog's rows of the plan's modules.
+/// Whether a plan is for a winter or a summer intake. Where its caption says so („Regelstudienplan
+/// (Beispiel: Studienbeginn im Sommersemester", „… Beispiel für Start im Wintersemester"), that is
+/// the answer: 18 plans of the snapshot of 2026-09-23 name it, and for 10 of them, 6 summer
+/// starts among them, the turnus of their modules cannot tell, so the import would suggest a winter
+/// start for a plan that says it begins in the summer. Otherwise the modules say it: those the plan
+/// puts into one odd Fachsemester (1, 3, 5 …, the semesters of the intake's season) are offered in
+/// that season. A season wins with at least twice as many modules as the other; else, or with
+/// none, `None`. `linked` are the catalog's rows of the plan's modules.
 pub fn intake_season(variant: &PlanVariant, linked: &[CatalogRow]) -> Option<Season> {
+    if let Some(season) = stated_intake(&variant.full) {
+        return Some(season);
+    }
     let mut counted: BTreeSet<&str> = BTreeSet::new();
     let (mut winter, mut summer) = (0usize, 0usize);
     for entry in &variant.entries {
@@ -1022,6 +1029,20 @@ pub fn intake_season(variant: &PlanVariant, linked: &[CatalogRow]) -> Option<Sea
         Some(Season::Summer)
     } else {
         None
+    }
+}
+
+/// The season a plan's caption names for the start of studies: it speaks of the start („beginn",
+/// „start") and names one season's semester, not both.
+fn stated_intake(caption: &str) -> Option<Season> {
+    let caption = caption.to_lowercase();
+    if !caption.contains("beginn") && !caption.contains("start") {
+        return None;
+    }
+    match (caption.contains("wintersemester"), caption.contains("sommersemester")) {
+        (true, false) => Some(Season::Winter),
+        (false, true) => Some(Season::Summer),
+        _ => None,
     }
 }
 
@@ -1689,6 +1710,17 @@ town	cottbus
         assert_eq!(season(vec![linked("A", 1), linked("C", 3), linked("F", 5)]), Some(Season::Summer));
         assert_eq!(season(vec![linked("A", 1), linked("B", 3), linked("C", 3), linked("F", 5)]), None);
         assert_eq!(season(vec![linked("E", 1), linked("D", 2)]), None);
+        // A caption that names the start is the answer, whatever the modules say or leave open.
+        let captioned = |caption: &str, entries: Vec<PlanEntry>| {
+            let entries: Vec<PlanEntry> =
+                entries.into_iter().map(|entry| PlanEntry { specialization: Some(caption.to_string()), ..entry }).collect();
+            intake_season(&plan_variants(&entries, &[]).remove(0), &rows)
+        };
+        assert_eq!(captioned("Regelstudienplans (Beispiel: Studienbeginn im Sommersemester", vec![linked("E", 1)]), Some(Season::Summer));
+        assert_eq!(captioned("Regelstudienplan – Beispiel für Start im Wintersemester", vec![linked("C", 1), linked("F", 3)]), Some(Season::Winter));
+        // Both seasons, or a season that is not the start: the modules decide.
+        assert_eq!(captioned("Studienbeginn im Wintersemester und im Sommersemester", vec![linked("C", 1), linked("F", 3)]), Some(Season::Summer));
+        assert_eq!(captioned("Praxisphase im Sommersemester", vec![linked("A", 1), linked("B", 3)]), Some(Season::Winter));
         let w = key("2026W");
         assert_eq!(intake_start(w, Some(Season::Winter)), w);
         assert_eq!(intake_start(w, Some(Season::Summer)), key("2026S"));
@@ -1840,6 +1872,30 @@ town	cottbus
         let ids: Vec<String> = plan.entries.iter().filter_map(|entry| entry.module_id.clone()).collect();
         let linked = pages::bookmarks(&db, &ids, BookmarkSort::Added, false).unwrap().rows;
         assert_eq!(intake_season(plan, &linked), Some(Season::Winter));
+
+        // The plans whose caption names the start: the caption is the answer, and no module
+        // majority says the other season. Without it, the modules leave 10 of the 18 open, 6
+        // summer starts among them (Elektrotechnik M.Sc. 2018's „Beispiel: Studienbeginn im
+        // Sommersemester"), and the import would suggest a winter start for those.
+        let mut stated: Vec<(Season, Option<Season>)> = Vec::new();
+        for program in queries::programs(&db).unwrap().into_iter().filter(|program| program.has_plan) {
+            for variant in plans(&program.id) {
+                let Some(season) = stated_intake(&variant.full) else {
+                    continue;
+                };
+                let ids: Vec<String> = variant.entries.iter().filter_map(|entry| entry.module_id.clone()).collect();
+                let linked = pages::bookmarks(&db, &ids, BookmarkSort::Added, false).unwrap().rows;
+                assert_eq!(intake_season(&variant, &linked), Some(season), "{} {}", program.id, variant.full);
+                let by_modules = intake_season(&PlanVariant { full: String::new(), ..variant.clone() }, &linked);
+                assert!(by_modules.is_none_or(|by| by == season), "{} {}: {by_modules:?}", program.id, variant.full);
+                stated.push((season, by_modules));
+            }
+        }
+        assert_eq!(stated.len(), 18);
+        assert_eq!(stated.iter().filter(|(_, by_modules)| by_modules.is_none()).count(), 10);
+        assert_eq!(stated.iter().filter(|(season, by)| by.is_none() && *season == Season::Summer).count(), 6);
+        let summer = plans("048-90-2018").into_iter().find(|v| v.full.ends_with("Studienbeginn im Sommersemester")).unwrap();
+        assert_eq!(intake_start(w, intake_season(&summer, &[])), key("2026S"));
 
         // Wirtschaftsingenieurwesen 2023: the core plan with „Seite 18", which fills core row 16.
         let wing = plans("370-82-2023");
