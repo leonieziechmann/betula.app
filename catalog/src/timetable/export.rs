@@ -11,7 +11,10 @@
 //! client has to get RRULE, EXDATE and a time zone right together. The UID stays when QIS changes
 //! a Termin's end or room, so a subscribed calendar updates the entry instead of adding a second.
 //! Rows that share a key (the same slot in two rooms, or once more with a later end) are one entry
-//! per date, from the earliest start to the latest end, in both rooms.
+//! per date, from the earliest start to the latest end, in both rooms. Such rows may differ in who
+//! teaches, in QIS's comment, in their last date and in what they drop, so an entry says what each
+//! row held on its date says, the range spans all of them, and a date one row drops is named as
+//! dropped only when no row of the key holds it.
 //!
 //! What a student may not attend is marked tentative: a date in a range QIS does not state, an
 //! option of a choice not made yet, an exam's second sitting and a retake. What is hidden, a row
@@ -28,7 +31,7 @@ use super::exams::{Exam, ExamRow, ExamShape};
 use super::ics::{self, Calendar, Entry, When};
 use super::kind::{EventKind, KindSet};
 use super::model::{Event, Row, Timetable};
-use super::occur::{Every, Occurrences, BREAK_NOTE};
+use super::occur::{Every, BREAK_NOTE};
 use super::rowkey::{fingerprint, RowKey};
 use super::select::{Selection, TownChoice};
 use super::semester::SemesterKey;
@@ -198,44 +201,101 @@ fn canonical(id: &str) -> Option<u32> {
     digits.then(|| id.parse().ok()).flatten()
 }
 
-/// The entries in the making, each UID once: an entry whose UID is taken widens the one there.
+/// Where a line stands in a description. An entry gathers the lines of every row of its UID, each
+/// once, and writes them in this order, so rows of one key that differ in who teaches or in what
+/// QIS notes all say it, and a single row reads as it always did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Part {
+    /// The modules, the group, the rhythm and the range: what the rows of a key share.
+    Head,
+    /// One name of who teaches; the names make one line, „Lehrende: Bleicher / Freymann".
+    Teacher,
+    /// QIS's comment on a row, and what is odd about an exam date.
+    Said,
+    /// That the range is the lecture period's.
+    Assumed,
+    /// That the row is one option of a choice not made yet.
+    Choice,
+    /// The dates of the key that no row of it holds.
+    Dropped,
+    /// A note of the entry's date.
+    Note,
+}
+
+/// A line of a description and where it stands.
+type Line = (Part, String);
+
+/// The entries in the making, each UID once: an entry whose UID is taken widens the one there, and
+/// its place and lines join those there.
 #[derive(Default)]
 struct Entries {
-    list: Vec<Entry>,
+    list: Vec<Gathered>,
     /// The index of each UID in `list`.
     at: BTreeMap<String, usize>,
-    /// The places of each entry, each once, in the order met.
-    places: Vec<Vec<String>>,
+}
+
+/// An entry and what its rows say of it, until `Entries::finish` writes its LOCATION and
+/// DESCRIPTION.
+struct Gathered {
+    entry: Entry,
+    /// The places of its rows, each once, in the order met.
+    places: Vec<String>,
+    /// The lines of its rows, each once, in the order met.
+    lines: Vec<Line>,
 }
 
 impl Entries {
-    fn add(&mut self, entry: Entry, place: Option<String>) {
+    fn add(&mut self, entry: Entry, place: Option<String>, lines: Vec<Line>) {
         let known = self.at.get(&entry.uid).copied();
-        let merged = known.and_then(|index| Some((self.list.get_mut(index)?, self.places.get_mut(index)?)));
-        match merged {
-            Some((there, places)) => {
-                there.when = widen(there.when, entry.when);
-                there.tentative |= entry.tentative;
-                if let Some(place) = place.filter(|place| !places.contains(place)) {
-                    places.push(place);
-                }
+        let there = match known.and_then(|index| self.list.get_mut(index)) {
+            Some(there) => {
+                there.entry.when = widen(there.entry.when, entry.when);
+                there.entry.tentative |= entry.tentative;
+                there
             }
             None => {
                 self.at.insert(entry.uid.clone(), self.list.len());
-                self.list.push(entry);
-                self.places.push(place.into_iter().collect());
+                self.list.push(Gathered { entry, places: Vec::new(), lines: Vec::new() });
+                let Some(there) = self.list.last_mut() else {
+                    return;
+                };
+                there
+            }
+        };
+        if let Some(place) = place.filter(|place| !there.places.contains(place)) {
+            there.places.push(place);
+        }
+        for line in lines {
+            if !there.lines.contains(&line) {
+                there.lines.push(line);
             }
         }
     }
 
-    /// The entries, each with its places as its LOCATION: „HS A / HS B".
+    /// The entries, each with its places as its LOCATION („HS A / HS B") and its lines as its
+    /// DESCRIPTION.
     fn finish(self) -> Vec<Entry> {
         self.list
             .into_iter()
-            .zip(self.places)
-            .map(|(entry, places)| Entry { location: (!places.is_empty()).then(|| places.join(" / ")), ..entry })
+            .map(|Gathered { entry, places, lines }| Entry {
+                location: (!places.is_empty()).then(|| places.join(" / ")),
+                description: Some(description(lines)),
+                ..entry
+            })
             .collect()
     }
+}
+
+/// The lines in the order of their parts, the names of who teaches as one line, and the source.
+fn description(mut lines: Vec<Line>) -> String {
+    // A stable sort: within a part, the order met.
+    lines.sort_by_key(|(part, _)| *part);
+    let teachers: Vec<&str> =
+        lines.iter().filter(|(part, _)| *part == Part::Teacher).map(|(_, name)| name.as_str()).collect();
+    let teachers = (!teachers.is_empty()).then(|| format!("Lehrende: {}", teachers.join(" / ")));
+    let before = lines.iter().filter(|(part, _)| *part < Part::Teacher).map(|(_, line)| line.clone());
+    let after = lines.iter().filter(|(part, _)| *part > Part::Teacher).map(|(_, line)| line.clone());
+    before.chain(teachers).chain(after).chain([SOURCE.to_string()]).collect::<Vec<_>>().join("\n")
 }
 
 /// Two dates of one UID as one: from the earlier start to the later end.
@@ -266,65 +326,87 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, titles: &BTreeM
     let summary = format!("{} · {}", event.title.trim(), kind_text(event));
     let categories: Vec<String> = event.kinds.iter().map(|kind| kind.label().to_string()).collect();
     let open = event.unresolved();
-    for row in event.rows.iter().filter(|row| row.hidden.is_none()) {
-        let times = row.from.zip(row.to);
-        if times.is_none() && !row.occ.all_day {
-            continue;
-        }
-        let option = open && row.option.is_some();
-        let lines = row_lines(t, event, row, option, titles);
+    let placed = |row: &&Row| row.hidden.is_none() && (row.from.zip(row.to).is_some() || row.occ.all_day);
+    // The rows of each key, in the order met: they are one entry per date, so what that entry
+    // says of the whole Termin, its range and the dates it drops, is said of all of them.
+    let mut keys: Vec<(String, Vec<&Row>)> = Vec::new();
+    for row in event.rows.iter().filter(placed) {
         let key = key_text(&event.id, row.key, &row.date);
-        let place = place(&row.date);
-        for day in &row.occ.days {
-            let when = match times {
-                Some((from, to)) => When::Timed { day: *day, from, to },
-                None => When::AllDay { first: *day, last: *day },
-            };
-            let notes =
-                row.occ.notes.iter().filter(|(on, _)| on == day).map(|(_, note)| format!("Hinweis: {}", note.trim()));
-            let description: Vec<String> = lines.iter().cloned().chain(notes).chain([SOURCE.to_string()]).collect();
-            let entry = Entry {
-                uid: uid(&key, *day),
-                when,
-                summary: summary.clone(),
-                location: None,
-                description: Some(description.join("\n")),
-                url: event.source_url.clone(),
-                categories: categories.clone(),
-                tentative: row.occ.assumed || option,
-                transparent: times.is_none(),
-            };
-            entries.add(entry, place.clone());
+        match keys.iter_mut().find(|(seen, _)| *seen == key) {
+            Some((_, rows)) => rows.push(row),
+            None => keys.push((key, vec![row])),
+        }
+    }
+    for (key, rows) in &keys {
+        let termin = termin_lines(event, rows, titles);
+        for row in rows {
+            let times = row.from.zip(row.to);
+            let option = open && row.option.is_some();
+            let lines: Vec<Line> = termin.iter().cloned().chain(row_lines(t, event, row, option)).collect();
+            let place = place(&row.date);
+            for day in &row.occ.days {
+                let when = match times {
+                    Some((from, to)) => When::Timed { day: *day, from, to },
+                    None => When::AllDay { first: *day, last: *day },
+                };
+                let notes = row
+                    .occ
+                    .notes
+                    .iter()
+                    .filter(|(on, _)| on == day)
+                    .map(|(_, note)| (Part::Note, format!("Hinweis: {}", note.trim())));
+                let entry = Entry {
+                    uid: uid(key, *day),
+                    when,
+                    summary: summary.clone(),
+                    location: None,
+                    description: None,
+                    url: event.source_url.clone(),
+                    categories: categories.clone(),
+                    tentative: row.occ.assumed || option,
+                    transparent: times.is_none(),
+                };
+                entries.add(entry, place.clone(), lines.iter().cloned().chain(notes).collect());
+            }
         }
     }
 }
 
-/// The description of a teaching row, without the notes of a date and the source: its modules,
-/// its group, rhythm and range, who teaches, QIS's comment, an assumed range, an open choice and
-/// the dates that do not take place.
-fn row_lines(t: &Timetable, event: &Event, row: &Row, option: bool, titles: &BTreeMap<String, String>) -> Vec<String> {
+/// What the entries of one Termin say of it, whichever of its rows holds a date: its modules, its
+/// group, its rhythm and the range its rows span, and the dates none of them holds.
+fn termin_lines(event: &Event, rows: &[&Row], titles: &BTreeMap<String, String>) -> Vec<Line> {
+    let group = rows
+        .first()
+        .and_then(|row| text(&row.date.group_name))
+        .filter(|group| *group != UNNAMED_GROUP)
+        .map(|group| format!("Gruppe: {group}"));
+    let head = module_lines(&event.modules, titles).into_iter().chain(group).chain(rhythm_line(rows));
+    head.map(|line| (Part::Head, line)).chain(dropped(rows).map(|line| (Part::Dropped, line))).collect()
+}
+
+/// What a teaching row says of itself on each of its dates: who teaches, QIS's comment, an
+/// assumed range and an open choice.
+fn row_lines(t: &Timetable, event: &Event, row: &Row, option: bool) -> Vec<Line> {
     let date = &row.date;
-    let mut lines = module_lines(&event.modules, titles);
-    lines
-        .extend(text(&date.group_name).filter(|group| *group != UNNAMED_GROUP).map(|group| format!("Gruppe: {group}")));
-    lines.extend(rhythm_line(date, row.occ.assumed));
-    lines.extend(text(&date.instructor).map(|name| format!("Lehrende: {name}")));
-    lines.extend(text(&date.comment).map(str::to_string));
+    let mut lines: Vec<Line> = Vec::new();
+    lines.extend(text(&date.instructor).map(|name| (Part::Teacher, name.to_string())));
+    lines.extend(text(&date.comment).map(|comment| (Part::Said, comment.to_string())));
     if let Some((first, last)) = t.facts.lecture.filter(|_| row.occ.assumed) {
-        lines.push(format!(
+        let line = format!(
             "Zeitraum in QIS nicht angegeben; angenommen: Vorlesungszeit {}–{}",
             first.german(),
             last.german()
-        ));
+        );
+        lines.push((Part::Assumed, line));
     }
     if option {
-        lines.push(format!(
+        let line = format!(
             "Eine von {} {}; in Betula wählen",
             event.visible_options().len(),
             groups_word(event.kinds)
-        ));
+        );
+        lines.push((Part::Choice, line));
     }
-    lines.extend(dropped(&row.occ));
     lines
 }
 
@@ -367,9 +449,12 @@ fn groups_word(kinds: KindSet) -> &'static str {
     }
 }
 
-/// The rhythm and the stated range: „wöchentlich 13.10.2026–26.01.2027". An assumed range is not
-/// stated (a line of its own says so), and a single date is the entry's own.
-fn rhythm_line(date: &EventDate, assumed: bool) -> Option<String> {
+/// The rhythm and the range the rows of a Termin state, from the first of their first dates to
+/// the last of their last: „wöchentlich 13.10.2026–26.01.2027". An assumed range is not stated (a
+/// line of its own says so), and a single date is the entry's own. The rows share their rhythm
+/// (the key holds it), so the first one names it.
+fn rhythm_line(rows: &[&Row]) -> Option<String> {
+    let date = &rows.first()?.date;
     let rhythm = date.rhythm.as_ref().and_then(Code::known);
     let name = match Every::of(date) {
         Some(Every::Week) => Some("wöchentlich".to_string()),
@@ -382,10 +467,18 @@ fn rhythm_line(date: &EventDate, assumed: bool) -> Option<String> {
             _ => text(&date.rhythm_raw).map(str::to_string),
         },
     };
-    let stated = date.first_date.as_deref().and_then(Day::parse).zip(date.last_date.as_deref().and_then(Day::parse));
+    let stated = rows
+        .iter()
+        .filter(|row| !row.occ.assumed)
+        .filter_map(|row| {
+            let first = row.date.first_date.as_deref().and_then(Day::parse)?;
+            let last = row.date.last_date.as_deref().and_then(Day::parse)?;
+            Some((first.min(last), first.max(last)))
+        })
+        .reduce(|(first, last), (other_first, other_last)| (first.min(other_first), last.max(other_last)));
     let range = stated
-        .filter(|(first, last)| !assumed && rhythm != Some(Rhythm::Single) && first != last)
-        .map(|(first, last)| format!("{}–{}", first.min(last).german(), first.max(last).german()));
+        .filter(|(first, last)| rhythm != Some(Rhythm::Single) && first != last)
+        .map(|(first, last)| format!("{}–{}", first.german(), last.german()));
     match (name, range) {
         (Some(name), Some(range)) => Some(format!("{name} {range}")),
         (name, range) => name.or(range),
@@ -393,16 +486,28 @@ fn rhythm_line(date: &EventDate, assumed: bool) -> Option<String> {
 }
 
 /// „Entfällt: 22.12., 29.12. (vorlesungsfrei); 31.10. (Reformationstag); 05.11. (laut QIS)": the
-/// break first, then the holidays, then what QIS cancels, each reason once with its dates.
-fn dropped(occ: &Occurrences) -> Option<String> {
-    let mut groups: Vec<(String, Vec<Day>)> = Vec::new();
-    let breaks = occ.skipped.iter().filter(|(_, why)| *why == BREAK_NOTE);
-    let holidays = occ.skipped.iter().filter(|(_, why)| *why != BREAK_NOTE);
-    for (day, why) in breaks.chain(holidays) {
-        group(&mut groups, why, *day);
+/// dates the rows of a Termin drop, the break first, then the holidays, then what QIS cancels, each
+/// reason once with its dates. A date another row of the Termin holds is not dropped: the calendar
+/// has an entry on it, in that row's room and times. A date two rows drop is named once, for the
+/// first reason met.
+fn dropped(rows: &[&Row]) -> Option<String> {
+    let skipped = || rows.iter().flat_map(|row| row.occ.skipped.iter().map(|(day, why)| (*day, *why)));
+    let mut breaks: Vec<(Day, &str)> = skipped().filter(|(_, why)| *why == BREAK_NOTE).collect();
+    let mut holidays: Vec<(Day, &str)> = skipped().filter(|(_, why)| *why != BREAK_NOTE).collect();
+    let mut cancelled: Vec<(Day, &str)> = rows
+        .iter()
+        .flat_map(|row| row.occ.cancelled.iter().map(|(day, note, _)| (*day, text(note).unwrap_or("laut QIS"))))
+        .collect();
+    // Each list by day, as one row's lists are; a stable sort keeps the first row's reason first.
+    for list in [&mut breaks, &mut holidays, &mut cancelled] {
+        list.sort_by_key(|(day, _)| *day);
     }
-    for (day, note, _) in &occ.cancelled {
-        group(&mut groups, text(note).unwrap_or("laut QIS"), *day);
+    let mut named: BTreeSet<Day> = rows.iter().flat_map(|row| row.occ.days.iter().copied()).collect();
+    let mut groups: Vec<(&str, Vec<Day>)> = Vec::new();
+    for (day, why) in breaks.into_iter().chain(holidays).chain(cancelled) {
+        if named.insert(day) {
+            group(&mut groups, why, day);
+        }
     }
     if groups.is_empty() {
         return None;
@@ -415,17 +520,17 @@ fn dropped(occ: &Occurrences) -> Option<String> {
 }
 
 /// Adds a day to the group of its reason, a new group at the end for a new reason.
-fn group(groups: &mut Vec<(String, Vec<Day>)>, why: &str, day: Day) {
-    match groups.iter_mut().find(|(seen, _)| seen == why) {
+fn group<'a>(groups: &mut Vec<(&'a str, Vec<Day>)>, why: &'a str, day: Day) {
+    match groups.iter_mut().find(|(seen, _)| *seen == why) {
         Some((_, days)) => days.push(day),
-        None => groups.push((why.to_string(), vec![day])),
+        None => groups.push((why, vec![day])),
     }
 }
 
 /// The entries of a visible exam: one per visible row that names a day. A sitting has its times;
 /// a window, a deadline and a day without a time are whole days. An open date is left out.
 fn exam_dates(entries: &mut Entries, exam: &Exam, titles: &BTreeMap<String, String>) {
-    let modules = module_lines(&exam.modules, titles);
+    let modules: Vec<Line> = module_lines(&exam.modules, titles).into_iter().map(|line| (Part::Head, line)).collect();
     for row in exam.rows.iter().filter(|row| row.hidden.is_none()) {
         let (when, what) = match row.shape {
             ExamShape::Sitting { day, from, to } => (When::Timed { day, from, to }, "Prüfung"),
@@ -435,25 +540,20 @@ fn exam_dates(entries: &mut Entries, exam: &Exam, titles: &BTreeMap<String, Stri
             ExamShape::Open => continue,
         };
         let second = if row.rank == 2 { " · 2. Termin" } else { "" };
-        let description: Vec<String> = modules
-            .iter()
-            .cloned()
-            .chain(odd(row))
-            .chain(text(&row.date.comment).map(str::to_string))
-            .chain([SOURCE.to_string()])
-            .collect();
+        let said = odd(row).into_iter().chain(text(&row.date.comment).map(str::to_string));
+        let lines: Vec<Line> = modules.iter().cloned().chain(said.map(|line| (Part::Said, line))).collect();
         let entry = Entry {
             uid: uid(&key_text(&exam.event_id, row.key, &row.date), start(&when).0),
             when,
             summary: format!("{} · {what}{second}", exam.title.trim()),
             location: None,
-            description: Some(description.join("\n")),
+            description: None,
             url: exam.source_url.clone(),
             categories: vec![EventKind::Exam.label().to_string()],
             tentative: row.rank == 2 || exam.retake,
             transparent: matches!(when, When::AllDay { .. }),
         };
-        entries.add(entry, place(&row.date));
+        entries.add(entry, place(&row.date), lines);
     }
 }
 
@@ -1081,6 +1181,55 @@ mod tests {
         assert!(!same_subscription(&later.code().unwrap(), &current, &t));
         assert!(!same_subscription("", &current, &t));
         assert!(!same_subscription("x", &current, &t));
+    }
+
+    /// Two rows of one Termin as QIS has them for 149467 and 148732: other teachers, rooms, ends
+    /// and last dates, the first cancelled on a date the second holds, the second on a date
+    /// neither holds, and a room note on a date both hold.
+    #[test]
+    fn rows_of_one_key_say_what_each_says() {
+        let short = teaching(A, "90", 1, "Praktikum", 3, "10:00", "11:30").range("2026-10-07", "2027-01-06");
+        let mut short = room(short, "HS 105");
+        short.0.date.instructor = Some("Bleicher".into());
+        short.0.date.comment = Some("Einweisung".into());
+        short.0.cancelled_dates = Some("16.12.2026: MHB".into());
+        let long = teaching(A, "90", 2, "Praktikum", 3, "10:00", "16:00").range("2026-10-07", "2027-01-27");
+        let mut long = room(long, "Labor 213");
+        long.0.date.instructor = Some("Freymann".into());
+        long.0.cancelled_dates = Some("20.01.2027: Exkursion 21.10.2026: Raumwechsel HS 3".into());
+        assert_eq!(short.key(), long.key());
+        let c = calendar(&build(&[short.clone(), long], &[], &[A], &[], &Selection::default()));
+
+        // 17 Wednesdays but the two in the break and the one neither row holds.
+        assert_eq!(of_event(&c, "90").len(), 14);
+        for gone in ["2026-12-23", "2026-12-30", "2027-01-20"] {
+            assert!(c.entries.iter().all(|entry| entry.uid != uid_of(&short, gone)), "{gone}");
+        }
+        let dropped = "Entfällt: 23.12., 30.12. (vorlesungsfrei); 20.01. (Exkursion)";
+        let both = entry(&c, &uid_of(&short, "2026-10-07"));
+        assert_eq!(both.when, When::Timed { day: d("2026-10-07"), from: 600, to: 960 });
+        assert_eq!(both.location.as_deref(), Some("HS 105 / Labor 213"));
+        let both_lines = format!(
+            "Modul 11111 Softwaretechnik\nwöchentlich 07.10.2026–27.01.2027\nLehrende: Bleicher / Freymann\n\
+             Einweisung\n{dropped}"
+        );
+        assert_eq!(both.description.as_deref(), Some(format!("{both_lines}\nQuelle: QIS").as_str()));
+        let noted = entry(&c, &uid_of(&short, "2026-10-21"));
+        assert_eq!(
+            noted.description.as_deref(),
+            Some(format!("{both_lines}\nHinweis: Raumwechsel HS 3\nQuelle: QIS").as_str())
+        );
+
+        // A date only the second row holds: its room, its end, its teacher; the series as above.
+        let alone = format!(
+            "Modul 11111 Softwaretechnik\nwöchentlich 07.10.2026–27.01.2027\nLehrende: Freymann\n{dropped}\nQuelle: QIS"
+        );
+        for day in ["2026-12-16", "2027-01-13"] {
+            let only = entry(&c, &uid_of(&short, day));
+            assert_eq!(only.when, When::Timed { day: d(day), from: 600, to: 960 }, "{day}");
+            assert_eq!(only.location.as_deref(), Some("Labor 213"), "{day}");
+            assert_eq!(only.description.as_deref(), Some(alone.as_str()), "{day}");
+        }
     }
 
     /// Informatik B.Sc., FS1 in WiSe 2026/27, with the pinned subscription's selection: the
