@@ -1,9 +1,12 @@
 //! The sidebar of the Stundenplan, „Anpassen" (owner's redesign of 2026-09-25), top to bottom:
 //! „Studiengang" (the timetable's program, „Mein Studiengang" by default, and the way to its page),
-//! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then beside a planned
-//! timetable its view, what is shown, the Standort, what is hidden and its calendar, and last
-//! „Plan": save the timetable under a name, load or delete a saved one, empty it. The storage hint
-//! under it is `mod.rs`'s, the same on the server.
+//! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then its view, what is
+//! shown, the Standort and its calendar, and last „Plan": save the timetable under a name, load or
+//! delete a saved one, empty it. The storage hint under it is `mod.rs`'s, the same on the server.
+//!
+//! The groups stay where they are, whatever is planned (owner, 2026-09-25: „Da sollte sich das
+//! Layout nicht viel shiften"): with nothing to show or to do a group says so or greys its control
+//! out, and what is hidden is listed in the plan's quiet line, not here (`head::Overlaps`).
 //!
 //! Every group is the app's alone (the server's sidebar is the storage hint). What is shown of the
 //! timetable changes at once, in the click (the timetable is worked out again in Rust, no query,
@@ -11,16 +14,11 @@
 //! answered (`Studyplan::update_after_paint`). Each control reads a memo of its own (R5), and no
 //! closure reads a memo together with the one it is derived from (R16).
 
-use std::collections::{BTreeMap, BTreeSet};
-
-use catalog::labels::Rhythm;
 use catalog::queries;
 use catalog::rows::Program;
 use catalog::studyplan::{PlanDoc, MAX_SAVED_NAME};
-use catalog::timetable::day::{clock, Day};
 use catalog::timetable::kind::{EventKind, KindSet};
-use catalog::timetable::model::{Row, Timetable};
-use catalog::timetable::rowkey::RowKey;
+use catalog::timetable::model::Timetable;
 use catalog::timetable::select::{Town, TownChoice};
 use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, PlanView, ProgramTab, StudyplanUrl};
@@ -28,7 +26,6 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
 use super::export::CalendarGroup;
-use super::head::{kind_word, weekday_name};
 use super::import::ImportGroup;
 use super::{key_of, PlanCtx};
 use crate::combobox::{ComboItem, Combobox};
@@ -54,22 +51,16 @@ const LOAD_ID: &str = "sp-load-yes";
 
 #[component]
 pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
-    let empty = Memo::new(move |_| ctx.plan.is_none_or(Studyplan::is_empty));
     let programs = Programs::new(ctx);
     // The Fachsemester last taken over in this visit, for the name „Plan speichern" suggests.
     let imported = RwSignal::new(None::<u8>);
     view! {
         <ProgramGroup ctx programs/>
         <ImportGroup ctx program=programs.shown imported/>
-        {move || {
-            (!empty.get()).then(|| view! {
-                <ViewGroup ctx/>
-                <KindsGroup ctx/>
-                <TownGroup ctx/>
-                <HiddenGroup ctx/>
-                <CalendarGroup ctx/>
-            })
-        }}
+        <ViewGroup ctx/>
+        <KindsGroup ctx/>
+        <TownGroup ctx/>
+        <CalendarGroup ctx/>
         <PlanGroup ctx program=programs.shown imported/>
     }
 }
@@ -213,18 +204,19 @@ fn combined_hint(table: &Timetable) -> Option<String> {
 }
 
 /// „Zeigen": a chip per kind of the semester with its number of events; a click hides or shows
-/// the kind (an event goes only when all its kinds are hidden).
+/// the kind (an event goes only when all its kinds are hidden). Without any Termin a line says so.
 #[component]
 fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
     let kinds = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(Timetable::kinds_present).unwrap_or_default()));
     let hidden = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.hidden_kinds));
     let combined = Memo::new(move |_| ctx.table.with(|table| table.as_ref().and_then(combined_hint)));
     let any = Memo::new(move |_| kinds.with(|kinds| !kinds.is_empty()));
-    move || {
-        any.get().then(|| {
-            view! {
-                <div class="fgroup">
-                    <p class="flabel label">"Zeigen"</p>
+    view! {
+        <div class="fgroup">
+            <p class="flabel label">"Zeigen"</p>
+            {move || match any.get() {
+                false => view! { <p class="hint sp-none">"Keine Termine im Plan."</p> }.into_any(),
+                true => view! {
                     <div class="chips">
                         <For
                             each=move || kinds.get()
@@ -254,9 +246,10 @@ fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
                         />
                     </div>
                     {move || combined.get().map(|text| view! { <p class="hint">{text}</p> })}
-                </div>
-            }
-        })
+                }
+                .into_any(),
+            }}
+        </div>
     }
 }
 
@@ -264,13 +257,12 @@ fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
 
 /// „Standort", for modules taught in both towns: Cottbus · Senftenberg · Beide. With nothing
 /// stored the derived town is checked (the line „Abgeleitet: …" says so); a click stores the
-/// choice in „Mein Studiengang".
+/// choice in „Mein Studiengang". It stays where it is while no planned module is taught in both
+/// towns (the choice then waits for one).
 #[component]
 fn TownGroup(ctx: PlanCtx) -> impl IntoView {
-    let tracks = Memo::new(move |_| ctx.table.with(|table| table.as_ref().is_some_and(|table| !table.tracks.is_empty())));
     let derived = Memo::new(move |_| ctx.table.with(|table| table.as_ref().filter(|table| table.town_derived).and_then(|table| table.town)));
     let choice = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.town));
-    let shown = Memo::new(move |_| tracks.get() || choice.get() != TownChoice::Derive);
     let checked = Memo::new(move |_| match choice.get() {
         TownChoice::Derive => derived.get().map(TownChoice::Only),
         stored => Some(stored),
@@ -292,143 +284,19 @@ fn TownGroup(ctx: PlanCtx) -> impl IntoView {
             </button>
         }
     };
-    move || {
-        shown.get().then(|| {
-            view! {
-                <div class="fgroup">
-                    <p class="flabel label">"Standort"</p>
-                    <div class="seg" role="radiogroup" aria-label="Standort">
-                        {button("Cottbus", TownChoice::Only(Town::Cottbus))}
-                        {button("Senftenberg", TownChoice::Only(Town::Senftenberg))}
-                        {button("Beide", TownChoice::Both)}
-                    </div>
-                </div>
-            }
-        })
+    view! {
+        <div class="fgroup">
+            <p class="flabel label">"Standort"</p>
+            <div class="seg" role="radiogroup" aria-label="Standort">
+                {button("Cottbus", TownChoice::Only(Town::Cottbus))}
+                {button("Senftenberg", TownChoice::Only(Town::Senftenberg))}
+                {button("Beide", TownChoice::Both)}
+            </div>
+        </div>
     }
 }
 
-// ---------- 5. Ausgeblendet ----------
-
-/// What „Einblenden" takes back.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum Unhide {
-    Event(u32),
-    Row(RowKey),
-    Choice(u32),
-}
-
-/// One line of „Ausgeblendet": „Tutorium Mathematik IT-1 · Di 15:30".
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct HiddenLine {
-    text: String,
-    unhide: Unhide,
-}
-
-/// When a Termin meets, in a word: „Di 15:30"; a single date with its day („Di 23.02. 11:45").
-fn row_when(row: &Row) -> String {
-    let weekday = row.date.weekday.and_then(|day| u8::try_from(day).ok()).filter(|day| (1..=7).contains(day));
-    let single = row.date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Single));
-    let date = row.date.first_date.as_deref().and_then(Day::parse).map(Day::short).filter(|_| single || weekday.is_none());
-    let parts: Vec<String> = [weekday.map(|day| weekday_name(day).to_string()), date, row.from.map(clock)].into_iter().flatten().collect();
-    parts.join(" ")
-}
-
-/// The lines of „Ausgeblendet" (A.3): each hidden event, each hidden Termin and each made choice
-/// of the semester's timetable, exams included, in the timetable's order. `events` and `rows` are
-/// what the semester hides; a choice is the timetable's own (`Event::chosen`). Titles are the
-/// modules' (`titles`).
-fn hidden_lines(table: &Timetable, events: &BTreeSet<u32>, rows: &BTreeSet<RowKey>, titles: &BTreeMap<String, String>) -> Vec<HiddenLine> {
-    let title = |modules: &[String], fallback: &str| modules.first().and_then(|module| titles.get(module)).cloned().unwrap_or_else(|| fallback.to_string());
-    let mut lines = Vec::new();
-    let mut seen = BTreeSet::new();
-    for event in &table.events {
-        let name = format!("{} {}", kind_word(event), title(&event.modules, &event.title));
-        let id = event.id.parse::<u32>().ok();
-        if let Some(id) = id.filter(|id| events.contains(id)) {
-            lines.push(HiddenLine { text: name.clone(), unhide: Unhide::Event(id) });
-        }
-        for row in &event.rows {
-            if let Some(key) = row.key.filter(|key| rows.contains(key) && seen.insert(*key)) {
-                lines.push(HiddenLine { text: format!("{name} · {}", row_when(row)), unhide: Unhide::Row(key) });
-            }
-        }
-        if let (Some(option), Some(id)) = (event.chosen, id) {
-            let when = event.rows.iter().find(|row| row.option == Some(option)).map(row_when).unwrap_or_default();
-            lines.push(HiddenLine { text: format!("{name} · nur {when}"), unhide: Unhide::Choice(id) });
-        }
-    }
-    for exam in &table.exams {
-        let name = format!("Prüfung {}", title(&exam.modules, &exam.title));
-        if let Some(id) = exam.event_id.parse::<u32>().ok().filter(|id| events.contains(id)) {
-            lines.push(HiddenLine { text: name.clone(), unhide: Unhide::Event(id) });
-        }
-        for row in &exam.rows {
-            if let Some(key) = row.key.filter(|key| rows.contains(key) && seen.insert(*key)) {
-                let day = row.date.first_date.as_deref().and_then(Day::parse).map(Day::short).unwrap_or_default();
-                lines.push(HiddenLine { text: format!("{name} · {day}"), unhide: Unhide::Row(key) });
-            }
-        }
-    }
-    lines
-}
-
-/// „Ausgeblendet (n)", while anything is: a line each with „Einblenden", and „Alle einblenden"
-/// (events, Termine and choices of the semester; hidden kinds keep their chips).
-#[component]
-fn HiddenGroup(ctx: PlanCtx) -> impl IntoView {
-    let hides = Memo::new(move |_| ctx.selection.with(|(_, selection)| (selection.hidden_events.clone(), selection.hidden_rows.clone())));
-    let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(|data| data.titles()).unwrap_or_default()));
-    let lines = Memo::new(move |_| {
-        hides.with(|(events, rows)| {
-            titles.with(|titles| ctx.table.with(|table| table.as_ref().map(|table| hidden_lines(table, events, rows, titles)).unwrap_or_default()))
-        })
-    });
-    let any = Memo::new(move |_| lines.with(|lines| !lines.is_empty()));
-    let unhide = move |what: Unhide| {
-        let key = ctx.key.get_untracked();
-        if let Some(plan) = ctx.plan {
-            plan.update(|doc| match what {
-                Unhide::Event(id) => doc.set_event(key, id, false),
-                Unhide::Row(row) => doc.set_row(key, row, false),
-                Unhide::Choice(id) => doc.choose(key, id, None),
-            });
-        }
-    };
-    let show_all = move |_| {
-        let key = ctx.key.get_untracked();
-        if let Some(plan) = ctx.plan {
-            plan.update(|doc| doc.show_all(key));
-        }
-    };
-    move || {
-        any.get().then(|| {
-            view! {
-                <details class="fgroup sp-hidden" open=true>
-                    <summary class="label">"Ausgeblendet ("{move || lines.with(Vec::len)}")"</summary>
-                    <For
-                        each=move || lines.get()
-                        key=|line| line.clone()
-                        children=move |line: HiddenLine| {
-                            let what = line.unhide;
-                            // The line's text across the sidebar, its button under it (`.ask`), the
-                            // same for a short line as for a long one.
-                            view! {
-                                <p class="action note-action ask">
-                                    <span>{line.text}</span>
-                                    <button class="mini hit" type="button" on:click=move |_| unhide(what)>"Einblenden"</button>
-                                </p>
-                            }
-                        }
-                    />
-                    <p class="action note-action"><button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button></p>
-                </details>
-            }
-        })
-    }
-}
-
-// ---------- 6. Plan ----------
+// ---------- 5. Plan ----------
 
 /// The name „Plan speichern" suggests: the saved plan the timetable holds (saving again replaces
 /// it), else the program with the Fachsemester last taken over („Informatik 1. FS") or the
@@ -568,114 +436,115 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
         request_animation_frame(|| nav::focus_by_id(CLEAR_ID));
     };
 
-    // The group stays while its note does, so emptying the plan under it keeps the focus on
-    // „Rückgängig"; saved plans keep it for an empty timetable.
-    let shown = Memo::new(move |_| !empty.get() || cleared.get() || entries.with(|entries| !entries.is_empty()));
-    move || {
-        shown.get().then(|| {
-            view! {
-                <div class="fgroup actions">
-                    <p class="flabel label">"Plan"</p>
-                    {move || match (any.get(), naming.get()) {
-                        (false, _) => ().into_any(),
-                        (true, false) => view! {
-                            <button class="action" type="button" id=SAVE_ID on:click=start_saving><Icon name="bookmark"/><span>"Plan speichern"</span></button>
-                        }
-                        .into_any(),
-                        (true, true) => view! {
-                            <form class="sp-save" on:submit=save>
-                                <input
-                                    id=NAME_ID
-                                    type="text"
-                                    maxlength=MAX_SAVED_NAME.to_string()
-                                    aria-label="Name des Plans"
-                                    autocomplete="off"
-                                    prop:value=move || name.get()
-                                    on:input=move |ev| name.set(event_target_value(&ev))
-                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                        if ev.key() == "Escape" {
-                                            stop_saving();
-                                        }
-                                    }
-                                />
-                                <button class="mini hit" type="submit">{move || if taken.get() { "Ersetzen" } else { "Speichern" }}</button>
-                                <button class="mini hit" type="button" on:click=move |_| stop_saving()>"Abbrechen"</button>
-                            </form>
-                        }
-                        .into_any(),
-                    }}
-                    <For
-                        each=move || entries.get()
-                        key=|entry| entry.clone()
-                        children=move |(which, count): (String, usize)| {
-                            let here = {
-                                let which = which.clone();
-                                Memo::new(move |_| mark.with(|mark| mark.as_deref() == Some(which.as_str())))
-                            };
-                            let asked = {
-                                let which = which.clone();
-                                Memo::new(move |_| asking.with(|asking| asking.as_deref() == Some(which.as_str())))
-                            };
-                            let (one, two, three) = (which.clone(), which.clone(), which.clone());
-                            view! {
-                                <div class="sp-saved">
-                                    <button class="action" type="button" aria-current=move || here.get().then_some("true") on:click=move |_| load(one.clone())>
-                                        <span>{which.clone()}</span>
-                                        <small class="num">{format::modules(i64::try_from(count).unwrap_or(i64::MAX))}</small>
-                                    </button>
-                                    <button class="icon-btn" type="button" aria-label=format!("„{which}“ löschen") title="Löschen" on:click=move |_| delete(two.clone())>
-                                        <Icon name="x"/>
-                                    </button>
-                                </div>
-                                {move || {
-                                    let three = three.clone();
-                                    asked.get().then(|| view! {
-                                        <p class="action note-action ask">
-                                            <span>"Aktuellen Plan ersetzen?"</span>
-                                            <button class="mini danger hit" type="button" id=LOAD_ID on:click=move |_| load_now(three.clone())>"Ersetzen"</button>
-                                            <button class="mini hit" type="button" on:click=move |_| asking.set(None)>"Abbrechen"</button>
-                                        </p>
-                                    })
-                                }}
+    // The group stays whatever is planned (owner, 2026-09-25: the sidebar holds still): with
+    // nothing to save or to empty, its actions are greyed out.
+    view! {
+        <div class="fgroup actions">
+            <p class="flabel label">"Plan"</p>
+            {move || match (any.get(), naming.get()) {
+                (false, _) => view! {
+                    <button class="action" type="button" aria-disabled="true" title="Nichts zu speichern"><Icon name="bookmark"/><span>"Plan speichern"</span></button>
+                }
+                .into_any(),
+                (true, false) => view! {
+                    <button class="action" type="button" id=SAVE_ID on:click=start_saving><Icon name="bookmark"/><span>"Plan speichern"</span></button>
+                }
+                .into_any(),
+                (true, true) => view! {
+                    <form class="sp-save" on:submit=save>
+                        <input
+                            id=NAME_ID
+                            type="text"
+                            maxlength=MAX_SAVED_NAME.to_string()
+                            aria-label="Name des Plans"
+                            autocomplete="off"
+                            prop:value=move || name.get()
+                            on:input=move |ev| name.set(event_target_value(&ev))
+                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                if ev.key() == "Escape" {
+                                    stop_saving();
+                                }
                             }
-                        }
-                    />
-                    {move || match (cleared.get(), confirming.get(), empty.get()) {
-                        (true, _, _) => view! {
-                            <p class="action note-action">
-                                <Icon name="check"/>
-                                <span>{CLEARED}</span>
-                                <button class="mini hit" type="button" id="sp-clear-undo" aria-busy=move || restoring.get().then_some("true") on:click=undo>"Rückgängig"</button>
-                            </p>
-                        }
-                        .into_any(),
-                        (false, true, _) => view! {
-                            <p class="action note-action ask">
-                                <span>"Wirklich leeren?"</span>
-                                <button class="mini danger hit" type="button" id="sp-clear-yes" on:click=clear>"Leeren"</button>
-                                <button class="mini hit" type="button" on:click=cancel>"Abbrechen"</button>
-                            </p>
-                        }
-                        .into_any(),
-                        (false, false, false) => view! {
-                            <button class="action" type="button" id=CLEAR_ID on:click=ask><Icon name="trash-2"/><span>"Plan leeren"</span></button>
-                        }
-                        .into_any(),
-                        (false, false, true) => ().into_any(),
-                    }}
-                </div>
-            }
-        })
+                        />
+                        <button class="mini hit" type="submit">{move || if taken.get() { "Ersetzen" } else { "Speichern" }}</button>
+                        <button class="mini hit" type="button" on:click=move |_| stop_saving()>"Abbrechen"</button>
+                    </form>
+                }
+                .into_any(),
+            }}
+            <For
+                each=move || entries.get()
+                key=|entry| entry.clone()
+                children=move |(which, count): (String, usize)| {
+                    let here = {
+                        let which = which.clone();
+                        Memo::new(move |_| mark.with(|mark| mark.as_deref() == Some(which.as_str())))
+                    };
+                    let asked = {
+                        let which = which.clone();
+                        Memo::new(move |_| asking.with(|asking| asking.as_deref() == Some(which.as_str())))
+                    };
+                    let (one, two, three) = (which.clone(), which.clone(), which.clone());
+                    view! {
+                        <div class="sp-saved">
+                            <button class="action" type="button" aria-current=move || here.get().then_some("true") on:click=move |_| load(one.clone())>
+                                <span>{which.clone()}</span>
+                                <small class="num">{format::modules(i64::try_from(count).unwrap_or(i64::MAX))}</small>
+                            </button>
+                            <button class="icon-btn" type="button" aria-label=format!("„{which}“ löschen") title="Löschen" on:click=move |_| delete(two.clone())>
+                                <Icon name="x"/>
+                            </button>
+                        </div>
+                        {move || {
+                            let three = three.clone();
+                            asked.get().then(|| view! {
+                                <p class="action note-action ask">
+                                    <span>"Aktuellen Plan ersetzen?"</span>
+                                    <button class="mini danger hit" type="button" id=LOAD_ID on:click=move |_| load_now(three.clone())>"Ersetzen"</button>
+                                    <button class="mini hit" type="button" on:click=move |_| asking.set(None)>"Abbrechen"</button>
+                                </p>
+                            })
+                        }}
+                    }
+                }
+            />
+            {move || match (cleared.get(), confirming.get(), empty.get()) {
+                (true, _, _) => view! {
+                    <p class="action note-action">
+                        <Icon name="check"/>
+                        <span>{CLEARED}</span>
+                        <button class="mini hit" type="button" id="sp-clear-undo" aria-busy=move || restoring.get().then_some("true") on:click=undo>"Rückgängig"</button>
+                    </p>
+                }
+                .into_any(),
+                (false, true, _) => view! {
+                    <p class="action note-action ask">
+                        <span>"Wirklich leeren?"</span>
+                        <button class="mini danger hit" type="button" id="sp-clear-yes" on:click=clear>"Leeren"</button>
+                        <button class="mini hit" type="button" on:click=cancel>"Abbrechen"</button>
+                    </p>
+                }
+                .into_any(),
+                (false, false, false) => view! {
+                    <button class="action" type="button" id=CLEAR_ID on:click=ask><Icon name="trash-2"/><span>"Plan leeren"</span></button>
+                }
+                .into_any(),
+                (false, false, true) => view! {
+                    <button class="action" type="button" aria-disabled="true" title="Nichts geplant"><Icon name="trash-2"/><span>"Plan leeren"</span></button>
+                }
+                .into_any(),
+            }}
+        </div>
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use catalog::labels::Code;
-    use catalog::rows_detail::EventDate;
     use catalog::timetable::kind::{kinds_of, Class};
-    use catalog::timetable::model::{Attendance, Event};
-    use catalog::timetable::occur::Occurrences;
+    use catalog::timetable::model::{Attendance, Event, Row};
 
     use super::*;
 
@@ -731,41 +600,6 @@ mod tests {
         assert_eq!(default_name(Some(&inf), Some(1), w, Some("Für Lea".into()), 0), "Für Lea");
     }
 
-    fn row(event: &str, fp: u32, weekday: i64, from: &str, rhythm: &str, first: &str, option: Option<usize>) -> Row {
-        Row {
-            key: Some(RowKey { event: event.parse().unwrap(), fp }),
-            ord: Some(1),
-            date: EventDate {
-                semester_key: "2026W".into(),
-                semester_label: "WiSe 2026/27".into(),
-                event_id: event.into(),
-                event_number: None,
-                event_title: String::new(),
-                event_type: None,
-                group_name: None,
-                weekday: Some(weekday),
-                start_time: Some(from.into()),
-                end_time: None,
-                rhythm: Some(Code::parse(rhythm)),
-                rhythm_raw: None,
-                first_date: Some(first.into()),
-                last_date: Some(first.into()),
-                room: None,
-                campus: None,
-                instructor: None,
-                comment: None,
-                source_url: None,
-                room_short: None,
-            },
-            cancelled_dates: None,
-            occ: Occurrences::default(),
-            from: catalog::timetable::day::minutes(from),
-            to: None,
-            option,
-            hidden: None,
-        }
-    }
-
     fn event(id: &str, type_raw: &str, module: &str, rows: Vec<Row>, chosen: Option<usize>) -> Event {
         let options = rows.iter().filter_map(|row| row.option).map(|option| vec![option]).collect::<Vec<_>>();
         Event {
@@ -783,53 +617,6 @@ mod tests {
             hidden: None,
             source_url: None,
         }
-    }
-
-    #[test]
-    fn what_is_hidden_is_named_as_the_plan_names_it() {
-        let mut table = Timetable {
-            key: key("2026W"),
-            facts: catalog::timetable::facts::SemesterFacts::derive(key("2026W"), None, &[]),
-            modules: vec!["11112".into(), "12104".into()],
-            events: vec![
-                event("150132", "Tutorium", "11112", vec![row("150132", 7, 2, "15:30", "weekly", "2026-10-13", None)], None),
-                event(
-                    "148369",
-                    "Übung",
-                    "12104",
-                    vec![row("148369", 1, 1, "15:30", "weekly", "2026-10-12", Some(0)), row("148369", 2, 2, "11:30", "weekly", "2026-10-13", Some(1))],
-                    Some(0),
-                ),
-                event("148019", "Übung", "12104", vec![row("148019", 3, 2, "11:45", "single", "2027-02-23", None)], None),
-            ],
-            exams: Vec::new(),
-            tracks: BTreeSet::new(),
-            town: None,
-            town_derived: false,
-            clashes: Vec::new(),
-            blocked: Vec::new(),
-            exam_warnings: Vec::new(),
-            place_unknown: Vec::new(),
-            without_dates: Vec::new(),
-        };
-        let titles: BTreeMap<String, String> =
-            [("11112", "Mathematik IT-1"), ("12104", "Entwicklung von Softwaresystemen")].iter().map(|(id, title)| (id.to_string(), title.to_string())).collect();
-        let events: BTreeSet<u32> = [150132].into_iter().collect();
-        let rows: BTreeSet<RowKey> = [RowKey { event: 150132, fp: 7 }, RowKey { event: 148019, fp: 3 }].into_iter().collect();
-        let lines = hidden_lines(&table, &events, &rows, &titles);
-        let texts: Vec<(&str, Unhide)> = lines.iter().map(|line| (line.text.as_str(), line.unhide)).collect();
-        assert_eq!(
-            texts,
-            vec![
-                ("Tutorium Mathematik IT-1", Unhide::Event(150132)),
-                ("Tutorium Mathematik IT-1 · Di 15:30", Unhide::Row(RowKey { event: 150132, fp: 7 })),
-                ("Übung Entwicklung von Softwaresystemen · nur Mo 15:30", Unhide::Choice(148369)),
-                ("Übung Entwicklung von Softwaresystemen · Di 23.02. 11:45", Unhide::Row(RowKey { event: 148019, fp: 3 })),
-            ]
-        );
-        // Nothing hidden, nothing chosen: no line.
-        table.events.iter_mut().for_each(|event| event.chosen = None);
-        assert!(hidden_lines(&table, &BTreeSet::new(), &BTreeSet::new(), &titles).is_empty());
     }
 
     #[test]
