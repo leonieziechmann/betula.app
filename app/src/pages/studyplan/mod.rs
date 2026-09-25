@@ -10,8 +10,10 @@
 //!
 //! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: the program,
 //! `import.rs`, view, what is shown, Standort, calendar, the plan as a whole and the saved plans),
-//! the plan in the main column (`head.rs`, `week.rs`, `exams.rs`), and the module beside it
-//! (`aside.rs`).
+//! the plan in the main column (`head.rs`, `week.rs`, `exams.rs`) with its modules in a column
+//! beside it where the page is wide enough, else under it (`modules.rs`), and the module opened
+//! from it floating over the page at its right edge, as the catalog's preview does (`aside.rs`).
+//! The week is there before anything is planned (owner, 2026-09-25), with what to do in its middle.
 //! Its parts share one `PlanCtx`: the memos below, built once per page. On a phone the sidebar is
 //! a sheet, opened by „Anpassen" (`SheetToggle`), and the module beside the plan is the page.
 //!
@@ -30,6 +32,7 @@ mod exams;
 mod export;
 mod head;
 mod import;
+mod modules;
 mod side;
 mod week;
 
@@ -48,13 +51,13 @@ use leptos_router::hooks::use_location;
 
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
-use self::head::{DerivedLine, ExamAlerts, FromBookmarks, ModuleLegend, Overlaps, SemesterHead};
+use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, NothingPlanned, Overlaps, SemesterHead};
+use self::modules::ModuleList;
 use self::side::PlanSidebar;
-use self::week::{DatesView, WeekView};
+use self::week::{DatesView, WeekLoose, WeekView};
 use crate::data::{use_source, DataError, Source};
 use crate::local::{self, ModuleInPlace};
-use crate::myprogram::{MineResolved, MyProgram};
-use crate::nav;
+use crate::myprogram::MyProgram;
 use crate::pending::{Change, Pending};
 use crate::seo::Seo;
 use crate::skeleton::DetailSkeleton;
@@ -103,6 +106,9 @@ pub(super) struct PlanCtx {
     /// The week „Woche" shows: the A week, the B week, or both („A/B"). A view setting of the
     /// page, not stored.
     pub weeks: RwSignal<Weeks>,
+    /// „Alle Termine": „Woche" shows every Termin of the planned modules, what the plan leaves out
+    /// faint (owner, 2026-09-25). A view setting of the page, not stored.
+    pub all: RwSignal<bool>,
 }
 
 /// The semester the page shows: the one the catalog has dates for, the snapshot's current one
@@ -134,13 +140,6 @@ fn today() -> Option<Day> {
     }
     #[cfg(not(feature = "csr"))]
     None
-}
-
-/// The catalog as a way to find modules: filtered by „Mein Studiengang" where the stored program is
-/// in the snapshot (the one kind of address it may stand in, A.10), else the whole catalog.
-/// Tracked.
-pub(super) fn catalog_href(resolved: Option<MineResolved>) -> String {
-    resolved.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)
 }
 
 /// Where „Modul ansehen" of the module beside the plan leads: the same page, filled with the
@@ -214,6 +213,7 @@ pub fn StudyplanPage() -> impl IntoView {
         today,
         undo: RwSignal::new(None),
         weeks: RwSignal::new(Weeks::All),
+        all: RwSignal::new(false),
     };
 
     // What fills the page: the plan, or the module after „Vollbild" (on a phone as well: the
@@ -256,10 +256,7 @@ pub fn StudyplanPage() -> impl IntoView {
                 <PlanSeo/>
                 <div class="page-inner sp">
                     <section class="panel sp-body">
-                        {move || match empty.get() {
-                            true => view! { <EmptyPlan/> }.into_any(),
-                            false => view! { <SemesterView ctx/> }.into_any(),
-                        }}
+                        <SemesterView ctx/>
                     </section>
                 </div>
             </Frame>
@@ -269,54 +266,80 @@ pub fn StudyplanPage() -> impl IntoView {
     page.into_any()
 }
 
-/// The semester: its head, and, where anything is planned into it, the modules, the exams that
-/// collide (red, in every view), the one line of overlaps and open choices, the view, and under
-/// it the line that says what is derived.
+/// The semester, in three parts (`.sp-body` lays them out). Above the fold (`.sp-fold`): its head,
+/// the exams that collide (red, in every view), the one line of overlaps, open choices and what is
+/// hidden, and the view. Beside it where the page is wide enough, else under it: the planned
+/// modules (`.sp-side`), a column of its own, so that however long their list is the week keeps
+/// its height. Under the fold (`.sp-below`): what has no fixed time and the line that says what is
+/// derived. The fold is as tall as the page shows, so that the week fits into it (owner,
+/// 2026-09-25: the whole week on the screen, smaller on a small one, larger on a large one). The
+/// week is there with nothing planned too, and says so in its middle; „Termine" and „Prüfungen"
+/// say only that.
 #[component]
 fn SemesterView(ctx: PlanCtx) -> impl IntoView {
     let planned = Memo::new(move |_| ctx.wanted.with(|wanted| !wanted.1.is_empty()));
     let failed = Memo::new(move |_| ctx.data.with(|data| data.as_ref().err().cloned()));
+    let fine = Memo::new(move |_| failed.with(Option::is_none));
     let shown = Memo::new(move |_| ctx.url.with(|url| url.view));
+    let weekly = Memo::new(move |_| matches!(shown.get(), PlanView::Week | PlanView::Overview));
+    // The marked modules the semester could take, for the empty week's „übernehmen" and the list's
+    // „Aus der Merkliste": one query of the Merkliste for both.
+    let marked = marked_offered(ctx);
+    let view = move || match shown.get() {
+        PlanView::Week | PlanView::Overview => view! { <WeekView ctx marked/> }.into_any(),
+        PlanView::Dates => view! {
+            {move || match planned.get() {
+                true => view! { <DatesView ctx/> }.into_any(),
+                false => view! { <NothingPlanned ctx marked/> }.into_any(),
+            }}
+        }
+        .into_any(),
+        PlanView::Exams => view! {
+            {move || match planned.get() {
+                true => view! { <ExamsView ctx/> }.into_any(),
+                false => view! { <NothingPlanned ctx marked/> }.into_any(),
+            }}
+        }
+        .into_any(),
+    };
     view! {
-        <SemesterHead ctx/>
-        {move || match (failed.get(), planned.get()) {
-            (Some(error), _) => view! { <ErrorState error/> }.into_any(),
-            (None, false) => view! { <FromBookmarks ctx/> }.into_any(),
-            (None, true) => view! {
-                <ModuleLegend ctx/>
-                <ExamAlerts ctx/>
-                <Overlaps ctx/>
-                <FromBookmarks ctx/>
-                {move || match shown.get() {
-                    PlanView::Dates => view! { <DatesView ctx/> }.into_any(),
-                    PlanView::Exams => view! { <ExamsView ctx/> }.into_any(),
-                    PlanView::Week | PlanView::Overview => view! { <WeekView ctx/> }.into_any(),
-                }}
-                <DerivedLine ctx/>
-            }
-            .into_any(),
+        <div class="sp-fold">
+            <SemesterHead ctx/>
+            {move || match failed.get() {
+                Some(error) => view! { <ErrorState error/> }.into_any(),
+                None => view! {
+                    <ExamAlerts ctx/>
+                    <Overlaps ctx/>
+                    <div class="sp-view">{view}</div>
+                }
+                .into_any(),
+            }}
+        </div>
+        {move || {
+            fine.get().then(|| {
+                view! {
+                    <div class="sp-side">
+                        <ModuleList ctx/>
+                        <FromBookmarks ctx list=marked/>
+                    </div>
+                }
+            })
         }}
-    }
-}
-
-/// Nothing planned yet: the two ways to begin, and on a phone the way to the sidebar.
-#[component]
-fn EmptyPlan() -> impl IntoView {
-    let resolved = MineResolved::expect();
-    view! {
-        <EmptyState title="Noch nichts geplant." hint="Übernimm den Regelstudienplan oder plane Module aus dem Katalog ein.">
-            // „Importieren" in the sidebar: on a phone the sheet opens, on a desktop „Übernehmen"
-            // takes the focus.
-            <a class="btn primary" href="#sidebar" data-action="sheet-open" on:click=|_| nav::focus_by_id(import::GO_ID)>"Regelstudienplan übernehmen"</a>
-            <a class="btn secondary" href=move || catalog_href(resolved)>"Module suchen"</a>
-            <SheetToggle/>
-        </EmptyState>
+        <div class="sp-below">
+            {move || {
+                (fine.get() && planned.get()).then(|| {
+                    view! {
+                        {move || weekly.get().then(|| view! { <WeekLoose ctx/> })}
+                        <DerivedLine ctx/>
+                    }
+                })
+            }}
+        </div>
     }
 }
 
 /// „Anpassen": opens the sidebar, which on a phone is a sheet from below. Shown on a phone only
-/// (`.sheet-toggle`); the heads of the views carry it at their right end, the empty plan among its
-/// actions, and the page itself while an empty plan takes a Regelstudienplan over.
+/// (`.sheet-toggle`): the head of the plan carries it at its right end.
 #[component]
 pub(super) fn SheetToggle() -> impl IntoView {
     view! { <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>"Anpassen"</a> }

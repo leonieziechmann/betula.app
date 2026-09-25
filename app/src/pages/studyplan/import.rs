@@ -28,8 +28,8 @@ use crate::ui::Icon;
 /// How the note of an import begins; the sidebar's „Plan geleert" is the other note of `undo`.
 const IMPORTED: &str = "Übernommen: ";
 
-/// The id of „Übernehmen", which the empty plan's „Regelstudienplan übernehmen" focuses.
-pub(super) const GO_ID: &str = "sp-import-go";
+/// The id of „Übernehmen".
+const GO_ID: &str = "sp-import-go";
 
 /// The import as the sidebar shows it, for a program with a plan.
 #[derive(Clone, Debug, PartialEq)]

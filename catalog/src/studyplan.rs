@@ -1284,6 +1284,12 @@ pub fn placeholder_line(p: &Placeholder, requirement: Option<&SemesterRequiremen
     PlaceholderLine { credits, lead, areas, tail }
 }
 
+/// Whether a placeholder asks for a module of the Fachübergreifendes Studium, by its stored kind
+/// or name (`plan::is_fues`): its modules are the FÜS list, whatever the program's tree says.
+pub fn is_fues_placeholder(p: &Placeholder) -> bool {
+    plan::is_fues(&stored_entry(p))
+}
+
 /// A placeholder as the plan row it was taken from, as far as it keeps it: enough for
 /// `plan::is_single_module` and `plan::is_fues`.
 fn stored_entry(p: &Placeholder) -> PlanEntry {
@@ -1953,6 +1959,10 @@ mod tests {
         assert_eq!(alone(Placeholder { name: "Modul aus dem FÜS-Katalog der BTU".to_string(), ..placeholder() }), "≥\u{a0}6\u{a0}LP Fachübergreifendes Studium");
         assert_eq!(alone(Placeholder { credits: Some("10–24".to_string()), name: "Komplex Praktische Informatik".to_string(), ..placeholder() }), "10–24\u{a0}LP Komplex Praktische Informatik");
         assert_eq!(alone(Placeholder { credits: None, ..placeholder() }), "Anwendungsfach");
+        // The FÜS by its name or its kind; any other row is none.
+        assert!(is_fues_placeholder(&Placeholder { name: "Modul aus dem FÜS-Katalog der BTU".to_string(), ..placeholder() }));
+        assert!(is_fues_placeholder(&Placeholder { kind: Some("fues".to_string()), name: "Wahlmodul".to_string(), ..placeholder() }));
+        assert!(!is_fues_placeholder(&placeholder()));
     }
 
     #[test]
