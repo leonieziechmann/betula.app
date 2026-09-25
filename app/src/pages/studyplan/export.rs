@@ -14,17 +14,19 @@
 //! link through a change) makes it before the browser follows.
 //!
 //! The subscription is an address, `/calendar/<code>.ics`, whose code carries the semester, the
-//! planned modules and what is hidden or chosen (`Subscription`; owner decision 2026-09-24). The
+//! planned modules and what is hidden or chosen (`Subscription`; owner decision 2026-09-24), and the
+//! program whose abbreviations the entries name the modules by (2026-09-25). The
 //! page never asks for it (no preview, no prefetch); the calendar service does, from its own
 //! servers, and the server makes the feed anew each time. Each way of handing the address out
 //! keeps its code in the plan (`PlanDoc::remember`), a middle click and the context menu („Link
 //! kopieren") too, so the page can say when the plan has moved on from what a calendar shows
 //! („Abo veraltet").
 //!
-//! R16: the subscription is worked out from the timetable and from a memo of what the semester
-//! hides (`hides`), which is the timetable's sibling (both are derived from `selection`), never
-//! from `selection` or `data` beside the timetable made of them. The file follows the timetable and
-//! the data's other parts the same way (`parts`, a sibling of the timetable under `data`).
+//! R16: the subscription is worked out from the timetable, from a memo of what the semester hides
+//! (`hides`) and from one of the program the data is loaded for (`program`), which are the
+//! timetable's siblings (derived from `selection` and from `data` as it is), never from `selection`
+//! or `data` beside the timetable made of them. The file follows the timetable and the data's
+//! other parts the same way (`parts`, a sibling of the timetable under `data`).
 
 use std::collections::BTreeMap;
 
@@ -73,9 +75,10 @@ struct Abo {
     stale: bool,
 }
 
-/// The subscription of the semester `table` shows, as `selection` hides and chooses, and whether
-/// the address last handed out for it (`subscribed`) still says the same. `None` for a semester
-/// without a planned module: it has nothing to export.
+/// The subscription of the semester `table` shows, as `selection` hides and chooses and with the
+/// modules named as in `program` (`StudyplanData::program`), and whether the address last handed
+/// out for it (`subscribed`) still says the same. `None` for a semester without a planned module:
+/// it has nothing to export.
 ///
 /// Only a code the server would serve is offered (`Subscription::code`): too long a code is
 /// „Zu viel ausgeblendet", and one no reader takes (no module with a numeric id) offers nothing.
@@ -83,11 +86,11 @@ struct Abo {
 /// removed does not make an address stale, since its feed shows what the page shows. Whether a
 /// new address can be offered does not matter: with too much hidden for one, the calendar still
 /// shows an older plan.
-fn abo_of(table: &Timetable, selection: &Selection, subscribed: &BTreeMap<SemesterKey, String>) -> Option<Abo> {
+fn abo_of(table: &Timetable, selection: &Selection, program: Option<&str>, subscribed: &BTreeMap<SemesterKey, String>) -> Option<Abo> {
     if table.modules.is_empty() {
         return None;
     }
-    let (current, _) = Subscription::of(table.key, &table.modules, selection, Some(table));
+    let (current, _) = Subscription::of(table.key, &table.modules, program, selection, Some(table));
     let offer = match current.code() {
         Ok(code) => Offer::Code(code),
         Err(pack::Error::TooLong) => Offer::TooLong,
@@ -228,9 +231,14 @@ fn revoke(url: &str) {
 pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
     // ---- the subscription
     let hides = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.clone()));
+    let program = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(|data| data.program.clone())));
     let subscribed = Memo::new(move |_| ctx.plan.map(|plan| plan.with(|doc| doc.subscribed.clone())).unwrap_or_default());
     let abo = Memo::new(move |_| {
-        hides.with(|selection| subscribed.with(|subscribed| ctx.table.with(|table| table.as_ref().and_then(|table| abo_of(table, selection, subscribed)))))
+        hides.with(|selection| {
+            program.with(|program| {
+                subscribed.with(|subscribed| ctx.table.with(|table| table.as_ref().and_then(|table| abo_of(table, selection, program.as_deref(), subscribed))))
+            })
+        })
     });
     let shown = Memo::new(move |_| abo.with(Option::is_some));
     let offered = Memo::new(move |_| abo.with(|abo| abo.as_ref().is_some_and(|abo| abo.offer != Offer::Nothing)));
@@ -297,7 +305,9 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
     // calendar reads besides the timetable say when to make it; what it is made of is read when
     // it is made.
     let parts = Memo::new(move |_| {
-        ctx.data.with(|data| data.as_ref().ok().map(|data| (data.key, data.label.clone(), data.titles(), export::snapshot_stamp(&data.meta), unpublished(data))))
+        ctx.data.with(|data| {
+            data.as_ref().ok().map(|data| (data.key, data.label.clone(), data.titles(), data.slot_names(), export::snapshot_stamp(&data.meta), unpublished(data)))
+        })
     });
     let made = RwSignal::new(File::Waiting);
     // Each change of what the file is made of counts one `turn`; `done` is the turn it was made
@@ -589,22 +599,27 @@ mod tests {
     fn the_abo_is_stale_once_the_plan_moved_on_from_it() {
         let table = table(&["12104", "12107"], vec![event(148369, 0xa4d12, "12104"), event(149408, 7, "12107")]);
         let nothing = BTreeMap::new();
-        let first = abo_of(&table, &Selection::default(), &nothing);
+        let informatik = Some("079-82-2008");
+        let first = abo_of(&table, &Selection::default(), informatik, &nothing);
         // Never handed out: nothing to be stale.
         assert!(first.as_ref().is_some_and(|abo| !abo.stale && abo.key == key("2026W")));
         let handed: BTreeMap<SemesterKey, String> = [(key("2026W"), code_of(&first).unwrap())].into_iter().collect();
-        assert!(abo_of(&table, &Selection::default(), &handed).is_some_and(|abo| !abo.stale));
+        assert!(abo_of(&table, &Selection::default(), informatik, &handed).is_some_and(|abo| !abo.stale));
         // An event hidden since: the calendar still shows it.
         let hiding = Selection { hidden_events: [149408].into_iter().collect(), ..Default::default() };
-        let now = abo_of(&table, &hiding, &handed);
+        let now = abo_of(&table, &hiding, informatik, &handed);
         assert!(now.as_ref().is_some_and(|abo| abo.stale));
         assert!(code_of(&now).is_some() && code_of(&now) != code_of(&first));
+        // Another program, or none: the calendar names the modules by other abbreviations.
+        for program in [Some("C38-82-2024"), None] {
+            assert!(abo_of(&table, &Selection::default(), program, &handed).is_some_and(|abo| abo.stale), "{program:?}");
+        }
         // Hiding what the timetable does not have changes nothing a calendar shows.
         let elsewhere = Selection { hidden_events: [150001].into_iter().collect(), ..Default::default() };
-        assert!(abo_of(&table, &elsewhere, &handed).is_some_and(|abo| !abo.stale));
+        assert!(abo_of(&table, &elsewhere, informatik, &handed).is_some_and(|abo| !abo.stale));
         // An address of another semester says nothing about this one.
         let other: BTreeMap<SemesterKey, String> = [(key("2027S"), code_of(&first).unwrap())].into_iter().collect();
-        assert!(abo_of(&table, &hiding, &other).is_some_and(|abo| !abo.stale));
+        assert!(abo_of(&table, &hiding, informatik, &other).is_some_and(|abo| !abo.stale));
     }
 
     #[test]
@@ -614,28 +629,28 @@ mod tests {
         let rows: BTreeSet<RowKey> = events.iter().filter_map(|event| event.rows.first().and_then(|row| row.key)).collect();
         let many = table(&["12104"], events);
         let hiding = Selection { hidden_rows: rows, ..Default::default() };
-        assert_eq!(abo_of(&many, &hiding, &BTreeMap::new()), Some(Abo { key: key("2026W"), offer: Offer::TooLong, stale: false }));
+        assert_eq!(abo_of(&many, &hiding, None, &BTreeMap::new()), Some(Abo { key: key("2026W"), offer: Offer::TooLong, stale: false }));
         // „Alle einblenden": an address again.
-        let all = code_of(&abo_of(&many, &Selection::default(), &BTreeMap::new()));
+        let all = code_of(&abo_of(&many, &Selection::default(), None, &BTreeMap::new()));
         assert!(all.is_some());
         // An address handed out before so much was hidden: the calendar shows another plan, though
         // no new address can be offered.
         let handed: BTreeMap<SemesterKey, String> = all.into_iter().map(|code| (key("2026W"), code)).collect();
-        assert_eq!(abo_of(&many, &hiding, &handed), Some(Abo { key: key("2026W"), offer: Offer::TooLong, stale: true }));
+        assert_eq!(abo_of(&many, &hiding, None, &handed), Some(Abo { key: key("2026W"), offer: Offer::TooLong, stale: true }));
         // A module no code can carry offers no address; no module, no group.
-        assert_eq!(abo_of(&table(&["B-12"], Vec::new()), &Selection::default(), &BTreeMap::new()).map(|abo| abo.offer), Some(Offer::Nothing));
-        assert_eq!(abo_of(&table(&[], Vec::new()), &Selection::default(), &BTreeMap::new()), None);
+        assert_eq!(abo_of(&table(&["B-12"], Vec::new()), &Selection::default(), None, &BTreeMap::new()).map(|abo| abo.offer), Some(Offer::Nothing));
+        assert_eq!(abo_of(&table(&[], Vec::new()), &Selection::default(), None, &BTreeMap::new()), None);
     }
 
     #[test]
     fn each_way_carries_the_same_address() {
-        let ways = ways("http://127.0.0.1:8181", "127.0.0.1:8181", "CQpJeFAKchJKBgdlgf0e7Hwl_4S", "WiSe 2026/27");
-        assert_eq!(ways.path, "/calendar/CQpJeFAKchJKBgdlgf0e7Hwl_4S.ics");
-        assert_eq!(ways.apple, "webcal://127.0.0.1:8181/calendar/CQpJeFAKchJKBgdlgf0e7Hwl_4S.ics");
-        assert_eq!(ways.google, "https://calendar.google.com/calendar/r?cid=webcal%3A%2F%2F127.0.0.1%3A8181%2Fcalendar%2FCQpJeFAKchJKBgdlgf0e7Hwl_4S.ics");
+        let ways = ways("http://127.0.0.1:8181", "127.0.0.1:8181", "b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0", "WiSe 2026/27");
+        assert_eq!(ways.path, "/calendar/b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics");
+        assert_eq!(ways.apple, "webcal://127.0.0.1:8181/calendar/b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics");
+        assert_eq!(ways.google, "https://calendar.google.com/calendar/r?cid=webcal%3A%2F%2F127.0.0.1%3A8181%2Fcalendar%2Fb3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics");
         assert_eq!(
             ways.outlook,
-            "https://outlook.office.com/calendar/0/addfromweb?url=http%3A%2F%2F127.0.0.1%3A8181%2Fcalendar%2FCQpJeFAKchJKBgdlgf0e7Hwl_4S.ics&name=Studienplan%20WiSe%202026%2F27"
+            "https://outlook.office.com/calendar/0/addfromweb?url=http%3A%2F%2F127.0.0.1%3A8181%2Fcalendar%2Fb3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics&name=Studienplan%20WiSe%202026%2F27"
         );
         // Every character of a code stays as it is, as encodeURIComponent leaves it.
         assert_eq!(component("Az09-_.~"), "Az09-_.~");
@@ -670,6 +685,7 @@ mod tests {
             sws: Vec::new(),
             counts: Vec::new(),
             abbrevs: Default::default(),
+            program: None,
         };
         // Nothing published for the summer to come; a past summer's dates are gone.
         let summer = data("2027S");

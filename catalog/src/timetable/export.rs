@@ -16,6 +16,13 @@
 //! row held on its date says, the range spans all of them, and a date one row drops is named as
 //! dropped only when no row of the key holds it.
 //!
+//! An entry is as short as a slot of the page's week (owner, 2026-09-25: on a phone a calendar
+//! shows little more than the title): „VL EvS" in „ZHG/HS.C", the kinds in their few letters, the
+//! modules as the slots call them (their abbreviations within the plan's program, which a code
+//! carries) and the rooms in their short forms. Its description says it all in full: what QIS
+//! calls the event, the modules with number and title, the rooms as QIS names them, and what the
+//! rows say.
+//!
 //! What a student may not attend is marked tentative: a date in a range QIS does not state, an
 //! option of a choice not made yet, an exam's second sitting and a retake. What is hidden, a row
 //! without a clear time and a row that names no date are left out.
@@ -36,10 +43,12 @@ use super::rowkey::{fingerprint, RowKey};
 use super::select::{Selection, TownChoice};
 use super::semester::SemesterKey;
 use super::subscription::Subscription;
+use super::views::{kind_and_title, kind_short, short_title, type_text};
 use crate::exam_reading::Reason;
 use crate::labels::{Code, Rhythm};
 use crate::rows::Meta;
 use crate::rows_detail::EventDate;
+use crate::url::is_program_id;
 
 /// The domain of every UID. The same for the download and the feed, so a calendar that holds both
 /// holds each date once, and fixed: another domain would make every subscribed entry a new one.
@@ -75,17 +84,25 @@ pub fn snapshot_stamp(meta: &Meta) -> String {
 /// The calendar of a timetable: one entry per held date of every visible row with a time or of a
 /// block of whole days, and per visible exam date that names a day.
 ///
-/// `titles` maps planned module ids to their titles for the descriptions. `label` is the
+/// `titles` maps planned module ids to their titles for the descriptions, `names` to what the
+/// week's slots call them for the entries' titles (`StudyplanData::slot_names`). `label` is the
 /// semester's label („WiSe 2026/27"; empty: the key's). `stamp` is every entry's DTSTAMP, as
 /// `snapshot_stamp` makes it, or a moment in RFC 3339 and UTC; anything else is the epoch.
-pub fn calendar_of(t: &Timetable, titles: &BTreeMap<String, String>, label: &str, stamp: &str) -> Calendar {
+pub fn calendar_of(
+    t: &Timetable,
+    titles: &BTreeMap<String, String>,
+    names: &BTreeMap<String, String>,
+    label: &str,
+    stamp: &str,
+) -> Calendar {
     let stamp = dtstamp(stamp);
+    let names = Names { titles, short: names };
     let mut entries = Entries::default();
     for event in t.events.iter().filter(|event| event.hidden.is_none()) {
-        teaching(&mut entries, t, event, titles);
+        teaching(&mut entries, t, event, &names);
     }
     for exam in t.exams.iter().filter(|exam| exam.hidden.is_none()) {
-        exam_dates(&mut entries, exam, titles);
+        exam_dates(&mut entries, exam, &names);
     }
     let mut entries = entries.finish();
     entries.sort_by(|a, b| start(&a.when).cmp(&start(&b.when)).then_with(|| a.uid.cmp(&b.uid)));
@@ -113,10 +130,13 @@ impl Subscription {
     /// The subscription of a semester's plan as the page shows it. Only numeric module ids, and
     /// only hidden events and hidden or chosen rows that belong to `table` (all of them when
     /// `table` is None), so hide rules the timetable no longer needs do not lengthen the code.
+    /// `program` is the one whose abbreviations the page names the modules by
+    /// (`StudyplanData::program`); an id of another shape is left out, as a reader leaves it out.
     /// Second value: the ids that cannot be subscribed (not numeric), each once, in their order.
     pub fn of(
         key: SemesterKey,
         modules: &[String],
+        program: Option<&str>,
         selection: &Selection,
         table: Option<&Timetable>,
     ) -> (Subscription, Vec<String>) {
@@ -142,6 +162,7 @@ impl Subscription {
         let subscription = Subscription {
             semester: key.index(),
             modules: numeric,
+            program: program.filter(|id| is_program_id(id)).map(str::to_string),
             hidden_kinds: selection.hidden_kinds.known().0,
             hidden_events: selection.hidden_events.iter().copied().filter(has_event).collect(),
             hidden_rows: rows(&selection.hidden_rows),
@@ -164,10 +185,11 @@ fn town_of(selection: &Selection, table: Option<&Timetable>) -> TownChoice {
     }
 }
 
-/// Whether a stored code still describes the plan: equal semester, modules, kinds and town, and
-/// equal hidden events and hidden or chosen rows among those `table` still has. An event or a row
-/// QIS removed or re-keyed does not make a subscription stale: the feed, made anew from the same
-/// data, shows what the page shows. A code that does not decode describes nothing.
+/// Whether a stored code still describes the plan: equal semester, modules, program, kinds and
+/// town, and equal hidden events and hidden or chosen rows among those `table` still has. An event
+/// or a row QIS removed or re-keyed does not make a subscription stale: the feed, made anew from
+/// the same data, shows what the page shows. Another program does, as the feed would name the
+/// modules by its abbreviations. A code that does not decode describes nothing.
 pub fn same_subscription(stored: &str, current: &Subscription, table: &Timetable) -> bool {
     let Some(stored) = Subscription::from_code(stored) else {
         return false;
@@ -180,6 +202,7 @@ pub fn same_subscription(stored: &str, current: &Subscription, table: &Timetable
         (
             s.semester,
             s.module_ids(),
+            s.program.clone(),
             KindSet(s.hidden_kinds).known(),
             s.hidden_events.iter().copied().filter(|id| known.events.contains(id)).collect::<BTreeSet<u32>>(),
             rows(&s.hidden_rows),
@@ -218,8 +241,13 @@ fn canonical(id: &str) -> Option<u32> {
 /// QIS notes all say it, and a single row reads as it always did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Part {
+    /// What the entry is, in full: what QIS calls it, and its title where that is not its
+    /// module's („Übung · Übungsgruppe 3", „Prüfung · Klausur Statistik").
+    What,
     /// The modules, the group, the rhythm and the range: what the rows of a key share.
     Head,
+    /// The rooms as QIS names them, where the entry's place is their short forms.
+    Room,
     /// One name of who teaches; the names make one line, „Lehrende: Bleicher / Freymann".
     Teacher,
     /// QIS's comment on a row, and what is odd about an exam date.
@@ -251,13 +279,21 @@ struct Entries {
 struct Gathered {
     entry: Entry,
     /// The places of its rows, each once, in the order met.
-    places: Vec<String>,
+    places: Vec<Place>,
     /// The lines of its rows, each once, in the order met.
     lines: Vec<Line>,
 }
 
+/// Where a row is, as a slot of the week names it („ZHG/HS.C") and as QIS does („Zentrales
+/// Hörsaalgebäude - Hörsaal C - Zentralcampus"). A row without a room is at its campus, both ways.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Place {
+    short: String,
+    long: String,
+}
+
 impl Entries {
-    fn add(&mut self, entry: Entry, place: Option<String>, lines: Vec<Line>) {
+    fn add(&mut self, entry: Entry, place: Option<Place>, lines: Vec<Line>) {
         let known = self.at.get(&entry.uid).copied();
         let there = match known.and_then(|index| self.list.get_mut(index)) {
             Some(there) => {
@@ -284,18 +320,82 @@ impl Entries {
         }
     }
 
-    /// The entries, each with its places as its LOCATION („HS A / HS B") and its lines as its
-    /// DESCRIPTION.
+    /// The entries, each with its places in their short forms as its LOCATION („ZHG/HS.A /
+    /// ZHG/HS.B") and its lines as its DESCRIPTION, the places as QIS names them among them.
     fn finish(self) -> Vec<Entry> {
         self.list
             .into_iter()
-            .map(|Gathered { entry, places, lines }| Entry {
-                location: (!places.is_empty()).then(|| places.join(" / ")),
-                description: Some(description(lines)),
-                ..entry
+            .map(|Gathered { entry, places, mut lines }| {
+                let short: Vec<&str> = places.iter().map(|place| place.short.as_str()).collect();
+                let long: Vec<&str> = places.iter().map(|place| place.long.as_str()).collect();
+                if long != short {
+                    let word = if places.len() > 1 { "Räume" } else { "Raum" };
+                    lines.push((Part::Room, format!("{word}: {}", long.join(" / "))));
+                }
+                Entry {
+                    location: (!places.is_empty()).then(|| short.join(" / ")),
+                    description: Some(description(lines)),
+                    ..entry
+                }
             })
             .collect()
     }
+}
+
+/// What an entry calls the planned modules: in full in its description, and as the week's slots
+/// do in its title.
+struct Names<'a> {
+    /// The titles, by module id.
+    titles: &'a BTreeMap<String, String>,
+    /// What the slots call them (`StudyplanData::slot_names`): the abbreviation, else the title
+    /// cut short.
+    short: &'a BTreeMap<String, String>,
+}
+
+impl Names<'_> {
+    /// „EvS", „MIT1/DM": what the slots call the modules of an entry, by id and each once (the
+    /// browser holds them in plan order, a code by id), else the entry's own title cut short, as
+    /// a slot without its module's name has it.
+    fn short_of(&self, modules: &[String], own: &str) -> String {
+        let mut named: Vec<&str> = Vec::new();
+        for id in by_id(modules) {
+            if let Some(name) = self.short.get(id).map(|name| name.trim()).filter(|name| !name.is_empty() && !named.contains(name)) {
+                named.push(name);
+            }
+        }
+        match named.is_empty() {
+            true => short_title(own),
+            false => named.join("/"),
+        }
+    }
+
+    /// What an entry is, in full: `kind` and the title QIS gives the event, as the page's lines
+    /// say it (`views::kind_and_title`), or `kind` alone where that title is a module's, which the
+    /// module's line names. `None` when neither says anything.
+    fn what(&self, kind: &str, title: &str, modules: &[String]) -> Option<String> {
+        let title = title.trim();
+        let a_module = modules.iter().any(|id| self.titles.get(id).is_some_and(|own| own.trim() == title));
+        let title = if a_module { "" } else { title };
+        match (kind.trim(), title) {
+            ("", "") => None,
+            ("", title) => Some(title.to_string()),
+            (kind, title) => Some(kind_and_title(kind, title)),
+        }
+    }
+}
+
+/// Module ids in the order a description lists them, each once: by length, then as text (the
+/// numbers of the catalog by value).
+fn by_id(modules: &[String]) -> Vec<&String> {
+    let mut ids: Vec<&String> = modules.iter().collect();
+    ids.sort_by_key(|id| (id.len(), *id));
+    ids.dedup();
+    ids
+}
+
+/// A title as short as a slot's: the kinds in their few letters, then the names („VL EvS").
+fn slot_text(kinds: &str, names: &str) -> String {
+    [kinds, names].into_iter().filter(|part| !part.is_empty()).collect::<Vec<_>>().join(" ")
 }
 
 /// The lines in the order of their parts, the names of who teaches as one line, and the source.
@@ -334,8 +434,10 @@ fn start(when: &When) -> (Day, u32) {
 /// The entries of a visible teaching event: every held date of its visible rows. A row with an
 /// unclear time is left out (its times say nothing a calendar can place), unless it is a block
 /// without times, whose dates are whole days.
-fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, titles: &BTreeMap<String, String>) {
-    let summary = format!("{} · {}", event.title.trim(), kind_text(event));
+fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names) {
+    // As its slot in the week: „VL EvS".
+    let label = slot_text(&kind_short(event), &names.short_of(&event.modules, &event.title));
+    let what = names.what(&type_text(event), &event.title, &event.modules);
     let categories: Vec<String> = event.kinds.iter().map(|kind| kind.label().to_string()).collect();
     let open = event.unresolved();
     let placed = |row: &&Row| row.hidden.is_none() && (row.from.zip(row.to).is_some() || row.occ.all_day);
@@ -350,10 +452,15 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, titles: &BTreeM
         }
     }
     for (key, rows) in &keys {
-        let termin = termin_lines(event, rows, titles);
+        let termin = termin_lines(event, rows, what.as_deref(), names.titles);
         for row in rows {
             let times = row.from.zip(row.to);
             let option = open && row.option.is_some();
+            // An option of a choice not made yet says so, as its slot does: „Ü AuP · 1 von 3".
+            let summary = match option {
+                true => format!("{label} · 1 von {}", event.visible_options().len()),
+                false => label.clone(),
+            };
             let lines: Vec<Line> = termin.iter().cloned().chain(row_lines(t, event, row, option)).collect();
             let place = place(&row.date);
             for day in &row.occ.days {
@@ -384,16 +491,20 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, titles: &BTreeM
     }
 }
 
-/// What the entries of one Termin say of it, whichever of its rows holds a date: its modules, its
-/// group, its rhythm and the range its rows span, and the dates none of them holds.
-fn termin_lines(event: &Event, rows: &[&Row], titles: &BTreeMap<String, String>) -> Vec<Line> {
+/// What the entries of one Termin say of it, whichever of its rows holds a date: what it is, its
+/// modules, its group, its rhythm and the range its rows span, and the dates none of them holds.
+fn termin_lines(event: &Event, rows: &[&Row], what: Option<&str>, titles: &BTreeMap<String, String>) -> Vec<Line> {
     let group = rows
         .first()
         .and_then(|row| text(&row.date.group_name))
         .filter(|group| *group != UNNAMED_GROUP)
         .map(|group| format!("Gruppe: {group}"));
     let head = module_lines(&event.modules, titles).into_iter().chain(group).chain(rhythm_line(rows));
-    head.map(|line| (Part::Head, line)).chain(dropped(rows).map(|line| (Part::Dropped, line))).collect()
+    let what = what.map(|what| (Part::What, what.to_string()));
+    what.into_iter()
+        .chain(head.map(|line| (Part::Head, line)))
+        .chain(dropped(rows).map(|line| (Part::Dropped, line)))
+        .collect()
 }
 
 /// What a teaching row says of itself on each of its dates: who teaches, QIS's comment, an
@@ -425,23 +536,13 @@ fn row_lines(t: &Timetable, event: &Event, row: &Row, option: bool) -> Vec<Line>
 /// „Modul 12104 Entwicklung von Softwaresystemen", one line per module, by id: the browser holds
 /// the plan's order, a code does not.
 fn module_lines(modules: &[String], titles: &BTreeMap<String, String>) -> Vec<String> {
-    let mut ids: Vec<&String> = modules.iter().collect();
-    ids.sort_by_key(|id| (id.len(), *id));
-    ids.dedup();
-    ids.into_iter()
+    by_id(modules)
+        .into_iter()
         .map(|id| match titles.get(id).map(|title| title.trim()).filter(|title| !title.is_empty()) {
             Some(title) => format!("Modul {id} {title}"),
             None => format!("Modul {id}"),
         })
         .collect()
-}
-
-/// What an event is, as QIS types it („Laborausbildung"), else by its kinds („Sonstiges").
-fn kind_text(event: &Event) -> String {
-    match text(&event.type_raw) {
-        Some(type_raw) => type_raw.to_string(),
-        None => event.kinds.iter().map(EventKind::label).collect::<Vec<_>>().join("/"),
-    }
 }
 
 /// The options of an open choice by what they are: „Übungsgruppen", else „Gruppen".
@@ -541,23 +642,44 @@ fn group<'a>(groups: &mut Vec<(&'a str, Vec<Day>)>, why: &'a str, day: Day) {
 
 /// The entries of a visible exam: one per visible row that names a day. A sitting has its times;
 /// a window, a deadline and a day without a time are whole days. An open date is left out.
-fn exam_dates(entries: &mut Entries, exam: &Exam, titles: &BTreeMap<String, String>) {
-    let modules: Vec<Line> = module_lines(&exam.modules, titles).into_iter().map(|line| (Part::Head, line)).collect();
+///
+/// The title says what it is and whose, as short as the rest („Prüfung EvS", „Abgabe DB"); a
+/// retake and a later sitting say so after it („· Wdh.", „· 2. Termin"), since each may be one of
+/// two entries of the module that a student does not both attend. The description says when a
+/// deadline ends and that a day has no time, which the entry's whole days only suggest.
+fn exam_dates(entries: &mut Entries, exam: &Exam, names: &Names) {
+    let modules: Vec<Line> = module_lines(&exam.modules, names.titles).into_iter().map(|line| (Part::Head, line)).collect();
+    let name = names.short_of(&exam.modules, &exam.title);
     for row in exam.rows.iter().filter(|row| row.hidden.is_none()) {
-        let (when, what) = match row.shape {
-            ExamShape::Sitting { day, from, to } => (When::Timed { day, from, to }, "Prüfung"),
-            ExamShape::Deadline { day } => (When::AllDay { first: day, last: day }, "Abgabe (bis 24:00)"),
-            ExamShape::Window { first, last } => (When::AllDay { first, last }, "Prüfungszeitraum"),
-            ExamShape::DayOnly { day } => (When::AllDay { first: day, last: day }, "Prüfung (Uhrzeit offen)"),
+        let (when, what, when_said) = match row.shape {
+            ExamShape::Sitting { day, from, to } => (When::Timed { day, from, to }, "Prüfung", None),
+            ExamShape::Deadline { day } => (When::AllDay { first: day, last: day }, "Abgabe", Some("bis 24:00")),
+            ExamShape::Window { first, last } => (When::AllDay { first, last }, "Prüfungszeitraum", None),
+            ExamShape::DayOnly { day } => (When::AllDay { first: day, last: day }, "Prüfung", Some("Uhrzeit offen")),
             ExamShape::Open => continue,
         };
-        let second = if row.rank == 2 { " · 2. Termin" } else { "" };
+        let mut summary = slot_text(what, &name);
+        if exam.retake {
+            summary.push_str(" · Wdh.");
+        }
+        if row.rank == 2 {
+            summary.push_str(" · 2. Termin");
+        }
+        let full = names.what(what, &exam.title, &exam.modules).map(|full| match when_said {
+            Some(said) => format!("{full} ({said})"),
+            None => full,
+        });
         let said = odd(row).into_iter().chain(text(&row.date.comment).map(str::to_string));
-        let lines: Vec<Line> = modules.iter().cloned().chain(said.map(|line| (Part::Said, line))).collect();
+        let lines: Vec<Line> = full
+            .map(|full| (Part::What, full))
+            .into_iter()
+            .chain(modules.iter().cloned())
+            .chain(said.map(|line| (Part::Said, line)))
+            .collect();
         let entry = Entry {
             uid: uid(&key_text(&exam.event_id, row.key, &row.date), start(&when).0),
             when,
-            summary: format!("{} · {what}{second}", exam.title.trim()),
+            summary,
             location: None,
             description: None,
             url: exam.source_url.clone(),
@@ -594,12 +716,17 @@ fn uid(key: &str, day: Day) -> String {
     format!("{key}-{}@{UID_DOMAIN}", day.compact())
 }
 
-/// The room as QIS names it, with its campus („Hauptgebäude - HG 0.20 - Zentralcampus"), else
-/// the campus alone.
-fn place(date: &EventDate) -> Option<String> {
-    text(&date.room).map(str::to_string).or_else(|| {
-        date.campus.as_ref().map(|campus| campus.label().trim().to_string()).filter(|label| !label.is_empty())
-    })
+/// Where a row is: its room in the short form of schema 9 („HG/0.20", `EventDate::room_shown`)
+/// and as QIS names it, with its campus („Hauptgebäude - HG 0.20 - Zentralcampus"); else the
+/// campus alone, both ways.
+fn place(date: &EventDate) -> Option<Place> {
+    match text(&date.room) {
+        Some(room) => Some(Place { short: date.room_shown().unwrap_or(room).to_string(), long: room.to_string() }),
+        None => {
+            let campus = date.campus.as_ref().map(|campus| campus.label().trim().to_string()).filter(|label| !label.is_empty())?;
+            Some(Place { short: campus.clone(), long: campus })
+        }
+    }
 }
 
 /// A text of the source, trimmed; `None` when there is none.
@@ -677,8 +804,20 @@ mod tests {
         BTreeMap::from([(A.to_string(), "Softwaretechnik".to_string()), (B.to_string(), "Datenbanken".to_string())])
     }
 
+    /// What the week's slots call the two modules: their abbreviations.
+    fn names() -> BTreeMap<String, String> {
+        BTreeMap::from([(A.to_string(), "SWT".to_string()), (B.to_string(), "DB".to_string())])
+    }
+
     fn room(mut row: Fixture, room: &str) -> Fixture {
         row.0.date.room = Some(room.into());
+        row
+    }
+
+    /// A lecture hall as QIS names it, and its short form (schema 9).
+    fn hall(row: Fixture, letter: char) -> Fixture {
+        let mut row = room(row, &format!("Zentrales Hörsaalgebäude - Hörsaal {letter} - Zentralcampus"));
+        row.0.date.room_short = Some(format!("ZHG/HS.{letter}"));
         row
     }
 
@@ -768,9 +907,9 @@ mod tests {
         pattern.0.date.rhythm_raw = Some("vierwöch.".into());
         vec![
             // One key in two rooms, and once more until 13:30: one entry per date.
-            room(teaching(A, "10", 1, "Vorlesung", 2, "11:30", "13:00").title("Softwaretechnik"), "HS A"),
-            room(teaching(A, "10", 2, "Vorlesung", 2, "11:30", "13:30").title("Softwaretechnik"), "HS B"),
-            room(teaching(A, "10", 3, "Vorlesung", 2, "11:30", "13:00").title("Softwaretechnik"), "HS A"),
+            hall(teaching(A, "10", 1, "Vorlesung", 2, "11:30", "13:00").title("Softwaretechnik"), 'A'),
+            hall(teaching(A, "10", 2, "Vorlesung", 2, "11:30", "13:30").title("Softwaretechnik"), 'B'),
+            hall(teaching(A, "10", 3, "Vorlesung", 2, "11:30", "13:00").title("Softwaretechnik"), 'A'),
             saturday,
             // An Übung of 2 SWS at two times: „1 von 2".
             teaching(B, "20", 1, "Übung", 1, "15:30", "17:00").title("Datenbanken"),
@@ -795,8 +934,10 @@ mod tests {
             row.date.room = Some(room.into());
             row
         };
+        let mut audimax = in_room(exam(A, "70", 1, "Softwaretechnik", day("2027-02-11"), Some(("11:00", "13:00"))), "Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus");
+        audimax.date.room_short = Some("ZHG/AM.1".into());
         vec![
-            exam(A, "70", 1, "Softwaretechnik", day("2027-02-11"), Some(("11:00", "13:00"))),
+            audimax,
             exam(A, "70", 2, "Softwaretechnik", day("2027-03-11"), Some(("11:00", "13:00"))),
             exam(B, "71", 1, "Datenbanken", Some(("2027-02-08", "2027-02-19")), None),
             exam(B, "72", 1, "Hausarbeit Datenbanken", day("2027-02-14"), Some(("23:45", "24:00"))),
@@ -831,7 +972,7 @@ mod tests {
     }
 
     fn calendar(t: &Timetable) -> Calendar {
-        calendar_of(t, &titles(), "WiSe 2026/27", "2026-09-23T12:35:16Z")
+        calendar_of(t, &titles(), &names(), "WiSe 2026/27", "2026-09-23T12:35:16Z")
     }
 
     fn entry<'c>(calendar: &'c Calendar, uid: &str) -> &'c Entry {
@@ -861,15 +1002,18 @@ mod tests {
         let c = calendar(&semester());
         let lecture = entry(&c, &uid_of(&rows[0], "2026-10-06"));
         assert_eq!(lecture.when, When::Timed { day: d("2026-10-06"), from: 690, to: 810 }, "until the later end");
-        assert_eq!(lecture.location.as_deref(), Some("HS A / HS B"));
-        assert_eq!(lecture.summary, "Softwaretechnik · Vorlesung");
+        // As short as its slot in the week, both rooms in their short forms; all of it in full in
+        // the description, the event's title only where it is not its module's.
+        assert_eq!(lecture.summary, "VL SWT");
+        assert_eq!(lecture.location.as_deref(), Some("ZHG/HS.A / ZHG/HS.B"));
         assert_eq!(lecture.categories, ["Vorlesung"]);
         assert_eq!(lecture.url.as_deref(), Some("https://qis.example/10"));
         assert_eq!(
             lecture.description.as_deref(),
             Some(
-                "Modul 11111 Softwaretechnik\nwöchentlich 06.10.2026–26.01.2027\nEntfällt: 22.12., 29.12. \
-                 (vorlesungsfrei)\nQuelle: QIS"
+                "Vorlesung\nModul 11111 Softwaretechnik\nwöchentlich 06.10.2026–26.01.2027\nRäume: Zentrales \
+                 Hörsaalgebäude - Hörsaal A - Zentralcampus / Zentrales Hörsaalgebäude - Hörsaal B - \
+                 Zentralcampus\nEntfällt: 22.12., 29.12. (vorlesungsfrei)\nQuelle: QIS"
             )
         );
         assert!(!lecture.tentative && !lecture.transparent);
@@ -880,7 +1024,10 @@ mod tests {
         let exams = exams();
         let sitting = entry(&c, &exam_uid(&exams[7]));
         assert_eq!(sitting.when, When::Timed { day: d("2027-02-12"), from: 540, to: 690 });
+        assert_eq!(sitting.summary, "Prüfung DB");
+        // Rooms without a short form: as QIS names them, and no line repeats them.
         assert_eq!(sitting.location.as_deref(), Some("HS 1 / HS 2"));
+        assert_eq!(sitting.description.as_deref(), Some("Prüfung\nModul 22222 Datenbanken\nQuelle: QIS"));
         assert_eq!(of_event(&c, "76").len(), 1);
 
         // Every UID once, the entries by start.
@@ -902,6 +1049,7 @@ mod tests {
         assert_eq!(options.len(), 30);
         for option in &options {
             assert!(option.tentative, "{}", option.uid);
+            assert_eq!(option.summary, "Ü DB · 1 von 2", "as its slot says");
             assert!(option.description.as_deref().unwrap().contains("\nEine von 2 Übungsgruppen; in Betula wählen\n"));
         }
         // The choice made: the other option's dates go, and the chosen ones are firm.
@@ -911,6 +1059,7 @@ mod tests {
         assert_eq!(left.len(), 15);
         assert!(left.iter().all(|entry| !entry.tentative && entry.uid.starts_with(&rows[5].key().text())));
         assert!(!left[0].description.as_deref().unwrap().contains("Eine von"));
+        assert_eq!(left[0].summary, "Ü DB");
 
         // A range QIS does not state: the lecture period, named.
         let assumed = of_event(&c, "30");
@@ -924,8 +1073,9 @@ mod tests {
             assert_eq!(
                 entry.description.as_deref(),
                 Some(
-                    "Modul 11111 Softwaretechnik\nwöchentlich\nZeitraum in QIS nicht angegeben; angenommen: \
-                     Vorlesungszeit 05.10.2026–31.01.2027\nEntfällt: 24.12., 31.12. (vorlesungsfrei)\nQuelle: QIS"
+                    "Seminar 30\nModul 11111 Softwaretechnik\nwöchentlich\nZeitraum in QIS nicht angegeben; \
+                     angenommen: Vorlesungszeit 05.10.2026–31.01.2027\nEntfällt: 24.12., 31.12. (vorlesungsfrei)\n\
+                     Quelle: QIS"
                 )
             );
         }
@@ -933,14 +1083,20 @@ mod tests {
         // Exams: the second sitting and the retake are tentative, the first sitting is not.
         let exams = exams();
         let first = entry(&c, &exam_uid(&exams[0]));
-        assert_eq!((first.summary.as_str(), first.tentative), ("Softwaretechnik · Prüfung", false));
+        assert_eq!((first.summary.as_str(), first.tentative), ("Prüfung SWT", false));
         assert_eq!(first.when, When::Timed { day: d("2027-02-11"), from: 660, to: 780 });
         assert_eq!(first.categories, ["Prüfung"]);
-        assert_eq!(first.description.as_deref(), Some("Modul 11111 Softwaretechnik\nQuelle: QIS"));
+        assert_eq!(first.location.as_deref(), Some("ZHG/AM.1"));
+        assert_eq!(
+            first.description.as_deref(),
+            Some("Prüfung\nModul 11111 Softwaretechnik\nRaum: Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus\nQuelle: QIS")
+        );
+        // The later sitting and the retake say so after the module: a student attends one of two.
         let second = entry(&c, &exam_uid(&exams[1]));
-        assert_eq!((second.summary.as_str(), second.tentative), ("Softwaretechnik · Prüfung · 2. Termin", true));
+        assert_eq!((second.summary.as_str(), second.tentative), ("Prüfung SWT · 2. Termin", true));
         let retake = entry(&c, &exam_uid(&exams[6]));
-        assert_eq!((retake.summary.as_str(), retake.tentative), ("Wiederholungsprüfung Datenbanken · Prüfung", true));
+        assert_eq!((retake.summary.as_str(), retake.tentative), ("Prüfung DB · Wdh.", true));
+        assert!(retake.description.as_deref().unwrap().starts_with("Prüfung · Wiederholungsprüfung Datenbanken\n"));
         assert!(!entry(&c, &exam_uid(&exams[7])).tentative, "B's first sitting, that day");
     }
 
@@ -951,13 +1107,18 @@ mod tests {
         // An exam window, a deadline and a day without a time are whole days that keep the time free.
         let window = entry(&c, &exam_uid(&exams[2]));
         assert_eq!(window.when, When::AllDay { first: d("2027-02-08"), last: d("2027-02-19") });
-        assert_eq!(window.summary, "Datenbanken · Prüfungszeitraum");
+        assert_eq!(window.summary, "Prüfungszeitraum DB");
         let deadline = entry(&c, &exam_uid(&exams[3]));
         assert_eq!(deadline.when, When::AllDay { first: d("2027-02-14"), last: d("2027-02-14") });
-        assert_eq!(deadline.summary, "Hausarbeit Datenbanken · Abgabe (bis 24:00)");
+        assert_eq!(deadline.summary, "Abgabe DB");
         let day_only = entry(&c, &exam_uid(&exams[4]));
         assert_eq!(day_only.when, When::AllDay { first: d("2027-02-16"), last: d("2027-02-16") });
-        assert_eq!(day_only.summary, "Mündliche Prüfung Datenbanken · Prüfung (Uhrzeit offen)");
+        assert_eq!(day_only.summary, "Prüfung DB");
+        // The description says what the whole days leave open, and the exam's own title.
+        let first_line = |entry: &Entry| entry.description.as_deref().unwrap().lines().next().unwrap().to_string();
+        assert_eq!(first_line(window), "Prüfungszeitraum");
+        assert_eq!(first_line(deadline), "Abgabe · Hausarbeit Datenbanken (bis 24:00)");
+        assert_eq!(first_line(day_only), "Prüfung · Mündliche Prüfung Datenbanken (Uhrzeit offen)");
         for whole in [window, deadline, day_only] {
             assert!(whole.transparent && !whole.tentative, "{}", whole.uid);
             assert_eq!(whole.location.as_deref(), Some("Audimax"));
@@ -973,8 +1134,9 @@ mod tests {
             ]
         );
         assert!(block.iter().all(|entry| entry.transparent && !entry.tentative));
+        assert!(block[0].description.as_deref().unwrap().starts_with("Blockseminar 40\nModul 11111 Softwaretechnik\n"));
         assert!(block[0].description.as_deref().unwrap().contains("\nBlockveranstaltung 14.11.2026–15.11.2026\n"));
-        assert_eq!(block[0].summary, "Blockseminar 40 · Blockseminar");
+        assert_eq!(block[0].summary, "Sem SWT");
         assert_eq!(block[0].categories, ["Seminar"]);
         assert_eq!(block[0].location.as_deref(), Some("Zentralcampus Cottbus"), "no room: the campus");
 
@@ -992,7 +1154,7 @@ mod tests {
         let c = calendar(&semester());
         // Saturdays: the break, Reformationstag, a date QIS cancels; a room note on its day.
         assert_eq!(of_event(&c, "35").len(), 13);
-        let lines = "Modul 11111 Softwaretechnik\nwöchentlich 10.10.2026–30.01.2027\nLehrende: Robel\nEntfällt: \
+        let lines = "Übung\nModul 11111 Softwaretechnik\nwöchentlich 10.10.2026–30.01.2027\nLehrende: Robel\nEntfällt: \
                      26.12., 02.01. (vorlesungsfrei); 31.10. (Reformationstag); 07.11. (laut QIS)";
         let first = entry(&c, &uid_of(&rows[3], "2026-10-10"));
         assert_eq!(first.description.as_deref(), Some(format!("{lines}\nQuelle: QIS").as_str()));
@@ -1001,12 +1163,12 @@ mod tests {
         for gone in ["2026-10-31", "2026-11-07", "2026-12-26"] {
             assert!(c.entries.iter().all(|entry| entry.uid != uid_of(&rows[3], gone)), "{gone}");
         }
-        // An event of both modules names both, by id.
+        // An event of both modules names both, by id, its title too.
         let shared = of_event(&c, "80");
         assert_eq!(shared.len(), 15);
         let description = shared[0].description.as_deref().unwrap();
-        assert!(description.starts_with("Modul 11111 Softwaretechnik\nModul 22222 Datenbanken\n"), "{description}");
-        assert_eq!(shared[0].summary, "Gemeinsam · Tutorium");
+        assert!(description.starts_with("Tutorium · Gemeinsam\nModul 11111 Softwaretechnik\nModul 22222 Datenbanken\n"), "{description}");
+        assert_eq!(shared[0].summary, "Tut SWT/DB");
     }
 
     /// The browser holds the modules in plan order, a code in ascending order: the same calendar.
@@ -1026,14 +1188,14 @@ mod tests {
         assert_eq!(c.stamp, "20260923T123516Z");
         assert_eq!(c.description, "Betula (inoffiziell) · Termine laut QIS, Stand 23.09.2026");
         assert_eq!(
-            calendar_of(&t, &titles(), "", "20260923T123516Z"),
+            calendar_of(&t, &titles(), &names(), "", "20260923T123516Z"),
             c,
             "a DTSTAMP is kept, the key names the semester"
         );
-        let unknown = calendar_of(&t, &titles(), "WiSe 2026/27", "gestern");
+        let unknown = calendar_of(&t, &titles(), &names(), "WiSe 2026/27", "gestern");
         assert_eq!((unknown.stamp.as_str(), unknown.description.as_str()), (EPOCH_STAMP, ABOUT));
         // A snapshot changed late in the evening is of the next day in Cottbus.
-        let late = calendar_of(&t, &titles(), "WiSe 2026/27", "2026-09-23T22:30:00Z");
+        let late = calendar_of(&t, &titles(), &names(), "WiSe 2026/27", "2026-09-23T22:30:00Z");
         assert_eq!(late.description, "Betula (inoffiziell) · Termine laut QIS, Stand 24.09.2026");
         let text = ics::write(&c);
         assert!(text.starts_with("BEGIN:VCALENDAR\r\n") && text.ends_with("END:VCALENDAR\r\n"));
@@ -1083,7 +1245,7 @@ mod tests {
     fn a_semester_without_data_is_an_empty_calendar() {
         let summer = SemesterFacts::derive(SemesterKey::parse("2027S").unwrap(), None, &[]);
         let t = build_in(&summer, &[], &[], &[A], &[], &Selection::default());
-        let c = calendar_of(&t, &titles(), "SoSe 2027", "2026-09-23T12:35:16Z");
+        let c = calendar_of(&t, &titles(), &names(), "SoSe 2027", "2026-09-23T12:35:16Z");
         assert!(c.entries.is_empty());
         assert_eq!(
             c.description,
@@ -1128,7 +1290,7 @@ mod tests {
             town_from: None,
         };
         let modules = ids(&[B, "FÜS", A, B, "0123", "FÜS"]);
-        let (subscription, other) = Subscription::of(t.key, &modules, &selection, Some(&t));
+        let (subscription, other) = Subscription::of(t.key, &modules, Some("079-82-2008"), &selection, Some(&t));
         let mut hidden = vec![rows[9].key().packed(), hidden_exam().packed()];
         hidden.sort_unstable();
         assert_eq!(
@@ -1136,6 +1298,7 @@ mod tests {
             Subscription {
                 semester: 4053,
                 modules: vec![11111, 22222],
+                program: Some("079-82-2008".to_string()),
                 hidden_kinds: EventKind::Tutorial.bit(),
                 hidden_events: vec![50],
                 hidden_rows: hidden,
@@ -1146,11 +1309,14 @@ mod tests {
         assert_eq!(other, ["FÜS", "0123"]);
         assert_eq!(Subscription::from_code(&subscription.code().unwrap()), Some(subscription));
         // Without a timetable, everything the selection holds.
-        let (all, _) = Subscription::of(t.key, &modules, &selection, None);
+        let (all, _) = Subscription::of(t.key, &modules, None, &selection, None);
         assert_eq!(all.hidden_events, [50, 999_999]);
         assert_eq!((all.hidden_rows.len(), all.chosen_rows.len()), (3, 2));
+        // A program id of another shape is left out, as a reader leaves it out.
+        let (odd, _) = Subscription::of(t.key, &modules, Some("079_82_2008"), &selection, Some(&t));
+        assert_eq!(odd.program, None);
         // Only ids that are no numbers: nothing a code can carry.
-        let (none, other) = Subscription::of(t.key, &ids(&["FÜS"]), &Selection::default(), Some(&t));
+        let (none, other) = Subscription::of(t.key, &ids(&["FÜS"]), None, &Selection::default(), Some(&t));
         assert_eq!((none.modules.len(), other), (0, vec!["FÜS".to_string()]));
         assert_eq!(none.code(), Err(pack::Error::Malformed));
     }
@@ -1159,7 +1325,7 @@ mod tests {
     fn a_town_derived_from_the_import_is_written_as_it_is() {
         let with_tracks = |town: Option<Town>| Timetable { tracks: [A.to_string()].into(), town, town_derived: town.is_some(), ..semester() };
         let imported = Selection { town_from: Some([A.to_string()].into()), ..Selection::default() };
-        let town = |selection: &Selection, t: &Timetable| Subscription::of(t.key, &ids(&[A, B]), selection, Some(t)).0.town;
+        let town = |selection: &Selection, t: &Timetable| Subscription::of(t.key, &ids(&[A, B]), None, selection, Some(t)).0.town;
         // The page derived it from the imported modules: the feed must not derive it anew.
         assert_eq!(town(&imported, &with_tracks(Some(Town::Cottbus))), TownChoice::Only(Town::Cottbus).code());
         assert_eq!(town(&imported, &with_tracks(None)), TownChoice::Both.code());
@@ -1176,7 +1342,8 @@ mod tests {
         let rows = rows();
         let t = semester();
         let modules = ids(&[A, B]);
-        let (current, _) = Subscription::of(t.key, &modules, &selection(), Some(&t));
+        let informatik = Some("079-82-2008");
+        let (current, _) = Subscription::of(t.key, &modules, informatik, &selection(), Some(&t));
         let stored = current.code().unwrap();
         assert!(same_subscription(&stored, &current, &t));
 
@@ -1184,17 +1351,22 @@ mod tests {
         let fewer: Vec<Fixture> =
             rows.iter().filter(|row| !["50", "60"].contains(&row.0.date.event_id.as_str())).cloned().collect();
         let now = build(&fewer, &exams(), &[A, B], &two_sws(), &selection());
-        let (after, _) = Subscription::of(now.key, &modules, &selection(), Some(&now));
+        let (after, _) = Subscription::of(now.key, &modules, informatik, &selection(), Some(&now));
         assert_eq!((after.hidden_events.len(), after.hidden_rows.len()), (0, 1), "the new code is shorter");
         assert!(same_subscription(&stored, &after, &now));
         // A chosen row QIS no longer has, kept in a code made without the timetable: the same.
         let with_stale = Selection { chosen_rows: [RowKey { event: 20, fp: 0x12345 }].into(), ..selection() };
-        let (all, _) = Subscription::of(t.key, &modules, &with_stale, None);
+        let (all, _) = Subscription::of(t.key, &modules, informatik, &with_stale, None);
         assert!(same_subscription(&all.code().unwrap(), &current, &t));
 
         // A module added, a Termin hidden, a choice made, a kind, the town, an event: stale.
-        let (more, _) = Subscription::of(t.key, &ids(&[A, B, "33333"]), &selection(), Some(&t));
+        let (more, _) = Subscription::of(t.key, &ids(&[A, B, "33333"]), informatik, &selection(), Some(&t));
         assert!(!same_subscription(&stored, &more, &t));
+        // Another program, or none: the feed would name the modules otherwise.
+        for program in [Some("C38-82-2024"), None] {
+            let (other, _) = Subscription::of(t.key, &modules, program, &selection(), Some(&t));
+            assert!(!same_subscription(&stored, &other, &t), "{program:?}");
+        }
         let changes = [
             Selection { hidden_rows: [rows[9].key(), rows[0].key()].into(), ..selection() },
             Selection { chosen_rows: [rows[4].key()].into(), ..selection() },
@@ -1203,7 +1375,7 @@ mod tests {
             Selection { hidden_events: [50, 30].into(), ..selection() },
         ];
         for changed in changes {
-            let (changed_now, _) = Subscription::of(t.key, &modules, &changed, Some(&t));
+            let (changed_now, _) = Subscription::of(t.key, &modules, informatik, &changed, Some(&t));
             assert!(!same_subscription(&stored, &changed_now, &t), "{changed:?}");
         }
         // Another semester, and codes that do not decode.
@@ -1240,8 +1412,8 @@ mod tests {
         assert_eq!(both.when, When::Timed { day: d("2026-10-07"), from: 600, to: 960 });
         assert_eq!(both.location.as_deref(), Some("HS 105 / Labor 213"));
         let both_lines = format!(
-            "Modul 11111 Softwaretechnik\nwöchentlich 07.10.2026–27.01.2027\nLehrende: Bleicher / Freymann\n\
-             Einweisung\n{dropped}"
+            "Praktikum 90\nModul 11111 Softwaretechnik\nwöchentlich 07.10.2026–27.01.2027\nLehrende: Bleicher / \
+             Freymann\nEinweisung\n{dropped}"
         );
         assert_eq!(both.description.as_deref(), Some(format!("{both_lines}\nQuelle: QIS").as_str()));
         let noted = entry(&c, &uid_of(&short, "2026-10-21"));
@@ -1252,7 +1424,8 @@ mod tests {
 
         // A date only the second row holds: its room, its end, its teacher; the series as above.
         let alone = format!(
-            "Modul 11111 Softwaretechnik\nwöchentlich 07.10.2026–27.01.2027\nLehrende: Freymann\n{dropped}\nQuelle: QIS"
+            "Praktikum 90\nModul 11111 Softwaretechnik\nwöchentlich 07.10.2026–27.01.2027\nLehrende: Freymann\n\
+             {dropped}\nQuelle: QIS"
         );
         for day in ["2026-12-16", "2027-01-13"] {
             let only = entry(&c, &uid_of(&short, day));
@@ -1272,8 +1445,9 @@ mod tests {
         let db = pinned.unwrap_or_else(crate::tests::open);
         let meta = queries::meta(&db).unwrap();
         let semester = if is_pinned { "2026W".to_string() } else { meta.current_semester.clone().unwrap() };
-        // The pinned code of subscription.rs: 149408 hidden, „Nur diesen" on 148369-a4d12.
-        let code = "CQpJeFAKchJKBgdlgf0e7Hwl_4S";
+        // The pinned code of subscription.rs: Informatik's abbreviations, 149408 hidden, „Nur
+        // diesen" on 148369-a4d12.
+        let code = crate::timetable::subscription::tests::FIRST_SEMESTER_CODE;
         let subscription = Subscription::from_code(code).unwrap();
         let selection = subscription.selection();
         let plan = ids(&["12104", "12107", "12102", "11112"]);
@@ -1286,11 +1460,14 @@ mod tests {
         .into_iter()
         .map(|(id, title)| (id.to_string(), title.to_string()))
         .collect();
+        // Their abbreviations in Informatik B.Sc. (079-82-2008), as the page's slots show them.
+        let names: BTreeMap<String, String> =
+            [("12104", "EvS"), ("12107", "EEG"), ("12102", "PP"), ("11112", "MIT1")].into_iter().map(|(id, name)| (id.to_string(), name.to_string())).collect();
         let stamp = snapshot_stamp(&meta);
         let in_plan = planned(&db, &semester, &plan, &selection);
         let by_id = planned(&db, &semester, &subscription.module_ids(), &selection);
-        let browser = ics::write(&calendar_of(&in_plan, &titles, "", &stamp));
-        let feed = ics::write(&calendar_of(&by_id, &titles, "", &stamp));
+        let browser = ics::write(&calendar_of(&in_plan, &titles, &names, "", &stamp));
+        let feed = ics::write(&calendar_of(&by_id, &titles, &names, "", &stamp));
         assert_eq!(browser, feed, "the download is the feed");
         let uids: Vec<&str> = feed.split("\r\n").filter_map(|line| line.strip_prefix("UID:")).collect();
         assert_eq!(uids.iter().collect::<BTreeSet<_>>().len(), uids.len(), "every UID once");
@@ -1299,22 +1476,23 @@ mod tests {
         }
 
         assert_eq!(stamp, "20260925T083015Z");
-        let (of_plan, _) = Subscription::of(in_plan.key, &plan, &selection, Some(&in_plan));
+        let (of_plan, _) = Subscription::of(in_plan.key, &plan, Some("079-82-2008"), &selection, Some(&in_plan));
         assert_eq!(of_plan.code().as_deref(), Ok(code));
-        let c = calendar_of(&in_plan, &titles, "", &stamp);
+        let c = calendar_of(&in_plan, &titles, &names, "", &stamp);
         assert_eq!(c.name, "Studienplan WiSe 2026/27");
         // The stand is the build's, which wrote the short names on 25.09. (the data is of 23.09.).
         assert_eq!(c.description, "Betula (inoffiziell) · Termine laut QIS, Stand 25.09.2026");
         // 12104's Tuesday lecture, as C.14 shows it.
         let lecture = entry(&c, "148701-a2633-20261013@betula.app");
         assert_eq!(lecture.when, When::Timed { day: d("2026-10-13"), from: 690, to: 780 });
-        assert_eq!(lecture.summary, "Entwicklung von Softwaresystemen · Vorlesung");
-        assert_eq!(lecture.location.as_deref(), Some("Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus"));
+        assert_eq!(lecture.summary, "VL EvS");
+        assert_eq!(lecture.location.as_deref(), Some("ZHG/HS.C"));
         assert_eq!(
             lecture.description.as_deref(),
             Some(
-                "Modul 12104 Entwicklung von Softwaresystemen\nwöchentlich 13.10.2026–26.01.2027\nEntfällt: \
-                 22.12., 29.12. (vorlesungsfrei)\nQuelle: QIS"
+                "Vorlesung\nModul 12104 Entwicklung von Softwaresystemen\nwöchentlich 13.10.2026–26.01.2027\nRaum: \
+                 Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus\nEntfällt: 22.12., 29.12. (vorlesungsfrei)\n\
+                 Quelle: QIS"
             )
         );
         assert!(feed.contains(

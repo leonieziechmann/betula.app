@@ -474,11 +474,13 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
         })
     };
 
-    // The list for another device: a link to this page with the marked modules in its fragment.
-    let transfer_link = move || {
+    // The list for another device: a link to this page with the marked modules in its fragment;
+    // none for a list no code holds, and then no action.
+    let transfer_link = Memo::new(move |_| {
         let ids: Vec<String> = bookmarks.map(|bookmarks| bookmarks.marks()).unwrap_or_default().into_iter().map(|mark| mark.id).collect();
-        format!("{}#{}", url::BOOKMARKS, transfer_fragment(&ids))
-    };
+        transfer_fragment(&ids).map(|fragment| format!("{}#{fragment}", url::BOOKMARKS))
+    });
+    let transferable = Memo::new(move |_| transfer_link.with(Option::is_some));
 
     // Emptying the list asks first, and can be taken back afterwards.
     let confirming = RwSignal::new(false);
@@ -534,9 +536,11 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
             <div class="fgroup actions">
                 <p class="flabel label">"Aktionen"</p>
                 <a class="action" href="#" data-action="copy-text" data-text=as_text><Icon name="copy"/><span>"Liste kopieren"</span></a>
-                <a class="action" href="#" data-action="copy-text" data-absolute="" data-text=transfer_link title="Der Link trägt die Merkliste hinter dem #: dieser Teil einer Adresse wird nie an einen Server gesendet">
-                    <Icon name="share-2"/><span><span data-label="">"Auf anderes Gerät übertragen"</span><small>"Link kopieren und dort öffnen"</small></span>
-                </a>
+                {move || transferable.get().then(|| view! {
+                    <a class="action" href="#" data-action="copy-text" data-absolute="" data-text=move || transfer_link.get().unwrap_or_default() title="Der Link trägt die Merkliste hinter dem #: dieser Teil einer Adresse wird nie an einen Server gesendet">
+                        <Icon name="share-2"/><span><span data-label="">"Auf anderes Gerät übertragen"</span><small>"Link kopieren und dort öffnen"</small></span>
+                    </a>
+                })}
                 {move || match (cleared.get().is_some(), confirming.get()) {
                     (true, _) => view! {
                         <p class="action note-action"><Icon name="check"/><span>"Geleert"</span><button class="mini hit" type="button" id="clear-undo" on:click=undo>"Rückgängig"</button></p>

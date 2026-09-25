@@ -840,9 +840,12 @@ pub struct StudyplanData {
     /// lecture period, breaks and A weeks (`SemesterFacts::derive`).
     pub counts: Vec<DateCount>,
     /// The modules' abbreviations („EvS", schema 9), by id: within the plan's program where it has
-    /// one (`studyplan_in`), else each module's own. Only a week grid names modules by them
-    /// (`slot_names`); everywhere else the title stands (owner, 2026-09-25).
+    /// one (`studyplan_in`), else each module's own. Only a week grid and the calendar's entries
+    /// name modules by them (`slot_names`); everywhere else the title stands (owner, 2026-09-25).
     pub abbrevs: BTreeMap<String, String>,
+    /// The program `abbrevs` are of, as `studyplan_in` was asked for it (an id of another shape
+    /// left out). A subscription carries it, so the feed names the modules as the page does.
+    pub program: Option<String>,
 }
 
 /// The Studienplan of `ids` in semester `key`. For the browser (ids from the store) and the
@@ -852,10 +855,12 @@ pub fn studyplan(db: &dyn Database, key: SemesterKey, ids: &[String]) -> Result<
     studyplan_in(db, key, ids, None)
 }
 
-/// `studyplan` for a plan of `program_id`: the week grid names its modules by the abbreviations
-/// unique within that program (`queries::modules_abbrevs`), not only by each module's own.
+/// `studyplan` for a plan of `program_id`: the week grid and the calendar name its modules by the
+/// abbreviations unique within that program (`queries::modules_abbrevs`), not only by each
+/// module's own. An id that is no program id (`url::is_program_id`) is none.
 pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program_id: Option<&str>) -> Result<StudyplanData, DbError> {
     let ids = checked_ids(ids);
+    let program_id = program_id.filter(|id| crate::url::is_program_id(id));
     let semester_key = key.key();
     let semester = queries::semesters(db)?.into_iter().find(|semester| semester.key == semester_key);
     let (modules, missing) = catalog_rows(db, &ids)?;
@@ -868,6 +873,7 @@ pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program
         exams: queries::modules_exams(db, &ids, &semester_key)?,
         sws: queries::modules_teaching_sws(db, &ids)?,
         abbrevs: queries::modules_abbrevs(db, &ids, program_id)?.into_iter().map(|a| (a.module_id, a.abbrev)).collect(),
+        program: program_id.map(str::to_string),
         semester,
         ids,
         modules,
@@ -922,9 +928,10 @@ impl StudyplanData {
     }
 
     /// The calendar of `table`, a timetable of this data, before it is written: the page asks
-    /// whether it has entries at all before it offers a download.
+    /// whether it has entries at all before it offers a download. Its entries name the modules as
+    /// the week's slots do (`slot_names`).
     pub fn calendar(&self, table: &Timetable) -> Calendar {
-        export::calendar_of(table, &self.titles(), &self.label, &export::snapshot_stamp(&self.meta))
+        export::calendar_of(table, &self.titles(), &self.slot_names(), &self.label, &export::snapshot_stamp(&self.meta))
     }
 
     /// The calendar text of `table`: the feed and the download both call this, so they are
@@ -1459,16 +1466,16 @@ fn avoid_text(
 }
 
 /// The calendar text of a subscription (the server's feed): the timetable is made anew from the
-/// snapshot for the code's semester, modules and hide rules, so exams QIS publishes later arrive
-/// by themselves. A semester the snapshot does not have is a calendar without entries that says
-/// so.
+/// snapshot for the code's semester, modules, program and hide rules, so exams QIS publishes later
+/// arrive by themselves. A semester the snapshot does not have is a calendar without entries that
+/// says so.
 pub fn calendar(db: &dyn Database, subscription: &Subscription) -> Result<String, DbError> {
     let Some(key) = subscription.key() else {
         // A code decodes only with a semester; a subscription made by hand without one has none.
         let stamp = export::snapshot_stamp(&queries::meta(db)?);
         return Ok(ics::write(&Calendar { name: "Studienplan".to_string(), stamp, ..Calendar::default() }));
     };
-    let data = studyplan(db, key, &subscription.module_ids())?;
+    let data = studyplan_in(db, key, &subscription.module_ids(), subscription.program.as_deref())?;
     let table = data.timetable(&subscription.selection());
     Ok(data.ics(&table))
 }
@@ -1690,9 +1697,12 @@ mod studyplan_tests {
     /// Informatik B.Sc., first semester, in plan order (the import's).
     const FS1: [&str; 4] = ["12104", "12107", "12102", "11112"];
 
-    /// The pinned code of `subscription.rs`: FS1 in 2026W, 149408 hidden, „Nur diesen" on
-    /// 148369-a4d12.
-    const FIRST_SEMESTER_CODE: &str = "CQpJeFAKchJKBgdlgf0e7Hwl_4S";
+    /// The pinned code of `subscription.rs`: FS1 in 2026W with Informatik's abbreviations, 149408
+    /// hidden, „Nur diesen" on 148369-a4d12.
+    const FIRST_SEMESTER_CODE: &str = crate::timetable::subscription::tests::FIRST_SEMESTER_CODE;
+
+    /// Informatik B.Sc. (PO 2008), the program of FS1.
+    const INFORMATIK: &str = "079-82-2008";
 
     /// The pinned snapshot for `test`, else the tests' own; the semester the checks look at: 2026W
     /// on the pinned one, the current one on any other.
@@ -1732,14 +1742,22 @@ mod studyplan_tests {
         let uids: Vec<&str> = feed.split("\r\n").filter_map(|line| line.strip_prefix("UID:")).collect();
         assert_eq!(uids.iter().collect::<BTreeSet<_>>().len(), uids.len(), "every UID once");
 
-        // The browser: its plan order, its store's selection, its own data.
-        let data = studyplan(&db, key, &ids(&FS1)).unwrap();
+        // The browser: its plan order, its store's selection, its own data, loaded for the program
+        // the code carries.
+        assert_eq!(subscription.program.as_deref(), Some(INFORMATIK));
+        let data = studyplan_in(&db, key, &ids(&FS1), Some(INFORMATIK)).unwrap();
+        assert_eq!(data.program.as_deref(), Some(INFORMATIK));
         assert_eq!(data.ids, ids(&FS1), "the plan's order");
         let table = data.timetable(&subscription.selection());
         invariants(&table);
         assert_eq!(table.modules, ids(&FS1));
         assert_eq!(data.ics(&table), feed, "the download is the feed");
         assert_eq!(data.calendar(&table).entries.len(), uids.len());
+        // Without a program the modules go by their own abbreviations, on both sides alike.
+        let own = Subscription { program: None, ..subscription.clone() };
+        let plain = studyplan(&db, key, &ids(&FS1)).unwrap();
+        assert_eq!(plain.program, None);
+        assert_eq!(plain.ics(&plain.timetable(&own.selection())), calendar(&db, &own).unwrap(), "the download is the feed");
         // A subscription made by hand without a semester: a calendar without entries.
         let nowhere = calendar(&db, &Subscription { semester: 0, ..subscription.clone() }).unwrap();
         well_formed(&nowhere);
@@ -1751,7 +1769,9 @@ mod studyplan_tests {
         assert_eq!(data.label, "WiSe 2026/27");
         assert_eq!(table.town, Some(Town::Cottbus));
         assert!(table.town_derived);
-        assert_eq!((uids.len(), feed.len()), (249, 179_137));
+        assert_eq!((uids.len(), feed.len()), (249, 177_900));
+        // As short as the week's slots: the kinds' letters, Informatik's abbreviations, short rooms.
+        assert!(feed.contains("\r\nSUMMARY:VL EvS\r\nLOCATION:ZHG/HS.C\r\n") && feed.contains("\r\nSUMMARY:Prak PP · 1 von 4\r\n"));
         assert!(feed.contains(
             "UID:148701-a2633-20261013@betula.app\r\nDTSTAMP:20260925T083015Z\r\n\
              DTSTART;TZID=Europe/Berlin:20261013T113000\r\n"
@@ -1799,7 +1819,7 @@ mod studyplan_tests {
         let table = data.timetable(&selection);
         assert_eq!((table.town, table.town_derived), (Some(Town::Senftenberg), true));
         assert!(table.tracks.contains("11107") && table.tracks.contains("12105"));
-        let (code, _) = Subscription::of(key, &table.modules, &selection, Some(&table));
+        let (code, _) = Subscription::of(key, &table.modules, None, &selection, Some(&table));
         assert_eq!(code.town, crate::timetable::select::TownChoice::Only(Town::Senftenberg).code(), "the feed shows the page's town");
         // Without the elective, the imported modules alone: the same town, as before.
         let before = studyplan(&db, key, &ids(&imported)).unwrap().timetable(&Selection::default());

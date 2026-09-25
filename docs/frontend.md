@@ -231,11 +231,14 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     `pack/`): the ids as a set of numbers, in ascending order, each as its distance from the one
     before, in characters an address carries as they are, and two check characters at the end.
     The order of marking does not travel (owner, 2026-09-23: it does not matter); the other device
-    marks them all at once. 20 marked modules take 35 to 40 characters (as ids one by one,
-    `#add=11101,12204,…`, 124). A character
+    marks them all at once. The code begins with the number of its layout, in four bits
+    (`pack::to_versioned_code`; owner, 2026-09-25), so a later layout can be read beside it. 20
+    marked modules take 35 to 40 characters (as ids one by one, `11101,12204,…`, 124). A character
     typed wrong or two swapped are always noticed, a link cut short almost always; the page then
-    says the link is broken, and offers nothing of it. Links with the ids one by one, as they were
-    made before 2026-09-23, keep working (and are what a list too long for a code still gets).
+    says the link is broken, and offers nothing of it. A list too long for a code (thousands of ids
+    that are no module numbers, which the catalog does not have) gets no link. Links of the time
+    before (ids one by one, codes without a layout) are not read: there was only canary then, and
+    the owner wants no code for old links while none is needed (2026-09-25).
     A browser never sends the fragment of an address anywhere, neither with the request nor as a
     referrer, so the ids reach neither the server nor its logs. The page that is opened with
     such a link asks before it adds anything (a link must not fill somebody's list behind their
@@ -985,13 +988,14 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
   `e2e/bookmarks.mjs` watches every request of a session for marks. Exceptions, decided by the
-  owner (2026-09-23/24): the address of a calendar subscription (`/calendar/<code>.ics`,
-  `catalog::timetable::subscription`) carries the semester, the planned modules and what is
-  hidden or chosen (kinds, events, Termine, the Standort) as a `pack` code of kind `calendar`; the
-  server resolves it anew on every fetch and keeps nothing; Folia's own log writes
-  `/calendar/….ics`; the edge's access log keeps the address like every address, 7 days in the
-  monitoring and in the host's log files until they rotate. And „Mein Studiengang" (kept in the
-  browser as `program.id`, never in an address) may stand in a catalog address as a chosen
+  owner (2026-09-23/24/25): the address of a calendar subscription (`/calendar/<code>.ics`,
+  `catalog::timetable::subscription`) carries the semester, the planned modules, what is hidden
+  or chosen (kinds, events, Termine, the Standort) and the program whose abbreviations name the
+  modules in its entries (the plan's, else „Mein Studiengang"; 2026-09-25) as a `pack` code of
+  kind `calendar`; the server resolves it anew on every fetch and keeps nothing; Folia's own log
+  writes `/calendar/….ics`; the edge's access log keeps the address like every address, 7 days in
+  the monitoring and in the host's log files until they rotate. And „Mein Studiengang" (kept in
+  the browser as `program.id`, in no other address) may stand in a catalog address as a chosen
   program does (`/catalog?program=<slug>`), only where the catalog is filtered by it — the
   catalog tab's first entry of a session; the app never carries it along into other addresses
   and never re-adds it once removed. Like the Merkliste's `open`, the Studienplan's address names
@@ -1221,7 +1225,8 @@ FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
 - **And a Studienplan's calendar subscription** (owner decision 2026-09-24): `/calendar/<code>.ics`
   answers without the password when its code decodes (`subscription::is_feed_path`: the `pack`
   alphabet, 1 to 1,024 characters, `.ics` and nothing else, `%HH` escapes of alphabet characters
-  read as those characters; then the check characters, the kind `calendar` and the caps), because
+  read as those characters; then the check characters, the kind `calendar`, the layout
+  `subscription::VERSION` and the caps), because
   calendar services fetch it from their own servers and send no cookie. What that opens is the
   QIS schedule of the modules a code names, which every module page shows behind the gate, and
   nothing about a visitor; the check characters turn guesses away before any handler runs. Every
@@ -1327,7 +1332,8 @@ BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteF
 What `cargo test` checks:
 
 - `pack` (needs no snapshot): every shape of serde's data model there and back, the codes of
-  fixed values (the format is frozen), a field added at the end read from older codes, what the
+  fixed values (the format is frozen), a field added at the end read from older codes, versioned
+  codes (the layout in four bits, another layout named, never read as a plain code), what the
   format refuses; every character typed wrong, every swap of neighbours and of characters one
   apart is caught in codes of several lengths and kinds; codes that check out but hold garbage
   are refused without a panic, and without more work than their length allows.
@@ -1544,7 +1550,15 @@ to the result.
   active snapshot on every fetch. R20 has the owner's decision, §3 the gate and the log, „Der
   Studienplan" in §1 the rest; the privacy notice's entry is „Das Kalender-Abo" in
   `PRIVACY_OWED` (`app/src/pages/legal.rs`). The note of 2026-09-23 (a code of event ids) is
-  superseded: a code of modules and hide rules also brings the exams QIS publishes later. Still
+  superseded: a code of modules and hide rules also brings the exams QIS publishes later. Since
+  2026-09-25 an entry is as short as a slot of the week, for the phone (owner: „so kompakt wie
+  möglich … so wie die Infos bei der Ansicht auf der Seite"): „VL EvS" in „ZHG/HS.C", „Ü AuP · 1
+  von 3", „Prüfung EvS · 2. Termin"; its description says it all in full (what QIS calls the event,
+  the modules with number and title, the rooms as QIS names them, and what the rows say;
+  `catalog::timetable::export`). A program's abbreviations differ from a module's own in about
+  7 % of its compulsory modules, and the download must be the feed, so the code carries the
+  program; and it names the layout of its fields in four bits (`subscription::VERSION`), so a
+  later layout is read beside it. Codes of the time before are not read (canary only). Still
   open: the edge logs the address like every address, 7 days in Loki and in Docker's log files
   on the host until they rotate (`deploy/README.md` §9); a Traefik router for `/calendar/` with
   `observability.accessLogs=false` would leave it out, but needs the blue-green priority label

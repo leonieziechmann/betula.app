@@ -17,8 +17,7 @@
 //! `/programs/<slug>[/plan|areas|my-plan][?variant=<n>][&open=<id>][&full=1]`   program page, its
 //!                                      tabs, which of several study plans is shown, which module
 //!                                      stands beside it, and whether that module fills the page
-//!                                      (`ProgramUrl`); the old `/programs/<slug>/modules` is a
-//!                                      permanent redirect to `program_catalog_path`
+//!                                      (`ProgramUrl`)
 //! `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>`   the visitor's Studienplan
 //!                                      (`StudyplanUrl`): which semester and view, the module and
 //!                                      Termin beside it, the Regelstudienplan being taken over.
@@ -72,14 +71,10 @@ pub enum ProgramTab {
     /// Wahlpflicht & Bereiche
     Areas,
     /// „Mein Plan": the visitor's plan of the whole study, semester by semester. A placeholder
-    /// for now (owner, 2026-09-25); it took the place of „Alle Module", whose old address
-    /// (`OLD_MODULES_SEGMENT`) leads to the catalog of the program (`program_catalog_path`).
+    /// for now (owner, 2026-09-25); it took the place of „Alle Module", whose modules are the
+    /// catalog of the program (`program_catalog_path`).
     MyPlan,
 }
-
-/// The segment of the program's former tab „Alle Module": the server answers it with a
-/// permanent redirect to the catalog of the program (`program_catalog_path`).
-pub const OLD_MODULES_SEGMENT: &str = "modules";
 
 impl ProgramTab {
     pub const ALL: &'static [Self] = &[Self::Plan, Self::Areas, Self::MyPlan];
@@ -1557,8 +1552,6 @@ mod tests {
         assert_eq!(program_path("bachelor-informatik-2008", ProgramTab::Areas), "/programs/bachelor-informatik-2008/areas");
         assert_eq!(ProgramTab::from_segment("my-plan"), Some(ProgramTab::MyPlan));
         assert_eq!(ProgramTab::from_segment("electives"), None);
-        // „Alle Module" is gone: its address is no tab, and leads to the program's catalog.
-        assert_eq!(ProgramTab::from_segment(OLD_MODULES_SEGMENT), None);
         assert_eq!(program_catalog_path("bachelor-informatik-2008", None), "/catalog?program=bachelor-informatik-2008");
         assert_eq!(program_catalog_path("x", Some("11101")), "/catalog?program=x&open=11101");
         assert!(ProgramTab::Plan.indexed() && !ProgramTab::MyPlan.indexed());
