@@ -26,7 +26,7 @@ use catalog::timetable::exams::{self, Exam, ExamRow, ExamShape, ExamWarning, Ter
 use catalog::timetable::kind::EventKind;
 use catalog::timetable::model::Timetable;
 use catalog::timetable::rowkey::RowKey;
-use catalog::timetable::select::HiddenBy;
+use catalog::timetable::select::{HiddenBy, Town};
 use catalog::timetable::semester::SemesterKey;
 use catalog::url::StudyplanUrl;
 use leptos::prelude::*;
@@ -40,15 +40,23 @@ use crate::ui::Icon;
 pub(super) fn ExamsView(ctx: PlanCtx) -> impl IntoView {
     let base = Memo::new(move |_| ctx.url.with(|url| url.with_open(None, None)));
     let about = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(About::of).unwrap_or_default()));
+    // `listed` travels with the lines, so what reads them never reads `about` beside them (R16).
     let built = Memo::new(move |_| {
         let base = base.get();
-        ctx.table.with(|table| table.as_ref().map(|table| about.with(|about| exam_lines(table, about, &base))))
+        ctx.table.with(|table| {
+            table.as_ref().map(|table| {
+                about.with(|about| {
+                    let (lines, states) = exam_lines(table, about, &base);
+                    (lines, states, about.listed)
+                })
+            })
+        })
     });
-    let lines = Memo::new(move |_| built.with(|built| built.as_ref().map(|(lines, _)| lines.clone()).unwrap_or_default()));
-    let states = Memo::new(move |_| built.with(|built| built.as_ref().map(|(_, states)| states.clone()).unwrap_or_default()));
+    let lines = Memo::new(move |_| built.with(|built| built.as_ref().map(|(lines, ..)| lines.clone()).unwrap_or_default()));
+    let states = Memo::new(move |_| built.with(|built| built.as_ref().map(|(_, states, _)| states.clone()).unwrap_or_default()));
     // Nothing to list where the data could have had exams: said once. A past semester and one
     // whose dates are not out yet say so in the head already.
-    let none = Memo::new(move |_| built.with(|built| built.as_ref().is_some_and(|(lines, _)| lines.is_empty())) && about.with(|about| about.listed));
+    let none = Memo::new(move |_| built.with(|built| built.as_ref().is_some_and(|(lines, _, listed)| *listed && lines.is_empty())));
 
     view! {
         {move || none.get().then(|| view! { <p class="hint">"Keine Prüfungstermine im Datenstand."</p> })}
@@ -114,6 +122,8 @@ struct Sitting {
     key: Option<RowKey>,
     /// The exam event, when it is a number the store can keep.
     event: Option<u32>,
+    /// The town the exam is held in, where its rooms name one (`Exam::town`).
+    town: Option<Town>,
 }
 
 /// What a sitting's line changes when something is hidden: whether it is and why, and whether it
@@ -125,11 +135,19 @@ struct State {
 }
 
 impl State {
-    /// Why the sitting is not shown, where its own eye did not hide it.
-    fn reason(&self) -> Option<String> {
+    /// Why the sitting is not shown, where its own eye did not hide it. The Standort is named by
+    /// the town the exam is held in (`town`), as the module beside the plan names it: the
+    /// selection carries the town shown, and the exam is in the other one.
+    fn reason(&self, town: Option<Town>) -> Option<String> {
         match self.hidden {
             Some(HiddenBy::Kinds) => Some("Prüfungen ausgeblendet".to_string()),
-            Some(HiddenBy::Town(town)) => Some(format!("Standort {}", town.label())),
+            Some(HiddenBy::Town(shown)) => {
+                let other = match shown {
+                    Town::Cottbus => Town::Senftenberg,
+                    Town::Senftenberg => Town::Cottbus,
+                };
+                Some(format!("Standort {}", town.unwrap_or(other).label()))
+            }
             _ => None,
         }
     }
@@ -190,6 +208,7 @@ fn exam_lines(table: &Timetable, about: &About, base: &StudyplanUrl) -> (Vec<Lin
                 href: base.with_open(Some(module.as_str()), first.key).path(),
                 key: first.key,
                 event: exam.event_id.parse().ok(),
+                town: exam.town(),
             };
             let state = State { hidden: first.hidden, later: rows.iter().any(|row| row.rank == 2) };
             let termin = match first.shape {
@@ -404,11 +423,14 @@ fn line_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, line: Line) ->
 /// own memo, so the line and its eye stay the same elements.
 fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Sitting) -> impl IntoView {
     let id = sitting.id.clone();
+    let (keyed, town) = (sitting.key.is_some(), sitting.town);
     let state = Memo::new(move |_| states.with(|states| states.get(&id).cloned().unwrap_or_default()));
     let hidden = Memo::new(move |_| state.with(|state| state.hidden.is_some()));
-    let eye = Memo::new(move |_| state.with(|state| state.eye(sitting.key.is_some())));
+    // What the eye does and what it says, from the state alone: one memo, which the label reads
+    // without the state it is derived from (R16).
+    let eye = Memo::new(move |_| state.with(|state| (state.eye(keyed), state.reason(town))));
     let small = Memo::new(move |_| {
-        let (later, reason) = state.with(|state| (state.later, state.reason()));
+        let (later, reason) = state.with(|state| (state.later, state.reason(town)));
         let parts: Vec<String> = later.then(|| "2. Termin".to_string()).into_iter().chain(reason).chain(Some(sitting.place.clone()).filter(|place| !place.is_empty())).collect();
         parts.join(" · ")
     });
@@ -416,7 +438,7 @@ fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Si
     // What is hidden or shown changes at once: the timetable is worked out again, no query (R21).
     let toggle = move |_| {
         let Some(plan) = ctx.plan else { return };
-        let (semester, hidden, eye) = (ctx.key.get_untracked(), state.with_untracked(|state| state.hidden), eye.get_untracked());
+        let (semester, hidden, eye) = (ctx.key.get_untracked(), state.with_untracked(|state| state.hidden), eye.with_untracked(|(eye, _)| *eye));
         plan.update(|doc| match (eye, hidden, key, event) {
             (Eye::Hide, _, Some(key), _) => doc.set_row(semester, key, true),
             (Eye::Show, Some(HiddenBy::Event), _, Some(event)) => doc.set_event(semester, event, false),
@@ -425,11 +447,13 @@ fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Si
             _ => {}
         });
     };
-    let label = move || match eye.get() {
-        Eye::Hide => "Prüfungstermin ausblenden".to_string(),
-        Eye::Show => "Prüfungstermin einblenden".to_string(),
-        Eye::ShowKind => "Prüfungen einblenden".to_string(),
-        Eye::Fixed => state.with(State::reason).unwrap_or_else(|| "Prüfungstermin".to_string()),
+    let label = move || {
+        eye.with(|(eye, reason)| match eye {
+            Eye::Hide => "Prüfungstermin ausblenden".to_string(),
+            Eye::Show => "Prüfungstermin einblenden".to_string(),
+            Eye::ShowKind => "Prüfungen einblenden".to_string(),
+            Eye::Fixed => reason.clone().unwrap_or_else(|| "Prüfungstermin".to_string()),
+        })
     };
     let time = (!sitting.time.is_empty()).then(|| view! { <small>{sitting.time.clone()}</small> });
     view! {
@@ -445,7 +469,7 @@ fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Si
                 aria-pressed=move || if hidden.get() { "true" } else { "false" }
                 aria-label=label
                 title=label
-                disabled=move || eye.get() == Eye::Fixed
+                disabled=move || eye.with(|(eye, _)| *eye == Eye::Fixed)
                 on:click=toggle
             >
                 {move || if hidden.get() { view! { <Icon name="eye-off"/> } } else { view! { <Icon name="eye"/> } }}
@@ -559,6 +583,12 @@ mod tests {
         // Each sitting opens its module beside the plan, at its Termin.
         let Some(Line::Sitting(first)) = lines.first() else { panic!("a sitting first") };
         assert!(first.href.starts_with("/studyplan?open=1&row=10-"), "{}", first.href);
+        // And knows the town its exam is held in, where the rooms say it.
+        let towns: Vec<Option<Town>> = lines.iter().filter_map(|line| match line {
+            Line::Sitting(s) if s.when.starts_with("Mo") => Some(s.town),
+            _ => None,
+        }).collect();
+        assert_eq!(towns, vec![Some(Town::Cottbus), Some(Town::Cottbus), Some(Town::Cottbus), Some(Town::Senftenberg)]);
     }
 
     #[test]
@@ -606,11 +636,15 @@ mod tests {
         assert_eq!((state(Some(HiddenBy::Row)).eye(true), state(Some(HiddenBy::Event)).eye(true)), (Eye::Show, Eye::Show));
         // The kind's chip hides every exam; the eye shows them again, and the line says why.
         let kinds = state(Some(HiddenBy::Kinds));
-        assert_eq!((kinds.eye(true), kinds.reason().as_deref()), (Eye::ShowKind, Some("Prüfungen ausgeblendet")));
-        // The Standort decides: nothing for the eye to do.
-        let town = state(Some(HiddenBy::Town(catalog::timetable::select::Town::Cottbus)));
-        assert_eq!((town.eye(true), town.reason().as_deref()), (Eye::Fixed, Some("Standort Cottbus")));
-        assert_eq!(state(Some(HiddenBy::Event)).reason(), None);
+        assert_eq!((kinds.eye(true), kinds.reason(None).as_deref()), (Eye::ShowKind, Some("Prüfungen ausgeblendet")));
+        // The Standort decides: nothing for the eye to do. The line names the town the exam is
+        // held in, not the one shown („Standort Senftenberg" while Cottbus is shown), and where
+        // its rooms name none, the other town.
+        let town = state(Some(HiddenBy::Town(Town::Cottbus)));
+        assert_eq!((town.eye(true), town.reason(Some(Town::Senftenberg)).as_deref()), (Eye::Fixed, Some("Standort Senftenberg")));
+        assert_eq!(town.reason(None).as_deref(), Some("Standort Senftenberg"));
+        assert_eq!(state(Some(HiddenBy::Town(Town::Senftenberg))).reason(None).as_deref(), Some("Standort Cottbus"));
+        assert_eq!(state(Some(HiddenBy::Event)).reason(None), None);
     }
 
     #[test]

@@ -98,11 +98,20 @@ pub(super) fn OverviewView(ctx: PlanCtx) -> impl IntoView {
     let base = Memo::new(move |_| ctx.url.with(|url| url.with_open(None, None)));
     let shown = Memo::new(move |_| {
         let (current, start, base) = (ctx.current.get(), start.get(), base.get());
-        doc.with(|doc| rows.with(|rows| known.with(|known| goal.with(|goal| overview(doc, rows, known, goal.as_ref(), start, current, &base)))))
+        doc.with(|doc| {
+            // The page's semester, worked out as the page does: the one the module beside the
+            // plan shows a module in where it is planned there.
+            let page = super::key_of(&base, current, doc, ctx.today);
+            rows.with(|rows| known.with(|known| goal.with(|goal| overview(doc, rows, known, goal.as_ref(), start, current, &base, page))))
+        })
     });
     let head = Memo::new(move |_| shown.with(|shown| shown.head.clone()));
     let sum = Memo::new(move |_| shown.with(|shown| shown.sum.clone()));
+    // The semesters by their key, and each line by what it is: a change within a semester (a
+    // module taken out, a placeholder filled) touches its own lines only, and the rows around
+    // them stay the elements they were, the focus included.
     let terms = Memo::new(move |_| shown.with(|shown| shown.terms.clone()));
+    let keys = Memo::new(move |_| terms.with(|terms| terms.iter().map(|term| term.key).collect::<Vec<_>>()));
 
     // The note of an import lasts until the student goes on: to another view (this one goes),
     // or to the next import.
@@ -124,7 +133,7 @@ pub(super) fn OverviewView(ctx: PlanCtx) -> impl IntoView {
         </div>
         {move || sum.with(|sum| (!sum.is_empty()).then(|| view! { <p class="sp-sum">{sum.clone()}</p> }))}
         <ImportNote ctx/>
-        <For each=move || terms.get() key=|term| term.clone() children=move |term: Term| term_view(ctx, resolved, term)/>
+        <For each=move || keys.get() key=|key| *key children=move |key: SemesterKey| term_view(ctx, resolved, terms, key)/>
     }
 }
 
@@ -169,39 +178,74 @@ fn ImportNote(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// One semester: its head, its lines, and „+ Modul".
-fn term_view(ctx: PlanCtx, resolved: Option<MineResolved>, term: Term) -> impl IntoView {
-    let key = term.key;
+/// One semester: its head, its lines, and „+ Modul". It reads its own part of the Übersicht, and
+/// each line its own line (R5).
+fn term_view(ctx: PlanCtx, resolved: Option<MineResolved>, terms: Memo<Vec<Term>>, key: SemesterKey) -> impl IntoView {
+    let term = Memo::new(move |_| terms.with(|terms| terms.iter().find(|term| term.key == key).cloned()));
+    let head = Memo::new(move |_| term.with(|term| term.as_ref().map(|term| (term.label.clone(), term.now, term.lp.clone(), term.week.clone())).unwrap_or_default()));
+    let ids = Memo::new(move |_| term.with(|term| term.as_ref().map(|term| term.lines.iter().map(Line::id).collect::<Vec<_>>()).unwrap_or_default()));
     let add = move || add_module_href(resolved, key);
-    let lines = term.lines.clone();
     view! {
-        <section class="sp-term" aria-label=term.label.clone()>
+        <section class="sp-term" aria-label=move || head.with(|head| head.0.clone())>
             <h3>
-                <span>{term.label.clone()}</span>
-                {term.now.then(|| view! { <small>"jetzt"</small> })}
-                {term.lp.clone().map(|lp| view! { <span class="num">{lp}</span> })}
-                <a href=term.week.clone()>"Woche →"</a>
+                <span>{move || head.with(|head| head.0.clone())}</span>
+                {move || head.with(|head| head.1).then(|| view! { <small>"jetzt"</small> })}
+                {move || head.with(|head| head.2.clone()).map(|lp| view! { <span class="num">{lp}</span> })}
+                <a href=move || head.with(|head| head.3.clone())>"Woche →"</a>
             </h3>
-            {lines.into_iter().map(|line| line_view(ctx, line)).collect_view()}
-            <ul class="sp-mods"><li><a class="mini" href=add>"+ Modul"</a></li></ul>
+            <For each=move || ids.get() key=|id| id.clone() children=move |id: LineId| line_view(ctx, term, key, id)/>
+            <ul class="sp-mods"><li><a class="mini" id=add_id(key) href=add>"+ Modul"</a></li></ul>
         </section>
     }
 }
 
-fn line_view(ctx: PlanCtx, line: Line) -> AnyView {
-    match line {
-        Line::Module(module) => module_view(ctx, module).into_any(),
-        Line::Placeholder(row) => placeholder_view(ctx, row).into_any(),
+/// A line of a semester, from the semester's lines by what it is.
+fn line_view(ctx: PlanCtx, term: Memo<Option<Term>>, key: SemesterKey, id: LineId) -> impl IntoView {
+    let line = Memo::new(move |_| term.with(|term| term.as_ref().and_then(|term| term.lines.iter().find(|line| line.id() == id).cloned())));
+    move || {
+        line.get().map(|line| match line {
+            Line::Module(module) => module_view(ctx, term, key, module).into_any(),
+            Line::Placeholder(row) => placeholder_view(ctx, term, key, row).into_any(),
+        })
+    }
+}
+
+/// The id of a semester's „+ Modul": where the focus goes when its last line is taken out.
+fn add_id(key: SemesterKey) -> String {
+    format!("sp-add-{}", key.key())
+}
+
+/// Where the focus goes once `gone` is taken out of its semester: the „Entfernen" of the line
+/// after it (not one of the modules that filled a placeholder taken out: those move up to the
+/// semester's modules), else of the line before it, else the semester's „+ Modul". Empty where
+/// the semester is not shown.
+fn focus_after(term: Option<&Term>, gone: &LineId) -> String {
+    let Some(term) = term else { return String::new() };
+    let lines = &term.lines;
+    let Some(at) = lines.iter().position(|line| line.id() == *gone) else { return add_id(term.key) };
+    let fills = matches!(gone, LineId::Placeholder(_));
+    let after = lines.iter().skip(at + 1).find(|line| !(fills && matches!(line, Line::Module(module) if module.filler)));
+    let before = at.checked_sub(1).and_then(|index| lines.get(index));
+    after.or(before).map_or_else(|| add_id(term.key), |line| line.id().dom(term.key))
+}
+
+/// Moves the focus once the plan's change is on the page (the frame after it).
+fn focus_next(target: String) {
+    if !target.is_empty() {
+        request_animation_frame(move || nav::focus_by_id(&target));
     }
 }
 
 /// A module: number, title (a link to it beside the plan), what the plan calls it and what it
 /// fills, a warning when its half of the year is the other one, credits, and „Entfernen".
-fn module_view(ctx: PlanCtx, module: ModuleLine) -> impl IntoView {
+fn module_view(ctx: PlanCtx, term: Memo<Option<Term>>, key: SemesterKey, module: ModuleLine) -> impl IntoView {
     // Taking a module out changes what the pages ask the catalog: the button answers at once, the
-    // plan follows after the next frame (R21), and the line goes with it.
+    // plan follows after the next frame (R21), and the line goes with it; the focus goes on to the
+    // next line's „Entfernen".
     let busy = RwSignal::new(false);
     let (id, semester) = (module.id.clone(), module.semester);
+    let line = LineId::Module(module.id.clone());
+    let dom = line.dom(key);
     let remove = move |_| {
         let Some(plan) = ctx.plan else { return };
         if busy.get_untracked() {
@@ -209,11 +253,13 @@ fn module_view(ctx: PlanCtx, module: ModuleLine) -> impl IntoView {
         }
         busy.set(true);
         let (id, source) = (id.clone(), ctx.source);
+        let next = term.with_untracked(|term| focus_after(term.as_ref(), &line));
         plan.update_after_paint(move |doc| {
             let others = doc.modules_in(semester);
             let own = source.with_value(|source| own_events(source.as_ref(), semester, &others, &id));
             doc.unplan(semester, &id, &own);
             let _ = busy.try_set(false);
+            focus_next(next);
         });
     };
     let title = module.title.clone().unwrap_or_else(|| "nicht im Modulkatalog".to_string());
@@ -227,7 +273,7 @@ fn module_view(ctx: PlanCtx, module: ModuleLine) -> impl IntoView {
                 {module.season.map(|season| view! { " " <small class="badge warn">{season}</small> })}
             </span>
             {module.lp.clone().map(|lp| view! { <span class="lp">{lp}</span> })}
-            <button class="icon-btn" type="button" aria-label="Entfernen" title="Entfernen" aria-busy=move || busy.get().then_some("true") on:click=remove>
+            <button class="icon-btn" id=dom type="button" aria-label="Entfernen" title="Entfernen" aria-busy=move || busy.get().then_some("true") on:click=remove>
                 <Icon name="x"/>
             </button>
         </div>
@@ -236,12 +282,17 @@ fn module_view(ctx: PlanCtx, module: ModuleLine) -> impl IntoView {
 
 /// A placeholder: what the plan asks for, in the catalog's words, the semesters it spans, how
 /// much of it is filled, „Modul finden" while something is missing, and „Entfernen".
-fn placeholder_view(ctx: PlanCtx, row: PlaceholderRow) -> impl IntoView {
+fn placeholder_view(ctx: PlanCtx, term: Memo<Option<Term>>, key: SemesterKey, row: PlaceholderRow) -> impl IntoView {
     let pid = row.pid;
-    // Only the Übersicht shows placeholders, and no query follows them: taken out at once.
+    let line = LineId::Placeholder(pid);
+    let dom = line.dom(key);
+    // Only the Übersicht shows placeholders, and no query follows them: taken out at once, and
+    // the focus goes on to the next line's „Entfernen".
     let remove = move |_| {
         if let Some(plan) = ctx.plan {
+            let next = term.with_untracked(|term| focus_after(term.as_ref(), &line));
             plan.update(|doc| doc.remove_placeholder(pid));
+            focus_next(next);
         }
     };
     view! {
@@ -262,7 +313,7 @@ fn placeholder_view(ctx: PlanCtx, row: PlaceholderRow) -> impl IntoView {
                 };
                 view! { <button class="mini" type="button" on:click=find>"Modul finden"</button> }
             })}
-            <button class="icon-btn" type="button" aria-label="Platzhalter entfernen" title="Entfernen" on:click=remove>
+            <button class="icon-btn" id=dom type="button" aria-label="Platzhalter entfernen" title="Entfernen" on:click=remove>
                 <Icon name="x"/>
             </button>
         </div>
@@ -319,6 +370,33 @@ struct Term {
 enum Line {
     Module(ModuleLine),
     Placeholder(PlaceholderRow),
+}
+
+/// What a line of a semester is, whatever it shows: a module stands once in a semester, as
+/// itself or under the placeholder it fills.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum LineId {
+    Module(String),
+    Placeholder(u32),
+}
+
+impl Line {
+    fn id(&self) -> LineId {
+        match self {
+            Line::Module(module) => LineId::Module(module.id.clone()),
+            Line::Placeholder(row) => LineId::Placeholder(row.pid),
+        }
+    }
+}
+
+impl LineId {
+    /// The element id of the line's „Entfernen" in semester `key`, for the focus to go to.
+    fn dom(&self, key: SemesterKey) -> String {
+        match self {
+            LineId::Module(id) => format!("sp-x-{}-{id}", key.key()),
+            LineId::Placeholder(pid) => format!("sp-x-p{pid}"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -509,7 +587,9 @@ fn off_season(row: Option<&CatalogRow>, key: SemesterKey) -> Option<&'static str
 /// plan order, then its placeholders with the modules of the semester that fill them under each.
 /// A semester's credits are its modules' and its placeholders' that stand in it alone and that
 /// nothing fills; the head's are those of every module (each once) and every placeholder nothing
-/// fills.
+/// fills. `page`: the semester of the page (`key_of`), which a module beside the plan is shown in
+/// where it is planned there.
+#[allow(clippy::too_many_arguments)]
 fn overview(
     doc: &PlanDoc,
     rows: &BTreeMap<String, CatalogRow>,
@@ -518,6 +598,7 @@ fn overview(
     start: Option<SemesterKey>,
     current: Option<SemesterKey>,
     base: &StudyplanUrl,
+    page: SemesterKey,
 ) -> Overview {
     let credits_of = |id: &str| rows.get(id).and_then(|row| row.credits);
     let filled_of = |pid: u32| {
@@ -528,6 +609,13 @@ fn overview(
     let module_line = |planned: &Planned, filler: bool| {
         let row = rows.get(&planned.module_id);
         let fills = planned.fills.and_then(|pid| doc.placeholders.iter().find(|p| p.pid == pid));
+        // The module beside the plan shows it in the page's semester where it is planned there,
+        // else in the one nearest to it (`aside.rs`). A module planned in more than one semester
+        // names the row's in `sem` where that is another, so the row opens its own entry (its
+        // Termine, „Entfernen"); every other row keeps the page's address, and opening it stays
+        // a step beside the plan (R21).
+        let elsewhere = planned.semester != page && doc.planned_in(&planned.module_id).len() > 1;
+        let sem = if elsewhere { Some(planned.semester.key()) } else { base.sem.clone() };
         ModuleLine {
             id: planned.module_id.clone(),
             semester: planned.semester,
@@ -536,7 +624,7 @@ fn overview(
             kind: goal.and_then(|goal| goal.kinds.get(&planned.module_id)).map(|kind| (kind.code().to_string(), kind.label().to_string())),
             note: fills.filter(|_| !filler).map(|p| format!("für {}", p.name)),
             season: off_season(row, planned.semester),
-            href: base.with_open(Some(planned.module_id.as_str()), None).path(),
+            href: StudyplanUrl { sem, ..base.with_open(Some(planned.module_id.as_str()), None) }.path(),
             filler,
         }
     };
@@ -546,14 +634,17 @@ fn overview(
         let placeholders = doc.placeholders_in(key);
         let here: BTreeSet<u32> = placeholders.iter().map(|p| p.pid).collect();
         let mut lines = Vec::new();
+        // A module stands once in a semester (the store plans it so, and its line is known by
+        // it): counted once, and listed once, as itself or under what it fills.
         let mut counted = BTreeSet::new();
+        let mut listed = BTreeSet::new();
         let mut lp = 0.0;
         for planned in doc.modules.iter().filter(|m| m.semester == key) {
             if counted.insert(planned.module_id.as_str()) {
                 lp += credits_of(&planned.module_id).unwrap_or(0.0);
             }
             // A module that fills a placeholder of this semester stands under it.
-            if !planned.fills.is_some_and(|pid| here.contains(&pid)) {
+            if !planned.fills.is_some_and(|pid| here.contains(&pid)) && listed.insert(planned.module_id.as_str()) {
                 lines.push(Line::Module(module_line(planned, false)));
             }
         }
@@ -563,7 +654,9 @@ fn overview(
             }
             lines.push(Line::Placeholder(placeholder_row(p, known.get(&p.program_id), filled_of(p.pid))));
             for filler in doc.fillers(p.pid).into_iter().filter(|m| m.semester == key) {
-                lines.push(Line::Module(module_line(filler, true)));
+                if listed.insert(filler.module_id.as_str()) {
+                    lines.push(Line::Module(module_line(filler, true)));
+                }
             }
         }
         let label = match start.and_then(|start| fachsemester(key, start)) {
@@ -838,6 +931,59 @@ fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, current: Semester
     })
 }
 
+/// „Übernommen: 13 Module, 10 Platzhalter": what the import added, each part only where it
+/// added any („Übernommen: 10 Platzhalter" when every module was planned already).
+fn imported_note(modules: usize, placeholders: usize) -> String {
+    let mut parts = Vec::new();
+    if modules > 0 {
+        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX)));
+    }
+    if placeholders > 0 {
+        parts.push(format!("{placeholders} Platzhalter"));
+    }
+    if parts.is_empty() {
+        // Another tab planned it all between the preview and the write.
+        parts.push("nichts".to_string());
+    }
+    format!("{IMPORTED}{}", parts.join(", "))
+}
+
+/// Opens the program picker for „Mein Studiengang" asked for and not set, so that typing finds
+/// the program at once (A.6: „inf" + Enter). A click on its button opens it and puts the focus
+/// in its search field. On a phone only the button takes the focus: an open picker brings up the
+/// keyboard over a panel the student has not seen yet.
+fn open_picker() {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        if nav::is_phone() {
+            nav::focus_by_id(PROGRAM_ID);
+            return;
+        }
+        let button = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(PROGRAM_ID));
+        if let Some(button) = button.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
+            button.click();
+        }
+    }
+}
+
+/// Gives the focus to the button that was pressed where it is not there already (a script's
+/// click; Safari and iOS do not focus a button on a click). The panel goes once the import is
+/// written, and the program picker must not hold the focus then: its handlers would run on what
+/// the panel took with it.
+#[allow(unused_variables)]
+fn hold_focus(ev: &leptos::ev::MouseEvent) {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        if let Some(button) = ev.current_target().and_then(|target| target.dyn_into::<web_sys::HtmlElement>().ok()) {
+            let options = web_sys::FocusOptions::new();
+            options.set_prevent_scroll(true);
+            let _ = button.focus_with_options(&options);
+        }
+    }
+}
+
 /// Seconds since 1970, for when the modules were planned; 0 outside the browser.
 fn now_secs() -> u64 {
     #[cfg(feature = "csr")]
@@ -859,12 +1005,15 @@ fn ImportForm(ctx: PlanCtx, import: String, variant: usize) -> impl IntoView {
     let (asked, unknown) = programs.with_untracked(|programs| asked_program(&import, programs, stored.as_deref()));
     // The plan the address names (`variant=`) belongs to the program it names.
     let named = (import != "mine").then(|| asked.clone()).flatten();
+    // The program the picker shows, and the one whose plans are loaded: a pick answers in the
+    // picker at once, and its plans (a query) follow after the next frame (R21).
     let picked = RwSignal::new(asked.clone());
+    let chosen = RwSignal::new(asked.clone());
     let picks = RwSignal::new(Picks::default());
     let busy = RwSignal::new(false);
 
     let loaded = Memo::new(move |_| {
-        let Some(id) = picked.get() else { return Loaded::Nothing };
+        let Some(id) = chosen.get() else { return Loaded::Nothing };
         match source.with_value(|source| source.as_ref().map(|source| source.run(|db| pages::plan_source(db, &id)))) {
             None => Loaded::Failed(DataError { unavailable: true, message: "no data source was provided".to_string() }),
             Some(Err(error)) => Loaded::Failed(error),
@@ -907,23 +1056,30 @@ fn ImportForm(ctx: PlanCtx, import: String, variant: usize) -> impl IntoView {
     });
     let pick = Callback::new(move |id: Option<String>| {
         if id.is_some() && id != picked.get_untracked() {
-            picked.set(id);
-            // A plan, page or Fachsemester of another program means nothing here; the start stays.
-            picks.update(|picks| *picks = Picks { start: picks.start, ..Picks::default() });
+            picked.set(id.clone());
+            nav::after_paint(move || {
+                let _ = chosen.try_set(id);
+                // A plan, page or Fachsemester of another program means nothing here; the start
+                // stays.
+                let _ = picks.try_update(|picks| *picks = Picks { start: picks.start, ..Picks::default() });
+            });
         }
     });
+    // Until the plans of a pick are there, what stands below is the last program's.
+    let loading = Memo::new(move |_| picked.with(|picked| chosen.with(|chosen| picked != chosen)));
     // „Mein Studiengang" was asked for and is not set: the picker is where to begin.
     if import == "mine" && asked.is_none() {
-        Effect::new(move |_| request_animation_frame(|| nav::focus_by_id(PROGRAM_ID)));
+        Effect::new(move |_| request_animation_frame(open_picker));
     }
     let lost = Memo::new(move |_| unknown && picked.with(Option::is_none));
 
-    let take = move |_| {
-        if busy.get_untracked() {
+    let take = move |ev: leptos::ev::MouseEvent| {
+        // What stands below is still the last program's while a pick's plans are on their way.
+        if busy.get_untracked() || loading.get_untracked() {
             return;
         }
         let Some(form) = form.get_untracked().filter(|form| form.adds) else { return };
-        let chosen = loaded.with_untracked(|loaded| match loaded {
+        let taken = loaded.with_untracked(|loaded| match loaded {
             Loaded::Plans(plans) => {
                 let core = plans.variants.get(form.core)?.clone();
                 let page = form.page.and_then(|page| {
@@ -934,8 +1090,9 @@ fn ImportForm(ctx: PlanCtx, import: String, variant: usize) -> impl IntoView {
             }
             _ => None,
         });
-        let Some((program, core, page)) = chosen else { return };
+        let Some((program, core, page)) = taken else { return };
         busy.set(true);
+        hold_focus(&ev);
         let (start, from_fs, keep) = (form.start, form.from_fs, form.mine);
         let (plan, undo, going) = (ctx.plan, ctx.undo, Pending::expect());
         let to = ctx.url.with_untracked(|url| url.without_import().with_view(PlanView::Overview).with_open(None, None).path());
@@ -947,8 +1104,7 @@ fn ImportForm(ctx: PlanCtx, import: String, variant: usize) -> impl IntoView {
                     let before = doc.clone();
                     let import = studyplan::import(doc, &program.id, &core, page.as_ref().map(|(page, ord)| (page, *ord)), start, from_fs);
                     let (modules, placeholders) = doc.apply(&import, now_secs());
-                    let modules = format::modules(i64::try_from(modules).unwrap_or(i64::MAX));
-                    (format!("{IMPORTED}{modules}, {placeholders} Platzhalter"), before)
+                    (imported_note(modules, placeholders), before)
                 });
                 let _ = undo.try_set(Some(note));
             }
@@ -966,7 +1122,7 @@ fn ImportForm(ctx: PlanCtx, import: String, variant: usize) -> impl IntoView {
     };
 
     view! {
-        <section class="sp-import" aria-label="Regelstudienplan übernehmen">
+        <section class="sp-import" aria-label="Regelstudienplan übernehmen" aria-busy=move || loading.get().then_some("true")>
             <h2>"Regelstudienplan übernehmen"</h2>
             {move || lost.get().then(|| view! { <p class="note quiet"><span>"Studiengang nicht gefunden."</span></p> })}
             <div class="sp-field">
@@ -1336,7 +1492,7 @@ mod tests {
         let doc = doc();
         let known: BTreeMap<String, Known> = [("079-82-2008".to_string(), Known { source: Some(informatik()), newest: None })].into_iter().collect();
         let goal = goal_of(&informatik(), Some(""), None);
-        let shown = overview(&doc, &rows(), &known, Some(&goal), Some(key("2026W")), Some(key("2026W")), &StudyplanUrl::default());
+        let shown = overview(&doc, &rows(), &known, Some(&goal), Some(key("2026W")), Some(key("2026W")), &StudyplanUrl::default(), key("2026W"));
         // 16 of the modules, 6 and 12 of the rows nothing fills; the plan's rows come to 40.
         assert_eq!((shown.head.as_str(), shown.sum.as_str()), ("34 von 40 LP geplant", "2 Module · 2 Platzhalter"));
         let heads: Vec<(String, Option<String>, bool)> = shown.terms.iter().map(|term| (term.label.clone(), term.lp.clone(), term.now)).collect();
@@ -1364,8 +1520,8 @@ mod tests {
         // Datenbanken fills the elective row: it stands under it, and the row is filled.
         let mut filled = doc.clone();
         assert!(filled.plan(key("2026W"), "12330", 2, Some(1)));
-        let shown = overview(&filled, &rows(), &known, Some(&goal), Some(key("2026W")), Some(key("2026W")), &StudyplanUrl::default());
-        let Some(Term { lines, lp, .. }) = shown.terms.first() else { panic!("a first semester") };
+        let shown = overview(&filled, &rows(), &known, Some(&goal), Some(key("2026W")), Some(key("2026W")), &StudyplanUrl::default(), key("2026W"));
+        let Some(term @ Term { lines, lp, .. }) = shown.terms.first() else { panic!("a first semester") };
         assert_eq!(lp.as_deref(), Some("22 LP"));
         let kinds: Vec<String> = lines
             .iter()
@@ -1378,6 +1534,53 @@ mod tests {
         let Some(Line::Placeholder(row)) = lines.get(2) else { panic!("the row") };
         assert!(row.find.is_none());
         assert_eq!(shown.head, "34 von 40 LP geplant");
+
+        // Taken out, a line hands the focus to the next line's „Entfernen", the last one to the
+        // line before it; a placeholder skips the modules that filled it (they move up).
+        let module = |id: &str| LineId::Module(id.to_string());
+        assert_eq!(focus_after(Some(term), &module("12104")), "sp-x-2026W-11112");
+        assert_eq!(focus_after(Some(term), &module("12330")), "sp-x-p1");
+        assert_eq!(focus_after(Some(term), &LineId::Placeholder(1)), "sp-x-2026W-11112");
+        let alone = Term { lines: lines.iter().take(1).cloned().collect(), ..term.clone() };
+        assert_eq!(focus_after(Some(&alone), &module("12104")), "sp-add-2026W");
+        assert_eq!(focus_after(None, &module("12104")), "");
+    }
+
+    #[test]
+    fn a_module_planned_twice_opens_the_semester_of_its_row() {
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(key("2026W"), "12104", 1, None));
+        assert!(doc.plan(key("2027S"), "12104", 1, None));
+        assert!(doc.plan(key("2027S"), "11112", 1, None));
+        let known = BTreeMap::new();
+        let hrefs = |page: &str, base: &StudyplanUrl| {
+            let shown = overview(&doc, &rows(), &known, None, Some(key("2026W")), Some(key("2026W")), base, key(page));
+            shown.terms.iter().flat_map(|term| term.lines.iter()).filter_map(|line| match line {
+                Line::Module(m) => Some(format!("{} {}", m.semester.key(), m.href)),
+                Line::Placeholder(_) => None,
+            }).collect::<Vec<_>>()
+        };
+        let overview_url = StudyplanUrl { view: PlanView::Overview, ..StudyplanUrl::default() };
+        // The page shows WiSe: its row keeps the page's address, the SoSe row names its semester;
+        // a module planned once opens where it is planned without it.
+        assert_eq!(
+            hrefs("2026W", &overview_url),
+            vec!["2026W /studyplan?view=all&open=12104", "2027S /studyplan?sem=2027S&view=all&open=12104", "2027S /studyplan?view=all&open=11112"]
+        );
+        // After such a click the page is of SoSe: now the WiSe row names its own.
+        let sose = StudyplanUrl { sem: Some("2027S".to_string()), ..overview_url.clone() };
+        assert_eq!(
+            hrefs("2027S", &sose),
+            vec!["2026W /studyplan?sem=2026W&view=all&open=12104", "2027S /studyplan?sem=2027S&view=all&open=12104", "2027S /studyplan?sem=2027S&view=all&open=11112"]
+        );
+    }
+
+    #[test]
+    fn the_note_names_only_what_was_added() {
+        assert_eq!(imported_note(13, 10), "Übernommen: 13 Module, 10 Platzhalter");
+        assert_eq!(imported_note(0, 10), "Übernommen: 10 Platzhalter");
+        assert_eq!(imported_note(1, 0), "Übernommen: 1 Modul");
+        assert_eq!(imported_note(0, 0), "Übernommen: nichts");
     }
 
     #[test]
