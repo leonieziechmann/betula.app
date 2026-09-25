@@ -102,6 +102,10 @@ pub struct Selection {
     /// Made choices („Nur diesen"): of the open choice holding the row, only its option is shown.
     pub chosen_rows: BTreeSet<RowKey>,
     pub town: TownChoice,
+    /// The planned modules a derived town is taken from: those taken over from the
+    /// Regelstudienplan, so that an elective added later does not turn the town (owner review
+    /// 2026-09-25); `None` for every planned module (a plan without an import, a subscription).
+    pub town_from: Option<BTreeSet<String>>,
 }
 
 /// Why an event, an exam or a row is not shown: the first rule that holds, in this order (C.9).

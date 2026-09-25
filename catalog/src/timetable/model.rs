@@ -219,7 +219,7 @@ impl Timetable {
             decide(event, input.sws);
         }
         let tracks = tracks(&events, &modules);
-        let (town, town_derived) = effective_town(selection.town, &events, &tracks);
+        let (town, town_derived) = effective_town(selection.town, &events, &tracks, selection.town_from.as_ref());
         for event in &mut events {
             event.hidden = event_hidden(event, selection, town, &tracks);
             choose(event, selection);
@@ -495,14 +495,17 @@ fn tracks(events: &[Event], modules: &[String]) -> BTreeSet<String> {
 /// The town a module with tracks is taken in, and whether it was derived: the chosen one; none
 /// for both; derived, the town that holds strictly more of the located events of the plan's
 /// modules without tracks, else none. It is derived even when no planned module has tracks: the
-/// finder resolves a candidate's tracks with it.
-fn effective_town(choice: TownChoice, events: &[Event], tracks: &BTreeSet<String>) -> (Option<Town>, bool) {
+/// finder resolves a candidate's tracks with it. `from` narrows the modules it is derived from
+/// to those taken over from the Regelstudienplan (`Selection::town_from`): one elective of the
+/// other town planned beside them then does not turn it, nor does a candidate of the finder.
+fn effective_town(choice: TownChoice, events: &[Event], tracks: &BTreeSet<String>, from: Option<&BTreeSet<String>>) -> (Option<Town>, bool) {
     match choice {
         TownChoice::Only(town) => (Some(town), false),
         TownChoice::Both => (None, false),
         TownChoice::Derive => {
             let (mut cottbus, mut senftenberg) = (0usize, 0usize);
-            for event in events.iter().filter(|event| event.modules.iter().any(|module| !tracks.contains(module))) {
+            let counts = |module: &String| !tracks.contains(module) && from.is_none_or(|from| from.contains(module));
+            for event in events.iter().filter(|event| event.modules.iter().any(counts)) {
                 match event.town() {
                     Some(Town::Cottbus) => cottbus += 1,
                     Some(Town::Senftenberg) => senftenberg += 1,
@@ -1202,6 +1205,25 @@ pub(crate) mod tests {
         let t = table(&more[4..], &["L", "M", "C"], &[], &Selection::default());
         assert!(t.tracks.is_empty());
         assert_eq!((t.town, t.town_derived), (Some(Town::Cottbus), true));
+
+        // Derived from the modules taken over from the Regelstudienplan alone, it holds when an
+        // elective of the other town is planned beside them: S's Senftenberg Übung and seminar
+        // outweigh C's one Cottbus event, but S was added later.
+        let from = |ids: &[&str]| Selection { town_from: Some(ids.iter().map(|id| id.to_string()).collect()), ..Selection::default() };
+        let mut elective = more.clone();
+        elective.push(teaching("S", "140", 1, "Übung", 1, "13:45", "15:15").campus(senftenberg));
+        elective.push(teaching("S", "141", 1, "Seminar", 2, "13:45", "15:15").campus(senftenberg));
+        let all = table(&elective, &["T", "L", "M", "C", "S"], &[], &Selection::default());
+        assert_eq!((all.town, all.town_derived), (Some(Town::Senftenberg), true), "every module decides");
+        let t = table(&elective, &["T", "L", "M", "C", "S"], &[], &from(&["T", "L", "M", "C"]));
+        assert_eq!((t.town, t.town_derived), (Some(Town::Cottbus), true), "the imported ones decide");
+        assert_eq!(event(&t, "102").hidden, Some(HiddenBy::Town(Town::Cottbus)));
+        // What the imported modules leave open stays open (both courses shown), whatever else is
+        // planned; a chosen town still wins.
+        let t = table(&elective, &["T", "L", "M", "C", "S"], &[], &from(&["T", "L", "M"]));
+        assert_eq!((t.town, t.town_derived), (None, false));
+        let chosen = Selection { town: TownChoice::Only(Town::Senftenberg), ..from(&["T", "L", "M", "C"]) };
+        assert_eq!(table(&elective, &["T", "L", "M", "C", "S"], &[], &chosen).town, Some(Town::Senftenberg));
     }
 
     /// The events the design quotes, on the pinned snapshot; on any snapshot, the invariants of the

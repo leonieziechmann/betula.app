@@ -75,6 +75,9 @@ const MAX_SPAN: u8 = 20;
 /// digits).
 const MAX_EVENT: u32 = 999_999_999;
 
+/// The sixth field of an `m` line for a module taken over from the Regelstudienplan.
+const FROM_PLAN: &str = "plan";
+
 /// The visitor's Studienplan: modules and placeholders per calendar semester, and per semester
 /// what is hidden, what was chosen and the subscription code last handed out.
 ///
@@ -82,7 +85,7 @@ const MAX_EVENT: u32 = 999_999_999;
 /// tag:
 ///
 /// ```text
-/// m  <semester>  <module_id>  <added_secs>  <fills>
+/// m  <semester>  <module_id>  <added_secs>  <fills>  [plan]
 /// p  <pid>  <semester>  <program_id>  <ord>  <from>-<to>  <credits>  <kind>  <caption>  <name>
 /// k  <semester>  <kind>,<kind>,…
 /// e  <semester>  <event_id>
@@ -91,9 +94,10 @@ const MAX_EVENT: u32 = 999_999_999;
 /// a  <semester>  <code>
 /// ```
 ///
-/// `r` hides one Termin, `c` is a made choice („Nur diesen"): of the choice that holds the row,
-/// only the option with it is shown. A choice whose row QIS changed no longer matches, and the
-/// choice is open again, the safe direction.
+/// `plan` marks a module taken over from the Regelstudienplan (`Planned::from_plan`). `r` hides
+/// one Termin, `c` is a made choice („Nur diesen"): of the choice that holds the row, only the
+/// option with it is shown. A choice whose row QIS changed no longer matches, and the choice is
+/// open again, the safe direction.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanDoc {
     /// By semester, and within one in the order they were planned (`m`).
@@ -119,6 +123,10 @@ pub struct Planned {
     /// The placeholder it counts for. Only the visitor sets it (the finder's `fill=`, the aside's
     /// „Zählt für"): which module fills which row is never guessed.
     pub fills: Option<u32>,
+    /// Taken over from a row of the Regelstudienplan (`apply`), stored as a sixth field `plan`.
+    /// A derived Standort is taken from these (`selection`). A build before this field writes the
+    /// line back without it, and the Standort is then derived from every module, as it was.
+    pub from_plan: bool,
 }
 
 /// A row of a Regelstudienplan without a module, taken over into a semester under its own name.
@@ -185,6 +193,9 @@ impl PlanDoc {
                         if let Some(pid) = number(field(4)).and_then(|pid| u32::try_from(pid).ok()) {
                             fills.push((s, field(2).to_string(), pid));
                         }
+                        if field(5) == FROM_PLAN {
+                            doc.mark_from_plan(s, field(2));
+                        }
                     }
                 }
                 "p" => {
@@ -243,7 +254,8 @@ impl PlanDoc {
         modules.sort_by_key(|m| m.semester);
         for m in modules {
             let fills = m.fills.map(|pid| pid.to_string()).unwrap_or_default();
-            let _ = writeln!(out, "m\t{}\t{}\t{}\t{}", m.semester.key(), m.module_id, m.at, fills);
+            let from = if m.from_plan { format!("\t{FROM_PLAN}") } else { String::new() };
+            let _ = writeln!(out, "m\t{}\t{}\t{}\t{}{from}", m.semester.key(), m.module_id, m.at, fills);
         }
         let mut placeholders: Vec<&Placeholder> = self.placeholders.iter().filter(|p| url::is_program_id(&p.program_id)).collect();
         placeholders.sort_by_key(|p| p.pid);
@@ -329,15 +341,21 @@ impl PlanDoc {
         self.modules.iter().filter(|m| m.fills == Some(pid)).collect()
     }
 
-    /// What the visitor chose to see of a semester, with the town of Mein Studiengang.
+    /// What the visitor chose to see of a semester, with the town of Mein Studiengang. A town left
+    /// to derive is derived from the semester's modules taken over from the Regelstudienplan that
+    /// count for no placeholder, where it has any (`Selection::town_from`): an elective planned
+    /// beside them, or one found for a placeholder, never turns it.
     pub fn selection(&self, s: SemesterKey, town: TownChoice) -> Selection {
         let hides = self.hidden.get(&s);
+        let imported: BTreeSet<String> =
+            self.modules.iter().filter(|m| m.semester == s && m.from_plan && m.fills.is_none()).map(|m| m.module_id.clone()).collect();
         Selection {
             hidden_kinds: hides.map(|h| h.kinds).unwrap_or_default(),
             hidden_events: hides.map(|h| h.events.clone()).unwrap_or_default(),
             hidden_rows: hides.map(|h| h.rows.clone()).unwrap_or_default(),
             chosen_rows: hides.map(|h| h.chosen.clone()).unwrap_or_default(),
             town,
+            town_from: (!imported.is_empty()).then_some(imported),
         }
     }
 
@@ -355,8 +373,15 @@ impl PlanDoc {
         let fills = fills.filter(|pid| self.placeholders.iter().any(|p| p.pid == *pid));
         // After the semester's last module: the list stays in the order `stored` writes it.
         let at_index = self.modules.partition_point(|m| m.semester <= s);
-        self.modules.insert(at_index, Planned { semester: s, module_id: id.to_string(), at, fills });
+        self.modules.insert(at_index, Planned { semester: s, module_id: id.to_string(), at, fills, from_plan: false });
         true
+    }
+
+    /// Marks a planned module as taken over from the Regelstudienplan.
+    fn mark_from_plan(&mut self, s: SemesterKey, id: &str) {
+        if let Some(m) = self.modules.iter_mut().find(|m| m.semester == s && m.module_id == id) {
+            m.from_plan = true;
+        }
     }
 
     /// Takes a module out of a semester, together with what the semester hides and has chosen of
@@ -384,8 +409,13 @@ impl PlanDoc {
             return;
         };
         let moved = self.modules.remove(at);
-        if !self.is_planned(to, id) && !self.plan(to, id, moved.at, moved.fills) {
+        if self.is_planned(to, id) {
+            return;
+        }
+        if !self.plan(to, id, moved.at, moved.fills) {
             self.modules.insert(at, moved);
+        } else if moved.from_plan {
+            self.mark_from_plan(to, id);
         }
     }
 
@@ -487,6 +517,7 @@ impl PlanDoc {
         let mut modules = 0;
         for (s, id) in &import.modules {
             if self.plan(*s, id, now, None) {
+                self.mark_from_plan(*s, id);
                 modules += 1;
             }
         }
@@ -1293,7 +1324,7 @@ mod tests {
         }
         let doc = PlanDoc::restored(&text);
         assert!(!doc.is_empty());
-        assert_eq!(doc.modules, vec![Planned { semester: w, module_id: "12104".to_string(), at: 0, fills: None }]);
+        assert_eq!(doc.modules, vec![Planned { semester: w, module_id: "12104".to_string(), at: 0, fills: None, from_plan: false }]);
         assert_eq!(
             doc.placeholders,
             vec![Placeholder { pid: 1, ord: 2, credits: None, kind: None, name: "Name".to_string(), ..placeholder() }],
@@ -1482,7 +1513,7 @@ mod tests {
         doc.apply(&with_placeholders(vec![placeholder()]), 0);
         assert!(doc.plan(w, "11103", 1, Some(1)));
         doc.move_to(w, s, "11103");
-        assert_eq!(doc.modules, vec![Planned { semester: s, module_id: "11103".to_string(), at: 1, fills: Some(1) }]);
+        assert_eq!(doc.modules, vec![Planned { semester: s, module_id: "11103".to_string(), at: 1, fills: Some(1), from_plan: false }]);
         // Planned there already: it only leaves the other semester.
         assert!(doc.plan(w, "11103", 2, None));
         doc.move_to(w, s, "11103");
@@ -1507,6 +1538,30 @@ mod tests {
         let doc = PlanDoc::restored("p\t9999\t2026W\t079-82-2008\t1\t1-1\t6\t\t\tA\np\t1\t2026W\t079-82-2008\t2\t1-1\t6\t\t\tB\n");
         assert_eq!(doc.placeholders.iter().map(|p| p.pid).collect::<Vec<_>>(), [1, 9999]);
         assert_eq!(doc.next_pid(), 2);
+    }
+
+    #[test]
+    fn the_standort_is_derived_from_what_the_regelstudienplan_placed() {
+        let (w, s) = (key("2026W"), key("2027S"));
+        let ids = |selection: &Selection| selection.town_from.as_ref().map(|from| from.iter().cloned().collect::<Vec<_>>());
+        let mut doc = PlanDoc::default();
+        // Nothing taken over: every module decides, as before.
+        assert!(doc.plan(w, "11103", 1, None));
+        assert_eq!(ids(&doc.selection(w, TownChoice::Derive)), None);
+        // Taken over: those decide; one planned later, or one found for a placeholder, does not.
+        let import = Import { modules: vec![(w, "12104".to_string()), (w, "12107".to_string()), (s, "12204".to_string())], ..with_placeholders(vec![placeholder()]) };
+        doc.apply(&import, 2);
+        assert!(doc.plan(w, "13000", 3, Some(1)));
+        assert_eq!(ids(&doc.selection(w, TownChoice::Derive)), Some(vec!["12104".to_string(), "12107".to_string()]));
+        assert_eq!(ids(&doc.selection(s, TownChoice::Only(Town::Cottbus))), Some(vec!["12204".to_string()]));
+        // The mark is kept in the text, moves with the module, and an old line without it reads.
+        let stored = doc.stored();
+        assert!(stored.contains("m\t2026W\t12104\t2\t\tplan\n") && stored.contains("m\t2026W\t11103\t1\t\n"), "{stored}");
+        assert_eq!(PlanDoc::restored(&stored), doc);
+        doc.move_to(w, key("2027W"), "12107");
+        assert_eq!(ids(&doc.selection(key("2027W"), TownChoice::Derive)), Some(vec!["12107".to_string()]));
+        assert!(!PlanDoc::restored("m\t2026W\t12104\t2\t\n").modules.iter().any(|m| m.from_plan));
+        assert!(!PlanDoc::restored("m\t2026W\t12104\t2\t\tplanned\n").modules.iter().any(|m| m.from_plan));
     }
 
     /// A row of a plan named `caption` over the semesters `span`.
@@ -1850,7 +1905,8 @@ town	cottbus
         doc.set_kind(w, EventKind::Tutorial, true);
         doc.set_event(w, 149408, true);
         doc.choose(w, 148369, Some(termin(148369, 0xa4d12)));
-        assert_eq!(doc.stored(), EXAMPLE);
+        // The design's example, each module marked as taken over from the plan.
+        assert_eq!(doc.stored(), EXAMPLE.replace("1790000000\t\n", "1790000000\t\tplan\n"));
 
         // Started 2025W, from the third semester.
         let fs3 = import(&PlanDoc::default(), "079-82-2008", plan, None, key("2025W"), 3);

@@ -177,7 +177,7 @@ async function withoutTheApp() {
     aside: Boolean(document.querySelector(".detail")),
     hint: document.querySelector(".sidebar .storage-hint")?.textContent ?? "",
   }));
-  check(response.status() === 200 && plain.title === "Dein Studienplan liegt in deinem Browser." && plain.h1 === 1 && plain.heading === "Studienplan", `without JavaScript the plan does not explain itself: ${JSON.stringify(plain)}`);
+  check(response.status() === 200 && plain.title === "Dein Studienplan erscheint, sobald die App geladen ist." && plain.h1 === 1 && plain.heading === "Studienplan", `without JavaScript the plan does not explain itself: ${JSON.stringify(plain)}`);
   check(plain.rail === 0 && plain.bottom === 0, `without JavaScript the rail offers the plan: ${JSON.stringify(plain)}`);
   check(plain.robots.startsWith("noindex") && !plain.aside && plain.hint.includes("nur in diesem Browser"), `without JavaScript: ${JSON.stringify(plain)}`);
   // A phone: the frame is the app's, its sidebar a closed sheet, so nothing of the page vanishes

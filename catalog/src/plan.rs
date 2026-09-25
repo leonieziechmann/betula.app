@@ -386,15 +386,78 @@ impl SemesterRequirement {
 }
 
 /// The name of a plan row as a page shows it: without the dash a plan leads into a row or out of
-/// it with („- Wahlpflicht Energiesysteme", „… (Sport, Musik oder Kunst) -") and without the marks
-/// of its footnotes („Integrationsmodule**", „Informatik¹"). A name of nothing but such marks
+/// it with („- Wahlpflicht Energiesysteme", „… (Sport, Musik oder Kunst) -"), without the marks
+/// of its footnotes („Integrationsmodule**", „Informatik¹"), and without what the regulation's
+/// table prints beside the name at its end: the marks of its columns („… Prü/SL", „… P / WP",
+/// „English B1.1 C / P") and a note in parentheses that only points at an appendix („(Übersicht
+/// Anlage a.2)", „(gemäß Anlage 3)"). A note that says more stays („(Module im Umfang von 12 LP
+/// aus Anlage 2)", „(Schwerpunkte gemäß Anlagen 4.1 bis 4.5)"). A name of nothing but such marks
 /// stays as it is, trimmed.
 pub fn shown_name(name: &str) -> &str {
-    let trimmed = name.trim_matches(|c: char| c.is_whitespace() || matches!(c, '-' | '–' | '—' | '*' | '¹' | '²' | '³' | '⁴' | '⁵' | '⁶' | '⁷' | '⁸' | '⁹' | '⁰'));
-    if trimmed.is_empty() {
+    let mut shown = without_marks(name);
+    loop {
+        let before = shown.len();
+        shown = without_marks(without_reference(without_columns(shown)));
+        if shown.len() == before {
+            break;
+        }
+    }
+    if shown.is_empty() {
         name.trim()
     } else {
-        trimmed
+        shown
+    }
+}
+
+/// Without the spaces, dashes, stars and footnote digits around it.
+fn without_marks(name: &str) -> &str {
+    name.trim_matches(|c: char| c.is_whitespace() || matches!(c, '-' | '–' | '—' | '*' | '¹' | '²' | '³' | '⁴' | '⁵' | '⁶' | '⁷' | '⁸' | '⁹' | '⁰'))
+}
+
+/// What the columns of a regulation's table mean where a row's name runs into them: Pflicht,
+/// Wahlpflicht, compulsory, Studiengang, Prüfung, Studienleistung.
+const COLUMN_MARKS: [&str; 6] = ["P", "WP", "C", "SG", "Prü", "SL"];
+
+/// The name without a pair of column marks at its end („… P / WP", „… Prü/SL"); unchanged when
+/// the pair is all it has.
+fn without_columns(name: &str) -> &str {
+    let Some((before, after)) = name.rsplit_once('/') else {
+        return name;
+    };
+    let before = before.trim_end();
+    let Some(first) = before.rsplit(char::is_whitespace).next() else {
+        return name;
+    };
+    if !COLUMN_MARKS.contains(&after.trim()) || !COLUMN_MARKS.contains(&first) {
+        return name;
+    }
+    match before.strip_suffix(first).map(str::trim_end) {
+        Some(head) if !head.is_empty() => head,
+        _ => name,
+    }
+}
+
+/// The name without a note in parentheses at its end that only points at an appendix of the
+/// regulation („(siehe Anlage 1a – 1d)", „(Übersicht Anlage a.2)"): words of reference and
+/// numbers of sections, one of them „Anlage".
+fn without_reference(name: &str) -> &str {
+    const WORDS: [&str; 11] = ["siehe", "gemäß", "gem.", "vgl.", "übersicht", "anlage", "anlagen", "bis", "und", "–", "-"];
+    let Some(inner) = name.strip_suffix(')') else {
+        return name;
+    };
+    let Some(open) = inner.rfind('(') else {
+        return name;
+    };
+    let (Some(head), Some(note)) = (inner.get(..open), inner.get(open + 1..)) else {
+        return name;
+    };
+    let words: Vec<String> = note.split(|c: char| c.is_whitespace() || c == ',').filter(|word| !word.is_empty()).map(str::to_lowercase).collect();
+    let section = |word: &str| word.chars().any(|c| c.is_ascii_digit()) && word.chars().all(|c| c.is_alphanumeric() || c == '.');
+    let appendix = words.iter().any(|word| word.starts_with("anlage"));
+    let only_reference = words.iter().all(|word| WORDS.contains(&word.as_str()) || section(word));
+    match head.trim_end() {
+        head if appendix && only_reference && !head.is_empty() => head,
+        _ => name,
     }
 }
 
@@ -900,5 +963,30 @@ mod tests {
         // The free function is the method's body, for a name without a requirement around it.
         assert_eq!(shown_name("- Wahlpflicht Energiesysteme"), "Wahlpflicht Energiesysteme");
         assert_eq!(shown_name(" -- "), "--");
+
+        // Nor what the regulation's table prints beside a name: the marks of its columns, and a
+        // note that only points at an appendix. A note that says more stays.
+        for (printed, name) in [
+            ("wählbar aus dem Wahlpflichtangebot Wirtschaftswissenschaften (Übersicht Anlage a.2) Prü/SL", "wählbar aus dem Wahlpflichtangebot Wirtschaftswissenschaften"),
+            ("- wählbar aus dem Wahlpflichtkatalog Energiesysteme Prü/SL", "wählbar aus dem Wahlpflichtkatalog Energiesysteme"),
+            ("- Wahlpflicht Ingenieurstechnik (Schwerpunkte gemäß Anlagen 4.1 bis 4.5) Prü/SL", "Wahlpflicht Ingenieurstechnik (Schwerpunkte gemäß Anlagen 4.1 bis 4.5)"),
+            (
+                "gem. der gewählten ingenieurwissenschaftlichen Studienrichtung aus Anlage a.3.1 bis Anlage a.3.5 P / WP Prü/SL",
+                "gem. der gewählten ingenieurwissenschaftlichen Studienrichtung aus Anlage a.3.1 bis Anlage a.3.5",
+            ),
+            ("Module der gewählten Studienrichtung oder des Studiums in der Breite gem. Anlage a4.1 – a4.4 P/ WP", "Module der gewählten Studienrichtung oder des Studiums in der Breite gem. Anlage a4.1 – a4.4"),
+            ("English B1.1 C / P", "English B1.1"),
+            ("Studiengangsmodul³ aus 1. FS SG / WP", "Studiengangsmodul³ aus 1. FS"),
+            ("- Wahlpflicht Wirtschaftswissenschaften (gemäß Anlage 3)", "Wahlpflicht Wirtschaftswissenschaften"),
+            ("Wahlpflichtmodule (siehe Anlage 1a – 1d)", "Wahlpflichtmodule"),
+            ("Minor Subject (Anlage 1b)", "Minor Subject"),
+            ("11 Fachspezifische Vertiefung (Module im Umfang von 12 LP aus Anlage 2)", "11 Fachspezifische Vertiefung (Module im Umfang von 12 LP aus Anlage 2)"),
+            ("Oral Examination – Mündliche Prüfung (Disputation)", "Oral Examination – Mündliche Prüfung (Disputation)"),
+            ("Wirtschafts- / Sozialwissenschaften", "Wirtschafts- / Sozialwissenschaften"),
+            ("P / WP", "P / WP"),
+            ("(Anlage 2)", "(Anlage 2)"),
+        ] {
+            assert_eq!(shown_name(printed), name, "{printed}");
+        }
     }
 }

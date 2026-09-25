@@ -26,7 +26,7 @@ use catalog::rows::{Prerequisite, Semester};
 use catalog::rows_detail::EventDate;
 use catalog::timetable::day::{clock, minutes, Day};
 use catalog::timetable::grid;
-use catalog::timetable::kind::{class_of, kinds_of, Class};
+use catalog::timetable::kind::{class_of, kinds_of, Class, EventKind};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, ModuleHint, ProgramTab};
@@ -46,6 +46,10 @@ use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
 
 /// The browser app (`csr`): only there is a plan to meet.
 const APP: bool = cfg!(feature = "csr");
+
+/// The most letters of a kind a narrow slot of the module's week still shows as it is; a longer
+/// one says it in the kinds' few letters there (`GridSlot::abbr`).
+const SHORT_KIND: usize = 6;
 
 /// What both the preview panel and the full page show about a module, precomputed once.
 #[derive(Clone)]
@@ -653,10 +657,17 @@ fn own_groups(teaching: &[EventDate]) -> Vec<(GridSlot, Vec<RowKey>)> {
 /// The slot of one group of rows (`own_groups`): `date` is its first row, `dates` the days of its
 /// single dates.
 fn own_slot(once: bool, day: u8, from: u16, to: u16, date: &EventDate, dates: &BTreeSet<Option<&str>>) -> GridSlot {
+    // What QIS calls the event („Vorlesung", „Laborausbildung"); in a slot too narrow for it, the
+    // kinds' few letters („VL", „Prak") the Studienplan's week has too. The module's name is the
+    // page's own and stands in no slot.
     let label = date.event_type.clone().unwrap_or_else(|| "Termin".to_string());
+    let kinds = kinds_of(date.event_type.as_deref());
+    let abbr = kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/");
+    // „Übung" fits where „VL" does; „Vorlesung" and „Laborausbildung" do not.
+    let abbr = if label.chars().count() > SHORT_KIND { abbr } else { String::new() };
     if !once {
-        let lecture = class_of(kinds_of(date.event_type.as_deref())) == Class::Lecture;
-        return GridSlot { day, from, to, label, small: clock(from), title: date.event_title.clone(), class: if lecture { "" } else { "other" }, ..GridSlot::default() };
+        let lecture = class_of(kinds) == Class::Lecture;
+        return GridSlot { day, from, to, label, abbr, small: clock(from), title: date.event_title.clone(), class: if lecture { "" } else { "other" }, ..GridSlot::default() };
     }
     let days: Vec<Day> = dates.iter().filter_map(|date| date.and_then(Day::parse)).collect();
     let small = match (dates.len(), days.as_slice()) {
@@ -670,7 +681,7 @@ fn own_slot(once: bool, day: u8, from: u16, to: u16, date: &EventDate, dates: &B
     } else {
         format!("{} · {}", date.event_title, days.iter().map(|day| day.german()).collect::<Vec<_>>().join(", "))
     };
-    GridSlot { day, from, to, label, small, title, class: "once", ..GridSlot::default() }
+    GridSlot { day, from, to, label, abbr, small, title, class: "once", ..GridSlot::default() }
 }
 
 /// Whether a module's week shows the Studienplan beside it (A.9): its Termine are of the current
@@ -719,11 +730,10 @@ fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterK
 /// The module's own slots with the plan beside them (A.9): its slots in a hard clash marked, and
 /// the other planned modules' Termine as quiet `.planned` slots cut to the days and hours the
 /// module's own week spans, so that the grid never grows when the plan arrives. Planned Termine
-/// at the same time are one slot that names each module once: the plan is the context here, and
-/// every slot beside the module's own takes a lane of its width. The names are the slot's label,
-/// not its small line, which phones hide: an outline without a name says nothing. They wrap in a
-/// slot of an hour or more; a shorter one (`.brief`) holds one line and ends it with „…", since a
-/// second line would show only its top edge.
+/// at the same time are one slot that names each module once, by its short name
+/// (`views::short_title`, done in `pages::overlay`): the plan is the context here, and where it
+/// meets the module's own slots it takes a slim lane (`crate::week`). The names are the slot's
+/// label, not its small line, which phones hide: an outline without a name says nothing.
 fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay) -> Vec<GridSlot> {
     let mut slots: Vec<GridSlot> = own.iter().map(|(slot, rows)| GridSlot { clash: rows.iter().any(|row| overlay.clashing.contains(row)), ..slot.clone() }).collect();
     if slots.is_empty() {
@@ -753,10 +763,9 @@ fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay) -> Vec<GridS
             None => times.push((at, vec![&planned.short], vec![line])),
         }
     }
-    slots.extend(times.into_iter().map(|((day, from, to), names, lines)| {
-        let class = if to.saturating_sub(from) < 60 { "planned brief" } else { "planned" };
-        GridSlot { day, from, to, label: names.join(" · "), title: lines.join("\n"), class, ..GridSlot::default() }
-    }));
+    slots.extend(
+        times.into_iter().map(|((day, from, to), names, lines)| GridSlot { day, from, to, label: names.join(" · "), title: lines.join("\n"), class: "planned", ..GridSlot::default() }),
+    );
     slots
 }
 
@@ -942,6 +951,8 @@ mod tests {
             ]
         );
         assert_eq!(slots.first().map(|s| s.title.as_str()), Some("Allgemeine Betriebswirtschaftslehre II · 23.02.2027"));
+        // Too narrow for „Vorlesung", a slot says „VL"; „Übung" is short enough as it is.
+        assert_eq!(slots.iter().map(|s| s.abbr.as_str()).collect::<Vec<_>>(), ["VL", "VL", "", ""]);
         // The two Tuesday slots stand side by side.
         let (_, styles) = crate::week::geometry(&slots, crate::week::MIN_HOURS).unwrap();
         assert!(styles[0].ends_with("--lane:0;--lanes:2") && styles[3].ends_with("--lane:1;--lanes:2"), "{styles:?}");
@@ -1072,11 +1083,15 @@ mod tests {
                 (2, "09:15".into(), "10:45".into(), "other", true),
                 (4, "11:30".into(), "13:00".into(), "", false),
                 (2, "09:15".into(), "10:45".into(), "planned", false),
-                // Half an hour after the cut: one line.
-                (4, "12:30".into(), "13:00".into(), "planned brief", false),
+                // Half an hour after the cut: the grid gives it one line (`brief`).
+                (4, "12:30".into(), "13:00".into(), "planned", false),
                 (1, "08:00".into(), "09:00".into(), "planned", false),
             ]
         );
+        assert!(slots.get(3).is_some_and(|s| s.classes() == "slot planned brief"));
+        // On the Tuesday the planned slot is slim beside the Übung, which keeps two thirds.
+        let (_, styles) = crate::week::geometry(&slots, MIN_HOURS).unwrap();
+        assert!(styles[0].ends_with("--lane:0;--lanes:3;--wide:2") && styles[2].ends_with("--lane:2;--lanes:3;--wide:1"), "{styles:?}");
         // The grid's frame is the module's own, with the plan beside it or not.
         let own_slots: Vec<GridSlot> = own.iter().map(|(slot, _)| slot.clone()).collect();
         let frame = |slots: &[GridSlot]| crate::week::geometry(slots, MIN_HOURS).map(|(week, _)| week);

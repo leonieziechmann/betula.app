@@ -5,7 +5,14 @@
 //! puts slots that overlap on a day side by side (`catalog::timetable::grid`), so that a single
 //! date no longer covers the weekly group beneath it. The geometry is data only, written into
 //! custom properties in half-hours (`--days`, `--first`, `--span` on `.week`; `--from`, `--to`,
-//! `--lane`, `--lanes` per slot), and `app.css` turns it into places.
+//! `--lane`, `--lanes` and, where a lane is not one of equal ones, `--wide` per slot), and
+//! `app.css` turns it into places.
+//!
+//! Another planned module beside a module's own slots (`planned`) is the context, not the
+//! subject: where it meets the module's own slots it takes a slim lane at the right, half as wide
+//! as one of theirs, so it never crowds them. A slot's first line breaks between words only and
+//! holds two lines at most (one in a slot under an hour), then ends in „…"; a narrow slot says it
+//! in its few letters (`abbr`).
 
 use catalog::timetable::grid::{self, Placed, Span};
 use leptos::prelude::*;
@@ -24,11 +31,15 @@ pub struct GridSlot {
     /// Minutes since midnight, `to > from`; `to` may be 24:00 (1440).
     pub from: u16,
     pub to: u16,
-    /// The first line („Vorlesung"), the smaller second one („09:15", „3 Termine"; left out when
+    /// The first line („VL Entwicklung von Softwaresystemen", „Vorlesung"), at most two lines of
+    /// whole words, then „…"; the smaller line under it („09:15", „3 Termine"; left out when
     /// empty), and the tooltip (left out when empty).
     pub label: String,
     pub small: String,
     pub title: String,
+    /// What the first line says instead where the slot is too narrow for `label` („VL" for
+    /// „Vorlesung"); empty: `label` everywhere.
+    pub abbr: String,
     /// The look: "" (a lecture), "other" (any other teaching), "tinted" (a module of the
     /// Studienplan, in its `hue`), "planned" (another planned module beside a module's own
     /// slots), "once" (single dates).
@@ -50,10 +61,12 @@ impl GridSlot {
         Placed { day: self.day, from: self.from, to: self.to }
     }
 
-    /// The slot's classes: `slot`, then its look, its tint, `alt` and `clash`.
+    /// The slot's classes: `slot`, then its look, its tint, `alt` and `clash`, and `brief` for
+    /// one shorter than an hour (its first line holds one line of words, not two).
     pub fn classes(&self) -> String {
         let mut classes = String::from("slot");
-        let parts = [self.class, self.hue.unwrap_or_default(), if self.alt { "alt" } else { "" }, if self.clash { "clash" } else { "" }];
+        let brief = self.to.saturating_sub(self.from) < 60;
+        let parts = [self.class, self.hue.unwrap_or_default(), if self.alt { "alt" } else { "" }, if self.clash { "clash" } else { "" }, if brief { "brief" } else { "" }];
         for part in parts.into_iter().filter(|part| !part.is_empty()) {
             classes.push(' ');
             classes.push_str(part);
@@ -63,6 +76,12 @@ impl GridSlot {
 
     fn drawn(&self) -> bool {
         (1..=7).contains(&self.day)
+    }
+
+    /// Another planned module beside the grid's own slots: it takes a slim lane (see the module's
+    /// doc).
+    fn beside(&self) -> bool {
+        self.class == "planned"
     }
 }
 
@@ -80,20 +99,93 @@ fn layout(slots: &[GridSlot], min_hours: u16) -> Option<Layout> {
         return None;
     }
     let span = grid::span(&drawn, min_hours.saturating_mul(60));
-    // Lanes are per day, so a slot that is not drawn shares a group with none that is.
-    let lanes = grid::lanes(&slots.iter().map(GridSlot::placed).collect::<Vec<_>>());
     let week = format!("--days:{};--first:{};--span:{}", span.days, halves(span.first), halves(span.last.saturating_sub(span.first)));
     let styles = slots
         .iter()
-        .zip(lanes)
-        .map(|(slot, (lane, lanes))| {
+        .zip(lanes_of(slots))
+        .map(|(slot, lane)| {
             // The frame ends at 24:00; what would reach past it stops there.
             let to = slot.to.max(slot.from).min(span.last);
             let from = slot.from.min(to);
-            format!("--from:{};--to:{};--lane:{lane};--lanes:{lanes}", halves(from), halves(to))
+            format!("--from:{};--to:{};{lane}", halves(from), halves(to))
         })
         .collect();
     Some(Layout { span, week, slots: styles })
+}
+
+/// Per slot, where it stands in its day's column: `--lane:<n>;--lanes:<n>` for one of equal
+/// lanes, as `grid::lanes` has them, and in a group of overlapping slots where the module's own
+/// slots meet planned ones, the own slots in lanes of two units on the left, the planned ones in
+/// lanes of one unit on the right (`--lane` and `--lanes` in units, `--wide` the slot's).
+fn lanes_of(slots: &[GridSlot]) -> Vec<String> {
+    let placed: Vec<Placed> = slots.iter().map(GridSlot::placed).collect();
+    // Lanes are per day, so a slot that is not drawn shares a group with none that is; a slot
+    // put on no day (0) is out of the other set's lanes.
+    let only = |beside: bool| -> Vec<(u8, u8)> {
+        let placed: Vec<Placed> = slots.iter().map(|slot| Placed { day: if slot.beside() == beside { slot.day } else { 0 }, ..slot.placed() }).collect();
+        grid::lanes(&placed)
+    };
+    let (all, own, planned) = (grid::lanes(&placed), only(false), only(true));
+    let groups = groups_of(&placed);
+    // Per group: the most lanes its own slots and its planned slots need among themselves.
+    let mut need: Vec<(u8, u8)> = vec![(0, 0); groups.iter().copied().max().map_or(0, |last| last + 1)];
+    for (i, slot) in slots.iter().enumerate() {
+        let (Some(group), Some(own), Some(planned)) = (groups.get(i), own.get(i), planned.get(i)) else { continue };
+        if let Some(need) = need.get_mut(*group) {
+            match slot.beside() {
+                false => need.0 = need.0.max(own.1),
+                true => need.1 = need.1.max(planned.1),
+            }
+        }
+    }
+    slots
+        .iter()
+        .enumerate()
+        .map(|(i, slot)| {
+            let group = groups.get(i).and_then(|group| need.get(*group)).copied().unwrap_or_default();
+            let (lane, lanes) = all.get(i).copied().unwrap_or((0, 1));
+            match (group, slot.beside()) {
+                ((0, _) | (_, 0), _) => format!("--lane:{lane};--lanes:{lanes}"),
+                ((mine, theirs), false) => {
+                    let (lane, lanes) = own.get(i).copied().unwrap_or((0, 1));
+                    let unit = 2.0 * f64::from(mine) / f64::from(lanes.max(1));
+                    format!("--lane:{};--lanes:{};--wide:{}", number(unit * f64::from(lane)), 2 * u16::from(mine) + u16::from(theirs), number(unit))
+                }
+                ((mine, theirs), true) => {
+                    let (lane, lanes) = planned.get(i).copied().unwrap_or((0, 1));
+                    let unit = f64::from(theirs) / f64::from(lanes.max(1));
+                    format!("--lane:{};--lanes:{};--wide:{}", number(2.0 * f64::from(mine) + unit * f64::from(lane)), 2 * u16::from(mine) + u16::from(theirs), number(unit))
+                }
+            }
+        })
+        .collect()
+}
+
+/// Per slot, the group of slots it overlaps transitively on its day (numbered from 0), as
+/// `grid::lanes` groups them.
+fn groups_of(placed: &[Placed]) -> Vec<usize> {
+    let mut order: Vec<(usize, &Placed)> = placed.iter().enumerate().collect();
+    order.sort_by_key(|(i, slot)| (slot.day, slot.from, std::cmp::Reverse(slot.to.saturating_sub(slot.from)), *i));
+    let mut groups = vec![0; placed.len()];
+    let (mut group, mut day, mut end) = (0usize, None, 0u16);
+    for (n, (i, slot)) in order.into_iter().enumerate() {
+        if n > 0 && (day != Some(slot.day) || slot.from >= end) {
+            group += 1;
+            end = 0;
+        }
+        day = Some(slot.day);
+        end = end.max(slot.to.max(slot.from));
+        if let Some(entry) = groups.get_mut(i) {
+            *entry = group;
+        }
+    }
+    groups
+}
+
+/// A number of the grid's CSS as short as it goes: „2", „0.667".
+fn number(value: f64) -> String {
+    let text = format!("{value:.3}");
+    text.trim_end_matches('0').trim_end_matches('.').to_string()
 }
 
 /// The geometry the grid writes, as plain data: the style of `.week` and one style per slot, in
@@ -151,12 +243,61 @@ fn slot_view(slot: &GridSlot, style: String) -> AnyView {
     let class = slot.classes();
     let title = (!slot.title.is_empty()).then(|| slot.title.clone());
     let current = slot.current.then_some("true");
-    let label = slot.label.clone();
+    // The label and, where it has one, its few letters for a narrow slot: `app.css` shows the one
+    // that fits (a container query on the slot).
+    let label = match slot.abbr.is_empty() {
+        true => view! { <span class="l">{words(&slot.label)}</span> }.into_any(),
+        false => view! { <span class="l l-full">{words(&slot.label)}</span><span class="l l-abbr">{words(&slot.abbr)}</span> }.into_any(),
+    };
     let small = (!slot.small.is_empty()).then(|| view! { <small>{slot.small.clone()}</small> });
     match slot.href.clone() {
         Some(href) => view! { <a class=class href=href data-noscroll="" style=style title=title aria-current=current>{label}{small}</a> }.into_any(),
         None => view! { <div class=class style=style title=title aria-current=current>{label}{small}</div> }.into_any(),
     }
+}
+
+/// A label word by word, each a box of its own (`span.w`): lines break between words only, and a
+/// word wider than its slot ends in „…" instead of being cut off at the slot's edge.
+fn words(text: &str) -> impl IntoView {
+    let units = units(text);
+    let last = units.len().saturating_sub(1);
+    units
+        .into_iter()
+        .enumerate()
+        .map(|(i, unit)| {
+            let space = (i < last).then_some(" ");
+            view! { <span class="w">{unit}</span>{space} }
+        })
+        .collect_view()
+}
+
+/// The boxes of a label: its words, a short lowercase word („und", „von", „der") together with
+/// the word after it, so no line ends on one („Entwicklung" / „von Software…", not „Entwicklung
+/// von" / „Softwaresystemen" cut to „von…").
+fn units(text: &str) -> Vec<String> {
+    let mut units: Vec<String> = Vec::new();
+    let mut open: Option<String> = None;
+    for word in text.split_whitespace() {
+        // The „…" of a cut name stays with the word before it.
+        if word == "…" && open.is_none() {
+            if let Some(last) = units.last_mut() {
+                last.push_str(" …");
+                continue;
+            }
+        }
+        let unit = match open.take() {
+            Some(before) => format!("{before} {word}"),
+            None => word.to_string(),
+        };
+        let small = word.chars().count() <= 4 && word.chars().all(char::is_lowercase);
+        if small {
+            open = Some(unit);
+        } else {
+            units.push(unit);
+        }
+    }
+    units.extend(open);
+    units
 }
 
 #[cfg(test)]
@@ -176,6 +317,32 @@ mod tests {
         // Apart, each has the whole column.
         let (_, slots) = geometry(&[slot(1, 555, 645), slot(1, 645, 735)], MIN_HOURS).unwrap();
         assert!(slots.iter().all(|style| style.ends_with("--lane:0;--lanes:1")), "{slots:?}");
+    }
+
+    #[test]
+    fn a_planned_module_beside_the_own_slots_is_slim() {
+        let planned = |day: u8, from: u16, to: u16| GridSlot { class: "planned", ..slot(day, from, to) };
+        let lanes = |slots: &[GridSlot]| {
+            let (_, styles) = geometry(slots, MIN_HOURS).unwrap();
+            styles.into_iter().map(|style| style.split_once(";--lane").map(|(_, lane)| format!("--lane{lane}")).unwrap_or_default()).collect::<Vec<_>>()
+        };
+        // One own lane, one planned: two thirds and one third, the planned one at the right.
+        assert_eq!(lanes(&[slot(2, 555, 645), planned(2, 555, 645)]), ["--lane:0;--lanes:3;--wide:2", "--lane:2;--lanes:3;--wide:1"]);
+        // Two planned beside one own: they share the one unit, the own slot keeps its two.
+        assert_eq!(
+            lanes(&[planned(2, 555, 645), slot(2, 555, 645), planned(2, 600, 700)]),
+            ["--lane:2;--lanes:4;--wide:1", "--lane:0;--lanes:4;--wide:2", "--lane:3;--lanes:4;--wide:1"]
+        );
+        // Two own lanes beside a planned one, and an own slot of the same group that meets only
+        // the planned one: the whole own part.
+        assert_eq!(
+            lanes(&[slot(3, 555, 645), slot(3, 555, 645), planned(3, 600, 720), slot(3, 690, 780)]),
+            ["--lane:0;--lanes:5;--wide:2", "--lane:2;--lanes:5;--wide:2", "--lane:4;--lanes:5;--wide:1", "--lane:0;--lanes:5;--wide:4"]
+        );
+        // Alone, or among themselves, planned slots take lanes as any do.
+        assert_eq!(lanes(&[planned(4, 555, 645), planned(4, 555, 645), slot(5, 555, 645)]), ["--lane:0;--lanes:2", "--lane:1;--lanes:2", "--lane:0;--lanes:1"]);
+        assert_eq!(number(2.0), "2");
+        assert_eq!(number(2.0 / 3.0), "0.667");
     }
 
     #[test]
@@ -208,5 +375,14 @@ mod tests {
         let tinted = GridSlot { class: "tinted", hue: Some("t-ice"), alt: true, clash: true, ..slot(1, 555, 645) };
         assert_eq!(tinted.classes(), "slot tinted t-ice alt clash");
         assert_eq!(GridSlot { class: "once", ..slot(1, 555, 645) }.classes(), "slot once");
+        // A label breaks between words, never after „und" or „von".
+        assert_eq!(units("VL Entwicklung von Softwaresystemen"), ["VL", "Entwicklung", "von Softwaresystemen"]);
+        assert_eq!(units("VL Elektrische und elektronische …"), ["VL", "Elektrische", "und elektronische …"]);
+        assert_eq!(units("Grundlagen der und"), ["Grundlagen", "der und"]);
+        assert_eq!(units("Ü Mathematik IT-1"), ["Ü", "Mathematik", "IT-1"]);
+        // Under an hour its first line holds one line.
+        assert_eq!(slot(1, 555, 600).classes(), "slot brief");
+        assert_eq!(GridSlot { class: "planned", ..slot(1, 555, 614) }.classes(), "slot planned brief");
+        assert_eq!(slot(1, 555, 615).classes(), "slot");
     }
 }

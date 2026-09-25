@@ -331,8 +331,9 @@ fn PlanSeo() -> impl IntoView {
 /// the place of the plan. The app replaces it with the plan once it runs.
 ///
 /// The frame is the app's, a sheet on a phone included: a sidebar in the page that the takeover
-/// turns into a closed sheet would vanish from under the explanation (R15). Without JavaScript
-/// nothing is missing, since the explanation already says where the plan lives.
+/// turns into a closed sheet would vanish from under the explanation (R15). The sidebar says where
+/// the plan lives (`StorageHint`, as in the app), the explanation what it takes to see it; each
+/// says it once (owner review 2026-09-25).
 fn server_page() -> impl IntoView {
     view! {
         <Title text="Studienplan"/>
@@ -340,12 +341,15 @@ fn server_page() -> impl IntoView {
             <PlanSeo/>
             <div class="page-inner sp">
                 <section class="panel sp-body">
-                    <EmptyState title="Dein Studienplan liegt in deinem Browser." hint="Er erscheint, sobald die App geladen ist."/>
+                    <EmptyState title=SERVER_TITLE hint="Dafür braucht es JavaScript."/>
                 </section>
             </div>
         </Frame>
     }
 }
+
+/// What the server's page says in the place of the plan.
+const SERVER_TITLE: &str = "Dein Studienplan erscheint, sobald die App geladen ist.";
 
 #[cfg(test)]
 mod tests {

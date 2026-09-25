@@ -77,6 +77,12 @@ pub struct ClosePopups(pub RwSignal<u32>);
 const MAX_SHOWN: usize = 120;
 const PAGE_STEP: usize = 8;
 
+/// Whether the popup is open. `false` once the combobox is gone: a combobox its own `on_select`
+/// removed still hears the focusout of its search field, and reading a disposed signal panics.
+fn is_open(open: RwSignal<bool>) -> bool {
+    open.try_get_untracked() == Some(true)
+}
+
 #[component]
 pub fn Combobox(
     /// Id of the button; the parts of the popup derive theirs from it.
@@ -157,7 +163,7 @@ pub fn Combobox(
         }
     };
     let hide = move |return_focus: bool| {
-        if open.get_untracked() {
+        if is_open(open) {
             open.set(false);
             if return_focus {
                 nav::focus_by_id(id);
@@ -256,6 +262,12 @@ pub fn Combobox(
         nav::reveal_in_list(&option_id(0), false);
     };
     let on_focus_out = move |ev: FocusEvent| {
+        // A combobox its own `on_select` took off the page (the Studienplan's program picker,
+        // the import's) still gets the focusout of its search field, after its signals are gone:
+        // nothing is open then, and nothing may be read.
+        if !is_open(open) {
+            return;
+        }
         let stays = ev.related_target().is_some_and(|target| {
             root.get_untracked().is_some_and(|root| target.dyn_ref::<web_sys::Node>().is_some_and(|node| root.contains(Some(node))))
         });
@@ -392,7 +404,22 @@ pub fn Combobox(
 
 #[cfg(test)]
 mod tests {
-    use super::grouped;
+    use leptos::prelude::*;
+
+    use super::{grouped, is_open};
+
+    #[test]
+    fn a_combobox_that_is_gone_is_closed() {
+        let owner = Owner::new();
+        let open = owner.with(|| RwSignal::new(true));
+        assert!(is_open(open));
+        open.set(false);
+        assert!(!is_open(open));
+        open.set(true);
+        // Its owner disposed, as when `on_select` took it off the page: closed, no panic.
+        owner.cleanup();
+        assert!(!is_open(open));
+    }
 
     #[test]
     fn a_heading_never_comes_twice_and_the_best_group_comes_first() {

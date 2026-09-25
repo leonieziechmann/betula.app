@@ -31,6 +31,7 @@ use crate::timetable::rowkey::RowKey;
 use crate::timetable::select::Selection;
 use crate::timetable::semester::SemesterKey;
 use crate::timetable::subscription::Subscription;
+use crate::timetable::views;
 use crate::url::{BookmarkSort, CatalogUrl, Season, PAGE_SIZE};
 use crate::variants::{self, PlanVariant, Supplement};
 
@@ -1144,8 +1145,8 @@ pub struct Overlay {
     pub exam_line: Option<(bool, String)>,
 }
 
-/// A recurring slot of another planned module in a module's week: the module, its title for the
-/// slot's small line (the grid clips it), the weekday (1 = Monday) and the minutes.
+/// A recurring slot of another planned module in a module's week: the module, its short name for
+/// the slot's label (`views::short_title`), the weekday (1 = Monday) and the minutes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OverlaySlot {
     pub module: String,
@@ -1199,7 +1200,7 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, label: &str, mod
             let (Some(day), Some(from), Some(to)) = (weekday_of(row), row.from, row.to) else {
                 continue;
             };
-            let slot = OverlaySlot { module: module.clone(), short: title(module), day, from, to };
+            let slot = OverlaySlot { module: module.clone(), short: views::short_title(&title(module)), day, from, to };
             if !planned.contains(&slot) {
                 planned.push(slot);
             }
@@ -1746,6 +1747,35 @@ mod studyplan_tests {
         assert!(empty.contains("Noch keine Termine veröffentlicht"));
     }
 
+    /// Elektrotechnik B.Sc. 2022, PA/IoT, first semester (the core audit's case): its located
+    /// events make Senftenberg by four to three. Mathematik IT-1 planned beside them would turn the
+    /// town to Cottbus and bring back the Cottbus courses of 11107 and 12105; derived from the
+    /// modules the Regelstudienplan placed, it stays Senftenberg, and the code says so.
+    #[test]
+    fn an_elective_does_not_turn_the_derived_town() {
+        let (db, is_pinned, key) = snapshot("an_elective_does_not_turn_the_derived_town");
+        if !is_pinned {
+            return;
+        }
+        let imported = ["13694", "13693", "11107", "12761", "12105"];
+        let mut doc = crate::studyplan::PlanDoc::default();
+        let import = crate::studyplan::Import { modules: imported.iter().map(|id| (key, id.to_string())).collect(), ..Default::default() };
+        doc.apply(&import, 1);
+        assert!(doc.plan(key, "11112", 2, None));
+        let data = studyplan(&db, key, &doc.modules_in(key)).unwrap();
+        let every = data.timetable(&Selection::default());
+        assert_eq!((every.town, every.town_derived), (Some(Town::Cottbus), true), "every module decides: the elective turns it");
+        let selection = doc.selection(key, crate::timetable::select::TownChoice::Derive);
+        let table = data.timetable(&selection);
+        assert_eq!((table.town, table.town_derived), (Some(Town::Senftenberg), true));
+        assert!(table.tracks.contains("11107") && table.tracks.contains("12105"));
+        let (code, _) = Subscription::of(key, &table.modules, &selection, Some(&table));
+        assert_eq!(code.town, crate::timetable::select::TownChoice::Only(Town::Senftenberg).code(), "the feed shows the page's town");
+        // Without the elective, the imported modules alone: the same town, as before.
+        let before = studyplan(&db, key, &ids(&imported)).unwrap().timetable(&Selection::default());
+        assert_eq!(before.town, Some(Town::Senftenberg));
+    }
+
     /// The loaders keep the plan's order, check what a store hands in, and add a module's rows to
     /// a plan without asking for the plan again.
     #[test]
@@ -1926,7 +1956,7 @@ mod studyplan_tests {
         assert_eq!(overlay.exam_line, None);
         let slots: BTreeSet<&str> = overlay.planned.iter().map(|slot| slot.module.as_str()).collect();
         assert_eq!(slots, fs1);
-        assert!(overlay.planned.iter().all(|slot| slot.short == plan.titles()[&slot.module]));
+        assert!(overlay.planned.iter().all(|slot| slot.short == views::short_title(&plan.titles()[&slot.module])));
     }
 
     /// What avoids an exam overlap, as the pinned snapshot has it: the module's own earlier sitting
