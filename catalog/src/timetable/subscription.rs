@@ -125,7 +125,9 @@ impl Subscription {
     }
 
     /// What the visitor chose to see, as the timetable applies it. Kind bits and row keys this
-    /// build does not know are left out; an unknown town is `Derive`.
+    /// build does not know are left out; an unknown town is `Derive`, from every module of the
+    /// code (a town the page derived from the imported modules alone comes as the town it is,
+    /// `export::town_of`).
     pub fn selection(&self) -> Selection {
         let rows = |packed: &[u64]| packed.iter().filter_map(|value| RowKey::unpack(*value)).collect();
         Selection {
@@ -134,6 +136,7 @@ impl Subscription {
             hidden_rows: rows(&self.hidden_rows),
             chosen_rows: rows(&self.chosen_rows),
             town: TownChoice::from_code(self.town),
+            town_from: None,
         }
     }
 }

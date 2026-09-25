@@ -42,6 +42,7 @@ use catalog::url::{PlanView, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
+use super::head::blocked_line;
 use super::{full_href, key_of, PlanCtx};
 use crate::data::DataError;
 use crate::format;
@@ -1151,23 +1152,10 @@ fn side_text(event: &Event, row: &Row) -> String {
     format!("{} ({what})", event.title.trim())
 }
 
-/// „0 von 4 Übungsterminen frei: Entwicklung von Softwaresystemen". The kind's word, not QIS's
-/// type (which would make „Laborausbildungterminen"); a kind without one is named after the colon.
+/// „0 von 4 Terminen frei: Übung · Entwicklung von Softwaresystemen", in the words of the
+/// semester's notes (`head::blocked_line`), with the event's own title.
 fn blocked_text(event: &Event) -> String {
-    let n = event.visible_options().len();
-    let kind = event.kinds.iter().find(|kind| *kind != EventKind::Lecture);
-    let terms = match kind {
-        Some(EventKind::Exercise) => Some("Übungsterminen"),
-        Some(EventKind::Seminar) => Some("Seminarterminen"),
-        Some(EventKind::Practical) => Some("Praktikumsterminen"),
-        Some(EventKind::Project) => Some("Projektterminen"),
-        Some(EventKind::Tutorial) => Some("Tutoriumsterminen"),
-        _ => None,
-    };
-    match terms {
-        Some(terms) => format!("0 von {n} {terms} frei: {}", event.title.trim()),
-        None => format!("0 von {n} Terminen frei: {} · {}", kind_word(event), event.title.trim()),
-    }
+    blocked_line(event, &event.title)
 }
 
 /// „Prüfungen gleichzeitig: Mo 08.02.2027 11:00 · Mathematik W-1 · ERP - Integrierte betriebliche

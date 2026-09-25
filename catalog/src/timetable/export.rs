@@ -146,9 +146,21 @@ impl Subscription {
             hidden_events: selection.hidden_events.iter().copied().filter(has_event).collect(),
             hidden_rows: rows(&selection.hidden_rows),
             chosen_rows: rows(&selection.chosen_rows),
-            town: selection.town.code(),
+            town: town_of(selection, table).code(),
         };
         (subscription, other)
+    }
+}
+
+/// The town a code carries. A town the page derived from the modules taken over from the
+/// Regelstudienplan (`Selection::town_from`) goes in as the town it is, or as both towns where it
+/// derives none: the feed derives from every module of the code, and an elective planned beside
+/// them could turn its town and make the calendar differ from the page. Otherwise the choice, and
+/// „derive" stays „derive".
+fn town_of(selection: &Selection, table: Option<&Timetable>) -> TownChoice {
+    match (selection.town, table) {
+        (TownChoice::Derive, Some(t)) if selection.town_from.is_some() && !t.tracks.is_empty() => t.town.map_or(TownChoice::Both, TownChoice::Only),
+        (choice, _) => choice,
     }
 }
 
@@ -1112,6 +1124,7 @@ mod tests {
             hidden_rows: [rows[9].key(), RowKey { event: 999, fp: 1 }, hidden_exam()].into(),
             chosen_rows: [rows[5].key(), RowKey { event: 20, fp: 0x12345 }].into(),
             town: TownChoice::Only(Town::Senftenberg),
+            town_from: None,
         };
         let modules = ids(&[B, "FÜS", A, B, "0123", "FÜS"]);
         let (subscription, other) = Subscription::of(t.key, &modules, &selection, Some(&t));
@@ -1139,6 +1152,22 @@ mod tests {
         let (none, other) = Subscription::of(t.key, &ids(&["FÜS"]), &Selection::default(), Some(&t));
         assert_eq!((none.modules.len(), other), (0, vec!["FÜS".to_string()]));
         assert_eq!(none.code(), Err(pack::Error::Malformed));
+    }
+
+    #[test]
+    fn a_town_derived_from_the_import_is_written_as_it_is() {
+        let with_tracks = |town: Option<Town>| Timetable { tracks: [A.to_string()].into(), town, town_derived: town.is_some(), ..semester() };
+        let imported = Selection { town_from: Some([A.to_string()].into()), ..Selection::default() };
+        let town = |selection: &Selection, t: &Timetable| Subscription::of(t.key, &ids(&[A, B]), selection, Some(t)).0.town;
+        // The page derived it from the imported modules: the feed must not derive it anew.
+        assert_eq!(town(&imported, &with_tracks(Some(Town::Cottbus))), TownChoice::Only(Town::Cottbus).code());
+        assert_eq!(town(&imported, &with_tracks(None)), TownChoice::Both.code());
+        // Derived from every module, or nothing to decide: „derive", as the feed does it too.
+        assert_eq!(town(&Selection::default(), &with_tracks(Some(Town::Cottbus))), 0);
+        assert_eq!(town(&imported, &semester()), 0);
+        // A chosen town is the choice.
+        let chosen = Selection { town: TownChoice::Only(Town::Senftenberg), ..imported.clone() };
+        assert_eq!(town(&chosen, &with_tracks(Some(Town::Cottbus))), TownChoice::Only(Town::Senftenberg).code());
     }
 
     #[test]

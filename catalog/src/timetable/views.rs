@@ -37,6 +37,70 @@ const PERIOD_SLACK_DAYS: i64 = 7;
 /// (`facts`), so it has at most 54 weeks; the bound only keeps the loop finite.
 const MAX_WEEKS: usize = 60;
 
+/// The most characters of a module's short name (`short_title`): two lines of a slot in a day of
+/// the Studienplan's week on a laptop. Half the catalog's titles are 31 characters or shorter.
+const SHORT_TITLE: usize = 32;
+
+/// The fewest characters a cut takes off a title, its „ …" counted: one that takes off only
+/// „II" or „1 B" drops what tells two modules apart and frees next to no room.
+const SHORT_SAVES: usize = 6;
+
+/// Words a cut title does not end on: „Entwicklung von …" says less than „Entwicklung …".
+const DANGLING: [&str; 21] =
+    ["und", "oder", "der", "die", "das", "des", "dem", "den", "von", "vom", "für", "in", "im", "mit", "zu", "zur", "zum", "and", "of", "the", "for"];
+
+/// Whether a cut title may not end on `word`: a function word (`DANGLING`), the first half of a
+/// pair („Wirtschafts-" of „Wirtschafts- und Finanzmathematik"), or a mark alone („–", „/").
+fn dangling(word: &str) -> bool {
+    DANGLING.contains(&word.to_lowercase().as_str()) || word.ends_with('-') || !word.chars().any(char::is_alphanumeric)
+}
+
+/// A module's name in the few words a slot of a week grid has room for: its title without a
+/// trailing note in parentheses („Mathematik IT-1 (Diskrete Mathematik)" → „Mathematik IT-1"),
+/// and a title longer than `SHORT_TITLE` characters cut after a whole word, with „…"
+/// („Elektrische und elektronische …"). Every slot that names a module takes its name from here,
+/// so the abbreviations Radix is to deliver for the modules replace this one guess in one place.
+pub fn short_title(title: &str) -> String {
+    let title = title.trim();
+    let head = title.strip_suffix(')').and_then(|rest| rest.rfind(" (").and_then(|at| rest.get(..at))).map(str::trim_end);
+    let bare = head.filter(|head| !head.is_empty()).unwrap_or(title);
+    let length = bare.chars().count();
+    if length <= SHORT_TITLE {
+        return bare.to_string();
+    }
+    let all: Vec<&str> = bare.split_whitespace().collect();
+    let chars = |words: &[&str]| words.iter().map(|word| word.chars().count()).sum::<usize>() + words.len().saturating_sub(1);
+    // Whole words up to the limit, but at least half of it: „Grundlagen der …" would name no
+    // module, „Grundlagen der Betriebswirtschaftslehre …" does (the slot cuts what it cannot hold).
+    let mut taken = 0;
+    let mut used = 0;
+    for word in &all {
+        let with = used + usize::from(taken > 0) + word.chars().count();
+        if with > SHORT_TITLE && used >= SHORT_TITLE / 2 {
+            break;
+        }
+        taken += 1;
+        used = with;
+    }
+    while taken > 1 && all.get(taken - 1).is_some_and(|word| dangling(word)) {
+        taken -= 1;
+    }
+    // What is left once the hanging words are gone must still name the module: of „Einführung in
+    // die Volkswirtschaftslehre" or „Grundlagen Bau- und Planungsrecht" only „Einführung" and
+    // „Grundlagen" would. Such a cut takes the words up to the next one that ends a name, past
+    // the limit.
+    let kept = all.get(..taken).unwrap_or_default();
+    if chars(kept) < SHORT_TITLE / 2 || kept.last().is_some_and(|word| dangling(word)) {
+        taken = all.iter().enumerate().skip(taken).find(|(_, word)| !dangling(word)).map_or(all.len(), |(at, _)| at + 1);
+    }
+    let cut = all.get(..taken).unwrap_or_default().join(" ");
+    if taken >= all.len() || length < cut.chars().count() + 2 + SHORT_SAVES {
+        return all.join(" ");
+    }
+    // „Recht II: Handels- und Gesellschaftsrecht …", not „…recht, …".
+    format!("{} …", cut.trim_end_matches([',', ';', ':']))
+}
+
 /// A slot of the Regelwoche: a recurring Termin, or the dates of one event at one weekday and
 /// time that do not recur.
 #[derive(Clone, Debug, PartialEq)]
@@ -792,6 +856,38 @@ mod tests {
             .filter(|row| row.hidden.is_none() && row.shape != ExamShape::Open)
             .count();
         assert_eq!(exams, dated, "every dated exam once");
+    }
+
+    #[test]
+    fn a_slot_names_a_module_in_a_few_whole_words() {
+        // Short enough: as it is, without a note in parentheses at its end.
+        assert_eq!(short_title("Entwicklung von Softwaresystemen"), "Entwicklung von Softwaresystemen");
+        assert_eq!(short_title(" Programmierpraktikum "), "Programmierpraktikum");
+        assert_eq!(short_title("Mathematik IT-1 (Diskrete Mathematik)"), "Mathematik IT-1");
+        assert_eq!(short_title("Carbon Capture and Storage (CCS)"), "Carbon Capture and Storage");
+        // A parenthesis that is the whole title, or not at its end, stays.
+        assert_eq!(short_title("(Studium generale)"), "(Studium generale)");
+        assert_eq!(short_title("Analysis (Teil 1) und Algebra"), "Analysis (Teil 1) und Algebra");
+        // Longer: cut after a whole word, never after „und", „der", „von" …, and marked.
+        assert_eq!(short_title("Elektrische und elektronische Grundlagen der Informatik"), "Elektrische und elektronische …");
+        assert_eq!(short_title("Einführung in die Programmierung mit Python und Java"), "Einführung in die Programmierung …");
+        // At least half the limit, so the name still names the module; a word stays whole (the
+        // slot cuts what it cannot hold).
+        assert_eq!(short_title("Grundlagen der Betriebswirtschaftslehre für Ingenieure"), "Grundlagen der Betriebswirtschaftslehre …");
+        assert_eq!(short_title("Donaudampfschifffahrtsgesellschaftskapitänsmütze Teil 2 und 3"), "Donaudampfschifffahrtsgesellschaftskapitänsmütze …");
+        assert_eq!(short_title("Kurzwort Donaudampfschifffahrtsgesellschaftskapitän"), "Kurzwort Donaudampfschifffahrtsgesellschaftskapitän");
+        // What is left once „in die" or „Bau- und" go would name no module: the cut takes the
+        // words up to the next one that ends a name, here the whole title (review 2026-09-25: the
+        // Woche read „VL Einführung …" in a slot with room for all of it).
+        assert_eq!(short_title("Einführung in die Volkswirtschaftslehre"), "Einführung in die Volkswirtschaftslehre");
+        assert_eq!(short_title("Einführung in das wissenschaftliche Arbeiten"), "Einführung in das wissenschaftliche …");
+        assert_eq!(short_title("Wirtschafts- und Finanzmathematik"), "Wirtschafts- und Finanzmathematik");
+        assert_eq!(short_title("Grundlagen Bau- und Planungsrecht"), "Grundlagen Bau- und Planungsrecht");
+        assert_eq!(short_title("Informationstechnik- und Kommunikationssysteme im Verbund"), "Informationstechnik- und Kommunikationssysteme …");
+        assert_eq!(short_title("Recht II: Handels- und Gesellschaftsrecht, Arbeitsrecht"), "Recht II: Handels- und Gesellschaftsrecht …");
+        // A cut that would take off only what tells modules apart leaves the title whole.
+        assert_eq!(short_title("Rechnernetze und Kommunikationssysteme II"), "Rechnernetze und Kommunikationssysteme II");
+        assert_eq!(short_title("Forensischer Vorbereitungskurs 1 B"), "Forensischer Vorbereitungskurs 1 B");
     }
 
     /// Two modules' events: a weekly lecture with a cancelled date and a room note, one in a part

@@ -365,7 +365,7 @@ fn HiddenGroup(ctx: PlanCtx) -> impl IntoView {
     move || {
         any.get().then(|| {
             view! {
-                <details class="fgroup" open=true>
+                <details class="fgroup sp-hidden" open=true>
                     <summary class="label">"Ausgeblendet ("{move || lines.with(Vec::len)}")"</summary>
                     <For
                         each=move || lines.get()

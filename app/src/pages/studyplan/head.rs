@@ -17,7 +17,7 @@ use catalog::pages::{self, BookmarksData, StudyplanData};
 use catalog::studyplan::PlanDoc;
 use catalog::timetable::day::{clock, Day};
 use catalog::timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
-use catalog::timetable::kind::{EventKind, KindSet};
+use catalog::timetable::kind::EventKind;
 use catalog::timetable::model::{Attendance, Basis, Event, Timetable};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::select::TownChoice;
@@ -490,23 +490,12 @@ pub(super) fn kind_word(event: &Event) -> String {
     }
 }
 
-/// „Übungsterminen" of „0 von 4 Übungsterminen frei": the kind's own word where the event is of
-/// one kind, else `None` (then the line names the type apart: „0 von 2 Terminen frei: Vorlesung/
-/// Übung · …"). Never glued to QIS's type, which would give „Laborausbildungterminen".
-fn termine_of_kind(kinds: KindSet) -> Option<&'static str> {
-    let mut all = kinds.iter();
-    let (Some(kind), None) = (all.next(), all.next()) else { return None };
-    match kind {
-        EventKind::Lecture => Some("Vorlesungsterminen"),
-        EventKind::Exercise => Some("Übungsterminen"),
-        EventKind::Seminar => Some("Seminarterminen"),
-        EventKind::Practical => Some("Praktikumsterminen"),
-        EventKind::Project => Some("Projektterminen"),
-        EventKind::Tutorial => Some("Tutoriumsterminen"),
-        EventKind::Consultation => Some("Konsultationsterminen"),
-        EventKind::Excursion => Some("Exkursionsterminen"),
-        _ => None,
-    }
+/// „0 von 2 Terminen frei: Laborausbildung · Programmierpraktikum": a choice none of whose options
+/// is free, in the words of „1 von 4 wählen: …" — the neutral „Terminen", and the type as QIS
+/// writes it after the colon, never glued to it („Laborausbildungterminen"). The notes of the
+/// semester name the module (`title`), the module beside the plan its event.
+pub(super) fn blocked_line(event: &Event, title: &str) -> String {
+    format!("0 von {} Terminen frei: {} · {}", event.visible_options().len(), kind_word(event), title.trim())
 }
 
 /// „, A-Woche" for a row held in A weeks, „, B-Woche" in B weeks.
@@ -679,11 +668,7 @@ pub(super) fn notes(table: &Timetable, about: &About, choice: TownChoice) -> Vec
         warnings.push(Note::warn(text, b.modules.first().cloned(), row));
     }
     for event in table.blocked.iter().filter_map(|index| table.events.get(*index)) {
-        let options = event.visible_options().len();
-        let text = match termine_of_kind(event.kinds) {
-            Some(word) => format!("0 von {options} {word} frei: {}", about.title_of(event)),
-            None => format!("0 von {options} Terminen frei: {} · {}", kind_word(event), about.title_of(event)),
-        };
+        let text = blocked_line(event, &about.title_of(event));
         warnings.push(Note::warn(text, event.modules.first().cloned(), first_option_row(event)));
     }
     let exam_notes: Vec<Note> = table.exam_warnings.iter().map(|warning| exam_note(warning, about, &termine)).collect();
@@ -975,7 +960,7 @@ mod tests {
             texts,
             vec![
                 (true, "8 Termine überschneiden sich: Di 07:30 · Programmierpraktikum (Vorlesung) · Elektrische und elektronische Grundlagen der Informatik (Vorlesung, A-Woche)"),
-                (true, "0 von 4 Übungsterminen frei: Entwicklung von Softwaresystemen"),
+                (true, "0 von 4 Terminen frei: Übung · Entwicklung von Softwaresystemen"),
                 (true, "Prüfungen gleichzeitig: Mo 08.02.2027 11:00 · Mathematik IT-1 · Entwicklung von Softwaresystemen"),
                 (false, "1 von 3 wählen: Übung · Mathematik IT-1"),
                 (false, "0 min von Zentralcampus nach Senftenberg: Mo 08.02.2027 · Elektrische und elektronische Grundlagen der Informatik bis 10:00 · Programmierpraktikum ab 10:00 · andere Termine passen"),
@@ -1089,9 +1074,10 @@ mod tests {
                 event.kinds = kinds_of(Some(type_raw));
             }
         };
-        // QIS's „Laborausbildung" is a Praktikum; its word is the kind's, not the type's.
+        // QIS's „Laborausbildung" stands after the colon as QIS writes it, never glued to the
+        // Termine („Laborausbildungterminen").
         retype(&mut table, "Laborausbildung");
-        assert_eq!(notes(&table, &about, TownChoice::Derive)[1].text, "0 von 4 Praktikumsterminen frei: Entwicklung von Softwaresystemen");
+        assert_eq!(notes(&table, &about, TownChoice::Derive)[1].text, "0 von 4 Terminen frei: Laborausbildung · Entwicklung von Softwaresystemen");
         retype(&mut table, "Vorlesung/Übung");
         assert_eq!(notes(&table, &about, TownChoice::Derive)[1].text, "0 von 4 Terminen frei: Vorlesung/Übung · Entwicklung von Softwaresystemen");
     }

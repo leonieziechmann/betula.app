@@ -702,23 +702,54 @@ button.action:hover { background: var(--panel-3); }
 .week .d { text-align: center; font-size: 11.5px; font-weight: 650; color: var(--text-3); padding-bottom: 8px; }
 .week .hours { grid-row: 2; display: grid; grid-auto-rows: 48px; font-size: 10.5px; color: var(--text-3); text-align: right; padding-right: 4px; }
 .week .col { grid-row: 2; position: relative; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px 48px); height: calc(var(--span) * 24px); }
-/* Slots that overlap on a day stand side by side: `--lane` of `--lanes` (week.rs). One lane is the
-   whole column less 1px each side, as before lanes; neighbours keep 2px between them. The side
-   padding is at most a quarter of the slot's width (a percentage of the column, like `left` and
-   `width`): a border box is never narrower than its padding, so a fixed 6px made the slots of five
-   or more lanes 12px wide, over their neighbours and out of the column. */
-.slot { position: absolute; left: calc(1px + 100% * var(--lane, 0) / var(--lanes, 1)); width: calc(100% / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px clamp(0px, calc((100% / var(--lanes, 1) - 2px) / 4), 6px); font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); }
+/* Slots that overlap on a day stand side by side: `--lane` of `--lanes` (week.rs), `--wide` lanes
+   wide. One lane is the whole column less 1px each side, as before lanes; neighbours keep 2px
+   between them. Where the module's own slots meet another planned module (`--mine` own lanes,
+   `--theirs` planned ones), the column has two parts, and `--lane`, `--lanes` and `--wide` count
+   in the slot's part: the planned part (`--pw`, the slots with `--beside:1`) on the right, its
+   lanes half as wide as an own one, but never so wide that an own lane is left narrower than
+   42px („Prak" and its padding) while a planned lane is wider than 10px, an outline alone. The
+   side padding is at most a quarter of the slot's width (a percentage of the column, like `left`
+   and `width`): a border box is never narrower than its padding, so a fixed 6px made the slots of
+   five or more lanes 12px wide, over their neighbours and out of the column. */
+.slot {
+  --pw: min(100% * var(--theirs, 0) / (2 * var(--mine, 1) + var(--theirs, 0)), max(var(--theirs, 0) * 10px, 100% - var(--mine, 1) * 42px));
+  --at: calc(var(--beside, 0) * (100% - var(--pw)));
+  --in: calc(var(--beside, 0) * var(--pw) + (1 - var(--beside, 0)) * (100% - var(--pw)));
+  position: absolute; left: calc(1px + var(--at) + var(--in) * var(--lane, 0) / var(--lanes, 1)); width: calc(var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px clamp(0px, calc((var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px) / 4), 6px); font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); container-type: inline-size; overflow-wrap: normal; word-break: normal; hyphens: manual;
+}
 a.slot { text-decoration: none; }
+/* The first line (span.l): whole words only, two lines at most, then „…" (owner review
+   2026-09-25: „Softwaresystem-en" broke inside a word); one in a slot under an hour (.brief),
+   whose second line would show only its top edge. The height caps what the line clamp counts,
+   for the first word below. */
+.slot > .l { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; max-height: 2.5em; overflow: hidden; }
+.slot .w { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
+.slot.brief { padding-top: 3px; padding-bottom: 3px; }
+.slot.brief > .l { -webkit-line-clamp: 1; line-clamp: 1; max-height: 1.25em; }
+/* A first word wider than the slot ends the label, cut with „…": the words after it would stand
+   under a cut word („Mathe…" over „IT-1", review 2026-09-25). Its outer box keeps the word's whole
+   width (a percentage width counts as none there), its text is as wide as the slot (100cqw), and
+   an empty line after the text is as tall as the word is wider than the slot, times a thousand,
+   at most one line: a word that fits adds nothing, one that does not makes the first line two
+   lines tall, and the height above leaves the rest out. */
+.slot > .l > .w:first-child { max-width: none; overflow: visible; }
+.slot > .l > .w:first-child > span { display: block; width: min(100%, 100cqw); overflow: hidden; text-overflow: ellipsis; }
+.slot > .l > .w:first-child:not(:last-child)::after { content: ""; display: block; width: calc(100% - 100cqw); aspect-ratio: 1 / 1000; max-height: 1.25em; }
+/* A slot a sliver wide (a planned module's slim lane in a narrow week) is an outline alone; its
+   tooltip and the line under the week name it. */
+@container (max-width: 22px) {
+  .slot.planned > .l { visibility: hidden; }
+}
 .slot small { display: block; font-weight: 500; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot.other { background: var(--panel-3); color: var(--text-2); box-shadow: inset 2.5px 0 0 var(--text-3); }
 /* A module of the Studienplan, in its tint (`t-…`). */
 .slot.tinted { background: color-mix(in oklch, var(--tint) 16%, var(--panel)); color: var(--text); box-shadow: inset 2.5px 0 0 var(--tint); }
 /* Single dates: they do not happen every week, so they do not look like what does. */
 .slot.once { background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
-/* Another planned module beside a module's own slots, named in a lighter weight than they are;
-   under an hour (.brief) in one line, since a second would show only its top edge. */
-.slot.planned { background: transparent; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 500; hyphens: auto; }
-.slot.planned.brief { white-space: nowrap; text-overflow: ellipsis; }
+/* Another planned module beside a module's own slots: a quiet outline in a slim lane (week.rs),
+   its short name in a lighter weight than theirs. */
+.slot.planned { background: transparent; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 500; }
 /* An option of a choice not yet made. */
 .slot.alt { background: transparent; box-shadow: none; outline: 1px dashed var(--tint, var(--line-strong)); outline-offset: -1px; }
 .slot.clash { box-shadow: inset 2.5px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
@@ -1386,6 +1417,10 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .toc a .toc-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toc a .toc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-weight: 450; font-size: 12.5px; }
 .toc a .num { flex: none; margin-left: auto; color: var(--text-3); font-weight: 500; font-size: 12px; }
+/* The Studienplan's semesters: „jetzt" (small.num) readable on the inverted current one, and a
+   semester that is over (a.past) steps back. */
+.toc a[aria-current="page"] small.num { color: inherit; opacity: .72; }
+.toc a.past:not([aria-current="page"]) { color: var(--text-3); }
 .toc .hint { padding: 0 2px; font-size: 12px; }
 .chip-count { margin-left: auto; padding-left: 6px; color: var(--text-3); font-weight: 500; font-size: 12px; }
 .chip[data-state="with"] .chip-count { color: inherit; opacity: .7; }
@@ -1437,6 +1472,17 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .page-inner.sp { min-height: 100%; grid-template-columns: minmax(0, 1fr); }
 /* The panel ends where the sidebar ends (the page keeps no room under it). */
 @media (min-width: 901px) { .framed > .page:has(> .page-inner.sp) { padding-bottom: 1px; } }
+/* A module beside the plan: where the screen is wide enough, the plan's column makes room for it
+   (a third column of the frame, as wide as the panel) instead of the panel covering Thursday and
+   Friday of the week; narrower, it floats over the page as everywhere. The panel gives up width,
+   down to the catalog preview's least, before the plan's column is narrower than 560px: at
+   1280px wide a panel of 480px left the week days of 67px (review 2026-09-25). */
+@media (min-width: 1280px) {
+  .framed.aside-picked:has(> .page > .page-inner.sp) {
+    --preview: clamp(360px, min(var(--preview-w), 100% - var(--filters) - 2 * var(--gap) - 560px), calc(100% - var(--filters) - var(--gap) - 120px));
+    grid-template-columns: var(--filters) minmax(0, 1fr) var(--preview);
+  }
+}
 .sp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; padding: 16px 24px 24px; overflow: visible; overflow-wrap: break-word; }
 .sp-body > .hint, .sp-body > .note { margin-top: 0; }
 /* The empty plan and the server's explanation: what is missing, the ways on in a row under it. */
@@ -1522,11 +1568,13 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .agenda-item > span:not(.t) { min-width: 0; }
 .agenda-item small { color: var(--text-3); font-size: 12px; }
 .agenda-item > small { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agenda-item.exam { font-weight: 650; }
+/* An exam of the agenda: bold. The catalog row's `.exam` (one line, clipped, muted) is another
+   thing of the same name, so its rule is undone here. */
+.agenda-item.exam { font-weight: 650; font-size: 13px; color: var(--text); white-space: normal; overflow: visible; }
 .agenda-item.exam .icon { width: 14px; height: 14px; align-self: center; color: var(--warn); }
 .agenda-item.alt { color: var(--text-2); }
 .agenda-item.cancelled > span:not(.t) { color: var(--text-3); text-decoration: line-through; }
-.agenda-break { padding: 8px 12px; border-radius: var(--r-row); background: var(--panel-2); color: var(--text-3); font-size: 12.5px; }
+.agenda-break { padding: 8px 12px; border-radius: var(--r-row); background: var(--panel-2); color: var(--text-3); font-size: 12.5px; scroll-margin-top: 12px; }
 
 /* „Prüfungen": a sitting a row (.sp-exam: .when, what and where, the eye), „2. Termin" small;
    a hidden sitting steps back ([data-hidden]). */
@@ -1556,6 +1604,11 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .sp-rowline[aria-current="true"] { background: var(--panel-3); color: var(--text); box-shadow: inset 2.5px 0 0 var(--accent); }
 .sp-rowline[data-hidden] { color: var(--text-3); }
 .sp-rowline[data-hidden] > span:first-child { text-decoration: line-through; text-decoration-color: var(--line-strong); }
+/* Only the first line (when) is struck; the line under it (how many, where) is an inline block,
+   which a line-through does not reach. */
+.sp-rowline > span:first-child > small { display: inline-block; }
+/* An event hidden for any reason (the eye, a kind, the Standort) steps back as its Termine do. */
+.sp-event[data-hidden] > h3 { color: var(--text-3); }
 .sp-rowline .clash { color: var(--no); font-weight: 600; }
 /* The eye: hide or show an event, a Termin, a sitting (aria-pressed: hidden). */
 .eye { --hit: 3px; flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-s); color: var(--text-3); transition: background .12s, color .12s; }
@@ -1577,6 +1630,12 @@ a.sp-row:hover, .sp-row > a:hover { text-decoration: none; }
 .sp-row small { color: var(--text-3); font-size: 12px; }
 .sp-row .lp { margin-left: auto; flex: none; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sp-row .icon-btn { width: 32px; height: 32px; }
+.sp-row .mini { display: inline-flex; align-items: center; }
+/* A module's title in a row of the Übersicht or of „Prüfungen" reads as text, as in the legend. */
+.sp-row a:not(.mini), .sp-exam a { color: var(--text); text-decoration: none; }
+.sp-row a:not(.mini):hover, .sp-exam a:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* The Übersicht's head holds its h2 alone, without the arrows the head's margin is for. */
+.sp-head > h2:first-child { padding-left: 8px; }
 .sp-row.placeholder { background: transparent; border: 1px dashed var(--line-strong); padding-left: 11px; }
 .sp-row.placeholder b { font-weight: 650; }
 .sp-row.filler { margin-left: 18px; background: var(--accent-soft); }
@@ -1594,11 +1653,27 @@ a.sp-row:hover, .sp-row > a:hover { text-decoration: none; }
 .sp-import .check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .sp-import .btn { justify-self: start; }
 .btn[aria-busy="true"] { opacity: .7; cursor: progress; }
+.btn[disabled] { opacity: .5; cursor: default; filter: none; }
+/* The program picker is as wide as a name needs, not as the panel. */
+.sp-field > .combo { width: 100%; max-width: 480px; }
+/* A note among the fields and sittings keeps to their gap. */
+.sp-import .note, .sp-exams .note { margin-top: 0; }
 
-/* The sidebar's „Kalender": „Abonnieren" opens the four ways to subscribe under it. */
+/* A list that opens under an action: the four ways of „Abonnieren" in the sidebar's „Kalender",
+   and the semesters of „Anderes Semester" in a module page's sidebar. */
 .sp-sub { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 2px 0 4px 17px; padding-left: 8px; border-left: 2px solid var(--line); }
 .sp-sub .hint { margin: 4px 0 2px 10px; }
 .sidebar .note { margin-top: 6px; }
+/* „.ics herunterladen" without a file: an action that does nothing looks like none. */
+.action[aria-disabled="true"], .action[aria-disabled="true"] .icon { color: var(--text-3); cursor: default; }
+a.action[aria-disabled="true"]:hover { background: none; }
+/* A button in a note („Neue Adresse kopieren", „Alle einblenden") is a button, not warning text. */
+.note .mini { color: var(--text); }
+/* „Standort": „Senftenberg" takes the room it needs, the shorter towns less. */
+.seg[aria-label="Standort"] { grid-auto-columns: auto; }
+/* „Ausgeblendet" (details.sp-hidden): a line, its „Einblenden" under it, then room before the
+   next line, so a button reads as the one of the line above it. */
+.sp-hidden > .note-action + .note-action { margin-top: 10px; }
 
 /* „Einplanen" on a module's page and „Mein Studiengang" on a program's: part of server HTML (R9,
    unpressed), kept in place but not shown until the app runs, and gone without JavaScript (R15) —
@@ -1884,6 +1959,10 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .sp-rowline { min-height: 44px; flex-wrap: wrap; row-gap: 0; padding-top: 4px; padding-bottom: 2px; }
   .sp-rowline > span:first-child { flex-basis: 100%; }
   .sp-rowline > :nth-child(2) { margin-left: auto; }
+  /* A lone eye stays beside its Termin: a row of its own would hold nothing else. */
+  .sp-rowline:has(> :nth-child(2):last-child) { flex-wrap: nowrap; }
+  .sp-rowline:has(> :nth-child(2):last-child) > span:first-child { flex-basis: 0; flex-grow: 1; }
+  .sp-row .icon-btn { width: 44px; height: 44px; }
   .sp-daylist a { min-height: 48px; }
   /* The day in two short lines („Mo" over „05.10."), the items get the room. */
   .agenda-day { grid-template-columns: 44px minmax(0, 1fr); gap: 2px 8px; }

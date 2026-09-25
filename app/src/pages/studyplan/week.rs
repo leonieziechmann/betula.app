@@ -23,7 +23,7 @@
 //! the lists are keyed by those values, so a hidden event redraws the days it was on and no
 //! other (R5).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use catalog::labels::Rhythm;
 use catalog::rows_detail::EventDate;
@@ -35,7 +35,7 @@ use catalog::timetable::kind::EventKind;
 use catalog::timetable::model::{Event, Row, Timetable};
 use catalog::timetable::occur::Every;
 use catalog::timetable::rowkey::RowKey;
-use catalog::timetable::views::{AgendaItem, AgendaWeek, Reach, WeekItem, WeekLabel};
+use catalog::timetable::views::{short_title, AgendaItem, AgendaWeek, Reach, WeekItem, WeekLabel};
 use catalog::url::{self, StudyplanUrl};
 use leptos::prelude::*;
 
@@ -61,9 +61,12 @@ type Picked = (Option<String>, Option<RowKey>);
 pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
     let base = base_of(ctx);
     let picked = picked_of(ctx);
+    // The modules' titles, for the slots' short names: a sibling of the timetable, both derived
+    // from the semester's data (R16).
+    let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(|data| data.titles()).unwrap_or_default()));
     let slots = Memo::new(move |_| {
         let base = base.get();
-        ctx.table.with(|table| table.as_ref().map(|table| week_slots(table, &base)).unwrap_or_default())
+        titles.with(|titles| ctx.table.with(|table| table.as_ref().map(|table| week_slots(table, &base, titles)).unwrap_or_default()))
     });
     let loose = Memo::new(move |_| {
         let base = base.get();
@@ -374,12 +377,13 @@ impl DayRow {
     }
 }
 
-/// The slots of the Regelwoche, in its order (weekday, time, event).
-fn week_slots(table: &Timetable, base: &StudyplanUrl) -> Vec<PlanSlot> {
-    table.regular_week().iter().filter_map(|item| plan_slot(table, base, item)).collect()
+/// The slots of the Regelwoche, in its order (weekday, time, event); `titles` are the planned
+/// modules' titles by id.
+fn week_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, String>) -> Vec<PlanSlot> {
+    table.regular_week().iter().filter_map(|item| plan_slot(table, base, item, titles)).collect()
 }
 
-fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem) -> Option<PlanSlot> {
+fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &BTreeMap<String, String>) -> Option<PlanSlot> {
     let event = table.events.get(item.event)?;
     let shown = event.rows.get(item.row)?;
     let module = event.modules.first()?;
@@ -409,7 +413,7 @@ fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem) -> Option<
         day: item.day,
         from: item.from,
         to: item.to,
-        label: slot_label(event),
+        label: slot_label(event, titles),
         small: slot_small(&item.label, every, item.alt, item.from, &table.facts),
         title: title.join(" · "),
         class: if once { "once" } else { "tinted" },
@@ -640,16 +644,41 @@ fn agenda_blocks(table: &Timetable, weeks: &[AgendaWeek], base: &StudyplanUrl, t
             continue;
         }
         flush(&mut quiet, &mut blocks);
-        let days = week
-            .days
-            .iter()
-            .map(|day| DayLine {
+        // An open choice is one line in the week, on the first day it could be attended, instead
+        // of a line per option and day (owner review 2026-09-25).
+        let choices = open_choices(table, week);
+        // Per choice, the day its line stands on.
+        let mut said: BTreeMap<usize, Day> = BTreeMap::new();
+        let mut days = Vec::new();
+        for day in &week.days {
+            let is_today = today == Some(day.day);
+            let mut items = Vec::new();
+            for item in &day.items {
+                let Some(e) = open_option(table, item) else {
+                    items.extend(agenda_item(table, base, day.day, item));
+                    continue;
+                };
+                let dates = choices.get(&e).map_or(&[][..], Vec::as_slice);
+                // A cancelled date is no day to attend, unless the week has no other.
+                if (item.cancelled.is_none() || dates.is_empty()) && !said.contains_key(&e) {
+                    said.insert(e, day.day);
+                    items.extend(choice_item(table, base, e, dates));
+                } else if is_today && said.get(&e) != Some(&day.day) {
+                    // Today keeps its line: the options that meet today stand as they are
+                    // („1 von 4 · LG 10/214"), below the week's line on an earlier day.
+                    items.extend(agenda_item(table, base, day.day, item));
+                }
+            }
+            if items.is_empty() && day.holiday.is_none() {
+                continue;
+            }
+            days.push(DayLine {
                 when: format!("{} {}", day_short(day.day.weekday()), day.day.short()),
                 today: today == Some(day.day),
                 holiday: day.holiday,
-                items: day.items.iter().filter_map(|item| agenda_item(table, base, day.day, item)).collect(),
-            })
-            .collect();
+                items,
+            });
+        }
         let mut head = week_head(week.monday, week.iso_week.1);
         if week.break_week {
             head.push_str(" · vorlesungsfrei");
@@ -666,6 +695,73 @@ fn agenda_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &AgendaIt
         (None, Some(x)) => exam_item(table, base, day, item, x),
         (None, None) => None,
     }
+}
+
+/// The event of `item` when the item is a date of an option of a choice not yet made („1 von 4").
+fn open_option(table: &Timetable, item: &AgendaItem) -> Option<usize> {
+    let e = item.event?;
+    let event = table.events.get(e)?;
+    let row = event.rows.get(item.row)?;
+    (event.unresolved() && row.option.is_some()).then_some(e)
+}
+
+/// A week's open choices: per event, its options' dates in the week that take place, in order.
+fn open_choices<'a>(table: &Timetable, week: &'a AgendaWeek) -> BTreeMap<usize, Vec<(Day, &'a AgendaItem)>> {
+    let mut choices: BTreeMap<usize, Vec<(Day, &AgendaItem)>> = BTreeMap::new();
+    for day in &week.days {
+        for item in &day.items {
+            if let Some(e) = open_option(table, item) {
+                let dates = choices.entry(e).or_default();
+                if item.cancelled.is_none() {
+                    dates.push((day.day, item));
+                }
+            }
+        }
+    }
+    choices
+}
+
+/// The one line of a week for a choice not yet made: „Praktikum · Programmierpraktikum" and
+/// „1 von 4 (Mo, Mi, Do, Fr)", the days its options take place on in the week; the time where all
+/// of them share one. It opens the module at the first of them, where „Nur diesen" makes the
+/// choice. `dates` are the week's dates of its options (`open_choices`); none when all of them
+/// are cancelled.
+fn choice_item(table: &Timetable, base: &StudyplanUrl, e: usize, dates: &[(Day, &AgendaItem)]) -> Option<ItemLine> {
+    let event = table.events.get(e)?;
+    let module = event.modules.first()?;
+    let options = event.visible_options().len();
+    let mut days: Vec<&str> = Vec::new();
+    for (day, _) in dates {
+        let short = day_short(day.weekday());
+        if !days.contains(&short) {
+            days.push(short);
+        }
+    }
+    let times: BTreeSet<(Option<u16>, Option<u16>)> = dates.iter().map(|(_, item)| (item.from, item.to)).collect();
+    let time = match times.into_iter().collect::<Vec<_>>().as_slice() {
+        [(Some(from), Some(to))] => format!("{}–{}", clock(*from), clock(*to)),
+        _ => String::new(),
+    };
+    let small = match days.is_empty() {
+        true => format!("1 von {options} · fällt aus"),
+        false => format!("1 von {options} ({})", days.join(", ")),
+    };
+    let text = event_text(event);
+    let whens = dates.iter().map(|(day, item)| match (item.from, item.to) {
+        (Some(from), Some(to)) => format!("{} {}–{}", day_short(day.weekday()), clock(from), clock(to)),
+        _ => day_short(day.weekday()).to_string(),
+    });
+    let title: Vec<String> = [text.clone(), small.clone()].into_iter().chain(whens).collect();
+    let first = dates.first().and_then(|(_, item)| event.rows.get(item.row)).or_else(|| event.rows.iter().find(|row| row.option.is_some()));
+    Some(ItemLine {
+        class: classes(hue(event.tone), &[(true, "alt")]),
+        time,
+        text,
+        small,
+        title: title.join(" · "),
+        href: base.with_open(Some(module.as_str()), first.and_then(|row| row.key)).path(),
+        warn: false,
+    })
 }
 
 fn teaching_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &AgendaItem, e: usize) -> Option<ItemLine> {
@@ -954,14 +1050,16 @@ fn event_text(event: &Event) -> String {
     kind_and_title(&type_text(event), &event.title)
 }
 
-/// A slot's label: the kinds in their few letters, then the title („VL Entwicklung von
-/// Softwaresystemen"); the title alone where it says what the event is.
-fn slot_label(event: &Event) -> String {
-    let short = kind_short(event);
-    if short.is_empty() || names_kind(&event.title, &type_text(event)) {
-        event.title.trim().to_string()
-    } else {
-        format!("{short} {}", event.title.trim())
+/// A slot's label: the kinds in their few letters, then the short name of the event's module
+/// (`views::short_title`; owner review 2026-09-25): „VL Entwicklung von Softwaresystemen",
+/// „Prak Programmierpraktikum", „Ü Mathematik IT-1". The event's own title where the plan's
+/// data has no title of its module.
+fn slot_label(event: &Event, titles: &BTreeMap<String, String>) -> String {
+    let title = event.modules.first().and_then(|module| titles.get(module)).map_or(event.title.as_str(), String::as_str);
+    let name = short_title(title);
+    match kind_short(event) {
+        short if short.is_empty() => name,
+        short => format!("{short} {name}"),
     }
 }
 
@@ -1077,6 +1175,11 @@ mod tests {
         planned(&["12104"], schedule, &[])
     }
 
+    /// The title of the module the rows belong to.
+    fn titles() -> BTreeMap<String, String> {
+        BTreeMap::from([("12104".to_string(), "Entwicklung von Softwaresystemen".to_string())])
+    }
+
     /// The timetable of `modules` planned in this order, with teaching and exam rows.
     fn planned(modules: &[&str], schedule: &[DateRow], exams: &[DateRow]) -> Timetable {
         let facts = winter();
@@ -1147,7 +1250,7 @@ mod tests {
             row("148019", 1, "Übung", "single", 2, ("11:45", "13:15"), ("2027-02-23", "2027-02-23")),
         ];
         let table = table(&schedule);
-        let slots = week_slots(&table, &plain());
+        let slots = week_slots(&table, &plain(), &titles());
         let shown: Vec<(&str, &str, &str, &str)> =
             slots.iter().map(|slot| (slot.slot.label.as_str(), slot.slot.small.as_str(), slot.slot.class, slot.row.note.as_str())).collect();
         assert_eq!(
@@ -1158,6 +1261,14 @@ mod tests {
                 ("Ü Entwicklung von Softwaresystemen", "1 Termin · 23.02.", "once", "1 Termin · 23.02."),
             ]
         );
+        // The label names the module in its short name, whatever the event is called.
+        let long = BTreeMap::from([("12104".to_string(), "Elektrische und elektronische Grundlagen der Informatik".to_string())]);
+        let slots = week_slots(&table, &plain(), &long);
+        assert_eq!(slots.get(1).map(|slot| slot.slot.label.as_str()), Some("VL Elektrische und elektronische …"));
+        assert_eq!(slots.get(1).map(|slot| slot.row.text.as_str()), Some("Vorlesung · Entwicklung von Softwaresystemen"));
+        // Without the module's title, the event's stands in.
+        let slots = week_slots(&table, &plain(), &BTreeMap::new());
+        assert_eq!(slots.get(1).map(|slot| slot.slot.label.as_str()), Some("VL Entwicklung von Softwaresystemen"));
         let lecture = slots.get(1).unwrap();
         let key = table.events.iter().find(|event| event.id == "148701").and_then(|event| event.rows.first()).and_then(|row| row.key).unwrap();
         assert_eq!(lecture.slot.href.as_deref(), Some(format!("/studyplan?sem=2026W&open=12104&row={}", key.text()).as_str()));
@@ -1341,9 +1452,89 @@ mod tests {
         let mut tutorial = row("150001", 1, "Tutorium", "weekly", 3, ("09:15", "10:45"), ("2026-10-07", "2027-01-27"));
         tutorial.date.event_title = "Tutorium Höhere Mathematik W-1".into();
         let table = table(&[tutorial, row("148701", 1, "Vorlesung", "weekly", 2, ("11:30", "13:00"), ("2026-10-06", "2027-01-26"))]);
-        let labels: Vec<(String, String)> = table.events.iter().map(|event| (slot_label(event), event_text(event))).collect();
-        assert!(labels.contains(&("Tutorium Höhere Mathematik W-1".to_string(), "Tutorium Höhere Mathematik W-1".to_string())), "{labels:?}");
-        assert!(labels.contains(&("VL Entwicklung von Softwaresystemen".to_string(), "Vorlesung · Entwicklung von Softwaresystemen".to_string())), "{labels:?}");
+        let math = BTreeMap::from([("12104".to_string(), "Höhere Mathematik W-1 (Analysis)".to_string())]);
+        let labels: Vec<(String, String)> = table.events.iter().map(|event| (slot_label(event, &math), event_text(event))).collect();
+        // A slot names the module in its short name after the kind's few letters.
+        assert!(labels.contains(&("Tut Höhere Mathematik W-1".to_string(), "Tutorium Höhere Mathematik W-1".to_string())), "{labels:?}");
+        assert!(labels.contains(&("VL Höhere Mathematik W-1".to_string(), "Vorlesung · Entwicklung von Softwaresystemen".to_string())), "{labels:?}");
+    }
+
+    #[test]
+    fn an_open_choice_is_one_line_a_week() {
+        // Programmierpraktikum (148370): four groups, Mo, Mi, Do 11:30 and Fr 13:45.
+        let group = |ord: i64, weekday: i64, time: (&str, &str), first: &str| {
+            let mut row = row("148370", ord, "Praktikum", "weekly", weekday, time, (first, "2027-01-29"));
+            row.date.event_title = "Programmierpraktikum".into();
+            row.date.group_name = Some(format!("{ord}-Gruppe"));
+            row
+        };
+        let mut monday = group(1, 1, ("11:30", "13:00"), "2026-10-05");
+        monday.cancelled_dates = Some("12.10.2026: Krankheit".into());
+        let schedule = [monday, group(2, 3, ("11:30", "13:00"), "2026-10-07"), group(3, 4, ("11:30", "13:00"), "2026-10-08"), group(4, 5, ("13:45", "15:15"), "2026-10-09")];
+        let facts = winter();
+        let modules = vec!["12104".to_string()];
+        let build = |selection: &Selection| Timetable::build(&Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[] }, selection);
+
+        let open = build(&Selection::default());
+        let blocks = agenda_blocks(&open, &open.agenda(), &plain(), None);
+        let week = |id: &str| -> Vec<(String, String, String, String)> {
+            blocks
+                .iter()
+                .filter_map(|block| match block {
+                    Block::Week { id: at, days, .. } if at == id => Some(days),
+                    _ => None,
+                })
+                .flatten()
+                .flat_map(|day| day.items.iter().map(move |item| (day.when.clone(), item.time.clone(), item.text.clone(), item.small.clone())))
+                .collect()
+        };
+        let line = |when: &str, time: &str, small: &str| (when.to_string(), time.to_string(), "Praktikum · Programmierpraktikum".to_string(), small.to_string());
+        // One line on the first day the choice could be attended, not four; the times differ.
+        assert_eq!(week("kw-2026-41"), [line("Mo 05.10.", "", "1 von 4 (Mo, Mi, Do, Fr)")]);
+        // A cancelled option is no day to attend: the line stands on the next.
+        assert_eq!(week("kw-2026-42"), [line("Mi 14.10.", "", "1 von 4 (Mi, Do, Fr)")]);
+        let (_, first) = agenda_items(&blocks).into_iter().next().unwrap();
+        assert!(first.href.starts_with("/studyplan?sem=2026W&open=12104&row=148370-"), "{}", first.href);
+        assert!(first.class.ends_with(" alt") && first.title.contains("Mo 11:30–13:00 · Mi 11:30–13:00"), "{first:?}");
+
+        // Today keeps its line (review 2026-09-25): its options stand as they are, and on the day
+        // of the week's line nothing comes twice.
+        let on = |today: &str| {
+            let blocks = agenda_blocks(&open, &open.agenda(), &plain(), Some(d(today)));
+            let days: Vec<(String, bool, Vec<String>)> = blocks
+                .into_iter()
+                .filter_map(|block| match block {
+                    Block::Week { id, days, .. } if id == "kw-2026-41" || id == "kw-2026-42" => Some(days),
+                    _ => None,
+                })
+                .flatten()
+                .map(|day| (day.when, day.today, day.items.into_iter().map(|item| format!("{} {}", item.time, item.small)).collect()))
+                .collect();
+            days
+        };
+        let day = |when: &str, today: bool, items: &[&str]| (when.to_string(), today, items.iter().map(|item| item.to_string()).collect::<Vec<_>>());
+        assert_eq!(
+            on("2026-10-08"),
+            [
+                day("Mo 05.10.", false, &[" 1 von 4 (Mo, Mi, Do, Fr)"]),
+                day("Do 08.10.", true, &["11:30–13:00 1 von 4 · HG 0.20"]),
+                day("Mi 14.10.", false, &[" 1 von 4 (Mi, Do, Fr)"]),
+            ]
+        );
+        assert_eq!(on("2026-10-05").first(), Some(&day("Mo 05.10.", true, &[" 1 von 4 (Mo, Mi, Do, Fr)"])));
+        // Today's option is cancelled: it says so, and the week's line stands on the next day.
+        assert_eq!(
+            on("2026-10-12").get(1..),
+            Some(&[day("Mo 12.10.", true, &["11:30–13:00 1 von 4 · fällt aus · Krankheit"]), day("Mi 14.10.", false, &[" 1 von 4 (Mi, Do, Fr)"])][..])
+        );
+
+        // Chosen: that group's dates, one line each, as every other Termin.
+        let chosen = open.events.iter().flat_map(|event| &event.rows).find(|row| row.date.weekday == Some(3)).and_then(|row| row.key).unwrap();
+        let decided = build(&Selection { chosen_rows: [chosen].into(), ..Selection::default() });
+        let blocks = agenda_blocks(&decided, &decided.agenda(), &plain(), None);
+        let items = agenda_items(&blocks);
+        assert!(items.iter().all(|(when, item)| when.starts_with("Mi") && item.time == "11:30–13:00" && !item.small.starts_with("1 von")), "{items:?}");
+        assert!(items.len() > 10);
     }
 
     #[test]

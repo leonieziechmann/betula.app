@@ -1430,13 +1430,14 @@ mod tests {
             modules: vec![(key("2026W"), "12104".into()), (key("2026W"), "11112".into())],
             placeholders: vec![placeholder(0, "2026W", 3, (1, 1), "6", "Wahlpflichtmodul")],
             skipped: 3,
+            held: Vec::new(),
             by_fs: vec![ImportFs { fs: 1, semester: key("2026W"), modules: vec!["Entwicklung von Softwaresystemen".into(), "Mathematik IT-1".into()], placeholders: vec!["Wahlpflichtmodul".into()] }],
         };
         let (lines, total) = preview(&import);
         assert_eq!(lines, vec![("1. FS · WiSe 2026/27 · 2 Module · 1 Platzhalter".to_string(), "Entwicklung von Softwaresystemen, Mathematik IT-1, Wahlpflichtmodul".to_string())]);
         assert_eq!(total, (Some("2 Module · 1 Platzhalter".to_string()), Some("3 schon geplant".to_string())));
         // Everything planned already: only what the plan holds.
-        let again = Import { modules: Vec::new(), placeholders: Vec::new(), skipped: 23, by_fs: Vec::new() };
+        let again = Import { skipped: 23, held: vec!["12104".into()], ..Import::default() };
         assert_eq!(preview(&again), (Vec::new(), (None, Some("23 schon geplant".to_string()))));
     }
 
