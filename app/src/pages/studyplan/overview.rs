@@ -39,7 +39,7 @@ use super::{PlanCtx, SheetToggle};
 use crate::combobox::{ComboItem, Combobox};
 use crate::data::{DataError, Source};
 use crate::format;
-use crate::myprogram::MineResolved;
+use crate::myprogram::{program_name, MineResolved};
 use crate::nav;
 use crate::pending::Pending;
 use crate::ui::{ErrorState, Icon};
@@ -774,12 +774,6 @@ fn asked_program(import: &str, programs: &[Program], mine: Option<&str>) -> (Opt
         Some(program) => (Some(program.id.clone()), false),
         None => (None, true),
     }
-}
-
-/// „Informatik B.Sc. · PO 2008": the program as „Mein Studiengang" stores its name.
-fn program_name(program: &Program) -> String {
-    let po = program.po_year.map(|year| year.to_string()).unwrap_or_else(|| program.po_version.clone());
-    format!("{} {} · PO {po}", program.name, program.degree())
 }
 
 /// The plans a Regelstudienplan is taken over as: every plan that fills no row of another.

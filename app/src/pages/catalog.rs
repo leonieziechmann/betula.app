@@ -34,7 +34,7 @@ use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
 use crate::data::{use_source, DataError, PageStatus, Source};
 use crate::format;
-use crate::myprogram::MyProgram;
+use crate::myprogram::{MineResolved, MyProgram};
 use crate::nav;
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending};
@@ -1441,6 +1441,13 @@ impl Choices {
     }
 }
 
+/// The program picker's entries with „Mein Studiengang" (its slug) once more at the top, under
+/// that heading; the others stay as they are, the program among them.
+fn mine_first(programs: &[ComboItem], mine: Option<&str>) -> Vec<ComboItem> {
+    let first = mine.and_then(|slug| programs.iter().find(|item| item.id == slug)).map(|item| item.clone().in_group("Mein Studiengang"));
+    first.into_iter().chain(programs.iter().cloned()).collect()
+}
+
 /// The catalog that `change` leads to from the current filter: what a control links to. It keeps
 /// the module previewed and the placeholder the list is looked through for (`fill`).
 fn target(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, change: impl FnOnce(&mut CatalogQuery)) -> String {
@@ -1737,7 +1744,14 @@ fn Filters(
 
     // ---- program ----
     let program_picker = if APP {
-        let items = Memo::new(move |_| choices.with(|c| c.programs.clone()));
+        // „Mein Studiengang" first, under its own heading, while its PO is in the snapshot (A.10);
+        // it stays in its place among all the others as well.
+        let mine = MineResolved::expect();
+        let mine_slug = Memo::new(move |_| mine.and_then(MineResolved::exact).map(|program| program.slug));
+        let items = Memo::new(move |_| {
+            let mine = mine_slug.get();
+            choices.with(|c| mine_first(&c.programs, mine.as_deref()))
+        });
         let selected = Memo::new(move |_| query.with(|q| q.program.as_ref().map(|scope| scope.program_slug.clone())));
         let pick = Callback::new(move |slug: Option<String>| {
             go.run(changed(query, |q| match slug {
@@ -2288,6 +2302,16 @@ mod tests {
 
     fn ids(ids: &[&str]) -> Vec<String> {
         ids.iter().map(|id| id.to_string()).collect()
+    }
+
+    #[test]
+    fn mein_studiengang_heads_the_program_picker() {
+        let programs = vec![ComboItem::new("bachelor-bwl-2021", "BWL", "B.Sc. · 2021", 1), ComboItem::new("bachelor-informatik-2008", "Informatik", "B.Sc. · 2008", 1)];
+        let listed = mine_first(&programs, Some("bachelor-informatik-2008"));
+        assert_eq!(listed.iter().map(|item| (item.id.as_str(), item.group.as_str())).collect::<Vec<_>>(), [("bachelor-informatik-2008", "Mein Studiengang"), ("bachelor-bwl-2021", ""), ("bachelor-informatik-2008", "")]);
+        // None set, or a slug the picker does not know: the picker as it was.
+        assert_eq!(mine_first(&programs, None), programs);
+        assert_eq!(mine_first(&programs, Some("bachelor-weg-1999")), programs);
     }
 
     fn switched_on(filter: FitsFilter) -> CatalogQuery {

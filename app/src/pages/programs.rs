@@ -11,6 +11,9 @@
 //!
 //! No source states a program's faculty. It is derived (`catalog::pages::faculties`), the
 //! sidebar says on what grounds, and programs without a clear answer have a section of their own.
+//!
+//! In the browser app the head names the visitor's own program („Mein Studiengang", A.10) and
+//! leads to it.
 
 use catalog::labels::DegreeLevel;
 use catalog::pages::{self, ProgramsData};
@@ -22,11 +25,15 @@ use leptos_router::hooks::use_location;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::myprogram::{program_href, program_name, MineResolved, MyProgram};
 use crate::nav;
 use crate::pending::Pending;
 use crate::seo::Seo;
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Frame, Icon, ToggleLink};
+
+/// The browser app (`csr`), or the server rendering the page for everybody.
+const APP: bool = cfg!(feature = "csr");
 
 /// All programs of one subject („Maschinenbau" with its degrees and forms of study).
 #[derive(Clone, PartialEq)]
@@ -393,6 +400,7 @@ pub fn ProgramsPage() -> impl IntoView {
                             })}
                         </span>
                     </h1>
+                    <MineLine/>
                     <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>"Filter"</a>
                 </header>
                 {move || {
@@ -412,6 +420,49 @@ pub fn ProgramsPage() -> impl IntoView {
             </div>
         </Frame>
     }
+    .into_any()
+}
+
+/// „Mein Studiengang: Informatik B.Sc. · PO 2008" in the head of the overview (A.10): the way to the
+/// visitor's own program, with the stored Studienrichtung's plan (`program_href`). It is the app's
+/// (R9): the server writes an empty box in its place, which keeps the line's room from the first
+/// paint where the browser keeps a program (`html.mine`, set by `HEAD_SCRIPT`), so the list does
+/// not move when the app takes over (R15). A program gone from the snapshot is named as gone.
+#[component]
+fn MineLine() -> impl IntoView {
+    if !APP {
+        return view! { <span class="mine-line mine-room" aria-hidden="true"></span> }.into_any();
+    }
+    let mine = MyProgram::expect();
+    let resolved = MineResolved::expect();
+    let source = use_source().ok();
+    // Siblings, each from its own source (R16): what the store says, and what the catalog knows.
+    let stored = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.program.as_ref().map(|id| (doc.name.clone().unwrap_or_else(|| id.clone()), doc.caption.clone())))));
+    let exact = Memo::new(move |_| resolved.and_then(MineResolved::exact));
+    (move || {
+        let (name, caption) = stored.get()?;
+        Some(match exact.get() {
+            Some(program) => {
+                let (href, name) = (program_href(source.as_ref(), &program, caption.as_deref()), program_name(&program));
+                let title = format!("Mein Studiengang: {name}");
+                view! {
+                    <a class="mine-line" href=href title=title>
+                        <Icon name="star"/><span><small>"Mein Studiengang: "</small>{name}</span><Icon name="chevron-right"/>
+                    </a>
+                }
+                .into_any()
+            }
+            None => {
+                let title = format!("Mein Studiengang: {name} · nicht mehr im Katalog");
+                view! {
+                    <span class="mine-line" title=title>
+                        <Icon name="star"/><span><small>"Mein Studiengang: "</small>{name}<small>" · nicht mehr im Katalog"</small></span>
+                    </span>
+                }
+                .into_any()
+            }
+        })
+    })
     .into_any()
 }
 

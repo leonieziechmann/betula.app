@@ -802,6 +802,19 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 /* A page of sections opens like the catalog's list: the number, then what it counts. */
 .summary { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px 2px 16px; }
 .summary h1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-right: auto; font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
+/* „Mein Studiengang" at the right of the program overview's head (markup: header.summary > h1 +
+   a.mine-line > .icon + span > small + text, + .icon): the app's. It gives way before the count
+   does and never takes a second line. The server writes an empty .mine-room in its place, which
+   keeps the line's room from the first paint in a browser that keeps a program (html.mine, set by
+   the head script), so nothing moves at the takeover. */
+.mine-line { flex: 0 1000 auto; min-width: 0; min-height: 34px; padding: 0 8px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 7px; overflow: hidden; white-space: nowrap; color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; }
+a.mine-line:hover { background: var(--panel-3); text-decoration: none; }
+.mine-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mine-line small { color: var(--text-3); font-size: inherit; font-weight: 480; }
+.mine-line .icon { flex: none; width: 15px; height: 15px; color: var(--text-3); }
+.mine-line > .icon:first-child { fill: currentColor; color: var(--text-2); }
+.mine-room { display: none; }
+html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .sheet-only { display: none; }
 /* The program overview is a matrix per faculty: a row per subject, a column per cycle of study.
    The columns are the same in every section, so everything lines up down the whole page. */
@@ -1204,6 +1217,8 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
   .show-bar { grid-template-columns: minmax(0, 1fr) auto; padding: 0 12px; }
   .show-bar .show-tabs { grid-column: 1; width: auto; grid-auto-columns: auto; }
   .show-bar .show-tabs button { padding: 0 8px; font-size: 13.5px; }
+  /* „Regelstudienplan" is the longest tab: on a small phone the four still fit side by side. */
+  @media (max-width: 400px) { .show-bar .show-tabs button { padding: 0 4px; font-size: 12.5px; } }
   .show-bar .show-tabs button[aria-checked="true"] { background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
   .show-mark { display: none; }
   .show-play { width: 40px; height: 40px; }
@@ -1771,6 +1786,15 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .sidebar.sheet .body { overflow-y: auto; padding: 0 12px 12px; }
   .sidebar.sheet .sheet-only { display: flex; position: sticky; bottom: 0; margin: 12px -12px -12px; background: var(--panel); }
   .summary { padding: 4px 16px 0; }
+  /* On a phone „Mein Studiengang" is a line of its own under the count and „Filter". The grid
+     lays out the first line as the flex row does. */
+  .summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+  .summary > .mine-line { grid-column: 1 / -1; grid-row: 2; justify-self: start; max-width: calc(100% + 10px); min-height: 40px; margin-left: -10px; }
+  .summary > .mine-line > .icon:last-child { display: none; }
+  /* The program page's „Darstellung": the plan is always the list on a phone, and the app leaves
+     the switch out; the server's copy goes too, so nothing moves at the takeover. */
+  .plan-shapes { display: none; }
+  .toc.views + .plan-shapes + .fgroup { margin-top: 16px; border-top: 0; }
   .sidebar .panel-head, .toc.jumps { display: none; }
   .sidebar .body { padding: 2px 8px 8px; overflow: visible; }
   .toc.views { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; padding: 6px 0 2px; }

@@ -179,6 +179,15 @@ impl Tabs {
 
     /// Where the tab of `area` leads, seen from `path`.
     pub fn href(self, area: Area, path: &str) -> String {
+        self.href_with_root(area, path, area.root())
+    }
+
+    /// Where the tab of `area` leads, seen from `path`, where the area has a first page of its own
+    /// for this visitor (the catalog of „Mein Studiengang", A.10): `root` stands in only where
+    /// nothing of the area is remembered, its first entry of the session. On the area's list the
+    /// tab stays the plain link to it, a reset, and a page the visitor left the area at always
+    /// wins, so a filter the visitor took away is never added back.
+    pub fn href_with_root(self, area: Area, path: &str, root: &str) -> String {
         self.0.with(|memory| {
             let (last, list) = match area {
                 Area::Catalog => (&memory.catalog, &memory.catalog_list),
@@ -187,14 +196,11 @@ impl Tabs {
                 Area::Studyplan => (&memory.studyplan, &memory.studyplan),
                 Area::Home => (&None, &None),
             };
-            let remembered = if Area::of(path) != area {
-                last
-            } else if path != area.root() {
-                list
-            } else {
-                &None
-            };
-            remembered.clone().unwrap_or_else(|| area.root().to_string())
+            if Area::of(path) == area && path == area.root() {
+                return area.root().to_string();
+            }
+            let remembered = if Area::of(path) != area { last } else { list };
+            remembered.clone().unwrap_or_else(|| root.to_string())
         })
     }
 
@@ -329,6 +335,31 @@ mod tests {
             Memory { catalog: Some("/catalog".into()), catalog_list: Some("/catalog".into()), programs: Some("/programs".into()), programs_list: Some("/programs".into()), bookmarks: Some("/bookmarks?sort=ects".into()), ..Default::default() }
         );
         assert_eq!(Memory::restored("\n\n\n\n\n//evil.example/studyplan").studyplan, None);
+    }
+
+    #[test]
+    fn the_catalog_of_mein_studiengang_is_only_the_first_entry() {
+        let mine = "/catalog?program=bachelor-informatik-2008";
+        // Nothing of the catalog remembered in this session: the tab leads to the program's
+        // catalog, from another area and from a module's page reached some other way.
+        let fresh = Tabs(RwSignal::new(Memory::default()));
+        assert_eq!(fresh.href_with_root(Area::Catalog, "/", mine), mine);
+        assert_eq!(fresh.href_with_root(Area::Catalog, "/catalog/module/12104", mine), mine);
+        // On the catalog's list itself the tab is a reset to the whole catalog, as without it.
+        assert_eq!(fresh.href_with_root(Area::Catalog, "/catalog", mine), "/catalog");
+
+        // Once the catalog was visited, what it was left at wins: the student who took the
+        // program's tag away is not led back to it.
+        let mut memory = Memory::default();
+        for location in [mine, "/catalog", "/programs"] {
+            memory.visit(location.to_string());
+        }
+        let visited = Tabs(RwSignal::new(memory));
+        assert_eq!(visited.href_with_root(Area::Catalog, "/programs", mine), "/catalog");
+        assert_eq!(visited.href_with_root(Area::Catalog, "/catalog/module/12104", mine), "/catalog");
+        // `href` is the same with the area's own root.
+        assert_eq!(visited.href(Area::Catalog, "/programs"), visited.href_with_root(Area::Catalog, "/programs", "/catalog"));
+        assert_eq!(fresh.href(Area::Catalog, "/"), "/catalog");
     }
 
     #[test]

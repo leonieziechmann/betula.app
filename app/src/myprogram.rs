@@ -6,16 +6,26 @@
 //! Merkliste: empty on the server (R9), in no request, and never dragged along in addresses. The
 //! store is where every page reads it (the Studienplan's Fachsemester and import, the finder,
 //! the Standort); the program's slug stands only in a catalog address that is filtered by it.
+//!
+//! Where the app offers it (A.10): set on the program's page (`MineButton`); the catalog's tab
+//! leads to the program's catalog on its first entry of a session (`MineResolved::catalog_href`,
+//! `tabs::Tabs::href_with_root`); the catalog's program picker lists it first; the program
+//! overview names it; links to its page show the stored Studienrichtung (`program_href`). All of
+//! it only while the stored program is in the snapshot (`MyProgramInfo::exact`).
 
+use catalog::filter::{CatalogQuery, ProgramScope};
 use catalog::pages::{self, MyProgramInfo};
+use catalog::rows::Program;
 use catalog::studyplan::MineDoc;
 use catalog::timetable::select::TownChoice;
 use catalog::timetable::semester::SemesterKey;
-use catalog::url;
+use catalog::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
+use catalog::variants;
 use leptos::prelude::*;
 
-use crate::data::use_source;
+use crate::data::{use_source, Source};
 use crate::nav;
+use crate::ui::Icon;
 
 const STORAGE_KEY: &str = "betula.myprogram.v1";
 
@@ -151,6 +161,127 @@ impl MineResolved {
     pub fn expect() -> Option<Self> {
         use_context::<MineResolved>()
     }
+
+    /// The stored program, while it is in the snapshot: only then does anything default to it
+    /// (A.10). Tracked.
+    pub fn exact(self) -> Option<Program> {
+        self.0.with(|info| info.as_ref().filter(|info| info.exact).map(|info| info.program.clone()))
+    }
+
+    /// The catalog as a way into it: filtered by „Mein Studiengang" while the stored program is in
+    /// the snapshot, else the whole catalog. Tracked.
+    pub fn catalog_href(self) -> String {
+        self.0.with(|info| catalog_href(info.as_ref()))
+    }
+}
+
+/// „Informatik B.Sc. · PO 2008": a program as „Mein Studiengang" stores its name and the app names
+/// it wherever it means the visitor's.
+pub fn program_name(program: &Program) -> String {
+    format!("{} {} · PO {}", program.name, program.degree(), po_of(program))
+}
+
+/// „2008": the year of a program's regulation, else its version.
+pub fn po_of(program: &Program) -> String {
+    program.po_year.map(|year| year.to_string()).unwrap_or_else(|| program.po_version.clone())
+}
+
+/// The catalog filtered by the program (`program=<slug>`), the one kind of address „Mein
+/// Studiengang" may stand in (A.10), where the stored program is in the snapshot; else the whole
+/// catalog.
+pub fn catalog_href(info: Option<&MyProgramInfo>) -> String {
+    match info.filter(|info| info.exact) {
+        Some(info) => {
+            let program = ProgramScope { program_slug: info.program.slug.clone(), ..Default::default() };
+            CatalogUrl { query: CatalogQuery { program: Some(program), ..Default::default() }, ..Default::default() }.path()
+        }
+        None => url::CATALOG.to_string(),
+    }
+}
+
+/// The program's page as an app-made link to the visitor's own program shows it: with the plan of
+/// the stored Studienrichtung (`variant=`, A.10) — the plan whose caption was stored, the first
+/// where none or none of that caption is.
+pub fn program_href(source: Option<&Source>, program: &Program, caption: Option<&str>) -> String {
+    let variant = caption.filter(|caption| !caption.trim().is_empty()).and_then(|caption| {
+        let plans = source?.run(|db| pages::plan_source(db, &program.id)).ok()??;
+        let found = variants::variant_for(&plans.variants, caption)?;
+        plans.variants.iter().position(|variant| std::ptr::eq(variant, found))
+    });
+    ProgramUrl::new(&program.slug, ProgramTab::Plan).with_variant(variant.map_or(1, |index| index + 1)).path()
+}
+
+/// „Als meinen Studiengang setzen" among the actions of a program's page (A.10): stores the program
+/// with the Studienrichtung shown (`caption`, and for a page that fills a core plan's direction row
+/// its core's caption, with the page as `direction`); pressed, „Mein Studiengang", a click takes it
+/// away again (Studienbeginn and Standort stay).
+///
+/// Part of server HTML like `MarkButton`: unpressed, the same for everybody (R9), kept in its place
+/// but not shown until the app runs (`.mine-toggle`), so the actions do not move at the takeover
+/// (R15). A click flips the button at once and stores after the next frame (R21): what follows
+/// from the program (the catalog's tab, what the local catalog says of it) comes after the button
+/// has answered.
+#[component]
+pub fn MineButton(
+    #[prop(into)] program_id: String,
+    /// The program as „Mein Studiengang" names it (`program_name`).
+    #[prop(into)]
+    name: String,
+    #[prop(into)] caption: Signal<String>,
+    #[prop(into)] direction: Signal<Option<String>>,
+) -> impl IntoView {
+    let mine = MyProgram::expect().filter(|_| APP);
+    // One memo each (R5), both from the store alone.
+    let stored = {
+        let id = program_id.clone();
+        Memo::new(move |_| mine.is_some_and(|mine| mine.is(&id)))
+    };
+    let replaced = {
+        let id = program_id.clone();
+        Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| replaced_name(doc, &id))))
+    };
+    // What the last click said, until the store has it.
+    let said = RwSignal::new(None::<bool>);
+    let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| stored.get()));
+    let toggle = move |_: leptos::ev::MouseEvent| {
+        let Some(mine) = mine else { return };
+        let was = pressed.get_untracked();
+        said.set(Some(!was));
+        let (id, name, caption, direction) = (program_id.clone(), name.clone(), caption.get_untracked(), direction.get_untracked());
+        nav::after_paint(move || {
+            if was {
+                mine.clear_program();
+            } else {
+                mine.set_program(&id, &name, &caption, direction.as_deref());
+            }
+            said.try_set(None);
+        });
+    };
+    let label = move || if pressed.get() { "Mein Studiengang" } else { "Als meinen Studiengang setzen" };
+    let tip = move || match (pressed.get(), replaced.get()) {
+        (true, _) => Some("Dein Studiengang. Noch einmal hebt das auf".to_string()),
+        (false, Some(other)) => Some(format!("Ersetzt: {other}")),
+        (false, None) => None,
+    };
+    view! {
+        <button
+            class="action mine-toggle"
+            type="button"
+            on:click=toggle
+            aria-pressed=move || if pressed.get() { "true" } else { "false" }
+            aria-busy=move || said.get().map(|_| "true")
+            title=tip
+        >
+            <Icon name="star"/><span>{label}</span>
+        </button>
+    }
+}
+
+/// The name of another program stored as „Mein Studiengang" than `program_id`, which setting this
+/// one replaces: its stored name, else its id.
+fn replaced_name(doc: &MineDoc, program_id: &str) -> Option<String> {
+    let other = doc.program.as_deref().filter(|stored| *stored != program_id)?;
+    Some(doc.name.clone().filter(|name| !name.trim().is_empty()).unwrap_or_else(|| other.to_string()))
 }
 
 #[cfg(test)]
@@ -179,5 +310,53 @@ mod tests {
         assert_eq!(doc.stored(), "start\t2026W\n");
         doc.start = None;
         assert_eq!(doc.stored(), "");
+    }
+
+    fn informatik(po_year: Option<i64>) -> Program {
+        Program {
+            id: "079-82-2008".into(),
+            slug: "bachelor-informatik-2008".into(),
+            name: "Informatik".into(),
+            degree_level: catalog::labels::Code::parse("bachelor"),
+            study_variant: None,
+            degree_label: Some("B.Sc.".into()),
+            degree_raw: "Bachelor".into(),
+            degree_display: Some("B.Sc.".into()),
+            po_version: "2008 - 2. SÄ 2024".into(),
+            po_year,
+            family_key: "079-82".into(),
+            name_key: "informatik".into(),
+            is_latest_po: true,
+            source_url: String::new(),
+            has_plan: true,
+            plan_status: None,
+            curricular_modules: 0,
+            fues_modules: 0,
+            documents: 0,
+        }
+    }
+
+    #[test]
+    fn mein_studiengang_is_named_and_filtered_by_only_while_it_is_in_the_snapshot() {
+        assert_eq!(program_name(&informatik(Some(2008))), "Informatik B.Sc. · PO 2008");
+        assert_eq!(program_name(&informatik(None)), "Informatik B.Sc. · PO 2008 - 2. SÄ 2024");
+        // The catalog of the program: its slug, the one address it may stand in, and only while
+        // the stored PO is in the snapshot.
+        let exact = MyProgramInfo { program: informatik(Some(2008)), exact: true, latest: None };
+        assert_eq!(catalog_href(Some(&exact)), "/catalog?program=bachelor-informatik-2008");
+        let gone = MyProgramInfo { exact: false, ..exact.clone() };
+        assert_eq!((catalog_href(Some(&gone)), catalog_href(None)), ("/catalog".to_string(), "/catalog".to_string()));
+        // Without a caption, or without a source to look the plans up in, the first plan.
+        assert_eq!(program_href(None, &exact.program, Some("Studienrichtung A")), "/programs/bachelor-informatik-2008/plan");
+    }
+
+    #[test]
+    fn setting_a_program_says_which_one_it_replaces() {
+        let doc = restored(Some("program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\n"));
+        assert_eq!(replaced_name(&doc, "048-82-2022").as_deref(), Some("Informatik B.Sc. · PO 2008"));
+        assert_eq!(replaced_name(&doc, "079-82-2008"), None);
+        assert_eq!(replaced_name(&MineDoc::default(), "079-82-2008"), None);
+        // No name stored: the id says which.
+        assert_eq!(replaced_name(&restored(Some("program\t079-82-2008\n")), "048-82-2022").as_deref(), Some("079-82-2008"));
     }
 }
