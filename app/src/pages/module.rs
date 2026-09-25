@@ -872,7 +872,7 @@ fn Programs(data: ModuleData) -> impl IntoView {
                 {curricular.into_iter().map(|link| {
                     let slug = link.program_slug.clone().unwrap_or_default();
                     view! {
-                        <a class="pre" href=url::program_path(&slug, ProgramTab::Modules)>
+                        <a class="pre" href=url::program_path(&slug, ProgramTab::Plan)>
                             <b>
                                 {link.program_name.clone().unwrap_or_default()}" · "
                                 {link.degree_display.clone().or(link.degree_raw.clone()).unwrap_or_default()}

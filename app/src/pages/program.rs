@@ -1,5 +1,7 @@
-//! The program page: who the program is (the header), and three views of its modules — the
-//! study plan of the examination regulations, the tree of its areas, and all its modules.
+//! The program page: who the program is (the header), and three views — the study plan of the
+//! examination regulations, the tree of its areas, and „Mein Plan", the visitor's plan of the
+//! whole study (a placeholder so far, owner 2026-09-25; all modules of the program are the
+//! catalog's, `url::program_catalog_path`, where the former tab „Alle Module" leads).
 //!
 //! Two things come from the URL as plain values (R1): the view (a path segment) and, where a
 //! program has several study plans — most often one per study direction — which of them is shown
@@ -7,8 +9,8 @@
 //! JavaScript. How the plan is drawn (matrix or list) is personal instead: it lives in
 //! `localStorage` and needs JavaScript (R9, R15).
 //!
-//! Everything that lists modules uses one table with the same columns, so the three views have
-//! the same rhythm: areas and semesters are rows inside it, never boxes beside it. A module
+//! Everything that lists modules uses one table with the same columns, so the views have the
+//! same rhythm: areas and semesters are rows inside it, never boxes beside it. A module
 //! clicked in any of them opens in the panel on the right (`?open=<id>`, the idiom of the
 //! catalog), an area clicked in „Wahlpflicht & Bereiche" shows what it holds (`?area=<id>`), and a
 //! row of the plan that names no module — „Wahlpflichtmodule der Studienrichtung" — shows what the
@@ -23,7 +25,7 @@
 
 use std::collections::HashMap;
 
-use catalog::filter::{ProgramRelation, ProgramScope};
+use catalog::filter::ProgramScope;
 use catalog::labels::{Code, ModuleKind, OfferStatus, TurnusSeason};
 use catalog::pages::{self, CatalogArea, ProgramData};
 use catalog::plan;
@@ -322,7 +324,7 @@ fn ProgramSidebar(
     let areas = area_groups(&data.areas);
     // „Mein Studiengang" and the Studienplan take the plan shown: its Studienrichtung is what the
     // store keeps (a page that fills a core plan's row: the core, with the page as its direction),
-    // and „In den Studienplan" takes it over (A.10). Only the plan's tab shows one.
+    // and „In den Stundenplan" takes it over (A.10). Only the plan's tab shows one.
     let plans = plan_variants(&data.plan_entries, &data.plan_totals);
     let count = plans.len();
     let mine_plans = ProgramPlans::new(&plans, variants::supplements(&plans));
@@ -434,7 +436,7 @@ fn ProgramSidebar(
             // (`.mine-toggle`), so the actions under them do not move at the takeover (R15).
             <MineButton program_id=p.id.clone() name=program_name(&p) plans=mine_plans shown/>
             {(count > 0).then(|| view! {
-                <a class="action mine-toggle" href=import><Icon name="calendar-plus"/><span>"In den Studienplan"</span></a>
+                <a class="action mine-toggle" href=import><Icon name="calendar-plus"/><span>"In den Stundenplan"</span></a>
             })}
             {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>"Ordnungen & Dokumente"</a> })}
             <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>"Im Verzeichnis der BTU"</a>
@@ -468,7 +470,7 @@ fn ProgramView(
     let view_name = match tab {
         ProgramTab::Plan => "Regelstudienplan",
         ProgramTab::Areas => "Wahlpflicht und Bereiche",
-        ProgramTab::Modules => "Alle Module",
+        ProgramTab::MyPlan => "Mein Plan",
     };
     let name = format!("{} ({})", p.name, p.degree());
     let trail = vec![seo::breadcrumbs(&[
@@ -482,9 +484,10 @@ fn ProgramView(
 
     view! {
         <Title text=format!("{name}: {view_name} · BTU Cottbus-Senftenberg")/>
-        // Older examination regulations stay reachable but are not what a search should find.
-        // A chosen study plan is a facet of the same page, so the address stays the plain one.
-        <Seo title=format!("{name}: {view_name}") description=description path=url::program_path(&p.slug, tab) card=crate::seo::program_card(&p.slug) noindex=!p.is_latest_po data=trail/>
+        // Older examination regulations stay reachable but are not what a search should find,
+        // nor is „Mein Plan". A chosen study plan is a facet of the same page, so the address
+        // stays the plain one.
+        <Seo title=format!("{name}: {view_name}") description=description path=url::program_path(&p.slug, tab) card=crate::seo::program_card(&p.slug) noindex=!p.is_latest_po || !tab.indexed() data=trail/>
         <article class="page-inner" data-walk="program-page" data-walk-id=p.slug.clone()>
             <ProgramHead program=p.clone() plans=plans.clone()/>
 
@@ -500,7 +503,7 @@ fn ProgramView(
                     view! { <PlanTab plans=plans.clone() validated source missing variant shape room links open req/> }.into_any()
                 }
                 ProgramTab::Areas => view! { <AreasTab areas=data.areas.clone() known=known.clone() links open area/> }.into_any(),
-                ProgramTab::Modules => view! { <ModulesTab curricular=data.curricular.clone() fues=data.fues.clone() links open/> }.into_any(),
+                ProgramTab::MyPlan => view! { <MyPlanTab slug=p.slug.clone()/> }.into_any(),
             }}
 
             {(!data.documents.is_empty()).then(|| view! {
@@ -1041,7 +1044,7 @@ fn PlanTab(
 ) -> impl IntoView {
     if plans.is_empty() {
         return view! {
-            <EmptyState title=missing hint="Die Module findest du unter „Wahlpflicht & Bereiche“ und „Alle Module“. Fachsemester werden nur angezeigt, wenn ein Regelstudienplan sie nennt."/>
+            <EmptyState title=missing hint="Die Module findest du unter „Wahlpflicht & Bereiche“ und im Modulkatalog. Fachsemester werden nur angezeigt, wenn ein Regelstudienplan sie nennt."/>
         }
         .into_any();
     }
@@ -1479,17 +1482,14 @@ struct ModuleRow {
     turnus: Option<Code<TurnusSeason>>,
     semester: Option<i64>,
     offer: Code<OfferStatus>,
-    /// Shown only where the area is not already the group of the row.
-    area: Option<String>,
 }
 
-fn module_head(with_area: bool) -> AnyView {
+fn module_head() -> AnyView {
     view! {
         <thead>
             <tr>
                 <th scope="col" class="c-id">"Nr."</th>
                 <th scope="col" class="c-name">"Modul"</th>
-                {with_area.then(|| view! { <th scope="col" class="c-area">"Bereich"</th> })}
                 <th scope="col" class="c-kind">"Art"</th>
                 <th scope="col" class="c-lp num">"LP"</th>
                 <th scope="col" class="c-turnus">"Turnus"</th>
@@ -1500,7 +1500,7 @@ fn module_head(with_area: bool) -> AnyView {
     .into_any()
 }
 
-fn module_row(row: ModuleRow, with_area: bool, links: Memo<ProgramUrl>, open: Memo<Option<String>>) -> AnyView {
+fn module_row(row: ModuleRow, links: Memo<ProgramUrl>, open: Memo<Option<String>>) -> AnyView {
     let id = row.id.clone();
     view! {
         <tr class:open=move || is_open(&Some(id.clone()), open)>
@@ -1509,13 +1509,6 @@ fn module_row(row: ModuleRow, with_area: bool, links: Memo<ProgramUrl>, open: Me
                 {module_link(&row.id, &row.title, links, open)}
                 <OfferBadge status=row.offer/>
             </th>
-            {with_area.then(|| {
-                // The area of a module, as short as it stays unique to the eye; the whole path
-                // is in the title, so nothing is lost.
-                let full = row.area.clone();
-                let short = row.area.as_ref().map(|area| area.rsplit(" / ").next().unwrap_or(area).to_string());
-                view! { <td class="c-area" title=full><span>{short}</span></td> }
-            })}
             <td class="c-kind">{kind_cell(row.kind)}</td>
             <td class="c-lp num">{row.credits.map(format::number)}</td>
             <td class="c-turnus">{row.turnus.as_ref().map(|season| format::turnus(Some(season), None))}</td>
@@ -1639,7 +1632,7 @@ fn AreasTab(
             </header>
             <div class="table-scroll">
                 <table class="ptable modules areas">
-                    {module_head(false)}
+                    {module_head()}
                     {groups.into_iter().map(|group| {
                         let sum: f64 = group.modules.iter().filter_map(|m| m.module_credits).sum();
                         let count = group.modules.len();
@@ -1664,10 +1657,9 @@ fn AreasTab(
                                         turnus: catalog.and_then(|m| m.turnus_season.clone()),
                                         semester: catalog.and_then(|m| m.plan_semester),
                                         offer: catalog.map(|m| m.offer_status.clone()).unwrap_or(Code::Known(OfferStatus::Active)),
-                                        area: None,
                                         id: placement.module_id,
                                         title: placement.module_title,
-                                    }, false, links, open)
+                                    }, links, open)
                                 }).collect_view()}
                             </tbody>
                         }
@@ -1679,54 +1671,21 @@ fn AreasTab(
     .into_any()
 }
 
+/// „Mein Plan": the whole study, semester by semester — to come (owner, 2026-09-25). Until then a
+/// placeholder that leads on: to the Stundenplan of one semester, and to the modules of the
+/// program in the catalog (where „Alle Module" went).
 #[component]
-fn ModulesTab(curricular: Vec<ProgramModule>, fues: Vec<ProgramModule>, links: Memo<ProgramUrl>, open: Memo<Option<String>>) -> impl IntoView {
-    let table = |modules: Vec<ProgramModule>, with_area: bool| view! {
-        <div class="table-scroll">
-            <table class="ptable modules">
-                {module_head(with_area)}
-                <tbody>
-                    {modules.into_iter().map(|m| module_row(ModuleRow {
-                        id: m.module_id,
-                        title: m.module_title,
-                        kind: m.kind,
-                        credits: m.module_credits,
-                        turnus: m.turnus_season,
-                        semester: m.plan_semester,
-                        offer: m.offer_status,
-                        area: m.area,
-                    }, with_area, links, open)).collect_view()}
-                </tbody>
-            </table>
-        </div>
-    };
-    let fues_count = fues.len();
-    let relation_hint = ProgramRelation::Fues.code();
-
+fn MyPlanTab(slug: String) -> impl IntoView {
     view! {
-        <section class="panel">
+        <section class="panel my-plan">
             <header class="block-head">
-                <h2>"Curriculum "<span class="tab-count">{curricular.len()}</span></h2>
-                <p>"Alle Module des Studiengangs. Das Fachsemester steht dort, wo der Regelstudienplan es nennt."</p>
+                <h2>"Mein Plan"</h2>
+                <p>"Hier planst du bald dein ganzes Studium, Semester für Semester."</p>
             </header>
-            {table(curricular, true)}
-        </section>
-        <section class="panel" id=relation_hint>
-            <header class="block-head">
-                <h2>"Fachübergreifendes Studium (FÜS) "<span class="tab-count">{fues_count}</span></h2>
-                <p>"Module, die in diesem Studiengang als FÜS angerechnet werden können. Sie gehören nicht zum Curriculum."</p>
-            </header>
-            {if fues_count == 0 {
-                view! { <p class="hint">"Für diesen Studiengang ist keine FÜS-Liste bekannt."</p> }.into_any()
-            } else {
-                view! {
-                    <details class="fues">
-                        <summary><span>{fues_count}" FÜS-Module anzeigen"</span></summary>
-                        {table(fues, false)}
-                    </details>
-                }
-                .into_any()
-            }}
+            <div class="my-plan-links">
+                <a class="action" href=url::STUDYPLAN><Icon name="calendar-plus"/><span>"Zum Stundenplan"</span><Icon name="chevron-right"/></a>
+                <a class="action" href=url::program_catalog_path(&slug, None)><Icon name="layout-list"/><span>"Alle Module des Studiengangs im Katalog"</span><Icon name="chevron-right"/></a>
+            </div>
         </section>
     }
 }

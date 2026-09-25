@@ -487,6 +487,14 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/xml; charset=utf-8"));
     assert!(sitemap.contains("<loc>https://catalog.example/</loc>") && sitemap.contains("<loc>https://catalog.example/catalog/module/11101</loc>"));
     assert!(sitemap.matches("<loc>").count() > 3000 && sitemap.lines().all(|line| !line.starts_with("<url>") || !line.contains('?')), "pages only, no filters");
+    // „Mein Plan" is the visitor's (a placeholder so far): not listed, not indexed. The former tab
+    // „Alle Module" is the catalog of the program now, for good.
+    assert!(sitemap.contains("/areas</loc>") && !sitemap.contains("/my-plan</loc>") && !sitemap.contains("/modules</loc>"));
+    let (status, _, body) = request(&router, &format!("/programs/{slug}/my-plan"), &[]).await;
+    let mine = String::from_utf8(body).unwrap();
+    assert!(status == StatusCode::OK && head(&mine).contains("noindex") && mine.contains(&format!("href=\"/catalog?program={slug}\"")), "{mine}");
+    let (status, headers, _) = request(&router, &format!("/programs/{slug}/modules?open=11101"), &[]).await;
+    assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::MOVED_PERMANENTLY, format!("/catalog?program={slug}&open=11101").as_str()));
     let (_, _, robots) = request(&router, "/robots.txt", &[]).await;
     assert!(String::from_utf8(robots).unwrap().contains("Sitemap: https://catalog.example/sitemap.xml"));
 

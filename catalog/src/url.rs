@@ -14,10 +14,11 @@
 //!                                      which module stands beside them, and whether that module
 //!                                      fills the page
 //! `/programs`                          program overview
-//! `/programs/<slug>[/plan|areas|modules][?variant=<n>][&open=<id>][&full=1]`   program page, its
+//! `/programs/<slug>[/plan|areas|my-plan][?variant=<n>][&open=<id>][&full=1]`   program page, its
 //!                                      tabs, which of several study plans is shown, which module
 //!                                      stands beside it, and whether that module fills the page
-//!                                      (`ProgramUrl`)
+//!                                      (`ProgramUrl`); the old `/programs/<slug>/modules` is a
+//!                                      permanent redirect to `program_catalog_path`
 //! `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>`   the visitor's Studienplan
 //!                                      (`StudyplanUrl`): which semester and view, the module and
 //!                                      Termin beside it, the Regelstudienplan being taken over.
@@ -70,18 +71,24 @@ pub enum ProgramTab {
     Plan,
     /// Wahlpflicht & Bereiche
     Areas,
-    /// Alle Module
-    Modules,
+    /// „Mein Plan": the visitor's plan of the whole study, semester by semester. A placeholder
+    /// for now (owner, 2026-09-25); it took the place of „Alle Module", whose old address
+    /// (`OLD_MODULES_SEGMENT`) leads to the catalog of the program (`program_catalog_path`).
+    MyPlan,
 }
 
+/// The segment of the program's former tab „Alle Module": the server answers it with a
+/// permanent redirect to the catalog of the program (`program_catalog_path`).
+pub const OLD_MODULES_SEGMENT: &str = "modules";
+
 impl ProgramTab {
-    pub const ALL: &'static [Self] = &[Self::Plan, Self::Areas, Self::Modules];
+    pub const ALL: &'static [Self] = &[Self::Plan, Self::Areas, Self::MyPlan];
 
     pub fn segment(self) -> &'static str {
         match self {
             ProgramTab::Plan => "plan",
             ProgramTab::Areas => "areas",
-            ProgramTab::Modules => "modules",
+            ProgramTab::MyPlan => "my-plan",
         }
     }
 
@@ -93,13 +100,26 @@ impl ProgramTab {
         match self {
             ProgramTab::Plan => "Regelstudienplan",
             ProgramTab::Areas => "Wahlpflicht & Bereiche",
-            ProgramTab::Modules => "Alle Module",
+            ProgramTab::MyPlan => "Mein Plan",
         }
+    }
+
+    /// Whether a search engine is meant to find the tab (the sitemap, `noindex`): „Mein Plan"
+    /// is the visitor's, and a placeholder so far.
+    pub fn indexed(self) -> bool {
+        self != ProgramTab::MyPlan
     }
 }
 
 pub fn program_path(slug: &str, tab: ProgramTab) -> String {
     format!("/programs/{}/{}", encode(slug), tab.segment())
+}
+
+/// The catalog narrowed down to the modules of a program (its curriculum): where „Alle Module"
+/// of the program's page went.
+pub fn program_catalog_path(slug: &str, open: Option<&str>) -> String {
+    let query = CatalogQuery { program: Some(ProgramScope { program_slug: slug.to_string(), ..Default::default() }), ..Default::default() };
+    CatalogUrl { query, page: 1, open: open.map(str::to_string), fill: None }.path()
 }
 
 /// How many study plans of one program can be told apart in the URL. A program has one plan per
@@ -1535,8 +1555,13 @@ mod tests {
     fn paths() {
         assert_eq!(module_path("11101"), "/catalog/module/11101");
         assert_eq!(program_path("bachelor-informatik-2008", ProgramTab::Areas), "/programs/bachelor-informatik-2008/areas");
-        assert_eq!(ProgramTab::from_segment("modules"), Some(ProgramTab::Modules));
+        assert_eq!(ProgramTab::from_segment("my-plan"), Some(ProgramTab::MyPlan));
         assert_eq!(ProgramTab::from_segment("electives"), None);
+        // „Alle Module" is gone: its address is no tab, and leads to the program's catalog.
+        assert_eq!(ProgramTab::from_segment(OLD_MODULES_SEGMENT), None);
+        assert_eq!(program_catalog_path("bachelor-informatik-2008", None), "/catalog?program=bachelor-informatik-2008");
+        assert_eq!(program_catalog_path("x", Some("11101")), "/catalog?program=x&open=11101");
+        assert!(ProgramTab::Plan.indexed() && !ProgramTab::MyPlan.indexed());
         let program = ProgramUrl::parse("bachelor-elektrotechnik-2022", ProgramTab::Plan, "variant=2&open=11101&utm=x");
         assert_eq!(program.path(), "/programs/bachelor-elektrotechnik-2022/plan?variant=2&open=11101");
         // An area beside the page, and a module opened out of it keeps it.
