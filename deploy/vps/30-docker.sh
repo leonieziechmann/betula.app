@@ -125,6 +125,9 @@ install_daemon_config() {
   #                         still work, which is how Grafana Alloy's loki.source.docker reads.
   #                         (json-file has no rotation by default; syslog/journald as the driver
   #                         would put every container line into the capped host journal as well.)
+  #                         One service goes there on purpose: Traefik, whose access log with the
+  #                         visitors' addresses must go after 7 days, and the local driver only
+  #                         rotates by size (stacks/edge.yml, "logging"; files/journald-betula.conf).
   #   default-address-pools /24 networks out of 172.30.0.0/16 instead of Docker's /16 slices of
   #                         172.17-31 and 192.168: 256 networks, no surprise overlap with a VPN
   #                         or provider network. (Overlay networks: SWARM_ADDR_POOL, at swarm init.)

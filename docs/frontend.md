@@ -996,7 +996,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   abbreviations name the modules in its entries (the plan's, else „Mein Studiengang"; 2026-09-25)
   as a `pack` code of kind `calendar`; the server resolves it anew on every fetch and keeps
   nothing; Folia's own log writes `/calendar/….ics`; the edge's access log keeps the address like
-  every address, 7 days in the monitoring and in the host's log files until they rotate. And „Mein
+  every address, 7 days in the monitoring and 7 days in the host's journal. And „Mein
   Studiengang" (kept in the browser as `program.id`, in no other address) may stand in a catalog
   address as a chosen program does (`/catalog?program=<slug>`), only where the catalog is filtered
   by it — the catalog tab's first entry of a session; the app never carries it along into other
@@ -1561,8 +1561,8 @@ to the result.
   of its compulsory modules, and the download must be the feed, so the code carries the program;
   and it names the layout of its fields in four bits (`subscription::VERSION`), so a later layout
   is read beside it. Codes of the time before are not read (canary only). Still open: the edge logs
-  the address like every address, 7 days in Loki and in Docker's log files on the host until they
-  rotate (`deploy/README.md` §9); a Traefik router for `/calendar/` with
+  the address like every address, 7 days in Loki and 7 days in the host's journal
+  (`deploy/README.md` §9); a Traefik router for `/calendar/` with
   `observability.accessLogs=false` would leave it out, but needs the blue-green priority label in
   `deploy/vps/50-app.sh`, `55-switch.sh`, `lib-stacks.sh` and `91-verify-stacks.sh`. And a
   subscription over several semesters: today the next semester needs a new address.

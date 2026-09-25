@@ -10,10 +10,10 @@
 //! The privacy notice says what the software does, so it changes with it. Where each part of it
 //! comes from:
 //! - „Zugriffsprotokoll": the edge's access log (`deploy/stacks/edge.yml`, „privacy"), 7 days in
-//!   Loki (`deploy/config/monitoring/loki.yml`) and the host's size-capped log files
-//!   (`deploy/vps/files/docker-daemon.json`); the rate limit per address
-//!   (`deploy/config/traefik/dynamic/middlewares.yml`); Folia's own log without addresses, 30 days
-//!   (`access_log` in `server/src/main.rs`);
+//!   Loki (`deploy/config/monitoring/loki.yml`) and 7 days in the host journal, where Traefik logs
+//!   through the journald driver (`logging` in `edge.yml`, `deploy/vps/files/journald-betula.conf`);
+//!   the rate limit per address (`deploy/config/traefik/dynamic/middlewares.yml`); Folia's own log
+//!   without addresses, 30 days (`access_log` in `server/src/main.rs`);
 //! - „Speicher im Browser": R20 (docs/frontend.md) and the stores (`bookmarks`, `studyplan`,
 //!   `myprogram`, `tabs`, `assets/enhance.js`, `assets/boot.js`, `assets/sw.js`);
 //! - „Kalender-Abo": `catalog::timetable::subscription` (what a code carries), `server/src/api.rs`,
@@ -228,7 +228,7 @@ fn privacy_summary() -> AnyView {
         <ul>
             <li>"Kein Konto, keine Werbung, kein Tracking: Betula nutzt keine Analysedienste und setzt keine Cookies, die dich wiedererkennen. Schrift, Symbole und Skripte liefert betula.app selbst aus; von fremden Servern wird nichts geladen."</li>
             <li>"Merkliste, Stundenplan und „Mein Studiengang“ liegen nur in deinem Browser."</li>
-            <li>"Der Server protokolliert jeden Aufruf mit IP-Adresse, um Betula zu betreiben und vor Missbrauch zu schützen."</li>
+            <li>"Der Server protokolliert jeden Aufruf mit IP-Adresse, um Betula zu betreiben und vor Missbrauch zu schützen, und löscht die Einträge nach 7 Tagen."</li>
             <li>"Betula zeigt die Namen von Lehrenden, die die BTU in ihren Modulbeschreibungen veröffentlicht."</li>
         </ul>
     }
@@ -279,7 +279,7 @@ fn privacy_access_log() -> AnyView {
             </div>
             <div>
                 <dt>"Speicherdauer"</dt>
-                <dd>"Die Einträge werden in einer Protokollauswertung auf demselben Server gesammelt und dort nach 7 Tagen automatisch gelöscht. Außerdem stehen sie in den Protokolldateien des Servers. Diese sind in ihrer Größe begrenzt: Ist die Grenze erreicht, wird die älteste Datei gelöscht. Wie lange ein Eintrag dort bleibt, hängt also davon ab, wie viel auf Betula los ist."</dd>
+                <dd>"Die Einträge stehen im Systemprotokoll des Servers und in einer Protokollauswertung auf demselben Server und werden an beiden Stellen nach 7 Tagen automatisch gelöscht."</dd>
             </div>
         </dl>
         <p>"Daneben führt die Anwendung ein eigenes Protokoll: welche Seite wann aufgerufen wurde, ohne den Teil nach dem „?“, mit Statuscode und Dauer, aber ohne IP-Adresse und ohne Browserkennung. In der Protokollauswertung wird es nach 30 Tagen gelöscht."</p>
@@ -315,7 +315,7 @@ fn privacy_calendar() -> AnyView {
             </div>
             <div>
                 <dt>"Protokolle"</dt>
-                <dd>"Im Zugriffsprotokoll steht jeder Abruf mit der vollständigen Adresse und der IP-Adresse, von der er kommt, so lange wie oben beschrieben. Das Protokoll der Anwendung enthält den Code nicht."</dd>
+                <dd>"Im Zugriffsprotokoll steht jeder Abruf mit der vollständigen Adresse und der IP-Adresse, von der er kommt; wie alles dort wird er nach 7 Tagen gelöscht. Das Protokoll der Anwendung enthält den Code nicht."</dd>
             </div>
             <div>
                 <dt>"Rechtsgrundlage"</dt>

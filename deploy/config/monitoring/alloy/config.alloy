@@ -2,7 +2,8 @@
 // checked against the v1.19 reference. All components used here are generally available.
 //
 //   container logs  -> Loki        labels: job="docker", stack, service, container
-//   host journal    -> Loki        labels: job="journal", unit   (level = structured metadata)
+//   host journal    -> Loki        labels: job="journal", unit   (level = structured metadata),
+//                                  without the lines of containers (those come as container logs)
 //   host metrics    -> Prometheus  embedded node_exporter  (job integrations/unix)
 //   container metrics -> Prometheus embedded cAdvisor      (job integrations/cadvisor)
 //
@@ -55,6 +56,17 @@ loki.source.docker "containers" {
 
 loki.relabel "journal" {
   forward_to = []
+
+  // A container that logs through the journald driver (Traefik, stacks/edge.yml) is shipped by
+  // loki.source.docker already, with its container labels and, for Traefik's access log, 7 days of
+  // retention. Its copy here would be a second stream under job="journal", kept 30 days. (Each
+  // dropped line counts in loki_source_journal_target_parsing_errors_total{error="empty_labels"}:
+  // no error, so no alert may watch that counter.)
+  rule {
+    source_labels = ["__journal_container_id"]
+    regex         = ".+"
+    action        = "drop"
+  }
 
   rule {
     source_labels = ["__journal__systemd_unit"]

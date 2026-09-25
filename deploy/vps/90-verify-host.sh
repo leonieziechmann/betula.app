@@ -399,9 +399,23 @@ check_updates() {
 
 check_journald() {
   section "journald"
-  as_shipped "size cap" /etc/systemd/journald.conf.d/50-betula.conf journald-betula.conf
+  local oldest hours
+  as_shipped "size and age cap" /etc/systemd/journald.conf.d/50-betula.conf journald-betula.conf
   if [[ -d /var/log/journal ]]; then pass "journal is persistent (/var/log/journal)"; else fail "/var/log/journal is missing"; fi
   pass "$(journalctl --disk-usage 2>/dev/null | sed -n '1p')"
+  # Traefik's access log is in the journal (stacks/edge.yml), and the privacy notice promises that
+  # nothing of it is older than 7 days: neither is anything else here.
+  oldest="$(journalctl --quiet --no-pager --output=short-unix 2>/dev/null | head -n 1 | cut -d. -f1 || true)"
+  if [[ "${oldest}" =~ ^[0-9]+$ ]]; then
+    hours=$((($(date +%s) - oldest) / 3600))
+    if [[ "${hours}" -le $((7 * 24)) ]]; then
+      pass "the oldest journal entry is ${hours} h old (at most 7 days: MaxRetentionSec and MaxFileSec)"
+    else
+      fail "the oldest journal entry is ${hours} h old, more than the 7 days of the privacy notice: journalctl --rotate --vacuum-time=6d (files/journald-betula.conf installed? 10-base.sh)"
+    fi
+  else
+    warning "cannot read the oldest journal entry (journalctl --output=short-unix | head -n 1)"
+  fi
 }
 
 check_sysctl() {

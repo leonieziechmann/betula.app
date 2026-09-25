@@ -480,10 +480,13 @@ configure_unattended_upgrades() {
 }
 
 configure_journald() {
-  step "journald: persistent, capped at 500 MB"
+  step "journald: persistent, capped at 500 MB and 7 days"
   install_file "${BETULA_FILES_DIR}/journald-betula.conf" /etc/systemd/journald.conf.d/50-betula.conf 0644
   if [[ "${INSTALL_CHANGED}" -eq 1 ]]; then
     systemctl restart systemd-journald.service
+    # A shorter retention applies at once, not only when journald next starts a file: the old
+    # files go now (6d = MaxRetentionSec in files/journald-betula.conf).
+    journalctl --rotate --vacuum-time=6d >/dev/null 2>&1 || warn "journalctl --vacuum-time failed; journald deletes old files when it next starts one"
   fi
 }
 

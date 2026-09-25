@@ -46,12 +46,15 @@
 #                 {service="edge_traefik"} | json | DownstreamStatus >= 500     failed requests
 #                 {service="edge_traefik"} | json | DownstreamStatus = ""       Traefik's own messages
 # privacy       The access log is personal data: client IP address (ClientHost) and port, requested URL with
-#               its query string, user agent, time. It exists twice: in Docker's log files on this host (local
-#               driver, 10 MB x 5 per container, oldest file dropped first) and in Loki, stream
-#               {service="edge_traefik"}, for 7 days (retention_stream in config/monitoring/loki.yml; every
-#               other stream is kept 30 days). The privacy notice of the site names the fields and both copies
+#               its query string, user agent, time. It exists twice, and both copies go after 7 days: in the
+#               host journal, because Traefik logs through the journald driver (see "logging" below;
+#               MaxRetentionSec in vps/files/journald-betula.conf), and in Loki, stream
+#               {service="edge_traefik"} (retention_stream in config/monitoring/loki.yml; every other stream
+#               is kept 30 days). Not in Docker's local log files: they rotate by size only, so on a quiet site
+#               they kept addresses for months (40-stacks.sh removes Traefik's stopped containers that still
+#               have such files). The privacy notice of the site names the fields and the 7 days
 #               ("Zugriffsprotokoll" in app/src/pages/legal.rs): change it with them. Traefik cannot shorten
-#               addresses; the levers are dropped fields (see the accessLog flags) and that retention.
+#               addresses; the levers are dropped fields (see the accessLog flags) and the retention.
 # ipv6          The host has a global IPv6 address and Docker publishes 80/443 on [::] too, but no Docker
 #               network has IPv6: docker-proxy relays those connections, and Traefik sees the gateway of
 #               docker_gwbridge (172.30.x.1) as the client - no usable address in the access log and one
@@ -89,7 +92,8 @@
 #     bind-mounted file would not. Everything that may change at runtime lives in the watched dynamic directory.
 # Compose keys that stack deploy ignores are not used (security_opt, privileged, restart, depends_on, the short
 # "tmpfs:" key, ...). no-new-privileges can only come from the daemon (/etc/docker/daemon.json).
-# No "logging:" key: the daemon default (vps/files/docker-daemon.json: local driver, rotated) applies to all.
+# One "logging:" key, Traefik's: its access log goes to the journal, which deletes by age (see "privacy"). The
+# socket proxy keeps the daemon default (vps/files/docker-daemon.json: local driver, rotated by size).
 # CPU limits stay <= 1.0: the engine refuses to start a task whose limit exceeds the CPUs of the host.
 # No "version:" key: Docker CLI >= 23 then validates against its newest v3 schema (3.13).
 
@@ -208,6 +212,14 @@ services:
       - ALL
     cap_add:
       - NET_BIND_SERVICE
+    # The access log holds the visitors' addresses: through the journald driver it goes to the host
+    # journal, which deletes what is older than 7 days, instead of Docker's local files, which rotate
+    # by size only (see "privacy" above). "docker service logs" (vps/55-switch.sh) and Alloy's
+    # loki.source.docker read it as before; Alloy leaves the journal's copy alone.
+    logging:
+      driver: journald
+      options:
+        tag: edge_traefik
     stop_grace_period: 20s
     healthcheck:
       # The healthcheck is a second traefik process that does not see the flags above; it needs these three
