@@ -23,7 +23,7 @@ use catalog::timetable::model::{Row, Timetable};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::select::{Town, TownChoice};
 use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, PlanView, StudyplanUrl};
+use catalog::url::{self, PlanView, ProgramTab, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
@@ -33,7 +33,7 @@ use super::import::ImportGroup;
 use super::{key_of, PlanCtx};
 use crate::combobox::{ComboItem, Combobox};
 use crate::format;
-use crate::myprogram::{po_of, program_href, program_name, MyProgram};
+use crate::myprogram::{po_of, program_name, MyProgram};
 use crate::nav;
 use crate::pending::Pending;
 use crate::studyplan::{Saved, Studyplan};
@@ -151,19 +151,8 @@ fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
             going.go(&away, NavigateOptions { replace: true, ..Default::default() });
         }
     });
-    // The program's page with the plan of the stored Studienrichtung where it is „Mein
-    // Studiengang".
-    let link = Memo::new(move |_| {
-        let named = ctx.mine.map(|mine| mine.with(|doc| (doc.program.clone(), doc.caption.clone(), doc.direction.clone())));
-        shown.with(|program| {
-            let program = program.as_ref()?;
-            let (caption, direction) = match named {
-                Some((Some(id), caption, direction)) if id == program.id => (caption, direction),
-                _ => (None, None),
-            };
-            Some(ctx.source.with_value(|source| program_href(source.as_ref(), program, caption.as_deref(), direction.as_deref())))
-        })
-    });
+    // „Mein Plan" on the program's page, where the whole study is to be planned.
+    let link = Memo::new(move |_| shown.with(|program| program.as_ref().map(|program| url::program_path(&program.slug, ProgramTab::MyPlan))));
     view! {
         <div class="fgroup first sp-program">
             <p class="flabel label">"Studiengang"</p>
