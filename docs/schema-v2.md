@@ -483,6 +483,24 @@ second letter in that place costs 0.5 more: Numerische Mathematik is NMa, not Nu
 Algorithmen EAl, not EfA next to SfA „Statistik für Anwender“ (open question M1 in
 `docs/data-sources.md` §11).
 
+**Three initials of the whole title come first** (the owner, 2026-09-25: „wenn die Buchstaben beim
+Anagramm passen, dann nimmt man die i. d. R.“). Where the initials of all words of the head make
+exactly three characters — a content word as its capital, a function word as the lowercase letter it
+leaves (und u, von v, der/die/das/des d, für f, in/im i, mit m, zu/zur/zum z, an/am/auf/aus a, of o,
+the t …; English „and“ as &, M5, and „&“ in a German title as u) — that form is the first choice,
+ahead of compound parts and every other derived form: Entwicklung von Softwaresystemen is EvS, not
+ESS from Software|systeme; Grundlagen der Werkstoffe GdW, Ethik und Handeln EuH, Kommunikation und
+Lernstrategien KuL, Mathematics of Engineering I MoE1. A lowercase letter only ever stands for a
+function word between two capitals, so the head has three words and the first and last are content
+words (three content words give their plain initials). A hyphen part is a word of its own (Bau- und
+Stadtbaugeschichte 1 → BuS1, Kinder- und Jugendhilfe → KuJ); the series number is appended as
+everywhere; a head with an acronym or a slash group is left to the other forms. The form takes the
+place of the cheapest other candidate, one hundredth ahead of it, not a bonus of its own, so the
+resolution weighs its fallbacks as before. An override line and an acronym the title states for
+itself („(GIS)“) still come before it, and the blocked forms, the reserved forms and the uniqueness
+within a program hold: two titles of one program with one such form (Grundlagen der Werkstoffe and
+Grundlagen der Wirtschaftsinformatik, both GdW) contest it like any other form.
+
 Never derived: a form on `internal/abbrev/blocked.tsv` (SS, SA, NS, KZ, KKK, NPD, AfD, THC, NSA,
 IBM, PO …: a public timetable must not show them next to a lecture) and the capitals of the
 buildings of short room names (ZHG, HG, HS, LG, VG, ZB, SFB, SD …: a week grid shows a module and
@@ -518,10 +536,11 @@ into WT in 12 programs). The owner accepted that; `build.finished` counts the pa
 since the build before as `abbrev_changed`.
 
 On the data of 2026-09-23: 4,936 modules and 28,424 (program, module) pairs in 182 programs, no
-duplicate, no blocked form, no stem two heads share; 71.2 % of the pairs have exactly three
-characters and 94.2 % at most four; 97.5 % got their first choice (mean 4.2 fallbacks per program);
-93.8 % of the modules have the same form in every program they are in, and 96.3 % of the pairs the
-module's default. AuP and EEG hold in all 110 of their program pairs; in Umweltwissenschaften
+duplicate, no blocked form, no stem two heads share; 71.3 % of the pairs have exactly three
+characters and 94.2 % at most four; 97.3 % got their first choice (mean 4.4 fallbacks per program);
+93.4 % of the modules have the same form in every program they are in, and 96.1 % of the pairs the
+module's default. The three initials of the whole title moved 372 defaults and 2,680 pairs (2,619 to
+that form, 61 as a knock-on). AuP and EEG hold in all 110 of their program pairs; in Umweltwissenschaften
 Bachelor 2025 (G29-82-2025) the internship „Außeruniversitäres Praktikum“ no longer takes AuP. The
 snapshot grows by 1.7 MB. `internal/abbrev/testdata/gate` holds the forms of four programs and every
 default; with `RADIX_ABBREV_GATE=<snapshot>` the test prints what a rule change moves, and fails on a

@@ -7,7 +7,9 @@
 //
 // Every title gets a ranked list of candidates with a cost: word initials, compound
 // initials (Betriebs|systeme → BS), function letters (AuP), dropped openings and tails
-// (EEG), first letters, subtitle forms. Three characters are the sweet spot. A form on the
+// (EEG), first letters, subtitle forms. Three characters are the sweet spot, and where the
+// initials of all words make exactly three, function words small, they come first (the
+// owner's rule: „Entwicklung von Softwaresystemen“ → EvS, not ESS). A form on the
 // blocked list (blocked.tsv, the building tokens of short room names) or one the override file reserves for another
 // title is never derived. Within a program, over all of its selectable modules (curriculum,
 // electives and FÜS), every abbreviation is unique, and so is its stem (ST and ST1 read as one

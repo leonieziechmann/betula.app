@@ -1,5 +1,5 @@
 # 104-82-2021: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts.
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS).
 11107	HMT1	Höhere Mathematik - T1
 11108	HMT2	Höhere Mathematik - T2
 11206	HMT3	Höhere Mathematik - T3
@@ -17,7 +17,7 @@
 11812	EEF	Energieeffiziente Fahrzeuge
 11820	EKT	Einführung in die Kunststofftechnik
 11823	FGPL	Fallstudienseminar zu Grundlagen der Produktion und Logistik
-11828	KSM	Kolben- und Strömungsmaschinen
+11828	KuS	Kolben- und Strömungsmaschinen
 11851	Dar	Darstellung
 11908	Sy1	Systemtheorie I
 11909	Sy2	Systemtheorie II
@@ -34,7 +34,7 @@
 12181	ITF	Interdisziplinäre Technikforschung
 12202	SWP	Softwarepraktikum
 12217	WLN	Wissenschaftstheorie, Logik und Naturphilosophie
-12225	SVR	Staats- und Verwaltungsrecht
+12225	SuV	Staats- und Verwaltungsrecht
 12251	STI	Strategisches Technologie- und Innovationsmanagement
 12258	UWA	Grundzüge des Umweltingenieurwesens / Wissenschaftliches Arbeiten
 12261	EcE	Ecological Excursion
@@ -45,7 +45,7 @@
 12612	ERP	Enterprise-Resource-Planning
 12647	PPI	Programmierpraktikum für Ingenieure
 12691	GEA	Grundzüge der elektrischen Antriebstechnik
-12696	GET	Grundlagen der Elektrotechnik
+12696	GdE	Grundlagen der Elektrotechnik
 12697	WT	Wechselstromtechnik
 12727	GdB	Grundlagen der Biologie
 12769	MBS	Molecular Biotechnology and Society
@@ -61,7 +61,7 @@
 13045	EPL	Einführung in den polymerbasierten Leichtbau
 13055	EMB	Einführungsprojekt Maschinenbau
 13067	RLV	Ringlabor Verfahrenstechnik
-13102	PfI	Physik für Ingenieure
+13102	PhI	Physik für Ingenieure
 13103	Ch1	Chemie I: Allgemeine und Anorganische Chemie
 13109	PTN	Philosophy of Technology and Nature
 13183	AHP	Aktuelle Herausforderungen der Personalarbeit im digitalen Wandel
@@ -69,12 +69,12 @@
 13249	IGD	Introduction to Gas Dynamics
 13251	CTP	Introduction to Computational Thinking and Programming for CFD
 13265	Gru	Grundlagentutorien
-13266	FTP	Fördertechnik mit Praktikum
+13266	FmP	Fördertechnik mit Praktikum
 13267	APM	Angewandte Prüf- und Messtechnik
 13269	EP1	Entwicklungsprojekt 1
 13270	GrI	Großer Ingenieurbeleg
 13279	WMK	Werkzeugmaschinen - Konstruktion und Auslegung
-13281	SST	Signal- und Systemtheorie
+13281	SuS	Signal- und Systemtheorie
 13296	AEE	Aktuelle Entwicklungen der Energiewende
 13354	RRE	Rechtliche Rahmenbedingungen der Existenzgründung
 13356	GCLR	Global Change and Legal Response
@@ -94,7 +94,7 @@
 13655	UDK	Un/Disciplining Knowledge: Technology, Science, and Society in Transformation
 13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
 13666	VVe	Visualisierung, Vertiefung
-13671	RAT	Reaktions- und Anlagentechnik
+13671	RuA	Reaktions- und Anlagentechnik
 13674	KG1	Kunstgeschichte 1
 13676	DP	Denkmalpflege
 13681	BMG	Bildkünste Moderne und Gegenwart
@@ -137,7 +137,7 @@
 14812	LMC	Leadership and Management Competencies - EUNICE Container Module
 14814	SWR	Introduction to Scientific Writing and Reviewing
 14816	EHP	English for Healthcare Professions
-14871	FGP	Fundraising im Gründungsprozess
+14871	FiG	Fundraising im Gründungsprozess
 14885	IPBM	EUNICE Individual Pathway Bachelor's Module
 14886	SMK	Strategisches Management und Kommunikation in Krisen- und Resilienzkontexten
 14898	CTV	CampusTV: Uni-Reportage
@@ -149,7 +149,7 @@
 15014	WKE	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
 15023	It-A1	Italian A1 for Student Life, Job and Daily Life
 15026	SR	Schulrecht
-15028	AMR	Arzt- und Medizinrecht
+15028	AuM	Arzt- und Medizinrecht
 15031	EEM	Einführung in die Elementare Musikpädagogik
 15032	MKJ	Musikwissenschaft Klassik und Jazz/Rock/Pop
 23503	ScT	Schwingungsanfällige Tragwerke
@@ -157,12 +157,12 @@
 25106	CBEF	Conservation / Building in Existing Fabric
 25404	BTG	Bautechnikgeschichte
 25405	TdA	Theorie der Architektur
-25421	GKG	Grundlagen der Kunstgeschichte
+25421	GdK	Grundlagen der Kunstgeschichte
 31102	TM1	Technische Mechanik 1: Statik und Festigkeitslehre
 31105	TM2	Technische Mechanik 2: Dynamik
 31204	TTD	Technische Thermodynamik
 31205	SL	Strömungslehre
-31403	DKF	Dynamik der Kraftfahrzeuge - Längsdynamik
+31403	DdK	Dynamik der Kraftfahrzeuge - Längsdynamik
 31424	SMT	Strömungsmesstechnik
 31425	VKM	Verbrennungskraftmaschinen
 33107	SeC	Seminar CampusTV
@@ -180,18 +180,18 @@
 36313	GSF	Grundzüge der Simulation von Fertigungssystemen
 36315	QM	Qualitätsmanagement
 36402	DFa	Digitale Fabrik
-36403	GQL	Grundlagen der Qualitätslehre
+36403	GdQ	Grundlagen der Qualitätslehre
 36406	LW	Leichtbauwerkstoffe
 36410	WM	Werkzeugmaschinen
 36415	PA	Produktionsautomatisierung
 36418	SeF	Seminar Fügetechnik
 36419	SpF	Spezielle Fügetechnik
-36504	KLS	Kommunikation und Lernstrategien
+36504	KuL	Kommunikation und Lernstrategien
 37102	DCH	Discourses on Culture and Heritage
 37104	OIB	Organisationen und industrielle Beziehungen
 37202	KW	Kulturwissenschaften: Konzepte und Anwendungen
 37406	FFH	Fundraising and Finance for Heritage
-37412	ABS	Arbeits- und Beschäftigungssoziologie
+37412	AuB	Arbeits- und Beschäftigungssoziologie
 38308	MMa	Marketing-Management
 38402	MF	Marktforschung
 43503	DT	Deponietechnik

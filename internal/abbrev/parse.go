@@ -238,8 +238,8 @@ func (p *parser) tokenize(seg string, desig *[]designator) []token {
 				}
 				if parts != nil && tk.known == "" {
 					// A compound part with a known short form (software → SW) gives both the plain
-					// initials (Software|systeme → SS) and the known form (SWS): ESS for
-					// „Entwicklung von Softwaresystemen“, SWP for „Softwarepraktikum“.
+					// initials (Software|systeme → SS) and the known form (SWS): SWP for
+					// „Softwarepraktikum“. („Entwicklung von Softwaresystemen“ is EvS: all initials.)
 					var init, alt strings.Builder
 					for _, part := range parts {
 						init.WriteString(firstUpper(part))

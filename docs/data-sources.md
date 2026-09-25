@@ -264,7 +264,7 @@ Program, degree, PO version, regulation documents.
 | Sources | **None states them.** Rooms: S3's room text, and for the building tokens the legend of BTU's campus plan of the Zentralcampus (`20211119_Campusplan_Zentralcampus_Legende.pdf` on `www-docs.b-tu.de`, linked from https://www.b-tu.de/campusplan/zentralcampus-cottbus), which prints HG, LG 1A, VG 1C, LB 4B, FZ 3E, IKMZ, MZG …; QIS itself prints a few (`HG 0.16`, `ZB VI.01`, `LH 3D`). Modules: a search of every source on 2026-09-25 found no abbreviation field — none in the QIS module description or table, none on the module pages, none in the event numbers or titles. 23 modules use an acronym on their own page or in their events (IR, PuI 1, ERP, CCS, GIS …); 16 of them are what the rules derive anyway. |
 | Code path | `normalize.RoomShort` → `event_date.room_short`; `internal/abbrev` → `module_abbrev`, `program_module_abbrev`. Both in `build`, from the canonical tables, without a request. |
 | Rejected | **Plan position codes** (BP23, OM3, E3-B) and „Kurzbezeichnung" codes (D1.1, KA 3.1) that Fakultät 4 and 6 print: they name a slot of one program's plan, not a module, depend on the program and the PO, and the event titles write them inconsistently. They could become a `plan_code` of their own later. **Program area abbreviations as reserved words:** only 11 of 28,424 pairs coincide with an area abbreviation of their program. |
-| Authority | **Derived** (`docs/schema-v2.md`, „Short names"). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's examples, a few common forms and three that a module's own page uses (IR, PuI, OOP) as a first candidate that beats every derived one; between two lines in a program the resolution decides. `internal/abbrev/blocked.tsv` lists forms that are never derived (SS, KKK, PO …). A room building that the table lacks keeps its QIS name, and the build warns. |
+| Authority | **Derived** (`docs/schema-v2.md`, „Short names"). Where the initials of all words of a title make exactly three characters, function words small, they are the first derived candidate (the owner, 2026-09-25, §11: EvS, AuP, GdW). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's examples, a few common forms and three that a module's own page uses (IR, PuI, OOP) as a first candidate that beats every derived one; between two lines in a program the resolution decides. `internal/abbrev/blocked.tsv` lists forms that are never derived (SS, KKK, PO …). A room building that the table lacks keeps its QIS name, and the build warns. |
 | Provenance | Rebuilt by every build; never stored by a consumer. `program_module_abbrev.is_override`, `choice` and `is_twin` say how a form came about. |
 
 ## 6. Spot-check log
@@ -465,6 +465,19 @@ Evidence and rules: §5.14 and `docs/schema-v2.md`, „Short names".
   AuP, Elektrische und Elektronische Grundlagen der Informatik EEG. Three letters are the sweet
   spot; a form that occurs twice among the modules a program lets its students select is nobody's,
   and both fall back. They are computed by Radix, so that they are in the database.
+- **Three initials of the whole title win** (on the review page, 2026-09-25, on Entwicklung von
+  Softwaresystemen, derived as ESS): „Ja ist bestimmt Entwicklung von Softwaresystemen. Das wird eher
+  EvS genannt, ich denke mal, wenn die Buchstaben beim Anagramm passen, dann nimmt man die i. d. R."
+  Where the initials of all words of the title make exactly three characters — content words as
+  capitals, function words (und, von, der, für, in, mit, zu, an, auf, aus, bei, über …; of, for, the,
+  to, in, on) as their lowercase letter — that form is the first choice, ahead of compound parts and
+  every other derivation: EvS, AuP, GdW (Grundlagen der Werkstoffe), EuH (Ethik und Handeln), KuL
+  (Kommunikation und Lernstrategien). A hyphen part counts as a word (Bau- und Stadtbaugeschichte 1
+  → BuS1, Kinder- und Jugendhilfe → KuJ), „&" as und, English „and" as & (M5); a series number is
+  appended. Overrides, the blocked and reserved forms and the uniqueness within a program still come
+  first. On the data of 2026-09-23 it moved 372 of 4,936 defaults and 2,680 of 28,424 pairs; forms a
+  reader may miss: Grundlagen der Elektrotechnik GdE (was GET), Signal- und Systemtheorie SuS (SST),
+  Kinder- und Jugendhilfe KuJ (KJH). An override line can bring any of them back.
 - **They are metadata, not facts.** „Und wenn das mal nicht passt mit dem, wie es im Studiengang
   verändert wird. Egal, dann machen wir die meta eben neu": every build derives them again, and
   a consumer never stores one.

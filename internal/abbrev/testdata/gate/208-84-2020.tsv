@@ -1,19 +1,19 @@
 # 208-84-2020: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts.
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS).
 11101	LAAG1	Lineare Algebra und analytische Geometrie I
 11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
 11152	ERP	ERP - Integrierte betriebliche Systeme
 11377	HoA	History of Architecture
 11525	StaS	Statik - Stabtragwerke
-11637	FQM	Forschung im Qualitätsmanagement
-11672	AVF	Atelier de VisioFutura: Auf dem Weg zum Lebensraum von Morgen
+11637	FiQ	Forschung im Qualitätsmanagement
+11672	AdV	Atelier de VisioFutura: Auf dem Weg zum Lebensraum von Morgen
 11675	EPW	Einführung in die Produktionswirtschaft
 11692	MuK	Medien- und Kultursemiotik
 11694	VTr	Vorgespannte Tragwerke
 11708	KMT	Konzepte, Methoden und Techniken zur Projektführung
 11802	Str	Straffälligenhilfe - kriminologische Ansätze in der Sozialen Arbeit mit Straftätern
 11812	EEF	Energieeffiziente Fahrzeuge
-11828	KSM	Kolben- und Strömungsmaschinen
+11828	KuS	Kolben- und Strömungsmaschinen
 11851	Dar	Darstellung
 11913	TMo	Turbulence Modeling
 11914	PMO	Programmieren in MATLAB/Octave
@@ -29,7 +29,7 @@
 12177	PrP	Praktische Philosophie
 12181	ITF	Interdisziplinäre Technikforschung
 12217	WLN	Wissenschaftstheorie, Logik und Naturphilosophie
-12225	SVR	Staats- und Verwaltungsrecht
+12225	SuV	Staats- und Verwaltungsrecht
 12239	En-B2	English - Essential Business Skills (B2)
 12251	STI	Strategisches Technologie- und Innovationsmanagement
 12258	UWA	Grundzüge des Umweltingenieurwesens / Wissenschaftliches Arbeiten
@@ -40,7 +40,7 @@
 12642	ESEd	EEEIC SEd - International Conference on Environment and Electrical Engineering - Student Edition
 12670	PMB	Praxis und methodische Begleitung
 12683	ME	Maschinenelemente
-12696	GET	Grundlagen der Elektrotechnik
+12696	GdE	Grundlagen der Elektrotechnik
 12727	GdB	Grundlagen der Biologie
 12769	MBS	Molecular Biotechnology and Society
 12774	EC	Experimentalchemie
@@ -62,12 +62,12 @@
 12986	BuK	Beratung und Kommunikation
 12987	BA	Bachelor-Arbeit
 13068	IPL	Intervention bei psychischen Leiden
-13070	KJH	Kinder- und Jugendhilfe
+13070	KuJ	Kinder- und Jugendhilfe
 13071	KMZ	Kultur- und medienpädagogische Zielgruppenarbeit
-13072	SAR	Sozialarbeit in Rumänien
+13072	SiR	Sozialarbeit in Rumänien
 13073	SKJ	Stationäre Kinder- und Jugendhilfe
 13074	GAF	Grundlagen der Arbeit mit Familien
-13076	PRE	Prävention von Rechtsextremismus
+13076	PvR	Prävention von Rechtsextremismus
 13077	SALR	Soziale Arbeit im ländlichen Raum
 13099	IuT	Interkulturalität und Transnationalität in der Sozialen Arbeit
 13100	DSA	Dokumentation in der Sozialen Arbeit
@@ -99,8 +99,8 @@
 13159	Med	Mediation
 13162	FA	Flüchtlingsarbeit
 13172	BSB	Beratung / Systemische Beratung
-13173	SAiP1	Soziale Arbeit in Polen I
-13174	SAiP2	Soziale Arbeit in Polen II
+13173	SAr1	Soziale Arbeit in Polen I
+13174	SAr2	Soziale Arbeit in Polen II
 13183	AHP	Aktuelle Herausforderungen der Personalarbeit im digitalen Wandel
 13217	DPV	Deutsch-Polnisches Vergleichsprojekt
 13234	CST	Communication of Science and Technology
@@ -109,7 +109,7 @@
 13259	HäG-b	Häusliche Gewalt
 13260	SeSA-b	Selbstständige Soziale Arbeit
 13261	HzE	Hilfen zur Erziehung - Grundlagen der Arbeit mit Familien
-13281	SST	Signal- und Systemtheorie
+13281	SuS	Signal- und Systemtheorie
 13296	AEE	Aktuelle Entwicklungen der Energiewende
 13354	RRE	Rechtliche Rahmenbedingungen der Existenzgründung
 13356	GCLR	Global Change and Legal Response
@@ -123,7 +123,7 @@
 13519	CFD1	CFD 1
 13526	JiD	Jugendmedienschutz in Deutschland
 13530	JMF	Jugendsozialarbeit im Milieu von Fussballfans
-13531	ABO	Arbeitslosigkeit und Berufsorientierung
+13531	AuB	Arbeitslosigkeit und Berufsorientierung
 13562	KMK	Kreative Methoden der Kulturarbeit im Stadtraum
 13563	OSKJ	Offene Settings Kultureller Jugendbildung
 13582	MKG	Methodisches Konstruieren und Gestalten
@@ -133,7 +133,7 @@
 13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
 13666	VVe	Visualisierung, Vertiefung
 13670	KKM	Klassismuskritik in der Kultur- und Musikarbeit
-13671	RAT	Reaktions- und Anlagentechnik
+13671	RuA	Reaktions- und Anlagentechnik
 13674	KG1	Kunstgeschichte 1
 13676	DP	Denkmalpflege
 13681	BMG	Bildkünste Moderne und Gegenwart
@@ -206,7 +206,7 @@
 14304	Sch-c	Schulsozialarbeit
 14305	BSA	Beziehungsgestaltung in der Sozialen Arbeit
 14308	UFM	Urban Future Making - Neue Orte und Freiräume gestalten
-14368	KMP	Kultur- und Medienpädagogik: Freies Radio/Podcasting
+14368	KuM	Kultur- und Medienpädagogik: Freies Radio/Podcasting
 14369	DPKB	Diversität und Partizipation in der kulturellen Bildung
 14370	AFH	Ambulante Familienhilfe - Arbeiten mit Familien in ihrer Lebenswelt
 14371	HDE	Hilfeplanprozesse und deren Entwicklungsberichte
@@ -245,7 +245,7 @@
 14854	KSo	Kita-Sozialarbeit
 14855	AGB	Alphabetisierung und Grundbildung als sozialarbeiterisches Handlungsfeld
 14856	MKK	Mehrsprachigkeit im Kita-Kontext: Familiensprachen nutzen
-14871	FGP	Fundraising im Gründungsprozess
+14871	FiG	Fundraising im Gründungsprozess
 14881	FTh	Forschendes Theater
 14885	IPBM	EUNICE Individual Pathway Bachelor's Module
 14886	SMK	Strategisches Management und Kommunikation in Krisen- und Resilienzkontexten
@@ -267,7 +267,7 @@
 15014	WKE	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
 15023	It-A1	Italian A1 for Student Life, Job and Daily Life
 15026	SR	Schulrecht
-15028	AMR	Arzt- und Medizinrecht
+15028	AuM	Arzt- und Medizinrecht
 15031	EEM	Einführung in die Elementare Musikpädagogik
 15032	MWKJ	Musikwissenschaft Klassik und Jazz/Rock/Pop
 15053	PEH	Psychiatrische Erste Hilfe bei vulnerablen Personengruppen
@@ -277,16 +277,16 @@
 25106	CBEF	Conservation / Building in Existing Fabric
 25404	BTG	Bautechnikgeschichte
 25405	TdA	Theorie der Architektur
-25421	GKG	Grundlagen der Kunstgeschichte
+25421	GdK	Grundlagen der Kunstgeschichte
 31102	TM1	Technische Mechanik 1: Statik und Festigkeitslehre
 31303	HSM	Höhere Strömungsmechanik
-31311	MFA	Maschinen- und Fahrzeugakustik
-31409	FSS	Fahrzeug- und Strukturschwingungen
+31311	MuF	Maschinen- und Fahrzeugakustik
+31409	FuS	Fahrzeug- und Strukturschwingungen
 33107	SeC	Seminar CampusTV
 33432	AMW	Angewandte Medienwissenschaften
-36303	ISU1	Informationssysteme in Unternehmen I
+36303	IiU1	Informationssysteme in Unternehmen I
 36315	QM	Qualitätsmanagement
-36403	GQL	Grundlagen der Qualitätslehre
+36403	GdQ	Grundlagen der Qualitätslehre
 36404	GAA	Grundlagen der Arbeitswissenschaft und Arbeitspsychologie
 36504	KuL	Kommunikation und Lernstrategien
 37102	DCH	Discourses on Culture and Heritage

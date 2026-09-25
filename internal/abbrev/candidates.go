@@ -11,7 +11,7 @@ import (
 type candidate struct {
 	text     string
 	cost     int
-	how      string // "", "p3", "lead", "tail", "sub", "long", "paren", "override", "prefix"
+	how      string // "", "p3", "lead", "tail", "sub", "long", "paren", "initials", "override", "prefix"
 	override bool
 }
 
@@ -235,6 +235,55 @@ func (cs *candidateSet) add(text string, cost int, how string) {
 	cs.order = append(cs.order, k)
 }
 
+// first makes text the cheapest candidate so far: one hundredth ahead of the best other one,
+// unless it is cheaper already. It takes that place without a bonus of its own, so the gap to
+// the fallbacks, which the resolution weighs („a far next choice“), stays what it was.
+func (cs *candidateSet) first(text, how string) {
+	k := key(text)
+	cost, others := 0, false
+	for _, o := range cs.order {
+		if c := cs.best[o]; o != k && (!others || c.cost-1 < cost) {
+			cost, others = c.cost-1, true
+		}
+	}
+	c, ok := cs.best[k]
+	if !ok {
+		cs.order = append(cs.order, k)
+	} else if !others || c.cost < cost {
+		cost = c.cost
+	}
+	cs.best[k] = &candidate{text: text, cost: cost, how: how}
+}
+
+// allInitials is the head written as the initials of all its words, when that makes exactly three
+// characters: a content word as its capital, a function word as the lowercase letter it leaves
+// (von → v, und → u, der → d, of → o; English and as &, M5). A lowercase letter only ever stands
+// for a function word, and only between two capitals, so the head is three words whose first and
+// last are content words: EvS, AuP, GdW, DaF, and three content words give their initials. A
+// hyphen part is a word of its own (Bau- und Stadtbaugeschichte 1 → BuS1), & and + are und. A head
+// with an acronym or a slash group is left to the other forms: an acronym is a short form already.
+func allInitials(toks []token) (string, bool) {
+	if len(toks) != 3 || toks[0].kind != kWord || toks[2].kind != kWord {
+		return "", false
+	}
+	var b strings.Builder
+	for _, t := range toks {
+		switch t.kind {
+		case kWord:
+			b.WriteString(firstUpper(t.text))
+		case kFunc, kAnd:
+			l := t.letter
+			if l == "" { // the, a, an: never inserted elsewhere, but here every word counts
+				l = strings.ToLower(firstRune(t.text))
+			}
+			b.WriteString(l)
+		default:
+			return "", false
+		}
+	}
+	return b.String(), runes(b.String()) == 3
+}
+
 func sortCandidates(list []candidate) {
 	sort.SliceStable(list, func(i, j int) bool { return candidateLess(list[i], list[j]) })
 }
@@ -308,6 +357,13 @@ func (d *deriver) candidates(p *parsed, sibling bool) []candidate {
 			heads = append(heads, headForm{r.s, hv.cost + r.cost, hv.label})
 			cs.add(r.s+ds, hv.cost+r.cost+lenPenalty(letters+dl, hd), hv.label)
 		}
+	}
+	// The owner's rule (2026-09-25): where the initials of all words of the head make exactly
+	// three characters, that form is the first choice, ahead of compound parts and every other
+	// derived form: Entwicklung von Softwaresystemen → EvS, not ESS. An acronym the title states
+	// for itself and the override lines still come before it; a series number is appended.
+	if s, ok := allInitials(p.head); ok {
+		cs.first(s+ds, "initials")
 	}
 	// An acronym the title states for itself („… Resource Investigation (ANRI)“) is the first
 	// choice up to five letters, but only where its letters are, in order, initials of the

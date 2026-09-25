@@ -59,19 +59,19 @@ func TestTheRulesAlone(t *testing.T) {
 		// the owner's examples come out of the rules, without the override file
 		"Algorithmieren und Programmieren":                        "AuP",
 		"Elektrische und elektronische Grundlagen der Informatik": "EEG",
-		"Entwicklung von Softwaresystemen":                        "ESS", // not EvS: Software|systeme
+		"Entwicklung von Softwaresystemen":                        "EvS", // all initials, not ESS from Software|systeme
 		"Softwarepraktikum":                                       "SWP", // SP would be two letters
 		"Digitaltechnik":                                          "DT",
 		"Mathematik IT-1 (Diskrete Mathematik)":                   "MIT1",
-		"Grundlagen der Rechnernetze":                             "GRN",
+		"Grundlagen der Rechnernetze":                             "GdR", // all initials, not GRN
 		"Theoretische Informatik":                                 "ThI",
-		"Kinder- und Jugendhilfe":                                 "KJH",
+		"Kinder- und Jugendhilfe":                                 "KuJ", // all initials, not KJH
 		"Nachrichtentechnik":                                      "NT",
 		"Nachrichtenübertragung":                                  "NÜ",
 		"Quantenelektrodynamik":                                   "QED",
 		"Geoinformationssysteme (GIS) für Ingenieure":             "GIS",
 		"Advanced Geophysical Methods in Natural Resource Investigation (ANRI)": "ANRI",
-		"Laborpraktikum der Elektrotechnik (IMT)":                               "LET", // (IMT) names a program
+		"Laborpraktikum der Elektrotechnik (IMT)":                               "LdE", // (IMT) names a program
 		"Deutsch als Fremdsprache B1.1":                                         "DaF-B1.1",
 		"Analysis II":                                                           "An2",
 		"Kombinatorik":                                                          "Kom",
@@ -438,6 +438,81 @@ func TestOverridesComeFirst(t *testing.T) {
 		"3 Allgemeine Betriebswirtschaftslehre II: Betriebliche Sachfunktionen")
 	if got["1"] != "ABWL3I" || got["E2"] != "ABWL3B" || got["3"] != "ABWL2" {
 		t.Errorf("ABWL siblings → %v", got)
+	}
+}
+
+// The owner's rule (2026-09-25): „Das wird eher EvS genannt, ich denke mal, wenn die Buchstaben
+// beim Anagramm passen, dann nimmt man die i. d. R.“ Where the initials of all words of the head
+// make exactly three characters, content words as capitals and function words as their lowercase
+// letter, that form comes first, ahead of compound parts and every other derived form.
+func TestAllInitials(t *testing.T) {
+	for title, want := range map[string]string{
+		"Entwicklung von Softwaresystemen": "EvS", // not ESS from Software|systeme
+		"Algorithmieren und Programmieren": "AuP",
+		"Grundlagen der Werkstoffe":        "GdW",
+		"Ethik und Handeln":                "EuH",
+		"Kommunikation und Lernstrategien": "KuL",      // not KLS from Lern|strategien
+		"Bau- und Stadtbaugeschichte 1":    "BuS1",     // a hyphen part is a word; the series number follows
+		"Deutsch als Fremdsprache B1.1":    "DaF-B1.1", // and so does a language level
+		"Forschung & Entwicklung":          "FuE",      // & in a German title is und
+		"Mathematics of Engineering I":     "MoE1",     // not ME1
+		"Biomass and Bioenergy":            "B&B",      // English and is & (M5)
+		// more or fewer than three: the other forms
+		"Einführung in die Logistik": "EiL",
+		"Numerische Mathematik":      "NMa",
+		"Softwarepraktikum":          "SWP",
+		// an acronym the title states for itself still comes first
+		"Geoinformationssysteme (GIS) für Ingenieure": "GIS",
+	} {
+		if got := defaultOf(t, nil, title); got != want {
+			t.Errorf("%q → %q, want %q", title, got, want)
+		}
+	}
+	// a blocked form is never derived, the rule's neither
+	if got := defaultOf(t, nil, "Ausbildung für Demokratie"); Stem(got) == "AfD" {
+		t.Errorf("Ausbildung für Demokratie → %q, a blocked form", got)
+	}
+	// A lowercase letter stands only for a function word between two capitals; an acronym or a
+	// slash group is a short form of its own, and the rule leaves the head to the other forms.
+	sp := newSplitter(Vocabulary(vocabulary))
+	for title, want := range map[string]string{
+		"Entwicklung von Softwaresystemen": "EvS",
+		"Theoretische Physik Praktikum":    "TPP",
+		"Einführung in die Logistik":       "",
+		"Grundlagen der IT":                "",
+		"Jazz/Rock/Pop und Gesang":         "",
+		"In der Stadt":                     "",
+		"Kinder in der Stadt":              "",
+	} {
+		got, ok := allInitials(parseTitle(title, sp).head)
+		if !ok {
+			got = ""
+		}
+		if got != want {
+			t.Errorf("allInitials(%q) = %q, want %q", title, got, want)
+		}
+	}
+	// An override line beats the rule, and the form of an owner's line is reserved.
+	overrides, err := ParseOverrides("/^Entwicklung von Softwaresystemen$/\t\tESS\tcommon\n12101\t\tAuP\towner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultOf(t, overrides, "Entwicklung von Softwaresystemen"); got != "ESS" {
+		t.Errorf("an override line against the rule → %q, want ESS", got)
+	}
+	res := Derive([]Module{{"12101", "Algorithmieren und Programmieren"}, {"2", "Analysis und Physik"}}, nil, vocabulary, overrides)
+	if got := res.Defaults["2"].Abbrev; got == "AuP" {
+		t.Errorf("Analysis und Physik takes the reserved AuP")
+	}
+	// Two titles of one program that give one form: neither takes it (the owner's rule), unless
+	// a tier decides.
+	_, got := deriveTitles(t, nil, "1 Grundlagen der Werkstoffe", "2 Grundlagen der Wirtschaftsinformatik")
+	if got["1"] == "GdW" || got["2"] == "GdW" {
+		t.Errorf("two GdW of one tier → %v, want neither", got)
+	}
+	_, got = deriveTitles(t, nil, "1 Grundlagen der Werkstoffe", "E2 Grundlagen der Wirtschaftsinformatik")
+	if got["1"] != "GdW" || got["E2"] == "GdW" {
+		t.Errorf("GdW, compulsory against elective → %v, want the compulsory module's", got)
 	}
 }
 
