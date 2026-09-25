@@ -2,6 +2,7 @@ package normalize
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -232,4 +233,34 @@ func roomNumberSpelling(num string) string {
 		num = m[1] + m[2] + "/" + m[4]
 	}
 	return num
+}
+
+// roomTokenLetters is the letter part of a building token: LG for LG3A, ZB for ZB2CD.
+var roomTokenLetters = regexp.MustCompile(`^[A-ZÄÖÜ]{2,}`)
+
+// BuildingTokens are the capitals a short room name opens with, which a reader takes for a
+// place: those of every building token (ZHG, HG, LG, VG, ZB …) and the campus codes SFB and
+// SD. A module abbreviation must not look like one (package abbrev): a week grid shows a
+// module and its room side by side, and „HG“ next to „HG 0.16“ reads as the building. The
+// room kinds (SR.4, AM.1, AT Name) always follow a building token and are not listed; HS is,
+// for the Hörsaal 3 that is a building of its own (HS3). Sorted, without duplicates.
+func BuildingTokens() []string {
+	seen := map[string]bool{"SFB": true, "SD": true}
+	add := func(token string) {
+		if m := roomTokenLetters.FindString(token); m != "" {
+			seen[m] = true
+		}
+	}
+	for _, token := range roomBuildings {
+		add(token)
+	}
+	for _, short := range roomOverrides {
+		add(strings.Fields(short)[0])
+	}
+	out := make([]string, 0, len(seen))
+	for t := range seen {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
 }

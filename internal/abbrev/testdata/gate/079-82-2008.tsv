@@ -1,5 +1,5 @@
-# 079-82-2008: the abbreviations of the design's reference implementation (2026-09-25). module<TAB>abbrev<TAB>title
-# Corrected: 14885 IPBM and 14901 IPMM (the reference gave IPBSM, IPMSM). Its possessive rule held a backspace character where a word boundary was meant, so it never dropped „'s“ (design §2.2, change 3).
+# 079-82-2008: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts.
 11102	LAAG2	Lineare Algebra und analytische Geometrie II
 11104	An2	Analysis II
 11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
@@ -8,7 +8,7 @@
 11201	An3	Analysis III
 11213	MIT3	Mathematik IT-3 (Analysis)
 11217	WT	Wahrscheinlichkeitstheorie
-11331	MaS	Mathematische Statistik
+11331	MSt	Mathematische Statistik
 11344	STS	Spezielle Themen der Stochastik
 11352	IKT	Informations- und Kodierungstheorie
 11377	HoA	History of Architecture
@@ -16,22 +16,22 @@
 11405	AGT	Algorithmische Graphentheorie
 11409	Kom	Kombinatorik
 11415	GT	Graphentheorie
-11450	EfA	Effiziente Algorithmen
+11450	EAl	Effiziente Algorithmen
 11454	GRN	Grundlagen der Rechnernetze
 11517	BM1	Baumechanik - 1
 11518	BDL	Baukonstruktion & Darstellungslehre
 11519	BM2	Baumechanik - 2
-11520	BBC	Baustoffe & Bauchemie
-11521	TuT	Tragkonstruktion & Tragsicherheit
-11524	IBM	Ingenieurgeologie & Bodenmechanik
+11520	BSB	Baustoffe & Bauchemie
+11521	TKT	Tragkonstruktion & Tragsicherheit
+11524	IGB	Ingenieurgeologie & Bodenmechanik
 11525	Sta	Statik - Stabtragwerke
 11637	FQM	Forschung im Qualitätsmanagement
-11672	AdV	Atelier de VisioFutura: Auf dem Weg zum Lebensraum von Morgen
+11672	AVF	Atelier de VisioFutura: Auf dem Weg zum Lebensraum von Morgen
 11675	EPW	Einführung in die Produktionswirtschaft
 11684	SE	Sicherheitsengineering
 11692	MuK	Medien- und Kultursemiotik
 11708	KMT	Konzepte, Methoden und Techniken zur Projektführung
-11744	KoS	Kognitive Systeme: Perzeption und Aktion
+11744	KSy	Kognitive Systeme: Perzeption und Aktion
 11787	ThI	Theoretische Informatik
 11811	KIM	Künstliche Intelligenz in der Materialdiagnostik
 11851	Dar	Darstellung
@@ -46,14 +46,14 @@
 11908	ST1	Systemtheorie I
 11909	ST2	Systemtheorie II
 11911	GKW	Grundzüge der Kognition und Wahrnehmung
-11913	TuM	Turbulence Modeling
+11913	TMo	Turbulence Modeling
 11915	GdW	Grundlagen der Werkstoffe
 11917	MW3	Mathematik W-3 (Statistik)
 11918	MW4	Mathematik W-4 (Modellierung und Optimierung)
 11923	GWR	Grundlagen des Wissenschaftlichen Rechnens
 11925	GNM	Grundlagen der Numerischen Mathematik
 11926	SfA	Statistik für Anwender
-11942	NuM	Numerische Mathematik
+11942	NMa	Numerische Mathematik
 11945	ABWL5	Allgemeine Betriebswirtschaftslehre V: Finanzierung, Investition und Steuern
 11947	VWL	Einführung in die Volkswirtschaftslehre
 11949	GMa	Grundzüge der Makroökonomik
@@ -111,11 +111,11 @@
 13254	IBMT	Image Based Measurement Techniques for Aerodynamics
 13296	AEE	Aktuelle Entwicklungen der Energiewende
 13356	GCLR	Global Change and Legal Response
-13392	DiO	Differenzierbare Optimierung
+13392	DOp	Differenzierbare Optimierung
 13431	EuH	Ethik und Handeln
 13463	NuT	Natur und Technik
 13467	Komm	Kommunikation
-13500	NSA	Introduction to Neural Signal Analysis
+13500	INSA	Introduction to Neural Signal Analysis
 13519	CFD1	CFD 1
 13565	EML	Einführung in Maschinelles Lernen
 13566	PML	Praktikum Maschinelles Lernen
@@ -123,10 +123,10 @@
 13588	PS-A1	Polnisch Start A1
 13655	UDK	Un/Disciplining Knowledge: Technology, Science, and Society in Transformation
 13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
-13666	ViV	Visualisierung, Vertiefung
+13666	VVe	Visualisierung, Vertiefung
 13671	RAT	Reaktions- und Anlagentechnik
 13674	KG1	Kunstgeschichte 1
-13676	Den	Denkmalpflege
+13676	DP	Denkmalpflege
 13681	BMG	Bildkünste Moderne und Gegenwart
 13682	GuT	Geschichte und Theorie von Stadt, Raum und Landschaft
 13707	KDF	Kulturwissenschaftliche Digitalisierungsforschung
@@ -145,11 +145,11 @@
 13841	SpP	Speech Processing
 13849	ICN	Introduction to Computational Neuroscience
 13862	OOR	Optimierung und Operations Research
-13863	MSt	Mathematical Statistics
+13863	MS	Mathematical Statistics
 13874	NLA	Introduction to Numerical Linear Algebra
-13889	StP	Stochastic Processes
+13889	SPr	Stochastic Processes
 13911	Alg	Algebra: Structures and Algorithms
-13912	CoT	Coding Theory
+13912	CTh	Coding Theory
 13940	GlS	Global Studies - Massive Open Online Course
 13946	M&D	Mobility and Digitalisation
 13964	GTE	Geothermal Energy
@@ -157,7 +157,7 @@
 14012	AMS	Angewandte Modellierung und Systemsimulation
 14023	MPA	Modeling of Perception and Action
 14036	SPLS	Scientific Presentation in Life Sciences
-14039	MS	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
+14039	MSESA	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
 14054	IMDA	Immunological Methods and Data Analysis
 14085	GrT	Graph Theory
 14146	AVV	Architektur verstehen und vermitteln
@@ -179,12 +179,12 @@
 14885	IPBM	EUNICE Individual Pathway Bachelor's Module
 14886	SMK	Strategisches Management und Kommunikation in Krisen- und Resilienzkontexten
 14894	BGS	Bacheloroberseminar Graphische Systeme
-14898	Cam	CampusTV: Uni-Reportage
+14898	CTV	CampusTV: Uni-Reportage
 14901	IPMM	EUNICE Individual Pathway Master's Module
-14998	CoB	Conservation Biology
+14998	CBi	Conservation Biology
 15003	PSDS	Privacy, Surveillance, and Digital Society
 15013	ItT	Introduction to Toxicology - How Our Everyday Chemicals Are Regulated
-15014	WKLS	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
+15014	WKE	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
 15023	It-A1	Italian A1 for Student Life, Job and Daily Life
 15026	SR	Schulrecht
 15028	AMR	Arzt- und Medizinrecht

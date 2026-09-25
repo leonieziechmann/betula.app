@@ -67,9 +67,10 @@ type Report struct {
 	// Short names (docs/schema-v2.md, „Short names“).
 	RoomsUnknownBuilding  map[string]int // event rooms whose building the table lacks → event dates
 	RoomShortCollisions   []string       // event rooms that kept their long form: their short form was not unique
-	AbbrevOverridesUnused []string       // module-number lines of the override file that name no module
+	AbbrevOverridesUnused []string       // lines of the override file that apply to no module
 	AbbrevFellBack        int            // (program, module) pairs that did not get their first choice
 	AbbrevTwins           int            // pairs with -b, -c … after an identical title in the program
+	AbbrevChanged         int            // pairs whose abbreviation differs from the previous build's
 
 	// Unused lists archived pages that are not part of the current dataset: module pages
 	// of modules that left the lists, tree pages the root no longer reaches. source → keys.
@@ -111,12 +112,12 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	warn(len(report.UnpairedEnglishDep), "build.unpaired_departments", "English department names have no German counterpart", "names", report.UnpairedEnglishDep)
 	warn(len(report.RoomsUnknownBuilding), "build.rooms_unknown_building", "event rooms name a building the short-name table lacks; they keep the building's full name", "examples", examples(report.RoomsUnknownBuilding, 5))
 	warn(len(report.RoomShortCollisions), "build.room_short_collisions", "rooms would share a short form; they keep their long form", "rooms", first(report.RoomShortCollisions, 10))
-	warn(len(report.AbbrevOverridesUnused), "build.abbrev_overrides_unused", "lines of the abbreviation override file name no module", "lines", report.AbbrevOverridesUnused)
+	warn(len(report.AbbrevOverridesUnused), "build.abbrev_overrides_unused", "lines of the abbreviation override file apply to no module", "lines", report.AbbrevOverridesUnused)
 
 	log.Info("build finished", "event", "build.finished", "duration_ms", time.Since(start).Milliseconds(),
 		"modules", report.Modules, "programs", report.Programs, "events", report.Events,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
-		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins,
+		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
 		"content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil
 }
@@ -190,6 +191,10 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	var previousDigest, dataChangedAt string
 	_ = tx.QueryRow("SELECT value FROM meta WHERE key = 'content_digest'").Scan(&previousDigest)
 	_ = tx.QueryRow("SELECT value FROM meta WHERE key = 'data_changed_at'").Scan(&dataChangedAt)
+	previousAbbrevs, err := readAbbreviations(tx)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, table := range derivedTables {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
@@ -197,7 +202,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		}
 	}
 
-	b := &builder{tx: tx, src: src, report: report}
+	b := &builder{tx: tx, src: src, report: report, previousAbbrevs: previousAbbrevs}
 	steps := []struct {
 		name string
 		run  func() error
@@ -256,6 +261,8 @@ type builder struct {
 	moduleIDs     map[string]bool  // modules written
 	programs      []*program       // programs written
 	programByID   map[string]*program
+
+	previousAbbrevs map[[2]string]string // (program, module) → the abbreviation of the build before
 }
 
 // materialize evaluates the two expensive *_src views once per build. The public

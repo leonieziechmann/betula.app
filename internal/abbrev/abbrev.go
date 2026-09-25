@@ -7,11 +7,13 @@
 //
 // Every title gets a ranked list of candidates with a cost: word initials, compound
 // initials (Betriebs|systeme → BS), function letters (AuP), dropped openings and tails
-// (EEG), first letters, subtitle forms. Three characters are the sweet spot. Within a
-// program, over all of its selectable modules (curriculum, electives and FÜS), every
-// abbreviation is unique: a candidate that two modules want goes to neither, and both fall
-// back („Grundzüge der Makro-/Mikroökonomik“ → GMa / GMi), unless a guard settles it by
-// priority. The rules and their numbers: docs/schema-v2.md, „Short names“.
+// (EEG), first letters, subtitle forms. Three characters are the sweet spot. A form on the
+// blocked list (blocked.tsv, the building tokens of short room names) or one the override file reserves for another
+// title is never derived. Within a program, over all of its selectable modules (curriculum,
+// electives and FÜS), every abbreviation is unique, and so is its stem (ST and ST1 read as one
+// series): a candidate that two modules want goes to neither, and both fall back („Grundzüge
+// der Makro-/Mikroökonomik“ → GMa / GMi), unless a guard settles it by priority. The rules and
+// their numbers: docs/schema-v2.md, „Short names“.
 package abbrev
 
 import (
@@ -57,7 +59,9 @@ type Result struct {
 	FellBack  int                          // pairs that did not get their first choice (twins included)
 	Twins     int                          // pairs that got -b, -c …
 	Overrides int                          // pairs an override line made
-	// UnusedOverrides are module-number lines of the override file that name no module.
+	// UnusedOverrides are lines of the override file that apply to no module: a module number
+	// the catalog lacks, a (program, module) pair that does not exist, a pattern that matches
+	// no title an earlier line does not take.
 	UnusedOverrides []string
 }
 
@@ -67,12 +71,15 @@ type Result struct {
 // The result depends only on its input, never on its order.
 func Derive(modules []Module, members []Member, titles []string, overrides []Override) *Result {
 	d := &deriver{
-		split:  newSplitter(Vocabulary(titles)),
-		titles: map[string]string{},
-		parsed: map[string]*parsed{},
-		base:   map[string][]candidate{},
-		sib:    map[string][]candidate{},
-		prefix: map[string][]candidate{},
+		split:        newSplitter(Vocabulary(titles)),
+		titles:       map[string]string{},
+		parsed:       map[string]*parsed{},
+		base:         map[string][]candidate{},
+		sib:          map[string][]candidate{},
+		prefix:       map[string][]candidate{},
+		used:         map[*Override]bool{},
+		reserved:     map[string]map[string]bool{},
+		reservedStem: map[string]map[string]bool{},
 	}
 	for _, m := range modules {
 		d.titles[m.ID] = m.Title
@@ -88,16 +95,25 @@ func Derive(modules []Module, members []Member, titles []string, overrides []Ove
 	}
 
 	res := &Result{Defaults: map[string]Choice{}, Programs: map[string]map[string]Choice{}}
-	for _, o := range overrides {
-		if _, ok := d.titles[o.ModuleID]; o.ModuleID != "" && !ok {
-			res.UnusedOverrides = append(res.UnusedOverrides, "line "+strconv.Itoa(o.Line)+": "+o.ModuleID+" → "+o.Abbrev)
-		}
-	}
 	ids := make([]string, 0, len(d.titles))
 	for id := range d.titles {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
+	// The forms of the owner's and the common lines mean one thing in the whole catalog: no
+	// other title derives them (AuP is Algorithmieren und Programmieren, MA a master's thesis).
+	for _, id := range ids {
+		p := d.parse(id)
+		for _, a := range d.lines(id, p, "") {
+			if a.o.Source == "page" {
+				continue
+			}
+			reserve(d.reserved, key(a.text), p)
+			if Stem(a.text) == a.text {
+				reserve(d.reservedStem, stemKey(a.text), p)
+			}
+		}
+	}
 	for _, id := range ids {
 		c := d.list(id, false, "")[0]
 		res.Defaults[id] = Choice{Abbrev: c.text, Override: c.override, Choice: 1}
@@ -132,7 +148,45 @@ func Derive(modules []Module, members []Member, titles []string, overrides []Ove
 		}
 		res.Programs[pid] = choices
 	}
+	res.UnusedOverrides = d.unused(overrides, members)
 	return res
+}
+
+func reserve(m map[string]map[string]bool, k string, p *parsed) {
+	if m[k] == nil {
+		m[k] = map[string]bool{}
+	}
+	m[k][p.seriesKey] = true
+}
+
+// titleKey tells titles apart: two modules with one titleKey are twins.
+func titleKey(title string) string { return strings.ToLower(title) }
+
+// unused lists the lines of the override file that applied to no module.
+func (d *deriver) unused(overrides []Override, members []Member) []string {
+	pairs := map[string]bool{}
+	for _, m := range members {
+		pairs[m.ProgramID+"\t"+m.ModuleID] = true
+	}
+	var out []string
+	for i := range overrides {
+		o := &overrides[i]
+		if d.used[o] {
+			continue
+		}
+		what, why := o.ModuleID, "names no module"
+		if o.Pattern != nil {
+			what, why = "/"+o.Pattern.String()+"/", "matches no module an earlier line does not take"
+		}
+		if o.Program != "" {
+			what += " in " + o.Program
+			if _, ok := d.titles[o.ModuleID]; o.ModuleID != "" && ok && !pairs[o.Program+"\t"+o.ModuleID] {
+				why = "the program has no such module"
+			}
+		}
+		out = append(out, "line "+strconv.Itoa(o.Line)+": "+what+" → "+o.Abbrev+" ("+why+")")
+	}
+	return out
 }
 
 type entry struct {
@@ -149,6 +203,11 @@ type deriver struct {
 	prefix   map[string][]candidate // module + shared opening → candidates of the rest
 	byModule map[string][]*Override
 	patterns []*Override
+	used     map[*Override]bool // lines that applied to a module
+	// reserved: key of an owner's or common line's form → the heads (seriesKey) of the titles
+	// it belongs to, so that Datenbanken I may have DB1; reservedStem the same for the stems of
+	// the forms without a designator (MA blocks MA2 of another head).
+	reserved, reservedStem map[string]map[string]bool
 }
 
 func (d *deriver) parse(id string) *parsed {
@@ -171,74 +230,133 @@ func (d *deriver) list(id string, sibling bool, program string) []candidate {
 	if sibling {
 		cache = d.sib
 	}
+	p := d.parse(id)
 	l, ok := cache[id]
 	if !ok {
-		p := d.parse(id)
-		l = d.candidates(p, sibling)
-		l = d.override(l, id, p, "")
-		l = usable(l, p)
+		l, _ = d.override(d.candidates(p, sibling), id, p, "", sibling)
+		l = d.usable(l, p)
 		cache[id] = l
 	}
 	if program != "" {
-		l = d.override(l, id, d.parse(id), program)
+		if lp, applied := d.override(l, id, p, program, sibling); applied {
+			l = d.usable(lp, p)
+		}
 	}
 	return l
 }
 
-// override puts the override lines for a module, in one program or in every program, on
-// top of its candidates: first the first matching title pattern, then the module's number.
-func (d *deriver) override(l []candidate, id string, p *parsed, program string) []candidate {
+type appliedLine struct {
+	o    *Override
+	text string
+}
+
+// lines are the override lines for a module, in one program or in every program, in the
+// order they are put on top: the first matching title pattern, then the module's number.
+func (d *deriver) lines(id string, p *parsed, program string) []appliedLine {
+	var out []appliedLine
 	for _, o := range d.patterns {
 		if o.Program != program {
 			continue
 		}
 		if text, ok := o.apply(p); ok {
-			l = withOverride(l, text)
+			out = append(out, appliedLine{o, text})
 			break
 		}
 	}
 	for _, o := range d.byModule[id] {
 		if o.Program == program {
 			text, _ := o.apply(p)
-			l = withOverride(l, text)
+			out = append(out, appliedLine{o, text})
 		}
 	}
-	return l
+	return out
+}
+
+// override puts the override lines for a module on top of its candidates. A sibling (another
+// module of the program has its head and designator) puts the override's form with its
+// subtitle first: ABWL3I and ABWL3B for the two „Allgemeine Betriebswirtschaftslehre III“,
+// not ABWL3 for one and derived initials for the other.
+func (d *deriver) override(l []candidate, id string, p *parsed, program string, sibling bool) ([]candidate, bool) {
+	as := d.lines(id, p, program)
+	for _, a := range as {
+		d.used[a.o] = true
+		l = withOverride(l, a.text)
+	}
+	if len(as) > 0 && sibling {
+		var subs []candidate
+		for _, sp := range subtitleForms(p) {
+			subs = append(subs, candidate{text: l[0].text + sp.s, cost: -100, how: "override+sub", override: true})
+		}
+		l = withFirst(subs, l)
+	}
+	return l, len(as) > 0
 }
 
 func withOverride(l []candidate, text string) []candidate {
-	out := make([]candidate, 0, len(l)+1)
-	out = append(out, candidate{text: text, cost: -100, how: "override", override: true})
-	for _, c := range l {
-		if key(c.text) != key(text) {
+	return withFirst([]candidate{{text: text, cost: -100, how: "override", override: true}}, l)
+}
+
+// withFirst puts first before l, without the candidates of l that first has.
+func withFirst(first, l []candidate) []candidate {
+	out := make([]candidate, 0, len(first)+len(l))
+	seen := map[string]bool{}
+	for _, c := range append(append([]candidate(nil), first...), l...) {
+		if k := key(c.text); !seen[k] {
+			seen[k] = true
 			out = append(out, c)
 		}
 	}
 	return out
 }
 
-// usable keeps the candidates of 2 to 10 characters; a title that gives none gets its first letters.
-func usable(l []candidate, p *parsed) []candidate {
+// usable keeps the candidates of 2 to 10 characters that the module may have (allowed); a
+// title that gives none gets its first letters, as many as it takes.
+func (d *deriver) usable(l []candidate, p *parsed) []candidate {
 	out := l[:0:0]
 	for _, c := range l {
-		if n := runes(c.text); n >= 2 && n <= 10 {
+		if n := runes(c.text); n >= 2 && n <= 10 && d.allowed(c, p) {
 			out = append(out, c)
 		}
 	}
 	if len(out) == 0 {
-		var b strings.Builder
+		var letters []rune
 		for _, r := range p.title {
-			if isLetterOrDigit(r) && runes(b.String()) < 3 {
-				b.WriteRune(r)
+			if isLetterOrDigit(r) {
+				letters = append(letters, r)
 			}
 		}
-		s := capitalize(b.String())
-		for runes(s) < 2 {
-			s += "x"
+		for n := 3; ; n++ {
+			s := capitalize(string(letters[:min(n, len(letters))]))
+			for runes(s) < 2 {
+				s += "x"
+			}
+			c := candidate{text: s, cost: 9900, how: "fallback"}
+			if d.allowed(c, p) || n >= min(len(letters), 10) {
+				out = append(out, c)
+				break
+			}
 		}
-		out = append(out, candidate{text: s, cost: 9900, how: "fallback"})
 	}
 	return out
+}
+
+// allowed: an override line may name any form; a derived candidate must not be blocked
+// (blocked.tsv, the building tokens) and not reserved by an owner's or common line for a title
+// of another head.
+func (d *deriver) allowed(c candidate, p *parsed) bool {
+	if c.override {
+		return true
+	}
+	if _, b := Blocked(c.text, p.title); b {
+		return false
+	}
+	if ts, ok := d.reserved[key(c.text)]; ok && !ts[p.seriesKey] {
+		return false
+	}
+	if ts, ok := d.reservedStem[stemKey(c.text)]; ok && !ts[p.seriesKey] {
+		return false
+	}
+	return true
 }
 
 func isLetterOrDigit(r rune) bool {
@@ -255,7 +373,7 @@ func (d *deriver) resolve(program string, entries []entry) map[string]Choice {
 		if byHead[p.headKey] == nil {
 			byHead[p.headKey] = map[string]bool{}
 		}
-		byHead[p.headKey][key(p.title)] = true
+		byHead[p.headKey][titleKey(p.title)] = true
 	}
 	extra := d.sharedOpenings(entries)
 
@@ -264,7 +382,13 @@ func (d *deriver) resolve(program string, entries []entry) map[string]Choice {
 		p := d.parse(e.module)
 		l := d.list(e.module, len(byHead[p.headKey]) > 1 && len(p.subs) > 0, program)
 		if x, ok := extra[e.module]; ok {
-			l = merge(l, x)
+			var keep []candidate
+			for _, c := range x {
+				if d.allowed(c, p) {
+					keep = append(keep, c)
+				}
+			}
+			l = merge(l, keep)
 		}
 		lists[i] = l
 	}
@@ -397,17 +521,22 @@ func commonPrefix(a, b []string) int {
 
 // contrast resolves one program. Each module proposes its first candidate that is not
 // banned for it. A candidate proposed by modules with different titles is nobody's (the
-// owner's rule), with guards: a higher tier keeps it against a lower one, an earlier choice
-// beats a fallback, and FÜS against FÜS, a far next choice or near-identical candidate lists
-// are settled by priority. Then every module takes its first free candidate, and identical
-// titles get -b, -c ….
+// owner's rule), with guards: an override line beats a derived form, a higher tier keeps it
+// against a lower one, an earlier choice beats a fallback, and FÜS against FÜS, a far next
+// choice or near-identical candidate lists are settled by priority. The same holds for a stem
+// that modules with different heads propose (Steuerungstechnik ST, Systemtheorie I ST1: a
+// reader takes ST1 for part 1 of ST). Then every module takes its first free candidate, and
+// identical titles get -b, -c ….
 func (d *deriver) contrast(entries []entry, lists [][]candidate) map[string]Choice {
 	n := len(entries)
 	title := make([]string, n)
+	series := make([]string, n)
 	sig := make([]string, n)
 	banned := make([]map[string]bool, n)
 	for i, e := range entries {
-		title[i] = key(d.parse(e.module).title)
+		p := d.parse(e.module)
+		title[i] = titleKey(p.title)
+		series[i] = p.seriesKey
 		var ks []string
 		for j, c := range lists[i] {
 			if j == 8 {
@@ -428,6 +557,7 @@ func (d *deriver) contrast(entries []entry, lists [][]candidate) map[string]Choi
 	}
 	for round := 0; round < 200; round++ {
 		prop := make([]int, n)
+		pk := make([]string, n)
 		var keys []string
 		byKey := map[string][]int{}
 		for i := range entries {
@@ -436,49 +566,66 @@ func (d *deriver) contrast(entries []entry, lists [][]candidate) map[string]Choi
 				continue
 			}
 			k := key(lists[i][prop[i]].text)
+			pk[i] = k
 			if _, ok := byKey[k]; !ok {
 				keys = append(keys, k)
 			}
 			byKey[k] = append(byKey[k], i)
 		}
 		changed := false
-		for _, k := range keys {
-			ms := byKey[k]
-			if distinctOf(ms, title) < 2 {
-				continue
+		ban := func(m int) {
+			if !banned[m][pk[m]] {
+				banned[m][pk[m]] = true
+				changed = true
 			}
-			best := entries[ms[0]].tier
+		}
+		// settle decides a contest between the modules ms, which want one form (ident = title)
+		// or one stem (ident = the head without its designator).
+		settle := func(ms []int, ident []string) {
+			if distinctOf(ms, ident) < 2 {
+				return
+			}
+			contenders := ms
+			var overrides []int
 			for _, m := range ms {
+				if lists[m][prop[m]].override {
+					overrides = append(overrides, m)
+				}
+			}
+			if len(overrides) > 0 {
+				contenders = overrides // an override line beats a derived form, whatever the tier
+			}
+			best := entries[contenders[0]].tier
+			for _, m := range contenders {
 				best = min(best, entries[m].tier)
 			}
 			rmin := -1
-			for _, m := range ms {
+			for _, m := range contenders {
 				if entries[m].tier == best && (rmin < 0 || prop[m] < rmin) {
 					rmin = prop[m]
 				}
 			}
 			var top []int
+			inTop := map[int]bool{}
 			holders := map[string]bool{}
-			for _, m := range ms {
+			for _, m := range contenders {
 				if entries[m].tier == best && prop[m] == rmin {
 					top = append(top, m)
-					holders[title[m]] = true
+					inTop[m] = true
+					holders[ident[m]] = true
 				}
 			}
 			for _, m := range ms {
-				if entries[m].tier > best || prop[m] > rmin {
-					if !holders[title[m]] {
-						banned[m][k] = true
-						changed = true
-					}
+				if !inTop[m] && !holders[ident[m]] {
+					ban(m)
 				}
 			}
-			if distinctOf(top, title) < 2 {
-				continue
+			if distinctOf(top, ident) < 2 {
+				return
 			}
 			next := func(m int) candidate {
 				for _, c := range lists[m] {
-					if kk := key(c.text); kk != k && !banned[m][kk] {
+					if kk := key(c.text); kk != pk[m] && !banned[m][kk] {
 						return c
 					}
 				}
@@ -494,49 +641,76 @@ func (d *deriver) contrast(entries []entry, lists [][]candidate) map[string]Choi
 			if tooFar || distinctOf(top, sig) == 1 {
 				win := top[0] // entries are in priority order
 				for _, m := range top {
-					if m != win && title[m] != title[win] {
-						banned[m][k] = true
-						changed = true
+					if ident[m] != ident[win] {
+						ban(m)
 					}
 				}
 			} else {
 				for _, m := range top {
-					banned[m][k] = true
+					ban(m)
 				}
-				changed = true
 			}
+		}
+		for _, k := range keys {
+			settle(byKey[k], title)
+		}
+		var stems []string
+		byStem := map[string][]int{}
+		for i := range entries {
+			if prop[i] < 0 || banned[i][pk[i]] {
+				continue
+			}
+			s := stemKey(lists[i][prop[i]].text)
+			if _, ok := byStem[s]; !ok {
+				stems = append(stems, s)
+			}
+			byStem[s] = append(byStem[s], i)
+		}
+		for _, s := range stems {
+			settle(byStem[s], series)
 		}
 		if !changed {
 			break
 		}
 	}
 
-	// Anything still contested or exhausted: first come, first served over what is left.
+	// Anything still contested or exhausted: first come, first served over what is left. A
+	// form is free when neither it nor its stem belongs to another title or head.
 	type pick struct {
 		c    candidate
 		rank int
 	}
 	picks := make([]pick, n)
-	taken := map[string]string{}
+	taken := map[string]string{}     // key → title
+	takenStem := map[string]string{} // stem key → head
+	take := func(i int, text string) {
+		if _, ok := taken[key(text)]; !ok {
+			taken[key(text)] = title[i]
+		}
+		if _, ok := takenStem[stemKey(text)]; !ok {
+			takenStem[stemKey(text)] = series[i]
+		}
+	}
 	for i := range entries {
 		found := false
 		for r, c := range lists[i] {
-			k := key(c.text)
-			if banned[i][k] {
+			if banned[i][key(c.text)] {
 				continue
 			}
-			if t, ok := taken[k]; !ok || t == title[i] {
-				if !ok {
-					taken[k] = title[i]
-				}
-				picks[i] = pick{c, r}
-				found = true
-				break
+			if t, ok := taken[key(c.text)]; ok && t != title[i] {
+				continue
 			}
+			if s, ok := takenStem[stemKey(c.text)]; ok && s != series[i] {
+				continue
+			}
+			take(i, c.text)
+			picks[i] = pick{c, r}
+			found = true
+			break
 		}
 		if !found {
 			text := suffixed(lists[i][0].text, taken, 0)
-			taken[key(text)] = title[i]
+			take(i, text)
 			picks[i] = pick{candidate{text: text, cost: 9900, how: "numbered", override: lists[i][0].override}, len(lists[i])}
 		}
 	}

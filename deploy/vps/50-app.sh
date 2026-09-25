@@ -74,8 +74,11 @@ in_radix_volume() {
 }
 
 # Offline, Radix only serves the snapshot it has, so there has to be one. A volume that was
-# seeded and never ran has a database and no snapshot: the snapshot is made from it here, in a
-# container without a network (validate + export read nothing but the database).
+# seeded and never ran has a database and no snapshot: the snapshot is made from it here, in
+# containers without a network (build, validate and export read nothing but the database).
+# build comes first: the seeded database may be older than this release, and the new binary
+# migrates it when it opens it, but only a build fills what a migration adds (schema 9: the
+# short names); export validates and refuses a database that was not built again.
 ensure_snapshot() {
   step "Radix offline: a snapshot to serve"
   if ! docker volume inspect "${INSTANCE_STACK}_radix-data" >/dev/null 2>&1; then
@@ -90,10 +93,14 @@ ensure_snapshot() {
   fi
   in_radix_volume radix.db ||
     die "RADIX_CRAWL=off, but ${INSTANCE_STACK}_radix-data holds neither a snapshot nor a database. Seed it first (deploy/ship.sh ${INSTANCE_STACK} --seed)"
-  log "none yet: exporting one from the seeded database (no network, about a minute)"
+  log "none yet: building and exporting one from the seeded database (no network, a few minutes)"
+  # Two runs: the image has no shell to chain them in one.
+  docker run --rm --network none --cap-drop ALL -v "${INSTANCE_STACK}_radix-data:/data" "${RADIX_IMAGE}" \
+    build --db /data/radix.db ||
+    die "the build failed: the database does not fit this release (docker run ... ${RADIX_IMAGE} build --db /data/radix.db says why). Nothing was deployed"
   docker run --rm --network none --cap-drop ALL -v "${INSTANCE_STACK}_radix-data:/data" "${RADIX_IMAGE}" \
     export --db /data/radix.db --out /data/snapshot ||
-    die "the export failed: the database does not pass validation, or it does not fit this release. Nothing was deployed"
+    die "the export failed: the database does not pass validation. Nothing was deployed"
 }
 
 # check_siblings - another stack routed for this instance's host is only allowed as the other colour

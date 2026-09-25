@@ -15,7 +15,14 @@ type candidate struct {
 	override bool
 }
 
-func key(s string) string { return strings.ToLower(s) }
+// key is what two abbreviations are compared by: without case, and without the & and - that
+// a reader passes over (B&B reads as BB, L&AS as LaS).
+func key(s string) string { return keyReplacer.Replace(strings.ToLower(s)) }
+
+var keyReplacer = strings.NewReplacer("&", "", "-", "")
+
+// stemKey compares the stems (Stem): ST and ST1 have one.
+func stemKey(s string) string { return key(Stem(s)) }
 
 // lenPenalty is the price of a length, on the letters: designator digits do not count, the
 // letters of a code do (IT-1 → 2). Three is the sweet spot; with a designator two letters
@@ -110,16 +117,27 @@ type rendering struct {
 	xused bool   // a first-two-letters form is in it
 }
 
-// render enumerates the renderings of a token list.
+// functionLetters are the lowercase letters a reader takes for a function word between two
+// capitals: u for und (AuP), f for für (SfA), d for der (GdW), i for in (EiP) ….
+var functionLetters = set("u", "f", "d", "i", "v", "a", "z", "m", "o", "t")
+
+// render enumerates the renderings of a token list. A first-two-letters form whose second
+// letter is a function letter and stands before another letter costs 0.5 more: NuM for
+// „Numerische Mathematik“ reads as N und M (NMa).
 func render(toks []token, maxLetters int) []rendering {
 	canDrop := countContent(toks) >= 4
 	var res []rendering
-	var rec func(i int, s string, n, cost, used, drops int, xused bool, last *token)
-	rec = func(i int, s string, n, cost, used, drops int, xused bool, last *token) {
+	var rec func(i int, s string, n, cost, used, drops int, xused bool, xpos int, last *token)
+	rec = func(i int, s string, n, cost, used, drops int, xused bool, xpos int, last *token) {
 		if n > maxLetters || cost > 700 {
 			return
 		}
 		if i == len(toks) {
+			if xpos >= 0 {
+				if rs := []rune(s); xpos+1 < len(rs) && unicode.IsLetter(rs[xpos+1]) && functionLetters[string(rs[xpos])] {
+					cost += 50
+				}
+			}
 			r := rendering{s: s, cost: cost, used: used, xused: xused}
 			if used == 1 {
 				r.only = last
@@ -129,15 +147,15 @@ func render(toks []token, maxLetters int) []rendering {
 		}
 		t := &toks[i]
 		if t.kind == kFunc || t.kind == kAnd {
-			rec(i+1, s, n, cost, used, drops, xused, last)
+			rec(i+1, s, n, cost, used, drops, xused, xpos, last)
 			// a function letter only between two content letters
 			if s != "" && t.letter != "" && hasContent(toks[i+1:]) {
-				rec(i+1, s+t.letter, n+runes(t.letter), cost+t.lcost, used, drops, xused, last)
+				rec(i+1, s+t.letter, n+runes(t.letter), cost+t.lcost, used, drops, xused, xpos, last)
 			}
 			return
 		}
 		first := used == 0
-		add := func(x string, c int, x2 bool) { rec(i+1, s+x, n+runes(x), cost+c, used+1, drops, x2, t) }
+		add := func(x string, c int, x2 bool) { rec(i+1, s+x, n+runes(x), cost+c, used+1, drops, x2, xpos, t) }
 		switch t.kind {
 		case kSlash:
 			add(t.parts, 0, xused)
@@ -178,16 +196,17 @@ func render(toks []token, maxLetters int) []rendering {
 				if first {
 					c = 70
 				}
-				add(string(unicode.ToUpper(wr[0]))+strings.ToLower(string(wr[1])), c, true)
+				x := string(unicode.ToUpper(wr[0])) + strings.ToLower(string(wr[1]))
+				rec(i+1, s+x, n+2, cost+c, used+1, drops, true, runes(s)+1, t)
 			}
 		}
 		if t.drop >= 0 {
-			rec(i+1, s, n, cost+t.drop, used, drops, xused, last)
+			rec(i+1, s, n, cost+t.drop, used, drops, xused, xpos, last)
 		} else if canDrop && drops < 2 && t.kind != kSlash {
-			rec(i+1, s, n, cost+120, used, drops+1, xused, last)
+			rec(i+1, s, n, cost+120, used, drops+1, xused, xpos, last)
 		}
 	}
-	rec(0, "", 0, 0, 0, 0, false, nil)
+	rec(0, "", 0, 0, 0, 0, false, -1, nil)
 	return res
 }
 
@@ -336,47 +355,12 @@ func (d *deriver) candidates(p *parsed, sibling bool) []candidate {
 		subBonus = -160
 	}
 	for si, sub := range p.subs {
-		var sds strings.Builder
-		sl := 0
-		for _, d := range sub.desig {
-			sds.WriteString(d.text)
-			sl += d.letters
-		}
-		var rs []rendering
-		for _, r := range render(sub.toks, 4) {
-			if r.s != "" && r.used > 0 {
-				rs = append(rs, r)
-			}
-		}
-		sort.SliceStable(rs, func(i, j int) bool {
-			if rs[i].cost != rs[j].cost {
-				return rs[i].cost < rs[j].cost
-			}
-			return runes(rs[i].s) < runes(rs[j].s)
-		})
-		type pick struct {
-			s    string
-			cost int
-		}
-		var picked []pick
-		seenS := map[string]bool{}
-		for _, r := range rs {
-			// shortest first: the cheaper forms of one rendering
-			for _, cand := range []string{prefix(r.s, 1), prefix(r.s, 2), r.s} {
-				if cand != "" && !seenS[key(cand)] {
-					seenS[key(cand)] = true
-					picked = append(picked, pick{cand, r.cost + 20*(runes(cand)-1)})
-				}
-			}
-		}
-		if len(picked) > 6 {
-			picked = picked[:6]
-		}
+		picked, sds, sl := subPicks(sub)
 		for _, h := range top {
 			for _, sp := range picked {
 				total := runes(h.s) + runes(sp.s) + dl + sl
-				pen := lenPenalty(total, hd || sds.Len() > 0)
-				cs.add(h.s+sp.s+ds+sds.String(), h.cost+sp.cost+100+20*si+subBonus+pen*7/10, "sub")
+				pen := lenPenalty(total, hd || sds != "")
+				cs.add(h.s+sp.s+ds+sds, h.cost+sp.cost+100+20*si+subBonus+pen*7/10, "sub")
 			}
 		}
 	}
@@ -421,6 +405,62 @@ func (d *deriver) candidates(p *parsed, sibling bool) []candidate {
 		out = append(out, *cs.best[k])
 	}
 	sortCandidates(out)
+	return out
+}
+
+type subPick struct {
+	s    string
+	cost int
+}
+
+// subPicks are the letters a subtitle adds to a form, cheapest first (at most six: its
+// first letter, its first two, its initials …), with the subtitle's designator and the
+// letters that designator counts.
+func subPicks(sub subtitle) (picked []subPick, desig string, desigLetters int) {
+	var sds strings.Builder
+	for _, d := range sub.desig {
+		sds.WriteString(d.text)
+		desigLetters += d.letters
+	}
+	var rs []rendering
+	for _, r := range render(sub.toks, 4) {
+		if r.s != "" && r.used > 0 {
+			rs = append(rs, r)
+		}
+	}
+	sort.SliceStable(rs, func(i, j int) bool {
+		if rs[i].cost != rs[j].cost {
+			return rs[i].cost < rs[j].cost
+		}
+		return runes(rs[i].s) < runes(rs[j].s)
+	})
+	seen := map[string]bool{}
+	for _, r := range rs {
+		// shortest first: the cheaper forms of one rendering
+		for _, cand := range []string{prefix(r.s, 1), prefix(r.s, 2), r.s} {
+			if cand != "" && !seen[key(cand)] {
+				seen[key(cand)] = true
+				picked = append(picked, subPick{cand, r.cost + 20*(runes(cand)-1)})
+			}
+		}
+	}
+	if len(picked) > 6 {
+		picked = picked[:6]
+	}
+	return picked, sds.String(), desigLetters
+}
+
+// subtitleForms are what the subtitles add to an override's form for a sibling, in order:
+// „Allgemeine Betriebswirtschaftslehre III: Investition und Finanzierung“ → I, IF ….
+func subtitleForms(p *parsed) []subPick {
+	var out []subPick
+	for si, sub := range p.subs {
+		picked, sds, _ := subPicks(sub)
+		for _, sp := range picked {
+			out = append(out, subPick{sp.s + sds, sp.cost + 20*si})
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].cost < out[j].cost })
 	return out
 }
 

@@ -254,11 +254,42 @@ func (p *parser) tokenize(seg string, desig *[]designator) []token {
 						tk.partsAlt = alt.String()
 					}
 				}
+				if tk.parts == "" && tk.known == "" {
+					tk.parts = camelParts(x)
+				}
 				toks = append(toks, tk)
 			}
 		}
 	}
 	return toks
+}
+
+// camelParts are the initials of a word written in parts (CampusTV → CTV, eBusiness → EB,
+// ProTrack → PT); a part in capitals stays whole. "" for a word of one part.
+func camelParts(w string) string {
+	rs := []rune(w)
+	var b strings.Builder
+	start, pieces := 0, 0
+	flush := func(end int) {
+		piece := string(rs[start:end])
+		if isUpper(piece) {
+			b.WriteString(piece)
+		} else {
+			b.WriteString(firstUpper(piece))
+		}
+		pieces++
+	}
+	for i := 1; i < len(rs); i++ {
+		if unicode.IsLower(rs[i-1]) && unicode.IsUpper(rs[i]) {
+			flush(i)
+			start = i
+		}
+	}
+	flush(len(rs))
+	if pieces < 2 {
+		return ""
+	}
+	return b.String()
 }
 
 func (p *parser) slashUnit(pieces []string) bool {
@@ -315,7 +346,8 @@ type parsed struct {
 	parenAcr     []string
 	desigStr     string
 	desigLetters int
-	headKey      string
+	headKey      string // the head's words and the designator: siblings share it
+	seriesKey    string // the head's words: Systemtheorie I and II share it, Steuerungstechnik not
 }
 
 type parser struct {
@@ -406,7 +438,8 @@ func parseTitle(title string, sp *splitter) *parsed {
 	for i, tk := range p.head {
 		words[i] = strings.ToLower(tk.text)
 	}
-	p.headKey = strings.Join(words, " ") + "\x00" + strings.ToLower(p.desigStr)
+	p.seriesKey = strings.Join(words, " ")
+	p.headKey = p.seriesKey + "\x00" + strings.ToLower(p.desigStr)
 	return p
 }
 

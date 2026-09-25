@@ -72,8 +72,20 @@ var curatedHeads = set("rechnung", "lehre", "banken", "bank", "kunde", "wesen", 
 	"ökonomik", "forschung", "projekt", "seminar", "labor", "arbeit", "sprache", "sprachen", "kurs",
 	// frequent first parts
 	"makro", "echtzeit", "fach", "ober", "haupt", "neben", "grund", "daten", "kriminal", "kodierung",
-	// tails (Produktions|automatisierung → PA)
-	"automatisierung", "umwandlung", "übertragung")
+	// tails (Produktions|automatisierung → PA, Betriebs|festigkeit → BF, Material|auswahl)
+	"automatisierung", "umwandlung", "übertragung", "pflege", "festigkeit", "wasserbau", "auswahl")
+
+// openHeads end so many compounds that the part before them need not be a word the
+// vocabulary knows: Deponie|technik → DT, Mehrgrößen|regelung → MR, Pflicht|praktikum → PP.
+// Only where no other split exists, only after four letters or more with a vowel, and not
+// after a prefix that belongs to the head (Umsatz|be|steuerung is Umsatz|besteuerung).
+var openHeads = set("technik", "systeme", "system", "theorie", "praktikum", "netze", "planung", "führung",
+	"gestaltung", "entwicklung", "verarbeitung", "analyse", "mechanik", "dynamik", "statik", "chemie", "physik",
+	"biologie", "elemente", "maschinen", "anlagen", "prozesse", "verfahren", "messung", "methoden", "modelle",
+	"modellierung", "simulation", "steuerung", "regelung", "versorgung", "konstruktion", "geschichte",
+	"pädagogik", "didaktik", "psychologie", "soziologie", "politik", "ökonomie", "ökonomik", "forschung",
+	"projekt", "seminar", "labor", "automatisierung", "umwandlung", "übertragung", "pflege", "festigkeit",
+	"wasserbau", "auswahl")
 
 // noPart is never a compound part on its own.
 var noPart = set("trans", "inter", "multi", "poly", "mono", "para", "meta", "proto", "super", "ultra", "sozio",
@@ -169,11 +181,23 @@ func newSplitter(vocab map[string]bool) *splitter {
 
 var vowels = set("a", "e", "i", "o", "u", "y", "ä", "ö", "ü")
 
+func hasVowel(part []rune) bool {
+	for _, r := range part {
+		if vowels[string(r)] {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *splitter) onsetOK(part []rune) bool {
 	return vowels[string(part[0])] || vowels[string(part[1])] || onsetOK[string(part[:2])]
 }
 
 var fugenS = regexp.MustCompile(`(ung|heit|keit|schaft|ion|tät|ling|tum)s$`)
+
+// reBoundPrefix: a part that ends in an unstressed verb prefix, which belongs to what follows.
+var reBoundPrefix = regexp.MustCompile(`(be|ge|ver|ent|zer)$`)
 
 // quality of a compound part, in tenths: 0 = not a part, 20 = a vocabulary word,
 // 15 = a word with a linking element, 10 = by rule.
@@ -263,6 +287,17 @@ func (s *splitter) split(word string) []string {
 				if q3 := q(j2, n); q3 != 0 {
 					consider(q1+q2+q3-48, n-j2, j1, j2)
 				}
+			}
+		}
+	}
+	if best == nil {
+		// no split of known parts: an unknown part before an open head (Deponie|technik), at 0.5
+		for j1 := 4; j1 <= n-4; j1++ {
+			pre := r[:j1]
+			if openHeads[string(r[j1:])] && s.onsetOK(pre) && hasVowel(pre) && !noPart[string(pre)] && !boundBlock[string(pre)] &&
+				!reBoundPrefix.MatchString(string(pre)) {
+				consider(5+20-32, n-j1, j1)
+				break
 			}
 		}
 	}

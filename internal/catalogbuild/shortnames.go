@@ -1,6 +1,7 @@
 package catalogbuild
 
 import (
+	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
@@ -107,6 +108,25 @@ func campusLabel(room string) string {
 	return room[i+3:]
 }
 
+// readAbbreviations reads the (program, module) abbreviations of the build before, which the
+// build is about to replace, so that it can count what moved.
+func readAbbreviations(tx *sql.Tx) (map[[2]string]string, error) {
+	rows, err := tx.Query("SELECT program_id, module_id, abbrev FROM program_module_abbrev")
+	if err != nil {
+		return nil, fmt.Errorf("previous abbreviations: %w", err)
+	}
+	defer rows.Close()
+	out := map[[2]string]string{}
+	for rows.Next() {
+		var pid, mid, a string
+		if err := rows.Scan(&pid, &mid, &a); err != nil {
+			return nil, err
+		}
+		out[[2]string{pid, mid}] = a
+	}
+	return out, rows.Err()
+}
+
 // writeAbbreviations derives the abbreviation of every module and of every module of every
 // program (package abbrev). It reads module and program_module, so it runs after them.
 func (b *builder) writeAbbreviations() error {
@@ -122,6 +142,15 @@ func (b *builder) writeAbbreviations() error {
 	b.report.AbbrevOverridesUnused = res.UnusedOverrides
 	b.report.AbbrevFellBack = res.FellBack
 	b.report.AbbrevTwins = res.Twins
+	// The churn: a new title anywhere can move forms in other programs (the splitter learns
+	// from every title), so build.finished says how many pairs moved.
+	for pid, choices := range res.Programs {
+		for id, c := range choices {
+			if prev, ok := b.previousAbbrevs[[2]string{pid, id}]; ok && prev != c.Abbrev {
+				b.report.AbbrevChanged++
+			}
+		}
+	}
 
 	ids := make([]string, 0, len(res.Defaults))
 	for id := range res.Defaults {

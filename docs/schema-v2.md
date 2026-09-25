@@ -471,47 +471,77 @@ is 9 characters, against 52 for the full string. `internal/normalize/testdata/ro
 
 **Modules** (package `internal/abbrev`, `module_abbrev`, `program_module_abbrev`). Every title gets
 a ranked list of candidates with a cost: word initials, the initials of compound parts
-(Betriebs|systeme → BS; the splitter learns its words from the catalog's own titles), a known form
-(BWL, SW in SWP), function letters (Algorithmieren und Programmieren → AuP), a generic opening or a
+(Betriebs|systeme → BS; the splitter learns its words from the catalog's own titles, and before a
+head that ends many compounds it also takes a part it does not know: Deponie|technik → DT,
+Mehrgrößen|regelung → MR), the parts of a word written in parts (CampusTV → CTV), a known form (BWL,
+SW in SWP), function letters (Algorithmieren und Programmieren → AuP), a generic opening or a
 trailing phrase left out (Elektrische und elektronische Grundlagen der Informatik → EEG), the first
 letters of one word, an acronym the title states for itself („(GIS)“), subtitle forms and longer
 forms. Three characters are the sweet spot; a series number is appended (BS1, MIT1, DaF-B1.1). A
-curated file, `internal/abbrev/overrides.tsv`, gives the owner's two examples and a few well-known
-forms (BA, MA, DB, ABWL n, BS n, OOP, and three a module's own page uses) as a first candidate, not
-as a promise.
+lowercase letter between two capitals reads as a function word, as the u of AuP does, so a word's
+second letter in that place costs 0.5 more: Numerische Mathematik is NMa, not NuM, and Effiziente
+Algorithmen EAl, not EfA next to SfA „Statistik für Anwender“ (open question M1 in
+`docs/data-sources.md` §11).
+
+Never derived: a form on `internal/abbrev/blocked.tsv` (SS, SA, NS, KZ, KKK, NPD, AfD, THC, NSA,
+IBM, PO …: a public timetable must not show them next to a lecture) and the capitals of the
+buildings of short room names (ZHG, HG, HS, LG, VG, ZB, SFB, SD …: a week grid shows a module and
+its room side by side), also with a series number or language level (SS1, SS-A1), unless the title
+has the form as a word of its own. A curated file, `internal/abbrev/overrides.tsv`, gives the
+owner's two examples and a few well-known forms (BA, MA, DB, ABWL n, BS n, OOP, and three a module's
+own page uses) as a first candidate. It beats every derived candidate, whatever the tier, and the
+form of an owner or common line is reserved in the whole catalog: no module of another head derives
+AuP or MA (Datenbanken I may have DB1, Medienanalyse may not have MA). Where two lines' forms meet in
+a program, tier and priority decide; siblings with one line are told apart by their subtitle
+(Allgemeine Betriebswirtschaftslehre III: Investition … / Beschaffung … → ABWL3I / ABWL3B). The file
+is read strictly: five columns at most, a program id of the form `079-82-2008`, no pattern twice.
 
 Within a program, over all modules its students may select (curriculum, electives and FÜS), every
-abbreviation is unique, compared without case. A candidate that two modules want goes to neither,
-and both fall back (Grundzüge der Makro-/Mikroökonomik → GMa / GMi) — the owner's rule, with guards:
-compulsory modules, the thesis and internships keep a contested form against other curricular
+abbreviation is unique, compared without case and without the & and - a reader passes over (B&B
+and BB are one form). So is its stem, the form without its series number or language level: ST for
+Steuerungstechnik next to ST1 and ST2 for Systemtheorie I and II reads as one series, so two
+different heads never share a stem, while a series (Systemtheorie I, II) keeps its own. A candidate
+or stem that two modules want goes to neither, and both fall back (Grundzüge der
+Makro-/Mikroökonomik → GMa / GMi) — the owner's rule, with guards: an override line beats a derived
+form; compulsory modules, the thesis and internships keep a contested form against other curricular
 modules and those against FÜS; an earlier choice beats a fallback; FÜS against FÜS, a far next choice
 or near-identical candidate lists are settled by priority (tier, plan semester, module number).
 Siblings — one head, different subtitles — are told apart by the subtitle (Dynamik der Kraftfahrzeuge
 - Längs-/Querdynamik → DKL / DKQ). Identical titles get `-b`, `-c` (two „Häusliche Gewalt“ of Soziale
-Arbeit: HäG, HäG-b). `module_abbrev` holds the form without a program for every module. The result
-depends only on the catalog: a new module can move the form of another module of the same program,
-never of another program.
+Arbeit: HäG, HäG-b). `module_abbrev` holds the form without a program for every module.
+
+The result depends only on the catalog, never on the order it is read in, but not only on the
+program: a new module can move the forms of its own program, and a new title anywhere can move forms
+in every program, because the compound splitter and its mined heads learn from all titles (before
+the open heads, one added title „Wechselstrom und Gleichstrom“ turned Wechselstromtechnik from Wec
+into WT in 12 programs). The owner accepted that; `build.finished` counts the pairs whose form moved
+since the build before as `abbrev_changed`.
 
 On the data of 2026-09-23: 4,936 modules and 28,424 (program, module) pairs in 182 programs, no
-duplicate; 72.5 % of the pairs have exactly three characters and 94.3 % at most four; 97.9 % got
-their first choice (mean 3.5 fallbacks per program); 94.8 % of the modules have the same form in
-every program they are in, and 96.7 % of the pairs the module's default. AuP and EEG hold in 109 of
-their 110 program pairs; in Umweltwissenschaften Bachelor 2025 (G29-82-2025) the internship
-„Außeruniversitäres Praktikum“ keeps AuP and Algorithmieren und Programmieren falls back to AlP. The snapshot grows by
-1.7 MB. `internal/abbrev/testdata/gate` holds the forms of four programs and every default; with
-`RADIX_ABBREV_GATE=<snapshot>` the test prints what a rule change moves.
+duplicate, no blocked form, no stem two heads share; 71.2 % of the pairs have exactly three
+characters and 94.2 % at most four; 97.5 % got their first choice (mean 4.2 fallbacks per program);
+93.8 % of the modules have the same form in every program they are in, and 96.3 % of the pairs the
+module's default. AuP and EEG hold in all 110 of their program pairs; in Umweltwissenschaften
+Bachelor 2025 (G29-82-2025) the internship „Außeruniversitäres Praktikum“ no longer takes AuP. The
+snapshot grows by 1.7 MB. `internal/abbrev/testdata/gate` holds the forms of four programs and every
+default; with `RADIX_ABBREV_GATE=<snapshot>` the test prints what a rule change moves, and fails on a
+blocked form or a stem two heads of a program share.
 
 `validate` fails when an event date with a room has no short form, a short form names two rooms, a
-module or a program's module has no abbreviation, a program has one twice, or one is not 2 to 10
-characters without spaces; two baselines (4,800 modules with an abbreviation, 18,000 three-character
-pairs) catch a derivation that silently degrades. A database migrated to schema 9 but not built
-again fails the first of these, so it is never exported: after the release, an instance that does
-not crawl (`RADIX_CRAWL=off`) needs `radix build`, then `validate` and `export`, by hand. The build
-warns with `build.rooms_unknown_building` (an event room names a building the table lacks),
-`build.room_short_collisions` (two rooms would share a form and keep their long form) and
-`build.abbrev_overrides_unused` (a module-number line of the override file names no module); each
-wants a line in the table or the file. `build.finished` counts `abbrev_fell_back` and
-`abbrev_twins`.
+module or a program's module has no abbreviation, a program has one twice (without case, & and -),
+a derived one is blocked (`abbrev.Blocked`, the list the derivation reads), or one is not 2 to 10
+characters without spaces; two baselines (4,800 modules with an abbreviation; at least 60 % of the
+pairs with exactly three characters — a share, because 17,829 of the pairs are FÜS pairs and a
+shorter FÜS list is no fault) catch a derivation that silently degrades. A database migrated to
+schema 9 but not built again fails the first of these, so it is never exported: after the release,
+an instance that does not crawl (`RADIX_CRAWL=off`) needs `radix build`, then `validate` and
+`export` (`docs/operations.md`; `deploy/vps/50-app.sh` builds a seeded volume before its first
+export). The build warns with `build.rooms_unknown_building` (an event room names a building the
+table lacks), `build.room_short_collisions` (two rooms would share a form and keep their long form)
+and `build.abbrev_overrides_unused` (a line of the override file applies to no module: a module
+number the catalog lacks, a program without that module, a pattern that matches nothing an earlier
+line does not take); each wants a line in the table or the file. `build.finished` counts
+`abbrev_fell_back`, `abbrev_twins` and `abbrev_changed`.
 
 Open:
 

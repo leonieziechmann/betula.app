@@ -1,5 +1,5 @@
-# 021-82-2024: the abbreviations of the design's reference implementation (2026-09-25). module<TAB>abbrev<TAB>title
-# Corrected: 14885 IPBM and 14901 IPMM (the reference gave IPBSM, IPMSM). Its possessive rule held a backspace character where a word boundary was meant, so it never dropped „'s“ (design §2.2, change 3).
+# 021-82-2024: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts.
 11101	LAAG1	Lineare Algebra und analytische Geometrie I
 11109	MW1	Mathematik W-1
 11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
@@ -11,17 +11,17 @@
 11343	BA	Bachelor-Arbeit
 11377	HoA	History of Architecture
 11525	Sta	Statik - Stabtragwerke
-11672	AdV	Atelier de VisioFutura: Auf dem Weg zum Lebensraum von Morgen
+11672	AVF	Atelier de VisioFutura: Auf dem Weg zum Lebensraum von Morgen
 11675	EPW	Einführung in die Produktionswirtschaft
 11679	EiL	Einführung in die Logistik
 11692	MuK	Medien- und Kultursemiotik
-11694	VoT	Vorgespannte Tragwerke
-11796	BuE	Business English
+11694	VTr	Vorgespannte Tragwerke
+11796	BEn	Business English
 11799	PmV	Programmierung mit VBA
 11812	EEF	Energieeffiziente Fahrzeuge
 11828	KSM	Kolben- und Strömungsmaschinen
 11851	Dar	Darstellung
-11913	TuM	Turbulence Modeling
+11913	TMo	Turbulence Modeling
 11914	PMO	Programmieren in MATLAB/Octave
 11915	GdW	Grundlagen der Werkstoffe
 11917	MW3	Mathematik W-3 (Statistik)
@@ -48,7 +48,7 @@
 12225	SVR	Staats- und Verwaltungsrecht
 12226	UR	Umweltrecht
 12229	ABWL2	Allgemeine Betriebswirtschaftslehre II: Buchführung und Handelsbilanzierung
-12230	Ber	Berufsfeldpraktikum
+12230	BP	Berufsfeldpraktikum
 12231	GM	Gründungsmanagement
 12246	IM	Innovationsmanagement
 12247	GSR	Grundlagen Steuerrecht
@@ -88,10 +88,10 @@
 13588	PS-A1	Polnisch Start A1
 13655	UDK	Un/Disciplining Knowledge: Technology, Science, and Society in Transformation
 13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
-13666	ViV	Visualisierung, Vertiefung
+13666	VVe	Visualisierung, Vertiefung
 13671	RAT	Reaktions- und Anlagentechnik
 13674	KG1	Kunstgeschichte 1
-13676	Den	Denkmalpflege
+13676	DP	Denkmalpflege
 13681	BMG	Bildkünste Moderne und Gegenwart
 13682	GuT	Geschichte und Theorie von Stadt, Raum und Landschaft
 13707	KDF	Kulturwissenschaftliche Digitalisierungsforschung
@@ -132,8 +132,8 @@
 14011	EAP	English for Academic Purposes
 14024	KRE	Klimaschutzrecht und das Recht der Energiewende
 14036	SPLS	Scientific Presentation in Life Sciences
-14039	MaS	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
-14042	SeM	Seminar Mitarbeiterführung
+14039	MSe	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
+14042	SMF	Seminar Mitarbeiterführung
 14054	IMDA	Immunological Methods and Data Analysis
 14080	SIE	Seminar Innovation und Entrepreneurship
 14095	EE	Energiemanagement/Energieeffizienz
@@ -146,7 +146,7 @@
 14509	LMG	Logisch-mathematische Grundlagen der Medien- und Kulturwissenschaft
 14719	OpM	Operations Management
 14720	TIM	Technology and Innovation Management
-14721	CoF	Corporate Finance
+14721	CFi	Corporate Finance
 14725	IHSTD	Industrial Heating Systems and their Defossilization
 14727	SCC	Studieren mit ChatGPT & Co
 14811	DPT	Demokratische Praxis in Transformationsgesellschaften
@@ -156,12 +156,12 @@
 14871	FGP	Fundraising im Gründungsprozess
 14885	IPBM	EUNICE Individual Pathway Bachelor's Module
 14891	PSE	Projektseminar Entrepreneurship
-14898	Cam	CampusTV: Uni-Reportage
+14898	CTV	CampusTV: Uni-Reportage
 14901	IPMM	EUNICE Individual Pathway Master's Module
-14998	CoB	Conservation Biology
+14998	CBi	Conservation Biology
 15003	PSDS	Privacy, Surveillance, and Digital Society
 15013	ItT	Introduction to Toxicology - How Our Everyday Chemicals Are Regulated
-15014	WKLS	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
+15014	WKE	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
 15023	It-A1	Italian A1 for Student Life, Job and Daily Life
 15026	SR	Schulrecht
 15028	AMR	Arzt- und Medizinrecht
@@ -190,13 +190,13 @@
 37103	Soz	Soziologie
 37202	KW	Kulturwissenschaften: Konzepte und Anwendungen
 37406	FFH	Fundraising and Finance for Heritage
-38308	MaM	Marketing-Management
+38308	MMa	Marketing-Management
 38311	Co1	Controlling I
 38323	EWP	Einführung in die Wettbewerbs- und Preistheorie
 38402	MF	Marktforschung
 38502	UF	Unternehmensführung
 41103	Bio	Biologie
-43503	Dep	Deponietechnik
+43503	DT	Deponietechnik
 43504	BVBA	Biologische Verfahren der Biomasse- und Abfallbehandlung
 44203	GP	Grenzflächenphänomene
 44204	EBT	Environmental Biotechnologies

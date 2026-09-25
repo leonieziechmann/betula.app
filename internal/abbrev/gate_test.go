@@ -13,15 +13,15 @@ import (
 )
 
 // TestGate derives every abbreviation of a real catalog and compares it with the forms the
-// design's reference implementation gave on 2026-09-25 (testdata/gate): Informatik B.Sc.,
-// Maschinenbau B.Sc. 2021, Betriebswirtschaftslehre B.A. 2024, Soziale Arbeit B.A. 2020 and
-// the default of every module. It runs only with a snapshot, so that every rule change shows
-// what it moves:
+// rules gave on 2026-09-25 (testdata/gate): Informatik B.Sc., Maschinenbau B.Sc. 2021,
+// Betriebswirtschaftslehre B.A. 2024, Soziale Arbeit B.A. 2020 and the default of every
+// module. It runs only with a snapshot, so that every rule change shows what it moves:
 //
 //	RADIX_ABBREV_GATE=/path/to/catalog-<hash>.db go test ./internal/abbrev -run TestGate -v
 //
-// The reference files are the forms of the snapshot catalog-abca4baa1d8f8d8e.db; a newer
-// catalog moves some of them by itself.
+// It also fails when a derived form is blocked or two heads of a program share a stem. The
+// files hold the forms of the snapshot catalog-abca4baa1d8f8d8e.db; a newer catalog moves
+// some of them by itself.
 func TestGate(t *testing.T) {
 	path := os.Getenv("RADIX_ABBREV_GATE")
 	if path == "" {
@@ -41,6 +41,33 @@ func TestGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	res := Derive(in.Modules, in.Members, in.Titles, overrides)
+
+	// No derived form of the real catalog is blocked, and no stem is shared by two heads of a
+	// program: the rules hold on real titles, not only on the examples above.
+	title := map[string]string{}
+	for _, m := range in.Modules {
+		title[m.ID] = m.Title
+	}
+	blockedIn := func(scope string, choices map[string]Choice) {
+		for id, c := range choices {
+			if why, b := Blocked(c.Abbrev, title[id]); b && !c.Override {
+				t.Errorf("%s %s %q → %s, blocked (%s)", scope, id, title[id], c.Abbrev, why)
+			}
+		}
+	}
+	blockedIn("default", res.Defaults)
+	d := &deriver{split: newSplitter(Vocabulary(in.Titles)), titles: title, parsed: map[string]*parsed{}}
+	for pid, choices := range res.Programs {
+		blockedIn(pid, choices)
+		heads := map[string]string{}
+		for id, c := range choices {
+			s, head := stemKey(c.Abbrev), d.parse(id).seriesKey
+			if other, ok := heads[s]; ok && other != head && !c.Twin {
+				t.Errorf("%s: %s (%s) shares its stem with %q", pid, c.Abbrev, title[id], other)
+			}
+			heads[s] = head
+		}
+	}
 
 	files, _ := filepath.Glob("testdata/gate/*.tsv")
 	sort.Strings(files)

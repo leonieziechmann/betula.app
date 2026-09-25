@@ -25,7 +25,10 @@ type Override struct {
 	Note     string
 }
 
-var reModuleID = regexp.MustCompile(`^\d{5}$`)
+var (
+	reModuleID  = regexp.MustCompile(`^\d{5}$`)
+	reProgramID = regexp.MustCompile(`^[0-9A-Z]{3}-[0-9A-Z]{2}-\d{4}$`) // 079-82-2008, G29-82-2025, 768-O8-2026
+)
 
 // Overrides returns the curated lines of the embedded overrides.tsv.
 func Overrides() ([]Override, error) { return ParseOverrides(overridesTSV) }
@@ -40,12 +43,15 @@ func ParseOverrides(text string) ([]Override, error) {
 			continue
 		}
 		cols := strings.Split(line, "\t")
-		if len(cols) < 4 {
-			return nil, fmt.Errorf("overrides line %d: want match, program, abbrev and source separated by tabs", i+1)
+		if len(cols) < 4 || len(cols) > 5 {
+			return nil, fmt.Errorf("overrides line %d: want match, program, abbrev, source and an optional note separated by tabs, not %d columns", i+1, len(cols))
 		}
 		o := Override{Line: i + 1, Program: cols[1], Abbrev: cols[2], Source: cols[3]}
 		if len(cols) > 4 {
 			o.Note = cols[4]
+		}
+		if o.Program != "" && !reProgramID.MatchString(o.Program) {
+			return nil, fmt.Errorf("overrides line %d: program %q is not a program id like 079-82-2008", i+1, o.Program)
 		}
 		switch match := cols[0]; {
 		case reModuleID.MatchString(match):
@@ -61,6 +67,11 @@ func ParseOverrides(text string) ([]Override, error) {
 				return nil, fmt.Errorf("overrides line %d: %w", i+1, err)
 			}
 			o.Pattern = rx
+			k := match + "\t" + o.Program
+			if prev, dup := seen[k]; dup {
+				return nil, fmt.Errorf("overrides line %d: pattern %s is already on line %d", i+1, match, prev)
+			}
+			seen[k] = i + 1
 		default:
 			return nil, fmt.Errorf("overrides line %d: match %q is neither a module number nor a /pattern/", i+1, match)
 		}

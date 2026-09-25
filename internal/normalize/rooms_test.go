@@ -164,3 +164,28 @@ func FuzzRoomShort(f *testing.F) {
 		}
 	})
 }
+
+// BuildingTokens are what a short room name opens with, in capitals; the room kinds that
+// follow a building (SR.4, AM.1, AT Name) are not among them.
+func TestBuildingTokens(t *testing.T) {
+	got := map[string]bool{}
+	for _, tok := range BuildingTokens() {
+		got[tok] = true
+	}
+	for _, want := range []string{"ZHG", "HG", "GHS", "MZG", "VG", "LG", "ZB", "IKMZ", "SFB", "SD"} {
+		if !got[want] {
+			t.Errorf("BuildingTokens lacks %s: %v", want, BuildingTokens())
+		}
+	}
+	for _, not := range []string{"SR", "AM", "AT", "Mensa"} { // HS is there: the building HS3
+		if got[not] {
+			t.Errorf("BuildingTokens has %s", not)
+		}
+	}
+	// every token a building gives is covered: its capitals are in the list
+	for building, token := range roomBuildings {
+		if m := roomTokenLetters.FindString(token); token != "" && m != "" && !got[m] {
+			t.Errorf("%s (%s) is not covered", building, token)
+		}
+	}
+}

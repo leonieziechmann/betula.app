@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/leonieziechmann/betula/internal/abbrev"
 	"github.com/leonieziechmann/betula/internal/oplog"
 )
 
@@ -60,10 +61,12 @@ var BTUBaselines = []Baseline{
 	{"programs with tree modules", "SELECT COUNT(*) FROM program_coverage WHERE tree_modules > 0", 170},
 	{"validated plans", "SELECT COUNT(*) FROM v_program_plan", 140},
 	{"Lehramt programs reached by module pages (P3)", "SELECT COUNT(DISTINCT program_id) FROM program_module pm JOIN program p ON p.id = pm.program_id WHERE p.degree_level = 'teaching_bachelor' AND pm.on_module_page = 1", 20},
-	// Measured 2026-09-25: 4,936 modules, 20,621 of 28,424 program pairs with three characters.
-	// A derivation that silently degrades (a broken splitter, lost overrides) drops below.
+	// Measured 2026-09-25: 4,936 modules, 71 % of 28,424 program pairs with three characters.
+	// A derivation that silently degrades (a broken splitter, lost overrides) drops below. A
+	// share, not a count: 17,829 of the pairs are FÜS pairs, and a shorter FÜS list is no fault.
 	{"modules with an abbreviation", "SELECT COUNT(*) FROM module_abbrev", 4800},
-	{"module abbreviations of exactly three characters", "SELECT COUNT(*) FROM program_module_abbrev WHERE LENGTH(abbrev) = 3", 18000},
+	{"module abbreviations of exactly three characters, % of the program pairs",
+		"SELECT COUNT(*) * 100 / MAX(1, (SELECT COUNT(*) FROM program_module_abbrev)) FROM program_module_abbrev WHERE LENGTH(abbrev) = 3", 60},
 }
 
 // Validate checks the invariants of a built database. It is read-only.
@@ -99,10 +102,13 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 	v.count("every module of a program has an abbreviation", StatusFail, `
 		SELECT COUNT(*) FROM program_module pm WHERE NOT EXISTS (SELECT 1 FROM program_module_abbrev a
 		 WHERE a.program_id = pm.program_id AND a.module_id = pm.module_id)`, "")
+	// unique without case and without the & and - a reader passes over (B&B is BB)
+	const abbrevKey = "REPLACE(REPLACE(abbrev, '&', ''), '-', '') COLLATE NOCASE"
 	v.count("abbreviations are unique within a program", StatusFail, `
-		SELECT COUNT(*) FROM (SELECT 1 FROM program_module_abbrev GROUP BY program_id, abbrev COLLATE NOCASE HAVING COUNT(*) > 1)`,
-		`SELECT program_id || ' ' || abbrev || ': ' || GROUP_CONCAT(module_id) FROM program_module_abbrev
-		 GROUP BY program_id, abbrev COLLATE NOCASE HAVING COUNT(*) > 1`)
+		SELECT COUNT(*) FROM (SELECT 1 FROM program_module_abbrev GROUP BY program_id, `+abbrevKey+` HAVING COUNT(*) > 1)`,
+		`SELECT program_id || ' ' || GROUP_CONCAT(abbrev) || ': ' || GROUP_CONCAT(module_id) FROM program_module_abbrev
+		 GROUP BY program_id, `+abbrevKey+` HAVING COUNT(*) > 1`)
+	v.blockedAbbreviations()
 	v.count("abbreviations are 2 to 10 characters without spaces", StatusFail, `
 		SELECT (SELECT COUNT(*) FROM module_abbrev WHERE LENGTH(abbrev) NOT BETWEEN 2 AND 10 OR abbrev LIKE '% %')
 		     + (SELECT COUNT(*) FROM program_module_abbrev WHERE LENGTH(abbrev) NOT BETWEEN 2 AND 10 OR abbrev LIKE '% %')`, "")
@@ -226,6 +232,49 @@ func (v *validator) count(name, severity, query, sampleQuery string) {
 		if sampleQuery != "" {
 			c.Samples = v.samples(sampleQuery)
 		}
+	}
+	v.checks = append(v.checks, c)
+}
+
+// blockedAbbreviations fails on a derived abbreviation that abbrev.Blocked refuses (KKK, SS,
+// a building of short room names …): the same list the derivation reads. An override line may
+// name a blocked form on purpose, so is_override = 1 rows are left out.
+func (v *validator) blockedAbbreviations() {
+	const name = "no derived abbreviation is on the blocked list"
+	if v.err != nil {
+		return
+	}
+	rows, err := v.db.QueryContext(v.ctx, `
+		SELECT '', a.module_id, a.abbrev, m.title FROM module_abbrev a JOIN module m ON m.id = a.module_id WHERE a.is_override = 0
+		UNION ALL
+		SELECT a.program_id, a.module_id, a.abbrev, m.title FROM program_module_abbrev a JOIN module m ON m.id = a.module_id
+		WHERE a.is_override = 0
+		ORDER BY 1, 2`)
+	if err != nil {
+		v.err = fmt.Errorf("check %q: %w", name, err)
+		return
+	}
+	defer rows.Close()
+	c := Check{Name: name, Status: StatusOK}
+	for rows.Next() {
+		var program, module, form, title string
+		if err := rows.Scan(&program, &module, &form, &title); err != nil {
+			v.err = fmt.Errorf("check %q: %w", name, err)
+			return
+		}
+		if why, blocked := abbrev.Blocked(form, title); blocked {
+			c.Value++
+			if len(c.Samples) < 8 {
+				c.Samples = append(c.Samples, strings.TrimSpace(program+" "+module+" "+form+" ("+why+")"))
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		v.err = fmt.Errorf("check %q: %w", name, err)
+		return
+	}
+	if c.Value > 0 {
+		c.Status = StatusFail
 	}
 	v.checks = append(v.checks, c)
 }

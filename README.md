@@ -53,7 +53,7 @@ go test ./...                          # network-free, no API key needed
 | `internal/crawl`, `internal/qistree` | polite archiving; QIS program tree walker |
 | `internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |
 | `internal/catalogbuild`, `internal/normalize`, `internal/parser` | raw pages → canonical tables; rule-based normalization (room short forms included); HTML parsers |
-| `internal/abbrev` | module abbreviations (AuP, EEG), unique within a program, derived by every build; the curated `overrides.tsv` |
+| `internal/abbrev` | module abbreviations (AuP, EEG), unique within a program, derived by every build; the curated `overrides.tsv` and the `blocked.tsv` of forms never derived |
 | `internal/gemini`, `internal/curriculumscan`, `internal/statutes`, `internal/planaudit` | study plans from regulation PDFs, with audit trail |
 | `internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
 | `internal/oplog`, `internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |

@@ -264,7 +264,7 @@ Program, degree, PO version, regulation documents.
 | Sources | **None states them.** Rooms: S3's room text, and for the building tokens the legend of BTU's campus plan of the Zentralcampus (`20211119_Campusplan_Zentralcampus_Legende.pdf` on `www-docs.b-tu.de`, linked from https://www.b-tu.de/campusplan/zentralcampus-cottbus), which prints HG, LG 1A, VG 1C, LB 4B, FZ 3E, IKMZ, MZG …; QIS itself prints a few (`HG 0.16`, `ZB VI.01`, `LH 3D`). Modules: a search of every source on 2026-09-25 found no abbreviation field — none in the QIS module description or table, none on the module pages, none in the event numbers or titles. 23 modules use an acronym on their own page or in their events (IR, PuI 1, ERP, CCS, GIS …); 16 of them are what the rules derive anyway. |
 | Code path | `normalize.RoomShort` → `event_date.room_short`; `internal/abbrev` → `module_abbrev`, `program_module_abbrev`. Both in `build`, from the canonical tables, without a request. |
 | Rejected | **Plan position codes** (BP23, OM3, E3-B) and „Kurzbezeichnung" codes (D1.1, KA 3.1) that Fakultät 4 and 6 print: they name a slot of one program's plan, not a module, depend on the program and the PO, and the event titles write them inconsistently. They could become a `plan_code` of their own later. **Program area abbreviations as reserved words:** only 11 of 28,424 pairs coincide with an area abbreviation of their program. |
-| Authority | **Derived** (`docs/schema-v2.md`, „Short names"). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's examples, a few common forms and three that a module's own page uses (IR, PuI, OOP) as a first candidate; within a program the resolution still decides. A room building that the table lacks keeps its QIS name, and the build warns. |
+| Authority | **Derived** (`docs/schema-v2.md`, „Short names"). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's examples, a few common forms and three that a module's own page uses (IR, PuI, OOP) as a first candidate that beats every derived one; between two lines in a program the resolution decides. `internal/abbrev/blocked.tsv` lists forms that are never derived (SS, KKK, PO …). A room building that the table lacks keeps its QIS name, and the build warns. |
 | Provenance | Rebuilt by every build; never stored by a consumer. `program_module_abbrev.is_override`, `choice` and `is_twin` say how a form came about. |
 
 ## 6. Spot-check log
@@ -481,7 +481,7 @@ Open, with the default the build uses until the owner decides:
 | R6 | Invented tokens PRH, SH1 and bare outdoor places (`Fakultätsgarten`)? | as listed |
 | R7 | Senftenberg rooms lose their description (`SFB 1.210`, not the Skills Lab's name)? | drop it; the full name stays in the tooltip |
 | R8 | Sports hall fields as `SFB 9.151 F2`? | `F2` |
-| M1 | Two-word titles with three characters (`ThI`, `EfA`) or two initials (`TI`, `EA`)? | three; `TI` and the like can be overrides |
+| M1 | Two-word titles with three characters (`ThI`, `EAl`, `NMa`) or two initials (`TI`, `EA`, `NM`)? A word's second letter between two capitals reads as a function word, as the u of AuP does (`EfA` next to `SfA` „Statistik für Anwender“), so the rules widen the last word instead (review, 2026-09-25) | three, without a function-looking letter; `TI` and the like can be overrides |
 | M2 | The displayed title (English for English-taught modules: `ERTS`) or always the German one? | the displayed title |
 | M3 | Identical titles in one program: `HäG` / `HäG-b`? | `-b`, `-c` |
 | M4 | A contested form goes to neither module (`GMa` / `GMi`) or first come, first served? | neither |
@@ -490,3 +490,5 @@ Open, with the default the build uses until the owner decides:
 | M7 | Which other forms are well known (TI, SE …)? | only those in `overrides.tsv` |
 | M8 | The program-free form on catalog cards and on a module page without a program? | yes |
 | M9 | Plan position codes (BP23, OM3) as a `plan_code` of their own? | not now |
+| M10 | The blocked forms (`internal/abbrev/blocked.tsv`): SA is blocked for the Nazi SA, but it is the common form of „Studienarbeit“ (5 modules, now `Stu`), and SS of „Steuerungssysteme“ (now `Ste`). An override line may bring a blocked form back. | blocked; no override |
+| M11 | Room kinds as module forms: SR („Schulrecht“, 141 pairs) next to `ZHG SR.4`, AT (Analogtechnik, Architekturtheorie …) next to the ateliers `ZB2CD AT Oestreich M`? They always follow a building token, so only the buildings (and HS, the building HS3) are blocked. | allowed |

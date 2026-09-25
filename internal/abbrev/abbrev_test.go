@@ -127,14 +127,18 @@ func TestParseOverrides(t *testing.T) {
 		t.Fatalf("ParseOverrides = %+v, %v", o, err)
 	}
 	for _, bad := range []string{
-		"12101\t\tA\towner",                      // too short
-		"12101\t\tAu P\towner",                   // a space
-		"12101\t\tABCDEFGHIJK\towner",            // too long
-		"12101\t\tAuP\tsomeone",                  // unknown source
-		"/[/\t\tAuP\towner",                      // bad pattern
-		"Algorithmieren\t\tAuP\towner",           // neither number nor pattern
-		"12101\t\tAuP\towner\n12101\t\tAP\tpage", // twice for every program
-		"12101\tAuP\towner",                      // a column missing
+		"12101\t\tA\towner",                         // too short
+		"12101\t\tAu P\towner",                      // a space
+		"12101\t\tABCDEFGHIJK\towner",               // too long
+		"12101\t\tAuP\tsomeone",                     // unknown source
+		"/[/\t\tAuP\towner",                         // bad pattern
+		"Algorithmieren\t\tAuP\towner",              // neither number nor pattern
+		"12101\t\tAuP\towner\n12101\t\tAP\tpage",    // twice for every program
+		"12101\tAuP\towner",                         // a column missing
+		"12101\t\tAuP\towner\tnote\textra",          // a column too many
+		"12101\t079-82-2008 \tAuP\towner",           // a program with a trailing space
+		"12101\tnot-a-program\tAuP\towner",          // no program id
+		"/^Foo/\t\tFo\tcommon\n/^Foo/\t\tFoo\tpage", // one pattern twice
 	} {
 		if _, err := ParseOverrides(bad); err == nil {
 			t.Errorf("ParseOverrides(%q) accepted it", bad)
@@ -148,14 +152,56 @@ func TestParseOverrides(t *testing.T) {
 
 // A program-limited line applies in its program only.
 func TestProgramOverride(t *testing.T) {
-	overrides, err := ParseOverrides("12101\tq\tALP\towner")
+	const p, q = "P01-82-2026", "Q01-82-2026"
+	overrides, err := ParseOverrides("12101\t" + q + "\tALP\towner")
 	if err != nil {
 		t.Fatal(err)
 	}
 	modules := []Module{{"12101", "Algorithmieren und Programmieren"}}
-	res := Derive(modules, []Member{{"p", "12101", 0, 1}, {"q", "12101", 0, 1}}, vocabulary, overrides)
-	if res.Defaults["12101"].Abbrev != "AuP" || res.Programs["p"]["12101"].Abbrev != "AuP" || res.Programs["q"]["12101"].Abbrev != "ALP" {
-		t.Errorf("default %v, p %v, q %v", res.Defaults["12101"], res.Programs["p"]["12101"], res.Programs["q"]["12101"])
+	res := Derive(modules, []Member{{p, "12101", 0, 1}, {q, "12101", 0, 1}}, vocabulary, overrides)
+	if res.Defaults["12101"].Abbrev != "AuP" || res.Programs[p]["12101"].Abbrev != "AuP" || res.Programs[q]["12101"].Abbrev != "ALP" {
+		t.Errorf("default %v, p %v, q %v", res.Defaults["12101"], res.Programs[p]["12101"], res.Programs[q]["12101"])
+	}
+	// A program's own line that comes out longer than 10 characters with the designator is
+	// no candidate: the module keeps its derived form.
+	overrides, err = ParseOverrides("11104\t" + q + "\tABCDEFGHIJ{n}\towner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res = Derive([]Module{{"11104", "Analysis II"}}, []Member{{q, "11104", 0, 1}}, vocabulary, overrides)
+	if got := res.Programs[q]["11104"]; got.Abbrev != "An2" || got.Override {
+		t.Errorf("an overlong program line → %+v, want the derived An2", got)
+	}
+}
+
+// Lines that apply to no module are reported: a module the catalog lacks, a program without
+// the module, a pattern that matches nothing, and one that an earlier pattern shadows.
+func TestUnusedOverrides(t *testing.T) {
+	overrides, err := ParseOverrides(strings.Join([]string{
+		"12101\t\tAuP\towner",
+		"12101\tQ01-82-2026\tALP\towner",
+		"99999\t\tXY\tcommon",
+		"/^Nichts$/\t\tNi\tcommon",
+		"/^Algorithmieren/\t\tAlg\tcommon",
+		"/^Algorithmieren und/\t\tAuP2\tcommon",
+	}, "\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := Derive([]Module{{"12101", "Algorithmieren und Programmieren"}}, []Member{{"P01-82-2026", "12101", 0, 1}}, vocabulary, overrides)
+	got := strings.Join(res.UnusedOverrides, "\n")
+	for _, want := range []string{
+		"line 2: 12101 in Q01-82-2026 → ALP (the program has no such module)",
+		"line 3: 99999 → XY (names no module)",
+		"line 4: /^Nichts$/ → Ni (matches no module an earlier line does not take)",
+		"line 6: /^Algorithmieren und/ → AuP2 (matches no module an earlier line does not take)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("unused overrides lack %q:\n%s", want, got)
+		}
+	}
+	if len(res.UnusedOverrides) != 4 {
+		t.Errorf("unused overrides:\n%s", got)
 	}
 }
 
@@ -270,5 +316,146 @@ func TestAnExhaustedListGetsALetter(t *testing.T) {
 	got := d.contrast([]entry{{"1", 0, 1}, {"2", 0, 1}}, [][]candidate{one, one})
 	if got["1"].Abbrev != "XY" || got["2"].Abbrev != "XY-b" || got["2"].Choice != 2 {
 		t.Errorf("exhausted → %+v", got)
+	}
+}
+
+func TestTheBlockedFile(t *testing.T) {
+	m, err := parseBlocked(blockedTSV)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"SS", "SA", "NS", "KZ", "KKK", "NPD", "AfD", "THC", "NSA", "IBM", "BBC", "PO"} {
+		if _, ok := m[strings.ToUpper(f)]; !ok {
+			t.Errorf("%s is not on blocked.tsv", f)
+		}
+	}
+	for _, bad := range []string{"SS", "SS\treason\textra", "S\ttoo short", "SS1\ta designator", "SS\tx\nss\ttwice"} {
+		if _, err := parseBlocked(bad); err == nil {
+			t.Errorf("parseBlocked(%q) accepted it", bad)
+		}
+	}
+}
+
+func TestStem(t *testing.T) {
+	for form, want := range map[string]string{
+		"ST1": "ST", "ST": "ST", "SS-A1": "SS", "DaF-B1.1": "DaF", "DaF-A1-A2": "DaF", "MIT1": "MIT",
+		"KT1.1": "KT", "HäG-b": "HäG-b", "12": "12", "3D": "3D", "B&B": "B&B",
+	} {
+		if got := Stem(form); got != want {
+			t.Errorf("Stem(%q) = %q, want %q", form, got, want)
+		}
+	}
+}
+
+func TestBlocked(t *testing.T) {
+	for _, c := range []struct {
+		form, title string
+		blocked     bool
+	}{
+		{"KKK", "Krisen, Konflikte und Kommunikation", true},
+		{"SS1", "Studienbezogene Schlüsselkompetenzen I", true},
+		{"ss-A1", "Spanisch Start A1", true},
+		{"Meth", "Methods", true},
+		{"HG", "Hydrogeology", true}, // the Hauptgebäude of short room names
+		{"ZHG", "Zukunft Hochschule Gestalten", true},
+		{"SFB", "Sonderforschungsbereich", true},
+		{"IBM", "IBM Watson in der Praxis", false}, // the title's own word
+		{"NS", "Die NS-Zeit in der Lausitz", false},
+		{"Po-A2", "Portugiesisch A2", true},
+		{"SAP", "SAP-Grundlagen", false},
+		{"AuP", "Algorithmieren und Programmieren", false},
+		{"SR", "Schulrecht", false}, // room kinds follow a building: ZHG SR.4
+	} {
+		if _, got := Blocked(c.form, c.title); got != c.blocked {
+			t.Errorf("Blocked(%q, %q) = %v", c.form, c.title, got)
+		}
+	}
+	// derived forms fall back; an override may name a blocked form on purpose
+	for title, blocked := range map[string]string{
+		"Krisen, Konflikte und Kommunikation": "KKK",
+		"Steuerungssysteme":                   "SS",
+		"Nachrichtensysteme":                  "NS",
+		"Hydrogeology":                        "HG",
+	} {
+		if got := defaultOf(t, nil, title); Stem(got) == blocked {
+			t.Errorf("%q → %q, a blocked form", title, got)
+		}
+	}
+	overrides, _ := ParseOverrides("/^Studienarbeit$/\t\tSA\tcommon")
+	if got := defaultOf(t, overrides, "Studienarbeit"); got != "SA" {
+		t.Errorf("an override line for SA → %q", got)
+	}
+}
+
+// ST for Steuerungstechnik next to ST1 and ST2 for Systemtheorie I and II reads as one series:
+// the stem is contested like a form. A series keeps one stem.
+func TestStemsWithinAProgram(t *testing.T) {
+	_, got := deriveTitles(t, nil, "1 Steuerungstechnik", "2 Systemtheorie I", "3 Systemtheorie II")
+	if Stem(got["1"]) == Stem(got["2"]) || Stem(got["1"]) == Stem(got["3"]) {
+		t.Errorf("Steuerungstechnik %q, Systemtheorie I %q, II %q share a stem", got["1"], got["2"], got["3"])
+	}
+	if Stem(got["2"]) != Stem(got["3"]) {
+		t.Errorf("Systemtheorie I %q and II %q are one series", got["2"], got["3"])
+	}
+	// the stem contest follows the tiers: a FÜS module gives way
+	_, got = deriveTitles(t, nil, "1 Physikalisches Praktikum I", "2 Physikalisches Praktikum II", "F3 Programmierpraktikum")
+	if got["1"] != "PP1" || got["2"] != "PP2" || Stem(got["F3"]) == "PP" {
+		t.Errorf("PP1 / PP2 / Programmierpraktikum → %v", got)
+	}
+}
+
+// B&B and BB read as one form.
+func TestNearDuplicates(t *testing.T) {
+	d := &deriver{parsed: map[string]*parsed{"1": {title: "Biomass and Bioenergy", seriesKey: "a"}, "2": {title: "Brückenbau", seriesKey: "b"}}}
+	got := d.contrast([]entry{{"1", 1, 1}, {"2", 1, 1}}, [][]candidate{{{text: "B&B"}, {text: "BiB", cost: 80}}, {{text: "BB"}, {text: "Brü", cost: 80}}})
+	if got["1"].Abbrev != "BiB" || got["2"].Abbrev != "Brü" {
+		t.Errorf("B&B / BB → %+v", got)
+	}
+}
+
+// An override line beats a derived form, whatever the tier, and the forms of the owner's and
+// the common lines are reserved: no other title derives AuP.
+func TestOverridesComeFirst(t *testing.T) {
+	overrides, err := Overrides()
+	if err != nil {
+		t.Fatal(err)
+	}
+	modules := []Module{{"12101", "Algorithmieren und Programmieren"}, {"14330", "Außeruniversitäres Praktikum"}, {"14331", "Algorithmieren und Programmieren II"}}
+	res := Derive(modules, []Member{{"G29-82-2025", "14330", 0, 1}, {"G29-82-2025", "12101", 1, 2}}, vocabulary, overrides)
+	if got := res.Programs["G29-82-2025"]; got["12101"].Abbrev != "AuP" || got["14330"].Abbrev == "AuP" {
+		t.Errorf("the internship against the owner's AuP → %+v", got)
+	}
+	if got := res.Defaults["14330"].Abbrev; got == "AuP" {
+		t.Errorf("Außeruniversitäres Praktikum derives the reserved AuP")
+	}
+	if got := res.Defaults["14331"].Abbrev; got != "AuP2" {
+		t.Errorf("Algorithmieren und Programmieren II → %q, want AuP2 (one head)", got)
+	}
+	// siblings with one override line are told apart by their subtitle
+	_, got := deriveTitles(t, overrides,
+		"1 Allgemeine Betriebswirtschaftslehre III: Investition und Finanzierung",
+		"E2 Allgemeine Betriebswirtschaftslehre III: Beschaffung, Produktion und Absatz",
+		"3 Allgemeine Betriebswirtschaftslehre II: Betriebliche Sachfunktionen")
+	if got["1"] != "ABWL3I" || got["E2"] != "ABWL3B" || got["3"] != "ABWL2" {
+		t.Errorf("ABWL siblings → %v", got)
+	}
+}
+
+func TestFunctionLettersAndCompounds(t *testing.T) {
+	for title, want := range map[string]string{
+		// a first-two-letters form must not read as a function word between capitals
+		"Numerische Mathematik":  "NMa", // not NuM
+		"Effiziente Algorithmen": "EAl", // not EfA, next to SfA „Statistik für Anwender“
+		"Corporate Finance":      "CFi",
+		"Statistik für Anwender": "SfA", // a real function word keeps its letter
+		// an unknown part before an open head, and words written in parts
+		"Deponietechnik":    "DT",
+		"Umsatzbesteuerung": "Ums", // not Umsatzbe|steuerung
+		"CampusTV":          "CTV",
+		"eBusiness":         "EB",
+	} {
+		if got := defaultOf(t, nil, title); got != want {
+			t.Errorf("%q → %q, want %q", title, got, want)
+		}
 	}
 }

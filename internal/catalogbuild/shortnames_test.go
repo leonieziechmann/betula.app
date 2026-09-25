@@ -67,8 +67,8 @@ func TestRoomsThatWouldShareAShortFormKeepTheirLongForm(t *testing.T) {
 // The owner's example comes out of the build: „Algorithmieren und Programmieren“ is AuP.
 func TestModulesGetAnAbbreviation(t *testing.T) {
 	db, _ := buildFixture(t)
-	want(t, db, `SELECT id, abbrev FROM v_module ORDER BY id`,
-		"11101|LiA", "11152|ERP", "11881|FDM", "12999|BA", "13000|VeM", "14037|NFL")
+	want(t, db, `SELECT id, abbrev FROM v_module ORDER BY id`, // LAl: LiA would read as „L in A“
+		"11101|LAl", "11152|ERP", "11881|FDM", "12999|BA", "13000|VeM", "14037|NFL")
 	want(t, db, `SELECT COUNT(*) FROM v_program_module WHERE abbrev IS NULL`, "0")
 
 	// A new module of Informatik B.Sc.: the list names it, and its page assigns it.
@@ -94,13 +94,29 @@ func TestModulesGetAnAbbreviation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The owner's AuP is 12101's; 12102 would derive it too, but the form is reserved for
+	// the title the override line names, so AlP is its first candidate.
 	want(t, db, `SELECT module_id, abbrev FROM v_program_module WHERE program_id = '079-82-2008' AND module_id IN ('12101', '12102') ORDER BY 1`,
-		"12101|AuP", "12102|AlP") // the override keeps AuP for 12101; 12102 falls back
+		"12101|AuP", "12102|AlP")
 	want(t, db, `SELECT module_id, is_override, choice, is_twin FROM program_module_abbrev WHERE module_id IN ('12101', '12102') ORDER BY 1`,
-		"12101|1|1|0", "12102|0|2|0")
+		"12101|1|1|0", "12102|0|1|0")
 	want(t, db, `SELECT COUNT(*) FROM (SELECT 1 FROM program_module_abbrev GROUP BY program_id, abbrev COLLATE NOCASE HAVING COUNT(*) > 1)`, "0")
-	if report.AbbrevFellBack != 1 || strings.Contains(strings.Join(report.AbbrevOverridesUnused, " "), "12101") {
+	if report.AbbrevFellBack != 0 || strings.Contains(strings.Join(report.AbbrevOverridesUnused, " "), "12101") {
 		t.Errorf("fell back %d, unused overrides %v", report.AbbrevFellBack, report.AbbrevOverridesUnused)
+	}
+	if report.AbbrevChanged != 0 {
+		t.Errorf("%d pairs changed; new modules are no change", report.AbbrevChanged)
+	}
+
+	// build.finished counts the pairs whose form moved since the build before.
+	if _, err := db.SQL().Exec("UPDATE program_module_abbrev SET abbrev = 'Zz' WHERE module_id = '12101'"); err != nil {
+		t.Fatal(err)
+	}
+	if report, err = Build(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	if report.AbbrevChanged != 1 {
+		t.Errorf("%d pairs changed, want 1", report.AbbrevChanged)
 	}
 }
 
@@ -113,6 +129,12 @@ func TestValidateWantsShortNames(t *testing.T) {
 		"DELETE FROM module_abbrev WHERE module_id = '11101'",
 		"DELETE FROM program_module_abbrev WHERE module_id = '11881'",
 		"UPDATE module_abbrev SET abbrev = 'E R P' WHERE module_id = '11152'",
+		"UPDATE module_abbrev SET abbrev = 'KKK', is_override = 0 WHERE module_id = '11881'",
+		// two modules of one program: N-FL and NFL
+		`UPDATE program_module_abbrev SET abbrev = 'N-FL' WHERE (program_id, module_id) = (SELECT program_id, MIN(module_id)
+		 FROM program_module_abbrev GROUP BY program_id HAVING COUNT(*) > 1 ORDER BY program_id LIMIT 1)`,
+		`UPDATE program_module_abbrev SET abbrev = 'NFL' WHERE (program_id, module_id) = (SELECT program_id, MAX(module_id)
+		 FROM program_module_abbrev GROUP BY program_id HAVING COUNT(*) > 1 ORDER BY program_id LIMIT 1)`,
 	} {
 		if _, err := db.SQL().Exec(stmt); err != nil {
 			t.Fatal(err)
@@ -133,6 +155,8 @@ func TestValidateWantsShortNames(t *testing.T) {
 		"every module has an abbreviation",
 		"every module of a program has an abbreviation",
 		"abbreviations are 2 to 10 characters without spaces",
+		"no derived abbreviation is on the blocked list",
+		"abbreviations are unique within a program", // N-FL and NFL read as one
 	} {
 		if !failed[name] {
 			t.Errorf("expected check %q to fail; failed = %v", name, failed)

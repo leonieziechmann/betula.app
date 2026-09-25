@@ -10,10 +10,13 @@
 #          common = in common use at German universities
 # note     free text
 #
-# A line is the module's first candidate, not a promise: where another module of a program
-# contests it, the module falls back to its derived candidates (owner, 2026-09-25: „dann machen
-# wir die meta eben neu“). A module number that names no module is logged by the build
-# (build.abbrev_overrides_unused).
+# A line is the module's first candidate, not a promise: it beats every derived candidate, but
+# where another line's form contests it in a program, tier and priority decide, and the loser
+# falls back to its derived candidates (owner, 2026-09-25: „dann machen wir die meta eben neu“).
+# The form of an owner or common line is reserved in the whole catalog: no module of another
+# head derives it (no other AuP, no MA but a master's thesis). A line that applies to no module
+# (a module number the catalog lacks, a program without that module, a pattern that matches
+# nothing an earlier line does not take) is logged by the build (build.abbrev_overrides_unused).
 #
 # match	program	abbrev	source	note
 12101		AuP	owner	Algorithmieren und Programmieren
