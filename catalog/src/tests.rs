@@ -952,6 +952,8 @@ fn page_loaders_return_everything_a_page_shows() {
 
     let overview = pages::overview(&db).unwrap();
     assert!(overview.current_semester.is_some() && overview.modules > 0 && overview.programs > 0);
+    let ground = pages::ground(&db).unwrap();
+    assert_eq!((&ground.meta, &ground.current_semester), (&overview.meta, &overview.current_semester));
 
     let url = CatalogUrl::parse(&format!("program={INFORMATIK_BSC}&list=fues"));
     let catalog = pages::catalog(&db, &url).unwrap();
