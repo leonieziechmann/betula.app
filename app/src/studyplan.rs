@@ -174,9 +174,9 @@ impl PlanHint {
 /// semester whose half of the year the module is offered in; the current one.
 ///
 /// The placeholder wins over the finder's semester: a module planned for a placeholder fills it
-/// (`fills=<pid>`, A.7), which means something only in the placeholder's own semester. The two
-/// differ once the finder's switch was turned off and on again (it then checks the current
-/// semester) while `fill` stayed in the address.
+/// (`fills=<pid>`, A.7), which means something only in the placeholder's own semester. The
+/// finder's switch checks that semester too, also when it is turned off and on again while `fill`
+/// stays in the address; the two differ only in an address written by hand.
 pub fn target_semester(current: SemesterKey, newest: Option<SemesterKey>, turnus: Option<TurnusSeason>, hint: Option<&PlanHint>, doc: &PlanDoc) -> SemesterKey {
     if let Some(hint) = hint {
         let filled = hint.fill.and_then(|pid| doc.placeholders.iter().find(|p| p.pid == pid)).map(|p| p.semester);

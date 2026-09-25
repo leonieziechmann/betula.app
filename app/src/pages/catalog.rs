@@ -20,6 +20,7 @@ use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData, CatalogSumm
 use catalog::plan::SemesterPlan;
 use catalog::queries;
 use catalog::rows::{CatalogRow, Department, Program};
+use catalog::studyplan::PlanDoc;
 use catalog::timetable::fit::{CandidateSet, UNKNOWN_NOTE};
 use catalog::timetable::select::Selection;
 use catalog::timetable::semester::SemesterKey;
@@ -353,6 +354,9 @@ struct Fitted {
 struct FitView {
     /// By module id, as the finder words them.
     notes: BTreeMap<String, String>,
+    /// The modules whose note says why they could not be checked (`FitResult::unknown`): a quiet
+    /// note, where a partial fit's warns.
+    quiet: BTreeSet<String>,
     /// The modules checked that do not clash.
     fitting: BTreeSet<String>,
     /// „keine Termine im WiSe 2026/27": with „auch ohne Termine", what a listed module that was
@@ -364,11 +368,14 @@ struct FitView {
 
 impl FitView {
     /// The note at a module's row, and whether it is a quiet one (not checked, rather than
-    /// fitting only in part).
-    fn note_of(&self, id: &str) -> Option<(String, bool)> {
+    /// fitting only in part). `no_termine`: the row says „noch keine Termine" itself, so a note
+    /// that would only say the same again („keine festen Termine", „keine Termine im WiSe
+    /// 2026/27") is left out (owner, 2026-09-23: „Viel Redundanz").
+    fn note_of(&self, id: &str, no_termine: bool) -> Option<(String, bool)> {
         match self.notes.get(id) {
-            Some(note) => Some((note.clone(), note.starts_with(UNKNOWN_NOTE))),
-            None => self.undated_note.clone().filter(|_| !self.fitting.contains(id)).map(|note| (note, true)),
+            Some(note) if no_termine && note.starts_with(UNKNOWN_NOTE) => None,
+            Some(note) => Some((note.clone(), self.quiet.contains(id))),
+            None => self.undated_note.clone().filter(|_| !no_termine && !self.fitting.contains(id)).map(|note| (note, true)),
         }
     }
 }
@@ -444,6 +451,7 @@ fn fitted(mut query: CatalogQuery, filter: &FitsFilter, result: Option<&FitResul
     query.fits_ids = Some(if !result.has_data || filter.undated { FitIds::Without(result.excluded.clone()) } else { FitIds::Only(result.fitting.clone()) });
     let view = FitView {
         notes: result.notes.clone(),
+        quiet: result.unknown.clone(),
         fitting: result.fitting.iter().cloned().collect(),
         undated_note: (result.has_data && filter.undated).then(|| format!("keine Termine im {label}")),
         line: (!result.has_data).then(|| format!("{label}: noch keine Termine veröffentlicht.")),
@@ -454,6 +462,14 @@ fn fitted(mut query: CatalogQuery, filter: &FitsFilter, result: Option<&FitResul
 /// „WiSe 2026/27" for `2026W`; a key that is none as it stands.
 fn semester_label(key: &str) -> String {
     SemesterKey::parse(key).map(SemesterKey::label).unwrap_or_else(|| key.to_string())
+}
+
+/// The semester „Passt in meinen Plan" checks against once it is switched on: that of the
+/// placeholder the list is looked through for (`fill`), while the plan holds it, else the current
+/// one. So the switch turned off and on again checks the semester „Einplanen" then plans into
+/// (`studyplan::target_semester`), not another one.
+fn finder_semester(doc: &PlanDoc, fill: Option<u32>, current: SemesterKey) -> SemesterKey {
+    fill.and_then(|pid| doc.placeholders.iter().find(|placeholder| placeholder.pid == pid)).map_or(current, |placeholder| placeholder.semester)
 }
 
 /// What to leave out when nothing fits: the classes compared besides the lectures, which have to
@@ -688,13 +704,22 @@ fn List(
         next.query.fits = None;
         next.path()
     };
+    // An empty list with the finder on is the finder's doing only when the rest of the filter
+    // holds modules (a search for nothing is not helped by comparing fewer classes): one count,
+    // asked only then.
+    let finder_emptied = APP
+        && total == 0
+        && q.fits.is_some()
+        && use_source()
+            .and_then(|source| source.run(|db| queries::catalog_count(db, &CatalogQuery { fits: None, fits_ids: None, ..data.effective.clone() })))
+            .is_ok_and(|count| count > 0);
     let states = view! {
         {unknown_program.then(|| view! {
             <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
         })}
         {(total == 0 && !unknown_program).then(|| match (q.marked == Some(true), q.fits.as_ref(), APP) {
             // Nothing fits the plan: the classes that could be left out of the comparison.
-            (false, Some(fits), true) => view! {
+            (false, Some(fits), true) if finder_emptied => view! {
                 <div class="state">
                     <p class="state-title">{format!("Kein Modul passt in deinen Plan für {}", semester_label(&fits.semester))}</p>
                     <p>{fit_advice(fits)}</p>
@@ -909,13 +934,15 @@ const KEEP_PAGES: usize = 4;
 const ROW_DESKTOP: f32 = 58.0;
 const ROW_PHONE: f32 = 88.0;
 
-/// The row at the top of the screen: its place in the list, the module in it (where its page is
-/// loaded) and how far the list is scrolled into it.
+/// Where the visitor is in the list: the place of the row at the top of the screen, and the
+/// modules on screen from the top down (where their page is loaded), each with how far the list
+/// is scrolled past the top of its row (below zero for a row further down). A list that replaces
+/// this one keeps the first of them it still holds where it stood: the row at the top often
+/// leaves the list itself (planned with the finder on, it clashes with the module planned).
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Anchor {
     index: usize,
-    id: Option<String>,
-    into: f32,
+    rows: Vec<(String, f32)>,
 }
 
 /// The whole list, of which only what is on screen (and a little around it) is rendered: the
@@ -1040,9 +1067,14 @@ fn VirtualRows(
         let last_visible = index_at(offset + viewport);
         let range = (first_visible.saturating_sub(BUFFER), (last_visible + 1 + BUFFER).min(total));
         ensure_loaded(range.0, range.1);
-        let id = loaded.with_untracked(|loaded| loaded.get(&(first_visible / per_page + 1)).and_then(|rows| rows.get(first_visible % per_page)).map(|row| row.id.clone()));
-        let anchor = Anchor { index: first_visible, id, into: offset - offset_of(first_visible) };
-        top_row.try_update_value(|top| *top = Some(anchor));
+        let (guess, mut top) = (estimate(), offset_of(first_visible));
+        let mut rows = Vec::new();
+        for index in first_visible..=last_visible.min(total.saturating_sub(1)) {
+            let id = loaded.with_untracked(|loaded| loaded.get(&(index / per_page + 1)).and_then(|rows| rows.get(index % per_page)).map(|row| row.id.clone()));
+            rows.extend(id.map(|id| (id, offset - top)));
+            top += heights.with_value(|heights| heights.get(index).copied().flatten()).unwrap_or(guess);
+        }
+        top_row.try_update_value(|anchor| *anchor = Some(Anchor { index: first_visible, rows }));
         if window.get_untracked() != range {
             window.set(range);
         }
@@ -1055,14 +1087,17 @@ fn VirtualRows(
 
     // The rendered rows are measured. A row that turns out to differ from what it was taken for
     // moves everything below it; where that is above the visible part, the list scrolls by the
-    // difference and the visitor sees nothing move. `true` if any height changed.
+    // difference and the visitor sees nothing move. So do the rows above that were never
+    // rendered, all of them at once, when the average they are taken for changes with the new
+    // measurements: in a list that starts far down (a page of its own, one that replaces a list
+    // of the same filter) they are most of what lies above. `true` if any height changed.
     let alive_measure = alive.clone();
     let measure = move || -> bool {
         if !alive_measure.load(Ordering::Relaxed) {
             return false;
         }
         let Some((offset, _)) = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID) else { return false };
-        let estimate = estimate();
+        let (guess, first_visible) = (estimate(), index_at(offset));
         // (index, what it was taken for, what it is, whether it lies above the visible part)
         let mut changes: Vec<(usize, f32, f32, bool)> = Vec::new();
         for (index, height) in nav::measure_rows(VLIST_ID) {
@@ -1070,7 +1105,7 @@ fn VirtualRows(
             if known.is_some_and(|known| (known - height).abs() < 0.5) {
                 continue;
             }
-            let was = known.unwrap_or(estimate);
+            let was = known.unwrap_or(guess);
             changes.push((index, was, height, offset_of(index) + was <= offset + 0.5));
         }
         if changes.is_empty() {
@@ -1096,6 +1131,8 @@ fn VirtualRows(
                 shift += now - was;
             }
         }
+        let unmeasured = heights.with_value(|heights| heights.iter().take(first_visible).filter(|height| height.is_none()).count());
+        shift += unmeasured as f32 * (estimate() - guess);
         if shift.abs() >= 0.5 {
             nav::scroll_list_by(ROWS_ID, shift);
         }
@@ -1144,9 +1181,8 @@ fn VirtualRows(
         // A list that replaces another (a filter changed) starts at the top: the panel is the
         // element the list before scrolled, and where that stood would be taken for this list's
         // page. Before anything measures: the frame after the render already follows the scroll.
-        // One of the same filter (the plan or the marks changed what it holds) keeps the row the
-        // one before had at the top where it stood, or where that module left the list, the row
-        // that took its place; so the visitor stays where they were.
+        // One of the same filter (the plan or the marks changed what it holds) keeps the first row
+        // on screen that is still in it where it stood, so the visitor stays where they were.
         if !fresh && stay.is_none() {
             nav::scroll_list_to_start(ROWS_ID);
         }
@@ -1155,12 +1191,18 @@ fn VirtualRows(
             let index = source.run(|db| catalog::queries::catalog_position(db, &start_query, id)).ok().flatten()?;
             Some(usize::try_from(index).unwrap_or(0).min(total.saturating_sub(1)))
         };
+        // A row of the page the list starts with, the one the address names: where the top of
+        // the screen was. Found there without asking the catalog, which ranks the whole list for
+        // each module it is asked about.
+        let loaded_at = |id: &str| loaded.with_untracked(|loaded| loaded.get(&start_page).and_then(|rows| rows.iter().position(|row| row.id == id))).map(|at| (start_page - 1) * per_page + at);
         // The row to scroll to, and how far into it.
         let target = match (&stay, reveal.as_deref().and_then(position)) {
-            (Some(anchor), _) => match anchor.id.as_deref().and_then(position) {
-                Some(index) => Some((index, anchor.into)),
-                None => (total > 0).then(|| (anchor.index.min(total - 1), 0.0)),
-            },
+            (Some(anchor), _) => anchor
+                .rows
+                .iter()
+                .find_map(|(id, into)| loaded_at(id).map(|index| (index, *into)))
+                .or_else(|| anchor.rows.iter().take(3).find_map(|(id, into)| position(id).map(|index| (index, *into))))
+                .or_else(|| (total > 0).then(|| (anchor.index.min(total - 1), 0.0))),
             (None, Some(index)) => Some((index, 0.0)),
             (None, None) if start_page > 1 => Some(((start_page - 1) * per_page, 0.0)),
             (None, None) => None,
@@ -1272,7 +1314,7 @@ pub(crate) fn Row(
     // von 3 frei") or could not be checked. One memo a row (R5); the catalog's list alone has it.
     let fit_note = finder.map(|finder| {
         let id = row.id.clone();
-        Memo::new(move |_| finder.view.with(|view| view.note_of(&id)))
+        Memo::new(move |_| finder.view.with(|view| view.note_of(&id, !has_events)))
     });
     let fit_note = move || fit_note.and_then(|note| note.get()).map(|(text, quiet)| view! { <span class="flag fit-note" class:neutral=quiet>{text}</span> });
     view! {
@@ -1424,6 +1466,7 @@ enum Tri {
 
 type ReadTri = dyn Fn(&CatalogQuery) -> Tri + Send + Sync;
 type WriteTri = dyn Fn(&mut CatalogQuery, Tri) + Send + Sync;
+type Held = dyn Fn(&CatalogQuery) -> bool + Send + Sync;
 
 /// How a chip reads its state from the filter and writes it back.
 #[derive(Clone)]
@@ -1432,11 +1475,14 @@ struct Toggle {
     write: Arc<WriteTri>,
     /// Off → with → without → off. Otherwise only off ↔ with.
     excludes: bool,
+    /// When the filter is such that the chip has to stay as it is (the last class the finder
+    /// compares), and why: it is no link then.
+    held: Option<(Arc<Held>, &'static str)>,
 }
 
 impl Toggle {
     fn new(read: impl Fn(&CatalogQuery) -> Tri + Send + Sync + 'static, write: impl Fn(&mut CatalogQuery, Tri) + Send + Sync + 'static) -> Self {
-        Self { read: Arc::new(read), write: Arc::new(write), excludes: true }
+        Self { read: Arc::new(read), write: Arc::new(write), excludes: true, held: None }
     }
 
     /// A value that is wanted when in the first list and unwanted when in the second.
@@ -1515,27 +1561,40 @@ fn Chip(
     /// What the chip means, where its label says it short.
     #[prop(optional)]
     title: Option<&'static str>,
+    /// A chip of „Passt in meinen Plan", which only the browser app can act on: part of the
+    /// server's page all the same, kept in its place but not shown until the app runs (`.fit-chip`,
+    /// R9, R15), so the filters below it do not move at the takeover.
+    #[prop(optional)]
+    finder: bool,
 ) -> impl IntoView {
     let read = toggle.read.clone();
     let state = Memo::new(move |_| query.with(|q| read(q)));
     let excludes = toggle.excludes;
-    // The link reads the filter itself and not `state`. A closure that reads a memo derived from
-    // `query` before `query` misses a change of `query` whenever the derived value stays the
-    // same (reactive_graph 0.2.14 does not mark the observer that made a memo recompute, and the
-    // derived memo then reports „unchanged"). That was the first toggle of the panel losing the
-    // rest of the filter. Rule (docs/frontend.md, R16): in one closure read the source, not a
-    // memo derived from it and the source.
+    let why = toggle.held.as_ref().map(|(_, why)| *why);
+    let held_by = toggle.held.clone();
+    let held = Memo::new(move |_| held_by.as_ref().is_some_and(|(held, _)| query.with(|q| held(q))));
+    // The link reads the filter itself and not `state` or `held`. A closure that reads a memo
+    // derived from `query` before `query` misses a change of `query` whenever the derived value
+    // stays the same (reactive_graph 0.2.14 does not mark the observer that made a memo
+    // recompute, and the derived memo then reports „unchanged"). That was the first toggle of the
+    // panel losing the rest of the filter. Rule (docs/frontend.md, R16): in one closure read the
+    // source, not a memo derived from it and the source.
     let href = move || {
-        target(query, open, fill, |q| {
+        if toggle.held.as_ref().is_some_and(|(held, _)| query.with(|q| held(q))) {
+            return None;
+        }
+        Some(target(query, open, fill, |q| {
             let next = toggle.after((toggle.read)(q));
             (toggle.write)(q, next)
-        })
+        }))
     };
     let name = label.clone();
     view! {
         <a
             class="chip"
+            class:fit-chip=finder
             href=href
+            aria-disabled=move || held.get().then_some("true")
             role="checkbox"
             rel="nofollow"
             draggable="false"
@@ -1554,10 +1613,11 @@ fn Chip(
                 Tri::Without => format!("{name}: ausgeschlossen"),
                 _ => name.clone(),
             }
-            title=move || match (state.get(), excludes) {
-                (Tri::Off, true) => Some("Klick: nur mit · zweiter Klick: ohne"),
-                (Tri::With, true) => Some("Nur mit. Noch ein Klick schließt aus"),
-                (Tri::Without, _) => Some("Ausgeschlossen. Ein Klick hebt das auf"),
+            title=move || match (held.get(), state.get(), excludes) {
+                (true, _, _) => why,
+                (false, Tri::Off, true) => Some("Klick: nur mit · zweiter Klick: ohne"),
+                (false, Tri::With, true) => Some("Nur mit. Noch ein Klick schließt aus"),
+                (false, Tri::Without, _) => Some("Ausgeschlossen. Ein Klick hebt das auf"),
                 _ => title,
             }
         >
@@ -1956,31 +2016,41 @@ fn Filters(
         .into_any()
     };
 
-    // ---- „Passt in meinen Plan": the browser app's alone, as only it knows the plan (R9, R15).
-    // Switched on it checks against the snapshot's current semester; a placeholder's „Modul
-    // finden" brings the placeholder's own.
-    let current = if APP {
-        use_source().ok().and_then(|source| source.run(queries::meta).ok()).and_then(|meta| meta.current_semester).and_then(|key| SemesterKey::parse(&key))
-    } else {
-        None
-    };
+    // ---- „Passt in meinen Plan": only the browser app can act on it, as only it knows the plan.
+    // The server's page has its chips all the same, the same for everybody (the semester is the
+    // snapshot's), kept in their place but not shown until the app runs (R9, R15): the chip does
+    // not fit beside „Bestätigt", and the filters below would move at the takeover.
+    // Switched on it checks against the semester „Einplanen" would plan into: a placeholder's
+    // („Modul finden", `fill`) or the snapshot's current one.
+    let current = use_source().ok().and_then(|source| source.run(queries::meta).ok()).and_then(|meta| meta.current_semester).and_then(|key| SemesterKey::parse(&key));
+    let plan = Studyplan::expect().filter(|_| APP);
     let fits_on = Memo::new(move |_| query.with(|q| q.fits.is_some()));
     let finder_chip = current.map(|current| {
+        // `fill` and the plan are sources of their own (R16): neither is derived from the other.
+        let aim = move || plan.map_or(current, |plan| {
+            let fill = fill.get();
+            plan.with(|doc| finder_semester(doc, fill, current))
+        });
         let toggle = Toggle {
             excludes: false,
             ..Toggle::new(
                 |q| if q.fits.is_some() { Tri::With } else { Tri::Off },
-                move |q, state| q.fits = (state == Tri::With).then(|| FitsFilter::all(&current.key())),
+                move |q, state| q.fits = (state == Tri::With).then(|| FitsFilter::all(&aim().key())),
             )
         };
-        let checked = Signal::derive(move || query.with(|q| q.fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester))).unwrap_or(current).short());
+        let checked = Signal::derive(move || query.with(|q| q.fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester))).unwrap_or_else(aim).short());
         // No icon: the chip needs the width for the semester it names.
-        view! { <Chip query open fill toggle label="Passt in meinen Plan" icon=None small=checked/> }
+        view! { <Chip query open fill toggle label="Passt in meinen Plan" icon=None small=checked finder=true/> }
     });
-    // While it is on: which classes it compares (all by default), and whether modules without a
+    // While it is on: which classes it compares (all by default, and one at least: comparing
+    // none would list every module of the semester as fitting), and whether modules without a
     // dated row in the semester, which cannot be checked, are listed too (not by default).
-    let class = |get: fn(&FitsFilter) -> bool, set: fn(&mut FitsFilter, bool)| Toggle {
+    let class = |get: fn(&FitsFilter) -> bool, set: fn(&mut FitsFilter, bool), compared: bool| Toggle {
         excludes: false,
+        held: compared.then(|| {
+            let last: Arc<Held> = Arc::new(move |q: &CatalogQuery| q.fits.as_ref().is_some_and(|fits| get(fits) && [fits.lectures, fits.exercises, fits.exams].into_iter().filter(|on| *on).count() == 1));
+            (last, "Mindestens eine Art wird verglichen")
+        }),
         ..Toggle::new(
             move |q| if q.fits.as_ref().is_some_and(get) { Tri::With } else { Tri::Off },
             move |q, state| {
@@ -1991,12 +2061,12 @@ fn Filters(
         )
     };
     let finder_options = move || {
-        (APP && fits_on.get()).then(|| view! {
-            <div class="chips">
-                <Chip query open fill toggle=class(|f| f.lectures, |f, on| f.lectures = on) label="Vorlesungen" icon=None/>
-                <Chip query open fill toggle=class(|f| f.exercises, |f, on| f.exercises = on) label="Übungen" icon=None title="Übungen, Seminare, Praktika, Projekte, Tutorien …"/>
-                <Chip query open fill toggle=class(|f| f.exams, |f, on| f.exams = on) label="Prüfungen" icon=None/>
-                <Chip query open fill toggle=class(|f| f.undated, |f, on| f.undated = on) label="auch ohne Termine" icon=None title="Auch Module ohne Termine in diesem Semester: sie lassen sich nicht prüfen"/>
+        fits_on.get().then(|| view! {
+            <div class="chips fit-chip">
+                <Chip query open fill toggle=class(|f| f.lectures, |f, on| f.lectures = on, true) label="Vorlesungen" icon=None/>
+                <Chip query open fill toggle=class(|f| f.exercises, |f, on| f.exercises = on, true) label="Übungen" icon=None title="Übungen, Seminare, Praktika, Projekte, Tutorien …"/>
+                <Chip query open fill toggle=class(|f| f.exams, |f, on| f.exams = on, true) label="Prüfungen" icon=None/>
+                <Chip query open fill toggle=class(|f| f.undated, |f, on| f.undated = on, false) label="auch ohne Termine" icon=None title="Auch Module ohne Termine in diesem Semester: sie lassen sich nicht prüfen"/>
             </div>
         })
     };
@@ -2225,13 +2295,19 @@ mod tests {
     }
 
     /// FS1 of Informatik against WiSe 2026/27, as `pages::fit` answers it: 12330 fits, 12101 has
-    /// rows without times, 13583 fits in part; 11103 clashes, 12104 is planned.
+    /// rows without times, 12974 only a retake, 13583 fits in part; 11103 clashes, 12104 is
+    /// planned.
     fn answer() -> FitResult {
         FitResult {
             has_data: true,
-            fitting: ids(&["12101", "12330", "13583"]),
+            fitting: ids(&["12101", "12330", "12974", "13583"]),
             excluded: ids(&["11103", "12104"]),
-            notes: BTreeMap::from([("12101".to_string(), "keine festen Termine".to_string()), ("13583".to_string(), "Übung 1 von 3 frei".to_string())]),
+            notes: BTreeMap::from([
+                ("12101".to_string(), "keine festen Termine".to_string()),
+                ("12974".to_string(), "nur Wiederholungsprüfung".to_string()),
+                ("13583".to_string(), "Übung 1 von 3 frei".to_string()),
+            ]),
+            unknown: BTreeSet::from(["12101".to_string(), "12974".to_string()]),
         }
     }
 
@@ -2253,19 +2329,26 @@ mod tests {
         // could not be checked.
         let filter = FitsFilter::all("2026W");
         let checked = fitted(switched_on(filter.clone()), &filter, Some(&answer()));
-        assert_eq!(checked.query.fits_ids, Some(FitIds::Only(ids(&["12101", "12330", "13583"]))));
+        assert_eq!(checked.query.fits_ids, Some(FitIds::Only(ids(&["12101", "12330", "12974", "13583"]))));
         assert_eq!(checked.query.text, "analysis");
-        assert_eq!(checked.view.note_of("13583"), Some(("Übung 1 von 3 frei".to_string(), false)));
-        assert_eq!(checked.view.note_of("12101"), Some(("keine festen Termine".to_string(), true)));
-        assert_eq!((checked.view.note_of("12330"), checked.view.note_of("11454"), checked.view.line), (None, None, None));
+        // A partial fit warns; what could not be checked, a retake alone included, is quiet.
+        assert_eq!(checked.view.note_of("13583", false), Some(("Übung 1 von 3 frei".to_string(), false)));
+        assert_eq!(checked.view.note_of("12101", false), Some(("keine festen Termine".to_string(), true)));
+        assert_eq!(checked.view.note_of("12974", false), Some(("nur Wiederholungsprüfung".to_string(), true)));
+        assert_eq!((checked.view.note_of("12330", false), checked.view.note_of("11454", false), checked.view.line.clone()), (None, None, None));
+        // A row that says „noch keine Termine" itself is not told „keine festen Termine" beside
+        // it; what else the finder found out it still is.
+        assert_eq!(checked.view.note_of("12101", true), None);
+        assert_eq!(checked.view.note_of("12974", true).map(|(note, _)| note).as_deref(), Some("nur Wiederholungsprüfung"));
 
         // „auch ohne Termine": every module but the clashing and the planned ones, and a module
-        // that could not be checked says why.
+        // that could not be checked says why — unless its row says so already.
         let undated = FitsFilter { undated: true, ..filter.clone() };
         let also = fitted(switched_on(undated.clone()), &undated, Some(&answer()));
         assert_eq!(also.query.fits_ids, Some(FitIds::Without(ids(&["11103", "12104"]))));
-        assert_eq!(also.view.note_of("11454"), Some(("keine Termine im WiSe 2026/27".to_string(), true)));
-        assert_eq!((also.view.note_of("12330"), also.view.note_of("13583").map(|(_, quiet)| quiet)), (None, Some(false)));
+        assert_eq!(also.view.note_of("13164", false), Some(("keine Termine im WiSe 2026/27".to_string(), true)));
+        assert_eq!(also.view.note_of("11454", true), None);
+        assert_eq!((also.view.note_of("12330", false), also.view.note_of("13583", false).map(|(_, quiet)| quiet)), (None, Some(false)));
 
         // A semester without dates is not checked: every module but the planned ones, one line
         // above the list, nothing at the rows.
@@ -2274,9 +2357,22 @@ mod tests {
         let open = fitted(switched_on(summer.clone()), &summer, Some(&unpublished));
         assert_eq!(open.query.fits_ids, Some(FitIds::Without(ids(&["12204"]))));
         assert_eq!(open.view.line.as_deref(), Some("SoSe 2027: noch keine Termine veröffentlicht."));
-        assert_eq!(open.view.note_of("11454"), None);
+        assert_eq!(open.view.note_of("11454", false), None);
         let open_too = fitted(switched_on(FitsFilter { undated: true, ..summer.clone() }), &summer, Some(&unpublished));
         assert_eq!(open_too.query.fits_ids, Some(FitIds::Without(ids(&["12204"]))));
+    }
+
+    #[test]
+    fn the_switch_checks_the_semester_of_the_placeholder() {
+        // „Modul finden" of a placeholder in SoSe 2027, the switch turned off and on again: it
+        // checks SoSe 2027 again, where „Einplanen" plans the module into, not the current one.
+        let doc = PlanDoc::restored("p\t2\t2027S\t079-82-2008\t30\t2-2\t6\tfues\t\tFachübergreifendes Studium 2");
+        let (current, summer) = (SemesterKey::parse("2026W").unwrap(), SemesterKey::parse("2027S").unwrap());
+        assert_eq!(finder_semester(&doc, Some(2), current), summer);
+        // No placeholder, or one the plan does not hold (any more): the current semester.
+        assert_eq!(finder_semester(&doc, None, current), current);
+        assert_eq!(finder_semester(&doc, Some(7), current), current);
+        assert_eq!(finder_semester(&PlanDoc::default(), Some(2), current), current);
     }
 
     #[test]
