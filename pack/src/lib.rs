@@ -2,7 +2,8 @@
 //! base 66, with two check characters at the end.
 //!
 //! For what has to travel in a link and nowhere else: the marked modules on their way to another
-//! device (`/bookmarks#m=…`, `app/src/bookmarks.rs`), later a timetable that a calendar subscribes to.
+//! device (`/bookmarks#m=…`, `app/src/bookmarks.rs`), and the timetable a calendar subscribes to
+//! (`/calendar/<code>.ics`, `catalog::timetable::subscription`).
 //! A value becomes a code of the unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`, RFC
 //! 3986), which no browser, server or chat program escapes or cuts, and comes back as the same value:
 //!
@@ -45,6 +46,12 @@
 //! code with a field its reader does not know yet is refused ([`Error::Trailing`]) unless that
 //! field is zero.
 //!
+//! **Versioned.** What that rule does not allow (a field removed, retyped or moved) takes a new
+//! layout of the type. [`to_versioned_code`] writes the number of the layout into the code, in
+//! four bits before the value, and [`from_versioned_code`] reads a code only in the layout it asks
+//! for: a code of another one is [`Error::Version`] with its number, which a reader that still knows
+//! that layout reads with the type of it. The rule above holds within a layout.
+//!
 //! # The format
 //!
 //! Frozen: every code written so far must keep its meaning.
@@ -62,7 +69,9 @@
 //! for the end of a sentence). How far this checks: `text.rs`.
 //!
 //! **Bits.** First the version of this format, 0, in the gamma code (the bit `0`); a reader refuses
-//! any other ([`Error::Format`]). Then the value, as serde describes it, in these codes:
+//! any other ([`Error::Format`]). A versioned code has the version 1 (`100`) and after it the
+//! number of the value's layout, 0 to 15, in four bits, the lowest first; the one reader reads
+//! only the one, the other only the other. Then the value, as serde describes it, in these codes:
 //!
 //! - *gamma* of n: as many ones as n + 1 has bits below its highest, a zero, those bits, lowest
 //!   first: 0 → `0`, 1 → `100`, 2 → `101`, 3 → `11000`.
@@ -115,6 +124,16 @@ pub const MAX_LEN: usize = 16 * 1024;
 /// The version of the format that codes are written in.
 const FORMAT: u64 = 0;
 
+/// The version of the format of codes that name the layout of their value: `FORMAT`, with the
+/// layout's number after it.
+const VERSIONED: u64 = 1;
+
+/// The bits of a layout's number in a versioned code.
+const LAYOUT_BITS: u32 = 4;
+
+/// The highest number of a layout that a versioned code names.
+pub const MAX_VERSION: u8 = (1 << LAYOUT_BITS) - 1;
+
 /// The code for a value. `kind` says what it is for (`"bookmarks"`): a reader asks for the same.
 pub fn to_code<T: ?Sized + Serialize>(kind: &str, value: &T) -> Result<String, Error> {
     let mut writer = ser::Serializer::default();
@@ -129,6 +148,37 @@ pub fn from_code<T: DeserializeOwned>(kind: &str, code: &str) -> Result<T, Error
     let mut reader = de::Deserializer::new(bits::Reader::new(&number, end));
     if reader.bits.gamma()? != FORMAT {
         return Err(Error::Format);
+    }
+    let value = T::deserialize(&mut reader)?;
+    reader.bits.finish()?;
+    Ok(value)
+}
+
+/// The code for a value in layout `version` of its type (0 to [`MAX_VERSION`]): the code names the
+/// layout, so a later layout of the type can be told from this one ([`from_versioned_code`]). Six
+/// bits more than [`to_code`] writes: two for the format, four for the layout.
+pub fn to_versioned_code<T: ?Sized + Serialize>(kind: &str, version: u8, value: &T) -> Result<String, Error> {
+    if version > MAX_VERSION {
+        return Err(Error::Unsupported("a layout above 15"));
+    }
+    let mut writer = ser::Serializer::default();
+    writer.bits.gamma(VERSIONED);
+    writer.bits.push_bits(version.into(), LAYOUT_BITS);
+    value.serialize(&mut writer)?;
+    text::encode(kind, &writer.bits)
+}
+
+/// The value a code of this kind carries in layout `version`. A code of another layout is
+/// [`Error::Version`] with the number it names; a code [`to_code`] wrote is [`Error::Format`].
+pub fn from_versioned_code<T: DeserializeOwned>(kind: &str, version: u8, code: &str) -> Result<T, Error> {
+    let (number, end) = text::decode(kind, code)?;
+    let mut reader = de::Deserializer::new(bits::Reader::new(&number, end));
+    if reader.bits.gamma()? != VERSIONED {
+        return Err(Error::Format);
+    }
+    let named = u8::try_from(reader.bits.bits(LAYOUT_BITS)?).map_err(|_| Error::Malformed)?;
+    if named != version {
+        return Err(Error::Version(named));
     }
     let value = T::deserialize(&mut reader)?;
     reader.bits.finish()?;
@@ -151,8 +201,11 @@ pub enum Error {
     /// Bits left after the value: written by a newer version of the type, with a field this one
     /// does not know yet.
     Trailing,
-    /// Written in a version of the format this reader does not know yet.
+    /// Written in a version of the format this reader does not know yet, or in the other of the
+    /// two ways (a plain code read as a versioned one, or the other way round).
     Format,
+    /// A versioned code in another layout of the type than the one asked for: the one it names.
+    Version(u8),
     /// What this format does not write or read: see the message.
     Unsupported(&'static str),
     /// What the type itself has to say about a value (serde's `custom`).
@@ -168,6 +221,7 @@ impl fmt::Display for Error {
             Error::Malformed => formatter.write_str("a code that no writer makes"),
             Error::Trailing => formatter.write_str("more than this version knows of: written by a newer one"),
             Error::Format => formatter.write_str("written in a version of the format this reader does not know"),
+            Error::Version(version) => write!(formatter, "written in layout {version} of its type, which this reader does not read"),
             Error::Unsupported(what) => write!(formatter, "not in this format: {what}"),
             Error::Message(message) => formatter.write_str(message),
         }
