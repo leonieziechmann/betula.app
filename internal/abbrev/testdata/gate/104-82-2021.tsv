@@ -1,5 +1,5 @@
 # 104-82-2021: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS).
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds.
 11107	HMT1	Höhere Mathematik - T1
 11108	HMT2	Höhere Mathematik - T2
 11206	HMT3	Höhere Mathematik - T3
@@ -19,8 +19,8 @@
 11823	FGPL	Fallstudienseminar zu Grundlagen der Produktion und Logistik
 11828	KuS	Kolben- und Strömungsmaschinen
 11851	Dar	Darstellung
-11908	Sy1	Systemtheorie I
-11909	Sy2	Systemtheorie II
+11908	ST1	Systemtheorie I
+11909	ST2	Systemtheorie II
 11914	PMO	Programmieren in MATLAB/Octave
 11915	GdW	Grundlagen der Werkstoffe
 11923	GWR	Grundlagen des Wissenschaftlichen Rechnens
@@ -61,7 +61,7 @@
 13045	EPL	Einführung in den polymerbasierten Leichtbau
 13055	EMB	Einführungsprojekt Maschinenbau
 13067	RLV	Ringlabor Verfahrenstechnik
-13102	PhI	Physik für Ingenieure
+13102	PfI	Physik für Ingenieure
 13103	Ch1	Chemie I: Allgemeine und Anorganische Chemie
 13109	PTN	Philosophy of Technology and Nature
 13183	AHP	Aktuelle Herausforderungen der Personalarbeit im digitalen Wandel
@@ -111,7 +111,7 @@
 13781	KTU	Kulturgeschichte von Technik und Umwelt
 13782	PSÖWNM	Psychologie des sozial-ökologischen Wandels und Nachhaltigkeits-Marketing
 13787	PES	Projektpraktikum Elektronische Schaltungstechnik
-13788	MSe	Marketing Seminar for Empirical Business Science Research Projects
+13788	MS	Marketing Seminar for Empirical Business Science Research Projects
 13792	WV	Wissensverwertung
 13833	A&M	Analysis and Modelling of Human-Environment Systems
 13935	SDW	Seminar Demographischer Wandel und die Auswirkungen auf das Personalmanagement
@@ -119,7 +119,7 @@
 13946	M&D	Mobility and Digitalisation
 13980	EiÖ	Einführung in die Ökonomie - Theorie und Praxis
 14036	SPLS	Scientific Presentation in Life Sciences
-14039	MS	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
+14039	MSe	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
 14054	IMDA	Immunological Methods and Data Analysis
 14146	AVV	Architektur verstehen und vermitteln
 14147	MoT	Media of Transformation - Film Course
@@ -184,7 +184,7 @@
 36406	LW	Leichtbauwerkstoffe
 36410	WM	Werkzeugmaschinen
 36415	PA	Produktionsautomatisierung
-36418	SeF	Seminar Fügetechnik
+36418	SFT	Seminar Fügetechnik
 36419	SpF	Spezielle Fügetechnik
 36504	KuL	Kommunikation und Lernstrategien
 37102	DCH	Discourses on Culture and Heritage

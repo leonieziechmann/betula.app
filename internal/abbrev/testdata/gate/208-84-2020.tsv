@@ -1,5 +1,5 @@
 # 208-84-2020: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS).
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds.
 11101	LAAG1	Lineare Algebra und analytische Geometrie I
 11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
 11152	ERP	ERP - Integrierte betriebliche Systeme
@@ -50,7 +50,7 @@
 12911	DuP	Disziplin und Profession der Sozialen Arbeit
 12931	EWG	Erziehungswissenschaftliche Grundlagen
 12938	RSA	Einführung in die Rechtsgrundlagen der Sozialen Arbeit
-12940	SSA	Soziologie für die Soziale Arbeit
+12940	SfSA	Soziologie für die Soziale Arbeit
 12941	SSR	Sozialpsychiatrie, Sonder- und Rehabilitationspädagogik
 12943	PSA	Prozessgestaltung in der Sozialen Arbeit
 12945	PfSA	Psychologie für die Soziale Arbeit
@@ -70,14 +70,14 @@
 13076	PvR	Prävention von Rechtsextremismus
 13077	SALR	Soziale Arbeit im ländlichen Raum
 13099	IuT	Interkulturalität und Transnationalität in der Sozialen Arbeit
-13100	DSA	Dokumentation in der Sozialen Arbeit
+13100	DiSA	Dokumentation in der Sozialen Arbeit
 13102	PfI	Physik für Ingenieure
 13103	Ch1	Chemie I: Allgemeine und Anorganische Chemie
 13109	PTN	Philosophy of Technology and Nature
 13110	BNS	Basic Natural Sciences
 13120	Alt	Altenarbeit
 13126	HäG	Häusliche Gewalt
-13127	SeSA	Selbstständige Soziale Arbeit
+13127	SSA	Selbstständige Soziale Arbeit
 13128	SIK	Sozialpädagogische Interventionen in Kontexten von sozialer Benachteiligung
 13129	BuI	Bildung und Inklusion
 13130	SzH	Spielen zu Hause
@@ -107,13 +107,13 @@
 13251	CTP	Introduction to Computational Thinking and Programming for CFD
 13254	IBMT	Image Based Measurement Techniques for Aerodynamics
 13259	HäG-b	Häusliche Gewalt
-13260	SeSA-b	Selbstständige Soziale Arbeit
+13260	SSA-b	Selbstständige Soziale Arbeit
 13261	HzE	Hilfen zur Erziehung - Grundlagen der Arbeit mit Familien
 13281	SuS	Signal- und Systemtheorie
 13296	AEE	Aktuelle Entwicklungen der Energiewende
 13354	RRE	Rechtliche Rahmenbedingungen der Existenzgründung
 13356	GCLR	Global Change and Legal Response
-13378	KrS	Krankenhaus-Sozialarbeit
+13378	KSA	Krankenhaus-Sozialarbeit
 13381	KMA	Kultur- und Medienarbeit mit Audio in offenen Settings: Podcast Lebensgeschichten in Doberlug-Kirchhain
 13383	Sch	Schulsozialarbeit
 13384	VIÖ	Video als Instrument der Öffentlichkeit in der Sozialen Arbeit
@@ -161,7 +161,7 @@
 13781	KTU	Kulturgeschichte von Technik und Umwelt
 13782	PSÖWNM	Psychologie des sozial-ökologischen Wandels und Nachhaltigkeits-Marketing
 13787	PES	Projektpraktikum Elektronische Schaltungstechnik
-13788	MSe	Marketing Seminar for Empirical Business Science Research Projects
+13788	MS	Marketing Seminar for Empirical Business Science Research Projects
 13792	WV	Wissensverwertung
 13819	SFT	Studierstrategien und Fachsprache Technik
 13833	A&M	Analysis and Modelling of Human-Environment Systems
@@ -181,13 +181,13 @@
 13972	TSA	Trauma und Soziale Arbeit
 13973	DSV	Digitalisierung und Soziale Verantwortung
 13974	PFK	Pädagogik der frühen Kindheit
-13975	DSAr	Diskriminierungssensible Soziale Arbeit
+13975	DSA	Diskriminierungssensible Soziale Arbeit
 13976	GP	Gedenkstättenpädagogik
 13980	EiÖ	Einführung in die Ökonomie - Theorie und Praxis
 13985	PLN	Projekt Lernwerkstatt Natur
 14011	EAP	English for Academic Purposes
 14036	SPLS	Scientific Presentation in Life Sciences
-14039	MS	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
+14039	MSe	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
 14054	IMDA	Immunological Methods and Data Analysis
 14146	AVV	Architektur verstehen und vermitteln
 14147	MoT	Media of Transformation - Film Course

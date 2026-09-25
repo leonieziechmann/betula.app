@@ -499,12 +499,13 @@ Lernstrategien KuL, Mathematics of Engineering I MoE1. A lowercase letter only e
 function word between two capitals, so the head has three words and the first and last are content
 words (three content words give their plain initials). A hyphen part is a word of its own (Bau- und
 Stadtbaugeschichte 1 → BuS1, Kinder- und Jugendhilfe → KuJ); the series number is appended as
-everywhere; a head with an acronym or a slash group is left to the other forms. The form takes the
-place of the cheapest other candidate, one hundredth ahead of it, not a bonus of its own, so the
-resolution weighs its fallbacks as before. An override line and an acronym the title states for
-itself („(GIS)“) still come before it, and the blocked forms, the reserved forms and the uniqueness
-within a program hold: two titles of one program with one such form (Grundlagen der Werkstoffe and
-Grundlagen der Wirtschaftsinformatik, both GdW) contest it like any other form.
+everywhere; a head with an acronym or a slash group is left to the other forms, and so is a sibling
+(its subtitle tells it apart). In the module's list the form stands at the top, one hundredth ahead of
+the cheapest other candidate, and its matching score is a class of its own (below). An override line
+and an acronym the title states for itself („(GIS)“) still come before it, and the blocked forms, the
+reserved forms and the uniqueness within a program hold: two titles of one program with one such form
+(Grundlagen der Werkstoffe and Grundlagen der Wirtschaftsinformatik, both GdW) contest it like any
+other form.
 
 Never derived: a form on `internal/abbrev/blocked.tsv` (SS, SA, NS, KZ, KKK, NPD, AfD, THC, NSA,
 IBM, PO …: a public timetable must not show them next to a lecture) and the capitals of the
@@ -523,15 +524,44 @@ Within a program, over all modules its students may select (curriculum, elective
 abbreviation is unique, compared without case and without the & and - a reader passes over (B&B
 and BB are one form). So is its stem, the form without its series number or language level: ST for
 Steuerungstechnik next to ST1 and ST2 for Systemtheorie I and II reads as one series, so two
-different heads never share a stem, while a series (Systemtheorie I, II) keeps its own. A candidate
-or stem that two modules want goes to neither, and both fall back (Grundzüge der
-Makro-/Mikroökonomik → GMa / GMi) — the owner's rule, with guards: an override line beats a derived
-form; compulsory modules, the thesis and internships keep a contested form against other curricular
-modules and those against FÜS; an earlier choice beats a fallback; FÜS against FÜS, a far next choice
-or near-identical candidate lists are settled by priority (tier, plan semester, module number).
+different heads never share a stem, while a series (Systemtheorie I, II) keeps its own.
+
+**A contested form goes to the better match** (the owner, 2026-09-25: „Wenn das Kürzel schon
+existiert, dann darf das Modul das Kürzel behalten, das den höheren Matching-Score hat — muss
+kaskadieren, achte aber drauf, dass es nach 3 Mal garantiert terminiert.“). Every candidate has a
+matching score, one scale for all modules (`internal/abbrev/assign.go`; `docs/data-sources.md` §11):
+10,000 for the form of an override line, 9,000 for an acronym the title states for itself, 8,000 for
+the initials of all words (EvS), and 5,000 minus its cost for every other form (1 to 7,999: the word,
+compound and function-letter forms near 5,000, subtitle and longer forms lower, first letters
+lowest). A module's list is ordered by it. In a program:
+
+1. **Claim.** Every module claims its best candidate. Where two claims conflict — one form for two
+   titles, or one stem for two heads — the higher score keeps it; a tie goes to the module first in
+   priority order (compulsory modules, the thesis and internships, then other curricular modules,
+   then FÜS; within a tier the plan semester, then the module number).
+2. **Cascade, at most three rounds.** A module without a form moves on to its next candidate it can
+   win: one nobody holds, or one whose holders all score lower for theirs. It takes it, and a holder
+   it beats is displaced and moves on in the next round.
+3. **Rest.** After the third round, every module still without a form takes, best first, its best
+   candidate that conflicts with nothing held. A module whose list is used up gets its first form
+   with a letter (`-b` … `-z`, `-bb` …) that no form or stem of the program has.
+
+It terminates: a module only moves forward in its list and a tie never goes to the newcomer, so no
+displacement repeats (a cascade that let a displaced module start again, or the newcomer win a tie,
+could loop: A takes X from B, B takes it back), the rounds are bounded anyway, the rest assigns one
+module per step, and there are more letter suffixes than a program has modules. The better match
+wins whatever the tier: next to the compulsory „Einführung in die Logistik“ (EiL, a derived form) the
+FÜS module „Elektronik im Labor“ (EiL, its initials) keeps EiL. With equal scores priority decides:
+Grundzüge der Makro- and Mikroökonomik are both GdM; the first in priority order keeps it, the other
+takes GMÖ. This replaced the rule that a contested form goes to neither (GMa / GMi, M4).
+
 Siblings — one head, different subtitles — are told apart by the subtitle (Dynamik der Kraftfahrzeuge
-- Längs-/Querdynamik → DKL / DKQ). Identical titles get `-b`, `-c` (two „Häusliche Gewalt“ of Soziale
-Arbeit: HäG, HäG-b). `module_abbrev` holds the form without a program for every module.
+- Längs-/Querdynamik → DKL / DKQ). Identical titles share the form in the contest and then get `-b`,
+`-c` (two „Häusliche Gewalt“ of Soziale Arbeit: HäG, HäG-b). `module_abbrev` holds the form without a
+program for every module: its best candidate. Defaults are not contested: a module without a program
+sits next to no other, a catalog-wide contest over 4,936 modules would take forms from modules that
+are never read side by side (68 modules share the title Bachelorarbeit), and a program's form is its
+module's default in 96.6 % of the pairs anyway.
 
 The result depends only on the catalog, never on the order it is read in, but not only on the
 program: a new module can move the forms of its own program, and a new title anywhere can move forms
@@ -541,11 +571,13 @@ into WT in 12 programs). The owner accepted that; `build.finished` counts the pa
 since the build before as `abbrev_changed`.
 
 On the data of 2026-09-23: 4,936 modules and 28,424 (program, module) pairs in 182 programs, no
-duplicate, no blocked form, no stem two heads share; 71.3 % of the pairs have exactly three
-characters and 94.2 % at most four; 97.3 % got their first choice (mean 4.4 fallbacks per program);
-93.4 % of the modules have the same form in every program they are in, and 96.1 % of the pairs the
+duplicate, no blocked form, no stem two heads share; 71.4 % of the pairs have exactly three
+characters and 94.3 % at most four; 97.7 % got their first choice (mean 3.7 fallbacks per program);
+94.6 % of the modules have the same form in every program they are in, and 96.6 % of the pairs the
 module's default. The three initials of the whole title moved 372 defaults and 2,680 pairs (2,619 to
-that form, 61 as a knock-on). AuP and EEG hold in all 110 of their program pairs; in Umweltwissenschaften
+that form, 61 as a knock-on); the scored assignment then moved 567 pairs and no default. 18 programs
+are settled by the claim, 141 need one cascade round, 23 two, none three; one list runs out
+(„Methods“ in 013-D8-2022, Met-b). AuP and EEG hold in all 110 of their program pairs; in Umweltwissenschaften
 Bachelor 2025 (G29-82-2025) the internship „Außeruniversitäres Praktikum“ no longer takes AuP. The
 snapshot grows by 1.7 MB. `internal/abbrev/testdata/gate` holds the forms of four programs and every
 default; with `RADIX_ABBREV_GATE=<snapshot>` the test prints what a rule change moves, and fails on a

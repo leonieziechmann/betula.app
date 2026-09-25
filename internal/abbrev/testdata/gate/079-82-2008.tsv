@@ -1,5 +1,5 @@
 # 079-82-2008: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS).
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds.
 11102	LAAG2	Lineare Algebra und analytische Geometrie II
 11104	An2	Analysis II
 11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
@@ -138,7 +138,7 @@
 13772	PSÖWN	Psychologie des sozial-ökologischen Wandels, und Nachhaltigkeit und Betriebswirtschaftslehre
 13781	KTU	Kulturgeschichte von Technik und Umwelt
 13782	PSÖWNM	Psychologie des sozial-ökologischen Wandels und Nachhaltigkeits-Marketing
-13788	MSe	Marketing Seminar for Empirical Business Science Research Projects
+13788	MaS	Marketing Seminar for Empirical Business Science Research Projects
 13792	WV	Wissensverwertung
 13819	SFT	Studierstrategien und Fachsprache Technik
 13833	A&M	Analysis and Modelling of Human-Environment Systems
@@ -157,7 +157,7 @@
 14012	AMS	Angewandte Modellierung und Systemsimulation
 14023	MPA	Modeling of Perception and Action
 14036	SPLS	Scientific Presentation in Life Sciences
-14039	MSESA	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
+14039	MSe	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
 14054	IMDA	Immunological Methods and Data Analysis
 14085	GrT	Graph Theory
 14146	AVV	Architektur verstehen und vermitteln

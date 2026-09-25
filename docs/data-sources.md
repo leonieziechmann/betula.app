@@ -264,7 +264,7 @@ Program, degree, PO version, regulation documents.
 | Sources | **None states them.** Rooms: S3's room text, and for the building tokens the legend of BTU's campus plan of the Zentralcampus (`20211119_Campusplan_Zentralcampus_Legende.pdf` on `www-docs.b-tu.de`, linked from https://www.b-tu.de/campusplan/zentralcampus-cottbus), which prints HG, LG 1A, VG 1C, LB 4B, FZ 3E, IKMZ, MZG …; QIS itself prints a few (`HG 0.16`, `ZB VI.01`, `LH 3D`). Modules: a search of every source on 2026-09-25 found no abbreviation field — none in the QIS module description or table, none on the module pages, none in the event numbers or titles. 23 modules use an acronym on their own page or in their events (IR, PuI 1, ERP, CCS, GIS …); 16 of them are what the rules derive anyway. |
 | Code path | `normalize.RoomShort` → `event_date.room_short`; `internal/abbrev` → `module_abbrev`, `program_module_abbrev`. Both in `build`, from the canonical tables, without a request. |
 | Rejected | **Plan position codes** (BP23, OM3, E3-B) and „Kurzbezeichnung" codes (D1.1, KA 3.1) that Fakultät 4 and 6 print: they name a slot of one program's plan, not a module, depend on the program and the PO, and the event titles write them inconsistently. They could become a `plan_code` of their own later. **Program area abbreviations as reserved words:** only 11 of 28,424 pairs coincide with an area abbreviation of their program. |
-| Authority | **Derived** (`docs/schema-v2.md`, „Short names"). Where the initials of all words of a title make exactly three characters, function words small, they are the first derived candidate (the owner, 2026-09-25, §11: EvS, AuP, GdW). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's examples, a few common forms and three that a module's own page uses (IR, PuI, OOP) as a first candidate that beats every derived one; between two lines in a program the resolution decides. `internal/abbrev/blocked.tsv` lists forms that are never derived (SS, KKK, PO …). A room building that the table lacks keeps its QIS name, and the build warns. |
+| Authority | **Derived** (`docs/schema-v2.md`, „Short names"). Where the initials of all words of a title make exactly three characters, function words small, they are the first derived candidate (the owner, 2026-09-25, §11: EvS, AuP, GdW). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's examples, a few common forms and three that a module's own page uses (IR, PuI, OOP) as a first candidate that beats every derived one; between two modules of a program that want one form, the better matching score decides (§11). `internal/abbrev/blocked.tsv` lists forms that are never derived (SS, KKK, PO …). A room building that the table lacks keeps its QIS name, and the build warns. |
 | Provenance | Rebuilt by every build; never stored by a consumer. `program_module_abbrev.is_override`, `choice` and `is_twin` say how a form came about. |
 
 ## 6. Spot-check log
@@ -470,7 +470,8 @@ Evidence and rules: §5.14 and `docs/schema-v2.md`, „Short names".
 - **Modules** get abbreviations that are actually used — Algorithmieren und Programmieren is
   AuP, Elektrische und Elektronische Grundlagen der Informatik EEG. Three letters are the sweet
   spot; a form that occurs twice among the modules a program lets its students select is nobody's,
-  and both fall back. They are computed by Radix, so that they are in the database.
+  and both fall back (until the scored assignment below). They are computed by Radix, so that they
+  are in the database.
 - **Three initials of the whole title win** (on the review page, 2026-09-25, on Entwicklung von
   Softwaresystemen, derived as ESS): „Ja ist bestimmt Entwicklung von Softwaresystemen. Das wird eher
   EvS genannt, ich denke mal, wenn die Buchstaben beim Anagramm passen, dann nimmt man die i. d. R."
@@ -484,6 +485,28 @@ Evidence and rules: §5.14 and `docs/schema-v2.md`, „Short names".
   first. On the data of 2026-09-23 it moved 372 of 4,936 defaults and 2,680 of 28,424 pairs; forms a
   reader may miss: Grundlagen der Elektrotechnik GdE (was GET), Signal- und Systemtheorie SuS (SST),
   Kinder- und Jugendhilfe KuJ (KJH). An override line can bring any of them back.
+- **A contested form goes to the better match** (on the review page, 2026-09-25): „Wenn das Kürzel
+  schon existiert, dann darf das Modul das Kürzel behalten, das den höheren Matching-Score hat —
+  muss kaskadieren, achte aber drauf, dass es nach 3 Mal garantiert terminiert." This replaces the
+  earlier rule that such a form goes to neither module (M4). The matching score says how well a form
+  fits its title, on one scale for every module (`internal/abbrev/assign.go`):
+
+  | Score | Form |
+  |---|---|
+  | 10,000 | a line of `overrides.tsv` (for a sibling of the line, with its subtitle: ABWL3I) |
+  | 9,000 | an acronym the title states for itself, up to five letters („(GIS)") |
+  | 8,000 | the initials of all words, exactly three (EvS, AuP, GdW) |
+  | 5,000 − cost, 1 to 7,999 | every other derived form, by the cost of `docs/schema-v2.md`, „Short names": word and compound initials near 5,000 (DT 4,895), function letters and first letters a little lower (EiL 4,950, NMa 4,920), subtitle and longer forms lower still, first letters of a title with no other form lowest |
+  | — | a list used up: its first form with a letter (-b), no score |
+
+  In a program every module claims its best form; the higher score keeps a contested one, a tie goes
+  to the module first in priority order (compulsory, thesis and internship before other curricular
+  modules before FÜS; then plan semester; then module number). A module that lost moves on to its
+  next form it can win and displaces a weaker holder, who moves on in turn — at most three such
+  rounds; then every module still without a form takes its best one nobody holds. The better match
+  wins whatever the tier (a FÜS module's EiL, its initials, beats a compulsory module's derived EiL).
+  A module's default (without a program) is not contested: it stays its best form. On the data of
+  2026-09-23 the scores moved 567 of 28,424 pairs and no default; no program needed a third round.
 - **They are metadata, not facts.** „Und wenn das mal nicht passt mit dem, wie es im Studiengang
   verändert wird. Egal, dann machen wir die meta eben neu": every build derives them again, and
   a consumer never stores one.
@@ -503,7 +526,7 @@ Open, with the default the build uses until the owner decides:
 | M1 | Two-word titles with three characters (`ThI`, `EAl`, `NMa`) or two initials (`TI`, `EA`, `NM`)? A word's second letter between two capitals reads as a function word, as the u of AuP does (`EfA` next to `SfA` „Statistik für Anwender“), so the rules widen the last word instead (review, 2026-09-25) | three, without a function-looking letter; `TI` and the like can be overrides |
 | M2 | The displayed title (English for English-taught modules: `ERTS`) or always the German one? | the displayed title |
 | M3 | Identical titles in one program: `HäG` / `HäG-b`? | `-b`, `-c` |
-| M4 | A contested form goes to neither module (`GMa` / `GMi`) or first come, first served? | neither |
+| M4 | A contested form goes to neither module (`GMa` / `GMi`) or first come, first served? | **decided 2026-09-25**: to the better matching score, ties by priority (Grundzüge der Makro-/Mikroökonomik: `GdM` and `GMÖ`) |
 | M5 | English „and" as `&` (`A&M`)? | `&` |
 | M6 | Language courses as `DaF-B1.1`? | yes |
 | M7 | Which other forms are well known (TI, SE …)? | only those in `overrides.tsv` |

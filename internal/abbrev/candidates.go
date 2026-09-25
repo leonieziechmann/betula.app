@@ -236,8 +236,8 @@ func (cs *candidateSet) add(text string, cost int, how string) {
 }
 
 // first makes text the cheapest candidate so far: one hundredth ahead of the best other one,
-// unless it is cheaper already. It takes that place without a bonus of its own, so the gap to
-// the fallbacks, which the resolution weighs („a far next choice“), stays what it was.
+// unless it is cheaper already, rather than a bonus of its own. Its matching score comes from
+// its how (score).
 func (cs *candidateSet) first(text, how string) {
 	k := key(text)
 	cost, others := 0, false
@@ -288,8 +288,14 @@ func sortCandidates(list []candidate) {
 	sort.SliceStable(list, func(i, j int) bool { return candidateLess(list[i], list[j]) })
 }
 
-// candidateLess ranks by cost, then by distance from three characters, then by length, then by text.
+// candidateLess ranks by matching score (score), then by cost, then by distance from three
+// characters, then by length, then by text. The score follows the cost within a module, except
+// that an override line, an acronym the title states for itself and the initials of all words
+// stand at the top whatever their cost.
 func candidateLess(a, b candidate) bool {
+	if sa, sb := score(a), score(b); sa != sb {
+		return sa > sb
+	}
 	if a.cost != b.cost {
 		return a.cost < b.cost
 	}
@@ -361,8 +367,9 @@ func (d *deriver) candidates(p *parsed, sibling bool) []candidate {
 	// The owner's rule (2026-09-25): where the initials of all words of the head make exactly
 	// three characters, that form is the first choice, ahead of compound parts and every other
 	// derived form: Entwicklung von Softwaresystemen → EvS, not ESS. An acronym the title states
-	// for itself and the override lines still come before it; a series number is appended.
-	if s, ok := allInitials(p.head); ok {
+	// for itself and the override lines still come before it; a series number is appended. A
+	// sibling is told apart by its subtitle, so its title has more than these three words.
+	if s, ok := allInitials(p.head); ok && !sibling {
 		cs.first(s+ds, "initials")
 	}
 	// An acronym the title states for itself („… Resource Investigation (ANRI)“) is the first

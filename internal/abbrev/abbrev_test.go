@@ -206,10 +206,11 @@ func TestUnusedOverrides(t *testing.T) {
 }
 
 func TestResolutionWithinAProgram(t *testing.T) {
-	// A candidate two modules want is nobody's: both fall back (the owner's rule).
+	// A form two modules want goes to the better match; with equal scores (both GdM, the initials
+	// of all words) to the first in priority order, and the other takes its next form.
 	_, got := deriveTitles(t, nil, "1 Grundzüge der Makroökonomik", "2 Grundzüge der Mikroökonomik")
-	if got["1"] != "GMa" || got["2"] != "GMi" {
-		t.Errorf("Makro/Mikro → %v, want GMa / GMi", got)
+	if got["1"] != "GdM" || got["2"] != "GMÖ" {
+		t.Errorf("Makro/Mikro → %v, want GdM / GMÖ", got)
 	}
 	_, got = deriveTitles(t, nil, "1 Personalmanagement", "2 Projektmanagement")
 	if got["1"] != "Per" || got["2"] != "Pro" {
@@ -313,7 +314,7 @@ func TestDeterministic(t *testing.T) {
 func TestAnExhaustedListGetsALetter(t *testing.T) {
 	d := &deriver{parsed: map[string]*parsed{"1": {title: "Eins"}, "2": {title: "Zwei"}}}
 	one := []candidate{{text: "XY"}}
-	got := d.contrast([]entry{{"1", 0, 1}, {"2", 0, 1}}, [][]candidate{one, one})
+	got, _ := d.assign([]entry{{"1", 0, 1}, {"2", 0, 1}}, [][]candidate{one, one})
 	if got["1"].Abbrev != "XY" || got["2"].Abbrev != "XY-b" || got["2"].Choice != 2 {
 		t.Errorf("exhausted → %+v", got)
 	}
@@ -404,11 +405,12 @@ func TestStemsWithinAProgram(t *testing.T) {
 	}
 }
 
-// B&B and BB read as one form.
+// B&B and BB read as one form: one module keeps it (an equal score, so the first in priority
+// order), the other moves on.
 func TestNearDuplicates(t *testing.T) {
 	d := &deriver{parsed: map[string]*parsed{"1": {title: "Biomass and Bioenergy", seriesKey: "a"}, "2": {title: "Brückenbau", seriesKey: "b"}}}
-	got := d.contrast([]entry{{"1", 1, 1}, {"2", 1, 1}}, [][]candidate{{{text: "B&B"}, {text: "BiB", cost: 80}}, {{text: "BB"}, {text: "Brü", cost: 80}}})
-	if got["1"].Abbrev != "BiB" || got["2"].Abbrev != "Brü" {
+	got, _ := d.assign([]entry{{"1", 1, 1}, {"2", 1, 1}}, [][]candidate{{{text: "B&B"}, {text: "BiB", cost: 80}}, {{text: "BB"}, {text: "Brü", cost: 80}}})
+	if got["1"].Abbrev != "B&B" || got["2"].Abbrev != "Brü" {
 		t.Errorf("B&B / BB → %+v", got)
 	}
 }
@@ -504,15 +506,145 @@ func TestAllInitials(t *testing.T) {
 	if got := res.Defaults["2"].Abbrev; got == "AuP" {
 		t.Errorf("Analysis und Physik takes the reserved AuP")
 	}
-	// Two titles of one program that give one form: neither takes it (the owner's rule), unless
-	// a tier decides.
+	// Two titles of one program that give one form with one score: the tie goes to priority, the
+	// module number within a tier, the compulsory module before an elective one.
 	_, got := deriveTitles(t, nil, "1 Grundlagen der Werkstoffe", "2 Grundlagen der Wirtschaftsinformatik")
-	if got["1"] == "GdW" || got["2"] == "GdW" {
-		t.Errorf("two GdW of one tier → %v, want neither", got)
+	if got["1"] != "GdW" || got["2"] == "GdW" {
+		t.Errorf("two GdW of one tier → %v, want module 1's", got)
 	}
-	_, got = deriveTitles(t, nil, "1 Grundlagen der Werkstoffe", "E2 Grundlagen der Wirtschaftsinformatik")
-	if got["1"] != "GdW" || got["E2"] == "GdW" {
+	_, got = deriveTitles(t, nil, "2 Grundlagen der Werkstoffe", "E1 Grundlagen der Wirtschaftsinformatik")
+	if got["2"] != "GdW" || got["E1"] == "GdW" {
 		t.Errorf("GdW, compulsory against elective → %v, want the compulsory module's", got)
+	}
+}
+
+// The owner (2026-09-25): „Wenn das Kürzel schon existiert, dann darf das Modul das Kürzel
+// behalten, das den höheren Matching-Score hat.“ The better match keeps a form whatever the
+// tier: EiL is all initials of „Elektronik im Labor“ and only a derived form of „Einführung in
+// die Logistik“ (four words), so the FÜS module keeps it and the compulsory one moves on.
+func TestTheBetterMatchKeepsTheForm(t *testing.T) {
+	choices, got := deriveTitles(t, nil, "1 Einführung in die Logistik", "F2 Elektronik im Labor")
+	if got["F2"] != "EiL" || got["1"] == "EiL" || choices["1"].Choice == 1 {
+		t.Errorf("EiL → %v (%+v)", got, choices)
+	}
+	// the scale: override > stated acronym > initials > derived by cost > fallback material
+	for _, c := range []struct {
+		a, b candidate
+	}{
+		{candidate{override: true, cost: -100}, candidate{how: "paren", cost: -50}},
+		{candidate{how: "paren", cost: -50}, candidate{how: "initials", cost: 14}},
+		{candidate{how: "initials", cost: 60}, candidate{cost: -60}},
+		{candidate{cost: 15}, candidate{cost: 50}},
+		{candidate{cost: 50}, candidate{how: "long", cost: 400}},
+		{candidate{how: "long", cost: 400}, candidate{how: "fallback", cost: 9900}},
+	} {
+		if score(c.a) <= score(c.b) {
+			t.Errorf("score(%+v) = %d, not above score(%+v) = %d", c.a, score(c.a), c.b, score(c.b))
+		}
+	}
+}
+
+// synthetic builds a program of modules with the given candidate lists, one title and one head
+// each, in priority order. A candidate's matching score is 5000 minus its cost.
+func synthetic(lists ...[]candidate) (*deriver, []entry) {
+	d := &deriver{parsed: map[string]*parsed{}}
+	var entries []entry
+	for i := range lists {
+		id := fmt.Sprintf("%d", i)
+		d.parsed[id] = &parsed{title: "title " + id, seriesKey: "head " + id}
+		entries = append(entries, entry{id, 1, 1})
+	}
+	return d, entries
+}
+
+func cand(text string, cost int) candidate { return candidate{text: text, cost: cost} }
+
+// A cascade in which the newcomer won a tie, or a displaced module started again from its best
+// form, would loop here: A and B want X and then Y with the same scores; A takes X from B, B
+// takes it back …. The tie goes to priority, and a module only moves forward in its list.
+func TestTheCascadeCannotLoop(t *testing.T) {
+	lists := [][]candidate{{cand("XA", 0), cand("YA", 10)}, {cand("XA", 0), cand("YA", 10)}}
+	d, entries := synthetic(lists...)
+	got, rounds := d.assign(entries, lists)
+	if got["0"].Abbrev != "XA" || got["1"].Abbrev != "YA" || rounds != 1 {
+		t.Errorf("A and B → %+v in %d rounds", got, rounds)
+	}
+	// A ring: each of three modules wants its own form most and the next one's after it, and a
+	// fourth wants all three; its list runs out, and it gets a letter.
+	lists = [][]candidate{
+		{cand("PA", 0), cand("QA", 1), cand("RA", 2)},
+		{cand("QA", 0), cand("RA", 1), cand("PA", 2)},
+		{cand("RA", 0), cand("PA", 1), cand("QA", 2)},
+		{cand("PA", 0), cand("QA", 0), cand("RA", 0)},
+	}
+	d, entries = synthetic(lists...)
+	got, _ = d.assign(entries, lists)
+	if got["0"].Abbrev != "PA" || got["1"].Abbrev != "QA" || got["2"].Abbrev != "RA" || got["3"].Abbrev != "PA-b" || got["3"].Choice != 4 {
+		t.Errorf("ring → %+v", got)
+	}
+}
+
+// Each cascade round displaces the next weaker holder: B loses PA to A (the claim) and takes QA
+// from C (round 1), C takes RA from D (round 2), D takes SA from E (round 3). E, displaced by
+// the last round, then takes the best form nobody holds: not TA, which F holds, but UA.
+func TestTheCascadeUsesThreeRoundsAndThenStops(t *testing.T) {
+	lists := [][]candidate{
+		{cand("PA", 10)},
+		{cand("PA", 20), cand("QA", 30)},
+		{cand("QA", 40), cand("RA", 50)},
+		{cand("RA", 60), cand("SA", 70)},
+		{cand("SA", 80), cand("TA", 90), cand("UA", 95)},
+		{cand("TA", 85)},
+	}
+	d, entries := synthetic(lists...)
+	got, rounds := d.assign(entries, lists)
+	for id, w := range map[string]string{"0": "PA", "1": "QA", "2": "RA", "3": "SA", "4": "UA", "5": "TA"} {
+		if got[id].Abbrev != w {
+			t.Errorf("module %s → %q, want %q (%+v)", id, got[id].Abbrev, w, got)
+		}
+	}
+	if rounds != 3 {
+		t.Errorf("%d cascade rounds, want 3", rounds)
+	}
+	// A longer chain stops after three rounds as well; the rest is settled without displacing,
+	// and every form is still unique.
+	lists = [][]candidate{{cand("AA", 0)}}
+	for i := 1; i < 9; i++ {
+		lists = append(lists, []candidate{cand(string(rune('A'+i-1))+"A", 10*i), cand(string(rune('A'+i))+"A", 10*i+5)})
+	}
+	d, entries = synthetic(lists...)
+	got, rounds = d.assign(entries, lists)
+	seen := map[string]string{}
+	for id, ch := range got {
+		if other, dup := seen[key(ch.Abbrev)]; dup {
+			t.Errorf("chain: %s and %s → %q", other, id, ch.Abbrev)
+		}
+		seen[key(ch.Abbrev)] = id
+	}
+	if rounds != 3 || len(got) != len(lists) {
+		t.Errorf("chain → %+v in %d rounds", got, rounds)
+	}
+}
+
+// The assignment depends only on the modules and their lists, not on the order they come in.
+func TestTheAssignmentIsDeterministic(t *testing.T) {
+	var lines []string
+	for i, title := range []string{
+		"Grundlagen der Werkstoffe", "Grundlagen der Wirtschaftsinformatik", "Grundlagen der Wärmelehre",
+		"Einführung in die Logistik", "Elektronik im Labor", "Grundzüge der Makroökonomik",
+		"Grundzüge der Mikroökonomik", "Steuerungstechnik", "Systemtheorie I", "Systemtheorie II",
+		"Personalmanagement", "Projektmanagement", "Produktionsmanagement", "Häusliche Gewalt", "Häusliche Gewalt",
+	} {
+		lines = append(lines, fmt.Sprintf("%s%05d %s", []string{"", "E", "F"}[i%3], i, title))
+	}
+	first, _ := deriveTitles(t, nil, lines...)
+	r := rand.New(rand.NewSource(7))
+	for n := 0; n < 10; n++ {
+		r.Shuffle(len(lines), func(i, j int) { lines[i], lines[j] = lines[j], lines[i] })
+		again, _ := deriveTitles(t, nil, lines...)
+		if !reflect.DeepEqual(first, again) {
+			t.Fatalf("shuffle %d: %+v, then %+v", n, first, again)
+		}
 	}
 }
 
