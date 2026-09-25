@@ -3,9 +3,10 @@
 // follows and replaces it.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node snappy.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Records every frame after an interaction: the first one must come quickly and show the
-// feedback (the tab of the rail, the toggle, the row, the view of a program), a skeleton where the
-// page, the list or the preview is being built (the first change of each kind has no measured
-// duration yet, so it always gets one), and a later one the result without a skeleton. Then the
+// feedback (the tab of the rail, the toggle, the row, the view of a program, „Einplanen" with
+// „Passt in meinen Plan" on), a skeleton where the page, the list or the preview is being built
+// (the first change of each kind has no measured duration yet, so it always gets one), and a
+// later one the result without a skeleton. Then the
 // same on a phone and with the CPU slowed down four times, where the skeletons are what bridges
 // the wait. Fails on a page load after takeover, a console error, or a frame that does not show
 // what it should.
@@ -152,6 +153,22 @@ for (const slow of [1, 4]) {
   await watch(page, "two toggles at once" + tag, async () => { await click(page, '#filters a.chip:has-text("Vorlesung")')(); await click(page, '#filters a.chip:has-text("Seminar")')(); }, {
     feedback: () => document.querySelector('#filters a.chip[data-state="with"]'),
     result: () => location.search.includes("form=lecture") && location.search.includes("seminar") && document.querySelectorAll(".rows a.row").length > 0 && !document.querySelector(".list[data-pending]"),
+  }, slow);
+  // „Passt in meinen Plan": the chip and its tag in the first frame, then what fits the plan (an
+  // empty one here), however long the first check of the semester takes.
+  await watch(page, "the finder" + tag, click(page, '#filters a.chip:has-text("Passt in meinen Plan")'), {
+    feedback: () => document.querySelector('#filters a.chip[data-state="with"]')?.textContent.includes("Passt in meinen Plan") && [...document.querySelectorAll(".tag")].some((t) => t.textContent.includes("Passt in")),
+    result: () => location.search.includes("fits=") && document.querySelectorAll(".rows a.row").length > 2 && !document.querySelector(".list[data-pending]"),
+  }, slow);
+  // „Einplanen" in the preview with the finder on: the button in the first frame; the plan is
+  // written after it, and the planned module leaves the list.
+  await click(page, ".rows a.row >> nth=2")();
+  await page.waitForFunction(() => document.querySelector("#preview .plan-toggle.mark-switch") && location.search.includes("open="), null, { timeout: 15000 }).catch(() => problems.push("the finder: no preview"));
+  await page.evaluate(() => { window.__planned = new URL(location.href).searchParams.get("open"); });
+  await page.waitForTimeout(250);
+  await watch(page, "Einplanen with the finder on" + tag, click(page, "#preview .plan-toggle.mark-switch"), {
+    feedback: () => document.querySelector("#preview .plan-toggle.mark-switch")?.getAttribute("aria-pressed") === "true",
+    result: () => (localStorage.getItem("betula.studyplan.v1") || "").includes(window.__planned) && !document.querySelector(`.rows a.row[data-id="${window.__planned}"]`) && document.querySelectorAll(".rows a.row").length > 0,
   }, slow);
   check((await page.evaluate(() => document.querySelectorAll(".pending-page, .rows-pending, .sk-detail").length)) === 0, "a skeleton stayed after the last step" + tag);
   await context.close();

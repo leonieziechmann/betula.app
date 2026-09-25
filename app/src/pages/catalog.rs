@@ -4,16 +4,26 @@
 //! module previewed next to it (its own page is `/catalog/module/<id>`). The filter controls are
 //! links to the list they lead to, so the page works without JavaScript; the browser app adds
 //! what links cannot do (pickers with a search, the credit slider).
+//!
+//! „Passt in meinen Plan" (`fits=<semester>`) is a filter like „Gemerkt": the address says only
+//! that it is on and against which semester, and the browser app works out from the Studienplan
+//! it keeps which modules fit (`with_fits`); the server's page, which knows no plan, lists none.
 
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use catalog::filter::{CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey};
+use catalog::filter::{CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey};
 use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
-use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData, CatalogSummary};
+use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData, CatalogSummary, FitResult};
 use catalog::plan::SemesterPlan;
+use catalog::queries;
 use catalog::rows::{CatalogRow, Department, Program};
+use catalog::studyplan::PlanDoc;
+use catalog::timetable::fit::{CandidateSet, UNKNOWN_NOTE};
+use catalog::timetable::select::Selection;
+use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
 use leptos::prelude::*;
 use leptos_meta::Title;
@@ -22,13 +32,15 @@ use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
-use crate::data::{use_source, PageStatus};
+use crate::data::{use_source, DataError, PageStatus, Source};
 use crate::format;
+use crate::myprogram::MyProgram;
 use crate::nav;
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending};
 use crate::seo::Seo;
 use crate::skeleton::{DetailSkeleton, RowsSkeleton};
+use crate::studyplan::{PlanHint, Studyplan};
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 
@@ -55,11 +67,30 @@ pub fn CatalogPage() -> impl IntoView {
     // the placeholder a module found here would fill, kept by every link of the list.
     let list_query = Memo::new(move |_| url.get().query);
     let bookmarks = Bookmarks::expect();
-    let asked = Memo::new(move |_| with_marks(list_query.get(), bookmarks));
+    let source = use_source();
+    // What the finder switch makes of the filter: the modules that fit the Studienplan, worked
+    // out here from the plan this browser keeps (the server's page has none, R9). Then the marks.
+    // `asked` reads `fitted` alone, never `list_query` with it (R16); the notes of the rows are
+    // a sibling of it, so a changed note reaches its row even when the list stays the same.
+    let (plan, mine) = (Studyplan::expect().filter(|_| APP), MyProgram::expect());
+    let fit_source = source.clone().ok();
+    let fitted = Memo::new(move |_| with_fits(list_query.get(), plan, mine, fit_source.as_ref()));
+    let asked = Memo::new(move |_| fitted.with(|fitted| fitted.failed.clone().map_or_else(|| Ok(with_marks(fitted.query.clone(), bookmarks)), Err)));
+    let fit_view = Memo::new(move |_| fitted.with(|fitted| fitted.view.clone()));
     let page = Memo::new(move |_| url.get().page);
     let open = Memo::new(move |_| url.get().open);
     let fill = Memo::new(move |_| url.get().fill);
-    let source = use_source();
+    // What „Einplanen" aims at, in the preview and on the module's page a phone opens: the
+    // semester the finder checks against, and the placeholder a module found here fills
+    // (`studyplan::target_semester`).
+    let hint = Memo::new(move |_| {
+        let here = url.get();
+        let semester = here.query.fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester));
+        (semester.is_some() || here.fill.is_some()).then_some(PlanHint { semester, fill: here.fill })
+    });
+    if APP {
+        provide_context(Finder { view: fit_view, hint });
+    }
     let status = PageStatus::capture();
     let phone = phone_layout();
 
@@ -69,7 +100,8 @@ pub fn CatalogPage() -> impl IntoView {
         // list is the base of its rows, pager, sort and tag links and of the address scrolling
         // writes, so it carries `fill`, tracked rather than read once like `page`: a row whose
         // link named another placeholder than the address would plan into the wrong one.
-        let current = CatalogUrl { query: asked.get(), page: page.get_untracked(), open: None, fill: fill.get() };
+        let query = asked.get()?;
+        let current = CatalogUrl { query, page: page.get_untracked(), open: None, fill: fill.get() };
         list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current))).map(|data| (current, data))
     });
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
@@ -94,9 +126,26 @@ pub fn CatalogPage() -> impl IntoView {
     let going_to = Memo::new(move |_| going.and_then(|p| p.search_on(url::CATALOG)).map(|search| CatalogUrl::parse(&search)));
     let going_query = Memo::new(move |_| going_to.with(|to| to.as_ref().map(|to| to.query.clone())));
     let panel_query = Memo::new(move |_| draft.get().or_else(|| going_query.get()).unwrap_or_else(|| list_query.get()));
+    // The draft the count of the sheet is for. With the finder on, what fits takes a moment to
+    // work out the first time (every module of the semester is built once), so the count follows
+    // the tap a frame later and the tapped chip answers first (R21); otherwise at once.
+    let counted: RwSignal<Option<CatalogQuery>> = RwSignal::new(None);
+    Effect::new(move |_| {
+        let next = draft.get();
+        if next.as_ref().is_some_and(|query| query.fits.is_some()) {
+            nav::after_paint(move || {
+                if draft.try_with_untracked(|now| *now == next).unwrap_or(false) {
+                    counted.try_set(next);
+                }
+            });
+        } else {
+            counted.set(next);
+        }
+    });
     let summary_source = source.clone();
     let draft_facts = Memo::new(move |_| {
-        let query = with_marks(draft.get()?, bookmarks);
+        let fitted = with_fits(counted.get()?, plan, mine, summary_source.as_ref().ok());
+        let query = with_marks(fitted.query, bookmarks);
         summary_source.clone().and_then(|source| source.run(|db| pages::catalog_summary(db, &query))).ok().map(|summary| Facts::of_summary(&summary))
     });
     let panel_facts = Memo::new(move |_| draft_facts.get().unwrap_or_else(|| facts.get()));
@@ -117,7 +166,7 @@ pub fn CatalogPage() -> impl IntoView {
         // A moment later: the sheet has begun to slide away by then, and the browser keeps that
         // going while the list is built. (Not animation frames: a hidden tab has none, and the
         // list would never follow.)
-        let path = CatalogUrl { query, page: 1, open: open.get_untracked(), fill: None }.path();
+        let path = CatalogUrl { query, page: 1, open: open.get_untracked(), fill: fill.get_untracked() }.path();
         set_timeout(
             move || {
                 if let Some(going) = going {
@@ -146,11 +195,13 @@ pub fn CatalogPage() -> impl IntoView {
     });
 
     // On a phone a module opens as its own page, never as a preview (the preview would fill the
-    // screen anyway, and the page has a history entry of its own to come back from).
+    // screen anyway, and the page has a history entry of its own to come back from). It takes
+    // along what „Einplanen" aims at (`?plan=…&fill=…`), as the preview's „Vollbild" does.
     let navigate = use_navigate();
     Effect::new(move |_| {
         if let (true, Some(id)) = (phone.get(), open.get()) {
-            navigate(&url::module_path(&id), NavigateOptions { replace: true, ..Default::default() });
+            let hint = hint.get_untracked().map(|hint| hint.query()).unwrap_or_default();
+            navigate(&format!("{}{hint}", url::module_path(&id)), NavigateOptions { replace: true, ..Default::default() });
         }
     });
     // Coming back from a module's page, the list shows the row the visitor left it at: the
@@ -162,6 +213,12 @@ pub fn CatalogPage() -> impl IntoView {
     // The first list of this visit takes the page as it is; a list rendered after it replaces the
     // one before, whose panel (the same element) still stands where the visitor left it.
     let first_list = StoredValue::new(true);
+    // The filter of the list before, as the address has it, and the row at the top of the screen
+    // there: a list of the same filter that holds other modules (a module planned while the
+    // finder is on, a mark taken away under „Gemerkt") keeps that row where it was instead of
+    // starting at the top.
+    let last_filter: StoredValue<Option<CatalogQuery>> = StoredValue::new(None);
+    let top_row: StoredValue<Option<Anchor>> = StoredValue::new(None);
     let preview = Memo::new(move |_| match open.get() {
         None => Ok(None),
         Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
@@ -202,13 +259,16 @@ pub fn CatalogPage() -> impl IntoView {
                     view! { <div class="page"><ErrorState error/></div> }.into_any()
                 }
                 None => view! {
-                    <Filters query=panel_query facts=panel_facts choices open draft phone/>
+                    <Filters query=panel_query facts=panel_facts choices open fill draft phone/>
                     // The handle for the panel's width sits in the gap between the two boxes.
                     <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="filters" aria-label="Breite der Filter ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
                     {move || list.get().ok().map(|(current, data)| {
                         let reveal = come_back_to.try_update_value(Option::take).flatten();
                         let fresh = first_list.try_update_value(|first| std::mem::replace(first, false)).unwrap_or(false);
-                        view! { <List current data open marked page phone reveal fresh/> }
+                        let filter = addressed(&current.query);
+                        let same = last_filter.try_update_value(|last| last.replace(filter.clone()) == Some(filter)).unwrap_or(false);
+                        let stay = (same && !fresh).then(|| top_row.get_value()).flatten();
+                        view! { <List current data open marked page phone reveal fresh stay top_row/> }
                     })}
                 }.into_any(),
             }}
@@ -222,7 +282,7 @@ pub fn CatalogPage() -> impl IntoView {
                 match preview.get() {
                     Ok(None) | Err(_) => ().into_any(),
                     Ok(Some(Some(data))) => view! {
-                        <ModulePanel data close_href/>
+                        <ModulePanel data close_href hint/>
                         // Its handle is a sibling, not a child: the panel would clip the part in front of its edge.
                         <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
                     }.into_any(),
@@ -269,6 +329,159 @@ fn with_marks(mut query: CatalogQuery, bookmarks: Option<Bookmarks>) -> CatalogQ
         }
     }
     query
+}
+
+/// The part of a query its address holds: without the ids the browser fills in (the marks and
+/// what fits the plan).
+fn addressed(query: &CatalogQuery) -> CatalogQuery {
+    CatalogQuery { only_ids: None, without_ids: Vec::new(), fits_ids: None, ..query.clone() }
+}
+
+/// What „Passt in meinen Plan" makes of a query (A.7): the query with the modules the browser
+/// worked out from the plan (`fits_ids`), and what the list says about them.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Fitted {
+    query: CatalogQuery,
+    view: FitView,
+    /// The local catalog could not answer: the list says so instead of listing nothing.
+    failed: Option<DataError>,
+}
+
+/// What the finder says beside the list: a small note at a row that fits only in part or could
+/// not be checked („Übung 1 von 3 frei", „keine festen Termine"), and a line under the tags when
+/// the semester has no dates yet.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct FitView {
+    /// By module id, as the finder words them.
+    notes: BTreeMap<String, String>,
+    /// The modules whose note says why they could not be checked (`FitResult::unknown`): a quiet
+    /// note, where a partial fit's warns.
+    quiet: BTreeSet<String>,
+    /// The modules checked that do not clash.
+    fitting: BTreeSet<String>,
+    /// „keine Termine im WiSe 2026/27": with „auch ohne Termine", what a listed module that was
+    /// not checked says.
+    undated_note: Option<String>,
+    /// „SoSe 2027: noch keine Termine veröffentlicht.": nothing could be checked.
+    line: Option<String>,
+}
+
+impl FitView {
+    /// The note at a module's row, and whether it is a quiet one (not checked, rather than
+    /// fitting only in part). `no_termine`: the row says „noch keine Termine" itself, so a note
+    /// that would only say the same again („keine festen Termine", „keine Termine im WiSe
+    /// 2026/27") is left out (owner, 2026-09-23: „Viel Redundanz").
+    fn note_of(&self, id: &str, no_termine: bool) -> Option<(String, bool)> {
+        match self.notes.get(id) {
+            Some(note) if no_termine && note.starts_with(UNKNOWN_NOTE) => None,
+            Some(note) => Some((note.clone(), self.quiet.contains(id))),
+            None => self.undated_note.clone().filter(|_| !no_termine && !self.fitting.contains(id)).map(|note| (note, true)),
+        }
+    }
+}
+
+/// What the catalog's list tells its rows and its head of the Studienplan (`CatalogPage` provides
+/// it; other lists of modules have none): the finder's view, and what „Einplanen" aims at, which
+/// a row takes along to the module's page on a phone.
+#[derive(Clone, Copy)]
+struct Finder {
+    view: Memo<FitView>,
+    hint: Memo<Option<PlanHint>>,
+}
+
+/// What the finder keeps between its runs, for the visit (the local catalog does not change
+/// during one, so neither do its answers): the part that does not depend on the plan (every
+/// module of the semester built once, `CandidateSet`), and the last answer with what it was for.
+/// A plan change then re-runs only the check; a filter that leaves the finder alone (another
+/// program, a search), and coming back from a module's page, run nothing at all. Not reactive
+/// (R16): it only saves work.
+#[derive(Default)]
+struct FitCache {
+    set: Option<CandidateSet>,
+    last: Option<(FitAsked, FitResult)>,
+}
+
+/// What an answer of the finder was for: the switch, the semester's planned modules, and what
+/// the plan hides and has chosen there.
+type FitAsked = (FitsFilter, Vec<String>, Selection);
+
+thread_local! {
+    static FIT_CACHE: RefCell<FitCache> = RefCell::new(FitCache::default());
+}
+
+/// Fills `fits_ids` from the plan when the query has the finder switch on, like `with_marks` the
+/// marks, and reads the plan only then (A.7, D.7). Without a plan (the server's page) the ids
+/// stay unfilled, and the query then lists nothing.
+fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgram>, source: Option<&Source>) -> Fitted {
+    let Some(filter) = query.fits.clone() else { return Fitted { query, ..Fitted::default() } };
+    let (Some(plan), Some(source)) = (plan, source) else { return fitted(query, &filter, None) };
+    let key = SemesterKey::parse(&filter.semester);
+    let planned = key.map(|key| plan.modules_in(key)).unwrap_or_default();
+    let town = mine.map(MyProgram::town).unwrap_or_default();
+    let selection = key.map(|key| plan.selection(key, town)).unwrap_or_default();
+    let asked: FitAsked = (filter.clone(), planned, selection);
+    let kept = FIT_CACHE.with(|cache| cache.try_borrow().ok().and_then(|cache| cache.last.as_ref().filter(|(last, _)| *last == asked).map(|(_, result)| result.clone())));
+    if let Some(result) = kept {
+        return fitted(query, &filter, Some(&result));
+    }
+    // The candidates are taken out while the finder runs, so nothing is borrowed across it.
+    let mut set = FIT_CACHE.with(|cache| cache.try_borrow_mut().ok().and_then(|mut cache| cache.set.take()));
+    let answer = source.run(|db| pages::fit(db, &filter, &asked.1, &asked.2, &mut set));
+    FIT_CACHE.with(|cache| {
+        if let Ok(mut cache) = cache.try_borrow_mut() {
+            cache.set = set;
+            cache.last = answer.as_ref().ok().map(|result| (asked, result.clone()));
+        }
+    });
+    match answer {
+        Ok(result) => fitted(query, &filter, Some(&result)),
+        Err(error) => Fitted { failed: Some(error), ..fitted(query, &filter, None) },
+    }
+}
+
+/// The query and the view of a finder's answer (`None`: no plan to check against). A semester
+/// without dates is not checked, so it lists every module but the planned ones; with „auch ohne
+/// Termine" every module but the clashing and the planned ones; else the modules checked that fit.
+fn fitted(mut query: CatalogQuery, filter: &FitsFilter, result: Option<&FitResult>) -> Fitted {
+    let Some(result) = result else {
+        query.fits_ids = None;
+        return Fitted { query, ..Fitted::default() };
+    };
+    let label = semester_label(&filter.semester);
+    query.fits_ids = Some(if !result.has_data || filter.undated { FitIds::Without(result.excluded.clone()) } else { FitIds::Only(result.fitting.clone()) });
+    let view = FitView {
+        notes: result.notes.clone(),
+        quiet: result.unknown.clone(),
+        fitting: result.fitting.iter().cloned().collect(),
+        undated_note: (result.has_data && filter.undated).then(|| format!("keine Termine im {label}")),
+        line: (!result.has_data).then(|| format!("{label}: noch keine Termine veröffentlicht.")),
+    };
+    Fitted { query, view, failed: None }
+}
+
+/// „WiSe 2026/27" for `2026W`; a key that is none as it stands.
+fn semester_label(key: &str) -> String {
+    SemesterKey::parse(key).map(SemesterKey::label).unwrap_or_else(|| key.to_string())
+}
+
+/// The semester „Passt in meinen Plan" checks against once it is switched on: that of the
+/// placeholder the list is looked through for (`fill`), while the plan holds it, else the current
+/// one. So the switch turned off and on again checks the semester „Einplanen" then plans into
+/// (`studyplan::target_semester`), not another one.
+fn finder_semester(doc: &PlanDoc, fill: Option<u32>, current: SemesterKey) -> SemesterKey {
+    fill.and_then(|pid| doc.placeholders.iter().find(|placeholder| placeholder.pid == pid)).map_or(current, |placeholder| placeholder.semester)
+}
+
+/// What to leave out when nothing fits: the classes compared besides the lectures, which have to
+/// be free anyway.
+fn fit_advice(filter: &FitsFilter) -> &'static str {
+    match (filter.exercises, filter.exams, filter.lectures) {
+        (true, true, _) => "Übungen oder Prüfungen abwählen.",
+        (true, false, _) => "Übungen abwählen.",
+        (false, true, _) => "Prüfungen abwählen.",
+        (false, false, true) => "Vorlesungen abwählen.",
+        (false, false, false) => "Nimm Filter zurück oder suche nach einem anderen Begriff.",
+    }
 }
 
 /// A link that keeps whatever preview is open at the time it is followed.
@@ -334,6 +547,9 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
     }
     if let Some(scheduled) = q.scheduled {
         push("Termine", if scheduled { "bestätigt" } else { "noch keine" }.to_string(), &|q| q.scheduled = None);
+    }
+    if let Some(fits) = &q.fits {
+        push("Passt in", semester_label(&fits.semester), &|q| q.fits = None);
     }
     if q.turnus.winter {
         push("Turnus", "Winter".to_string(), &|q| q.turnus.winter = false);
@@ -441,6 +657,10 @@ fn List(
     reveal: Option<String>,
     /// The first list of the visit (`true`), or one that replaces the list of the filter before.
     fresh: bool,
+    /// A list that replaces one of the same filter: the row the list before had at the top.
+    stay: Option<Anchor>,
+    /// Where the row at the top of the screen is kept for the list that may replace this one.
+    top_row: StoredValue<Option<Anchor>>,
 ) -> impl IntoView {
     let q = current.query.clone();
     let total = data.page.total;
@@ -463,6 +683,7 @@ fn List(
         Memo::new(move |_| tags(&going_url.get().unwrap_or_else(|| current.clone()), &areas, &departments))
     };
     let active_count = move || active.with(Vec::len);
+    let fit_line = use_context::<Finder>();
 
     let sort_link = |key: SortKey, text: &'static str, class: &'static str| {
         let on = current.query.sort == key;
@@ -478,19 +699,47 @@ fn List(
     };
 
     // What the list says instead of rows.
+    let without_fits = {
+        let mut next = current.with_page(1);
+        next.query.fits = None;
+        next.path()
+    };
+    // An empty list with the finder on is the finder's doing only when the rest of the filter
+    // holds modules (a search for nothing is not helped by comparing fewer classes): one count,
+    // asked only then.
+    let finder_emptied = APP
+        && total == 0
+        && q.fits.is_some()
+        && use_source()
+            .and_then(|source| source.run(|db| queries::catalog_count(db, &CatalogQuery { fits: None, fits_ids: None, ..data.effective.clone() })))
+            .is_ok_and(|count| count > 0);
     let states = view! {
         {unknown_program.then(|| view! {
             <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
         })}
-        {(total == 0 && !unknown_program).then(|| match (q.marked == Some(true), APP) {
-            (true, true) => view! {
+        {(total == 0 && !unknown_program).then(|| match (q.marked == Some(true), q.fits.as_ref(), APP) {
+            // Nothing fits the plan: the classes that could be left out of the comparison.
+            (false, Some(fits), true) if finder_emptied => view! {
+                <div class="state">
+                    <p class="state-title">{format!("Kein Modul passt in deinen Plan für {}", semester_label(&fits.semester))}</p>
+                    <p>{fit_advice(fits)}</p>
+                </div>
+            }.into_any(),
+            (false, Some(_), false) => view! {
+                <div class="state">
+                    <p class="state-title">"Deinen Studienplan kennt nur dein Browser"</p>
+                    <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier die Module, die in deinen Studienplan passen."</p>
+                    <a class="btn secondary" href=without_fits.clone()>"Ohne diesen Filter"</a>
+                </div>
+            }.into_any(),
+            (true, _, true) => view! {
                 <div class="state">
                     <p class="state-title">"Keine gemerkten Module in dieser Liste"</p>
                     <p>"Kein gemerktes Modul passt zu den übrigen Filtern."</p>
                     <a class="btn secondary" href=url::BOOKMARKS>"Zur Merkliste"</a>
                 </div>
             }.into_any(),
-            (true, false) => view! {
+            (true, _, false) => view! {
                 <div class="state">
                     <p class="state-title">"Deine Merkliste kennt nur dein Browser"</p>
                     <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier deine gemerkten Module."</p>
@@ -524,7 +773,7 @@ fn List(
     // The browser app renders only what is on screen of the whole list; the server renders the
     // page the URL names, with pager links (no JavaScript, search engines).
     let rows = if APP {
-        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal fresh head states/> }.into_any()
+        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal fresh stay top_row head states/> }.into_any()
     } else {
         view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program head states/> }.into_any()
     };
@@ -552,6 +801,8 @@ fn List(
                         <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open) aria-label="Filter entfernen"><Icon name="x"/></a></span>
                     }).collect_view()}
                 </div>
+                // The finder against a semester without dates: nothing could be checked.
+                {move || fit_line.and_then(|finder| finder.view.with(|view| view.line.clone())).map(|line| view! { <p class="hint fit-line">{line}</p> })}
             </div>
             {rows}
         </section>
@@ -683,6 +934,17 @@ const KEEP_PAGES: usize = 4;
 const ROW_DESKTOP: f32 = 58.0;
 const ROW_PHONE: f32 = 88.0;
 
+/// Where the visitor is in the list: the place of the row at the top of the screen, and the
+/// modules on screen from the top down (where their page is loaded), each with how far the list
+/// is scrolled past the top of its row (below zero for a row further down). A list that replaces
+/// this one keeps the first of them it still holds where it stood: the row at the top often
+/// leaves the list itself (planned with the finder on, it clashes with the module planned).
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Anchor {
+    index: usize,
+    rows: Vec<(String, f32)>,
+}
+
 /// The whole list, of which only what is on screen (and a little around it) is rendered: the
 /// rows stand at their offsets inside an element as tall as the list, so the scrollbar has the
 /// length of the list from the start. Rows are measured once they are rendered and estimated
@@ -707,6 +969,10 @@ fn VirtualRows(
     reveal: Option<String>,
     /// The first list of the visit (`true`), or one that replaces the list of the filter before.
     fresh: bool,
+    /// A list that replaces one of the same filter: the row to keep at the top of the screen.
+    stay: Option<Anchor>,
+    /// Where the row at the top of the screen is kept, for the list that may replace this one.
+    top_row: StoredValue<Option<Anchor>>,
     /// What stands above the rows and scrolls with them (`List`).
     head: AnyView,
     states: AnyView,
@@ -801,6 +1067,14 @@ fn VirtualRows(
         let last_visible = index_at(offset + viewport);
         let range = (first_visible.saturating_sub(BUFFER), (last_visible + 1 + BUFFER).min(total));
         ensure_loaded(range.0, range.1);
+        let (guess, mut top) = (estimate(), offset_of(first_visible));
+        let mut rows = Vec::new();
+        for index in first_visible..=last_visible.min(total.saturating_sub(1)) {
+            let id = loaded.with_untracked(|loaded| loaded.get(&(index / per_page + 1)).and_then(|rows| rows.get(index % per_page)).map(|row| row.id.clone()));
+            rows.extend(id.map(|id| (id, offset - top)));
+            top += heights.with_value(|heights| heights.get(index).copied().flatten()).unwrap_or(guess);
+        }
+        top_row.try_update_value(|anchor| *anchor = Some(Anchor { index: first_visible, rows }));
         if window.get_untracked() != range {
             window.set(range);
         }
@@ -813,14 +1087,17 @@ fn VirtualRows(
 
     // The rendered rows are measured. A row that turns out to differ from what it was taken for
     // moves everything below it; where that is above the visible part, the list scrolls by the
-    // difference and the visitor sees nothing move. `true` if any height changed.
+    // difference and the visitor sees nothing move. So do the rows above that were never
+    // rendered, all of them at once, when the average they are taken for changes with the new
+    // measurements: in a list that starts far down (a page of its own, one that replaces a list
+    // of the same filter) they are most of what lies above. `true` if any height changed.
     let alive_measure = alive.clone();
     let measure = move || -> bool {
         if !alive_measure.load(Ordering::Relaxed) {
             return false;
         }
         let Some((offset, _)) = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID) else { return false };
-        let estimate = estimate();
+        let (guess, first_visible) = (estimate(), index_at(offset));
         // (index, what it was taken for, what it is, whether it lies above the visible part)
         let mut changes: Vec<(usize, f32, f32, bool)> = Vec::new();
         for (index, height) in nav::measure_rows(VLIST_ID) {
@@ -828,7 +1105,7 @@ fn VirtualRows(
             if known.is_some_and(|known| (known - height).abs() < 0.5) {
                 continue;
             }
-            let was = known.unwrap_or(estimate);
+            let was = known.unwrap_or(guess);
             changes.push((index, was, height, offset_of(index) + was <= offset + 0.5));
         }
         if changes.is_empty() {
@@ -854,6 +1131,8 @@ fn VirtualRows(
                 shift += now - was;
             }
         }
+        let unmeasured = heights.with_value(|heights| heights.iter().take(first_visible).filter(|height| height.is_none()).count());
+        shift += unmeasured as f32 * (estimate() - guess);
         if shift.abs() >= 0.5 {
             nav::scroll_list_by(ROWS_ID, shift);
         }
@@ -902,17 +1181,31 @@ fn VirtualRows(
         // A list that replaces another (a filter changed) starts at the top: the panel is the
         // element the list before scrolled, and where that stood would be taken for this list's
         // page. Before anything measures: the frame after the render already follows the scroll.
-        if !fresh {
+        // One of the same filter (the plan or the marks changed what it holds) keeps the first row
+        // on screen that is still in it where it stood, so the visitor stays where they were.
+        if !fresh && stay.is_none() {
             nav::scroll_list_to_start(ROWS_ID);
         }
-        let row = reveal.as_ref().and_then(|id| {
+        let position = |id: &str| {
             let source = start_source.clone()?;
-            source.run(|db| catalog::queries::catalog_position(db, &start_query, id)).ok().flatten()
-        });
-        let target = match row {
-            Some(index) => Some(usize::try_from(index).unwrap_or(0).min(total.saturating_sub(1))),
-            None if start_page > 1 => Some((start_page - 1) * per_page),
-            None => None,
+            let index = source.run(|db| catalog::queries::catalog_position(db, &start_query, id)).ok().flatten()?;
+            Some(usize::try_from(index).unwrap_or(0).min(total.saturating_sub(1)))
+        };
+        // A row of the page the list starts with, the one the address names: where the top of
+        // the screen was. Found there without asking the catalog, which ranks the whole list for
+        // each module it is asked about.
+        let loaded_at = |id: &str| loaded.with_untracked(|loaded| loaded.get(&start_page).and_then(|rows| rows.iter().position(|row| row.id == id))).map(|at| (start_page - 1) * per_page + at);
+        // The row to scroll to, and how far into it.
+        let target = match (&stay, reveal.as_deref().and_then(position)) {
+            (Some(anchor), _) => anchor
+                .rows
+                .iter()
+                .find_map(|(id, into)| loaded_at(id).map(|index| (index, *into)))
+                .or_else(|| anchor.rows.iter().take(3).find_map(|(id, into)| position(id).map(|index| (index, *into))))
+                .or_else(|| (total > 0).then(|| (anchor.index.min(total - 1), 0.0))),
+            (None, Some(index)) => Some((index, 0.0)),
+            (None, None) if start_page > 1 => Some(((start_page - 1) * per_page, 0.0)),
+            (None, None) => None,
         };
         let (follow, alive) = (at_start.clone(), alive_start.clone());
         let go = move |center: bool| {
@@ -920,9 +1213,9 @@ fn VirtualRows(
             if !alive.load(Ordering::Relaxed) {
                 return;
             }
-            if let Some(index) = target {
+            if let Some((index, into)) = target {
                 let viewport = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID).map(|(_, viewport)| viewport).unwrap_or(0.0);
-                let offset = if center { offset_of(index) - (viewport - estimate()) / 2.0 } else { offset_of(index) };
+                let offset = if center { offset_of(index) - (viewport - estimate()) / 2.0 } else { offset_of(index) + into };
                 nav::scroll_list_to(ROWS_ID, HEAD_ID, VLIST_ID, offset.max(0.0));
             }
             follow();
@@ -1001,13 +1294,29 @@ pub(crate) fn Row(
     };
     let has_events = row.teaching_events > 0;
     let target = row.id.clone();
+    let finder = use_context::<Finder>();
     // The preview next to the list; on a phone the module's own page, or where the list shows it
-    // in place, the module filling the list's page.
-    let href = move || if phone.get() && !in_place { url::module_path(&target) } else { preview.get() };
+    // in place, the module filling the list's page. The module's page takes along what „Einplanen"
+    // aims at from the catalog (`?plan=…&fill=…`), as the preview's „Vollbild" does.
+    let href = move || {
+        if phone.get() && !in_place {
+            let hint = finder.and_then(|finder| finder.hint.get()).map(|hint| hint.query()).unwrap_or_default();
+            format!("{}{hint}", url::module_path(&target))
+        } else {
+            preview.get()
+        }
+    };
     let unmarked = dim_unmarked.then(|| {
         let (bookmarks, id) = (Bookmarks::expect(), row.id.clone());
         Memo::new(move |_| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&id)))
     });
+    // With „Passt in meinen Plan" on: how the module fits, where it fits only in part („Übung 1
+    // von 3 frei") or could not be checked. One memo a row (R5); the catalog's list alone has it.
+    let fit_note = finder.map(|finder| {
+        let id = row.id.clone();
+        Memo::new(move |_| finder.view.with(|view| view.note_of(&id, !has_events)))
+    });
+    let fit_note = move || fit_note.and_then(|note| note.get()).map(|(text, quiet)| view! { <span class="flag fit-note" class:neutral=quiet>{text}</span> });
     view! {
         <div class="row-wrap" class:unmarked=move || unmarked.is_some_and(|unmarked| unmarked.get())>
             <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
@@ -1022,6 +1331,7 @@ pub(crate) fn Row(
                         <OfferBadge status=row.offer_status.clone()/>
                         {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
                         {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">"begrenzte Plätze"</span> })}
+                        {fit_note}
                         <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
                     </small>
                 </div>
@@ -1131,11 +1441,12 @@ impl Choices {
     }
 }
 
-/// The catalog that `change` leads to from the current filter: what a control links to.
-fn target(query: Memo<CatalogQuery>, open: Memo<Option<String>>, change: impl FnOnce(&mut CatalogQuery)) -> String {
+/// The catalog that `change` leads to from the current filter: what a control links to. It keeps
+/// the module previewed and the placeholder the list is looked through for (`fill`).
+fn target(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, change: impl FnOnce(&mut CatalogQuery)) -> String {
     let mut next = query.get();
     change(&mut next);
-    CatalogUrl { query: next, page: 1, open: open.get(), fill: None }.path()
+    CatalogUrl { query: next, page: 1, open: open.get(), fill: fill.get() }.path()
 }
 
 /// The filter that `change` makes of the current one, from an event handler (nothing to track).
@@ -1155,6 +1466,7 @@ enum Tri {
 
 type ReadTri = dyn Fn(&CatalogQuery) -> Tri + Send + Sync;
 type WriteTri = dyn Fn(&mut CatalogQuery, Tri) + Send + Sync;
+type Held = dyn Fn(&CatalogQuery) -> bool + Send + Sync;
 
 /// How a chip reads its state from the filter and writes it back.
 #[derive(Clone)]
@@ -1163,11 +1475,14 @@ struct Toggle {
     write: Arc<WriteTri>,
     /// Off → with → without → off. Otherwise only off ↔ with.
     excludes: bool,
+    /// When the filter is such that the chip has to stay as it is (the last class the finder
+    /// compares), and why: it is no link then.
+    held: Option<(Arc<Held>, &'static str)>,
 }
 
 impl Toggle {
     fn new(read: impl Fn(&CatalogQuery) -> Tri + Send + Sync + 'static, write: impl Fn(&mut CatalogQuery, Tri) + Send + Sync + 'static) -> Self {
-        Self { read: Arc::new(read), write: Arc::new(write), excludes: true }
+        Self { read: Arc::new(read), write: Arc::new(write), excludes: true, held: None }
     }
 
     /// A value that is wanted when in the first list and unwanted when in the second.
@@ -1236,30 +1551,50 @@ impl Toggle {
 fn Chip(
     query: Memo<CatalogQuery>,
     open: Memo<Option<String>>,
+    fill: Memo<Option<u32>>,
     toggle: Toggle,
     #[prop(into)] label: String,
     icon: Option<&'static str>,
+    /// A word after the label, quieter („WiSe 26/27").
+    #[prop(optional, into)]
+    small: Option<Signal<String>>,
+    /// What the chip means, where its label says it short.
+    #[prop(optional)]
+    title: Option<&'static str>,
+    /// A chip of „Passt in meinen Plan", which only the browser app can act on: part of the
+    /// server's page all the same, kept in its place but not shown until the app runs (`.fit-chip`,
+    /// R9, R15), so the filters below it do not move at the takeover.
+    #[prop(optional)]
+    finder: bool,
 ) -> impl IntoView {
     let read = toggle.read.clone();
     let state = Memo::new(move |_| query.with(|q| read(q)));
     let excludes = toggle.excludes;
-    // The link reads the filter itself and not `state`. A closure that reads a memo derived from
-    // `query` before `query` misses a change of `query` whenever the derived value stays the
-    // same (reactive_graph 0.2.14 does not mark the observer that made a memo recompute, and the
-    // derived memo then reports „unchanged"). That was the first toggle of the panel losing the
-    // rest of the filter. Rule (docs/frontend.md, R16): in one closure read the source, not a
-    // memo derived from it and the source.
+    let why = toggle.held.as_ref().map(|(_, why)| *why);
+    let held_by = toggle.held.clone();
+    let held = Memo::new(move |_| held_by.as_ref().is_some_and(|(held, _)| query.with(|q| held(q))));
+    // The link reads the filter itself and not `state` or `held`. A closure that reads a memo
+    // derived from `query` before `query` misses a change of `query` whenever the derived value
+    // stays the same (reactive_graph 0.2.14 does not mark the observer that made a memo
+    // recompute, and the derived memo then reports „unchanged"). That was the first toggle of the
+    // panel losing the rest of the filter. Rule (docs/frontend.md, R16): in one closure read the
+    // source, not a memo derived from it and the source.
     let href = move || {
-        target(query, open, |q| {
+        if toggle.held.as_ref().is_some_and(|(held, _)| query.with(|q| held(q))) {
+            return None;
+        }
+        Some(target(query, open, fill, |q| {
             let next = toggle.after((toggle.read)(q));
             (toggle.write)(q, next)
-        })
+        }))
     };
     let name = label.clone();
     view! {
         <a
             class="chip"
+            class:fit-chip=finder
             href=href
+            aria-disabled=move || held.get().then_some("true")
             role="checkbox"
             rel="nofollow"
             draggable="false"
@@ -1278,16 +1613,17 @@ fn Chip(
                 Tri::Without => format!("{name}: ausgeschlossen"),
                 _ => name.clone(),
             }
-            title=move || match (state.get(), excludes) {
-                (Tri::Off, true) => Some("Klick: nur mit · zweiter Klick: ohne"),
-                (Tri::With, true) => Some("Nur mit. Noch ein Klick schließt aus"),
-                (Tri::Without, _) => Some("Ausgeschlossen. Ein Klick hebt das auf"),
-                _ => None,
+            title=move || match (held.get(), state.get(), excludes) {
+                (true, _, _) => why,
+                (false, Tri::Off, true) => Some("Klick: nur mit · zweiter Klick: ohne"),
+                (false, Tri::With, true) => Some("Nur mit. Noch ein Klick schließt aus"),
+                (false, Tri::Without, _) => Some("Ausgeschlossen. Ein Klick hebt das auf"),
+                _ => title,
             }
         >
             <span class="box"><Icon name="check"/><Icon name="x"/></span>
             {icon.map(|name| view! { <Icon name=name/> })}
-            <span class="chip-label">{label}</span>
+            <span class="chip-label">{label}{small.map(|small| view! { " "<small>{small}</small> })}</span>
         </a>
     }
 }
@@ -1311,14 +1647,14 @@ impl Choice {
     }
 }
 
-fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, label: &'static str, choices: Vec<Choice>) -> impl IntoView {
+fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, label: &'static str, choices: Vec<Choice>) -> impl IntoView {
     let links = choices
         .into_iter()
         .map(|choice| {
             let Choice { label, title, count, is_on, choose } = choice;
             view! {
                 <a
-                    href=move || target(query, open, |q| choose(q))
+                    href=move || target(query, open, fill, |q| choose(q))
                     role="radio"
                     rel="nofollow"
                     draggable="false"
@@ -1346,6 +1682,9 @@ fn Filters(
     facts: Memo<Facts>,
     choices: Memo<Choices>,
     open: Memo<Option<String>>,
+    /// The placeholder the list is looked through for: every link of the panel keeps it, only
+    /// „Zurücksetzen" drops it with the rest.
+    fill: Memo<Option<u32>>,
     draft: RwSignal<Option<CatalogQuery>>,
     phone: RwSignal<bool>,
 ) -> impl IntoView {
@@ -1354,7 +1693,7 @@ fn Filters(
         if phone.get_untracked() {
             draft.set(Some(next));
         } else if let Some(going) = going {
-            going.go(&CatalogUrl { query: next, page: 1, open: open.get_untracked(), fill: None }.path(), NavigateOptions { scroll: false, ..Default::default() });
+            going.go(&CatalogUrl { query: next, page: 1, open: open.get_untracked(), fill: fill.get_untracked() }.path(), NavigateOptions { scroll: false, ..Default::default() });
         }
     });
     // A link of the panel is the list it leads to, so on a phone its address is what the draft
@@ -1394,7 +1733,7 @@ fn Filters(
             || q.turnus.year_parity.is_some()
     });
 
-    let chip = move |label: &str, icon: Option<&'static str>, toggle: Toggle| view! { <Chip query open toggle label=label.to_string() icon/> };
+    let chip = move |label: &str, icon: Option<&'static str>, toggle: Toggle| view! { <Chip query open fill toggle label=label.to_string() icon/> };
 
     // ---- program ----
     let program_picker = if APP {
@@ -1493,7 +1832,7 @@ fn Filters(
                 all.push(semester_choice("?".to_string(), Some("Module, die der Regelstudienplan keinem Semester zuordnet"), Some(PlanSemesterFilter::Unstated)));
                 view! {
                     <div class="flabel label">"Fachsemester laut Plan"</div>
-                    {segmented(query, open, "Fachsemester", all)}
+                    {segmented(query, open, fill, "Fachsemester", all)}
                 }
                 .into_any()
             };
@@ -1569,7 +1908,7 @@ fn Filters(
                 })
             };
             view! {
-                {segmented(query, open, "Liste", vec![
+                {segmented(query, open, fill, "Liste", vec![
                     relation(ProgramRelation::Curricular, "Curriculum", Signal::derive(move || facts.with(|f| f.curricular_total))),
                     relation(ProgramRelation::Fues, "FÜS", Signal::derive(move || facts.with(|f| f.fues_total))),
                 ])}
@@ -1604,7 +1943,7 @@ fn Filters(
         let title = choices.with_untracked(|c| c.lecturers.iter().find(|item| item.id == name).map(|item| item.detail.clone())).unwrap_or_default();
         let link = |wanted: Option<bool>| {
             let name = name.clone();
-            move || target(query, open, |q| place(q, &name, wanted))
+            move || target(query, open, fill, |q| place(q, &name, wanted))
         };
         let is_unwanted = {
             let name = name.clone();
@@ -1677,6 +2016,61 @@ fn Filters(
         .into_any()
     };
 
+    // ---- „Passt in meinen Plan": only the browser app can act on it, as only it knows the plan.
+    // The server's page has its chips all the same, the same for everybody (the semester is the
+    // snapshot's), kept in their place but not shown until the app runs (R9, R15): the chip does
+    // not fit beside „Bestätigt", and the filters below would move at the takeover.
+    // Switched on it checks against the semester „Einplanen" would plan into: a placeholder's
+    // („Modul finden", `fill`) or the snapshot's current one.
+    let current = use_source().ok().and_then(|source| source.run(queries::meta).ok()).and_then(|meta| meta.current_semester).and_then(|key| SemesterKey::parse(&key));
+    let plan = Studyplan::expect().filter(|_| APP);
+    let fits_on = Memo::new(move |_| query.with(|q| q.fits.is_some()));
+    let finder_chip = current.map(|current| {
+        // `fill` and the plan are sources of their own (R16): neither is derived from the other.
+        let aim = move || plan.map_or(current, |plan| {
+            let fill = fill.get();
+            plan.with(|doc| finder_semester(doc, fill, current))
+        });
+        let toggle = Toggle {
+            excludes: false,
+            ..Toggle::new(
+                |q| if q.fits.is_some() { Tri::With } else { Tri::Off },
+                move |q, state| q.fits = (state == Tri::With).then(|| FitsFilter::all(&aim().key())),
+            )
+        };
+        let checked = Signal::derive(move || query.with(|q| q.fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester))).unwrap_or_else(aim).short());
+        // No icon: the chip needs the width for the semester it names.
+        view! { <Chip query open fill toggle label="Passt in meinen Plan" icon=None small=checked finder=true/> }
+    });
+    // While it is on: which classes it compares (all by default, and one at least: comparing
+    // none would list every module of the semester as fitting), and whether modules without a
+    // dated row in the semester, which cannot be checked, are listed too (not by default).
+    let class = |get: fn(&FitsFilter) -> bool, set: fn(&mut FitsFilter, bool), compared: bool| Toggle {
+        excludes: false,
+        held: compared.then(|| {
+            let last: Arc<Held> = Arc::new(move |q: &CatalogQuery| q.fits.as_ref().is_some_and(|fits| get(fits) && [fits.lectures, fits.exercises, fits.exams].into_iter().filter(|on| *on).count() == 1));
+            (last, "Mindestens eine Art wird verglichen")
+        }),
+        ..Toggle::new(
+            move |q| if q.fits.as_ref().is_some_and(get) { Tri::With } else { Tri::Off },
+            move |q, state| {
+                if let Some(fits) = q.fits.as_mut() {
+                    set(fits, state == Tri::With);
+                }
+            },
+        )
+    };
+    let finder_options = move || {
+        fits_on.get().then(|| view! {
+            <div class="chips fit-chip">
+                <Chip query open fill toggle=class(|f| f.lectures, |f, on| f.lectures = on, true) label="Vorlesungen" icon=None/>
+                <Chip query open fill toggle=class(|f| f.exercises, |f, on| f.exercises = on, true) label="Übungen" icon=None title="Übungen, Seminare, Praktika, Projekte, Tutorien …"/>
+                <Chip query open fill toggle=class(|f| f.exams, |f, on| f.exams = on, true) label="Prüfungen" icon=None/>
+                <Chip query open fill toggle=class(|f| f.undated, |f, on| f.undated = on, false) label="auch ohne Termine" icon=None title="Auch Module ohne Termine in diesem Semester: sie lassen sich nicht prüfen"/>
+            </div>
+        })
+    };
+
     // Without the app the pickers above are form fields; what the links set travels with them.
     let carried = move || {
         (!APP).then(|| {
@@ -1709,7 +2103,9 @@ fn Filters(
                         <div class="flabel label">"Termine"</div>
                         <div class="chips">
                             {chip("Bestätigt", Some("calendar-check-2"), Toggle::flag(|q| q.scheduled, |q, value| q.scheduled = value))}
+                            {finder_chip}
                         </div>
+                        {finder_options}
                     </div>
                     <div class="fgroup">
                         <div class="flabel label">"Angeboten im"<span class="legend"><i class="box with"><Icon name="check"/></i>"mit"<i class="box without"><Icon name="x"/></i>"ohne"</span></div>
@@ -1774,13 +2170,13 @@ fn Filters(
                         <div class="flabel label">"Fachgebiet"</div>
                         {department_picker}
                         <div class="flabel label">"Dauer"</div>
-                        {segmented(query, open, "Dauer", vec![
+                        {segmented(query, open, fill, "Dauer", vec![
                             Choice::new("Egal", |q| q.duration_semesters.is_none(), |q| q.duration_semesters = None),
                             Choice::new("1 Semester", |q| q.duration_semesters == Some(1), |q| q.duration_semesters = Some(1)),
                             Choice::new("2 Semester", |q| q.duration_semesters == Some(2), |q| q.duration_semesters = Some(2)),
                         ])}
                         <div class="flabel label">"Nur in bestimmten Jahren"</div>
-                        {segmented(query, open, "Jahre", vec![
+                        {segmented(query, open, fill, "Jahre", vec![
                             Choice::new("Egal", |q| q.turnus.year_parity.is_none(), |q| q.turnus.year_parity = None),
                             Choice::new("Gerade", |q| q.turnus.year_parity == Some(TurnusParity::Even), |q| q.turnus.year_parity = Some(TurnusParity::Even)),
                             Choice::new("Ungerade", |q| q.turnus.year_parity == Some(TurnusParity::Odd), |q| q.turnus.year_parity = Some(TurnusParity::Odd)),
@@ -1883,5 +2279,122 @@ fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoVi
                     on:change=move |ev| if APP { go.run(changed(query, |q| q.credits_max = typed(&ev))) }/>
             </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ids(ids: &[&str]) -> Vec<String> {
+        ids.iter().map(|id| id.to_string()).collect()
+    }
+
+    fn switched_on(filter: FitsFilter) -> CatalogQuery {
+        CatalogQuery { text: "analysis".to_string(), fits: Some(filter), ..CatalogQuery::default() }
+    }
+
+    /// FS1 of Informatik against WiSe 2026/27, as `pages::fit` answers it: 12330 fits, 12101 has
+    /// rows without times, 12974 only a retake, 13583 fits in part; 11103 clashes, 12104 is
+    /// planned.
+    fn answer() -> FitResult {
+        FitResult {
+            has_data: true,
+            fitting: ids(&["12101", "12330", "12974", "13583"]),
+            excluded: ids(&["11103", "12104"]),
+            notes: BTreeMap::from([
+                ("12101".to_string(), "keine festen Termine".to_string()),
+                ("12974".to_string(), "nur Wiederholungsprüfung".to_string()),
+                ("13583".to_string(), "Übung 1 von 3 frei".to_string()),
+            ]),
+            unknown: BTreeSet::from(["12101".to_string(), "12974".to_string()]),
+        }
+    }
+
+    #[test]
+    fn the_finder_asks_the_plan_only_when_it_is_on() {
+        // Without the switch the query is left as it is.
+        let plain = CatalogQuery { text: "analysis".to_string(), marked: Some(true), ..CatalogQuery::default() };
+        assert_eq!(with_fits(plain.clone(), None, None, None), Fitted { query: plain, ..Fitted::default() });
+        // With it, but without a plan to check against (the server's page): no ids, which lists
+        // nothing, and nothing to say at the rows.
+        let on = switched_on(FitsFilter::all("2026W"));
+        let unknown = with_fits(on.clone(), None, None, None);
+        assert_eq!((unknown.query, unknown.view, unknown.failed), (on, FitView::default(), None));
+    }
+
+    #[test]
+    fn the_list_holds_what_was_checked_and_fits() {
+        // By default the modules checked that fit, with the notes of those that fit in part or
+        // could not be checked.
+        let filter = FitsFilter::all("2026W");
+        let checked = fitted(switched_on(filter.clone()), &filter, Some(&answer()));
+        assert_eq!(checked.query.fits_ids, Some(FitIds::Only(ids(&["12101", "12330", "12974", "13583"]))));
+        assert_eq!(checked.query.text, "analysis");
+        // A partial fit warns; what could not be checked, a retake alone included, is quiet.
+        assert_eq!(checked.view.note_of("13583", false), Some(("Übung 1 von 3 frei".to_string(), false)));
+        assert_eq!(checked.view.note_of("12101", false), Some(("keine festen Termine".to_string(), true)));
+        assert_eq!(checked.view.note_of("12974", false), Some(("nur Wiederholungsprüfung".to_string(), true)));
+        assert_eq!((checked.view.note_of("12330", false), checked.view.note_of("11454", false), checked.view.line.clone()), (None, None, None));
+        // A row that says „noch keine Termine" itself is not told „keine festen Termine" beside
+        // it; what else the finder found out it still is.
+        assert_eq!(checked.view.note_of("12101", true), None);
+        assert_eq!(checked.view.note_of("12974", true).map(|(note, _)| note).as_deref(), Some("nur Wiederholungsprüfung"));
+
+        // „auch ohne Termine": every module but the clashing and the planned ones, and a module
+        // that could not be checked says why — unless its row says so already.
+        let undated = FitsFilter { undated: true, ..filter.clone() };
+        let also = fitted(switched_on(undated.clone()), &undated, Some(&answer()));
+        assert_eq!(also.query.fits_ids, Some(FitIds::Without(ids(&["11103", "12104"]))));
+        assert_eq!(also.view.note_of("13164", false), Some(("keine Termine im WiSe 2026/27".to_string(), true)));
+        assert_eq!(also.view.note_of("11454", true), None);
+        assert_eq!((also.view.note_of("12330", false), also.view.note_of("13583", false).map(|(_, quiet)| quiet)), (None, Some(false)));
+
+        // A semester without dates is not checked: every module but the planned ones, one line
+        // above the list, nothing at the rows.
+        let summer = FitsFilter::all("2027S");
+        let unpublished = FitResult { has_data: false, excluded: ids(&["12204"]), ..FitResult::default() };
+        let open = fitted(switched_on(summer.clone()), &summer, Some(&unpublished));
+        assert_eq!(open.query.fits_ids, Some(FitIds::Without(ids(&["12204"]))));
+        assert_eq!(open.view.line.as_deref(), Some("SoSe 2027: noch keine Termine veröffentlicht."));
+        assert_eq!(open.view.note_of("11454", false), None);
+        let open_too = fitted(switched_on(FitsFilter { undated: true, ..summer.clone() }), &summer, Some(&unpublished));
+        assert_eq!(open_too.query.fits_ids, Some(FitIds::Without(ids(&["12204"]))));
+    }
+
+    #[test]
+    fn the_switch_checks_the_semester_of_the_placeholder() {
+        // „Modul finden" of a placeholder in SoSe 2027, the switch turned off and on again: it
+        // checks SoSe 2027 again, where „Einplanen" plans the module into, not the current one.
+        let doc = PlanDoc::restored("p\t2\t2027S\t079-82-2008\t30\t2-2\t6\tfues\t\tFachübergreifendes Studium 2");
+        let (current, summer) = (SemesterKey::parse("2026W").unwrap(), SemesterKey::parse("2027S").unwrap());
+        assert_eq!(finder_semester(&doc, Some(2), current), summer);
+        // No placeholder, or one the plan does not hold (any more): the current semester.
+        assert_eq!(finder_semester(&doc, None, current), current);
+        assert_eq!(finder_semester(&doc, Some(7), current), current);
+        assert_eq!(finder_semester(&PlanDoc::default(), Some(2), current), current);
+    }
+
+    #[test]
+    fn what_the_finder_adds_to_the_list_stays_out_of_its_address() {
+        let filter = FitsFilter { exams: false, ..FitsFilter::all("2026W") };
+        let mut query = fitted(switched_on(filter.clone()), &filter, Some(&answer())).query;
+        query.only_ids = Some(ids(&["12330"]));
+        query.without_ids = ids(&["11103"]);
+        assert_eq!(addressed(&query), switched_on(filter));
+        // The tag names the semester and takes the switch away with the rest of the list kept.
+        let current = CatalogUrl { query: switched_on(FitsFilter::all("2026W")), fill: Some(3), ..CatalogUrl::default() };
+        let found = tags(&current, &[], &[]).into_iter().find(|(group, _, _)| group == "Passt in");
+        let (_, value, without) = found.unwrap();
+        assert_eq!((value.as_str(), without.path()), ("WiSe 2026/27", "/catalog?q=analysis&fill=p3".to_string()));
+    }
+
+    #[test]
+    fn nothing_fits_names_what_to_leave_out() {
+        let all = FitsFilter::all("2026W");
+        assert_eq!(fit_advice(&all), "Übungen oder Prüfungen abwählen.");
+        assert_eq!(fit_advice(&FitsFilter { exams: false, ..all.clone() }), "Übungen abwählen.");
+        assert_eq!(fit_advice(&FitsFilter { exercises: false, ..all.clone() }), "Prüfungen abwählen.");
+        assert_eq!(fit_advice(&FitsFilter { exercises: false, exams: false, ..all }), "Vorlesungen abwählen.");
     }
 }

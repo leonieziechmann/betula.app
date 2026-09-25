@@ -1050,6 +1050,10 @@ pub struct FitResult {
     /// The row notes of partial fits and unknowns („Übung 1 von 3 frei", „keine festen Termine"),
     /// by module id, as the finder words them.
     pub notes: BTreeMap<String, String>,
+    /// The listed modules that could not be checked (`Verdict::Unknown`: nothing with a time to
+    /// compare, only retakes). Their notes say why, and a list shows them quietly: unlike a
+    /// partial fit, they warn of nothing. By the verdict, so a note worded anew keeps its kind.
+    pub unknown: BTreeSet<String>,
 }
 
 /// The finder for the plan of `plan_ids` (the planned modules of `filter.semester`) as
@@ -1110,6 +1114,9 @@ pub fn fit(
         }
         if let Some(note) = verdict.note {
             result.notes.insert(verdict.module_id.clone(), note);
+        }
+        if verdict.verdict == Verdict::Unknown {
+            result.unknown.insert(verdict.module_id.clone());
         }
         result.fitting.push(verdict.module_id);
     }
@@ -1645,7 +1652,7 @@ mod studyplan_tests {
     use crate::labels::Code;
     use crate::native::NativeDatabase;
     use crate::timetable::day::Day;
-    use crate::timetable::fit::{RETAKE_NOTE, UNKNOWN_NOTE};
+    use crate::timetable::fit::{RETAKE_NOTE, UNCOMPARED_NOTE, UNKNOWN_NOTE};
     use crate::timetable::model::tests::{ids, invariants, teaching, winter, Fixture};
     use crate::timetable::select::{FitOptions, Town};
 
@@ -1818,6 +1825,8 @@ mod studyplan_tests {
         assert!(FS1.iter().all(|id| excluded.contains(id) && !fitting.contains(id)));
         assert!(fitting.is_disjoint(&excluded));
         assert!(found.notes.keys().all(|id| fitting.contains(id.as_str())));
+        // What could not be checked is listed and says why.
+        assert!(found.unknown.iter().all(|id| fitting.contains(id.as_str()) && found.notes.contains_key(id)));
         let set = cache.as_ref().expect("the candidates are kept");
         assert_eq!(set.key.0, key);
         assert_eq!(set.key.1, all.options());
@@ -1866,10 +1875,19 @@ mod studyplan_tests {
         assert!(fitting.contains("12101"));
         assert_eq!(found.notes.get("12101").map(String::as_str), Some(RETAKE_NOTE));
         assert!(found.notes.values().any(|note| note.starts_with(UNKNOWN_NOTE)));
+        // Every kind of „not checked" is an unknown, and a partial fit is none.
+        assert!(found.unknown.contains("12101") && !found.unknown.contains("12330"));
+        let not_checked = |note: &str| [UNKNOWN_NOTE, RETAKE_NOTE, UNCOMPARED_NOTE].iter().any(|kind| note.starts_with(kind));
+        for result in [&found, &without_exercises] {
+            assert!(result.notes.iter().all(|(id, note)| result.unknown.contains(id) == not_checked(note)), "an unknown by its note");
+        }
         // Grundlagen der Rechnernetze has no dated row in 2026W: neither checked nor left out.
         assert!(!fitting.contains("11454") && !excluded.contains("11454"));
-        // Without Übungen compared, Deutsch als Fremdsprache fits; Analysis I still does not.
+        // Without Übungen compared, Deutsch als Fremdsprache fits; Analysis I still does not. A
+        // module of Übungen alone was not compared, which it says instead of having no times.
         assert!(without_exercises.fitting.iter().any(|id| id == "13583"));
+        assert!(without_exercises.notes.values().any(|note| note == UNCOMPARED_NOTE));
+        assert!(!found.notes.values().any(|note| note.starts_with(UNCOMPARED_NOTE)), "everything compared");
         assert!(without_exercises.excluded.iter().any(|id| id == "11103"));
 
         // SoSe 2027 has no Termine yet: nothing is checked, the plan is left out.

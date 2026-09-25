@@ -25,7 +25,8 @@
 //! each choice one free option, but not all of them at once, does not fit.
 //!
 //! What cannot be compared is never a conflict and never a fit: a module whose rows have no time
-//! in a compared class is kept as unknown („keine festen Termine"). A retake is sat only after a
+//! in a compared class is kept as unknown („keine festen Termine", or „nicht verglichen" when its
+//! Termine with a time are all of classes left out of the comparison). A retake is sat only after a
 //! first attempt, so a free one says nothing about a module one plans to take, and a module whose
 //! only Termine are retakes is unknown as well („nur Wiederholungsprüfung"). A retake the plan's
 //! fixed Termine leave no room for is a conflict all the same: once the module is planned, the
@@ -48,6 +49,11 @@ use crate::rows_detail::{DateRow, ModuleSws};
 
 /// The note of a module whose rows have no time to compare.
 pub const UNKNOWN_NOTE: &str = "keine festen Termine";
+
+/// The note of a module with nothing to compare whose Termine with a time are all of classes the
+/// visitor left out („Vorlesungen" off, a module of lectures): it has fixed Termine, they were
+/// only not compared.
+pub const UNCOMPARED_NOTE: &str = "nicht verglichen";
 
 /// The note of a module whose only exam Termine are retakes, one of them free, and that has no
 /// teaching to compare: a retake is sat after a failed first attempt, so it says nothing about
@@ -130,6 +136,9 @@ struct Course {
     /// Its Termine of retakes alone, earliest first: a free one does not make the module fit, but
     /// they are Termine the Studienplan warns about once it is planned.
     retakes: Vec<TerminAt>,
+    /// It has shown Termine with a time in a class that is not compared: with nothing to compare,
+    /// that is what its note says rather than that it has no fixed Termine.
+    uncompared: bool,
 }
 
 /// Builds every module of the semester's rows as a plan of one. `selection` gives the hidden kinds
@@ -305,13 +314,11 @@ fn course(table: Timetable, options: FitOptions, town: Option<Town>) -> Course {
     } else {
         (Vec::new(), Vec::new())
     };
-    let events = table
-        .events
-        .into_iter()
-        .filter(|event| event.hidden.is_none() && compared(event.class, options))
-        .filter(|event| event.rows.iter().any(|row| placed(row).is_some()))
-        .collect();
-    Course { town, ids, events, termine, retakes }
+    let timed = |event: &Event| event.hidden.is_none() && event.rows.iter().any(|row| placed(row).is_some());
+    let uncompared = table.events.iter().any(|event| !compared(event.class, options) && timed(event))
+        || (!options.exams && exams::termine(&table.exams, &table.modules).iter().any(|(_, termine)| !termine.is_empty()));
+    let events = table.events.into_iter().filter(|event| compared(event.class, options) && timed(event)).collect();
+    Course { town, ids, events, termine, retakes, uncompared }
 }
 
 /// A shown row's times when it has a day to be compared on: held days, or a pattern of its
@@ -579,7 +586,10 @@ fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Cho
     }
     if lectures.events + others.events == 0 {
         match exam {
-            ExamFit::Unknown => return (Verdict::Unknown, Some(UNKNOWN_NOTE.to_string())),
+            ExamFit::Unknown => {
+                let note = if course.uncompared { UNCOMPARED_NOTE } else { UNKNOWN_NOTE };
+                return (Verdict::Unknown, Some(note.to_string()));
+            }
             ExamFit::Retake => return (Verdict::Unknown, Some(RETAKE_NOTE.to_string())),
             ExamFit::Free | ExamFit::Note(_) | ExamFit::Fails => {}
         }
@@ -708,6 +718,10 @@ mod tests {
         fit(module, Verdict::Unknown, Some(UNKNOWN_NOTE))
     }
 
+    fn uncompared(module: &str) -> (String, Verdict, Option<String>) {
+        fit(module, Verdict::Unknown, Some(UNCOMPARED_NOTE))
+    }
+
     fn partly(module: &str, note: &str) -> (String, Verdict, Option<String>) {
         fit(module, Verdict::Partly, Some(note))
     }
@@ -799,17 +813,18 @@ mod tests {
             ]
         );
         // Übungen not compared: E's lecture is not held against P's Übung, and a module of Übungen
-        // alone has nothing to compare.
+        // alone has nothing to compare. Its Übungen have a time, so it says they were not
+        // compared; H's lecture has none.
         assert_eq!(
             finder(&rows, &[], &plan, &selection, NO_EXERCISES),
             [
                 clashes("A"),
                 fits_("B"),
-                unknown("C"),
-                unknown("D"),
+                uncompared("C"),
+                uncompared("D"),
                 fits_("E"),
-                unknown("F"),
-                unknown("G"),
+                uncompared("F"),
+                uncompared("G"),
                 unknown("H")
             ]
         );
@@ -817,11 +832,11 @@ mod tests {
         assert_eq!(
             finder(&rows, &[], &plan, &selection, NO_LECTURES),
             [
-                unknown("A"),
-                unknown("B"),
+                uncompared("A"),
+                uncompared("B"),
                 partly("C", "Übung 1 von 2 frei"),
                 clashes("D"),
-                unknown("E"),
+                uncompared("E"),
                 partly("F", "Übung 1 von 2 frei"),
                 partly("G", "Übung 1 von 2 frei"),
                 unknown("H")
@@ -876,7 +891,7 @@ mod tests {
         // With Übungen not compared, the plan's choice is not either.
         assert_eq!(
             finder(&rows, &[], &["P"], &selection, NO_EXERCISES),
-            [fits_("K"), fits_("L"), unknown("M"), unknown("N")]
+            [fits_("K"), fits_("L"), uncompared("M"), uncompared("N")]
         );
         // A choice the plan made is a required Termin like any other.
         let chosen = Selection { chosen_rows: [rows[0].key()].into(), ..Selection::default() };
@@ -983,8 +998,12 @@ mod tests {
         };
         assert!(hard("F"));
         assert!(!hard("J") && !hard("K") && !hard("L"));
+        // Exams not compared: a module whose exam has a time says it was not compared; I's has
+        // none.
+        let not_compared: Vec<_> =
+            expected.iter().map(|(module, ..)| if module == "I" { unknown(module) } else { uncompared(module) }).collect();
+        assert_eq!(finder(&[], &exams, &["P", "R"], &Selection::default(), NO_EXAMS), not_compared);
         let off: Vec<_> = expected.iter().map(|(module, ..)| unknown(module)).collect();
-        assert_eq!(finder(&[], &exams, &["P", "R"], &Selection::default(), NO_EXAMS), off);
         // Exams hidden as a kind: the plan's and the candidates' alike.
         let hidden = Selection { hidden_kinds: KindSet::default().with(EventKind::Exam), ..Selection::default() };
         assert_eq!(finder(&[], &exams, &["P", "R"], &hidden, ALL), off);
