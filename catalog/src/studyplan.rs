@@ -78,6 +78,10 @@ const MAX_EVENT: u32 = 999_999_999;
 /// The sixth field of an `m` line for a module taken over from the Regelstudienplan.
 const FROM_PLAN: &str = "plan";
 
+/// What `PlanDoc::holds_saved` compares of a semester: the program, the modules, the placeholders'
+/// plan rows and what is hidden or chosen.
+type Shape<'a> = (Option<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a SemesterHides>);
+
 /// The visitor's Studienplan: modules and placeholders per calendar semester, and per semester
 /// what is hidden, what was chosen and the subscription code last handed out.
 ///
@@ -85,6 +89,7 @@ const FROM_PLAN: &str = "plan";
 /// tag:
 ///
 /// ```text
+/// g  <program_id>
 /// m  <semester>  <module_id>  <added_secs>  <fills>  [plan]
 /// p  <pid>  <semester>  <program_id>  <ord>  <from>-<to>  <credits>  <kind>  <caption>  <name>
 /// k  <semester>  <kind>,<kind>,…
@@ -94,12 +99,15 @@ const FROM_PLAN: &str = "plan";
 /// a  <semester>  <code>
 /// ```
 ///
-/// `plan` marks a module taken over from the Regelstudienplan (`Planned::from_plan`). `r` hides
-/// one Termin, `c` is a made choice („Nur diesen"): of the choice that holds the row, only the
-/// option with it is shown. A choice whose row QIS changed no longer matches, and the choice is
-/// open again, the safe direction.
+/// `g` is the program the timetable is planned for (`program`). `plan` marks a module taken over
+/// from the Regelstudienplan (`Planned::from_plan`). `r` hides one Termin, `c` is a made choice
+/// („Nur diesen"): of the choice that holds the row, only the option with it is shown. A choice
+/// whose row QIS changed no longer matches, and the choice is open again, the safe direction.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanDoc {
+    /// The program the timetable is planned for, picked in its sidebar or taken with a
+    /// Regelstudienplan (`g`); `None`: „Mein Studiengang". It gives the import its plans.
+    pub program: Option<String>,
     /// By semester, and within one in the order they were planned (`m`).
     pub modules: Vec<Planned>,
     /// By pid (`p`).
@@ -187,6 +195,11 @@ impl PlanDoc {
             let semester = SemesterKey::parse(field(1));
             match field(0) {
                 "" => {}
+                "g" => {
+                    if doc.program.is_none() && url::is_program_id(field(1)) {
+                        doc.program = Some(field(1).to_string());
+                    }
+                }
                 "m" => {
                     let Some(s) = semester else { continue };
                     if doc.plan(s, field(2), number(field(3)).unwrap_or(0), None) {
@@ -245,11 +258,14 @@ impl PlanDoc {
         doc
     }
 
-    /// The text `restored` reads back as this plan: `m` by semester, then in planning order;
+    /// The text `restored` reads back as this plan: `g`; `m` by semester, then in planning order;
     /// `p` by pid; then per semester `k`, `e`, `r`, `c`, `a`; then the lines of unknown tags.
     /// Control characters in names become spaces, so a name never splits its line.
     pub fn stored(&self) -> String {
         let mut out = String::new();
+        if let Some(program) = self.program.as_deref().filter(|id| url::is_program_id(id)) {
+            let _ = writeln!(out, "g\t{program}");
+        }
         let mut modules: Vec<&Planned> = self.modules.iter().filter(|m| url::is_module_id(&m.module_id)).collect();
         modules.sort_by_key(|m| m.semester);
         for m in modules {
@@ -542,6 +558,78 @@ impl PlanDoc {
         (modules, placeholders)
     }
 
+    /// The timetable of one semester as a plan of its own, the program with it: what „Plan
+    /// speichern" keeps (`SavedPlan`). A module keeps what it counts for only where that
+    /// placeholder stands in the semester too.
+    pub fn semester_only(&self, s: SemesterKey) -> PlanDoc {
+        let placeholders: Vec<Placeholder> = self.placeholders.iter().filter(|p| p.semester == s).cloned().collect();
+        let modules = self
+            .modules
+            .iter()
+            .filter(|m| m.semester == s)
+            .map(|m| Planned { fills: m.fills.filter(|pid| placeholders.iter().any(|p| p.pid == *pid)), ..m.clone() })
+            .collect();
+        let hidden = self.hidden.get(&s).map(|hides| BTreeMap::from([(s, hides.clone())])).unwrap_or_default();
+        PlanDoc { program: self.program.clone(), modules, placeholders, hidden, ..PlanDoc::default() }
+    }
+
+    /// Replaces the timetable of semester `s` by a saved one (`semester_only`, of whatever
+    /// semester it was saved in): its modules, placeholders (numbered anew, what counts for them
+    /// with them), what it hides and has chosen, and its program. The other semesters stay, and so
+    /// does the subscription code (the page tells that the plan has moved on from it).
+    pub fn put_semester(&mut self, s: SemesterKey, saved: &PlanDoc) {
+        let gone: Vec<u32> = self.placeholders.iter().filter(|p| p.semester == s).map(|p| p.pid).collect();
+        for pid in gone {
+            self.remove_placeholder(pid);
+        }
+        self.modules.retain(|m| m.semester != s);
+        self.hidden.remove(&s);
+        self.program = saved.program.clone();
+        let mut pids: BTreeMap<u32, u32> = BTreeMap::new();
+        for p in &saved.placeholders {
+            let pid = self.next_pid();
+            if self.add_placeholder(Placeholder { pid, semester: s, ..p.clone() }) {
+                pids.insert(p.pid, pid);
+            }
+        }
+        for m in &saved.modules {
+            if self.plan(s, &m.module_id, m.at, m.fills.and_then(|pid| pids.get(&pid).copied())) && m.from_plan {
+                self.mark_from_plan(s, &m.module_id);
+            }
+        }
+        for hides in saved.hidden.values() {
+            for kind in hides.kinds.iter() {
+                self.set_kind(s, kind, true);
+            }
+            for event in &hides.events {
+                self.set_event(s, *event, true);
+            }
+            for row in &hides.rows {
+                self.set_row(s, *row, true);
+            }
+            for row in &hides.chosen {
+                self.add_to(s, *row, |h| &h.chosen, |h| &mut h.chosen);
+            }
+        }
+    }
+
+    /// Whether semester `s` holds the timetable `saved` holds (`semester_only`, of any semester):
+    /// the same program, modules, placeholder rows and what is hidden and chosen, whenever each
+    /// was planned and however the placeholders are numbered. A loaded plan is marked while this
+    /// holds.
+    pub fn holds_saved(&self, s: SemesterKey, saved: &PlanDoc) -> bool {
+        let mut there = PlanDoc::default();
+        there.put_semester(s, saved);
+        self.semester_only(s).shape(s) == there.shape(s)
+    }
+
+    /// What `holds_saved` compares of semester `s`.
+    fn shape(&self, s: SemesterKey) -> Shape<'_> {
+        let modules = self.modules.iter().filter(|m| m.semester == s).map(|m| m.module_id.as_str()).collect();
+        let rows = self.placeholders.iter().filter(|p| p.semester == s).map(|p| (p.program_id.as_str(), p.ord)).collect();
+        (self.program.as_deref(), modules, rows, self.hidden.get(&s))
+    }
+
     /// Adds a placeholder in pid order, when it is valid, its pid and its plan row are new and the
     /// caps allow it.
     fn add_placeholder(&mut self, p: Placeholder) -> bool {
@@ -717,12 +805,7 @@ impl MineDoc {
         if let Some(start) = self.start {
             let _ = writeln!(out, "start\t{}", start.key());
         }
-        let town = match self.town {
-            TownChoice::Derive => None,
-            TownChoice::Only(town) => Some(town.code()),
-            TownChoice::Both => Some("both"),
-        };
-        if let Some(town) = town {
+        if let Some(town) = town_code(self.town) {
             let _ = writeln!(out, "town\t{town}");
         }
         for (key, value) in &self.extra {
@@ -742,6 +825,132 @@ fn town_of_code(code: &str) -> Option<TownChoice> {
         "senftenberg" => Some(TownChoice::Only(Town::Senftenberg)),
         "both" => Some(TownChoice::Both),
         _ => None,
+    }
+}
+
+/// The code `town_of_code` reads; `Derive` is not stored.
+fn town_code(town: TownChoice) -> Option<&'static str> {
+    match town {
+        TownChoice::Derive => None,
+        TownChoice::Only(town) => Some(town.code()),
+        TownChoice::Both => Some("both"),
+    }
+}
+
+/// The most saved plans („Plan speichern").
+pub const MAX_SAVED: usize = 30;
+
+/// The most bytes of `betula.studyplan.saved.v1` that are read: thirty timetables of a semester
+/// are far below it; a longer text is read up to the last line break before it.
+pub const MAX_SAVED_STORED: usize = 512 * 1024;
+
+/// The most characters of a saved plan's name.
+pub const MAX_SAVED_NAME: usize = 60;
+
+/// A timetable kept under a name („Plan speichern", for a friend or a second try), to be loaded
+/// again with a click: one semester's plan (`PlanDoc::semester_only`, the program with it) and the
+/// Standort it was seen with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedPlan {
+    pub name: String,
+    pub town: TownChoice,
+    pub doc: PlanDoc,
+}
+
+impl SavedPlan {
+    /// How many modules it holds.
+    pub fn modules(&self) -> usize {
+        self.doc.modules.len()
+    }
+}
+
+/// The saved plans of this browser (R20: in `localStorage` alone, never in an address or a
+/// request), stored as blocks: a line `plan  <name>  <town>`, then the lines of its plan as
+/// `PlanDoc::stored` writes them. Read like every store: a line that fails is dropped alone (a bad
+/// line of a plan by `PlanDoc::restored`; a line before the first `plan` line), a block without a
+/// name, with a name taken before, or with nothing planned is dropped, and at most `MAX_SAVED`
+/// plans are read, in the order of the text.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SavedPlans {
+    pub plans: Vec<SavedPlan>,
+}
+
+impl SavedPlans {
+    pub fn restored(text: &str) -> Self {
+        let mut out = SavedPlans::default();
+        let mut block: Option<(String, TownChoice, String)> = None;
+        for raw in head(text, MAX_SAVED_STORED).split('\n') {
+            let line: String = raw.chars().filter(|c| *c != '\r').collect();
+            let mut fields = line.split('\t');
+            if fields.next().map(str::trim) == Some("plan") {
+                if let Some((name, town, body)) = block.take() {
+                    out.add(&name, town, PlanDoc::restored(&body));
+                }
+                let name = fields.next().unwrap_or_default().to_string();
+                let town = town_of_code(fields.next().unwrap_or_default().trim()).unwrap_or_default();
+                block = Some((name, town, String::new()));
+            } else if let Some((_, _, body)) = block.as_mut() {
+                body.push_str(&line);
+                body.push('\n');
+            }
+        }
+        if let Some((name, town, body)) = block {
+            out.add(&name, town, PlanDoc::restored(&body));
+        }
+        out
+    }
+
+    /// The text `restored` reads back as these plans.
+    pub fn stored(&self) -> String {
+        let mut out = String::new();
+        for plan in &self.plans {
+            let _ = writeln!(out, "plan\t{}\t{}", saved_name(&plan.name), town_code(plan.town).unwrap_or_default());
+            out.push_str(&plan.doc.stored());
+        }
+        out
+    }
+
+    /// Keeps a plan under `name`, in the place of one of the same name; `false` when nothing was
+    /// kept: no name, nothing planned, or `MAX_SAVED` plans of other names.
+    pub fn save(&mut self, name: &str, town: TownChoice, doc: PlanDoc) -> bool {
+        let name = saved_name(name);
+        if name.is_empty() || doc.is_empty() {
+            return false;
+        }
+        match self.plans.iter_mut().find(|plan| plan.name == name) {
+            Some(plan) => {
+                *plan = SavedPlan { name, town, doc };
+                true
+            }
+            None => self.add(&name, town, doc),
+        }
+    }
+
+    pub fn remove(&mut self, name: &str) {
+        self.plans.retain(|plan| plan.name != name);
+    }
+
+    pub fn get(&self, name: &str) -> Option<&SavedPlan> {
+        self.plans.iter().find(|plan| plan.name == name)
+    }
+
+    /// A new plan at the end, within the caps.
+    fn add(&mut self, name: &str, town: TownChoice, doc: PlanDoc) -> bool {
+        let name = saved_name(name);
+        if name.is_empty() || doc.is_empty() || self.plans.len() >= MAX_SAVED || self.get(&name).is_some() {
+            return false;
+        }
+        self.plans.push(SavedPlan { name, town, doc });
+        true
+    }
+}
+
+/// A saved plan's name as it is kept: `clean`, at most `MAX_SAVED_NAME` characters.
+fn saved_name(name: &str) -> String {
+    let name = clean(name);
+    match name.char_indices().nth(MAX_SAVED_NAME) {
+        Some((at, _)) => name.get(..at).unwrap_or_default().trim_end().to_string(),
+        None => name,
     }
 }
 
@@ -827,28 +1036,12 @@ pub fn import(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Option<
                 true
             }
             None => {
-                let credits = plan::credits_of(entry).as_deref().and_then(credits_text);
-                let kind = entry.kind.as_ref().and_then(Code::known).map(|kind| kind.code().to_string());
-                if credits.is_none() && kind.is_none() {
-                    continue;
-                }
+                let Some(placeholder) = row_placeholder(program_id, variant, entry, semester, &name) else { continue };
                 if doc.placeholders.iter().any(|p| p.program_id == program_id && p.ord == entry.ord) {
                     out.skipped += 1;
                     continue;
                 }
-                let span = plan::semester_span(entry).and_then(|(from, to)| Some((u8::try_from(from).ok()?, u8::try_from(to).ok()?)));
-                let Some(span) = span else { continue };
-                out.placeholders.push(Placeholder {
-                    pid: 0,
-                    semester,
-                    program_id: program_id.to_string(),
-                    ord: entry.ord,
-                    span,
-                    credits,
-                    kind,
-                    caption: clean(&variant.full),
-                    name: clean(&name),
-                });
+                out.placeholders.push(placeholder);
                 false
             }
         };
@@ -865,6 +1058,79 @@ pub fn import(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Option<
                 false => line.placeholders.push(name),
             }
         }
+    }
+    out
+}
+
+/// The placeholder a plan row without a module becomes in `semester` (pid 0: `PlanDoc::apply`
+/// numbers it): its name, credits, kind, span and the caption of its plan. `None` for a row of
+/// prose, with neither credits nor a kind.
+fn row_placeholder(program_id: &str, variant: &PlanVariant, entry: &PlanEntry, semester: SemesterKey, name: &str) -> Option<Placeholder> {
+    let credits = plan::credits_of(entry).as_deref().and_then(credits_text);
+    let kind = entry.kind.as_ref().and_then(Code::known).map(|kind| kind.code().to_string());
+    if credits.is_none() && kind.is_none() {
+        return None;
+    }
+    let (from, to) = plan::semester_span(entry)?;
+    Some(Placeholder {
+        pid: 0,
+        semester,
+        program_id: program_id.to_string(),
+        ord: entry.ord,
+        span: (u8::try_from(from).ok()?, u8::try_from(to).ok()?),
+        credits,
+        kind,
+        caption: clean(&variant.full),
+        name: clean(name),
+    })
+}
+
+/// What taking one Fachsemester of the plan `core` over adds to the timetable of `semester` (the
+/// Stundenplan's „Importieren"): every row whose span holds `fs`, placed into `semester`. A row
+/// naming a module plans it, unless the semester holds it already (counted as „schon geplant";
+/// another semester does not count, the timetable is this one); every other row becomes a
+/// placeholder, unless its row has one already (a program has one per row). Rows of prose never
+/// come. `page` as in `import`. So taking the same Fachsemester twice adds nothing.
+pub fn import_fs(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Option<(&PlanVariant, i64)>, semester: SemesterKey, fs: u8) -> Import {
+    let parts = std::iter::once((core, page.map(|(_, filled)| filled))).chain(page.map(|(page, _)| (page, None)));
+    let mut out = Import::default();
+    let mut line = ImportFs { fs, semester, modules: Vec::new(), placeholders: Vec::new() };
+    let mut taken: BTreeSet<&str> = BTreeSet::new();
+    for (variant, filled) in parts {
+        for entry in variant.entries.iter().filter(|entry| Some(entry.ord) != filled) {
+            let Some((first, last)) = plan::semester_span(entry) else { continue };
+            if !(first..=last).contains(&i64::from(fs)) {
+                continue;
+            }
+            let name = plan::shown_name(&entry.module_name).to_string();
+            match entry.module_id.as_deref() {
+                Some(id) if !url::is_module_id(id) => {}
+                Some(id) => {
+                    if !taken.insert(id) {
+                        continue;
+                    }
+                    if doc.is_planned(semester, id) {
+                        out.skipped += 1;
+                        out.held.push(id.to_string());
+                        continue;
+                    }
+                    out.modules.push((semester, id.to_string()));
+                    line.modules.push(name);
+                }
+                None => {
+                    let Some(placeholder) = row_placeholder(program_id, variant, entry, semester, &name) else { continue };
+                    if doc.placeholders.iter().any(|p| p.program_id == program_id && p.ord == entry.ord) {
+                        out.skipped += 1;
+                        continue;
+                    }
+                    out.placeholders.push(placeholder);
+                    line.placeholders.push(name);
+                }
+            }
+        }
+    }
+    if !line.modules.is_empty() || !line.placeholders.is_empty() {
+        out.by_fs.push(line);
     }
     out
 }
@@ -2003,5 +2269,153 @@ town	cottbus
         let row16: Vec<&Placeholder> = open.placeholders.iter().filter(|p| p.ord == 16).collect();
         assert_eq!(row16.iter().map(|p| (p.span, p.semester)).collect::<Vec<_>>(), [((1, 6), w)]);
         assert!(semester_of("11915").is_some() && !open.modules.iter().any(|(_, id)| id == "11915"));
+    }
+
+    /// The design's example with its program, and a module of another semester.
+    fn timetable() -> PlanDoc {
+        let mut doc = example();
+        doc.program = Some("079-82-2008".to_string());
+        assert!(doc.plan(key("2027S"), "11113", 1, None));
+        doc
+    }
+
+    #[test]
+    fn saved_plans_read_back_what_they_wrote() {
+        let w = key("2026W");
+        let doc = timetable();
+        assert!(doc.stored().starts_with("g\t079-82-2008\nm\t2026W\t12104"));
+        assert_eq!(PlanDoc::restored(&doc.stored()), doc);
+
+        let mut saved = SavedPlans::default();
+        assert!(saved.save(" Informatik 1. FS ", TownChoice::Only(Town::Cottbus), doc.semester_only(w)));
+        assert!(saved.save("Für Lea", TownChoice::Derive, doc.semester_only(key("2027S"))));
+        assert!(!saved.save("Leer", TownChoice::Derive, doc.semester_only(key("2030S"))), "nothing planned");
+        assert!(!saved.save(" \t ", TownChoice::Derive, doc.semester_only(w)), "no name");
+        let text = saved.stored();
+        assert!(text.starts_with("plan\tInformatik 1. FS\tcottbus\ng\t079-82-2008\nm\t2026W\t12104\t1790000000\t\n"), "{text}");
+        assert_eq!(SavedPlans::restored(&text), saved);
+        assert_eq!(SavedPlans::restored(&text.replace('\n', "\r\n")), saved);
+        let first = saved.get("Informatik 1. FS").unwrap();
+        assert_eq!((first.modules(), first.doc.placeholders.len(), first.doc.semesters()), (4, 1, vec![w]));
+        assert_eq!(first.doc.hidden.keys().copied().collect::<Vec<_>>(), [w]);
+
+        // The same name replaces the plan in its place; a removed one is gone.
+        assert!(saved.save("Informatik 1. FS", TownChoice::Both, doc.semester_only(key("2027S"))));
+        assert_eq!(saved.plans.iter().map(|plan| (plan.name.as_str(), plan.modules())).collect::<Vec<_>>(), [("Informatik 1. FS", 1), ("Für Lea", 1)]);
+        saved.remove("Für Lea");
+        assert_eq!(saved.plans.len(), 1);
+        assert_eq!(SavedPlans::restored(""), SavedPlans::default());
+    }
+
+    #[test]
+    fn saved_plans_keep_to_their_caps() {
+        let doc = timetable().semester_only(key("2026W"));
+        let mut saved = SavedPlans::default();
+        for n in 0..MAX_SAVED {
+            assert!(saved.save(&format!("Plan {n}"), TownChoice::Derive, doc.clone()));
+        }
+        assert!(!saved.save("Einer zu viel", TownChoice::Derive, doc.clone()));
+        assert!(saved.save("Plan 3", TownChoice::Both, doc.clone()), "replacing one is no new one");
+        assert_eq!(SavedPlans::restored(&saved.stored()), saved);
+        // A text of more plans reads the first thirty.
+        let more = format!("{}plan\tNoch einer\t\n{}", saved.stored(), doc.stored());
+        assert_eq!(SavedPlans::restored(&more), saved);
+        // A long name is cut; a long text is read up to its limit.
+        let mut one = SavedPlans::default();
+        assert!(one.save(&"Ä".repeat(100), TownChoice::Derive, doc.clone()));
+        assert_eq!(one.plans[0].name.chars().count(), MAX_SAVED_NAME);
+        let long = format!("{}{}", one.stored(), "x".repeat(MAX_SAVED_STORED));
+        assert_eq!(SavedPlans::restored(&long), one);
+    }
+
+    #[test]
+    fn a_bad_line_of_the_saved_plans_is_dropped_alone() {
+        let text = "before any plan\n\
+            plan\tGut\tsenftenberg\n\
+            g\t079-82-2008\n\
+            m\t2026W\t12104\t1\t\n\
+            m\tWiSe\t12107\t1\t\n\
+            m\t2026W\t../../etc\t1\t\n\
+            e\t2026W\t0\n\
+            m\t2026W\t11112\t1\t\tplan\n\
+            plan\t\t\n\
+            m\t2026W\t12102\t1\t\n\
+            plan\tGut\t\n\
+            m\t2026W\t12102\t1\t\n\
+            plan\tNichts drin\tmars\n\
+            e\t2026W\t149408\n\
+            plan\tAuch gut\tnowhere\n\
+            m\t2026W\t12102\t1\t\n";
+        let saved = SavedPlans::restored(text);
+        // No name, a name taken before, nothing planned: the block goes; a bad line alone.
+        assert_eq!(saved.plans.iter().map(|plan| plan.name.as_str()).collect::<Vec<_>>(), ["Gut", "Auch gut"]);
+        let good = &saved.plans[0];
+        assert_eq!((good.town, good.doc.program.as_deref()), (TownChoice::Only(Town::Senftenberg), Some("079-82-2008")));
+        assert_eq!(good.doc.modules_in(key("2026W")), ["12104", "11112"]);
+        assert!(good.doc.hidden.is_empty());
+        assert_eq!(saved.plans[1].town, TownChoice::Derive, "an unknown town is derived");
+    }
+
+    #[test]
+    fn a_saved_plan_loads_into_the_semester_shown() {
+        let (w, s) = (key("2026W"), key("2027S"));
+        let mut doc = timetable();
+        let pid = doc.placeholders[0].pid;
+        assert!(doc.plan(w, "11103", 3, Some(pid)));
+        let saved = doc.semester_only(w);
+        assert_eq!(saved.fillers(pid).len(), 1);
+        assert!(doc.holds_saved(w, &saved));
+
+        // Another timetable in its place: the semester is replaced, the summer stays.
+        let mut working = PlanDoc::default();
+        assert!(working.plan(w, "12330", 1, None) && working.plan(s, "11113", 1, None));
+        working.set_event(w, 150132, true);
+        assert!(!working.holds_saved(w, &saved));
+        working.put_semester(w, &saved);
+        assert!(working.holds_saved(w, &saved));
+        assert_eq!(working.modules_in(w), ["12104", "12107", "12102", "11112", "11103"]);
+        assert_eq!(working.modules_in(s), ["11113"]);
+        assert_eq!(working.program.as_deref(), Some("079-82-2008"));
+        assert_eq!(working.selection(w, TownChoice::Derive).hidden_events, BTreeSet::from([149408]));
+        // Its placeholder, numbered anew, is still what 11103 counts for.
+        let p = working.placeholders_in(w)[0].pid;
+        assert_eq!(working.fillers(p).iter().map(|m| m.module_id.as_str()).collect::<Vec<_>>(), ["11103"]);
+        // Saved in the winter, loaded in the summer: the summer holds it.
+        let mut summer = PlanDoc::default();
+        summer.put_semester(s, &saved);
+        assert!(summer.holds_saved(s, &saved) && summer.modules_in(s).len() == 5);
+        // A change marks it no longer.
+        working.unplan(w, "12104", &[]);
+        assert!(!working.holds_saved(w, &saved));
+    }
+
+    /// „Importieren" in the Stundenplan: Informatik B.Sc. 2008, 1. FS, into the winter shown.
+    #[test]
+    fn one_fachsemester_is_imported() {
+        let Some(db) = crate::tests::studyplan_db("one_fachsemester_is_imported") else { return };
+        let variants = plan_variants(&queries::program_plan_entries(&db, "079-82-2008").unwrap(), &queries::program_plan_totals(&db, "079-82-2008").unwrap());
+        let [plan] = variants.as_slice() else { panic!("Informatik prints one plan") };
+        let w = key("2026W");
+        let fs1 = import_fs(&PlanDoc::default(), "079-82-2008", plan, None, w, 1);
+        assert_eq!(fs1.modules.iter().map(|(s, id)| (*s, id.as_str())).collect::<Vec<_>>(), [(w, "12104"), (w, "12107"), (w, "12102"), (w, "11112")]);
+        assert_eq!(fs1.placeholders.iter().map(|p| (p.semester, p.ord, p.name.as_str(), p.credits.as_deref())).collect::<Vec<_>>(), [(w, 17, "Fachübergreifendes Studium", Some("6"))]);
+        assert_eq!(fs1.by_fs.len(), 1);
+
+        // A module planned in another semester is still this timetable's; the same Fachsemester
+        // twice adds nothing.
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(key("2025W"), "12104", 1, None));
+        assert!(doc.plan(w, "11112", 1, None));
+        let first = import_fs(&doc, "079-82-2008", plan, None, w, 1);
+        assert_eq!((first.modules.len(), first.placeholders.len(), first.skipped, first.held.clone()), (3, 1, 1, vec!["11112".to_string()]));
+        assert_eq!(doc.apply(&first, 2), (3, 1));
+        let again = import_fs(&doc, "079-82-2008", plan, None, w, 1);
+        assert_eq!((again.modules.len(), again.placeholders.len(), again.skipped), (0, 0, 5));
+        assert!(doc.modules.iter().filter(|m| m.semester == w).all(|m| m.from_plan));
+
+        // The third Fachsemester into the same winter comes on top.
+        let fs3 = import_fs(&doc, "079-82-2008", plan, None, w, 3);
+        assert_eq!(fs3.modules.iter().map(|(_, id)| id.as_str()).collect::<Vec<_>>(), ["11787", "12202", "11213"]);
+        assert_eq!(fs3.placeholders.iter().map(|p| p.ord).collect::<Vec<_>>(), [15]);
     }
 }

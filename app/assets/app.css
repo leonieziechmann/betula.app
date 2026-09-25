@@ -1667,48 +1667,37 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .eye .icon { width: 16px; height: 16px; }
 .eye[aria-pressed="true"] { color: var(--text); }
 
-/* „Übersicht": a semester a section (.sp-term > h3 with „jetzt" and „Woche →"), a module or a
-   placeholder a row (.sp-row, .sp-row.placeholder dashed, its modules .sp-row.filler under it). */
-.sp-term { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
-.sp-term > h3 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-height: 28px; font-size: 14px; font-weight: 650; }
-.sp-term > h3 small { color: var(--accent-ink); font-size: 11.5px; font-weight: 650; }
-.sp-term > h3 .num { color: var(--text-2); font-weight: 520; font-size: 13px; }
-.sp-term > h3 > a { margin-left: auto; font-weight: 560; font-size: 13px; }
-.sp-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 4px 4px 12px; border-radius: var(--r-row); background: var(--panel-2); color: var(--text); font-size: 13px; text-decoration: none; }
-a.sp-row:hover, .sp-row > a:hover { text-decoration: none; }
-.sp-row > .mono { flex: none; color: var(--text-3); }
-.sp-row > span:not(.mono):not(.lp) { flex: 1; min-width: 0; }
-.sp-row small { color: var(--text-3); font-size: 12px; }
-.sp-row .lp { margin-left: auto; flex: none; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sp-row .icon-btn { width: 32px; height: 32px; }
-.sp-row .mini { display: inline-flex; align-items: center; }
-/* A module's title in a row of the Übersicht or of „Prüfungen" reads as text, as in the legend. */
-.sp-row a:not(.mini), .sp-exam a { color: var(--text); text-decoration: none; }
-.sp-row a:not(.mini):hover, .sp-exam a:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* A module's title in a row of „Prüfungen" reads as text, as in the legend. */
+.sp-exam a { color: var(--text); text-decoration: none; }
+.sp-exam a:hover { text-decoration: underline; text-underline-offset: 3px; }
 /* The Übersicht's head holds its h2 alone, without the arrows the head's margin is for. */
 .sp-head > h2:first-child { padding-left: 8px; }
-.sp-row.placeholder { background: transparent; border: 1px dashed var(--line-strong); padding-left: 11px; }
-.sp-row.placeholder b { font-weight: 650; }
-.sp-row.filler { margin-left: 18px; background: var(--accent-soft); }
-.sp-row.gone > span:not(.mono) { color: var(--text-3); }
-/* Taking a Regelstudienplan over (section.sp-import): a label and its control a line
-   (.sp-field > span + control), the preview a box, then the checkbox and „Übernehmen". */
-.sp-import { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.sp-import > h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
-.sp-field { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 4px 12px; align-items: center; }
-.sp-field > span { color: var(--text-2); font-size: 13px; }
-.sp-field > .seg { margin-top: 0; justify-self: start; min-width: min(100%, 320px); }
-.sp-field > select { min-height: 36px; max-width: 320px; padding: 0 10px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
-.sp-preview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); font-size: 13px; font-variant-numeric: tabular-nums; }
-.sp-preview small { display: block; color: var(--text-3); font-size: 12px; }
-.sp-import .check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.sp-import .btn { justify-self: start; }
 .btn[aria-busy="true"] { opacity: .7; cursor: progress; }
 .btn[disabled] { opacity: .5; cursor: default; filter: none; }
-/* The program picker is as wide as a name needs, not as the panel. */
-.sp-field > .combo { width: 100%; max-width: 480px; }
-/* A note among the fields and sittings keeps to their gap. */
-.sp-import .note, .sp-exams .note { margin-top: 0; }
+/* A note among the sittings keeps to their gap. */
+.sp-exams .note { margin-top: 0; }
+
+/* The Stundenplan's sidebar (side.rs, import.rs): the program picker with „Studium planen →"
+   under it; „Importieren" a source switch, the plan's select where it has several, then the
+   Fachsemester and „Übernehmen" on one line, what it adds under them; „Plan" the name field of
+   „Plan speichern" and one line per saved plan (name, modules, ×), the loaded one marked. */
+.sp-program .combo { width: 100%; }
+.sp-more { display: inline-block; margin: 6px 2px 0; font-size: 13px; font-weight: 560; }
+.sp-import > .select-wrap { margin-top: 8px; }
+.seg button small { margin-left: 5px; color: var(--text-3); font-size: 11px; font-weight: 500; }
+.sp-import-go { display: flex; gap: 8px; margin-top: 8px; }
+.sp-import-go > .select-wrap { flex: 1; min-width: 0; }
+.sp-import-go > .btn { flex: none; min-height: 36px; }
+.sp-import > .hint, .sp-import > .note-action { margin-top: 6px; }
+.sp-save { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 6px; }
+.sp-save input { flex: 1 1 100%; min-width: 0; min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
+.sp-saved { display: flex; align-items: center; gap: 2px; }
+.sp-saved > .action { flex: 1; min-width: 0; }
+.sp-saved > .action > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-saved > .action > small { display: inline; flex: none; }
+.sp-saved > .action[aria-current="true"] { background: var(--panel-3); box-shadow: inset 2.5px 0 0 var(--accent); }
+.sp-saved > .icon-btn { flex: none; width: 32px; height: 32px; color: var(--text-3); }
+.sp-saved > .icon-btn:hover { color: var(--text); }
 
 /* A list that opens under an action: the four ways of „Abonnieren" in the sidebar's „Kalender",
    and the semesters of „Anderes Semester" in a module page's sidebar. */

@@ -22,7 +22,7 @@ use std::collections::BTreeSet;
 use catalog::labels::{Code, TurnusSeason};
 use catalog::queries;
 use catalog::rows_detail::DateRow;
-use catalog::studyplan::PlanDoc;
+use catalog::studyplan::{PlanDoc, SavedPlans};
 use catalog::timetable::select::{Selection, TownChoice};
 use catalog::timetable::semester::{fachsemester, SemesterKey};
 use catalog::url::{self, LocalView, ModuleHint, StudyplanUrl};
@@ -118,6 +118,56 @@ impl Studyplan {
     pub fn selection(self, s: SemesterKey, town: TownChoice) -> Selection {
         self.0.with(|doc| doc.selection(s, town))
     }
+}
+
+const SAVED_KEY: &str = "betula.studyplan.saved.v1";
+
+/// The plans saved in this browser („Plan speichern", `catalog::studyplan::SavedPlans`): kept like
+/// the plan (R20: in `localStorage` alone, never in an address or a request, read like anything
+/// from outside). Only the Stundenplan's sidebar reads them, so it makes the store itself; another
+/// tab's change follows.
+#[derive(Clone, Copy)]
+pub struct Saved(RwSignal<SavedPlans>);
+
+impl Saved {
+    /// Reads what this browser has saved; follows another tab from then on.
+    pub fn open() -> Self {
+        let saved = Saved(RwSignal::new(load_saved()));
+        Effect::new(move |_| {
+            let handle = window_event_listener_untyped("storage", move |_| {
+                let stored = load_saved();
+                if saved.0.with_untracked(|plans| *plans != stored) {
+                    saved.0.set(stored);
+                }
+            });
+            on_cleanup(move || handle.remove());
+        });
+        saved
+    }
+
+    /// Tracked: read it in a memo that keeps only what it needs.
+    pub fn with<R>(self, f: impl FnOnce(&SavedPlans) -> R) -> R {
+        self.0.with(f)
+    }
+
+    pub fn with_untracked<R>(self, f: impl FnOnce(&SavedPlans) -> R) -> R {
+        self.0.with_untracked(f)
+    }
+
+    /// Changes and stores them, telling what depends on them only when something changed.
+    pub fn update<R>(self, f: impl FnOnce(&mut SavedPlans) -> R) -> R {
+        let mut plans = self.0.try_with_untracked(Clone::clone).unwrap_or_default();
+        let result = f(&mut plans);
+        if self.0.try_with_untracked(|now| *now != plans).unwrap_or(false) {
+            nav::local_set(SAVED_KEY, &plans.stored());
+            self.0.set(plans);
+        }
+        result
+    }
+}
+
+fn load_saved() -> SavedPlans {
+    nav::local_get(SAVED_KEY).as_deref().map(SavedPlans::restored).unwrap_or_default()
 }
 
 /// What this browser has stored. Nothing on the server, and nothing in a browser that refuses

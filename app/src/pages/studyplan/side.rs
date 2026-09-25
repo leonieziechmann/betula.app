@@ -1,21 +1,22 @@
-//! The sidebar of the Studienplan, „Anpassen" (design A.3): which semester and which view, what is
-//! shown of the semester (kinds, Standort, what was hidden or chosen), its calendar, „Mein
-//! Studiengang", and the plan as a whole. The storage hint under it is `mod.rs`'s, the same on the
-//! server.
+//! The sidebar of the Stundenplan, „Anpassen" (owner's redesign of 2026-09-25), top to bottom:
+//! „Studiengang" (the timetable's program, „Mein Studiengang" by default, and the way to its page),
+//! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then beside a planned
+//! timetable its view, what is shown, the Standort, what is hidden and its calendar, and last
+//! „Plan": save the timetable under a name, load or delete a saved one, empty it. The storage hint
+//! under it is `mod.rs`'s, the same on the server.
 //!
-//! Every group is the app's alone (the server's sidebar is the storage hint). The groups of one
-//! semester stand only beside one semester; the Übersicht and an empty plan have the semesters, Mein
-//! Studiengang and the plan. What is shown of a semester changes at once, in the click (the
-//! timetable is worked out again in Rust, no query, R21); what changes the planned modules is
-//! written after the next frame, once the control has answered (`Studyplan::update_after_paint`).
-//! Each control reads a memo of its own (R5), and no closure reads a memo together with the one it
-//! is derived from (R16).
+//! Every group is the app's alone (the server's sidebar is the storage hint). What is shown of the
+//! timetable changes at once, in the click (the timetable is worked out again in Rust, no query,
+//! R21); what changes the planned modules is written after the next frame, once the control has
+//! answered (`Studyplan::update_after_paint`). Each control reads a memo of its own (R5), and no
+//! closure reads a memo together with the one it is derived from (R16).
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use catalog::labels::Rhythm;
 use catalog::queries;
 use catalog::rows::Program;
-use catalog::studyplan::PlanDoc;
+use catalog::studyplan::{PlanDoc, MAX_SAVED_NAME};
 use catalog::timetable::day::{clock, Day};
 use catalog::timetable::kind::{EventKind, KindSet};
 use catalog::timetable::model::{Row, Timetable};
@@ -23,39 +24,45 @@ use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::select::{Town, TownChoice};
 use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, PlanView, StudyplanUrl};
-use catalog::labels::Rhythm;
 use leptos::prelude::*;
+use leptos_router::NavigateOptions;
 
 use super::export::CalendarGroup;
-use super::head::{kind_word, semester_href, weekday_name};
+use super::head::{kind_word, weekday_name};
+use super::import::ImportGroup;
 use super::{key_of, PlanCtx};
 use crate::combobox::{ComboItem, Combobox};
-use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
+use crate::format;
+use crate::myprogram::{po_of, program_href, program_name, MyProgram};
 use crate::nav;
 use crate::pending::Pending;
-use crate::studyplan::Studyplan;
+use crate::studyplan::{Saved, Studyplan};
 use crate::ui::Icon;
 
 /// The note „Rückgängig" answers after „Plan leeren" (`PlanCtx::undo`, which the import shares).
 const CLEARED: &str = "Plan geleert";
 
-/// How many semesters before the current one „Studienbeginn" offers.
-const STARTS_BEFORE: i32 = 12;
-
-/// The id of the „Studienbeginn" select.
-const START_ID: &str = "sp-start";
-
 /// The id of „Plan leeren", where the focus returns from „Abbrechen" and „Rückgängig".
 const CLEAR_ID: &str = "sp-clear";
+
+/// The id of „Plan speichern", and of the name field it opens.
+const SAVE_ID: &str = "sp-save";
+const NAME_ID: &str = "sp-save-name";
+
+/// The id of „Ersetzen" when loading a saved plan would replace an unsaved one.
+const LOAD_ID: &str = "sp-load-yes";
 
 #[component]
 pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
     let empty = Memo::new(move |_| ctx.plan.is_none_or(Studyplan::is_empty));
-    let overview = Memo::new(move |_| ctx.url.with(|url| url.view == PlanView::Overview));
+    let programs = Programs::new(ctx);
+    // The Fachsemester last taken over in this visit, for the name „Plan speichern" suggests.
+    let imported = RwSignal::new(None::<u8>);
     view! {
-        {move || (!empty.get()).then(|| view! { <SemesterGroup ctx/> })}
+        <ProgramGroup ctx programs/>
+        <ImportGroup ctx program=programs.shown imported/>
         {move || {
-            (!empty.get() && !overview.get()).then(|| view! {
+            (!empty.get()).then(|| view! {
                 <ViewGroup ctx/>
                 <KindsGroup ctx/>
                 <TownGroup ctx/>
@@ -63,13 +70,12 @@ pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
                 <CalendarGroup ctx/>
             })
         }}
-        <MineGroup ctx first=empty/>
-        <PlanGroup ctx/>
+        <PlanGroup ctx program=programs.shown imported/>
     }
 }
 
 /// The address the page is going to (`pending`), else the one it is at: what the sidebar's
-/// semesters and views mark, so a click marks its own link in the next frame (R21).
+/// views mark, so a click marks its own link in the next frame (R21).
 fn shown_url(ctx: PlanCtx) -> Memo<StudyplanUrl> {
     let going = Pending::expect();
     Memo::new(move |_| match going.and_then(|going| going.search_on(url::STUDYPLAN)) {
@@ -78,59 +84,103 @@ fn shown_url(ctx: PlanCtx) -> Memo<StudyplanUrl> {
     })
 }
 
-// ---------- 1. Semester ----------
+// ---------- 1. Studiengang ----------
 
-/// The semesters the toc lists, in order: those the plan holds, the current one and the one
-/// shown; each with whether it is the current one („jetzt") and whether it is past (muted).
-fn toc_semesters(held: &[SemesterKey], current: Option<SemesterKey>, shown: SemesterKey) -> Vec<(SemesterKey, bool, bool)> {
-    let all: BTreeSet<SemesterKey> = held.iter().copied().chain(current).chain([shown]).collect();
-    all.into_iter().map(|key| (key, current == Some(key), current.is_some_and(|current| key < current))).collect()
+/// The programs of the snapshot, „Mein Studiengang"'s id, and the timetable's program.
+#[derive(Clone, Copy)]
+struct Programs {
+    all: Memo<Vec<Program>>,
+    mine: Memo<Option<String>>,
+    shown: Memo<Option<Program>>,
 }
 
-/// „Semester": the Übersicht, then each semester by its label alone (the head has its numbers).
+impl Programs {
+    fn new(ctx: PlanCtx) -> Self {
+        let all = Memo::new(move |_| ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| queries::programs(db)).ok())).unwrap_or_default());
+        let asked = Memo::new(move |_| ctx.url.with(|url| url.import.clone()));
+        let stored = Memo::new(move |_| ctx.plan.and_then(|plan| plan.with(|doc| doc.program.clone())));
+        let mine = Memo::new(move |_| ctx.mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
+        let shown = Memo::new(move |_| {
+            let (asked, stored, mine) = (asked.get(), stored.get(), mine.get());
+            all.with(|all| shown_program(all, asked.as_deref(), stored.as_deref(), mine.as_deref()).cloned())
+        });
+        Programs { all, mine, shown }
+    }
+}
+
+/// The timetable's program: the one the address names (`import=<slug>`, a program page's „In den
+/// Stundenplan"; `import=mine`), else the one stored with the plan, else „Mein Studiengang"; each
+/// only while the snapshot has it.
+fn shown_program<'a>(all: &'a [Program], asked: Option<&str>, stored: Option<&str>, mine: Option<&str>) -> Option<&'a Program> {
+    let by_id = |id: &str| all.iter().find(|program| program.id == id);
+    let named = match asked {
+        Some("mine") => mine.and_then(by_id),
+        Some(slug) => all.iter().find(|program| program.slug == slug),
+        None => None,
+    };
+    named.or_else(|| stored.and_then(by_id)).or_else(|| mine.and_then(by_id))
+}
+
+/// „Studiengang": the picker, „Mein Studiengang" first under its own heading, and the program's
+/// page, where the whole study is planned. A pick is the timetable's program, stored with the plan;
+/// it sets „Mein Studiengang" only while none is set.
 #[component]
-fn SemesterGroup(ctx: PlanCtx) -> impl IntoView {
-    let shown = shown_url(ctx);
-    let overview = Memo::new(move |_| shown.with(|shown| shown.view == PlanView::Overview));
-    // The semester marked: the one of the address being shown, worked out with the plan (B.4).
-    let marked = Memo::new(move |_| {
-        let (shown, current) = (shown.get(), ctx.current.get());
-        if shown.view == PlanView::Overview {
-            return None;
+fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
+    let Programs { all, mine, shown } = programs;
+    let items = Signal::derive(move || {
+        let mine = mine.get();
+        all.with(|all| {
+            let item = |program: &Program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · PO {}", program.degree(), po_of(program)), i64::from(program.is_latest_po));
+            let own = mine.as_deref().and_then(|id| all.iter().find(|program| program.id == id));
+            own.map(|program| item(program).in_group("Mein Studiengang")).into_iter().chain(all.iter().map(item)).collect::<Vec<_>>()
+        })
+    });
+    let selected = Signal::derive(move || shown.with(|program| program.as_ref().map(|program| program.id.clone())));
+    let pick = Callback::new(move |id: Option<String>| {
+        let Some(id) = id else { return };
+        let Some(program) = all.with_untracked(|all| all.iter().find(|program| program.id == id).cloned()) else { return };
+        if let Some(plan) = ctx.plan {
+            plan.update(|doc| doc.program = Some(program.id.clone()));
         }
-        Some(ctx.plan.map_or_else(|| key_of(&shown, current, &PlanDoc::default(), ctx.today), |plan| plan.with(|doc| key_of(&shown, current, doc, ctx.today))))
+        if let Some(mine) = ctx.mine.filter(|mine| untrack(|| mine.with(|doc| doc.program.is_none()))) {
+            mine.set_program(&program.id, &program_name(&program), "", None);
+        }
+        // An address that named a program (`import=`) has done its part.
+        let away = ctx.url.with_untracked(|url| url.import.is_some().then(|| url.without_import().path()));
+        if let (Some(going), Some(away)) = (Pending::expect(), away) {
+            going.go(&away, NavigateOptions { replace: true, ..Default::default() });
+        }
     });
-    // The semester of the address being shown is listed at once too, so ‹ › to a semester the
-    // plan does not hold mark it in the next frame. `shown` alone, never with `ctx.url` it is
-    // derived from (R16).
-    let semesters = Memo::new(move |_| {
-        let (shown, current) = (shown.get(), ctx.current.get());
-        let (held, key) = match ctx.plan {
-            Some(plan) => plan.with(|doc| (doc.semesters(), key_of(&shown, current, doc, ctx.today))),
-            None => (Vec::new(), key_of(&shown, current, &PlanDoc::default(), ctx.today)),
-        };
-        toc_semesters(&held, current, key)
+    // The program's page with the plan of the stored Studienrichtung where it is „Mein
+    // Studiengang".
+    let link = Memo::new(move |_| {
+        let named = ctx.mine.map(|mine| mine.with(|doc| (doc.program.clone(), doc.caption.clone(), doc.direction.clone())));
+        shown.with(|program| {
+            let program = program.as_ref()?;
+            let (caption, direction) = match named {
+                Some((Some(id), caption, direction)) if id == program.id => (caption, direction),
+                _ => (None, None),
+            };
+            Some(ctx.source.with_value(|source| program_href(source.as_ref(), program, caption.as_deref(), direction.as_deref())))
+        })
     });
-    let view = Memo::new(move |_| ctx.url.with(|url| url.view));
-    let overview_href = StudyplanUrl { view: PlanView::Overview, ..Default::default() }.path();
     view! {
-        <nav class="toc fgroup first" aria-label="Semester">
-            <p class="flabel label">"Semester"</p>
-            <a href=overview_href aria-current=move || overview.get().then_some("page")>"Übersicht"</a>
-            <For
-                each=move || semesters.get()
-                key=|entry| *entry
-                children=move |(key, now, past): (SemesterKey, bool, bool)| {
-                    let here = Memo::new(move |_| marked.get() == Some(key));
-                    view! {
-                        <a class:past=past href=move || semester_href(view.get(), Some(key)).unwrap_or_default() aria-current=move || here.get().then_some("page")>
-                            {key.label()}
-                            {now.then(|| view! { <small class="num">"jetzt"</small> })}
-                        </a>
-                    }
-                }
+        <div class="fgroup first sp-program">
+            <p class="flabel label">"Studiengang"</p>
+            <Combobox
+                id="sp-program"
+                label="Studiengang"
+                placeholder="Studiengang wählen"
+                search_placeholder="Studiengang suchen"
+                icon="graduation-cap"
+                min_width=480.0
+                items
+                selected
+                on_select=pick
+                clearable=false
             />
-        </nav>
+            {move || link.get().map(|href| view! { <a class="sp-more" href=href>"Studium planen →"</a> })}
+        </div>
     }
 }
 
@@ -389,175 +439,123 @@ fn HiddenGroup(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-// ---------- 7. Mein Studiengang ----------
+// ---------- 6. Plan ----------
 
-/// The semesters „Studienbeginn" offers, in order: the current one, the twelve before it and the
-/// next, and a stored one outside them.
-fn start_options(current: Option<SemesterKey>, start: Option<SemesterKey>) -> Vec<SemesterKey> {
-    let around = current.into_iter().flat_map(|current| (-STARTS_BEFORE..=1).filter_map(move |n| current.plus(n)));
-    let all: BTreeSet<SemesterKey> = around.chain(start).collect();
-    all.into_iter().collect()
-}
-
-/// „Mein Studiengang" as the sidebar shows it.
-#[derive(Clone, Debug, PartialEq)]
-enum Mine {
-    /// None stored: the picker.
-    Unset,
-    /// Stored and in the snapshot: a link to its page.
-    Set(String),
-    /// Stored but gone from the snapshot (A.10): its stored name, and the family's newest PO.
-    Gone(String, Option<Box<Program>>),
-}
-
-/// „Mein Studiengang": the program (a link to its page, or the picker while none is set) and
-/// „Studienbeginn", which the Fachsemester follow.
-#[component]
-fn MineGroup(ctx: PlanCtx, #[prop(into)] first: Signal<bool>) -> impl IntoView {
-    let mine = ctx.mine;
-    let resolved = MineResolved::expect();
-    let stored = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
-    let name = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.name.clone().or_else(|| doc.program.clone()))).unwrap_or_default());
-    let caption = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.caption.clone())));
-    let direction = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.direction.clone())));
-    let info = Memo::new(move |_| resolved.and_then(|resolved| resolved.0.get()));
-    let state = Memo::new(move |_| match (stored.with(Option::is_some), info.get()) {
-        (false, _) => Mine::Unset,
-        (true, Some(info)) if info.exact => Mine::Set(program_name(&info.program)),
-        (true, Some(info)) => Mine::Gone(name.get(), info.latest.map(Box::new)),
-        (true, None) => Mine::Gone(name.get(), None),
-    });
-    let link = Memo::new(move |_| {
-        let (info, caption, direction) = (info.get()?, caption.get(), direction.get());
-        Some(ctx.source.with_value(|source| program_href(source.as_ref(), &info.program, caption.as_deref(), direction.as_deref())))
-    });
-    let take_latest = move |latest: &Program| {
-        let (id, name) = (latest.id.clone(), program_name(latest));
-        move |_| {
-            if let Some(mine) = mine {
-                let caption = caption.get_untracked().unwrap_or_default();
-                mine.set_program(&id, &name, &caption, None);
-            }
-        }
-    };
-
-    view! {
-        <div class="fgroup" class:first=move || first.get()>
-            <p class="flabel label">"Mein Studiengang"</p>
-            {move || match state.get() {
-                Mine::Unset => view! { <ProgramPicker ctx/> }.into_any(),
-                Mine::Set(name) => view! {
-                    <a class="action" href=move || link.get().unwrap_or_default()><Icon name="graduation-cap"/><span>{name}</span></a>
-                }
-                .into_any(),
-                Mine::Gone(name, latest) => view! {
-                    <p class="hint">{format!("Dein Studiengang {name} ist nicht mehr im Katalog.")}</p>
-                    {latest.map(|latest| {
-                        let label = format!("PO {} übernehmen", po_of(&latest));
-                        view! { <p class="action note-action"><button class="mini hit" type="button" on:click=take_latest(&latest)>{label}</button></p> }
-                    })}
-                }
-                .into_any(),
-            }}
-            <StartSelect ctx/>
-        </div>
+/// The name „Plan speichern" suggests: the saved plan the timetable holds (saving again replaces
+/// it), else the program with the Fachsemester last taken over („Informatik 1. FS") or the
+/// semester, else „Plan n".
+fn default_name(program: Option<&Program>, imported: Option<u8>, semester: SemesterKey, held: Option<String>, count: usize) -> String {
+    if let Some(held) = held {
+        return held;
+    }
+    match (program, imported) {
+        (Some(program), Some(fs)) => format!("{} {fs}. FS", program.name),
+        (Some(program), None) => format!("{} {}", program.name, semester.short()),
+        (None, _) => format!("Plan {}", count + 1),
     }
 }
 
-/// The programs to pick from while „Mein Studiengang" is not set: name, degree and PO, the newest
-/// PO of a program first among equals. Picking one stores it.
+/// „Plan": „Plan speichern" (a name, the same name replaces), the saved plans (a click loads one
+/// into the semester shown, asking first where that would lose a timetable no saved plan holds;
+/// × deletes one), and „Plan leeren" („Wirklich leeren?"), which „Rückgängig" takes back. The
+/// saved plan the timetable holds is marked.
 #[component]
-fn ProgramPicker(ctx: PlanCtx) -> impl IntoView {
-    let programs = Memo::new(move |_| ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| queries::programs(db)).ok())).unwrap_or_default());
-    let items = Signal::derive(move || {
-        programs.with(|programs| {
-            programs
-                .iter()
-                .map(|program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · {}", program.degree(), po_of(program)), i64::from(program.is_latest_po)))
-                .collect::<Vec<_>>()
+fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Option<u8>>) -> impl IntoView {
+    let saved = Saved::open();
+    let empty = Memo::new(move |_| ctx.plan.is_none_or(Studyplan::is_empty));
+    // Whether the semester shown holds a timetable, and the saved plan it is.
+    let held = Memo::new(move |_| {
+        let (url, current) = (ctx.url.get(), ctx.current.get());
+        let town = ctx.mine.map(MyProgram::town).unwrap_or_default();
+        let Some(plan) = ctx.plan else { return (false, None) };
+        plan.with(|doc| {
+            let key = key_of(&url, current, doc, ctx.today);
+            let any = !doc.modules_in(key).is_empty() || !doc.placeholders_in(key).is_empty();
+            let marked = saved.with(|saved| saved.plans.iter().find(|p| p.town == town && doc.holds_saved(key, &p.doc)).map(|p| p.name.clone()));
+            (any, marked)
         })
     });
-    let pick = Callback::new(move |id: Option<String>| {
-        let Some(id) = id else { return };
-        let Some(program) = programs.with_untracked(|programs| programs.iter().find(|program| program.id == id).cloned()) else { return };
-        // The picker makes way for the program's link once it is stored. The focus leaves it
-        // first, for the field that comes next: a picker taken away while it holds the focus
-        // hears its own blur after it is gone.
-        nav::focus_by_id(START_ID);
-        if let Some(mine) = ctx.mine {
-            mine.set_program(&program.id, &program_name(&program), "", None);
-        }
-    });
-    view! {
-        <Combobox
-            id="sp-program"
-            label="Mein Studiengang"
-            placeholder="Studiengang wählen"
-            search_placeholder="Studiengang suchen"
-            icon="graduation-cap"
-            min_width=480.0
-            items
-            selected=Signal::derive(|| None::<String>)
-            on_select=pick
-            clearable=false
-        />
-    }
-}
+    let any = Memo::new(move |_| held.with(|held| held.0));
+    let marked = Memo::new(move |_| held.with(|held| held.1.clone()));
+    let entries = Memo::new(move |_| saved.with(|saved| saved.plans.iter().map(|p| (p.name.clone(), p.modules())).collect::<Vec<_>>()));
+    let cleared = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().is_some_and(|(note, _)| note == CLEARED)));
 
-/// „Studienbeginn": the current semester, the twelve before it and the next one („—" for none).
-#[component]
-fn StartSelect(ctx: PlanCtx) -> impl IntoView {
-    let start = Memo::new(move |_| ctx.mine.and_then(MyProgram::start));
-    let options = Memo::new(move |_| start_options(ctx.current.get(), start.get()));
-    let change = move |ev: leptos::ev::Event| {
-        if let Some(mine) = ctx.mine {
-            mine.set_start(SemesterKey::parse(&event_target_value(&ev)));
+    // „Plan speichern".
+    let naming = RwSignal::new(false);
+    let name = RwSignal::new(String::new());
+    let taken = Memo::new(move |_| name.with(|name| saved.with(|saved| saved.get(name.trim()).is_some())));
+    let start_saving = move |_| {
+        let count = entries.with_untracked(Vec::len);
+        let suggested = program.with_untracked(|program| default_name(program.as_ref(), imported.get_untracked(), ctx.key.get_untracked(), marked.get_untracked(), count));
+        name.set(suggested);
+        naming.set(true);
+        request_animation_frame(|| nav::focus_by_id(NAME_ID));
+    };
+    let stop_saving = move || {
+        naming.set(false);
+        request_animation_frame(|| nav::focus_by_id(SAVE_ID));
+    };
+    let save = move |ev: leptos::ev::SubmitEvent| {
+        ev.prevent_default();
+        let Some(plan) = ctx.plan else { return };
+        let (key, town) = (ctx.key.get_untracked(), ctx.mine.map(|mine| untrack(|| mine.town())).unwrap_or_default());
+        let doc = plan.with_untracked(|doc| doc.semester_only(key));
+        let text = name.get_untracked();
+        if saved.update(|saved| saved.save(&text, town, doc)) {
+            stop_saving();
         }
     };
-    view! {
-        <label class="field">
-            <span>"Studienbeginn"</span>
-            <span class="select-wrap plain">
-                <select id=START_ID prop:value=move || start.get().map(SemesterKey::key).unwrap_or_default() on:change=change>
-                    <option value="" selected=move || start.with(Option::is_none)>"—"</option>
-                    <For
-                        each=move || options.get()
-                        key=|key| *key
-                        children=move |key: SemesterKey| {
-                            view! { <option value=key.key() selected=move || start.get() == Some(key)>{key.label()}</option> }
-                        }
-                    />
-                </select>
-                <Icon name="chevrons-up-down"/>
-            </span>
-        </label>
-    }
-}
 
-// ---------- 8. Plan ----------
+    // Loading: at once where nothing unsaved is lost, else after „Ersetzen". The row is marked in
+    // the next frame (`said`); the plan follows after it (R21).
+    let asking = RwSignal::new(None::<String>);
+    let said = RwSignal::new(None::<String>);
+    let mark = Memo::new(move |_| said.get().or_else(|| marked.get()));
+    let load_now = move |which: String| {
+        let Some(chosen) = saved.with_untracked(|saved| saved.get(&which).cloned()) else { return };
+        asking.set(None);
+        said.set(Some(which));
+        ctx.undo.set(None);
+        let (key, plan, mine) = (ctx.key.get_untracked(), ctx.plan, ctx.mine);
+        nav::after_paint(move || {
+            if let Some(mine) = mine {
+                mine.set_town(chosen.town);
+            }
+            if let Some(plan) = plan {
+                plan.update(|doc| doc.put_semester(key, &chosen.doc));
+            }
+            let _ = said.try_set(None);
+        });
+    };
+    let load = move |which: String| {
+        if any.get_untracked() && marked.with_untracked(Option::is_none) {
+            asking.set(Some(which));
+            request_animation_frame(|| nav::focus_by_id(LOAD_ID));
+        } else {
+            load_now(which);
+        }
+    };
+    let delete = move |which: String| {
+        if asking.with_untracked(|asking| asking.as_deref() == Some(which.as_str())) {
+            asking.set(None);
+        }
+        saved.update(|saved| saved.remove(&which));
+    };
 
-/// „Plan": take a Regelstudienplan over, or empty the plan („Wirklich leeren?"), which „Rückgängig"
-/// takes back. An empty plan has its own way to begin in the page, so only the note stays here.
-#[component]
-fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
-    let empty = Memo::new(move |_| ctx.plan.is_none_or(Studyplan::is_empty));
-    let cleared = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().is_some_and(|(note, _)| note == CLEARED)));
+    // „Plan leeren": emptied after the next frame (the views and the calendar let go of it then);
+    // the note answers at once and keeps what was there. The program stays the timetable's.
     let confirming = RwSignal::new(false);
     let restoring = RwSignal::new(false);
-    let import = StudyplanUrl { view: PlanView::Overview, import: Some("mine".to_string()), ..Default::default() }.path();
-
     let ask = move |_| {
         confirming.set(true);
         request_animation_frame(|| nav::focus_by_id("sp-clear-yes"));
     };
-    // The plan is emptied after the next frame (the views and the calendar let go of it then);
-    // the note answers at once and keeps what was there.
     let clear = move |_| {
         confirming.set(false);
         let Some(plan) = ctx.plan else { return };
         ctx.undo.set(Some((CLEARED.to_string(), plan.with_untracked(Clone::clone))));
         plan.update_after_paint(|doc| {
-            *doc = PlanDoc { extra: std::mem::take(&mut doc.extra), ..PlanDoc::default() };
+            *doc = PlanDoc { program: doc.program.take(), extra: std::mem::take(&mut doc.extra), ..PlanDoc::default() };
         });
         request_animation_frame(|| nav::focus_by_id("sp-clear-undo"));
     };
@@ -582,20 +580,79 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
     };
 
     // The group stays while its note does, so emptying the plan under it keeps the focus on
-    // „Rückgängig".
-    let shown = Memo::new(move |_| !empty.get() || cleared.get());
+    // „Rückgängig"; saved plans keep it for an empty timetable.
+    let shown = Memo::new(move |_| !empty.get() || cleared.get() || entries.with(|entries| !entries.is_empty()));
     move || {
         shown.get().then(|| {
-            let import = import.clone();
             view! {
                 <div class="fgroup actions">
                     <p class="flabel label">"Plan"</p>
-                    {move || {
-                        let import = import.clone();
-                        (!empty.get()).then(|| view! { <a class="action" href=import><Icon name="download"/><span>"Regelstudienplan übernehmen"</span></a> })
+                    {move || match (any.get(), naming.get()) {
+                        (false, _) => ().into_any(),
+                        (true, false) => view! {
+                            <button class="action" type="button" id=SAVE_ID on:click=start_saving><Icon name="bookmark"/><span>"Plan speichern"</span></button>
+                        }
+                        .into_any(),
+                        (true, true) => view! {
+                            <form class="sp-save" on:submit=save>
+                                <input
+                                    id=NAME_ID
+                                    type="text"
+                                    maxlength=MAX_SAVED_NAME.to_string()
+                                    aria-label="Name des Plans"
+                                    autocomplete="off"
+                                    prop:value=move || name.get()
+                                    on:input=move |ev| name.set(event_target_value(&ev))
+                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                        if ev.key() == "Escape" {
+                                            stop_saving();
+                                        }
+                                    }
+                                />
+                                <button class="mini hit" type="submit">{move || if taken.get() { "Ersetzen" } else { "Speichern" }}</button>
+                                <button class="mini hit" type="button" on:click=move |_| stop_saving()>"Abbrechen"</button>
+                            </form>
+                        }
+                        .into_any(),
                     }}
-                    {move || match (cleared.get(), confirming.get()) {
-                        (true, _) => view! {
+                    <For
+                        each=move || entries.get()
+                        key=|entry| entry.clone()
+                        children=move |(which, count): (String, usize)| {
+                            let here = {
+                                let which = which.clone();
+                                Memo::new(move |_| mark.with(|mark| mark.as_deref() == Some(which.as_str())))
+                            };
+                            let asked = {
+                                let which = which.clone();
+                                Memo::new(move |_| asking.with(|asking| asking.as_deref() == Some(which.as_str())))
+                            };
+                            let (one, two, three) = (which.clone(), which.clone(), which.clone());
+                            view! {
+                                <div class="sp-saved">
+                                    <button class="action" type="button" aria-current=move || here.get().then_some("true") on:click=move |_| load(one.clone())>
+                                        <span>{which.clone()}</span>
+                                        <small class="num">{format::modules(i64::try_from(count).unwrap_or(i64::MAX))}</small>
+                                    </button>
+                                    <button class="icon-btn" type="button" aria-label=format!("„{which}“ löschen") title="Löschen" on:click=move |_| delete(two.clone())>
+                                        <Icon name="x"/>
+                                    </button>
+                                </div>
+                                {move || {
+                                    let three = three.clone();
+                                    asked.get().then(|| view! {
+                                        <p class="action note-action ask">
+                                            <span>"Aktuellen Plan ersetzen?"</span>
+                                            <button class="mini danger hit" type="button" id=LOAD_ID on:click=move |_| load_now(three.clone())>"Ersetzen"</button>
+                                            <button class="mini hit" type="button" on:click=move |_| asking.set(None)>"Abbrechen"</button>
+                                        </p>
+                                    })
+                                }}
+                            }
+                        }
+                    />
+                    {move || match (cleared.get(), confirming.get(), empty.get()) {
+                        (true, _, _) => view! {
                             <p class="action note-action">
                                 <Icon name="check"/>
                                 <span>{CLEARED}</span>
@@ -603,7 +660,7 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
                             </p>
                         }
                         .into_any(),
-                        (false, true) => view! {
+                        (false, true, _) => view! {
                             <p class="action note-action ask">
                                 <span>"Wirklich leeren?"</span>
                                 <button class="mini danger hit" type="button" id="sp-clear-yes" on:click=clear>"Leeren"</button>
@@ -611,10 +668,11 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
                             </p>
                         }
                         .into_any(),
-                        (false, false) => view! {
+                        (false, false, false) => view! {
                             <button class="action" type="button" id=CLEAR_ID on:click=ask><Icon name="trash-2"/><span>"Plan leeren"</span></button>
                         }
                         .into_any(),
+                        (false, false, true) => ().into_any(),
                     }}
                 </div>
             }
@@ -636,25 +694,52 @@ mod tests {
         SemesterKey::parse(text).unwrap()
     }
 
-    #[test]
-    fn the_toc_lists_the_plans_semesters_the_current_and_the_shown_one() {
-        let now = Some(key("2026W"));
-        assert_eq!(
-            toc_semesters(&[key("2027S"), key("2026S"), key("2027S")], now, key("2026W")),
-            vec![(key("2026S"), false, true), (key("2026W"), true, false), (key("2027S"), false, false)]
-        );
-        // A semester reached with ‹ › stands there while it is shown.
-        assert_eq!(toc_semesters(&[], now, key("2028S")), vec![(key("2026W"), true, false), (key("2028S"), false, false)]);
-        assert_eq!(toc_semesters(&[], None, key("2026W")), vec![(key("2026W"), false, false)]);
+    fn program(id: &str, slug: &str, name: &str) -> Program {
+        Program {
+            id: id.into(),
+            slug: slug.into(),
+            name: name.into(),
+            degree_level: Code::parse("bachelor"),
+            study_variant: None,
+            degree_label: Some("B.Sc.".into()),
+            degree_raw: "Bachelor".into(),
+            degree_display: Some("B.Sc.".into()),
+            po_version: "2008".into(),
+            po_year: Some(2008),
+            family_key: "079-82".into(),
+            name_key: name.to_lowercase(),
+            is_latest_po: true,
+            source_url: String::new(),
+            has_plan: true,
+            plan_status: None,
+            curricular_modules: 0,
+            fues_modules: 0,
+            documents: 0,
+        }
     }
 
     #[test]
-    fn studienbeginn_offers_the_last_years_and_the_next_semester() {
-        let options = start_options(Some(key("2026W")), None);
-        assert_eq!((options.first().copied(), options.last().copied(), options.len()), (Some(key("2020W")), Some(key("2027S")), 14));
-        // A start stored long ago stays choosable.
-        assert_eq!(start_options(Some(key("2026W")), Some(key("2015W"))).first().copied(), Some(key("2015W")));
-        assert_eq!(start_options(None, Some(key("2026W"))), vec![key("2026W")]);
+    fn the_timetables_program_is_the_addresss_the_plans_or_mine() {
+        let all = [program("079-82-2008", "bachelor-informatik-2008", "Informatik"), program("048-82-2022", "bachelor-elektrotechnik-2022", "Elektrotechnik")];
+        let id = |found: Option<&Program>| found.map(|program| program.id.clone());
+        let (inf, et) = (Some("079-82-2008"), Some("048-82-2022"));
+        assert_eq!(id(shown_program(&all, None, None, et)), Some("048-82-2022".into()));
+        assert_eq!(id(shown_program(&all, None, inf, et)), Some("079-82-2008".into()));
+        assert_eq!(id(shown_program(&all, Some("bachelor-elektrotechnik-2022"), inf, None)), Some("048-82-2022".into()));
+        assert_eq!(id(shown_program(&all, Some("mine"), inf, et)), Some("048-82-2022".into()));
+        // What the snapshot no longer has falls through; nothing at all is no program.
+        assert_eq!(id(shown_program(&all, Some("gone"), Some("999-99-1999"), inf)), Some("079-82-2008".into()));
+        assert_eq!(id(shown_program(&all, None, None, None)), None);
+    }
+
+    #[test]
+    fn plan_speichern_suggests_a_name() {
+        let inf = program("079-82-2008", "bachelor-informatik-2008", "Informatik");
+        let w = key("2026W");
+        assert_eq!(default_name(Some(&inf), Some(1), w, None, 0), "Informatik 1. FS");
+        assert_eq!(default_name(Some(&inf), None, w, None, 0), "Informatik WiSe 26/27");
+        assert_eq!(default_name(None, None, w, None, 2), "Plan 3");
+        assert_eq!(default_name(Some(&inf), Some(1), w, Some("Für Lea".into()), 0), "Für Lea");
     }
 
     fn row(event: &str, fp: u32, weekday: i64, from: &str, rhythm: &str, first: &str, option: Option<usize>) -> Row {

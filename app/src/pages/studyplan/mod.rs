@@ -8,9 +8,10 @@
 //! points at, and the Regelstudienplan being taken over; `full=1` lets that module fill the page
 //! with its whole page, inside the plan's area (a local view, `crate::local`).
 //!
-//! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: semesters, view,
-//! what is shown, Standort, calendar, Mein Studiengang, the plan as a whole), the plan in the main
-//! column (`head.rs`, `week.rs`, `exams.rs`, `overview.rs`), and the module beside it (`aside.rs`).
+//! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: the program,
+//! `import.rs`, view, what is shown, Standort, calendar, the plan as a whole and the saved plans),
+//! the plan in the main column (`head.rs`, `week.rs`, `exams.rs`), and the module beside it
+//! (`aside.rs`).
 //! Its parts share one `PlanCtx`: the memos below, built once per page. On a phone the sidebar is
 //! a sheet, opened by „Anpassen" (`SheetToggle`), and the module beside the plan is the page.
 //!
@@ -28,10 +29,7 @@ mod aside;
 mod exams;
 mod export;
 mod head;
-// The Übersicht of all semesters is gone from the page (redesign 2026-09-25); its import panel
-// stays until the sidebar takes the import over.
-#[allow(dead_code)]
-mod overview;
+mod import;
 mod side;
 mod week;
 
@@ -51,12 +49,12 @@ use leptos_router::hooks::use_location;
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
 use self::head::{DerivedLine, ExamAlerts, FromBookmarks, ModuleLegend, Overlaps, SemesterHead};
-use self::overview::ImportPanel;
 use self::side::PlanSidebar;
 use self::week::{DatesView, WeekView};
 use crate::data::{use_source, DataError, Source};
 use crate::local::{self, ModuleInPlace};
 use crate::myprogram::{MineResolved, MyProgram};
+use crate::nav;
 use crate::pending::{Change, Pending};
 use crate::seo::Seo;
 use crate::skeleton::DetailSkeleton;
@@ -244,8 +242,6 @@ pub fn StudyplanPage() -> impl IntoView {
         view! { <PlanModulePanel ctx/> }.into_any()
     };
 
-    let importing = Memo::new(move |_| url.with(|url| url.import.is_some()));
-
     let page = move || {
         if let Some(id) = filling.get() {
             let back = address.with_untracked(|address| local::back_href(address, false));
@@ -257,14 +253,8 @@ pub fn StudyplanPage() -> impl IntoView {
                 <PlanSeo/>
                 <div class="page-inner sp">
                     <section class="panel sp-body">
-                        // An empty plan taking a Regelstudienplan over shows neither a view's head
-                        // nor the empty state, which carry „Anpassen" otherwise: on a phone it
-                        // stands at the top right, where the heads have it.
-                        {move || (importing.get() && empty.get()).then(|| view! { <SheetToggle/> })}
-                        {move || importing.get().then(|| view! { <ImportPanel ctx/> })}
                         {move || match empty.get() {
-                            // Taking a Regelstudienplan over is all an empty plan has to show.
-                            true => (!importing.get()).then(|| view! { <EmptyPlan/> }).into_any(),
+                            true => view! { <EmptyPlan/> }.into_any(),
                             false => view! { <SemesterView ctx/> }.into_any(),
                         }}
                     </section>
@@ -309,11 +299,12 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
 /// Nothing planned yet: the two ways to begin, and on a phone the way to the sidebar.
 #[component]
 fn EmptyPlan() -> impl IntoView {
-    let import = StudyplanUrl { view: PlanView::Overview, import: Some("mine".to_string()), ..Default::default() }.path();
     let resolved = MineResolved::expect();
     view! {
         <EmptyState title="Noch nichts geplant." hint="Übernimm den Regelstudienplan oder plane Module aus dem Katalog ein.">
-            <a class="btn primary" href=import>"Regelstudienplan übernehmen"</a>
+            // „Importieren" in the sidebar: on a phone the sheet opens, on a desktop „Übernehmen"
+            // takes the focus.
+            <a class="btn primary" href="#sidebar" data-action="sheet-open" on:click=|_| nav::focus_by_id(import::GO_ID)>"Regelstudienplan übernehmen"</a>
             <a class="btn secondary" href=move || catalog_href(resolved)>"Module suchen"</a>
             <SheetToggle/>
         </EmptyState>

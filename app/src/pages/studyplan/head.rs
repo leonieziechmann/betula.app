@@ -68,13 +68,6 @@ fn day_name(day: Day) -> String {
     format!("{} {}", weekday_name(day.weekday()), day.german())
 }
 
-/// The address of a semester in the view shown now; from the Übersicht a semester is its week.
-/// `None` past the years a semester key can have.
-pub(super) fn semester_href(view: PlanView, key: Option<SemesterKey>) -> Option<String> {
-    let view = if view == PlanView::Overview { PlanView::Week } else { view };
-    key.map(|key| StudyplanUrl { sem: Some(key.key()), view, ..Default::default() }.path())
-}
-
 /// Where „+ Modul" leads: the catalog's modules that fit the semester (`fits=`), within „Mein
 /// Studiengang" where the stored program is in the snapshot (the one kind of address its slug may
 /// stand in, A.10). Tracked.
@@ -1135,13 +1128,6 @@ mod tests {
         assert!(doc.plan(key("2026W"), "12104", 1, Some(4)));
         assert_eq!(open_placeholders(&doc, key("2026W")), (2, 16.0));
         assert_eq!(open_placeholders(&doc, key("2027S")), (0, 0.0));
-    }
-
-    #[test]
-    fn the_semester_arrows_keep_the_view() {
-        assert_eq!(semester_href(PlanView::Dates, Some(key("2027S"))).as_deref(), Some("/studyplan?sem=2027S&view=dates"));
-        assert_eq!(semester_href(PlanView::Overview, Some(key("2026W"))).as_deref(), Some("/studyplan?sem=2026W"));
-        assert_eq!(semester_href(PlanView::Week, None), None);
     }
 
     #[test]
