@@ -1494,10 +1494,13 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .sp-body > .state { margin: 64px auto; }
 .sp-body > .state p { text-wrap: balance; }
 .state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-/* The head: ‹ „WiSe 2026/27" › (links to the semesters around it), on a phone „Anpassen" at the
-   right; under it the numbers, first: „1. FS · 5 Module · 32 LP" (p.sp-sum). */
+/* The head: „Stundenplan WiSe 2026/27" (h1, the semester in its span), on a phone „Anpassen" at
+   the right; under it the program and the numbers: „Informatik B.Sc. · 5 Module · 32 LP"
+   (p.sp-sum). The import's head (h2) has ‹ › around it. */
 .sp-head { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-left: -8px; }
 .sp-head h2 { font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; padding: 0 4px; }
+.sp-head h1 { margin: 0; padding-left: 8px; font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; }
+.sp-head h1 span { color: var(--text-3); font-weight: 600; }
 .sp-head .icon-btn { width: 34px; height: 34px; --hit: 3px; }
 .sp-head .icon-btn[aria-disabled="true"] { opacity: .35; pointer-events: none; }
 .sp-head .sheet-toggle { margin-left: auto; }
@@ -1530,6 +1533,34 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .sp-notes a.note { text-decoration: none; }
 .sp-notes a.note:hover { text-decoration: underline; text-underline-offset: 3px; }
 .sp-notes .note.quiet { color: var(--text-2); }
+/* Exams that collide (div.sp-alerts > a.sp-alert > svg + span > b + small), red and large, directly
+   under the modules in every view: what collides, then when. */
+.sp-alerts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.sp-alert { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: var(--r-row); background: var(--no-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 40%, transparent); color: var(--no); text-decoration: none; }
+.sp-alert:hover { text-decoration: none; filter: brightness(.98); }
+.sp-alert .icon { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.sp-alert b { display: block; font-size: 14.5px; font-weight: 680; line-height: 1.35; }
+.sp-alert small { display: block; margin-top: 2px; color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+/* Overlaps and open choices: one quiet line, closed until asked (details.sp-overlaps > summary
+   > span, span.no an overlap in red); opened, a compact line each (ul > li > a, a.warn with a red
+   mark), each a link to its module beside the plan. */
+.sp-overlaps > summary { cursor: pointer; min-height: 28px; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 5px; color: var(--text-2); font-weight: 580; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sp-overlaps > summary .no { color: var(--no); font-weight: 650; }
+.sp-overlaps > summary::after { content: "+"; color: var(--text-3); font-weight: 500; }
+.sp-overlaps[open] > summary::after { content: "–"; }
+.sp-overlaps ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin-top: 4px; }
+.sp-overlaps li > a, .sp-overlaps li > span { display: block; padding: 4px 10px 4px 20px; border-radius: var(--r-s); color: var(--text-2); font-size: 13px; text-decoration: none; position: relative; font-variant-numeric: tabular-nums; }
+.sp-overlaps li > a:hover { background: var(--panel-2); text-decoration: none; }
+.sp-overlaps li > .warn { color: var(--text); }
+.sp-overlaps li > .warn::before { content: ""; position: absolute; left: 8px; top: calc(4px + .65em - 3px); width: 6px; height: 6px; border-radius: 50%; background: var(--no); }
+/* „A-Woche · B-Woche · A/B" above the week: as wide as its words, at the left. */
+.seg.sp-weeks { justify-self: start; margin-top: 0; grid-auto-columns: auto; }
+.seg.sp-weeks button { padding: 0 12px; }
+/* A slot that overlaps another in the week shown: a red frame and a red mark at its top right. */
+.sp-body .slot.clash { box-shadow: inset 3px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
+.sp-body .slot.clash::after { content: "!"; position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 10px; font-weight: 800; line-height: 13px; text-align: center; }
+/* What the page derived, under the calendar: small and muted. */
+.sp-body > .sp-derived { margin-top: 0; font-size: 12px; }
 /* Where the plan has no fixed time: „Ohne feste Zeit" (h3.label) and its lines. */
 .sp-body h3.label { margin-top: 4px; }
 .sp-loose { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; font-size: 13px; color: var(--text-2); }
@@ -1965,7 +1996,8 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .sp-body > .state { margin: 36px auto; }
   .state-actions .sheet-toggle { min-height: 44px; padding: 0 16px; box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 620; }
   .sp-head { gap: 0; }
-  .sp-head h2 { font-size: 19px; }
+  .sp-head h2, .sp-head h1 { font-size: 19px; }
+  .sp-alert b { font-size: 14px; }
   .sp-head .icon-btn { width: 40px; height: 44px; --hit: 0px; }
   .sp-head .sheet-toggle, .sp-body > .sheet-toggle { padding: 0 12px; }
   /* An empty plan taking a Regelstudienplan over has no head: „Anpassen" stands where one has it. */

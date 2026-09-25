@@ -18,6 +18,7 @@
 
 use std::collections::BTreeMap;
 
+use super::clash::Weeks;
 use super::day::{self, Day};
 use super::semester::SemesterKey;
 use crate::labels::{Code, Rhythm};
@@ -80,6 +81,18 @@ impl SemesterFacts {
             .filter(|(day, _)| bounds.0 <= *day && *day <= bounds.1)
             .collect();
         Self { key, bounds, lecture, breaks, a_week, holidays }
+    }
+
+    /// Whether the week of `day` is an A or a B week (`Weeks::A`, `Weeks::B`): a week of the lecture
+    /// period outside its breaks, counted from the first A week by the calendar, as the A and B rows
+    /// are held (`occur`). `None` outside the period, in a break, and where the A weeks are unknown.
+    pub fn ab_week(&self, day: Day) -> Option<Weeks> {
+        let (first, last) = self.lecture?;
+        if day < first || day > last || self.in_break(day) {
+            return None;
+        }
+        let weeks = (day.monday().0 - self.a_week?.monday().0).div_euclid(7);
+        Some(if weeks.rem_euclid(2) == 0 { Weeks::A } else { Weeks::B })
     }
 
     /// Whether `day` lies in a break.
@@ -288,6 +301,11 @@ mod tests {
         assert_eq!(facts.a_week, Some(d("2026-10-05")));
         assert!(facts.in_break(d("2026-12-21")) && facts.in_break(d("2027-01-03")));
         assert!(!facts.in_break(d("2026-12-20")) && !facts.in_break(d("2027-01-04")));
+        // A and B weeks by the calendar from the first A week; none in the break or outside the
+        // period.
+        let ab = |day: &str| facts.ab_week(d(day));
+        assert_eq!((ab("2026-10-05"), ab("2026-10-11"), ab("2026-10-13")), (Some(Weeks::A), Some(Weeks::A), Some(Weeks::B)));
+        assert_eq!((ab("2026-12-22"), ab("2027-01-04"), ab("2027-02-01"), ab("2026-10-04")), (None, Some(Weeks::B), None, None));
         // The rows put the A weeks one week later: the anchor follows them.
         let mut later = winter_counts();
         later.push(count("week_a", "2026-10-13", "2027-01-19", 9));

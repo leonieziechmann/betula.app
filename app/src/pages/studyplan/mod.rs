@@ -1,4 +1,5 @@
-//! The Studienplan (`/studyplan`): one semester of the visitor's plan, or all of them at a glance.
+//! The Stundenplan (`/studyplan`): the visitor's timetable of the semester the catalog has dates
+//! for (owner's redesign of 2026-09-25: the whole study is planned on the program's page).
 //!
 //! What is planned lives in this browser alone (`crate::studyplan`, R20): the server renders one
 //! explanation for every address (R9, cached by the path), and the browser app renders the plan
@@ -27,13 +28,17 @@ mod aside;
 mod exams;
 mod export;
 mod head;
+// The Übersicht of all semesters is gone from the page (redesign 2026-09-25); its import panel
+// stays until the sidebar takes the import over.
+#[allow(dead_code)]
 mod overview;
 mod side;
 mod week;
 
 use catalog::pages::{self, StudyplanData};
 use catalog::queries;
-use catalog::studyplan::{self, PlanDoc};
+use catalog::studyplan::PlanDoc;
+use catalog::timetable::clash::Weeks;
 use catalog::timetable::day::Day;
 use catalog::timetable::model::Timetable;
 use catalog::timetable::select::Selection;
@@ -45,8 +50,8 @@ use leptos_router::hooks::use_location;
 
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
-use self::head::{DerivedLine, FromBookmarks, ModuleLegend, Notes, SemesterHead};
-use self::overview::{ImportPanel, OverviewView};
+use self::head::{DerivedLine, ExamAlerts, FromBookmarks, ModuleLegend, Overlaps, SemesterHead};
+use self::overview::ImportPanel;
 use self::side::PlanSidebar;
 use self::week::{DatesView, WeekView};
 use crate::data::{use_source, DataError, Source};
@@ -95,18 +100,18 @@ pub(super) struct PlanCtx {
     pub today: Option<Day>,
     /// The note of the last „Übernehmen" or „Plan leeren", and the plan before it („Rückgängig").
     pub undo: RwSignal<Option<(String, PlanDoc)>>,
+    /// The week „Woche" shows: the A week, the B week, or both („A/B"). A view setting of the
+    /// page, not stored.
+    pub weeks: RwSignal<Weeks>,
 }
 
-/// The semester the page shows: the address's, else the default one (B.4: the semester before the
-/// current one while the plan holds it and its half-year has not ended).
-pub(super) fn key_of(url: &StudyplanUrl, current: Option<SemesterKey>, doc: &PlanDoc, today: Option<Day>) -> SemesterKey {
-    if let Some(semester) = url.semester() {
-        return semester;
-    }
+/// The semester the page shows: the one the catalog has dates for, the snapshot's current one
+/// (owner's redesign of 2026-09-25: a timetable of the current semester, no other). The address
+/// and the plan no longer choose it; they stay in the signature for the sidebar's callers.
+pub(super) fn key_of(_url: &StudyplanUrl, current: Option<SemesterKey>, _doc: &PlanDoc, today: Option<Day>) -> SemesterKey {
     // A snapshot always names its current semester; should one not, the date says which half of
     // the year it is. (The browser has a clock, so the last fallback is never shown.)
-    let current = current.or_else(|| today.and_then(semester_of)).unwrap_or(SemesterKey { year: 2000, winter: false });
-    studyplan::default_semester(current, doc, today)
+    current.or_else(|| today.and_then(semester_of)).unwrap_or(SemesterKey { year: 2000, winter: false })
 }
 
 /// The semester whose half of the year `day` lies in: April to September is the summer.
@@ -194,7 +199,21 @@ pub fn StudyplanPage() -> impl IntoView {
         let (key, selection) = selection.get();
         data.with(|data| data.as_ref().ok().filter(|data| data.key == key).map(|data| data.timetable(&selection)))
     });
-    let ctx = PlanCtx { url, current, wanted, key, data, selection, table, plan, mine, source, today, undo: RwSignal::new(None) };
+    let ctx = PlanCtx {
+        url,
+        current,
+        wanted,
+        key,
+        data,
+        selection,
+        table,
+        plan,
+        mine,
+        source,
+        today,
+        undo: RwSignal::new(None),
+        weeks: RwSignal::new(Weeks::All),
+    };
 
     // What fills the page: the plan, or the module after „Vollbild" (on a phone as well: the
     // module beside the plan is the plan's panel of it, which is the page there anyway).
@@ -226,7 +245,6 @@ pub fn StudyplanPage() -> impl IntoView {
     };
 
     let importing = Memo::new(move |_| url.with(|url| url.import.is_some()));
-    let overview = Memo::new(move |_| url.with(|url| url.view == PlanView::Overview));
 
     let page = move || {
         if let Some(id) = filling.get() {
@@ -234,7 +252,7 @@ pub fn StudyplanPage() -> impl IntoView {
             return view! { <ModuleInPlace id area=Area::Studyplan back/> }.into_any();
         }
         view! {
-            <Title text="Studienplan"/>
+            <Title text=TITLE/>
             <Frame title="Anpassen" sheet=true sidebar=move || view! { <PlanSidebar ctx/><StorageHint/> } aside aside_picked=picked>
                 <PlanSeo/>
                 <div class="page-inner sp">
@@ -244,11 +262,10 @@ pub fn StudyplanPage() -> impl IntoView {
                         // stands at the top right, where the heads have it.
                         {move || (importing.get() && empty.get()).then(|| view! { <SheetToggle/> })}
                         {move || importing.get().then(|| view! { <ImportPanel ctx/> })}
-                        {move || match (empty.get(), overview.get()) {
+                        {move || match empty.get() {
                             // Taking a Regelstudienplan over is all an empty plan has to show.
-                            (true, _) => (!importing.get()).then(|| view! { <EmptyPlan/> }).into_any(),
-                            (false, true) => view! { <OverviewView ctx/> }.into_any(),
-                            (false, false) => view! { <SemesterView ctx/> }.into_any(),
+                            true => (!importing.get()).then(|| view! { <EmptyPlan/> }).into_any(),
+                            false => view! { <SemesterView ctx/> }.into_any(),
                         }}
                     </section>
                 </div>
@@ -259,8 +276,9 @@ pub fn StudyplanPage() -> impl IntoView {
     page.into_any()
 }
 
-/// One semester: its head, and, where anything is planned into it, the modules, the notes, the
-/// line that says what is derived, and the view.
+/// The semester: its head, and, where anything is planned into it, the modules, the exams that
+/// collide (red, in every view), the one line of overlaps and open choices, the view, and under
+/// it the line that says what is derived.
 #[component]
 fn SemesterView(ctx: PlanCtx) -> impl IntoView {
     let planned = Memo::new(move |_| ctx.wanted.with(|wanted| !wanted.1.is_empty()));
@@ -273,14 +291,15 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
             (None, false) => view! { <FromBookmarks ctx/> }.into_any(),
             (None, true) => view! {
                 <ModuleLegend ctx/>
+                <ExamAlerts ctx/>
+                <Overlaps ctx/>
                 <FromBookmarks ctx/>
-                <Notes ctx/>
-                <DerivedLine ctx/>
                 {move || match shown.get() {
                     PlanView::Dates => view! { <DatesView ctx/> }.into_any(),
                     PlanView::Exams => view! { <ExamsView ctx/> }.into_any(),
                     PlanView::Week | PlanView::Overview => view! { <WeekView ctx/> }.into_any(),
                 }}
+                <DerivedLine ctx/>
             }
             .into_any(),
         }}
@@ -323,7 +342,7 @@ pub(super) fn StorageHint() -> impl IntoView {
 #[component]
 fn PlanSeo() -> impl IntoView {
     view! {
-        <Seo title="Studienplan" description="Dein Studienplan: Termine, Prüfungen und Kalender-Abo der geplanten Module." path=url::STUDYPLAN noindex=true/>
+        <Seo title=TITLE description="Dein Stundenplan: Termine, Prüfungen und Kalender-Abo der geplanten Module." path=url::STUDYPLAN noindex=true/>
     }
 }
 
@@ -336,7 +355,7 @@ fn PlanSeo() -> impl IntoView {
 /// says it once (owner review 2026-09-25).
 fn server_page() -> impl IntoView {
     view! {
-        <Title text="Studienplan"/>
+        <Title text=TITLE/>
         <Frame title="Anpassen" sheet=true sidebar=|| view! { <StorageHint/> }>
             <PlanSeo/>
             <div class="page-inner sp">
@@ -348,8 +367,11 @@ fn server_page() -> impl IntoView {
     }
 }
 
+/// The page's name (owner's redesign of 2026-09-25): a timetable of one semester.
+const TITLE: &str = "Stundenplan";
+
 /// What the server's page says in the place of the plan.
-const SERVER_TITLE: &str = "Dein Studienplan erscheint, sobald die App geladen ist.";
+const SERVER_TITLE: &str = "Dein Stundenplan erscheint, sobald die App geladen ist.";
 
 #[cfg(test)]
 mod tests {
@@ -360,17 +382,14 @@ mod tests {
     }
 
     #[test]
-    fn the_page_shows_the_semester_of_its_address_else_the_default_one() {
+    fn the_page_shows_the_current_semester_alone() {
         let url = |query: &str| StudyplanUrl::parse(query);
         let mut doc = PlanDoc::default();
         assert!(doc.plan(key("2026W"), "12104", 1, None));
         let march = Day::from_ymd(2027, 3, 1);
-        // The address wins.
-        assert_eq!(key_of(&url("sem=2027W"), Some(key("2027S")), &doc, march), key("2027W"));
-        // Radix moved on to the summer, the winter's exams are still ahead: the winter.
-        assert_eq!(key_of(&url(""), Some(key("2027S")), &doc, march), key("2026W"));
-        assert_eq!(key_of(&url(""), Some(key("2027S")), &doc, Day::from_ymd(2027, 4, 2)), key("2027S"));
-        assert_eq!(key_of(&url(""), Some(key("2027S")), &PlanDoc::default(), march), key("2027S"));
+        // Neither the address nor a plan of another semester moves it.
+        assert_eq!(key_of(&url("sem=2027W"), Some(key("2026W")), &doc, march), key("2026W"));
+        assert_eq!(key_of(&url(""), Some(key("2027S")), &doc, march), key("2027S"));
         // Without the snapshot's word the date decides the half of the year.
         assert_eq!(key_of(&url(""), None, &PlanDoc::default(), Day::from_ymd(2026, 11, 5)), key("2026W"));
         assert_eq!(key_of(&url(""), None, &PlanDoc::default(), Day::from_ymd(2027, 2, 5)), key("2026W"));

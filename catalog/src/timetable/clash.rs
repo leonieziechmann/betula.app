@@ -119,6 +119,155 @@ pub fn hard_rows(events: &[Event]) -> BTreeSet<(usize, usize)> {
     weigh(events).hard.iter().flat_map(|f| [f.a, f.b]).collect()
 }
 
+/// Weeks of the A/B rhythm: the A weeks, the B weeks, or every week. What a recurring row is
+/// held in (`Weeks::of`), what two rows meet in, and the week a view shows („A-Woche", „B-Woche",
+/// „A/B": both).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Weeks {
+    A,
+    B,
+    #[default]
+    All,
+}
+
+impl Weeks {
+    /// The weeks a recurring row is held in; `None` for dates that do not recur (a single date, a
+    /// block). A four-weekly row falls into either kind of week.
+    pub fn of(every: Option<Every>) -> Option<Weeks> {
+        Some(match every? {
+            Every::AWeek => Weeks::A,
+            Every::BWeek => Weeks::B,
+            Every::Week | Every::FourWeeks => Weeks::All,
+        })
+    }
+
+    /// Whether what is held in these weeks is held in the week `shown`; „A/B" shows everything.
+    pub fn in_week(self, shown: Weeks) -> bool {
+        self == Weeks::All || shown == Weeks::All || self == shown
+    }
+
+    /// The weeks both are held in; `None` for an A and a B week, which never meet.
+    fn both(self, other: Weeks) -> Option<Weeks> {
+        match (self, other) {
+            (Weeks::All, weeks) | (weeks, Weeks::All) => Some(weeks),
+            (a, b) => (a == b).then_some(a),
+        }
+    }
+
+    /// The weeks either is held in.
+    fn either(self, other: Weeks) -> Weeks {
+        if self == other {
+            self
+        } else {
+            Weeks::All
+        }
+    }
+}
+
+/// Two rows in a hard clash, `(a, b, weeks)` as `(event, row)`: the weeks they meet in where both
+/// recur, `None` where one of them does not (they meet on single days).
+pub type HardPair = ((usize, usize), (usize, usize), Option<Weeks>);
+
+/// Every two rows in a hard clash (`hard_rows` as pairs), with the weeks they meet in: what the
+/// Regelwoche marks a slot by, and names in its tooltip.
+pub fn hard_pairs(events: &[Event]) -> Vec<HardPair> {
+    weigh(events).hard.iter().map(|f| (f.a, f.b, pair_weeks(events, f))).collect()
+}
+
+/// The weeks the rows of a meeting are both held in; `None` where one does not recur.
+fn pair_weeks(events: &[Event], f: &Found) -> Option<Weeks> {
+    let weeks = |(event, row): (usize, usize)| {
+        events.get(event).and_then(|e| e.rows.get(row)).and_then(|row| Weeks::of(Every::of(&row.date)))
+    };
+    weeks(f.a)?.both(weeks(f.b)?)
+}
+
+/// When a teaching overlap happens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum When {
+    /// Two recurring rows at their weekday, in these weeks: once per week, however many dates.
+    Weekly(Weeks),
+    /// A day on which a row that does not recur (a single date, a block) meets another.
+    Day(Day),
+}
+
+/// A teaching overlap as a week has it (owner's redesign of 2026-09-25: „es gibt x
+/// Überschneidungen pro Woche").
+#[derive(Clone, Debug, PartialEq)]
+pub struct Overlap {
+    /// `(event, row)` of each side, `a` of the event that comes first: the rows of the first
+    /// meeting of the two at this weekday and start.
+    pub a: (usize, usize),
+    pub b: (usize, usize),
+    /// Weekday, 1 = Monday.
+    pub weekday: u8,
+    /// The overlap itself: from the later start to the earlier end (the latest such end of the
+    /// rows it gathers).
+    pub from: u16,
+    pub to: u16,
+    pub when: When,
+}
+
+/// The hard clashes of `events` as a week has them. Two recurring rows overlap once per week at
+/// their weekday, not once per date, and only in the weeks both are held (an A-week and a B-week
+/// row never meet): the rows of one pair of events at one weekday and start are one overlap, in
+/// the weeks either of them meets. Where one side does not recur, each common day is an overlap
+/// of its own. Weekly ones first, each kind in the order of the events.
+pub fn overlaps(events: &[Event]) -> Vec<Overlap> {
+    let mut weekly: BTreeMap<(usize, usize, u8, u16), Overlap> = BTreeMap::new();
+    let mut single: BTreeMap<(usize, usize, Day, u16), Overlap> = BTreeMap::new();
+    let row = |(event, row): (usize, usize)| events.get(event).and_then(|e| e.rows.get(row));
+    for f in &weigh(events).hard {
+        let (Some(a), Some(b)) = (row(f.a), row(f.b)) else { continue };
+        let (Some(to_a), Some(to_b)) = (a.to, b.to) else { continue };
+        let to = to_a.min(to_b);
+        match (&f.meeting, pair_weeks(events, f)) {
+            (Meeting::Pattern(weekday), Some(weeks)) => add_weekly(&mut weekly, f, *weekday, to, weeks),
+            (Meeting::Days(days), Some(weeks)) => {
+                let Some(first) = days.first() else { continue };
+                add_weekly(&mut weekly, f, first.weekday(), to, weeks);
+            }
+            (Meeting::Days(days), None) => {
+                for day in days {
+                    let overlap =
+                        Overlap { a: f.a, b: f.b, weekday: day.weekday(), from: f.from, to, when: When::Day(*day) };
+                    single.entry((f.a.0, f.b.0, *day, f.from)).or_insert(overlap);
+                }
+            }
+            // Two patterns always recur.
+            (Meeting::Pattern(_), None) => {}
+        }
+    }
+    weekly.into_values().chain(single.into_values()).collect()
+}
+
+/// Adds a meeting of two recurring rows to the weekly overlap of its events, weekday and start.
+fn add_weekly(weekly: &mut BTreeMap<(usize, usize, u8, u16), Overlap>, f: &Found, weekday: u8, to: u16, weeks: Weeks) {
+    let fresh = Overlap { a: f.a, b: f.b, weekday, from: f.from, to, when: When::Weekly(weeks) };
+    let overlap = weekly.entry((f.a.0, f.b.0, weekday, f.from)).or_insert(fresh);
+    overlap.to = overlap.to.max(to);
+    if let When::Weekly(known) = overlap.when {
+        overlap.when = When::Weekly(known.either(weeks));
+    }
+}
+
+/// How many weekly overlaps the week `shown` stands for has: the A week's or the B week's, and for
+/// „A/B" the larger of the two.
+pub fn per_week(overlaps: &[Overlap], shown: Weeks) -> usize {
+    let count = |week: Weeks| {
+        overlaps.iter().filter(|o| matches!(o.when, When::Weekly(weeks) if weeks.in_week(week))).count()
+    };
+    match shown {
+        Weeks::All => count(Weeks::A).max(count(Weeks::B)),
+        week => count(week),
+    }
+}
+
+/// How many overlaps fall on single days (`When::Day`).
+pub fn on_days(overlaps: &[Overlap]) -> usize {
+    overlaps.iter().filter(|o| matches!(o.when, When::Day(_))).count()
+}
+
 /// The meetings that count, and the blocked choices by event index.
 struct Weighed {
     hard: Vec<Found>,
@@ -393,6 +542,7 @@ mod tests {
     use super::*;
     use crate::labels::Code;
     use crate::rows_detail::ModuleSws;
+    use crate::timetable::day::clock;
     use crate::timetable::model::tests::{d, event, ids, planned, table, teaching, Fixture};
     use crate::timetable::model::{Attendance, Timetable};
     use crate::timetable::select::{HiddenBy, Selection};
@@ -755,6 +905,98 @@ mod tests {
         let t = table(&rows, &["A", "B", "C"], &no_sws(), &Selection::default());
         assert_eq!(named(&t), [clash(("1", 1), ("2", 1), "2026-10-08", 8)]);
         assert_eq!(hard_rows(&t.events), BTreeSet::from([(0, 0), (0, 1), (1, 0)]));
+    }
+
+    /// The overlaps as `(event a, event b, weekday, from, to, when)`, by event id.
+    fn overlap_list(t: &Timetable) -> Vec<(String, String, u8, String, String, When)> {
+        overlaps(&t.events)
+            .iter()
+            .map(|o| {
+                let (a, b) = (&t.events[o.a.0].id, &t.events[o.b.0].id);
+                (a.clone(), b.clone(), o.weekday, clock(o.from), clock(o.to), o.when)
+            })
+            .collect()
+    }
+
+    fn overlap(a: &str, b: &str, weekday: u8, from: &str, to: &str, when: When) -> (String, String, u8, String, String, When) {
+        (a.into(), b.into(), weekday, from.into(), to.into(), when)
+    }
+
+    #[test]
+    fn a_weekly_overlap_counts_once_per_week_and_a_and_b_weeks_never_meet() {
+        let a =
+            teaching("A", "1", 1, "Vorlesung", 2, "07:30", "09:00").rhythm("week_a").range("2026-10-06", "2027-01-26");
+        let b = teaching("B", "2", 1, "Übung", 2, "07:30", "09:00").rhythm("week_b").range("2026-10-13", "2027-01-19");
+        let tuesday = teaching("C", "3", 1, "Vorlesung", 2, "08:00", "09:30");
+        let t = table(&[a.clone(), b.clone(), tuesday], &["A", "B", "C"], &no_sws(), &Selection::default());
+        // A and B never meet; each meets C in its own weeks, once a week, not on its 8 or 7 dates.
+        assert_eq!(
+            overlap_list(&t),
+            [
+                overlap("1", "3", 2, "08:00", "09:00", When::Weekly(Weeks::A)),
+                overlap("2", "3", 2, "08:00", "09:00", When::Weekly(Weeks::B))
+            ]
+        );
+        let o = overlaps(&t.events);
+        assert_eq!((per_week(&o, Weeks::A), per_week(&o, Weeks::B), per_week(&o, Weeks::All), on_days(&o)), (1, 1, 1, 0));
+        // An A-week and a B-week row alone: nothing at all.
+        let t = table(&[a.clone(), b], &["A", "B"], &no_sws(), &Selection::default());
+        assert!(overlaps(&t.events).is_empty());
+
+        // Two weekly rows: one overlap for their 15 Tuesdays. With an A-week row meeting both, the
+        // A week has three, the B week one: „A/B" says the larger.
+        let weekly = teaching("D", "4", 1, "Vorlesung", 2, "07:30", "09:00");
+        let other = teaching("E", "5", 1, "Vorlesung", 2, "08:30", "10:00");
+        let t = table(&[a.clone(), weekly.clone(), other], &["A", "D", "E"], &no_sws(), &Selection::default());
+        let o = overlaps(&t.events);
+        assert_eq!(
+            weekly_of(&t, &o),
+            [("1", "4", When::Weekly(Weeks::A)), ("1", "5", When::Weekly(Weeks::A)), ("4", "5", When::Weekly(Weeks::All))]
+        );
+        assert_eq!((per_week(&o, Weeks::A), per_week(&o, Weeks::B), per_week(&o, Weeks::All)), (3, 1, 3));
+
+        // One event's A and B rows at one time are every week against a weekly row: one overlap.
+        let rows = [
+            teaching("A", "1", 1, "Vorlesung", 2, "07:30", "09:00").rhythm("week_a").range("2026-10-06", "2027-01-26"),
+            teaching("A", "1", 2, "Vorlesung", 2, "07:30", "09:00").rhythm("week_b").range("2026-10-13", "2027-01-19"),
+            weekly.clone(),
+        ];
+        let t = table(&rows, &["A", "D"], &no_sws(), &Selection::default());
+        assert_eq!(overlap_list(&t), [overlap("1", "4", 2, "07:30", "09:00", When::Weekly(Weeks::All))]);
+
+        // A block meets the weekly row on its Tuesday: an overlap of a single day, apart.
+        let block = teaching("F", "6", 1, "Blockseminar", 1, "08:00", "12:00").rhythm("block").range("2026-11-02", "2026-11-06");
+        let t = table(&[weekly, block], &["D", "F"], &no_sws(), &Selection::default());
+        let o = overlaps(&t.events);
+        assert_eq!(overlap_list(&t), [overlap("4", "6", 2, "08:00", "09:00", When::Day(d("2026-11-03")))]);
+        assert_eq!((per_week(&o, Weeks::All), on_days(&o)), (0, 1));
+    }
+
+    fn weekly_of<'t>(t: &'t Timetable, o: &[Overlap]) -> Vec<(&'t str, &'t str, When)> {
+        o.iter().map(|o| (t.events[o.a.0].id.as_str(), t.events[o.b.0].id.as_str(), o.when)).collect()
+    }
+
+    /// Informatik B.Sc.'s first semester: the Sachsendorf offering of 12102 meets 12107's Tuesday
+    /// weekly at 09:15, and at 07:30 its lecture in A weeks and its Übung in B weeks: two
+    /// overlaps a week, whichever week.
+    #[test]
+    fn informatik_first_semester_overlaps_per_week() {
+        let Some(db) = crate::tests::studyplan_db("informatik_first_semester_overlaps_per_week") else {
+            return;
+        };
+        let t = planned(&db, "2026W", &fs1(), &Selection::default());
+        let o = overlaps(&t.events);
+        assert_eq!(
+            weekly_of(&t, &o),
+            [
+                ("148134", "148455", When::Weekly(Weeks::All)),
+                ("148134", "149408", When::Weekly(Weeks::A)),
+                ("148135", "149408", When::Weekly(Weeks::B))
+            ]
+        );
+        assert_eq!((per_week(&o, Weeks::A), per_week(&o, Weeks::B), per_week(&o, Weeks::All), on_days(&o)), (2, 2, 2, 0));
+        let hide = Selection { hidden_events: [149408, 148455].into(), ..Selection::default() };
+        assert!(overlaps(&planned(&db, "2026W", &fs1(), &hide).events).is_empty());
     }
 
     /// Plans of 2026W where open choices meet each other: those that can be placed together are

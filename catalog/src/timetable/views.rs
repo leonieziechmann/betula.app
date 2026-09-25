@@ -20,7 +20,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::clash;
+use super::clash::{self, Weeks};
 use super::day::Day;
 use super::exams::ExamShape;
 use super::facts::SemesterFacts;
@@ -120,6 +120,25 @@ pub struct WeekItem {
     pub alt: Option<(usize, usize)>,
     /// A row of the slot is in a hard clash (`clash::hard_rows`).
     pub clash: bool,
+    /// The weeks of the A/B rhythm the slot is held in; `None` for dates that do not recur.
+    pub weeks: Option<Weeks>,
+    /// What its rows are in a hard clash with (`clash::hard_pairs`): the other event and the
+    /// weeks they meet in (`None`: on single days), in the order of the events.
+    pub against: Vec<(usize, Option<Weeks>)>,
+}
+
+impl WeekItem {
+    /// Whether the slot is held in the week `shown` („A/B" shows every slot, and dates that do
+    /// not recur stand in every week).
+    pub fn in_week(&self, shown: Weeks) -> bool {
+        self.weeks.is_none_or(|weeks| weeks.in_week(shown))
+    }
+
+    /// The events it clashes with in the week `shown`; one on single days in every week.
+    pub fn against_in(&self, shown: Weeks) -> Vec<usize> {
+        let meets = |weeks: &Option<Weeks>| weeks.is_none_or(|weeks| weeks.in_week(shown));
+        self.against.iter().filter(|(_, weeks)| meets(weeks)).map(|(event, _)| *event).collect()
+    }
 }
 
 /// What the small text of a Regelwoche slot says about its dates.
@@ -287,11 +306,22 @@ struct Slot {
     /// A recurring row is only a pattern: the slot's range is unknown.
     pattern: bool,
     clash: bool,
+    /// What its rows clash with, and in which weeks (`WeekItem::against`).
+    against: BTreeSet<(usize, Option<Weeks>)>,
 }
 
 impl Slot {
     fn new(every: Option<Every>, row: usize) -> Self {
-        Slot { every, lowest: row, first: None, held: BTreeSet::new(), span: None, pattern: false, clash: false }
+        Slot {
+            every,
+            lowest: row,
+            first: None,
+            held: BTreeSet::new(),
+            span: None,
+            pattern: false,
+            clash: false,
+            against: BTreeSet::new(),
+        }
     }
 
     /// A held day of `row`: the earliest names the slot's row.
@@ -311,6 +341,9 @@ impl Slot {
 /// (required rows first), rhythm (`rhythm_order`).
 type SlotKey = (u8, u16, u16, usize, Option<usize>, u8);
 
+/// The rows in a hard clash with a row `(event, row)`: each other event and the weeks they meet in.
+type Against = BTreeMap<(usize, usize), BTreeSet<(usize, Option<Weeks>)>>;
+
 impl Timetable {
     /// The Regelwoche, by weekday, time and event. A visible row with a time is a slot when it
     /// has a date: a recurring row with a held day or only its pattern is one slot at its
@@ -323,7 +356,11 @@ impl Timetable {
     /// or no date at all, is `loose`.
     pub fn regular_week(&self) -> Vec<WeekItem> {
         // One pairwise comparison for the whole week, not one per slot.
-        let hard = clash::hard_rows(&self.events);
+        let mut hard: Against = BTreeMap::new();
+        for (a, b, weeks) in clash::hard_pairs(&self.events) {
+            hard.entry(a).or_default().insert((b.0, weeks));
+            hard.entry(b).or_default().insert((a.0, weeks));
+        }
         let open: Vec<Option<usize>> =
             self.events.iter().map(|event| event.unresolved().then(|| event.visible_options().len())).collect();
         let mut slots: BTreeMap<SlotKey, Slot> = BTreeMap::new();
@@ -331,7 +368,8 @@ impl Timetable {
             let (Some(from), Some(to)) = (row.from, row.to) else {
                 continue;
             };
-            let clashes = hard.contains(&(e, r));
+            let against = hard.get(&(e, r));
+            let clashes = against.is_some();
             let every = Every::of(&row.date);
             if every.is_some() {
                 let day = match (row.occ.template, row.occ.days.first()) {
@@ -343,6 +381,7 @@ impl Timetable {
                 let slot = slots.entry(key).or_insert_with(|| Slot::new(every, r));
                 slot.pattern |= row.occ.template.is_some();
                 slot.clash |= clashes;
+                slot.against.extend(against.into_iter().flatten().copied());
                 if let Some(held) = row.occ.days.first() {
                     slot.held_on(*held, r);
                 }
@@ -354,6 +393,7 @@ impl Timetable {
                     let key = (held.weekday(), from, to, e, row.option, rhythm_order(None));
                     let slot = slots.entry(key).or_insert_with(|| Slot::new(None, r));
                     slot.clash |= clashes;
+                    slot.against.extend(against.into_iter().flatten().copied());
                     slot.held.insert(*held);
                     slot.held_on(*held, r);
                 }
@@ -389,6 +429,8 @@ impl Timetable {
                     label,
                     alt: open.get(event).copied().flatten().zip(option),
                     clash: slot.clash,
+                    weeks: Weeks::of(slot.every),
+                    against: slot.against.into_iter().collect(),
                 })
             })
             .collect()

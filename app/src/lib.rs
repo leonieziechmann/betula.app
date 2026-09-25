@@ -257,7 +257,7 @@ fn NavItems() -> impl IntoView {
         // The Studienplan lives in the browser app alone, like the Merkliste (R15), and so does the
         // number of its modules (R9). The number is a memo of its own: most changes of the plan
         // (a hidden Termin, a move) leave it as it is.
-        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title="Studienplan" aria-current=move || current(Area::Studyplan)>
+        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title="Stundenplan" aria-current=move || current(Area::Studyplan)>
             <span class="ind">
                 <Icon name="calendar-range"/>
                 {move || {
@@ -265,7 +265,7 @@ fn NavItems() -> impl IntoView {
                     (planned > 0).then(|| view! { <span class="nav-count num" aria-label=format!("{planned} geplant")>{if planned > 99 { "99+".to_string() } else { planned.to_string() }}</span> })
                 }}
             </span>
-            "Plan"
+            "Stundenplan"
         </a>
     }
 }
@@ -328,7 +328,7 @@ fn TopBar() -> impl IntoView {
                     Area::Programs => ("Studiengänge", url::PROGRAMS, "Studiengang suchen"),
                     Area::Catalog => ("Module", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                     Area::Bookmarks => ("Merkliste", url::CATALOG, "Modul, Nummer oder Thema suchen"),
-                    Area::Studyplan => ("Studienplan", url::CATALOG, "Modul, Nummer oder Thema suchen"),
+                    Area::Studyplan => ("Stundenplan", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                     Area::Home => ("Start", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                 };
                 let initial = url::parse_pairs(&Pending::shown_of(going, location.pathname, location.search).1)
