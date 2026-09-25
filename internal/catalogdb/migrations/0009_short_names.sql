@@ -1,10 +1,10 @@
--- Short names for the places where space is tight: a room as „ZHG HS.A“ instead of
+-- Short names for the places where space is tight: a room as „ZHG/HS.A“ instead of
 -- „Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus“, a module as „AuP“ instead of
 -- „Algorithmieren und Programmieren“. Both are derived by every build from what the
 -- sources already say (owner, 2026-09-25: where an abbreviation does not fit how a
 -- program uses it, the metadata is simply rebuilt).
 --
--- event_date.room_short    „<building> <room>[<attachment>]“ (normalize.RoomShort); room keeps the full name
+-- event_date.room_short    „<building>/<room>[<attachment>]“ (normalize.RoomShort); room keeps the full name
 -- module_abbrev            one abbreviation per module, for pages without a program
 -- program_module_abbrev    one per module of a program, unique within it (curriculum,
 --                          electives and FÜS), for the Studienplan

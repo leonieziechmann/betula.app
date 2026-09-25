@@ -305,7 +305,7 @@ func TestWriteFoliaFixture(t *testing.T) {
 			eventNo++
 			extra += fmt.Sprintf(`<tr><td>Veranstaltungen im aktuellen Semester:</td><td><ul><li><a href="https://www.b-tu.de/qisserver3/rds?state=verpublish&veranstaltung.veranstid=%d">%d Vorlesung</a></li></ul></td></tr>`, eventNo, eventNo)
 			// Room names as QIS prints them, one after the other (i is a multiple of 9 here);
-			// their short forms are ZHG HS.A, SD 11.301 and SFB 14C.103.
+			// their short forms are ZHG/HS.A, SD/11.301 and SFB/14C.103.
 			rooms := []string{"Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus", "Gebäude 11 - Hörsaal SD - 11.301 Hörsaal C - Campus Sachsendorf", "Gebäude 14.C - SFB - 14C.103 Hörsaal - Campus Senftenberg"}
 			events = append(events, fmt.Sprintf("%d", eventNo), eventPageHTML(m.title, "Vorlesung", rooms[(i/9)%3], "14.04.2026 bis 21.07.2026"))
 		}

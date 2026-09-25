@@ -8,15 +8,19 @@ import (
 
 // Short room names. QIS names a room „Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus“
 // or „Gebäude 14.C - SFB - 14C.103 Hörsaal - Campus Senftenberg“: 50 characters where a
-// week grid has room for ten. The short form is „<building> <room>[<attachment>]“:
+// week grid has room for ten. The short form is „<building>/<room>[<attachment>]“ (owner,
+// 2026-09-25: „ZHG/HS.C“, „weil sich das viel besser liest“):
 //
-//	ZHG HS.A     VG1C 0.07     LG3A 324     LG10 211a/b     SFB 14C.103     SD 7.116     GHS
+//	ZHG/HS.A     VG1C/0.07     LG3A/324     LG10/211a+b     SFB/14C.103     SD/7.116     GHS
 //
 // BUILDING is a token without spaces from the legend of BTU's campus plan (Oct 2021) and the
 // owner's decisions of 2026-09-25 (ZHG, HS., GHS „damit es nicht mit HG verwechselt wird“,
-// VG1C 0.07), or the campus code SFB / SD, whose room numbers already start with their
+// VG1C/0.07), or the campus code SFB / SD, whose room numbers already start with their
 // building. ROOM is the number as QIS prints it, or a kind abbreviation with its label
-// (HS.A, SEM.4, AM.1). ATTACH tells rooms with one number apart (a/b, .1, /27, „ F1“).
+// (HS.A, SEM.4, AM.1). ATTACH tells rooms with one number apart (a+b, .1, +27, „ F1“).
+// The slash between them is the only one (joinRoom): two rooms QIS writes as a pair or a
+// range (2.26/2.27, 229/230, 211a/b) are joined by „+“, and the Lehrgebäude of Campus Nord
+// are LG4-1, LG4-3 and LG4-4. A room with words keeps its spaces (ZB2CD/AT Oestreich M).
 // docs/schema-v2.md, „Short names“.
 
 // roomBuildings maps QIS's building name, the part of a room name before the first " - ",
@@ -39,9 +43,9 @@ var roomBuildings = map[string]string{
 	"Lehrgebäude 3A":            "LG3A",
 	"Lehrgebäude 3B":            "LG3B",
 	"Lehrgebäude 10":            "LG10",
-	"Lehrgebäude 4/1":           "LG4/1",
-	"Lehrgebäude 4/3":           "LG4/3",
-	"Lehrgebäude 4/4":           "LG4/4",
+	"Lehrgebäude 4/1":           "LG4-1", // not LG4/1: the slash parts building and room
+	"Lehrgebäude 4/3":           "LG4-3",
+	"Lehrgebäude 4/4":           "LG4-4",
 	"Laborgebäude 1B":           "LB1B",
 	"Laborgebäude 4B":           "LB4B",
 	"Laborhalle 3D":             "LH3D",
@@ -68,21 +72,21 @@ var roomBuildings = map[string]string{
 }
 
 // roomOverrides are places that carry no number the rules could keep. Exact names,
-// without the campus suffix of an event's room.
+// without the campus suffix of an event's room. A place of no building is its name alone.
 var roomOverrides = map[string]string{
-	"Outdoor-Veranstaltungen SFB - OD_Sfb_Gb9_Sportplatz":          "SFB Sportplatz",
-	"Outdoor-Veranstaltungen ZC - OR_1.1_Innenhof LG 1 A":          "LG1A Innenhof",
-	"Outdoor-Veranstaltungen ZC - OR_1.2_Innenhof VG 1C":           "VG1C Innenhof",
+	"Outdoor-Veranstaltungen SFB - OD_Sfb_Gb9_Sportplatz":          "SFB/Sportplatz",
+	"Outdoor-Veranstaltungen ZC - OR_1.1_Innenhof LG 1 A":          "LG1A/Innenhof",
+	"Outdoor-Veranstaltungen ZC - OR_1.2_Innenhof VG 1C":           "VG1C/Innenhof",
 	"Outdoor-Veranstaltungen ZC - OR_2.1_Fakultätsgarten":          "Fakultätsgarten",
-	"Outdoor-Veranstaltungen ZC - OR_6.1_Zwischenbau 2CD Aula":     "ZB2CD Aula",
+	"Outdoor-Veranstaltungen ZC - OR_6.1_Zwischenbau 2CD Aula":     "ZB2CD/Aula",
 	"Outdoor-Veranstaltungen ZC - OR_6.2_Innenhof K.-W.-Allee 2CD": "Innenhof 2CD",
-	"Outdoor-Veranstaltungen ZC - OR_6.3_Baumgruppe FMPA":          "FMPA Baumgruppe",
-	"Outdoor-Veranstaltungen ZC - OR_6.4_Zwischenbau 2AB Aula":     "ZB2AB Aula",
+	"Outdoor-Veranstaltungen ZC - OR_6.3_Baumgruppe FMPA":          "FMPA/Baumgruppe",
+	"Outdoor-Veranstaltungen ZC - OR_6.4_Zwischenbau 2AB Aula":     "ZB2AB/Aula",
 	"Outdoor-Veranstaltungen ZC - OR_6.5_Innenhof K.-W.-Allee 2AB": "Innenhof 2AB",
 	"Outdoor-Veranstaltungen ZC - OR_6.6_Lehmbau":                  "Lehmbau",
 	"Outdoor-Veranstaltungen ZC - OR_Forum_Kirschhain":             "Forum Kirschhain",
-	"IKMZ - eAssessment Center IKMZ 1.UG":                          "IKMZ eAssessment",
-	"Anbau LG 2D - EG Bildhauerwerkstatt":                          "LG2D Werkstatt",
+	"IKMZ - eAssessment Center IKMZ 1.UG":                          "IKMZ/eAssessment",
+	"Anbau LG 2D - EG Bildhauerwerkstatt":                          "LG2D/Werkstatt",
 }
 
 // roomIsBuilding: the hall is a building of its own, and its short form is the token alone.
@@ -153,7 +157,7 @@ func RoomShort(room string) (short string, known bool) {
 	if !found {
 		// No building part: a label that still says where it is on SFB/SD.
 		if code != "" {
-			return code + " " + name, true
+			return joinRoom(code, name), true
 		}
 		return name, true
 	}
@@ -164,20 +168,20 @@ func RoomShort(room string) (short string, known bool) {
 			code := mb[4]
 			mn := roomCampusNumber.FindStringSubmatch(tail)
 			if mn == nil {
-				return code + " " + tail, true
+				return joinRoom(code, tail), true
 			}
 			attach := ""
 			if mf := roomField.FindStringSubmatch(mn[2]); mf != nil {
 				attach = " F" + mf[1] // „9.151 Sporthalle, Feld 1 (Leerfeld)“
 			}
-			return code + " " + mn[1] + attach, true
+			return joinRoom(code, mn[1]+attach), true
 		}
 	}
 
 	// Senftenberg and Sachsendorf in another spelling: the number decides.
 	if code != "" {
 		if mn := roomCampusNumberAnywhere.FindStringSubmatch(rest); mn != nil {
-			return code + " " + mn[1], true
+			return joinRoom(code, mn[1]), true
 		}
 	}
 
@@ -188,14 +192,14 @@ func RoomShort(room string) (short string, known bool) {
 	}
 	if token == "" {
 		// An outdoor place no override names: the place alone, and a warning.
-		return rest, false
+		return strings.ReplaceAll(rest, "/", "+"), false
 	}
 	if roomIsBuilding[[2]string{building, rest}] {
 		return token, known
 	}
 
 	part := rest
-	// The building's own printed prefix inside the room part: „HG 0.16“, „ZB VI.01“.
+	// The building's own printed prefix inside the room part: „HG 0.16“, „ZB VI.01“ (HG/0.16, ZB/VI.01).
 	switch token {
 	case "HG":
 		part = strings.TrimPrefix(part, "HG ")
@@ -214,17 +218,25 @@ func RoomShort(room string) (short string, known bool) {
 		} else {
 			r = string(k.rx.ExpandString(nil, k.repl, part, m))
 		}
-		return token + " " + r, known
+		return joinRoom(token, r), known
 	}
 
 	if mn := roomNumber.FindStringSubmatch(part); mn != nil {
-		return token + " " + roomNumberSpelling(mn[1]), known
+		return joinRoom(token, roomNumberSpelling(mn[1])), known
 	}
-	return token + " " + part, known
+	return joinRoom(token, part), known
+}
+
+// joinRoom writes a short form: the building, a slash, the room. The slash is the only one in
+// it: one inside the room part joins two rooms („229/230“ → 229+230, „211a/b“ → 211a+b), one
+// in a building name the table lacks becomes a hyphen, as in LG4-3.
+func joinRoom(building, room string) string {
+	return strings.ReplaceAll(building, "/", "-") + "/" + strings.ReplaceAll(room, "/", "+")
 }
 
 // roomNumberSpelling writes one scheme one way: „B.3.16“ as „B3.16“, because LB 4B spells its
-// other rooms „B3.18“, and „2.26/2.27“ as „2.26/27“, the way QIS itself writes „A0.27/28“.
+// other rooms „B3.18“, and „2.26/2.27“ as „2.26/27“, the way QIS itself writes „A0.27/28“
+// (joinRoom then makes both 2.26+27 and A0.27+28).
 func roomNumberSpelling(num string) string {
 	if m := roomLetterDot.FindStringSubmatch(num); m != nil {
 		num = m[1] + m[2]
@@ -241,7 +253,7 @@ var roomTokenLetters = regexp.MustCompile(`^[A-ZÄÖÜ]{2,}`)
 // BuildingTokens are the capitals a short room name opens with, which a reader takes for a
 // place: those of every building token (ZHG, HG, LG, VG, ZB …) and the campus codes SFB and
 // SD. A module abbreviation must not look like one (package abbrev): a week grid shows a
-// module and its room side by side, and „HG“ next to „HG 0.16“ reads as the building. The
+// module and its room side by side, and „HG“ next to „HG/0.16“ reads as the building. The
 // room kinds (SEM.4, AM.1, AT Name) always follow a building token and are not listed; HS is,
 // for the Hörsaal 3 that is a building of its own (HS3). Sorted, without duplicates.
 func BuildingTokens() []string {
@@ -255,7 +267,8 @@ func BuildingTokens() []string {
 		add(token)
 	}
 	for _, short := range roomOverrides {
-		add(strings.Fields(short)[0])
+		building, _, _ := strings.Cut(short, "/")
+		add(strings.Fields(building)[0])
 	}
 	out := make([]string, 0, len(seen))
 	for t := range seen {

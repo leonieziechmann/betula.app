@@ -457,10 +457,16 @@ The owner asked for short names of rooms and modules where space is tight (the S
 grid, agenda, notes and legend; the module overlay; perhaps the calendar export and the catalog).
 Evidence and rules: §5.14 and `docs/schema-v2.md`, „Short names".
 
-- **Rooms** are „<Gebäude> <Raum>[<Attachment>]": Zentrales Hörsaalgebäude is ZHG, a Hörsaal HS
+- **Rooms** are „<Gebäude>/<Raum>[<Attachment>]": Zentrales Hörsaalgebäude is ZHG, a Hörsaal HS
   („ZHG HS.3"), Lehrgebäude LG, Verfügungsgebäude VG, Mehrzweckgebäude MZG, and the Großer Hörsaal
   GHS, „damit es nicht mit HG verwechselt wird". A room is its floor and number: „VG1C 0.07",
   without a space inside the building token.
+- **A slash between building and room** (on the review page, 2026-09-25): „ZHG/HS.C" instead of
+  „ZHG HS.C", „weil sich das viel besser liest". So ZHG/HS.C, ZHG/SEM.4, ZHG/AM.1, LG1A/HS.2,
+  VG1C/0.03, HG/0.16, LG3A/352, SFB/1.308, SD/9.117, Mensa/0.33.1; a hall that is a building of its
+  own stays alone (GHS). No form has a second slash: two rooms QIS writes as a pair or a range are
+  joined by „+" (FZ3E/2.26+27, ZB2CD/229+230, LG10/211a+b), and the Lehrgebäude 4/1, 4/3, 4/4 of
+  Campus Nord are LG4-1, LG4-3, LG4-4. A room with words keeps its spaces (ZB2CD/AT Oestreich M).
 - **Modules** get abbreviations that are actually used — Algorithmieren und Programmieren is
   AuP, Elektrische und Elektronische Grundlagen der Informatik EEG. Three letters are the sweet
   spot; a form that occurs twice among the modules a program lets its students select is nobody's,
@@ -486,14 +492,14 @@ Open, with the default the build uses until the owner decides:
 
 | | Question | Default |
 |---|---|---|
-| R1 | Audimax as `ZHG AM.1`, `ZHG Audimax 1` or `ZHG AX1`? | `ZHG AM.1` |
-| R2 | Three-digit numbers as printed (`LG3A 324`) or as floor.number (`LG3A 3.24`)? | as printed |
-| R3 | Senftenberg and Sachsendorf as `SFB 1.308` / `SD 7.116`? | yes |
+| R1 | Audimax as `ZHG/AM.1`, `ZHG/Audimax 1` or `ZHG/AX1`? | `ZHG/AM.1` |
+| R2 | Three-digit numbers as printed (`LG3A/324`) or as floor.number (`LG3A/3.24`)? | as printed |
+| R3 | Senftenberg and Sachsendorf as `SFB/1.308` / `SD/7.116`? | yes |
 | R4 | The annexes of LG 2C and 2D folded into `LG2C` / `LG2D`? | folded |
-| R5 | Ateliers keep „AT" (`ZB2CD AT Oestreich M`)? | keep |
+| R5 | Ateliers keep „AT" (`ZB2CD/AT Oestreich M`)? | keep |
 | R6 | Invented tokens PRH, SH1 and bare outdoor places (`Fakultätsgarten`)? | as listed |
-| R7 | Senftenberg rooms lose their description (`SFB 1.210`, not the Skills Lab's name)? | drop it; the full name stays in the tooltip |
-| R8 | Sports hall fields as `SFB 9.151 F2`? | `F2` |
+| R7 | Senftenberg rooms lose their description (`SFB/1.210`, not the Skills Lab's name)? | drop it; the full name stays in the tooltip |
+| R8 | Sports hall fields as `SFB/9.151 F2`? | `F2` |
 | M1 | Two-word titles with three characters (`ThI`, `EAl`, `NMa`) or two initials (`TI`, `EA`, `NM`)? A word's second letter between two capitals reads as a function word, as the u of AuP does (`EfA` next to `SfA` „Statistik für Anwender“), so the rules widen the last word instead (review, 2026-09-25) | three, without a function-looking letter; `TI` and the like can be overrides |
 | M2 | The displayed title (English for English-taught modules: `ERTS`) or always the German one? | the displayed title |
 | M3 | Identical titles in one program: `HäG` / `HäG-b`? | `-b`, `-c` |
@@ -504,4 +510,4 @@ Open, with the default the build uses until the owner decides:
 | M8 | The program-free form on catalog cards and on a module page without a program? | yes |
 | M9 | Plan position codes (BP23, OM3) as a `plan_code` of their own? | not now |
 | M10 | The blocked forms (`internal/abbrev/blocked.tsv`): SA is blocked for the Nazi SA, but it is the common form of „Studienarbeit“ (5 modules, now `Stu`), and SS of „Steuerungssysteme“ (now `Ste`). An override line may bring a blocked form back. | blocked; no override |
-| M11 | Room kinds as module forms: Sem („Seminar“) next to `ZHG SEM.4` (owner 2026-09-25: a Seminarraum is „SEM“), AT (Analogtechnik, Architekturtheorie …) next to the ateliers `ZB2CD AT Oestreich M`? They always follow a building token, so only the buildings (and HS, the building HS3) are blocked. | allowed |
+| M11 | Room kinds as module forms: Sem („Seminar“) next to `ZHG/SEM.4` (owner 2026-09-25: a Seminarraum is „SEM“), AT (Analogtechnik, Architekturtheorie …) next to the ateliers `ZB2CD/AT Oestreich M`? They always follow a building token, so only the buildings (and HS, the building HS3) are blocked. | allowed |

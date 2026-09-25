@@ -14,9 +14,9 @@ import (
 func TestRoomsGetAShortForm(t *testing.T) {
 	db, r := buildFixture(t)
 	want(t, db, `SELECT event_id, room_short, room FROM v_module_schedule`,
-		"120285|SFB 14.117|Allgemeine Elektrotechnik Labor - 14.117 - Campus Senftenberg")
+		"120285|SFB/14.117|Allgemeine Elektrotechnik Labor - 14.117 - Campus Senftenberg")
 	want(t, db, `SELECT event_id, room_short, room FROM v_module_exam`,
-		"120286|LG1A 0.22|Lehrgebäude 1A - 0.22 - Zentralcampus")
+		"120286|LG1A/0.22|Lehrgebäude 1A - 0.22 - Zentralcampus")
 	if len(r.RoomsUnknownBuilding) != 0 || len(r.RoomShortCollisions) != 0 {
 		t.Errorf("unknown buildings %v, collisions %v", r.RoomsUnknownBuilding, r.RoomShortCollisions)
 	}
@@ -58,7 +58,7 @@ func TestRoomsThatWouldShareAShortFormKeepTheirLongForm(t *testing.T) {
 		}
 		got = append(got, s)
 	}
-	if want := []string{"SFB 14.117", "Lehrgebäude 1A - 0.22", "Lehrgebäude 1A - 0.22 Labor", "Neubau X 1.01"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"SFB/14.117", "Lehrgebäude 1A - 0.22", "Lehrgebäude 1A - 0.22 Labor", "Neubau X/1.01"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("room_short = %q, want %q", got, want)
 	}
 }

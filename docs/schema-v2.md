@@ -51,7 +51,7 @@ and the `plan*` tables is derived and replaced by each build.
 | `program_module_assertion` | one row per statement "module M is in program P" per source, with `kind`, `kind_basis` (`stated`/`inferred`) and area | module page, QIS tree, validated plan |
 | `plan`, `plan_entry`, `plan_scan_status` | validated study plans; written transactionally by `SavePlan`, never touched by the build; not foreign-keyed to derived tables, so a plan survives an incomplete crawl | statute PDFs |
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
-| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG HS.A“), `room` keeps the full name | QIS event pages; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
+| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | QIS event pages; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
@@ -452,15 +452,20 @@ where a form does not fit how a program uses it, the metadata is simply built ag
 die meta eben neu“). **Folia never stores one**: it keeps module numbers and rooms and reads the short
 form from the current snapshot.
 
-**Rooms** (`normalize.RoomShort`, `event_date.room_short`). The form is `<building> <room>[<attachment>]`:
-`ZHG HS.A`, `VG1C 0.07`, `LG3A 324`, `LG10 211a/b`, `SFB 14C.103`, `SD 7.116`, `GHS`. The building
+**Rooms** (`normalize.RoomShort`, `event_date.room_short`). The form is `<building>/<room>[<attachment>]`:
+`ZHG/HS.A`, `VG1C/0.07`, `LG3A/324`, `LG10/211a+b`, `SFB/14C.103`, `SD/7.116`, `Mensa/0.33.1`, `GHS`
+(the owner, 2026-09-25: „ZHG/HS.C“ rather than „ZHG HS.C“, „weil sich das viel besser liest“). The
+slash is the only one in a form: two rooms QIS writes as a pair or a range are joined by `+`
+(2.26/2.27 → `FZ3E/2.26+27`, 229/230 → `ZB2CD/229+230`, 211a/b → `LG10/211a+b`), the Lehrgebäude
+4/1, 4/3 and 4/4 of Campus Nord are `LG4-1`, `LG4-3`, `LG4-4`, and a building name the table lacks
+gets a hyphen for its slash; a room with words keeps its spaces (`ZB2CD/AT Oestreich M`). The building
 token comes from a table of 38 QIS building names, taken from the legend of BTU's campus plan (October
 2021) and the owner's decisions (ZHG, GHS „damit es nicht mit HG verwechselt wird“, VG1C). On the
 campuses Senftenberg and Sachsendorf the room number already starts with its building, so the token
 is the campus code. The rules, in order: 13 curated places (the outdoor places, the eAssessment room);
-a name without a building part keeps its text (with SFB/SD in front on those campuses); SFB/SD keep
+a name without a building part keeps its text (with `SFB/`, `SD/` in front on those campuses); SFB/SD keep
 the number and drop the description („Feld 2“ of the sports hall stays as ` F2`); a hall that is a
-building of its own is the token alone (GHS, HS3, LH3D, SH1); `Hörsaal X`, `Seminarraum N` and
+building of its own is the token alone (GHS, HS3, LH3D, SH1: no slash); `Hörsaal X`, `Seminarraum N` and
 `Audimax N` become `HS.X`, `SEM.N`, `AM.N`; ateliers keep „AT“ and their name; otherwise the printed
 number and what tells rooms with one number apart. An unknown building keeps its name as QIS spells
 it — no acronym is invented — and the build logs `build.rooms_unknown_building`. Two rooms that would

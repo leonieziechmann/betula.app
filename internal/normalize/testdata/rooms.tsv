@@ -1,510 +1,511 @@
 # The QIS room list (2026-09-25, 505 rooms) and the rooms events name, with their short
-# forms. An event's room carries its campus („… - Zentralcampus“). name<TAB>short
-An der Pastoa 13, Cottbus - 001a	Pastoa13 001a
-Anbau LG 2C - AT Kühn - Zentralcampus	LG2C AT Kühn
-Anbau LG 2C - AT Schuster	LG2C AT Schuster
-Anbau LG 2C - EG Zeichensaal - Zentralcampus	LG2C Zeichensaal
-Anbau LG 2D - AT Baller (OG1) - Zentralcampus	LG2D AT Baller
-Anbau LG 2D - AT Huckriede - Zentralcampus	LG2D AT Huckriede
-Anbau LG 2D - EG Bildhauerwerkstatt - Zentralcampus	LG2D Werkstatt
-Anwendungsz. Fluiddynamik - 1.04	AZFD 1.04
-Anwendungsz. Fluiddynamik - 1.05	AZFD 1.05
-Anwendungsz. Fluiddynamik - 1.06	AZFD 1.06
-Anwendungsz. Fluiddynamik - 1.07	AZFD 1.07
-Anwendungsz. Fluiddynamik - 1.20	AZFD 1.20
-Anwendungsz. Fluiddynamik - 1.21	AZFD 1.21
-Anwendungsz. Fluiddynamik - 1.22	AZFD 1.22
-Anwendungsz. Fluiddynamik - 2.32 - Zentralcampus	AZFD 2.32
-Anwendungsz. Fluiddynamik - 3.22 - Zentralcampus	AZFD 3.22
-Besucherzentrum Intelligente Energie Netze - 1	BIENe 1
-Besucherzentrum Intelligente Energie Netze - 2	BIENe 2
-Besucherzentrum Intelligente Energie Netze - 3	BIENe 3
-FMPA - 14	FMPA 14
-FMPA - 16a	FMPA 16a
-FMPA - 22 - Zentralcampus	FMPA 22
-FMPA - 25	FMPA 25
-FMPA - 26	FMPA 26
-FMPA - 28	FMPA 28
-FMPA - 32	FMPA 32
-FMPA - 40	FMPA 40
-Forschungszentrum 3E - 2.26/2.27 - Zentralcampus	FZ3E 2.26/27
-Forschungszentrum 3E - 3.27	FZ3E 3.27
-Forschungszentrum 3H - 1.04 - Zentralcampus	FZ3H 1.04
-Forschungszentrum 3H - 1.05 - Zentralcampus	FZ3H 1.05
-Forschungszentrum 3H - 1.06 - Zentralcampus	FZ3H 1.06
-Forschungszentrum 3H - 2.20a	FZ3H 2.20a
-Forschungszentrum 3H - 2.20b	FZ3H 2.20b
-Forschungszentrum 3H - 3.19 - Zentralcampus	FZ3H 3.19
-Gebäude 1 - SFB - 1.108 Skills Lab III - Campus Senftenberg	SFB 1.108
-Gebäude 1 - SFB - 1.109 Seminarraum - Campus Senftenberg	SFB 1.109
-Gebäude 1 - SFB - 1.110 Seminarraum - Campus Senftenberg	SFB 1.110
-Gebäude 1 - SFB - 1.111.1 Labor EMV - Campus Senftenberg	SFB 1.111.1
-Gebäude 1 - SFB - 1.112 Labor für Elektromagnetische Verträglichke	SFB 1.112
-Gebäude 1 - SFB - 1.118 Hörsaal - Campus Senftenberg	SFB 1.118
-Gebäude 1 - SFB - 1.208 Skills Lab - Neurologie - Campus Senftenberg	SFB 1.208
-Gebäude 1 - SFB - 1.209 Skills Lab - Internistik - Campus Senftenberg	SFB 1.209
-Gebäude 1 - SFB - 1.210 Skills Lab - Muskuloskettal I - Campus Senftenberg	SFB 1.210
-Gebäude 1 - SFB - 1.211 Skills Lab - Muskuloskettal II - Campus Senftenberg	SFB 1.211
-Gebäude 1 - SFB - 1.212 Intensivmedizin - Campus Senftenberg	SFB 1.212
-Gebäude 1 - SFB - 1.222 Pädiatrie	SFB 1.222
-Gebäude 1 - SFB - 1.308 Seminarraum I - Campus Senftenberg	SFB 1.308
-Gebäude 1 - SFB - 1.309 Seminarraum II - Campus Senftenberg	SFB 1.309
-Gebäude 1 - SFB - 1.310 Skills Lab I - Campus Senftenberg	SFB 1.310
-Gebäude 1 - SFB - 1.311 Skills Lab II - Campus Senftenberg	SFB 1.311
-Gebäude 1 - SFB - 1.313.1 Skills Lab - Bewegungsraum - Campus Senftenberg	SFB 1.313.1
-Gebäude 1 - SFB - 1.315 Labor Prozeßdatenverarbeitung	SFB 1.315
-Gebäude 1 - SFB - 1.322 Pflege-und Hydrotherapiebad - Campus Senftenberg	SFB 1.322
-Gebäude 10 - SD - 10.102 Hörsaal	SD 10.102
-Gebäude 10 - SD - 10.103	SD 10.103
-Gebäude 10 - SD - 10.104 Seminarraum	SD 10.104
-Gebäude 10 - SD - 10.105 Gruppenarbeitsraum	SD 10.105
-Gebäude 10 - SD - 10.112 Hörsaal	SD 10.112
-Gebäude 10 - SD - 10.114 Übungsraum	SD 10.114
-Gebäude 10 - SD - 10.115 Labor für Bewegungs-und Theaterarbeit - Campus Sachsendorf	SD 10.115
-Gebäude 10 - SD - 10.201 PC-Raum	SD 10.201
-Gebäude 10 - SD - 10.203 Seminarraum	SD 10.203
-Gebäude 10 - SD - 10.204 Seminarraum	SD 10.204
-Gebäude 10 - SD - 10.205 Gruppenarbeitsraum	SD 10.205
-Gebäude 10 - SD - 10.206 Gruppenarbeitsraum	SD 10.206
-Gebäude 10 - SD - 10.207 Gruppenarbeitsraum	SD 10.207
-Gebäude 10 - SD - 10.208 Videoraum	SD 10.208
-Gebäude 10 - SD - 10.209 Medienraum	SD 10.209
-Gebäude 10 - SD - 10.211 Seminarraum	SD 10.211
-Gebäude 10 - SD - 10.212 Seminarraum	SD 10.212
-Gebäude 10 - SD - 10.213 Gruppenarbeitsraum	SD 10.213
-Gebäude 10 - SD - 10.301 Atelier	SD 10.301
-Gebäude 10 - SD - 10.324 Tonstudio	SD 10.324
-Gebäude 10 - SD - 10.331 Beratungsraum	SD 10.331
-Gebäude 11 - Hörsaal SFB - 11.005	SFB 11.005
-Gebäude 11 - Hörsaal SFB - 11.103 Hörsaal - Campus Senftenberg	SFB 11.103
-Gebäude 11 - Hörsaal SFB - 11.109 Sprachlabor - Campus Senftenberg	SFB 11.109
-Gebäude 11 - Hörsaal SFB - 11.110 Sprachlabor - Campus Senftenberg	SFB 11.110
-Gebäude 11 - Hörsaal SFB - 11.111 - Campus Senftenberg	SFB 11.111
-Gebäude 11 - Hörsaal SFB - 11.112 - Campus Senftenberg	SFB 11.112
-Gebäude 11 - Hörsaal SFB - 11.113 Medienzentrale	SFB 11.113
-Gebäude 11 - Hörsaal SFB - 11.122 Grosser Hörsaal - Campus Senftenberg	SFB 11.122
-Gebäude 11 - Hörsaal SFB - 11.206 Gruppenarbeitsraum	SFB 11.206
-Gebäude 11 - Hörsaal SFB - 11.301 Hörsaal C - Campus Senftenberg	SFB 11.301
-Gebäude 11 - Hörsaal SFB - 11.303 Hörsaal D - Campus Senftenberg	SFB 11.303
-Gebäude 11 - Hörsaal SFB - 11.309 Seminarraum - Campus Senftenberg	SFB 11.309
-Gebäude 11 - Hörsaal SFB - 11.310 - Campus Senftenberg	SFB 11.310
-Gebäude 11 - Hörsaal SFB - 11.404 Medienlabor	SFB 11.404
-Gebäude 11 - SD - 11.102 Hörsaal	SD 11.102
-Gebäude 11 - SD - 11.103 Labor für Geotechnik	SD 11.103
-Gebäude 11 - SD - 11.104 Labor für Grund- und Erdbau - Campus Sachsendorf	SD 11.104
-Gebäude 11 - SD - 11.107 Labor Meßtechnik	SD 11.107
-Gebäude 11 - SD - 11.109 Hörsaal - Campus Sachsendorf	SD 11.109
-Gebäude 11 - SD - 11.113 Labor für Bauchemie	SD 11.113
-Gebäude 11 - SD - 11.201 Seminarraum - Campus Sachsendorf	SD 11.201
-Gebäude 11 - SD - 11.202 Seminarraum - Campus Sachsendorf	SD 11.202
-Gebäude 11 - SD - 11.203 Seminarraum - Campus Sachsendorf	SD 11.203
-Gebäude 11 - SD - 11.204 Computerlabor - Campus Sachsendorf	SD 11.204
-Gebäude 11 - SD - 11.206 Sprachlabor	SD 11.206
-Gebäude 11 - SD - 11.207 Seminarraum - Campus Sachsendorf	SD 11.207
-Gebäude 11 - SD - 11.208 Seminarraum - Campus Sachsendorf	SD 11.208
-Gebäude 11 - SD - 11.209 Seminarraum	SD 11.209
-Gebäude 11 - SD - 11.212 Seminarraum	SD 11.212
-Gebäude 11 - SD - 11.301 Übungsraum - Campus Sachsendorf	SD 11.301
-Gebäude 11 - SD - 11.302 Übungsraum - Campus Sachsendorf	SD 11.302
-Gebäude 11 - SD - 11.318 Übungsraum - Campus Sachsendorf	SD 11.318
-Gebäude 11 - SD - 11.319	SD 11.319
-Gebäude 11 - SD - 11.326 Medienwerkstatt Soziale Arbeit - Campus Sachsendorf	SD 11.326
-Gebäude 13 - Mensa SD - 13.216 - Campus Sachsendorf	SD 13.216
-Gebäude 13 - Mensa SD - 13.217	SD 13.217
-Gebäude 13 - Mensa SD - 13.218	SD 13.218
-Gebäude 14.C - SFB - 14C.025 Labor Mühlen/Brecher	SFB 14C.025
-Gebäude 14.C - SFB - 14C.026 Labor Mühlen/Brecher	SFB 14C.026
-Gebäude 14.C - SFB - 14C.103 Hörsaal - Campus Senftenberg	SFB 14C.103
-Gebäude 14.C - SFB - 14C.105 Hörsaal - Campus Senftenberg	SFB 14C.105
-Gebäude 14.C - SFB - 14C.113 Labor Verfahrenstechnik	SFB 14C.113
-Gebäude 14.C - SFB - 14C.118 Labor Strömungslehre	SFB 14C.118
-Gebäude 14.C - SFB - 14C.119 Labor Anorganische Chemie	SFB 14C.119
-Gebäude 14.C - SFB - 14C.120 Labor Anorganische Chemie	SFB 14C.120
-Gebäude 14.C - SFB - 14C.128 Labor Reaktionstechnik - Campus Senftenberg	SFB 14C.128
-Gebäude 14.C - SFB - 14C.202 PC- Pool	SFB 14C.202
-Gebäude 14.C - SFB - 14C.213 Labor Anorganische und Organische Chemie - Campus Senftenberg	SFB 14C.213
-Gebäude 14.C - SFB - 14C.218 Labor Anorganische und Organische Chemie - Campus Senftenberg	SFB 14C.218
-Gebäude 14.C - SFB - 14C.219 Labor Organische/Pharmazeutische Chemie	SFB 14C.219
-Gebäude 14.C - SFB - 14C.220 Labor Thermische Verfahrenstechnik	SFB 14C.220
-Gebäude 14.C - SFB - 14C.224 Aufschlussraum	SFB 14C.224
-Gebäude 14.C - SFB - 14C.225 Wägezimmer	SFB 14C.225
-Gebäude 14.C - SFB - 14C.227 Labor Biopolymere	SFB 14C.227
-Gebäude 14.C - SFB - 14C.228 Labor Anorganische und Organische Chemie	SFB 14C.228
-Gebäude 14.C - SFB - 14C.229 Labor Anorganische und Organische Chemie	SFB 14C.229
-Gebäude 14.C - SFB - 14C.417 Labor Physikalische Chemie - Campus Senftenberg	SFB 14C.417
-Gebäude 14.C - SFB - 14C.422 Labor	SFB 14C.422
-Gebäude 14.C - SFB - 14C.423 Labor CV	SFB 14C.423
-Gebäude 14.C - SFB - 14C.424 Firmengründungsprojekt AG Stahmann	SFB 14C.424
-Gebäude 14.C - SFB - 14C.425 Nährmedienherstellung	SFB 14C.425
-Gebäude 14.C - SFB - 14C.426 Labor Mikrobiologie	SFB 14C.426
-Gebäude 14.C - SFB - 14C.427 Forschungslabor für Physikalische Chemi	SFB 14C.427
-Gebäude 14.C - SFB - 14C.428 Labor Zellkulturtechnik	SFB 14C.428
-Gebäude 14.C - SFB - 14C.429 Forschungslabor	SFB 14C.429
-Gebäude 14.C - SFB - 14C.430 Labor Instrumentelle Analytik/Umweltanal	SFB 14C.430
-Gebäude 14.C - SFB - 14C.431 Labor Instrumentelle Analytik/Umweltanal	SFB 14C.431
-Gebäude 14.E - SFB - 14E.102 Hörsaal - Campus Senftenberg	SFB 14E.102
-Gebäude 14.E - SFB - 14E.104 Hörsaal - Campus Senftenberg	SFB 14E.104
-Gebäude 14.E - SFB - 14E.112 Labor Steuerungstechnik	SFB 14E.112
-Gebäude 14.E - SFB - 14E.113 Labor Leittechnik	SFB 14E.113
-Gebäude 14.E - SFB - 14E.114 Labor Hochspannungstechnik/Hochstromtech	SFB 14E.114
-Gebäude 14.E - SFB - 14E.127 Labor Elektrische Energietechnik - Campus Senftenberg	SFB 14E.127
-Gebäude 14.E - SFB - 14E.128 - Campus Senftenberg	SFB 14E.128
-Gebäude 14.E - SFB - 14E.202 Rechner- Pool II - Campus Senftenberg	SFB 14E.202
-Gebäude 14.E - SFB - 14E.214 Labor Leistungselektronik	SFB 14E.214
-Gebäude 14.E - SFB - 14E.216 Rechner- Pool III	SFB 14E.216
-Gebäude 14.E - SFB - 14E.217 Projektarbeitsraum - Campus Senftenberg	SFB 14E.217
-Gebäude 14.E - SFB - 14E.222 Labor Grundlagen der Regelungstechnik - Campus Senftenberg	SFB 14E.222
-Gebäude 14.E - SFB - 14E.223 Labor Allgemeine Elektrotechnik - Campus Senftenberg	SFB 14E.223
-Gebäude 14.E - SFB - 14E.224 Labor für Technische Optik	SFB 14E.224
-Gebäude 14.E - SFB - 14E.225 Labor Nachrichtentechnik 2	SFB 14E.225
-Gebäude 14.E - SFB - 14E.226 Labor Elektrische Maschinen	SFB 14E.226
-Gebäude 14.E - SFB - 14E.417 Labor Prozessleittechnik und Industrieau	SFB 14E.417
-Gebäude 14.E - SFB - 14E.418 Labor Elektronische Schaltungstechnik - Campus Senftenberg	SFB 14E.418
-Gebäude 14.E - SFB - 14E.419 Labor CAD/Tech.elektronische Baugruppen	SFB 14E.419
-Gebäude 14.E - SFB - 14E.426 Labor Mikrosystemtechnik/Rasterelektrone	SFB 14E.426
-Gebäude 14.E - SFB - 14E.437.1 Labor Halbleiter-und Mikrosystemtechn.	SFB 14E.437.1
-Gebäude 15 - SFB - 15.101 PC-Pool 1 - Campus Senftenberg	SFB 15.101
-Gebäude 15 - SFB - 15.106 Seminarraum - Campus Senftenberg	SFB 15.106
-Gebäude 15 - SFB - 15.107 Seminarraum - Campus Senftenberg	SFB 15.107
-Gebäude 15 - SFB - 15.119 Nährmedien	SFB 15.119
-Gebäude 15 - SFB - 15.121 Labor BCV	SFB 15.121
-Gebäude 15 - SFB - 15.122 Labor BCV - Campus Senftenberg	SFB 15.122
-Gebäude 15 - SFB - 15.123 Labor BCV - Campus Senftenberg	SFB 15.123
-Gebäude 15 - SFB - 15.129 Labor BCV	SFB 15.129
-Gebäude 15 - SFB - 15.130 Labor BCV - Campus Senftenberg	SFB 15.130
-Gebäude 15 - SFB - 15.131 Konferenz - Campus Senftenberg	SFB 15.131
-Gebäude 15 - SFB - 15.212 Labor	SFB 15.212
-Gebäude 15 - SFB - 15.213 Labor	SFB 15.213
-Gebäude 15 - SFB - 15.214 Projektlabor - Campus Senftenberg	SFB 15.214
-Gebäude 15 - SFB - 15.215 Kursraum Biochemie - Campus Senftenberg	SFB 15.215
-Gebäude 15 - SFB - 15.224 Labor BCV	SFB 15.224
-Gebäude 15 - SFB - 15.232 Labor	SFB 15.232
-Gebäude 15 - SFB - 15.233 Labor BCV	SFB 15.233
-Gebäude 15 - SFB - 15.234 Labor	SFB 15.234
-Gebäude 15 - SFB - 15.235 Labor	SFB 15.235
-Gebäude 15 - SFB - 15.236 Projektlabor	SFB 15.236
-Gebäude 15 - SFB - 15.237 Labor	SFB 15.237
-Gebäude 15 - SFB - 15.238 Kommunikation	SFB 15.238
-Gebäude 15 - SFB - 15.312 Labor BCV	SFB 15.312
-Gebäude 15 - SFB - 15.313 Labor BCV	SFB 15.313
-Gebäude 15 - SFB - 15.314 Labor BCV - Campus Senftenberg	SFB 15.314
-Gebäude 15 - SFB - 15.315 Labor BCV - Campus Senftenberg	SFB 15.315
-Gebäude 15 - SFB - 15.325 Labor BCV	SFB 15.325
-Gebäude 15 - SFB - 15.332 Labor Cell and Tissue Culture	SFB 15.332
-Gebäude 15 - SFB - 15.333 Labor BCV	SFB 15.333
-Gebäude 15 - SFB - 15.334 Labor Histology	SFB 15.334
-Gebäude 15 - SFB - 15.335 Molecular Cell Biology	SFB 15.335
-Gebäude 15 - SFB - 15.336 Molecular Cell Biology	SFB 15.336
-Gebäude 15 - SFB - 15.337 Labor für elektrochemische Nanobiotechnol	SFB 15.337
-Gebäude 15 - SFB - 15.338 Labor für optische Nanobiotechnologie	SFB 15.338
-Gebäude 15 - SFB - 15.339 Mikropartikel-Entwicklungund Diagnostik	SFB 15.339
-Gebäude 15.B - SD - 15B.110 Labor Bauverfahrenstechnik	SD 15B.110
-Gebäude 15.B - SD - 15B.111 Labor Arbeitssicherheit	SD 15B.111
-Gebäude 15.B - SD - 15B.117 Labor Siedlungswasserwirtschaft 1 - Campus Sachsendorf	SD 15B.117
-Gebäude 15.B - SD - 15B.118 Labor Siedlungswasserwirtschaft 2	SD 15B.118
-Gebäude 15.B - SD - 15B.129 Labor Baustoffe/Betontechnologie	SD 15B.129
-Gebäude 15.B - SD - 15B.130 Labor Baustoffe/Betontechnologie	SD 15B.130
-Gebäude 15.B - SD - 15B.133 Labor Baustoffe/Betontechnologie	SD 15B.133
-Gebäude 15.B - SD - 15B.136 Labor Messtechnik/Klimatechnik	SD 15B.136
-Gebäude 15.B - SD - 15B.137 Labor Messtechnik/Klimatechnik	SD 15B.137
-Gebäude 15.B - SD - 15B.138 Seminarraum	SD 15B.138
-Gebäude 15.B - SD - 15B.139 Seminarraum - Campus Sachsendorf	SD 15B.139
-Gebäude 15.B - SD - 15B.211 Labor Meß-, Steuerungs- und Regelungst.	SD 15B.211
-Gebäude 15.B - SD - 15B.212 Labor für medizinische Grundlagen - Campus Sachsendorf	SD 15B.212
-Gebäude 15.B - SD - 15B.213 Umweltanalytisches Labor	SD 15B.213
-Gebäude 15.V - SD - 15V.110 Hörsaal - Campus Sachsendorf	SD 15V.110
-Gebäude 15.V - SD - 15V.111 Raumlabor	SD 15V.111
-Gebäude 15.V - SD - 15V.113 Atelier 1	SD 15V.113
-Gebäude 15.V - SD - 15V.127 Labor Hydraulik / Wasserbau	SD 15V.127
-Gebäude 15.V - SD - 15V.143 Labor Straßenwesen	SD 15V.143
-Gebäude 15.V - SD - 15V.145 Serminarraum - Campus Sachsendorf	SD 15V.145
-Gebäude 15.V - SD - 15V.217 Medienlabor	SD 15V.217
-Gebäude 15.V - SD - 15V.219 Atelier III	SD 15V.219
-Gebäude 15.V - SD - 15V.220 Labor Raumlufttechnik und Thermodynamik	SD 15V.220
-Gebäude 15.V - SD - 15V.223 Labor Heizungs- und Feuerungstechnik	SD 15V.223
-Gebäude 15.V - SD - 15V.224 Labor Energie-, Gas- und Wasserversorgun	SD 15V.224
-Gebäude 15.V - SD - 15V.227 Labor Bauphysik	SD 15V.227
-Gebäude 15.V - SD - 15V.228 Labor Klimatechnik-Thermodynamik	SD 15V.228
-Gebäude 15.V - SD - 15V.229 Modellwerkstatt	SD 15V.229
-Gebäude 15.V - SD - 15V.230 Modellwerkstatt	SD 15V.230
-Gebäude 15.V - SD - 15V.238 Atelier I	SD 15V.238
-Gebäude 15.V - SD - 15V.239 CNC-Labor	SD 15V.239
-Gebäude 16 - SFB - 16.103 Konferenzraum	SFB 16.103
-Gebäude 16 - SFB - 16.118	SFB 16.118
-Gebäude 16 - SFB - 16.119/120	SFB 16.119/120
-Gebäude 2 - SFB - 2.116.1 Kommunikationszentrale	SFB 2.116.1
-Gebäude 2 - SFB - 2.118	SFB 2.118
-Gebäude 2 - SFB - 2.305	SFB 2.305
-Gebäude 2 - SFB - 2.306	SFB 2.306
-Gebäude 2 - SFB - 2.307	SFB 2.307
-Gebäude 2 - SFB - 2.310 Seminarraum - Campus Senftenberg	SFB 2.310
-Gebäude 2 - SFB - 2.311 Seminarraum - Campus Senftenberg	SFB 2.311
-Gebäude 2 - SFB - 2.313 Seminarraum - Campus Senftenberg	SFB 2.313
-Gebäude 2 - SFB - 2.314 Weiterbildung	SFB 2.314
-Gebäude 3 - SFB - 3.114 Vervielfältigung	SFB 3.114
-Gebäude 4 - SFB - 4.108 - Zentrale Laborwerkstatt/E	SFB 4.108
-Gebäude 4 - SFB - 4.119 Labor für Kolben-und Strömungsmaschinen - Campus Senftenberg	SFB 4.119
-Gebäude 4 - SFB - 4.130 Werkstoffprüflabor - Campus Senftenberg	SFB 4.130
-Gebäude 4 - SFB - 4.135 - Campus Senftenberg	SFB 4.135
-Gebäude 4 - SFB - 4.137 Labor Werkzeugmaschinen/Handhebetechnik	SFB 4.137
-Gebäude 4 - SFB - 4.213 PC-Pool Fabrikplanung - Campus Senftenberg	SFB 4.213
-Gebäude 4 - SFB - 4.214 Labor Instandhaltung und techn.Diagnostik	SFB 4.214
-Gebäude 4 - SFB - 4.233 Didaktikwerkstatt	SFB 4.233
-Gebäude 4 - SFB - 4.234 Medienwerkstatt	SFB 4.234
-Gebäude 4 - SFB - 4.235 - Campus Senftenberg	SFB 4.235
-Gebäude 4 - SFB - 4.236	SFB 4.236
-Gebäude 4 - SFB - 4.237	SFB 4.237
-Gebäude 4 - SFB - 4.238 - Campus Senftenberg	SFB 4.238
-Gebäude 4 - SFB - 4.239	SFB 4.239
-Gebäude 4 - SFB - 4.240 - Campus Senftenberg	SFB 4.240
-Gebäude 4 - SFB - 4.244 Physikalisches Praktikum - Campus Senftenberg	SFB 4.244
-Gebäude 4 - SFB - 4.302 Seminarraum - Campus Senftenberg	SFB 4.302
-Gebäude 4 - SFB - 4.303 Seminarraum - Campus Senftenberg	SFB 4.303
-Gebäude 4 - SFB - 4.304 Seminarraum - Campus Senftenberg	SFB 4.304
-Gebäude 6 - SFB - 6.008 Projektraum - Campus Senftenberg	SFB 6.008
-Gebäude 6 - SFB - 6.009 Anatomie-Lab - Campus Senftenberg	SFB 6.009
-Gebäude 6 - SFB - 6.010 Labor ET - Campus Senftenberg	SFB 6.010
-Gebäude 6 - SFB - 6.103 - Campus Senftenberg	SFB 6.103
-Gebäude 6 - SFB - 6.106 SkillsLab Hebamme Kreißsaal 1 - Campus Senftenberg	SFB 6.106
-Gebäude 6 - SFB - 6.107 - Campus Senftenberg	SFB 6.107
-Gebäude 6 - SFB - 6.111 - Campus Senftenberg	SFB 6.111
-Gebäude 6 - SFB - 6.112 - Campus Senftenberg	SFB 6.112
-Gebäude 6 - SFB - 6.202 - Campus Senftenberg	SFB 6.202
-Gebäude 6 - SFB - 6.204.1 - Campus Senftenberg	SFB 6.204.1
-Gebäude 6 - SFB - 6.205 - Campus Senftenberg	SFB 6.205
-Gebäude 6 - SFB - 6.206 - Campus Senftenberg	SFB 6.206
-Gebäude 6 - SFB - 6.210 Labor für Medientechnik - Campus Senftenberg	SFB 6.210
-Gebäude 6 - SFB - 6.211 Labor für angewandte Informatik - Campus Senftenberg	SFB 6.211
-Gebäude 6 - SFB - 6.302 SkillsLab Hebamme Kreißsaal 2 - Campus Senftenberg	SFB 6.302
-Gebäude 6 - SFB - 6.304.1 - Campus Senftenberg	SFB 6.304.1
-Gebäude 6 - SFB - 6.305 - Campus Senftenberg	SFB 6.305
-Gebäude 6 - SFB - 6.306 Rückbildung - Campus Senftenberg	SFB 6.306
-Gebäude 7 - SD - 7.022 Archiv	SD 7.022
-Gebäude 7 - SD - 7.112 Konzertsaal - Campus Sachsendorf	SD 7.112
-Gebäude 7 - SD - 7.114 Einzelübezelle	SD 7.114
-Gebäude 7 - SD - 7.115 Einzelübezelle	SD 7.115
-Gebäude 7 - SD - 7.116 Seminarraum - Campus Sachsendorf	SD 7.116
-Gebäude 7 - SD - 7.117 Überaum - Campus Sachsendorf	SD 7.117
-Gebäude 7 - SD - 7.118 Tontechnikraum	SD 7.118
-Gebäude 7 - SD - 7.121 Einzelübezelle	SD 7.121
-Gebäude 7 - SD - 7.122 Einzelübezelle	SD 7.122
-Gebäude 7 - SD - 7.123 Einzelübezelle	SD 7.123
-Gebäude 7 - SD - 7.127 Einzelübeszelle	SD 7.127
-Gebäude 7 - SD - 7.128 Einzelübeszelle	SD 7.128
-Gebäude 7 - SD - 7.129 Einzelübezelle	SD 7.129
-Gebäude 7 - SD - 7.130 Einzelübezelle	SD 7.130
-Gebäude 7 - SD - 7.131 Einzelübezelle	SD 7.131
-Gebäude 7 - SD - 7.133 Einzelübezelle - Campus Sachsendorf	SD 7.133
-Gebäude 7 - SD - 7.136 Kopierraum	SD 7.136
-Gebäude 7 - SD - 7.137 Bewegungsraum FB MP	SD 7.137
-Gebäude 7 - SD - 7.138 Bewegungsraum - Campus Sachsendorf	SD 7.138
-Gebäude 7 - SD - 7.141 Pförtnerraum	SD 7.141
-Gebäude 7 - SD - 7.227 PC-Pool	SD 7.227
-Gebäude 7 - SD - 7.230	SD 7.230
-Gebäude 7 - SD - 7.243 Beratungsraum I - Campus Sachsendorf	SD 7.243
-Gebäude 7 - SD - 7.244 Beratungsraum II - Campus Sachsendorf	SD 7.244
-Gebäude 7 - SD - 7.303.2 Kopierer	SD 7.303.2
-Gebäude 7 - SFB - 7.118 Rundbau - Campus Senftenberg	SFB 7.118
-Gebäude 9 - SD - 9.102.1	SD 9.102.1
-Gebäude 9 - SD - 9.111	SD 9.111
-Gebäude 9 - SD - 9.115 PC-Pool - Campus Sachsendorf	SD 9.115
-Gebäude 9 - SD - 9.116 PC-Pool - Campus Sachsendorf	SD 9.116
-Gebäude 9 - SD - 9.117 PC-Pool - Campus Sachsendorf	SD 9.117
-Gebäude 9 - SD - 9.118 Seminarraum - Campus Sachsendorf	SD 9.118
-Gebäude 9 - SD - 9.119 Seminarraum (Schlagzeugkabine)	SD 9.119
-Gebäude 9 - SD - 9.122 Hörsaal - Campus Sachsendorf	SD 9.122
-Gebäude 9 - SD - 9.210	SD 9.210
-Gebäude 9 - SD - 9.211	SD 9.211
-Gebäude 9 - SD - 9.212 Seminarraum - Campus Sachsendorf	SD 9.212
-Gebäude 9 - SD - 9.215 Seminarraum - Campus Sachsendorf	SD 9.215
-Gebäude 9 - SD - 9.218 Seminarraum - Campus Sachsendorf	SD 9.218
-Gebäude 9 - SD - 9.219 Seminarraum - Campus Sachsendorf	SD 9.219
-Gebäude 9 - SD - 9.222 Hörsaal - Campus Sachsendorf	SD 9.222
-Gebäude 9 - SD - 9.301	SD 9.301
-Gebäude 9 - SD - 9.317 Besprechungsraum	SD 9.317
-Gebäude 9 - SD - 9.328 Technikraum	SD 9.328
-Gebäude 9 - SD - 9.332	SD 9.332
-Gebäude 9 - SD - 9.335	SD 9.335
-Gebäude 9 - SportH SFB - 9.151 Sporthalle, Feld 1 (Leerfeld) - Campus Senftenberg	SFB 9.151 F1
-Gebäude 9 - SportH SFB - 9.151 Sporthalle, Feld 2 (Volleyball) - Campus Senftenberg	SFB 9.151 F2
-Gebäude 9 - SportH SFB - 9.151 Sporthalle, Feld 3 (Volleyball/Basketball) - Campus Senftenberg	SFB 9.151 F3
-Gebäude 9 - SportH SFB - 9.152 KGG / Gruppentherapie - Campus Senftenberg	SFB 9.152
-Großer Hörsaal - Foyer Großer Hörsaal	GHS Foyer
+# forms (<building>/<room>, since 2026-09-25). An event's room carries its campus („… - Zentralcampus“).
+# name<TAB>short
+An der Pastoa 13, Cottbus - 001a	Pastoa13/001a
+Anbau LG 2C - AT Kühn - Zentralcampus	LG2C/AT Kühn
+Anbau LG 2C - AT Schuster	LG2C/AT Schuster
+Anbau LG 2C - EG Zeichensaal - Zentralcampus	LG2C/Zeichensaal
+Anbau LG 2D - AT Baller (OG1) - Zentralcampus	LG2D/AT Baller
+Anbau LG 2D - AT Huckriede - Zentralcampus	LG2D/AT Huckriede
+Anbau LG 2D - EG Bildhauerwerkstatt - Zentralcampus	LG2D/Werkstatt
+Anwendungsz. Fluiddynamik - 1.04	AZFD/1.04
+Anwendungsz. Fluiddynamik - 1.05	AZFD/1.05
+Anwendungsz. Fluiddynamik - 1.06	AZFD/1.06
+Anwendungsz. Fluiddynamik - 1.07	AZFD/1.07
+Anwendungsz. Fluiddynamik - 1.20	AZFD/1.20
+Anwendungsz. Fluiddynamik - 1.21	AZFD/1.21
+Anwendungsz. Fluiddynamik - 1.22	AZFD/1.22
+Anwendungsz. Fluiddynamik - 2.32 - Zentralcampus	AZFD/2.32
+Anwendungsz. Fluiddynamik - 3.22 - Zentralcampus	AZFD/3.22
+Besucherzentrum Intelligente Energie Netze - 1	BIENe/1
+Besucherzentrum Intelligente Energie Netze - 2	BIENe/2
+Besucherzentrum Intelligente Energie Netze - 3	BIENe/3
+FMPA - 14	FMPA/14
+FMPA - 16a	FMPA/16a
+FMPA - 22 - Zentralcampus	FMPA/22
+FMPA - 25	FMPA/25
+FMPA - 26	FMPA/26
+FMPA - 28	FMPA/28
+FMPA - 32	FMPA/32
+FMPA - 40	FMPA/40
+Forschungszentrum 3E - 2.26/2.27 - Zentralcampus	FZ3E/2.26+27
+Forschungszentrum 3E - 3.27	FZ3E/3.27
+Forschungszentrum 3H - 1.04 - Zentralcampus	FZ3H/1.04
+Forschungszentrum 3H - 1.05 - Zentralcampus	FZ3H/1.05
+Forschungszentrum 3H - 1.06 - Zentralcampus	FZ3H/1.06
+Forschungszentrum 3H - 2.20a	FZ3H/2.20a
+Forschungszentrum 3H - 2.20b	FZ3H/2.20b
+Forschungszentrum 3H - 3.19 - Zentralcampus	FZ3H/3.19
+Gebäude 1 - SFB - 1.108 Skills Lab III - Campus Senftenberg	SFB/1.108
+Gebäude 1 - SFB - 1.109 Seminarraum - Campus Senftenberg	SFB/1.109
+Gebäude 1 - SFB - 1.110 Seminarraum - Campus Senftenberg	SFB/1.110
+Gebäude 1 - SFB - 1.111.1 Labor EMV - Campus Senftenberg	SFB/1.111.1
+Gebäude 1 - SFB - 1.112 Labor für Elektromagnetische Verträglichke	SFB/1.112
+Gebäude 1 - SFB - 1.118 Hörsaal - Campus Senftenberg	SFB/1.118
+Gebäude 1 - SFB - 1.208 Skills Lab - Neurologie - Campus Senftenberg	SFB/1.208
+Gebäude 1 - SFB - 1.209 Skills Lab - Internistik - Campus Senftenberg	SFB/1.209
+Gebäude 1 - SFB - 1.210 Skills Lab - Muskuloskettal I - Campus Senftenberg	SFB/1.210
+Gebäude 1 - SFB - 1.211 Skills Lab - Muskuloskettal II - Campus Senftenberg	SFB/1.211
+Gebäude 1 - SFB - 1.212 Intensivmedizin - Campus Senftenberg	SFB/1.212
+Gebäude 1 - SFB - 1.222 Pädiatrie	SFB/1.222
+Gebäude 1 - SFB - 1.308 Seminarraum I - Campus Senftenberg	SFB/1.308
+Gebäude 1 - SFB - 1.309 Seminarraum II - Campus Senftenberg	SFB/1.309
+Gebäude 1 - SFB - 1.310 Skills Lab I - Campus Senftenberg	SFB/1.310
+Gebäude 1 - SFB - 1.311 Skills Lab II - Campus Senftenberg	SFB/1.311
+Gebäude 1 - SFB - 1.313.1 Skills Lab - Bewegungsraum - Campus Senftenberg	SFB/1.313.1
+Gebäude 1 - SFB - 1.315 Labor Prozeßdatenverarbeitung	SFB/1.315
+Gebäude 1 - SFB - 1.322 Pflege-und Hydrotherapiebad - Campus Senftenberg	SFB/1.322
+Gebäude 10 - SD - 10.102 Hörsaal	SD/10.102
+Gebäude 10 - SD - 10.103	SD/10.103
+Gebäude 10 - SD - 10.104 Seminarraum	SD/10.104
+Gebäude 10 - SD - 10.105 Gruppenarbeitsraum	SD/10.105
+Gebäude 10 - SD - 10.112 Hörsaal	SD/10.112
+Gebäude 10 - SD - 10.114 Übungsraum	SD/10.114
+Gebäude 10 - SD - 10.115 Labor für Bewegungs-und Theaterarbeit - Campus Sachsendorf	SD/10.115
+Gebäude 10 - SD - 10.201 PC-Raum	SD/10.201
+Gebäude 10 - SD - 10.203 Seminarraum	SD/10.203
+Gebäude 10 - SD - 10.204 Seminarraum	SD/10.204
+Gebäude 10 - SD - 10.205 Gruppenarbeitsraum	SD/10.205
+Gebäude 10 - SD - 10.206 Gruppenarbeitsraum	SD/10.206
+Gebäude 10 - SD - 10.207 Gruppenarbeitsraum	SD/10.207
+Gebäude 10 - SD - 10.208 Videoraum	SD/10.208
+Gebäude 10 - SD - 10.209 Medienraum	SD/10.209
+Gebäude 10 - SD - 10.211 Seminarraum	SD/10.211
+Gebäude 10 - SD - 10.212 Seminarraum	SD/10.212
+Gebäude 10 - SD - 10.213 Gruppenarbeitsraum	SD/10.213
+Gebäude 10 - SD - 10.301 Atelier	SD/10.301
+Gebäude 10 - SD - 10.324 Tonstudio	SD/10.324
+Gebäude 10 - SD - 10.331 Beratungsraum	SD/10.331
+Gebäude 11 - Hörsaal SFB - 11.005	SFB/11.005
+Gebäude 11 - Hörsaal SFB - 11.103 Hörsaal - Campus Senftenberg	SFB/11.103
+Gebäude 11 - Hörsaal SFB - 11.109 Sprachlabor - Campus Senftenberg	SFB/11.109
+Gebäude 11 - Hörsaal SFB - 11.110 Sprachlabor - Campus Senftenberg	SFB/11.110
+Gebäude 11 - Hörsaal SFB - 11.111 - Campus Senftenberg	SFB/11.111
+Gebäude 11 - Hörsaal SFB - 11.112 - Campus Senftenberg	SFB/11.112
+Gebäude 11 - Hörsaal SFB - 11.113 Medienzentrale	SFB/11.113
+Gebäude 11 - Hörsaal SFB - 11.122 Grosser Hörsaal - Campus Senftenberg	SFB/11.122
+Gebäude 11 - Hörsaal SFB - 11.206 Gruppenarbeitsraum	SFB/11.206
+Gebäude 11 - Hörsaal SFB - 11.301 Hörsaal C - Campus Senftenberg	SFB/11.301
+Gebäude 11 - Hörsaal SFB - 11.303 Hörsaal D - Campus Senftenberg	SFB/11.303
+Gebäude 11 - Hörsaal SFB - 11.309 Seminarraum - Campus Senftenberg	SFB/11.309
+Gebäude 11 - Hörsaal SFB - 11.310 - Campus Senftenberg	SFB/11.310
+Gebäude 11 - Hörsaal SFB - 11.404 Medienlabor	SFB/11.404
+Gebäude 11 - SD - 11.102 Hörsaal	SD/11.102
+Gebäude 11 - SD - 11.103 Labor für Geotechnik	SD/11.103
+Gebäude 11 - SD - 11.104 Labor für Grund- und Erdbau - Campus Sachsendorf	SD/11.104
+Gebäude 11 - SD - 11.107 Labor Meßtechnik	SD/11.107
+Gebäude 11 - SD - 11.109 Hörsaal - Campus Sachsendorf	SD/11.109
+Gebäude 11 - SD - 11.113 Labor für Bauchemie	SD/11.113
+Gebäude 11 - SD - 11.201 Seminarraum - Campus Sachsendorf	SD/11.201
+Gebäude 11 - SD - 11.202 Seminarraum - Campus Sachsendorf	SD/11.202
+Gebäude 11 - SD - 11.203 Seminarraum - Campus Sachsendorf	SD/11.203
+Gebäude 11 - SD - 11.204 Computerlabor - Campus Sachsendorf	SD/11.204
+Gebäude 11 - SD - 11.206 Sprachlabor	SD/11.206
+Gebäude 11 - SD - 11.207 Seminarraum - Campus Sachsendorf	SD/11.207
+Gebäude 11 - SD - 11.208 Seminarraum - Campus Sachsendorf	SD/11.208
+Gebäude 11 - SD - 11.209 Seminarraum	SD/11.209
+Gebäude 11 - SD - 11.212 Seminarraum	SD/11.212
+Gebäude 11 - SD - 11.301 Übungsraum - Campus Sachsendorf	SD/11.301
+Gebäude 11 - SD - 11.302 Übungsraum - Campus Sachsendorf	SD/11.302
+Gebäude 11 - SD - 11.318 Übungsraum - Campus Sachsendorf	SD/11.318
+Gebäude 11 - SD - 11.319	SD/11.319
+Gebäude 11 - SD - 11.326 Medienwerkstatt Soziale Arbeit - Campus Sachsendorf	SD/11.326
+Gebäude 13 - Mensa SD - 13.216 - Campus Sachsendorf	SD/13.216
+Gebäude 13 - Mensa SD - 13.217	SD/13.217
+Gebäude 13 - Mensa SD - 13.218	SD/13.218
+Gebäude 14.C - SFB - 14C.025 Labor Mühlen/Brecher	SFB/14C.025
+Gebäude 14.C - SFB - 14C.026 Labor Mühlen/Brecher	SFB/14C.026
+Gebäude 14.C - SFB - 14C.103 Hörsaal - Campus Senftenberg	SFB/14C.103
+Gebäude 14.C - SFB - 14C.105 Hörsaal - Campus Senftenberg	SFB/14C.105
+Gebäude 14.C - SFB - 14C.113 Labor Verfahrenstechnik	SFB/14C.113
+Gebäude 14.C - SFB - 14C.118 Labor Strömungslehre	SFB/14C.118
+Gebäude 14.C - SFB - 14C.119 Labor Anorganische Chemie	SFB/14C.119
+Gebäude 14.C - SFB - 14C.120 Labor Anorganische Chemie	SFB/14C.120
+Gebäude 14.C - SFB - 14C.128 Labor Reaktionstechnik - Campus Senftenberg	SFB/14C.128
+Gebäude 14.C - SFB - 14C.202 PC- Pool	SFB/14C.202
+Gebäude 14.C - SFB - 14C.213 Labor Anorganische und Organische Chemie - Campus Senftenberg	SFB/14C.213
+Gebäude 14.C - SFB - 14C.218 Labor Anorganische und Organische Chemie - Campus Senftenberg	SFB/14C.218
+Gebäude 14.C - SFB - 14C.219 Labor Organische/Pharmazeutische Chemie	SFB/14C.219
+Gebäude 14.C - SFB - 14C.220 Labor Thermische Verfahrenstechnik	SFB/14C.220
+Gebäude 14.C - SFB - 14C.224 Aufschlussraum	SFB/14C.224
+Gebäude 14.C - SFB - 14C.225 Wägezimmer	SFB/14C.225
+Gebäude 14.C - SFB - 14C.227 Labor Biopolymere	SFB/14C.227
+Gebäude 14.C - SFB - 14C.228 Labor Anorganische und Organische Chemie	SFB/14C.228
+Gebäude 14.C - SFB - 14C.229 Labor Anorganische und Organische Chemie	SFB/14C.229
+Gebäude 14.C - SFB - 14C.417 Labor Physikalische Chemie - Campus Senftenberg	SFB/14C.417
+Gebäude 14.C - SFB - 14C.422 Labor	SFB/14C.422
+Gebäude 14.C - SFB - 14C.423 Labor CV	SFB/14C.423
+Gebäude 14.C - SFB - 14C.424 Firmengründungsprojekt AG Stahmann	SFB/14C.424
+Gebäude 14.C - SFB - 14C.425 Nährmedienherstellung	SFB/14C.425
+Gebäude 14.C - SFB - 14C.426 Labor Mikrobiologie	SFB/14C.426
+Gebäude 14.C - SFB - 14C.427 Forschungslabor für Physikalische Chemi	SFB/14C.427
+Gebäude 14.C - SFB - 14C.428 Labor Zellkulturtechnik	SFB/14C.428
+Gebäude 14.C - SFB - 14C.429 Forschungslabor	SFB/14C.429
+Gebäude 14.C - SFB - 14C.430 Labor Instrumentelle Analytik/Umweltanal	SFB/14C.430
+Gebäude 14.C - SFB - 14C.431 Labor Instrumentelle Analytik/Umweltanal	SFB/14C.431
+Gebäude 14.E - SFB - 14E.102 Hörsaal - Campus Senftenberg	SFB/14E.102
+Gebäude 14.E - SFB - 14E.104 Hörsaal - Campus Senftenberg	SFB/14E.104
+Gebäude 14.E - SFB - 14E.112 Labor Steuerungstechnik	SFB/14E.112
+Gebäude 14.E - SFB - 14E.113 Labor Leittechnik	SFB/14E.113
+Gebäude 14.E - SFB - 14E.114 Labor Hochspannungstechnik/Hochstromtech	SFB/14E.114
+Gebäude 14.E - SFB - 14E.127 Labor Elektrische Energietechnik - Campus Senftenberg	SFB/14E.127
+Gebäude 14.E - SFB - 14E.128 - Campus Senftenberg	SFB/14E.128
+Gebäude 14.E - SFB - 14E.202 Rechner- Pool II - Campus Senftenberg	SFB/14E.202
+Gebäude 14.E - SFB - 14E.214 Labor Leistungselektronik	SFB/14E.214
+Gebäude 14.E - SFB - 14E.216 Rechner- Pool III	SFB/14E.216
+Gebäude 14.E - SFB - 14E.217 Projektarbeitsraum - Campus Senftenberg	SFB/14E.217
+Gebäude 14.E - SFB - 14E.222 Labor Grundlagen der Regelungstechnik - Campus Senftenberg	SFB/14E.222
+Gebäude 14.E - SFB - 14E.223 Labor Allgemeine Elektrotechnik - Campus Senftenberg	SFB/14E.223
+Gebäude 14.E - SFB - 14E.224 Labor für Technische Optik	SFB/14E.224
+Gebäude 14.E - SFB - 14E.225 Labor Nachrichtentechnik 2	SFB/14E.225
+Gebäude 14.E - SFB - 14E.226 Labor Elektrische Maschinen	SFB/14E.226
+Gebäude 14.E - SFB - 14E.417 Labor Prozessleittechnik und Industrieau	SFB/14E.417
+Gebäude 14.E - SFB - 14E.418 Labor Elektronische Schaltungstechnik - Campus Senftenberg	SFB/14E.418
+Gebäude 14.E - SFB - 14E.419 Labor CAD/Tech.elektronische Baugruppen	SFB/14E.419
+Gebäude 14.E - SFB - 14E.426 Labor Mikrosystemtechnik/Rasterelektrone	SFB/14E.426
+Gebäude 14.E - SFB - 14E.437.1 Labor Halbleiter-und Mikrosystemtechn.	SFB/14E.437.1
+Gebäude 15 - SFB - 15.101 PC-Pool 1 - Campus Senftenberg	SFB/15.101
+Gebäude 15 - SFB - 15.106 Seminarraum - Campus Senftenberg	SFB/15.106
+Gebäude 15 - SFB - 15.107 Seminarraum - Campus Senftenberg	SFB/15.107
+Gebäude 15 - SFB - 15.119 Nährmedien	SFB/15.119
+Gebäude 15 - SFB - 15.121 Labor BCV	SFB/15.121
+Gebäude 15 - SFB - 15.122 Labor BCV - Campus Senftenberg	SFB/15.122
+Gebäude 15 - SFB - 15.123 Labor BCV - Campus Senftenberg	SFB/15.123
+Gebäude 15 - SFB - 15.129 Labor BCV	SFB/15.129
+Gebäude 15 - SFB - 15.130 Labor BCV - Campus Senftenberg	SFB/15.130
+Gebäude 15 - SFB - 15.131 Konferenz - Campus Senftenberg	SFB/15.131
+Gebäude 15 - SFB - 15.212 Labor	SFB/15.212
+Gebäude 15 - SFB - 15.213 Labor	SFB/15.213
+Gebäude 15 - SFB - 15.214 Projektlabor - Campus Senftenberg	SFB/15.214
+Gebäude 15 - SFB - 15.215 Kursraum Biochemie - Campus Senftenberg	SFB/15.215
+Gebäude 15 - SFB - 15.224 Labor BCV	SFB/15.224
+Gebäude 15 - SFB - 15.232 Labor	SFB/15.232
+Gebäude 15 - SFB - 15.233 Labor BCV	SFB/15.233
+Gebäude 15 - SFB - 15.234 Labor	SFB/15.234
+Gebäude 15 - SFB - 15.235 Labor	SFB/15.235
+Gebäude 15 - SFB - 15.236 Projektlabor	SFB/15.236
+Gebäude 15 - SFB - 15.237 Labor	SFB/15.237
+Gebäude 15 - SFB - 15.238 Kommunikation	SFB/15.238
+Gebäude 15 - SFB - 15.312 Labor BCV	SFB/15.312
+Gebäude 15 - SFB - 15.313 Labor BCV	SFB/15.313
+Gebäude 15 - SFB - 15.314 Labor BCV - Campus Senftenberg	SFB/15.314
+Gebäude 15 - SFB - 15.315 Labor BCV - Campus Senftenberg	SFB/15.315
+Gebäude 15 - SFB - 15.325 Labor BCV	SFB/15.325
+Gebäude 15 - SFB - 15.332 Labor Cell and Tissue Culture	SFB/15.332
+Gebäude 15 - SFB - 15.333 Labor BCV	SFB/15.333
+Gebäude 15 - SFB - 15.334 Labor Histology	SFB/15.334
+Gebäude 15 - SFB - 15.335 Molecular Cell Biology	SFB/15.335
+Gebäude 15 - SFB - 15.336 Molecular Cell Biology	SFB/15.336
+Gebäude 15 - SFB - 15.337 Labor für elektrochemische Nanobiotechnol	SFB/15.337
+Gebäude 15 - SFB - 15.338 Labor für optische Nanobiotechnologie	SFB/15.338
+Gebäude 15 - SFB - 15.339 Mikropartikel-Entwicklungund Diagnostik	SFB/15.339
+Gebäude 15.B - SD - 15B.110 Labor Bauverfahrenstechnik	SD/15B.110
+Gebäude 15.B - SD - 15B.111 Labor Arbeitssicherheit	SD/15B.111
+Gebäude 15.B - SD - 15B.117 Labor Siedlungswasserwirtschaft 1 - Campus Sachsendorf	SD/15B.117
+Gebäude 15.B - SD - 15B.118 Labor Siedlungswasserwirtschaft 2	SD/15B.118
+Gebäude 15.B - SD - 15B.129 Labor Baustoffe/Betontechnologie	SD/15B.129
+Gebäude 15.B - SD - 15B.130 Labor Baustoffe/Betontechnologie	SD/15B.130
+Gebäude 15.B - SD - 15B.133 Labor Baustoffe/Betontechnologie	SD/15B.133
+Gebäude 15.B - SD - 15B.136 Labor Messtechnik/Klimatechnik	SD/15B.136
+Gebäude 15.B - SD - 15B.137 Labor Messtechnik/Klimatechnik	SD/15B.137
+Gebäude 15.B - SD - 15B.138 Seminarraum	SD/15B.138
+Gebäude 15.B - SD - 15B.139 Seminarraum - Campus Sachsendorf	SD/15B.139
+Gebäude 15.B - SD - 15B.211 Labor Meß-, Steuerungs- und Regelungst.	SD/15B.211
+Gebäude 15.B - SD - 15B.212 Labor für medizinische Grundlagen - Campus Sachsendorf	SD/15B.212
+Gebäude 15.B - SD - 15B.213 Umweltanalytisches Labor	SD/15B.213
+Gebäude 15.V - SD - 15V.110 Hörsaal - Campus Sachsendorf	SD/15V.110
+Gebäude 15.V - SD - 15V.111 Raumlabor	SD/15V.111
+Gebäude 15.V - SD - 15V.113 Atelier 1	SD/15V.113
+Gebäude 15.V - SD - 15V.127 Labor Hydraulik / Wasserbau	SD/15V.127
+Gebäude 15.V - SD - 15V.143 Labor Straßenwesen	SD/15V.143
+Gebäude 15.V - SD - 15V.145 Serminarraum - Campus Sachsendorf	SD/15V.145
+Gebäude 15.V - SD - 15V.217 Medienlabor	SD/15V.217
+Gebäude 15.V - SD - 15V.219 Atelier III	SD/15V.219
+Gebäude 15.V - SD - 15V.220 Labor Raumlufttechnik und Thermodynamik	SD/15V.220
+Gebäude 15.V - SD - 15V.223 Labor Heizungs- und Feuerungstechnik	SD/15V.223
+Gebäude 15.V - SD - 15V.224 Labor Energie-, Gas- und Wasserversorgun	SD/15V.224
+Gebäude 15.V - SD - 15V.227 Labor Bauphysik	SD/15V.227
+Gebäude 15.V - SD - 15V.228 Labor Klimatechnik-Thermodynamik	SD/15V.228
+Gebäude 15.V - SD - 15V.229 Modellwerkstatt	SD/15V.229
+Gebäude 15.V - SD - 15V.230 Modellwerkstatt	SD/15V.230
+Gebäude 15.V - SD - 15V.238 Atelier I	SD/15V.238
+Gebäude 15.V - SD - 15V.239 CNC-Labor	SD/15V.239
+Gebäude 16 - SFB - 16.103 Konferenzraum	SFB/16.103
+Gebäude 16 - SFB - 16.118	SFB/16.118
+Gebäude 16 - SFB - 16.119/120	SFB/16.119+120
+Gebäude 2 - SFB - 2.116.1 Kommunikationszentrale	SFB/2.116.1
+Gebäude 2 - SFB - 2.118	SFB/2.118
+Gebäude 2 - SFB - 2.305	SFB/2.305
+Gebäude 2 - SFB - 2.306	SFB/2.306
+Gebäude 2 - SFB - 2.307	SFB/2.307
+Gebäude 2 - SFB - 2.310 Seminarraum - Campus Senftenberg	SFB/2.310
+Gebäude 2 - SFB - 2.311 Seminarraum - Campus Senftenberg	SFB/2.311
+Gebäude 2 - SFB - 2.313 Seminarraum - Campus Senftenberg	SFB/2.313
+Gebäude 2 - SFB - 2.314 Weiterbildung	SFB/2.314
+Gebäude 3 - SFB - 3.114 Vervielfältigung	SFB/3.114
+Gebäude 4 - SFB - 4.108 - Zentrale Laborwerkstatt/E	SFB/4.108
+Gebäude 4 - SFB - 4.119 Labor für Kolben-und Strömungsmaschinen - Campus Senftenberg	SFB/4.119
+Gebäude 4 - SFB - 4.130 Werkstoffprüflabor - Campus Senftenberg	SFB/4.130
+Gebäude 4 - SFB - 4.135 - Campus Senftenberg	SFB/4.135
+Gebäude 4 - SFB - 4.137 Labor Werkzeugmaschinen/Handhebetechnik	SFB/4.137
+Gebäude 4 - SFB - 4.213 PC-Pool Fabrikplanung - Campus Senftenberg	SFB/4.213
+Gebäude 4 - SFB - 4.214 Labor Instandhaltung und techn.Diagnostik	SFB/4.214
+Gebäude 4 - SFB - 4.233 Didaktikwerkstatt	SFB/4.233
+Gebäude 4 - SFB - 4.234 Medienwerkstatt	SFB/4.234
+Gebäude 4 - SFB - 4.235 - Campus Senftenberg	SFB/4.235
+Gebäude 4 - SFB - 4.236	SFB/4.236
+Gebäude 4 - SFB - 4.237	SFB/4.237
+Gebäude 4 - SFB - 4.238 - Campus Senftenberg	SFB/4.238
+Gebäude 4 - SFB - 4.239	SFB/4.239
+Gebäude 4 - SFB - 4.240 - Campus Senftenberg	SFB/4.240
+Gebäude 4 - SFB - 4.244 Physikalisches Praktikum - Campus Senftenberg	SFB/4.244
+Gebäude 4 - SFB - 4.302 Seminarraum - Campus Senftenberg	SFB/4.302
+Gebäude 4 - SFB - 4.303 Seminarraum - Campus Senftenberg	SFB/4.303
+Gebäude 4 - SFB - 4.304 Seminarraum - Campus Senftenberg	SFB/4.304
+Gebäude 6 - SFB - 6.008 Projektraum - Campus Senftenberg	SFB/6.008
+Gebäude 6 - SFB - 6.009 Anatomie-Lab - Campus Senftenberg	SFB/6.009
+Gebäude 6 - SFB - 6.010 Labor ET - Campus Senftenberg	SFB/6.010
+Gebäude 6 - SFB - 6.103 - Campus Senftenberg	SFB/6.103
+Gebäude 6 - SFB - 6.106 SkillsLab Hebamme Kreißsaal 1 - Campus Senftenberg	SFB/6.106
+Gebäude 6 - SFB - 6.107 - Campus Senftenberg	SFB/6.107
+Gebäude 6 - SFB - 6.111 - Campus Senftenberg	SFB/6.111
+Gebäude 6 - SFB - 6.112 - Campus Senftenberg	SFB/6.112
+Gebäude 6 - SFB - 6.202 - Campus Senftenberg	SFB/6.202
+Gebäude 6 - SFB - 6.204.1 - Campus Senftenberg	SFB/6.204.1
+Gebäude 6 - SFB - 6.205 - Campus Senftenberg	SFB/6.205
+Gebäude 6 - SFB - 6.206 - Campus Senftenberg	SFB/6.206
+Gebäude 6 - SFB - 6.210 Labor für Medientechnik - Campus Senftenberg	SFB/6.210
+Gebäude 6 - SFB - 6.211 Labor für angewandte Informatik - Campus Senftenberg	SFB/6.211
+Gebäude 6 - SFB - 6.302 SkillsLab Hebamme Kreißsaal 2 - Campus Senftenberg	SFB/6.302
+Gebäude 6 - SFB - 6.304.1 - Campus Senftenberg	SFB/6.304.1
+Gebäude 6 - SFB - 6.305 - Campus Senftenberg	SFB/6.305
+Gebäude 6 - SFB - 6.306 Rückbildung - Campus Senftenberg	SFB/6.306
+Gebäude 7 - SD - 7.022 Archiv	SD/7.022
+Gebäude 7 - SD - 7.112 Konzertsaal - Campus Sachsendorf	SD/7.112
+Gebäude 7 - SD - 7.114 Einzelübezelle	SD/7.114
+Gebäude 7 - SD - 7.115 Einzelübezelle	SD/7.115
+Gebäude 7 - SD - 7.116 Seminarraum - Campus Sachsendorf	SD/7.116
+Gebäude 7 - SD - 7.117 Überaum - Campus Sachsendorf	SD/7.117
+Gebäude 7 - SD - 7.118 Tontechnikraum	SD/7.118
+Gebäude 7 - SD - 7.121 Einzelübezelle	SD/7.121
+Gebäude 7 - SD - 7.122 Einzelübezelle	SD/7.122
+Gebäude 7 - SD - 7.123 Einzelübezelle	SD/7.123
+Gebäude 7 - SD - 7.127 Einzelübeszelle	SD/7.127
+Gebäude 7 - SD - 7.128 Einzelübeszelle	SD/7.128
+Gebäude 7 - SD - 7.129 Einzelübezelle	SD/7.129
+Gebäude 7 - SD - 7.130 Einzelübezelle	SD/7.130
+Gebäude 7 - SD - 7.131 Einzelübezelle	SD/7.131
+Gebäude 7 - SD - 7.133 Einzelübezelle - Campus Sachsendorf	SD/7.133
+Gebäude 7 - SD - 7.136 Kopierraum	SD/7.136
+Gebäude 7 - SD - 7.137 Bewegungsraum FB MP	SD/7.137
+Gebäude 7 - SD - 7.138 Bewegungsraum - Campus Sachsendorf	SD/7.138
+Gebäude 7 - SD - 7.141 Pförtnerraum	SD/7.141
+Gebäude 7 - SD - 7.227 PC-Pool	SD/7.227
+Gebäude 7 - SD - 7.230	SD/7.230
+Gebäude 7 - SD - 7.243 Beratungsraum I - Campus Sachsendorf	SD/7.243
+Gebäude 7 - SD - 7.244 Beratungsraum II - Campus Sachsendorf	SD/7.244
+Gebäude 7 - SD - 7.303.2 Kopierer	SD/7.303.2
+Gebäude 7 - SFB - 7.118 Rundbau - Campus Senftenberg	SFB/7.118
+Gebäude 9 - SD - 9.102.1	SD/9.102.1
+Gebäude 9 - SD - 9.111	SD/9.111
+Gebäude 9 - SD - 9.115 PC-Pool - Campus Sachsendorf	SD/9.115
+Gebäude 9 - SD - 9.116 PC-Pool - Campus Sachsendorf	SD/9.116
+Gebäude 9 - SD - 9.117 PC-Pool - Campus Sachsendorf	SD/9.117
+Gebäude 9 - SD - 9.118 Seminarraum - Campus Sachsendorf	SD/9.118
+Gebäude 9 - SD - 9.119 Seminarraum (Schlagzeugkabine)	SD/9.119
+Gebäude 9 - SD - 9.122 Hörsaal - Campus Sachsendorf	SD/9.122
+Gebäude 9 - SD - 9.210	SD/9.210
+Gebäude 9 - SD - 9.211	SD/9.211
+Gebäude 9 - SD - 9.212 Seminarraum - Campus Sachsendorf	SD/9.212
+Gebäude 9 - SD - 9.215 Seminarraum - Campus Sachsendorf	SD/9.215
+Gebäude 9 - SD - 9.218 Seminarraum - Campus Sachsendorf	SD/9.218
+Gebäude 9 - SD - 9.219 Seminarraum - Campus Sachsendorf	SD/9.219
+Gebäude 9 - SD - 9.222 Hörsaal - Campus Sachsendorf	SD/9.222
+Gebäude 9 - SD - 9.301	SD/9.301
+Gebäude 9 - SD - 9.317 Besprechungsraum	SD/9.317
+Gebäude 9 - SD - 9.328 Technikraum	SD/9.328
+Gebäude 9 - SD - 9.332	SD/9.332
+Gebäude 9 - SD - 9.335	SD/9.335
+Gebäude 9 - SportH SFB - 9.151 Sporthalle, Feld 1 (Leerfeld) - Campus Senftenberg	SFB/9.151 F1
+Gebäude 9 - SportH SFB - 9.151 Sporthalle, Feld 2 (Volleyball) - Campus Senftenberg	SFB/9.151 F2
+Gebäude 9 - SportH SFB - 9.151 Sporthalle, Feld 3 (Volleyball/Basketball) - Campus Senftenberg	SFB/9.151 F3
+Gebäude 9 - SportH SFB - 9.152 KGG / Gruppentherapie - Campus Senftenberg	SFB/9.152
+Großer Hörsaal - Foyer Großer Hörsaal	GHS/Foyer
 Großer Hörsaal - Großer Hörsaal - Zentralcampus	GHS
-Gründungszentrum Cottbus - 2.12	RCGC 2.12
-Gründungszentrum Cottbus - 2.16	RCGC 2.16
-Hauptgebäude - HG 0.16 - Zentralcampus	HG 0.16
-Hauptgebäude - HG 0.17 - Zentralcampus	HG 0.17
-Hauptgebäude - HG 0.18 - Zentralcampus	HG 0.18
-Hauptgebäude - HG 0.19 - Zentralcampus	HG 0.19
-Hauptgebäude - HG 0.20 - Zentralcampus	HG 0.20
-Hauptgebäude - HG 2.13	HG 2.13
-Hauptgebäude - HG 2.32	HG 2.32
-Hauptgebäude - HG 2.33	HG 2.33
-Hauptgebäude - HG 2.34 - Zentralcampus	HG 2.34
-Hauptgebäude - HG 2.44 - Zentralcampus	HG 2.44
-Hauptgebäude - HG 2.45 - Zentralcampus	HG 2.45
-Hauptgebäude - HG 3.35 - Zentralcampus	HG 3.35
-Hauptgebäude - HG 3.45 - Zentralcampus	HG 3.45
-Hauptgebäude - HG 3.46	HG 3.46
+Gründungszentrum Cottbus - 2.12	RCGC/2.12
+Gründungszentrum Cottbus - 2.16	RCGC/2.16
+Hauptgebäude - HG 0.16 - Zentralcampus	HG/0.16
+Hauptgebäude - HG 0.17 - Zentralcampus	HG/0.17
+Hauptgebäude - HG 0.18 - Zentralcampus	HG/0.18
+Hauptgebäude - HG 0.19 - Zentralcampus	HG/0.19
+Hauptgebäude - HG 0.20 - Zentralcampus	HG/0.20
+Hauptgebäude - HG 2.13	HG/2.13
+Hauptgebäude - HG 2.32	HG/2.32
+Hauptgebäude - HG 2.33	HG/2.33
+Hauptgebäude - HG 2.34 - Zentralcampus	HG/2.34
+Hauptgebäude - HG 2.44 - Zentralcampus	HG/2.44
+Hauptgebäude - HG 2.45 - Zentralcampus	HG/2.45
+Hauptgebäude - HG 3.35 - Zentralcampus	HG/3.35
+Hauptgebäude - HG 3.45 - Zentralcampus	HG/3.45
+Hauptgebäude - HG 3.46	HG/3.46
 Hörsaal 3 - Hörsaal 3	HS3
-IBZ-Ludwig Leichhardt Haus - IBZ-Seminarraum	IBZ SEM
-IKMZ - eAssessment Center IKMZ 1.UG	IKMZ eAssessment
-Laborgebäude 1B - 015	LB1B 015
-Laborgebäude 1B - 222	LB1B 222
-Laborgebäude 1B - 229	LB1B 229
-Laborgebäude 1B - 311	LB1B 311
-Laborgebäude 1B - 317	LB1B 317
-Laborgebäude 4B - B.3.16 - Zentralcampus	LB4B B3.16
-Laborgebäude 4B - B.3.17 - Zentralcampus	LB4B B3.17
-Laborgebäude 4B - B0.27	LB4B B0.27
-Laborgebäude 4B - B0.29	LB4B B0.29
-Laborgebäude 4B - B0.36	LB4B B0.36
-Laborgebäude 4B - B1.21	LB4B B1.21
-Laborgebäude 4B - B1.24	LB4B B1.24
-Laborgebäude 4B - B2.32 - Zentralcampus	LB4B B2.32
-Laborgebäude 4B - B3.18 - Zentralcampus	LB4B B3.18
-Laborgebäude 4B - B3.19 - Zentralcampus	LB4B B3.19
-Laborgebäude 4B - B3.20 - Zentralcampus	LB4B B3.20
-Laborgebäude 4B - B3.21 - Zentralcampus	LB4B B3.21
-Laborgebäude 4B - B3.22 - Zentralcampus	LB4B B3.22
-Laborhalle 3D - 06	LH3D 06
+IBZ-Ludwig Leichhardt Haus - IBZ-Seminarraum	IBZ/SEM
+IKMZ - eAssessment Center IKMZ 1.UG	IKMZ/eAssessment
+Laborgebäude 1B - 015	LB1B/015
+Laborgebäude 1B - 222	LB1B/222
+Laborgebäude 1B - 229	LB1B/229
+Laborgebäude 1B - 311	LB1B/311
+Laborgebäude 1B - 317	LB1B/317
+Laborgebäude 4B - B.3.16 - Zentralcampus	LB4B/B3.16
+Laborgebäude 4B - B.3.17 - Zentralcampus	LB4B/B3.17
+Laborgebäude 4B - B0.27	LB4B/B0.27
+Laborgebäude 4B - B0.29	LB4B/B0.29
+Laborgebäude 4B - B0.36	LB4B/B0.36
+Laborgebäude 4B - B1.21	LB4B/B1.21
+Laborgebäude 4B - B1.24	LB4B/B1.24
+Laborgebäude 4B - B2.32 - Zentralcampus	LB4B/B2.32
+Laborgebäude 4B - B3.18 - Zentralcampus	LB4B/B3.18
+Laborgebäude 4B - B3.19 - Zentralcampus	LB4B/B3.19
+Laborgebäude 4B - B3.20 - Zentralcampus	LB4B/B3.20
+Laborgebäude 4B - B3.21 - Zentralcampus	LB4B/B3.21
+Laborgebäude 4B - B3.22 - Zentralcampus	LB4B/B3.22
+Laborhalle 3D - 06	LH3D/06
 Laborhalle 3D - LH 3D	LH3D
-Lehrgebäude 10 - 105a	LG10 105a
-Lehrgebäude 10 - 119a	LG10 119a
-Lehrgebäude 10 - 122a	LG10 122a
-Lehrgebäude 10 - 123b	LG10 123b
-Lehrgebäude 10 - 211a/b - Zentralcampus	LG10 211a/b
-Lehrgebäude 10 - 212a/b - Zentralcampus	LG10 212a/b
-Lehrgebäude 10 - 307	LG10 307
-Lehrgebäude 10 - 326 - Zentralcampus	LG10 326
-Lehrgebäude 10 - 428a	LG10 428a
-Lehrgebäude 10 - 436b	LG10 436b
-Lehrgebäude 10 - 437a	LG10 437a
-Lehrgebäude 10 - 505a/b	LG10 505a/b
-Lehrgebäude 10 - 511a	LG10 511a
-Lehrgebäude 10 - 528a	LG10 528a
-Lehrgebäude 10 - 530a - Zentralcampus	LG10 530a
-Lehrgebäude 10 - 535a	LG10 535a
-Lehrgebäude 10 - 537a/b	LG10 537a/b
-Lehrgebäude 1A - 108	LG1A 108
-Lehrgebäude 1A - 121 - Zentralcampus	LG1A 121
-Lehrgebäude 1A - 205 - Zentralcampus	LG1A 205
-Lehrgebäude 1A - 304 - Zentralcampus	LG1A 304
-Lehrgebäude 1A - Hörsaal 1 - Zentralcampus	LG1A HS.1
-Lehrgebäude 1A - Hörsaal 2 - Zentralcampus	LG1A HS.2
-Lehrgebäude 2A - 1.OG AT Stadtplaner - Zentralcampus	LG2A AT 1.OG
-Lehrgebäude 2A - 2.OG AT - Zentralcampus	LG2A AT 2.OG
-Lehrgebäude 2A - A0.01/02	LG2A A0.01/02
-Lehrgebäude 2A - A0.03 - Zentralcampus	LG2A A0.03
-Lehrgebäude 2A - A0.25.1 - Zentralcampus	LG2A A0.25.1
-Lehrgebäude 2A - A0.25.3	LG2A A0.25.3
-Lehrgebäude 2A - A0.27/28	LG2A A0.27/28
-Lehrgebäude 2A - A1.06 - Zentralcampus	LG2A A1.06
-Lehrgebäude 2A - A1.17	LG2A A1.17
-Lehrgebäude 2A - A1.30 PC-Pool - mitte - Zentralcampus	LG2A A1.30
-Lehrgebäude 2A - A1.30B PC-Pool - links - Zentralcampus	LG2A A1.30B
-Lehrgebäude 2A - A1.30D PC-Pool - rechts - Zentralcampus	LG2A A1.30D
-Lehrgebäude 2A - A2.05 - Zentralcampus	LG2A A2.05
-Lehrgebäude 2A - AU.12 - Zentralcampus	LG2A AU.12
-Lehrgebäude 2A - AU.14 (Techn.Labor (o.Absaug.))	LG2A AU.14
-Lehrgebäude 2A - AU.18 - Zentralcampus	LG2A AU.18
-Lehrgebäude 2A - AU.19 - Zentralcampus	LG2A AU.19
-Lehrgebäude 2A - AU.21 - Zentralcampus	LG2A AU.21
-Lehrgebäude 2B - 1.OG AT EEB - Zentralcampus	LG2B AT 1.OG
-Lehrgebäude 2B - 2.OG AT - Zentralcampus	LG2B AT 2.OG
-Lehrgebäude 2B - B1.06 - Zentralcampus	LG2B B1.06
-Lehrgebäude 2B - BU.11 - Zentralcampus	LG2B BU.11
-Lehrgebäude 2B - BU.13	LG2B BU.13
-Lehrgebäude 2C - 013b	LG2C 013b
-Lehrgebäude 2C - 015a	LG2C 015a
-Lehrgebäude 2C - 015c	LG2C 015c
-Lehrgebäude 2C - 018a	LG2C 018a
-Lehrgebäude 2C - 121	LG2C 121
-Lehrgebäude 2C - 212 - Zentralcampus	LG2C 212
-Lehrgebäude 2C - 215 - Zentralcampus	LG2C 215
-Lehrgebäude 2C - 313 - Zentralcampus	LG2C 313
-Lehrgebäude 2C - 315 - Zentralcampus	LG2C 315
-Lehrgebäude 2C - 317 - Zentralcampus	LG2C 317
-Lehrgebäude 2D - 021	LG2D 021
-Lehrgebäude 2D - 109 - Zentralcampus	LG2D 109
-Lehrgebäude 2D - 201 - Zentralcampus	LG2D 201
-Lehrgebäude 2D - 217b	LG2D 217b
-Lehrgebäude 2D - 310 - Zentralcampus	LG2D 310
-Lehrgebäude 2D - 316a - Zentralcampus	LG2D 316a
-Lehrgebäude 3A - 019 - Zentralcampus	LG3A 019
-Lehrgebäude 3A - 027 - Zentralcampus	LG3A 027
-Lehrgebäude 3A - 032	LG3A 032
-Lehrgebäude 3A - 185d - Zentralcampus	LG3A 185d
-Lehrgebäude 3A - 238	LG3A 238
-Lehrgebäude 3A - 283	LG3A 283
-Lehrgebäude 3A - 324 - Zentralcampus	LG3A 324
-Lehrgebäude 3A - 325 - Zentralcampus	LG3A 325
-Lehrgebäude 3A - 338 - Zentralcampus	LG3A 338
-Lehrgebäude 3A - 352 - Zentralcampus	LG3A 352
-Lehrgebäude 3A - 353 - Zentralcampus	LG3A 353
-Lehrgebäude 3A - 406 - Zentralcampus	LG3A 406
-Lehrgebäude 3B - 101 - Zentralcampus	LG3B 101
-Lehrgebäude 3B - 119	LG3B 119
-Lehrgebäude 3B - 304 - Zentralcampus	LG3B 304
-Lehrgebäude 3B - 305 - Zentralcampus	LG3B 305
-Lehrgebäude 4/1 - 120	LG4/1 120
-Lehrgebäude 4/1 - 219	LG4/1 219
-Lehrgebäude 4/1 - 312a	LG4/1 312a
-Lehrgebäude 4/3 - 112	LG4/3 112
-Lehrgebäude 4/3 - 202	LG4/3 202
-Lehrgebäude 4/3 - 216	LG4/3 216
-Lehrgebäude 4/3 - 321	LG4/3 321
-Lehrgebäude 4/3 - 322 - Campus Nord	LG4/3 322
-Lehrgebäude 4/4 - 103	LG4/4 103
-Lehrgebäude Bad-Saarow - K02	Bad-Saarow K02
-Lehrgebäude Bad-Saarow - K03	Bad-Saarow K03
-Mehrzweckgebäude - 009	MZG 009
-Mehrzweckgebäude - 130 - Zentralcampus	MZG 130
-Mehrzweckgebäude - 205	MZG 205
-Mehrzweckgebäude - 206	MZG 206
-Mehrzweckgebäude - 222 - Zentralcampus	MZG 222
-Mehrzweckgebäude - 227 - Zentralcampus	MZG 227
-Mensa Zentralcampus - 0.33 - Co-Working-Area	Mensa 0.33
-Mensa Zentralcampus - 0.33.1 - Meeting Room - Zentralcampus	Mensa 0.33.1
-Mensa Zentralcampus - 0.38 - BTU Verfügungsraum	Mensa 0.38
-Mensa Zentralcampus - 0.40 - BTU Campus Lounge	Mensa 0.40
-Outdoor-Veranstaltungen SFB - OD_Sfb_Gb9_Sportplatz	SFB Sportplatz
-Outdoor-Veranstaltungen ZC - OR_1.1_Innenhof LG 1 A	LG1A Innenhof
-Outdoor-Veranstaltungen ZC - OR_1.2_Innenhof VG 1C	VG1C Innenhof
+Lehrgebäude 10 - 105a	LG10/105a
+Lehrgebäude 10 - 119a	LG10/119a
+Lehrgebäude 10 - 122a	LG10/122a
+Lehrgebäude 10 - 123b	LG10/123b
+Lehrgebäude 10 - 211a/b - Zentralcampus	LG10/211a+b
+Lehrgebäude 10 - 212a/b - Zentralcampus	LG10/212a+b
+Lehrgebäude 10 - 307	LG10/307
+Lehrgebäude 10 - 326 - Zentralcampus	LG10/326
+Lehrgebäude 10 - 428a	LG10/428a
+Lehrgebäude 10 - 436b	LG10/436b
+Lehrgebäude 10 - 437a	LG10/437a
+Lehrgebäude 10 - 505a/b	LG10/505a+b
+Lehrgebäude 10 - 511a	LG10/511a
+Lehrgebäude 10 - 528a	LG10/528a
+Lehrgebäude 10 - 530a - Zentralcampus	LG10/530a
+Lehrgebäude 10 - 535a	LG10/535a
+Lehrgebäude 10 - 537a/b	LG10/537a+b
+Lehrgebäude 1A - 108	LG1A/108
+Lehrgebäude 1A - 121 - Zentralcampus	LG1A/121
+Lehrgebäude 1A - 205 - Zentralcampus	LG1A/205
+Lehrgebäude 1A - 304 - Zentralcampus	LG1A/304
+Lehrgebäude 1A - Hörsaal 1 - Zentralcampus	LG1A/HS.1
+Lehrgebäude 1A - Hörsaal 2 - Zentralcampus	LG1A/HS.2
+Lehrgebäude 2A - 1.OG AT Stadtplaner - Zentralcampus	LG2A/AT 1.OG
+Lehrgebäude 2A - 2.OG AT - Zentralcampus	LG2A/AT 2.OG
+Lehrgebäude 2A - A0.01/02	LG2A/A0.01+02
+Lehrgebäude 2A - A0.03 - Zentralcampus	LG2A/A0.03
+Lehrgebäude 2A - A0.25.1 - Zentralcampus	LG2A/A0.25.1
+Lehrgebäude 2A - A0.25.3	LG2A/A0.25.3
+Lehrgebäude 2A - A0.27/28	LG2A/A0.27+28
+Lehrgebäude 2A - A1.06 - Zentralcampus	LG2A/A1.06
+Lehrgebäude 2A - A1.17	LG2A/A1.17
+Lehrgebäude 2A - A1.30 PC-Pool - mitte - Zentralcampus	LG2A/A1.30
+Lehrgebäude 2A - A1.30B PC-Pool - links - Zentralcampus	LG2A/A1.30B
+Lehrgebäude 2A - A1.30D PC-Pool - rechts - Zentralcampus	LG2A/A1.30D
+Lehrgebäude 2A - A2.05 - Zentralcampus	LG2A/A2.05
+Lehrgebäude 2A - AU.12 - Zentralcampus	LG2A/AU.12
+Lehrgebäude 2A - AU.14 (Techn.Labor (o.Absaug.))	LG2A/AU.14
+Lehrgebäude 2A - AU.18 - Zentralcampus	LG2A/AU.18
+Lehrgebäude 2A - AU.19 - Zentralcampus	LG2A/AU.19
+Lehrgebäude 2A - AU.21 - Zentralcampus	LG2A/AU.21
+Lehrgebäude 2B - 1.OG AT EEB - Zentralcampus	LG2B/AT 1.OG
+Lehrgebäude 2B - 2.OG AT - Zentralcampus	LG2B/AT 2.OG
+Lehrgebäude 2B - B1.06 - Zentralcampus	LG2B/B1.06
+Lehrgebäude 2B - BU.11 - Zentralcampus	LG2B/BU.11
+Lehrgebäude 2B - BU.13	LG2B/BU.13
+Lehrgebäude 2C - 013b	LG2C/013b
+Lehrgebäude 2C - 015a	LG2C/015a
+Lehrgebäude 2C - 015c	LG2C/015c
+Lehrgebäude 2C - 018a	LG2C/018a
+Lehrgebäude 2C - 121	LG2C/121
+Lehrgebäude 2C - 212 - Zentralcampus	LG2C/212
+Lehrgebäude 2C - 215 - Zentralcampus	LG2C/215
+Lehrgebäude 2C - 313 - Zentralcampus	LG2C/313
+Lehrgebäude 2C - 315 - Zentralcampus	LG2C/315
+Lehrgebäude 2C - 317 - Zentralcampus	LG2C/317
+Lehrgebäude 2D - 021	LG2D/021
+Lehrgebäude 2D - 109 - Zentralcampus	LG2D/109
+Lehrgebäude 2D - 201 - Zentralcampus	LG2D/201
+Lehrgebäude 2D - 217b	LG2D/217b
+Lehrgebäude 2D - 310 - Zentralcampus	LG2D/310
+Lehrgebäude 2D - 316a - Zentralcampus	LG2D/316a
+Lehrgebäude 3A - 019 - Zentralcampus	LG3A/019
+Lehrgebäude 3A - 027 - Zentralcampus	LG3A/027
+Lehrgebäude 3A - 032	LG3A/032
+Lehrgebäude 3A - 185d - Zentralcampus	LG3A/185d
+Lehrgebäude 3A - 238	LG3A/238
+Lehrgebäude 3A - 283	LG3A/283
+Lehrgebäude 3A - 324 - Zentralcampus	LG3A/324
+Lehrgebäude 3A - 325 - Zentralcampus	LG3A/325
+Lehrgebäude 3A - 338 - Zentralcampus	LG3A/338
+Lehrgebäude 3A - 352 - Zentralcampus	LG3A/352
+Lehrgebäude 3A - 353 - Zentralcampus	LG3A/353
+Lehrgebäude 3A - 406 - Zentralcampus	LG3A/406
+Lehrgebäude 3B - 101 - Zentralcampus	LG3B/101
+Lehrgebäude 3B - 119	LG3B/119
+Lehrgebäude 3B - 304 - Zentralcampus	LG3B/304
+Lehrgebäude 3B - 305 - Zentralcampus	LG3B/305
+Lehrgebäude 4/1 - 120	LG4-1/120
+Lehrgebäude 4/1 - 219	LG4-1/219
+Lehrgebäude 4/1 - 312a	LG4-1/312a
+Lehrgebäude 4/3 - 112	LG4-3/112
+Lehrgebäude 4/3 - 202	LG4-3/202
+Lehrgebäude 4/3 - 216	LG4-3/216
+Lehrgebäude 4/3 - 321	LG4-3/321
+Lehrgebäude 4/3 - 322 - Campus Nord	LG4-3/322
+Lehrgebäude 4/4 - 103	LG4-4/103
+Lehrgebäude Bad-Saarow - K02	Bad-Saarow/K02
+Lehrgebäude Bad-Saarow - K03	Bad-Saarow/K03
+Mehrzweckgebäude - 009	MZG/009
+Mehrzweckgebäude - 130 - Zentralcampus	MZG/130
+Mehrzweckgebäude - 205	MZG/205
+Mehrzweckgebäude - 206	MZG/206
+Mehrzweckgebäude - 222 - Zentralcampus	MZG/222
+Mehrzweckgebäude - 227 - Zentralcampus	MZG/227
+Mensa Zentralcampus - 0.33 - Co-Working-Area	Mensa/0.33
+Mensa Zentralcampus - 0.33.1 - Meeting Room - Zentralcampus	Mensa/0.33.1
+Mensa Zentralcampus - 0.38 - BTU Verfügungsraum	Mensa/0.38
+Mensa Zentralcampus - 0.40 - BTU Campus Lounge	Mensa/0.40
+Outdoor-Veranstaltungen SFB - OD_Sfb_Gb9_Sportplatz	SFB/Sportplatz
+Outdoor-Veranstaltungen ZC - OR_1.1_Innenhof LG 1 A	LG1A/Innenhof
+Outdoor-Veranstaltungen ZC - OR_1.2_Innenhof VG 1C	VG1C/Innenhof
 Outdoor-Veranstaltungen ZC - OR_2.1_Fakultätsgarten - Zentralcampus	Fakultätsgarten
-Outdoor-Veranstaltungen ZC - OR_6.1_Zwischenbau 2CD Aula	ZB2CD Aula
+Outdoor-Veranstaltungen ZC - OR_6.1_Zwischenbau 2CD Aula	ZB2CD/Aula
 Outdoor-Veranstaltungen ZC - OR_6.2_Innenhof K.-W.-Allee 2CD	Innenhof 2CD
-Outdoor-Veranstaltungen ZC - OR_6.3_Baumgruppe FMPA	FMPA Baumgruppe
-Outdoor-Veranstaltungen ZC - OR_6.4_Zwischenbau 2AB Aula	ZB2AB Aula
+Outdoor-Veranstaltungen ZC - OR_6.3_Baumgruppe FMPA	FMPA/Baumgruppe
+Outdoor-Veranstaltungen ZC - OR_6.4_Zwischenbau 2AB Aula	ZB2AB/Aula
 Outdoor-Veranstaltungen ZC - OR_6.5_Innenhof K.-W.-Allee 2AB	Innenhof 2AB
 Outdoor-Veranstaltungen ZC - OR_6.6_Lehmbau - Zentralcampus	Lehmbau
 Outdoor-Veranstaltungen ZC - OR_Forum_Kirschhain	Forum Kirschhain
-Panta Rhei Halle - B200 - Zentralcampus	PRH B200
+Panta Rhei Halle - B200 - Zentralcampus	PRH/B200
 Sporthalle 1 - Sporthalle 1 ZC	SH1
-Verfügungsgebäude 1C - 0.01 - Zentralcampus	VG1C 0.01
-Verfügungsgebäude 1C - 0.03 - Zentralcampus	VG1C 0.03
-Verfügungsgebäude 1C - 0.04 - Zentralcampus	VG1C 0.04
-Werner-von-Siemens-St. 7 - 54	WvS7 54
-Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus	ZHG AM.1
-Zentrales Hörsaalgebäude - Audimax 2 - Zentralcampus	ZHG AM.2
-Zentrales Hörsaalgebäude - Foyer Zentrales Hörsaalgebäude - Zentralcampus	ZHG Foyer
-Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus	ZHG HS.A
-Zentrales Hörsaalgebäude - Hörsaal B - Zentralcampus	ZHG HS.B
-Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus	ZHG HS.C
-Zentrales Hörsaalgebäude - Seminarraum 1 - Zentralcampus	ZHG SEM.1
-Zentrales Hörsaalgebäude - Seminarraum 2 - Zentralcampus	ZHG SEM.2
-Zentrales Hörsaalgebäude - Seminarraum 3 - Zentralcampus	ZHG SEM.3
-Zentrales Hörsaalgebäude - Seminarraum 4 - Zentralcampus	ZHG SEM.4
-Zw. Bau LG 2C/2D - 229/230 - Zentralcampus	ZB2CD 229/230
-Zw. Bau LG 2C/2D - AT Oestreich links - Zentralcampus	ZB2CD AT Oestreich L
-Zw. Bau LG 2C/2D - AT Oestreich mitte - Zentralcampus	ZB2CD AT Oestreich M
-Zw. Bau LG 2C/2D - AT Oestreich rechts - Zentralcampus	ZB2CD AT Oestreich R
-Zwischenbau VI - ZB VI.01 - Zentralcampus	ZB VI.01
-Zwischenbau VI - ZB VI.03 - Zentralcampus	ZB VI.03
-Zwischenbau VI - ZB VI.04 - Zentralcampus	ZB VI.04
-Zwischenbau VI - ZB VI.2 Weiterbildung	ZB VI.2
-Zwischenbau VI - ZB VI.3 Sprachenzentrum	ZB VI.3
-Zwischenbau VI - ZB VI.4 Sprachenzentrum	ZB VI.4
-Zwischenbau VI - ZB VI.5 Sprachenzentrum	ZB VI.5
-Zwischenbau VI - ZB VI.6 Sprachenzentrum	ZB VI.6
+Verfügungsgebäude 1C - 0.01 - Zentralcampus	VG1C/0.01
+Verfügungsgebäude 1C - 0.03 - Zentralcampus	VG1C/0.03
+Verfügungsgebäude 1C - 0.04 - Zentralcampus	VG1C/0.04
+Werner-von-Siemens-St. 7 - 54	WvS7/54
+Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus	ZHG/AM.1
+Zentrales Hörsaalgebäude - Audimax 2 - Zentralcampus	ZHG/AM.2
+Zentrales Hörsaalgebäude - Foyer Zentrales Hörsaalgebäude - Zentralcampus	ZHG/Foyer
+Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus	ZHG/HS.A
+Zentrales Hörsaalgebäude - Hörsaal B - Zentralcampus	ZHG/HS.B
+Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus	ZHG/HS.C
+Zentrales Hörsaalgebäude - Seminarraum 1 - Zentralcampus	ZHG/SEM.1
+Zentrales Hörsaalgebäude - Seminarraum 2 - Zentralcampus	ZHG/SEM.2
+Zentrales Hörsaalgebäude - Seminarraum 3 - Zentralcampus	ZHG/SEM.3
+Zentrales Hörsaalgebäude - Seminarraum 4 - Zentralcampus	ZHG/SEM.4
+Zw. Bau LG 2C/2D - 229/230 - Zentralcampus	ZB2CD/229+230
+Zw. Bau LG 2C/2D - AT Oestreich links - Zentralcampus	ZB2CD/AT Oestreich L
+Zw. Bau LG 2C/2D - AT Oestreich mitte - Zentralcampus	ZB2CD/AT Oestreich M
+Zw. Bau LG 2C/2D - AT Oestreich rechts - Zentralcampus	ZB2CD/AT Oestreich R
+Zwischenbau VI - ZB VI.01 - Zentralcampus	ZB/VI.01
+Zwischenbau VI - ZB VI.03 - Zentralcampus	ZB/VI.03
+Zwischenbau VI - ZB VI.04 - Zentralcampus	ZB/VI.04
+Zwischenbau VI - ZB VI.2 Weiterbildung	ZB/VI.2
+Zwischenbau VI - ZB VI.3 Sprachenzentrum	ZB/VI.3
+Zwischenbau VI - ZB VI.4 Sprachenzentrum	ZB/VI.4
+Zwischenbau VI - ZB VI.5 Sprachenzentrum	ZB/VI.5
+Zwischenbau VI - ZB VI.6 Sprachenzentrum	ZB/VI.6

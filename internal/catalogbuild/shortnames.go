@@ -10,7 +10,7 @@ import (
 	"github.com/leonieziechmann/betula/internal/normalize"
 )
 
-// writeRoomShorts gives every event room its short form (normalize.RoomShort): „ZHG HS.A“
+// writeRoomShorts gives every event room its short form (normalize.RoomShort): „ZHG/HS.A“
 // for „Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus“. room keeps the full name.
 //
 // A short form names one room. Where two rooms would share one, both keep their long form
