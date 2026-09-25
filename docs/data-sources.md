@@ -257,6 +257,16 @@ Program, degree, PO version, regulation documents.
 | Authority | **S2** for all three. Normalized: `is_graded` (boolean/NULL), `exam_form` enum from „Modulprüfung" (MAP, MCA, prerequisite + MAP …), exam-type flags (Klausur, mündlich, Hausarbeit, Beleg, Projekt, Präsentation) parsed in Go from the details text. Whether the filter stays is **Q6**; the data question behind it is answered. |
 | Provenance | Single-source. |
 
+### 5.14 Short names (2026-09-25)
+
+| | |
+|---|---|
+| Sources | **None states them.** Rooms: S3's room text, and for the building tokens the legend of BTU's campus plan of the Zentralcampus (`20211119_Campusplan_Zentralcampus_Legende.pdf` on `www-docs.b-tu.de`, linked from https://www.b-tu.de/campusplan/zentralcampus-cottbus), which prints HG, LG 1A, VG 1C, LB 4B, FZ 3E, IKMZ, MZG …; QIS itself prints a few (`HG 0.16`, `ZB VI.01`, `LH 3D`). Modules: a search of every source on 2026-09-25 found no abbreviation field — none in the QIS module description or table, none on the module pages, none in the event numbers or titles. 23 modules use an acronym on their own page or in their events (IR, PuI 1, ERP, CCS, GIS …); 16 of them are what the rules derive anyway. |
+| Code path | `normalize.RoomShort` → `event_date.room_short`; `internal/abbrev` → `module_abbrev`, `program_module_abbrev`. Both in `build`, from the canonical tables, without a request. |
+| Rejected | **Plan position codes** (BP23, OM3, E3-B) and „Kurzbezeichnung" codes (D1.1, KA 3.1) that Fakultät 4 and 6 print: they name a slot of one program's plan, not a module, depend on the program and the PO, and the event titles write them inconsistently. They could become a `plan_code` of their own later. **Program area abbreviations as reserved words:** only 11 of 28,424 pairs coincide with an area abbreviation of their program. |
+| Authority | **Derived** (`docs/schema-v2.md`, „Short names"). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's examples, a few common forms and three that a module's own page uses (IR, PuI, OOP) as a first candidate; within a program the resolution still decides. A room building that the table lacks keeps its QIS name, and the build warns. |
+| Provenance | Rebuilt by every build; never stored by a consumer. `program_module_abbrev.is_override`, `choice` and `is_twin` say how a form came about. |
+
 ## 6. Spot-check log
 
 Only two live requests were made: 2026-09-19 16:43 CEST, 2 s apart, with the scraper's
@@ -440,3 +450,43 @@ published means at least 100 modules have a dated teaching event in it. The thre
 keeps a single early event from moving the whole catalog, as one Polish course nearly did on
 2026-09-19. The value is part of the content digest, or a semester that moves without any other
 change would never be exported to a browser.
+
+## 11. Owner decisions (2026-09-25): short names
+
+The owner asked for short names of rooms and modules where space is tight (the Studienplan's week
+grid, agenda, notes and legend; the module overlay; perhaps the calendar export and the catalog).
+Evidence and rules: §5.14 and `docs/schema-v2.md`, „Short names".
+
+- **Rooms** are „<Gebäude> <Raum>[<Attachment>]": Zentrales Hörsaalgebäude is ZHG, a Hörsaal HS
+  („ZHG HS.3"), Lehrgebäude LG, Verfügungsgebäude VG, Mehrzweckgebäude MZG, and the Großer Hörsaal
+  GHS, „damit es nicht mit HG verwechselt wird". A room is its floor and number: „VG1C 0.07",
+  without a space inside the building token.
+- **Modules** get abbreviations that are actually used — Algorithmieren und Programmieren is
+  AuP, Elektrische und Elektronische Grundlagen der Informatik EEG. Three letters are the sweet
+  spot; a form that occurs twice among the modules a program lets its students select is nobody's,
+  and both fall back. They are computed by Radix, so that they are in the database.
+- **They are metadata, not facts.** „Und wenn das mal nicht passt mit dem, wie es im Studiengang
+  verändert wird. Egal, dann machen wir die meta eben neu": every build derives them again, and
+  a consumer never stores one.
+
+Open, with the default the build uses until the owner decides:
+
+| | Question | Default |
+|---|---|---|
+| R1 | Audimax as `ZHG AM.1`, `ZHG Audimax 1` or `ZHG AX1`? | `ZHG AM.1` |
+| R2 | Three-digit numbers as printed (`LG3A 324`) or as floor.number (`LG3A 3.24`)? | as printed |
+| R3 | Senftenberg and Sachsendorf as `SFB 1.308` / `SD 7.116`? | yes |
+| R4 | The annexes of LG 2C and 2D folded into `LG2C` / `LG2D`? | folded |
+| R5 | Ateliers keep „AT" (`ZB2CD AT Oestreich M`)? | keep |
+| R6 | Invented tokens PRH, SH1 and bare outdoor places (`Fakultätsgarten`)? | as listed |
+| R7 | Senftenberg rooms lose their description (`SFB 1.210`, not the Skills Lab's name)? | drop it; the full name stays in the tooltip |
+| R8 | Sports hall fields as `SFB 9.151 F2`? | `F2` |
+| M1 | Two-word titles with three characters (`ThI`, `EfA`) or two initials (`TI`, `EA`)? | three; `TI` and the like can be overrides |
+| M2 | The displayed title (English for English-taught modules: `ERTS`) or always the German one? | the displayed title |
+| M3 | Identical titles in one program: `HäG` / `HäG-b`? | `-b`, `-c` |
+| M4 | A contested form goes to neither module (`GMa` / `GMi`) or first come, first served? | neither |
+| M5 | English „and" as `&` (`A&M`)? | `&` |
+| M6 | Language courses as `DaF-B1.1`? | yes |
+| M7 | Which other forms are well known (TI, SE …)? | only those in `overrides.tsv` |
+| M8 | The program-free form on catalog cards and on a module page without a program? | yes |
+| M9 | Plan position codes (BP23, OM3) as a `plan_code` of their own? | not now |

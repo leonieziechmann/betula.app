@@ -60,6 +60,10 @@ var BTUBaselines = []Baseline{
 	{"programs with tree modules", "SELECT COUNT(*) FROM program_coverage WHERE tree_modules > 0", 170},
 	{"validated plans", "SELECT COUNT(*) FROM v_program_plan", 140},
 	{"Lehramt programs reached by module pages (P3)", "SELECT COUNT(DISTINCT program_id) FROM program_module pm JOIN program p ON p.id = pm.program_id WHERE p.degree_level = 'teaching_bachelor' AND pm.on_module_page = 1", 20},
+	// Measured 2026-09-25: 4,936 modules, 20,621 of 28,424 program pairs with three characters.
+	// A derivation that silently degrades (a broken splitter, lost overrides) drops below.
+	{"modules with an abbreviation", "SELECT COUNT(*) FROM module_abbrev", 4800},
+	{"module abbreviations of exactly three characters", "SELECT COUNT(*) FROM program_module_abbrev WHERE LENGTH(abbrev) = 3", 18000},
 }
 
 // Validate checks the invariants of a built database. It is read-only.
@@ -80,6 +84,32 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		     + (SELECT COUNT(*) FROM (SELECT * FROM module_facet EXCEPT SELECT * FROM v_module_facets_src))`, "")
 	v.count("a FÜS relation never overlaps the curriculum", StatusFail,
 		"SELECT COUNT(*) FROM program_module WHERE relation = 'fues' AND (in_tree = 1 OR in_plan = 1)", "")
+
+	// Short names (docs/schema-v2.md, „Short names“). A migrated database that was not built
+	// again has none, and fails here: it must not be exported.
+	v.count("every event date with a room has a short form", StatusFail,
+		"SELECT COUNT(*) FROM event_date WHERE room IS NOT NULL AND room_short IS NULL", "")
+	v.count("a short room name names one room", StatusFail, `
+		SELECT COUNT(*) FROM (SELECT room_short FROM event_date WHERE room_short IS NOT NULL
+		                      GROUP BY room_short HAVING COUNT(DISTINCT room) > 1)`,
+		`SELECT room_short || ': ' || GROUP_CONCAT(DISTINCT room) FROM event_date WHERE room_short IS NOT NULL
+		 GROUP BY room_short HAVING COUNT(DISTINCT room) > 1`)
+	v.count("every module has an abbreviation", StatusFail,
+		"SELECT COUNT(*) FROM module m WHERE NOT EXISTS (SELECT 1 FROM module_abbrev a WHERE a.module_id = m.id)", "")
+	v.count("every module of a program has an abbreviation", StatusFail, `
+		SELECT COUNT(*) FROM program_module pm WHERE NOT EXISTS (SELECT 1 FROM program_module_abbrev a
+		 WHERE a.program_id = pm.program_id AND a.module_id = pm.module_id)`, "")
+	v.count("abbreviations are unique within a program", StatusFail, `
+		SELECT COUNT(*) FROM (SELECT 1 FROM program_module_abbrev GROUP BY program_id, abbrev COLLATE NOCASE HAVING COUNT(*) > 1)`,
+		`SELECT program_id || ' ' || abbrev || ': ' || GROUP_CONCAT(module_id) FROM program_module_abbrev
+		 GROUP BY program_id, abbrev COLLATE NOCASE HAVING COUNT(*) > 1`)
+	v.count("abbreviations are 2 to 10 characters without spaces", StatusFail, `
+		SELECT (SELECT COUNT(*) FROM module_abbrev WHERE LENGTH(abbrev) NOT BETWEEN 2 AND 10 OR abbrev LIKE '% %')
+		     + (SELECT COUNT(*) FROM program_module_abbrev WHERE LENGTH(abbrev) NOT BETWEEN 2 AND 10 OR abbrev LIKE '% %')`, "")
+	v.count("(program, module) pairs whose abbreviation is not their first choice", StatusInfo,
+		"SELECT COUNT(*) FROM program_module_abbrev WHERE choice > 1 OR is_twin = 1", "")
+	v.count("room short forms longer than 12 characters", StatusInfo,
+		"SELECT COUNT(DISTINCT room) FROM event_date WHERE LENGTH(room_short) > 12", "")
 
 	v.count("modules without a module page", StatusWarn, "SELECT COUNT(*) FROM module WHERE detail_status = 'missing'",
 		"SELECT id || ' ' || title FROM module WHERE detail_status = 'missing' ORDER BY id")

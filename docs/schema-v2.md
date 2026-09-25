@@ -51,7 +51,8 @@ and the `plan*` tables is derived and replaced by each build.
 | `program_module_assertion` | one row per statement "module M is in program P" per source, with `kind`, `kind_basis` (`stated`/`inferred`) and area | module page, QIS tree, validated plan |
 | `plan`, `plan_entry`, `plan_scan_status` | validated study plans; written transactionally by `SavePlan`, never touched by the build; not foreign-keyed to derived tables, so a plan survives an incomplete crawl | statute PDFs |
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
-| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date | QIS event pages; the module page decides which events belong to a module |
+| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG HS.A“), `room` keeps the full name | QIS event pages; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
+| `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
 
@@ -81,7 +82,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 
 | View | One row per | Columns |
 |---|---|---|
-| `v_module` | module | `id, title, title_de, title_en, detail_status, page_lang, credits, language_raw, teaches_german, teaches_english, duration_raw, duration_semesters, turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department_id, department, department_code, learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, source_url, fetched_at, responsible, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg` |
+| `v_module` | module | `id, title, title_de, title_en, detail_status, page_lang, credits, language_raw, teaches_german, teaches_english, duration_raw, duration_semesters, turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department_id, department, department_code, learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, source_url, fetched_at, responsible, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg, abbrev` (the module's abbreviation without a program) |
 | `v_module_facets` | module | `module_id, credits, department_id, teaches_german, teaches_english, duration_semesters, offered_winter, offered_summer, turnus_season, turnus_parity, offer_status, is_limited, participant_limit, exam_form, exam_written, exam_oral, exam_paper, exam_presentation, exam_project, exam_practical, is_graded, is_fues, has_lecture, has_exercise, has_seminar, has_practical, has_project, has_excursion, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg`. Campus flags are NULL (unknown) for a module without a room in the newest semester. |
 | `v_module_search` | module × title variant | `module_id, term, kind` (`id`, `title_de`, `title_en`): the only place that needs `LIKE` |
 | `v_module_lecturer` | module × person | `module_id, name, title, role` (`responsible`, `instructor`) |
@@ -89,11 +90,11 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_module_text_item` | module × item | `module_id, kind` (`literature`, `course`)`, ord, text` |
 | `v_module_prerequisite` | module × required module | `module_id, required_module_id, kind, required_title, required_offer_status` |
 | `v_module_successor` | module × successor | `module_id, successor_id, successor_title` |
-| `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url` |
-| `v_module_exam` | module × exam date | `module_id, semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, end_time, first_date, last_date, room, campus, comment, source_url` |
+| `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url, room_short` |
+| `v_module_exam` | module × exam date | `module_id, semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, end_time, first_date, last_date, room, campus, comment, source_url, room_short` |
 | `v_module_program_link` | module × listed triple | `module_id, ord, degree_raw, program_raw, po_raw, resolve_status, program_id, program_slug, program_name, degree_display, po_version, is_latest_po, relation, kind, kind_source, area` |
 | `v_program` | program | `id, slug, name, degree_level, degree_type, study_variant, degree_label, degree_raw, degree_display, po_version, po_year, po_amendment, family_key, name_key, is_latest_po, stg_code, abschl_code, source_url, fetched_at, has_plan, plan_validated_at, plan_status, curricular_modules, fues_modules, documents` |
-| `v_program_module` | program × module | `program_id, module_id, relation, kind, kind_source, kind_basis, precedence, area, section, in_tree, on_module_page, in_plan, module_title, module_credits, offer_status, turnus_season, plan_semester` |
+| `v_program_module` | program × module | `program_id, module_id, relation, kind, kind_source, kind_basis, precedence, area, section, in_tree, on_module_page, in_plan, module_title, module_credits, offer_status, turnus_season, plan_semester, abbrev` (unique within the program) |
 | `v_program_module_area` | tree placement | `program_id, module_id, area_id, area, area_label, depth, area_ord, section, kind, kind_basis` |
 | `v_program_plan`, `v_program_plan_entry` | validated plan / plan row | layout JSON; `program_id, ord, module_id, module_code_raw, module_name, semester, start_semester, end_semester, semester_span, credits, min_credits, max_credits, kind, kind_raw, study_section, subject_area, area_rules, specialization, source_evidence, catalog_title, catalog_credits, credits_differ_from_catalog` |
 | `v_program_plan_total`, `v_program_plan_total_entry` | a printed sum of a plan / the rows it counts | `program_id, ord, label, scope, specialization, start_semester, end_semester, credits, min_credits, max_credits, is_choice, entry_count, source_evidence` — `program_id, total_ord, entry_ord` |
@@ -439,6 +440,78 @@ order and variants. No program moves to another faculty: each keeps a thesis of 
 A rescan does not remove the Bachelor's plans stored for Bauingenieurwesen M.Sc. 2014, because a
 plan that does not validate never replaces a stored one; until its own plan can be read, they have
 to be deleted by hand.
+
+### Short names (2026-09-25)
+
+The Studienplan's week grid, its agenda lines, notes and legend have room for ten characters, not
+for „Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus“ or „Elektrische und elektronische
+Grundlagen der Informatik“. Schema 9 (`0009_short_names.sql`) adds a short form of both, derived by
+every build; the full name stays where it was, for the tooltip and the detail view. No source states
+either of them (`docs/data-sources.md` §5.14), and the owner accepted that they follow the catalog:
+where a form does not fit how a program uses it, the metadata is simply built again („dann machen wir
+die meta eben neu“). **Folia never stores one**: it keeps module numbers and rooms and reads the short
+form from the current snapshot.
+
+**Rooms** (`normalize.RoomShort`, `event_date.room_short`). The form is `<building> <room>[<attachment>]`:
+`ZHG HS.A`, `VG1C 0.07`, `LG3A 324`, `LG10 211a/b`, `SFB 14C.103`, `SD 7.116`, `GHS`. The building
+token comes from a table of 38 QIS building names, taken from the legend of BTU's campus plan (October
+2021) and the owner's decisions (ZHG, GHS „damit es nicht mit HG verwechselt wird“, VG1C). On the
+campuses Senftenberg and Sachsendorf the room number already starts with its building, so the token
+is the campus code. The rules, in order: 13 curated places (the outdoor places, the eAssessment room);
+a name without a building part keeps its text (with SFB/SD in front on those campuses); SFB/SD keep
+the number and drop the description („Feld 2“ of the sports hall stays as ` F2`); a hall that is a
+building of its own is the token alone (GHS, HS3, LH3D, SH1); `Hörsaal X`, `Seminarraum N` and
+`Audimax N` become `HS.X`, `SR.N`, `AM.N`; ateliers keep „AT“ and their name; otherwise the printed
+number and what tells rooms with one number apart. An unknown building keeps its name as QIS spells
+it — no acronym is invented — and the build logs `build.rooms_unknown_building`. Two rooms that would
+share a form both keep their long form (`build.room_short_collisions`). On the data of 2026-09-23
+all 232 rooms events use get a form of their own, 223 of them with 12 characters or fewer; the median
+is 9 characters, against 52 for the full string. `internal/normalize/testdata/rooms.tsv` holds all
+505 rooms of QIS's room list and the three more that events name, with their forms.
+
+**Modules** (package `internal/abbrev`, `module_abbrev`, `program_module_abbrev`). Every title gets
+a ranked list of candidates with a cost: word initials, the initials of compound parts
+(Betriebs|systeme → BS; the splitter learns its words from the catalog's own titles), a known form
+(BWL, SW in SWP), function letters (Algorithmieren und Programmieren → AuP), a generic opening or a
+trailing phrase left out (Elektrische und elektronische Grundlagen der Informatik → EEG), the first
+letters of one word, an acronym the title states for itself („(GIS)“), subtitle forms and longer
+forms. Three characters are the sweet spot; a series number is appended (BS1, MIT1, DaF-B1.1). A
+curated file, `internal/abbrev/overrides.tsv`, gives the owner's two examples and a few well-known
+forms (BA, MA, DB, ABWL n, BS n, OOP, and three a module's own page uses) as a first candidate, not
+as a promise.
+
+Within a program, over all modules its students may select (curriculum, electives and FÜS), every
+abbreviation is unique, compared without case. A candidate that two modules want goes to neither,
+and both fall back (Grundzüge der Makro-/Mikroökonomik → GMa / GMi) — the owner's rule, with guards:
+compulsory modules, the thesis and internships keep a contested form against other curricular
+modules and those against FÜS; an earlier choice beats a fallback; FÜS against FÜS, a far next choice
+or near-identical candidate lists are settled by priority (tier, plan semester, module number).
+Siblings — one head, different subtitles — are told apart by the subtitle (Dynamik der Kraftfahrzeuge
+- Längs-/Querdynamik → DKL / DKQ). Identical titles get `-b`, `-c` (two „Häusliche Gewalt“ of Soziale
+Arbeit: HäG, HäG-b). `module_abbrev` holds the form without a program for every module. The result
+depends only on the catalog: a new module can move the form of another module of the same program,
+never of another program.
+
+On the data of 2026-09-23: 4,936 modules and 28,424 (program, module) pairs in 182 programs, no
+duplicate; 72.5 % of the pairs have exactly three characters and 94.3 % at most four; 97.9 % got
+their first choice (mean 3.5 fallbacks per program); 94.8 % of the modules have the same form in
+every program they are in, and 96.7 % of the pairs the module's default. AuP and EEG hold in 109 of
+their 110 program pairs; in Umweltwissenschaften Bachelor 2025 (G29-82-2025) the internship
+„Außeruniversitäres Praktikum“ keeps AuP and Algorithmieren und Programmieren falls back to AlP. The snapshot grows by
+1.7 MB. `internal/abbrev/testdata/gate` holds the forms of four programs and every default; with
+`RADIX_ABBREV_GATE=<snapshot>` the test prints what a rule change moves.
+
+`validate` fails when an event date with a room has no short form, a short form names two rooms, a
+module or a program's module has no abbreviation, a program has one twice, or one is not 2 to 10
+characters without spaces; two baselines (4,800 modules with an abbreviation, 18,000 three-character
+pairs) catch a derivation that silently degrades. A database migrated to schema 9 but not built
+again fails the first of these, so it is never exported: after the release, an instance that does
+not crawl (`RADIX_CRAWL=off`) needs `radix build`, then `validate` and `export`, by hand. The build
+warns with `build.rooms_unknown_building` (an event room names a building the table lacks),
+`build.room_short_collisions` (two rooms would share a form and keep their long form) and
+`build.abbrev_overrides_unused` (a module-number line of the override file names no module); each
+wants a line in the table or the file. `build.finished` counts `abbrev_fell_back` and
+`abbrev_twins`.
 
 Open:
 

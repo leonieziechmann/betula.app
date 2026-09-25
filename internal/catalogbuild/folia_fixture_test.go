@@ -304,8 +304,10 @@ func TestWriteFoliaFixture(t *testing.T) {
 		if i%9 == 0 {
 			eventNo++
 			extra += fmt.Sprintf(`<tr><td>Veranstaltungen im aktuellen Semester:</td><td><ul><li><a href="https://www.b-tu.de/qisserver3/rds?state=verpublish&veranstaltung.veranstid=%d">%d Vorlesung</a></li></ul></td></tr>`, eventNo, eventNo)
-			rooms := []string{"Lehrgebäude 1A - 0.22 - Zentralcampus", "Hörsaal 3 - Campus Sachsendorf", "Allgemeine Elektrotechnik Labor - 14.117 - Campus Senftenberg"}
-			events = append(events, fmt.Sprintf("%d", eventNo), eventPageHTML(m.title, "Vorlesung", rooms[i%3], "14.04.2026 bis 21.07.2026"))
+			// Room names as QIS prints them, one after the other (i is a multiple of 9 here);
+			// their short forms are ZHG HS.A, SD 11.301 and SFB 14C.103.
+			rooms := []string{"Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus", "Gebäude 11 - Hörsaal SD - 11.301 Hörsaal C - Campus Sachsendorf", "Gebäude 14.C - SFB - 14C.103 Hörsaal - Campus Senftenberg"}
+			events = append(events, fmt.Sprintf("%d", eventNo), eventPageHTML(m.title, "Vorlesung", rooms[(i/9)%3], "14.04.2026 bis 21.07.2026"))
 		}
 		// The remarks name the programs with their degree label, as the live pages do; that is
 		// where „B.Sc." and „M.Sc." come from. No kind is stated here: the tree states it.
@@ -469,6 +471,17 @@ Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></t
 
 	if _, err := Build(context.Background(), db); err != nil {
 		t.Fatalf("Build failed: %v", err)
+	}
+	// The fixture is a catalog like any other: it passes validate (without the BTU baselines),
+	// short names included.
+	checks, err := db.Validate(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Validate failed: %v", err)
+	}
+	for _, c := range checks {
+		if c.Status == catalogdb.StatusFail {
+			t.Errorf("validate: %s = %d %v", c.Name, c.Value, c.Samples)
+		}
 	}
 	snap, err := db.Export(context.Background(), dir)
 	if err != nil {

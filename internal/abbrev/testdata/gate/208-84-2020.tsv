@@ -1,0 +1,304 @@
+# 208-84-2020: the abbreviations of the design's reference implementation (2026-09-25). module<TAB>abbrev<TAB>title
+# Corrected: 14885 IPBM and 14901 IPMM (the reference gave IPBSM, IPMSM). Its possessive rule held a backspace character where a word boundary was meant, so it never dropped „'s“ (design §2.2, change 3).
+11101	LAAG1	Lineare Algebra und analytische Geometrie I
+11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
+11152	ERP	ERP - Integrierte betriebliche Systeme
+11377	HoA	History of Architecture
+11525	StaS	Statik - Stabtragwerke
+11637	FQM	Forschung im Qualitätsmanagement
+11672	AdV	Atelier de VisioFutura: Auf dem Weg zum Lebensraum von Morgen
+11675	EPW	Einführung in die Produktionswirtschaft
+11692	MuK	Medien- und Kultursemiotik
+11694	VoT	Vorgespannte Tragwerke
+11708	KMT	Konzepte, Methoden und Techniken zur Projektführung
+11802	Str	Straffälligenhilfe - kriminologische Ansätze in der Sozialen Arbeit mit Straftätern
+11812	EEF	Energieeffiziente Fahrzeuge
+11828	KSM	Kolben- und Strömungsmaschinen
+11851	Dar	Darstellung
+11913	TuM	Turbulence Modeling
+11914	PMO	Programmieren in MATLAB/Octave
+11915	GdW	Grundlagen der Werkstoffe
+11960	MPG	Marktorientierte Produktgestaltung
+11961	OMI	Oberseminar Marketing und Innovation
+11970	Co2	Controlling II: Investitionscontrolling
+11974	EOF	Empirische Organisationsforschung
+12034	SDA	Sozialwissenschaftliches Denken und Arbeiten
+12105	EiP	Einführung in die Programmierung
+12107	EEG	Elektrische und elektronische Grundlagen der Informatik
+12167	IRE	Innovationsraum Europa
+12177	PrP	Praktische Philosophie
+12181	ITF	Interdisziplinäre Technikforschung
+12217	WLN	Wissenschaftstheorie, Logik und Naturphilosophie
+12225	SVR	Staats- und Verwaltungsrecht
+12239	En-B2	English - Essential Business Skills (B2)
+12251	STI	Strategisches Technologie- und Innovationsmanagement
+12258	UWA	Grundzüge des Umweltingenieurwesens / Wissenschaftliches Arbeiten
+12261	EcE	Ecological Excursion
+12264	AlC	Allgemeine Chemie
+12330	DB	Datenbanken
+12488	Meh	Mehrgrößenregelung
+12642	ESEd	EEEIC SEd - International Conference on Environment and Electrical Engineering - Student Edition
+12670	PMB	Praxis und methodische Begleitung
+12683	ME	Maschinenelemente
+12696	GET	Grundlagen der Elektrotechnik
+12727	GdB	Grundlagen der Biologie
+12769	MBS	Molecular Biotechnology and Society
+12774	EC	Experimentalchemie
+12828	SMSA	Sexueller Missbrauch und Soziale Arbeit
+12890	SAK	Soziale Arbeit mit Kindern
+12894	RT1	Regelungstechnik 1
+12911	DuP	Disziplin und Profession der Sozialen Arbeit
+12931	EWG	Erziehungswissenschaftliche Grundlagen
+12938	RSA	Einführung in die Rechtsgrundlagen der Sozialen Arbeit
+12940	SSA	Soziologie für die Soziale Arbeit
+12941	SSR	Sozialpsychiatrie, Sonder- und Rehabilitationspädagogik
+12943	PSA	Prozessgestaltung in der Sozialen Arbeit
+12945	PfSA	Psychologie für die Soziale Arbeit
+12947	SP	Sozialpolitik
+12948	VRG	Vertiefung der Rechtsgrundlagen der Sozialen Arbeit
+12950	Man	Management
+12951	GSS	Gesundheit und soziale Sicherung
+12960	ÄBM	Ästhetik, Bildung, Medien
+12986	BuK	Beratung und Kommunikation
+12987	BA	Bachelor-Arbeit
+13068	IPL	Intervention bei psychischen Leiden
+13070	KJH	Kinder- und Jugendhilfe
+13071	KMZ	Kultur- und medienpädagogische Zielgruppenarbeit
+13072	SAR	Sozialarbeit in Rumänien
+13073	SKJ	Stationäre Kinder- und Jugendhilfe
+13074	GAF	Grundlagen der Arbeit mit Familien
+13076	PRE	Prävention von Rechtsextremismus
+13077	SALR	Soziale Arbeit im ländlichen Raum
+13099	IuT	Interkulturalität und Transnationalität in der Sozialen Arbeit
+13100	DSA	Dokumentation in der Sozialen Arbeit
+13102	PfI	Physik für Ingenieure
+13103	Ch1	Chemie I: Allgemeine und Anorganische Chemie
+13109	PTN	Philosophy of Technology and Nature
+13110	BNS	Basic Natural Sciences
+13120	Alt	Altenarbeit
+13126	HäG	Häusliche Gewalt
+13127	SeSA	Selbstständige Soziale Arbeit
+13128	SIK	Sozialpädagogische Interventionen in Kontexten von sozialer Benachteiligung
+13129	BuI	Bildung und Inklusion
+13130	SzH	Spielen zu Hause
+13132	PiE	Projekte in Eigeninitiative
+13133	FFS	Familien frühzeitig stärken
+13134	MKJ	Der Malort im Kontext der Jugendhilfe
+13135	GAS	Grundlagen der Arbeit mit Familien - Servicelearning
+13137	MVZ	Medienarbeit mit verschiedenen Zielgruppen
+13138	STA	Stadtteilarbeit
+13139	DRV	Deutsch-Rumänisches Vergleichsprojekt
+13140	SAP	Soziale Arbeit und Politik
+13146	GIB	Gemeinwesenarbeit und ihre Bedeutsamkeit für strukturschwache Regionen
+13147	BuB	Beratung und Begleitung von Pflege- und Adoptivfamilien
+13148	SMSA-b	Sexueller Missbrauch und Soziale Arbeit
+13149	BSU	Bildung und soziale Ungleichheit
+13150	RSS	Recovery, Stigma und Sozialpsychiatrie
+13156	MaM	Marte Meo
+13157	CoO	Community Organizing
+13159	Med	Mediation
+13162	FA	Flüchtlingsarbeit
+13172	BSB	Beratung / Systemische Beratung
+13173	SAP1	Soziale Arbeit in Polen I
+13174	SAP2	Soziale Arbeit in Polen II
+13183	AHP	Aktuelle Herausforderungen der Personalarbeit im digitalen Wandel
+13217	DPV	Deutsch-Polnisches Vergleichsprojekt
+13234	CST	Communication of Science and Technology
+13251	CTP	Introduction to Computational Thinking and Programming for CFD
+13254	IBMT	Image Based Measurement Techniques for Aerodynamics
+13259	HäG-b	Häusliche Gewalt
+13260	SeSA-b	Selbstständige Soziale Arbeit
+13261	HzE	Hilfen zur Erziehung - Grundlagen der Arbeit mit Familien
+13281	SST	Signal- und Systemtheorie
+13296	AEE	Aktuelle Entwicklungen der Energiewende
+13354	RRE	Rechtliche Rahmenbedingungen der Existenzgründung
+13356	GCLR	Global Change and Legal Response
+13378	KrS	Krankenhaus-Sozialarbeit
+13381	KMA	Kultur- und Medienarbeit mit Audio in offenen Settings: Podcast Lebensgeschichten in Doberlug-Kirchhain
+13383	Sch	Schulsozialarbeit
+13384	VIÖ	Video als Instrument der Öffentlichkeit in der Sozialen Arbeit
+13431	EuH	Ethik und Handeln
+13463	NuT	Natur und Technik
+13467	Kom	Kommunikation
+13519	CFD1	CFD 1
+13526	JiD	Jugendmedienschutz in Deutschland
+13530	JMF	Jugendsozialarbeit im Milieu von Fussballfans
+13531	ABO	Arbeitslosigkeit und Berufsorientierung
+13562	KMK	Kreative Methoden der Kulturarbeit im Stadtraum
+13563	OSKJ	Offene Settings Kultureller Jugendbildung
+13582	MKG	Methodisches Konstruieren und Gestalten
+13588	PS-A1	Polnisch Start A1
+13591	ÖSA	Öffentlichkeitsarbeit für die Soziale Arbeit - Campusfest in Sachsendorf
+13655	UDK	Un/Disciplining Knowledge: Technology, Science, and Society in Transformation
+13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
+13666	ViV	Visualisierung, Vertiefung
+13670	KKM	Klassismuskritik in der Kultur- und Musikarbeit
+13671	RAT	Reaktions- und Anlagentechnik
+13674	KG1	Kunstgeschichte 1
+13676	Den	Denkmalpflege
+13681	BMG	Bildkünste Moderne und Gegenwart
+13682	GuT	Geschichte und Theorie von Stadt, Raum und Landschaft
+13707	KDF	Kulturwissenschaftliche Digitalisierungsforschung
+13711	CTSR	Colloquium Transdisciplinary Sustainability Research
+13717	DIP	Decarbonisation of Industrial Processes
+13723	MAS	Medienarbeit in der Schulsozialarbeit - Lokale Kinder- und Jugendredaktionen und die 'Reise durch die Mediengalaxie'
+13734	IGWA	Interdisziplinärer Grundkurs wissenschaftliches Arbeiten
+13738	TWP	Technik in Wissenschaft und Philosophie
+13742	Flu	Fluchtmigration - Grundlagen und aktuelle Herausforderungen
+13743	AWDF	"Achtung, wir drehen!" Film in der Kulturellen Bildung
+13744	MWK	Medienwerkstatt Kultur: Aktive Audioarbeit mit Podcast und Radio
+13745	KKB	Klassismus in der Kulturellen Bildung: Schwerpunkt Film
+13748	SSAP	Schulsozialarbeit - Präventionsstrategien im (Cyber-) Mobbing-Fall
+13749	Mob	(Cyber-)Mobbing - Aufgeklärt!
+13750	KRÖ	Kritische Reflexion von Öffentlichkeitsarbeit für die Sozialen Arbeit
+13751	EBP	Entwicklung, Beantragung von Projekten - Jeder kann, nicht jeder Antrag kommt dran
+13755	NEF	Natur- und Erlebnispädagogische Ferienwoche
+13758	FSOA	Freiwillige in der stationären und offenen Altenhilfe
+13759	JIT	Jugendberufshilfe in interprofessionellen Teams
+13761	NMN	Nachhaltigkeits-Marketing, Nachhaltigkeit und Betriebswirtschaftslehre
+13771	EuP	Eudaimogenese Praktisch (EudaPraX) - Gelingendes Leben ermöglichen
+13772	PSÖWN	Psychologie des sozial-ökologischen Wandels, und Nachhaltigkeit und Betriebswirtschaftslehre
+13781	KTU	Kulturgeschichte von Technik und Umwelt
+13782	PSÖWNM	Psychologie des sozial-ökologischen Wandels und Nachhaltigkeits-Marketing
+13787	PES	Projektpraktikum Elektronische Schaltungstechnik
+13788	MSe	Marketing Seminar for Empirical Business Science Research Projects
+13792	WV	Wissensverwertung
+13819	SFT	Studierstrategien und Fachsprache Technik
+13833	A&M	Analysis and Modelling of Human-Environment Systems
+13852	DPSA	Digitale (Musik- und Kultur-) Projekte in der Sozialen Arbeit
+13853	KFB	Konzepte frühkindlicher Bildung: Kultur des Lernens
+13854	TSS	Theaterpädagogische Szenarien in der Schulsozialarbeit
+13855	ASD	Der Allgemeine Soziale Dienst des Jugendamts: Schwerpunkt Kinderschutz
+13856	SGK	Sucht im gesellschaftlichen Kontext - niedrigschwellige und akzeptierende Ansätze
+13857	SALR-b	Soziale Arbeit im ländlichen Raum
+13860	GrÜ	Grenzen überwinden - voneinander lernen - Strukturwandel in Grenzregionen
+13935	SDW	Seminar Demographischer Wandel und die Auswirkungen auf das Personalmanagement
+13940	GlS	Global Studies - Massive Open Online Course
+13946	M&D	Mobility and Digitalisation
+13964	GTE	Geothermal Energy
+13967	KlS	Klinische Sozialarbeit
+13971	BKJ	Beteiligung von Kindern und Jugendlichen in der Regionalplanung
+13972	TSA	Trauma und Soziale Arbeit
+13973	DSV	Digitalisierung und Soziale Verantwortung
+13974	PFK	Pädagogik der frühen Kindheit
+13975	DiSA	Diskriminierungssensible Soziale Arbeit
+13976	Ged	Gedenkstättenpädagogik
+13980	EiÖ	Einführung in die Ökonomie - Theorie und Praxis
+13985	PLN	Projekt Lernwerkstatt Natur
+14011	EAP	English for Academic Purposes
+14036	SPLS	Scientific Presentation in Life Sciences
+14039	MS	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
+14054	IMDA	Immunological Methods and Data Analysis
+14146	AVV	Architektur verstehen und vermitteln
+14147	MoT	Media of Transformation - Film Course
+14152	SFN	Studierstrategien & Fachdeutsch Nachhaltigkeit
+14170	PSG	Praxis sozialer Gruppenarbeit
+14172	BPP	Biographiearbeit und Professionalisierungsprozesse in der Sozialen Arbeit
+14173	ÖASA	Öffentlichkeitsarbeit für die Sozialen Arbeit - Campusfest in Sachsendorf
+14174	KaW	Der Körper als Werkzeug in der Sozialen Arbeit
+14175	DiS	Digitalpioniere in Sandow
+14177	PBR	Politische Bildung in Reaktion auf extrem rechte Einflussnahme in der Lausitz
+14178	TPPEJ	Tagesstrukturierung für psychisch und psychiatrisch erkrankte Jugendliche
+14179	OSW	Oldie-Spielwerkstatt - Spielpädagogik mit Senioren
+14180	Sch-b	Schulsozialarbeit
+14182	NuD	Nähe und Distanz in der Sozialen Arbeit - Professionalisierung und Professionalität
+14288	PEC	Psychology of Entrepreneurship and Change
+14304	Sch-c	Schulsozialarbeit
+14305	BSA	Beziehungsgestaltung in der Sozialen Arbeit
+14308	UFM	Urban Future Making - Neue Orte und Freiräume gestalten
+14368	KMP	Kultur- und Medienpädagogik: Freies Radio/Podcasting
+14369	DPKB	Diversität und Partizipation in der kulturellen Bildung
+14370	AFH	Ambulante Familienhilfe - Arbeiten mit Familien in ihrer Lebenswelt
+14371	HDE	Hilfeplanprozesse und deren Entwicklungsberichte
+14374	ABM	Arbeit mit beeinträchtigten Menschen - Aufgaben und Grenzen der Sozialen Arbeit
+14378	SMSG	Spielpädagogik als Methode sozialpädagogischer Gruppenarbeit
+14379	InJ	Internationale Jugendbegegnung
+14414	DAPM	Data Analytics and Process Modelling
+14480	TPM	Teilhabe und Powersharing in der Migrationsgesellschaft
+14508	AGA	Anti-Gewalt-Arbeit
+14509	LMG	Logisch-mathematische Grundlagen der Medien- und Kulturwissenschaft
+14510	SADF	Soziale Arbeit in Deutschland und Frankreich
+14511	StE	Stadtteilbezogene Elternarbeit
+14512	QAGA	Queere* Anti-Gewalt-Arbeit
+14513	TTM	Teilhabe und Teilhabebarrieren für Menschen mit Behinderungen
+14634	KPSF	Kinder aus psychisch und/oder suchtbelasteten Familien
+14635	MSA	Musik in der Sozialen Arbeit
+14636	DSBH	Demokratiebildung in sport- und bewegungsbezogenen Handlungsfeldern
+14637	IPP	Interventionsmethoden der Positiven Psychologie
+14638	TIN	TIN* - trans*, inter*, nicht-binär
+14639	GSA	Gewalt(en) in der Sozialen Arbeit
+14640	BuB-b	Beratung und Begleitung von Pflege- und Adoptivfamilien
+14719	OpM	Operations Management
+14720	TIM	Technology and Innovation Management
+14721	CoF	Corporate Finance
+14725	IHSTD	Industrial Heating Systems and their Defossilization
+14727	SCC	Studieren mit ChatGPT & Co
+14776	IBSA	Interkulturelle Begegnungen in der Sozialen Arbeit
+14811	DPT	Demokratische Praxis in Transformationsgesellschaften
+14812	LMC	Leadership and Management Competencies - EUNICE Container Module
+14814	SWR	Introduction to Scientific Writing and Reviewing
+14816	EHP	English for Healthcare Professions
+14818	SAS	Seil aber sicher - vertikale und horizontale Seilaufbauten und Soziale Arbeit
+14851	AGA-b	Anti-Gewalt-Arbeit
+14852	StE-b	Stadtteilbezogene Elternarbeit
+14853	KBAA	Mit Kindern Bilder animieren! Animationsfilme im Kindergarten
+14854	KiS	Kita-Sozialarbeit
+14855	AGB	Alphabetisierung und Grundbildung als sozialarbeiterisches Handlungsfeld
+14856	MKK	Mehrsprachigkeit im Kita-Kontext: Familiensprachen nutzen
+14871	FGP	Fundraising im Gründungsprozess
+14881	FoT	Forschendes Theater
+14885	IPBM	EUNICE Individual Pathway Bachelor's Module
+14886	SMK	Strategisches Management und Kommunikation in Krisen- und Resilienzkontexten
+14898	Cam	CampusTV: Uni-Reportage
+14901	IPMM	EUNICE Individual Pathway Master's Module
+14908	AKSA	Armut im Kontext Sozialer Arbeit
+14912	SATP	Soziale Arbeit trifft Pflege
+14913	BDZ	Zwischen Beats, Drag & Zines - subkulturell, feministisch & widerständig
+14981	ABM-b	Arbeit mit beeinträchtigten Menschen - Aufgaben und Grenzen der Sozialen Arbeit
+14982	Ino	Inobhutnahme
+14983	SQSA	Schriftsprachlichkeit als Querschnittsthema Sozialer Arbeit
+14984	MDMK	Macht- und diskriminierungskritische Musik- und Kulturarbeit
+14990	PiT	Projekte in Trägerinitiative
+14991	LeL	Lebenslanges Lernen in Lausitzer UNESCO-Stätten
+14992	Eud	Eudaimogenese - Gelingendes Leben als Ziel professionellen Handelns in der Sozialen Arbeit
+14998	CoB	Conservation Biology
+15003	PSDS	Privacy, Surveillance, and Digital Society
+15013	ItT	Introduction to Toxicology - How Our Everyday Chemicals Are Regulated
+15014	WKLS	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
+15023	It-A1	Italian A1 for Student Life, Job and Daily Life
+15026	SR	Schulrecht
+15028	AMR	Arzt- und Medizinrecht
+15031	EEM	Einführung in die Elementare Musikpädagogik
+15032	MWKJ	Musikwissenschaft Klassik und Jazz/Rock/Pop
+15053	PEH	Psychiatrische Erste Hilfe bei vulnerablen Personengruppen
+15055	SAG	Soziale Arbeit mit Gruppen
+23503	ScT	Schwingungsanfällige Tragwerke
+25102	BuS1	Bau- und Stadtbaugeschichte 1
+25106	CBEF	Conservation / Building in Existing Fabric
+25404	BTG	Bautechnikgeschichte
+25405	TdA	Theorie der Architektur
+25421	GKG	Grundlagen der Kunstgeschichte
+31102	TM1	Technische Mechanik 1: Statik und Festigkeitslehre
+31303	HSM	Höhere Strömungsmechanik
+31311	MFA	Maschinen- und Fahrzeugakustik
+31409	FSS	Fahrzeug- und Strukturschwingungen
+33107	SeC	Seminar CampusTV
+33432	AMW	Angewandte Medienwissenschaften
+36303	ISU1	Informationssysteme in Unternehmen I
+36315	QM	Qualitätsmanagement
+36403	GQL	Grundlagen der Qualitätslehre
+36404	GAA	Grundlagen der Arbeitswissenschaft und Arbeitspsychologie
+36504	KuL	Kommunikation und Lernstrategien
+37102	DCH	Discourses on Culture and Heritage
+37104	OIB	Organisationen und industrielle Beziehungen
+37202	KW	Kulturwissenschaften: Konzepte und Anwendungen
+37406	FFH	Fundraising and Finance for Heritage
+37412	ABS	Arbeits- und Beschäftigungssoziologie
+37413	WS	Wirtschaftssoziologie
+38308	MMa	Marketing-Management
+38402	MF	Marktforschung
+41103	Bio	Biologie
+43503	Dep	Deponietechnik
+43504	BVBA	Biologische Verfahren der Biomasse- und Abfallbehandlung
+44203	GP	Grenzflächenphänomene
+44204	EBT	Environmental Biotechnologies
