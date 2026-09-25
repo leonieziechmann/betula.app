@@ -125,6 +125,7 @@ mod tests {
             instructor: None,
             comment: None,
             source_url: None,
+            room_short: None,
         }
     }
 
@@ -228,7 +229,7 @@ mod tests {
     #[test]
     fn rows_sharing_a_key() {
         let columns = "semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, \
-                       end_time, first_date, last_date, room, campus, comment, source_url";
+                       end_time, first_date, last_date, room, campus, comment, source_url, room_short";
         let pinned = crate::tests::studyplan_db("rows_sharing_a_key");
         let is_pinned = pinned.is_some();
         let db = pinned.unwrap_or_else(crate::tests::open);

@@ -16,7 +16,7 @@ use crate::rows::{
     Semester,
 };
 use crate::rows_detail::{
-    AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleSws,
+    AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleAbbrev, ModuleSws,
     ModuleTeachingForm, Plan, PlanEntry, PlanTotal, PlanTotalEntry, ProgramDepartmentCount, ProgramLink, ProgramVersion,
     Successor, TextItem,
 };
@@ -333,7 +333,7 @@ pub fn module_schedule(db: &dyn Database, module_id: &str) -> Result<Vec<EventDa
         &format!(
             "SELECT semester_key, semester_label, event_id, event_number, event_title, event_type, group_name, \
              weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, \
-             comment, source_url FROM v_module_schedule WHERE module_id = ? {EVENT_ORDER}"
+             comment, source_url, room_short FROM v_module_schedule WHERE module_id = ? {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
     )
@@ -347,7 +347,7 @@ pub fn module_exams(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>
         &format!(
             "SELECT semester_key, semester_label, event_id, event_number, event_title, NULL AS event_type, \
              NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, first_date, \
-             last_date, room, campus, NULL AS instructor, comment, source_url \
+             last_date, room, campus, NULL AS instructor, comment, source_url, room_short \
              FROM v_module_exam WHERE module_id = ? {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
@@ -504,13 +504,13 @@ fn id_json(module_ids: &[String]) -> String {
 /// The columns of `DateRow` from `v_module_schedule`.
 const DATE_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
      event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, \
-     campus, instructor, comment, cancelled_dates, source_url";
+     campus, instructor, comment, cancelled_dates, source_url, room_short";
 
 /// The columns of `DateRow` from `v_module_exam`, which has no type, group, rhythm, instructor or
 /// cancellations: the same row struct reads teaching and exam rows.
 const EXAM_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
      NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, \
-     first_date, last_date, room, campus, NULL AS instructor, comment, NULL AS cancelled_dates, source_url";
+     first_date, last_date, room, campus, NULL AS instructor, comment, NULL AS cancelled_dates, source_url, room_short";
 
 /// The teaching rows of the planned modules in one semester, events without dates included (the
 /// Studienplan lists them „ohne feste Zeit"). An event linked to two of the modules comes once for
@@ -556,7 +556,7 @@ pub fn semester_schedule(db: &dyn Database, semester_key: &str) -> Result<Vec<Da
         "semester_schedule",
         "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, event_type, ord, \
          group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, NULL AS room, campus, \
-         NULL AS instructor, NULL AS comment, cancelled_dates, NULL AS source_url \
+         NULL AS instructor, NULL AS comment, cancelled_dates, NULL AS source_url, NULL AS room_short \
          FROM v_module_schedule WHERE semester_key = ? AND ord IS NOT NULL ORDER BY module_id, event_id, ord",
         &[Value::from(semester_key)],
     )
@@ -571,7 +571,7 @@ pub fn semester_exams(db: &dyn Database, semester_key: &str) -> Result<Vec<DateR
         "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, \
          NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, \
          NULL AS rhythm_raw, first_date, last_date, room, campus, NULL AS instructor, NULL AS comment, \
-         NULL AS cancelled_dates, NULL AS source_url \
+         NULL AS cancelled_dates, NULL AS source_url, room_short \
          FROM v_module_exam WHERE semester_key = ? AND first_date IS NOT NULL ORDER BY module_id, event_id, ord",
         &[Value::from(semester_key)],
     )
@@ -604,6 +604,24 @@ pub fn modules_teaching_sws(db: &dyn Database, module_ids: &[String]) -> Result<
          WHERE sws IS NOT NULL AND form IS NOT NULL AND module_id IN (SELECT value FROM json_each(?)) \
          GROUP BY module_id, form ORDER BY module_id, form",
         &[Value::from(ids)],
+    )
+}
+
+/// The abbreviations of modules („AuP", schema 9): within `program_id` the one unique among that
+/// program's modules (`v_program_module`), else the module's own (`v_module`). Only modules that
+/// have one; a week grid names the others by a short title.
+pub fn modules_abbrevs(db: &dyn Database, module_ids: &[String], program_id: Option<&str>) -> Result<Vec<ModuleAbbrev>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "modules_abbrevs",
+        "SELECT m.id AS module_id, COALESCE(p.abbrev, m.abbrev) AS abbrev FROM v_module m \
+         LEFT JOIN v_program_module p ON p.module_id = m.id AND p.program_id = ? \
+         WHERE m.id IN (SELECT value FROM json_each(?)) AND COALESCE(p.abbrev, m.abbrev) IS NOT NULL ORDER BY m.id",
+        &[program_id.map_or(Value::Null, Value::from), Value::from(ids)],
     )
 }
 

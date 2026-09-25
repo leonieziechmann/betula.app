@@ -108,6 +108,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | WARN | `cycle.finished` with `result=degraded` | crawl problems; published data intact |
 | WARN | `validate.check_warned` | e.g. kind conflicts between sources, programs without tree modules |
 | WARN | `build.unresolved_refs`, `build.tree_leaves_without_module`, `build.tree_pages_missing`, `build.unlisted_module_pages`, `build.unreachable_tree_pages`, `build.modules_without_page`, `build.plans_without_program`, `build.plan_entries_unknown_module`, `build.unpaired_departments` | source data the build could not use, with counts and examples |
+| WARN | `build.rooms_unknown_building`, `build.room_short_collisions`, `build.abbrev_overrides_unused` | short names (`docs/schema-v2.md`, „Short names"): an event room names a building the table in `internal/normalize/rooms.go` lacks (it keeps the building's full name) / two rooms would share a short form (both keep their long form) / a line of `internal/abbrev/overrides.tsv` applies to no module (a module number the catalog lacks, a program without that module, a pattern that matches nothing an earlier line does not take). Each wants a line in the table or the file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_changed` (pairs whose abbreviation moved since the last build: a new title anywhere can move forms in other programs). |
 | WARN | `http.request` with `status` 4xx/503 | |
 | ERROR | `scan.failed`, `scan.extraction_failed`, `scan.save_failed`, `statutes.download_failed` | study plan scan: cannot run / a document could not be read / a plan could not be stored (the previous plan is unchanged) / a PDF could not be downloaded |
 | WARN | `scan.rejected`, `scan.gemini_disabled`, `statutes.blocked` | a plan failed validation and was not stored / no API key, deterministic reader only / a PDF is behind bot protection |
@@ -263,3 +264,14 @@ program and change rows the change never touched. `--dry-run` reports the counts
 `moved` and `cleared` say what a run would do, and a `moved` or `cleared` row is logged with its
 program, so a rule that loses a link is visible before it is written. Run `build` afterwards:
 `in_plan`, the kind of a membership and the plan semester are derived from the links.
+
+**After a release with a migration**, an instance that does not crawl (`RADIX_CRAWL=off`) has to
+be built by hand: `radix build`, then `radix validate` and `radix export`. The new binary migrates
+`radix.db` when it opens it, but a migration does not rewrite the data it adds columns for; schema 9,
+for instance, leaves `room_short` NULL and the abbreviation tables empty until the next build, and
+`validate` — which `export` runs first — refuses such a database. Do not export it with
+`--skip-validate`: Folia would get a catalog without short names. `deploy/vps/50-app.sh` does the
+build itself when it makes the first snapshot of a seeded volume; for a running instance it is
+`docker exec <radix container> /bin/radix build --db /data/radix.db`, then `… export --db
+/data/radix.db --out /data/snapshot` (`deploy/README.md`, blue-green). An older binary refuses a
+database newer than itself, so a rollback needs the copy of `radix.db` from before the release.

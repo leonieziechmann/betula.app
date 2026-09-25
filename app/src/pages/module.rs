@@ -569,14 +569,16 @@ fn Schedule(data: ModuleData) -> impl IntoView {
                 let stated = reading.as_ref().filter(|r| r.shown != r.stated && !r.is_marked()).map(|r| format!("In QIS: {}", stated_slot(r)));
                 let marker = reading.as_ref().filter(|r| r.is_marked()).map(marker_text);
                 let rhythm = d.rhythm.as_ref().map(|r| r.label().to_string()).or(d.rhythm_raw.clone());
-                let details: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm, date_range(&slot), d.room.clone(), d.instructor.clone(), d.comment.clone()]
+                let details: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm, date_range(&slot), d.room_shown().map(str::to_string), d.instructor.clone(), d.comment.clone()]
                     .into_iter()
                     .flatten()
                     .collect();
+                // The short form stands in the line; QIS's whole name is the tooltip (owner, 2026-09-25).
+                let room_long = d.room_short.is_some().then(|| d.room.clone()).flatten();
                 let body = view! {
                     <span class="when" title=stated>{when.unwrap_or_else(|| open.to_string())}</span>
                     <b>{d.event_title.clone()}</b>
-                    {(!details.is_empty() || marker.is_none()).then(|| view! { <small>{details.join(" · ")}</small> })}
+                    {(!details.is_empty() || marker.is_none()).then(|| view! { <small title=room_long>{details.join(" · ")}</small> })}
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
                 match d.source_url.clone() {
@@ -712,18 +714,19 @@ fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterK
         Memo::new(move |_| {
             let (plan, key) = (plan?, newest?);
             let town = mine.map(MyProgram::town).unwrap_or_default();
-            let (others, selection) = plan.with(|doc| (doc.modules_in(key).into_iter().filter(|other| *other != id).collect::<Vec<_>>(), doc.selection(key, town)));
-            overlay_wanted(Some(key), current, &others).then_some((key, others, selection))
+            let (others, selection, program) = plan.with(|doc| (doc.modules_in(key).into_iter().filter(|other| *other != id).collect::<Vec<_>>(), doc.selection(key, town), doc.program.clone()));
+            let program = program.or_else(|| mine.and_then(|mine| mine.with(|mine| mine.program.clone())));
+            overlay_wanted(Some(key), current, &others).then_some((key, others, selection, program))
         })
     };
     let id = id.to_string();
     Memo::new(move |_| {
-        let (Some((key, others, selection)), Some(source)) = (asked.get(), source.as_ref()) else {
+        let (Some((key, others, selection, program)), Some(source)) = (asked.get(), source.as_ref()) else {
             return Overlay::default();
         };
         source
             .run(|db| {
-                let plan = pages::studyplan(db, key, &others)?;
+                let plan = pages::studyplan_in(db, key, &others, program.as_deref())?;
                 pages::overlay(db, &plan, &id, &selection)
             })
             .unwrap_or_default()
@@ -733,8 +736,8 @@ fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterK
 /// The module's own slots with the plan beside them (A.9): its slots in a hard clash marked, and
 /// the other planned modules' Termine as quiet `.planned` slots cut to the days and hours the
 /// module's own week spans, so that the grid never grows when the plan arrives. Planned Termine
-/// at the same time are one slot that names each module once, by its short name
-/// (`views::short_title`, done in `pages::overlay`): the plan is the context here, and where it
+/// at the same time are one slot that names each module once, by its abbreviation
+/// (`StudyplanData::slot_names`, done in `pages::overlay`): the plan is the context here, and where it
 /// meets the module's own slots it takes a slim lane (`crate::week`). The names are the slot's
 /// label, not its small line, which phones hide: an outline without a name says nothing.
 fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay) -> Vec<GridSlot> {
@@ -915,6 +918,7 @@ mod tests {
             instructor: None,
             comment: None,
             source_url: None,
+            room_short: None,
         }
     }
 

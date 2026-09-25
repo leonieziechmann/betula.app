@@ -51,7 +51,8 @@ and the `plan*` tables is derived and replaced by each build.
 | `program_module_assertion` | one row per statement "module M is in program P" per source, with `kind`, `kind_basis` (`stated`/`inferred`) and area | module page, QIS tree, validated plan |
 | `plan`, `plan_entry`, `plan_scan_status` | validated study plans; written transactionally by `SavePlan`, never touched by the build; not foreign-keyed to derived tables, so a plan survives an incomplete crawl | statute PDFs |
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
-| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/data-sources.md` §11); the module page decides which events belong to a module |
+| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/data-sources.md` §11); the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
+| `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
 
@@ -81,7 +82,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 
 | View | One row per | Columns |
 |---|---|---|
-| `v_module` | module | `id, title, title_de, title_en, detail_status, page_lang, credits, language_raw, teaches_german, teaches_english, duration_raw, duration_semesters, turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department_id, department, department_code, learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, source_url, fetched_at, responsible, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg` |
+| `v_module` | module | `id, title, title_de, title_en, detail_status, page_lang, credits, language_raw, teaches_german, teaches_english, duration_raw, duration_semesters, turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department_id, department, department_code, learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, source_url, fetched_at, responsible, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg, abbrev` (the module's abbreviation without a program) |
 | `v_module_facets` | module | `module_id, credits, department_id, teaches_german, teaches_english, duration_semesters, offered_winter, offered_summer, turnus_season, turnus_parity, offer_status, is_limited, participant_limit, exam_form, exam_written, exam_oral, exam_paper, exam_presentation, exam_project, exam_practical, is_graded, is_fues, has_lecture, has_exercise, has_seminar, has_practical, has_project, has_excursion, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg`. Campus flags are NULL (unknown) for a module without a room in the newest semester. |
 | `v_module_search` | module × title variant | `module_id, term, kind` (`id`, `title_de`, `title_en`): the only place that needs `LIKE` |
 | `v_module_lecturer` | module × person | `module_id, name, title, role` (`responsible`, `instructor`) |
@@ -89,11 +90,11 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_module_text_item` | module × item | `module_id, kind` (`literature`, `course`)`, ord, text` |
 | `v_module_prerequisite` | module × required module | `module_id, required_module_id, kind, required_title, required_offer_status` |
 | `v_module_successor` | module × successor | `module_id, successor_id, successor_title` |
-| `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url` |
-| `v_module_exam` | module × exam date | `module_id, semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, end_time, first_date, last_date, room, campus, comment, source_url` |
+| `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url, room_short` |
+| `v_module_exam` | module × exam date | `module_id, semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, end_time, first_date, last_date, room, campus, comment, source_url, room_short` |
 | `v_module_program_link` | module × listed triple | `module_id, ord, degree_raw, program_raw, po_raw, resolve_status, program_id, program_slug, program_name, degree_display, po_version, is_latest_po, relation, kind, kind_source, area` |
 | `v_program` | program | `id, slug, name, degree_level, degree_type, study_variant, degree_label, degree_raw, degree_display, po_version, po_year, po_amendment, family_key, name_key, is_latest_po, stg_code, abschl_code, source_url, fetched_at, has_plan, plan_validated_at, plan_status, curricular_modules, fues_modules, documents` |
-| `v_program_module` | program × module | `program_id, module_id, relation, kind, kind_source, kind_basis, precedence, area, section, in_tree, on_module_page, in_plan, module_title, module_credits, offer_status, turnus_season, plan_semester` |
+| `v_program_module` | program × module | `program_id, module_id, relation, kind, kind_source, kind_basis, precedence, area, section, in_tree, on_module_page, in_plan, module_title, module_credits, offer_status, turnus_season, plan_semester, abbrev` (unique within the program) |
 | `v_program_module_area` | tree placement | `program_id, module_id, area_id, area, area_label, depth, area_ord, section, kind, kind_basis` |
 | `v_program_plan`, `v_program_plan_entry` | validated plan / plan row | layout JSON; `program_id, ord, module_id, module_code_raw, module_name, semester, start_semester, end_semester, semester_span, credits, min_credits, max_credits, kind, kind_raw, study_section, subject_area, area_rules, specialization, source_evidence, catalog_title, catalog_credits, credits_differ_from_catalog` |
 | `v_program_plan_total`, `v_program_plan_total_entry` | a printed sum of a plan / the rows it counts | `program_id, ord, label, scope, specialization, start_semester, end_semester, credits, min_credits, max_credits, is_choice, entry_count, source_evidence` — `program_id, total_ord, entry_ord` |
@@ -440,8 +441,228 @@ A rescan does not remove the Bachelor's plans stored for Bauingenieurwesen M.Sc.
 plan that does not validate never replaces a stored one; until its own plan can be read, they have
 to be deleted by hand.
 
+### Short names (2026-09-25)
+
+The Studienplan's week grid, its agenda lines, notes and legend have room for ten characters, not
+for „Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus“ or „Elektrische und elektronische
+Grundlagen der Informatik“. Schema 9 (`0009_short_names.sql`) adds a short form of both, derived by
+every build; the full name stays where it was, for the tooltip and the detail view. No source states
+either of them (`docs/data-sources.md` §5.14), and the owner accepted that they follow the catalog:
+where a form does not fit how a program uses it, the metadata is simply built again („dann machen wir
+die meta eben neu“). **Folia never stores one**: it keeps module numbers and rooms and reads the short
+form from the current snapshot.
+
+**Rooms** (`normalize.RoomShort`, `event_date.room_short`). The form is `<building>/<room>[<attachment>]`:
+`ZHG/HS.A`, `VG1C/0.07`, `LG3A/324`, `LG10/211a+b`, `SFB/14C.103`, `SD/7.116`, `Mensa/0.33.1`, `GHS`
+(the owner, 2026-09-25: „ZHG/HS.C“ rather than „ZHG HS.C“, „weil sich das viel besser liest“). The
+slash is the only one in a form: two rooms QIS writes as a pair or a range are joined by `+`
+(2.26/2.27 → `FZ3E/2.26+27`, 229/230 → `ZB2CD/229+230`, 211a/b → `LG10/211a+b`), the Lehrgebäude
+4/1, 4/3 and 4/4 of Campus Nord are `LG4-1`, `LG4-3`, `LG4-4`, and a building name the table lacks
+gets a hyphen for its slash; a room with words keeps its spaces (`ZB2CD/AT Oestreich M`). The building
+token comes from a table of 38 QIS building names, taken from the legend of BTU's campus plan (October
+2021) and the owner's decisions (ZHG, GHS „damit es nicht mit HG verwechselt wird“, VG1C). On the
+campuses Senftenberg and Sachsendorf the room number already starts with its building, so the token
+is the campus code. The rules, in order: 13 curated places (the outdoor places, the eAssessment room);
+a name without a building part keeps its text (with `SFB/`, `SD/` in front on those campuses); SFB/SD keep
+the number and drop the description („Feld 2“ of the sports hall stays as ` F2`); a hall that is a
+building of its own is the token alone (GHS, HS3, LH3D, SH1: no slash); `Hörsaal X`, `Seminarraum N` and
+`Audimax N` become `HS.X`, `SEM.N`, `AM.N`; ateliers keep „AT“ and their name; otherwise the printed
+number and what tells rooms with one number apart. An unknown building keeps its name as QIS spells
+it — no acronym is invented — and the build logs `build.rooms_unknown_building`. Two rooms that would
+share a form both keep their long form (`build.room_short_collisions`). On the data of 2026-09-23
+all 232 rooms events use get a form of their own, 223 of them with 12 characters or fewer; the median
+is 9 characters, against 52 for the full string. `internal/normalize/testdata/rooms.tsv` holds all
+505 rooms of QIS's room list and the three more that events name, with their forms.
+
+**Modules** (package `internal/abbrev`, `module_abbrev`, `program_module_abbrev`). Every title gets
+a ranked list of candidates with a cost: word initials, the initials of compound parts
+(Betriebs|systeme → BS; the splitter learns its words from the catalog's own titles, and before a
+head that ends many compounds it also takes a part it does not know: Deponie|technik → DT,
+Mehrgrößen|regelung → MR), the parts of a word written in parts (CampusTV → CTV), a known form (BWL,
+SW in SWP), function letters (Algorithmieren und Programmieren → AuP), a generic opening or a
+trailing phrase left out (Elektrische und elektronische Grundlagen der Informatik → EEG), the first
+letters of one word, an acronym the title states for itself („(GIS)“), subtitle forms and longer
+forms. Three characters are the sweet spot; a series number is appended (BS1, MIT1, DaF-B1.1). A
+lowercase letter between two capitals reads as a function word, as the u of AuP does, so a word's
+second letter in that place costs 0.5 more: Numerische Mathematik is NMa, not NuM, and Effiziente
+Algorithmen EAl, not EfA next to SfA „Statistik für Anwender“. Three characters stay, not two
+initials (M1 in `docs/data-sources.md` §13, the owner on 2026-09-25: „CFi sagt sich viel besser als
+CF“): a form students can say beats a shorter one they cannot (§5.14 there).
+
+**Three initials of the whole title come first** (the owner, 2026-09-25: „wenn die Buchstaben beim
+Anagramm passen, dann nimmt man die i. d. R.“). Where the initials of all words of the head make
+exactly three characters — a content word as its capital, a function word as the lowercase letter it
+leaves (und u, von v, der/die/das/des d, für f, in/im i, mit m, zu/zur/zum z, an/am/auf/aus a, of o,
+the t …; English „and“ as &, M5, and „&“ in a German title as u) — that form is the first choice,
+ahead of compound parts and every other derived form: Entwicklung von Softwaresystemen is EvS, not
+ESS from Software|systeme; Grundlagen der Werkstoffe GdW, Ethik und Handeln EuH, Kommunikation und
+Lernstrategien KuL, Mathematics of Engineering I MoE1. A lowercase letter only ever stands for a
+function word between two capitals, so the head has three words and the first and last are content
+words (three content words give their plain initials). A hyphen part is a word of its own, but a
+head „X- und Y“ is written as its terms (below); the series number is appended as everywhere; a head
+with an acronym or a slash group is left to the other forms, and so is a sibling (its subtitle tells
+it apart). In the module's list the form stands at the top, one hundredth ahead of
+the cheapest other candidate, and its matching score is a class of its own (below). An override line
+and an acronym the title states for itself („(GIS)“) still come before it, and the blocked forms, the
+reserved forms and the uniqueness within a program hold: two titles of one program with one such form
+(Grundlagen der Werkstoffe and Grundlagen der Wirtschaftsinformatik, both GdW) contest it like any
+other form.
+
+**„X- und Y“ by its terms** (the owner, 2026-09-25: „Wenn man Wörter mit einem Bindestrich
+verbindet, dann sollte das Füllwort (und) wegfallen und da eher die kanonischen Begriffe verwendet
+werden. Also z. B. SST.“). In a head of three words „X- und Y“ (also oder, &) X- is a compound cut
+short (the tokenizer marks a word that ends in a hyphen) that shares its tail with Y: Signal- und
+Systemtheorie is Signaltheorie und Systemtheorie. The und drops, and X, the part of Y before its tail
+and the tail give a capital each: SST, Kinder- und Jugendhilfe KJH, Staats- und Verwaltungsrecht SVR,
+Arzt- und Medizinrecht AMR, Kolben- und Strömungsmaschinen KSM, Arbeits- und
+Beschäftigungssoziologie ABS, Bau- und Stadtbaugeschichte 1 BSG1. The tail is Y's last compound part
+as the splitter finds it (…theorie, …hilfe, …recht, …maschinen, …soziologie, …geschichte), and what
+stands before it is one term (Stadt|bau|geschichte: Stadtbau, S). The form takes the place and the
+class of the three initials (`hyphenTerms` in `internal/abbrev/candidates.go`). Where the splitter
+cannot take Y apart, its tail is unknown and the head keeps the three initials (Medien- und
+Kultursemiotik MuK: „Semiotik“ is no word of another title; an override line can give it MKS). After a
+word cut short no form inserts a function letter: when SST is taken, Signal- und Systemtheorie falls
+back to SSy, not SuS.
+
+Never derived: a form on `internal/abbrev/blocked.tsv` (SS, SA, NS, KZ, KKK, NPD, AfD, MfS, THC,
+NSA, IBM …: a public timetable must not show them next to a lecture; PO, WS, SWS and LP, which a
+study plan shows itself; CO, since Controlling II as Co2 read as the gas) and the capitals of the
+buildings of short room names (ZHG, HG, HS, LG, VG, ZB, SFB, SD …: a week grid shows a module and
+its room side by side), also with a series number or language level (SS1, SS-A1), and compared as
+uniqueness compares forms, so S&A is SA and a suffix NP-d is NPD; a title that has the form as a
+word of its own may use it. The review of 2026-09-25 added WS, SWS, LP, MfS and CO and the
+comparison without & and -: 20 defaults and 422 pairs moved (Wirtschaftssoziologie WS → Wir,
+Controlling II Co2 → Con2, Modellieren und FE-Simulieren MFS → MFES, Sustainability and
+Digitalisation S&D → SDi). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's two
+examples and a few well-known forms (BA, MA, DB, ABWL n, BS n, OOP, and three a module's own page
+uses) as a first candidate. It beats every derived candidate, whatever the tier, and the form of an
+owner or common line is reserved in the whole catalog: no module of another head derives AuP or MA
+(Datenbanken I may have DB1, Medienanalyse may not have MA). Where two lines' forms meet in a
+program, tier and priority decide; siblings with one line are told apart by their subtitle
+(Allgemeine Betriebswirtschaftslehre III: Investition … / Beschaffung … → ABWL3I / ABWL3B). The file
+is read strictly: five columns at most, a program id of the form `079-82-2008`, no pattern twice.
+
+Within a program, over all modules its students may select (curriculum, electives and FÜS), every
+abbreviation is unique, compared without case and without the & and - a reader passes over (B&B
+and BB are one form). So is its stem, the form without its series number or language level: ST for
+Steuerungstechnik next to ST1 and ST2 for Systemtheorie I and II reads as one series, so two
+different heads never share a stem, while a series (Systemtheorie I, II) keeps its own.
+
+**A contested form goes to the better match** (the owner, 2026-09-25: „Wenn das Kürzel schon
+existiert, dann darf das Modul das Kürzel behalten, das den höheren Matching-Score hat — muss
+kaskadieren, achte aber drauf, dass es nach 3 Mal garantiert terminiert.“). Every candidate has a
+matching score, one scale for all modules (`internal/abbrev/assign.go`; `docs/data-sources.md` §13):
+10,000 for the form of an override line, 9,000 for an acronym the title states for itself, 8,000 for
+the initials of all words (EvS, or the terms of „X- und Y“), and 5,000 minus its cost for every
+other form (1 to 7,999: the word, compound and function-letter forms near 5,000, subtitle and longer
+forms lower, first letters lowest). A module's list is ordered by it. In a program's contest a module
+of that program's curriculum (compulsory, thesis, internship, elective) scores 5,000 more for every
+form, a FÜS module nothing (the owner, 2026-09-25: „Alle Module, die in einem Curriculum existieren
+und nicht ausschließlich FÜS sind, sollten da auch nochmal einen ordentlichen Boost bekommen.“). The
+bonus is the width of the derived band: a curriculum module's derived form of ordinary cost (below
+1,000) outranks everything a FÜS module derives, its initials and a stated acronym included; only a
+FÜS module's override line can still beat it. It goes by the program, not the module, because 170 of
+the 171 modules any program offers as FÜS are in another program's curriculum. Within one module every
+form gets it, so no list changes its order. In a program:
+
+1. **Claim.** Every module claims its best candidate. Where two claims conflict — one form for two
+   titles, or one stem for two heads — the higher score (with the curriculum's bonus) keeps it; a
+   tie goes to the module first in priority order (compulsory modules, the thesis and internships,
+   then other curricular modules, then FÜS; within a tier the plan semester, then the module number).
+2. **Cascade, at most three rounds.** Every module claims the first candidate of its list it can win
+   — one nobody holds, or one whose holders all score lower for theirs (a tie again to priority) —
+   if that comes before the form it holds: a module without a form, and one whose better form has
+   come free again because the module that took it was displaced in turn. It takes it, and a holder
+   it beats is displaced and claims again in the next round.
+3. **Rest.** After the third round, one at a time and best first, a module takes a candidate before
+   the one it holds (any, without a form) that conflicts with nothing held; nobody is displaced any
+   more. A module whose list is used up gets its first form with a letter (`-b` … `-z`, `-bb` …) that
+   no form or stem of the program has and that reads as no blocked form and no form reserved for
+   another head (NP-d would be NPD).
+
+It terminates: the claim and the three rounds are four passes; the rest displaces nobody, so each of
+its steps gives a module a form or moves a holder up its list, which ends; and there are far more
+letter suffixes than holders and blocked forms. Ties go by priority in every round, not to whoever
+holds the form, so a displacement is never undone by a tie (the loop of a naive cascade: A takes X
+from B, B takes it back), and going back to a form that came free cannot loop either. What the
+round limit can leave is a module that would still beat the holder of a better form: the rest takes
+only free forms. Before the review of 2026-09-25 a module never went back, so a form it had lost
+could come free and stay unused (M loses AB to H, N of M's series takes the stem AB from H with AB2,
+and M ended with ZZ; now M gets AB). On the data of 2026-09-23 this moved no pair. Within the
+curriculum the better match wins whatever the kind: next to the compulsory „Einführung in die
+Logistik“ (EiL, a derived form) an elective „Elektronik im Labor“ (EiL, its initials) keeps EiL; were
+„Elektronik im Labor“ one of the program's FÜS offers, the bonus would give EiL to the compulsory
+module (4,950 + 5,000 against 8,000). With equal scores priority decides:
+Grundzüge der Makro- and Mikroökonomik are both GdM; the first in priority order keeps it, the other
+takes GMÖ. This replaced the rule that a contested form goes to neither (GMa / GMi, M4); whether a
+tie should still go to neither is open (M12 in `docs/data-sources.md` §13).
+
+Siblings — one head, different subtitles — are told apart by the subtitle (Dynamik der
+Kraftfahrzeuge - Längs-/Querdynamik → DKL / DKQ). Identical titles share the form in the contest and
+then get `-b`, `-c` (two „Häusliche Gewalt“ of Soziale Arbeit: HäG, HäG-b); the plain form goes to
+the better claim, which is the first in priority order unless an override line gives one of them
+another list. `module_abbrev` holds the form without a program for every module: its best candidate.
+Defaults are not contested: a module without a program sits next to no other, a catalog-wide contest
+over 4,936 modules would take forms from modules that are never read side by side (68 modules share
+the title Bachelorarbeit), and a program's form is its module's default in 96.6 % of the pairs
+anyway.
+
+The result depends only on the catalog, never on the order it is read in, but not only on the
+program: a new module can move the forms of its own program, and a new title anywhere can move forms
+in every program, because the compound splitter and its mined heads learn from all titles (before
+the open heads, one added title „Wechselstrom und Gleichstrom“ turned Wechselstromtechnik from Wec
+into WT in 12 programs). The owner accepted that; `build.finished` counts the pairs whose form moved
+since the build before as `abbrev_changed`.
+
+On the data of 2026-09-23: 4,936 modules and 28,424 (program, module) pairs in 182 programs, no
+duplicate, no blocked form, no stem two heads share; 71.8 % of the pairs have exactly three
+characters and 94.7 % at most four (68.2 % of the modules' defaults have three); 97.7 % got their
+first choice (mean 3.7 fallbacks per program); 94.6 % of the modules have the same form in every
+program they are in, and 96.6 % of the pairs the module's default. The three initials of the whole
+title moved 372 defaults and 2,680 pairs (2,619 to that form, 61 as a knock-on); the scored
+assignment then moved 567 pairs and no default; the review's fixes 20 defaults and 422 pairs (280
+newly blocked, 133 Industrial Heating Systems and their Defossilization IHSTD → IHS, whose „their“
+is an article now, 9 S&D); the owner's calls of the same day 86 defaults and 1,389 pairs: the terms
+of „X- und Y“ 1,334 (1,317 to the terms, 17 in contests), the curriculum's bonus 73 and no default
+(34 curricular pairs that had lost a form to a FÜS module keep it; fallbacks of curricular pairs
+445 → 410, of FÜS pairs 234 → 268). 18 programs are settled by the claim, 142 need one cascade
+round, 22 two, none three; one list runs out („Methods“ in 013-D8-2022, Met-b). AuP and EEG hold in
+all 110 of their program pairs; in Umweltwissenschaften Bachelor 2025 (G29-82-2025) the internship
+„Außeruniversitäres Praktikum“ no longer takes AuP. The snapshot grows by 1.7 MB.
+`internal/abbrev/testdata/gate` holds the forms of four programs and every default on
+`catalog-abca4baa1d8f8d8e.db` (schema 8, data of 2026-09-23). With `RADIX_ABBREV_GATE=<that
+snapshot> go test ./internal/abbrev -run TestGate -v` the test prints what a rule change moves, and
+fails on a blocked form or a stem two heads of a program share; `RADIX_ABBREV_GATE_STRICT=1` also
+fails on any difference, and `RADIX_ABBREV_GATE_WRITE=1` writes the files again (their comment lines
+stay: add the new rule to them by hand).
+
+`validate` fails when an event date with a room has no short form, a short form names two rooms, a
+module or a program's module has no abbreviation, a program has one twice (without case, & and -), a
+derived one is blocked (`abbrev.Blocked`, the list the derivation reads), or one is not 2 to 10
+characters without spaces (an override line may name a blocked form, but the letter suffix of its
+twin is checked); a baseline, at least 55 % of the modules with a default of exactly three
+characters (68 % now), catches a derivation that silently degrades. It counts modules, not program
+pairs: a FÜS module is in about 60 programs, so a few new language courses would move a share of
+pairs by themselves. A database migrated to schema 9 but not built again fails the first of these,
+so it is never exported: after the release, an instance that does not crawl (`RADIX_CRAWL=off`)
+needs `radix build`, then `validate` and `export` (`docs/operations.md`; `deploy/vps/50-app.sh`
+builds a seeded volume before its first export). The build warns with `build.rooms_unknown_building`
+(an event room names a building the table lacks), `build.room_short_collisions` (two rooms would
+share a form and keep their long form) and `build.abbrev_overrides_unused` (a line of the override
+file applies to no module: a module number the catalog lacks, a program without that module, a
+pattern that matches nothing an earlier line does not take); each wants a line in the table or the
+file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_changed`.
+
 Open:
 
+- **Schema 9 in Folia.** `catalog::SCHEMA_VERSION` (`catalog/src/db.rs`) is still 8: this lane changes
+  no Folia code, so `catalog::tests::the_queries_are_written_for_the_newest_schema` fails while
+  migration 0009 is in the tree. The merge must carry the Folia side with it: raise the constant to 9
+  (browsers then refuse an older snapshot, so every instance needs `radix build`, then `export`,
+  before the web build that reads 9 goes live), and pin `STUDYPLAN_DIGEST` (`catalog/src/tests.rs`,
+  `server/src/tests.rs`) to a schema-9 export in `snapshot/`: the digest covers `module_abbrev` and
+  `program_module_abbrev`, so no schema-9 snapshot matches the pinned 4b65e821… and the pinned checks
+  are skipped until then.
 - **Web server (Rust) and frontend.** Both still read the v1 layout and do not work against a
   snapshot. The server becomes an HTTP client of the service: poll `/snapshot/catalog.db` with
   `If-None-Match`, keep the file, serve it as `/api/db` with the same ETag, and answer SSR pages

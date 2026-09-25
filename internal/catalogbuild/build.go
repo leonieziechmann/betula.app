@@ -20,6 +20,7 @@ import (
 // derivedTables are replaced as a whole by every build, children first.
 // plan, plan_entry and plan_scan_status are a source of their own and stay.
 var derivedTables = []string{
+	"program_module_abbrev", "module_abbrev",
 	"module_facet", "program_module",
 	"module_event", "event_date", "event_person", "event_form", "event", "semester",
 	"program_module_assertion", "module_program_ref",
@@ -64,6 +65,14 @@ type Report struct {
 	EventsFromList      int // events whose dates come from the event search: no page yet, or one older than a change the list shows
 	EventLinksNoArchive int // events a module page links that are not archived yet
 
+	// Short names (docs/schema-v2.md, „Short names“).
+	RoomsUnknownBuilding  map[string]int // event rooms whose building the table lacks → event dates
+	RoomShortCollisions   []string       // event rooms that kept their long form: their short form was not unique
+	AbbrevOverridesUnused []string       // lines of the override file that apply to no module
+	AbbrevFellBack        int            // (program, module) pairs that did not get their first choice
+	AbbrevTwins           int            // pairs with -b, -c … after an identical title in the program
+	AbbrevChanged         int            // pairs whose abbreviation differs from the previous build's
+
 	// Unused lists archived pages that are not part of the current dataset: module pages
 	// of modules that left the lists, tree pages the root no longer reaches. source → keys.
 	Unused map[string][]string
@@ -74,7 +83,8 @@ type Report struct {
 // Log events: build.started, build.finished, build.failed (ERROR), and one WARN per
 // kind of source data the build could not use (build.unresolved_refs,
 // build.tree_leaves_without_module, build.tree_pages_missing, build.plans_without_program,
-// build.plan_entries_unknown_module, build.modules_without_page).
+// build.plan_entries_unknown_module, build.modules_without_page, build.rooms_unknown_building,
+// build.room_short_collisions, build.abbrev_overrides_unused).
 func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	log := oplog.For("build")
 	start := time.Now()
@@ -101,10 +111,14 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	warn(len(report.PlansWithoutProgram), "build.plans_without_program", "validated plans belong to programs that no longer exist", "programs", report.PlansWithoutProgram)
 	warn(report.PlanEntriesUnknownModule, "build.plan_entries_unknown_module", "plan entries are matched to modules that are not in the catalog")
 	warn(len(report.UnpairedEnglishDep), "build.unpaired_departments", "English department names have no German counterpart", "names", report.UnpairedEnglishDep)
+	warn(len(report.RoomsUnknownBuilding), "build.rooms_unknown_building", "event rooms name a building the short-name table lacks; they keep the building's full name", "examples", examples(report.RoomsUnknownBuilding, 5))
+	warn(len(report.RoomShortCollisions), "build.room_short_collisions", "rooms would share a short form; they keep their long form", "rooms", first(report.RoomShortCollisions, 10))
+	warn(len(report.AbbrevOverridesUnused), "build.abbrev_overrides_unused", "lines of the abbreviation override file apply to no module", "lines", report.AbbrevOverridesUnused)
 
 	log.Info("build finished", "event", "build.finished", "duration_ms", time.Since(start).Milliseconds(),
 		"modules", report.Modules, "programs", report.Programs, "events", report.Events, "events_from_list", report.EventsFromList,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
+		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
 		"content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil
 }
@@ -154,11 +168,12 @@ func Unused(ctx context.Context, db *catalogdb.DB) (map[string][]string, error) 
 
 func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	report := &Report{
-		BuiltAt:            time.Now().UTC().Truncate(time.Second),
-		TreeLeavesNoModule: make(map[string]int),
-		PageRefsUnresolved: make(map[string]int),
-		Assertions:         make(map[string]int),
-		Unused:             make(map[string][]string),
+		BuiltAt:              time.Now().UTC().Truncate(time.Second),
+		TreeLeavesNoModule:   make(map[string]int),
+		PageRefsUnresolved:   make(map[string]int),
+		Assertions:           make(map[string]int),
+		Unused:               make(map[string][]string),
+		RoomsUnknownBuilding: make(map[string]int),
 	}
 
 	// Parse everything before the transaction starts: parsing is the slow part
@@ -177,6 +192,10 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	var previousDigest, dataChangedAt string
 	_ = tx.QueryRow("SELECT value FROM meta WHERE key = 'content_digest'").Scan(&previousDigest)
 	_ = tx.QueryRow("SELECT value FROM meta WHERE key = 'data_changed_at'").Scan(&dataChangedAt)
+	previousAbbrevs, err := readAbbreviations(tx)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, table := range derivedTables {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
@@ -184,7 +203,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		}
 	}
 
-	b := &builder{tx: tx, src: src, report: report}
+	b := &builder{tx: tx, src: src, report: report, previousAbbrevs: previousAbbrevs}
 	steps := []struct {
 		name string
 		run  func() error
@@ -196,7 +215,9 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"module page assignments", b.writePageAssignments},
 		{"plan assertions", b.writePlanAssertions},
 		{"events", b.writeEvents},
+		{"room short forms", b.writeRoomShorts},
 		{"materialized views", b.materialize},
+		{"abbreviations", b.writeAbbreviations}, // needs module and program_module
 		{"meta", b.writeMeta},
 	}
 	for _, step := range steps {
@@ -241,6 +262,8 @@ type builder struct {
 	moduleIDs     map[string]bool  // modules written
 	programs      []*program       // programs written
 	programByID   map[string]*program
+
+	previousAbbrevs map[[2]string]string // (program, module) → the abbreviation of the build before
 }
 
 // materialize evaluates the two expensive *_src views once per build. The public

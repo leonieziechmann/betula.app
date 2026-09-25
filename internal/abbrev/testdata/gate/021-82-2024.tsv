@@ -1,0 +1,202 @@
+# 021-82-2024: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS); and the owner's calls of 2026-09-25: a head „X- und Y“ by its terms (SST, KJH, BSG1), a module of the program's curriculum scores 5,000 more than a FÜS module.
+11101	LAAG1	Lineare Algebra und analytische Geometrie I
+11109	MW1	Mathematik W-1
+11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
+11117	MW2	Mathematik W-2
+11132	FW	Finanzwissenschaft
+11162	WP	Wirtschaftsprüfung
+11300	SeV	Seminar Volkswirtschaftslehre - Mikroökonomik
+11341	SWP	Seminar Wirtschaftspolitik
+11343	BA	Bachelor-Arbeit
+11377	HoA	History of Architecture
+11525	Sta	Statik - Stabtragwerke
+11672	AdV	Atelier de VisioFutura: Auf dem Weg zum Lebensraum von Morgen
+11675	EPW	Einführung in die Produktionswirtschaft
+11679	EiL	Einführung in die Logistik
+11692	MuK	Medien- und Kultursemiotik
+11694	VTr	Vorgespannte Tragwerke
+11796	BEn	Business English
+11799	PmV	Programmierung mit VBA
+11812	EEF	Energieeffiziente Fahrzeuge
+11828	KSM	Kolben- und Strömungsmaschinen
+11851	Dar	Darstellung
+11913	TMo	Turbulence Modeling
+11914	PMO	Programmieren in MATLAB/Octave
+11915	GrW	Grundlagen der Werkstoffe
+11917	MW3	Mathematik W-3 (Statistik)
+11945	ABWL5	Allgemeine Betriebswirtschaftslehre V: Finanzierung, Investition und Steuern
+11949	GMÖ	Grundzüge der Makroökonomik
+11952	GdM	Grundzüge der Mikroökonomik
+11957	ABWL3	Allgemeine Betriebswirtschaftslehre III: Beschaffung, Produktion und Absatz
+11958	DM	Dienstleistungsmarketing
+11966	ABWL6	Allgemeine Betriebswirtschaftslehre VI: Unternehmensführung und Ethik
+11971	ABWL4	Allgemeine Betriebswirtschaftslehre IV: Kosten- und Leistungsrechnung
+11972	SUM	Seminar Unternehmensentwicklung und Marktstrukturen
+12014	FuB	Finanzintermediation und Bankenregulierung
+12024	PM	Personalmanagement
+12105	EiP	Einführung in die Programmierung
+12107	EEG	Elektrische und elektronische Grundlagen der Informatik
+12144	PIB	Personalökonomie und Industrielle Beziehungen
+12160	ABWL1	Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL
+12167	IRE	Innovationsraum Europa
+12168	AEW1	Allgemeine Energiewirtschaft 1
+12177	PrP	Praktische Philosophie
+12181	ITF	Interdisziplinäre Technikforschung
+12217	WLN	Wissenschaftstheorie, Logik und Naturphilosophie
+12224	MR	Medienrecht
+12225	SVR	Staats- und Verwaltungsrecht
+12226	UR	Umweltrecht
+12229	ABWL2	Allgemeine Betriebswirtschaftslehre II: Buchführung und Handelsbilanzierung
+12230	BP	Berufsfeldpraktikum
+12231	GM	Gründungsmanagement
+12246	IM	Innovationsmanagement
+12247	GSR	Grundlagen Steuerrecht
+12255	SIM	Seminar Innovation und Marketing
+12258	UWA	Grundzüge des Umweltingenieurwesens / Wissenschaftliches Arbeiten
+12260	BSR	Bilanzsteuerrecht
+12261	EcE	Ecological Excursion
+12264	AlC	Allgemeine Chemie
+12330	DB	Datenbanken
+12608	QS	Qualitätssicherung
+12642	ESEd	EEEIC SEd - International Conference on Environment and Electrical Engineering - Student Edition
+12683	ME	Maschinenelemente
+12696	GET	Grundlagen der Elektrotechnik
+12727	GdB	Grundlagen der Biologie
+12769	MBS	Molecular Biotechnology and Society
+12774	EC	Experimentalchemie
+12894	RT1	Regelungstechnik 1
+13102	PfI	Physik für Ingenieure
+13103	Ch1	Chemie I: Allgemeine und Anorganische Chemie
+13109	PTN	Philosophy of Technology and Nature
+13110	BNS	Basic Natural Sciences
+13218	NPÖ	Neue Politische Ökonomie
+13234	CST	Communication of Science and Technology
+13251	CTP	Introduction to Computational Thinking and Programming for CFD
+13254	IBMT	Image Based Measurement Techniques for Aerodynamics
+13268	EÖD	Einführung in die ökonometrische Datenanalyse
+13281	SST	Signal- und Systemtheorie
+13296	AEE	Aktuelle Entwicklungen der Energiewende
+13354	RRE	Rechtliche Rahmenbedingungen der Existenzgründung
+13356	GCLR	Global Change and Legal Response
+13431	EuH	Ethik und Handeln
+13463	NuT	Natur und Technik
+13467	Kom	Kommunikation
+13480	AKA	Angewandte Kennzahlenanalyse
+13519	CFD1	CFD 1
+13582	MKG	Methodisches Konstruieren und Gestalten
+13588	PS-A1	Polnisch Start A1
+13655	UDK	Un/Disciplining Knowledge: Technology, Science, and Society in Transformation
+13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
+13666	VVe	Visualisierung, Vertiefung
+13671	RAT	Reaktions- und Anlagentechnik
+13674	KG1	Kunstgeschichte 1
+13676	DP	Denkmalpflege
+13681	BMG	Bildkünste Moderne und Gegenwart
+13682	GuT	Geschichte und Theorie von Stadt, Raum und Landschaft
+13707	KDF	Kulturwissenschaftliche Digitalisierungsforschung
+13711	CTSR	Colloquium Transdisciplinary Sustainability Research
+13712	AnE	Angewandte Ethik
+13717	DIP	Decarbonisation of Industrial Processes
+13730	SDG	Sozialphilosophie der digitalen Gesellschaft
+13733	SWDG	Sozialer Wandel in der digitalen Gesellschaft
+13734	IGWA	Interdisziplinärer Grundkurs wissenschaftliches Arbeiten
+13761	NMN	Nachhaltigkeits-Marketing, Nachhaltigkeit und Betriebswirtschaftslehre
+13772	PSÖWN	Psychologie des sozial-ökologischen Wandels, und Nachhaltigkeit und Betriebswirtschaftslehre
+13781	KTU	Kulturgeschichte von Technik und Umwelt
+13782	PSÖWNM	Psychologie des sozial-ökologischen Wandels und Nachhaltigkeits-Marketing
+13787	PES	Projektpraktikum Elektronische Schaltungstechnik
+13792	WV	Wissensverwertung
+13794	GdE	Grundlagen der Energiewende
+13819	SFT	Studierstrategien und Fachsprache Technik
+13833	A&M	Analysis and Modelling of Human-Environment Systems
+13873	RdD	Recht der Digitalisierung
+13891	IFRS	International Financial Reporting Standards (IFRS) und Unternehmensbewertung
+13915	IÖWI	Internationale Ökonomik und wirtschaftliche Integration
+13933	SBG	Seminar Betriebliches Gesundheitsmanagement
+13934	SMK	Seminar Managementkonzepte
+13935	SDW	Seminar Demographischer Wandel und die Auswirkungen auf das Personalmanagement
+13937	SIHRM	Seminar International Human Resource Management
+13940	GlS	Global Studies - Massive Open Online Course
+13941	AdW	Anwendungsprogramme der Wirtschaftsinformatik
+13946	M&D	Mobility and Digitalisation
+13947	SEW	Seminar Empirische Wirtschaftsforschung
+13961	AHG	Arbeitsrecht sowie Handels- und Gesellschaftsrecht
+13962	BüR	Bürgerliches Recht
+13964	GTE	Geothermal Energy
+13968	FGBA	Formelle Grundlagen der Besteuerung und Außensteuerrecht
+13977	GdW	Grundlagen der Wirtschaftsinformatik
+13980	EiÖ	Einführung in die Ökonomie - Theorie und Praxis
+13981	SIH	Seminar Interkulturelle Handlungsfähigkeit im Zeitalter der Digitalisierung
+13982	BC	Bankcontrolling
+14011	EAP	English for Academic Purposes
+14024	KRE	Klimaschutzrecht und das Recht der Energiewende
+14036	SPLS	Scientific Presentation in Life Sciences
+14039	MSe	Marketing Seminar für erfolgreiche sozialwissenschaftliche Arbeiten
+14042	SMF	Seminar Mitarbeiterführung
+14054	IMDA	Immunological Methods and Data Analysis
+14080	SIE	Seminar Innovation und Entrepreneurship
+14095	EE	Energiemanagement/Energieeffizienz
+14096	BIS	Betriebliche Informationssysteme
+14146	AVV	Architektur verstehen und vermitteln
+14147	MoT	Media of Transformation - Film Course
+14152	SFN	Studierstrategien & Fachdeutsch Nachhaltigkeit
+14308	UFM	Urban Future Making - Neue Orte und Freiräume gestalten
+14414	DAPM	Data Analytics and Process Modelling
+14509	LMG	Logisch-mathematische Grundlagen der Medien- und Kulturwissenschaft
+14719	OpM	Operations Management
+14720	TIM	Technology and Innovation Management
+14721	CFi	Corporate Finance
+14725	IHS	Industrial Heating Systems and their Defossilization
+14727	SCC	Studieren mit ChatGPT & Co
+14811	DPT	Demokratische Praxis in Transformationsgesellschaften
+14812	LMC	Leadership and Management Competencies - EUNICE Container Module
+14814	SWR	Introduction to Scientific Writing and Reviewing
+14816	EHP	English for Healthcare Professions
+14871	FiG	Fundraising im Gründungsprozess
+14885	IPBM	EUNICE Individual Pathway Bachelor's Module
+14891	PSE	Projektseminar Entrepreneurship
+14898	CTV	CampusTV: Uni-Reportage
+14901	IPMM	EUNICE Individual Pathway Master's Module
+14998	CBi	Conservation Biology
+15003	PSDS	Privacy, Surveillance, and Digital Society
+15013	ItT	Introduction to Toxicology - How Our Everyday Chemicals Are Regulated
+15014	WKE	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
+15023	It-A1	Italian A1 for Student Life, Job and Daily Life
+15026	SR	Schulrecht
+15028	AMR	Arzt- und Medizinrecht
+15031	EEM	Einführung in die Elementare Musikpädagogik
+15032	MKJ	Musikwissenschaft Klassik und Jazz/Rock/Pop
+15050	VM	Veranstaltungsmanagement
+23503	ScT	Schwingungsanfällige Tragwerke
+25102	BSG1	Bau- und Stadtbaugeschichte 1
+25106	CBEF	Conservation / Building in Existing Fabric
+25404	BTG	Bautechnikgeschichte
+25405	TdA	Theorie der Architektur
+25421	GdK	Grundlagen der Kunstgeschichte
+31102	TM1	Technische Mechanik 1: Statik und Festigkeitslehre
+31303	HSM	Höhere Strömungsmechanik
+31311	MFA	Maschinen- und Fahrzeugakustik
+31409	FSS	Fahrzeug- und Strukturschwingungen
+33107	SeC	Seminar CampusTV
+33432	AMW	Angewandte Medienwissenschaften
+36303	IiU1	Informationssysteme in Unternehmen I
+36308	Pro	Projektmanagement
+36315	QM	Qualitätsmanagement
+36319	IiU2	Informationssysteme in Unternehmen II
+36403	GdQ	Grundlagen der Qualitätslehre
+36504	KuL	Kommunikation und Lernstrategien
+37102	DCH	Discourses on Culture and Heritage
+37103	Soz	Soziologie
+37202	KW	Kulturwissenschaften: Konzepte und Anwendungen
+37406	FFH	Fundraising and Finance for Heritage
+38308	MMa	Marketing-Management
+38311	Con1	Controlling I
+38323	EWP	Einführung in die Wettbewerbs- und Preistheorie
+38402	MF	Marktforschung
+38502	UF	Unternehmensführung
+41103	Bio	Biologie
+43503	DT	Deponietechnik
+43504	BVBA	Biologische Verfahren der Biomasse- und Abfallbehandlung
+44203	GP	Grenzflächenphänomene
+44204	EBT	Environmental Biotechnologies

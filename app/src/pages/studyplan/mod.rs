@@ -78,8 +78,10 @@ pub(super) struct PlanCtx {
     pub url: Memo<StudyplanUrl>,
     /// `meta.current_semester` of the local snapshot (a cached answer): „jetzt".
     pub current: Memo<Option<SemesterKey>>,
-    /// The semester shown and its planned modules, in the order they were planned.
-    pub wanted: Memo<(SemesterKey, Vec<String>)>,
+    /// The semester shown, its planned modules in the order they were planned, and the program
+    /// the timetable is for (the plan's, else „Mein Studiengang"), whose abbreviations the week
+    /// grid names the modules by.
+    pub wanted: Memo<(SemesterKey, Vec<String>, Option<String>)>,
     /// The semester shown (`wanted.0`), for the views.
     pub key: Memo<SemesterKey>,
     /// Everything the semester's timetable is made of (`pages::studyplan`), with the ids in plan
@@ -169,16 +171,17 @@ pub fn StudyplanPage() -> impl IntoView {
         match plan {
             Some(plan) => plan.with(|doc| {
                 let key = key_of(&url, current, doc, today);
-                (key, doc.modules_in(key))
+                let program = doc.program.clone().or_else(|| mine.and_then(|mine| mine.with(|mine| mine.program.clone())));
+                (key, doc.modules_in(key), program)
             }),
-            None => (key_of(&url, current, &PlanDoc::default(), today), Vec::new()),
+            None => (key_of(&url, current, &PlanDoc::default(), today), Vec::new(), None),
         }
     });
     let key = Memo::new(move |_| wanted.with(|wanted| wanted.0));
     let data = Memo::new(move |_| {
-        let (key, ids) = wanted.get();
+        let (key, ids, program) = wanted.get();
         source.with_value(|source| match source {
-            Some(source) => source.run(|db| pages::studyplan(db, key, &ids)),
+            Some(source) => source.run(|db| pages::studyplan_in(db, key, &ids, program.as_deref())),
             None => Err(DataError { unavailable: true, message: "no data source was provided".to_string() }),
         })
     });

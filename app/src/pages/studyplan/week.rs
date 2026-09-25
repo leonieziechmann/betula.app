@@ -65,9 +65,9 @@ type Picked = (Option<String>, Option<RowKey>);
 pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
     let base = base_of(ctx);
     let picked = picked_of(ctx);
-    // The modules' titles, for the slots' short names: a sibling of the timetable, both derived
-    // from the semester's data (R16).
-    let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(|data| data.titles()).unwrap_or_default()));
+    // What the slots name the modules by, their abbreviations („EvS"; owner, 2026-09-25: only where
+    // no title fits): a sibling of the timetable, both derived from the semester's data (R16).
+    let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default()));
     let slots = Memo::new(move |_| {
         let (base, shown) = (base.get(), ctx.weeks.get());
         titles.with(|titles| ctx.table.with(|table| table.as_ref().map(|table| week_slots(table, &base, titles, shown)).unwrap_or_default()))
@@ -433,7 +433,7 @@ fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &B
     // the rooms, and the dates of single ones.
     let mut title = vec![event_text(event), format!("{} {}–{}", day_short(item.day), clock(item.from), clock(item.to))];
     title.extend(notes.iter().cloned());
-    title.extend(rooms(rows.iter().map(|row| &row.date)));
+    title.extend(rooms_long(rows.iter().map(|row| &row.date)));
     if matches!(item.label, WeekLabel::Once { dates, .. } if dates > 1) {
         let mut days: Vec<Day> = rows.iter().flat_map(|row| row.occ.days.iter().copied()).filter(|day| day.weekday() == item.day).collect();
         days.sort_unstable();
@@ -1135,8 +1135,21 @@ fn names_kind(title: &str, kind: &str) -> bool {
     !kind.contains('/') && first(kind).is_some_and(|word| first(title) == Some(word))
 }
 
-/// The rooms of rows, each once, as QIS writes them: „HG 0.20 / HG 0.19".
+/// The rooms of rows, each once, as a student reads them at a glance: „HG/0.20 / HG/0.19" (the
+/// short forms of schema 9, QIS's names where a row has none).
 fn rooms<'a>(dates: impl Iterator<Item = &'a EventDate>) -> Option<String> {
+    let mut rooms: Vec<&str> = Vec::new();
+    for room in dates.filter_map(EventDate::room_shown) {
+        if !rooms.contains(&room) {
+            rooms.push(room);
+        }
+    }
+    (!rooms.is_empty()).then(|| rooms.join(" / "))
+}
+
+/// The rooms of rows, each once, as QIS writes them („Hauptgebäude - HG 0.20 - Zentralcampus"):
+/// for a tooltip, which has the room for them.
+fn rooms_long<'a>(dates: impl Iterator<Item = &'a EventDate>) -> Option<String> {
     let mut rooms: Vec<&str> = Vec::new();
     for room in dates.filter_map(|date| date.room.as_deref()).map(str::trim).filter(|room| !room.is_empty()) {
         if !rooms.contains(&room) {
@@ -1217,6 +1230,7 @@ mod tests {
                 instructor: None,
                 comment: None,
                 source_url: None,
+                room_short: None,
             },
         }
     }

@@ -131,6 +131,17 @@ pub struct EventDate {
     pub instructor: Option<String>,
     pub comment: Option<String>,
     pub source_url: Option<String>,
+    /// The room's short form as Radix derives it („ZHG/HS.C", schema 9); `room` keeps QIS's name.
+    #[serde(default)]
+    pub room_short: Option<String>,
+}
+
+impl EventDate {
+    /// The room as a student reads it at a glance: the short form, else QIS's name.
+    pub fn room_shown(&self) -> Option<&str> {
+        let short = self.room_short.as_deref().map(str::trim).filter(|room| !room.is_empty());
+        short.or_else(|| self.room.as_deref().map(str::trim).filter(|room| !room.is_empty()))
+    }
 }
 
 impl FromRow for EventDate {
@@ -155,6 +166,7 @@ impl FromRow for EventDate {
             instructor: row.opt_text("instructor")?,
             comment: row.opt_text("comment")?,
             source_url: row.opt_text("source_url")?,
+            room_short: row.opt_text("room_short")?,
         })
     }
 }
@@ -219,6 +231,19 @@ pub struct ModuleSws {
 impl FromRow for ModuleSws {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
         Ok(Self { module_id: row.text("module_id")?, form: Code::parse(&row.text("form")?), sws: row.real("sws")? })
+    }
+}
+
+/// A module's abbreviation („EvS"), as `queries::modules_abbrevs` picks it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModuleAbbrev {
+    pub module_id: String,
+    pub abbrev: String,
+}
+
+impl FromRow for ModuleAbbrev {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { module_id: row.text("module_id")?, abbrev: row.text("abbrev")? })
     }
 }
 

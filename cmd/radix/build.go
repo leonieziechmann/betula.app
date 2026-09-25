@@ -51,6 +51,11 @@ func printBuildReport(r *catalogbuild.Report, took time.Duration) {
 	fmt.Printf("Plans          %d entries point to modules not in the catalog; %d plans without a program %v\n",
 		r.PlanEntriesUnknownModule, len(r.PlansWithoutProgram), r.PlansWithoutProgram)
 	fmt.Printf("Events         %d (%d event links on module pages are not archived yet)\n", r.Events, r.EventLinksNoArchive)
+	fmt.Printf("Short names    %d rooms without a known building, %d rooms kept their long form; abbreviations: %d pairs fell back, %d twins, %d changed since the last build\n",
+		len(r.RoomsUnknownBuilding), len(r.RoomShortCollisions), r.AbbrevFellBack, r.AbbrevTwins, r.AbbrevChanged)
+	for _, line := range r.AbbrevOverridesUnused {
+		fmt.Printf("                 unused override %s\n", line)
+	}
 }
 
 func sum(m map[string]int) int {
@@ -144,7 +149,7 @@ func runExport(ctx context.Context, args []string) {
 			os.Exit(1)
 		}
 		if catalogdb.HasFailures(checks) {
-			fmt.Fprintln(os.Stderr, "Error: the database fails validation; run 'radix validate' (or pass --skip-validate).")
+			fmt.Fprintln(os.Stderr, "Error: the database fails validation; 'radix validate' says why. A database a new release has migrated needs 'radix build' first (a migration adds columns, the build fills them). --skip-validate exports it anyway, with what fails.")
 			os.Exit(1)
 		}
 	}
