@@ -151,6 +151,25 @@ deploy_edge() {
   fi
   deploy_stack edge "${files[@]}"
   wait_for_stack edge
+  remove_old_traefik_logs
+}
+
+# remove_old_traefik_logs - a stopped task container keeps its Docker log files, and Traefik's from
+# before the journald driver (stacks/edge.yml, "logging") hold its access log with visitors'
+# addresses in files that only rotate by size. They are history nobody needs: remove them. The
+# running task is left alone, as is every container whose log is in the journal already.
+remove_old_traefik_logs() {
+  local id driver
+  while IFS= read -r id; do
+    [[ -n "${id}" ]] || continue
+    driver="$(docker inspect --format '{{.HostConfig.LogConfig.Type}}' "${id}" 2>/dev/null || true)"
+    [[ -n "${driver}" && "${driver}" != "journald" ]] || continue
+    if docker rm "${id}" >/dev/null 2>&1; then
+      log "removed the stopped Traefik container ${id}: its ${driver} log files held the access log"
+    else
+      warn "could not remove the stopped Traefik container ${id} (docker rm ${id}): its log files hold the access log"
+    fi
+  done < <(docker ps -aq --filter "label=com.docker.swarm.service.name=edge_traefik" --filter status=exited --filter status=created --filter status=dead)
 }
 
 deploy_placeholder() {

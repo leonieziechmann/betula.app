@@ -17,7 +17,8 @@
 //! a newer writer may put into the fields it knows: kind bits it does not know are dropped, a town
 //! it does not know reads as „derive", and a program of another shape as none.
 //! The address is also what the logs see, so Folia's own log writes every path under
-//! `/calendar/` as one fixed text (`redacted_path`).
+//! `/calendar/` as one fixed text (`redacted_path`). The privacy notice lists what a code carries
+//! („Kalender-Abo" in app/src/pages/legal.rs): a field added here is a word added there.
 
 use serde::{Deserialize, Serialize};
 

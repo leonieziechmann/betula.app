@@ -52,7 +52,9 @@ limits_config:
   retention_period: 720h      # 30 days
   # Traefik's access log is the only stream with the addresses and user agents of site
   # visitors (personal data; German audience). Raw addresses are kept 7 days - long enough to
-  # look into abuse or an outage, and the period the privacy notice of betula.app has to name.
+  # look into abuse or an outage, the same as the host journal keeps its copy
+  # (vps/files/journald-betula.conf), and the period the privacy notice of betula.app names
+  # ("Zugriffsprotokoll" in app/src/pages/legal.rs): change them together.
   # The 30 days are meant for application and host logs. Traefik's own messages share the
   # stream and go with it; a failing renewal is covered by the certificate alert.
   # (Minimum period per stream is 24h; the selector takes label matchers only.)

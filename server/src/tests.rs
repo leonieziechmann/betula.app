@@ -329,6 +329,39 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     assert_eq!(request(&open, "/api/status", &[]).await.0, StatusCode::OK);
 }
 
+/// Impressum and Datenschutz are there without a catalog, name who runs Betula and how to reach
+/// them, and every page leads to them (§ 5 DDG): the ground at its end. The privacy notice has
+/// every part its sidebar lists. Needs no snapshot.
+#[tokio::test(flavor = "multi_thread")]
+async fn legal_pages_are_one_step_from_every_page() {
+    let router = crate::router(state(SnapshotStore::new(temp_dir("legal")).unwrap()));
+    for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
+        let (status, _, body) = request(&router, path, &[]).await;
+        let page = String::from_utf8(body).unwrap();
+        assert_eq!(status, StatusCode::OK, "{path} needs no snapshot");
+        for text in [app::pages::legal::NAME, "Querstraße 23", "14656 Brieselang", &format!("href=\"mailto:{}\"", app::pages::legal::EMAIL)] {
+            assert!(page.contains(text), "{path}: {text}");
+        }
+        let head = page.split("</head>").next().unwrap_or_default();
+        assert_eq!(head.contains("noindex"), app::pages::legal::PLACEHOLDER, "{path}");
+    }
+    let (_, _, body) = request(&router, catalog::url::PRIVACY, &[]).await;
+    let privacy = String::from_utf8(body).unwrap();
+    for part in &app::pages::legal::PRIVACY {
+        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, part.heading);
+    }
+
+    // Any other page, here the program overview, which says that it has no catalog: the ground at
+    // its end (`app::ground`) links both.
+    let (status, _, body) = request(&router, catalog::url::PROGRAMS, &[]).await;
+    let page = String::from_utf8(body).unwrap();
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    let ground = page.split("<footer class=\"ground\">").nth(1).and_then(|rest| rest.split("</footer>").next()).unwrap_or_default();
+    for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
+        assert!(ground.contains(&format!("href=\"{path}\"")), "the ground: {ground}");
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let real = std::fs::read(snapshot_file()).unwrap();
@@ -404,14 +437,15 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let home = String::from_utf8(body).unwrap();
     assert!(head(&home).contains("href=\"https://catalog.example/\" rel=\"canonical\"") && !head(&home).contains("noindex"));
     assert!(home.contains("class=\"map map-wide\"") && home.contains("class=\"map map-tall\""), "the landing page draws the map the snapshot was opened with");
-    // Impressum and Datenschutz: linked from the start page, and while they are placeholders they
-    // say so and are not indexed (deploy/ship.sh keeps them off an instance open to everybody).
+    // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
+    // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
+    // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).
     for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
         assert!(home.contains(&format!("href=\"{path}\"")), "the start page links {path}");
         let (status, _, body) = request(&router, path, &[]).await;
         let page = String::from_utf8(body).unwrap();
         assert_eq!(status, StatusCode::OK, "{path}");
-        assert_eq!(page.contains("Platzhalter"), app::pages::legal::PLACEHOLDER, "{path}");
+        assert!(page.contains(app::pages::legal::NAME), "{path} names who runs Betula");
         assert_eq!(head(&page).contains("noindex"), app::pages::legal::PLACEHOLDER, "{path}");
     }
 

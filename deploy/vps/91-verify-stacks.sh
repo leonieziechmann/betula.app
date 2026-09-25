@@ -5,7 +5,7 @@
 #   bash /opt/betula/vps/91-verify-stacks.sh                 # everything
 #   bash /opt/betula/vps/91-verify-stacks.sh tls headers     # only some sections
 #
-# Sections: services http tls headers ports app loki prometheus grafana alerts
+# Sections: services http tls headers ports accesslog app loki prometheus grafana alerts
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
 # Changes nothing. The only traffic it causes: a few requests to the site (which also put fresh
 # lines into Traefik's access log for the Loki check) and queries inside the monitoring stack.
@@ -31,7 +31,7 @@ require_ubuntu
 require_cmd docker curl openssl jq
 require_swarm_manager
 
-ALL_SECTIONS=(services http tls headers ports app loki prometheus grafana alerts)
+ALL_SECTIONS=(services http tls headers ports accesslog app loki prometheus grafana alerts)
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST:-${DEFAULT_GRAFANA_HOST}}"
 RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
 # Jobs that must be "up": five scraped by Prometheus (config/monitoring/prometheus.yml), two
@@ -386,6 +386,32 @@ check_ports() {
   fi
 }
 
+check_accesslog() {
+  section "access log (through the journal, which deletes it after 7 days; nowhere else on the host)"
+  local driver id line state kept=0
+  driver="$(docker service inspect edge_traefik --format '{{with .Spec.TaskTemplate.LogDriver}}{{.Name}}{{end}}' 2>/dev/null || true)"
+  if [[ "${driver}" == "journald" ]]; then
+    pass "edge_traefik logs through journald (7 days: vps/files/journald-betula.conf, as the privacy notice says)"
+  else
+    fail "edge_traefik logs through '${driver:-the daemon default}', not journald: its access log sits in Docker's local files, which rotate by size only (bash ${BETULA_ROOT}/vps/40-stacks.sh edge)"
+  fi
+  # A container's driver is fixed when it is created: an older task may still have local files.
+  while IFS= read -r id; do
+    [[ -n "${id}" ]] || continue
+    line="$(docker inspect --format '{{.State.Status}} {{.HostConfig.LogConfig.Type}}' "${id}" 2>/dev/null || true)"
+    state="${line%% *}"
+    driver="${line#* }"
+    [[ -n "${line}" && "${driver}" != "journald" ]] || continue
+    kept=1
+    if [[ "${state}" == "running" ]]; then
+      fail "the running Traefik container ${id} logs to Docker's ${driver} files: bash ${BETULA_ROOT}/vps/40-stacks.sh edge"
+    else
+      fail "the ${state} Traefik container ${id} keeps its access log in Docker's ${driver} files: docker rm ${id} (40-stacks.sh edge does it)"
+    fi
+  done < <(docker ps -aq --filter "label=com.docker.swarm.service.name=edge_traefik")
+  if [[ "${kept}" -eq 0 ]]; then pass "no Traefik container keeps log files of its own"; fi
+}
+
 check_app() {
   section "application (every instance in stacks/*.env: router, release, crawling, certificate, alive, closed testing)"
   local name url rule radix_tag folia_tag radix_args code out body path live deployed=0
@@ -515,6 +541,14 @@ check_loki() {
     pass "{job=\"journal\"} with a unit label: ${value} lines (the ssh and OOM alert rules read these)"
   else
     fail "no {job=\"journal\"} lines in the last 15 minutes: the host journal is not shipped (is /var/log/journal persistent? docker service logs monitoring_alloy)"
+  fi
+  # Traefik's lines are in the journal too (journald driver); Alloy ships them as container logs
+  # only. A copy under job="journal" would keep the addresses 30 days instead of 7.
+  value="$(loki_value 'sum(count_over_time({job="journal"} |= "DownstreamStatus" [15m]))' || true)"
+  if [[ -z "${value}" || "${value}" == "0" ]]; then
+    pass "no access log lines under {job=\"journal\"} (Alloy drops the journal's copy of container lines)"
+  else
+    fail "${value} access log lines under {job=\"journal\"} in the last 15 minutes, kept 30 days there: loki.relabel \"journal\" in config/monitoring/alloy/config.alloy (40-stacks.sh monitoring)"
   fi
 }
 
