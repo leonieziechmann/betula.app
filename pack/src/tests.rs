@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::bits::Bits;
-use crate::{from_code, text, to_code, Error, MAX_LEN};
+use crate::{from_code, from_versioned_code, text, to_code, to_versioned_code, Error, MAX_LEN, MAX_VERSION};
 
 /// A random number (xorshift64*): the tests run the same every time.
 pub(crate) fn next(state: &mut u64) -> u64 {
@@ -179,6 +179,36 @@ fn a_field_added_at_the_end_reads_as_absent_from_older_codes() {
     assert_eq!(from_code::<Before>("", &after), Err(Error::Trailing));
     let after = there_and_back("", &After { id: 12204, events: vec![1], ..After::default() });
     assert_eq!(from_code::<Before>("", &after), Err(Error::Trailing));
+}
+
+#[test]
+fn a_versioned_code_names_its_layout() {
+    // The bits 100 (format 1), then the layout in four bits: 1 is 1000. The number 1 + 8 = 9, `J`;
+    // h = 9 + 1 = 10: `AK`. The price is six bits.
+    assert_eq!(to_versioned_code("", 1, &()).unwrap(), "JAK");
+    let code = to_versioned_code("plan", 1, &Before { id: 12204 }).unwrap();
+    assert_eq!(from_versioned_code::<Before>("plan", 1, &code), Ok(Before { id: 12204 }));
+    // Another layout names itself, whatever it holds; the plain code and the versioned one never
+    // pass for each other.
+    assert_eq!(from_versioned_code::<Before>("plan", 2, &code), Err(Error::Version(1)));
+    assert_eq!(from_versioned_code::<After>("plan", 2, &code), Err(Error::Version(1)));
+    assert_eq!(from_code::<Before>("plan", &code), Err(Error::Format));
+    let plain = to_code("plan", &Before { id: 12204 }).unwrap();
+    assert_eq!(from_versioned_code::<Before>("plan", 1, &plain), Err(Error::Format));
+    assert_eq!(from_versioned_code::<Before>("bookmarks", 1, &code), Err(Error::Check));
+    // Every layout from 0 to 15, and none above.
+    for version in 0..=MAX_VERSION {
+        let code = to_versioned_code("plan", version, &everything()).unwrap();
+        assert_eq!(from_versioned_code::<Everything>("plan", version, &code).as_ref(), Ok(&everything()), "{version}");
+        let other = (version + 1) % (MAX_VERSION + 1);
+        assert_eq!(from_versioned_code::<Everything>("plan", other, &code), Err(Error::Version(version)));
+    }
+    assert!(matches!(to_versioned_code("plan", MAX_VERSION + 1, &()), Err(Error::Unsupported(_))));
+    // Within a layout, the rule for lasting codes: a field added at the end reads as absent.
+    let before = to_versioned_code("", 3, &Before { id: 12204 }).unwrap();
+    assert_eq!(to_versioned_code("", 3, &After { id: 12204, ..After::default() }).unwrap(), before);
+    let after = to_versioned_code("", 3, &After { id: 12204, hidden: true, ..After::default() }).unwrap();
+    assert_eq!(from_versioned_code::<Before>("", 3, &after), Err(Error::Trailing));
 }
 
 #[test]

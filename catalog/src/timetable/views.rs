@@ -24,9 +24,11 @@ use super::clash::{self, Weeks};
 use super::day::Day;
 use super::exams::ExamShape;
 use super::facts::SemesterFacts;
+use super::kind::EventKind;
 use super::model::{Event, Row, Timetable};
 use super::occur::Every;
 use super::rowkey::RowKey;
+use crate::search::fold;
 
 /// Days a recurring Termin's first or last week may lie from the lecture period's first or last
 /// week and still run through it: many Übungen begin a week late or end a week early, and „ab
@@ -99,6 +101,42 @@ pub fn short_title(title: &str) -> String {
     }
     // „Recht II: Handels- und Gesellschaftsrecht …", not „…recht, …".
     format!("{} …", cut.trim_end_matches([',', ';', ':']))
+}
+
+/// The kinds of an event in a slot's few letters: „VL", „Ü", „VL/Ü". The week's slots and the
+/// calendar's entries begin with them.
+pub fn kind_short(event: &Event) -> String {
+    event.kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/")
+}
+
+/// What QIS calls an event („Übung", „Vorlesung/Übung", „Laborausbildung"), else its kinds.
+pub fn type_text(event: &Event) -> String {
+    match event.type_raw.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
+        Some(text) => text.to_string(),
+        None => event.kinds.iter().map(EventKind::label).collect::<Vec<_>>().join("/"),
+    }
+}
+
+/// „<kind> · <title>", or the title alone where it begins with what it is („Tutorium Höhere
+/// Mathematik W-1", not „Tutorium · Tutorium Höhere Mathematik W-1"), or the kind alone
+/// without a title.
+pub fn kind_and_title(kind: &str, title: &str) -> String {
+    let title = title.trim();
+    if title.is_empty() {
+        kind.to_string()
+    } else if names_kind(title, kind) {
+        title.to_string()
+    } else {
+        format!("{kind} · {title}")
+    }
+}
+
+/// Whether `title` begins with the first word of `kind`, folded („Praktikum: Betriebssysteme"
+/// for „Praktikum", „Schulpraktische Studien: …" for „Schulpraktische Studien (SPS)"). Not for a
+/// type of two kinds („Seminar/Übung"), of which a title names one.
+fn names_kind(title: &str, kind: &str) -> bool {
+    let first = |text: &str| fold(text).split(|c: char| !c.is_alphanumeric()).find(|word| !word.is_empty()).map(str::to_string);
+    !kind.contains('/') && first(kind).is_some_and(|word| first(title) == Some(word))
 }
 
 /// A slot of the Regelwoche: a recurring Termin, or the dates of one event at one weekday and
@@ -931,6 +969,20 @@ mod tests {
         // A cut that would take off only what tells modules apart leaves the title whole.
         assert_eq!(short_title("Rechnernetze und Kommunikationssysteme II"), "Rechnernetze und Kommunikationssysteme II");
         assert_eq!(short_title("Forensischer Vorbereitungskurs 1 B"), "Forensischer Vorbereitungskurs 1 B");
+    }
+
+    #[test]
+    fn a_title_that_says_what_it_is_stands_alone() {
+        assert_eq!(kind_and_title("Übung", "Entwicklung von Softwaresystemen"), "Übung · Entwicklung von Softwaresystemen");
+        assert_eq!(kind_and_title("Tutorium", "Tutorium Höhere Mathematik W-1"), "Tutorium Höhere Mathematik W-1");
+        assert_eq!(kind_and_title("Diplomandenseminar", "Diplomandenseminar"), "Diplomandenseminar");
+        assert_eq!(kind_and_title("Praktikum", "Praktikum: Programmiersprachen"), "Praktikum: Programmiersprachen");
+        assert_eq!(kind_and_title("Übung", "übung wissenschaftliches Arbeiten"), "übung wissenschaftliches Arbeiten");
+        assert_eq!(kind_and_title("Schulpraktische Studien (SPS)", "Schulpraktische Studien: Vorbereitung"), "Schulpraktische Studien: Vorbereitung");
+        // A word that only begins like the kind is another word; a type of two kinds stays.
+        assert_eq!(kind_and_title("Seminar", "Seminare der Informatik"), "Seminar · Seminare der Informatik");
+        assert_eq!(kind_and_title("Seminar/Übung", "Seminar Infrastrukturplanung"), "Seminar/Übung · Seminar Infrastrukturplanung");
+        assert_eq!(kind_and_title("Vorlesung", " "), "Vorlesung");
     }
 
     /// Two modules' events: a weekly lecture with a cancelled date and a room note, one in a part

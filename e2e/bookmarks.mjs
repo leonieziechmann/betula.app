@@ -227,7 +227,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   // The list as a code (pack/): characters an address carries as they are, the last two check the
   // rest, and the last one is a letter or a digit. Shorter than the ids one by one.
   const code = link.slice(`${base}/bookmarks#m=`.length);
-  check(link.startsWith(`${base}/bookmarks#m=`) && /^[A-Za-z0-9._~-]*[A-Za-z0-9]$/.test(code) && link.length < `${base}/bookmarks#add=${carried.join(",")}`.length, `the link for another device: ${link}`);
+  check(link.startsWith(`${base}/bookmarks#m=`) && /^[A-Za-z0-9._~-]*[A-Za-z0-9]$/.test(code) && code.length < carried.join(",").length, `the link for another device: ${link}`);
   check(await page.evaluate(() => Boolean(document.querySelector('[data-action="copy-text"][data-absolute] small')?.textContent)), "copying the link lost the second line of its action");
   {
     const elsewhere = await browser.newContext({ viewport: { width: 1500, height: 900 } });
@@ -253,11 +253,14 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
     await device.waitForFunction(() => document.querySelector(".offer")?.textContent.includes("schon auf deiner Merkliste") && !document.getElementById("offer-add"), null, { timeout: 8000 }).catch(() => problems.push("another device: the same link again offers to add what is there"));
     await device.click("#offer-dismiss");
     await device.waitForFunction(() => location.hash === "" && !document.querySelector(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: „In Ordnung“ did not take the ids out of the address"));
-    await device.goto(`${base}/bookmarks#add=${carried[0]},11101,<script>`, { waitUntil: "domcontentloaded" });
+    // One module of the link that the list lacks (the list here loses one, a page load later).
+    await device.evaluate(([key, id]) => localStorage.setItem(key, (localStorage.getItem(key) || "").split("\n").filter((line) => line && line.split("\t")[0] !== id).map((line) => `${line}\n`).join("")), [KEY, carried[0]]);
+    await device.goto(`${base}/`, { waitUntil: "domcontentloaded" });
+    await device.goto(link, { waitUntil: "domcontentloaded" });
     await takeover(device);
-    await device.waitForFunction(() => document.querySelector(".offer")?.textContent.includes("2 Module aus einem Link") && document.querySelector(".offer").textContent.includes("Eins davon"), null, { timeout: 8000 }).catch(() => problems.push("another device: a link with one new module is not counted right"));
+    await device.waitForFunction(() => document.querySelector(".offer")?.textContent.includes("3 Module aus einem Link") && document.querySelector(".offer").textContent.includes("Eins davon"), null, { timeout: 8000 }).catch(() => problems.push("another device: a link with one new module is not counted right"));
     await device.click("#offer-dismiss");
-    check((await stored(device)).length === 3, "another device: „Verwerfen“ added something");
+    check((await stored(device)).length === 2, "another device: „Verwerfen“ added something");
     // A character typed wrong, two neighbours swapped: caught for certain by the check characters,
     // named, and nothing of the list offered.
     const at = [...code].findIndex((c, i) => i + 1 < code.length && c !== code[i + 1]);
@@ -269,8 +272,8 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
       await device.click("#offer-dismiss");
       await device.waitForFunction(() => location.hash === "" && !document.querySelector(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: „In Ordnung“ did not take a broken link out of the address"));
     }
-    check((await stored(device)).length === 3, "another device: a broken link added something");
-    const told = sent.filter((r) => r.includes("add=") || r.includes(code) || carried.some((id) => r.includes(id)));
+    check((await stored(device)).length === 2, "another device: a broken link added something");
+    const told = sent.filter((r) => r.includes(code) || carried.some((id) => r.includes(id)));
     check(told.length === 0, `another device: requests that carry the list: ${told.slice(0, 3)}`);
     await elsewhere.close();
   }

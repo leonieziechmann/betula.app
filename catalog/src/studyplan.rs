@@ -1494,7 +1494,7 @@ mod tests {
     }
 
     /// A subscription code (the pinned one of `subscription.rs`).
-    const CODE: &str = "CQpJeFAKchJKBgdlgf0e7Hwl_4S";
+    const CODE: &str = "b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0";
 
     /// The design's example (B.2): Informatik's first semester after the import, with one hidden
     /// kind, one hidden event and one choice.
@@ -1541,7 +1541,7 @@ mod tests {
         for line in ["m\t2026W\t11103\t5\t\n", "m\t2027S\t11113\t1800000000\t1\n", "r\t2027S\t150132-0abcd\n", &format!("a\t2027S\t{CODE}\n")] {
             assert!(text.contains(line), "{line:?} in\n{text}");
         }
-        assert!(text.ends_with("c\t2026W\t148369-a4d12\nr\t2027S\t150132-0abcd\na\t2027S\tCQpJeFAKchJKBgdlgf0e7Hwl_4S\nz\t2027S\twhat a newer build writes\n"));
+        assert!(text.ends_with("c\t2026W\t148369-a4d12\nr\t2027S\t150132-0abcd\na\t2027S\tb3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0\nz\t2027S\twhat a newer build writes\n"));
 
         // What the page reads of it.
         assert!(!doc.is_empty());

@@ -30,16 +30,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use catalog::labels::Rhythm;
 use catalog::rows_detail::EventDate;
-use catalog::search::fold;
 use catalog::timetable::clash::Weeks;
 use catalog::timetable::day::{clock, Day};
 use catalog::timetable::exams::{ExamShape, Termin};
 use catalog::timetable::facts::SemesterFacts;
-use catalog::timetable::kind::EventKind;
 use catalog::timetable::model::{Event, Row, Timetable};
 use catalog::timetable::occur::Every;
 use catalog::timetable::rowkey::RowKey;
-use catalog::timetable::views::{short_title, AgendaItem, AgendaWeek, Reach, WeekItem, WeekLabel};
+use catalog::timetable::views::{kind_and_title, kind_short, short_title, type_text, AgendaItem, AgendaWeek, Reach, WeekItem, WeekLabel};
 use catalog::url::{self, StudyplanUrl};
 use leptos::prelude::*;
 
@@ -1082,19 +1080,6 @@ fn classes(hue: &'static str, flags: &[(bool, &'static str)]) -> String {
     std::iter::once(hue).chain(flags.iter().filter(|(on, _)| *on).map(|(_, name)| *name)).collect::<Vec<_>>().join(" ")
 }
 
-/// What QIS calls an event („Übung", „Vorlesung/Übung", „Laborausbildung"), else its kinds.
-fn type_text(event: &Event) -> String {
-    match event.type_raw.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
-        Some(text) => text.to_string(),
-        None => event.kinds.iter().map(EventKind::label).collect::<Vec<_>>().join("/"),
-    }
-}
-
-/// The kinds in a slot's few letters: „VL", „Ü", „VL/Ü".
-fn kind_short(event: &Event) -> String {
-    event.kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/")
-}
-
 /// „Übung · Entwicklung von Softwaresystemen": what an event is, then its title.
 fn event_text(event: &Event) -> String {
     kind_and_title(&type_text(event), &event.title)
@@ -1111,28 +1096,6 @@ fn slot_label(event: &Event, titles: &BTreeMap<String, String>) -> String {
         short if short.is_empty() => name,
         short => format!("{short} {name}"),
     }
-}
-
-/// „<kind> · <title>", or the title alone where it begins with what it is („Tutorium Höhere
-/// Mathematik W-1", not „Tutorium · Tutorium Höhere Mathematik W-1"), or the kind alone
-/// without a title.
-fn kind_and_title(kind: &str, title: &str) -> String {
-    let title = title.trim();
-    if title.is_empty() {
-        kind.to_string()
-    } else if names_kind(title, kind) {
-        title.to_string()
-    } else {
-        format!("{kind} · {title}")
-    }
-}
-
-/// Whether `title` begins with the first word of `kind`, folded („Praktikum: Betriebssysteme"
-/// for „Praktikum", „Schulpraktische Studien: …" for „Schulpraktische Studien (SPS)"). Not for a
-/// type of two kinds („Seminar/Übung"), of which a title names one.
-fn names_kind(title: &str, kind: &str) -> bool {
-    let first = |text: &str| fold(text).split(|c: char| !c.is_alphanumeric()).find(|word| !word.is_empty()).map(str::to_string);
-    !kind.contains('/') && first(kind).is_some_and(|word| first(title) == Some(word))
 }
 
 /// The rooms of rows, each once, as a student reads them at a glance: „HG/0.20 / HG/0.19" (the
@@ -1500,19 +1463,9 @@ mod tests {
         assert!(open.iter().all(|line| line.href.starts_with("/studyplan?sem=2026W&open=12107")), "{open:?}");
     }
 
+    /// `views::kind_and_title` has its own test; here a slot and a line of real events.
     #[test]
     fn a_title_that_says_what_it_is_stands_alone() {
-        assert_eq!(kind_and_title("Übung", "Entwicklung von Softwaresystemen"), "Übung · Entwicklung von Softwaresystemen");
-        assert_eq!(kind_and_title("Tutorium", "Tutorium Höhere Mathematik W-1"), "Tutorium Höhere Mathematik W-1");
-        assert_eq!(kind_and_title("Diplomandenseminar", "Diplomandenseminar"), "Diplomandenseminar");
-        assert_eq!(kind_and_title("Praktikum", "Praktikum: Programmiersprachen"), "Praktikum: Programmiersprachen");
-        assert_eq!(kind_and_title("Übung", "übung wissenschaftliches Arbeiten"), "übung wissenschaftliches Arbeiten");
-        assert_eq!(kind_and_title("Schulpraktische Studien (SPS)", "Schulpraktische Studien: Vorbereitung"), "Schulpraktische Studien: Vorbereitung");
-        // A word that only begins like the kind is another word; a type of two kinds stays.
-        assert_eq!(kind_and_title("Seminar", "Seminare der Informatik"), "Seminar · Seminare der Informatik");
-        assert_eq!(kind_and_title("Seminar/Übung", "Seminar Infrastrukturplanung"), "Seminar/Übung · Seminar Infrastrukturplanung");
-        assert_eq!(kind_and_title("Vorlesung", " "), "Vorlesung");
-
         let mut tutorial = row("150001", 1, "Tutorium", "weekly", 3, ("09:15", "10:45"), ("2026-10-07", "2027-01-27"));
         tutorial.date.event_title = "Tutorium Höhere Mathematik W-1".into();
         let table = table(&[tutorial, row("148701", 1, "Vorlesung", "weekly", 2, ("11:30", "13:00"), ("2026-10-06", "2027-01-26"))]);

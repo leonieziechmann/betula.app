@@ -1,7 +1,7 @@
 //! The program page: who the program is (the header), and three views — the study plan of the
 //! examination regulations, the tree of its areas, and „Mein Plan", the visitor's plan of the
 //! whole study (a placeholder so far, owner 2026-09-25; all modules of the program are the
-//! catalog's, `url::program_catalog_path`, where the former tab „Alle Module" leads).
+//! catalog's, `url::program_catalog_path`).
 //!
 //! Two things come from the URL as plain values (R1): the view (a path segment) and, where a
 //! program has several study plans — most often one per study direction — which of them is shown

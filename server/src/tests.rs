@@ -34,20 +34,27 @@ fn snapshot_file() -> PathBuf {
 }
 
 /// `content_digest` of the snapshot the Studienplan's checks were pinned to
-/// (`catalog-abca4baa1d8f8d8e.db`, the catalog crate's `STUDYPLAN_DIGEST`): what the feed of a
-/// code holds event by event is asserted on this one only.
-const STUDYPLAN_DIGEST: &str = "4b65e821a0e33b858b589963e6c6f879a990612fe5efdccdfbe39415b4c0d50f";
+/// (`catalog-41bcde83e1bbcaab.db` in the main checkout's `target/studyplan-snapshot/`, schema 9,
+/// the catalog crate's `STUDYPLAN_DIGEST`): what the feed of a code holds event by event is
+/// asserted on this one only.
+const STUDYPLAN_DIGEST: &str = "8700613779415164c03d36c53966137e574a6e2b7ef2bf40542ad05c8f29b68b";
 
 /// Informatik B.Sc. in WiSe 2026/27, the first semester of its plan: 11112, 12102, 12104 and
-/// 12107, the Sachsendorf lecture 149408 hidden and „Nur diesen" on the Übung 148369-a4d12. The
-/// catalog crate pins this code (`subscription.rs`); subscribed codes never change.
-const FIRST_SEMESTER_CODE: &str = "CQpJeFAKchJKBgdlgf0e7Hwl_4S";
+/// 12107 by Informatik's abbreviations, the Sachsendorf lecture 149408 hidden and „Nur diesen" on
+/// the Übung 148369-a4d12. The catalog crate pins this code (`subscription.rs`); subscribed codes
+/// never change.
+const FIRST_SEMESTER_CODE: &str = "b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0";
+
+/// The address of `FIRST_SEMESTER_CODE` with its first character escaped (`b`, `%62`), as a
+/// calendar service may write it.
+const ESCAPED_PATH: &str = "/calendar/%623MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics";
 
 /// Codes `pack` writes with the kind `calendar` that no calendar reads, made once with
-/// `pack::to_code("calendar", …)` of a `Subscription` for 2026W (`Subscription::code` refuses to
-/// write them): 61 modules (11100 to 11160), one more than a semester of a plan holds; no module.
-const TOO_MANY_MODULES_CODE: &str = "klQmrQrk_T";
-const NO_MODULE_CODE: &str = "A9zBjf";
+/// `pack::to_versioned_code("calendar", 1, …)` of a `Subscription` for 2026W (`Subscription::code`
+/// refuses to write them): 61 modules (11100 to 11160), one more than a semester of a plan holds;
+/// no module.
+const TOO_MANY_MODULES_CODE: &str = "DbEGRK-jjZ5";
+const NO_MODULE_CODE: &str = "JKXwB75";
 
 /// The snapshot for the feed's checks and whether it is the pinned one. As in the catalog crate:
 /// `FOLIA_STUDYPLAN_SNAPSHOT` names the pinned file and fails the test when it is another one;
@@ -69,7 +76,7 @@ fn feed_snapshot(test: &str) -> (PathBuf, bool) {
     // Straight to the handle: libtest swallows `eprintln!` of a test that passes.
     let _ = writeln!(
         std::io::stderr(),
-        "studyplan: pinned checks of {test} skipped: snapshot digest {}, pinned {STUDYPLAN_DIGEST}; set FOLIA_STUDYPLAN_SNAPSHOT=…/snapshot/catalog-abca4baa1d8f8d8e.db",
+        "studyplan: pinned checks of {test} skipped: snapshot digest {}, pinned {STUDYPLAN_DIGEST}; set FOLIA_STUDYPLAN_SNAPSHOT=…/target/studyplan-snapshot/catalog-41bcde83e1bbcaab.db",
         found.as_deref().unwrap_or("none")
     );
     (file, false)
@@ -258,7 +265,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     // A calendar service has no password: a subscription whose code decodes passes, also with a
     // character of it escaped (here it meets no snapshot, so the feed itself answers 503; the
     // feed's own test serves one). Anything else under `/calendar/` stays behind the gate.
-    for path in [subscription::path(FIRST_SEMESTER_CODE), format!("/calendar/%43{}.ics", &FIRST_SEMESTER_CODE[1..])] {
+    for path in [subscription::path(FIRST_SEMESTER_CODE), ESCAPED_PATH.to_string()] {
         assert_eq!(request(&router, &path, &[]).await.0, StatusCode::SERVICE_UNAVAILABLE, "{path}");
     }
     for path in ["/calendar/abc".to_string(), "/calendar/Ab.ics.ics".to_string(), "/calendar/x.ics".to_string(), "/calendar/a/b.ics".to_string(), subscription::path(TOO_MANY_MODULES_CODE)] {
@@ -487,14 +494,11 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/xml; charset=utf-8"));
     assert!(sitemap.contains("<loc>https://catalog.example/</loc>") && sitemap.contains("<loc>https://catalog.example/catalog/module/11101</loc>"));
     assert!(sitemap.matches("<loc>").count() > 3000 && sitemap.lines().all(|line| !line.starts_with("<url>") || !line.contains('?')), "pages only, no filters");
-    // „Mein Plan" is the visitor's (a placeholder so far): not listed, not indexed. The former tab
-    // „Alle Module" is the catalog of the program now, for good.
-    assert!(sitemap.contains("/areas</loc>") && !sitemap.contains("/my-plan</loc>") && !sitemap.contains("/modules</loc>"));
+    // „Mein Plan" is the visitor's (a placeholder so far): not listed, not indexed.
+    assert!(sitemap.contains("/areas</loc>") && !sitemap.contains("/my-plan</loc>"));
     let (status, _, body) = request(&router, &format!("/programs/{slug}/my-plan"), &[]).await;
     let mine = String::from_utf8(body).unwrap();
     assert!(status == StatusCode::OK && head(&mine).contains("noindex") && mine.contains(&format!("href=\"/catalog?program={slug}\"")), "{mine}");
-    let (status, headers, _) = request(&router, &format!("/programs/{slug}/modules?open=11101"), &[]).await;
-    assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::MOVED_PERMANENTLY, format!("/catalog?program={slug}&open=11101").as_str()));
     let (_, _, robots) = request(&router, "/robots.txt", &[]).await;
     assert!(String::from_utf8(robots).unwrap().contains("Sitemap: https://catalog.example/sitemap.xml"));
 
@@ -596,6 +600,9 @@ async fn a_studyplan_is_a_calendar_feed() {
     if pinned {
         let text = unfolded(&ics);
         assert!(text.contains("UID:148701-a2633-20261013@betula.app") && text.contains("UID:148369-a4d12-") && text.contains("Entwicklung von Softwaresystemen"), "{text}");
+        // As short as the page's week, with Informatik's abbreviations; in full in the description.
+        assert!(text.contains("SUMMARY:VL EvS\r\nLOCATION:ZHG/HS.C\r\nDESCRIPTION:Vorlesung\\nModul 12104 Entwicklung von Softwaresystemen\\n"), "{text}");
+        assert!(text.contains("\\nRaum: Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus\\n"), "{text}");
         // Not 12104's Senftenberg track (the plan's other modules make it Cottbus), not the hidden
         // Sachsendorf lecture, not the Übungen beside the chosen one.
         for absent in ["UID:149406-", "UID:149408-", "UID:148369-aaf38-"] {
@@ -617,7 +624,7 @@ async fn a_studyplan_is_a_calendar_feed() {
     flate2::read::GzDecoder::new(body.as_slice()).read_to_string(&mut unzipped).unwrap();
     assert_eq!(unzipped, ics);
     // A calendar that escapes a character of the code asks for the same feed.
-    let escaped = format!("/calendar/%43{}.ics", &FIRST_SEMESTER_CODE[1..]);
+    let escaped = ESCAPED_PATH.to_string();
     assert_eq!(request(&router, &escaped, &[]).await.2, ics.as_bytes());
 
     // A semester without Termine in the snapshot yet: a calendar without entries that says so,
@@ -658,7 +665,7 @@ async fn a_studyplan_is_a_calendar_feed() {
 async fn broken_calendar_codes_are_404() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("calendar-404")).unwrap()));
     // The Merkliste's code of the same kind of list: its kind is part of the check characters.
-    let bookmarks = app::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]);
+    let bookmarks = app::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]).unwrap();
     let bookmarks = bookmarks.strip_prefix("m=").unwrap();
     // These have the shape of a feed's address; what they carry is what no calendar reads.
     for code in [bookmarks, TOO_MANY_MODULES_CODE, NO_MODULE_CODE, "Ab.ics"] {
@@ -697,7 +704,7 @@ async fn the_log_keeps_no_calendar_code() {
     let mut gated = state(SnapshotStore::new(temp_dir("log-gated")).unwrap());
     gated.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
     let gated = crate::router(gated);
-    let asked = [subscription::path(FIRST_SEMESTER_CODE), format!("/calendar/%43{}.ics", &FIRST_SEMESTER_CODE[1..]), "/calendar/Ab.ics.ics".to_string(), "/calendar/secret-a/b.ics".to_string()];
+    let asked = [subscription::path(FIRST_SEMESTER_CODE), ESCAPED_PATH.to_string(), "/calendar/Ab.ics.ics".to_string(), "/calendar/secret-a/b.ics".to_string()];
     let log = Captured::default();
     let logging = log.start();
     for router in [&open, &gated] {
@@ -709,7 +716,7 @@ async fn the_log_keeps_no_calendar_code() {
     let log = log.text();
     assert_eq!(log.matches("http.request").count(), 2 * asked.len(), "one line per request: {log}");
     assert_eq!(log.matches("/calendar/….ics").count(), 2 * asked.len(), "{log}");
-    for secret in [&FIRST_SEMESTER_CODE[1..], "Ab.ics", "secret", "%43"] {
+    for secret in [&FIRST_SEMESTER_CODE[1..], "Ab.ics", "secret", "%62"] {
         assert!(!log.contains(secret), "{secret} in {log}");
     }
 }

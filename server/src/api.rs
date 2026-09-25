@@ -99,15 +99,6 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
     }
 }
 
-/// `GET /programs/<slug>/modules`: the program's former tab „Alle Module" (owner, 2026-09-25: its
-/// place went to „Mein Plan"). Its modules are the catalog narrowed down to the program, so the
-/// old address leads there for good, with the module it had beside it.
-pub async fn old_modules_tab(Path(slug): Path<String>, uri: Uri) -> Response {
-    let (open, _) = catalog::url::local_from_pairs(&catalog::url::parse_pairs(uri.query().unwrap_or_default()));
-    let to = catalog::url::program_catalog_path(&slug, open.as_deref());
-    (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, to), (header::CACHE_CONTROL, "public, max-age=86400".to_string())]).into_response()
-}
-
 /// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
 /// and every current program with its views. Filters of the lists are not pages (`app::seo`).
 pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Response {

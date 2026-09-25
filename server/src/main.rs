@@ -187,9 +187,6 @@ pub fn router(state: AppState) -> Router {
         // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
         // (axum refuses two routes for one path at startup).
         .route("/calendar/{file}", get(api::calendar))
-        // The program's former tab „Alle Module", for good in the catalog. Beside the pages'
-        // `/programs/{slug}/{tab}`: the fixed segment wins.
-        .route(&format!("/programs/{{slug}}/{}", catalog::url::OLD_MODULES_SEGMENT), get(api::old_modules_tab))
         .route("/robots.txt", get(api::robots))
         .route("/sitemap.xml", get(api::sitemap))
         .route(access::PATH, get(access::page).post(access::enter))

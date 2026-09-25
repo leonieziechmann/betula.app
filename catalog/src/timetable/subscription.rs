@@ -4,13 +4,18 @@
 //! know nothing of the visitor's browser: whatever the feed needs to make the Studienplan anew has
 //! to be in its address. The owner decided (2026-09-24) what that is: the semester, the planned
 //! modules and what is hidden, resolved from the active snapshot on every fetch, so the exams QIS
-//! publishes later arrive by themselves and the server keeps nothing. `Subscription` is that,
-//! packed by `pack` into `/calendar/<code>.ics`.
+//! publishes later arrive by themselves and the server keeps nothing. Since 2026-09-25 also the
+//! program whose abbreviations the entries name the modules by („VL EvS", as compact as the week
+//! the page shows; the owner chose this over each module's own abbreviation, which differs from a
+//! program's in about 7 % of its compulsory modules). `Subscription` is that, packed by `pack` into
+//! `/calendar/<code>.ics`.
 //!
 //! A code outlives releases: a calendar keeps its address for months, across blue-green switches
-//! and canary rollbacks. So the struct keeps pack's rule for lasting codes (fields only appended,
-//! zero meaning absent), and a reader tolerates what a newer writer may put into the fields it
-//! knows: kind bits it does not know are dropped, and a town it does not know reads as „derive".
+//! and canary rollbacks. So a code names the layout of the struct it was written in (`VERSION`, four
+//! bits of `pack::to_versioned_code`; owner, 2026-09-25), the struct keeps pack's rule for lasting
+//! codes within its layout (fields only appended, zero meaning absent), and a reader tolerates what
+//! a newer writer may put into the fields it knows: kind bits it does not know are dropped, a town
+//! it does not know reads as „derive", and a program of another shape as none.
 //! The address is also what the logs see, so Folia's own log writes every path under
 //! `/calendar/` as one fixed text (`redacted_path`).
 
@@ -20,10 +25,16 @@ use super::kind::KindSet;
 use super::rowkey::RowKey;
 use super::select::{Selection, TownChoice, MAX_HIDDEN, MAX_MODULES};
 use super::semester::SemesterKey;
+use crate::url::is_program_id;
 
 /// The kind of every subscription code. Frozen: it is part of every code's check characters, so a
 /// code of another kind (the Merkliste's `bookmarks`) is never read as a calendar.
 pub const KIND: &str = "calendar";
+
+/// The layout of `Subscription` that codes are written in. A change the rule for lasting codes
+/// does not allow takes the next one, and the reader of this one stays, for the calendars that
+/// subscribed to it.
+pub const VERSION: u8 = 1;
 
 /// The most characters of a code. The reader checks it before decoding, and the writer refuses a
 /// longer code, so the app never hands out an address the server turns away; well below what any
@@ -40,8 +51,9 @@ const REDACTED: &str = "/calendar/….ics";
 
 /// What a subscribed calendar shows: one semester of a Studienplan.
 ///
-/// FROZEN FORMAT (pack/src/lib.rs): fields only appended, zero = absent; never reorder, retype,
-/// remove. Codes that calendars have subscribed to must read the same in every later release.
+/// FROZEN LAYOUT `VERSION` (pack/src/lib.rs): fields only appended, zero = absent; never reorder,
+/// retype, remove. Codes that calendars have subscribed to must read the same in every later
+/// release; what goes beyond that is the next layout.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Subscription {
     /// `SemesterKey::index()`: year * 2 + 1 for a winter (2026W = 4053). 0 is refused.
@@ -49,6 +61,10 @@ pub struct Subscription {
     /// The planned modules of the semester, by their numeric ids.
     #[serde(with = "pack::set")]
     pub modules: Vec<u32>,
+    /// The program whose abbreviations name the modules (`program.id`, `079-82-2008`): the one
+    /// the page loads the plan for, the plan's, else „Mein Studiengang". `None`, and an id of
+    /// another shape (`url::is_program_id`), name each module by its own.
+    pub program: Option<String>,
     /// Bit i = `EventKind::ALL[i]` hidden (lecture 0 … other 10, exam 11). Bits a reader does not
     /// know are ignored.
     pub hidden_kinds: u16,
@@ -75,7 +91,7 @@ impl Subscription {
     /// reader takes (no module, a semester outside 2000–2099, more modules or entries than the
     /// caps), so no code comes out that `from_code` would refuse.
     pub fn code(&self) -> Result<String, pack::Error> {
-        let code = pack::to_code(KIND, self)?;
+        let code = pack::to_versioned_code(KIND, VERSION, self)?;
         if code.len() > MAX_CODE {
             return Err(pack::Error::TooLong);
         }
@@ -86,19 +102,21 @@ impl Subscription {
     }
 
     /// The subscription of a code, or `None` for anything the feed must not serve: the wrong
-    /// length or characters, failed check characters, another kind, a code with a field this
-    /// build does not know (pack's `Trailing`), a semester outside 2000–2099, no module, more
-    /// than `MAX_MODULES` modules or more than `MAX_HIDDEN` entries in a list.
+    /// length or characters, failed check characters, another kind, another layout than
+    /// `VERSION`, a code with a field this build does not know (pack's `Trailing`), a semester
+    /// outside 2000–2099, no module, more than `MAX_MODULES` modules or more than `MAX_HIDDEN`
+    /// entries in a list.
     ///
     /// Within the known fields it reads what a newer build may write: kind bits no `EventKind`
-    /// has are masked, and a town number it does not know becomes 0 (derive).
+    /// has are masked, a town number it does not know becomes 0 (derive), and a program that is
+    /// no program id none.
     pub fn from_code(code: &str) -> Option<Subscription> {
         // The cheap checks first: the gate runs this on every request under `/calendar/`.
         let shaped = (1..=MAX_CODE).contains(&code.len()) && code.bytes().all(is_code_byte);
         if !shaped {
             return None;
         }
-        let mut subscription: Subscription = pack::from_code(KIND, code).ok()?;
+        let mut subscription: Subscription = pack::from_versioned_code(KIND, VERSION, code).ok()?;
         SemesterKey::from_index(subscription.semester)?;
         let within = (1..=MAX_MODULES).contains(&subscription.modules.len())
             && [subscription.hidden_events.len(), subscription.hidden_rows.len(), subscription.chosen_rows.len()].iter().all(|len| *len <= MAX_HIDDEN);
@@ -107,6 +125,7 @@ impl Subscription {
         }
         subscription.hidden_kinds = KindSet(subscription.hidden_kinds).known().0;
         subscription.town = TownChoice::from_code(subscription.town).code();
+        subscription.program = subscription.program.filter(|id| is_program_id(id));
         Some(subscription)
     }
 
@@ -202,7 +221,7 @@ fn hex(byte: u8) -> Option<u8> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::timetable::kind::EventKind;
     use crate::timetable::select::Town;
@@ -213,6 +232,7 @@ mod tests {
         Subscription {
             semester: 4053,
             modules: vec![11112, 12102, 12104, 12107],
+            program: Some("079-82-2008".into()),
             hidden_kinds: 0,
             hidden_events: vec![149_408],
             hidden_rows: vec![],
@@ -222,9 +242,9 @@ mod tests {
     }
 
     /// Subscribed codes: never change. Calendars subscribe to this address; if the test fails,
-    /// the format moved, and every published subscription with it. Printed by the first run of
-    /// 2026-09-24 and pinned.
-    const FIRST_SEMESTER_CODE: &str = "CQpJeFAKchJKBgdlgf0e7Hwl_4S";
+    /// the layout moved, and every published subscription with it. Printed by the first run of
+    /// layout 1 (2026-09-25) and pinned.
+    pub(crate) const FIRST_SEMESTER_CODE: &str = "b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0";
 
     /// Every field set and none equal to another, so that moving or retyping any of them changes
     /// the code: the first plan's zeros would not notice two of them swapped.
@@ -232,6 +252,7 @@ mod tests {
         Subscription {
             semester: 4054,
             modules: vec![11107, 12104, 13693],
+            program: Some("G29-82-2025".into()),
             hidden_kinds: KindSet::default().with(EventKind::Tutorial).with(EventKind::Exam).0,
             hidden_events: vec![148_130, 150_349],
             hidden_rows: vec![RowKey { event: 148_369, fp: 0xaaf38 }.packed()],
@@ -241,7 +262,7 @@ mod tests {
     }
 
     /// Subscribed codes: never change (see `FIRST_SEMESTER_CODE`).
-    const EVERY_FIELD_CODE: &str = "EjzHIGTd.jFcn-B6gSF5KD~-XTqXthm8Dy4ne.zP5m3uCaOiaz";
+    const EVERY_FIELD_CODE: &str = "Zy3_j2JR3ZOvpql-PMBgMDxxl3eoec6JV8.GhPQYxLyjEOKK7RqcT_W4PRm.HL6R";
 
     #[test]
     fn the_code_of_a_plan_is_frozen() {
@@ -261,6 +282,7 @@ mod tests {
         let every = Subscription {
             semester: SemesterKey::new(2027, false).unwrap().index(),
             modules: (0..60).map(|n| 11_101 + n * 37).collect(),
+            program: Some("013-D8-2022".into()),
             hidden_kinds: KindSet::default().with(EventKind::Tutorial).with(EventKind::Exam).0,
             hidden_events: vec![148_130, 149_408, 150_349],
             hidden_rows: vec![RowKey { event: 148_369, fp: 0xaaf38 }.packed(), RowKey { event: 148_370, fp: 0x00001 }.packed()],
@@ -301,7 +323,7 @@ mod tests {
     /// Codes of the right kind that the feed must still refuse, written past `code()`'s checks.
     #[test]
     fn codes_beyond_the_caps_are_refused() {
-        let raw = |subscription: &Subscription| pack::to_code(KIND, subscription).unwrap();
+        let raw = |subscription: &Subscription| pack::to_versioned_code(KIND, VERSION, subscription).unwrap();
         let consecutive = |n: u32| -> Vec<u32> { (0..n).map(|i| 140_000 + i).collect() };
         let packed = |n: u32| -> Vec<u64> { (0..n).map(|i| RowKey { event: 148_369, fp: i }.packed()).collect() };
         let refused = [
@@ -331,11 +353,13 @@ mod tests {
         let plan = first_semester();
         let code = plan.code().unwrap();
         // The Merkliste's kind, with the very same value.
-        assert_eq!(Subscription::from_code(&pack::to_code("bookmarks", &plan).unwrap()), None);
+        assert_eq!(Subscription::from_code(&pack::to_versioned_code("bookmarks", VERSION, &plan).unwrap()), None);
+        // A later layout than this build reads.
+        assert_eq!(Subscription::from_code(&pack::to_versioned_code(KIND, VERSION + 1, &plan).unwrap()), None);
         // A newer build's code with a field appended that is set: pack refuses what it cannot read.
-        assert_eq!(Subscription::from_code(&pack::to_code(KIND, &(plan.clone(), 1u8)).unwrap()), None);
+        assert_eq!(Subscription::from_code(&pack::to_versioned_code(KIND, VERSION, &(plan.clone(), 1u8)).unwrap()), None);
         // … and reads it when the new field is zero, as it is when absent.
-        assert_eq!(Subscription::from_code(&pack::to_code(KIND, &(plan.clone(), 0u8)).unwrap()), Some(plan.clone()));
+        assert_eq!(Subscription::from_code(&pack::to_versioned_code(KIND, VERSION, &(plan.clone(), 0u8)).unwrap()), Some(plan.clone()));
         // A character changed, the code cut short, characters no code has, the wrong lengths.
         let mut changed = code.clone().into_bytes();
         changed[0] = if changed[0] == b'A' { b'B' } else { b'A' };
@@ -352,12 +376,19 @@ mod tests {
     fn a_reader_tolerates_what_a_newer_writer_sets() {
         let plan = first_semester();
         // A kind this build does not know yet (bit 13) is masked, the known ones kept.
+        let written = |subscription: &Subscription| pack::to_versioned_code(KIND, VERSION, subscription).unwrap();
         let newer = Subscription { hidden_kinds: 1 << 13 | EventKind::Tutorial.bit(), ..plan.clone() };
-        let read = Subscription::from_code(&pack::to_code(KIND, &newer).unwrap()).unwrap();
+        let read = Subscription::from_code(&written(&newer)).unwrap();
         assert_eq!(read.hidden_kinds, EventKind::Tutorial.bit());
         // A town number this build does not know reads as „derive".
         let newer = Subscription { town: 7, ..plan.clone() };
-        assert_eq!(Subscription::from_code(&pack::to_code(KIND, &newer).unwrap()).map(|s| s.town), Some(0));
+        assert_eq!(Subscription::from_code(&written(&newer)).map(|s| s.town), Some(0));
+        // A program id of a shape this build does not know reads as none: each module's own
+        // abbreviation.
+        for odd in ["079_82_2008", "", "079-82-2008-1-2-3", "Informatik"] {
+            let newer = Subscription { program: Some(odd.into()), ..plan.clone() };
+            assert_eq!(Subscription::from_code(&written(&newer)).map(|s| s.program), Some(None), "{odd:?}");
+        }
         // A code written before the later fields existed reads with them absent.
         #[derive(Serialize)]
         struct FirstTwo {
@@ -365,7 +396,7 @@ mod tests {
             #[serde(with = "pack::set")]
             modules: Vec<u32>,
         }
-        let old = pack::to_code(KIND, &FirstTwo { semester: 4053, modules: vec![12104, 11112] }).unwrap();
+        let old = pack::to_versioned_code(KIND, VERSION, &FirstTwo { semester: 4053, modules: vec![12104, 11112] }).unwrap();
         assert_eq!(Subscription::from_code(&old), Some(Subscription { semester: 4053, modules: vec![11112, 12104], ..Subscription::default() }));
     }
 
@@ -428,7 +459,7 @@ mod tests {
         assert!(!is_feed_path("/calendar/abc"));
         assert!(!is_feed_path(&format!("/calendar/{code}")));
         assert!(!is_feed_path(&format!("/calendar/{code}.ics/")));
-        assert!(!is_feed_path(&path(&pack::to_code("bookmarks", &first_semester()).unwrap())));
+        assert!(!is_feed_path(&path(&pack::to_versioned_code("bookmarks", VERSION, &first_semester()).unwrap())));
     }
 
     #[test]
