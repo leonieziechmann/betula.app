@@ -1164,30 +1164,49 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .side-legal a:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
 .side-legal a .icon { width: 15px; height: 15px; color: var(--text-3); }
 
-/* Impressum and Datenschutz (pages/legal.rs): one panel of text. While they are placeholders, the
-   list of what is still owed: numbered rows on continuous rules, title and detail on two columns. */
+/* Impressum and Datenschutz (pages/legal.rs): one panel of text, its parts on continuous rules.
+   What belongs together (which data, why, how long) stands as label | text rows, the label above
+   the text where the panel is narrow. */
 .legal { container: legal / inline-size; }
-.legal-head { padding: 26px 24px 16px; }
+.legal-head { padding: 26px 24px 18px; }
 .legal-head h1 { font-size: 26px; line-height: 1.15; font-weight: 720; letter-spacing: -.03em; }
 .legal-head p { margin-top: 8px; color: var(--text-2); font-size: 15px; line-height: 1.55; max-width: 72ch; text-wrap: pretty; }
-.legal-placeholder { margin: 0 24px 18px; font-size: 13.5px; line-height: 1.5; }
-.legal-placeholder b { font-weight: 680; }
-.legal-owed { counter-reset: owed; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.legal-owed li { counter-increment: owed; display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: baseline; gap: 4px 14px; padding: 14px 24px; }
-.legal-owed li + li { border-top: 1px solid var(--line); }
-.legal-owed li::before { content: counter(owed); grid-row: 1 / span 2; align-self: start; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12px; font-weight: 650; }
-.legal-owed b { font-weight: 640; font-size: 14.5px; letter-spacing: -.012em; line-height: 24px; }
-.legal-owed span { grid-column: 2; color: var(--text-2); font-size: 14px; line-height: 1.6; max-width: 80ch; text-wrap: pretty; }
+.legal-head .legal-stand { margin-top: 4px; color: var(--text-3); font-size: 13px; }
+.legal-part { padding: 20px 24px 22px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
+.legal-part h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
+/* One measure for the text, the label | text rows included, so the parts share their right edge. */
+.legal-part > * { max-width: 704px; }
+.legal-part > * + *, .legal-facts dd > * + * { margin-top: 10px; }
+.legal-part p, .legal-part li, .legal-facts dd { color: var(--text-2); font-size: 14.5px; line-height: 1.6; text-wrap: pretty; }
+.legal-part ul { display: grid; gap: 3px; }
+.legal-part li { position: relative; padding-left: 18px; }
+.legal-part li::before { content: ""; position: absolute; left: 5px; top: .7em; width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
+.legal-part code { padding: 1px 5px; border-radius: 5px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font-family: var(--mono); font-size: 12.5px; }
+.legal-address { display: grid; font-style: normal; color: var(--text); font-size: 14.5px; line-height: 1.6; }
+.legal-facts { display: grid; margin-bottom: 0; }
+.legal-facts > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 10px 0; border-top: 1px solid var(--line); }
+.legal-facts > div:last-child { padding-bottom: 0; }
+.legal-facts dt { color: var(--text); font-size: 13.5px; font-weight: 620; line-height: 1.6; }
+.legal-facts dd { margin: 0; }
 @container legal (min-width: 720px) {
-  .legal-owed li { grid-template-columns: 24px minmax(0, 30fr) minmax(0, 70fr); }
-  .legal-owed li::before { grid-row: auto; }
-  .legal-owed span { grid-column: 3; }
+  .legal-facts > div { grid-template-columns: 140px minmax(0, 1fr); gap: 20px; }
+  .legal-facts dt { padding-top: 1px; }
 }
-/* On a phone the text starts 16px in, as on every other page. */
+/* On a phone the text starts 16px in, as on every other page, and a part a link jumps to
+   (/datenschutz#kalender) stops below the sticky search bar. */
 @media (max-width: 900px) {
   .legal-head { padding: 20px 16px 14px; }
-  .legal-placeholder { margin: 0 16px 16px; }
-  .legal-owed li { padding: 14px 16px; }
+  .legal-part { padding: 18px 16px 20px; scroll-margin-top: 76px; }
+}
+/* Impressum and Datenschutz from every page (lib.rs `LegalLink`, `SiteFoot`): the rail's last link
+   on a wide screen; on a phone the last line of the page, except where the sidebar links both. */
+.site-foot { display: none; }
+@media (max-width: 900px) {
+  .site-foot { display: flex; justify-content: center; padding: 4px 16px 12px; }
+  .site-foot nav { display: flex; gap: 6px; }
+  .site-foot a { min-height: 40px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: var(--r-ctl); color: var(--text-3); font-size: 13px; font-weight: 550; text-decoration: none; }
+  .site-foot a:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
+  .main:has(.side-legal, .legal-toc) .site-foot { display: none; }
 }
 
 @container home (min-width: 720px) {

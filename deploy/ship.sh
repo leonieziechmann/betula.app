@@ -134,9 +134,10 @@ else
   fi
 fi
 
-# Impressum and Datenschutz are placeholders until app/src/pages/legal.rs says PLACEHOLDER = false.
-# An instance open to everybody (FOLIA_ACCESS_GATE other than "on") must not go out with them
-# (owner, 2026-09-21: placeholders, "aber so, dass wir das nicht vergessen"); behind the gate it may.
+# Impressum and Datenschutz are final while app/src/pages/legal.rs says PLACEHOLDER = false (the
+# real texts since 2026-09-25). An instance open to everybody (FOLIA_ACCESS_GATE other than "on")
+# must not go out without them (owner, 2026-09-21: placeholders first, "aber so, dass wir das
+# nicht vergessen"); behind the gate it may.
 gate="$(sed -n 's/^FOLIA_ACCESS_GATE=//p' "${DEPLOY_DIR}/stacks/${INSTANCE}.env" | tr -d '\r' | tail -n 1)"
 if [[ "${gate}" != "on" ]]; then
   if [[ "${SHIP_WORKTREE:-0}" == "1" ]]; then

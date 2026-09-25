@@ -203,6 +203,7 @@ pub fn App() -> impl IntoView {
                     </Routes>
                     <skeleton::PendingPage/>
                 </main>
+                <SiteFoot/>
             </div>
             <nav class="bottomnav" aria-label="Navigation"><NavItems/></nav>
         </Router>
@@ -277,11 +278,40 @@ fn Rail() -> impl IntoView {
             <a class="logo hit" href=url::HOME aria-label="Betula, zur Startseite"><ui::Mark/></a>
             <nav aria-label="Hauptnavigation"><NavItems/></nav>
             <div class="rail-end">
+                <LegalLink/>
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label="Hell oder dunkel">
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
                 </button>
             </div>
         </aside>
+    }
+}
+
+/// Impressum and Datenschutz one step away from every page (§ 5 DDG: easy to find, always within
+/// reach): at the end of the rail on a wide screen, and at the foot of the page on a phone, which
+/// has no rail (`SiteFoot`). The two pages link each other. Never marked as current: the legal
+/// pages belong to the area „Start", whose tab says where the visitor is.
+#[component]
+fn LegalLink() -> impl IntoView {
+    view! {
+        <a class="icon-btn legal-link" href=url::IMPRINT title="Impressum und Datenschutz" aria-label="Impressum und Datenschutz">
+            <Icon name="info"/>
+        </a>
+    }
+}
+
+/// The phone's way to Impressum and Datenschutz (`LegalLink`): the last line of every page, above
+/// the bottom bar. Hidden on a wide screen, where the rail has the link, and on the pages whose
+/// sidebar links both already (the start page, the legal pages).
+#[component]
+fn SiteFoot() -> impl IntoView {
+    view! {
+        <footer class="site-foot">
+            <nav aria-label="Rechtliches">
+                <a href=url::IMPRINT>"Impressum"</a>
+                <a href=url::PRIVACY>"Datenschutz"</a>
+            </nav>
+        </footer>
     }
 }
 

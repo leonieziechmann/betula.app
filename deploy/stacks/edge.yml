@@ -49,8 +49,9 @@
 #               its query string, user agent, time. It exists twice: in Docker's log files on this host (local
 #               driver, 10 MB x 5 per container, oldest file dropped first) and in Loki, stream
 #               {service="edge_traefik"}, for 7 days (retention_stream in config/monitoring/loki.yml; every
-#               other stream is kept 30 days). The privacy notice of the site has to name both. Traefik cannot
-#               shorten addresses; the levers are dropped fields (see the accessLog flags) and that retention.
+#               other stream is kept 30 days). The privacy notice of the site names the fields and both copies
+#               ("Zugriffsprotokoll" in app/src/pages/legal.rs): change it with them. Traefik cannot shorten
+#               addresses; the levers are dropped fields (see the accessLog flags) and that retention.
 # ipv6          The host has a global IPv6 address and Docker publishes 80/443 on [::] too, but no Docker
 #               network has IPv6: docker-proxy relays those connections, and Traefik sees the gateway of
 #               docker_gwbridge (172.30.x.1) as the client - no usable address in the access log and one

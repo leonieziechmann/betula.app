@@ -38,7 +38,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
-| `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`), linked from the start page's sidebar. **Placeholders since 2026-09-21**: while `legal::PLACEHOLDER` is true they say so, list what is still owed and are `noindex`, and `deploy/ship.sh` refuses to ship an instance open to everybody (`FOLIA_ACCESS_GATE` not `on`). Before going public: the real texts (owner's name, address, contact; the privacy notice naming the edge's access log, the gate's cookie, what stays in the browser, the lecturers' names), `PLACEHOLDER = false`, and links from every page, not only the start page (§ 5 DDG: reachable at all times) |
+| `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). One step from every page (§ 5 DDG: reachable at all times): the rail's last link (`LegalLink`) on a wide screen, the last line of the page on a phone (`SiteFoot`, left out where the sidebar links both), and the start page's sidebar. The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -987,21 +987,23 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   (`bookmarks::Bookmarks`). They never become part of a URL (URLs are requested from the server
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
-  `e2e/bookmarks.mjs` watches every request of a session for marks. Exceptions, decided by the
-  owner (2026-09-23/24/25): the address of a calendar subscription (`/calendar/<code>.ics`,
-  `catalog::timetable::subscription`) carries the semester, the planned modules, what is hidden
-  or chosen (kinds, events, Termine, the Standort) and the program whose abbreviations name the
-  modules in its entries (the plan's, else „Mein Studiengang"; 2026-09-25) as a `pack` code of
-  kind `calendar`; the server resolves it anew on every fetch and keeps nothing; Folia's own log
-  writes `/calendar/….ics`; the edge's access log keeps the address like every address, 7 days in
-  the monitoring and in the host's log files until they rotate. And „Mein Studiengang" (kept in
-  the browser as `program.id`, in no other address) may stand in a catalog address as a chosen
-  program does (`/catalog?program=<slug>`), only where the catalog is filtered by it — the
-  catalog tab's first entry of a session; the app never carries it along into other addresses
-  and never re-adds it once removed. Like the Merkliste's `open`, the Studienplan's address names
-  the one module and Termin shown beside it (`open`, `row`), and the catalog's app-only
-  `fill=p<n>` names a placeholder by its local number (it says nothing about the visitor; the
-  server drops it) — never a list of what is planned.
+  The privacy notice lists what a browser keeps („Speicher im Browser" in
+  `app/src/pages/legal.rs`): a new store, or a new way for stored data into an address, is a
+  change of that text too. `e2e/bookmarks.mjs` watches every request of a session for marks.
+  Exceptions, decided by the owner (2026-09-23/24/25): the address of a calendar subscription
+  (`/calendar/<code>.ics`, `catalog::timetable::subscription`) carries the semester, the planned
+  modules, what is hidden or chosen (kinds, events, Termine, the Standort) and the program whose
+  abbreviations name the modules in its entries (the plan's, else „Mein Studiengang"; 2026-09-25)
+  as a `pack` code of kind `calendar`; the server resolves it anew on every fetch and keeps
+  nothing; Folia's own log writes `/calendar/….ics`; the edge's access log keeps the address like
+  every address, 7 days in the monitoring and in the host's log files until they rotate. And „Mein
+  Studiengang" (kept in the browser as `program.id`, in no other address) may stand in a catalog
+  address as a chosen program does (`/catalog?program=<slug>`), only where the catalog is filtered
+  by it — the catalog tab's first entry of a session; the app never carries it along into other
+  addresses and never re-adds it once removed. Like the Merkliste's `open`, the Studienplan's
+  address names the one module and Termin shown beside it (`open`, `row`), and the catalog's
+  app-only `fill=p<n>` names a placeholder by its local number (it says nothing about the visitor;
+  the server drops it) — never a list of what is planned.
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -1548,19 +1550,19 @@ to the result.
   one semester of the Studienplan per code (semester, planned modules, hidden kinds, events and
   Termine, chosen Termine, the Standort; `catalog::timetable::subscription`), made anew from the
   active snapshot on every fetch. R20 has the owner's decision, §3 the gate and the log, „Der
-  Studienplan" in §1 the rest; the privacy notice's entry is „Das Kalender-Abo" in
-  `PRIVACY_OWED` (`app/src/pages/legal.rs`). The note of 2026-09-23 (a code of event ids) is
-  superseded: a code of modules and hide rules also brings the exams QIS publishes later. Since
-  2026-09-25 an entry is as short as a slot of the week, for the phone (owner: „so kompakt wie
-  möglich … so wie die Infos bei der Ansicht auf der Seite"): „VL EvS" in „ZHG/HS.C", „Ü AuP · 1
-  von 3", „Prüfung EvS · 2. Termin"; its description says it all in full (what QIS calls the event,
-  the modules with number and title, the rooms as QIS names them, and what the rows say;
-  `catalog::timetable::export`). A program's abbreviations differ from a module's own in about
-  7 % of its compulsory modules, and the download must be the feed, so the code carries the
-  program; and it names the layout of its fields in four bits (`subscription::VERSION`), so a
-  later layout is read beside it. Codes of the time before are not read (canary only). Still
-  open: the edge logs the address like every address, 7 days in Loki and in Docker's log files
-  on the host until they rotate (`deploy/README.md` §9); a Traefik router for `/calendar/` with
-  `observability.accessLogs=false` would leave it out, but needs the blue-green priority label
-  in `deploy/vps/50-app.sh`, `55-switch.sh`, `lib-stacks.sh` and `91-verify-stacks.sh`. And a
+  Studienplan" in §1 the rest; the privacy notice's part is „Kalender-Abo"
+  (`app/src/pages/legal.rs`), which lists what a code carries. The note of 2026-09-23 (a code of
+  event ids) is superseded: a code of modules and hide rules also brings the exams QIS publishes
+  later. Since 2026-09-25 an entry is as short as a slot of the week, for the phone (owner: „so
+  kompakt wie möglich … so wie die Infos bei der Ansicht auf der Seite"): „VL EvS" in „ZHG/HS.C",
+  „Ü AuP · 1 von 3", „Prüfung EvS · 2. Termin"; its description says it all in full (what QIS calls
+  the event, the modules with number and title, the rooms as QIS names them, and what the rows say;
+  `catalog::timetable::export`). A program's abbreviations differ from a module's own in about 7 %
+  of its compulsory modules, and the download must be the feed, so the code carries the program;
+  and it names the layout of its fields in four bits (`subscription::VERSION`), so a later layout
+  is read beside it. Codes of the time before are not read (canary only). Still open: the edge logs
+  the address like every address, 7 days in Loki and in Docker's log files on the host until they
+  rotate (`deploy/README.md` §9); a Traefik router for `/calendar/` with
+  `observability.accessLogs=false` would leave it out, but needs the blue-green priority label in
+  `deploy/vps/50-app.sh`, `55-switch.sh`, `lib-stacks.sh` and `91-verify-stacks.sh`. And a
   subscription over several semesters: today the next semester needs a new address.
