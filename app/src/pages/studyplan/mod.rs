@@ -31,7 +31,6 @@ mod overview;
 mod side;
 mod week;
 
-use catalog::filter::{CatalogQuery, ProgramScope};
 use catalog::pages::{self, StudyplanData};
 use catalog::queries;
 use catalog::studyplan::{self, PlanDoc};
@@ -39,7 +38,7 @@ use catalog::timetable::day::Day;
 use catalog::timetable::model::Timetable;
 use catalog::timetable::select::Selection;
 use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, CatalogUrl, PlanView, StudyplanUrl};
+use catalog::url::{self, PlanView, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_location;
@@ -136,13 +135,7 @@ fn today() -> Option<Day> {
 /// in the snapshot (the one kind of address it may stand in, A.10), else the whole catalog.
 /// Tracked.
 pub(super) fn catalog_href(resolved: Option<MineResolved>) -> String {
-    match resolved.and_then(|resolved| resolved.0.get()).filter(|info| info.exact) {
-        Some(info) => {
-            let program = ProgramScope { program_slug: info.program.slug, ..Default::default() };
-            CatalogUrl { query: CatalogQuery { program: Some(program), ..Default::default() }, ..Default::default() }.path()
-        }
-        None => url::CATALOG.to_string(),
-    }
+    resolved.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)
 }
 
 /// Where „Modul ansehen" of the module beside the plan leads: the same page, filled with the

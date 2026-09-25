@@ -104,9 +104,12 @@ pub fn asset(path: &str) -> String {
 /// Runs before the first paint: marks the document as scripted and applies what this browser
 /// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps; the
 /// colour of the browser's own chrome (`theme-color`, `THEME_DARK`) follows the theme. Such personal
-/// view settings live in localStorage, never in the URL and never in server HTML (R9). Public for
-/// the one document the server writes without the app: the login page of closed testing.
-pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px')}catch(e){}";
+/// view settings live in localStorage, never in the URL and never in server HTML (R9). A browser
+/// that keeps „Mein Studiengang" marks the document with `mine`: the program overview's line about
+/// it is the app's, and the page keeps its room from the first paint, so the list does not move
+/// when the app takes over (R15). Public for the one document the server writes without the app:
+/// the login page of closed testing.
+pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem('betula.myprogram.v1')||''))d.classList.add('mine')}catch(e){}";
 
 /// The opt-in to the fade between pages, in the head of every document the server writes (this
 /// shell and the login page of closed testing). Not in app.css: Chromium decides whether a new
@@ -222,11 +225,15 @@ fn NavItems() -> impl IntoView {
     // The tab of the page the app is going to is current at once, before the page is there.
     let pending = Pending::expect();
     let current = move |area: Area| (Area::of(&pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get())) == area).then_some("page");
+    // The catalog's first entry of a session is the catalog of „Mein Studiengang", while its PO is
+    // in the snapshot (A.10); nothing is known of it on the server, whose tab is the plain link (R9).
+    let mine = MineResolved::expect();
     let href = move |area: Area| {
         let path = location.pathname.get();
-        match tabs {
-            Some(tabs) => tabs.href(area, &path),
-            None => area.root().to_string(),
+        match (tabs, area) {
+            (Some(tabs), Area::Catalog) => tabs.href_with_root(area, &path, &mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)),
+            (Some(tabs), _) => tabs.href(area, &path),
+            (None, _) => area.root().to_string(),
         }
     };
     let plan = Studyplan::expect();

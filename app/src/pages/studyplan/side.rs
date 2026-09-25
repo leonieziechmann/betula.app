@@ -13,7 +13,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use catalog::pages;
 use catalog::queries;
 use catalog::rows::Program;
 use catalog::studyplan::PlanDoc;
@@ -23,17 +22,15 @@ use catalog::timetable::model::{Row, Timetable};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::select::{Town, TownChoice};
 use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
+use catalog::url::{self, PlanView, StudyplanUrl};
 use catalog::labels::Rhythm;
-use catalog::variants;
 use leptos::prelude::*;
 
 use super::export::CalendarGroup;
 use super::head::{kind_word, semester_href, weekday_name};
 use super::{key_of, PlanCtx};
 use crate::combobox::{ComboItem, Combobox};
-use crate::data::Source;
-use crate::myprogram::{MineResolved, MyProgram};
+use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
 use crate::nav;
 use crate::pending::Pending;
 use crate::studyplan::Studyplan;
@@ -394,28 +391,6 @@ fn HiddenGroup(ctx: PlanCtx) -> impl IntoView {
 
 // ---------- 7. Mein Studiengang ----------
 
-/// A program as one line: „Informatik B.Sc. · PO 2008" (what „Mein Studiengang" stores as its
-/// name, shown when the program is gone from the snapshot).
-fn program_name(program: &Program) -> String {
-    format!("{} {} · PO {}", program.name, program.degree(), po_of(program))
-}
-
-/// „2008": the year of a program's regulation, else its version.
-fn po_of(program: &Program) -> String {
-    program.po_year.map(|year| year.to_string()).unwrap_or_else(|| program.po_version.clone())
-}
-
-/// The program's page with the stored Studienrichtung's plan (`variant=`, A.10): the plan whose
-/// caption was stored, the first where none or none of that caption is.
-fn program_href(source: &Option<Source>, program: &Program, caption: Option<&str>) -> String {
-    let variant = caption.filter(|caption| !caption.trim().is_empty()).and_then(|caption| {
-        let plans = source.as_ref()?.run(|db| pages::plan_source(db, &program.id)).ok()??;
-        let found = variants::variant_for(&plans.variants, caption)?;
-        plans.variants.iter().position(|variant| std::ptr::eq(variant, found))
-    });
-    ProgramUrl::new(&program.slug, ProgramTab::Plan).with_variant(variant.map_or(1, |index| index + 1)).path()
-}
-
 /// The semesters „Studienbeginn" offers, in order: the current one, the twelve before it and the
 /// next, and a stored one outside them.
 fn start_options(current: Option<SemesterKey>, start: Option<SemesterKey>) -> Vec<SemesterKey> {
@@ -444,6 +419,7 @@ fn MineGroup(ctx: PlanCtx, #[prop(into)] first: Signal<bool>) -> impl IntoView {
     let stored = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
     let name = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.name.clone().or_else(|| doc.program.clone()))).unwrap_or_default());
     let caption = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.caption.clone())));
+    let direction = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.direction.clone())));
     let info = Memo::new(move |_| resolved.and_then(|resolved| resolved.0.get()));
     let state = Memo::new(move |_| match (stored.with(Option::is_some), info.get()) {
         (false, _) => Mine::Unset,
@@ -452,8 +428,8 @@ fn MineGroup(ctx: PlanCtx, #[prop(into)] first: Signal<bool>) -> impl IntoView {
         (true, None) => Mine::Gone(name.get(), None),
     });
     let link = Memo::new(move |_| {
-        let (info, caption) = (info.get()?, caption.get());
-        Some(ctx.source.with_value(|source| program_href(source, &info.program, caption.as_deref())))
+        let (info, caption, direction) = (info.get()?, caption.get(), direction.get());
+        Some(ctx.source.with_value(|source| program_href(source.as_ref(), &info.program, caption.as_deref(), direction.as_deref())))
     });
     let take_latest = move |latest: &Program| {
         let (id, name) = (latest.id.clone(), program_name(latest));

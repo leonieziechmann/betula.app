@@ -29,7 +29,7 @@ use catalog::pages::{self, CatalogArea, ProgramData};
 use catalog::plan;
 use catalog::rows::{Program, ProgramModule};
 use catalog::rows_detail::{AreaPlacement, Plan, PlanEntry, PlanTotal};
-use catalog::url::{self, CatalogUrl, LocalView, ProgramTab, ProgramUrl};
+use catalog::url::{self, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
 use catalog::variants::{self, plan_variants, Choice, PlanVariant};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
@@ -39,6 +39,7 @@ use leptos_router::hooks::{use_location, use_params_map};
 use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::local::{self, ModuleInPlace};
+use crate::myprogram::{program_name, MineButton, ProgramPlans};
 use crate::nav;
 use crate::pages::catalog::phone_layout;
 use crate::pages::module::ModulePanel;
@@ -319,6 +320,17 @@ fn ProgramSidebar(
     };
     let related = data.counterpart.is_some() || !data.versions.is_empty();
     let areas = area_groups(&data.areas);
+    // „Mein Studiengang" and the Studienplan take the plan shown: its Studienrichtung is what the
+    // store keeps (a page that fills a core plan's row: the core, with the page as its direction),
+    // and „In den Studienplan" takes it over (A.10). Only the plan's tab shows one.
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals);
+    let count = plans.len();
+    let mine_plans = ProgramPlans::new(&plans, variants::supplements(&plans));
+    let shown = Signal::derive(move || (tab == ProgramTab::Plan && count > 0).then(|| variant.get().saturating_sub(1)));
+    let import = {
+        let slug = p.slug.clone();
+        move || StudyplanUrl { view: PlanView::Overview, import: Some(slug.clone()), variant: variant.get().clamp(1, count.max(1)), ..Default::default() }.path()
+    };
     // The view the app is going to is the current one at once (`pending`); its page follows.
     let going = Pending::expect();
     let slug = p.slug.clone();
@@ -346,9 +358,11 @@ fn ProgramSidebar(
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
         // JavaScript, so the switch is not there without it (R15), nor on a phone, where the
         // plan is always the list. Where the page is too narrow for the matrix, the switch shows
-        // the list that is drawn and says why the matrix is not there; the choice stays.
+        // the list that is drawn and says why the matrix is not there; the choice stays. The
+        // server does not know the phone: its switch is hidden there by the stylesheet
+        // (`.plan-shapes`), so the page does not move up when the app takes over.
         {move || shapes.filter(|_| !phone.get()).map(|_| view! {
-            <div class="fgroup js-only">
+            <div class="fgroup js-only plan-shapes">
                 <p class="flabel label">"Darstellung"</p>
                 <div class="seg" role="radiogroup" aria-label="Darstellung des Regelstudienplans">
                     {PlanShape::ALL.iter().map(|option| {
@@ -416,7 +430,12 @@ fn ProgramSidebar(
         })}
         <div class="fgroup actions">
             <p class="flabel label">"Aktionen"</p>
-            <span class="action soon" title="In Arbeit"><Icon name="star"/>"Als meinen Studiengang setzen"<em>"bald"</em></span>
+            // Both are part of server HTML, invisible until the app runs and gone without it
+            // (`.mine-toggle`), so the actions under them do not move at the takeover (R15).
+            <MineButton program_id=p.id.clone() name=program_name(&p) plans=mine_plans shown/>
+            {(count > 0).then(|| view! {
+                <a class="action mine-toggle" href=import><Icon name="calendar-plus"/><span>"In den Studienplan"</span></a>
+            })}
             {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>"Ordnungen & Dokumente"</a> })}
             <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>"Im Verzeichnis der BTU"</a>
         </div>
