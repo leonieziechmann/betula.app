@@ -1,5 +1,5 @@
 # The program-free abbreviation of every module (the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db). module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS).
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS); and the owner's calls of 2026-09-25: a head „X- und Y“ by its terms (SST, KJH, BSG1), a module of the program's curriculum scores 5,000 more than a FÜS module.
 11101	LAAG1	Lineare Algebra und analytische Geometrie I
 11102	LAAG2	Lineare Algebra und analytische Geometrie II
 11103	An1	Analysis I
@@ -68,7 +68,7 @@
 11166	BA	Bachelor Thesis - Design Project in Cooperation with Urban Design
 11167	BPCM	Basic Principles of Construction Management
 11168	ACB	Architectural Conservation and Building in Context
-11169	KuT	Kälte- und Tieftemperaturtechnik
+11169	KTT	Kälte- und Tieftemperaturtechnik
 11170	VBT1	Vertiefende Bautechnik 1
 11171	VBT2	Vertiefende Bautechnik 2
 11172	Ble	Blechumformung
@@ -153,7 +153,7 @@
 11251	Ges	Geschichte - Energie und Umwelt
 11252	Ges	Geschichte - Konstruktiver Ingenieurbau
 11253	AeB	Analyse eines Bestandsbauwerks
-11254	BuA	Bodenschutz- und Altlastenrecht
+11254	BAR	Bodenschutz- und Altlastenrecht
 11255	DuV	Darstellung und Vermessung
 11256	MGS	Mechanische Grundlagen der Statik
 11257	FGE	Festigkeitslehre und Grundlagen der Energiemethoden
@@ -196,7 +196,7 @@
 11294	Tut	Tutorial - Research Colloquium
 11295	WGP	Writing of Grant Proposals for Scientific Projects
 11296	LDN	Latest Developments and Need for Further Research in Heritage Studies
-11297	UuR	Umwelt- und Ressourcenökonomie
+11297	URÖ	Umwelt- und Ressourcenökonomie
 11298	EPB	Einführungsprojekt Betriebswirtschaftslehre
 11299	BP	Berufsfeldpraktikum
 11300	SeV	Seminar Volkswirtschaftslehre - Mikroökonomik
@@ -246,12 +246,12 @@
 11344	STS	Spezielle Themen der Stochastik
 11345	FM1	Finanzmathematik I
 11346	ST3	Sicherheitstechnik III
-11347	SuS	Schall- und Schwingungsmesstechnik
+11347	SST	Schall- und Schwingungsmesstechnik
 11348	EIn	European Integration
 11349	SPS	Sicherheit in Pervasiven Systemen
 11350	FM2	Finanzmathematik II
 11351	TrI	Triebwerks-Integration
-11352	IuK	Informations- und Kodierungstheorie
+11352	IKT	Informations- und Kodierungstheorie
 11353	GPM	Geschäftsprozessmodellierung
 11354	EMM	Elektrische Messtechnik und Messdatenerfassung
 11355	MNGS	Messung nichtelektrischer Größen und Sensorik
@@ -280,14 +280,14 @@
 11378	Arc	Archaeology
 11379	BBB	Baubetrieb, Bauwirtschaft, Baurecht
 11380	MuI	Methoden und Instrumente des konzeptionellen/wissenschaftlichen Arbeitens in der Stadtplanung
-11381	PuA2	Prozess- und Anlagensicherheit II
+11381	PAS2	Prozess- und Anlagensicherheit II
 11382	PID	Praktikum Internet der Dinge (IoT)
 11383	SNT	Statistische Nachrichtentheorie
 11384	NPDi	Numerik Partieller Differentialgleichungen
 11385	EMS	Electromechanical Systems
 11386	SFM	Ausgewählte Kapitel der Stochastischen Finanzmathematik
 11387	HGK	Heterogene Gleichgewichte, Konstitutionslehre der Metallkunde
-11388	AuS	Audio- und Signalverarbeitung
+11388	ASV	Audio- und Signalverarbeitung
 11389	WK	Werkstoffkunde - Stahl
 11390	BAr	Building Archaeology
 11391	EUD	Experimental Urban Design
@@ -426,21 +426,21 @@
 11524	IuB	Ingenieurgeologie & Bodenmechanik
 11525	Sta	Statik - Stabtragwerke
 11526	SuI	Siedlung & Infrastruktur
-11527	SuH	Stahl- & Holzbau
+11527	SHB	Stahl- & Holzbau
 11528	MuB	Massivbau & Betontechnologie
-11529	GuS	Gebäude- & Stadttechnik
+11529	GST	Gebäude- & Stadttechnik
 11530	KuH	Kinetik & Hydromechanik
 11531	BuB1	Bauwirtschaft & Baurecht - 1
 11532	SuB	Straße & Bahn
 11533	BuP	Baubetrieb & Projektmanagement
-11534	GuW	Grund- & Wasserbau
+11534	GWB	Grund- & Wasserbau
 11535	BuB2	Betriebswirtschaft & Baurecht - 2
 11536	SWW	Siedlungswasserwirtschaft
 11537	KW	Kreislaufwirtschaft: Bauliches Recycling
-11538	GuE	Gebäude- & Energietechnik
+11538	GET	Gebäude- & Energietechnik
 11539	EuÖ	Energie- & Ökobilanzen
 11540	Sta	Statik - Flächentragwerke
-11541	MuS	Massiv- & Stahlbau
+11541	MSB	Massiv- & Stahlbau
 11542	Pro	Projekt - Analyse Werkstoff
 11543	Pro	Projekt - Analyse Tragwerk
 11544	Pro	Projekt - Entwurf Tragwerk
@@ -472,7 +472,7 @@
 11570	BA	Bachelor-Arbeit
 11571	WGK	Wahlpflicht Gebäudekunde
 11572	BuT	Baustoffe und Tragwerke: Struktur und Material des Bauens
-11573	BuT	Bau- und Tragkonstruktion: Struktur des Gebäudes und der Gebäudehülle
+11573	BTK	Bau- und Tragkonstruktion: Struktur des Gebäudes und der Gebäudehülle
 11574	BuB	Baukonstruktion und Bauphysik: Eigenschaften der Gebäudehülle
 11575	TAG	Technische Ausrüstung von Gebäuden
 11576	IBTG	Integrierte Baukonstruktion / Tragkonstruktion / Gebäudetechnik
@@ -496,7 +496,7 @@
 11594	PWB	Projekt Wasserbau
 11595	AT	Abwassertechnik
 11596	PWA	Projekt Wasserwirtschaftliche Anlagen
-11597	BuF	Brücken- und Fertigteilbau
+11597	BFB	Brücken- und Fertigteilbau
 11598	MB	Massivbau
 11599	PBB	Projekt Brückenbau
 11600	BBS	Ausgewählte Kapitel Bauphysik und Bautenschutz
@@ -657,7 +657,7 @@
 11756	AuD	Algorithmen und Datenstrukturen
 11757	PHK	Projekt Hybride Konstruktionen
 11758	EMI	Einführung in die Medizininformatik
-11759	TuA	Teilchen- und Astroteilchenphysik
+11759	TAP	Teilchen- und Astroteilchenphysik
 11760	BuR	Betriebssysteme und Rechnernetze
 11761	DBV	Digitale Bildverarbeitung
 11762	PT	ProTrack - Seminar
@@ -725,7 +725,7 @@
 11825	TEn	Tissue Engineering
 11826	In1	Informatik 1
 11827	ELA	Einführung in die Laborarbeit
-11828	KuS	Kolben- und Strömungsmaschinen
+11828	KSM	Kolben- und Strömungsmaschinen
 11829	In2	Informatik 2
 11830	EiP	Einführung in die Programmierung
 11831	Mat1	Mathematik 1
@@ -862,7 +862,7 @@
 11962	AMÖ	Angewandte Mathematik und Ökonometrie
 11963	EWF	Empirische Wirtschaftsforschung
 11964	WuG	Wertschöpfung und Geschäftsmodelle
-11965	KuI	Kosten- und Investitionsmanagement
+11965	KIM	Kosten- und Investitionsmanagement
 11966	ABWL6	Allgemeine Betriebswirtschaftslehre VI: Unternehmensführung und Ethik
 11967	SBE	Softwarebasierte Entscheidungsunterstützung
 11968	OSU	Oberseminar Unternehmensrechnung
@@ -903,11 +903,11 @@
 12003	MS	Marketingsimulation (TOPSIM)
 12004	PP	Praxisprojekt
 12005	Mar1	Marketing I: Grundlagen und Strategie
-12009	BuK	Bilanz- und Kennzahlenanalyse
+12009	BKA	Bilanz- und Kennzahlenanalyse
 12010	Con1	Controlling I: Strategisches Controlling
 12011	Con2	Controlling II: Investitionscontrolling und Operatives Controlling
 12012	Con3	Controlling III: Bereichscontrolling
-12013	IuF	Investitions- und Finanzplanung
+12013	IFP	Investitions- und Finanzplanung
 12014	FuB	Finanzintermediation und Bankenregulierung
 12015	IUB	IFRS und Unternehmensbewertung
 12016	KuU	Konzernbildung und Unternehmenszusammenschlüsse
@@ -1063,7 +1063,7 @@
 12168	AEW1	Allgemeine Energiewirtschaft 1
 12169	APr	Atmosphärische Prozesse
 12170	MST	Mikrosystemtechnik
-12171	LuM	Labor- und Messtechnik
+12171	LMT	Labor- und Messtechnik
 12172	PAE	Philosophische Anthropologie und Ethik
 12173	PGMK	Philosophische Grundlagen moderner Kultur
 12174	IFP	Interdisziplinäres Forschungsprojekt
@@ -1082,7 +1082,7 @@
 12187	ÖMG	Ökologie und Management von Gewässern
 12188	KTP	Kultur, Technik, Philosophie
 12189	PrP	Praktische Philosophie - Ethik
-12190	PuI	Philosophie- und Ideengeschichte
+12190	PIG	Philosophie- und Ideengeschichte
 12191	SP	Sozialphilosophie: Systematische Fragen
 12192	SP	Studienprojekt
 12193	Pra	Praktikum
@@ -1117,7 +1117,7 @@
 12222	BSR	Beteiligungsprozesse in der Stadt- und Regionalplanung
 12223	WR	Wirtschaftsrecht
 12224	MR	Medienrecht
-12225	SuV	Staats- und Verwaltungsrecht
+12225	SVR	Staats- und Verwaltungsrecht
 12226	UR	Umweltrecht
 12227	GdE	Grundzüge des Europarechts
 12228	PR	Patentrecht
@@ -1126,7 +1126,7 @@
 12231	GM	Gründungsmanagement
 12232	AR	Arbeitsrecht
 12233	EAFM	Experiments in Aerodynamics and Fluid Mechanics
-12234	FuS	Finanz- und Steuerrecht
+12234	FSR	Finanz- und Steuerrecht
 12235	EMT	Einstieg in die Mikrocontrollertechnik
 12236	KL2	Krankheitslehre 2
 12237	FS	Forschungsseminar
@@ -1333,7 +1333,7 @@
 12442	DSN2	Drahtlose Sensornetze II
 12443	MPW	Multimedia-Präsentationen im Web
 12444	IDDIM	Interaktives Design / Design interaktiver Medien
-12445	WuS	Wirtschafts- und Sozialkunde
+12445	WSK	Wirtschafts- und Sozialkunde
 12446	PCS	Projektstudium Computergrafik und Softwaretechnik
 12447	DWT	Data-Warehouse-Technologien
 12448	WTL	Web-Technologies Lab
@@ -1369,7 +1369,7 @@
 12478	TET	Theoretische Elektrotechnik
 12479	AVZ	Aufbau- und Verbindungstechnik und Zuverlässigkeit
 12480	MA	Master-Arbeit
-12481	IuC	Informations- und Codierungstheorie
+12481	ICT	Informations- und Codierungstheorie
 12482	BSS	FPGA basierter Schaltungsentwurf und Schaltungssimulation
 12483	FKS	Funkbasierte Kommunikationssysteme
 12484	DSV	Digitale Signalverarbeitung
@@ -1378,7 +1378,7 @@
 12487	Pro	Prozessoptimierung
 12488	MR	Mehrgrößenregelung
 12489	SDE	Systemintegration dezentraler Energieerzeugung
-12490	SuL	Schutz- und Leittechnik
+12490	SLT	Schutz- und Leittechnik
 12491	DMEES	Design / Management Elektrische Energie Systeme
 12492	KdH	Komponenten der Hochspannungstechnik
 12493	EWS2	Energiewirtschaftliches Seminar 2
@@ -1454,7 +1454,7 @@
 12563	BPr	Bachelor-Praktikum
 12564	BA	Bachelor-Arbeit
 12565	FmP	Fördertechnik mit Praktikum
-12566	KuS	Kolben- und Strömungsmaschinen
+12566	KSM	Kolben- und Strömungsmaschinen
 12567	FKS	Faserverstärkte Kunststoffe
 12568	FT3	Fertigungstechnik 3 - Beschichtungstechnik
 12569	ST	Schweißtechnik
@@ -1494,7 +1494,7 @@
 12603	FmK	Funktionsintegration mit Kunststoffen
 12604	GmK	Gestaltung mit Kunststoffen
 12605	CADF	CAD / FEM
-12606	WuF	Wirtschafts- und Finanzmathematik
+12606	WFM	Wirtschafts- und Finanzmathematik
 12607	WT12	Werkstofftechnik 1, 2
 12608	QS	Qualitätssicherung
 12609	TM1	Technische Mechanik 1
@@ -1522,8 +1522,8 @@
 12631	TeV	Technischer Vertrieb
 12632	IUF	Internationale Unternehmensführung
 12633	AnF	Anwendungsorientierte Forschung
-12634	TuI	Technologie- und Innovationsmanagement
-12635	QuR	Qualitäts- und Risikomanagement
+12634	TIM	Technologie- und Innovationsmanagement
+12635	QRM	Qualitäts- und Risikomanagement
 12636	MA	Master-Arbeit
 12637	DFP	Digitale Fabrikplanung
 12638	GPL	Globale Produktion und Logistik
@@ -1632,14 +1632,14 @@
 12742	BFM	Bioanalytik in Forschung und Medizin
 12743	QS	Qualitätssicherung
 12744	GS	Gewässerschutz
-12745	SuP	System- und Prozesshydrologie
+12745	SPH	System- und Prozesshydrologie
 12746	Exk	Exkursion
 12747	Kom	Kommunikation
 12748	DuS	Denkmalpflege und Sanierungspraxis
 12749	PhC	Pharmazeutische Chemie
 12750	US	Unternehmensstrategien
 12751	BMM	Biophysikalische und Mathematische Methoden
-12752	SuW	Steuer- und Wirtschaftsrecht
+12752	SWR	Steuer- und Wirtschaftsrecht
 12753	Vir	Virologie
 12754	Evo	Evolution
 12755	PBT	Phototrophe Biotechnologie
@@ -1956,7 +1956,7 @@
 13067	RLV	Ringlabor Verfahrenstechnik
 13068	IPL	Intervention bei psychischen Leiden
 13069	MiD	Migrant*innen in Deutschland
-13070	KuJ	Kinder- und Jugendhilfe
+13070	KJH	Kinder- und Jugendhilfe
 13071	KMZ	Kultur- und medienpädagogische Zielgruppenarbeit
 13072	SiR	Sozialarbeit in Rumänien
 13073	SKJ	Stationäre Kinder- und Jugendhilfe
@@ -1992,7 +1992,7 @@
 13103	Ch1	Chemie I: Allgemeine und Anorganische Chemie
 13104	Ch2	Chemie II: Organische und Analytische Chemie
 13105	NPC	Nobelpreise in der Physik und Chemie
-13106	TuU	Technik- und Umweltgeschichte
+13106	TUG	Technik- und Umweltgeschichte
 13107	GdP	Grundlagen der Physik
 13108	Ch2	Chemie II
 13109	PTN	Philosophy of Technology and Nature
@@ -2003,7 +2003,7 @@
 13114	Äst	Ästhetik
 13115	GdN	Geschichte der Naturwissenschaften
 13116	GdN	Geschichte der Naturwissenschaften
-13117	TuK	Technik- und Kulturphilosophie
+13117	TKP	Technik- und Kulturphilosophie
 13118	PP1	Physikalisches Praktikum I
 13119	FDB	Fachdidaktik Blockflöte - Grundlagen
 13120	Alt	Altenarbeit
@@ -2165,8 +2165,8 @@
 13277	NDK	Normgerechtes Darstellen und Konstruieren
 13278	ESE	Energy Systems Engineering
 13279	WM	Werkzeugmaschinen - Konstruktion und Auslegung
-13280	WuP	Werkstoff- und Physiklabor
-13281	SuS	Signal- und Systemtheorie
+13280	WPL	Werkstoff- und Physiklabor
+13281	SST	Signal- und Systemtheorie
 13282	FS-A1	Französisch Start A1
 13283	Fr-A2	Französisch A2
 13284	DFB-B2.1	Deutsch als Fremdsprache für den Beruf B2.1
@@ -2207,7 +2207,7 @@
 13319	KTP	Kultur, Technik, Philosophie
 13320	WLN	Wissenschaftstheorie, Logik und Naturphilosophie
 13321	PPE	Praktische Philosophie-Ethik
-13322	PuI	Philosophie- und Ideengeschichte
+13322	PIG	Philosophie- und Ideengeschichte
 13323	ÖuP	Ökonomik und Philosophie
 13324	UGW	Umwelthistorisches Grundwissen
 13325	TGW	Technikhistorisches Grundwissen
@@ -2344,7 +2344,7 @@
 13457	QED	Quantenelektrodynamik
 13458	AKW	Angewandte Kommunikationswissenschaft
 13459	PAM	Poröse Anorganische Materialien
-13460	TuA	Teilchen- und Astroteilchenphysik
+13460	TAP	Teilchen- und Astroteilchenphysik
 13461	CKIS	Chemische Konzepte in der Industriellen Synthese
 13462	Lek	Lektürekurs: Texte zur Kulturphilosophie
 13463	NuT	Natur und Technik
@@ -2400,7 +2400,7 @@
 13513	CNSRC	Communication Networks / Security Research Class
 13514	IiT	Individuen in Transformationsprozessen
 13515	AMe	Advanced Methods in Process, Energy and Systems Engineering
-13516	MuI	Maß- und Integrationstheorie
+13516	MIT	Maß- und Integrationstheorie
 13517	CFDS	CFD Seminar
 13518	IBMT	Image Based Measurement Techniques for Fluid Mechanics
 13519	CFD1	CFD 1
@@ -2494,10 +2494,10 @@
 13608	En-B2.2	English B2.2 - College+
 13609	EAP-C1.1	English for Academic Purposes C1.1
 13610	EAP-C1.2	English for Academic Purposes C1.2 - College+
-13611	BuB	Bauplanungs- und Bauordnungsrecht
+13611	BBR	Bauplanungs- und Bauordnungsrecht
 13612	BuT	Baustoffe und Tragwerke
 13613	BuB	Baukonstruktion und Bauphysik
-13614	BuT	Bau- und Tragkonstruktion
+13614	BTK	Bau- und Tragkonstruktion
 13615	NBGG	Nachhaltiges Bauen und Gebäudetechnik, Grundlagen
 13616	PKTÖ	Projekt Konstruktion / Technik / Ökologie
 13617	IBÖ	Integrationsmodul Bautechnik und Ökologie
@@ -2518,7 +2518,7 @@
 13633	GuE	Gebäudekunde und Entwerfen
 13634	GKV	Gebäudekunde, Vertiefung
 13635	DMo	Digitales Modellieren
-13636	DuZ	Daten- und Zuverlässigkeitsanalyse
+13636	DZA	Daten- und Zuverlässigkeitsanalyse
 13637	TEETS-B2	Technical English Environmental Technology Soil B2
 13638	GdK	Geschichte des Konstruierens
 13639	MFDS	Mathematical Foundations of Data Science
@@ -2553,7 +2553,7 @@
 13668	SPHD	Sensorimotor Processing in Health and Disease
 13669	LPo	Law and Policy for Agricultural Resource Management
 13670	KKM	Klassismuskritik in der Kultur- und Musikarbeit
-13671	RuA	Reaktions- und Anlagentechnik
+13671	RAT	Reaktions- und Anlagentechnik
 13672	Pra	Praktikum
 13673	WAG	Wissenschaftliches Arbeiten/Methodische Grundlagen
 13674	KG1	Kunstgeschichte 1
@@ -2607,7 +2607,7 @@
 13722	BF	Betriebsfestigkeit
 13723	MAS	Medienarbeit in der Schulsozialarbeit - Lokale Kinder- und Jugendredaktionen und die 'Reise durch die Mediengalaxie'
 13724	AcS	Active Structures
-13725	KuW	Kontinuums- und Werkstoffmechanik
+13725	KWM	Kontinuums- und Werkstoffmechanik
 13726	PFP	Private Finanzplanung
 13727	SSM	StratSim Management - Unternehmensplanspiel
 13728	KWB	Konstruktiver Wasserbau
@@ -2925,7 +2925,7 @@
 14043	Gef	Gefahrgutumschließung - Druckbehälter
 14044	CADF	CAD / FEM
 14045	WDWA	Wissenschaftliche Debatte & wissenschaftliches Arbeiten
-14046	WuP	Werkstoff- und Physiklabor
+14046	WPL	Werkstoff- und Physiklabor
 14047	CME	Selected Chapters in Microwave Electronics
 14048	AMK	Aufbau und Materialverhalten der Kunststoffe
 14049	EAE	Electrified Aero Engines
@@ -3065,7 +3065,7 @@
 14188	SuM	Studientechniken und Methoden
 14189	PÖH	Politisch-ökonomische Herausforderungen für das Verwaltungshandeln
 14190	RGV	Rechtliche Grundlagen des Verwaltungshandelns
-14191	PuO	Personal- und Organisationspsychologie
+14191	POP	Personal- und Organisationspsychologie
 14192	EKH	Entscheiden in komplexen Handlungssituationen
 14193	DVB	Digitalisierung der Verwaltung und der Bürgerdienstleistungen
 14194	ÖFD	Öffentliche Finanzen in der Demokratie
@@ -3239,7 +3239,7 @@
 14364	Unt	Unternehmensnachfolge
 14365	IP	Integrationspraktikum
 14367	FR	Fotorecht - Rechtliche Rahmenbedingungen für Foto und Film
-14368	KuM	Kultur- und Medienpädagogik: Freies Radio/Podcasting
+14368	KMP	Kultur- und Medienpädagogik: Freies Radio/Podcasting
 14369	DuP	Diversität und Partizipation in der kulturellen Bildung
 14370	AFH	Ambulante Familienhilfe - Arbeiten mit Familien in ihrer Lebenswelt
 14371	HDE	Hilfeplanprozesse und deren Entwicklungsberichte
@@ -3307,7 +3307,7 @@
 14440	CDS	Causal Data Science
 14441	BIL	Bioinformatics Laboratory
 14442	RFICDL	Radio Frequency Integrated Circuit Design Lab
-14443	IuC	Informations- und Codierungstheorie
+14443	ICT	Informations- und Codierungstheorie
 14444	CrS	Critical Studies in Art History and Art Theory (Online)
 14445	SCS	Seminar Computing at Scale in Machine Learning
 14446	NeE	Neuromorphic Engineering
@@ -3626,7 +3626,7 @@
 14759	SRU	Sozialrecht in der Umsetzung
 14760	GSS	Gesundheit und soziale Sicherung
 14761	ZBH	Zugänge zum berufspraktischen Handeln
-14762	KuJ	Kinder- und Jugendhilfe
+14762	KJH	Kinder- und Jugendhilfe
 14764	PMB	Praxis und methodische Begleitung
 14765	TPM	Teilhabe und Powersharing in der Migrationsgesellschaft
 14766	MWK	Medienwerkstatt Kultur: Aktive Audioarbeit mit Podcast und Radio
@@ -3695,7 +3695,7 @@
 14836	FP	Forschungsprojekt: Literalität und ihre Beforschung
 14837	FP	Forschungsprojekt: Fluchtmigration
 14838	EPE	Entwicklungsphänomene und psychische Erkrankungen in verschiedenen Lebensphasen
-14839	TuI	Technologie- und Innovationsmanagement
+14839	TIM	Technologie- und Innovationsmanagement
 14840	AEDA1	Aero Engine Design and Analysis 1
 14841	AEDA2	Aero Engine Design and Analysis 2
 14842	PM4	Praxismodul 4
@@ -3784,7 +3784,7 @@
 14930	BA	Bachelor-Arbeit
 14932	SP	Sprachpraxis
 14933	Lin	Linguistik: Grundlagen und Unterrichtspraxis
-14934	LuK	Literatur- und Kulturwissenschaft
+14934	LKW	Literatur- und Kulturwissenschaft
 14935	DFF	Didaktik des frühen Fremdsprachenunterrichts
 14936	IAUF	Innovative Ansätze in Unterricht und Forschung der Englischdidaktik
 14939	GdG	Grundlagen der Grundschulpädagogik
@@ -3864,7 +3864,7 @@
 15023	It-A1	Italian A1 for Student Life, Job and Daily Life
 15026	SR	Schulrecht
 15027	EEWK	Extreme Ereignisse in Wetter und Klima
-15028	AuM	Arzt- und Medizinrecht
+15028	AMR	Arzt- und Medizinrecht
 15029	BEA	Bahnbetrieb und eisenbahntechnische Ausrüstung
 15030	PRT	Practical Research Training: Fluid- and Process Engineering
 15031	EEM	Einführung in die Elementare Musikpädagogik
@@ -3909,7 +3909,7 @@
 21418	PM	Projektmanagement
 21419	BPW	Bau- und Planungsrecht für Wirtschaftsingenieure
 21420	SdB	Sonderverfahren der Bautechnologie
-21421	PuB	Planungs- und Baurecht
+21421	PBR	Planungs- und Baurecht
 21422	SuP	Stadtökonomie und Projektentwicklung
 21423	FPB	Fachplanungsrecht und privates Baurecht
 21424	Bau	Baupreiskalkulation
@@ -4014,8 +4014,8 @@
 23310	BuK	Bemessen und Konstruieren - nichtlineares Tragverhalten
 23311	BuK	Bemessen und Konstruieren - Stabwerke für Wirtschaftsingenieure
 23312	PuK	Planen und Konstruieren - Bauwirtschaft
-23313	BuT	Bahnstrom- und Telematiksysteme
-23314	LuS	Leit- und Sicherungstechnik
+23313	BTS	Bahnstrom- und Telematiksysteme
+23314	LST	Leit- und Sicherungstechnik
 23315	PBS	Planung und Bau von Schienenbahnen
 23316	VBS	Verkehr und Betrieb von Spurbahnen
 23317	BuK	Bemessen und Konstruieren - ebene Flächentragwerke
@@ -4031,7 +4031,7 @@
 23404	GCM	Graphentheorie / CAD-Methodik
 23405	NBP	Netzbasierte Prozessmodellierung
 23406	SVI	Spurgebundene Verkehrsinfrastruktur
-23407	LuS	Leit- und Sicherungstechnik
+23407	LST	Leit- und Sicherungstechnik
 23408	SVT	Straßenverkehrstechnik
 23409	ST	Stadttechnik
 23410	PBW	Projekt Boden / Wasser
@@ -4115,16 +4115,16 @@
 24502	MA	Master-Arbeit
 24503	SuV	Stadttechnik und Verkehr
 25101	MGF	Methodische Grundlagen und Fertigkeiten in Architekturwissenschaft, Bauforschung und Denkmalpflege
-25102	BuS1	Bau- und Stadtbaugeschichte 1
+25102	BSG1	Bau- und Stadtbaugeschichte 1
 25103	EWK	Einführung in die Wissenschaft und die Kultur der Stadt
 25104	ÄuK	Ästhetik und Kunsttheorie
 25105	KWG	Kulturwissenschaftliche Grundlagen
 25106	CBEF	Conservation / Building in Existing Fabric
 25107	DIB	Darstellung und Informationsverarbeitung im Bauingenieurwesen
-25201	BuS2	Bau- und Stadtbaugeschichte 2
-25203	BuS	Bau- und Stadtbaugeschichte
+25201	BSG2	Bau- und Stadtbaugeschichte 2
+25203	BSG	Bau- und Stadtbaugeschichte
 25301	USTHB	Untersuchungen zu Struktur und Tragverhalten historischer Bauten
-25302	BuK	Bau- und Kunstgeschichte
+25302	BKG	Bau- und Kunstgeschichte
 25303	SBV	Stadtbaugeschichte / Bauaufnahme und Vermessung
 25304	TGW	Theorie und Geschichte des Wohnens
 25305	EPV	Einführung in die Planungstheorie und die Vermittlung von Planung
@@ -4142,7 +4142,7 @@
 25410	MKu	Materiale Kultur
 25411	VeV	Verbale Vermittlung
 25412	VVe	Visuelle Vermittlung
-25413	KuW	Kunst- und Wissenschaftstheorien
+25413	KWT	Kunst- und Wissenschaftstheorien
 25414	TdS	Theorie der Stadt
 25415	SP	Stadtprojekt
 25416	PrV	Praktische Vermittlung
@@ -4154,10 +4154,10 @@
 25422	MdA	Medien der Architekturvermittlung
 25423	MeG	Methodische Grundlagen
 25424	Kom	Kommunikation
-25425	DuS	Denkmalpflege- und Sanierungspraxis
+25425	DSP	Denkmalpflege- und Sanierungspraxis
 25427	PDP	Projekt Denkmalpflege
 25428	PBB	Projekt Baugeschichte / Bauforschung
-25429	MuW	Medien- und Wissenschaftstheorien
+25429	MWT	Medien- und Wissenschaftstheorien
 25430	PIG	Politische und institutionelle Grundlagen von Architektur und Planung
 25431	KG	Kunstgeschichte
 25432	AKA	Aktuelle Konzepte der Architekturvermittlung
@@ -4189,12 +4189,12 @@
 31302	GKL	Grundlagen der Konstruktion und Leistungsrechnung
 31303	HSM	Höhere Strömungsmechanik
 31304	LAD	Luftfahrt-Aerodynamik
-31305	MuF	Maschinen- und Fahrzeugdynamik
+31305	MFD	Maschinen- und Fahrzeugdynamik
 31306	NSK	Nichtlineare Struktur- und Kontinuumsmechanik
 31307	TTM	Thermische Turbomaschinen
 31308	TL	Triebwerksleistungsrechnung
 31309	VM	Verbrennungsmotoren
-31311	MuF	Maschinen- und Fahrzeugakustik
+31311	MFA	Maschinen- und Fahrzeugakustik
 31312	TM	Turbulenzmodellierung
 31313	HMS	Heterogene Mehrskalenmethoden in der Strömungsmechanik
 31314	NMSG	Numerische Methoden in der Strömungs- und Gasdynamik
@@ -4206,12 +4206,12 @@
 31406	FMT	Fahrzeugmesstechnik
 31407	ApM	Applied Mechanics
 31408	DdK	Dynamik der Kraftfahrzeuge - Querdynamik
-31409	FuS	Fahrzeug- und Strukturschwingungen
+31409	FSS	Fahrzeug- und Strukturschwingungen
 31410	Flu	Flugantriebe
 31412	GLE	Grundlagen der Lärm- und Emissionsberechnung
 31413	FTVVZ	Festigkeitsberechnung von Triebwerken, Versuch, Validierung und Zertifikation
 31414	KTK	Kerntriebwerkskonstruktion
-31415	LuS	Leichtbau- und Strukturmechanik
+31415	LSM	Leichtbau- und Strukturmechanik
 31416	GdM	Grundlagen der Motorradtechnik
 31417	VdM	Vertiefung der Motorradtechnik
 31418	NMD	Numerische Methoden der Dynamik
@@ -4225,7 +4225,7 @@
 31426	SMT	Schwingungsmesstechnik
 31427	Rau	Raumfahrtanwendungen
 31428	AlA	Alternative Antriebe
-31429	SuS	Schall- und Schwingungsmesstechnik
+31429	SST	Schall- und Schwingungsmesstechnik
 31430	NSM	Numerische Strömungsmechanik
 31431	AVS	Analyse und Visualisierung von Strömungen mit MATLAB
 31432	WFG	Wellen in Flüssigkeiten und Gasen
@@ -4361,7 +4361,7 @@
 35320	KT1	Kraftwerkstechnik I
 35321	PBI	Planung, Bau, Instandhaltung von Energieversorgungsanlagen
 35322	TNRE	Technik und Nutzung regenerativer Energiequellen
-35323	WuS	Wärme- und Stoffübertragung
+35323	WSÜ	Wärme- und Stoffübertragung
 35324	AGI12	Aspects of Grid Integration of Decentralized Power Generation I & II
 35325	EAT	Elektrische Antriebstechnik
 35326	GV	Gasversorgung
@@ -4373,7 +4373,7 @@
 35405	MVE	Moderne Verfahren der Energiewandlung
 35406	SODE	Systemintegration und Optimierung dezentraler Energiesysteme
 35407	GDN	Gastransmission and Distribution Networks
-35408	MuN	Mittel- und Niederspannungstechnik
+35408	MNT	Mittel- und Niederspannungstechnik
 35409	PAu	Power Automation
 35410	HVMTT	High Voltage Measuring and Testing Technique
 35411	AKE	Ausgewählte Kapitel aus der Energieverteilung
@@ -4511,7 +4511,7 @@
 36421	WGF	Werkstoffgerechtes Fügen
 36422	KL	Konstruktionslehre
 36423	ERP	ERP - Integrierte betriebliche Systeme
-36424	KuE	Kreativitäts- und Entspannungstechniken
+36424	KET	Kreativitäts- und Entspannungstechniken
 36425	MTÜ	Messtechnische Übungen
 36426	AFF	Anwendung von Festigkeitskonzepten mit FEM
 36427	IFP	Industriefachpraktikum
@@ -4568,7 +4568,7 @@
 37409	MA	Master Thesis
 37410	SP1	Study Project 1
 37411	SP2	Study Project 2
-37412	AuB	Arbeits- und Beschäftigungssoziologie
+37412	ABS	Arbeits- und Beschäftigungssoziologie
 37413	Wir	Wirtschaftssoziologie
 37501	CMa	Cultural Management
 38101	ABI	Allgemeine Betriebswirtschaftslehre für Ingenieure
@@ -4649,7 +4649,7 @@
 38436	IBF	IT-basierte Finanzplanung
 38437	GPM	Geschäftsprozessmodellierung
 38440	WM	Wertschöpfungsmanagement
-38501	RuW	Ressourcen- und Wissensmanagement
+38501	RWM	Ressourcen- und Wissensmanagement
 38502	UF	Unternehmensführung
 38503	OOPU	Oberseminar Organisation, Personalmanagement und Unternehmensführung
 38504	MA	Master-Arbeit
@@ -4691,17 +4691,17 @@
 41220	RP2	Rechtspädagogik II
 41301	AR	Arbeitsrecht
 41302	HR	Handelsrecht
-41303	SuV1	Staats- und Verwaltungsrecht 1
+41303	SVR1	Staats- und Verwaltungsrecht 1
 41304	UM	Umweltmanagement
-41305	SuV2	Staats- und Verwaltungsrecht 2
+41305	SVR2	Staats- und Verwaltungsrecht 2
 41306	UuG	Umweltrecht und Genehmigungsverfahren
 41307	GR	Gesellschaftsrecht
 41308	GdE	Grundzüge des Europarechts
 41309	WR	Wirtschaftsrecht
-41310	FuS	Finanz- und Steuerrecht
-41311	BuA	Bodenschutz- und Altlastenrecht
+41310	FSR	Finanz- und Steuerrecht
+41311	BAR	Bodenschutz- und Altlastenrecht
 41312	ÖuN	Ökologie und Naturschutz
-41313	HuG	Handels- und Gesellschaftsrecht
+41313	HGR	Handels- und Gesellschaftsrecht
 41314	SVU	Staats-, Verwaltungs- und Umweltrecht
 41315	SUF	Sozialwissenschaftliche Umweltfragen
 41316	AuE	Ansätze und Erfahrungen mit der Entwicklung und Durchführung von Umweltkampagnen
@@ -4709,7 +4709,7 @@
 41318	MESS	Methods of Empirical Social Sciences
 41319	EMSS	Empirical Methods of Social Sciences
 41401	KS	Konzernstrategien
-41402	FuS	Finanz- und Steuerrecht
+41402	FSR	Finanz- und Steuerrecht
 41403	MR	Medienrecht
 41404	SEAEIA	Strategic Environmental Assessment and Environmental Impact Assessment
 41405	CBA	Cost-Benefit Analysis in Environmental Evaluation
@@ -4838,7 +4838,7 @@
 43405	Rec	Recycling
 43406	MSWM	Municipal Solid Waste Management
 43408	AT2	Abwassertechnik 2
-43409	WuA	Wasser- und Abwassertechnik
+43409	WAT	Wasser- und Abwassertechnik
 43410	InS	Industrial Sustainability
 43411	MMa	Material Management
 43412	MSc	Molecular Sciences
@@ -4855,7 +4855,7 @@
 43503	DT	Deponietechnik
 43504	BVBA	Biologische Verfahren der Biomasse- und Abfallbehandlung
 43505	BEn	Biogasanlagen-Engineering
-43506	BuB	Bioethanol- und Biodieselherstellung
+43506	BBH	Bioethanol- und Biodieselherstellung
 43507	BWA	Betriebsführung und Wirtschaftlichkeit von (Biogas-) Anlagen
 43508	HAE	Ausgewählte Kapitel der Herstellung alternativer Energien
 43509	EuE	Energie und Energieträger aus festen Abfällen
@@ -4885,7 +4885,7 @@
 44209	MVT	Mechanische Verfahrenstechnik
 44301	AGSR	Auslegung von Gas-Solid Reaktoren
 44303	PST	Prozesssystemtechnik
-44304	PuA	Prozess- und Anlagensicherheit
+44304	PAS	Prozess- und Anlagensicherheit
 44305	AT1	Apparatetechnik 1
 44306	EVT	Energieverfahrenstechnik
 44307	AuS	Abwasser- und Schlammbehandlung
@@ -4905,10 +4905,10 @@
 44409	AT2	Aufbereitungstechnik II
 44410	CRE	Chemical Reaction Engineering
 44411	EfI	Erfinderwerkstatt für (Verfahrens-) Ingenieure
-44412	PuA	Partikel- und Aerosolmesstechnik
+44412	PAT	Partikel- und Aerosolmesstechnik
 44413	GRS	Gasreinigung / Staubabscheiden
 44414	PTe	Particle Technology
-44415	KuT	Kälte- und Tieftemperaturtechnik
+44415	KTT	Kälte- und Tieftemperaturtechnik
 44416	DOPP1	Design and Optimization of Process Plants I
 44417	BRT	Bioreaktionstechnik
 44418	P&B	Processing and Benefication of Raw Materials and Residues
@@ -4927,7 +4927,7 @@
 44431	SNBRR	Stoffliche Nutzung biogener Roh- und Reststoffe
 44432	PST2	Prozesssystemtechnik II
 44501	AD1	Apparatus-Design 1
-44502	SuR	Sicherheits- und Risikoanalyse
+44502	SRA	Sicherheits- und Risikoanalyse
 44503	SPr	Study Project
 44505	AGLSR	Auslegung von Gas-Liquid-Solid Reaktoren
 44506	MA	Master-Arbeit

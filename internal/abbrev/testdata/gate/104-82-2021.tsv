@@ -1,5 +1,5 @@
 # 104-82-2021: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS).
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS); and the owner's calls of 2026-09-25: a head „X- und Y“ by its terms (SST, KJH, BSG1), a module of the program's curriculum scores 5,000 more than a FÜS module.
 11107	HMT1	Höhere Mathematik - T1
 11108	HMT2	Höhere Mathematik - T2
 11206	HMT3	Höhere Mathematik - T3
@@ -17,7 +17,7 @@
 11812	EEF	Energieeffiziente Fahrzeuge
 11820	EKT	Einführung in die Kunststofftechnik
 11823	FGPL	Fallstudienseminar zu Grundlagen der Produktion und Logistik
-11828	KuS	Kolben- und Strömungsmaschinen
+11828	KSM	Kolben- und Strömungsmaschinen
 11851	Dar	Darstellung
 11908	ST1	Systemtheorie I
 11909	ST2	Systemtheorie II
@@ -34,7 +34,7 @@
 12181	ITF	Interdisziplinäre Technikforschung
 12202	SWP	Softwarepraktikum
 12217	WLN	Wissenschaftstheorie, Logik und Naturphilosophie
-12225	SuV	Staats- und Verwaltungsrecht
+12225	SVR	Staats- und Verwaltungsrecht
 12251	STI	Strategisches Technologie- und Innovationsmanagement
 12258	UWA	Grundzüge des Umweltingenieurwesens / Wissenschaftliches Arbeiten
 12261	EcE	Ecological Excursion
@@ -74,7 +74,7 @@
 13269	EP1	Entwicklungsprojekt 1
 13270	GrI	Großer Ingenieurbeleg
 13279	WMK	Werkzeugmaschinen - Konstruktion und Auslegung
-13281	SuS	Signal- und Systemtheorie
+13281	SST	Signal- und Systemtheorie
 13296	AEE	Aktuelle Entwicklungen der Energiewende
 13354	RRE	Rechtliche Rahmenbedingungen der Existenzgründung
 13356	GCLR	Global Change and Legal Response
@@ -94,7 +94,7 @@
 13655	UDK	Un/Disciplining Knowledge: Technology, Science, and Society in Transformation
 13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
 13666	VVe	Visualisierung, Vertiefung
-13671	RuA	Reaktions- und Anlagentechnik
+13671	RAT	Reaktions- und Anlagentechnik
 13674	KG1	Kunstgeschichte 1
 13676	DP	Denkmalpflege
 13681	BMG	Bildkünste Moderne und Gegenwart
@@ -149,11 +149,11 @@
 15014	WKE	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
 15023	It-A1	Italian A1 for Student Life, Job and Daily Life
 15026	SR	Schulrecht
-15028	AuM	Arzt- und Medizinrecht
+15028	AMR	Arzt- und Medizinrecht
 15031	EEM	Einführung in die Elementare Musikpädagogik
 15032	MKJ	Musikwissenschaft Klassik und Jazz/Rock/Pop
 23503	ScT	Schwingungsanfällige Tragwerke
-25102	BuS1	Bau- und Stadtbaugeschichte 1
+25102	BSG1	Bau- und Stadtbaugeschichte 1
 25106	CBEF	Conservation / Building in Existing Fabric
 25404	BTG	Bautechnikgeschichte
 25405	TdA	Theorie der Architektur
@@ -191,7 +191,7 @@
 37104	OIB	Organisationen und industrielle Beziehungen
 37202	KW	Kulturwissenschaften: Konzepte und Anwendungen
 37406	FFH	Fundraising and Finance for Heritage
-37412	AuB	Arbeits- und Beschäftigungssoziologie
+37412	ABS	Arbeits- und Beschäftigungssoziologie
 38308	MMa	Marketing-Management
 38402	MF	Marktforschung
 43503	DT	Deponietechnik

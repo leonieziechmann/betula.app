@@ -485,8 +485,9 @@ letters of one word, an acronym the title states for itself („(GIS)“), subti
 forms. Three characters are the sweet spot; a series number is appended (BS1, MIT1, DaF-B1.1). A
 lowercase letter between two capitals reads as a function word, as the u of AuP does, so a word's
 second letter in that place costs 0.5 more: Numerische Mathematik is NMa, not NuM, and Effiziente
-Algorithmen EAl, not EfA next to SfA „Statistik für Anwender“ (open question M1 in
-`docs/data-sources.md` §11).
+Algorithmen EAl, not EfA next to SfA „Statistik für Anwender“. Three characters stay, not two
+initials (M1 in `docs/data-sources.md` §11, the owner on 2026-09-25: „CFi sagt sich viel besser als
+CF“): a form students can say beats a shorter one they cannot (§5.14 there).
 
 **Three initials of the whole title come first** (the owner, 2026-09-25: „wenn die Buchstaben beim
 Anagramm passen, dann nimmt man die i. d. R.“). Where the initials of all words of the head make
@@ -497,15 +498,31 @@ ahead of compound parts and every other derived form: Entwicklung von Softwaresy
 ESS from Software|systeme; Grundlagen der Werkstoffe GdW, Ethik und Handeln EuH, Kommunikation und
 Lernstrategien KuL, Mathematics of Engineering I MoE1. A lowercase letter only ever stands for a
 function word between two capitals, so the head has three words and the first and last are content
-words (three content words give their plain initials). A hyphen part is a word of its own (Bau- und
-Stadtbaugeschichte 1 → BuS1, Kinder- und Jugendhilfe → KuJ); the series number is appended as
-everywhere; a head with an acronym or a slash group is left to the other forms, and so is a sibling
-(its subtitle tells it apart). In the module's list the form stands at the top, one hundredth ahead of
+words (three content words give their plain initials). A hyphen part is a word of its own, but a
+head „X- und Y“ is written as its terms (below); the series number is appended as everywhere; a head
+with an acronym or a slash group is left to the other forms, and so is a sibling (its subtitle tells
+it apart). In the module's list the form stands at the top, one hundredth ahead of
 the cheapest other candidate, and its matching score is a class of its own (below). An override line
 and an acronym the title states for itself („(GIS)“) still come before it, and the blocked forms, the
 reserved forms and the uniqueness within a program hold: two titles of one program with one such form
 (Grundlagen der Werkstoffe and Grundlagen der Wirtschaftsinformatik, both GdW) contest it like any
 other form.
+
+**„X- und Y“ by its terms** (the owner, 2026-09-25: „Wenn man Wörter mit einem Bindestrich
+verbindet, dann sollte das Füllwort (und) wegfallen und da eher die kanonischen Begriffe verwendet
+werden. Also z. B. SST.“). In a head of three words „X- und Y“ (also oder, &) X- is a compound cut
+short (the tokenizer marks a word that ends in a hyphen) that shares its tail with Y: Signal- und
+Systemtheorie is Signaltheorie und Systemtheorie. The und drops, and X, the part of Y before its tail
+and the tail give a capital each: SST, Kinder- und Jugendhilfe KJH, Staats- und Verwaltungsrecht SVR,
+Arzt- und Medizinrecht AMR, Kolben- und Strömungsmaschinen KSM, Arbeits- und
+Beschäftigungssoziologie ABS, Bau- und Stadtbaugeschichte 1 BSG1. The tail is Y's last compound part
+as the splitter finds it (…theorie, …hilfe, …recht, …maschinen, …soziologie, …geschichte), and what
+stands before it is one term (Stadt|bau|geschichte: Stadtbau, S). The form takes the place and the
+class of the three initials (`hyphenTerms` in `internal/abbrev/candidates.go`). Where the splitter
+cannot take Y apart, its tail is unknown and the head keeps the three initials (Medien- und
+Kultursemiotik MuK: „Semiotik“ is no word of another title; an override line can give it MKS). After a
+word cut short no form inserts a function letter: when SST is taken, Signal- und Systemtheorie falls
+back to SSy, not SuS.
 
 Never derived: a form on `internal/abbrev/blocked.tsv` (SS, SA, NS, KZ, KKK, NPD, AfD, MfS, THC,
 NSA, IBM …: a public timetable must not show them next to a lecture; PO, WS, SWS and LP, which a
@@ -536,14 +553,22 @@ existiert, dann darf das Modul das Kürzel behalten, das den höheren Matching-S
 kaskadieren, achte aber drauf, dass es nach 3 Mal garantiert terminiert.“). Every candidate has a
 matching score, one scale for all modules (`internal/abbrev/assign.go`; `docs/data-sources.md` §11):
 10,000 for the form of an override line, 9,000 for an acronym the title states for itself, 8,000 for
-the initials of all words (EvS), and 5,000 minus its cost for every other form (1 to 7,999: the word,
-compound and function-letter forms near 5,000, subtitle and longer forms lower, first letters
-lowest). A module's list is ordered by it. In a program:
+the initials of all words (EvS, or the terms of „X- und Y“), and 5,000 minus its cost for every
+other form (1 to 7,999: the word, compound and function-letter forms near 5,000, subtitle and longer
+forms lower, first letters lowest). A module's list is ordered by it. In a program's contest a module
+of that program's curriculum (compulsory, thesis, internship, elective) scores 5,000 more for every
+form, a FÜS module nothing (the owner, 2026-09-25: „Alle Module, die in einem Curriculum existieren
+und nicht ausschließlich FÜS sind, sollten da auch nochmal einen ordentlichen Boost bekommen.“). The
+bonus is the width of the derived band: a curriculum module's derived form of ordinary cost (below
+1,000) outranks everything a FÜS module derives, its initials and a stated acronym included; only a
+FÜS module's override line can still beat it. It goes by the program, not the module, because 170 of
+the 171 modules any program offers as FÜS are in another program's curriculum. Within one module every
+form gets it, so no list changes its order. In a program:
 
 1. **Claim.** Every module claims its best candidate. Where two claims conflict — one form for two
-   titles, or one stem for two heads — the higher score keeps it; a tie goes to the module first in
-   priority order (compulsory modules, the thesis and internships, then other curricular modules,
-   then FÜS; within a tier the plan semester, then the module number).
+   titles, or one stem for two heads — the higher score (with the curriculum's bonus) keeps it; a
+   tie goes to the module first in priority order (compulsory modules, the thesis and internships,
+   then other curricular modules, then FÜS; within a tier the plan semester, then the module number).
 2. **Cascade, at most three rounds.** Every module claims the first candidate of its list it can win
    — one nobody holds, or one whose holders all score lower for theirs (a tie again to priority) —
    if that comes before the form it holds: a module without a form, and one whose better form has
@@ -563,9 +588,11 @@ from B, B takes it back), and going back to a form that came free cannot loop ei
 round limit can leave is a module that would still beat the holder of a better form: the rest takes
 only free forms. Before the review of 2026-09-25 a module never went back, so a form it had lost
 could come free and stay unused (M loses AB to H, N of M's series takes the stem AB from H with AB2,
-and M ended with ZZ; now M gets AB). On the data of 2026-09-23 this moved no pair. The better match
-wins whatever the tier: next to the compulsory „Einführung in die Logistik“ (EiL, a derived form) the
-FÜS module „Elektronik im Labor“ (EiL, its initials) keeps EiL. With equal scores priority decides:
+and M ended with ZZ; now M gets AB). On the data of 2026-09-23 this moved no pair. Within the
+curriculum the better match wins whatever the kind: next to the compulsory „Einführung in die
+Logistik“ (EiL, a derived form) an elective „Elektronik im Labor“ (EiL, its initials) keeps EiL; were
+„Elektronik im Labor“ one of the program's FÜS offers, the bonus would give EiL to the compulsory
+module (4,950 + 5,000 against 8,000). With equal scores priority decides:
 Grundzüge der Makro- and Mikroökonomik are both GdM; the first in priority order keeps it, the other
 takes GMÖ. This replaced the rule that a contested form goes to neither (GMa / GMi, M4); whether a
 tie should still go to neither is open (M12 in `docs/data-sources.md` §11).
@@ -595,9 +622,12 @@ program they are in, and 96.6 % of the pairs the module's default. The three ini
 title moved 372 defaults and 2,680 pairs (2,619 to that form, 61 as a knock-on); the scored
 assignment then moved 567 pairs and no default; the review's fixes 20 defaults and 422 pairs (280
 newly blocked, 133 Industrial Heating Systems and their Defossilization IHSTD → IHS, whose „their“
-is an article now, 9 S&D). 18 programs are settled by the claim, 141 need one cascade round, 23 two,
-none three; one list runs out („Methods“ in 013-D8-2022, Met-b). AuP and EEG hold in all 110 of
-their program pairs; in Umweltwissenschaften Bachelor 2025 (G29-82-2025) the internship
+is an article now, 9 S&D); the owner's calls of the same day 86 defaults and 1,389 pairs: the terms
+of „X- und Y“ 1,334 (1,317 to the terms, 17 in contests), the curriculum's bonus 73 and no default
+(34 curricular pairs that had lost a form to a FÜS module keep it; fallbacks of curricular pairs
+445 → 410, of FÜS pairs 234 → 268). 18 programs are settled by the claim, 142 need one cascade
+round, 22 two, none three; one list runs out („Methods“ in 013-D8-2022, Met-b). AuP and EEG hold in
+all 110 of their program pairs; in Umweltwissenschaften Bachelor 2025 (G29-82-2025) the internship
 „Außeruniversitäres Praktikum“ no longer takes AuP. The snapshot grows by 1.7 MB.
 `internal/abbrev/testdata/gate` holds the forms of four programs and every default on
 `catalog-abca4baa1d8f8d8e.db` (schema 8, data of 2026-09-23). With `RADIX_ABBREV_GATE=<that

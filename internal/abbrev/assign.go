@@ -16,6 +16,18 @@ const (
 	scoreSuffixed = 0     // the fallback of an exhausted list: a letter suffix (-b)
 )
 
+// scoreCurriculum is added, in a program's contest, to every form of a module in that program's
+// curriculum (compulsory, thesis, internship or elective; not one of its FÜS offers). The owner
+// (2026-09-25): „Alle Module, die in einem Curriculum existieren und nicht ausschließlich FÜS sind,
+// sollten da auch nochmal einen ordentlichen Boost bekommen.“ It is the width of the derived band:
+// a curriculum module's derived form of ordinary cost (below 1,000) outranks everything a FÜS module
+// derives, its initials (EiL of „Elektronik im Labor“) and an acronym its title states included;
+// only an override line of a FÜS module, or a curriculum module's fallback material, can still lose
+// to it. It is per program, not per module: 170 of the 171 modules any program offers as FÜS are in
+// some other program's curriculum, so a bonus for „curricular anywhere“ would lift nearly every
+// module and decide nothing. Within one module every form gets it, so a list's order never changes.
+const scoreCurriculum = 5000
+
 // score is the matching score of a candidate. Within one module it falls as the list goes on:
 // the classes above stand at the top of every list (their costs are the lowest), and the other
 // forms are ordered by cost, so a form of higher cost scores less, down to the fallback
@@ -49,10 +61,10 @@ type claim struct{ m, r int }
 // semester; then module number). Two claims conflict when their forms are one form (compared
 // without case, & and -) for different titles, or have one stem (ST, ST1) for different heads.
 // Identical titles do not conflict: they share the form and are told apart by -b, -c at the end.
-// Of two claims the one with the higher matching score is better; on equal scores the module
-// first in priority order (within one module, the earlier candidate). This is a strict total
-// order, and it does not ask who holds a form: every contest has one winner, the same in every
-// round.
+// Of two claims the one with the higher matching score is better, a module of the program's
+// curriculum counting scoreCurriculum more than a FÜS module; on equal scores the module first in
+// priority order (within one module, the earlier candidate). This is a strict total order, and it
+// does not ask who holds a form: every contest has one winner, the same in every round.
 //
 //  1. Claim: every module claims its best candidate. Where claims conflict, the better one keeps
 //     the form.
@@ -89,8 +101,16 @@ func (d *deriver) assign(entries []entry, lists [][]candidate) (map[string]Choic
 		series[i] = p.seriesKey
 	}
 	text := func(c claim) string { return lists[c.m][c.r].text }
+	// weigh is a claim's matching score in this program: its form's score, and the curriculum's bonus
+	weigh := func(c claim) int {
+		s := score(lists[c.m][c.r])
+		if entries[c.m].tier < 2 {
+			s += scoreCurriculum
+		}
+		return s
+	}
 	better := func(a, b claim) bool {
-		if sa, sb := score(lists[a.m][a.r]), score(lists[b.m][b.r]); sa != sb {
+		if sa, sb := weigh(a), weigh(b); sa != sb {
 			return sa > sb
 		}
 		if a.m != b.m {

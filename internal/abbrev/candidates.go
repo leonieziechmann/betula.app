@@ -148,8 +148,9 @@ func render(toks []token, maxLetters int) []rendering {
 		t := &toks[i]
 		if t.kind == kFunc || t.kind == kAnd {
 			rec(i+1, s, n, cost, used, drops, xused, xpos, last)
-			// a function letter only between two content letters
-			if s != "" && t.letter != "" && hasContent(toks[i+1:]) {
+			// a function letter only between two content letters, and never after a compound cut
+			// short: the owner (2026-09-25) drops the und of „Signal- und Systemtheorie“
+			if s != "" && t.letter != "" && hasContent(toks[i+1:]) && !(i > 0 && toks[i-1].trunc) {
 				rec(i+1, s+t.letter, n+runes(t.letter), cost+t.lcost, used, drops, xused, xpos, last)
 			}
 			return
@@ -260,7 +261,8 @@ func (cs *candidateSet) first(text, how string) {
 // (von → v, und → u, der → d, of → o; English and as &, M5). A lowercase letter only ever stands
 // for a function word, and only between two capitals, so the head is three words whose first and
 // last are content words: EvS, AuP, GdW, DaF, and three content words give their initials. A
-// hyphen part is a word of its own (Bau- und Stadtbaugeschichte 1 → BuS1), & and + are und. A head
+// hyphen part is a word of its own, & and + are und; but a head „X- und Y“ whose Y the splitter
+// takes apart is written as its terms first (hyphenTerms: SST), so only one it cannot is XuY. A head
 // with an acronym or a slash group is left to the other forms: an acronym is a short form already.
 func allInitials(toks []token) (string, bool) {
 	if len(toks) != 3 || toks[0].kind != kWord || toks[2].kind != kWord {
@@ -282,6 +284,29 @@ func allInitials(toks []token) (string, bool) {
 		}
 	}
 	return b.String(), runes(b.String()) == 3
+}
+
+// hyphenTerms is a head „X- und Y“ written as its terms (the owner, 2026-09-25: „Wenn man Wörter mit
+// einem Bindestrich verbindet, dann sollte das Füllwort (und) wegfallen und da eher die kanonischen
+// Begriffe verwendet werden. Also z. B. SST.“). X- is a compound cut short that shares its tail with
+// Y: Signal- und Systemtheorie is Signaltheorie und Systemtheorie. So the und (oder, &) drops, and X,
+// the part of Y before its tail and the tail give a capital each: SST, KJH (Jugend|hilfe), SVR
+// (Verwaltungs|recht), KSM, BSG1 (Stadt|bau|geschichte: what stands before the last part is one
+// term, Stadtbau). The tail is Y's last compound part as the splitter finds it. Where the splitter
+// cannot take Y apart, its tail is unknown and there are no terms: the head keeps the initials of all
+// words (XuY), as before.
+func hyphenTerms(toks []token) (string, bool) {
+	if len(toks) != 3 || toks[0].kind != kWord || !toks[0].trunc || toks[2].kind != kWord || !toks[2].compound {
+		return "", false
+	}
+	if j := strings.ToLower(toks[1].text); toks[1].kind != kAnd && j != "oder" && j != "or" {
+		return "", false
+	}
+	parts := []rune(toks[2].parts)
+	if len(parts) < 2 {
+		return "", false
+	}
+	return firstUpper(toks[0].text) + string(parts[0]) + string(parts[len(parts)-1]), true
 }
 
 func sortCandidates(list []candidate) {
@@ -368,8 +393,12 @@ func (d *deriver) candidates(p *parsed, sibling bool) []candidate {
 	// three characters, that form is the first choice, ahead of compound parts and every other
 	// derived form: Entwicklung von Softwaresystemen → EvS, not ESS. An acronym the title states
 	// for itself and the override lines still come before it; a series number is appended. A
-	// sibling is told apart by its subtitle, so its title has more than these three words.
-	if s, ok := allInitials(p.head); ok && !sibling {
+	// sibling is told apart by its subtitle, so its title has more than these three words. A head
+	// „X- und Y“ gives the initials of its terms instead (the owner, 2026-09-25): Signal- und
+	// Systemtheorie → SST, not SuS; the same class, the same place.
+	if s, ok := hyphenTerms(p.head); ok && !sibling {
+		cs.first(s+ds, "initials")
+	} else if s, ok := allInitials(p.head); ok && !sibling {
 		cs.first(s+ds, "initials")
 	}
 	// An acronym the title states for itself („… Resource Investigation (ANRI)“) is the first

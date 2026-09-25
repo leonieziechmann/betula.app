@@ -65,7 +65,7 @@ func TestTheRulesAlone(t *testing.T) {
 		"Mathematik IT-1 (Diskrete Mathematik)":                   "MIT1",
 		"Grundlagen der Rechnernetze":                             "GdR", // all initials, not GRN
 		"Theoretische Informatik":                                 "ThI",
-		"Kinder- und Jugendhilfe":                                 "KuJ", // all initials, not KJH
+		"Kinder- und Jugendhilfe":                                 "KJH", // its terms, not KuJ
 		"Nachrichtentechnik":                                      "NT",
 		"Nachrichtenübertragung":                                  "NÜ",
 		"Quantenelektrodynamik":                                   "QED",
@@ -463,7 +463,7 @@ func TestAllInitials(t *testing.T) {
 		"Grundlagen der Werkstoffe":        "GdW",
 		"Ethik und Handeln":                "EuH",
 		"Kommunikation und Lernstrategien": "KuL",      // not KLS from Lern|strategien
-		"Bau- und Stadtbaugeschichte 1":    "BuS1",     // a hyphen part is a word; the series number follows
+		"Bau- und Stadtbaugeschichte 1":    "BSG1",     // „X- und Y“: its terms (below); the series number follows
 		"Deutsch als Fremdsprache B1.1":    "DaF-B1.1", // and so does a language level
 		"Forschung & Entwicklung":          "FuE",      // & in a German title is und
 		"Mathematics of Engineering I":     "MoE1",     // not ME1
@@ -528,12 +528,13 @@ func TestAllInitials(t *testing.T) {
 }
 
 // The owner (2026-09-25): „Wenn das Kürzel schon existiert, dann darf das Modul das Kürzel
-// behalten, das den höheren Matching-Score hat.“ The better match keeps a form whatever the
-// tier: EiL is all initials of „Elektronik im Labor“ and only a derived form of „Einführung in
-// die Logistik“ (four words), so the FÜS module keeps it and the compulsory one moves on.
+// behalten, das den höheren Matching-Score hat.“ Within the curriculum the better match keeps a
+// form whatever the kind: EiL is all initials of „Elektronik im Labor“ and only a derived form of
+// „Einführung in die Logistik“ (four words), so the elective module keeps it and the compulsory
+// one moves on. Against a FÜS module the curriculum's bonus decides (TestTheCurriculumComesFirst).
 func TestTheBetterMatchKeepsTheForm(t *testing.T) {
-	choices, got := deriveTitles(t, nil, "1 Einführung in die Logistik", "F2 Elektronik im Labor")
-	if got["F2"] != "EiL" || got["1"] == "EiL" || choices["1"].Choice == 1 {
+	choices, got := deriveTitles(t, nil, "1 Einführung in die Logistik", "E2 Elektronik im Labor")
+	if got["E2"] != "EiL" || got["1"] == "EiL" || choices["1"].Choice == 1 {
 		t.Errorf("EiL → %v (%+v)", got, choices)
 	}
 	// the scale: override > stated acronym > initials > derived by cost > fallback material
@@ -550,6 +551,93 @@ func TestTheBetterMatchKeepsTheForm(t *testing.T) {
 		if score(c.a) <= score(c.b) {
 			t.Errorf("score(%+v) = %d, not above score(%+v) = %d", c.a, score(c.a), c.b, score(c.b))
 		}
+	}
+}
+
+// The owner (2026-09-25): „Wenn man Wörter mit einem Bindestrich verbindet, dann sollte das Füllwort
+// (und) wegfallen und da eher die kanonischen Begriffe verwendet werden. Also z. B. SST.“ A head
+// „X- und Y“ is written as its terms: X, the part of Y before its tail, the tail.
+func TestHyphenTerms(t *testing.T) {
+	// Medizin and Holz stand in for the words the catalog's other titles give the splitter
+	of := func(title string) string {
+		t.Helper()
+		titles := append([]string{title, "Medizin und Recht", "Holz und Bau"}, vocabulary...)
+		return Derive([]Module{{"1", title}}, nil, titles, nil).Defaults["1"].Abbrev
+	}
+	for title, want := range map[string]string{
+		"Signal- und Systemtheorie":             "SST", // Signaltheorie und System|theorie, not SuS
+		"Kinder- und Jugendhilfe":               "KJH",
+		"Staats- und Verwaltungsrecht":          "SVR",
+		"Arzt- und Medizinrecht":                "AMR",
+		"Kolben- und Strömungsmaschinen":        "KSM",
+		"Arbeits- und Beschäftigungssoziologie": "ABS",
+		"Bau- und Stadtbaugeschichte 1":         "BSG1", // Stadt|bau|geschichte: Stadtbau is one term
+		"Stahl- & Holzbau":                      "SHB",  // & is und
+		"Kinder- oder Jugendhilfe":              "KJH",  // and so is oder
+		// no hyphen: the initials of all words, as before
+		"Entwicklung von Softwaresystemen": "EvS",
+		"Algorithmieren und Programmieren": "AuP",
+		// a tail the splitter does not know (Tief|bau): the initials of all words, as before
+		"Hoch- und Tiefbau": "HuT",
+	} {
+		if got := of(title); got != want {
+			t.Errorf("%q → %q, want %q", title, got, want)
+		}
+	}
+	// No form of such a head, first choice or fallback, has the und's letter: SST falls back to
+	// SSy, not to SuS.
+	p := parseTitle("Signal- und Systemtheorie", newSplitter(Vocabulary(vocabulary)))
+	for _, c := range (&deriver{}).candidates(p, false) {
+		if strings.ContainsRune(c.text, 'u') {
+			t.Errorf("Signal- und Systemtheorie: candidate %q has the u of und", c.text)
+		}
+	}
+	if !p.head[0].trunc || p.head[2].trunc {
+		t.Errorf("Signal- is cut short, Systemtheorie is not: %+v", p.head)
+	}
+}
+
+// The owner (2026-09-25): „Alle Module, die in einem Curriculum existieren und nicht ausschließlich
+// FÜS sind, sollten da auch nochmal einen ordentlichen Boost bekommen.“ In a program's contest a
+// module of its curriculum scores scoreCurriculum more: a FÜS module that fits a form better still
+// loses it.
+func TestTheCurriculumComesFirst(t *testing.T) {
+	contest := func(cur, fues []candidate) map[string]Choice {
+		lists := [][]candidate{cur, fues}
+		d, entries := synthetic(lists...)
+		entries[1].tier = 2
+		got, _ := d.assign(entries, lists)
+		return got
+	}
+	for _, c := range []struct {
+		name      string
+		cur, fues []candidate
+		want      [2]string
+	}{
+		// the FÜS module's AB fits better (5,000 against 4,900): the curriculum module keeps it
+		{"derived", []candidate{cand("AB", 100), cand("AC", 200)}, []candidate{cand("AB", 0), cand("AD", 10)}, [2]string{"AB", "AD"}},
+		// even the initials of all words (8,000) lose to a derived form (4,950 + 5,000)
+		{"initials", []candidate{cand("EiL", 50), cand("EdL", 90)}, []candidate{{text: "EiL", cost: 14, how: "initials"}, cand("ElL", 80)}, [2]string{"EiL", "ElL"}},
+		// an override line of a FÜS module (10,000) still beats one (9,950)
+		{"override", []candidate{cand("OO", 50), cand("OP", 90)}, []candidate{{text: "OO", cost: -100, how: "override", override: true}, cand("OQ", 10)}, [2]string{"OP", "OO"}},
+	} {
+		got := contest(c.cur, c.fues)
+		if got["0"].Abbrev != c.want[0] || got["1"].Abbrev != c.want[1] {
+			t.Errorf("%s: curriculum %q, FÜS %q; want %q", c.name, got["0"].Abbrev, got["1"].Abbrev, c.want)
+		}
+	}
+	// Two FÜS modules: no bonus, the better match keeps the form as before.
+	lists := [][]candidate{{cand("AB", 100), cand("AC", 200)}, {cand("AB", 0), cand("AD", 10)}}
+	d, entries := synthetic(lists...)
+	entries[0].tier, entries[1].tier = 2, 2
+	if got, _ := d.assign(entries, lists); got["1"].Abbrev != "AB" || got["0"].Abbrev != "AC" {
+		t.Errorf("two FÜS modules → %+v", got)
+	}
+	// On real titles: the compulsory „Einführung in die Logistik“ keeps EiL against the FÜS module
+	// „Elektronik im Labor“, whose initials it is.
+	choices, got := deriveTitles(t, nil, "1 Einführung in die Logistik", "F2 Elektronik im Labor")
+	if got["1"] != "EiL" || got["F2"] == "EiL" || choices["F2"].Choice == 1 {
+		t.Errorf("EiL, compulsory against FÜS → %v (%+v)", got, choices)
 	}
 }
 

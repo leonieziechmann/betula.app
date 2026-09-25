@@ -26,6 +26,8 @@ type token struct {
 	parts    string // slash: its rendering; word: the initials of its compound parts
 	partsAlt string // word: the compound's initials with a known form (Software|praktikum → SWP)
 	known    string // word: a known form of the whole word (BWL)
+	compound bool   // word: parts are the initials of the parts the splitter found
+	trunc    bool   // word, acronym: it ends in a hyphen, a compound cut short (Signal- in „Signal- und Systemtheorie“)
 	letter   string // func, and: the letter it may leave
 	lcost    int
 	drop     int // cost of leaving the word out, or -1
@@ -187,6 +189,7 @@ func (p *parser) tokenize(seg string, desig *[]designator) []token {
 		}
 		group := len(pieces) > 1
 		for pi, piece := range pieces {
+			before := len(toks)
 			var sub []string
 			for _, x := range strings.Split(piece, "-") {
 				if x != "" {
@@ -249,7 +252,7 @@ func (p *parser) tokenize(seg string, desig *[]designator) []token {
 							alt.WriteString(firstUpper(part))
 						}
 					}
-					tk.parts = init.String()
+					tk.parts, tk.compound = init.String(), true
 					if alt.String() != tk.parts {
 						tk.partsAlt = alt.String()
 					}
@@ -258,6 +261,11 @@ func (p *parser) tokenize(seg string, desig *[]designator) []token {
 					tk.parts = camelParts(x)
 				}
 				toks = append(toks, tk)
+			}
+			// „Signal-“ is a compound cut short: the next word gives its tail (Signal- und
+			// Systemtheorie is Signaltheorie und Systemtheorie).
+			if n := len(toks); n > before && strings.HasSuffix(piece, "-") && (toks[n-1].kind == kWord || toks[n-1].kind == kAcr) {
+				toks[n-1].trunc = true
 			}
 		}
 	}

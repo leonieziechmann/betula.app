@@ -9,13 +9,14 @@
 // initials (Betriebs|systeme → BS), function letters (AuP), dropped openings and tails
 // (EEG), first letters, subtitle forms. Three characters are the sweet spot, and where the
 // initials of all words make exactly three, function words small, they come first (the
-// owner's rule: „Entwicklung von Softwaresystemen“ → EvS, not ESS). A form on the
+// owner's rule: „Entwicklung von Softwaresystemen“ → EvS, not ESS); a title „X- und Y“ gives its
+// terms without the und instead (Signal- und Systemtheorie → SST). A form on the
 // blocked list (blocked.tsv, the building tokens of short room names) or one the override file reserves for another
 // title is never derived. Within a program, over all of its selectable modules (curriculum,
 // electives and FÜS), every abbreviation is unique, and so is its stem (ST and ST1 read as one
 // series): where two modules want one form, the one whose title it fits better (its matching
-// score) keeps it, and the other moves on, displacing a weaker holder in turn, for at most
-// three rounds (assign.go). The rules and their numbers: docs/schema-v2.md, „Short names“.
+// score, with a bonus for a module of the program's curriculum over a FÜS module) keeps it, and
+// the other moves on, displacing a weaker holder in turn, for at most three rounds (assign.go). The rules and their numbers: docs/schema-v2.md, „Short names“.
 package abbrev
 
 import (
@@ -28,7 +29,8 @@ import (
 type Module struct{ ID, Title string }
 
 // Member is a module a program lets its students select. Tier orders the contest for a
-// candidate: 0 compulsory, thesis and internship, 1 other curricular, 2 FÜS.
+// candidate: 0 compulsory, thesis and internship, 1 other curricular, 2 FÜS; tiers 0 and 1, the
+// program's curriculum, also score scoreCurriculum more than a FÜS module.
 // PlanSemester is the semester of the program's plan, 99 for none.
 type Member struct {
 	ProgramID, ModuleID string

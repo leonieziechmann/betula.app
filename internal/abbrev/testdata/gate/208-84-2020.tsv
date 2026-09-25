@@ -1,5 +1,5 @@
 # 208-84-2020: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS).
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS); and the owner's calls of 2026-09-25: a head „X- und Y“ by its terms (SST, KJH, BSG1), a module of the program's curriculum scores 5,000 more than a FÜS module.
 11101	LAAG1	Lineare Algebra und analytische Geometrie I
 11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
 11152	ERP	ERP - Integrierte betriebliche Systeme
@@ -13,7 +13,7 @@
 11708	KMT	Konzepte, Methoden und Techniken zur Projektführung
 11802	Str	Straffälligenhilfe - kriminologische Ansätze in der Sozialen Arbeit mit Straftätern
 11812	EEF	Energieeffiziente Fahrzeuge
-11828	KuS	Kolben- und Strömungsmaschinen
+11828	KSM	Kolben- und Strömungsmaschinen
 11851	Dar	Darstellung
 11913	TMo	Turbulence Modeling
 11914	PMO	Programmieren in MATLAB/Octave
@@ -29,7 +29,7 @@
 12177	PrP	Praktische Philosophie
 12181	ITF	Interdisziplinäre Technikforschung
 12217	WLN	Wissenschaftstheorie, Logik und Naturphilosophie
-12225	SuV	Staats- und Verwaltungsrecht
+12225	SVR	Staats- und Verwaltungsrecht
 12239	En-B2	English - Essential Business Skills (B2)
 12251	STI	Strategisches Technologie- und Innovationsmanagement
 12258	UWA	Grundzüge des Umweltingenieurwesens / Wissenschaftliches Arbeiten
@@ -62,7 +62,7 @@
 12986	BuK	Beratung und Kommunikation
 12987	BA	Bachelor-Arbeit
 13068	IPL	Intervention bei psychischen Leiden
-13070	KuJ	Kinder- und Jugendhilfe
+13070	KJH	Kinder- und Jugendhilfe
 13071	KMZ	Kultur- und medienpädagogische Zielgruppenarbeit
 13072	SiR	Sozialarbeit in Rumänien
 13073	SKJ	Stationäre Kinder- und Jugendhilfe
@@ -109,7 +109,7 @@
 13259	HäG-b	Häusliche Gewalt
 13260	SSA-b	Selbstständige Soziale Arbeit
 13261	HzE	Hilfen zur Erziehung - Grundlagen der Arbeit mit Familien
-13281	SuS	Signal- und Systemtheorie
+13281	SST	Signal- und Systemtheorie
 13296	AEE	Aktuelle Entwicklungen der Energiewende
 13354	RRE	Rechtliche Rahmenbedingungen der Existenzgründung
 13356	GCLR	Global Change and Legal Response
@@ -133,7 +133,7 @@
 13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
 13666	VVe	Visualisierung, Vertiefung
 13670	KKM	Klassismuskritik in der Kultur- und Musikarbeit
-13671	RuA	Reaktions- und Anlagentechnik
+13671	RAT	Reaktions- und Anlagentechnik
 13674	KG1	Kunstgeschichte 1
 13676	DP	Denkmalpflege
 13681	BMG	Bildkünste Moderne und Gegenwart
@@ -206,7 +206,7 @@
 14304	Sch-c	Schulsozialarbeit
 14305	BSA	Beziehungsgestaltung in der Sozialen Arbeit
 14308	UFM	Urban Future Making - Neue Orte und Freiräume gestalten
-14368	KuM	Kultur- und Medienpädagogik: Freies Radio/Podcasting
+14368	KMP	Kultur- und Medienpädagogik: Freies Radio/Podcasting
 14369	DPKB	Diversität und Partizipation in der kulturellen Bildung
 14370	AFH	Ambulante Familienhilfe - Arbeiten mit Familien in ihrer Lebenswelt
 14371	HDE	Hilfeplanprozesse und deren Entwicklungsberichte
@@ -267,21 +267,21 @@
 15014	WKE	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
 15023	It-A1	Italian A1 for Student Life, Job and Daily Life
 15026	SR	Schulrecht
-15028	AuM	Arzt- und Medizinrecht
+15028	AMR	Arzt- und Medizinrecht
 15031	EEM	Einführung in die Elementare Musikpädagogik
 15032	MWKJ	Musikwissenschaft Klassik und Jazz/Rock/Pop
 15053	PEH	Psychiatrische Erste Hilfe bei vulnerablen Personengruppen
 15055	SAG	Soziale Arbeit mit Gruppen
 23503	ScT	Schwingungsanfällige Tragwerke
-25102	BuS1	Bau- und Stadtbaugeschichte 1
+25102	BSG1	Bau- und Stadtbaugeschichte 1
 25106	CBEF	Conservation / Building in Existing Fabric
 25404	BTG	Bautechnikgeschichte
 25405	TdA	Theorie der Architektur
 25421	GdK	Grundlagen der Kunstgeschichte
 31102	TM1	Technische Mechanik 1: Statik und Festigkeitslehre
 31303	HSM	Höhere Strömungsmechanik
-31311	MuF	Maschinen- und Fahrzeugakustik
-31409	FuS	Fahrzeug- und Strukturschwingungen
+31311	MFA	Maschinen- und Fahrzeugakustik
+31409	FSS	Fahrzeug- und Strukturschwingungen
 33107	SeC	Seminar CampusTV
 33432	AMW	Angewandte Medienwissenschaften
 36303	IiU1	Informationssysteme in Unternehmen I

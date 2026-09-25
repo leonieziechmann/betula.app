@@ -1,5 +1,5 @@
 # 021-82-2024: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS).
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS); and the owner's calls of 2026-09-25: a head „X- und Y“ by its terms (SST, KJH, BSG1), a module of the program's curriculum scores 5,000 more than a FÜS module.
 11101	LAAG1	Lineare Algebra und analytische Geometrie I
 11109	MW1	Mathematik W-1
 11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
@@ -19,7 +19,7 @@
 11796	BEn	Business English
 11799	PmV	Programmierung mit VBA
 11812	EEF	Energieeffiziente Fahrzeuge
-11828	KuS	Kolben- und Strömungsmaschinen
+11828	KSM	Kolben- und Strömungsmaschinen
 11851	Dar	Darstellung
 11913	TMo	Turbulence Modeling
 11914	PMO	Programmieren in MATLAB/Octave
@@ -45,7 +45,7 @@
 12181	ITF	Interdisziplinäre Technikforschung
 12217	WLN	Wissenschaftstheorie, Logik und Naturphilosophie
 12224	MR	Medienrecht
-12225	SuV	Staats- und Verwaltungsrecht
+12225	SVR	Staats- und Verwaltungsrecht
 12226	UR	Umweltrecht
 12229	ABWL2	Allgemeine Betriebswirtschaftslehre II: Buchführung und Handelsbilanzierung
 12230	BP	Berufsfeldpraktikum
@@ -75,7 +75,7 @@
 13251	CTP	Introduction to Computational Thinking and Programming for CFD
 13254	IBMT	Image Based Measurement Techniques for Aerodynamics
 13268	EÖD	Einführung in die ökonometrische Datenanalyse
-13281	SuS	Signal- und Systemtheorie
+13281	SST	Signal- und Systemtheorie
 13296	AEE	Aktuelle Entwicklungen der Energiewende
 13354	RRE	Rechtliche Rahmenbedingungen der Existenzgründung
 13356	GCLR	Global Change and Legal Response
@@ -89,7 +89,7 @@
 13655	UDK	Un/Disciplining Knowledge: Technology, Science, and Society in Transformation
 13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
 13666	VVe	Visualisierung, Vertiefung
-13671	RuA	Reaktions- und Anlagentechnik
+13671	RAT	Reaktions- und Anlagentechnik
 13674	KG1	Kunstgeschichte 1
 13676	DP	Denkmalpflege
 13681	BMG	Bildkünste Moderne und Gegenwart
@@ -164,20 +164,20 @@
 15014	WKE	Wissenschaftliche Karriereentwicklung in den Life Sciences: Forschungsprojekte finden, bewerben und präsentieren
 15023	It-A1	Italian A1 for Student Life, Job and Daily Life
 15026	SR	Schulrecht
-15028	AuM	Arzt- und Medizinrecht
+15028	AMR	Arzt- und Medizinrecht
 15031	EEM	Einführung in die Elementare Musikpädagogik
 15032	MKJ	Musikwissenschaft Klassik und Jazz/Rock/Pop
 15050	VM	Veranstaltungsmanagement
 23503	ScT	Schwingungsanfällige Tragwerke
-25102	BuS1	Bau- und Stadtbaugeschichte 1
+25102	BSG1	Bau- und Stadtbaugeschichte 1
 25106	CBEF	Conservation / Building in Existing Fabric
 25404	BTG	Bautechnikgeschichte
 25405	TdA	Theorie der Architektur
 25421	GdK	Grundlagen der Kunstgeschichte
 31102	TM1	Technische Mechanik 1: Statik und Festigkeitslehre
 31303	HSM	Höhere Strömungsmechanik
-31311	MuF	Maschinen- und Fahrzeugakustik
-31409	FuS	Fahrzeug- und Strukturschwingungen
+31311	MFA	Maschinen- und Fahrzeugakustik
+31409	FSS	Fahrzeug- und Strukturschwingungen
 33107	SeC	Seminar CampusTV
 33432	AMW	Angewandte Medienwissenschaften
 36303	IiU1	Informationssysteme in Unternehmen I
