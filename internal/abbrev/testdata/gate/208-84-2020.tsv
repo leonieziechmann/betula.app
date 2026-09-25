@@ -1,5 +1,5 @@
 # 208-84-2020: the abbreviations of the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db. module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds.
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS).
 11101	LAAG1	Lineare Algebra und analytische Geometrie I
 11112	MIT1	Mathematik IT-1 (Diskrete Mathematik)
 11152	ERP	ERP - Integrierte betriebliche Systeme
@@ -20,7 +20,7 @@
 11915	GdW	Grundlagen der Werkstoffe
 11960	MPG	Marktorientierte Produktgestaltung
 11961	OMI	Oberseminar Marketing und Innovation
-11970	Co2	Controlling II: Investitionscontrolling
+11970	Con2	Controlling II: Investitionscontrolling
 11974	EOF	Empirische Organisationsforschung
 12034	SDA	Sozialwissenschaftliches Denken und Arbeiten
 12105	EiP	Einführung in die Programmierung
@@ -231,7 +231,7 @@
 14719	OpM	Operations Management
 14720	TIM	Technology and Innovation Management
 14721	CFi	Corporate Finance
-14725	IHSTD	Industrial Heating Systems and their Defossilization
+14725	IHS	Industrial Heating Systems and their Defossilization
 14727	SCC	Studieren mit ChatGPT & Co
 14776	IBSA	Interkulturelle Begegnungen in der Sozialen Arbeit
 14811	DPT	Demokratische Praxis in Transformationsgesellschaften
@@ -294,7 +294,7 @@
 37202	KW	Kulturwissenschaften: Konzepte und Anwendungen
 37406	FFH	Fundraising and Finance for Heritage
 37412	ABS	Arbeits- und Beschäftigungssoziologie
-37413	WS	Wirtschaftssoziologie
+37413	Wir	Wirtschaftssoziologie
 38308	MMa	Marketing-Management
 38402	MF	Marktforschung
 41103	Bio	Biologie

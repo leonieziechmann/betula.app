@@ -352,13 +352,19 @@ func (d *deriver) allowed(c candidate, p *parsed) bool {
 	if _, b := Blocked(c.text, p.title); b {
 		return false
 	}
-	if ts, ok := d.reserved[key(c.text)]; ok && !ts[p.seriesKey] {
-		return false
+	return !d.reservedElsewhere(c.text, p.seriesKey)
+}
+
+// reservedElsewhere: an owner's or common line reserves the form, or its stem, for a title of
+// another head than seriesKey.
+func (d *deriver) reservedElsewhere(form, seriesKey string) bool {
+	if ts, ok := d.reserved[key(form)]; ok && !ts[seriesKey] {
+		return true
 	}
-	if ts, ok := d.reservedStem[stemKey(c.text)]; ok && !ts[p.seriesKey] {
-		return false
+	if ts, ok := d.reservedStem[stemKey(form)]; ok && !ts[seriesKey] {
+		return true
 	}
-	return true
+	return false
 }
 
 func isLetterOrDigit(r rune) bool {

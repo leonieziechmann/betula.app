@@ -114,7 +114,8 @@ var (
 	roomRepeatedRange = regexp.MustCompile(`^(.*\.)(\d+)/(.*\.)(\d+)$`)
 )
 
-// roomKinds stand where a number would: „Hörsaal A“ becomes „HS.A“ (owner: „ZHG HS.3“).
+// roomKinds stand where a number would: „Hörsaal A“ becomes „HS.A“ (the owner first wrote „ZHG HS.3“;
+// since the slash, 2026-09-25, it is ZHG/HS.3).
 var roomKinds = []struct {
 	rx   *regexp.Regexp
 	repl string // "" = the atelier rule with its side (links/mitte/rechts)

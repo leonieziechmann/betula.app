@@ -3,7 +3,8 @@
 # as the Prüfungsordnung. Tab-separated:
 #
 # form    the form as it reads, 2 to 10 characters; it also blocks the form with a series number
-#         or a language level (SS1, SS-A1). Compared without case.
+#         or a language level (SS1, SS-A1). Compared as uniqueness compares forms: without case
+#         and without the & and - a reader passes over (S&A and NP-d read as SA and NPD).
 # reason  why
 #
 # A derived candidate on this list is dropped, the way a candidate of the wrong length is, and
@@ -44,7 +45,12 @@ CIA	intelligence service
 FBI	police agency
 BND	intelligence service
 KGB	intelligence service
+MfS	secret police of the GDR (Ministerium für Staatssicherheit, Stasi)
 IBM	company
 BMW	company
 BBC	broadcaster
 PO	Prüfungsordnung
+WS	Wintersemester, as SS is Sommersemester: a study plan names its semesters so
+SWS	Semesterwochenstunden, a column of every module table
+LP	Leistungspunkte, the credits a plan adds up (6 LP)
+CO	CO₂: Controlling II as Co2 reads as the gas

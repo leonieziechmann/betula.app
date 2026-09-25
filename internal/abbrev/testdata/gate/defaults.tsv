@@ -1,5 +1,5 @@
 # The program-free abbreviation of every module (the rules on 2026-09-25, on catalog-abca4baa1d8f8d8e.db). module<TAB>abbrev<TAB>title
-# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds.
+# The design's reference implementation, with its possessive rule corrected (14885 IPBM, 14901 IPMM) and the review of 2026-09-25: blocked forms, reserved override forms, one stem per head, override lines first, siblings of an override line, function letters, open heads, words in parts; and the owner's rule of 2026-09-25: three initials of the whole head come first, function words small (EvS); and the owner's scored assignment: a contested form goes to the better match, in at most three cascade rounds; and its review of 2026-09-25: a module goes back to a form that came free, blocked forms compared like forms (S&A, S&D) and never given as a suffix, WS, SWS, LP, MfS and CO blocked, English possessives as articles (IHS).
 11101	LAAG1	Lineare Algebra und analytische Geometrie I
 11102	LAAG2	Lineare Algebra und analytische Geometrie II
 11103	An1	Analysis I
@@ -75,7 +75,7 @@
 11173	GHV	Generative Herstellungsverfahren
 11174	GT	Gießereitechnik
 11175	HAS	Herstellung und Anwendung von Schweißzusatzwerkstoffen
-11176	MFS	Modellieren und FE-Simulieren
+11176	MFES	Modellieren und FE-Simulieren
 11177	MA	Master-Arbeit
 11178	IFP	Industriefachpraktikum
 11179	FVK1A	Forensischer Vorbereitungskurs 1 A
@@ -377,7 +377,7 @@
 11475	BA	Bachelor-Arbeit
 11476	BA	Bachelor-Arbeit
 11477	BA	Bachelor-Arbeit
-11478	SWS	Softwaresicherheit
+11478	Sof	Softwaresicherheit
 11479	PVA	Planen Verkehrsanlagen
 11480	DaF	Deutsch als Fremdsprache - Mittelstufe B1, Teil 2
 11481	DaF-B1	Deutsch als Fremdsprache - Fachsprache für Architektur und Bauwesen - B1
@@ -585,7 +585,7 @@
 11684	SE	Sicherheitsengineering
 11685	WSET	Introduction to Web Services and eBusiness Technologies
 11686	FERS	Financial Econometrics Research Seminar
-11687	MFS	Modellieren und FE-Simulieren
+11687	MFES	Modellieren und FE-Simulieren
 11688	EMM	Einführung in die moderne Mikroskopie
 11689	PGR	Power Generation from Wind Energy
 11690	PGR	Power Generation from Solar Energy
@@ -789,7 +789,7 @@
 11889	ICS	Introduction to Cyber Security
 11890	CrP	Cryptographic Protocols
 11891	ISL	IT Security Law
-11892	SWS	Software Security
+11892	SSe	Software Security
 11893	Int	Internship
 11894	SPr	Study Project
 11895	OOPU	Oberseminar Organisation, Personalmanagement und Unternehmensführung
@@ -867,7 +867,7 @@
 11967	SBE	Softwarebasierte Entscheidungsunterstützung
 11968	OSU	Oberseminar Unternehmensrechnung
 11969	OSC	Oberseminar Controlling
-11970	Co2	Controlling II: Investitionscontrolling
+11970	Con2	Controlling II: Investitionscontrolling
 11971	ABWL4	Allgemeine Betriebswirtschaftslehre IV: Kosten- und Leistungsrechnung
 11972	SUM	Seminar Unternehmensentwicklung und Marktstrukturen
 11973	SWA	Seminar zum wissenschaftlichen Arbeiten
@@ -904,9 +904,9 @@
 12004	PP	Praxisprojekt
 12005	Mar1	Marketing I: Grundlagen und Strategie
 12009	BuK	Bilanz- und Kennzahlenanalyse
-12010	Co1	Controlling I: Strategisches Controlling
-12011	Co2	Controlling II: Investitionscontrolling und Operatives Controlling
-12012	Co3	Controlling III: Bereichscontrolling
+12010	Con1	Controlling I: Strategisches Controlling
+12011	Con2	Controlling II: Investitionscontrolling und Operatives Controlling
+12012	Con3	Controlling III: Bereichscontrolling
 12013	IuF	Investitions- und Finanzplanung
 12014	FuB	Finanzintermediation und Bankenregulierung
 12015	IUB	IFRS und Unternehmensbewertung
@@ -2541,7 +2541,7 @@
 13656	WMCTP	What Material Culture? Transformative Processes in Technology and Art
 13657	HTAN	How to Talk about Nature?
 13658	UDF	Uni-Deutsch für Fortgeschrittene
-13659	S&D	Sustainability and Digitalisation
+13659	SDi	Sustainability and Digitalisation
 13660	SZF	Soziologische Zugänge zu Fluchtmigration als Kompass für die Soziale Arbeit
 13661	GKM1	Grundlagenkurs Mathematik 1
 13662	GKM2	Grundlagenkurs Mathematik 2
@@ -2551,7 +2551,7 @@
 13666	VVe	Visualisierung, Vertiefung
 13667	VSF	Visualisierung, Spezialfragen
 13668	SPHD	Sensorimotor Processing in Health and Disease
-13669	L&P	Law and Policy for Agricultural Resource Management
+13669	LPo	Law and Policy for Agricultural Resource Management
 13670	KKM	Klassismuskritik in der Kultur- und Musikarbeit
 13671	RuA	Reaktions- und Anlagentechnik
 13672	Pra	Praktikum
@@ -3589,7 +3589,7 @@
 14722	FP	Forschungspraktikum
 14723	MTo	Management Tools
 14724	VVi	Virtual Vision
-14725	IHSTD	Industrial Heating Systems and their Defossilization
+14725	IHS	Industrial Heating Systems and their Defossilization
 14726	MOTA	Mathematical Optimization Techniques and Applications
 14727	SCC	Studieren mit ChatGPT & Co
 14728	BA	Bachelor-Arbeit
@@ -4080,11 +4080,11 @@
 24103	UrP	Urban Planning - Life, Work and Recreation in the Future
 24104	PuM	Politik und Medien
 24201	QNe	Quartier, Neu (Stadtentwicklung)
-24202	SWS2	Stadtmanagement 2 / Wohnungswirtschaft / Stadtsoziologie
+24202	SMWS2	Stadtmanagement 2 / Wohnungswirtschaft / Stadtsoziologie
 24204	SPS111	Stadtplanung 1 / Planungsrecht 1 (Allgemeines Städtebaurecht) / Stadtmanagement 1
 24206	ST1	Stadttechnik 1
 24301	St2	Städtebau 2 (Stadt und Architektur)
-24302	LP3	Landschaftsplanung 3 (Kulturlandschaftspflege, Entwicklung im ländlichen Raum)
+24302	La3	Landschaftsplanung 3 (Kulturlandschaftspflege, Entwicklung im ländlichen Raum)
 24303	BA	Bachelor-Arbeit
 24304	VSE	Visualisierung und CAD in der Stadtplanung / Einführung in Geoinformationssysteme
 24305	SuR	Stadt und Region
@@ -4464,7 +4464,7 @@
 36308	PM	Projektmanagement
 36309	RLP	Ringlabor Produktentwicklung
 36310	FT	Fügetechnik
-36311	MFS1	Modellieren und FE-Simulieren I
+36311	MFES1	Modellieren und FE-Simulieren I
 36312	Sys	Systemanalyse
 36313	GSF	Grundzüge der Simulation von Fertigungssystemen
 36314	MuL	Materialfluss und Logistik
@@ -4482,7 +4482,7 @@
 36326	IFP	Industriefachpraktikum
 36327	BA	Bachelor-Arbeit
 36328	BA	Bachelor-Arbeit
-36329	MFS2	Modellieren und FE-Simulieren II
+36329	MFES2	Modellieren und FE-Simulieren II
 36330	MMT	Mikromontagetechnik
 36331	BA	Bachelor-Arbeit
 36333	Pra	Praktikum
@@ -4492,7 +4492,7 @@
 36402	DFa	Digitale Fabrik
 36403	GdQ	Grundlagen der Qualitätslehre
 36404	GAA	Grundlagen der Arbeitswissenschaft und Arbeitspsychologie
-36405	LP	Leichtbauproduktion
+36405	Lei	Leichtbauproduktion
 36406	LW	Leichtbauwerkstoffe
 36407	RLP	Ringlabor Produktionstechnik
 36408	SvF	Simulation von Fertigungssystemen
@@ -4569,7 +4569,7 @@
 37410	SP1	Study Project 1
 37411	SP2	Study Project 2
 37412	AuB	Arbeits- und Beschäftigungssoziologie
-37413	WS	Wirtschaftssoziologie
+37413	Wir	Wirtschaftssoziologie
 37501	CMa	Cultural Management
 38101	ABI	Allgemeine Betriebswirtschaftslehre für Ingenieure
 38102	BRW1	Betriebliches Rechnungswesen I (Finanzbuchführung)
@@ -4587,7 +4587,7 @@
 38207	MuU1	Management und Unternehmensethik 1
 38301	UR1	Unternehmensrechnung I
 38302	UR2	Unternehmensrechnung II
-38303	Co2	Controlling II
+38303	Con2	Controlling II
 38304	DM	Dienstleistungsmarketing
 38305	BUIR	Bilanzierung, Unternehmensbesteuerung, Internationale Rechnungslegung
 38306	IuF1	Investition und Finanzierung I
@@ -4595,7 +4595,7 @@
 38308	MMa	Marketing-Management
 38309	SMa	Strategisches Management
 38310	OTI	Operatives Technologie- und Innovationsmanagement
-38311	Co1	Controlling I
+38311	Con1	Controlling I
 38312	St2	Statistik II
 38313	UuC	Unternehmensrechnung und Controlling
 38314	IuF	Investition und Finanzierung
@@ -4754,7 +4754,7 @@
 42104	MKl	Mikrometeorologie / Klimatologie
 42105	UT	Umwelttoxikologie
 42201	W&W	Water and Waste
-42202	S&A	Soil and Atmosphere
+42202	SAt	Soil and Atmosphere
 42203	GNR	Geosciences and Natural Resources
 42204	WRM	Water Resources Management
 42205	SPM	Soil Protection and Management

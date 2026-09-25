@@ -61,12 +61,13 @@ var BTUBaselines = []Baseline{
 	{"programs with tree modules", "SELECT COUNT(*) FROM program_coverage WHERE tree_modules > 0", 170},
 	{"validated plans", "SELECT COUNT(*) FROM v_program_plan", 140},
 	{"Lehramt programs reached by module pages (P3)", "SELECT COUNT(DISTINCT program_id) FROM program_module pm JOIN program p ON p.id = pm.program_id WHERE p.degree_level = 'teaching_bachelor' AND pm.on_module_page = 1", 20},
-	// Measured 2026-09-25: 4,936 modules, 71 % of 28,424 program pairs with three characters.
-	// A derivation that silently degrades (a broken splitter, lost overrides) drops below. A
-	// share, not a count: 17,829 of the pairs are FÜS pairs, and a shorter FÜS list is no fault.
-	{"modules with an abbreviation", "SELECT COUNT(*) FROM module_abbrev", 4800},
-	{"module abbreviations of exactly three characters, % of the program pairs",
-		"SELECT COUNT(*) * 100 / MAX(1, (SELECT COUNT(*) FROM program_module_abbrev)) FROM program_module_abbrev WHERE LENGTH(abbrev) = 3", 60},
+	// Measured 2026-09-25: 68 % of the 4,936 modules have a program-free abbreviation of three
+	// characters. A derivation that silently degrades (a broken splitter, lost overrides) drops
+	// below. A share of the modules, not of the program pairs: a FÜS module counts once, not once
+	// for each of the ~60 programs that offer it, so new language courses cannot trip it. (That
+	// every module has an abbreviation is a check above, not a baseline.)
+	{"module abbreviations of exactly three characters, % of the modules",
+		"SELECT COUNT(*) * 100 / MAX(1, (SELECT COUNT(*) FROM module_abbrev)) FROM module_abbrev WHERE LENGTH(abbrev) = 3", 55},
 }
 
 // Validate checks the invariants of a built database. It is read-only.
@@ -238,7 +239,8 @@ func (v *validator) count(name, severity, query, sampleQuery string) {
 
 // blockedAbbreviations fails on a derived abbreviation that abbrev.Blocked refuses (KKK, SS,
 // a building of short room names …): the same list the derivation reads. An override line may
-// name a blocked form on purpose, so is_override = 1 rows are left out.
+// name a blocked form on purpose, so is_override = 1 rows are left out, but not its twins: their
+// letter suffix (NP-d, read as NPD) is derived.
 func (v *validator) blockedAbbreviations() {
 	const name = "no derived abbreviation is on the blocked list"
 	if v.err != nil {
@@ -248,7 +250,7 @@ func (v *validator) blockedAbbreviations() {
 		SELECT '', a.module_id, a.abbrev, m.title FROM module_abbrev a JOIN module m ON m.id = a.module_id WHERE a.is_override = 0
 		UNION ALL
 		SELECT a.program_id, a.module_id, a.abbrev, m.title FROM program_module_abbrev a JOIN module m ON m.id = a.module_id
-		WHERE a.is_override = 0
+		WHERE a.is_override = 0 OR a.is_twin = 1
 		ORDER BY 1, 2`)
 	if err != nil {
 		v.err = fmt.Errorf("check %q: %w", name, err)

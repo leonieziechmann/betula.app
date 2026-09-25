@@ -203,7 +203,7 @@ check_standby() {
     *) fail "${name}: /healthz -> ${code:-no answer} (asked directly at ${address}:8080)" ;;
   esac
   if snapshot_outdated "${INSTANCE_STACK}"; then
-    fail "${name}: its catalog is older than the schema its build reads (\"snapshot.outdated\" in the log of ${INSTANCE_STACK}_folia): export a new snapshot in ${INSTANCE_STACK}_radix before a switch"
+    fail "${name}: its catalog is older than the schema its build reads (\"snapshot.outdated\" in the log of ${INSTANCE_STACK}_folia): build and export a new snapshot in ${INSTANCE_STACK}_radix before a switch (docker exec <its radix container> /bin/radix build --db /data/radix.db, then /bin/radix export --db /data/radix.db --out /data/snapshot)"
   fi
   if [[ "${INSTANCE_GATE}" == "on" ]]; then
     for path in /api/db /api/status; do

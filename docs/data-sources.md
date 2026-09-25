@@ -458,9 +458,10 @@ grid, agenda, notes and legend; the module overlay; perhaps the calendar export 
 Evidence and rules: §5.14 and `docs/schema-v2.md`, „Short names".
 
 - **Rooms** are „<Gebäude>/<Raum>[<Attachment>]": Zentrales Hörsaalgebäude is ZHG, a Hörsaal HS
-  („ZHG HS.3"), Lehrgebäude LG, Verfügungsgebäude VG, Mehrzweckgebäude MZG, and the Großer Hörsaal
-  GHS, „damit es nicht mit HG verwechselt wird". A room is its floor and number: „VG1C 0.07",
-  without a space inside the building token.
+  (the owner wrote „ZHG HS.3" before the slash below: ZHG/HS.3), Lehrgebäude LG, Verfügungsgebäude VG,
+  Mehrzweckgebäude MZG, and the Großer Hörsaal GHS, „damit es nicht mit HG verwechselt wird". A room
+  is its floor and number (VG1C/0.07; the owner first wrote „VG1C 0.07"), without a space inside the
+  building token.
 - **A slash between building and room** (on the review page, 2026-09-25): „ZHG/HS.C" instead of
   „ZHG HS.C", „weil sich das viel besser liest". So ZHG/HS.C, ZHG/SEM.4, ZHG/AM.1, LG1A/HS.2,
   VG1C/0.03, HG/0.16, LG3A/352, SFB/1.308, SD/9.117, Mensa/0.33.1; a hall that is a building of its
@@ -507,6 +508,12 @@ Evidence and rules: §5.14 and `docs/schema-v2.md`, „Short names".
   wins whatever the tier (a FÜS module's EiL, its initials, beats a compulsory module's derived EiL).
   A module's default (without a program) is not contested: it stays its best form. On the data of
   2026-09-23 the scores moved 567 of 28,424 pairs and no default; no program needed a third round.
+  After the review of the lane (2026-09-25) a module also goes back to a better form that came free
+  again (its holder was displaced in turn), and the rest after the third round lets a holder move up
+  to a free better form; that moved no pair of this catalog. The same review blocked WS
+  (Wintersemester), SWS, LP, MfS and CO (Co2 read as CO₂), compares blocked forms without & and -
+  as uniqueness does (S&D is SD), gives no letter suffix that reads as a blocked or reserved form, and
+  takes English possessives for articles (IHSTD → IHS): 20 defaults and 422 pairs.
 - **They are metadata, not facts.** „Und wenn das mal nicht passt mit dem, wie es im Studiengang
   verändert wird. Egal, dann machen wir die meta eben neu": every build derives them again, and
   a consumer never stores one.
@@ -532,5 +539,11 @@ Open, with the default the build uses until the owner decides:
 | M7 | Which other forms are well known (TI, SE …)? | only those in `overrides.tsv` |
 | M8 | The program-free form on catalog cards and on a module page without a program? | yes |
 | M9 | Plan position codes (BP23, OM3) as a `plan_code` of their own? | not now |
-| M10 | The blocked forms (`internal/abbrev/blocked.tsv`): SA is blocked for the Nazi SA, but it is the common form of „Studienarbeit“ (5 modules, now `Stu`), and SS of „Steuerungssysteme“ (now `Ste`). An override line may bring a blocked form back. | blocked; no override |
+| M10 | The blocked forms (`internal/abbrev/blocked.tsv`): SA is blocked for the Nazi SA, but it is the common form of „Studienarbeit“ (5 modules, now `Stu`), and SS of „Steuerungssysteme“ (now `Ste`). The review of 2026-09-25 added WS, SWS and LP (a study plan shows them itself), MfS and CO (Controlling II as Co2): Wirtschaftssoziologie is `Wir` now, Controlling II `Con2`. An override line may bring a blocked form back. | blocked; no override |
 | M11 | Room kinds as module forms: Sem („Seminar“) next to `ZHG/SEM.4` (owner 2026-09-25: a Seminarraum is „SEM“), AT (Analogtechnik, Architekturtheorie …) next to the ateliers `ZB2CD/AT Oestreich M`? They always follow a building token, so only the buildings (and HS, the building HS3) are blocked. | allowed |
+| M12 | A tie of matching scores (Grundzüge der Makro- and Mikroökonomik, both GdM at 8,000) goes to the module first in priority order, which differs by program (Makro keeps GdM in 16 program contests, Mikro in 3), and the loser's GMÖ fits both titles. Or to neither (GMa / GMi), as before M4 was decided? Measured by the review of 2026-09-25: 398 pairs move (182 compulsory), pairs that fall back 681 → 952 (a prototype, which still let a weaker third module take the form the two tied for); it turns Teilbereich Mathematik I / Musik into TMa1 / TMu, but Kombinatorik Kom → Komb, Spezialwasserbau SWB → Spe | priority |
+| M13 | Two titles that open with the same words (the two Marketing Seminar modules MS / MSe, PEA / PEAp, TBS / TeS): tell them apart like siblings, by what follows the shared words? 631 pairs in 52 groups; a rough prototype moved 456 | the scores decide |
+| M14 | A single compound word falls back to its first three letters (Prozesssimulation Pro, 23 titles; Wirtschaftssoziologie Wir, now that WS is blocked): the initials of its parts plus two letters of the last (PSi, WSo)? 20 defaults and 130 pairs measured before WS was blocked, and Wirtschaftssoziologie's 126 | first three letters |
+| M15 | Two series numbers run together (SuL23, SuP11, WT12): join them with „+" (SuL2+3)? 10 pairs, 15 defaults | as they stand |
+| R9 | A second room number QIS abbreviates or the rules shorten (FZ3E/2.26+27, 55 lines): write it in full (FZ3E/2.26+2.27)? | shortened |
+| R10 | Spaces inside a room's form (ZB2CD/AT Oestreich M, SFB/9.151 F2: 13 forms, 55 lines) break a narrow grid cell: no-break spaces, or a dot (AT.Oestreich)? | spaces |

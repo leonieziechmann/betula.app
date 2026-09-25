@@ -507,16 +507,21 @@ reserved forms and the uniqueness within a program hold: two titles of one progr
 (Grundlagen der Werkstoffe and Grundlagen der Wirtschaftsinformatik, both GdW) contest it like any
 other form.
 
-Never derived: a form on `internal/abbrev/blocked.tsv` (SS, SA, NS, KZ, KKK, NPD, AfD, THC, NSA,
-IBM, PO …: a public timetable must not show them next to a lecture) and the capitals of the
+Never derived: a form on `internal/abbrev/blocked.tsv` (SS, SA, NS, KZ, KKK, NPD, AfD, MfS, THC,
+NSA, IBM …: a public timetable must not show them next to a lecture; PO, WS, SWS and LP, which a
+study plan shows itself; CO, since Controlling II as Co2 read as the gas) and the capitals of the
 buildings of short room names (ZHG, HG, HS, LG, VG, ZB, SFB, SD …: a week grid shows a module and
-its room side by side), also with a series number or language level (SS1, SS-A1), unless the title
-has the form as a word of its own. A curated file, `internal/abbrev/overrides.tsv`, gives the
-owner's two examples and a few well-known forms (BA, MA, DB, ABWL n, BS n, OOP, and three a module's
-own page uses) as a first candidate. It beats every derived candidate, whatever the tier, and the
-form of an owner or common line is reserved in the whole catalog: no module of another head derives
-AuP or MA (Datenbanken I may have DB1, Medienanalyse may not have MA). Where two lines' forms meet in
-a program, tier and priority decide; siblings with one line are told apart by their subtitle
+its room side by side), also with a series number or language level (SS1, SS-A1), and compared as
+uniqueness compares forms, so S&A is SA and a suffix NP-d is NPD; a title that has the form as a
+word of its own may use it. The review of 2026-09-25 added WS, SWS, LP, MfS and CO and the
+comparison without & and -: 20 defaults and 422 pairs moved (Wirtschaftssoziologie WS → Wir,
+Controlling II Co2 → Con2, Modellieren und FE-Simulieren MFS → MFES, Sustainability and
+Digitalisation S&D → SDi). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's two
+examples and a few well-known forms (BA, MA, DB, ABWL n, BS n, OOP, and three a module's own page
+uses) as a first candidate. It beats every derived candidate, whatever the tier, and the form of an
+owner or common line is reserved in the whole catalog: no module of another head derives AuP or MA
+(Datenbanken I may have DB1, Medienanalyse may not have MA). Where two lines' forms meet in a
+program, tier and priority decide; siblings with one line are told apart by their subtitle
 (Allgemeine Betriebswirtschaftslehre III: Investition … / Beschaffung … → ABWL3I / ABWL3B). The file
 is read strictly: five columns at most, a program id of the form `079-82-2008`, no pattern twice.
 
@@ -539,29 +544,41 @@ lowest). A module's list is ordered by it. In a program:
    titles, or one stem for two heads — the higher score keeps it; a tie goes to the module first in
    priority order (compulsory modules, the thesis and internships, then other curricular modules,
    then FÜS; within a tier the plan semester, then the module number).
-2. **Cascade, at most three rounds.** A module without a form moves on to its next candidate it can
-   win: one nobody holds, or one whose holders all score lower for theirs. It takes it, and a holder
-   it beats is displaced and moves on in the next round.
-3. **Rest.** After the third round, every module still without a form takes, best first, its best
-   candidate that conflicts with nothing held. A module whose list is used up gets its first form
-   with a letter (`-b` … `-z`, `-bb` …) that no form or stem of the program has.
+2. **Cascade, at most three rounds.** Every module claims the first candidate of its list it can win
+   — one nobody holds, or one whose holders all score lower for theirs (a tie again to priority) —
+   if that comes before the form it holds: a module without a form, and one whose better form has
+   come free again because the module that took it was displaced in turn. It takes it, and a holder
+   it beats is displaced and claims again in the next round.
+3. **Rest.** After the third round, one at a time and best first, a module takes a candidate before
+   the one it holds (any, without a form) that conflicts with nothing held; nobody is displaced any
+   more. A module whose list is used up gets its first form with a letter (`-b` … `-z`, `-bb` …) that
+   no form or stem of the program has and that reads as no blocked form and no form reserved for
+   another head (NP-d would be NPD).
 
-It terminates: a module only moves forward in its list and a tie never goes to the newcomer, so no
-displacement repeats (a cascade that let a displaced module start again, or the newcomer win a tie,
-could loop: A takes X from B, B takes it back), the rounds are bounded anyway, the rest assigns one
-module per step, and there are more letter suffixes than a program has modules. The better match
+It terminates: the claim and the three rounds are four passes; the rest displaces nobody, so each of
+its steps gives a module a form or moves a holder up its list, which ends; and there are far more
+letter suffixes than holders and blocked forms. Ties go by priority in every round, not to whoever
+holds the form, so a displacement is never undone by a tie (the loop of a naive cascade: A takes X
+from B, B takes it back), and going back to a form that came free cannot loop either. What the
+round limit can leave is a module that would still beat the holder of a better form: the rest takes
+only free forms. Before the review of 2026-09-25 a module never went back, so a form it had lost
+could come free and stay unused (M loses AB to H, N of M's series takes the stem AB from H with AB2,
+and M ended with ZZ; now M gets AB). On the data of 2026-09-23 this moved no pair. The better match
 wins whatever the tier: next to the compulsory „Einführung in die Logistik“ (EiL, a derived form) the
 FÜS module „Elektronik im Labor“ (EiL, its initials) keeps EiL. With equal scores priority decides:
 Grundzüge der Makro- and Mikroökonomik are both GdM; the first in priority order keeps it, the other
-takes GMÖ. This replaced the rule that a contested form goes to neither (GMa / GMi, M4).
+takes GMÖ. This replaced the rule that a contested form goes to neither (GMa / GMi, M4); whether a
+tie should still go to neither is open (M12 in `docs/data-sources.md` §11).
 
-Siblings — one head, different subtitles — are told apart by the subtitle (Dynamik der Kraftfahrzeuge
-- Längs-/Querdynamik → DKL / DKQ). Identical titles share the form in the contest and then get `-b`,
-`-c` (two „Häusliche Gewalt“ of Soziale Arbeit: HäG, HäG-b). `module_abbrev` holds the form without a
-program for every module: its best candidate. Defaults are not contested: a module without a program
-sits next to no other, a catalog-wide contest over 4,936 modules would take forms from modules that
-are never read side by side (68 modules share the title Bachelorarbeit), and a program's form is its
-module's default in 96.6 % of the pairs anyway.
+Siblings — one head, different subtitles — are told apart by the subtitle (Dynamik der
+Kraftfahrzeuge - Längs-/Querdynamik → DKL / DKQ). Identical titles share the form in the contest and
+then get `-b`, `-c` (two „Häusliche Gewalt“ of Soziale Arbeit: HäG, HäG-b); the plain form goes to
+the better claim, which is the first in priority order unless an override line gives one of them
+another list. `module_abbrev` holds the form without a program for every module: its best candidate.
+Defaults are not contested: a module without a program sits next to no other, a catalog-wide contest
+over 4,936 modules would take forms from modules that are never read side by side (68 modules share
+the title Bachelorarbeit), and a program's form is its module's default in 96.6 % of the pairs
+anyway.
 
 The result depends only on the catalog, never on the order it is read in, but not only on the
 program: a new module can move the forms of its own program, and a new title anywhere can move forms
@@ -571,36 +588,51 @@ into WT in 12 programs). The owner accepted that; `build.finished` counts the pa
 since the build before as `abbrev_changed`.
 
 On the data of 2026-09-23: 4,936 modules and 28,424 (program, module) pairs in 182 programs, no
-duplicate, no blocked form, no stem two heads share; 71.4 % of the pairs have exactly three
-characters and 94.3 % at most four; 97.7 % got their first choice (mean 3.7 fallbacks per program);
-94.6 % of the modules have the same form in every program they are in, and 96.6 % of the pairs the
-module's default. The three initials of the whole title moved 372 defaults and 2,680 pairs (2,619 to
-that form, 61 as a knock-on); the scored assignment then moved 567 pairs and no default. 18 programs
-are settled by the claim, 141 need one cascade round, 23 two, none three; one list runs out
-(„Methods“ in 013-D8-2022, Met-b). AuP and EEG hold in all 110 of their program pairs; in Umweltwissenschaften
-Bachelor 2025 (G29-82-2025) the internship „Außeruniversitäres Praktikum“ no longer takes AuP. The
-snapshot grows by 1.7 MB. `internal/abbrev/testdata/gate` holds the forms of four programs and every
-default; with `RADIX_ABBREV_GATE=<snapshot>` the test prints what a rule change moves, and fails on a
-blocked form or a stem two heads of a program share.
+duplicate, no blocked form, no stem two heads share; 71.8 % of the pairs have exactly three
+characters and 94.7 % at most four (68.2 % of the modules' defaults have three); 97.7 % got their
+first choice (mean 3.7 fallbacks per program); 94.6 % of the modules have the same form in every
+program they are in, and 96.6 % of the pairs the module's default. The three initials of the whole
+title moved 372 defaults and 2,680 pairs (2,619 to that form, 61 as a knock-on); the scored
+assignment then moved 567 pairs and no default; the review's fixes 20 defaults and 422 pairs (280
+newly blocked, 133 Industrial Heating Systems and their Defossilization IHSTD → IHS, whose „their“
+is an article now, 9 S&D). 18 programs are settled by the claim, 141 need one cascade round, 23 two,
+none three; one list runs out („Methods“ in 013-D8-2022, Met-b). AuP and EEG hold in all 110 of
+their program pairs; in Umweltwissenschaften Bachelor 2025 (G29-82-2025) the internship
+„Außeruniversitäres Praktikum“ no longer takes AuP. The snapshot grows by 1.7 MB.
+`internal/abbrev/testdata/gate` holds the forms of four programs and every default on
+`catalog-abca4baa1d8f8d8e.db` (schema 8, data of 2026-09-23). With `RADIX_ABBREV_GATE=<that
+snapshot> go test ./internal/abbrev -run TestGate -v` the test prints what a rule change moves, and
+fails on a blocked form or a stem two heads of a program share; `RADIX_ABBREV_GATE_STRICT=1` also
+fails on any difference, and `RADIX_ABBREV_GATE_WRITE=1` writes the files again (their comment lines
+stay: add the new rule to them by hand).
 
 `validate` fails when an event date with a room has no short form, a short form names two rooms, a
-module or a program's module has no abbreviation, a program has one twice (without case, & and -),
-a derived one is blocked (`abbrev.Blocked`, the list the derivation reads), or one is not 2 to 10
-characters without spaces; two baselines (4,800 modules with an abbreviation; at least 60 % of the
-pairs with exactly three characters — a share, because 17,829 of the pairs are FÜS pairs and a
-shorter FÜS list is no fault) catch a derivation that silently degrades. A database migrated to
-schema 9 but not built again fails the first of these, so it is never exported: after the release,
-an instance that does not crawl (`RADIX_CRAWL=off`) needs `radix build`, then `validate` and
-`export` (`docs/operations.md`; `deploy/vps/50-app.sh` builds a seeded volume before its first
-export). The build warns with `build.rooms_unknown_building` (an event room names a building the
-table lacks), `build.room_short_collisions` (two rooms would share a form and keep their long form)
-and `build.abbrev_overrides_unused` (a line of the override file applies to no module: a module
-number the catalog lacks, a program without that module, a pattern that matches nothing an earlier
-line does not take); each wants a line in the table or the file. `build.finished` counts
-`abbrev_fell_back`, `abbrev_twins` and `abbrev_changed`.
+module or a program's module has no abbreviation, a program has one twice (without case, & and -), a
+derived one is blocked (`abbrev.Blocked`, the list the derivation reads), or one is not 2 to 10
+characters without spaces (an override line may name a blocked form, but the letter suffix of its
+twin is checked); a baseline, at least 55 % of the modules with a default of exactly three
+characters (68 % now), catches a derivation that silently degrades. It counts modules, not program
+pairs: a FÜS module is in about 60 programs, so a few new language courses would move a share of
+pairs by themselves. A database migrated to schema 9 but not built again fails the first of these,
+so it is never exported: after the release, an instance that does not crawl (`RADIX_CRAWL=off`)
+needs `radix build`, then `validate` and `export` (`docs/operations.md`; `deploy/vps/50-app.sh`
+builds a seeded volume before its first export). The build warns with `build.rooms_unknown_building`
+(an event room names a building the table lacks), `build.room_short_collisions` (two rooms would
+share a form and keep their long form) and `build.abbrev_overrides_unused` (a line of the override
+file applies to no module: a module number the catalog lacks, a program without that module, a
+pattern that matches nothing an earlier line does not take); each wants a line in the table or the
+file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_changed`.
 
 Open:
 
+- **Schema 9 in Folia.** `catalog::SCHEMA_VERSION` (`catalog/src/db.rs`) is still 8: this lane changes
+  no Folia code, so `catalog::tests::the_queries_are_written_for_the_newest_schema` fails while
+  migration 0009 is in the tree. The merge must carry the Folia side with it: raise the constant to 9
+  (browsers then refuse an older snapshot, so every instance needs `radix build`, then `export`,
+  before the web build that reads 9 goes live), and pin `STUDYPLAN_DIGEST` (`catalog/src/tests.rs`,
+  `server/src/tests.rs`) to a schema-9 export in `snapshot/`: the digest covers `module_abbrev` and
+  `program_module_abbrev`, so no schema-9 snapshot matches the pinned 4b65e821… and the pinned checks
+  are skipped until then.
 - **Web server (Rust) and frontend.** Both still read the v1 layout and do not work against a
   snapshot. The server becomes an HTTP client of the service: poll `/snapshot/catalog.db` with
   `If-None-Match`, keep the file, serve it as `/api/db` with the same ETag, and answer SSR pages

@@ -39,7 +39,10 @@ var funcWords = func() map[string]funcWord {
 	} {
 		m[p[0]] = funcWord{p[1], 50}
 	}
-	for _, w := range []string{"the", "a", "an"} {
+	// Articles and the English possessives that stand where an article would: no letter of their
+	// own, and the phrase they open is a tail that may be left out, as „der Informatik“ is in EEG
+	// („Industrial Heating Systems and their Defossilization“ → IHS, was IHSTD).
+	for _, w := range []string{"the", "a", "an", "their", "its", "his", "her", "our", "your"} {
 		m[w] = funcWord{"", 990}
 	}
 	m["als"] = funcWord{"a", 30} // DaF, DaZ

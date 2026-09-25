@@ -33,7 +33,8 @@ func score(c candidate) int {
 }
 
 // cascadeRounds bounds the cascade: after the claim, at most three rounds in which a module
-// that lost its form moves on and may displace a weaker holder.
+// that lost its form, or whose better form came free again, claims anew and may displace a
+// weaker holder.
 const cascadeRounds = 3
 
 // claim is a module (its index in the program's priority order) holding or wanting the
@@ -48,27 +49,36 @@ type claim struct{ m, r int }
 // semester; then module number). Two claims conflict when their forms are one form (compared
 // without case, & and -) for different titles, or have one stem (ST, ST1) for different heads.
 // Identical titles do not conflict: they share the form and are told apart by -b, -c at the end.
+// Of two claims the one with the higher matching score is better; on equal scores the module
+// first in priority order (within one module, the earlier candidate). This is a strict total
+// order, and it does not ask who holds a form: every contest has one winner, the same in every
+// round.
 //
-//  1. Claim: every module claims its best candidate. Where claims conflict, the higher matching
-//     score keeps the form; a tie goes to the module first in priority order. This (score, then
-//     priority) is a strict total order on claims, so every contest has one winner.
-//  2. Cascade, at most three rounds: every module without a form moves on to its next candidate
-//     it can win — one nobody holds, or one whose holders all have a lower score for theirs
-//     (the tie again to priority) — and claims it. The claims of a round and the forms held are
-//     settled together, best first: a claim stands unless a better one it conflicts with stood
-//     before it. A holder that loses is displaced and moves on in the next round.
-//  3. Rest: every module still without a form takes, best claim first, its best candidate that
-//     conflicts with no form held. A module whose list has none left gets its first candidate
-//     with a letter suffix (-b … -z, -bb …) whose form and stem nobody holds.
+//  1. Claim: every module claims its best candidate. Where claims conflict, the better one keeps
+//     the form.
+//  2. Cascade, at most three rounds: every module claims the first candidate of its list it can
+//     win against the forms held — one nobody holds, or one whose holders all have worse claims —
+//     if that candidate comes before the one it holds: a module without a form, and a holder whose
+//     better form has come free again because the module that took it was displaced itself. The
+//     claims of a round and the forms held are settled together, best first: a claim stands unless
+//     a better one it conflicts with stood before it. A holder that loses is displaced and claims
+//     again in the next round.
+//  3. Rest: while a module has a candidate before the one it holds (any candidate, without a form)
+//     that conflicts with no form held, the best such claim takes it; nobody is displaced any more.
+//     A module whose list has none left gets its first candidate with a letter suffix (-b … -z,
+//     -bb …) whose form and stem nobody holds and that reads neither as a blocked form nor as a
+//     form an override line reserves for another head (NP-d reads as NPD, Au-p as AuP).
 //
-// It terminates, whatever the lists: the claim and the cascade are at most four passes, each
-// over finitely many modules and candidates (a module's position in its list only moves
-// forward, so no module tries a candidate twice and no displacement can repeat); the rest
-// assigns one module per step; and the suffix search ends because a holder blocks at most two
-// suffixes (its form and its stem), and there are 25 + 25² + 25³ suffixes against fewer holders
-// than a program has modules. A naive cascade that let a displaced module start again from its
-// best candidate, or let the newcomer win a tie, could loop (A takes X from B, B takes it back);
-// here neither happens. The result depends only on the entries and their lists.
+// It terminates, whatever the lists: the claim and the cascade are at most four passes over the
+// modules and their lists; the rest displaces nobody, so each of its steps gives a module without
+// a form one or moves a holder to an earlier candidate of its list, which can happen only finitely
+// often; and the suffix search ends because a holder rules out at most two suffixes (its form and
+// its stem), a blocked or reserved form at most one of each length, and there are 25 + 25² + 25³
+// suffixes against far fewer. As the order is strict and ignores who holds, no tie undoes a
+// displacement (the loop of a naive cascade: A takes X from B, B takes it back), and going back
+// to an earlier candidate cannot loop either; the round limit stops the cascade in any case. What
+// the limit can leave is a module that would still win a form a worse claim holds: the rest takes
+// only free forms. The result depends only on the entries and their lists.
 func (d *deriver) assign(entries []entry, lists [][]candidate) (map[string]Choice, int) {
 	n := len(entries)
 	title := make([]string, n)
@@ -114,29 +124,35 @@ func (d *deriver) assign(entries []entry, lists [][]candidate) (map[string]Choic
 	}
 
 	held := make([]int, n) // rank of the form a module holds, -1 for none
-	pos := make([]int, n)  // the next rank a module without a form may claim
 	for i := range held {
 		held[i] = -1
 	}
-	rounds := 0
-	for round := 0; round <= cascadeRounds; round++ {
-		holders := newBoard()
-		var all []claim
+	// holding is the board of the forms held; before is how far into its list a module may still
+	// look: up to the form it holds, or to the end.
+	holding := func() *board {
+		b := newBoard()
 		for i := range held {
 			if held[i] >= 0 {
-				c := claim{i, held[i]}
-				put(holders, c)
-				all = append(all, c)
+				put(b, claim{i, held[i]})
 			}
 		}
+		return b
+	}
+	before := func(i int) int {
+		if held[i] >= 0 {
+			return held[i]
+		}
+		return len(lists[i])
+	}
+	rounds := 0
+	for round := 0; round <= cascadeRounds; round++ {
+		holders := holding()
+		var all []claim
 		claimed := false
 		for i := range held {
-			if held[i] >= 0 {
-				continue
-			}
-			// the next candidate this module can win against the forms held
-			for ; pos[i] < len(lists[i]); pos[i]++ {
-				c, wins := claim{i, pos[i]}, true
+			// the first candidate before the one it holds that this module can win
+			for r := 0; r < before(i); r++ {
+				c, wins := claim{i, r}, true
 				for _, h := range rivals(holders, i, text(c)) {
 					if !better(c, h) {
 						wins = false
@@ -149,65 +165,52 @@ func (d *deriver) assign(entries []entry, lists [][]candidate) (map[string]Choic
 					break
 				}
 			}
+			if held[i] >= 0 {
+				all = append(all, claim{i, held[i]})
+			}
 		}
 		if !claimed {
 			break
 		}
 		rounds = round
+		// A module's new claim is better than the form it holds and is settled first; where it
+		// stands, the module lets the old form go.
 		sort.Slice(all, func(a, b int) bool { return better(all[a], all[b]) })
 		standing := newBoard()
 		for i := range held {
 			held[i] = -1
 		}
 		for _, c := range all {
-			if len(rivals(standing, c.m, text(c))) == 0 {
+			if held[c.m] < 0 && len(rivals(standing, c.m, text(c))) == 0 {
 				put(standing, c)
 				held[c.m] = c.r
-			} else {
-				pos[c.m] = c.r + 1 // lost, or displaced: it moves on
 			}
 		}
 	}
 
-	// The rest: best claim first, each takes its best candidate that conflicts with nothing held.
-	holders := newBoard()
-	for i := range held {
-		if held[i] >= 0 {
-			put(holders, claim{i, held[i]})
-		}
-	}
-	free := func(i int) (claim, bool) {
-		for r := range lists[i] {
-			if c := (claim{i, r}); len(rivals(holders, i, text(c))) == 0 {
-				return c, true
-			}
-		}
-		return claim{}, false
-	}
-	var exhausted []int
+	// The rest: one at a time, the best claim on a form nobody holds that comes before the
+	// module's own; nobody is displaced.
 	for {
+		holders := holding()
 		best, found := claim{}, false
 		for i := range held {
-			if held[i] >= 0 {
-				continue
-			}
-			if c, ok := free(i); ok && (!found || better(c, best)) {
-				best, found = c, true
+			for r := 0; r < before(i); r++ {
+				if c := (claim{i, r}); len(rivals(holders, i, text(c))) == 0 {
+					if !found || better(c, best) {
+						best, found = c, true
+					}
+					break
+				}
 			}
 		}
 		if !found {
 			break
 		}
 		held[best.m] = best.r
-		put(holders, best)
-	}
-	for i := range held {
-		if held[i] < 0 {
-			exhausted = append(exhausted, i)
-		}
 	}
 
-	// taken: every form and stem held, for the suffixes.
+	// taken: every form and stem held, for the suffixes. A suffix must not read as a blocked form
+	// or a form reserved for another head either: a reader passes over the hyphen.
 	takenKey, takenStem := map[string]bool{}, map[string]bool{}
 	for i := range held {
 		if held[i] >= 0 {
@@ -215,32 +218,52 @@ func (d *deriver) assign(entries []entry, lists [][]candidate) (map[string]Choic
 			takenKey[key(t)], takenStem[stemKey(t)] = true, true
 		}
 	}
-	isFree := func(t string) bool { return !takenKey[key(t)] && !takenStem[stemKey(t)] }
+	free := func(i int) func(string) bool {
+		p := d.parse(entries[i].module)
+		return func(t string) bool {
+			if takenKey[key(t)] || takenStem[stemKey(t)] || d.reservedElsewhere(t, p.seriesKey) {
+				return false
+			}
+			_, blocked := Blocked(t, p.title)
+			return !blocked
+		}
+	}
 	take := func(t string) { takenKey[key(t)], takenStem[stemKey(t)] = true, true }
 
 	out := make(map[string]Choice, n)
-	for _, i := range exhausted {
-		base := lists[i][0]
-		t := suffixed(base.text, isFree, 0)
-		take(t)
-		out[entries[i].module] = Choice{Abbrev: t, Override: base.override, Choice: len(lists[i]) + 1}
+	for i := range held {
+		if held[i] < 0 {
+			base := lists[i][0]
+			t := suffixed(base.text, free(i), 0)
+			take(t)
+			out[entries[i].module] = Choice{Abbrev: t, Override: base.override, Choice: len(lists[i]) + 1}
+		}
 	}
-	// Identical titles in one program: the first in priority order keeps the form, the others
-	// get -b, -c ….
-	seen := map[string]int{}
+	// Identical titles in one program: the best claim keeps the form (with alike lists, the first
+	// in priority order), the others get -b, -c … in that order.
+	twins := map[string][]int{}
+	for i := range held {
+		if held[i] >= 0 {
+			k := key(text(claim{i, held[i]}))
+			twins[k] = append(twins[k], i)
+		}
+	}
+	place := make([]int, n)
+	for _, g := range twins {
+		sort.Slice(g, func(a, b int) bool { return better(claim{g[a], held[g[a]]}, claim{g[b], held[g[b]]}) })
+		for k, i := range g {
+			place[i] = k
+		}
+	}
 	for i, e := range entries {
 		if held[i] < 0 {
 			continue
 		}
 		c := lists[i][held[i]]
 		ch := Choice{Abbrev: c.text, Override: c.override, Choice: held[i] + 1}
-		k := key(c.text)
-		if count, ok := seen[k]; ok {
-			seen[k] = count + 1
-			ch.Abbrev, ch.Twin = suffixed(c.text, isFree, count), true
+		if place[i] > 0 {
+			ch.Abbrev, ch.Twin = suffixed(c.text, free(i), place[i]-1), true
 			take(ch.Abbrev)
-		} else {
-			seen[k] = 0
 		}
 		out[e.module] = ch
 	}
@@ -248,9 +271,10 @@ func (d *deriver) assign(entries []entry, lists [][]candidate) (map[string]Choic
 }
 
 // suffixed returns base-b, base-c … base-z, base-bb … (from the given suffix on), the first form
-// free says nobody holds. Letters, never digits, which would read as a series number and share
-// the base's stem; the whole stays within 10 characters. A letter suffix is its own stem, so
-// every holder rules out at most two of them, and the search ends.
+// free accepts. Letters, never digits, which would read as a series number and share the base's
+// stem; the whole stays within 10 characters. A letter suffix is its own stem, so every holder
+// rules out at most two of them and every other form free refuses at most one of each length, and
+// the search ends.
 func suffixed(base string, free func(string) bool, from int) string {
 	for i := from; ; i++ {
 		s := suffixLetters(i)

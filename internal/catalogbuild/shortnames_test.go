@@ -163,3 +163,22 @@ func TestValidateWantsShortNames(t *testing.T) {
 		}
 	}
 }
+
+// An override line may name a blocked form on purpose, but the letter suffix of its twin is
+// derived: NP-d reads as NPD.
+func TestValidateChecksTheTwinsOfAnOverride(t *testing.T) {
+	db, _ := buildFixture(t)
+	if _, err := db.SQL().Exec(`UPDATE program_module_abbrev SET abbrev = 'NP-d', is_override = 1, is_twin = 1
+		WHERE (program_id, module_id) = (SELECT program_id, module_id FROM program_module_abbrev ORDER BY 1, 2 LIMIT 1)`); err != nil {
+		t.Fatal(err)
+	}
+	checks, err := db.Validate(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range checks {
+		if c.Name == "no derived abbreviation is on the blocked list" && c.Status != catalogdb.StatusFail {
+			t.Errorf("a twin NP-d of an override line passes: %+v", c)
+		}
+	}
+}

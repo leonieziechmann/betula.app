@@ -325,8 +325,8 @@ func TestTheBlockedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"SS", "SA", "NS", "KZ", "KKK", "NPD", "AfD", "THC", "NSA", "IBM", "BBC", "PO"} {
-		if _, ok := m[strings.ToUpper(f)]; !ok {
+	for _, f := range []string{"SS", "SA", "NS", "KZ", "KKK", "NPD", "AfD", "THC", "NSA", "IBM", "BBC", "PO", "MfS", "WS", "SWS", "LP", "CO"} {
+		if _, ok := m[key(f)]; !ok {
 			t.Errorf("%s is not on blocked.tsv", f)
 		}
 	}
@@ -366,6 +366,15 @@ func TestBlocked(t *testing.T) {
 		{"SAP", "SAP-Grundlagen", false},
 		{"AuP", "Algorithmieren und Programmieren", false},
 		{"SR", "Schulrecht", false}, // room kinds follow a building: ZHG SEM.4
+		// compared as uniqueness compares forms: a reader passes over & and -
+		{"NP-d", "Neue Politik", true},
+		{"S&A", "Soil and Atmosphere", true},
+		{"B&B", "Biomass and Bioenergy", false},
+		// what a study plan itself shows: the semesters, SWS and LP (review, 2026-09-25)
+		{"WS", "Wirtschaftssoziologie", true},
+		{"LP3", "Landschaftsplanung 3", true},
+		{"Co2", "Controlling II", true},
+		{"MFS1", "Modellieren und FE-Simulieren I", true},
 	} {
 		if _, got := Blocked(c.form, c.title); got != c.blocked {
 			t.Errorf("Blocked(%q, %q) = %v", c.form, c.title, got)
@@ -559,9 +568,10 @@ func synthetic(lists ...[]candidate) (*deriver, []entry) {
 
 func cand(text string, cost int) candidate { return candidate{text: text, cost: cost} }
 
-// A cascade in which the newcomer won a tie, or a displaced module started again from its best
-// form, would loop here: A and B want X and then Y with the same scores; A takes X from B, B
-// takes it back …. The tie goes to priority, and a module only moves forward in its list.
+// A cascade in which the newcomer won a tie would loop here: A and B want X and then Y with the
+// same scores; A takes X from B, B takes it back …. The order of claims is strict and does not
+// ask who holds a form: the tie goes to priority in every round, and B, looking at X again,
+// cannot win it.
 func TestTheCascadeCannotLoop(t *testing.T) {
 	lists := [][]candidate{{cand("XA", 0), cand("YA", 10)}, {cand("XA", 0), cand("YA", 10)}}
 	d, entries := synthetic(lists...)
@@ -655,6 +665,9 @@ func TestFunctionLettersAndCompounds(t *testing.T) {
 		"Effiziente Algorithmen": "EAl", // not EfA, next to SfA „Statistik für Anwender“
 		"Corporate Finance":      "CFi",
 		"Statistik für Anwender": "SfA", // a real function word keeps its letter
+		// an English possessive stands where an article would: no letter (was IHSTD); the tail
+		// it opens is left out, as „der Informatik“ is in EEG
+		"Industrial Heating Systems and their Defossilization": "IHS",
 		// an unknown part before an open head, and words written in parts
 		"Deponietechnik":    "DT",
 		"Umsatzbesteuerung": "Ums", // not Umsatzbe|steuerung
@@ -664,5 +677,96 @@ func TestFunctionLettersAndCompounds(t *testing.T) {
 		if got := defaultOf(t, nil, title); got != want {
 			t.Errorf("%q → %q, want %q", title, got, want)
 		}
+	}
+}
+
+// program builds a program of modules with the given titles, heads and candidate lists, in
+// priority order.
+func program(titles, heads []string, lists ...[]candidate) (*deriver, []entry) {
+	d := &deriver{parsed: map[string]*parsed{}}
+	var entries []entry
+	for i := range lists {
+		id := fmt.Sprintf("%d", i)
+		d.parsed[id] = &parsed{title: titles[i], seriesKey: heads[i]}
+		entries = append(entries, entry{id, 1, 1})
+	}
+	return d, entries
+}
+
+// A form a module lost can come free again: M loses AB to H's better claim (the claim), then N,
+// of M's series, takes the stem AB from H with AB2 (round 1). AB is free for M now, and M takes it
+// rather than ZZ further down its list (review, 2026-09-25: a module never went back to a form).
+func TestAFormThatComesFreeGoesBack(t *testing.T) {
+	lists := [][]candidate{
+		{cand("PP", 0)},
+		{cand("QQ", 0)},
+		{cand("AB", 10)},
+		{cand("PP", 50), cand("AB", 60), cand("ZZ", 70)},
+		{cand("QQ", 1), cand("AB2", 5)},
+	}
+	d, entries := program([]string{"X1", "X2", "H", "Mathematik", "Mathematik 2"},
+		[]string{"x1", "x2", "h", "mathematik", "mathematik"}, lists...)
+	got, _ := d.assign(entries, lists)
+	for id, w := range map[string]string{"3": "AB", "4": "AB2", "2": "AB-b"} {
+		if got[id].Abbrev != w {
+			t.Errorf("module %s → %q, want %q (%+v)", id, got[id].Abbrev, w, got)
+		}
+	}
+	// T1 loses BB2 in the claim to the stem of T0's bB; when T0 is displaced to aB, BB2 is free
+	// again, and T1, first in priority order, wins it back from T8, which tied with it.
+	lists = [][]candidate{
+		{{text: "A-AA", cost: -50, how: "paren"}},
+		{{text: "A-AA", cost: -50, how: "paren"}, cand("bB", 43)},
+		{cand("bB", 43), cand("aB", 114)},
+		{cand("BB2", 354)},
+		{cand("aB", 114), cand("BB2", 354)},
+	}
+	d, entries = program([]string{"T7", "T3", "T0", "T1", "T8"}, []string{"s1", "s1", "s0", "s1", "s1"}, lists...)
+	got, _ = d.assign(entries, lists)
+	if got["3"].Abbrev != "BB2" || got["4"].Abbrev == "BB2" {
+		t.Errorf("BB2 → %+v", got)
+	}
+}
+
+// A letter suffix reads like a form: NP-d is NPD to a reader, Au-p is AuP. Neither is given.
+func TestSuffixesAreNeitherBlockedNorReserved(t *testing.T) {
+	one := []candidate{cand("NP", 0)}
+	d, entries := program([]string{"Neue Politik", "Neue Politik", "Neue Politik", "Neue Politik"}, []string{"n", "n", "n", "n"}, one, one, one, one)
+	got, _ := d.assign(entries, [][]candidate{one, one, one, one})
+	var forms []string
+	for _, e := range entries {
+		forms = append(forms, got[e.module].Abbrev)
+	}
+	if strings.Join(forms, " ") != "NP NP-b NP-c NP-e" {
+		t.Errorf("four twins of NP → %v", forms)
+	}
+	// two twins of Au, and Au-b … Au-o held by other titles: the second twin's suffix is not
+	// Au-p, the form an override line reserves for Algorithmieren und Programmieren
+	titles, heads := []string{"Audio", "Audio"}, []string{"a", "a"}
+	lists := [][]candidate{{cand("Au", 0)}, {cand("Au", 0)}}
+	for c := 'b'; c <= 'o'; c++ {
+		titles, heads = append(titles, "Other "+string(c)), append(heads, "o"+string(c))
+		lists = append(lists, []candidate{cand("Au-"+string(c), 0)})
+	}
+	d, entries = program(titles, heads, lists...)
+	d.reserved = map[string]map[string]bool{"aup": {"algorithmieren und programmieren": true}}
+	got, _ = d.assign(entries, lists)
+	if got["1"].Abbrev != "Au-q" || !got["1"].Twin {
+		t.Errorf("the twin of Au next to Au-b … Au-o → %+v", got["1"])
+	}
+}
+
+// Identical titles with different lists (an override line by module number): the plain form goes
+// to the better claim, here the override line's, and the other twin gets the letter.
+func TestTheBetterTwinKeepsThePlainForm(t *testing.T) {
+	lists := [][]candidate{
+		{cand("ab-c", 662)},
+		{cand("ABC", 279)},
+		{{text: "ab-c", cost: -100, how: "override", override: true}},
+	}
+	d, entries := program([]string{"T0", "T1", "T0"}, []string{"t0", "t1", "t0"}, lists...)
+	got, _ := d.assign(entries, lists)
+	if got["2"].Abbrev != "ab-c" || !got["2"].Override || got["2"].Twin || !got["0"].Twin {
+		t.Errorf("twins of an override line → %+v", got)
 	}
 }
