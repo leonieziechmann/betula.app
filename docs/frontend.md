@@ -1475,10 +1475,11 @@ reopening the module, an area beside the page with its modules (and a module pic
 coming back to the area), a requirement of the plan with its numbers and its ways on, the
 catalog's tab unchanged by a module seen in full screen out of a program, matrix and list with
 the choice remembered in this browser only, the areas as groups of rows with the sidebar leading
-to each of them without a history entry, all modules one line high with their area, and on a
-phone the plan as a list without a switch and a page that does not scroll sideways, a module becoming the page
-with one tap and one history entry and „Zurück" leading back, an area becoming the page and a
-module picked out of it leading back to the area.
+to each of them without a history entry, „Mein Plan" leading to all of the program's modules in the
+catalog (as many as the head counts), and on a phone the plan as a list without a switch and a
+page that does not scroll sideways, a module becoming the page with one tap and one history entry
+and „Zurück" leading back, an area becoming the page and a module picked out of it leading back to
+the area.
 
 ```bash
 cd e2e && GATE_PASSWORD=… node gate.mjs http://127.0.0.1:8086
