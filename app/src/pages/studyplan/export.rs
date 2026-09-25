@@ -4,16 +4,22 @@
 //! The file is made in the browser, from the page's own data and timetable, by the function the
 //! feed uses (`StudyplanData::calendar`), so a download and a subscription of the same plan carry
 //! the same bytes, and nothing of it reaches the server. It is made ahead, as a Blob URL: the link
-//! has it before it is clicked, so the click has nothing left to do (R21). A change of the plan
-//! makes it anew after the frame that shows the change (`nav::after_paint`), so a chip or an eye
-//! button answers first, whatever a semester's file costs.
+//! has it before it is clicked, so the click has nothing left to do (R21). Writing a semester's
+//! file takes up to 20 ms (100 ms on a slow phone), so it is not written on every change: a
+//! semester's first file follows the frame that shows the semester (`nav::after_paint`), and a
+//! change of the plan writes it anew once the plan has been left alone for a moment (`QUIET`), or
+//! at once when the link is about to be used (a pointer on it, the focus on it). A burst of chips
+//! and eye buttons thus writes it once, after they have answered. The link offers only a file of
+//! the semester shown; a click that finds the file behind the plan (a pointer that rested on the
+//! link through a change) makes it before the browser follows.
 //!
 //! The subscription is an address, `/calendar/<code>.ics`, whose code carries the semester, the
 //! planned modules and what is hidden or chosen (`Subscription`; owner decision 2026-09-24). The
 //! page never asks for it (no preview, no prefetch); the calendar service does, from its own
-//! servers, and the server makes the feed anew each time. Each way of handing the address out keeps
-//! its code in the plan (`PlanDoc::remember`), so the page can say when the plan has moved on from
-//! what a calendar shows („Abo veraltet").
+//! servers, and the server makes the feed anew each time. Each way of handing the address out
+//! keeps its code in the plan (`PlanDoc::remember`), a middle click and the context menu („Link
+//! kopieren") too, so the page can say when the plan has moved on from what a calendar shows
+//! („Abo veraltet").
 //!
 //! R16: the subscription is worked out from the timetable and from a memo of what the semester
 //! hides (`hides`), which is the timetable's sibling (both are derived from `selection`), never
@@ -42,6 +48,10 @@ const WAYS_ID: &str = "sp-sub";
 /// The id of „Abonnieren", which takes the focus from a note that goes once it is answered.
 const ABO_ID: &str = "sp-abo";
 
+/// How long the plan is left alone before its file is written anew: longer than the gap between
+/// two clicks of a burst.
+const QUIET: std::time::Duration = std::time::Duration::from_millis(300);
+
 /// What the semester can be subscribed as.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Offer {
@@ -58,7 +68,8 @@ enum Offer {
 struct Abo {
     key: SemesterKey,
     offer: Offer,
-    /// An address of the semester was handed out, and the plan has moved on from it.
+    /// An address of the semester was handed out, and the plan has moved on from it: the
+    /// calendar shows another plan than the page, whatever the page can offer instead.
     stale: bool,
 }
 
@@ -69,7 +80,9 @@ struct Abo {
 /// Only a code the server would serve is offered (`Subscription::code`): too long a code is
 /// „Zu viel ausgeblendet", and one no reader takes (no module with a numeric id) offers nothing.
 /// Stale compares only what the timetable still has (`export::same_subscription`): a Termin QIS
-/// removed does not make an address stale, since its feed shows what the page shows.
+/// removed does not make an address stale, since its feed shows what the page shows. Whether a
+/// new address can be offered does not matter: with too much hidden for one, the calendar still
+/// shows an older plan.
 fn abo_of(table: &Timetable, selection: &Selection, subscribed: &BTreeMap<SemesterKey, String>) -> Option<Abo> {
     if table.modules.is_empty() {
         return None;
@@ -80,7 +93,7 @@ fn abo_of(table: &Timetable, selection: &Selection, subscribed: &BTreeMap<Semest
         Err(pack::Error::TooLong) => Offer::TooLong,
         Err(_) => Offer::Nothing,
     };
-    let stale = matches!(offer, Offer::Code(_)) && subscribed.get(&table.key).is_some_and(|stored| !same_subscription(stored, &current, table));
+    let stale = subscribed.get(&table.key).is_some_and(|stored| !same_subscription(stored, &current, table));
     Some(Abo { key: table.key, offer, stale })
 }
 
@@ -138,16 +151,28 @@ fn site() -> Option<(String, String)> {
     None
 }
 
-/// The file „.ics herunterladen" offers.
+/// The file „.ics herunterladen" offers, of the semester `key`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum File {
     /// Not made yet, or there is nothing to make it of (the data failed).
     Waiting,
     /// The semester's calendar as a Blob URL.
     Ready { key: SemesterKey, url: String },
-    /// The calendar has no entry: the semester's dates are not published yet (`unpublished`), or
+    /// The semester's calendar has no entry: its dates are not published yet (`unpublished`), or
     /// nothing of the plan has a date that is shown.
-    Empty { unpublished: bool },
+    Empty { key: SemesterKey, unpublished: bool },
+}
+
+/// What the link offers of `file` while the page shows the semester `shown`: the file's address,
+/// or the line saying why there is none. Nothing of another semester's file, which the link still
+/// holds for a moment after ‹ ›.
+fn link_of(file: &File, shown: SemesterKey) -> (Option<String>, Option<&'static str>) {
+    match file {
+        File::Ready { key, url } if *key == shown => (Some(url.clone()), None),
+        File::Empty { key, unpublished: true } if *key == shown => (None, Some("noch keine Termine")),
+        File::Empty { key, unpublished: false } if *key == shown => (None, Some("keine Termine")),
+        _ => (None, None),
+    }
 }
 
 /// Whether nothing of the semester is published yet: not one dated teaching row in the whole
@@ -224,12 +249,32 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
         })
     });
     let path = Memo::new(move |_| code.get().map(|code| subscription::path(&code)));
+    // Whether there is a new address to copy, apart from which one: the stale note's button stays
+    // while the code changes under it.
+    let copyable = Memo::new(move |_| path.with(Option::is_some));
     let open = RwSignal::new(false);
     // The code „Neue Adresse kopieren" copied, which the line after it names while it is the one.
+    // The line answers that click: the next step to another semester, view or module lets it go,
+    // and so does a change of the plan, which a way back does not bring it back from. Two effects:
+    // the code is derived from the address, so one closure must not read both (R16).
     let renewed = RwSignal::new(None::<String>);
     let renewed_shown = Memo::new(move |_| !stale.get() && renewed.with(|renewed| renewed.is_some() && *renewed == code.get()));
+    Effect::new(move |ran: Option<()>| {
+        ctx.url.track();
+        if ran.is_some() && renewed.with_untracked(Option::is_some) {
+            renewed.set(None);
+        }
+    });
+    Effect::new(move |_| {
+        let now = code.get();
+        if renewed.with_untracked(|renewed| renewed.is_some() && *renewed != now) {
+            renewed.set(None);
+        }
+    });
 
-    // Handing the address out keeps its code, before the browser follows the link (no query).
+    // Handing the address out keeps its code, before the browser follows the link (no query). A
+    // middle click (a new tab) and the context menu („Link kopieren", a long press on a phone)
+    // hand it out as well.
     let remember = move || {
         let (Some(plan), Some(code)) = (ctx.plan, code.get_untracked()) else { return };
         if let Some(key) = abo.with_untracked(|abo| abo.as_ref().map(|abo| abo.key)) {
@@ -248,64 +293,84 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
         request_animation_frame(|| nav::focus_by_id(ABO_ID));
     };
 
-    // ---- the file, made ahead: at once when the group comes, after the next frame on a change
-    // (only the last change of a burst is made). The parts of the data the calendar reads besides
-    // the timetable say when to make it; what it is made of is read when it is made.
+    // ---- the file, made ahead (see the module's head for when). The parts of the data the
+    // calendar reads besides the timetable say when to make it; what it is made of is read when
+    // it is made.
     let parts = Memo::new(move |_| {
         ctx.data.with(|data| data.as_ref().ok().map(|data| (data.key, data.label.clone(), data.titles(), export::snapshot_stamp(&data.meta), unpublished(data))))
     });
     let made = RwSignal::new(File::Waiting);
+    // Each change of what the file is made of counts one `turn`; `done` is the turn it was made
+    // at. A timer finds its turn still standing only for the last change of a burst.
     let turn = StoredValue::new(0_u64);
-    Effect::new(move |ran: Option<()>| {
-        parts.track();
-        ctx.table.track();
-        let mine = turn.get_value().wrapping_add(1);
-        turn.set_value(mine);
-        let make = move || {
-            if turn.try_get_value() != Some(mine) {
-                return;
-            }
-            let text = ctx.data.with_untracked(|data| ctx.table.with_untracked(|table| calendar_text(data, table)));
-            let next = match text {
-                Some((key, Ok(text))) => object_url(&text).map_or(File::Waiting, |url| File::Ready { key, url }),
-                Some((_, Err(unpublished))) => File::Empty { unpublished },
-                None => File::Waiting,
-            };
-            if let Some(File::Ready { url, .. }) = made.try_get_untracked() {
-                revoke(&url);
-            }
-            made.try_set(next);
-        };
-        if ran.is_none() {
-            make();
-        } else {
-            nav::after_paint(make);
+    let done = StoredValue::new(0_u64);
+    let behind = move || turn.try_get_value() != done.try_get_value();
+    // Makes the file of the plan as it is now, unless it is made already.
+    let make = move || {
+        let Some(mine) = turn.try_get_value() else { return };
+        if done.try_get_value() == Some(mine) {
+            return;
         }
+        let text = ctx.data.with_untracked(|data| ctx.table.with_untracked(|table| calendar_text(data, table)));
+        let next = match text {
+            Some((key, Ok(text))) => object_url(&text).map_or(File::Waiting, |url| File::Ready { key, url }),
+            Some((key, Err(unpublished))) => File::Empty { key, unpublished },
+            None => File::Waiting,
+        };
+        if let Some(File::Ready { url, .. }) = made.try_get_untracked() {
+            revoke(&url);
+        }
+        made.try_set(next);
+        done.try_set_value(mine);
+    };
+    // A semester's first file (the group comes, ‹ ›) follows the frame that shows the semester, so
+    // the page is not kept from its first paint; a change within the semester waits for `QUIET`.
+    Effect::new(move |seen: Option<Option<SemesterKey>>| {
+        let key = parts.with(|parts| parts.as_ref().map(|parts| parts.0));
+        ctx.table.track();
+        let Some(mine) = turn.try_update_value(|turn| {
+            *turn = turn.wrapping_add(1);
+            *turn
+        }) else {
+            return key;
+        };
+        let later = move || {
+            if turn.try_get_value() == Some(mine) {
+                make();
+            }
+        };
+        if seen == Some(key) {
+            set_timeout(later, QUIET);
+        } else {
+            nav::after_paint(later);
+        }
+        key
     });
     on_cleanup(move || {
         if let Some(File::Ready { url, .. }) = made.try_get_untracked() {
             revoke(&url);
         }
     });
-    let href = Memo::new(move |_| {
-        made.with(|made| match made {
-            File::Ready { url, .. } => Some(url.clone()),
-            _ => None,
-        })
-    });
-    let name = Memo::new(move |_| {
-        made.with(|made| match made {
-            File::Ready { key, .. } => Some(format!("studienplan-{}.ics", key.key())),
-            _ => None,
-        })
-    });
-    let none = Memo::new(move |_| {
-        made.with(|made| match made {
-            File::Empty { unpublished: true } => Some("noch keine Termine"),
-            File::Empty { unpublished: false } => Some("keine Termine"),
-            _ => None,
-        })
-    });
+    let href = Memo::new(move |_| made.with(|made| link_of(made, ctx.key.get()).0));
+    let none = Memo::new(move |_| made.with(|made| link_of(made, ctx.key.get()).1));
+    // Named after the semester shown, with a file or without: the link is the same link.
+    let name = Memo::new(move |_| format!("studienplan-{}.ics", ctx.key.get().key()));
+    let anchor = NodeRef::<leptos::html::A>::new();
+    // A click that finds the file behind the plan (a pointer that rested on the link through a
+    // change, a click from a script) makes it now and gives the link its address itself: the
+    // view sets it only after this handler, and the browser follows the link right after it.
+    let follow = move |ev: leptos::ev::MouseEvent| {
+        if !behind() {
+            return;
+        }
+        make();
+        match (href.get_untracked(), anchor.get_untracked()) {
+            (Some(url), Some(anchor)) => {
+                let _ = anchor.set_attribute("href", &url);
+            }
+            _ => ev.prevent_default(),
+        }
+    };
 
     move || {
         shown.get().then(|| {
@@ -314,7 +379,16 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                     <p class="flabel label">"Kalender"</p>
                     // Without a file the link has no address: it downloads nothing, rather than
                     // the page.
-                    <a class="action" href=move || href.get() download=move || name.get() aria-disabled=move || none.with(Option::is_some).then_some("true")>
+                    <a
+                        class="action"
+                        node_ref=anchor
+                        href=move || href.get()
+                        download=move || name.get()
+                        aria-disabled=move || none.with(Option::is_some).then_some("true")
+                        on:pointerenter=move |_| make()
+                        on:focus=move |_| make()
+                        on:click=follow
+                    >
                         <Icon name="download"/>
                         <span>".ics herunterladen"{move || none.get().map(|text| view! { <small>{text}</small> })}</span>
                     </a>
@@ -344,7 +418,8 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                                 <div class="sp-sub" id=WAYS_ID>
                                     <p class="note note-action ask">
                                         <span>"Zu viel ausgeblendet für ein Abo."</span>
-                                        <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button>
+                                        // A stale address's note below has the button already.
+                                        {move || (!stale.get()).then(|| view! { <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button> })}
                                     </p>
                                 </div>
                             }
@@ -353,9 +428,31 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                         let Some(ways) = ways.get() else { return ().into_any() };
                         view! {
                             <div class="sp-sub" id=WAYS_ID>
-                                <a class="action" href=ways.apple rel="external" on:click=move |_| remember()>"Apple Kalender"</a>
-                                <a class="action" href=ways.google target="_blank" rel="external noopener" on:click=move |_| remember()>"Google Kalender"</a>
-                                <a class="action" href=ways.outlook target="_blank" rel="external noopener" on:click=move |_| remember()>"Outlook"</a>
+                                <a class="action" href=ways.apple rel="external" on:click=move |_| remember() on:auxclick=move |_| remember() on:contextmenu=move |_| remember()>
+                                    "Apple Kalender"
+                                </a>
+                                <a
+                                    class="action"
+                                    href=ways.google
+                                    target="_blank"
+                                    rel="external noopener"
+                                    on:click=move |_| remember()
+                                    on:auxclick=move |_| remember()
+                                    on:contextmenu=move |_| remember()
+                                >
+                                    "Google Kalender"
+                                </a>
+                                <a
+                                    class="action"
+                                    href=ways.outlook
+                                    target="_blank"
+                                    rel="external noopener"
+                                    on:click=move |_| remember()
+                                    on:auxclick=move |_| remember()
+                                    on:contextmenu=move |_| remember()
+                                >
+                                    "Outlook"
+                                </a>
                                 <button class="action" type="button" data-action="copy-text" data-absolute="" data-text=ways.path on:click=move |_| remember()>
                                     <Icon name="copy"/>
                                     <span>"Adresse kopieren"</span>
@@ -370,9 +467,18 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                             view! {
                                 <p class="note note-action ask">
                                     <span>"Abo veraltet: Plan seitdem geändert"</span>
-                                    <button class="mini hit" type="button" data-action="copy-text" data-absolute="" data-text=move || path.get() on:click=renew>
-                                        "Neue Adresse kopieren"
-                                    </button>
+                                    // The way to an address the calendar can follow: a new one, or,
+                                    // with too much hidden for one, back to all Termine.
+                                    {move || {
+                                        copyable.get().then(|| {
+                                            view! {
+                                                <button class="mini hit" type="button" data-action="copy-text" data-absolute="" data-text=move || path.get() on:click=renew>
+                                                    "Neue Adresse kopieren"
+                                                </button>
+                                            }
+                                        })
+                                    }}
+                                    {move || too_long.get().then(|| view! { <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button> })}
                                 </p>
                             }
                         })
@@ -507,9 +613,14 @@ mod tests {
         let rows: BTreeSet<RowKey> = events.iter().filter_map(|event| event.rows.first().and_then(|row| row.key)).collect();
         let many = table(&["12104"], events);
         let hiding = Selection { hidden_rows: rows, ..Default::default() };
-        assert_eq!(abo_of(&many, &hiding, &BTreeMap::new()).map(|abo| abo.offer), Some(Offer::TooLong));
+        assert_eq!(abo_of(&many, &hiding, &BTreeMap::new()), Some(Abo { key: key("2026W"), offer: Offer::TooLong, stale: false }));
         // „Alle einblenden": an address again.
-        assert!(code_of(&abo_of(&many, &Selection::default(), &BTreeMap::new())).is_some());
+        let all = code_of(&abo_of(&many, &Selection::default(), &BTreeMap::new()));
+        assert!(all.is_some());
+        // An address handed out before so much was hidden: the calendar shows another plan, though
+        // no new address can be offered.
+        let handed: BTreeMap<SemesterKey, String> = all.into_iter().map(|code| (key("2026W"), code)).collect();
+        assert_eq!(abo_of(&many, &hiding, &handed), Some(Abo { key: key("2026W"), offer: Offer::TooLong, stale: true }));
         // A module no code can carry offers no address; no module, no group.
         assert_eq!(abo_of(&table(&["B-12"], Vec::new()), &Selection::default(), &BTreeMap::new()).map(|abo| abo.offer), Some(Offer::Nothing));
         assert_eq!(abo_of(&table(&[], Vec::new()), &Selection::default(), &BTreeMap::new()), None);
@@ -528,6 +639,19 @@ mod tests {
         // Every character of a code stays as it is, as encodeURIComponent leaves it.
         assert_eq!(component("Az09-_.~"), "Az09-_.~");
         assert_eq!(component("SoSe 2027 · ä&?=#+"), "SoSe%202027%20%C2%B7%20%C3%A4%26%3F%3D%23%2B");
+    }
+
+    #[test]
+    fn the_link_offers_only_a_file_of_the_semester_shown() {
+        let winter = File::Ready { key: key("2026W"), url: "blob:http://127.0.0.1:8181/1".into() };
+        assert_eq!(link_of(&winter, key("2026W")), (Some("blob:http://127.0.0.1:8181/1".into()), None));
+        // Right after ‹ ›, the winter's file is no file of the summer, nor is the summer's line.
+        assert_eq!(link_of(&winter, key("2027S")), (None, None));
+        let summer = File::Empty { key: key("2027S"), unpublished: true };
+        assert_eq!(link_of(&summer, key("2027S")), (None, Some("noch keine Termine")));
+        assert_eq!(link_of(&summer, key("2026W")), (None, None));
+        assert_eq!(link_of(&File::Empty { key: key("2026W"), unpublished: false }, key("2026W")), (None, Some("keine Termine")));
+        assert_eq!(link_of(&File::Waiting, key("2026W")), (None, None));
     }
 
     #[test]
