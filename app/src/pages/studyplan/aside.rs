@@ -30,7 +30,7 @@ use catalog::labels::{Campus, Code, Rhythm, TurnusSeason};
 use catalog::pages::{self, StudyplanData};
 use catalog::rows::CatalogRow;
 use catalog::studyplan::{PlanDoc, Placeholder};
-use catalog::timetable::clash::{self, Clash};
+use catalog::timetable::clash;
 use catalog::timetable::day::{clock, Day};
 use catalog::timetable::exams::{self, ExamRow, ExamShape, ExamWarning, Termin, TerminAt, WarningKind};
 use catalog::timetable::kind::{fold, EventKind, KindSet};
@@ -1065,18 +1065,6 @@ fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: To
             list.push(note);
         }
     };
-    for clash in &t.clashes {
-        let (Some(a), Some(b)) = (t.events.get(clash.a.0), t.events.get(clash.b.0)) else { continue };
-        let theirs = match (own(&a.modules), own(&b.modules)) {
-            (true, false) => Some((b, clash.b.1)),
-            (false, true) => Some((a, clash.a.1)),
-            (true, true) => None,
-            (false, false) => continue,
-        };
-        let Some(text) = clash_text(t, clash) else { continue };
-        let to = theirs.and_then(|(event, row)| Some((event.modules.first()?.clone(), event.rows.get(row).and_then(|row| row.key))));
-        add(Note { warn: true, text, to });
-    }
     for event in t.blocked.iter().filter_map(|index| t.events.get(*index)).filter(|event| own(&event.modules)) {
         add(Note { warn: true, text: blocked_text(event), to: None });
     }
@@ -1095,36 +1083,6 @@ fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: To
     }
     warnings.extend(quiet);
     warnings
-}
-
-/// „8 Termine überschneiden sich: Di 07:30 · Programmierpraktikum (Vorlesung) · Elektrische und
-/// elektronische Grundlagen der Informatik (Vorlesung, A-Woche)". Two patterns without a day
-/// („Überschneidung: Do 09:15 · …") have no count.
-fn clash_text(t: &Timetable, clash: &Clash) -> Option<String> {
-    let side = |(event, row): (usize, usize)| {
-        let event = t.events.get(event)?;
-        Some((event, event.rows.get(row)?))
-    };
-    let ((a, a_row), (b, b_row)) = (side(clash.a)?, side(clash.b)?);
-    let from = a_row.from.max(b_row.from)?;
-    let lead = match clash.days {
-        0 => "Überschneidung".to_string(),
-        1 => "1 Termin überschneidet sich".to_string(),
-        n => format!("{n} Termine überschneiden sich"),
-    };
-    Some(format!("{lead}: {} {} · {} · {}", weekday_name(clash.first.weekday()), clock(from), side_text(a, a_row), side_text(b, b_row)))
-}
-
-/// One side of a clash: „Programmierpraktikum (Vorlesung, A-Woche)".
-fn side_text(event: &Event, row: &Row) -> String {
-    let mut what = kind_word(event);
-    match Every::of(&row.date) {
-        Some(Every::AWeek) => what.push_str(", A-Woche"),
-        Some(Every::BWeek) => what.push_str(", B-Woche"),
-        Some(Every::FourWeeks) => what.push_str(", 4-wöchentlich"),
-        Some(Every::Week) | None => {}
-    }
-    format!("{} ({what})", event.title.trim())
 }
 
 /// „0 von 4 Terminen frei: Übung · Entwicklung von Softwaresystemen", in the words of the
@@ -1758,7 +1716,7 @@ mod tests {
     }
 
     #[test]
-    fn the_notes_of_a_module_are_those_of_the_semester_about_it() {
+    fn a_clash_is_no_note_of_the_panel() {
         let rows = [
             teaching("149408", 1, "Vorlesung", 2, "07:30", "09:00").module("12102").title("Programmierpraktikum"),
             teaching("148134", 1, "Vorlesung", 2, "07:30", "09:00")
@@ -1768,17 +1726,9 @@ mod tests {
         ];
         let t = table(&rows, &[], &["12102", "12107"], &[], &Selection::default());
         let titles = BTreeMap::from([("12102".to_string(), "Programmierpraktikum".to_string())]);
-        let other = RowKey::of(&rows.get(1).unwrap().0.date);
-        assert_eq!(
-            notes_of(&t, "12102", &titles, TownChoice::Derive),
-            vec![Note {
-                warn: true,
-                text: "8 Termine überschneiden sich: Di 07:30 · Programmierpraktikum (Vorlesung) · \
-                       Elektrische und elektronische Grundlagen der Informatik (Vorlesung, A-Woche)"
-                    .to_string(),
-                to: Some(("12107".to_string(), other)),
-            }]
-        );
+        // The clash stands at its rows („Überschneidung") and in the week, not as a card here
+        // (owner's redesign of 2026-09-25).
+        assert!(notes_of(&t, "12102", &titles, TownChoice::Derive).is_empty());
         // A module without a clash has no note of it.
         assert!(notes_of(&t, "12104", &titles, TownChoice::Derive).is_empty());
         // Removing 12102 takes what the store keeps of its own event along, not 12107's.

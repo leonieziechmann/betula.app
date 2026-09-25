@@ -324,7 +324,7 @@ pub(super) fn SheetToggle() -> impl IntoView {
 pub(super) fn StorageHint() -> impl IntoView {
     view! {
         <div class="fgroup">
-            <p class="hint storage-hint"><Icon name="shield-check"/><span>"Dein Studienplan liegt nur in diesem Browser."</span></p>
+            <p class="hint storage-hint"><Icon name="shield-check"/><span>"Dein Stundenplan liegt nur in diesem Browser."</span></p>
         </div>
     }
 }
