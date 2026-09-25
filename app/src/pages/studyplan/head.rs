@@ -1,8 +1,9 @@
 //! The top of the Stundenplan: its head („Stundenplan WiSe 2026/27" and the numbers under it), the
-//! planned modules as a legend of their tones, the exams that collide as red alerts, the one quiet
-//! line of overlaps per week and open choices (opened, a line each), the marked modules that could
-//! still be planned, and the one muted line under the calendar that says what the page derived
-//! rather than read (R12). Owner's redesign of 2026-09-25: no stack of cards, numbers first.
+//! exams that collide as red alerts, the one quiet line of overlaps per week, open choices and what
+//! is hidden (opened, a line each), the marked modules that could still be planned, what the empty
+//! week says in its middle, and the one muted line under the calendar that says what the page
+//! derived rather than read (R12). Owner's redesign of 2026-09-25: no stack of cards, numbers
+//! first. The planned modules are a list of their own beside the week (`modules.rs`).
 //!
 //! Every part reads the memos of `PlanCtx` it needs. Where a part needs two things, it takes them
 //! from sibling memos (`key` and `data`, `table` and a memo of `selection`), never a memo together
@@ -13,26 +14,27 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use catalog::filter::{CatalogQuery, FitsFilter, ProgramScope};
-use catalog::labels::{Campus, Code};
+use catalog::labels::{Campus, Code, Rhythm};
 use catalog::pages::{self, BookmarksData, StudyplanData};
 use catalog::studyplan::PlanDoc;
 use catalog::timetable::clash::{self, Overlap, Weeks, When};
 use catalog::timetable::day::{clock, Day};
 use catalog::timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
 use catalog::timetable::kind::EventKind;
-use catalog::timetable::model::{Attendance, Basis, Event, Timetable};
+use catalog::timetable::model::{Attendance, Basis, Event, Row, Timetable};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::select::TownChoice;
 use catalog::timetable::semester::SemesterKey;
 use catalog::timetable::views::short_title;
-use catalog::url::{self, BookmarkSort, CatalogUrl, PlanView, Season, StudyplanUrl};
+use catalog::url::{BookmarkSort, CatalogUrl, PlanView, Season};
 use leptos::prelude::*;
 
+use super::week::{has_ab, AllSwitch, WeekSwitch};
 use super::{key_of, PlanCtx, SheetToggle};
 use crate::bookmarks::Bookmarks;
 use crate::format;
 use crate::myprogram::MineResolved;
-use crate::pending::{Change, Pending};
+use crate::nav;
 use crate::ui::Icon;
 
 /// The tones of the plan's modules, in the order of `app.css`'s `t-…` classes: the first planned
@@ -94,26 +96,17 @@ fn now_secs() -> u64 {
 
 // ---------- the head ----------
 
-/// The lower end of a placeholder's credits as the plan states them („6", „10–24", „7,5").
-fn lower_credits(text: &str) -> Option<f64> {
-    let number: String = text.trim().chars().take_while(|c| c.is_ascii_digit() || *c == ',' || *c == '.').collect();
-    number.replace(',', ".").parse::<f64>().ok().filter(|credits| credits.is_finite() && *credits >= 0.0)
-}
-
 /// The placeholders standing in a semester that count for it: those of this semester alone (a row
-/// spanning several stands under its first and is left out of its sum, A.4) that no module fills
-/// yet (a filler's own credits count instead). Their number, and their lower credits.
-fn open_placeholders(doc: &PlanDoc, key: SemesterKey) -> (usize, f64) {
-    doc.placeholders_in(key)
-        .into_iter()
-        .filter(|p| p.span.0 == p.span.1 && doc.fillers(p.pid).is_empty())
-        .fold((0, 0.0), |(count, credits), p| (count + 1, credits + p.credits.as_deref().and_then(lower_credits).unwrap_or(0.0)))
+/// spanning several stands under its first, A.4) that no module fills yet. Their number.
+fn open_placeholders(doc: &PlanDoc, key: SemesterKey) -> usize {
+    doc.placeholders_in(key).into_iter().filter(|p| p.span.0 == p.span.1 && doc.fillers(p.pid).is_empty()).count()
 }
 
-/// The line under the head: the program, then the numbers („Informatik B.Sc. · 5 Module · 32 LP").
-/// Placeholders only where there are any, credits only where some are known. Empty with nothing
-/// to count and no program.
-pub(super) fn sum_line(program: Option<&str>, modules: usize, placeholders: usize, credits: f64) -> String {
+/// The line under the head: the program, then the numbers („Informatik B.Sc. · 5 Module · 1
+/// Platzhalter"). Placeholders only where there are any. The credits are the head's of the list of
+/// modules (owner, 2026-09-25: „die Summe aus allen geplanten Modulen", oben rechts), so they are
+/// not said here again. Empty with nothing to count and no program.
+pub(super) fn sum_line(program: Option<&str>, modules: usize, placeholders: usize) -> String {
     let mut parts = Vec::new();
     if let Some(program) = program.filter(|program| !program.is_empty()) {
         parts.push(program.to_string());
@@ -124,17 +117,13 @@ pub(super) fn sum_line(program: Option<&str>, modules: usize, placeholders: usiz
     if placeholders > 0 {
         parts.push(format!("{placeholders} Platzhalter"));
     }
-    if (modules > 0 || placeholders > 0) && credits > 0.0 {
-        parts.push(format!("{} LP", format::number(credits)));
-    }
     parts.join(" · ")
 }
 
-/// What the head says under its numbers, if anything.
+/// What the head says under its numbers, if anything. (A semester without a module says so in
+/// the middle of its empty week, `NothingPlanned`.)
 #[derive(Clone, Debug, PartialEq)]
 enum HeadLine {
-    /// No module in the semester; `placeholders`: but rows of the Regelstudienplan stand in it.
-    Empty { placeholders: bool },
     /// Before the current semester: its past dates are gone from the data.
     Past,
     /// Not a Termin of the semester is published yet.
@@ -144,14 +133,14 @@ enum HeadLine {
 /// Whether the data's semester lies before the snapshot's current one. Read from the data's own
 /// `meta`: a memo of the data then needs no `current` beside it, from which the data is derived
 /// (R16).
-fn is_past(data: &StudyplanData) -> bool {
+pub(super) fn is_past(data: &StudyplanData) -> bool {
     data.meta.current_semester.as_deref().and_then(SemesterKey::parse).is_some_and(|current| data.key < current)
 }
 
-/// Which line applies: the empty semester, else the past one, else one without published dates.
-fn head_line(data: &StudyplanData, placeholders: usize) -> Option<HeadLine> {
+/// Which line applies to a semester with modules: the past one, else one without published dates.
+fn head_line(data: &StudyplanData) -> Option<HeadLine> {
     if data.ids.is_empty() {
-        return Some(HeadLine::Empty { placeholders: placeholders > 0 });
+        return None;
     }
     if is_past(data) {
         return Some(HeadLine::Past);
@@ -160,9 +149,10 @@ fn head_line(data: &StudyplanData, placeholders: usize) -> Option<HeadLine> {
 }
 
 /// The head: „Stundenplan WiSe 2026/27" (the one semester the page shows, owner's redesign of
-/// 2026-09-25), on a phone „Anpassen" at its right end, and the program and the numbers under it.
-/// Then, where it applies, the line of an empty semester (with „+ Modul"), of a past one, or of
-/// one whose dates are not out yet.
+/// 2026-09-25), on a phone „Anpassen" at its right end, in „Woche" with modules planned „Plan ·
+/// Alle Termine" and the switch of A and B weeks where it applies, and the program and the
+/// numbers under it. Then, where it applies, the line of a past semester, or of one whose dates
+/// are not out yet.
 #[component]
 pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let key = ctx.key;
@@ -179,29 +169,24 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
         Some(format!("{} {}", info.program.name, info.program.degree()).trim().to_string())
     });
     let sum = Memo::new(move |_| {
-        let (placeholders, open_credits) = held.get();
-        let program = program.get();
-        ctx.data.with(|data| match data {
-            Ok(data) => {
-                let credits = data
-                    .ids
-                    .iter()
-                    .filter_map(|id| data.modules.iter().find(|row| row.id == *id).and_then(|row| row.credits))
-                    .fold(open_credits, |sum, credits| sum + credits);
-                sum_line(program.as_deref(), data.ids.len(), placeholders, credits)
-            }
-            Err(_) => sum_line(program.as_deref(), 0, 0, 0.0),
-        })
+        let (placeholders, program) = (held.get(), program.get());
+        let modules = ctx.data.with(|data| data.as_ref().map_or(0, |data| data.ids.len()));
+        sum_line(program.as_deref(), modules, placeholders)
     });
-    let line = Memo::new(move |_| {
-        let (placeholders, _) = held.get();
-        ctx.data.with(|data| data.as_ref().ok().and_then(|data| head_line(data, placeholders)))
-    });
+    let line = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(head_line)));
+    // „A-Woche · B-Woche · A/B" at the head's right end, beside the week it switches, where the
+    // plan has Termine of one kind of week (the room above the week is the week's, owner
+    // 2026-09-25: the whole week in view).
+    let weekly = Memo::new(move |_| ctx.url.with(|url| matches!(url.view, PlanView::Week | PlanView::Overview)));
+    let ab = Memo::new(move |_| ctx.table.with(|table| table.as_ref().is_some_and(has_ab)));
+    let planned = Memo::new(move |_| ctx.wanted.with(|wanted| !wanted.1.is_empty()));
 
     view! {
         <div class="sp-head">
             <h1>"Stundenplan "<span>{move || key.get().label()}</span></h1>
             <SheetToggle/>
+            {move || (weekly.get() && planned.get()).then(|| view! { <AllSwitch all=ctx.all/> })}
+            {move || (weekly.get() && ab.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
         </div>
         {move || {
             let text = sum.get();
@@ -210,16 +195,6 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
         {move || {
             let label = key.get().label();
             match line.get() {
-                Some(HeadLine::Empty { placeholders }) => {
-                    let text = if placeholders { ": noch kein Modul geplant." } else { ": nichts geplant." };
-                    let add = move || add_module_href(resolved, key.get());
-                    // „+ Modul" as it ends the legend of a semester with modules.
-                    view! {
-                        <p class="hint">{label}{text}</p>
-                        <ul class="sp-mods"><li><a class="mini" href=add>"+ Modul"</a></li></ul>
-                    }
-                    .into_any()
-                }
                 Some(HeadLine::Past) => view! {
                     <p class="note quiet"><span>{format!("{label} ist vorbei; vergangene Termine fehlen im Datenstand.")}</span></p>
                 }
@@ -231,95 +206,6 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
                 None => ().into_any(),
             }
         }}
-    }
-}
-
-// ---------- the modules ----------
-
-/// One planned module in the legend.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct LegendItem {
-    id: String,
-    /// What the week names the module by, small before its title as the grid's key: its
-    /// abbreviation („EvS"), else its number.
-    key: String,
-    title: Option<String>,
-    /// „8 LP", „8 LP · keine Termine", „nicht im Modulkatalog".
-    small: Option<String>,
-    hue: &'static str,
-}
-
-/// The legend of a semester: its planned modules in plan order, each in its tone. A module without
-/// a dated Termin says so where the semester's dates are there to be had (neither past, whose dates
-/// are gone, nor unpublished, which the head says for all of them).
-fn legend(data: &StudyplanData) -> Vec<LegendItem> {
-    let dated = !data.counts.is_empty() && !is_past(data);
-    let names = data.slot_names();
-    data.ids
-        .iter()
-        .enumerate()
-        .map(|(position, id)| {
-            let row = data.modules.iter().find(|row| row.id == *id);
-            let credits = row.and_then(|row| row.credits).map(|credits| format!("{} LP", format::number(credits)));
-            let undated = dated && !data.schedule.iter().any(|date| date.module_id == *id && date.ord.is_some());
-            let small = match (row, credits, undated) {
-                (None, _, _) => Some("nicht im Modulkatalog".to_string()),
-                (Some(_), Some(credits), true) => Some(format!("{credits} · keine Termine")),
-                (Some(_), None, true) => Some("keine Termine".to_string()),
-                (Some(_), credits, false) => credits,
-            };
-            let abbrev = data.abbrevs.get(id).filter(|abbrev| names.get(id) == Some(*abbrev));
-            let key = abbrev.cloned().unwrap_or_else(|| id.clone());
-            LegendItem { id: id.clone(), key, title: row.map(|row| row.title.clone()), small, hue: hue(tone_at(position)) }
-        })
-        .collect()
-}
-
-/// The module beside the plan, and while one is on its way there (`pending`), that one: what
-/// links to it is marked in the next frame.
-fn open_shown(ctx: PlanCtx) -> Memo<Option<String>> {
-    let going = Pending::expect();
-    Memo::new(move |_| {
-        let target = going.filter(|going| going.change() == Some(Change::Aside)).and_then(|going| going.search_on(url::STUDYPLAN));
-        match target {
-            Some(search) => StudyplanUrl::parse(&search).open,
-            None => ctx.url.with(|url| url.open.clone()),
-        }
-    })
-}
-
-/// The semester's planned modules: tone, number, title and credits, each a link to the module
-/// beside the plan; „+ Modul" at the end finds another one that fits.
-#[component]
-pub(super) fn ModuleLegend(ctx: PlanCtx) -> impl IntoView {
-    let items = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(legend).unwrap_or_default()));
-    let open = open_shown(ctx);
-    let resolved = MineResolved::expect();
-    let add = move || add_module_href(resolved, ctx.key.get());
-    view! {
-        <ul class="sp-mods">
-            <For
-                each=move || items.get()
-                key=|item| item.clone()
-                children=move |item: LegendItem| {
-                    let id = item.id.clone();
-                    let current = Memo::new(move |_| open.with(|open| open.as_deref() == Some(id.as_str())));
-                    let id = item.id.clone();
-                    let href = move || ctx.url.with(|url| url.with_open(Some(&id), None).path());
-                    view! {
-                        <li>
-                            <a class=item.hue href=href aria-current=move || current.get().then_some("true") data-noscroll="">
-                                <i></i>
-                                <span class="mono" title=item.id.clone()>{item.key.clone()}</span>
-                                {item.title.clone().map(|title| view! { <span>{title}</span> })}
-                                {item.small.clone().map(|small| view! { <small>{small}</small> })}
-                            </a>
-                        </li>
-                    }
-                }
-            />
-            <li><a class="mini" href=add>"+ Modul"</a></li>
-        </ul>
     }
 }
 
@@ -336,11 +222,13 @@ fn offered(data: &BookmarksData, key: SemesterKey, planned: &[String]) -> Vec<(S
         .collect()
 }
 
-/// „Aus der Merkliste (n)": the marked modules this semester could still take, closed until asked,
-/// each with „Einplanen". A past semester has it too, as it has „+ Modul": a plan taken over from
-/// a later Fachsemester fills its first semesters with what was taken.
-#[component]
-pub(super) fn FromBookmarks(ctx: PlanCtx) -> impl IntoView {
+/// How the note of the marked modules taken over at once begins (`PlanCtx::undo`, which the
+/// import, „Plan leeren" and the list's × share); what follows it is shown.
+const FROM_MARKED: &str = "Merkliste: ";
+
+/// The marked modules the semester shown could still take (`offered`), for the page's two ways to
+/// plan them: the empty week's „übernehmen" and the list's „Aus der Merkliste". One memo for both.
+pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<(String, String)>> {
     let bookmarks = Bookmarks::expect();
     let marked = Memo::new(move |_| bookmarks.map(|bookmarks| bookmarks.marks().into_iter().map(|mark| mark.id).collect::<Vec<_>>()).unwrap_or_default());
     let loaded = Memo::new(move |_| {
@@ -351,20 +239,54 @@ pub(super) fn FromBookmarks(ctx: PlanCtx) -> impl IntoView {
         ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::bookmarks(db, &ids, BookmarkSort::Added, false)).ok()))
     });
     // The semester and what is planned into it, from the semester's data (its ids are the plan's).
-    let list = Memo::new(move |_| {
+    Memo::new(move |_| {
         ctx.data.with(|data| match data {
             Ok(data) => loaded.with(|marked| marked.as_ref().map(|marked| offered(marked, data.key, &data.ids)).unwrap_or_default()),
             Err(_) => Vec::new(),
         })
-    });
+    })
+}
+
+/// „Aus der Merkliste (n)": the marked modules this semester could still take (`list`,
+/// `marked_offered`), closed until asked, each with „Einplanen"; and after the empty week's
+/// „übernehmen", its note and „Rückgängig". A past semester has it too, as it has „+ Modul": a plan
+/// taken over from a later Fachsemester fills its first semesters with what was taken.
+#[component]
+pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> impl IntoView {
     let any = Memo::new(move |_| list.with(|list| !list.is_empty()));
+    let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().and_then(|(note, _)| note.strip_prefix(FROM_MARKED).map(str::to_string))));
+    let restoring = RwSignal::new(false);
+    let restore = move |_| {
+        if restoring.get_untracked() {
+            return;
+        }
+        let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
+        restoring.set(true);
+        let undo = ctx.undo;
+        plan.update_after_paint(move |doc| {
+            *doc = before;
+            let _ = undo.try_set(None);
+            let _ = restoring.try_set(false);
+        });
+    };
     // The modules whose „Einplanen" was clicked and whose write has not landed yet: the button
     // answers at once, the plan follows after the next frame (R21), and then the module leaves the
     // list. The write takes the module out of this set again, so wherever the list offers it next
     // (another semester, or this one after it was taken out) it can be planned once more.
     let planning = RwSignal::new(BTreeSet::<String>::new());
 
-    move || {
+    let taken = move || {
+        note.get().map(|note| {
+            view! {
+                <p class="action note-action sp-marked-note">
+                    <Icon name="check"/>
+                    <span>{note}</span>
+                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>"Rückgängig"</button>
+                </p>
+            }
+        })
+    };
+    let open = move || {
         any.get().then(|| {
             view! {
                 <details class="sp-marked">
@@ -417,6 +339,78 @@ pub(super) fn FromBookmarks(ctx: PlanCtx) -> impl IntoView {
                 </details>
             }
         })
+    };
+    view! { {taken}{open} }
+}
+
+// ---------- nothing planned yet ----------
+
+/// „3 gemerkte Module übernehmen", „1 gemerktes Modul übernehmen".
+fn take_marked_label(count: usize) -> String {
+    match count {
+        1 => "1 gemerktes Modul übernehmen".to_string(),
+        count => format!("{count} gemerkte Module übernehmen"),
+    }
+}
+
+/// „3 gemerkte Module übernommen", after `FROM_MARKED`.
+fn marked_note(count: usize) -> String {
+    match count {
+        1 => format!("{FROM_MARKED}1 gemerktes Modul übernommen"),
+        count => format!("{FROM_MARKED}{count} gemerkte Module übernommen"),
+    }
+}
+
+/// A semester without a module (owner, 2026-09-25): „Noch keine Termine" in the middle of its empty
+/// week, and under it the way to the catalog's modules that fit the week („Zum Katalog", as
+/// „Modul hinzufügen" of the list leads); where the Merkliste holds modules the semester could take
+/// (`marked`), „3 gemerkte Module übernehmen" first, which plans them all at once. The click
+/// answers at once and the plan follows after the next frame (R21); the note and its „Rückgängig"
+/// stand where the list offers the Merkliste (`FromBookmarks`).
+#[component]
+pub(super) fn NothingPlanned(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> impl IntoView {
+    let resolved = MineResolved::expect();
+    let count = Memo::new(move |_| marked.with(Vec::len));
+    let busy = RwSignal::new(false);
+    let take = move |_| {
+        let Some(plan) = ctx.plan else { return };
+        if busy.get_untracked() {
+            return;
+        }
+        let ids: Vec<String> = marked.with_untracked(|marked| marked.iter().map(|(id, _)| id.clone()).collect());
+        if ids.is_empty() {
+            return;
+        }
+        busy.set(true);
+        let (key, undo) = (ctx.key.get_untracked(), ctx.undo);
+        nav::after_paint(move || {
+            let (taken, before) = plan.update(|doc| {
+                let before = doc.clone();
+                let at = now_secs();
+                // A semester the plan holds no more of takes what fits, in the Merkliste's order.
+                (ids.iter().filter(|id| doc.plan(key, id, at, None)).count(), before)
+            });
+            if taken > 0 {
+                let _ = undo.try_set(Some((marked_note(taken), before)));
+            }
+            let _ = busy.try_set(false);
+        });
+    };
+    let catalog = move || add_module_href(resolved, ctx.key.get());
+    view! {
+        <div class="sp-empty">
+            <p class="state-title">"Noch keine Termine"</p>
+            <div class="state-actions">
+                {move || match count.get() {
+                    0 => view! { <a class="btn primary" href=catalog>"Zum Katalog"</a> }.into_any(),
+                    count => view! {
+                        <button class="btn primary" type="button" aria-busy=move || busy.get().then_some("true") on:click=take>{take_marked_label(count)}</button>
+                        <a class="btn secondary" href=catalog>"Zum Katalog"</a>
+                    }
+                    .into_any(),
+                }}
+            </div>
+        </div>
     }
 }
 
@@ -687,9 +681,11 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
     Summary { parts, lines }
 }
 
-/// The one quiet line under the modules, closed until asked: „2 Überschneidungen pro Woche · 3
-/// Wahlen offen"; opened, a compact line each, which opens its module beside the plan. In „Woche"
-/// it counts the week the A/B switch shows; elsewhere „A/B". No line with nothing to say.
+/// The one quiet line under the head, closed until asked: „2 Überschneidungen pro Woche · 3
+/// Wahlen offen · 2 ausgeblendet"; opened, a compact line each, which opens its module beside the
+/// plan, and what is hidden with its „Einblenden" (owner, 2026-09-25: not in the sidebar, whose
+/// groups keep their places). In „Woche" it counts the week the A/B switch shows; elsewhere „A/B".
+/// No line with nothing to say.
 #[component]
 pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
     let about = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(About::of).unwrap_or_default()));
@@ -711,9 +707,25 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
                 .unwrap_or_default()
         })
     });
-    let any = Memo::new(move |_| built.with(|built| !built.parts.is_empty()));
-    let parts = Memo::new(move |_| built.with(|built| built.parts.clone()));
+    // What the semester hides (its events and Termine) and has chosen: siblings of the timetable,
+    // both derived from the selection (R16).
+    let hides = Memo::new(move |_| ctx.selection.with(|(_, selection)| (selection.hidden_events.clone(), selection.hidden_rows.clone())));
+    let hidden = Memo::new(move |_| {
+        hides.with(|(events, rows)| about.with(|about| ctx.table.with(|table| table.as_ref().map(|table| hidden_lines(table, events, rows, &about.titles)).unwrap_or_default())))
+    });
+    let parts = Memo::new(move |_| {
+        let count = hidden.with(Vec::len);
+        built.with(|built| {
+            let mut parts = built.parts.clone();
+            if count > 0 {
+                parts.push((false, format!("{count} ausgeblendet")));
+            }
+            parts
+        })
+    });
+    let any = Memo::new(move |_| parts.with(|parts| !parts.is_empty()));
     let lines = Memo::new(move |_| built.with(|built| built.lines.clone()));
+    let several = Memo::new(move |_| hidden.with(|hidden| hidden.len() > 1));
     let head = move || {
         parts
             .get()
@@ -722,6 +734,22 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
             .map(|(i, (warn, text))| view! { {(i > 0).then_some(" · ")}<span class:no=warn>{text}</span> })
             .collect_view()
     };
+    let unhide = move |what: Unhide| {
+        let key = ctx.key.get_untracked();
+        if let Some(plan) = ctx.plan {
+            plan.update(|doc| match what {
+                Unhide::Event(id) => doc.set_event(key, id, false),
+                Unhide::Row(row) => doc.set_row(key, row, false),
+                Unhide::Choice(id) => doc.choose(key, id, None),
+            });
+        }
+    };
+    let show_all = move |_| {
+        let key = ctx.key.get_untracked();
+        if let Some(plan) = ctx.plan {
+            plan.update(|doc| doc.show_all(key));
+        }
+    };
     move || {
         any.get().then(|| {
             view! {
@@ -729,11 +757,89 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
                     <summary>{head}</summary>
                     <ul>
                         <For each=move || lines.get() key=|note| note.clone() children=move |note: Note| overlap_item(ctx, note)/>
+                        <For
+                            each=move || hidden.get()
+                            key=|line| line.clone()
+                            children=move |line: HiddenLine| {
+                                let what = line.unhide;
+                                view! {
+                                    <li class="hidden"><span>{line.text}</span><button class="mini hit" type="button" on:click=move |_| unhide(what)>"Einblenden"</button></li>
+                                }
+                            }
+                        />
+                        {move || several.get().then(|| view! {
+                            <li class="hidden"><button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button></li>
+                        })}
                     </ul>
                 </details>
             }
         })
     }
+}
+
+// ---------- what is hidden ----------
+
+/// What „Einblenden" takes back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Unhide {
+    Event(u32),
+    Row(RowKey),
+    Choice(u32),
+}
+
+/// One line of what is hidden: „Tutorium Mathematik IT-1 · Di 15:30".
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct HiddenLine {
+    text: String,
+    unhide: Unhide,
+}
+
+/// When a Termin meets, in a word: „Di 15:30"; a single date with its day („Di 23.02. 11:45").
+fn row_when(row: &Row) -> String {
+    let weekday = row.date.weekday.and_then(|day| u8::try_from(day).ok()).filter(|day| (1..=7).contains(day));
+    let single = row.date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Single));
+    let date = row.date.first_date.as_deref().and_then(Day::parse).map(Day::short).filter(|_| single || weekday.is_none());
+    let parts: Vec<String> = [weekday.map(|day| weekday_name(day).to_string()), date, row.from.map(clock)].into_iter().flatten().collect();
+    parts.join(" ")
+}
+
+/// The lines of what is hidden (A.3): each hidden event, each hidden Termin and each made choice
+/// of the semester's timetable, exams included, in the timetable's order. `events` and `rows` are
+/// what the semester hides; a choice is the timetable's own (`Event::chosen`). Hidden kinds keep
+/// their chips in the sidebar. Titles are the modules' (`titles`).
+fn hidden_lines(table: &Timetable, events: &BTreeSet<u32>, rows: &BTreeSet<RowKey>, titles: &BTreeMap<String, String>) -> Vec<HiddenLine> {
+    let title = |modules: &[String], fallback: &str| modules.first().and_then(|module| titles.get(module)).cloned().unwrap_or_else(|| fallback.to_string());
+    let mut lines = Vec::new();
+    let mut seen = BTreeSet::new();
+    for event in &table.events {
+        let name = format!("{} {}", kind_word(event), title(&event.modules, &event.title));
+        let id = event.id.parse::<u32>().ok();
+        if let Some(id) = id.filter(|id| events.contains(id)) {
+            lines.push(HiddenLine { text: name.clone(), unhide: Unhide::Event(id) });
+        }
+        for row in &event.rows {
+            if let Some(key) = row.key.filter(|key| rows.contains(key) && seen.insert(*key)) {
+                lines.push(HiddenLine { text: format!("{name} · {}", row_when(row)), unhide: Unhide::Row(key) });
+            }
+        }
+        if let (Some(option), Some(id)) = (event.chosen, id) {
+            let when = event.rows.iter().find(|row| row.option == Some(option)).map(row_when).unwrap_or_default();
+            lines.push(HiddenLine { text: format!("{name} · nur {when}"), unhide: Unhide::Choice(id) });
+        }
+    }
+    for exam in &table.exams {
+        let name = format!("Prüfung {}", title(&exam.modules, &exam.title));
+        if let Some(id) = exam.event_id.parse::<u32>().ok().filter(|id| events.contains(id)) {
+            lines.push(HiddenLine { text: name.clone(), unhide: Unhide::Event(id) });
+        }
+        for row in &exam.rows {
+            if let Some(key) = row.key.filter(|key| rows.contains(key) && seen.insert(*key)) {
+                let day = row.date.first_date.as_deref().and_then(Day::parse).map(Day::short).unwrap_or_default();
+                lines.push(HiddenLine { text: format!("{name} · {day}"), unhide: Unhide::Row(key) });
+            }
+        }
+    }
+    lines
 }
 
 /// One line of the opened overlaps: a link to its module beside the plan, or plain text where it
@@ -1075,6 +1181,46 @@ mod tests {
     }
 
     #[test]
+    fn what_is_hidden_is_named_as_the_plan_names_it() {
+        let dated = |row: Row, first: &str| Row { date: EventDate { first_date: Some(first.into()), last_date: Some(first.into()), ..row.date }, ..row };
+        let choice = Attendance::OneOf { options: vec![vec![0], vec![1]], basis: Basis::Groups };
+        let (table, about) = first_semester();
+        let table = Timetable {
+            events: vec![
+                event("150132", "Tutorium", "11112", vec![dated(row("150132", 7, 2, ("15:30", "17:00"), "weekly", None), "2026-10-13")], Attendance::All),
+                Event {
+                    chosen: Some(0),
+                    ..event(
+                        "148369",
+                        "Übung",
+                        "12104",
+                        vec![dated(row("148369", 1, 1, ("15:30", "17:00"), "weekly", Some(0)), "2026-10-12"), dated(row("148369", 2, 2, ("11:30", "13:00"), "weekly", Some(1)), "2026-10-13")],
+                        choice,
+                    )
+                },
+                event("148019", "Übung", "12104", vec![dated(row("148019", 3, 2, ("11:45", "13:15"), "single", None), "2027-02-23")], Attendance::All),
+            ],
+            ..table
+        };
+        let events: BTreeSet<u32> = [150132].into_iter().collect();
+        let rows: BTreeSet<RowKey> = [RowKey { event: 150132, fp: 7 }, RowKey { event: 148019, fp: 3 }].into_iter().collect();
+        let lines = hidden_lines(&table, &events, &rows, &about.titles);
+        let texts: Vec<(&str, Unhide)> = lines.iter().map(|line| (line.text.as_str(), line.unhide)).collect();
+        assert_eq!(
+            texts,
+            vec![
+                ("Tutorium Mathematik IT-1", Unhide::Event(150132)),
+                ("Tutorium Mathematik IT-1 · Di 15:30", Unhide::Row(RowKey { event: 150132, fp: 7 })),
+                ("Übung Entwicklung von Softwaresystemen · nur Mo 15:30", Unhide::Choice(148369)),
+                ("Übung Entwicklung von Softwaresystemen · Di 23.02. 11:45", Unhide::Row(RowKey { event: 148019, fp: 3 })),
+            ]
+        );
+        // Nothing hidden, nothing chosen: no line.
+        let calm = Timetable { events: table.events.iter().cloned().map(|event| Event { chosen: None, ..event }).collect(), ..table };
+        assert!(hidden_lines(&calm, &BTreeSet::new(), &BTreeSet::new(), &about.titles).is_empty());
+    }
+
+    #[test]
     fn the_derived_line_names_only_what_applies() {
         let (mut table, _) = first_semester();
         // The town is derived in every plan, but decides something only with a module of both towns.
@@ -1108,15 +1254,12 @@ mod tests {
     #[test]
     fn the_head_counts_numbers_first() {
         let informatik = Some("Informatik B.Sc.");
-        assert_eq!(sum_line(informatik, 5, 0, 32.0), "Informatik B.Sc. · 5 Module · 32 LP");
-        assert_eq!(sum_line(informatik, 4, 1, 30.0), "Informatik B.Sc. · 4 Module · 1 Platzhalter · 30 LP");
-        assert_eq!(sum_line(None, 1, 0, 7.5), "1 Modul · 7,5 LP");
-        // Nothing known of the credits, or nothing planned: no „0 LP".
-        assert_eq!(sum_line(None, 2, 0, 0.0), "2 Module");
-        assert_eq!((sum_line(informatik, 0, 0, 0.0), sum_line(None, 0, 0, 0.0)), ("Informatik B.Sc.".to_string(), String::new()));
-        // A placeholder counts with the lower end of what it states, in its own semester alone, and
-        // only while nothing fills it.
-        assert_eq!((lower_credits("6"), lower_credits("10–24"), lower_credits("7,5"), lower_credits("")), (Some(6.0), Some(10.0), Some(7.5), None));
+        assert_eq!(sum_line(informatik, 5, 0), "Informatik B.Sc. · 5 Module");
+        assert_eq!(sum_line(informatik, 4, 1), "Informatik B.Sc. · 4 Module · 1 Platzhalter");
+        assert_eq!(sum_line(None, 1, 0), "1 Modul");
+        // Nothing planned: the program alone, or nothing.
+        assert_eq!((sum_line(informatik, 0, 0), sum_line(None, 0, 0)), ("Informatik B.Sc.".to_string(), String::new()));
+        // A placeholder counts in its own semester alone, and only while nothing fills it.
         let placeholder = |pid: u32, span: (u8, u8), credits: &str| Placeholder {
             pid,
             semester: key("2026W"),
@@ -1133,8 +1276,8 @@ mod tests {
             ..PlanDoc::default()
         };
         assert!(doc.plan(key("2026W"), "12104", 1, Some(4)));
-        assert_eq!(open_placeholders(&doc, key("2026W")), (2, 16.0));
-        assert_eq!(open_placeholders(&doc, key("2027S")), (0, 0.0));
+        assert_eq!(open_placeholders(&doc, key("2026W")), 2);
+        assert_eq!(open_placeholders(&doc, key("2027S")), 0);
     }
 
     #[test]
@@ -1169,5 +1312,8 @@ mod tests {
         // Offered in the winter and not planned into it; the summer's own in a summer.
         assert_eq!(offered(&data, key("2026W"), &["12104".to_string()]), vec![("11103".to_string(), "Modul 11103".to_string())]);
         assert_eq!(offered(&data, key("2027S"), &[]), vec![("12330".to_string(), "Modul 12330".to_string())]);
+        // The empty week takes them over at once, and says how many it took.
+        assert_eq!((take_marked_label(1), take_marked_label(3)), ("1 gemerktes Modul übernehmen".to_string(), "3 gemerkte Module übernehmen".to_string()));
+        assert_eq!((marked_note(1), marked_note(3)), ("Merkliste: 1 gemerktes Modul übernommen".to_string(), "Merkliste: 3 gemerkte Module übernommen".to_string()));
     }
 }

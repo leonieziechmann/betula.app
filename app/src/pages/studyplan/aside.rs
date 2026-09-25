@@ -1354,7 +1354,7 @@ fn event_number(id: &str) -> Option<u32> {
 
 /// The events and exams only `id` links in `t`: what the store keeps hidden or chosen of them
 /// goes when the module is removed from the semester (B.2).
-fn only_its_events(t: &Timetable, id: &str) -> Vec<u32> {
+pub(super) fn only_its_events(t: &Timetable, id: &str) -> Vec<u32> {
     let only = |modules: &[String]| matches!(modules, [only] if only == id);
     t.events
         .iter()
