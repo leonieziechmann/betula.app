@@ -491,4 +491,4 @@ Open, with the default the build uses until the owner decides:
 | M8 | The program-free form on catalog cards and on a module page without a program? | yes |
 | M9 | Plan position codes (BP23, OM3) as a `plan_code` of their own? | not now |
 | M10 | The blocked forms (`internal/abbrev/blocked.tsv`): SA is blocked for the Nazi SA, but it is the common form of „Studienarbeit“ (5 modules, now `Stu`), and SS of „Steuerungssysteme“ (now `Ste`). An override line may bring a blocked form back. | blocked; no override |
-| M11 | Room kinds as module forms: SR („Schulrecht“, 141 pairs) next to `ZHG SR.4`, AT (Analogtechnik, Architekturtheorie …) next to the ateliers `ZB2CD AT Oestreich M`? They always follow a building token, so only the buildings (and HS, the building HS3) are blocked. | allowed |
+| M11 | Room kinds as module forms: Sem („Seminar“) next to `ZHG SEM.4` (owner 2026-09-25: a Seminarraum is „SEM“), AT (Analogtechnik, Architekturtheorie …) next to the ateliers `ZB2CD AT Oestreich M`? They always follow a building token, so only the buildings (and HS, the building HS3) are blocked. | allowed |

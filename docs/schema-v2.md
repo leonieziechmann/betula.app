@@ -461,7 +461,7 @@ is the campus code. The rules, in order: 13 curated places (the outdoor places, 
 a name without a building part keeps its text (with SFB/SD in front on those campuses); SFB/SD keep
 the number and drop the description („Feld 2“ of the sports hall stays as ` F2`); a hall that is a
 building of its own is the token alone (GHS, HS3, LH3D, SH1); `Hörsaal X`, `Seminarraum N` and
-`Audimax N` become `HS.X`, `SR.N`, `AM.N`; ateliers keep „AT“ and their name; otherwise the printed
+`Audimax N` become `HS.X`, `SEM.N`, `AM.N`; ateliers keep „AT“ and their name; otherwise the printed
 number and what tells rooms with one number apart. An unknown building keeps its name as QIS spells
 it — no acronym is invented — and the build logs `build.rooms_unknown_building`. Two rooms that would
 share a form both keep their long form (`build.room_short_collisions`). On the data of 2026-09-23

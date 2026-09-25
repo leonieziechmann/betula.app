@@ -364,7 +364,7 @@ func TestBlocked(t *testing.T) {
 		{"Po-A2", "Portugiesisch A2", true},
 		{"SAP", "SAP-Grundlagen", false},
 		{"AuP", "Algorithmieren und Programmieren", false},
-		{"SR", "Schulrecht", false}, // room kinds follow a building: ZHG SR.4
+		{"SR", "Schulrecht", false}, // room kinds follow a building: ZHG SEM.4
 	} {
 		if _, got := Blocked(c.form, c.title); got != c.blocked {
 			t.Errorf("Blocked(%q, %q) = %v", c.form, c.title, got)

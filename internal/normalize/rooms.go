@@ -16,7 +16,7 @@ import (
 // owner's decisions of 2026-09-25 (ZHG, HS., GHS „damit es nicht mit HG verwechselt wird“,
 // VG1C 0.07), or the campus code SFB / SD, whose room numbers already start with their
 // building. ROOM is the number as QIS prints it, or a kind abbreviation with its label
-// (HS.A, SR.4, AM.1). ATTACH tells rooms with one number apart (a/b, .1, /27, „ F1“).
+// (HS.A, SEM.4, AM.1). ATTACH tells rooms with one number apart (a/b, .1, /27, „ F1“).
 // docs/schema-v2.md, „Short names“.
 
 // roomBuildings maps QIS's building name, the part of a room name before the first " - ",
@@ -116,9 +116,9 @@ var roomKinds = []struct {
 	repl string // "" = the atelier rule with its side (links/mitte/rechts)
 }{
 	{regexp.MustCompile(`^Hörsaal ([A-Z0-9]{1,2})$`), "HS.$1"},
-	{regexp.MustCompile(`^Seminarraum (\d+)$`), "SR.$1"},
+	{regexp.MustCompile(`^Seminarraum (\d+)$`), "SEM.$1"},
 	{regexp.MustCompile(`^Audimax (\d+)$`), "AM.$1"},
-	{regexp.MustCompile(`^IBZ-Seminarraum$`), "SR"},
+	{regexp.MustCompile(`^IBZ-Seminarraum$`), "SEM"},
 	{regexp.MustCompile(`^Foyer\b.*$`), "Foyer"},
 	{regexp.MustCompile(`^(\d)\.OG AT\b.*$`), "AT $1.OG"},                      // „1.OG AT Stadtplaner“
 	{regexp.MustCompile(`^AT (\S+)(?: \([^)]*\))? (links|mitte|rechts)$`), ""}, // „AT Oestreich mitte“ → AT Oestreich M
@@ -242,7 +242,7 @@ var roomTokenLetters = regexp.MustCompile(`^[A-ZÄÖÜ]{2,}`)
 // place: those of every building token (ZHG, HG, LG, VG, ZB …) and the campus codes SFB and
 // SD. A module abbreviation must not look like one (package abbrev): a week grid shows a
 // module and its room side by side, and „HG“ next to „HG 0.16“ reads as the building. The
-// room kinds (SR.4, AM.1, AT Name) always follow a building token and are not listed; HS is,
+// room kinds (SEM.4, AM.1, AT Name) always follow a building token and are not listed; HS is,
 // for the Hörsaal 3 that is a building of its own (HS3). Sorted, without duplicates.
 func BuildingTokens() []string {
 	seen := map[string]bool{"SFB": true, "SD": true}

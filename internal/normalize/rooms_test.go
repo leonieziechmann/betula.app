@@ -20,10 +20,10 @@ func TestRoomShort(t *testing.T) {
 		{"Mehrzweckgebäude - 130 - Zentralcampus", "MZG 130", true},
 		{"Lehrgebäude 3A - 406 - Zentralcampus", "LG3A 406", true},
 		// Kinds with their label.
-		{"Zentrales Hörsaalgebäude - Seminarraum 4 - Zentralcampus", "ZHG SR.4", true},
+		{"Zentrales Hörsaalgebäude - Seminarraum 4 - Zentralcampus", "ZHG SEM.4", true},
 		{"Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus", "ZHG AM.1", true},
 		{"Zentrales Hörsaalgebäude - Foyer Zentrales Hörsaalgebäude - Zentralcampus", "ZHG Foyer", true},
-		{"IBZ-Ludwig Leichhardt Haus - IBZ-Seminarraum", "IBZ SR", true},
+		{"IBZ-Ludwig Leichhardt Haus - IBZ-Seminarraum", "IBZ SEM", true},
 		// The hall is the building.
 		{"Hörsaal 3 - Hörsaal 3", "HS3", true},
 		{"Laborhalle 3D - LH 3D", "LH3D", true},
@@ -65,7 +65,7 @@ func TestRoomShort(t *testing.T) {
 		// Shapes no room has today.
 		{"Gebäude 20 - Mensa SFB - 20.010 Speisesaal - Campus Senftenberg", "SFB 20.010", true},
 		{"Lehrgebäude 3A - Hörsaal 4 - Zentralcampus", "LG3A HS.4", true},
-		{"Zentrales Hörsaalgebäude - Seminarraum 5 - Zentralcampus", "ZHG SR.5", true},
+		{"Zentrales Hörsaalgebäude - Seminarraum 5 - Zentralcampus", "ZHG SEM.5", true},
 		{"Lehrgebäude 2A - A1.30C PC-Pool - hinten - Zentralcampus", "LG2A A1.30C", true},
 		{"Hauptgebäude - HG 1.07/1.08 - Zentralcampus", "HG 1.07/08", true},
 		{"Lehrgebäude 2C - Dachatelier - Zentralcampus", "LG2C Dachatelier", true},
@@ -166,7 +166,7 @@ func FuzzRoomShort(f *testing.F) {
 }
 
 // BuildingTokens are what a short room name opens with, in capitals; the room kinds that
-// follow a building (SR.4, AM.1, AT Name) are not among them.
+// follow a building (SEM.4, AM.1, AT Name) are not among them.
 func TestBuildingTokens(t *testing.T) {
 	got := map[string]bool{}
 	for _, tok := range BuildingTokens() {
@@ -177,7 +177,7 @@ func TestBuildingTokens(t *testing.T) {
 			t.Errorf("BuildingTokens lacks %s: %v", want, BuildingTokens())
 		}
 	}
-	for _, not := range []string{"SR", "AM", "AT", "Mensa"} { // HS is there: the building HS3
+	for _, not := range []string{"SEM", "AM", "AT", "Mensa"} { // HS is there: the building HS3
 		if got[not] {
 			t.Errorf("BuildingTokens has %s", not)
 		}
