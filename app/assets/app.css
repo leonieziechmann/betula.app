@@ -597,6 +597,17 @@ html:not(.js) .mark-toggle { display: none; }
 .mark-switch kbd { padding: 2px 6px; }
 .mark-switch[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
 .mark-switch[aria-pressed="true"] kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
+/* „Einplanen" beside „Merken" in the line of a module's badges (p.badges > span.badge… +
+   button.mark-toggle.mark-switch + button.plan-toggle.mark-switch): the pair at the line's right
+   end, „Merken" last, where it has always stood. On a phone the pair takes a line of its own, so
+   it is never split over two. */
+.badges > .mark-switch:has(+ .plan-toggle) { order: 2; margin-left: 0; }
+.badges > .plan-toggle.mark-switch, .module-page > .hero .badges > .plan-toggle.mark-switch { order: 1; margin-right: 0; }
+@media (max-width: 900px) {
+  .badges:has(> .plan-toggle)::after { content: ""; order: 1; flex-basis: 100%; margin-top: -6px; }
+  .badges > .plan-toggle.mark-switch, .module-page > .hero .badges > .plan-toggle.mark-switch { order: 2; }
+  .badges > .mark-switch:has(+ .plan-toggle) { order: 3; }
+}
 /* Among the actions of a sidebar, and what else a sidebar's action can be: a button, a question. */
 button.action { width: 100%; text-align: left; }
 button.action:hover { background: var(--panel-3); }
@@ -675,8 +686,10 @@ a.slot { text-decoration: none; }
 .slot.tinted { background: color-mix(in oklch, var(--tint) 16%, var(--panel)); color: var(--text); box-shadow: inset 2.5px 0 0 var(--tint); }
 /* Single dates: they do not happen every week, so they do not look like what does. */
 .slot.once { background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
-/* Another planned module beside a module's own slots. */
-.slot.planned { background: transparent; color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* Another planned module beside a module's own slots, named in a lighter weight than they are;
+   under an hour (.brief) in one line, since a second would show only its top edge. */
+.slot.planned { background: transparent; color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 500; hyphens: auto; }
+.slot.planned.brief { white-space: nowrap; text-overflow: ellipsis; }
 /* An option of a choice not yet made. */
 .slot.alt { background: transparent; box-shadow: none; outline: 1px dashed var(--tint, var(--line-strong)); outline-offset: -1px; }
 .slot.clash { box-shadow: inset 2.5px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }

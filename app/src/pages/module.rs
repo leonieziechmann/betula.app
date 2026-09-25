@@ -710,7 +710,10 @@ fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterK
 /// the other planned modules' Termine as quiet `.planned` slots cut to the days and hours the
 /// module's own week spans, so that the grid never grows when the plan arrives. Planned Termine
 /// at the same time are one slot that names each module once: the plan is the context here, and
-/// every slot beside the module's own takes a lane of its width.
+/// every slot beside the module's own takes a lane of its width. The names are the slot's label,
+/// not its small line, which phones hide: an outline without a name says nothing. They wrap in a
+/// slot of an hour or more; a shorter one (`.brief`) holds one line and ends it with „…", since a
+/// second line would show only its top edge.
 fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay) -> Vec<GridSlot> {
     let mut slots: Vec<GridSlot> = own.iter().map(|(slot, rows)| GridSlot { clash: rows.iter().any(|row| overlay.clashing.contains(row)), ..slot.clone() }).collect();
     if slots.is_empty() {
@@ -740,7 +743,10 @@ fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay) -> Vec<GridS
             None => times.push((at, vec![&planned.short], vec![line])),
         }
     }
-    slots.extend(times.into_iter().map(|((day, from, to), names, lines)| GridSlot { day, from, to, small: names.join(" · "), title: lines.join("\n"), class: "planned", ..GridSlot::default() }));
+    slots.extend(times.into_iter().map(|((day, from, to), names, lines)| {
+        let class = if to.saturating_sub(from) < 60 { "planned brief" } else { "planned" };
+        GridSlot { day, from, to, label: names.join(" · "), title: lines.join("\n"), class, ..GridSlot::default() }
+    }));
     slots
 }
 
@@ -1019,7 +1025,8 @@ mod tests {
                 (2, "09:15".into(), "10:45".into(), "other", true),
                 (4, "11:30".into(), "13:00".into(), "", false),
                 (2, "09:15".into(), "10:45".into(), "planned", false),
-                (4, "12:30".into(), "13:00".into(), "planned", false),
+                // Half an hour after the cut: one line.
+                (4, "12:30".into(), "13:00".into(), "planned brief", false),
                 (1, "08:00".into(), "09:00".into(), "planned", false),
             ]
         );
@@ -1027,12 +1034,13 @@ mod tests {
         let own_slots: Vec<GridSlot> = own.iter().map(|(slot, _)| slot.clone()).collect();
         let frame = |slots: &[GridSlot]| crate::week::geometry(slots, MIN_HOURS).map(|(week, _)| week);
         assert_eq!(frame(&slots), frame(&own_slots));
-        // A planned slot names its modules small, and their times in the tooltip.
+        // A planned slot names its modules in its label (phones hide the small line), and their
+        // times in the tooltip.
         assert_eq!(
             slots.get(2).map(|s| (s.label.as_str(), s.small.as_str(), s.title.as_str())),
             Some((
-                "",
                 "Programmierpraktikum · Elektrische und elektronische Grundlagen der Informatik",
+                "",
                 "Programmierpraktikum · Di 09:15–10:45\nElektrische und elektronische Grundlagen der Informatik · Di 09:15–10:45"
             ))
         );
