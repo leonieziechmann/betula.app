@@ -240,6 +240,9 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct LegendItem {
     id: String,
+    /// What the week names the module by, small before its title as the grid's key: its
+    /// abbreviation („EvS"), else its number.
+    key: String,
     title: Option<String>,
     /// „8 LP", „8 LP · keine Termine", „nicht im Modulkatalog".
     small: Option<String>,
@@ -251,6 +254,7 @@ struct LegendItem {
 /// are gone, nor unpublished, which the head says for all of them).
 fn legend(data: &StudyplanData) -> Vec<LegendItem> {
     let dated = !data.counts.is_empty() && !is_past(data);
+    let names = data.slot_names();
     data.ids
         .iter()
         .enumerate()
@@ -264,7 +268,9 @@ fn legend(data: &StudyplanData) -> Vec<LegendItem> {
                 (Some(_), None, true) => Some("keine Termine".to_string()),
                 (Some(_), credits, false) => credits,
             };
-            LegendItem { id: id.clone(), title: row.map(|row| row.title.clone()), small, hue: hue(tone_at(position)) }
+            let abbrev = data.abbrevs.get(id).filter(|abbrev| names.get(id) == Some(*abbrev));
+            let key = abbrev.cloned().unwrap_or_else(|| id.clone());
+            LegendItem { id: id.clone(), key, title: row.map(|row| row.title.clone()), small, hue: hue(tone_at(position)) }
         })
         .collect()
 }
@@ -304,7 +310,7 @@ pub(super) fn ModuleLegend(ctx: PlanCtx) -> impl IntoView {
                         <li>
                             <a class=item.hue href=href aria-current=move || current.get().then_some("true") data-noscroll="">
                                 <i></i>
-                                <span class="mono">{item.id.clone()}</span>
+                                <span class="mono" title=item.id.clone()>{item.key.clone()}</span>
                                 {item.title.clone().map(|title| view! { <span>{title}</span> })}
                                 {item.small.clone().map(|small| view! { <small>{small}</small> })}
                             </a>
@@ -824,6 +830,7 @@ mod tests {
             instructor: None,
             comment: None,
             source_url: None,
+            room_short: None,
         };
         Row {
             key: Some(RowKey { event: event.parse().unwrap(), fp }),

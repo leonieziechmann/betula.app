@@ -308,14 +308,14 @@ fn when_of(rows: &[&ExamRow]) -> (String, String, Option<Day>, u16) {
     }
 }
 
-/// Where a sitting is: its rooms as QIS writes them, each once, and its campuses in short where
+/// Where a sitting is: its rooms at a glance (the short form, „ZHG/AM.1"), each once, and its campuses in short where
 /// the rooms do not name them already („Audimax 1 (Zentralcampus)", „HG 0.20 / HG 0.19",
 /// „Senftenberg"); „Ort offen" for a dated sitting without either.
 fn place_of(rows: &[&ExamRow], dated: bool) -> String {
     let mut rooms: Vec<&str> = Vec::new();
     let mut campuses: Vec<String> = Vec::new();
     for row in rows {
-        if let Some(room) = row.date.room.as_deref().map(str::trim).filter(|room| !room.is_empty()) {
+        if let Some(room) = row.date.room_shown() {
             if !rooms.contains(&room) {
                 rooms.push(room);
             }
@@ -519,6 +519,7 @@ mod tests {
                 instructor: None,
                 comment: None,
                 source_url: None,
+                room_short: None,
             },
         }
     }

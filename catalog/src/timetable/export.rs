@@ -716,6 +716,7 @@ mod tests {
                 instructor: None,
                 comment: None,
                 source_url: Some(format!("https://qis.example/{event}")),
+                room_short: None,
             },
         }
     }
@@ -1297,12 +1298,13 @@ mod tests {
             return;
         }
 
-        assert_eq!(stamp, "20260923T123516Z");
+        assert_eq!(stamp, "20260925T083015Z");
         let (of_plan, _) = Subscription::of(in_plan.key, &plan, &selection, Some(&in_plan));
         assert_eq!(of_plan.code().as_deref(), Ok(code));
         let c = calendar_of(&in_plan, &titles, "", &stamp);
         assert_eq!(c.name, "Studienplan WiSe 2026/27");
-        assert_eq!(c.description, "Betula (inoffiziell) · Termine laut QIS, Stand 23.09.2026");
+        // The stand is the build's, which wrote the short names on 25.09. (the data is of 23.09.).
+        assert_eq!(c.description, "Betula (inoffiziell) · Termine laut QIS, Stand 25.09.2026");
         // 12104's Tuesday lecture, as C.14 shows it.
         let lecture = entry(&c, "148701-a2633-20261013@betula.app");
         assert_eq!(lecture.when, When::Timed { day: d("2026-10-13"), from: 690, to: 780 });
@@ -1316,7 +1318,7 @@ mod tests {
             )
         );
         assert!(feed.contains(
-            "UID:148701-a2633-20261013@betula.app\r\nDTSTAMP:20260923T123516Z\r\n\
+            "UID:148701-a2633-20261013@betula.app\r\nDTSTAMP:20260925T083015Z\r\n\
              DTSTART;TZID=Europe/Berlin:20261013T113000\r\nDTEND;TZID=Europe/Berlin:20261013T130000\r\n"
         ));
         // Senftenberg's course of 12104 and its exam are not the student's; 149408 is hidden.

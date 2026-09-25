@@ -534,6 +534,7 @@ mod tests {
                 instructor: None,
                 comment: None,
                 source_url: None,
+                room_short: None,
             },
             cancelled_dates: None,
             occ: Occurrences::default(),
@@ -668,6 +669,7 @@ mod tests {
             exams: Vec::new(),
             sws: Vec::new(),
             counts: Vec::new(),
+            abbrevs: Default::default(),
         };
         // Nothing published for the summer to come; a past summer's dates are gone.
         let summer = data("2027S");

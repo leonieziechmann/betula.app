@@ -10,7 +10,7 @@ use std::fmt;
 /// `v_program_plan` had no `source_pages`), so the browser does not start the app on one
 /// (`app/assets/boot.js`, into which the server writes this number), and the server reports it
 /// when it serves one. A test holds it to the newest migration.
-pub const SCHEMA_VERSION: i64 = 8;
+pub const SCHEMA_VERSION: i64 = 9;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

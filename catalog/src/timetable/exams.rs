@@ -636,6 +636,7 @@ mod tests {
                 instructor: None,
                 comment: None,
                 source_url: Some(format!("https://qis.example/{event}")),
+                room_short: None,
             },
         }
     }

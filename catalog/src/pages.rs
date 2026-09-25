@@ -839,12 +839,22 @@ pub struct StudyplanData {
     /// The semester's dated teaching rows counted by rhythm and range: the evidence for its
     /// lecture period, breaks and A weeks (`SemesterFacts::derive`).
     pub counts: Vec<DateCount>,
+    /// The modules' abbreviations („EvS", schema 9), by id: within the plan's program where it has
+    /// one (`studyplan_in`), else each module's own. Only a week grid names modules by them
+    /// (`slot_names`); everywhere else the title stands (owner, 2026-09-25).
+    pub abbrevs: BTreeMap<String, String>,
 }
 
 /// The Studienplan of `ids` in semester `key`. For the browser (ids from the store) and the
 /// server (ids from a code) only (R9). Without ids no id query runs; the semester's facts are
 /// loaded all the same.
 pub fn studyplan(db: &dyn Database, key: SemesterKey, ids: &[String]) -> Result<StudyplanData, DbError> {
+    studyplan_in(db, key, ids, None)
+}
+
+/// `studyplan` for a plan of `program_id`: the week grid names its modules by the abbreviations
+/// unique within that program (`queries::modules_abbrevs`), not only by each module's own.
+pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program_id: Option<&str>) -> Result<StudyplanData, DbError> {
     let ids = checked_ids(ids);
     let semester_key = key.key();
     let semester = queries::semesters(db)?.into_iter().find(|semester| semester.key == semester_key);
@@ -857,6 +867,7 @@ pub fn studyplan(db: &dyn Database, key: SemesterKey, ids: &[String]) -> Result<
         schedule: queries::modules_schedule(db, &ids, &semester_key)?,
         exams: queries::modules_exams(db, &ids, &semester_key)?,
         sws: queries::modules_teaching_sws(db, &ids)?,
+        abbrevs: queries::modules_abbrevs(db, &ids, program_id)?.into_iter().map(|a| (a.module_id, a.abbrev)).collect(),
         semester,
         ids,
         modules,
@@ -890,6 +901,24 @@ impl StudyplanData {
     /// modules by. Built the same way on both paths, so the download and the feed agree.
     pub fn titles(&self) -> BTreeMap<String, String> {
         self.modules.iter().map(|row| (row.id.clone(), row.title.clone())).collect()
+    }
+
+    /// What a slot of a week grid names each module by, where no title fits: its abbreviation,
+    /// else its title cut short (`views::short_title`). An abbreviation two planned modules share
+    /// (each module's own list is unique only within a program) names neither.
+    pub fn slot_names(&self) -> BTreeMap<String, String> {
+        let mut uses: BTreeMap<String, usize> = BTreeMap::new();
+        for abbrev in self.abbrevs.values() {
+            *uses.entry(abbrev.to_lowercase()).or_default() += 1;
+        }
+        let unique = |abbrev: &&String| uses.get(&abbrev.to_lowercase()) == Some(&1);
+        self.modules
+            .iter()
+            .map(|row| {
+                let name = self.abbrevs.get(&row.id).filter(unique).cloned().unwrap_or_else(|| views::short_title(&row.title));
+                (row.id.clone(), name)
+            })
+            .collect()
     }
 
     /// The calendar of `table`, a timetable of this data, before it is written: the page asks
@@ -1146,7 +1175,7 @@ pub struct Overlay {
 }
 
 /// A recurring slot of another planned module in a module's week: the module, its short name for
-/// the slot's label (`views::short_title`), the weekday (1 = Monday) and the minutes.
+/// the slot's label (`StudyplanData::slot_names`: its abbreviation), the weekday (1 = Monday) and the minutes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OverlaySlot {
     pub module: String,
@@ -1171,7 +1200,7 @@ pub fn overlay(db: &dyn Database, plan: &StudyplanData, module_id: &str, selecti
         queries::modules_teaching_sws(db, &id)?,
     );
     let table = data.timetable(selection);
-    Ok(overlay_of(&table, &data.titles(), &data.label, module_id))
+    Ok(overlay_of(&table, &data.titles(), &data.slot_names(), &data.label, module_id))
 }
 
 /// The weekdays as a line names them.
@@ -1182,7 +1211,7 @@ const CLASH_NAMES: usize = 3;
 
 /// The overlay of `module_id` in a timetable of the plan and the module together. Its own events
 /// are those it links; a clash is one the Studienplan would name once the module is planned.
-fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, label: &str, module_id: &str) -> Overlay {
+fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap<String, String>, label: &str, module_id: &str) -> Overlay {
     let own = |event: &Event| event.modules.iter().any(|module| module == module_id);
     let title = |id: &str| titles.get(id).cloned().unwrap_or_else(|| id.to_string());
 
@@ -1200,7 +1229,8 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, label: &str, mod
             let (Some(day), Some(from), Some(to)) = (weekday_of(row), row.from, row.to) else {
                 continue;
             };
-            let slot = OverlaySlot { module: module.clone(), short: views::short_title(&title(module)), day, from, to };
+            let short = names.get(module).cloned().unwrap_or_else(|| views::short_title(&title(module)));
+            let slot = OverlaySlot { module: module.clone(), short, day, from, to };
             if !planned.contains(&slot) {
                 planned.push(slot);
             }
@@ -1723,7 +1753,7 @@ mod studyplan_tests {
         assert!(table.town_derived);
         assert_eq!((uids.len(), feed.len()), (249, 179_137));
         assert!(feed.contains(
-            "UID:148701-a2633-20261013@betula.app\r\nDTSTAMP:20260923T123516Z\r\n\
+            "UID:148701-a2633-20261013@betula.app\r\nDTSTAMP:20260925T083015Z\r\n\
              DTSTART;TZID=Europe/Berlin:20261013T113000\r\n"
         ));
         assert!(feed.contains("\r\nUID:148369-a4d12-"));
@@ -1956,7 +1986,7 @@ mod studyplan_tests {
         assert_eq!(overlay.exam_line, None);
         let slots: BTreeSet<&str> = overlay.planned.iter().map(|slot| slot.module.as_str()).collect();
         assert_eq!(slots, fs1);
-        assert!(overlay.planned.iter().all(|slot| slot.short == views::short_title(&plan.titles()[&slot.module])));
+        assert!(overlay.planned.iter().all(|slot| slot.short == plan.slot_names()[&slot.module]));
     }
 
     /// What avoids an exam overlap, as the pinned snapshot has it: the module's own earlier sitting
@@ -2015,6 +2045,7 @@ mod studyplan_tests {
                 instructor: None,
                 comment: None,
                 source_url: None,
+                room_short: None,
             },
         }
     }
@@ -2030,7 +2061,7 @@ mod studyplan_tests {
         invariants(&table);
         let titles: BTreeMap<String, String> =
             [("P", "Analysis I"), ("Q", "Mathematik IT-1")].map(|(id, title)| (id.to_string(), title.to_string())).into();
-        overlay_of(&table, &titles, "WiSe 2026/27", "M")
+        overlay_of(&table, &titles, &BTreeMap::new(), "WiSe 2026/27", "M")
     }
 
     #[test]

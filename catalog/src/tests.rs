@@ -53,16 +53,19 @@ pub(crate) fn open() -> NativeDatabase {
 }
 
 /// `content_digest` of the snapshot the Studienplan's pinned checks were taken from
-/// (`catalog-abca4baa1d8f8d8e.db`, data of 2026-09-23): the event-level expectations of
-/// `timetable`, `studyplan` and `pages` hold for this one only.
-pub(crate) const STUDYPLAN_DIGEST: &str = "4b65e821a0e33b858b589963e6c6f879a990612fe5efdccdfbe39415b4c0d50f";
+/// (`catalog-41bcde83e1bbcaab.db`: the data of 2026-09-23, built and exported by the Radix of
+/// schema 9, so with the short names of rooms and modules; docs/frontend.md §4 says how to make
+/// it again): the event-level expectations of `timetable`, `studyplan` and `pages` hold for this
+/// one only. The data is that of `catalog-abca4baa1d8f8d8e.db` (schema 8), which they were first
+/// pinned to.
+pub(crate) const STUDYPLAN_DIGEST: &str = "8700613779415164c03d36c53966137e574a6e2b7ef2bf40542ad05c8f29b68b";
 
 /// The snapshot for the pinned checks of the Studienplan named `test`, or `None` when there is
 /// none to pin against; the test then asserts only what holds on any snapshot.
 ///
-/// `FOLIA_STUDYPLAN_SNAPSHOT` names the pinned file. It stays in the main checkout's `snapshot/`
-/// beside newer ones, so Radix's refetch every three days never silences these checks for whoever
-/// sets the variable. A file with another digest fails the test: the pinned file was replaced, and
+/// `FOLIA_STUDYPLAN_SNAPSHOT` names the pinned file. It stays in the main checkout's
+/// `target/studyplan-snapshot/`, apart from the newer ones of `snapshot/`, so Radix's refetch every
+/// three days never silences these checks for whoever sets the variable. A file with another digest fails the test: the pinned file was replaced, and
 /// a green run would claim checks that did not run. Without the variable, the tests' own snapshot
 /// serves when it is the pinned one; else the skip is said on stderr, once per test.
 pub(crate) fn studyplan_db(test: &str) -> Option<NativeDatabase> {
@@ -88,7 +91,7 @@ pub(crate) fn studyplan_db(test: &str) -> Option<NativeDatabase> {
     let _ = writeln!(
         std::io::stderr(),
         "studyplan: pinned checks of {test} skipped: snapshot digest {d}, pinned {STUDYPLAN_DIGEST}; \
-         set FOLIA_STUDYPLAN_SNAPSHOT=…/snapshot/catalog-abca4baa1d8f8d8e.db"
+         set FOLIA_STUDYPLAN_SNAPSHOT=…/target/studyplan-snapshot/catalog-41bcde83e1bbcaab.db"
     );
     None
 }
@@ -277,6 +280,7 @@ fn the_studyplan_queries(db: &Recording, semester: &str) {
         row.date.source_url = None;
         if !room {
             row.date.room = None;
+            row.date.room_short = None;
         }
         row
     };
@@ -322,6 +326,11 @@ fn the_studyplan_queries(db: &Recording, semester: &str) {
     assert_eq!(all_exams.iter().filter(|row| row.module_id == examined).cloned().collect::<Vec<_>>(), full, "{examined}: the room stays");
     assert!(queries::modules_exams(db, &[], &exam_semester).unwrap().is_empty());
     assert!(queries::modules_teaching_sws(db, &["1 OR 1=1".to_string()]).unwrap().is_empty());
+
+    // Abbreviations (schema 9): a module's own without a program, and nothing for what is no id.
+    let abbrevs = queries::modules_abbrevs(db, &planned, None).unwrap();
+    assert!(abbrevs.iter().all(|a| asked.contains(a.module_id.as_str()) && !a.abbrev.trim().is_empty()), "{abbrevs:?}");
+    assert!(queries::modules_abbrevs(db, &["1 OR 1=1".to_string()], Some("x")).unwrap().is_empty());
 
     // Informatik B.Sc.'s first semester on the snapshot the Studienplan's checks were pinned to.
     let Some(pinned) = studyplan_db("every_query_runs_against_the_snapshot") else { return };
@@ -369,6 +378,16 @@ fn the_studyplan_queries(db: &Recording, semester: &str) {
     ]
     .map(|(id, form, sws)| (id.to_string(), form.to_string(), sws));
     assert_eq!(sws, stated);
+
+    // What the week grid names them by within Informatik, and the rooms as students read them.
+    let abbrevs: Vec<(String, String)> =
+        queries::modules_abbrevs(&pinned, &fs1, Some("079-82-2008")).unwrap().into_iter().map(|a| (a.module_id, a.abbrev)).collect();
+    let said = [("11112", "MIT1"), ("12102", "PP"), ("12104", "EvS"), ("12107", "EEG")];
+    assert_eq!(abbrevs, said.map(|(id, abbrev)| (id.to_string(), abbrev.to_string())));
+    let rooms: BTreeSet<(Option<String>, Option<String>)> =
+        queries::modules_schedule(&pinned, &fs1, "2026W").unwrap().into_iter().map(|row| (row.date.room, row.date.room_short)).collect();
+    let vg = (Some("Verfügungsgebäude 1C - 0.03 - Zentralcampus".to_string()), Some("VG1C/0.03".to_string()));
+    assert!(rooms.contains(&vg) && rooms.iter().all(|(room, short)| room.is_some() == short.is_some()), "{rooms:?}");
 }
 
 /// The queries follow every migration of Radix, and the snapshot of the tests has them all. A

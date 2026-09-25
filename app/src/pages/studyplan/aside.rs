@@ -205,7 +205,8 @@ struct RowText {
     /// Day and time, bold: „Mo 11:30–13:00"; a date instead of the weekday where the Termin is
     /// not weekly („Do 12.11. 13:45–15:15").
     when: String,
-    /// The room as QIS writes it, without the campus (the second line says it).
+    /// The room at a glance: its short form („VG1C/0.03"), else as QIS writes it without the
+    /// campus (the second line says it).
     room: Option<String>,
     /// Which weeks: „A", „B", „A/B" (every week); „Block", „einmalig" where it is not weekly.
     week: Option<String>,
@@ -214,7 +215,7 @@ struct RowText {
 }
 
 impl RowText {
-    /// What follows the bold time on the first line: „Verfügungsgebäude 1C - 0.03 · A/B".
+    /// What follows the bold time on the first line: „VG1C/0.03 · A/B".
     fn rest(&self) -> Option<String> {
         let parts: Vec<&str> = self.room.iter().chain(&self.week).map(String::as_str).collect();
         (!parts.is_empty()).then(|| parts.join(" · "))
@@ -1233,7 +1234,7 @@ fn row_text(rows: &[&Row], group: Option<&str>) -> RowText {
             detail.push(if a == b { a.short() } else { format!("{}–{}", a.short(), b.short()) });
         }
     }
-    RowText { when, room: rooms(rows.iter().map(|row| row.date.room.as_deref())), week: Some(week), detail }
+    RowText { when, room: rooms(rows.iter().map(|row| row.date.room_shown())), week: Some(week), detail }
 }
 
 /// An exam sitting's line: „Fr 12.03.2027 11:00–13:00", a window „08.–19.02. nach Absprache",
@@ -1253,7 +1254,7 @@ fn exam_text(rows: &[&ExamRow]) -> RowText {
         ExamShape::Open => "Termin offen".to_string(),
     };
     let detail = campuses(rows.iter().map(|row| row.date.campus.as_ref())).into_iter().collect();
-    RowText { when, room: rooms(rows.iter().map(|row| row.date.room.as_deref())), week: None, detail }
+    RowText { when, room: rooms(rows.iter().map(|row| row.date.room_shown())), week: None, detail }
 }
 
 /// Every room, each once, in order, without the campus QIS ends it with (the second line names
@@ -1446,6 +1447,7 @@ mod tests {
                 instructor: None,
                 comment: None,
                 source_url: Some(format!("https://qis.example/{event}")),
+                room_short: None,
             },
         })
     }
@@ -1520,6 +1522,7 @@ mod tests {
                 instructor: None,
                 comment: None,
                 source_url: None,
+                room_short: None,
             },
         }
     }

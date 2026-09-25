@@ -217,6 +217,7 @@ mod tests {
             instructor: None,
             comment: None,
             source_url: None,
+            room_short: None,
         }
     }
 
