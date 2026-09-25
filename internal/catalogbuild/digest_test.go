@@ -54,6 +54,11 @@ func TestTheDigestSeesShortNames(t *testing.T) {
 		"UPDATE module_abbrev SET abbrev = 'LinA' WHERE module_id = '11101'",
 		"UPDATE program_module_abbrev SET abbrev = 'FoDM' WHERE module_id = '11881' AND program_id = '079-82-2008'",
 		"UPDATE event_date SET room_short = 'LG1A 0.23' WHERE event_id = '120286'",
+		// The sums a plan prints are content as well: a rescan that changes only them must
+		// publish a snapshot.
+		`INSERT INTO plan_total (program_id, ord, label, scope, start_semester, end_semester, credits, credits_max,
+			min_credits, max_credits, is_choice, entry_count) VALUES ('079-82-2008', 1, 'Summe', 'plan', 1, 1, 6, 6, 6, 6, 0, 1)`,
+		"INSERT INTO plan_total_entry (program_id, total_ord, entry_ord) VALUES ('079-82-2008', 1, 1)",
 	} {
 		if _, err := db.SQL().Exec(stmt); err != nil {
 			t.Fatalf("%s: %v", stmt, err)
