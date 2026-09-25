@@ -68,27 +68,29 @@ const open = async (options, path, { requests } = {}) => {
   return { page, step, context };
 };
 const stored = (page, key) => page.evaluate((key) => localStorage.getItem(key), key);
-const emptyPlan = () => document.querySelector(".sp-body .state-title")?.textContent === "Noch nichts geplant.";
-const aPlan = () => Boolean(document.querySelector(".sp-body")) && !document.querySelector(".sp-body .state");
+// An empty plan is the empty week, with „Noch keine Termine" in its middle (owner, 2026-09-25).
+const emptyPlan = () => document.querySelector(".sp-body .sp-empty .state-title")?.textContent === "Noch keine Termine";
+const aPlan = () => Boolean(document.querySelector(".sp-body .sp-fold")) && !document.querySelector(".sp-body .state, .sp-body .sp-empty");
 
 // ---------- 3: persistence ----------
 async function persistence() {
   const requests = [];
   const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/studyplan", { requests });
 
-  // A fresh browser: nothing planned, the two ways to begin, no week, and the plan's tab current.
+  // A fresh browser: nothing planned, the empty week with the way to the catalog's modules that
+  // fit it (nothing marked, so nothing to take over), and the plan's tab current.
   await page.waitForFunction(emptyPlan, null, { timeout: 8000 }).catch(() => problems.push("a fresh browser does not show the empty plan"));
   const fresh = await page.evaluate(() => ({
-    links: [...document.querySelectorAll(".sp-body .state-actions a.btn")].map((a) => [a.textContent.trim(), a.getAttribute("href")]),
-    week: Boolean(document.querySelector(".week")),
+    links: [...document.querySelectorAll(".sp-body .sp-empty .btn")].map((a) => [a.textContent.trim(), a.getAttribute("href")]),
+    week: Boolean(document.querySelector(".sp-body .week.fit")),
     tab: document.querySelector('.rail .nav[data-area="studyplan"]')?.getAttribute("aria-current"),
     title: document.querySelector(".crumb h1")?.textContent,
     frame: document.querySelector(".sidebar .panel-head h2")?.textContent,
     hint: document.querySelector(".sidebar .storage-hint")?.textContent ?? "",
     count: Boolean(document.querySelector('.nav[data-area="studyplan"] .nav-count')),
   }));
-  check(JSON.stringify(fresh.links) === JSON.stringify([["Regelstudienplan übernehmen", "/studyplan?view=all&import=mine"], ["Module suchen", "/catalog"]]), `the empty plan's ways on: ${JSON.stringify(fresh.links)}`);
-  check(!fresh.week && fresh.tab === "page" && fresh.title === "Studienplan" && fresh.frame === "Anpassen" && !fresh.count, `the empty plan: ${JSON.stringify(fresh)}`);
+  check(JSON.stringify(fresh.links) === JSON.stringify([["Zum Katalog", "/catalog?fits=2026W"]]), `the empty plan's ways on: ${JSON.stringify(fresh.links)}`);
+  check(fresh.week && fresh.tab === "page" && fresh.title === "Stundenplan" && fresh.frame === "Anpassen" && !fresh.count, `the empty plan: ${JSON.stringify(fresh)}`);
   check(fresh.hint.includes("nur in diesem Browser"), "the sidebar does not say where the plan lives");
   check((await stored(page, PLAN)) === null && (await stored(page, MINE)) === null, "a fresh browser stored something by looking at the plan");
 
@@ -178,12 +180,15 @@ async function withoutTheApp() {
     aside: Boolean(document.querySelector(".detail")),
     hint: document.querySelector(".sidebar .storage-hint")?.textContent ?? "",
   }));
-  check(response.status() === 200 && plain.title === "Dein Studienplan erscheint, sobald die App geladen ist." && plain.h1 === 1 && plain.heading === "Studienplan", `without JavaScript the plan does not explain itself: ${JSON.stringify(plain)}`);
+  check(response.status() === 200 && plain.title === "Dein Stundenplan erscheint, sobald die App geladen ist." && plain.h1 === 1 && plain.heading === "Stundenplan", `without JavaScript the plan does not explain itself: ${JSON.stringify(plain)}`);
   check(plain.rail === 0 && plain.bottom === 0, `without JavaScript the rail offers the plan: ${JSON.stringify(plain)}`);
   check(plain.robots.startsWith("noindex") && !plain.aside && plain.hint.includes("nur in diesem Browser"), `without JavaScript: ${JSON.stringify(plain)}`);
   // A phone: the frame is the app's, its sidebar a closed sheet, so nothing of the page vanishes
   // when the app takes over (R15); the explanation says where the plan lives.
   await page.setViewportSize({ width: 390, height: 844 });
+  // The sidebar becomes the closed sheet by sliding down (`transition: transform .3s`): it is
+  // measured once it has arrived, not on its way (`finished` resolves without JavaScript too).
+  await page.evaluate(() => Promise.all(document.querySelector(".sidebar").getAnimations().map((animation) => animation.finished)));
   const phone = await page.evaluate(() => {
     const sidebar = document.querySelector(".sidebar");
     const state = document.querySelector(".sp-body .state").getBoundingClientRect();

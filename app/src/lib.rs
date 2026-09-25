@@ -13,6 +13,7 @@ pub mod bookmarks;
 pub mod combobox;
 pub mod data;
 pub mod format;
+pub mod ground;
 pub mod icons;
 pub mod local;
 pub mod myprogram;
@@ -34,6 +35,7 @@ use leptos_router::hooks::use_location;
 use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::bookmarks::Bookmarks;
+use crate::ground::{Crown, Ground};
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::legal::{ImprintPage, PrivacyPage};
@@ -101,7 +103,9 @@ pub fn asset(path: &str) -> String {
     use_context::<BuildId>().map_or_else(|| path.to_string(), |build| build.asset(path))
 }
 
-/// Runs before the first paint: marks the document as scripted and applies what this browser
+/// Runs before the first paint: marks the document as scripted, names the season the birch is
+/// drawn in (`data-season`: March–May spring, June–August summer, September–November autumn,
+/// December–February winter; the server's page is the same all year, R9), and applies what this browser
 /// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps; the
 /// colour of the browser's own chrome (`theme-color`, `THEME_DARK`) follows the theme. Such personal
 /// view settings live in localStorage, never in the URL and never in server HTML (R9). A browser
@@ -109,7 +113,7 @@ pub fn asset(path: &str) -> String {
 /// it is the app's, and the page keeps its room from the first paint, so the list does not move
 /// when the app takes over (R15). Public for the one document the server writes without the app:
 /// the login page of closed testing.
-pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem('betula.myprogram.v1')||''))d.classList.add('mine')}catch(e){}";
+pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem('betula.myprogram.v1')||''))d.classList.add('mine')}catch(e){}";
 
 /// The opt-in to the fade between pages, in the head of every document the server writes (this
 /// shell and the login page of closed testing). Not in app.css: Chromium decides whether a new
@@ -185,6 +189,7 @@ pub fn App() -> impl IntoView {
             <pending::Bind/>
             <FollowTabs/>
             <a class="skip-link" href="#content">"Zum Inhalt springen"</a>
+            <Crown/>
             <Rail/>
             <div class="main">
                 <TopBar/>
@@ -203,8 +208,8 @@ pub fn App() -> impl IntoView {
                     </Routes>
                     <skeleton::PendingPage/>
                 </main>
-                <SiteFoot/>
             </div>
+            <Ground/>
             <nav class="bottomnav" aria-label="Navigation"><NavItems/></nav>
         </Router>
     }
@@ -278,40 +283,11 @@ fn Rail() -> impl IntoView {
             <a class="logo hit" href=url::HOME aria-label="Betula, zur Startseite"><ui::Mark/></a>
             <nav aria-label="Hauptnavigation"><NavItems/></nav>
             <div class="rail-end">
-                <LegalLink/>
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label="Hell oder dunkel">
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
                 </button>
             </div>
         </aside>
-    }
-}
-
-/// Impressum and Datenschutz one step away from every page (§ 5 DDG: easy to find, always within
-/// reach): at the end of the rail on a wide screen, and at the foot of the page on a phone, which
-/// has no rail (`SiteFoot`). The two pages link each other. Never marked as current: the legal
-/// pages belong to the area „Start", whose tab says where the visitor is.
-#[component]
-fn LegalLink() -> impl IntoView {
-    view! {
-        <a class="icon-btn legal-link" href=url::IMPRINT title="Impressum und Datenschutz" aria-label="Impressum und Datenschutz">
-            <Icon name="info"/>
-        </a>
-    }
-}
-
-/// The phone's way to Impressum and Datenschutz (`LegalLink`): the last line of every page, above
-/// the bottom bar. Hidden on a wide screen, where the rail has the link, and on the pages whose
-/// sidebar links both already (the start page, the legal pages).
-#[component]
-fn SiteFoot() -> impl IntoView {
-    view! {
-        <footer class="site-foot">
-            <nav aria-label="Rechtliches">
-                <a href=url::IMPRINT>"Impressum"</a>
-                <a href=url::PRIVACY>"Datenschutz"</a>
-            </nav>
-        </footer>
     }
 }
 

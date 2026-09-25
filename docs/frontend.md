@@ -38,7 +38,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
-| `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). One step from every page (§ 5 DDG: reachable at all times): the rail's last link (`LegalLink`) on a wide screen, the last line of the page on a phone (`SiteFoot`, left out where the sidebar links both), and the start page's sidebar. The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
+| `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -782,11 +782,9 @@ never the hidden theme or the phone's pictures. Colour: washes of the faculties'
 pictures, the ways into the catalog with a soft hue each (`--t-*`), the faculties in their map
 colours, the abilities in the accent's tint. The questions are an accordion in two groups, „Über
 Betula" and „Fürs Studium" (first semesters); the text stays in the page and in the FAQPage data.
-The sidebar: the sections (the current one follows the scroll, `nav[data-spy]` in `enhance.js`),
-the Datenstand and the versions as label | value rows — Folia's is `app::VERSION` („alpha-" + this
-crate's version), Radix's is `meta.radix_version` of the snapshot (`internal/version`; older
-snapshots say nothing, the page then says „nicht angegeben") — and at its foot Impressum and
-Datenschutz.
+The sidebar: the sections (the current one follows the scroll, `nav[data-spy]` in `enhance.js`)
+and the Datenstand as label | value rows. The versions and Impressum and Datenschutz moved into the
+ground at the end of every page on 2026-09-25 („The birch" below).
 
 The map (`catalog/src/graph.rs`): a dot per current program, a line where two curricula share
 modules (Jaccard; modules of more than 40 programs are ignored), a force layout without
@@ -817,6 +815,72 @@ closer than about the spacing of an even sheet; `ISLAND`), each a blurred convex
 little generously, with the name at the largest island. The app shows only the outline of the
 picked program's faculty, and the programs of the other faculties step back a little.
 `node e2e/home.mjs` covers it.
+
+### The birch: crown and ground (2026-09-25)
+
+The owner's idea: leaves along the header, as if the view began where a birch's crown begins, and
+at the end of every page the ground with the roots. Picked on a design canvas of concepts
+(`design/birch/`), in the owner's words where they decided:
+
+- **The crown** is the edge of a crown as a cut-out silhouette in two tones („Scherenschnitt"; the
+  leaves behind at half strength), at colour level 4 of 5, the leaves drawn realistically. It
+  **follows the seasons** by the date: March to May yellow-green with yellow catkins, June to
+  August green, September to November gold with falling leaves and seeds, December to February bare
+  twigs with catkins. The script in `<head>` names the season (`data-season` on `<html>`), so the
+  server's HTML stays the same for everybody (R9); without it the crown is summer's.
+- **The ground** is the footer after all of a page, across everything right of the rail (the rail
+  stays whole), with the roots as calm abstract lines, quieter than the leaves. Its colour: light,
+  Lausitz sand with a little depth towards the bottom; dark, a cool depth from the tone of the
+  panels to almost black („Tiefe") — the brown soil of the first draft was „ein absolutes No-Go"
+  against the cool dark UI. It holds the wordmark with „Modulkatalog · inoffiziell", „Betula ist ein
+  inoffizielles Projekt und gehört nicht zur BTU.", Impressum and Datenschutz, the versions of Folia
+  and Radix (the roots: Radix brings the data; a snapshot without Radix's version leaves it out),
+  the date of the data, the semester and the source. In autumn fallen leaves lie on its edge.
+- **How it comes** („Kopfzeile bleibt, Tafeln werden kürzer", and after the first build: „der
+  Content darf nur EINE Scrollbar haben", the rail must not move, the panel on the left is „nur
+  abgeschnitten verkleinert" and does not scroll): on a wide screen the page scrolls inside the view
+  as always, and its scrollbar is the only one — the window's is never shown. The ground waits below
+  the window's edge, fixed to the window. While the page is not at its end the window has no room
+  to scroll (`data-ground="mid"` on `<html>`), so the wheel over the header or the rail changes
+  nothing. At its end (`end`) the window gets room for exactly the ground and the gap above it;
+  the next turn of the wheel goes on from the page to the window, and as far as the window
+  scrolls, the ground comes up and the view gets shorter (`in`). `enhance.js` writes how far
+  straight onto the boxes that move, once per frame (the view's height, the ground's shift, the
+  bodies of the panels beside the page); the first build set a custom property on `<html>`, and
+  the browser worked out the style of the whole page again in every frame — „mega laggy": a glide
+  into the ground and back on the start page cost 391 ms of style, now 48 (plain scrolling there:
+  22), with no long frame left. The rail and the view stick to the window's top, so nothing else
+  moves. The page stays at its end, so its end goes up with the ground (a short list, which has
+  no end to reach, simply gets a shorter panel); the panels beside it keep the height of their
+  content and are cut off by their shorter box (`.sidebar > .body`, `.filters > form`,
+  `.work > .detail > .scroll` get as much as the ground shows as a negative margin), and while the ground
+  shows the wheel over them goes to the window, so they do not scroll. Upwards the ground leaves
+  first (the wheel upwards belongs to the window while it shows), then the page scrolls. A page
+  that leaves its end under the ground all the same — its scrollbar, a question opened, another
+  page — sends the ground back down; Tab into the ground brings it up. Every panel ends 8 px above
+  the ground, as above the window's edge (a framed page keeps 1 px under its last panel, not 24).
+  Without `enhance.js` the ground lies after the view in the body's second row and the window
+  scrolls to it; on a phone the ground follows the page, full width, the bottom bar floating over
+  its lower part, and the crown carries the frosted background of the bar at the top.
+
+The pieces: `app/src/ground.rs` (`Crown`, `Ground`; the ground's data is `pages::ground`, the meta
+and the current semester), „the birch" in `app/assets/app.css`, the ground's behaviour in
+`app/assets/enhance.js`. The crown runs along the whole top on every screen (owner, the same
+evening: „durchgehend und auf allen Geräten"; the first build hung only where nothing stood — at
+the mark, at the end of the title column, right of the search — and fell apart into clumps with a
+thin edge between them and a gap on wide screens). Two masks per season (`app/assets/birch/`): a
+tile of 1200 px that repeats to the right edge, dense at the top and hanging deeper and shallower in
+long waves (never below 46 px, so nothing hangs out under the search), and at the left end a head of
+420 px: the mark, and over the title a clearing where only the crown's edge hangs in, the twigs at
+its sides leaning away („ein natürlicher Platz für die Schrift", as the name had it before). The
+head ends in the tile's own end, and the tile is cut to its box from 420 px on (`mask-clip:
+content-box`), so the seam does not show and nothing is drawn twice. A phone has no title in its
+bar and shows the tile alone. The mark and the search stand in front of the crown and cover it.
+The masks are coloured by tokens (`--crown`, `--crown-ck` for spring's catkins, per season and
+theme), so the same files serve light and dark. `node design/birch/birch.mjs` draws all
+masks, the roots and the leaf litter again (deterministic, seeded); the server serves them under
+`/assets/birch/` (`api::birch`), and a server test fetches every mask the stylesheet names.
+`node e2e/ground.mjs` drives it with a real wheel.
 
 ### Search engines (`app/src/seo.rs`, 2026-09-20)
 
@@ -1422,6 +1486,18 @@ scrolling (the last rows at its end, the page keeping its height, no two rows ov
 `page` following).
 
 ```bash
+cd e2e && node ground.mjs
+```
+
+drives the ground on a wide screen with a real wheel: the window without a scrollbar and without
+room while the page is not at its end (the wheel over the header or the rail moves nothing), the
+ground coming up at the end with the rail and the header standing, the page's end and the panel
+beside it 8 px above it, the panel cut off and not scrolled by the wheel, upwards the ground
+leaving first, a short list bringing it at once without its rows moving, the end of the whole
+virtual list going up with it, a question opened and a page opened from the ground sending it
+away, Tab bringing it up; on a phone the ground at the end of the page.
+
+```bash
 cd e2e && node pwa.mjs
 ```
 
@@ -1477,10 +1553,11 @@ reopening the module, an area beside the page with its modules (and a module pic
 coming back to the area), a requirement of the plan with its numbers and its ways on, the
 catalog's tab unchanged by a module seen in full screen out of a program, matrix and list with
 the choice remembered in this browser only, the areas as groups of rows with the sidebar leading
-to each of them without a history entry, all modules one line high with their area, and on a
-phone the plan as a list without a switch and a page that does not scroll sideways, a module becoming the page
-with one tap and one history entry and „Zurück" leading back, an area becoming the page and a
-module picked out of it leading back to the area.
+to each of them without a history entry, „Mein Plan" leading to all of the program's modules in the
+catalog (as many as the head counts), and on a phone the plan as a list without a switch and a
+page that does not scroll sideways, a module becoming the page with one tap and one history entry
+and „Zurück" leading back, an area becoming the page and a module picked out of it leading back to
+the area.
 
 ```bash
 cd e2e && GATE_PASSWORD=… node gate.mjs http://127.0.0.1:8086

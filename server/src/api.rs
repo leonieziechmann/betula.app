@@ -343,6 +343,28 @@ pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<Strin
     asset(&state, &headers, "image/webp", body)
 }
 
+/// `GET /assets/birch/<name>.svg`: the birch around the app — the crown along the top in each
+/// season and the roots of the ground (`design/birch/birch.mjs` draws them; the stylesheet colours
+/// them). Embedded like every other asset.
+pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+    let body: &'static [u8] = match file.as_str() {
+        "spring-crown.svg" => include_bytes!("../../app/assets/birch/spring-crown.svg"),
+        "spring-crown-ck.svg" => include_bytes!("../../app/assets/birch/spring-crown-ck.svg"),
+        "spring-crown-head.svg" => include_bytes!("../../app/assets/birch/spring-crown-head.svg"),
+        "spring-crown-head-ck.svg" => include_bytes!("../../app/assets/birch/spring-crown-head-ck.svg"),
+        "summer-crown.svg" => include_bytes!("../../app/assets/birch/summer-crown.svg"),
+        "summer-crown-head.svg" => include_bytes!("../../app/assets/birch/summer-crown-head.svg"),
+        "autumn-crown.svg" => include_bytes!("../../app/assets/birch/autumn-crown.svg"),
+        "autumn-crown-head.svg" => include_bytes!("../../app/assets/birch/autumn-crown-head.svg"),
+        "winter-crown.svg" => include_bytes!("../../app/assets/birch/winter-crown.svg"),
+        "winter-crown-head.svg" => include_bytes!("../../app/assets/birch/winter-crown-head.svg"),
+        "roots.svg" => include_bytes!("../../app/assets/birch/roots.svg"),
+        "litter.svg" => include_bytes!("../../app/assets/birch/litter.svg"),
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    asset(&state, &headers, "image/svg+xml", body)
+}
+
 pub async fn og_image(State(state): State<AppState>, headers: HeaderMap) -> Response {
     asset(&state, &headers, "image/png", include_bytes!("../../app/assets/og.png"))
 }

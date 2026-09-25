@@ -65,14 +65,17 @@ fn frame(shape: Shape) -> AnyView {
             .into_any(),
         ),
         Shape::Module => framed(Side::Toc(8), module().into_any()),
-        // A semester of the Studienplan: its head (the semester, the numbers), the legend of its
-        // modules, and the Regelwoche.
+        // The Stundenplan: its head (the semester, the numbers) over the Regelwoche, and its
+        // modules in a column beside them where the page is wide enough (`.sk-plan`, as the page
+        // lays them out).
         Shape::Studyplan => framed(Side::Filters(&[3, 5, 3]), view! {
             <div class="page-inner">
-                <div class="panel sk-sweep sk-block sk-fill">
-                    {lines(&["sk-w3 sk-big", "sk-w5"])}
-                    <div class="sk-chips">{bar("sk-pill")}{bar("sk-pill")}{bar("sk-pill")}</div>
-                    <i class="sk sk-week sk-week-tall"></i>
+                <div class="panel sk-sweep sk-block sk-fill sk-plan">
+                    <div class="sk-plan-main">
+                        {lines(&["sk-w3 sk-big", "sk-w5"])}
+                        <i class="sk sk-week sk-week-tall"></i>
+                    </div>
+                    {lines(&["sk-w2", "sk-w6 sk-tall", "sk-w3", "sk-w5 sk-tall", "sk-w3", "sk-w6 sk-tall", "sk-w3"])}
                 </div>
             </div>
         }.into_any()),

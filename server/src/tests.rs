@@ -330,8 +330,8 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 }
 
 /// Impressum and Datenschutz are there without a catalog, name who runs Betula and how to reach
-/// them, and every page leads to them (§ 5 DDG): the rail on a wide screen, the foot of the page
-/// on a phone. The privacy notice has every part its sidebar lists. Needs no snapshot.
+/// them, and every page leads to them (§ 5 DDG): the ground at its end. The privacy notice has
+/// every part its sidebar lists. Needs no snapshot.
 #[tokio::test(flavor = "multi_thread")]
 async fn legal_pages_are_one_step_from_every_page() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("legal")).unwrap()));
@@ -351,16 +351,14 @@ async fn legal_pages_are_one_step_from_every_page() {
         assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, part.heading);
     }
 
-    // Any other page, here the program overview, which says that it has no catalog.
+    // Any other page, here the program overview, which says that it has no catalog: the ground at
+    // its end (`app::ground`) links both.
     let (status, _, body) = request(&router, catalog::url::PROGRAMS, &[]).await;
     let page = String::from_utf8(body).unwrap();
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
-    let between = |start: &str, end: &str| page.split(start).nth(1).and_then(|rest| rest.split(end).next()).unwrap_or_default().to_string();
-    let rail = between("<aside class=\"rail\">", "</aside>");
-    assert!(rail.contains(&format!("href=\"{}\"", catalog::url::IMPRINT)), "the rail: {rail}");
-    let foot = between("<footer class=\"site-foot\">", "</footer>");
+    let ground = page.split("<footer class=\"ground\">").nth(1).and_then(|rest| rest.split("</footer>").next()).unwrap_or_default();
     for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
-        assert!(foot.contains(&format!("href=\"{path}\"")), "the foot of the page: {foot}");
+        assert!(ground.contains(&format!("href=\"{path}\"")), "the ground: {ground}");
     }
 }
 
@@ -439,9 +437,9 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let home = String::from_utf8(body).unwrap();
     assert!(head(&home).contains("href=\"https://catalog.example/\" rel=\"canonical\"") && !head(&home).contains("noindex"));
     assert!(home.contains("class=\"map map-wide\"") && home.contains("class=\"map map-tall\""), "the landing page draws the map the snapshot was opened with");
-    // Impressum and Datenschutz: linked from the start page's sidebar (and from every page,
-    // `legal_pages_are_one_step_from_every_page`), indexed once they are final (deploy/ship.sh
-    // keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).
+    // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
+    // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
+    // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).
     for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
         assert!(home.contains(&format!("href=\"{path}\"")), "the start page links {path}");
         let (status, _, body) = request(&router, path, &[]).await;
@@ -497,6 +495,17 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, content_type), "{path}");
         assert!(body.starts_with(magic), "{path}");
     }
+    // The birch: every mask the stylesheet names is served (a name it misses would leave a hole
+    // in the crown or the ground without any error).
+    let stylesheet = include_str!("../../app/assets/app.css");
+    let masks: std::collections::BTreeSet<&str> = stylesheet.split("url(\"").skip(1).filter_map(|rest| rest.split('"').next()).filter(|url| url.starts_with("/assets/birch/")).collect();
+    assert!(masks.len() >= 12, "{masks:?}");
+    for path in masks {
+        let (status, headers, body) = request(&router, path, &[]).await;
+        assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/svg+xml"), "{path}");
+        assert!(body.starts_with(b"<svg"), "{path}");
+    }
+    assert_eq!(request(&router, "/assets/birch/no-such-season.svg", &[]).await.0, StatusCode::NOT_FOUND);
     // A module and a program have their own picture: named in the head with the site's outside
     // address, drawn on the first request, kept after that, and answered with 304 to its ETag.
     assert!(module.contains("content=\"https://catalog.example/cards/module/11101.png\"") && !module.contains("/assets/og.png"), "{module}");

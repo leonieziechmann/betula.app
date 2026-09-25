@@ -154,9 +154,8 @@ fn LegalPage(page: Legal) -> impl IntoView {
                 }).collect_view()}
             </nav>
         })}
-        <div class="fgroup">
-            <p class="hint">"Betula ist ein inoffizielles Projekt und gehört nicht zur BTU Cottbus-Senftenberg."</p>
-        </div>
+        // That Betula is not the BTU's says the ground at the end of every page (`ground::Ground`),
+        // and the imprint at length.
     };
     view! {
         <Title text=page.title()/>

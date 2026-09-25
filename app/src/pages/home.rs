@@ -169,10 +169,10 @@ pub fn HomePage() -> impl IntoView {
     let loaded = source.and_then(|source| source.run(|db| pages::home(db, &queries)));
     let map = use_context::<ProgramMapHandle>().map(|handle| handle.0);
 
+    // The versions and the legal links are the ground's, at the end of every page (`ground.rs`).
     let sidebar = {
         let facts = loaded.clone().ok();
         move || {
-            let radix = facts.as_ref().map(|home| home.overview.meta.radix_version.clone());
             view! {
                 // The section the page is at is marked while it scrolls (`data-spy`, enhance.js).
                 <nav class="toc jumps home-toc" data-spy="" aria-label="Auf dieser Seite">
@@ -194,24 +194,6 @@ pub fn HomePage() -> impl IntoView {
                         </dl>
                     </div>
                 })}
-                <div class="fgroup">
-                    <p class="flabel label">"Version"</p>
-                    <dl class="kv">
-                        <div><dt><Icon name="leaf"/>"Folia"<small>"Web-App"</small></dt><dd class="ver">{crate::VERSION}</dd></div>
-                        // The Radix that built the data shown (older snapshots do not say).
-                        {radix.map(|version| match version {
-                            Some(version) => view! { <div><dt><Icon name="database"/>"Radix"<small>"Daten"</small></dt><dd class="ver">{version}</dd></div> }.into_any(),
-                            None => view! { <div><dt><Icon name="database"/>"Radix"<small>"Daten"</small></dt><dd class="quiet">"nicht angegeben"</dd></div> }.into_any(),
-                        })}
-                    </dl>
-                </div>
-                <footer class="side-foot">
-                    <p class="side-note">"Betula ist ein inoffizielles Projekt und gehört nicht zur BTU."</p>
-                    <nav class="side-legal" aria-label="Rechtliches">
-                        <a href=url::IMPRINT><Icon name="info"/>"Impressum"</a>
-                        <a href=url::PRIVACY><Icon name="shield-check"/>"Datenschutz"</a>
-                    </nav>
-                </footer>
             }
         }
     };

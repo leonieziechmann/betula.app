@@ -226,7 +226,8 @@ fn revoke(url: &str) {
 
 /// „Kalender": „.ics herunterladen", and „Abonnieren" with Apple, Google, Outlook and „Adresse
 /// kopieren"; a note when the plan has moved on from the address last handed out, or when more is
-/// hidden than an address carries. Nothing for a semester without a planned module.
+/// hidden than an address carries. For a semester without a planned module both are greyed out:
+/// the group stays where it is (owner, 2026-09-25: the sidebar holds still).
 #[component]
 pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
     // ---- the subscription
@@ -240,7 +241,6 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
             })
         })
     });
-    let shown = Memo::new(move |_| abo.with(Option::is_some));
     let offered = Memo::new(move |_| abo.with(|abo| abo.as_ref().is_some_and(|abo| abo.offer != Offer::Nothing)));
     let too_long = Memo::new(move |_| abo.with(|abo| abo.as_ref().is_some_and(|abo| abo.offer == Offer::TooLong)));
     let stale = Memo::new(move |_| abo.with(|abo| abo.as_ref().is_some_and(|abo| abo.stale)));
@@ -382,121 +382,116 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
         }
     };
 
-    move || {
-        shown.get().then(|| {
-            view! {
-                <div class="fgroup actions">
-                    <p class="flabel label">"Kalender"</p>
-                    // Without a file the link has no address: it downloads nothing, rather than
-                    // the page.
-                    <a
-                        class="action"
-                        node_ref=anchor
-                        href=move || href.get()
-                        download=move || name.get()
-                        aria-disabled=move || none.with(Option::is_some).then_some("true")
-                        on:pointerenter=move |_| make()
-                        on:focus=move |_| make()
-                        on:click=follow
-                    >
-                        <Icon name="download"/>
-                        <span>".ics herunterladen"{move || none.get().map(|text| view! { <small>{text}</small> })}</span>
-                    </a>
-                    {move || {
-                        offered.get().then(|| {
-                            view! {
-                                <button
-                                    class="action"
-                                    type="button"
-                                    id=ABO_ID
-                                    aria-expanded=move || if open.get() { "true" } else { "false" }
-                                    aria-controls=WAYS_ID
-                                    on:click=move |_| open.update(|open| *open = !*open)
-                                >
-                                    <Icon name="calendar-plus"/>
-                                    <span>"Abonnieren"</span>
-                                </button>
-                            }
-                        })
-                    }}
-                    {move || {
-                        if !open.get() || !offered.get() {
-                            return ().into_any();
-                        }
-                        if too_long.get() {
-                            return view! {
-                                <div class="sp-sub" id=WAYS_ID>
-                                    <p class="note note-action ask">
-                                        <span>"Zu viel ausgeblendet für ein Abo."</span>
-                                        // A stale address's note below has the button already.
-                                        {move || (!stale.get()).then(|| view! { <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button> })}
-                                    </p>
-                                </div>
-                            }
-                            .into_any();
-                        }
-                        let Some(ways) = ways.get() else { return ().into_any() };
-                        view! {
-                            <div class="sp-sub" id=WAYS_ID>
-                                <a class="action" href=ways.apple rel="external" on:click=move |_| remember() on:auxclick=move |_| remember() on:contextmenu=move |_| remember()>
-                                    "Apple Kalender"
-                                </a>
-                                <a
-                                    class="action"
-                                    href=ways.google
-                                    target="_blank"
-                                    rel="external noopener"
-                                    on:click=move |_| remember()
-                                    on:auxclick=move |_| remember()
-                                    on:contextmenu=move |_| remember()
-                                >
-                                    "Google Kalender"
-                                </a>
-                                <a
-                                    class="action"
-                                    href=ways.outlook
-                                    target="_blank"
-                                    rel="external noopener"
-                                    on:click=move |_| remember()
-                                    on:auxclick=move |_| remember()
-                                    on:contextmenu=move |_| remember()
-                                >
-                                    "Outlook"
-                                </a>
-                                <button class="action" type="button" data-action="copy-text" data-absolute="" data-text=ways.path on:click=move |_| remember()>
-                                    <Icon name="copy"/>
-                                    <span>"Adresse kopieren"</span>
-                                </button>
-                                <p class="hint">"Die Adresse enthält Semester, Module und Ausgeblendetes; dein Kalender holt Änderungen selbst (Google etwa täglich)."</p>
-                            </div>
-                        }
-                        .into_any()
-                    }}
-                    {move || {
-                        stale.get().then(|| {
-                            view! {
-                                <p class="note note-action ask">
-                                    <span>"Abo veraltet: Plan seitdem geändert"</span>
-                                    // The way to an address the calendar can follow: a new one, or,
-                                    // with too much hidden for one, back to all Termine.
-                                    {move || {
-                                        copyable.get().then(|| {
-                                            view! {
-                                                <button class="mini hit" type="button" data-action="copy-text" data-absolute="" data-text=move || path.get() on:click=renew>
-                                                    "Neue Adresse kopieren"
-                                                </button>
-                                            }
-                                        })
-                                    }}
-                                    {move || too_long.get().then(|| view! { <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button> })}
-                                </p>
-                            }
-                        })
-                    }}
-                    {move || renewed_shown.get().then(|| view! { <p class="action note-action"><Icon name="check"/><span>"Neue Adresse kopiert"</span></p> })}
-                </div>
-            }
-        })
+    view! {
+        <div class="fgroup actions">
+            <p class="flabel label">"Kalender"</p>
+            // Without a file the link has no address: it downloads nothing, rather than
+            // the page.
+            <a
+                class="action"
+                node_ref=anchor
+                href=move || href.get()
+                download=move || name.get()
+                aria-disabled=move || none.with(Option::is_some).then_some("true")
+                on:pointerenter=move |_| make()
+                on:focus=move |_| make()
+                on:click=follow
+            >
+                <Icon name="download"/>
+                <span>".ics herunterladen"{move || none.get().map(|text| view! { <small>{text}</small> })}</span>
+            </a>
+            <button
+                class="action"
+                type="button"
+                id=ABO_ID
+                aria-disabled=move || (!offered.get()).then_some("true")
+                aria-expanded=move || if open.get() && offered.get() { "true" } else { "false" }
+                aria-controls=WAYS_ID
+                on:click=move |_| {
+                    if offered.get_untracked() {
+                        open.update(|open| *open = !*open);
+                    }
+                }
+            >
+                <Icon name="calendar-plus"/>
+                <span>"Abonnieren"</span>
+            </button>
+            {move || {
+                if !open.get() || !offered.get() {
+                    return ().into_any();
+                }
+                if too_long.get() {
+                    return view! {
+                        <div class="sp-sub" id=WAYS_ID>
+                            <p class="note note-action ask">
+                                <span>"Zu viel ausgeblendet für ein Abo."</span>
+                                // A stale address's note below has the button already.
+                                {move || (!stale.get()).then(|| view! { <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button> })}
+                            </p>
+                        </div>
+                    }
+                    .into_any();
+                }
+                let Some(ways) = ways.get() else { return ().into_any() };
+                view! {
+                    <div class="sp-sub" id=WAYS_ID>
+                        <a class="action" href=ways.apple rel="external" on:click=move |_| remember() on:auxclick=move |_| remember() on:contextmenu=move |_| remember()>
+                            "Apple Kalender"
+                        </a>
+                        <a
+                            class="action"
+                            href=ways.google
+                            target="_blank"
+                            rel="external noopener"
+                            on:click=move |_| remember()
+                            on:auxclick=move |_| remember()
+                            on:contextmenu=move |_| remember()
+                        >
+                            "Google Kalender"
+                        </a>
+                        <a
+                            class="action"
+                            href=ways.outlook
+                            target="_blank"
+                            rel="external noopener"
+                            on:click=move |_| remember()
+                            on:auxclick=move |_| remember()
+                            on:contextmenu=move |_| remember()
+                        >
+                            "Outlook"
+                        </a>
+                        <button class="action" type="button" data-action="copy-text" data-absolute="" data-text=ways.path on:click=move |_| remember()>
+                            <Icon name="copy"/>
+                            <span>"Adresse kopieren"</span>
+                        </button>
+                        <p class="hint">"Die Adresse enthält Semester, Module und Ausgeblendetes; dein Kalender holt Änderungen selbst (Google etwa täglich)."</p>
+                    </div>
+                }
+                .into_any()
+            }}
+            {move || {
+                stale.get().then(|| {
+                    view! {
+                        <p class="note note-action ask">
+                            <span>"Abo veraltet: Plan seitdem geändert"</span>
+                            // The way to an address the calendar can follow: a new one, or,
+                            // with too much hidden for one, back to all Termine.
+                            {move || {
+                                copyable.get().then(|| {
+                                    view! {
+                                        <button class="mini hit" type="button" data-action="copy-text" data-absolute="" data-text=move || path.get() on:click=renew>
+                                            "Neue Adresse kopieren"
+                                        </button>
+                                    }
+                                })
+                            }}
+                            {move || too_long.get().then(|| view! { <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button> })}
+                        </p>
+                    }
+                })
+            }}
+            {move || renewed_shown.get().then(|| view! { <p class="action note-action"><Icon name="check"/><span>"Neue Adresse kopiert"</span></p> })}
+        </div>
     }
 }
 
