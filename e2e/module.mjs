@@ -5,6 +5,9 @@
 // Phone: a tap opens the module's page directly (never the preview), the page has the order of the
 // preview (times and facts, then the description), back returns to the tapped row, and a shared
 // link with a preview becomes the page.
+// „Einplanen" and „Merken": one pair at the right end of the line of the badges, in the order of
+// the Tab key, wherever the line breaks; „Einplanen" keeps its width when pressed; what the plan
+// adds to it shows, and on the module's page the heading is as tall as the server's.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -110,6 +113,97 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   const deadline = await exams(server);
   check(deadline?.when.some(([when, title]) => when === "So bis 24:00" && title === "In QIS: So 23:45–24:00") && deadline.odd.length === 0, `exams: the deadline of 12000 does not read „So bis 24:00", unmarked: ${JSON.stringify(deadline)}`);
   await plain.close();
+}
+
+// ---------- „Einplanen" beside „Merken" ----------
+// Datenbanken (12330) has four badges, so the pair takes the next line in the preview, and on a
+// phone always. A plan in another semester and the finder's placeholder make the switch say more.
+{
+  const PLAN = "m\t2027S\t12330\t1790000000\t\np\t3\t2026W\t079-82-2008\t17\t1-1\t6\tfues\t\tFachübergreifendes Studium\n";
+  const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
+  const pair = (page, root, body) => page.evaluate(([root, body]) => {
+    const badges = document.querySelector(`${root} .badges`);
+    const [plan, mark, edge] = [badges.querySelector(".plan-toggle"), badges.querySelector(".mark-toggle"), document.querySelector(body)].map((el) => el.getBoundingClientRect());
+    const last = [...badges.querySelectorAll(":scope > .badge")].pop().getBoundingClientRect();
+    const middle = (r) => (r.top + r.bottom) / 2;
+    return {
+      together: Math.abs(middle(plan) - middle(mark)),
+      gap: mark.left - plan.right,
+      edge: Math.abs(mark.right - edge.right),
+      clear: plan.left >= last.right + 6 || plan.top >= last.bottom,
+      below: plan.top >= last.bottom,
+      tab: Boolean(badges.querySelector(".plan-toggle").compareDocumentPosition(badges.querySelector(".mark-toggle")) & Node.DOCUMENT_POSITION_FOLLOWING),
+      note: badges.querySelector(".plan-toggle > small")?.checkVisibility() ? badges.querySelector(".plan-toggle > small").textContent : null,
+      label: badges.querySelector(".plan-toggle > span").textContent,
+      width: plan.width,
+    };
+  }, [root, body]);
+  const expect = (where, seen) => check(seen.together <= 0.5 && Math.abs(seen.gap - 6) <= 0.5 && seen.edge <= 0.5 && seen.clear && seen.tab, `${where}: „Einplanen" and „Merken" are not one pair at the right end, in order: ${JSON.stringify(seen)}`);
+  const preview = ["#preview", "#preview .dbody .section"];
+  const onPage = [".module-page", ".module-grid > aside .section"];
+
+  for (const width of [960, 1100, 1500]) {
+    const { page, step, context } = await open({ viewport: { width, height: 900 } }, "/catalog?q=datenbanken&open=12330");
+    await page.waitForSelector("#preview .plan-toggle", { timeout: 8000 }).catch(() => problems.push(`preview at ${width}px: no „Einplanen"`));
+    const before = await pair(page, ...preview);
+    expect(`preview at ${width}px`, before);
+    if (width === 1500) {
+      await page.evaluate(() => document.activeElement?.blur());
+      await step("„Einplanen“ plans", () => page.click("#preview .plan-toggle"), () => document.querySelector("#preview .plan-toggle").getAttribute("aria-pressed") === "true" && !document.querySelector("#preview .plan-toggle").hasAttribute("aria-busy"));
+      const pressed = await pair(page, ...preview);
+      check(pressed.label === "Eingeplant" && Math.abs(pressed.width - before.width) < 0.5, `„Einplanen“ changes its width when pressed: ${before.width} → ${JSON.stringify(pressed)}`);
+      await step("and a second click takes it out", () => page.click("#preview .plan-toggle"), () => document.querySelector("#preview .plan-toggle").getAttribute("aria-pressed") === "false" && !localStorage.getItem("betula.studyplan.v1"));
+    }
+    await step("full page", () => page.click('#preview [data-action="fullscreen"]'), () => location.pathname === "/catalog/module/12330" && document.querySelector(".module-page .plan-toggle"));
+    expect(`the module's page at ${width}px`, await pair(page, ...onPage));
+    await context.close();
+  }
+
+  // With a plan: in the preview the switch says what the plan adds; on the page the sidebar says
+  // it, and the heading keeps the server's height.
+  const planned = async (options, path) => {
+    const context = await browser.newContext(options);
+    await context.addInitScript((plan) => localStorage.setItem("betula.studyplan.v1", plan), PLAN);
+    const page = await context.newPage();
+    page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
+    await page.goto(base + path, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+    return { page, context };
+  };
+  const server = async (options, path) => {
+    const context = await browser.newContext(options);
+    await context.route("**/pkg/**", (route) => route.abort());
+    const page = await context.newPage();
+    await page.goto(base + path, { waitUntil: "load" });
+    await page.evaluate(() => document.fonts.ready);
+    const hero = await page.evaluate(() => document.querySelector(".module-page > .hero").getBoundingClientRect().height);
+    await context.close();
+    return hero;
+  };
+  {
+    const { page, context } = await planned({ viewport: { width: 1500, height: 900 } }, "/catalog?q=datenbanken&fill=p3&open=12330");
+    await page.waitForFunction(() => document.querySelector("#preview .plan-toggle > small"), null, { timeout: 8000 }).catch(() => {});
+    const seen = await pair(page, ...preview);
+    expect("preview with a plan", seen);
+    // (The finder hands its placeholder to the preview once it has one; the other semester shows now.)
+    check(seen.label === "Einplanen" && Boolean(seen.note?.endsWith("geplant: SoSe 27")), `preview with a plan: the switch says ${JSON.stringify(seen)}`);
+    await context.close();
+  }
+  for (const [where, options] of [["1000px", { viewport: { width: 1000, height: 900 } }], ["phone", phone]]) {
+    const path = "/catalog/module/12330?plan=2026W&fill=p3";
+    const { page, context } = await planned(options, path);
+    await page.waitForFunction(() => document.querySelector(".sidebar .plan-toggle small")?.textContent.includes("geplant"), null, { timeout: 8000 }).catch(() => {});
+    await page.evaluate(() => document.fonts.ready);
+    const seen = await pair(page, ...onPage);
+    expect(`the module's page with a plan (${where})`, seen);
+    const side = await page.evaluate(() => document.querySelector(".sidebar .plan-toggle small")?.textContent);
+    check(side === "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027", `the module's page with a plan (${where}): the sidebar says ${side}`);
+    check(where === "phone" ? seen.below && seen.note?.startsWith("für „Fach") : seen.note === null, `the module's page with a plan (${where}): the switch says ${JSON.stringify(seen)}`);
+    const hero = await page.evaluate(() => document.querySelector(".module-page > .hero").getBoundingClientRect().height);
+    const before = await server(options, path);
+    check(Math.abs(hero - before) < 0.5, `the module's page with a plan (${where}): the heading is ${before}px before the takeover and ${hero}px after`);
+    await context.close();
+  }
 }
 
 // ---------- phone ----------

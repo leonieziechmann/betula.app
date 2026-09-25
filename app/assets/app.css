@@ -580,15 +580,18 @@ html:not(.js) .mark-toggle { display: none; }
 .row.missing .t b { font-weight: 560; color: var(--text-2); }
 .count-more { color: var(--text-3); font-weight: 450; }
 /* In the line of a module's badges (credits, turnus, language), at its right end, in the preview
-   and on the module's page: a switch with its shortcut, as tall as the toggles of the filter
-   panel; the badges stand on its middle. Where the line is full it takes the next one, still at
-   the right. The label keeps its width, so the switch does not change its size when „Merken"
-   becomes „Gemerkt". */
+   and on the module's page: „Einplanen" and „Merken", switches with their shortcuts, as tall as
+   the toggles of the filter panel; the badges stand on their middle. The two are one item of the
+   line (`.switches`, markup: p.badges > span.badge… + span.switches > button.plan-toggle +
+   button.mark-toggle): where the line is full they take the next one together, still at the
+   right. A label keeps its width, so a switch does not change its size when „Merken" becomes
+   „Gemerkt". */
 .badges { align-items: center; }
 /* Its right edge is the right edge of what stands under the heading (the body of a module is
    inset by 20px, the heading of the preview by 14px and that of the page by 18px). */
-.badges > .mark-switch { margin-left: auto; margin-right: 6px; }
-.module-page > .hero .badges > .mark-switch { margin-right: 2px; }
+.badges > .switches { min-width: 0; margin-left: auto; margin-right: 6px; display: flex; align-items: center; gap: 6px; }
+.module-page > .hero .badges > .switches { margin-right: 2px; }
+html:not(.js) .badges > .switches { display: none; }
 .mark-switch { --hit-y: 5px; --hit-x: 4px; min-height: 32px; padding: 0 7px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-weight: 600; font-size: 13.5px; transition: background .12s, color .12s, box-shadow .12s, transform .12s; }
 .mark-switch:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
 .mark-switch:active { transform: scale(.98); }
@@ -597,16 +600,27 @@ html:not(.js) .mark-toggle { display: none; }
 .mark-switch kbd { padding: 2px 6px; }
 .mark-switch[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
 .mark-switch[aria-pressed="true"] kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
-/* „Einplanen" beside „Merken" in the line of a module's badges (p.badges > span.badge… +
-   button.mark-toggle.mark-switch + button.plan-toggle.mark-switch): the pair at the line's right
-   end, „Merken" last, where it has always stood. On a phone the pair takes a line of its own, so
-   it is never split over two. */
-.badges > .mark-switch:has(+ .plan-toggle) { order: 2; margin-left: 0; }
-.badges > .plan-toggle.mark-switch, .module-page > .hero .badges > .plan-toggle.mark-switch { order: 1; margin-right: 0; }
+/* „Einplanen" keeps the width of „Eingeplant". What it says beyond that in the app (the
+   placeholder it plans for, the other semesters the module is planned in) is its small line: one
+   line that gives way first, so the pair never breaks in two. */
+.switches > .mark-toggle { flex: none; }
+.switches > .plan-toggle { min-width: 0; }
+.plan-toggle.mark-switch > span:first-of-type { flex: none; min-width: 70px; }
+.plan-toggle.mark-switch > small { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 500; opacity: .8; }
+/* On a module's page its sidebar says that under „Einplanen": the switch keeps the width the
+   server gave it, so the line does not break anew at the takeover (R15). */
+@media (min-width: 901px) {
+  .module-page > .hero .plan-toggle.mark-switch > small { display: none; }
+}
+/* On a phone the pair takes a line of its own, and the small line is the switch's second line,
+   in the switch's height: it has more room there than beside the label. */
 @media (max-width: 900px) {
-  .badges:has(> .plan-toggle)::after { content: ""; order: 1; flex-basis: 100%; margin-top: -6px; }
-  .badges > .plan-toggle.mark-switch, .module-page > .hero .badges > .plan-toggle.mark-switch { order: 2; }
-  .badges > .mark-switch:has(+ .plan-toggle) { order: 3; }
+  .badges > .switches { flex-basis: 100%; justify-content: flex-end; }
+  .plan-toggle.mark-switch > span:first-of-type { min-width: 77px; }
+  .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 8px; align-content: center; }
+  .plan-toggle.mark-switch:has(> small) > .icon { grid-row: span 2; }
+  .plan-toggle.mark-switch:has(> small) > span:first-of-type { line-height: 19px; }
+  .plan-toggle.mark-switch > small { font-size: 12.5px; line-height: 16px; }
 }
 /* Among the actions of a sidebar, and what else a sidebar's action can be: a button, a question. */
 button.action { width: 100%; text-align: left; }
@@ -688,7 +702,7 @@ a.slot { text-decoration: none; }
 .slot.once { background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
 /* Another planned module beside a module's own slots, named in a lighter weight than they are;
    under an hour (.brief) in one line, since a second would show only its top edge. */
-.slot.planned { background: transparent; color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 500; hyphens: auto; }
+.slot.planned { background: transparent; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 500; hyphens: auto; }
 .slot.planned.brief { white-space: nowrap; text-overflow: ellipsis; }
 /* An option of a choice not yet made. */
 .slot.alt { background: transparent; box-shadow: none; outline: 1px dashed var(--tint, var(--line-strong)); outline-offset: -1px; }
@@ -707,6 +721,8 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
 .note .icon { width: 16px; height: 16px; margin-top: 1px; }
 /* An explanation, not a warning: why a row of the plan names no module. */
 .note.quiet { background: var(--panel-2); color: var(--text-3); margin-top: 20px; }
+/* A soft exam warning under a module's exams (the plan beside it): as close as a warning. */
+#pruefungstermine > .note.quiet { margin-top: 10px; }
 /* The first thing under the head of a plan row or an area: where its modules are chosen. */
 .row-action { width: 100%; margin-top: 20px; }
 /* How one got to an area („Anwendungsfach / Mathematik"): each step leads back. */
@@ -1553,6 +1569,9 @@ a.sp-row:hover, .sp-row > a:hover { text-decoration: none; }
 .app .plan-toggle, .app .mine-toggle { visibility: visible; }
 html:not(.js) .plan-toggle, html:not(.js) .mine-toggle { display: none; }
 .plan-toggle[aria-busy="true"] { cursor: progress; }
+/* The line under „Einplanen" among a sidebar's actions (its semester, the placeholder, the other
+   semesters) ends in „…" where it is longer than the sidebar is wide; it never widens the list. */
+.actions > .plan-toggle { min-width: 0; }
 .mine-toggle[aria-pressed="true"] .icon { fill: currentColor; color: var(--text); }
 
 /* ---------- closed testing: the login page ----------

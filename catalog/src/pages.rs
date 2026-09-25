@@ -1131,8 +1131,10 @@ pub struct Overlay {
     /// deinen Plan (WiSe 2026/27)" or „Passt mit Übung Do 13:45". `None` when the module has no
     /// shown Termin with a time to compare.
     pub line: Option<(bool, String)>,
-    /// The line under „Prüfungstermine": the module's exam warnings against the plan.
-    pub exam_line: Option<String>,
+    /// The line under „Prüfungstermine": the module's exam warnings against the plan. `(true, …)`
+    /// warns, as one of them is hard (no Termin of either module avoids it); soft ones alone
+    /// („… · Erstermin 25.02. passt") are a quiet note (A.5).
+    pub exam_line: Option<(bool, String)>,
 }
 
 /// A recurring slot of another planned module in a module's week: the module, its title for the
@@ -1212,6 +1214,7 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, label: &str, mod
         t.exam_warnings.iter().filter(|w| w.a.module_id == module_id || w.b.module_id == module_id).collect();
     warnings.sort_by_key(|w| (!w.hard, w.day));
     let termine = if warnings.is_empty() { Vec::new() } else { exams::termine(&t.exams, &t.modules) };
+    let hard = warnings.iter().any(|w| w.hard);
     let mut texts: Vec<String> = Vec::new();
     for warning in warnings {
         let text = exam_text(warning, module_id, &termine, &title);
@@ -1219,7 +1222,7 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, label: &str, mod
             texts.push(text);
         }
     }
-    let exam_line = (!texts.is_empty()).then(|| texts.join("; "));
+    let exam_line = (!texts.is_empty()).then(|| (hard, texts.join("; ")));
 
     Overlay { planned, clashing, line, exam_line }
 }
@@ -1924,15 +1927,15 @@ mod studyplan_tests {
         // Mathematik IT-1's only sitting (148664), its first does not.
         let own = "Prüfung gleichzeitig mit Mathematik IT-1 (Diskrete Mathematik) (10.03.2027 11:00) · \
                    Erstermin 25.02. passt";
-        assert_eq!(line(&FS1, "11405").exam_line.as_deref(), Some(own));
+        assert_eq!(line(&FS1, "11405").exam_line, Some((false, own.to_string())));
         // The other way round, Mathematik IT-1 has no other sitting: the planned module's avoids it.
         let theirs = "Prüfung gleichzeitig mit Algorithmische Graphentheorie (10.03.2027 10:00) · \
                       Algorithmische Graphentheorie am 25.02. passt";
-        assert_eq!(line(&["11405"], "11112").exam_line.as_deref(), Some(theirs));
+        assert_eq!(line(&["11405"], "11112").exam_line, Some((false, theirs.to_string())));
         // 12079 (150766) sits on 12.03. and 16.03.; the second meets Theoretische Informatik.
         assert_eq!(
-            line(&["11787", "12202", "11213"], "12079").exam_line.as_deref(),
-            Some("Prüfung gleichzeitig mit Theoretische Informatik (16.03.2027 11:00) · Erstermin 12.03. passt")
+            line(&["11787", "12202", "11213"], "12079").exam_line,
+            Some((false, "Prüfung gleichzeitig mit Theoretische Informatik (16.03.2027 11:00) · Erstermin 12.03. passt".to_string()))
         );
         // Two free Übungen of one Thursday, the later one first among the options.
         assert_eq!(line(&FS1, "12112").line, Some((false, "Passt mit Übung Do 14:30 oder Do 16:30".to_string())));
@@ -2075,18 +2078,21 @@ mod studyplan_tests {
     fn the_overlay_names_the_exams_the_module_meets() {
         let p = exam("P", "90", "2027-02-11", "11:00", "13:00", "zentralcampus");
         let exam_line = |mine: DateRow| overlay_in(&[], &[p.clone(), mine], &["P", "M"]).exam_line;
+        // One Termin each: nothing avoids it, a warning.
+        let warns = |text: &str| Some((true, text.to_string()));
+        let quiet = |text: &str| Some((false, text.to_string()));
         assert_eq!(
-            exam_line(exam("M", "91", "2027-02-11", "12:00", "14:00", "zentralcampus")).as_deref(),
-            Some("Prüfung gleichzeitig mit Analysis I (11.02.2027 11:00)")
+            exam_line(exam("M", "91", "2027-02-11", "12:00", "14:00", "zentralcampus")),
+            warns("Prüfung gleichzeitig mit Analysis I (11.02.2027 11:00)")
         );
         assert_eq!(
-            exam_line(exam("M", "91", "2027-02-11", "13:30", "15:00", "senftenberg")).as_deref(),
-            Some("30 min bis Senftenberg nach Analysis I")
+            exam_line(exam("M", "91", "2027-02-11", "13:30", "15:00", "senftenberg")),
+            warns("30 min bis Senftenberg nach Analysis I")
         );
         let q = exam("P", "92", "2027-02-11", "11:00", "13:00", "senftenberg");
         let earlier = overlay_in(&[], &[q, exam("M", "91", "2027-02-11", "08:00", "10:00", "zentralcampus")], &["P", "M"]);
-        assert_eq!(earlier.exam_line.as_deref(), Some("60 min bis Senftenberg zu Analysis I"));
-        // A second Termin of M avoids it: the warning is soft and says so.
+        assert_eq!(earlier.exam_line, warns("60 min bis Senftenberg zu Analysis I"));
+        // A second Termin of M avoids it: the warning is soft, says so, and is quiet.
         let second = exam("M", "93", "2027-03-11", "11:00", "13:00", "zentralcampus");
         let soft = overlay_in(
             &[],
@@ -2094,7 +2100,7 @@ mod studyplan_tests {
             &["P", "M"],
         );
         let avoided = "Prüfung gleichzeitig mit Analysis I (11.02.2027 11:00) · Zweittermin 11.03. passt";
-        assert_eq!(soft.exam_line.as_deref(), Some(avoided));
+        assert_eq!(soft.exam_line, quiet(avoided));
         assert_eq!(exam_line(exam("M", "91", "2027-02-12", "11:00", "13:00", "zentralcampus")), None);
 
         // M's earlier sitting avoids the overlap of its later one: that is its Erstermin.
@@ -2105,7 +2111,7 @@ mod studyplan_tests {
             &["P", "M"],
         );
         let avoided = "Prüfung gleichzeitig mit Analysis I (11.02.2027 11:00) · Erstermin 04.02. passt";
-        assert_eq!(earlier.exam_line.as_deref(), Some(avoided));
+        assert_eq!(earlier.exam_line, quiet(avoided));
         // Only P's other sitting avoids it: P's is named.
         let theirs = overlay_in(
             &[],
@@ -2117,7 +2123,7 @@ mod studyplan_tests {
             &["P", "M"],
         );
         let avoided = "Prüfung gleichzeitig mit Analysis I (11.02.2027 11:00) · Analysis I am 18.02. passt";
-        assert_eq!(theirs.exam_line.as_deref(), Some(avoided));
+        assert_eq!(theirs.exam_line, quiet(avoided));
         // Only a change of both avoids it: P at 08:00 meets M at 08:00 and M at 09:00, M at 08:00
         // meets P at 09:00, and the two at 09:00 are one exam of both.
         let both = overlay_in(
@@ -2131,7 +2137,7 @@ mod studyplan_tests {
             &["P", "M"],
         );
         let avoided = "Prüfung gleichzeitig mit Analysis I (11.02.2027 08:00) · andere Termine passen";
-        assert_eq!(both.exam_line.as_deref(), Some(avoided));
+        assert_eq!(both.exam_line, quiet(avoided));
     }
 
     /// A program's plans for the import, and „Mein Studiengang" with an id the snapshot has or

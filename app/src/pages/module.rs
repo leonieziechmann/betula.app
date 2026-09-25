@@ -22,7 +22,7 @@ use std::collections::BTreeSet;
 use catalog::exam_reading::{self, ExamReading, Reason, Slot};
 use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind, TurnusSeason};
 use catalog::pages::{self, ModuleData, Overlay};
-use catalog::rows::Prerequisite;
+use catalog::rows::{Prerequisite, Semester};
 use catalog::rows_detail::EventDate;
 use catalog::timetable::day::{clock, minutes, Day};
 use catalog::timetable::grid;
@@ -348,18 +348,20 @@ pub fn ModuleFull(
     }
 }
 
-/// The snapshot's current semester, and the semester of the module's newest Termine (teaching or
-/// exams): what „Einplanen" aims with (`studyplan::target_semester`).
-fn semesters_of(data: &ModuleData) -> (Option<SemesterKey>, Option<SemesterKey>) {
-    let current = data.semesters.iter().find(|s| s.is_current).and_then(|s| SemesterKey::parse(&s.key));
-    let newest = data.schedule.iter().chain(&data.exams).filter_map(|d| SemesterKey::parse(&d.semester_key)).max();
+/// The snapshot's current semester, and the semester of the module's newest teaching Termine (the
+/// week's, `Schedule`): what „Einplanen" aims with (`studyplan::target_semester`). Exams do not
+/// count: a module taught in summer holds retakes in the winter too, and its only rows of a winter
+/// would plan it into a semester it is not taught in, where its turnus says the next summer.
+fn semesters_of(semesters: &[Semester], schedule: &[EventDate]) -> (Option<SemesterKey>, Option<SemesterKey>) {
+    let current = semesters.iter().find(|s| s.is_current).and_then(|s| SemesterKey::parse(&s.key));
+    let newest = schedule.iter().filter_map(|d| SemesterKey::parse(&d.semester_key)).max();
     (current, newest)
 }
 
 /// „Einplanen" for the module. A snapshot always names its current semester; should one not, the
 /// module's newest one stands in, and without either there is nothing to plan into.
 fn plan_button(data: &ModuleData, hint: Signal<Option<PlanHint>>, look: PlanLook) -> Option<impl IntoView> {
-    let (current, newest) = semesters_of(data);
+    let (current, newest) = semesters_of(&data.semesters, &data.schedule);
     let m = &data.module;
     current.or(newest).map(|current| {
         view! { <PlanButton id=m.id.clone() title=m.title.clone() turnus=m.turnus_season.clone() current newest hint look/> }
@@ -380,11 +382,15 @@ fn Heading(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
             {m.is_fues.then(|| view! { <span class="badge">"FÜS"</span> })}
             {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label().to_string()}</span> })}
             // „Merken" stands in the line of the credits, at its right end (owner, 2026-09-20), in
-            // the preview and on the module's page alike. Marking belongs to the browser app: the
-            // switch is part of server HTML so that nothing moves at the takeover, and the
-            // stylesheet shows it once the app runs (R9, R15). „Einplanen" beside it, the same way.
-            <MarkButton id=m.id.clone() title=m.title.clone() look=MarkLook::Hero/>
-            {plan_button(&data, hint, PlanLook::Hero)}
+            // the preview and on the module's page alike, and „Einplanen" before it. The two are
+            // one item of the line, so that where it is full they take the next one together; in
+            // the order they are seen, for the Tab key. Marking and planning belong to the browser
+            // app: the switches are part of server HTML so that nothing moves at the takeover, and
+            // the stylesheet shows them once the app runs (R9, R15).
+            <span class="switches">
+                {plan_button(&data, hint, PlanLook::Hero)}
+                <MarkButton id=m.id.clone() title=m.title.clone() look=MarkLook::Hero/>
+            </span>
         </p>
     }
 }
@@ -529,11 +535,15 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     };
     // The exam line speaks of the plan's semester: under these exams only when they are of it.
     let exams_of_plan = exam_semester.as_ref().map(|(key, _)| key.clone()) == newest_key;
+    // A warning where no other Termin avoids it; else quiet, since it says which one passes (A.5).
     let exam_line = move || {
         exams_of_plan
             .then(|| overlay.with(|overlay| overlay.exam_line.clone()))
             .flatten()
-            .map(|text| view! { <p class="note"><Icon name="triangle-alert"/><span>{text}</span></p> })
+            .map(|(warn, text)| match warn {
+                true => view! { <p class="note"><Icon name="triangle-alert"/><span>{text}</span></p> }.into_any(),
+                false => view! { <p class="note quiet"><span>{text}</span></p> }.into_any(),
+            })
     };
 
     // An exam date is shown as read (`catalog::exam_reading`): the BTU's placeholder is no time,
@@ -987,6 +997,43 @@ mod tests {
         // No Termine, or no current semester: nothing to compare.
         assert!(!overlay_wanted(None, Some(key("2026W")), &others));
         assert!(!overlay_wanted(Some(key("2026W")), None, &others));
+    }
+
+    fn semester(text: &str, is_current: bool) -> Semester {
+        let at = key(text);
+        Semester {
+            key: at.key(),
+            season: catalog::labels::Code::parse(if at.winter { "winter" } else { "summer" }),
+            year: i64::from(at.year),
+            label: at.label(),
+            starts_on: String::new(),
+            ends_on: String::new(),
+            is_current,
+            teaching_events: 1,
+            exam_events: 1,
+        }
+    }
+
+    #[test]
+    fn einplanen_aims_with_the_teaching_not_with_retakes() {
+        use catalog::studyplan::PlanDoc;
+        let semesters = [semester("2026S", false), semester("2026W", true), semester("2027S", false)];
+        let aim = |schedule: &[EventDate]| {
+            let (current, newest) = semesters_of(&semesters, schedule);
+            let current = current.unwrap();
+            crate::studyplan::target_semester(current, newest, Some(TurnusSeason::Summer), None, &PlanDoc::default())
+        };
+        // Analysis II (11104), taught in summer: no teaching rows, its only row of WiSe 2026/27 an
+        // exam (a retake). The exam is no reason to plan it into the winter: the next summer.
+        assert_eq!(semesters_of(&semesters, &[]), (Some(key("2026W")), None));
+        assert_eq!(aim(&[]), key("2027S"));
+        // Taught last summer: the next summer too.
+        let taught = EventDate { semester_key: "2026S".into(), ..teaching("149001", "Vorlesung", "[unbenannt]", 2, ("09:15", "10:45"), "weekly", "2026-04-14", "2026-07-14") };
+        assert_eq!(semesters_of(&semesters, std::slice::from_ref(&taught)).1, Some(key("2026S")));
+        assert_eq!(aim(&[taught]), key("2027S"));
+        // Taught this winter after all: this winter, whatever the turnus says.
+        let now = teaching("149002", "Vorlesung", "[unbenannt]", 2, ("09:15", "10:45"), "weekly", "2026-10-13", "2027-01-26");
+        assert_eq!(aim(&[now]), key("2026W"));
     }
 
     #[test]
