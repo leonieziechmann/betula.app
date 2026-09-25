@@ -416,8 +416,6 @@ fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &B
         label: slot_label(event, titles),
         small: slot_small(&item.label, every, item.alt, item.from, &table.facts),
         title: title.join(" · "),
-        // The label begins with the kind's few letters already; a narrow slot cuts the name.
-        abbr: String::new(),
         class: if once { "once" } else { "tinted" },
         hue: Some(hue),
         alt: item.alt.is_some(),
@@ -649,9 +647,11 @@ fn agenda_blocks(table: &Timetable, weeks: &[AgendaWeek], base: &StudyplanUrl, t
         // An open choice is one line in the week, on the first day it could be attended, instead
         // of a line per option and day (owner review 2026-09-25).
         let choices = open_choices(table, week);
-        let mut said: BTreeSet<usize> = BTreeSet::new();
+        // Per choice, the day its line stands on.
+        let mut said: BTreeMap<usize, Day> = BTreeMap::new();
         let mut days = Vec::new();
         for day in &week.days {
+            let is_today = today == Some(day.day);
             let mut items = Vec::new();
             for item in &day.items {
                 let Some(e) = open_option(table, item) else {
@@ -660,8 +660,13 @@ fn agenda_blocks(table: &Timetable, weeks: &[AgendaWeek], base: &StudyplanUrl, t
                 };
                 let dates = choices.get(&e).map_or(&[][..], Vec::as_slice);
                 // A cancelled date is no day to attend, unless the week has no other.
-                if (item.cancelled.is_none() || dates.is_empty()) && said.insert(e) {
+                if (item.cancelled.is_none() || dates.is_empty()) && !said.contains_key(&e) {
+                    said.insert(e, day.day);
                     items.extend(choice_item(table, base, e, dates));
+                } else if is_today && said.get(&e) != Some(&day.day) {
+                    // Today keeps its line: the options that meet today stand as they are
+                    // („1 von 4 · LG 10/214"), below the week's line on an earlier day.
+                    items.extend(agenda_item(table, base, day.day, item));
                 }
             }
             if items.is_empty() && day.holiday.is_none() {
@@ -1491,6 +1496,37 @@ mod tests {
         let (_, first) = agenda_items(&blocks).into_iter().next().unwrap();
         assert!(first.href.starts_with("/studyplan?sem=2026W&open=12104&row=148370-"), "{}", first.href);
         assert!(first.class.ends_with(" alt") && first.title.contains("Mo 11:30–13:00 · Mi 11:30–13:00"), "{first:?}");
+
+        // Today keeps its line (review 2026-09-25): its options stand as they are, and on the day
+        // of the week's line nothing comes twice.
+        let on = |today: &str| {
+            let blocks = agenda_blocks(&open, &open.agenda(), &plain(), Some(d(today)));
+            let days: Vec<(String, bool, Vec<String>)> = blocks
+                .into_iter()
+                .filter_map(|block| match block {
+                    Block::Week { id, days, .. } if id == "kw-2026-41" || id == "kw-2026-42" => Some(days),
+                    _ => None,
+                })
+                .flatten()
+                .map(|day| (day.when, day.today, day.items.into_iter().map(|item| format!("{} {}", item.time, item.small)).collect()))
+                .collect();
+            days
+        };
+        let day = |when: &str, today: bool, items: &[&str]| (when.to_string(), today, items.iter().map(|item| item.to_string()).collect::<Vec<_>>());
+        assert_eq!(
+            on("2026-10-08"),
+            [
+                day("Mo 05.10.", false, &[" 1 von 4 (Mo, Mi, Do, Fr)"]),
+                day("Do 08.10.", true, &["11:30–13:00 1 von 4 · HG 0.20"]),
+                day("Mi 14.10.", false, &[" 1 von 4 (Mi, Do, Fr)"]),
+            ]
+        );
+        assert_eq!(on("2026-10-05").first(), Some(&day("Mo 05.10.", true, &[" 1 von 4 (Mo, Mi, Do, Fr)"])));
+        // Today's option is cancelled: it says so, and the week's line stands on the next day.
+        assert_eq!(
+            on("2026-10-12").get(1..),
+            Some(&[day("Mo 12.10.", true, &["11:30–13:00 1 von 4 · fällt aus · Krankheit"]), day("Mi 14.10.", false, &[" 1 von 4 (Mi, Do, Fr)"])][..])
+        );
 
         // Chosen: that group's dates, one line each, as every other Termin.
         let chosen = open.events.iter().flat_map(|event| &event.rows).find(|row| row.date.weekday == Some(3)).and_then(|row| row.key).unwrap();

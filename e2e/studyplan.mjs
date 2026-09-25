@@ -5,7 +5,8 @@
 //   3 persistence: the plan and „Mein Studiengang" live in this browser, survive a reload, follow
 //     another tab, read garbage as an empty plan, and never reach the server's HTML; the plan is an
 //     area of its own (its tab, the module beside it and in full, „Zurück");
-//   5 without the app: the explanation, no „Plan" in the rail, and on a phone the app's frame.
+//   5 without the app: the explanation, no „Plan" in the rail, and on a phone the app's frame;
+//   8 the week's labels: a cut first word ends a label, a module's own slots say their kinds.
 // Needs the snapshot whose current semester is WiSe 2026/27 (the plans below are of that
 // semester); another snapshot skips the blocks with a note. Prints {timings, problems} (block 7)
 // and fails on a page load after takeover, a console error, or a step that does not show up.
@@ -192,7 +193,46 @@ async function withoutTheApp() {
   await context.close();
 }
 
-const blocks = { 3: persistence, 5: withoutTheApp };
+// ---------- 8: the week's labels ----------
+// A slot's label breaks between words only; a word wider than its slot ends in „…", and a first
+// word that had to be cut ends the label (review 2026-09-25: „Mathe…" over „IT-1"). A module's
+// own slots say their kinds in few letters. On a module's page beside the plan and in the Woche,
+// on a desktop and on a phone.
+async function labels() {
+  // Per label: its words as shown, a cut one marked with „…"; the labels where a cut word is
+  // followed by a word still shown.
+  const probe = () => [...document.querySelectorAll(".week .slot > .l")].flatMap((label) => {
+    const bottom = label.getBoundingClientRect().bottom;
+    const words = [...label.querySelectorAll(":scope > .w")].filter((word) => word.getBoundingClientRect().top < bottom - 1);
+    const cut = (word) => { const text = word.firstElementChild ?? word; return text.scrollWidth > text.clientWidth + 0.5; };
+    const bad = words.slice(0, -1).some(cut);
+    return bad ? [words.map((word) => (cut(word) ? word.textContent.slice(0, 6) + "…" : word.textContent)).join(" / ")] : [];
+  });
+  const own = () => [...document.querySelectorAll(".week .slot:not(.planned) > .l")].map((label) => label.textContent).filter((text) => !/^(VL|Ü|Sem|Prak|Proj|Tut|Kons|Exk|Selbst|HA|Sonst)(\/(VL|Ü|Sem|Prak|Proj|Tut|Kons|Exk|Selbst|HA|Sonst))*$/.test(text));
+  for (const [width, height] of [[1500, 900], [390, 844]]) {
+    const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 600, hasTouch: width < 600 });
+    await context.addInitScript(([plan, mine, planText, mineText]) => { if (!localStorage.getItem(plan)) { localStorage.setItem(plan, planText); localStorage.setItem(mine, mineText); } }, [PLAN, MINE, FS1, MINE_FS1]);
+    const page = await context.newPage();
+    watch(page);
+    await page.goto(base + "/catalog/module/12102", { waitUntil: "domcontentloaded" });
+    await takeover(page);
+    await page.waitForFunction(() => Boolean(document.querySelector(".week .slot.planned")), null, { timeout: 8000 }).catch(() => problems.push(`${width}: the module's week shows no planned module beside it`));
+    const moduleWeek = await page.evaluate(probe);
+    check(moduleWeek.length === 0, `${width}: a module's week goes on under a cut word: ${JSON.stringify(moduleWeek)}`);
+    const words = await page.evaluate(own);
+    check(words.length === 0, `${width}: a module's own slots say more than their kinds: ${JSON.stringify(words)}`);
+    if (width > 900) {
+      await page.goto(base + "/studyplan?sem=2026W", { waitUntil: "domcontentloaded" });
+      await takeover(page);
+      await page.waitForFunction(() => Boolean(document.querySelector(".week .slot")), null, { timeout: 8000 }).catch(() => problems.push(`${width}: the Woche shows no slot`));
+      const woche = await page.evaluate(probe);
+      check(woche.length === 0, `${width}: the Woche goes on under a cut word: ${JSON.stringify(woche)}`);
+    }
+    await context.close();
+  }
+}
+
+const blocks = { 3: persistence, 5: withoutTheApp, 8: labels };
 const status = await (await fetch(base + "/api/status")).json().catch(() => null);
 const semester = status?.snapshot?.current_semester;
 if (semester !== "2026W") {

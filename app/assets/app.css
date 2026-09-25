@@ -703,26 +703,39 @@ button.action:hover { background: var(--panel-3); }
 .week .hours { grid-row: 2; display: grid; grid-auto-rows: 48px; font-size: 10.5px; color: var(--text-3); text-align: right; padding-right: 4px; }
 .week .col { grid-row: 2; position: relative; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px 48px); height: calc(var(--span) * 24px); }
 /* Slots that overlap on a day stand side by side: `--lane` of `--lanes` (week.rs), `--wide` lanes
-   wide (1 unless another planned module takes a slim lane beside the module's own). One lane is
-   the whole column less 1px each side, as before lanes; neighbours keep 2px between them. The
+   wide. One lane is the whole column less 1px each side, as before lanes; neighbours keep 2px
+   between them. Where the module's own slots meet another planned module (`--mine` own lanes,
+   `--theirs` planned ones), the column has two parts, and `--lane`, `--lanes` and `--wide` count
+   in the slot's part: the planned part (`--pw`, the slots with `--beside:1`) on the right, its
+   lanes half as wide as an own one, but never so wide that an own lane is left narrower than
+   42px („Prak" and its padding) while a planned lane is wider than 10px, an outline alone. The
    side padding is at most a quarter of the slot's width (a percentage of the column, like `left`
    and `width`): a border box is never narrower than its padding, so a fixed 6px made the slots of
    five or more lanes 12px wide, over their neighbours and out of the column. */
-.slot { position: absolute; left: calc(1px + 100% * var(--lane, 0) / var(--lanes, 1)); width: calc(100% * var(--wide, 1) / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px clamp(0px, calc((100% * var(--wide, 1) / var(--lanes, 1) - 2px) / 4), 6px); font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); container-type: inline-size; overflow-wrap: normal; word-break: normal; hyphens: manual; }
+.slot {
+  --pw: min(100% * var(--theirs, 0) / (2 * var(--mine, 1) + var(--theirs, 0)), max(var(--theirs, 0) * 10px, 100% - var(--mine, 1) * 42px));
+  --at: calc(var(--beside, 0) * (100% - var(--pw)));
+  --in: calc(var(--beside, 0) * var(--pw) + (1 - var(--beside, 0)) * (100% - var(--pw)));
+  position: absolute; left: calc(1px + var(--at) + var(--in) * var(--lane, 0) / var(--lanes, 1)); width: calc(var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px clamp(0px, calc((var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px) / 4), 6px); font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); container-type: inline-size; overflow-wrap: normal; word-break: normal; hyphens: manual;
+}
 a.slot { text-decoration: none; }
 /* The first line (span.l): whole words only, two lines at most, then „…" (owner review
    2026-09-25: „Softwaresystem-en" broke inside a word); one in a slot under an hour (.brief),
-   whose second line would show only its top edge. A slot too narrow for its label says it in its
-   few letters (span.l-abbr, „VL" for „Vorlesung"). */
-.slot > .l { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+   whose second line would show only its top edge. The height caps what the line clamp counts,
+   for the first word below. */
+.slot > .l { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; max-height: 2.5em; overflow: hidden; }
 .slot .w { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
 .slot.brief { padding-top: 3px; padding-bottom: 3px; }
-.slot.brief > .l { -webkit-line-clamp: 1; line-clamp: 1; }
-.slot > .l-abbr { display: none; }
-@container (max-width: 58px) {
-  .slot > .l-full { display: none; }
-  .slot > .l-abbr { display: -webkit-box; }
-}
+.slot.brief > .l { -webkit-line-clamp: 1; line-clamp: 1; max-height: 1.25em; }
+/* A first word wider than the slot ends the label, cut with „…": the words after it would stand
+   under a cut word („Mathe…" over „IT-1", review 2026-09-25). Its outer box keeps the word's whole
+   width (a percentage width counts as none there), its text is as wide as the slot (100cqw), and
+   an empty line after the text is as tall as the word is wider than the slot, times a thousand,
+   at most one line: a word that fits adds nothing, one that does not makes the first line two
+   lines tall, and the height above leaves the rest out. */
+.slot > .l > .w:first-child { max-width: none; overflow: visible; }
+.slot > .l > .w:first-child > span { display: block; width: min(100%, 100cqw); overflow: hidden; text-overflow: ellipsis; }
+.slot > .l > .w:first-child:not(:last-child)::after { content: ""; display: block; width: calc(100% - 100cqw); aspect-ratio: 1 / 1000; max-height: 1.25em; }
 /* A slot a sliver wide (a planned module's slim lane in a narrow week) is an outline alone; its
    tooltip and the line under the week name it. */
 @container (max-width: 22px) {
@@ -1461,9 +1474,14 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 @media (min-width: 901px) { .framed > .page:has(> .page-inner.sp) { padding-bottom: 1px; } }
 /* A module beside the plan: where the screen is wide enough, the plan's column makes room for it
    (a third column of the frame, as wide as the panel) instead of the panel covering Thursday and
-   Friday of the week; narrower, it floats over the page as everywhere. */
+   Friday of the week; narrower, it floats over the page as everywhere. The panel gives up width,
+   down to the catalog preview's least, before the plan's column is narrower than 560px: at
+   1280px wide a panel of 480px left the week days of 67px (review 2026-09-25). */
 @media (min-width: 1280px) {
-  .framed.aside-picked:has(> .page > .page-inner.sp) { grid-template-columns: var(--filters) minmax(0, 1fr) var(--preview); }
+  .framed.aside-picked:has(> .page > .page-inner.sp) {
+    --preview: clamp(360px, min(var(--preview-w), 100% - var(--filters) - 2 * var(--gap) - 560px), calc(100% - var(--filters) - var(--gap) - 120px));
+    grid-template-columns: var(--filters) minmax(0, 1fr) var(--preview);
+  }
 }
 .sp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; padding: 16px 24px 24px; overflow: visible; overflow-wrap: break-word; }
 .sp-body > .hint, .sp-body > .note { margin-top: 0; }

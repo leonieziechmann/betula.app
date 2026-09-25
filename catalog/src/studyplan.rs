@@ -410,6 +410,10 @@ impl PlanDoc {
         };
         let moved = self.modules.remove(at);
         if self.is_planned(to, id) {
+            // The copy that stays is the one the Regelstudienplan placed, if either was.
+            if moved.from_plan {
+                self.mark_from_plan(to, id);
+            }
             return;
         }
         if !self.plan(to, id, moved.at, moved.fills) {
@@ -511,14 +515,21 @@ impl PlanDoc {
     }
 
     /// Takes an import over (`import`): its modules planned at `now`, its placeholders numbered.
-    /// What the plan holds meanwhile is left out, so applying it twice adds nothing. Returns how
-    /// many modules and placeholders were added.
+    /// What the plan holds meanwhile is left out, so applying it twice adds nothing. Every module
+    /// the Regelstudienplan names is marked as taken over from it, the ones it adds and the ones
+    /// the plan held already (`Import::held`). Returns how many modules and placeholders were
+    /// added.
     pub fn apply(&mut self, import: &Import, now: u64) -> (usize, usize) {
         let mut modules = 0;
         for (s, id) in &import.modules {
             if self.plan(*s, id, now, None) {
-                self.mark_from_plan(*s, id);
                 modules += 1;
+            }
+            self.mark_from_plan(*s, id);
+        }
+        for id in &import.held {
+            for m in self.modules.iter_mut().filter(|m| m.module_id == *id) {
+                m.from_plan = true;
             }
         }
         let mut placeholders = 0;
@@ -744,6 +755,10 @@ pub struct Import {
     /// Modules and placeholder rows left out because the plan holds them already („3 schon
     /// geplant"); a module the plan names twice counts once.
     pub skipped: usize,
+    /// The modules among them: `PlanDoc::apply` marks them as taken over from the Regelstudienplan
+    /// wherever they are planned, so that one the student planned before, or a plan stored before
+    /// the mark existed, gets it with the next import.
+    pub held: Vec<String>,
     /// The preview: one entry per Fachsemester that gets something, in order.
     pub by_fs: Vec<ImportFs>,
 }
@@ -805,6 +820,7 @@ pub fn import(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Option<
                 }
                 if !doc.planned_in(id).is_empty() {
                     out.skipped += 1;
+                    out.held.push(id.to_string());
                     continue;
                 }
                 out.modules.push((semester, id.to_string()));
@@ -1562,6 +1578,19 @@ mod tests {
         assert_eq!(ids(&doc.selection(key("2027W"), TownChoice::Derive)), Some(vec!["12107".to_string()]));
         assert!(!PlanDoc::restored("m\t2026W\t12104\t2\t\n").modules.iter().any(|m| m.from_plan));
         assert!(!PlanDoc::restored("m\t2026W\t12104\t2\t\tplanned\n").modules.iter().any(|m| m.from_plan));
+
+        // Moved onto a copy of its own that was planned by hand: the copy takes the mark.
+        assert!(doc.plan(key("2028S"), "12104", 4, None));
+        doc.move_to(w, key("2028S"), "12104");
+        assert_eq!(ids(&doc.selection(key("2028S"), TownChoice::Derive)), Some(vec!["12104".to_string()]));
+
+        // Planned before the import, or in a plan stored before the mark: the next import that
+        // names it marks it, wherever it is planned, and adds nothing.
+        let mut old = PlanDoc::restored("m\t2026W\t12104\t2\t\nm\t2027S\t11103\t2\t\n");
+        let again = Import { modules: vec![(w, "12107".to_string())], held: vec!["12104".to_string(), "11103".to_string()], ..Import::default() };
+        assert_eq!(old.apply(&again, 5), (1, 0));
+        assert_eq!(ids(&old.selection(w, TownChoice::Derive)), Some(vec!["12104".to_string(), "12107".to_string()]));
+        assert_eq!(ids(&old.selection(s, TownChoice::Derive)), Some(vec!["11103".to_string()]));
     }
 
     /// A row of a plan named `caption` over the semesters `span`.
@@ -1827,6 +1856,7 @@ town	cottbus
         assert_eq!(doc.placeholders[0].pid, 1);
         let again = import(&doc, program, &core, None, w, 1);
         assert_eq!((again.modules.len(), again.placeholders.len(), again.skipped), (0, 0, 4));
+        assert_eq!(again.held, ["10001", "10002", "10003"]);
         assert!(again.by_fs.is_empty());
         assert_eq!(doc.apply(&again, 8), (0, 0));
 
@@ -1922,7 +1952,10 @@ town	cottbus
         let anwendungsfach = doc.placeholders.iter().find(|p| p.ord == 15).unwrap().pid;
         assert!(doc.plan(key("2027W"), "11103", 2, Some(anwendungsfach)));
         let again = import(&doc, "079-82-2008", plan, None, w, 1);
-        assert_eq!(again, Import { skipped: 23, ..Default::default() });
+        assert_eq!(Import { held: Vec::new(), ..again.clone() }, Import { skipped: 23, ..Default::default() });
+        // What it holds of the plan's modules is marked by that import.
+        let (held, all): (BTreeSet<&String>, BTreeSet<&String>) = (again.held.iter().collect(), fs1.modules.iter().map(|(_, id)| id).collect());
+        assert_eq!(held, all);
 
         // Informatik starts in the winter.
         let ids: Vec<String> = plan.entries.iter().filter_map(|entry| entry.module_id.clone()).collect();

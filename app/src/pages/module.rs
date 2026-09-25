@@ -26,7 +26,7 @@ use catalog::rows::{Prerequisite, Semester};
 use catalog::rows_detail::EventDate;
 use catalog::timetable::day::{clock, minutes, Day};
 use catalog::timetable::grid;
-use catalog::timetable::kind::{class_of, kinds_of, Class, EventKind};
+use catalog::timetable::kind::{class_of, kinds_of, Class, EventKind, KindSet};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, ModuleHint, ProgramTab};
@@ -46,10 +46,6 @@ use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
 
 /// The browser app (`csr`): only there is a plan to meet.
 const APP: bool = cfg!(feature = "csr");
-
-/// The most letters of a kind a narrow slot of the module's week still shows as it is; a longer
-/// one says it in the kinds' few letters there (`GridSlot::abbr`).
-const SHORT_KIND: usize = 6;
 
 /// What both the preview panel and the full page show about a module, precomputed once.
 #[derive(Clone)]
@@ -657,17 +653,24 @@ fn own_groups(teaching: &[EventDate]) -> Vec<(GridSlot, Vec<RowKey>)> {
 /// The slot of one group of rows (`own_groups`): `date` is its first row, `dates` the days of its
 /// single dates.
 fn own_slot(once: bool, day: u8, from: u16, to: u16, date: &EventDate, dates: &BTreeSet<Option<&str>>) -> GridSlot {
-    // What QIS calls the event („Vorlesung", „Laborausbildung"); in a slot too narrow for it, the
-    // kinds' few letters („VL", „Prak") the Studienplan's week has too. The module's name is the
-    // page's own and stands in no slot.
-    let label = date.event_type.clone().unwrap_or_else(|| "Termin".to_string());
-    let kinds = kinds_of(date.event_type.as_deref());
-    let abbr = kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/");
-    // „Übung" fits where „VL" does; „Vorlesung" and „Laborausbildung" do not.
-    let abbr = if label.chars().count() > SHORT_KIND { abbr } else { String::new() };
+    // The kinds in their few letters („VL", „Prak", „VL/Ü"), as in the Studienplan's week: what
+    // QIS calls the event fits a narrow day only in part, and one grid said „Vorlesung", „VL" and
+    // „Laborausbi…" side by side (review 2026-09-25). QIS's word leads the tooltip, and stays the
+    // label of a type no kind is known of. The module's name is the page's own and stands in no
+    // slot.
+    let word = date.event_type.as_deref().map(str::trim).filter(|word| !word.is_empty());
+    let kinds = kinds_of(word);
+    let label = match kinds == KindSet::default().with(EventKind::Other) {
+        true => word.unwrap_or("Termin").to_string(),
+        false => kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/"),
+    };
+    let what = match word {
+        Some(word) => format!("{word} · {}", date.event_title),
+        None => date.event_title.clone(),
+    };
     if !once {
         let lecture = class_of(kinds) == Class::Lecture;
-        return GridSlot { day, from, to, label, abbr, small: clock(from), title: date.event_title.clone(), class: if lecture { "" } else { "other" }, ..GridSlot::default() };
+        return GridSlot { day, from, to, label, small: clock(from), title: what, class: if lecture { "" } else { "other" }, ..GridSlot::default() };
     }
     let days: Vec<Day> = dates.iter().filter_map(|date| date.and_then(Day::parse)).collect();
     let small = match (dates.len(), days.as_slice()) {
@@ -677,11 +680,11 @@ fn own_slot(once: bool, day: u8, from: u16, to: u16, date: &EventDate, dates: &B
     };
     // The tooltip names the dates the small line only counts.
     let title = if days.is_empty() {
-        date.event_title.clone()
+        what
     } else {
-        format!("{} · {}", date.event_title, days.iter().map(|day| day.german()).collect::<Vec<_>>().join(", "))
+        format!("{what} · {}", days.iter().map(|day| day.german()).collect::<Vec<_>>().join(", "))
     };
-    GridSlot { day, from, to, label, abbr, small, title, class: "once", ..GridSlot::default() }
+    GridSlot { day, from, to, label, small, title, class: "once", ..GridSlot::default() }
 }
 
 /// Whether a module's week shows the Studienplan beside it (A.9): its Termine are of the current
@@ -944,15 +947,15 @@ mod tests {
         assert_eq!(
             shown,
             [
-                (2, 705, 900, "Vorlesung", "1 Termin · 23.02.", "once"),
-                (4, 690, 780, "Vorlesung", "11:30", ""),
-                (1, 825, 915, "Übung", "13:45", "other"),
-                (2, 825, 915, "Übung", "13:45", "other"),
+                (2, 705, 900, "VL", "1 Termin · 23.02.", "once"),
+                (4, 690, 780, "VL", "11:30", ""),
+                (1, 825, 915, "Ü", "13:45", "other"),
+                (2, 825, 915, "Ü", "13:45", "other"),
             ]
         );
-        assert_eq!(slots.first().map(|s| s.title.as_str()), Some("Allgemeine Betriebswirtschaftslehre II · 23.02.2027"));
-        // Too narrow for „Vorlesung", a slot says „VL"; „Übung" is short enough as it is.
-        assert_eq!(slots.iter().map(|s| s.abbr.as_str()).collect::<Vec<_>>(), ["VL", "VL", "", ""]);
+        // QIS's word leads the tooltip.
+        assert_eq!(slots.first().map(|s| s.title.as_str()), Some("Vorlesung · Allgemeine Betriebswirtschaftslehre II · 23.02.2027"));
+        assert_eq!(slots.get(2).map(|s| s.title.as_str()), Some("Übung · Allgemeine Betriebswirtschaftslehre II"));
         // The two Tuesday slots stand side by side.
         let (_, styles) = crate::week::geometry(&slots, crate::week::MIN_HOURS).unwrap();
         assert!(styles[0].ends_with("--lane:0;--lanes:2") && styles[3].ends_with("--lane:1;--lanes:2"), "{styles:?}");
@@ -976,20 +979,25 @@ mod tests {
             teaching("148373", "Tutorium", "C", 2, ("10:00", ""), "weekly", "2026-10-13", "2027-01-26"),
         ];
         let slots = own_slots(&rows);
-        let shown: Vec<(u8, &str, &str, &str)> = slots.iter().map(|s| (s.day, s.small.as_str(), s.class, s.title.as_str())).collect();
+        let shown: Vec<(u8, &str, &str, &str, &str)> = slots.iter().map(|s| (s.day, s.label.as_str(), s.small.as_str(), s.class, s.title.as_str())).collect();
+        let abwl = "Allgemeine Betriebswirtschaftslehre II";
         assert_eq!(
             shown,
             [
-                (1, "15:30", "other", "Allgemeine Betriebswirtschaftslehre II"),
-                (3, "3 Termine", "once", "Allgemeine Betriebswirtschaftslehre II · 04.11.2026, 11.11.2026, 18.11.2026"),
-                (5, "1 Termin · 16.10.", "once", "Allgemeine Betriebswirtschaftslehre II · 16.10.2026"),
-                (7, "22:00", "other", "Allgemeine Betriebswirtschaftslehre II"),
+                (1, "Ü", "15:30", "other", format!("Übung · {abwl}").as_str()),
+                (3, "VL/Ü", "3 Termine", "once", format!("Vorlesung/Übung · {abwl} · 04.11.2026, 11.11.2026, 18.11.2026").as_str()),
+                (5, "Sem", "1 Termin · 16.10.", "once", format!("Seminar · {abwl} · 16.10.2026").as_str()),
+                (7, "Proj", "22:00", "other", format!("Projekt · {abwl}").as_str()),
             ]
         );
         assert_eq!(slots.get(3).map(|s| s.to), Some(1440));
         // A „Vorlesung/Übung" is a lecture.
         let weekly = teaching("148370", "Vorlesung/Übung", "[unbenannt]", 3, ("09:15", "10:45"), "weekly", "2026-10-14", "2027-01-27");
         assert_eq!(own_slots(&[weekly]).first().map(|s| s.class), Some(""));
+        // A type no kind is known of keeps its word, and a row without one says „Termin".
+        let odd = teaching("148374", "Blockwoche", "D", 4, ("08:00", "16:00"), "weekly", "2026-10-15", "2027-01-28");
+        let bare = EventDate { event_id: "148375".into(), event_type: None, ..odd.clone() };
+        assert_eq!(own_slots(&[odd, bare]).iter().map(|s| (s.label.as_str(), s.title.as_str())).collect::<Vec<_>>(), [("Blockwoche", format!("Blockwoche · {abwl}").as_str()), ("Termin", abwl)]);
     }
 
     fn key(text: &str) -> SemesterKey {
@@ -1089,9 +1097,9 @@ mod tests {
             ]
         );
         assert!(slots.get(3).is_some_and(|s| s.classes() == "slot planned brief"));
-        // On the Tuesday the planned slot is slim beside the Übung, which keeps two thirds.
+        // On the Tuesday the planned slot takes the planned part beside the Übung's own.
         let (_, styles) = crate::week::geometry(&slots, MIN_HOURS).unwrap();
-        assert!(styles[0].ends_with("--lane:0;--lanes:3;--wide:2") && styles[2].ends_with("--lane:2;--lanes:3;--wide:1"), "{styles:?}");
+        assert!(styles[0].ends_with(";--mine:1;--theirs:1") && styles[2].ends_with(";--mine:1;--theirs:1;--beside:1"), "{styles:?}");
         // The grid's frame is the module's own, with the plan beside it or not.
         let own_slots: Vec<GridSlot> = own.iter().map(|(slot, _)| slot.clone()).collect();
         let frame = |slots: &[GridSlot]| crate::week::geometry(slots, MIN_HOURS).map(|(week, _)| week);
