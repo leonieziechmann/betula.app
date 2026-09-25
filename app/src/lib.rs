@@ -15,13 +15,16 @@ pub mod data;
 pub mod format;
 pub mod icons;
 pub mod local;
+pub mod myprogram;
 pub mod nav;
 pub mod pages;
 pub mod pending;
 pub mod seo;
 pub mod skeleton;
+pub mod studyplan;
 pub mod tabs;
 pub mod ui;
+pub mod week;
 
 use catalog::url;
 use leptos::prelude::*;
@@ -31,10 +34,13 @@ use leptos_router::hooks::use_location;
 use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::bookmarks::Bookmarks;
+use crate::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::legal::{ImprintPage, PrivacyPage};
+use crate::pages::studyplan::StudyplanPage;
 use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, program::ProgramPage, programs::ProgramsPage};
 use crate::pending::Pending;
+use crate::studyplan::Studyplan;
 use crate::tabs::{Area, Tabs};
 use crate::ui::Icon;
 
@@ -98,9 +104,12 @@ pub fn asset(path: &str) -> String {
 /// Runs before the first paint: marks the document as scripted and applies what this browser
 /// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps; the
 /// colour of the browser's own chrome (`theme-color`, `THEME_DARK`) follows the theme. Such personal
-/// view settings live in localStorage, never in the URL and never in server HTML (R9). Public for
-/// the one document the server writes without the app: the login page of closed testing.
-pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px')}catch(e){}";
+/// view settings live in localStorage, never in the URL and never in server HTML (R9). A browser
+/// that keeps „Mein Studiengang" marks the document with `mine`: the program overview's line about
+/// it is the app's, and the page keeps its room from the first paint, so the list does not move
+/// when the app takes over (R15). Public for the one document the server writes without the app:
+/// the login page of closed testing.
+pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem('betula.myprogram.v1')||''))d.classList.add('mine')}catch(e){}";
 
 /// The opt-in to the fade between pages, in the head of every document the server writes (this
 /// shell and the login page of closed testing). Not in app.css: Chromium decides whether a new
@@ -159,8 +168,12 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 pub fn App() -> impl IntoView {
     provide_meta_context();
     Tabs::provide();
-    // The visitor's marked modules: from this browser's storage, empty on the server (R9).
+    // The visitor's marked modules, Studienplan and „Mein Studiengang": from this browser's
+    // storage, empty on the server (R9). What the catalog knows of the program follows the store.
     Bookmarks::provide();
+    Studyplan::provide();
+    MyProgram::provide();
+    MineResolved::provide();
     // A click answers in the next frame and the page follows (`pending`): its listeners have to
     // come before the router's, so before `<Router>` is built.
     let pending = Pending::provide();
@@ -184,6 +197,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/programs/:slug") view=ProgramPage ssr=SsrMode::Async/>
                         <Route path=path!("/programs/:slug/:tab") view=ProgramPage ssr=SsrMode::Async/>
                         <Route path=path!("/bookmarks") view=BookmarksPage ssr=SsrMode::Async/>
+                        <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
                         <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
                         <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
                     </Routes>
@@ -211,13 +225,19 @@ fn NavItems() -> impl IntoView {
     // The tab of the page the app is going to is current at once, before the page is there.
     let pending = Pending::expect();
     let current = move |area: Area| (Area::of(&pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get())) == area).then_some("page");
+    // The catalog's first entry of a session is the catalog of „Mein Studiengang", while its PO is
+    // in the snapshot (A.10); nothing is known of it on the server, whose tab is the plain link (R9).
+    let mine = MineResolved::expect();
     let href = move |area: Area| {
         let path = location.pathname.get();
-        match tabs {
-            Some(tabs) => tabs.href(area, &path),
-            None => area.root().to_string(),
+        match (tabs, area) {
+            (Some(tabs), Area::Catalog) => tabs.href_with_root(area, &path, &mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)),
+            (Some(tabs), _) => tabs.href(area, &path),
+            (None, _) => area.root().to_string(),
         }
     };
+    let plan = Studyplan::expect();
+    let planned = Memo::new(move |_| plan.map(Studyplan::count).unwrap_or(0));
     view! {
         <a class="nav" data-area="home" href=url::HOME title="Start" aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/></span>"Start"</a>
         <a class="nav" data-area="catalog" href=move || href(Area::Catalog) title="Module" aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>"Module"</a>
@@ -234,6 +254,19 @@ fn NavItems() -> impl IntoView {
             </span>
             "Merkliste"
         </a>
+        // The Studienplan lives in the browser app alone, like the Merkliste (R15), and so does the
+        // number of its modules (R9). The number is a memo of its own: most changes of the plan
+        // (a hidden Termin, a move) leave it as it is.
+        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title="Stundenplan" aria-current=move || current(Area::Studyplan)>
+            <span class="ind">
+                <Icon name="calendar-range"/>
+                {move || {
+                    let planned = planned.get();
+                    (planned > 0).then(|| view! { <span class="nav-count num" aria-label=format!("{planned} geplant")>{if planned > 99 { "99+".to_string() } else { planned.to_string() }}</span> })
+                }}
+            </span>
+            "Stundenplan"
+        </a>
     }
 }
 
@@ -243,7 +276,6 @@ fn Rail() -> impl IntoView {
         <aside class="rail">
             <a class="logo hit" href=url::HOME aria-label="Betula, zur Startseite"><ui::Mark/></a>
             <nav aria-label="Hauptnavigation"><NavItems/></nav>
-            <span class="nav soon" title="Semesterplaner (geplant)"><span class="ind"><Icon name="calendar-range"/></span>"Planer"</span>
             <div class="rail-end">
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label="Hell oder dunkel">
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
@@ -296,6 +328,7 @@ fn TopBar() -> impl IntoView {
                     Area::Programs => ("Studiengänge", url::PROGRAMS, "Studiengang suchen"),
                     Area::Catalog => ("Module", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                     Area::Bookmarks => ("Merkliste", url::CATALOG, "Modul, Nummer oder Thema suchen"),
+                    Area::Studyplan => ("Stundenplan", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                     Area::Home => ("Start", url::CATALOG, "Modul, Nummer oder Thema suchen"),
                 };
                 let initial = url::parse_pairs(&Pending::shown_of(going, location.pathname, location.search).1)

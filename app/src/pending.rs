@@ -26,11 +26,13 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use catalog::url::{self, BookmarksUrl, CatalogUrl, LocalView, ProgramTab, ProgramUrl};
+use catalog::url::{self, BookmarksUrl, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::hooks::{use_location, use_navigate};
 use leptos_router::location::Location;
 use leptos_router::NavigateOptions;
+
+use crate::studyplan::PlanAddress;
 
 /// A change of this kind that took this long the last time (smoothed) gets a skeleton: below it,
 /// the result comes about as soon as a skeleton would, and the skeleton would only flash.
@@ -49,6 +51,8 @@ pub enum Shape {
     Programs,
     Program,
     Bookmarks,
+    /// The Studienplan: a semester of the visitor's plan, or all of them.
+    Studyplan,
     /// Text: the legal pages, a page that does not exist.
     Text,
 }
@@ -67,6 +71,8 @@ impl Shape {
             Shape::Program
         } else if path == url::BOOKMARKS {
             Shape::Bookmarks
+        } else if path == url::STUDYPLAN {
+            Shape::Studyplan
         } else {
             Shape::Text
         }
@@ -79,14 +85,16 @@ pub enum Change {
     /// Another page (another area, another module or program): its frame stands in for it.
     Page(Shape),
     /// The same page shows something else in its column: another view of the program, the program
-    /// overview or the marked modules filtered or ordered otherwise. The sidebar stays.
+    /// overview or the marked modules filtered or ordered otherwise, another semester or view of
+    /// the Studienplan. The sidebar stays.
     Column(Shape),
     /// The catalog's list: another filter, order or search. The filter panel shows the new
     /// filter at once, the rows wait.
     List,
     /// The module beside the catalog's list or beside the marked modules, opened or closed.
     Preview,
-    /// What stands beside a program's page: a module, an area, a row of the plan.
+    /// What stands beside a program's page (a module, an area, a row of the plan) or beside the
+    /// Studienplan (a planned module with its Termine).
     Aside,
 }
 
@@ -235,15 +243,13 @@ impl Pending {
             inner.turn = turn;
             inner.due = true;
         });
-        #[cfg(feature = "csr")]
-        {
-            let pending = *self;
-            browser::after_paint(move || {
-                if pending.inner.with_value(|inner| inner.due && inner.turn == turn) {
-                    pending.commit();
-                }
-            });
-        }
+        // A newer navigation takes the place of this one: it runs only while it is still due.
+        let pending = *self;
+        crate::nav::after_paint(move || {
+            if pending.inner.with_value(|inner| inner.due && inner.turn == turn) {
+                pending.commit();
+            }
+        });
     }
 
     /// The router takes the address now; the skeleton goes in the same frame as the page comes.
@@ -367,6 +373,7 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
                 None
             }
         }
+        Shape::Studyplan => studyplan_change(&PlanAddress::parse(from_search), &PlanAddress::parse(to_search), phone),
         Shape::Programs => Some(Change::Column(Shape::Programs)),
         Shape::Program => {
             let (slug, tab) = program(to_path)?;
@@ -399,6 +406,37 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
     Some(Change::Aside)
 }
 
+/// Within the Studienplan: another semester, view or Regelstudienplan being taken over is its
+/// column; the module beside it is the aside, and on a phone, where nothing stands beside a page,
+/// the plan's panel of the module is the page until it is closed. „Vollbild" fills the page with
+/// the module's whole page, on a phone as well (`PlanAddress`). The Übersicht shows every
+/// semester: there `sem` only says which of its semesters a module planned twice is shown in
+/// beside it, so it is the aside's.
+fn studyplan_change(from: &PlanAddress, to: &PlanAddress, phone: bool) -> Option<Change> {
+    let after_module = if phone && to.url.open.is_some() { Change::Page(Shape::Text) } else { Change::Column(Shape::Studyplan) };
+    if let Some(change) = local_change(from, to, false, after_module) {
+        return Some(change);
+    }
+    let (from, to) = (&from.url, &to.url);
+    fn column_sem(url: &StudyplanUrl) -> Option<&str> {
+        if url.view == PlanView::Overview { None } else { url.sem.as_deref() }
+    }
+    fn beside(url: &StudyplanUrl) -> (Option<&str>, Option<&str>, Option<&str>) {
+        (url.open.as_deref(), url.row.as_deref(), url.open.as_ref().and(url.sem.as_deref()))
+    }
+    if (column_sem(from), from.view, &from.import, from.variant) != (column_sem(to), to.view, &to.import, to.variant) {
+        Some(Change::Column(Shape::Studyplan))
+    } else if beside(from) != beside(to) {
+        Some(match (phone, &to.open) {
+            (false, _) => Change::Aside,
+            (true, Some(_)) => Change::Page(Shape::Text),
+            (true, None) => Change::Column(Shape::Studyplan),
+        })
+    } else {
+        None
+    }
+}
+
 /// A step within a page that shows its modules in place (`crate::local`), as far as what fills
 /// the page decides it: a module coming to fill it is a page of its own, the module's, and the
 /// page coming back where a module filled it is `after_module` (the page's column, or on a phone
@@ -422,20 +460,6 @@ mod browser {
 
     pub(super) fn now() -> f64 {
         web_sys::window().and_then(|w| w.performance()).map_or(0.0, |p| p.now())
-    }
-
-    /// `run` once the browser has shown what is there now: after the next frame. A hidden tab
-    /// has no frames, so there (and should a frame not come) a timeout runs it; `run` checks
-    /// itself whether it is still due.
-    pub(super) fn after_paint(run: impl Fn() + Clone + 'static) {
-        let hidden = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.hidden());
-        if hidden {
-            set_timeout(run, std::time::Duration::ZERO);
-            return;
-        }
-        let fallback = run.clone();
-        request_animation_frame(move || set_timeout(run, std::time::Duration::ZERO));
-        set_timeout(fallback, std::time::Duration::from_millis(250));
     }
 
     /// `data-settling` on the document for the frame in which the page comes (app.css).
@@ -564,6 +588,35 @@ mod tests {
         assert_eq!(change("/programs/informatik/areas", "area=4&open=11103", "/programs/informatik/areas", "area=4", true), Some(Change::Page(Shape::Text)));
         assert_eq!(change("/programs/informatik/plan", "open=11103", "/programs/informatik/plan", "", true), Some(Change::Column(Shape::Program)));
         assert_eq!(change("/programs/informatik/areas", "area=4", "/programs/informatik/areas", "", true), Some(Change::Column(Shape::Program)));
+    }
+
+    #[test]
+    fn a_step_of_the_studyplan() {
+        // Another page, and within the plan another view, semester or import: the plan's column.
+        assert_eq!(change("/catalog", "", "/studyplan", "", false), Some(Change::Page(Shape::Studyplan)));
+        assert_eq!(change("/studyplan", "", "/studyplan", "view=dates", false), Some(Change::Column(Shape::Studyplan)));
+        assert_eq!(change("/studyplan", "sem=2026W", "/studyplan", "sem=2027S", true), Some(Change::Column(Shape::Studyplan)));
+        assert_eq!(change("/studyplan", "", "/studyplan", "view=all&import=mine", false), Some(Change::Column(Shape::Studyplan)));
+        // The module beside the plan, and the Termin it points at.
+        assert_eq!(change("/studyplan", "", "/studyplan", "open=12104", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "open=12104", "/studyplan", "open=12104&row=148369-aaf38", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "open=12104", "/studyplan", "", false), Some(Change::Aside));
+        // On the Übersicht `sem` names the semester of the module beside it, not the column's.
+        assert_eq!(change("/studyplan", "view=all", "/studyplan", "sem=2027W&view=all&open=12204", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "sem=2027S&view=all&open=12204", "/studyplan", "sem=2027W&view=all&open=12204", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "sem=2027W&view=all&open=12204", "/studyplan", "sem=2027W&view=all", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "sem=2027S&view=all", "/studyplan", "sem=2027W&view=all", false), None);
+        assert_eq!(change("/studyplan", "sem=2027W&view=all", "/studyplan", "sem=2027W", false), Some(Change::Column(Shape::Studyplan)));
+        assert_eq!(change("/studyplan", "sem=2027S&open=12204", "/studyplan", "sem=2027W&open=12204", false), Some(Change::Column(Shape::Studyplan)));
+        // On a phone the plan's panel of the module is the page, and closing it is the plan again.
+        assert_eq!(change("/studyplan", "", "/studyplan", "open=12104", true), Some(Change::Page(Shape::Text)));
+        assert_eq!(change("/studyplan", "open=12104", "/studyplan", "", true), Some(Change::Column(Shape::Studyplan)));
+        // „Vollbild": the module fills the plan's page, and „Zurück" brings the plan with it beside.
+        assert_eq!(change("/studyplan", "open=12104", "/studyplan", "open=12104&full=1", false), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/studyplan", "open=12104&full=1", "/studyplan", "open=12104", false), Some(Change::Column(Shape::Studyplan)));
+        assert_eq!(change("/studyplan", "open=12104&full=1", "/studyplan", "open=12104", true), Some(Change::Page(Shape::Text)));
+        // Unknown names change nothing.
+        assert_eq!(change("/studyplan", "sem=2026W", "/studyplan", "sem=2026W&week=2026-10-14", false), None);
     }
 
     #[test]

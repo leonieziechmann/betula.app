@@ -92,7 +92,8 @@ impl HtmlCache {
 /// Equal pages get equal keys: the catalog by its canonical filter, every other page by its
 /// path alone (tracking parameters and the like do not change what is rendered). What the app
 /// lays beside a page or fills it with (`open`, `full`, `area`, `req`) changes nothing on the
-/// server's page, so it is no part of the key either.
+/// server's page, so it is no part of the key either; nor does the placeholder a catalog list
+/// is looking for (`fill`), which only the app's plan button reads.
 pub fn cache_key(uri: &Uri) -> String {
     let path = match uri.path().trim_end_matches('/') {
         "" => "/",
@@ -100,7 +101,7 @@ pub fn cache_key(uri: &Uri) -> String {
     };
     if path == catalog::url::CATALOG {
         // The list with its filters.
-        CatalogUrl::parse(uri.query().unwrap_or_default()).with_open(None).path()
+        CatalogUrl::parse(uri.query().unwrap_or_default()).with_open(None).with_fill(None).path()
     } else if path == catalog::url::PROGRAMS {
         // The program overview with its filters; the search text folded, as the page matches it.
         let mut overview = catalog::url::ProgramsUrl::parse(uri.query().unwrap_or_default());
@@ -221,6 +222,14 @@ mod tests {
         assert_eq!(key("/catalog/module/11101?utm_source=x"), "/catalog/module/11101");
         // What the app shows beside a page is not the server's: the page is the same without it.
         assert_eq!(key("/catalog?open=11101&form=exercise&turnus=winter"), "/catalog?turnus=winter&form=exercise");
+        // Nor is the placeholder a list looks for; the fit switch is the page's (it says why the
+        // list is empty on the server).
+        assert_eq!(key("/catalog?fits=2026W&fill=p3"), key("/catalog?fits=2026W"));
+        assert_eq!(key("/catalog?fill=p3&open=11101"), "/catalog");
+        assert_eq!(key("/catalog?fits=2026w&fits-skip=exam"), "/catalog?fits=2026W&fits-skip=exam");
+        assert_eq!(key("/catalog/module/12104?plan=2026W&fill=p3"), "/catalog/module/12104");
+        // The Studienplan is one explanation for every address; the plan is the browser's.
+        assert_eq!(key("/studyplan?sem=2026W&view=dates&open=12104&row=148369-aaf38&import=mine"), "/studyplan");
         assert_eq!(key("/programs/x/plan?variant=2&open=11101&full=1&area=3&req=4"), "/programs/x/plan?variant=2");
         assert_eq!(key("/programs?q=+%C3%96ko"), "/programs?q=oko");
         assert_eq!(key("/programs/x/plan?utm_source=x"), "/programs/x/plan");

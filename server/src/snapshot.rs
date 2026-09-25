@@ -45,10 +45,11 @@ pub struct Snapshot {
     pool: Mutex<Vec<NativeDatabase>>,
 }
 
-/// A strong ETag from the bytes themselves (FNV-1a, 64 bit: a fingerprint, not a secret).
-fn content_etag(bytes: &[u8]) -> String {
+/// A strong ETag from the bytes themselves (FNV-1a, 64 bit: a fingerprint, not a secret), named by
+/// what it is for (`map`, `ics`), so tags of two kinds of answer never meet.
+pub(crate) fn content_etag(prefix: &str, bytes: &[u8]) -> String {
     let hash = bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3));
-    format!("\"map-{hash:016x}\"")
+    format!("\"{prefix}-{hash:016x}\"")
 }
 
 impl Snapshot {
@@ -66,7 +67,7 @@ impl Snapshot {
             Ok((map, json)) => {
                 tracing::info!(component = "snapshot", event = "snapshot.map_built", programs = map.programs.len(), links = map.links.len(), ms = started.elapsed().as_millis() as u64, "program map laid out");
                 let compressed = crate::cache::gzip(&json);
-                let etag = content_etag(&json);
+                let etag = content_etag("map", &json);
                 Some((Arc::new(map), axum::body::Bytes::from(json), compressed, etag))
             }
             Err(error) => {

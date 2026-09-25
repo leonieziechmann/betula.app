@@ -85,7 +85,7 @@ const ABILITIES: [(&str, &str, &str); 6] = [
     ("sliders-horizontal", "Filter, die zusammenpassen", "Studiengang, Turnus, Lehrform, Prüfungsform, Sprache, Campus, Leistungspunkte, Dozierende. Viele lassen sich auch umkehren: „alles außer Klausur“."),
     ("calendar-range", "Der Regelstudienplan als Plan", "Semester für Semester, mit Pflicht- und Wahlpflichtbereichen, der FÜS-Liste und den Ordnungen des Studiengangs."),
     ("repeat", "Voraussetzungen zum Anklicken", "Was ein Modul voraussetzt und wofür es selbst Voraussetzung ist, führt direkt zum nächsten Modul."),
-    ("calendar-days", "Termine aus dem Vorlesungsverzeichnis", "Vorlesungen und Übungen des Semesters stehen als Wochenplan beim Modul, die Prüfungstermine gleich darunter."),
+    ("calendar-days", "Termine aus dem Vorlesungsverzeichnis", "Vorlesungen, Übungen und Prüfungen als Wochenplan beim Modul und in deinem Studienplan, auch als Kalender-Abo."),
     ("shield-check", "Ehrlich bei Lücken", "Wo die Quelle nichts sagt, steht „nicht angegeben“ und keine Vermutung. Jedes Modul verlinkt auf sein Original bei der BTU."),
 ];
 
@@ -277,7 +277,6 @@ pub fn HomePage() -> impl IntoView {
             <p class="soon-line">
                 <span class="label">"In Arbeit"</span>
                 <span><Icon name="circle-check-big"/>"Studienverlauf: bestandene Module abhaken, Voraussetzungen prüfen"</span>
-                <span><Icon name="calendar-range"/>"Semesterplaner: der eigene Stundenplan aus den Terminen"</span>
             </p>
         </section>
         // The questions are the list; an answer opens in place. The text is in the page either way
@@ -423,8 +422,10 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
         picture: Picture::Shot { file: "catalog", alt: "Der Modulkatalog: die Suche „datenbank“ mit sechs Treffern, rechts das Modul Datenbanken mit seinem Wochenplan" },
     });
     slides.push(Slide {
-        tab: "Studienplan",
-        title: "Der Studienplan",
+        // „Studienplan" names the visitor's own plan now (the area „Plan"); the program's plan is
+        // the Regelstudienplan.
+        tab: "Regelstudienplan",
+        title: "Der Regelstudienplan",
         text: "Semester für Semester, als Matrix".to_string(),
         action: "Studiengang wählen",
         href: url::PROGRAMS.to_string(),

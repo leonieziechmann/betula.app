@@ -1,10 +1,14 @@
-//! What is not a rendered page: the snapshot for browsers, status, health, static assets.
+//! What is not a rendered page: the snapshot for browsers, status, health, static assets, and a
+//! Studienplan as a calendar feed.
+
+use std::time::Instant;
 
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use catalog::timetable::subscription::{self, Subscription};
 use serde_json::json;
 use tokio_util::io::ReaderStream;
 
@@ -18,6 +22,13 @@ fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
         .is_some_and(|value| value.split(',').any(|tag| tag.trim().trim_start_matches("W/") == etag))
 }
 
+fn accepts_gzip(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")))
+}
+
 /// `GET /api/db`: the active snapshot with Radix's ETag. Browsers keep it in IndexedDB
 /// and come back with `If-None-Match`, which is answered without touching the file.
 pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -28,11 +39,7 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, snapshot.etag.clone())]).into_response();
     }
 
-    let wants_gzip = headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
-    let (path, length, compressed) = match (&snapshot.gzip, wants_gzip) {
+    let (path, length, compressed) = match (&snapshot.gzip, accepts_gzip(&headers)) {
         (Some((path, length)), true) => (path.clone(), *length, true),
         _ => (snapshot.path.clone(), snapshot.bytes, false),
     };
@@ -65,11 +72,7 @@ fn per_snapshot(headers: &HeaderMap, etag: &str, content_type: &'static str, bod
     if if_none_match(headers, etag) {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag.to_string())]).into_response();
     }
-    let wants_gzip = headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
-    let use_gzip = wants_gzip && !body.1.is_empty();
+    let use_gzip = accepts_gzip(headers) && !body.1.is_empty();
     let mut response = Response::new(Body::from(if use_gzip { body.1.clone() } else { body.0.clone() }));
     let out = response.headers_mut();
     out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
@@ -96,6 +99,15 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
     }
 }
 
+/// `GET /programs/<slug>/modules`: the program's former tab „Alle Module" (owner, 2026-09-25: its
+/// place went to „Mein Plan"). Its modules are the catalog narrowed down to the program, so the
+/// old address leads there for good, with the module it had beside it.
+pub async fn old_modules_tab(Path(slug): Path<String>, uri: Uri) -> Response {
+    let (open, _) = catalog::url::local_from_pairs(&catalog::url::parse_pairs(uri.query().unwrap_or_default()));
+    let to = catalog::url::program_catalog_path(&slug, open.as_deref());
+    (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, to), (header::CACHE_CONTROL, "public, max-age=86400".to_string())]).into_response()
+}
+
 /// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
 /// and every current program with its views. Filters of the lists are not pages (`app::seo`).
 pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -116,7 +128,7 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
         };
         let mut paths = vec![catalog::url::HOME.to_string(), catalog::url::CATALOG.to_string(), catalog::url::PROGRAMS.to_string()];
         for program in programs.iter().filter(|program| program.is_latest_po) {
-            paths.extend(catalog::url::ProgramTab::ALL.iter().map(|tab| catalog::url::program_path(&program.slug, *tab)));
+            paths.extend(catalog::url::ProgramTab::ALL.iter().filter(|tab| tab.indexed()).map(|tab| catalog::url::program_path(&program.slug, *tab)));
         }
         paths.extend(modules.iter().map(|id| catalog::url::module_path(id)));
         let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
@@ -132,6 +144,84 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
         Some(body) => per_snapshot(&headers, &snapshot.etag, "application/xml; charset=utf-8", body),
         None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
+}
+
+/// `GET /calendar/<code>.ics`: a Studienplan as a calendar feed. The code carries semester, modules
+/// and what is hidden (`catalog::timetable::subscription`); the timetable is made anew from the
+/// active snapshot on every fetch, so exams the BTU publishes later arrive by themselves. Nothing is
+/// kept, neither the code nor the calendar.
+///
+/// The code is read from the raw path with the function the gate uses (`subscription::code_of_path`),
+/// so the two never disagree about what an address names, and an escape that spells no character
+/// of a code is a 404 like every other wrong address (axum's `Path` would answer invalid UTF-8
+/// with a 400).
+pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    // Never a 5xx for a wrong address: the access log reports those as errors a human has to act on.
+    let gone = || (StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-store")], "Kein Kalender unter dieser Adresse.\n").into_response();
+    let Some(subscription) = subscription::code_of_path(uri.path()).and_then(|code| Subscription::from_code(&code)) else { return gone() };
+    let Some(snapshot) = state.store.current() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
+    };
+    let started = Instant::now();
+    let key = subscription.key().map(|key| key.key()).unwrap_or_default();
+    // A semester's rows and a few hundred entries: made off the threads that answer requests.
+    let built = tokio::task::spawn_blocking(move || {
+        let mut out: Result<String, catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
+        let ran = snapshot.with_db(&mut |db| out = catalog::pages::calendar(db, &subscription));
+        ran.and(out)
+    })
+    .await;
+    let ics = match built {
+        Ok(Ok(ics)) => ics,
+        Ok(Err(error)) => {
+            tracing::error!(component = "http", event = "calendar.failed", error = %error, "a calendar feed could not be read from the snapshot");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+        Err(error) => {
+            tracing::error!(component = "http", event = "calendar.failed", error = %error, "the calendar task failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    // Size and time only: the code names what someone plans (`subscription::redacted_path`).
+    tracing::debug!(component = "http", event = "calendar.served", bytes = ics.len(), ms = started.elapsed().as_millis() as u64, "a calendar feed was made");
+    calendar_response(&headers, &crate::snapshot::content_etag("ics", ics.as_bytes()), ics, &key)
+}
+
+/// The answer of a feed. `private`: it is one person's plan, and a shared cache must not keep it.
+/// A quarter of an hour fresh, then revalidated against the content's ETag, which only changes
+/// with the plan or the data (the calendar never reads the clock). Compressed here, because the
+/// edge's compression does not take `text/calendar`. No search engine is to list it.
+fn calendar_response(headers: &HeaderMap, etag: &str, ics: String, key: &str) -> Response {
+    let shared = |out: &mut HeaderMap| {
+        out.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, max-age=900"));
+        out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+        if let Ok(value) = HeaderValue::from_str(etag) {
+            out.insert(header::ETAG, value);
+        }
+    };
+    if if_none_match(headers, etag) {
+        let mut response = StatusCode::NOT_MODIFIED.into_response();
+        shared(response.headers_mut());
+        return response;
+    }
+    let compressed = accepts_gzip(headers).then(|| crate::cache::gzip(ics.as_bytes())).filter(|bytes| !bytes.is_empty());
+    let gzipped = compressed.is_some();
+    let mut response = Response::new(match compressed {
+        Some(bytes) => Body::from(bytes),
+        None => Body::from(ics),
+    });
+    let out = response.headers_mut();
+    shared(out);
+    out.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/calendar; charset=utf-8"));
+    out.insert(header::HeaderName::from_static("x-robots-tag"), HeaderValue::from_static("noindex, nofollow"));
+    let name = if key.is_empty() { "studienplan.ics".to_string() } else { format!("studienplan-{key}.ics") };
+    if let Ok(value) = HeaderValue::from_str(&format!("inline; filename=\"{name}\"")) {
+        out.insert(header::CONTENT_DISPOSITION, value);
+    }
+    if gzipped {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    }
+    response
 }
 
 /// `GET /api/status`: what the browser compares its cached snapshot with, and what operators look at.
@@ -195,12 +285,8 @@ fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body
     if if_none_match(headers, &etag) {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
     }
-    let wants_gzip = headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
     // Fonts are compressed already.
-    let compressed = (wants_gzip && !matches!(content_type, "font/woff2" | "image/png" | "image/webp") && body.len() > 1024)
+    let compressed = (accepts_gzip(headers) && !matches!(content_type, "font/woff2" | "image/png" | "image/webp") && body.len() > 1024)
         .then(|| {
             let mut cache = COMPRESSED.get_or_init(Default::default).lock().ok()?;
             Some(cache.entry(body.as_ptr() as usize).or_insert_with(|| crate::cache::gzip(body)).clone())
@@ -460,11 +546,7 @@ pub async fn package(State(state): State<AppState>, Path(file): Path<String>, he
             entry
         }
     };
-    let wants_gzip = headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")));
-    let use_gzip = wants_gzip && !compressed.is_empty();
+    let use_gzip = accepts_gzip(&headers) && !compressed.is_empty();
     let mut response = Response::new(Body::from(if use_gzip { compressed } else { raw }));
     let out = response.headers_mut();
     out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
@@ -480,9 +562,15 @@ pub async fn package(State(state): State<AppState>, Path(file): Path<String>, he
 }
 
 pub async fn robots(State(state): State<AppState>) -> Response {
-    // In closed testing (`access`) there is nothing for a crawler but a login page.
+    // Calendar feeds are allowed in both answers: Google Calendar reads robots.txt before it
+    // fetches a subscription and gives up on a disallowed one („robots.txt prevents us from
+    // crawling the url"). A feed stays out of search indexes by its own `X-Robots-Tag: noindex`,
+    // which a crawler only sees when it may fetch the address.
+    // In closed testing (`access`) there is nothing else for a crawler but a login page. The
+    // longer rule wins (RFC 9309); `Allow` comes first for crawlers that take the first match.
     if state.gate.is_some() {
-        return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], "User-agent: *\nDisallow: /\n").into_response();
+        let body = format!("User-agent: *\nAllow: {}\nDisallow: /\n", subscription::CALENDAR_PREFIX);
+        return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], body).into_response();
     }
     let body = format!("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {}/sitemap.xml\n", state.public_url);
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()

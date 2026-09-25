@@ -1,4 +1,5 @@
-//! Row structs of the module page and the program page (the satellites of `v_module` and `v_program`).
+//! Row structs of the module page, the program page and the Studienplan (the satellites of
+//! `v_module` and `v_program`).
 
 use serde::{Deserialize, Serialize};
 
@@ -155,6 +156,69 @@ impl FromRow for EventDate {
             comment: row.opt_text("comment")?,
             source_url: row.opt_text("source_url")?,
         })
+    }
+}
+
+/// One row of `v_module_schedule` or `v_module_exam` with what `EventDate` leaves out: the module
+/// it was asked for, its place in the event and QIS's cancellations. The Studienplan keys, dates
+/// and hides rows by them (`timetable`); `EventDate` stays what the module page reads.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DateRow {
+    /// The module the row was asked for: an event of two planned modules comes once for each.
+    pub module_id: String,
+    /// The row's place among the dates of its event; `None` for an event that has no dates.
+    pub ord: Option<i64>,
+    /// QIS's „fällt aus am" column as it stands, read by `timetable::cancel::parse`. Exam rows do
+    /// not have the column, so theirs is always `None`.
+    pub cancelled_dates: Option<String>,
+    pub date: EventDate,
+}
+
+impl FromRow for DateRow {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            module_id: row.text("module_id")?,
+            ord: row.opt_int("ord")?,
+            cancelled_dates: row.opt_text("cancelled_dates")?,
+            date: EventDate::from_row(row)?,
+        })
+    }
+}
+
+/// How many dated rows of a semester share a rhythm and a date range: what the lecture period,
+/// its breaks and the A/B weeks are read from (`timetable::facts`), since no source states them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DateCount {
+    pub rhythm: Option<Code<Rhythm>>,
+    pub first_date: String,
+    pub last_date: Option<String>,
+    /// Distinct rows (event and `ord`), however many modules link the event.
+    pub dates: i64,
+}
+
+impl FromRow for DateCount {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            rhythm: Code::parse_opt(row.opt_text("rhythm")?),
+            first_date: row.text("first_date")?,
+            last_date: row.opt_text("last_date")?,
+            dates: row.int("dates")?,
+        })
+    }
+}
+
+/// The SWS a module page states for one teaching form, its entries summed: whether the parallel
+/// slots of an event are alternatives or all required (`timetable::model`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModuleSws {
+    pub module_id: String,
+    pub form: Code<TeachingForm>,
+    pub sws: f64,
+}
+
+impl FromRow for ModuleSws {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { module_id: row.text("module_id")?, form: Code::parse(&row.text("form")?), sws: row.real("sws")? })
     }
 }
 

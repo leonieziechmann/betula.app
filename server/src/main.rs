@@ -95,7 +95,9 @@ fn init_logging(config: &Config) {
 async fn access_log(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let started = Instant::now();
     let method = request.method().clone();
-    let path = request.uri().path().to_string();
+    // A calendar feed's address carries somebody's plan (`/calendar/<code>.ics`): the log, kept 30
+    // days, writes every path under `/calendar/` as one fixed text, valid code or not.
+    let path = catalog::timetable::subscription::redacted_path(request.uri().path()).to_string();
     let mut response = next.run(request).await;
 
     let headers = response.headers_mut();
@@ -182,6 +184,12 @@ pub fn router(state: AppState) -> Router {
         .route(app::MANIFEST, get(api::manifest))
         .route("/cards/module/{file}", get(api::module_card))
         .route("/cards/program/{file}", get(api::program_card))
+        // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
+        // (axum refuses two routes for one path at startup).
+        .route("/calendar/{file}", get(api::calendar))
+        // The program's former tab „Alle Module", for good in the catalog. Beside the pages'
+        // `/programs/{slug}/{tab}`: the fixed segment wins.
+        .route(&format!("/programs/{{slug}}/{}", catalog::url::OLD_MODULES_SEGMENT), get(api::old_modules_tab))
         .route("/robots.txt", get(api::robots))
         .route("/sitemap.xml", get(api::sitemap))
         .route(access::PATH, get(access::page).post(access::enter))

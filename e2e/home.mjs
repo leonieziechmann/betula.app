@@ -84,7 +84,7 @@ await waitFor("Der Katalog");
 const right = page.locator(".cslide.is-side >> nth=1");
 const size = await right.boundingBox();
 await right.click({ position: { x: size.width * 0.85, y: size.height * 0.4 } });
-await waitFor("Der Studienplan");
+await waitFor("Der Regelstudienplan");
 await page.click(".show-tabs button:has-text('Modul')");
 await waitFor("Ein Modul");
 await page.focus(".carousel");

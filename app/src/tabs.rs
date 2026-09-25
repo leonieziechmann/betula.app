@@ -31,6 +31,9 @@ pub enum Area {
     /// „Merkliste": the visitor's marked modules. It is one page, and a module opened from it is
     /// shown on it (`crate::local`), beside the list or in full.
     Bookmarks,
+    /// „Studienplan": the visitor's plan. One page as well; a module opened from it stands beside
+    /// the plan, and fills it after „Vollbild" (`crate::studyplan::PlanAddress`).
+    Studyplan,
 }
 
 impl Area {
@@ -39,7 +42,7 @@ impl Area {
     /// reached from it (a link on the module's page) does not become what the catalog remembers,
     /// and its „Zurück" leads back into the area (`Tabs::came_from`).
     pub fn shows_in_place(self) -> bool {
-        matches!(self, Area::Programs | Area::Bookmarks)
+        matches!(self, Area::Programs | Area::Bookmarks | Area::Studyplan)
     }
 
     pub fn of(path: &str) -> Self {
@@ -49,6 +52,8 @@ impl Area {
             Area::Catalog
         } else if path.starts_with(url::BOOKMARKS) {
             Area::Bookmarks
+        } else if path.starts_with(url::STUDYPLAN) {
+            Area::Studyplan
         } else {
             Area::Home
         }
@@ -61,6 +66,7 @@ impl Area {
             Area::Catalog => url::CATALOG,
             Area::Programs => url::PROGRAMS,
             Area::Bookmarks => url::BOOKMARKS,
+            Area::Studyplan => url::STUDYPLAN,
         }
     }
 }
@@ -89,6 +95,8 @@ struct Memory {
     programs_list: Option<String>,
     /// The marked modules as they were left: their order, the module open beside them.
     bookmarks: Option<String>,
+    /// The Studienplan as it was left: its semester and view, the module beside it.
+    studyplan: Option<String>,
 }
 
 impl Memory {
@@ -113,6 +121,11 @@ impl Memory {
                 self.previous = std::mem::replace(&mut self.current, location);
                 return;
             }
+            Area::Studyplan => {
+                self.studyplan = Some(location.clone());
+                self.previous = std::mem::replace(&mut self.current, location);
+                return;
+            }
             Area::Home => {
                 self.previous = std::mem::replace(&mut self.current, location);
                 return;
@@ -126,14 +139,15 @@ impl Memory {
     }
 
     fn stored(&self) -> String {
-        [&self.catalog, &self.catalog_list, &self.programs, &self.programs_list, &self.bookmarks].map(|entry| entry.clone().unwrap_or_default()).join("\n")
+        [&self.catalog, &self.catalog_list, &self.programs, &self.programs_list, &self.bookmarks, &self.studyplan].map(|entry| entry.clone().unwrap_or_default()).join("\n")
     }
 
     fn restored(stored: &str) -> Self {
-        // Only paths of this site: what is stored ends up in links.
+        // Only paths of this site: what is stored ends up in links. What an older version stored
+        // (fewer lines) reads as far as it goes.
         let mut lines = stored.lines().map(|line| Some(line.to_string()).filter(|line| line.starts_with('/') && !line.starts_with("//")));
         let mut next = || lines.next().flatten();
-        Self { catalog: next(), catalog_list: next(), programs: next(), programs_list: next(), bookmarks: next(), ..Default::default() }
+        Self { catalog: next(), catalog_list: next(), programs: next(), programs_list: next(), bookmarks: next(), studyplan: next(), ..Default::default() }
     }
 }
 
@@ -165,21 +179,28 @@ impl Tabs {
 
     /// Where the tab of `area` leads, seen from `path`.
     pub fn href(self, area: Area, path: &str) -> String {
+        self.href_with_root(area, path, area.root())
+    }
+
+    /// Where the tab of `area` leads, seen from `path`, where the area has a first page of its own
+    /// for this visitor (the catalog of „Mein Studiengang", A.10): `root` stands in only where
+    /// nothing of the area is remembered, its first entry of the session. On the area's list the
+    /// tab stays the plain link to it, a reset, and a page the visitor left the area at always
+    /// wins, so a filter the visitor took away is never added back.
+    pub fn href_with_root(self, area: Area, path: &str, root: &str) -> String {
         self.0.with(|memory| {
             let (last, list) = match area {
                 Area::Catalog => (&memory.catalog, &memory.catalog_list),
                 Area::Programs => (&memory.programs, &memory.programs_list),
                 Area::Bookmarks => (&memory.bookmarks, &memory.bookmarks),
+                Area::Studyplan => (&memory.studyplan, &memory.studyplan),
                 Area::Home => (&None, &None),
             };
-            let remembered = if Area::of(path) != area {
-                last
-            } else if path != area.root() {
-                list
-            } else {
-                &None
-            };
-            remembered.clone().unwrap_or_else(|| area.root().to_string())
+            if Area::of(path) == area && path == area.root() {
+                return area.root().to_string();
+            }
+            let remembered = if Area::of(path) != area { last } else { list };
+            remembered.clone().unwrap_or_else(|| root.to_string())
         })
     }
 
@@ -189,6 +210,7 @@ impl Tabs {
             Area::Catalog => memory.catalog_list.clone(),
             Area::Programs => memory.programs_list.clone(),
             Area::Bookmarks => memory.bookmarks.clone(),
+            Area::Studyplan => memory.studyplan.clone(),
             Area::Home => None,
         })
         .unwrap_or_else(|| area.root().to_string())
@@ -201,6 +223,7 @@ impl Tabs {
             Area::Catalog => memory.catalog.clone(),
             Area::Programs => memory.programs.clone(),
             Area::Bookmarks => memory.bookmarks.clone(),
+            Area::Studyplan => memory.studyplan.clone(),
             Area::Home => None,
         })
     }
@@ -277,6 +300,66 @@ mod tests {
         // A reload keeps it, and what an older version stored (four lines) still reads.
         assert_eq!(Memory::restored(&memory.stored()).bookmarks, memory.bookmarks);
         assert_eq!(Memory::restored("/catalog\n/catalog\n\n\n"), Memory { catalog: Some("/catalog".into()), catalog_list: Some("/catalog".into()), ..Default::default() });
+    }
+
+    #[test]
+    fn the_studyplan_is_an_area_of_its_own() {
+        assert_eq!((Area::of("/studyplan"), Area::Studyplan.root()), (Area::Studyplan, "/studyplan"));
+        assert!(Area::Studyplan.shows_in_place());
+        let mut memory = Memory::default();
+        for location in ["/catalog?turnus=winter", "/studyplan?sem=2026W&view=dates", "/studyplan?sem=2026W&view=dates&open=12104&full=1"] {
+            memory.visit(location.to_string());
+        }
+        // Its tab remembers the plan as it was left, the module filling it included; the catalog's
+        // does not hear of the module.
+        assert_eq!(memory.studyplan.as_deref(), Some("/studyplan?sem=2026W&view=dates&open=12104&full=1"));
+        assert_eq!(memory.catalog.as_deref(), Some("/catalog?turnus=winter"));
+        // A module's own page reached from there belongs to the plan: its „Zurück" leads back to it.
+        memory.visit("/catalog/module/12107".to_string());
+        assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog.as_deref()), (Area::Studyplan, Some("/catalog?turnus=winter")));
+
+        // The tab: from elsewhere to where the plan was left; on the plan itself the plain link.
+        let tabs = Tabs(RwSignal::new(memory.clone()));
+        assert_eq!(tabs.href(Area::Studyplan, "/catalog"), "/studyplan?sem=2026W&view=dates&open=12104&full=1");
+        assert_eq!(tabs.href(Area::Studyplan, "/studyplan"), "/studyplan");
+        assert_eq!(tabs.list(Area::Studyplan), "/studyplan?sem=2026W&view=dates&open=12104&full=1");
+        assert_eq!(Tabs(RwSignal::new(Memory::default())).href(Area::Studyplan, "/catalog"), "/studyplan");
+
+        // A reload keeps it as the sixth line, and what the version before stored (five lines) reads.
+        let stored = memory.stored();
+        assert_eq!(stored.lines().count(), 6);
+        assert_eq!(Memory::restored(&stored).studyplan, memory.studyplan);
+        let five = "/catalog\n/catalog\n/programs\n/programs\n/bookmarks?sort=ects";
+        assert_eq!(
+            Memory::restored(five),
+            Memory { catalog: Some("/catalog".into()), catalog_list: Some("/catalog".into()), programs: Some("/programs".into()), programs_list: Some("/programs".into()), bookmarks: Some("/bookmarks?sort=ects".into()), ..Default::default() }
+        );
+        assert_eq!(Memory::restored("\n\n\n\n\n//evil.example/studyplan").studyplan, None);
+    }
+
+    #[test]
+    fn the_catalog_of_mein_studiengang_is_only_the_first_entry() {
+        let mine = "/catalog?program=bachelor-informatik-2008";
+        // Nothing of the catalog remembered in this session: the tab leads to the program's
+        // catalog, from another area and from a module's page reached some other way.
+        let fresh = Tabs(RwSignal::new(Memory::default()));
+        assert_eq!(fresh.href_with_root(Area::Catalog, "/", mine), mine);
+        assert_eq!(fresh.href_with_root(Area::Catalog, "/catalog/module/12104", mine), mine);
+        // On the catalog's list itself the tab is a reset to the whole catalog, as without it.
+        assert_eq!(fresh.href_with_root(Area::Catalog, "/catalog", mine), "/catalog");
+
+        // Once the catalog was visited, what it was left at wins: the student who took the
+        // program's tag away is not led back to it.
+        let mut memory = Memory::default();
+        for location in [mine, "/catalog", "/programs"] {
+            memory.visit(location.to_string());
+        }
+        let visited = Tabs(RwSignal::new(memory));
+        assert_eq!(visited.href_with_root(Area::Catalog, "/programs", mine), "/catalog");
+        assert_eq!(visited.href_with_root(Area::Catalog, "/catalog/module/12104", mine), "/catalog");
+        // `href` is the same with the area's own root.
+        assert_eq!(visited.href(Area::Catalog, "/programs"), visited.href_with_root(Area::Catalog, "/programs", "/catalog"));
+        assert_eq!(fresh.href(Area::Catalog, "/"), "/catalog");
     }
 
     #[test]

@@ -48,7 +48,7 @@ const open = async (options, path, requests) => {
   return { page, step, context };
 };
 const stored = (page) => page.evaluate((key) => (localStorage.getItem(key) || "").split("\n").filter(Boolean).map((line) => line.split("\t")[0]), KEY);
-const badge = (page) => page.evaluate(() => document.querySelector(".rail .nav-count")?.textContent ?? null);
+const badge = (page) => page.evaluate(() => document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent ?? null);
 const pressed = (page, selector) => page.evaluate((s) => document.querySelector(s)?.getAttribute("aria-pressed") ?? null, selector);
 const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".rows a.row")].map((row) => row.dataset.id));
 
@@ -115,35 +115,35 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   check(await page.evaluate((id) => document.activeElement === document.querySelector(`a.row[data-id="${id}"]`), ids[4]), "marking by keyboard moved the focus");
 
   // In the preview: the switch under the heading, with M written on it; the row follows.
-  await step("preview", () => page.click(`a.row[data-id="${ids[6]}"]`), () => Boolean(document.querySelector(".detail .mark-switch")));
-  check((await pressed(page, ".detail .mark-switch")) === "false", "the preview of an unmarked module shows it marked");
-  check(await page.evaluate(() => document.querySelector(".detail .mark-switch kbd")?.textContent === "M"), "the shortcut is not written on the switch");
+  await step("preview", () => page.click(`a.row[data-id="${ids[6]}"]`), () => Boolean(document.querySelector(".detail .mark-toggle.mark-switch")));
+  check((await pressed(page, ".detail .mark-toggle.mark-switch")) === "false", "the preview of an unmarked module shows it marked");
+  check(await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch kbd")?.textContent === "M"), "the shortcut is not written on the switch");
   // In the line of the credits, at its right end: where the content under the heading ends.
   const placed = await page.evaluate(() => {
-    const [credits, mark, body, last] = [".detail .badges .badge.strong", ".detail .mark-switch", ".detail .dbody .section", ".detail .badges .badge:last-of-type"].map((s) => document.querySelector(s).getBoundingClientRect());
+    const [credits, mark, body, last] = [".detail .badges .badge.strong", ".detail .mark-toggle.mark-switch", ".detail .dbody .section", ".detail .badges > .badge:nth-last-child(1 of .badge)"].map((s) => document.querySelector(s).getBoundingClientRect());
     return { sameLine: Math.abs((credits.top + credits.bottom) / 2 - (mark.top + mark.bottom) / 2), edge: Math.abs(mark.right - body.right), afterBadges: mark.left - last.right, height: mark.height };
   });
   check(placed.sameLine <= 0.5 && placed.edge <= 0.5 && placed.afterBadges >= 6 && placed.height >= 32, `the switch is not at the right end of the line of the credits: ${JSON.stringify(placed)}`);
   await page.evaluate(() => document.activeElement?.blur());
-  const widthBefore = await page.evaluate(() => document.querySelector(".detail .mark-switch").getBoundingClientRect().width);
-  await step("M marks the previewed module", () => page.keyboard.press("m"), () => document.querySelector(".detail .mark-switch").getAttribute("aria-pressed") === "true");
+  const widthBefore = await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch").getBoundingClientRect().width);
+  await step("M marks the previewed module", () => page.keyboard.press("m"), () => document.querySelector(".detail .mark-toggle.mark-switch").getAttribute("aria-pressed") === "true");
   check((await pressed(page, `.row-wrap:has(a.row[data-id="${ids[6]}"]) > .mark-toggle`)) === "true", "the row does not follow the preview");
-  check(await page.evaluate(() => document.querySelector(".detail .mark-switch").textContent.includes("Gemerkt")), "the switch does not say „Gemerkt“");
-  check(Math.abs((await page.evaluate(() => document.querySelector(".detail .mark-switch").getBoundingClientRect().width)) - widthBefore) < 0.5, "the switch changes its width when pressed");
+  check(await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch").textContent.includes("Gemerkt")), "the switch does not say „Gemerkt“");
+  check(Math.abs((await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch").getBoundingClientRect().width)) - widthBefore) < 0.5, "the switch changes its width when pressed");
   check((await badge(page)) === "3", `three marks, the rail says ${await badge(page)}`);
   // The focused row wins over the preview: M acts where the keyboard is.
   await page.focus(`a.row[data-id="${ids[8]}"]`);
   await page.keyboard.press("m");
-  check((await pressed(page, `.row-wrap:has(a.row[data-id="${ids[8]}"]) > .mark-toggle`)) === "true" && (await pressed(page, ".detail .mark-switch")) === "true", "M did not act on the focused row");
+  check((await pressed(page, `.row-wrap:has(a.row[data-id="${ids[8]}"]) > .mark-toggle`)) === "true" && (await pressed(page, ".detail .mark-toggle.mark-switch")) === "true", "M did not act on the focused row");
   await page.keyboard.press("m");
 
   // On the module's page: under the heading and among the actions of the sidebar, one state.
   await page.evaluate(() => document.activeElement?.blur());
-  await step("full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && Boolean(document.querySelector(".module-page .mark-switch")));
-  check((await pressed(page, ".module-page .mark-switch")) === "true" && (await pressed(page, ".sidebar .action.mark-toggle")) === "true", "the module's page does not know the mark");
-  const onPage = await page.evaluate(() => { const [credits, mark, body] = [".module-page .badges .badge.strong", ".module-page .mark-switch", ".module-grid > aside .section"].map((s) => document.querySelector(s).getBoundingClientRect()); return [Math.abs((credits.top + credits.bottom) / 2 - (mark.top + mark.bottom) / 2), Math.abs(mark.right - body.right)]; });
+  await step("full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && Boolean(document.querySelector(".module-page .mark-toggle.mark-switch")));
+  check((await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true" && (await pressed(page, ".sidebar .action.mark-toggle")) === "true", "the module's page does not know the mark");
+  const onPage = await page.evaluate(() => { const [credits, mark, body] = [".module-page .badges .badge.strong", ".module-page .mark-toggle.mark-switch", ".module-grid > aside .section"].map((s) => document.querySelector(s).getBoundingClientRect()); return [Math.abs((credits.top + credits.bottom) / 2 - (mark.top + mark.bottom) / 2), Math.abs(mark.right - body.right)]; });
   check(onPage[0] <= 0.5 && onPage[1] <= 0.5, `on the module's page the switch is not at the right end of the line of the credits: ${onPage}`);
-  await step("the sidebar's action takes the mark away", () => page.click(".sidebar .action.mark-toggle"), () => document.querySelector(".module-page .mark-switch").getAttribute("aria-pressed") === "false" && document.querySelector(".sidebar .action.mark-toggle").textContent.includes("Merken"));
+  await step("the sidebar's action takes the mark away", () => page.click(".sidebar .action.mark-toggle"), () => document.querySelector(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed") === "false" && document.querySelector(".sidebar .action.mark-toggle").textContent.includes("Merken"));
   await step("and M gives it back", () => page.keyboard.press("m"), () => document.querySelector(".sidebar .action.mark-toggle").getAttribute("aria-pressed") === "true");
 
   // A reload keeps the marks; server HTML knows nothing of them.
@@ -151,7 +151,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   check(!html.includes('aria-pressed="true"') && !html.includes("nav-count"), "server HTML shows something marked");
   await page.reload({ waitUntil: "domcontentloaded" });
   await takeover(page);
-  await page.waitForFunction(() => document.querySelector(".module-page .mark-switch")?.getAttribute("aria-pressed") === "true", null, { timeout: 8000 }).catch(() => problems.push("a reload lost the mark"));
+  await page.waitForFunction(() => document.querySelector(".module-page .mark-toggle.mark-switch")?.getAttribute("aria-pressed") === "true", null, { timeout: 8000 }).catch(() => problems.push("a reload lost the mark"));
   await page.evaluate(() => { window.__marker = 1; });
   const marked = await stored(page);
   check(JSON.stringify(marked) === JSON.stringify([ids[6], ids[4], ids[2]]), `stored after all of this: ${marked}`);
@@ -197,7 +197,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
 
   // The preview, as in the catalog; the list stays.
   await step("preview of a marked module", () => page.click(`a.row[data-id="${marked[1]}"]`), (id) => location.search === `?open=${id}` && Boolean(document.querySelector(".detail h2")), marked[1]);
-  check((await pressed(page, ".detail .mark-switch")) === "true", "the preview of a marked module does not show it marked");
+  check((await pressed(page, ".detail .mark-toggle.mark-switch")) === "true", "the preview of a marked module does not show it marked");
   // (Measured once the panel has arrived: it slides in.)
   await page.waitForFunction(() => document.querySelector(".work > .detail").getAnimations().every((animation) => animation.playState === "finished"), null, { timeout: 4000 }).catch(() => {});
   const floats = await page.evaluate(() => { const [list, detail] = [document.querySelector(".panel.list"), document.querySelector(".work > .detail")].map((el) => el.getBoundingClientRect()); return [detail.right - list.right, detail.top - list.top, detail.bottom - list.bottom, list.left - detail.left]; });
@@ -205,7 +205,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
 
   // A mark taken away here stays on the page, dimmed; the numbers follow; one click undoes it.
   await page.evaluate(() => { document.querySelectorAll(".rows .row-wrap").forEach((wrap, i) => { wrap.__kept = i; }); });
-  await step("a mark taken away stays on the page", () => page.click(".detail .mark-switch"), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]);
+  await step("a mark taken away stays on the page", () => page.click(".detail .mark-toggle.mark-switch"), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]);
   const after = await page.evaluate(() => ({ rows: document.querySelectorAll(".rows a.row").length, count: document.querySelector(".list .count").textContent, side: document.querySelector(".side-facts dd").textContent, kept: [...document.querySelectorAll(".rows .row-wrap")].every((wrap, i) => wrap.__kept === i), all: document.querySelector(".sidebar .seg a .num").textContent }));
   check(after.rows === 3 && after.count === "2" && after.side === "2 Module" && after.all === "2" && after.kept && (await badge(page)) === "2", `after taking a mark away: ${JSON.stringify(after)}`);
   // (The preview floats over the right end of the rows, so their buttons are reached once it is closed.)
@@ -299,7 +299,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   check(await page.evaluate(() => document.querySelector('.rail .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page"), "full page: the tab of the marked modules is not the current one");
   check((await catalogTab()) === catalogBefore, `full page: the catalog's tab leads to ${await catalogTab()} instead of ${catalogBefore}`);
   check(await page.evaluate(() => { const back = document.querySelector('[data-action="back"]').getAttribute("href"); return back.startsWith("/bookmarks?") && back.includes("open=") && !back.includes("full="); }), "„Zurück“ of a module opened from the marked modules leads elsewhere");
-  check((await pressed(page, ".module-page .mark-switch")) === "true", "full page: the module's page does not know the mark");
+  check((await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true", "full page: the module's page does not know the mark");
   const entries = await page.evaluate(() => history.length);
   await step("Esc leads back to the marked modules", () => page.keyboard.press("Escape"), () => location.pathname === "/bookmarks" && location.search.includes("open=") && !location.search.includes("full=") && document.querySelectorAll(".rows a.row").length === 3 && Boolean(document.querySelector(".detail h2")));
   check((await page.evaluate(() => history.length)) === entries, "back from the full page added a history entry instead of walking back");
@@ -341,7 +341,7 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   const ids = (await listIds(page)).slice(0, 8);
   const marked = [ids[1], ids[3], ids[5]];
   for (const id of marked) await page.click(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`);
-  await page.waitForFunction((n) => document.querySelector(".rail .nav-count")?.textContent === String(n), marked.length, { timeout: 8000 }).catch(() => problems.push("filter: the marks were not made"));
+  await page.waitForFunction((n) => document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent === String(n), marked.length, { timeout: 8000 }).catch(() => problems.push("filter: the marks were not made"));
 
   const chip = '.filters .chip:has(.chip-label:text-is("Gemerkt"))';
   await step("only the marked ones", () => page.click(chip), () => location.search.includes("marked=only") && document.querySelectorAll(".rows a.row").length === 3);
@@ -389,15 +389,15 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   await step("phone: a tap marks", () => page.tap(`.row-wrap:has(a.row[data-id="${ids[1]}"]) > .mark-toggle`), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "true", ids[1]);
   check(page.url() === base + "/catalog", `phone: marking opened something: ${page.url()}`);
   await page.tap(`.row-wrap:has(a.row[data-id="${ids[3]}"]) > .mark-toggle`);
-  check(await page.evaluate(() => document.querySelector(".bottomnav .nav-count")?.textContent === "2"), "phone: the bottom bar does not count");
+  check(await page.evaluate(() => document.querySelector('.bottomnav .nav[data-area="bookmarks"] .nav-count')?.textContent === "2"), "phone: the bottom bar does not count");
 
   await step("phone: the bottom bar leads to the marked modules", () => page.tap('.bottomnav .nav[data-area="bookmarks"]'), () => location.pathname === "/bookmarks" && document.querySelectorAll(".rows a.row").length === 2);
   const layout = await page.evaluate(() => { const [list, side] = [document.querySelector(".panel.list"), document.getElementById("sidebar")].map((el) => el.getBoundingClientRect()); return { below: side.top >= list.bottom - 1, overflow: document.documentElement.scrollWidth > innerWidth }; });
   check(layout.below && !layout.overflow, `phone: the sidebar is not under the list, or the page is wider than the screen: ${JSON.stringify(layout)}`);
   // The module is the page, in the list's place: the address and the tab stay the list's.
-  await step("phone: a tap opens the module in the list's place", () => page.tap(`a.row[data-id="${ids[1]}"]`), (id) => location.pathname === "/bookmarks" && location.search === `?open=${id}` && Boolean(document.querySelector(".module-page .mark-switch")), ids[1]);
+  await step("phone: a tap opens the module in the list's place", () => page.tap(`a.row[data-id="${ids[1]}"]`), (id) => location.pathname === "/bookmarks" && location.search === `?open=${id}` && Boolean(document.querySelector(".module-page .mark-toggle.mark-switch")), ids[1]);
   check(await page.evaluate(() => document.querySelector('.bottomnav .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page" && !document.querySelector('.bottomnav .nav[data-area="catalog"]').getAttribute("href").startsWith("/catalog/module/")), "phone: the module is not the marked modules' page, or the catalog's tab heard of it");
-  const button = await page.evaluate(() => { const r = document.querySelector(".module-page .mark-switch").getBoundingClientRect(); return { height: r.height, pressed: document.querySelector(".module-page .mark-switch").getAttribute("aria-pressed"), seen: r.top < innerHeight }; });
+  const button = await page.evaluate(() => { const r = document.querySelector(".module-page .mark-toggle.mark-switch").getBoundingClientRect(); return { height: r.height, pressed: document.querySelector(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed"), seen: r.top < innerHeight }; });
   check(button.height >= 44 && button.pressed === "true" && button.seen, `phone: the switch on the module's page: ${JSON.stringify(button)}`);
   await step("phone: „Zurück“ returns to the marked modules", () => page.click('[data-action="back"]'), () => location.pathname === "/bookmarks" && location.search === "" && document.querySelectorAll(".rows a.row").length === 2);
   await context.close();

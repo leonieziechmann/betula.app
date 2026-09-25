@@ -1,17 +1,31 @@
 //! URLs of the app, in one place for the server, the pages and the tests.
 //!
 //! `/`                                  landing page
-//! `/catalog?…`                         module catalog; the query string is a `CatalogQuery`
-//! `/catalog/module/<id>`               module page
+//! `/catalog?…`                         module catalog; the query string is a `CatalogQuery`.
+//!                                      `fits=<semester>` (with `fits-skip`, `fits-undated`) is the
+//!                                      switch „Passt in meinen Plan"; which modules fit comes from
+//!                                      the browser, like the marked ones. `fill=p<n>` (the
+//!                                      placeholder a module found there would fill) is the app's:
+//!                                      the server's page and its cache key drop it
+//! `/catalog/module/<id>`               module page; `?plan=<semester>&fill=p<n>` is the app's hint
+//!                                      of where its plan button plans to (`ModuleHint`)
 //! `/bookmarks?…[&open=<id>][&full=1]`  the visitor's marked modules (`BookmarksUrl`); which ones
 //!                                      they are is never part of a URL, only how they are shown,
 //!                                      which module stands beside them, and whether that module
 //!                                      fills the page
 //! `/programs`                          program overview
-//! `/programs/<slug>[/plan|areas|modules][?variant=<n>][&open=<id>][&full=1]`   program page, its
+//! `/programs/<slug>[/plan|areas|my-plan][?variant=<n>][&open=<id>][&full=1]`   program page, its
 //!                                      tabs, which of several study plans is shown, which module
 //!                                      stands beside it, and whether that module fills the page
-//!                                      (`ProgramUrl`)
+//!                                      (`ProgramUrl`); the old `/programs/<slug>/modules` is a
+//!                                      permanent redirect to `program_catalog_path`
+//! `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>`   the visitor's Studienplan
+//!                                      (`StudyplanUrl`): which semester and view, the module and
+//!                                      Termin beside it, the Regelstudienplan being taken over.
+//!                                      What is planned lives in the browser, never in a URL
+//! `/calendar/<code>.ics`               a calendar subscription, served by the server (not a page):
+//!                                      the code says semester, modules and what is hidden
+//!                                      (`timetable::subscription`)
 //!
 //! `open` and `full` mean the same on every page that has them (`LocalView`): the module shown
 //! in place, beside the page or filling it, without leaving the page's area.
@@ -25,10 +39,12 @@
 //! link may contain nonsense. Unknown names and values are ignored, never an error.
 
 use crate::filter::{
-    CatalogQuery, ExamPart, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey,
+    CatalogQuery, ExamPart, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey,
     TurnusFilter,
 };
 use crate::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
+use crate::timetable::rowkey::RowKey;
+use crate::timetable::semester::SemesterKey;
 
 pub const HOME: &str = "/";
 pub const CATALOG: &str = "/catalog";
@@ -38,6 +54,11 @@ pub const BOOKMARKS: &str = "/bookmarks";
 /// The legal pages, under the German names people look for.
 pub const IMPRINT: &str = "/impressum";
 pub const PRIVACY: &str = "/datenschutz";
+/// „Studienplan": the visitor's modules per calendar semester. The plan itself lives in the
+/// browser; the address says only how it is shown (`StudyplanUrl`).
+pub const STUDYPLAN: &str = "/studyplan";
+/// Calendar subscriptions, `/calendar/<code>.ics`: answered by the server itself, not a page.
+pub const CALENDAR_PREFIX: &str = "/calendar/";
 
 pub fn module_path(id: &str) -> String {
     format!("/catalog/module/{}", encode(id))
@@ -50,18 +71,24 @@ pub enum ProgramTab {
     Plan,
     /// Wahlpflicht & Bereiche
     Areas,
-    /// Alle Module
-    Modules,
+    /// „Mein Plan": the visitor's plan of the whole study, semester by semester. A placeholder
+    /// for now (owner, 2026-09-25); it took the place of „Alle Module", whose old address
+    /// (`OLD_MODULES_SEGMENT`) leads to the catalog of the program (`program_catalog_path`).
+    MyPlan,
 }
 
+/// The segment of the program's former tab „Alle Module": the server answers it with a
+/// permanent redirect to the catalog of the program (`program_catalog_path`).
+pub const OLD_MODULES_SEGMENT: &str = "modules";
+
 impl ProgramTab {
-    pub const ALL: &'static [Self] = &[Self::Plan, Self::Areas, Self::Modules];
+    pub const ALL: &'static [Self] = &[Self::Plan, Self::Areas, Self::MyPlan];
 
     pub fn segment(self) -> &'static str {
         match self {
             ProgramTab::Plan => "plan",
             ProgramTab::Areas => "areas",
-            ProgramTab::Modules => "modules",
+            ProgramTab::MyPlan => "my-plan",
         }
     }
 
@@ -73,13 +100,26 @@ impl ProgramTab {
         match self {
             ProgramTab::Plan => "Regelstudienplan",
             ProgramTab::Areas => "Wahlpflicht & Bereiche",
-            ProgramTab::Modules => "Alle Module",
+            ProgramTab::MyPlan => "Mein Plan",
         }
+    }
+
+    /// Whether a search engine is meant to find the tab (the sitemap, `noindex`): „Mein Plan"
+    /// is the visitor's, and a placeholder so far.
+    pub fn indexed(self) -> bool {
+        self != ProgramTab::MyPlan
     }
 }
 
 pub fn program_path(slug: &str, tab: ProgramTab) -> String {
     format!("/programs/{}/{}", encode(slug), tab.segment())
+}
+
+/// The catalog narrowed down to the modules of a program (its curriculum): where „Alle Module"
+/// of the program's page went.
+pub fn program_catalog_path(slug: &str, open: Option<&str>) -> String {
+    let query = CatalogQuery { program: Some(ProgramScope { program_slug: slug.to_string(), ..Default::default() }), ..Default::default() };
+    CatalogUrl { query, page: 1, open: open.map(str::to_string), fill: None }.path()
 }
 
 /// How many study plans of one program can be told apart in the URL. A program has one plan per
@@ -402,6 +442,13 @@ pub fn is_module_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
+/// What a program id may look like where one arrives from the browser's storage (`079-82-2008`,
+/// `G29-82-2025`): three to five parts of one to eight ASCII letters or digits, joined by `-`.
+pub fn is_program_id(id: &str) -> bool {
+    let part = |part: &str| (1..=8).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_alphanumeric());
+    (3..=5).contains(&id.split('-').count()) && id.split('-').all(part)
+}
+
 /// How the list of marked modules is ordered.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum BookmarkSort {
@@ -532,6 +579,210 @@ impl LocalView for BookmarksUrl {
     }
 }
 
+/// A view of the Studienplan.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum PlanView {
+    /// „Woche": the Regelwoche, the recurring Termine of one semester as a timetable.
+    #[default]
+    Week,
+    /// „Termine": every date of the semester, week by week.
+    Dates,
+    /// „Prüfungen": the exam sittings of the semester's planned modules.
+    Exams,
+    /// „Übersicht": every semester of the plan at a glance.
+    Overview,
+}
+
+impl PlanView {
+    pub const ALL: &'static [Self] = &[Self::Week, Self::Dates, Self::Exams, Self::Overview];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            PlanView::Week => "week",
+            PlanView::Dates => "dates",
+            PlanView::Exams => "exams",
+            PlanView::Overview => "all",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|view| view.code() == code)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            PlanView::Week => "Woche",
+            PlanView::Dates => "Termine",
+            PlanView::Exams => "Prüfungen",
+            PlanView::Overview => "Übersicht",
+        }
+    }
+}
+
+/// How long a program slug in `import=` may be (the longest of the snapshot has 92 characters).
+const MAX_SLUG: usize = 120;
+
+/// `mine` or a program's slug: lowercase ASCII letters, digits and `-`.
+fn is_import(value: &str) -> bool {
+    (1..=MAX_SLUG).contains(&value.len()) && value.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+/// What the Studienplan's address says: `/studyplan?sem=2026W&view=dates&open=12104&row=148369-aaf38`.
+///
+/// How the plan is shown, never what is in it (R20): which semester and which view, the one module
+/// and Termin shown beside the plan (as the Merkliste's `open`), and which program's
+/// Regelstudienplan is being taken over. Tolerant and canonical like `CatalogUrl`. The server
+/// renders one explanation for every query (R9) and caches it by the path alone.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StudyplanUrl {
+    /// The calendar semester shown (`SemesterKey::key()`). `None` is the default semester, which
+    /// depends on the plan and the date and so is the page's to work out.
+    pub sem: Option<String>,
+    pub view: PlanView,
+    /// The module shown beside the plan (`open=<id>`).
+    pub open: Option<String>,
+    /// The Termin of that module the aside points at (`row=<event>-<fp>`, `RowKey::text`).
+    /// Nothing without `open`.
+    pub row: Option<String>,
+    /// The Regelstudienplan being taken over: `mine` (Mein Studiengang) or a program's slug.
+    pub import: Option<String>,
+    /// Which of that program's study plans, 1-based as on the program's page; the first is not
+    /// written. Nothing without `import`.
+    pub variant: usize,
+}
+
+impl Default for StudyplanUrl {
+    fn default() -> Self {
+        Self { sem: None, view: PlanView::Week, open: None, row: None, import: None, variant: 1 }
+    }
+}
+
+impl StudyplanUrl {
+    pub fn parse(raw_query: &str) -> Self {
+        let pairs = parse_pairs(raw_query);
+        let first = |name: &str| first_value(&pairs, name);
+        let open = first("open").filter(|id| is_module_id(id));
+        let import = first("import").map(|value| value.to_ascii_lowercase()).filter(|value| is_import(value));
+        // A week (`week=2026-10-14`) is no part of the address: the dated weeks are the view
+        // „Termine", which finds the current one by itself. Like every unknown name it is ignored.
+        Self {
+            sem: first("sem").and_then(|key| SemesterKey::parse(&key)).map(SemesterKey::key),
+            view: first("view").and_then(|code| PlanView::from_code(&code.to_ascii_lowercase())).unwrap_or_default(),
+            row: open.as_ref().and(first("row")).and_then(|key| RowKey::parse(&key.to_ascii_lowercase())).map(RowKey::text),
+            variant: match import {
+                Some(_) => first("variant").and_then(|n| n.parse::<usize>().ok()).filter(|n| (1..=MAX_PLAN_VARIANTS).contains(n)).unwrap_or(1),
+                None => 1,
+            },
+            open,
+            import,
+        }
+    }
+
+    /// The semester of `sem`, when it names one.
+    pub fn semester(&self) -> Option<SemesterKey> {
+        self.sem.as_deref().and_then(SemesterKey::parse)
+    }
+
+    /// `/studyplan` with the canonical query string: `sem`, `view`, `open`, `row`, `import`,
+    /// `variant`, each only when it says something.
+    pub fn path(&self) -> String {
+        let mut out: Vec<(&str, String)> = Vec::new();
+        if let Some(sem) = &self.sem {
+            out.push(("sem", sem.clone()));
+        }
+        if self.view != PlanView::Week {
+            out.push(("view", self.view.code().to_string()));
+        }
+        if let Some(id) = &self.open {
+            out.push(("open", id.clone()));
+            if let Some(row) = &self.row {
+                out.push(("row", row.clone()));
+            }
+        }
+        if let Some(import) = &self.import {
+            out.push(("import", import.clone()));
+            if self.variant > 1 {
+                out.push(("variant", self.variant.to_string()));
+            }
+        }
+        if out.is_empty() {
+            return STUDYPLAN.to_string();
+        }
+        format!("{STUDYPLAN}?{}", out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&"))
+    }
+
+    /// Another semester (`None`: the default one). The module beside the plan was one of the old
+    /// semester's, so it closes.
+    pub fn with_semester(&self, sem: Option<SemesterKey>) -> Self {
+        Self { sem: sem.map(SemesterKey::key), open: None, row: None, ..self.clone() }
+    }
+
+    pub fn with_view(&self, view: PlanView) -> Self {
+        Self { view, ..self.clone() }
+    }
+
+    /// This module beside the plan, pointing at this Termin of it, or (`None`) nothing beside it.
+    pub fn with_open(&self, id: Option<&str>, row: Option<RowKey>) -> Self {
+        let open = id.map(str::to_string);
+        Self { row: open.as_ref().and(row).map(RowKey::text), open, ..self.clone() }
+    }
+
+    /// The same page once the Regelstudienplan is taken over (or the panel closed).
+    pub fn without_import(&self) -> Self {
+        Self { import: None, variant: 1, ..self.clone() }
+    }
+}
+
+/// The highest placeholder number (the store's `pid`) a `fill=` may name.
+pub const MAX_PID: u32 = 9_999;
+
+/// `p3` → 3: the placeholder of the visitor's plan that `fill=` names.
+fn parse_fill(text: &str) -> Option<u32> {
+    let text = text.trim();
+    let digits = text.strip_prefix('p').or_else(|| text.strip_prefix('P'))?;
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse::<u32>().ok().filter(|pid| (1..=MAX_PID).contains(pid))
+}
+
+/// What a module's page is asked to plan the module into, when it was reached from the catalog's
+/// „Passt in meinen Plan" (`/catalog/module/<id>?plan=2026W&fill=p3`): the semester its plan button
+/// aims at and the placeholder the module would fill. The app's alone: the server keys the page by
+/// its path and ignores both, like every other query of a module page.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ModuleHint {
+    /// `SemesterKey::key()`.
+    pub plan: Option<String>,
+    /// A placeholder's number in the visitor's plan (`fill=p<n>`).
+    pub fill: Option<u32>,
+}
+
+impl ModuleHint {
+    pub fn parse(raw_query: &str) -> Self {
+        let pairs = parse_pairs(raw_query);
+        Self {
+            plan: first_value(&pairs, "plan").and_then(|key| SemesterKey::parse(&key)).map(SemesterKey::key),
+            fill: first_value(&pairs, "fill").and_then(|text| parse_fill(&text)),
+        }
+    }
+
+    /// `?plan=2026W&fill=p3`, what follows `module_path(id)`; empty without a hint.
+    pub fn query(&self) -> String {
+        let mut out: Vec<String> = Vec::new();
+        if let Some(plan) = &self.plan {
+            out.push(format!("plan={}", encode(plan)));
+        }
+        if let Some(pid) = self.fill {
+            out.push(format!("fill=p{pid}"));
+        }
+        match out.is_empty() {
+            true => String::new(),
+            false => format!("?{}", out.join("&")),
+        }
+    }
+}
+
 /// How many modules one catalog page lists.
 pub const PAGE_SIZE: u64 = 50;
 
@@ -545,11 +796,15 @@ pub struct CatalogUrl {
     pub page: u64,
     /// The module previewed next to the list (`open=<id>`). Its own page is `module_path`.
     pub open: Option<String>,
+    /// The placeholder of the visitor's Studienplan that a module found here fills (`fill=p3`):
+    /// „Modul finden" of a plan row leads here, and the preview's plan button then plans into it.
+    /// The app's, like `open`: the server's page drops it and its cache key ignores it.
+    pub fill: Option<u32>,
 }
 
 impl Default for CatalogUrl {
     fn default() -> Self {
-        Self { query: CatalogQuery::default(), page: 1, open: None }
+        Self { query: CatalogQuery::default(), page: 1, open: None, fill: None }
     }
 }
 
@@ -715,6 +970,21 @@ impl CatalogUrl {
                 Some("none") => Some(false),
                 _ => None,
             },
+            // The same for the modules that fit the plan: the URL says the semester and what is
+            // compared, the browser works out which modules they are.
+            fits: first("fits").and_then(|key| SemesterKey::parse(&key)).map(|key| {
+                let skipped = codes("fits-skip");
+                let compared = |code: &str| !skipped.iter().any(|skip| skip == code);
+                let [lecture, exercise, exam] = FitsFilter::CLASSES;
+                FitsFilter {
+                    semester: key.key(),
+                    lectures: compared(lecture),
+                    exercises: compared(exercise),
+                    exams: compared(exam),
+                    undated: first("fits-undated").as_deref() == Some("1"),
+                }
+            }),
+            fits_ids: None,
             // The same for the modules that are passed.
             prerequisites_met_by: (first("prereqs").as_deref() == Some("met")).then(Vec::new),
             sort: match first("sort").as_deref() {
@@ -728,7 +998,8 @@ impl CatalogUrl {
         };
         let page = first("page").and_then(|n| n.parse::<u64>().ok()).filter(|n| (1..=100_000).contains(n)).unwrap_or(1);
         let open = first("open").filter(|id| id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
-        Self { query, page, open }
+        let fill = first("fill").and_then(|text| parse_fill(&text));
+        Self { query, page, open, fill }
     }
 
     /// The canonical query string, without `?`; empty for the default catalog.
@@ -847,6 +1118,16 @@ impl CatalogUrl {
         if let Some(marked) = q.marked {
             out.push(("marked", if marked { "only" } else { "none" }.to_string()));
         }
+        if let Some(fits) = &q.fits {
+            out.push(("fits", fits.semester.clone()));
+            let skipped = fits.skipped();
+            if !skipped.is_empty() {
+                out.push(("fits-skip", join(skipped)));
+            }
+            if fits.undated {
+                out.push(("fits-undated", "1".to_string()));
+            }
+        }
         if q.prerequisites_met_by.is_some() {
             out.push(("prereqs", "met".to_string()));
         }
@@ -866,6 +1147,9 @@ impl CatalogUrl {
         if let Some(id) = &self.open {
             out.push(("open", id.clone()));
         }
+        if let Some(pid) = self.fill {
+            out.push(("fill", format!("p{pid}")));
+        }
 
         out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&")
     }
@@ -882,12 +1166,17 @@ impl CatalogUrl {
 
     /// The same filter on another page.
     pub fn with_page(&self, page: u64) -> Self {
-        Self { query: self.query.clone(), page, open: self.open.clone() }
+        Self { page, ..self.clone() }
     }
 
     /// The same list with this module's preview open, or (`None`) with the preview closed.
     pub fn with_open(&self, id: Option<&str>) -> Self {
-        Self { query: self.query.clone(), page: self.page, open: id.map(str::to_string) }
+        Self { open: id.map(str::to_string), ..self.clone() }
+    }
+
+    /// The same list looking for a module for this placeholder of the plan, or (`None`) for none.
+    pub fn with_fill(&self, fill: Option<u32>) -> Self {
+        Self { fill, ..self.clone() }
     }
 }
 
@@ -915,6 +1204,11 @@ pub fn parse_pairs(raw_query: &str) -> Vec<(String, String)> {
             (decode(key), decode(value))
         })
         .collect()
+}
+
+/// The first non-empty value of a name, trimmed: a plain form sends empty inputs too.
+fn first_value(pairs: &[(String, String)], name: &str) -> Option<String> {
+    pairs.iter().find(|(key, value)| key == name && !value.trim().is_empty()).map(|(_, value)| value.trim().to_string())
 }
 
 /// Percent-encodes everything except unreserved characters and `,`; a space becomes `+`.
@@ -1018,9 +1312,12 @@ mod tests {
                 prerequisites_met_by: Some(vec![]),
                 sort: SortKey::Credits,
                 descending: true,
+                fits: Some(FitsFilter { semester: "2026W".into(), lectures: true, exercises: false, exams: true, undated: true }),
+                fits_ids: None,
             },
             page: 4,
             open: Some("12104".into()),
+            fill: Some(3),
         };
         let text = url.to_query_string();
         assert_eq!(
@@ -1029,9 +1326,144 @@ mod tests {
              &not-kind=thesis&lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
              &turnus=winter,irregular&not-turnus=summer&years=odd&form=lecture,exercise&not-form=seminar&duration=2&limited=no\
              &fues=only&exam=mca,oral&not-exam=presentation&graded=yes&events=yes&status=all&ects_min=5&ects_max=7.5\
-             &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&marked=only&prereqs=met&sort=ects&desc=1&page=4&open=12104"
+             &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&marked=only&fits=2026W&fits-skip=exercise&fits-undated=1\
+             &prereqs=met&sort=ects&desc=1&page=4&open=12104&fill=p3"
         );
         assert_eq!(CatalogUrl::parse(&text), url);
+    }
+
+    #[test]
+    fn the_fit_switch_is_read_tolerantly() {
+        // The semester in either case, skipped classes repeated or unknown, the switch's
+        // companions without the switch: all as a plain form or a hand-edited link sends them.
+        let url = CatalogUrl::parse("fits=2026w&fits-skip=EXAM,yoga&fits-skip=lecture,exam&fits-undated=1");
+        assert_eq!(url.query.fits, Some(FitsFilter { semester: "2026W".into(), lectures: false, exercises: true, exams: false, undated: true }));
+        assert_eq!(url.to_query_string(), "fits=2026W&fits-skip=lecture,exam&fits-undated=1");
+        assert_eq!(CatalogUrl::parse("fits=2026W").query.fits, Some(FitsFilter::all("2026W")));
+        assert_eq!(CatalogUrl::parse("fits=2026W").to_query_string(), "fits=2026W");
+        for nonsense in ["fits=2026X", "fits=1999W", "fits=", "fits-skip=exam&fits-undated=1", "fits=2026W2"] {
+            assert_eq!(CatalogUrl::parse(nonsense).query.fits, None, "{nonsense}");
+        }
+        assert_eq!(CatalogUrl::parse("fits=2026S&fits-undated=yes").query.fits.map(|fits| fits.undated), Some(false));
+        // The ids never come from an address.
+        assert_eq!(CatalogUrl::parse("fits=2026W&fits_ids=11103&fits-ids=11103").query.fits_ids, None);
+    }
+
+    #[test]
+    fn a_placeholder_to_fill_travels_with_the_list_in_the_app() {
+        let url = CatalogUrl::parse("fits=2026W&fill=p3&turnus=winter");
+        assert_eq!(url.fill, Some(3));
+        assert_eq!(url.path(), "/catalog?turnus=winter&fits=2026W&fill=p3");
+        assert_eq!(url.with_page(2).path(), "/catalog?turnus=winter&fits=2026W&page=2&fill=p3");
+        assert_eq!(url.with_open(Some("11103")).path(), "/catalog?turnus=winter&fits=2026W&open=11103&fill=p3");
+        assert_eq!(url.with_fill(None).path(), "/catalog?turnus=winter&fits=2026W");
+        assert_eq!(CatalogUrl::default().with_fill(Some(12)).path(), "/catalog?fill=p12");
+        assert_eq!(CatalogUrl::parse("fill=P07").fill, Some(7));
+        for nonsense in ["fill=3", "fill=p0", "fill=p10000", "fill=p-1", "fill=p+3", "fill=p", "fill=px", "fill=p99999999999999999999"] {
+            assert_eq!(CatalogUrl::parse(nonsense).fill, None, "{nonsense}");
+        }
+    }
+
+    #[test]
+    fn the_studyplan_has_a_canonical_url() {
+        assert_eq!(StudyplanUrl::parse(""), StudyplanUrl::default());
+        assert_eq!(StudyplanUrl::default().path(), "/studyplan");
+        // Tolerant: any case, a week of an old link ignored, the canonical order written.
+        let url = StudyplanUrl::parse("sem=2026w&view=DATES&week=2026-10-14&open=12104&row=148369-aaf38&import=mine");
+        assert_eq!(url.path(), "/studyplan?sem=2026W&view=dates&open=12104&row=148369-aaf38&import=mine");
+        assert_eq!(url.semester(), SemesterKey::new(2026, true));
+        assert_eq!(
+            url,
+            StudyplanUrl {
+                sem: Some("2026W".into()),
+                view: PlanView::Dates,
+                open: Some("12104".into()),
+                row: Some("148369-aaf38".into()),
+                import: Some("mine".into()),
+                variant: 1,
+            }
+        );
+        let back = |url: &StudyplanUrl| StudyplanUrl::parse(url.path().split_once('?').map(|(_, query)| query).unwrap_or_default());
+        assert_eq!(back(&url), url);
+        let program = StudyplanUrl::parse("view=all&import=bachelor-informatik-2008&variant=2&sem=2027S");
+        assert_eq!(program.path(), "/studyplan?sem=2027S&view=all&import=bachelor-informatik-2008&variant=2");
+        assert_eq!(back(&program), program);
+        assert_eq!(StudyplanUrl::parse("row=148369-AAF38&open=12104").row.as_deref(), Some("148369-aaf38"));
+        for view in PlanView::ALL {
+            assert_eq!(PlanView::from_code(view.code()), Some(*view));
+            assert_eq!(back(&StudyplanUrl::default().with_view(*view)).view, *view);
+        }
+        assert_eq!(PlanView::ALL.iter().map(|view| view.label()).collect::<Vec<_>>(), ["Woche", "Termine", "Prüfungen", "Übersicht"]);
+    }
+
+    #[test]
+    fn hostile_studyplan_values_are_ignored() {
+        let url = StudyplanUrl::parse(
+            "sem=2026X&view=calendar&open=../../etc&row=148369-zzzzz&import=%3Cscript%3E&variant=2&week=x&modules=12104,12107",
+        );
+        assert_eq!(url, StudyplanUrl::default());
+        for sem in ["1999W", "2100S", "26W", "2026", "2026WS", "+026W"] {
+            assert_eq!(StudyplanUrl::parse(&format!("sem={sem}")).sem, None, "{sem}");
+        }
+        // A Termin without its module, a plan variant without a program: nothing to point at.
+        assert_eq!(StudyplanUrl::parse("row=148369-aaf38").row, None);
+        assert_eq!(StudyplanUrl::parse("variant=3").path(), "/studyplan");
+        assert_eq!(StudyplanUrl::parse("import=mine&variant=0").variant, 1);
+        assert_eq!(StudyplanUrl::parse("import=mine&variant=999").variant, 1);
+        assert_eq!(StudyplanUrl::parse("import=mine&variant=-2").variant, 1);
+        assert_eq!(StudyplanUrl::parse("open=12104&row=0-aaf38").row, None);
+        assert_eq!(StudyplanUrl::parse("open=12104&row=148369-aaf3").row, None);
+        assert_eq!(StudyplanUrl::parse("open=12104&row=4294967296-aaf38").row, None);
+        assert_eq!(StudyplanUrl::parse(&format!("import={}", "a".repeat(121))).import, None);
+        assert_eq!(StudyplanUrl::parse(&format!("import={}", "a".repeat(120))).import.map(|slug| slug.len()), Some(120));
+        assert_eq!(StudyplanUrl::parse("import=Bachelor-Informatik-2008").import.as_deref(), Some("bachelor-informatik-2008"));
+        assert_eq!(StudyplanUrl::parse("import=a+b").import, None);
+        assert_eq!(StudyplanUrl::parse("import=a/b").import, None);
+    }
+
+    #[test]
+    fn studyplan_links_say_what_changes() {
+        let url = StudyplanUrl::parse("sem=2026W&view=dates&open=12104&row=148369-aaf38");
+        let winter = SemesterKey::new(2026, true);
+        let summer = SemesterKey::new(2027, false);
+        // Another semester closes the module beside the plan and keeps the view.
+        assert_eq!(url.with_semester(summer).path(), "/studyplan?sem=2027S&view=dates");
+        assert_eq!(url.with_semester(None).path(), "/studyplan?view=dates");
+        assert_eq!(url.with_view(PlanView::Week).path(), "/studyplan?sem=2026W&open=12104&row=148369-aaf38");
+        let row = RowKey::parse("148369-a4d12");
+        assert_eq!(url.with_open(Some("12107"), None).path(), "/studyplan?sem=2026W&view=dates&open=12107");
+        assert_eq!(url.with_open(Some("12104"), row).path(), "/studyplan?sem=2026W&view=dates&open=12104&row=148369-a4d12");
+        assert_eq!(url.with_open(None, row).path(), "/studyplan?sem=2026W&view=dates");
+        assert_eq!(StudyplanUrl::default().with_semester(winter).path(), "/studyplan?sem=2026W");
+        // Taking a Regelstudienplan over ends in the overview, without the program.
+        let import = StudyplanUrl::parse("view=all&import=bachelor-informatik-2008&variant=2");
+        assert_eq!(import.without_import().with_view(PlanView::Overview).path(), "/studyplan?view=all");
+        assert_eq!(import.without_import().variant, 1);
+    }
+
+    #[test]
+    fn a_module_page_carries_a_hint_of_where_to_plan() {
+        assert_eq!(ModuleHint::parse(""), ModuleHint::default());
+        assert_eq!(ModuleHint::default().query(), "");
+        let hint = ModuleHint::parse("fill=p3&plan=2026w&utm=x");
+        assert_eq!(hint, ModuleHint { plan: Some("2026W".into()), fill: Some(3) });
+        assert_eq!(hint.query(), "?plan=2026W&fill=p3");
+        assert_eq!(ModuleHint::parse(hint.query().trim_start_matches('?')), hint);
+        assert_eq!(format!("{}{}", module_path("12104"), hint.query()), "/catalog/module/12104?plan=2026W&fill=p3");
+        assert_eq!(ModuleHint { fill: None, ..hint.clone() }.query(), "?plan=2026W");
+        assert_eq!(ModuleHint { plan: None, ..hint }.query(), "?fill=p3");
+        assert_eq!(ModuleHint::parse("plan=2026&fill=3"), ModuleHint::default());
+        assert_eq!(ModuleHint::parse("plan=%3Cscript%3E&fill=p0"), ModuleHint::default());
+    }
+
+    #[test]
+    fn program_ids_have_a_shape() {
+        for id in ["079-82-2008", "G29-82-2025", "013-D8-2022", "a-b-c", "12345678-1-2-3-4"] {
+            assert!(is_program_id(id), "{id}");
+        }
+        for id in ["", "079-82", "079822008", "079-82-2008-1-2-3", "123456789-82-2008", "079--2008", "-79-82-2008", "079-82-2008-", "079-82-2008 ", "079_82_2008", "07ä-82-2008", "079-82-%20"] {
+            assert!(!is_program_id(id), "{id}");
+        }
     }
 
     #[test]
@@ -1123,8 +1555,13 @@ mod tests {
     fn paths() {
         assert_eq!(module_path("11101"), "/catalog/module/11101");
         assert_eq!(program_path("bachelor-informatik-2008", ProgramTab::Areas), "/programs/bachelor-informatik-2008/areas");
-        assert_eq!(ProgramTab::from_segment("modules"), Some(ProgramTab::Modules));
+        assert_eq!(ProgramTab::from_segment("my-plan"), Some(ProgramTab::MyPlan));
         assert_eq!(ProgramTab::from_segment("electives"), None);
+        // „Alle Module" is gone: its address is no tab, and leads to the program's catalog.
+        assert_eq!(ProgramTab::from_segment(OLD_MODULES_SEGMENT), None);
+        assert_eq!(program_catalog_path("bachelor-informatik-2008", None), "/catalog?program=bachelor-informatik-2008");
+        assert_eq!(program_catalog_path("x", Some("11101")), "/catalog?program=x&open=11101");
+        assert!(ProgramTab::Plan.indexed() && !ProgramTab::MyPlan.indexed());
         let program = ProgramUrl::parse("bachelor-elektrotechnik-2022", ProgramTab::Plan, "variant=2&open=11101&utm=x");
         assert_eq!(program.path(), "/programs/bachelor-elektrotechnik-2022/plan?variant=2&open=11101");
         // An area beside the page, and a module opened out of it keeps it.

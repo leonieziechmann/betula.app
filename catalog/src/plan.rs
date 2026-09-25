@@ -379,16 +379,105 @@ impl SemesterRequirement {
         }
     }
 
-    /// The name as a page shows it: without the dash a plan leads into a row or out of it with
-    /// („- Wahlpflicht Energiesysteme", „… (Sport, Musik oder Kunst) -") and without the marks of
-    /// its footnotes („Integrationsmodule**", „Informatik¹").
+    /// The name as a page shows it (`shown_name`).
     pub fn shown_name(&self) -> &str {
-        let trimmed = self.name.trim_matches(|c: char| c.is_whitespace() || matches!(c, '-' | '–' | '—' | '*' | '¹' | '²' | '³' | '⁴' | '⁵' | '⁶' | '⁷' | '⁸' | '⁹' | '⁰'));
-        if trimmed.is_empty() {
-            self.name.trim()
-        } else {
-            trimmed
+        shown_name(&self.name)
+    }
+}
+
+/// The name of a plan row as a page shows it: without the dash a plan leads into a row or out of
+/// it with („- Wahlpflicht Energiesysteme", „… (Sport, Musik oder Kunst) -"), without the marks
+/// of its footnotes („Integrationsmodule**", „Informatik¹"), and without what the regulation's
+/// table prints beside the name at its end: the marks of its columns („… Prü/SL", „… P / WP",
+/// „English B1.1 C / P") and a note in parentheses that only points at an appendix („(Übersicht
+/// Anlage a.2)", „(gemäß Anlage 3)"). A note that says more stays („(Module im Umfang von 12 LP
+/// aus Anlage 2)", „(Schwerpunkte gemäß Anlagen 4.1 bis 4.5)"). A name of nothing but such marks
+/// stays as it is, trimmed.
+pub fn shown_name(name: &str) -> &str {
+    let mut shown = without_marks(name);
+    loop {
+        let before = shown.len();
+        shown = without_marks(without_reference(without_columns(shown)));
+        if shown.len() == before {
+            break;
         }
+    }
+    if shown.is_empty() {
+        name.trim()
+    } else {
+        shown
+    }
+}
+
+/// Without the spaces, dashes, stars and footnote digits around it.
+fn without_marks(name: &str) -> &str {
+    name.trim_matches(|c: char| c.is_whitespace() || matches!(c, '-' | '–' | '—' | '*' | '¹' | '²' | '³' | '⁴' | '⁵' | '⁶' | '⁷' | '⁸' | '⁹' | '⁰'))
+}
+
+/// What the columns of a regulation's table mean where a row's name runs into them: Pflicht,
+/// Wahlpflicht, compulsory, Studiengang, Prüfung, Studienleistung.
+const COLUMN_MARKS: [&str; 6] = ["P", "WP", "C", "SG", "Prü", "SL"];
+
+/// The name without a pair of column marks at its end („… P / WP", „… Prü/SL"); unchanged when
+/// the pair is all it has.
+fn without_columns(name: &str) -> &str {
+    let Some((before, after)) = name.rsplit_once('/') else {
+        return name;
+    };
+    let before = before.trim_end();
+    let Some(first) = before.rsplit(char::is_whitespace).next() else {
+        return name;
+    };
+    if !COLUMN_MARKS.contains(&after.trim()) || !COLUMN_MARKS.contains(&first) {
+        return name;
+    }
+    match before.strip_suffix(first).map(str::trim_end) {
+        Some(head) if !head.is_empty() => head,
+        _ => name,
+    }
+}
+
+/// The name without a note in parentheses at its end that only points at an appendix of the
+/// regulation („(siehe Anlage 1a – 1d)", „(Übersicht Anlage a.2)"): words of reference and
+/// numbers of sections, one of them „Anlage".
+fn without_reference(name: &str) -> &str {
+    const WORDS: [&str; 11] = ["siehe", "gemäß", "gem.", "vgl.", "übersicht", "anlage", "anlagen", "bis", "und", "–", "-"];
+    let Some(inner) = name.strip_suffix(')') else {
+        return name;
+    };
+    let Some(open) = inner.rfind('(') else {
+        return name;
+    };
+    let (Some(head), Some(note)) = (inner.get(..open), inner.get(open + 1..)) else {
+        return name;
+    };
+    let words: Vec<String> = note.split(|c: char| c.is_whitespace() || c == ',').filter(|word| !word.is_empty()).map(str::to_lowercase).collect();
+    let section = |word: &str| word.chars().any(|c| c.is_ascii_digit()) && word.chars().all(|c| c.is_alphanumeric() || c == '.');
+    let appendix = words.iter().any(|word| word.starts_with("anlage"));
+    let only_reference = words.iter().all(|word| WORDS.contains(&word.as_str()) || section(word));
+    match head.trim_end() {
+        head if appendix && only_reference && !head.is_empty() => head,
+        _ => name,
+    }
+}
+
+/// What a row of the plan that names no module asks for: one module the catalog does not know
+/// under this name, a module of the FÜS, or a choice from the areas its name points at. `caption`
+/// is the caption of the plan the row belongs to (`""` where a program has one plan), `rows` the
+/// rows of that plan, which tell what this row does not mean (`areas_for_row`). A semester's
+/// requirements are these, merged across study directions (`semester_plan`); the Studienplan's
+/// placeholders read their row the same way.
+pub fn requirement_of(entry: &PlanEntry, caption: &str, areas: &[CatalogArea], rows: &[PlanEntry]) -> SemesterRequirement {
+    let (single, fues) = (is_single_module(entry), is_fues(entry));
+    let found = if single || fues { RowAreas::default() } else { areas_for_row(entry, caption, areas, rows) };
+    SemesterRequirement {
+        name: entry.module_name.clone(),
+        credits: credits_of(entry),
+        kind: entry.kind.clone(),
+        single,
+        fues,
+        areas: found.areas,
+        others: found.others,
     }
 }
 
@@ -427,16 +516,13 @@ pub fn semester_plan(semester: u8, entries: &[PlanEntry], areas: &[CatalogArea])
         if !in_semester || entry.module_name.trim().is_empty() {
             continue;
         }
-        let (single, fues) = (is_single_module(entry), is_fues(entry));
-        let found = if single || fues {
-            RowAreas::default()
-        } else {
-            // The rows of the same plan (one per study direction) tell what this row does not mean.
-            let rows: Vec<PlanEntry> = entries.iter().filter(|other| other.specialization == entry.specialization).cloned().collect();
-            areas_for_row(entry, entry.specialization.as_deref().unwrap_or_default(), areas, &rows)
+        // The rows of the same plan (one per study direction) tell what this row does not mean;
+        // a single module and a FÜS row point at no area, so they need none.
+        let rows: Vec<PlanEntry> = match is_single_module(entry) || is_fues(entry) {
+            true => Vec::new(),
+            false => entries.iter().filter(|other| other.specialization == entry.specialization).cloned().collect(),
         };
-        let credits = credits_of(entry);
-        let (listed, others) = (found.areas, found.others);
+        let requirement = requirement_of(entry, entry.specialization.as_deref().unwrap_or_default(), areas, &rows);
         let add = |into: &mut Vec<CatalogArea>, areas: Vec<CatalogArea>| {
             for area in areas {
                 if !into.iter().any(|known| known.id == area.id) {
@@ -444,15 +530,15 @@ pub fn semester_plan(semester: u8, entries: &[PlanEntry], areas: &[CatalogArea])
                 }
             }
         };
-        match plan.requirements.iter_mut().find(|row| row.name == entry.module_name && row.credits == credits && row.kind == entry.kind) {
+        match plan.requirements.iter_mut().find(|row| row.name == requirement.name && row.credits == requirement.credits && row.kind == requirement.kind) {
             Some(row) => {
                 // The same row in the plan of another study direction: its areas count as well.
-                add(&mut row.areas, listed);
-                add(&mut row.others, others);
+                add(&mut row.areas, requirement.areas);
+                add(&mut row.others, requirement.others);
                 let listed: Vec<i64> = row.areas.iter().map(|area| area.id).collect();
                 row.others.retain(|area| !listed.contains(&area.id));
             }
-            None => plan.requirements.push(SemesterRequirement { name: entry.module_name.clone(), credits, kind: entry.kind.clone(), single, fues, areas: listed, others }),
+            None => plan.requirements.push(requirement),
         }
     }
     plan
@@ -789,6 +875,51 @@ mod tests {
         assert_eq!(credits_of(&PlanEntry { credits: Some(7.5), ..row("x", 1, None, None) }).as_deref(), Some("7,5"));
     }
 
+    #[test]
+    fn a_row_of_the_plan_knows_its_semesters() {
+        let entry = |semester, start, end| PlanEntry { semester, start_semester: start, end_semester: end, ..row("M", 1, None, None) };
+        assert_eq!(semester_span(&entry(Some(3), Some(1), Some(2))), Some((3, 3)));
+        assert_eq!(semester_span(&entry(None, Some(3), Some(2))), Some((2, 3)));
+        assert_eq!(semester_span(&entry(None, None, Some(4))), Some((4, 4)));
+        assert_eq!(semester_span(&entry(None, None, None)), None);
+    }
+
+    // The per-row half of a semester's requirements is `requirement_of`: for Informatik B.Sc.,
+    // whose one plan names no row twice in a semester, a semester's requirements are its rows.
+    #[test]
+    fn a_requirement_is_what_the_semester_says_about_its_row() {
+        let areas = real::areas(real::INFORMATIK_BSC);
+        let rows = real::informatik_bsc_rows();
+        let mut seen = 0;
+        for semester in 1..=6u8 {
+            let listed: Vec<SemesterRequirement> = rows
+                .iter()
+                .filter(|entry| semester_span(entry).is_some_and(|(from, to)| from <= i64::from(semester) && i64::from(semester) <= to))
+                .map(|entry| requirement_of(entry, "", &areas, &rows))
+                .collect();
+            seen += listed.len();
+            assert_eq!(semester_plan(semester, &rows, &areas).requirements, listed, "semester {semester}");
+        }
+        assert_eq!(seen, rows.len());
+
+        // The plan of the snapshot, its areas and all: the same, semester by semester.
+        let db = crate::tests::open();
+        let entries = crate::queries::program_plan_entries(&db, "079-82-2008").unwrap();
+        let placements = crate::queries::program_areas(&db, "079-82-2008").unwrap();
+        let tree = crate::queries::program_area_tree(&db, "079-82-2008").unwrap();
+        let areas = crate::pages::catalog_areas(&placements, &tree);
+        assert!(entries.iter().any(|entry| entry.module_id.is_none()), "Informatik B.Sc. has rows that name no module");
+        for semester in 1..=6u8 {
+            let listed: Vec<SemesterRequirement> = entries
+                .iter()
+                .filter(|entry| entry.module_id.is_none() && !entry.module_name.trim().is_empty())
+                .filter(|entry| semester_span(entry).is_some_and(|(from, to)| from <= i64::from(semester) && i64::from(semester) <= to))
+                .map(|entry| requirement_of(entry, entry.specialization.as_deref().unwrap_or_default(), &areas, &entries))
+                .collect();
+            assert_eq!(semester_plan(semester, &entries, &areas).requirements, listed, "semester {semester}");
+        }
+    }
+
     // The note of a semester names the areas alone where the row's name says no more.
     #[test]
     fn a_name_that_only_repeats_its_areas_says_nothing() {
@@ -829,5 +960,33 @@ mod tests {
         assert_eq!(shown("Integrationsmodule**"), "Integrationsmodule");
         assert_eq!(shown("Schwerpunktmodule³"), "Schwerpunktmodule");
         assert_eq!(shown("Wahlpflichtmodul 3"), "Wahlpflichtmodul 3");
+        // The free function is the method's body, for a name without a requirement around it.
+        assert_eq!(shown_name("- Wahlpflicht Energiesysteme"), "Wahlpflicht Energiesysteme");
+        assert_eq!(shown_name(" -- "), "--");
+
+        // Nor what the regulation's table prints beside a name: the marks of its columns, and a
+        // note that only points at an appendix. A note that says more stays.
+        for (printed, name) in [
+            ("wählbar aus dem Wahlpflichtangebot Wirtschaftswissenschaften (Übersicht Anlage a.2) Prü/SL", "wählbar aus dem Wahlpflichtangebot Wirtschaftswissenschaften"),
+            ("- wählbar aus dem Wahlpflichtkatalog Energiesysteme Prü/SL", "wählbar aus dem Wahlpflichtkatalog Energiesysteme"),
+            ("- Wahlpflicht Ingenieurstechnik (Schwerpunkte gemäß Anlagen 4.1 bis 4.5) Prü/SL", "Wahlpflicht Ingenieurstechnik (Schwerpunkte gemäß Anlagen 4.1 bis 4.5)"),
+            (
+                "gem. der gewählten ingenieurwissenschaftlichen Studienrichtung aus Anlage a.3.1 bis Anlage a.3.5 P / WP Prü/SL",
+                "gem. der gewählten ingenieurwissenschaftlichen Studienrichtung aus Anlage a.3.1 bis Anlage a.3.5",
+            ),
+            ("Module der gewählten Studienrichtung oder des Studiums in der Breite gem. Anlage a4.1 – a4.4 P/ WP", "Module der gewählten Studienrichtung oder des Studiums in der Breite gem. Anlage a4.1 – a4.4"),
+            ("English B1.1 C / P", "English B1.1"),
+            ("Studiengangsmodul³ aus 1. FS SG / WP", "Studiengangsmodul³ aus 1. FS"),
+            ("- Wahlpflicht Wirtschaftswissenschaften (gemäß Anlage 3)", "Wahlpflicht Wirtschaftswissenschaften"),
+            ("Wahlpflichtmodule (siehe Anlage 1a – 1d)", "Wahlpflichtmodule"),
+            ("Minor Subject (Anlage 1b)", "Minor Subject"),
+            ("11 Fachspezifische Vertiefung (Module im Umfang von 12 LP aus Anlage 2)", "11 Fachspezifische Vertiefung (Module im Umfang von 12 LP aus Anlage 2)"),
+            ("Oral Examination – Mündliche Prüfung (Disputation)", "Oral Examination – Mündliche Prüfung (Disputation)"),
+            ("Wirtschafts- / Sozialwissenschaften", "Wirtschafts- / Sozialwissenschaften"),
+            ("P / WP", "P / WP"),
+            ("(Anlage 2)", "(Anlage 2)"),
+        ] {
+            assert_eq!(shown_name(printed), name, "{printed}");
+        }
     }
 }

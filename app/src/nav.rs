@@ -232,6 +232,38 @@ pub fn reveal_in_list(entry_id: &str, center: bool) {
     }
 }
 
+/// `run` once the browser has shown what is there now: after the next frame (R21, „A click
+/// answers first"). A click that starts work flips its own state, and the work follows here, so
+/// the click is seen in the next frame whatever the work costs. A hidden tab has no frames, so
+/// there (and should a frame not come) a timeout of 250 ms runs it instead. It runs once: the
+/// frame and the timeout share a flag, and whichever comes first takes `run`. Nothing on the
+/// server, which has neither frames nor clicks.
+#[allow(unused_variables)]
+pub fn after_paint(run: impl FnOnce() + 'static) {
+    #[cfg(feature = "csr")]
+    {
+        use std::cell::Cell;
+        use std::rc::Rc;
+
+        use leptos::prelude::{request_animation_frame, set_timeout};
+
+        let slot = Rc::new(Cell::new(Some(run)));
+        let once = move || {
+            if let Some(run) = slot.take() {
+                run();
+            }
+        };
+        let hidden = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.hidden());
+        if hidden {
+            set_timeout(once, std::time::Duration::ZERO);
+            return;
+        }
+        let fallback = once.clone();
+        request_animation_frame(move || set_timeout(once, std::time::Duration::ZERO));
+        set_timeout(fallback, std::time::Duration::from_millis(250));
+    }
+}
+
 /// Closes the filter sheet of the phone layout.
 pub fn close_filter_sheet() {
     #[cfg(feature = "csr")]
@@ -319,6 +351,22 @@ pub fn reveal_selector(selector: &str) -> bool {
         options.set_block(web_sys::ScrollLogicalPosition::Center);
         element.scroll_into_view_with_scroll_into_view_options(&options);
         true
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// Moves the focus to the first element that matches `selector` (scrolled to only if it is out of
+/// view), for a control that took the place of the one the visitor used: without it the focus
+/// falls back to the start of the page. `false` if there is none.
+#[allow(unused_variables)]
+pub fn focus_selector(selector: &str) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let found = web_sys::window().and_then(|w| w.document()).and_then(|d| d.query_selector(selector).ok().flatten());
+        let Some(element) = found.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return false };
+        element.focus().is_ok()
     }
     #[cfg(not(feature = "csr"))]
     false
