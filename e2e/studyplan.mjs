@@ -186,6 +186,9 @@ async function withoutTheApp() {
   // A phone: the frame is the app's, its sidebar a closed sheet, so nothing of the page vanishes
   // when the app takes over (R15); the explanation says where the plan lives.
   await page.setViewportSize({ width: 390, height: 844 });
+  // The sidebar becomes the closed sheet by sliding down (`transition: transform .3s`): it is
+  // measured once it has arrived, not on its way (`finished` resolves without JavaScript too).
+  await page.evaluate(() => Promise.all(document.querySelector(".sidebar").getAnimations().map((animation) => animation.finished)));
   const phone = await page.evaluate(() => {
     const sidebar = document.querySelector(".sidebar");
     const state = document.querySelector(".sp-body .state").getBoundingClientRect();

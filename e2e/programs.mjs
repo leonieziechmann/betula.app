@@ -5,9 +5,9 @@
 // faculty without a history entry → program page (views in the sidebar, „Zurück" and Esc lead back to the
 // program in the overview) → the rail's items are tabs that remember where their area was left → the
 // program page itself (head, one study plan per study direction, matrix or list, a module beside it
-// and the way back out of it, areas, all modules) → the plan at every window width (no column runs
-// into another, the list where the matrix has no room) → phone (filters in a sheet) → the overview
-// without JavaScript.
+// and the way back out of it, areas, „Mein Plan" and from it all modules in the catalog) → the plan at
+// every window width (no column runs into another, the list where the matrix has no room) → phone
+// (filters in a sheet) → the overview without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -92,7 +92,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   // A program: the same frame, its views in the sidebar.
   await step("program page", () => page.click('.program-pill[href^="/programs/bachelor-informatik"]'), () => location.pathname.startsWith("/programs/bachelor-informatik") && document.querySelector('[data-walk="program-page"]'));
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), "program page: the sidebar moved");
-  await step("program page: another view", () => page.click('#sidebar .toc a:has-text("Alle Module")'), () => location.pathname.endsWith("/modules") && document.querySelector("table.modules") && document.querySelector('#sidebar .toc a[aria-current="page"]')?.textContent === "Alle Module");
+  await step("program page: another view", () => page.click('#sidebar .toc.views a:has-text("Wahlpflicht & Bereiche")'), () => location.pathname.endsWith("/areas") && document.querySelector("table.areas") && document.querySelector('#sidebar .toc a[aria-current="page"]')?.textContent === "Wahlpflicht & Bereiche");
 
   // „Zurück" (and Esc) lead to the overview, and the overview shows the program again.
   const inView = () => page.evaluate(() => { const pill = document.querySelector('.program-pill[data-id^="bachelor-informatik"]')?.getBoundingClientRect(); return Boolean(pill) && pill.top >= 0 && pill.bottom <= innerHeight; });
@@ -260,19 +260,16 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
     "areas: the area picked in the sidebar is not in view",
   );
 
-  // All modules: the same columns, one line per module, its area beside it.
-  await step("Alle Module", () => page.click('#sidebar .toc.views a:has-text("Alle Module")'), () => location.pathname.endsWith("/modules") && document.querySelector("table.modules tbody tr"));
-  const modules = await page.evaluate(() => ({
-    rows: document.querySelectorAll("table.modules tbody tr").length,
-    tall: [...document.querySelectorAll("table.modules tbody tr")].filter((row) => row.getBoundingClientRect().height > 62).length,
-    areas: [...document.querySelectorAll("table.modules td.c-area")].filter((cell) => cell.firstElementChild?.scrollWidth > cell.firstElementChild?.clientWidth + 1 && !cell.title).length,
-    opens: document.querySelector('table.modules tbody a[data-walk="module"]')?.getAttribute("href")?.includes("open=") === true,
-    wide: document.documentElement.scrollWidth <= innerWidth + 1,
-  }));
-  check(modules.rows > 50 && modules.tall === 0, `modules: ${modules.rows} rows, ${modules.tall} of them higher than two lines`);
-  check(modules.areas === 0, "modules: a shortened area does not carry its full path");
-  check(modules.opens, "modules: a row does not open its module beside the page");
-  check(modules.wide, "modules: the page scrolls sideways");
+  // All modules of the program are the catalog's (owner, 2026-09-25): „Mein Plan", the view in the
+  // place of „Alle Module", leads to the catalog narrowed down to the program, which lists as many
+  // modules as the head counts.
+  await step("Mein Plan", () => page.click('#sidebar .toc.views a:has-text("Mein Plan")'), () => location.pathname.endsWith("/my-plan") && document.querySelector("section.my-plan") && document.querySelector('#sidebar .toc a[aria-current="page"]')?.textContent === "Mein Plan");
+  const all = await page.evaluate(() => document.querySelector('section.my-plan a[href^="/catalog"]')?.getAttribute("href"));
+  check(all === "/catalog?program=bachelor-elektrotechnik-2022", `Mein Plan: the program's modules are at ${all}`);
+  await step("all modules in the catalog", () => page.click('section.my-plan a[href^="/catalog"]'), () => location.pathname === "/catalog" && new URLSearchParams(location.search).get("program") === "bachelor-elektrotechnik-2022" && document.querySelector(".rows a.row"));
+  const counted = Number(head.facts.find((fact) => /^\S+ Module$/.test(fact))?.replace(/\D/g, ""));
+  const listed = await page.evaluate(() => Number(document.querySelector(".count")?.textContent.replace(/\D/g, "")));
+  check(listed === counted && listed > 50, `all modules: the catalog lists ${listed} modules of the program, its head counts ${counted}`);
   await context.close();
 }
 
