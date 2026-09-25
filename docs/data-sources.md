@@ -257,6 +257,17 @@ Program, degree, PO version, regulation documents.
 | Authority | **S2** for all three. Normalized: `is_graded` (boolean/NULL), `exam_form` enum from „Modulprüfung" (MAP, MCA, prerequisite + MAP …), exam-type flags (Klausur, mündlich, Hausarbeit, Beleg, Projekt, Präsentation) parsed in Go from the details text. Whether the filter stays is **Q6**; the data question behind it is answered. |
 | Provenance | Single-source. |
 
+### 5.14 Short names (2026-09-25)
+
+| | |
+|---|---|
+| Sources | **None states them.** Rooms: S3's room text, and for the building tokens the legend of BTU's campus plan of the Zentralcampus (`20211119_Campusplan_Zentralcampus_Legende.pdf` on `www-docs.b-tu.de`, linked from https://www.b-tu.de/campusplan/zentralcampus-cottbus), which prints HG, LG 1A, VG 1C, LB 4B, FZ 3E, IKMZ, MZG …; QIS itself prints a few (`HG 0.16`, `ZB VI.01`, `LH 3D`). Modules: a search of every source on 2026-09-25 found no abbreviation field — none in the QIS module description or table, none on the module pages, none in the event numbers or titles. 23 modules use an acronym on their own page or in their events (IR, PuI 1, ERP, CCS, GIS …); 16 of them are what the rules derive anyway. |
+| Code path | `normalize.RoomShort` → `event_date.room_short`; `internal/abbrev` → `module_abbrev`, `program_module_abbrev`. Both in `build`, from the canonical tables, without a request. |
+| Rejected | **Plan position codes** (BP23, OM3, E3-B) and „Kurzbezeichnung" codes (D1.1, KA 3.1) that Fakultät 4 and 6 print: they name a slot of one program's plan, not a module, depend on the program and the PO, and the event titles write them inconsistently. They could become a `plan_code` of their own later. **Program area abbreviations as reserved words:** only 11 of 28,424 pairs coincide with an area abbreviation of their program. |
+| Authority | **Derived** (`docs/schema-v2.md`, „Short names"). Where the initials of all words of a title make exactly three characters, function words small, they are the first derived candidate (the owner, 2026-09-25, §13: EvS, AuP, GdW); a title „X- und Y" is written as its terms instead, without the und (Signal- und Systemtheorie SST, Kinder- und Jugendhilfe KJH). A curated file, `internal/abbrev/overrides.tsv`, gives the owner's examples, a few common forms and three that a module's own page uses (IR, PuI, OOP) as a first candidate that beats every derived one; between two modules of a program that want one form, the better matching score decides, a module of the program's curriculum scoring 5,000 more than a FÜS module (§13). `internal/abbrev/blocked.tsv` lists forms that are never derived (SS, KKK, PO …). A room building that the table lacks keeps its QIS name, and the build warns. |
+| Principle | **A form is said, not only read** (the owner, 2026-09-25, on Corporate Finance: „CFi sagt sich viel besser als CF. Das muss immer mitbedacht werden. Und wir schreiben hier auch ein wenig die Meta mit … deswegen können wir auch einfach ein paar Sachen festlegen."). A form students can say beats a shorter one they cannot: CFi, not CF; NMa, not NM. And since no source states a short name, Betula may set conventions of its own where the sources are silent: building/room (ZHG/HS.C), SEM for a Seminarraum, the lowercase function letter (AuP), a title „X- und Y" by its terms (SST). The costs already weigh how a form sounds in two places: a form of two letters costs 0.9, more than taking a word's first two letters (0.8: CFi before CF), and a word's second letter that would read as a function word between two capitals costs 0.5 more (NMa, not NuM; the function-letter rule, `render` in `internal/abbrev/candidates.go`). No further rule for now; a form that is short but unsayable is a case for the rules or an override line. |
+| Provenance | Rebuilt by every build; never stored by a consumer. `program_module_abbrev.is_override`, `choice` and `is_twin` say how a form came about. |
+
 ## 6. Spot-check log
 
 Only two live requests were made: 2026-09-19 16:43 CEST, 2 s apart, with the scraper's
@@ -579,3 +590,156 @@ for about two weeks and then come due evenly.
 Before the event search and these rhythms, a night was about 2,500 QIS requests: 1,080 module
 descriptions, 1,000 event pages, 380 tree pages and the table. The module pages on b-tu.de add a
 seventh of their number a night, on their own server.
+
+## 13. Owner decisions (2026-09-25): short names
+
+The owner asked for short names of rooms and modules where space is tight (the Studienplan's week
+grid, agenda, notes and legend; the module overlay; perhaps the calendar export and the catalog).
+Evidence and rules: §5.14 and `docs/schema-v2.md`, „Short names".
+
+- **Rooms** are „<Gebäude>/<Raum>[<Attachment>]": Zentrales Hörsaalgebäude is ZHG, a Hörsaal HS
+  (the owner wrote „ZHG HS.3" before the slash below: ZHG/HS.3), Lehrgebäude LG, Verfügungsgebäude VG,
+  Mehrzweckgebäude MZG, and the Großer Hörsaal GHS, „damit es nicht mit HG verwechselt wird". A room
+  is its floor and number (VG1C/0.07; the owner first wrote „VG1C 0.07"), without a space inside the
+  building token.
+- **A slash between building and room** (on the review page, 2026-09-25): „ZHG/HS.C" instead of
+  „ZHG HS.C", „weil sich das viel besser liest". So ZHG/HS.C, ZHG/SEM.4, ZHG/AM.1, LG1A/HS.2,
+  VG1C/0.03, HG/0.16, LG3A/352, SFB/1.308, SD/9.117, Mensa/0.33.1; a hall that is a building of its
+  own stays alone (GHS). No form has a second slash: two rooms QIS writes as a pair or a range are
+  joined by „+" (FZ3E/2.26+27, ZB2CD/229+230, LG10/211a+b), and the Lehrgebäude 4/1, 4/3, 4/4 of
+  Campus Nord are LG4-1, LG4-3, LG4-4. A room with words keeps its spaces (ZB2CD/AT Oestreich M).
+- **Modules** get abbreviations that are actually used — Algorithmieren und Programmieren is
+  AuP, Elektrische und Elektronische Grundlagen der Informatik EEG. Three letters are the sweet
+  spot; a form that occurs twice among the modules a program lets its students select is nobody's,
+  and both fall back (until the scored assignment below). They are computed by Radix, so that they
+  are in the database.
+- **Three initials of the whole title win** (on the review page, 2026-09-25, on Entwicklung von
+  Softwaresystemen, derived as ESS): „Ja ist bestimmt Entwicklung von Softwaresystemen. Das wird eher
+  EvS genannt, ich denke mal, wenn die Buchstaben beim Anagramm passen, dann nimmt man die i. d. R."
+  Where the initials of all words of the title make exactly three characters — content words as
+  capitals, function words (und, von, der, für, in, mit, zu, an, auf, aus, bei, über …; of, for, the,
+  to, in, on) as their lowercase letter — that form is the first choice, ahead of compound parts and
+  every other derivation: EvS, AuP, GdW (Grundlagen der Werkstoffe), EuH (Ethik und Handeln), KuL
+  (Kommunikation und Lernstrategien). A hyphen part counted as a word (Bau- und Stadtbaugeschichte 1
+  → BuS1, Kinder- und Jugendhilfe → KuJ) until the owner's call below wrote such titles by their
+  terms (BSG1, KJH); „&" is und, English „and" & (M5); a series number is appended. Overrides, the
+  blocked and reserved forms and the uniqueness within a program still come first. On the data of
+  2026-09-23 it moved 372 of 4,936 defaults and 2,680 of 28,424 pairs; forms a reader may miss:
+  Grundlagen der Elektrotechnik GdE (was GET; the owner keeps GdE, below), Signal- und Systemtheorie
+  SuS (SST), Kinder- und Jugendhilfe KuJ (KJH; both SST and KJH again since the owner's call below).
+  An override line can bring any of them back.
+- **A contested form goes to the better match** (on the review page, 2026-09-25): „Wenn das Kürzel
+  schon existiert, dann darf das Modul das Kürzel behalten, das den höheren Matching-Score hat —
+  muss kaskadieren, achte aber drauf, dass es nach 3 Mal garantiert terminiert." This replaces the
+  earlier rule that such a form goes to neither module (M4). The matching score says how well a form
+  fits its title, on one scale for every module (`internal/abbrev/assign.go`):
+
+  | Score | Form |
+  |---|---|
+  | 10,000 | a line of `overrides.tsv` (for a sibling of the line, with its subtitle: ABWL3I) |
+  | 9,000 | an acronym the title states for itself, up to five letters („(GIS)") |
+  | 8,000 | the initials of all words, exactly three (EvS, AuP, GdW) |
+  | 5,000 − cost, 1 to 7,999 | every other derived form, by the cost of `docs/schema-v2.md`, „Short names": word and compound initials near 5,000 (DT 4,895), function letters and first letters a little lower (EiL 4,950, NMa 4,920), subtitle and longer forms lower still, first letters of a title with no other form lowest |
+  | — | a list used up: its first form with a letter (-b), no score |
+  | + 5,000 | in a program's contest, every form of a module of that program's curriculum, not of a FÜS offer (the owner's call below) |
+
+  In a program every module claims its best form; the higher score keeps a contested one, a tie goes
+  to the module first in priority order (compulsory, thesis and internship before other curricular
+  modules before FÜS; then plan semester; then module number). A module that lost moves on to its
+  next form it can win and displaces a weaker holder, who moves on in turn — at most three such
+  rounds; then every module still without a form takes its best one nobody holds. Within the
+  curriculum the better match wins whatever the kind (an elective module's EiL, its initials, beats a
+  compulsory module's derived EiL); against a FÜS module the curriculum's bonus decides (below).
+  A module's default (without a program) is not contested: it stays its best form. On the data of
+  2026-09-23 the scores moved 567 of 28,424 pairs and no default; no program needed a third round.
+  After the review of the lane (2026-09-25) a module also goes back to a better form that came free
+  again (its holder was displaced in turn), and the rest after the third round lets a holder move up
+  to a free better form; that moved no pair of this catalog. The same review blocked WS
+  (Wintersemester), SWS, LP, MfS and CO (Co2 read as CO₂), compares blocked forms without & and -
+  as uniqueness does (S&D is SD), gives no letter suffix that reads as a blocked or reserved form, and
+  takes English possessives for articles (IHSTD → IHS): 20 defaults and 422 pairs.
+- **The owner's calls on the points left open** (on the review page, 2026-09-25), measured on the
+  same data against the export before them (`catalog-308b00c30c2a787f`):
+  - **„X- und Y" by its terms**: „Wenn man Wörter mit einem Bindestrich verbindet, dann sollte das
+    Füllwort (und) wegfallen und da eher die kanonischen Begriffe verwendet werden. Also z. B. SST."
+    In a title „X- und Y" (or oder, &) X- is a compound cut short that shares its tail with Y:
+    Signal- und Systemtheorie is Signaltheorie und Systemtheorie. The und drops, and X, the part of Y
+    before its tail and the tail give a capital each, in place of the three initials and with their
+    score: SST, Kinder- und Jugendhilfe KJH, Staats- und Verwaltungsrecht SVR, Arzt- und Medizinrecht
+    AMR, Kolben- und Strömungsmaschinen KSM, Arbeits- und Beschäftigungssoziologie ABS, Bau- und
+    Stadtbaugeschichte 1 BSG1 (Stadt|bau|geschichte: what stands before the last part is one term).
+    The tail is Y's last compound part as the compound splitter finds it (…theorie, …hilfe, …recht,
+    …maschinen, …soziologie, …geschichte). Where the splitter cannot take Y apart, the tail is
+    unknown and the title keeps the initials of all words, as before: Medien- und Kultursemiotik MuK
+    (142 pairs; „Semiotik" is no word of another title), Wund- und Schmerzmanagement WuS, Energie- &
+    Ökobilanzen EuÖ, Risiko- und Technikfolgenabschätzung RuT, Abwasser- und Schlammbehandlung AuS;
+    an override line can give them their terms. No other form of such a title gets the und's letter
+    either: when SST is taken, Signal- und Systemtheorie falls back to SSy, not SuS. 86 of 4,936
+    defaults and 1,334 of 28,424 pairs moved: 1,317 to the terms, 6 to a next form (Signal- und
+    Systemtheorie SSy in 4 programs where a curriculum module holds SST), 11 of other modules
+    (Softwaresystemtechnik SST → Sof in 6, Array-Signalverarbeitung ASV → ArS in 4). Forms to look
+    at: Philosophie- und Ideengeschichte PIG, Literatur- und Kulturwissenschaft LKW, Personal- und
+    Organisationspsychologie POP.
+  - **GdE stays**: „GdE sieht besser aus, würde ich so lassen." Grundlagen der Elektrotechnik keeps
+    its three initials, GdE, not the common GET.
+  - **The curriculum first**: „Beim Vorrang können wir noch am Score arbeiten. Alle Module, die in
+    einem Curriculum existieren und nicht ausschließlich FÜS sind, sollten da auch nochmal einen
+    ordentlichen Boost bekommen." In a program's contest every form of a module of that program's
+    curriculum (compulsory, thesis, internship, elective) scores 5,000 more than a FÜS module's. The
+    bonus is per program, not per module: 170 of the 171 modules any program offers as FÜS are in
+    some other program's curriculum (only „Lernorte und Lernprozesse in der beruflichen Praxis" is FÜS
+    only), so a bonus for being curricular anywhere would lift nearly every module and decide nothing.
+    5,000 is the width of the derived band: a curriculum module's derived form of ordinary cost (below
+    1,000) outranks everything a FÜS module derives, its initials and an acronym its title states
+    included; only a FÜS module's override line can still beat it. 3,000 would leave a FÜS module's
+    initials above a curriculum module's derived form (Signal- und Systemtheorie, FÜS, would keep SST
+    against Softwaresystemtechnik in 6 programs). Ties, the priority order and the three rounds stay.
+    Before, 28 curricular pairs (none compulsory) held a later form because a FÜS module took one they
+    list first, 34 after the terms rule; now none. 73 pairs moved, no default: 39 curricular pairs to a
+    better form (Prozesssimulation Pro → PS in 9, Scientific Computing SCo → ScC in 9, Grundlagen der
+    computergestützten Berechnung elektromagnetischer Felder BEF → CBEF in 7, Softwaresystemtechnik Sof
+    → SST in 6), 34 FÜS pairs to a later one (Studieren mit ChatGPT & Co SCC → SCuC in 9, Polnisch
+    Start A1 PS-A1 → PoS-A1 in 8, Signal- und Systemtheorie SST → SSy in 6). Curricular pairs that fell
+    back 445 → 410, FÜS pairs 234 → 268.
+  - **CFi stays** (M1): „CFi sagt sich viel besser als CF. Das muss immer mitbedacht werden. Und wir
+    schreiben hier auch ein wenig die Meta mit … deswegen können wir auch einfach ein paar Sachen
+    festlegen." The principle is in §5.14: how a form sounds counts, and Betula may set conventions.
+  - **LG4-1 stays**: „LG4-1 ist gut." The Lehrgebäude 4/1, 4/3, 4/4 of Campus Nord are LG4-1, LG4-3,
+    LG4-4 (R11).
+- **They are metadata, not facts.** „Und wenn das mal nicht passt mit dem, wie es im Studiengang
+  verändert wird. Egal, dann machen wir die meta eben neu": every build derives them again, and
+  a consumer never stores one.
+
+Open, with the default the build uses until the owner decides:
+
+| | Question | Default |
+|---|---|---|
+| R1 | Audimax as `ZHG/AM.1`, `ZHG/Audimax 1` or `ZHG/AX1`? | `ZHG/AM.1` |
+| R2 | Three-digit numbers as printed (`LG3A/324`) or as floor.number (`LG3A/3.24`)? | as printed |
+| R3 | Senftenberg and Sachsendorf as `SFB/1.308` / `SD/7.116`? | yes |
+| R4 | The annexes of LG 2C and 2D folded into `LG2C` / `LG2D`? | folded |
+| R5 | Ateliers keep „AT" (`ZB2CD/AT Oestreich M`)? | keep |
+| R6 | Invented tokens PRH, SH1 and bare outdoor places (`Fakultätsgarten`)? | as listed |
+| R7 | Senftenberg rooms lose their description (`SFB/1.210`, not the Skills Lab's name)? | drop it; the full name stays in the tooltip |
+| R8 | Sports hall fields as `SFB/9.151 F2`? | `F2` |
+| M1 | Two-word titles with three characters (`ThI`, `EAl`, `NMa`) or two initials (`TI`, `EA`, `NM`)? A word's second letter between two capitals reads as a function word, as the u of AuP does (`EfA` next to `SfA` „Statistik für Anwender“), so the rules widen the last word instead (review, 2026-09-25) | **decided 2026-09-25**: three (`CFi`: „CFi sagt sich viel besser als CF“); `TI` and the like can be overrides |
+| M2 | The displayed title (English for English-taught modules: `ERTS`) or always the German one? | the displayed title |
+| M3 | Identical titles in one program: `HäG` / `HäG-b`? | `-b`, `-c` |
+| M4 | A contested form goes to neither module (`GMa` / `GMi`) or first come, first served? | **decided 2026-09-25**: to the better matching score, ties by priority (Grundzüge der Makro-/Mikroökonomik: `GdM` and `GMÖ`) |
+| M5 | English „and" as `&` (`A&M`)? | `&` |
+| M6 | Language courses as `DaF-B1.1`? | yes |
+| M7 | Which other forms are well known (TI, SE …)? | only those in `overrides.tsv` |
+| M8 | The program-free form on catalog cards and on a module page without a program? | yes |
+| M9 | Plan position codes (BP23, OM3) as a `plan_code` of their own? | not now |
+| M10 | The blocked forms (`internal/abbrev/blocked.tsv`): SA is blocked for the Nazi SA, but it is the common form of „Studienarbeit“ (5 modules, now `Stu`), and SS of „Steuerungssysteme“ (now `Ste`). The review of 2026-09-25 added WS, SWS and LP (a study plan shows them itself), MfS and CO (Controlling II as Co2): Wirtschaftssoziologie is `Wir` now, Controlling II `Con2`. An override line may bring a blocked form back. | blocked; no override |
+| M11 | Room kinds as module forms: Sem („Seminar“) next to `ZHG/SEM.4` (owner 2026-09-25: a Seminarraum is „SEM“), AT (Analogtechnik, Architekturtheorie …) next to the ateliers `ZB2CD/AT Oestreich M`? They always follow a building token, so only the buildings (and HS, the building HS3) are blocked. | allowed |
+| M12 | A tie of matching scores (Grundzüge der Makro- and Mikroökonomik, both GdM at 8,000) goes to the module first in priority order, which differs by program (Makro keeps GdM in 16 program contests, Mikro in 3), and the loser's GMÖ fits both titles. Or to neither (GMa / GMi), as before M4 was decided? Measured by the review of 2026-09-25: 398 pairs move (182 compulsory), pairs that fall back 681 → 952 (a prototype, which still let a weaker third module take the form the two tied for); it turns Teilbereich Mathematik I / Musik into TMa1 / TMu, but Kombinatorik Kom → Komb, Spezialwasserbau SWB → Spe | priority |
+| M13 | Two titles that open with the same words (the two Marketing Seminar modules MS / MSe, PEA / PEAp, TBS / TeS): tell them apart like siblings, by what follows the shared words? 631 pairs in 52 groups; a rough prototype moved 456 | the scores decide |
+| M14 | A single compound word falls back to its first three letters (23 titles; Wirtschaftssoziologie Wir, now that WS is blocked; Prozesssimulation, Pro in 9 programs, has its PS again since the curriculum's bonus, M18): the initials of its parts plus two letters of the last (PSi, WSo)? 20 defaults and 130 pairs measured before WS was blocked, and Wirtschaftssoziologie's 126 | first three letters |
+| M15 | Two series numbers run together (SuL23, SuP11, WT12): join them with „+" (SuL2+3)? 10 pairs, 15 defaults | as they stand |
+| M16 | „X- und Y" titles (Signal- und Systemtheorie): the three initials (`SuS`) or the terms without the und (`SST`)? | **decided 2026-09-25**: the terms (`SST`, `KJH`, `BSG1`); the initials where Y's tail is unknown |
+| M17 | Grundlagen der Elektrotechnik: `GdE` (the three initials) or the common `GET`? | **decided 2026-09-25**: `GdE` |
+| M18 | A FÜS module that fits a form better takes it from a module of the program's curriculum: or the program's own modules first? | **decided 2026-09-25**: a module of the program's curriculum scores 5,000 more |
+| R9 | A second room number QIS abbreviates or the rules shorten (FZ3E/2.26+27, 55 lines): write it in full (FZ3E/2.26+2.27)? | shortened |
+| R10 | Spaces inside a room's form (ZB2CD/AT Oestreich M, SFB/9.151 F2: 13 forms, 55 lines) break a narrow grid cell: no-break spaces, or a dot (AT.Oestreich)? | spaces |
+| R11 | The Lehrgebäude 4/1, 4/3, 4/4 as `LG4-1` … (no second slash)? | **decided 2026-09-25**: `LG4-1` |

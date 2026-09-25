@@ -87,7 +87,7 @@ preflight() {
     log "closed testing is in force (/api/status -> 401 without the password)"
   fi
   if snapshot_outdated "${INSTANCE_STACK}"; then
-    die "the catalog of ${SERVICE} is older than the schema its build reads (\"snapshot.outdated\" in its log): pages would fail. Export a new snapshot in ${INSTANCE_STACK}_radix first"
+    die "the catalog of ${SERVICE} is older than the schema its build reads (\"snapshot.outdated\" in its log): pages would fail. Build and export a new snapshot in ${INSTANCE_STACK}_radix first (docker exec <its radix container> /bin/radix build --db /data/radix.db, then /bin/radix export --db /data/radix.db --out /data/snapshot)"
   fi
   log "the catalog fits the build (no \"snapshot.outdated\" after the last snapshot it activated)"
 }

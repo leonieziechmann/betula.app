@@ -196,7 +196,8 @@ servers - no crawl, no cycle, no build - and only hands the snapshot it has to F
 catalog stays as it was exported. `canary.env` says `off` for the time of the closed test (owner,
 2026-09-21): the crawler's User-Agent names betula.app, and while that site shows only a login
 page, requests in its name invite a block. `50-app.sh` makes sure there is a snapshot to serve (a
-seeded volume that never ran gets one from its database, in a container without a network) and
+seeded volume that never ran gets one from its database: `radix build`, then `radix export`, in
+containers without a network, so that a database older than the release is migrated and built) and
 checks that swarm really starts `serve-snapshot`; `91-verify-stacks.sh app` checks the same and
 reminds with a WARN that the data does not change. Back online: `RADIX_CRAWL=on`, sync,
 `50-app.sh <instance>`; Radix then fetches what has aged in the meantime at its usual pace (one
@@ -232,8 +233,12 @@ Only with `RADIX_CRAWL=off` in both files (two Radix that crawl would ask the un
 everything twice) and the same `FOLIA_ACCESS_GATE`; `50-app.sh` refuses anything else. The next
 release goes to the colour that does not serve. Its volume keeps its database: for new data
 remove its stack and volume and ship it with `--seed` again; after a release with a new schema,
-export a new snapshot in its Radix (`docker exec <its radix container> /bin/radix export --db
+build and export a new snapshot in its Radix (`docker exec <its radix container> /bin/radix build
+--db /data/radix.db`, then `docker exec <its radix container> /bin/radix export --db
 /data/radix.db --out /data/snapshot`; `55-switch.sh` refuses a catalog the build cannot read).
+The build is not optional: the new binary migrates the database when it opens it, but only a
+build fills what the migration adds (schema 9: the short names), and `export` validates first
+and refuses a database that was not built again. Do not reach for `--skip-validate` here.
 
 Swarm compares service definitions, not image contents: re-loading an existing tag restarts nothing,
 hence a tag per commit and never `latest`. Old versions stay until you remove them
