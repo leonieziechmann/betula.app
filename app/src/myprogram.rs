@@ -20,7 +20,7 @@ use catalog::studyplan::MineDoc;
 use catalog::timetable::select::TownChoice;
 use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
-use catalog::variants;
+use catalog::variants::{PlanVariant, Supplement};
 use leptos::prelude::*;
 
 use crate::data::{use_source, Source};
@@ -67,11 +67,6 @@ impl MyProgram {
     /// Reads it without copying. Tracked.
     pub fn with<R>(self, f: impl FnOnce(&MineDoc) -> R) -> R {
         self.0.with(f)
-    }
-
-    /// Whether this program (`program.id`) is the visitor's. Tracked: a memo per button (R5).
-    pub fn is(self, program_id: &str) -> bool {
-        self.0.with(|doc| doc.program.as_deref() == Some(program_id))
     }
 
     /// The Standort the visitor chose; `Derive` when none. Tracked.
@@ -200,21 +195,109 @@ pub fn catalog_href(info: Option<&MyProgramInfo>) -> String {
 }
 
 /// The program's page as an app-made link to the visitor's own program shows it: with the plan of
-/// the stored Studienrichtung (`variant=`, A.10) — the plan whose caption was stored, the first
-/// where none or none of that caption is.
-pub fn program_href(source: Option<&Source>, program: &Program, caption: Option<&str>) -> String {
-    let variant = caption.filter(|caption| !caption.trim().is_empty()).and_then(|caption| {
+/// the stored Studienrichtung (`variant=`, A.10) — the page stored as the direction, else the plan
+/// whose caption was stored, the first where none or none of that caption is.
+pub fn program_href(source: Option<&Source>, program: &Program, caption: Option<&str>, direction: Option<&str>) -> String {
+    let place = caption.filter(|caption| !caption.trim().is_empty()).and_then(|caption| {
         let plans = source?.run(|db| pages::plan_source(db, &program.id)).ok()??;
-        let found = variants::variant_for(&plans.variants, caption)?;
-        plans.variants.iter().position(|variant| std::ptr::eq(variant, found))
+        ProgramPlans::new(&plans.variants, plans.supplements).place(caption, direction)
     });
-    ProgramUrl::new(&program.slug, ProgramTab::Plan).with_variant(variant.map_or(1, |index| index + 1)).path()
+    ProgramUrl::new(&program.slug, ProgramTab::Plan).with_variant(place.map_or(1, |place| place.shown() + 1)).path()
+}
+
+/// Where a plan stands among a program's plans: a core plan (its index in `plan_variants`' result),
+/// and the page that fills a row of it, where it is one of those.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Place {
+    core: usize,
+    page: Option<usize>,
+}
+
+impl Place {
+    /// The plan the program's page shows for it: the page, else the core plan.
+    fn shown(self) -> usize {
+        self.page.unwrap_or(self.core)
+    }
+}
+
+/// A program's plans as „Mein Studiengang" keeps and names them (A.10). The store keeps a plan by
+/// its caption; a page that fills a row of a core plan („Studienplan · Seite 18") it keeps as the
+/// core's caption with the page as the direction (the import's words, C.16). The program's page
+/// names each by its chip label.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ProgramPlans {
+    /// Each plan's caption (`PlanVariant::full`) and its label, in the order of the page.
+    plans: Vec<(String, String)>,
+    /// The pages among them (`variants::supplements`).
+    pages: Vec<Supplement>,
+}
+
+impl ProgramPlans {
+    pub fn new(plans: &[PlanVariant], pages: Vec<Supplement>) -> Self {
+        Self { plans: plans.iter().map(|plan| (plan.full.clone(), plan.label.clone())).collect(), pages }
+    }
+
+    /// Where the plan at `index` (0-based; past the last, the last, as the page shows it) stands.
+    fn place_of(&self, index: usize) -> Place {
+        let index = index.min(self.plans.len().saturating_sub(1));
+        match self.pages.iter().find(|supplement| supplement.page == index) {
+            Some(supplement) => Place { core: supplement.core, page: Some(index) },
+            None => Place { core: index, page: None },
+        }
+    }
+
+    /// The plan at `index` (0-based) as the store keeps it: its caption (`""` for the unnamed one,
+    /// and where there is none), and for a page its core's caption with the page as the direction.
+    fn kept(&self, index: usize) -> (String, Option<String>) {
+        let place = self.place_of(index);
+        let caption = |at: usize| self.plans.get(at).map(|(full, _)| full.clone());
+        (caption(place.core).unwrap_or_default(), place.page.and_then(caption))
+    }
+
+    /// Where a stored caption and direction stand among these plans: the only plan whatever was
+    /// stored; `None` where the caption names none of them (a program picked in the Studienplan,
+    /// which keeps no Studienrichtung). A direction that names no page of the core is left out.
+    fn place(&self, caption: &str, direction: Option<&str>) -> Option<Place> {
+        if self.plans.len() == 1 {
+            return Some(Place { core: 0, page: None });
+        }
+        let at = self.plans.iter().position(|(full, _)| full.trim() == caption.trim())?;
+        let place = self.place_of(at);
+        if place.page.is_some() {
+            return Some(place);
+        }
+        let named = |page: &usize| self.plans.get(*page).is_some_and(|(full, _)| direction.is_some_and(|direction| full.trim() == direction.trim()));
+        let page = self.pages.iter().filter(|supplement| supplement.core == place.core).map(|supplement| supplement.page).find(named);
+        Some(Place { page, ..place })
+    }
+
+    /// „PA und IoT", „Seite 18": what the program's page calls the plan of a place.
+    fn label(&self, place: Place) -> Option<String> {
+        self.plans.get(place.shown()).map(|(_, label)| label.clone()).filter(|label| !label.trim().is_empty())
+    }
+
+    /// Whether a click on the plan `shown` (`None`: no plan shown) would keep nothing new, where
+    /// the store holds this program at `kept` (`None`: it holds another program or none;
+    /// `Some(None)`: this one, without a Studienrichtung among these plans).
+    fn holds(&self, kept: Option<Option<Place>>, shown: Option<usize>) -> bool {
+        match (kept, shown) {
+            (None, _) => false,
+            (Some(Some(place)), Some(index)) => self.place_of(index) == place,
+            (Some(_), _) => true,
+        }
+    }
 }
 
 /// „Als meinen Studiengang setzen" among the actions of a program's page (A.10): stores the program
-/// with the Studienrichtung shown (`caption`, and for a page that fills a core plan's direction row
-/// its core's caption, with the page as `direction`); pressed, „Mein Studiengang", a click takes it
-/// away again (Studienbeginn and Standort stay).
+/// with the Studienrichtung shown (`ProgramPlans::kept`: for a page that fills a core plan's
+/// direction row, its core's caption with the page as the direction; on a tab without the plan,
+/// none); pressed, „Mein Studiengang", a click takes it away again (Studienbeginn and Standort
+/// stay).
+///
+/// Pressed means that a click would store nothing new: this program, and on the plan's tab the plan
+/// shown. On another plan of the same program the button is not pressed, and its title names the
+/// kept one a click replaces („Ersetzt: PA und IoT"), as it names another program. A program kept
+/// without a Studienrichtung, or with one none of its plans has any more, is pressed on every plan.
 ///
 /// Part of server HTML like `MarkButton`: unpressed, the same for everybody (R9), kept in its place
 /// but not shown until the app runs (`.mine-toggle`), so the actions do not move at the takeover
@@ -227,19 +310,34 @@ pub fn MineButton(
     /// The program as „Mein Studiengang" names it (`program_name`).
     #[prop(into)]
     name: String,
-    #[prop(into)] caption: Signal<String>,
-    #[prop(into)] direction: Signal<Option<String>>,
+    plans: ProgramPlans,
+    /// The plan shown (0-based); `None` on a tab without the plan, and for a program without one.
+    #[prop(into)]
+    shown: Signal<Option<usize>>,
 ) -> impl IntoView {
     let mine = MyProgram::expect().filter(|_| APP);
-    // One memo each (R5), both from the store alone.
-    let stored = {
+    let plans = StoredValue::new(plans);
+    // One memo each (R5), both from the store alone: whether this program is kept and where its
+    // Studienrichtung stands among the plans (`Some(None)`: nowhere), and another program kept
+    // instead.
+    let kept = {
         let id = program_id.clone();
-        Memo::new(move |_| mine.is_some_and(|mine| mine.is(&id)))
+        Memo::new(move |_| {
+            let mine = mine?;
+            mine.with(|doc| {
+                let this = doc.program.as_deref() == Some(id.as_str());
+                this.then(|| plans.with_value(|plans| plans.place(doc.caption.as_deref().unwrap_or_default(), doc.direction.as_deref())))
+            })
+        })
     };
     let replaced = {
         let id = program_id.clone();
         Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| replaced_name(doc, &id))))
     };
+    let stored = Memo::new(move |_| {
+        let (kept, shown) = (kept.get(), shown.get());
+        plans.with_value(|plans| plans.holds(kept, shown))
+    });
     // What the last click said, until the store has it.
     let said = RwSignal::new(None::<bool>);
     let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| stored.get()));
@@ -247,7 +345,10 @@ pub fn MineButton(
         let Some(mine) = mine else { return };
         let was = pressed.get_untracked();
         said.set(Some(!was));
-        let (id, name, caption, direction) = (program_id.clone(), name.clone(), caption.get_untracked(), direction.get_untracked());
+        // Unpressed on a tab without the plan, the program is not kept yet, and nothing says which
+        // of its plans is meant: no Studienrichtung, as the Studienplan's picker keeps it.
+        let (caption, direction) = shown.get_untracked().map(|index| plans.with_value(|plans| plans.kept(index))).unwrap_or_default();
+        let (id, name) = (program_id.clone(), name.clone());
         nav::after_paint(move || {
             if was {
                 mine.clear_program();
@@ -258,10 +359,11 @@ pub fn MineButton(
         });
     };
     let label = move || if pressed.get() { "Mein Studiengang" } else { "Als meinen Studiengang setzen" };
-    let tip = move || match (pressed.get(), replaced.get()) {
-        (true, _) => Some("Dein Studiengang. Noch einmal hebt das auf".to_string()),
-        (false, Some(other)) => Some(format!("Ersetzt: {other}")),
-        (false, None) => None,
+    let tip = move || match (pressed.get(), replaced.get(), kept.get()) {
+        (true, ..) => Some("Dein Studiengang. Noch einmal hebt das auf".to_string()),
+        (false, Some(other), _) => Some(format!("Ersetzt: {other}")),
+        (false, None, Some(Some(place))) => plans.with_value(|plans| plans.label(place)).map(|label| format!("Ersetzt: {label}")),
+        (false, None, _) => None,
     };
     view! {
         <button
@@ -347,7 +449,132 @@ mod tests {
         let gone = MyProgramInfo { exact: false, ..exact.clone() };
         assert_eq!((catalog_href(Some(&gone)), catalog_href(None)), ("/catalog".to_string(), "/catalog".to_string()));
         // Without a caption, or without a source to look the plans up in, the first plan.
-        assert_eq!(program_href(None, &exact.program, Some("Studienrichtung A")), "/programs/bachelor-informatik-2008/plan");
+        assert_eq!(program_href(None, &exact.program, Some("Studienrichtung A"), None), "/programs/bachelor-informatik-2008/plan");
+    }
+
+    /// Plans as the program's page lists them: a core plan whose row „Seite 18" fills, and
+    /// another one.
+    fn three_plans() -> ProgramPlans {
+        let plan = |full: &str, label: &str| (full.to_string(), label.to_string());
+        ProgramPlans {
+            plans: vec![plan("Kernplan", "Kern"), plan("Studienplan · Seite 18", "Seite 18"), plan("Andere Richtung", "Andere")],
+            pages: vec![Supplement { core: 0, ord: 16, page: 1 }],
+        }
+    }
+
+    /// „Mein Studiengang" keeps the plan shown by its caption; a page that fills a core plan's row
+    /// is kept as the core with the page as its direction, the way the import stores it.
+    #[test]
+    fn mein_studiengang_keeps_the_plan_shown() {
+        let plans = three_plans();
+        assert_eq!(plans.kept(0), ("Kernplan".to_string(), None));
+        assert_eq!(plans.kept(1), ("Kernplan".to_string(), Some("Studienplan · Seite 18".to_string())));
+        assert_eq!(plans.kept(2), ("Andere Richtung".to_string(), None));
+        // An address naming a plan past the last shows the last, as the page does; no plan at all
+        // is the unnamed one.
+        assert_eq!(plans.kept(8), ("Andere Richtung".to_string(), None));
+        assert_eq!(ProgramPlans::default().kept(0), (String::new(), None));
+    }
+
+    /// What is kept is found again among the plans: a page by its core and itself as the
+    /// direction, the only plan whatever was kept, nothing for a caption none of them has.
+    #[test]
+    fn a_kept_studienrichtung_is_found_among_the_plans() {
+        let plans = three_plans();
+        let core = Place { core: 0, page: None };
+        let page = Place { core: 0, page: Some(1) };
+        assert_eq!(plans.place("Kernplan", None), Some(core));
+        assert_eq!(plans.place(" Kernplan ", Some("Studienplan · Seite 18")), Some(page));
+        // A direction that is no page of that core does not count; a page kept as the caption is
+        // still that page.
+        assert_eq!(plans.place("Kernplan", Some("Andere Richtung")), Some(core));
+        assert_eq!(plans.place("Studienplan · Seite 18", None), Some(page));
+        assert_eq!(plans.place("Andere Richtung", Some("Studienplan · Seite 18")), Some(Place { core: 2, page: None }));
+        // Picked in the Studienplan (no caption), or a caption of an older snapshot.
+        assert_eq!(plans.place("", None), None);
+        assert_eq!(plans.place("Vertiefung B", None), None);
+        let only = ProgramPlans { plans: vec![("Regelstudienplan".to_string(), "Regelstudienplan".to_string())], pages: Vec::new() };
+        assert_eq!(only.place("", None), Some(core));
+        assert_eq!((plans.label(page).as_deref(), plans.label(core).as_deref()), (Some("Seite 18"), Some("Kern")));
+    }
+
+    /// Pressed means a click would keep nothing new: this program and, where a plan is shown, that
+    /// plan. Another plan of the same program is not pressed, so a click keeps it instead of
+    /// taking the program away.
+    #[test]
+    fn the_button_is_pressed_on_the_plan_that_is_kept() {
+        let plans = three_plans();
+        let page = Some(Some(Place { core: 0, page: Some(1) }));
+        assert!(plans.holds(page, Some(1)));
+        assert!(!plans.holds(page, Some(0)), "the core plan without the page is another Studienrichtung");
+        assert!(!plans.holds(page, Some(2)));
+        // On a tab without the plan the program is what counts.
+        assert!(plans.holds(page, None));
+        // Kept without a Studienrichtung of these plans: every plan is the program's.
+        assert!(plans.holds(Some(None), Some(2)) && plans.holds(Some(None), None));
+        // Another program, or none.
+        assert!(!plans.holds(None, Some(1)) && !plans.holds(None, None));
+    }
+
+    /// The snapshot the catalog's tests read: `FOLIA_TEST_SNAPSHOT`, else the one
+    /// `snapshot/current.json` names.
+    fn snapshot() -> Source {
+        use std::path::PathBuf;
+        use std::sync::Mutex;
+
+        use catalog::native::NativeDatabase;
+        use catalog::{Database, DbError};
+
+        use crate::data::CatalogSource;
+
+        struct Snapshot(Mutex<NativeDatabase>);
+        impl CatalogSource for Snapshot {
+            fn with_db(&self, job: &mut dyn FnMut(&dyn Database)) -> Result<(), DbError> {
+                let db = self.0.lock().map_err(|_| DbError::Unavailable("the test snapshot is poisoned".to_string()))?;
+                job(&*db);
+                Ok(())
+            }
+        }
+        let path = std::env::var("FOLIA_TEST_SNAPSHOT").map(PathBuf::from).unwrap_or_else(|_| {
+            let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("snapshot");
+            let pointer = std::fs::read_to_string(dir.join("current.json")).expect("set FOLIA_TEST_SNAPSHOT to a catalog-*.db");
+            let file = pointer.split("\"file\"").nth(1).and_then(|rest| rest.split('"').nth(1)).expect("snapshot/current.json names a file");
+            dir.join(file)
+        });
+        Source(std::sync::Arc::new(Snapshot(Mutex::new(NativeDatabase::open(&path).expect("the test snapshot opens")))))
+    }
+
+    /// A link to the visitor's own program shows the kept Studienrichtung (A.10), looked up in the
+    /// snapshot: Elektrotechnik's second plan, and a „Seite N" page of 370-82-2023 kept as its
+    /// core with the page as the direction.
+    #[test]
+    fn a_link_to_mein_studiengang_shows_the_kept_plan() {
+        let source = snapshot();
+        let program = |id: &str| source.run(|db| pages::my_program(db, id)).unwrap().expect("the program is in the snapshot").program;
+        let plans = |id: &str| source.run(|db| pages::plan_source(db, id)).unwrap().expect("the program has plans");
+
+        let elektrotechnik = program("048-82-2022");
+        let two = plans("048-82-2022");
+        assert!(two.variants.len() >= 2, "Elektrotechnik B.Sc. 2022 has a plan per Studienrichtung");
+        let second = two.variants[1].full.clone();
+        assert_eq!(program_href(Some(&source), &elektrotechnik, Some(&second), None), "/programs/bachelor-elektrotechnik-2022/plan?variant=2");
+        let first = two.variants[0].full.clone();
+        assert_eq!(program_href(Some(&source), &elektrotechnik, Some(&first), None), "/programs/bachelor-elektrotechnik-2022/plan");
+        // A caption none of its plans has, or none at all: the first plan.
+        assert_eq!(program_href(Some(&source), &elektrotechnik, Some("Vertiefung B"), None), "/programs/bachelor-elektrotechnik-2022/plan");
+        assert_eq!(program_href(Some(&source), &elektrotechnik, Some(""), None), "/programs/bachelor-elektrotechnik-2022/plan");
+
+        let wiing = program("370-82-2023");
+        let paged = plans("370-82-2023");
+        let supplement = paged.supplements.first().expect("370-82-2023 has a page that fills a row of its core plan").clone();
+        let (core, page) = (paged.variants[supplement.core].full.clone(), paged.variants[supplement.page].full.clone());
+        let at = |n: usize| match n {
+            1 => format!("/programs/{}/plan", wiing.slug),
+            n => format!("/programs/{}/plan?variant={n}", wiing.slug),
+        };
+        assert_eq!(program_href(Some(&source), &wiing, Some(&core), None), at(supplement.core + 1));
+        assert_eq!(program_href(Some(&source), &wiing, Some(&core), Some(&page)), at(supplement.page + 1));
+        assert_eq!(program_href(Some(&source), &wiing, Some(&core), Some("Studienplan · Seite 99")), at(supplement.core + 1));
     }
 
     #[test]

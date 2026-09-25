@@ -787,7 +787,8 @@ fn pages_of(source: &PlanSource, core: usize) -> Vec<&Supplement> {
 }
 
 /// The plan the panel starts with: the one „Mein Studiengang" stored (by its caption), else the
-/// one the address names (`variant=`, the core of a page it names), else the first.
+/// one the address names (`variant=`, the core of a page it names), else the first. `form_of`
+/// hands in only one of the two.
 fn default_core(source: &PlanSource, caption: Option<&str>, variant: Option<usize>) -> Option<usize> {
     let cores = cores(source);
     let stored = caption
@@ -867,9 +868,15 @@ fn credits_of_plan(credits: f64, most: f64) -> String {
 /// The panel for a program with plans: the defaults (`default_core`, …) where the student chose
 /// nothing, and the import they make.
 fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, current: SemesterKey, variant: Option<usize>, picks: Picks) -> Option<Form> {
-    // What „Mein Studiengang" stored of the plan counts only for that program.
+    // What „Mein Studiengang" stored of the plan counts only for that program, and only where the
+    // address names no plan of it (`import=mine`, or another program picked in the panel). An
+    // `import=<slug>` comes from the plan a program's page shows („In den Studienplan", `variant`
+    // 1 where it names none), and that plan is the one meant, also on the student's own program.
     let own = mine.program.as_deref() == Some(source.program.id.as_str());
-    let (caption, direction) = if own { (mine.caption.as_deref(), mine.direction.as_deref()) } else { (None, None) };
+    let (caption, direction) = match (own, variant) {
+        (true, None) => (mine.caption.as_deref(), mine.direction.as_deref()),
+        _ => (None, None),
+    };
     let core = picks.core.filter(|core| cores(source).contains(core)).or_else(|| default_core(source, caption, variant))?;
     let core_plan = source.variants.get(core)?;
     let pages = pages_of(source, core);
@@ -1608,9 +1615,11 @@ mod tests {
         let form = form_of(&two, &PlanDoc::default(), &MineDoc::default(), key("2026W"), None, Picks::default()).unwrap();
         let chips: Vec<(&str, Option<&str>)> = form.cores.iter().map(|choice| (choice.label.as_str(), choice.count.as_deref())).collect();
         assert_eq!((chips, form.core), (vec![("MIT und EET", None), ("PA und IoT", None)], 0));
-        // „Mein Studiengang" stored the second, and the address names the first: the stored one.
+        // „Mein Studiengang" stored the second. The address of a program's page names the plan it
+        // showed, the first (`import=<slug>`): that one. `import=mine` names none: the stored one.
         let mine = MineDoc { program: Some("048-82-2022".into()), caption: Some(second.into()), ..MineDoc::default() };
-        assert_eq!(form_of(&two, &PlanDoc::default(), &mine, key("2026W"), Some(1), Picks::default()).unwrap().core, 1);
+        assert_eq!(form_of(&two, &PlanDoc::default(), &mine, key("2026W"), Some(1), Picks::default()).unwrap().core, 0);
+        assert_eq!(form_of(&two, &PlanDoc::default(), &mine, key("2026W"), None, Picks::default()).unwrap().core, 1);
         assert_eq!(form_of(&two, &PlanDoc::default(), &MineDoc::default(), key("2026W"), Some(2), Picks::default()).unwrap().core, 1);
 
         // A core plan whose direction row (60 LP over FS 1–6) a page fills.
@@ -1634,6 +1643,14 @@ mod tests {
         let open = form_of(&paged, &PlanDoc::default(), &MineDoc::default(), key("2026W"), Some(2), Picks { page: Some(None), ..Picks::default() }).unwrap();
         assert_eq!((open.page, open.total.0.as_deref()), (None, Some("1 Modul · 1 Platzhalter")));
         assert_eq!(open.preview.first().map(|line| line.0.as_str()), Some("1. FS · WiSe 2026/27 · 1 Modul · 1 Platzhalter"));
+        // „Mein Studiengang" keeps the page. The core plan shown on the program's page is the core
+        // without it („offen"); `import=mine` takes the page.
+        let core = paged.variants.first().map(|plan| plan.full.clone());
+        let page = paged.variants.get(1).map(|plan| plan.full.clone());
+        let mine = MineDoc { program: Some("370-82-2019".into()), caption: core, direction: page, ..MineDoc::default() };
+        let shown = form_of(&paged, &PlanDoc::default(), &mine, key("2026W"), Some(1), Picks::default()).unwrap();
+        let stored = form_of(&paged, &PlanDoc::default(), &mine, key("2026W"), None, Picks::default()).unwrap();
+        assert_eq!(((shown.core, shown.page), (stored.core, stored.page)), ((0, None), (0, Some(1))));
     }
 
     #[test]

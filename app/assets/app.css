@@ -803,11 +803,14 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .summary { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px 2px 16px; }
 .summary h1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-right: auto; font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
 /* „Mein Studiengang" at the right of the program overview's head (markup: header.summary > h1 +
-   a.mine-line > .icon + span > small + text, + .icon): the app's. It gives way before the count
-   does and never takes a second line. The server writes an empty .mine-room in its place, which
-   keeps the line's room from the first paint in a browser that keeps a program (html.mine, set by
-   the head script), so nothing moves at the takeover. */
-.mine-line { flex: 0 1000 auto; min-width: 0; min-height: 34px; padding: 0 8px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 7px; overflow: hidden; white-space: nowrap; color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; }
+   a.mine-line > .icon + span > small + text, + .icon): the app's. The server writes an empty
+   .mine-room in its place, which keeps the line's room from the first paint in a browser that
+   keeps a program (html.mine, set by the head script), so nothing moves at the takeover. The
+   count does not give way to it: the count stays on its line, the same beside the empty room as
+   beside the line, and the line ends in „…" instead, down to its padding (with the gap 30px). The
+   count wraps only where it alone is wider than the head. */
+.summary:has(> .mine-line) > h1 { flex-shrink: 0; max-width: calc(100% - 30px); }
+.mine-line { flex: 0 1 auto; min-width: 0; min-height: 34px; padding: 0 8px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 7px; overflow: hidden; white-space: nowrap; color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; }
 a.mine-line:hover { background: var(--panel-3); text-decoration: none; }
 .mine-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mine-line small { color: var(--text-3); font-size: inherit; font-weight: 480; }
@@ -1217,8 +1220,13 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
   .show-bar { grid-template-columns: minmax(0, 1fr) auto; padding: 0 12px; }
   .show-bar .show-tabs { grid-column: 1; width: auto; grid-auto-columns: auto; }
   .show-bar .show-tabs button { padding: 0 8px; font-size: 13.5px; }
-  /* „Regelstudienplan" is the longest tab: on a small phone the four still fit side by side. */
+  /* „Regelstudienplan" is the longest tab: on a small phone the four still fit side by side, and
+     on the smallest (320px) as well. */
   @media (max-width: 400px) { .show-bar .show-tabs button { padding: 0 4px; font-size: 12.5px; } }
+  @media (max-width: 359px) {
+    .show-bar { gap: 6px; }
+    .show-bar .show-tabs button { padding: 0 3px; font-size: 11px; }
+  }
   .show-bar .show-tabs button[aria-checked="true"] { background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
   .show-mark { display: none; }
   .show-play { width: 40px; height: 40px; }
@@ -1603,6 +1611,10 @@ html:not(.js) .plan-toggle, html:not(.js) .mine-toggle { display: none; }
    semesters) ends in „…" where it is longer than the sidebar is wide; it never widens the list. */
 .actions > .plan-toggle { min-width: 0; }
 .mine-toggle[aria-pressed="true"] .icon { fill: currentColor; color: var(--text); }
+/* In a sidebar of 248px „Als meinen Studiengang setzen" takes two lines, pressed „Mein
+   Studiengang" one. Two lines this close fit the action's height, so the button keeps it in both
+   and the actions below do not move when the app shows the pressed one (R15). */
+.action.mine-toggle > span { line-height: 1.3; }
 
 /* ---------- closed testing: the login page ----------
    A document of its own (server/src/access.rs): no rail, no app, one column in the middle of the
@@ -1789,6 +1801,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   /* On a phone „Mein Studiengang" is a line of its own under the count and „Filter". The grid
      lays out the first line as the flex row does. */
   .summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+  .summary:has(> .mine-line) > h1 { max-width: none; }
   .summary > .mine-line { grid-column: 1 / -1; grid-row: 2; justify-self: start; max-width: calc(100% + 10px); min-height: 40px; margin-left: -10px; }
   .summary > .mine-line > .icon:last-child { display: none; }
   /* The program page's „Darstellung": the plan is always the list on a phone, and the app leaves

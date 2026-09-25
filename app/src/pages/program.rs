@@ -30,7 +30,7 @@ use catalog::plan;
 use catalog::rows::{Program, ProgramModule};
 use catalog::rows_detail::{AreaPlacement, Plan, PlanEntry, PlanTotal};
 use catalog::url::{self, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
-use catalog::variants::{self, plan_variants, Choice, PlanVariant, Supplement};
+use catalog::variants::{self, plan_variants, Choice, PlanVariant};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
 use leptos_meta::Title;
@@ -39,7 +39,7 @@ use leptos_router::hooks::{use_location, use_params_map};
 use crate::data::{use_source, PageStatus};
 use crate::format;
 use crate::local::{self, ModuleInPlace};
-use crate::myprogram::{program_name, MineButton};
+use crate::myprogram::{program_name, MineButton, ProgramPlans};
 use crate::nav;
 use crate::pages::catalog::phone_layout;
 use crate::pages::module::ModulePanel;
@@ -322,16 +322,13 @@ fn ProgramSidebar(
     let areas = area_groups(&data.areas);
     // „Mein Studiengang" and the Studienplan take the plan shown: its Studienrichtung is what the
     // store keeps (a page that fills a core plan's row: the core, with the page as its direction),
-    // and „In den Studienplan" takes it over (A.10).
+    // and „In den Studienplan" takes it over (A.10). Only the plan's tab shows one.
     let plans = plan_variants(&data.plan_entries, &data.plan_totals);
-    let has_plans = !plans.is_empty();
-    let chosen = {
-        let pages = variants::supplements(&plans);
-        let plans = plans.clone();
-        Memo::new(move |_| studienrichtung(&plans, &pages, variant.get()))
-    };
+    let count = plans.len();
+    let mine_plans = ProgramPlans::new(&plans, variants::supplements(&plans));
+    let shown = Signal::derive(move || (tab == ProgramTab::Plan && count > 0).then(|| variant.get().saturating_sub(1)));
     let import = {
-        let (slug, count) = (p.slug.clone(), plans.len());
+        let slug = p.slug.clone();
         move || StudyplanUrl { view: PlanView::Overview, import: Some(slug.clone()), variant: variant.get().clamp(1, count.max(1)), ..Default::default() }.path()
     };
     // The view the app is going to is the current one at once (`pending`); its page follows.
@@ -435,13 +432,8 @@ fn ProgramSidebar(
             <p class="flabel label">"Aktionen"</p>
             // Both are part of server HTML, invisible until the app runs and gone without it
             // (`.mine-toggle`), so the actions under them do not move at the takeover (R15).
-            <MineButton
-                program_id=p.id.clone()
-                name=program_name(&p)
-                caption=Signal::derive(move || chosen.with(|(caption, _)| caption.clone()))
-                direction=Signal::derive(move || chosen.with(|(_, direction)| direction.clone()))
-            />
-            {has_plans.then(|| view! {
+            <MineButton program_id=p.id.clone() name=program_name(&p) plans=mine_plans shown/>
+            {(count > 0).then(|| view! {
                 <a class="action mine-toggle" href=import><Icon name="calendar-plus"/><span>"In den Studienplan"</span></a>
             })}
             {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>"Ordnungen & Dokumente"</a> })}
@@ -966,19 +958,6 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
 }
 
 // ---------- the study plan ----------
-
-/// The Studienrichtung of the plan shown (`variant`, 1-based as in the address) as „Mein
-/// Studiengang" keeps it: the plan's caption (`""` for the only or the unnamed plan), and for a
-/// page that fills a row of a core plan („Studienplan · Seite 18") the core's caption with the
-/// page as the direction (the import's words, C.16).
-fn studienrichtung(plans: &[PlanVariant], pages: &[Supplement], variant: usize) -> (String, Option<String>) {
-    let index = variant.min(plans.len()).saturating_sub(1);
-    let Some(shown) = plans.get(index) else { return (String::new(), None) };
-    match pages.iter().find(|supplement| supplement.page == index).and_then(|supplement| plans.get(supplement.core)) {
-        Some(core) => (core.full.clone(), Some(shown.full.clone())),
-        None => (shown.full.clone(), None),
-    }
-}
 
 /// What a plan comes to, as it is written: „180" or, where the regulation prints spans,
 /// „116–126".
@@ -1918,21 +1897,5 @@ mod tests {
             plan_heading("Regelstudienplan – praxisorientiert (240 LP)"),
             Some("Regelstudienplan – praxisorientiert (240 LP)".to_string())
         );
-    }
-
-    /// „Mein Studiengang" keeps the plan shown by its caption; a page that fills a core plan's row
-    /// is kept as the core with the page as its direction, the way the import stores it.
-    #[test]
-    fn mein_studiengang_keeps_the_plan_shown() {
-        let plan = |full: &str| PlanVariant { label: full.to_string(), full: full.to_string(), semesters: 6, credits: 180.0, credits_max: 180.0, stated: true, entries: Vec::new(), totals: Vec::new() };
-        let plans = vec![plan("Kernplan"), plan("Studienplan · Seite 18"), plan("Andere Richtung")];
-        let pages = vec![Supplement { core: 0, ord: 16, page: 1 }];
-        assert_eq!(studienrichtung(&plans, &pages, 1), ("Kernplan".to_string(), None));
-        assert_eq!(studienrichtung(&plans, &pages, 2), ("Kernplan".to_string(), Some("Studienplan · Seite 18".to_string())));
-        assert_eq!(studienrichtung(&plans, &pages, 3), ("Andere Richtung".to_string(), None));
-        // An address naming a plan past the last shows the last, as the page does; no plan at all
-        // is the unnamed one.
-        assert_eq!(studienrichtung(&plans, &pages, 9), ("Andere Richtung".to_string(), None));
-        assert_eq!(studienrichtung(&[], &[], 1), (String::new(), None));
     }
 }

@@ -25,7 +25,7 @@ use leptos_router::hooks::use_location;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
-use crate::myprogram::{program_href, program_name, MineResolved, MyProgram};
+use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
 use crate::nav;
 use crate::pending::Pending;
 use crate::seo::Seo;
@@ -427,7 +427,12 @@ pub fn ProgramsPage() -> impl IntoView {
 /// visitor's own program, with the stored Studienrichtung's plan (`program_href`). It is the app's
 /// (R9): the server writes an empty box in its place, which keeps the line's room from the first
 /// paint where the browser keeps a program (`html.mine`, set by `HEAD_SCRIPT`), so the list does
-/// not move when the app takes over (R15). A program gone from the snapshot is named as gone.
+/// not move when the app takes over (R15).
+///
+/// A program gone from the snapshot keeps the line, which says so first: on a phone the line ends
+/// in „…" where it is too long, and that must take the name, not the news. It leads to the newest
+/// PO of the program, where „Als meinen Studiengang setzen" takes that one instead (as the
+/// Studienplan's „PO 2008 übernehmen" does); without one it leads nowhere.
 #[component]
 fn MineLine() -> impl IntoView {
     if !APP {
@@ -436,14 +441,17 @@ fn MineLine() -> impl IntoView {
     let mine = MyProgram::expect();
     let resolved = MineResolved::expect();
     let source = use_source().ok();
-    // Siblings, each from its own source (R16): what the store says, and what the catalog knows.
-    let stored = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.program.as_ref().map(|id| (doc.name.clone().unwrap_or_else(|| id.clone()), doc.caption.clone())))));
-    let exact = Memo::new(move |_| resolved.and_then(MineResolved::exact));
+    // Siblings, each from its own source (R16): what the store says, and what the catalog knows —
+    // the program while it is in the snapshot (`true`), else the newest PO of its family, if any.
+    let stored = Memo::new(move |_| {
+        mine.and_then(|mine| mine.with(|doc| doc.program.as_ref().map(|id| (doc.name.clone().unwrap_or_else(|| id.clone()), doc.caption.clone(), doc.direction.clone()))))
+    });
+    let known = Memo::new(move |_| resolved?.0.with(|info| info.as_ref().map(|info| (info.program.clone(), info.exact))));
     (move || {
-        let (name, caption) = stored.get()?;
-        Some(match exact.get() {
-            Some(program) => {
-                let (href, name) = (program_href(source.as_ref(), &program, caption.as_deref()), program_name(&program));
+        let (name, caption, direction) = stored.get()?;
+        Some(match known.get() {
+            Some((program, true)) => {
+                let (href, name) = (program_href(source.as_ref(), &program, caption.as_deref(), direction.as_deref()), program_name(&program));
                 let title = format!("Mein Studiengang: {name}");
                 view! {
                     <a class="mine-line" href=href title=title>
@@ -452,14 +460,16 @@ fn MineLine() -> impl IntoView {
                 }
                 .into_any()
             }
-            None => {
-                let title = format!("Mein Studiengang: {name} · nicht mehr im Katalog");
-                view! {
-                    <span class="mine-line" title=title>
-                        <Icon name="star"/><span><small>"Mein Studiengang: "</small>{name}<small>" · nicht mehr im Katalog"</small></span>
-                    </span>
+            latest => {
+                let gone_text = format!("Dein Studiengang {name} ist nicht mehr im Katalog.");
+                let text = view! { <Icon name="star"/><span><small>"Nicht mehr im Katalog: "</small>{name}</span> };
+                match latest.map(|(latest, _)| latest) {
+                    Some(latest) => {
+                        let (href, title) = (program_href(source.as_ref(), &latest, None, None), format!("{gone_text} Zur PO {}", po_of(&latest)));
+                        view! { <a class="mine-line" href=href title=title>{text}<Icon name="chevron-right"/></a> }.into_any()
+                    }
+                    None => view! { <span class="mine-line" title=gone_text>{text}</span> }.into_any(),
                 }
-                .into_any()
             }
         })
     })

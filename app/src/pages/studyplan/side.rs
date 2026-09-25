@@ -419,6 +419,7 @@ fn MineGroup(ctx: PlanCtx, #[prop(into)] first: Signal<bool>) -> impl IntoView {
     let stored = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
     let name = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.name.clone().or_else(|| doc.program.clone()))).unwrap_or_default());
     let caption = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.caption.clone())));
+    let direction = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.direction.clone())));
     let info = Memo::new(move |_| resolved.and_then(|resolved| resolved.0.get()));
     let state = Memo::new(move |_| match (stored.with(Option::is_some), info.get()) {
         (false, _) => Mine::Unset,
@@ -427,8 +428,8 @@ fn MineGroup(ctx: PlanCtx, #[prop(into)] first: Signal<bool>) -> impl IntoView {
         (true, None) => Mine::Gone(name.get(), None),
     });
     let link = Memo::new(move |_| {
-        let (info, caption) = (info.get()?, caption.get());
-        Some(ctx.source.with_value(|source| program_href(source.as_ref(), &info.program, caption.as_deref())))
+        let (info, caption, direction) = (info.get()?, caption.get(), direction.get());
+        Some(ctx.source.with_value(|source| program_href(source.as_ref(), &info.program, caption.as_deref(), direction.as_deref())))
     });
     let take_latest = move |latest: &Program| {
         let (id, name) = (latest.id.clone(), program_name(latest));
