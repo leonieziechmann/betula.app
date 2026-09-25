@@ -4,8 +4,8 @@
 // across page loads. In both modes: the shortcuts (Esc closes the preview or leaves the module
 // page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search; in the app
 // M marks the module the visitor is at and P plans it into the Studienplan), the theme
-// switch, the filter sheet, and the widths of the filter panel and the module preview (dragged,
-// kept in localStorage).
+// switch, the filter sheet, the widths of the filter panel and the module preview (dragged,
+// kept in localStorage), and the room the panels make for the ground at the end of a page.
 (() => {
   const root = document.documentElement;
   const appRuns = () => window.__betulaApp === true;
@@ -396,6 +396,87 @@
     }
   };
   document.addEventListener("scroll", () => { if (!spyFrame) spyFrame = requestAnimationFrame(spy); }, { capture: true, passive: true });
+
+  // ---- the ground: the footer after the end of a page ----
+  // On a wide screen the page scrolls inside the view and the ground (`.ground`) waits below the
+  // window's edge (app.css, „the birch"). The window only gets room to scroll while the page is at
+  // its end (`data-ground="end"`): the wheel then goes on from the page to the window, and as far as
+  // the window scrolls, the ground comes up and the view gets shorter (`in`). A page that was at its
+  // end stays there, so its end goes up with the ground; the panels beside it are only cut off (their
+  // bodies keep their height by a negative margin). The inset goes straight onto the boxes that move,
+  // once per frame, and nothing else is written while it does not change: a property or an
+  // attribute of <html> set in every frame made the browser restyle the whole page in every frame.
+  // On the way back the ground leaves first: while it shows, the wheel upwards and the wheel over a
+  // panel beside the page belong to the window. Should the page leave its end all the same (its
+  // scrollbar, a question opened, another page), the ground goes down by itself. A phone scrolls
+  // page and ground with the window and needs none of this.
+  const PAGE = "#content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
+  const atEnd = (el) => el.scrollHeight - el.clientHeight - el.scrollTop < 2;
+  let groundIn = 0;
+  let groundFrame = 0;
+  let leaving = false;
+  let changed = false; // the page changed while the ground shows: its boxes may be new ones
+  const glide = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
+  const groundWheel = (e) => {
+    if (e.ctrlKey || e.target.closest?.(".combo-pop, dialog")) return;
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
+    if (dy >= 0 && !e.target.closest?.(".sidebar, .filters, .work > .detail")) return;
+    e.preventDefault();
+    // A mouse wheel's notch glides, as the browser's own scrolling does; a touchpad follows the finger.
+    window.scrollBy({ top: dy, behavior: Math.abs(dy) >= 50 ? glide() : "instant" });
+  };
+  const BESIDE = ".sidebar > .body, .filters > form, .work > .detail > .scroll";
+  const put = (el, property, value) => { if (!el) return; if (value) el.style.setProperty(property, value); else el.style.removeProperty(property); };
+  const setGround = (inset) => {
+    if (inset && !groundIn) addEventListener("wheel", groundWheel, { passive: false });
+    if (!inset && groundIn) removeEventListener("wheel", groundWheel, { passive: false });
+    groundIn = inset;
+    put(document.querySelector(".main"), "height", inset && `calc(100vh - ${inset}px)`);
+    put(document.querySelector(".ground"), "transform", inset && `translateY(calc(var(--ground-reach) - ${inset}px))`);
+    for (const el of document.querySelectorAll(BESIDE)) put(el, "margin-bottom", inset && `${-inset}px`);
+  };
+  const ground = () => {
+    groundFrame = 0;
+    if (phone()) {
+      if (groundIn) setGround(0);
+      if (root.dataset.ground) delete root.dataset.ground;
+      return;
+    }
+    const page = document.querySelector(PAGE);
+    const inset = Math.max(0, Math.round(window.scrollY));
+    if (inset !== groundIn || (inset && changed)) {
+      const stays = page && !leaving && atEnd(page); // measured before the view changes
+      setGround(inset);
+      if (stays) page.scrollTop = page.scrollHeight;
+    }
+    changed = false;
+    const end = !page || atEnd(page);
+    if (!groundIn || end) leaving = false;
+    else if (!leaving) {
+      leaving = true;
+      window.scrollTo({ top: 0, behavior: glide() });
+    }
+    const state = groundIn ? "in" : end ? "end" : "mid";
+    if (root.dataset.ground !== state) root.dataset.ground = state;
+  };
+  const groundSoon = () => { if (!groundFrame) groundFrame = requestAnimationFrame(ground); };
+  // The window, a page, a list: scroll events do not bubble, so they are caught on their way down.
+  document.addEventListener("scroll", groundSoon, { capture: true, passive: true });
+  addEventListener("resize", groundSoon);
+  // A page that changes under the visitor (the app's pages, a list, a question opened) may reach
+  // or leave its end without scrolling; a wheel or a key finds out at the latest.
+  new MutationObserver(() => { changed = true; groundSoon(); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open"] });
+  addEventListener("wheel", groundSoon, { passive: true });
+  addEventListener("keydown", groundSoon);
+  // The keyboard reaches the ground's links by Tab: it comes up to show them.
+  document.addEventListener("focusin", (e) => {
+    if (!root.dataset.ground || !e.target.closest?.(".ground")) return;
+    const page = document.querySelector(PAGE);
+    if (page) page.scrollTop = page.scrollHeight;
+    ground();
+    window.scrollTo({ top: root.scrollHeight, behavior: glide() });
+  });
+  ground();
 
   // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {

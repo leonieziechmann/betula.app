@@ -60,7 +60,24 @@
      localStorage (enhance.js). The filter panel stays inside its limits whatever is stored. */
   --filters: clamp(232px, var(--w-filters), min(440px, 42vw));
   --preview-w: 480px;
+
+  /* The birch around the app (owner, 2026-09-25; design/birch, app/src/ground.rs). The crown is
+     a cut-out silhouette in the tone of the season (`data-season` from the script in <head>;
+     summer without it); what hangs behind is the same tone at half strength. The ground at the end
+     of a page is Lausitz sand, a little deeper towards the bottom; the roots are a step darker. */
+  --crown: oklch(.716 .073 148);
+  --crown-ck: var(--crown);
+  --ground: linear-gradient(180deg, oklch(.9 .026 84), oklch(.8 .036 74));
+  --ground-text: oklch(.27 .02 60);
+  --ground-muted: oklch(.39 .022 62);
+  --ground-root: oklch(.76 .038 80);
+  /* How high the ground is on a wide screen, and how far it comes up (with the gap above it). */
+  --ground-h: 200px;
+  --ground-reach: calc(var(--ground-h) + var(--gap));
 }
+:root[data-season="spring"] { --crown: oklch(.765 .094 130); --crown-ck: oklch(.79 .113 100); }
+:root[data-season="autumn"] { --crown: oklch(.765 .105 80); }
+:root[data-season="winter"] { --crown: oklch(.575 .029 40); }
 
 /* Dark: the system setting decides, the switch in the rail overrides it (data-theme on <html>). */
 @media (prefers-color-scheme: dark) {
@@ -90,7 +107,17 @@
     --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
     --sk: rgba(255, 255, 255, .065);
     --sk-shine: rgba(255, 255, 255, .045);
+    /* The crown darker than its day, the ground a cool depth from the tone of the panels to
+       almost black (warm soil fights the cool dark: owner, 2026-09-25), the roots a step lighter. */
+    --crown: oklch(.381 .061 150);
+    --ground: linear-gradient(180deg, oklch(.215 .014 262), oklch(.075 .008 265));
+    --ground-text: oklch(.93 .006 262);
+    --ground-muted: oklch(.72 .014 262);
+    --ground-root: oklch(.25 .02 262);
   }
+  :root:not([data-theme="light"])[data-season="spring"] { --crown: oklch(.418 .073 134); --crown-ck: oklch(.495 .083 100); }
+  :root:not([data-theme="light"])[data-season="autumn"] { --crown: oklch(.44 .08 75); }
+  :root:not([data-theme="light"])[data-season="winter"] { --crown: oklch(.488 .025 45); }
 }
 :root[data-theme="dark"] {
   --bg: #0a0c11;
@@ -118,18 +145,29 @@
   --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
   --sk: rgba(255, 255, 255, .065);
   --sk-shine: rgba(255, 255, 255, .045);
+  --crown: oklch(.381 .061 150);
+  --ground: linear-gradient(180deg, oklch(.215 .014 262), oklch(.075 .008 265));
+  --ground-text: oklch(.93 .006 262);
+  --ground-muted: oklch(.72 .014 262);
+  --ground-root: oklch(.25 .02 262);
 }
+:root[data-theme="dark"][data-season="spring"] { --crown: oklch(.418 .073 134); --crown-ck: oklch(.495 .083 100); }
+:root[data-theme="dark"][data-season="autumn"] { --crown: oklch(.44 .08 75); }
+:root[data-theme="dark"][data-season="winter"] { --crown: oklch(.488 .025 45); }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
 
 /* ---------- base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; }
+html { height: 100%; }
+/* The rail and the view in the first row, as high as the window; in the second whatever comes
+   after the view (the ground, see „the birch"). The body grows past the window with it, so that the
+   rail and the view can stay where they are while the window scrolls. */
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 450 14px/1.45 var(--font); letter-spacing: -.006em;
   -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
-  display: grid; grid-template-columns: var(--rail) minmax(0, 1fr);
+  display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); grid-template-rows: 100vh auto; min-height: 100%;
 }
 /* The fade between pages. Its opt-in (@view-transition) is written inline into the head of each
    page (app::VIEW_TRANSITION_STYLE): from this file it can come too late for the browser. */
@@ -149,7 +187,10 @@ table { border-collapse: collapse; width: 100%; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip-link { position: absolute; left: 12px; top: -100px; z-index: 60; background: var(--panel); padding: 10px 14px; border-radius: var(--r-ctl); box-shadow: var(--shadow-pop); }
 .skip-link:focus { top: 10px; }
-.scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+/* A side panel keeps its wheel: only the end of the page itself (`.page`, the list) goes on to
+   the window, where the ground comes (see „the birch"). */
+.scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; overscroll-behavior-y: contain; }
+.rows.scroll { overscroll-behavior-y: auto; }
 
 /* ---------- virtual oversizing ----------
    Small controls react to the pointer in an area larger than they look: an invisible layer
@@ -177,7 +218,7 @@ table { border-collapse: collapse; width: 100%; }
 .combo-clear { --hit-y: 6px; --hit-x: 3px; }
 
 /* ---------- rail ---------- */
-.rail { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--gap) 0; }
+.rail { grid-row: 1 / span 2; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--gap) 0; }
 /* The mark: birch bark that also reads as the rows of a list; light in both themes (--bark). Drawn
    on a 32px grid (bars 3px, 2px apart, 7px to the edges). Its middle sits on the middle of the top
    bar, so mark and wordmark read as one on the start page. */
@@ -221,7 +262,8 @@ html:not(.js) .js-only { display: none !important; }
 span.js-only { display: contents; }
 
 /* ---------- frame ---------- */
-.main { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap) var(--gap) var(--gap) 0; min-width: 0; height: 100vh; }
+/* The view is as high as the window; less what shows of the ground (see „the birch"). */
+.main { position: relative; grid-column: 2; grid-row: 1; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap) var(--gap) var(--gap) 0; min-width: 0; height: 100vh; }
 .topbar { display: flex; align-items: center; gap: var(--gap); height: 40px; }
 /* The title sits over the filter panel (its text over the panel's text), the search over the list. */
 .crumb { display: flex; align-items: baseline; gap: 10px; flex: none; width: var(--filters); padding-left: 14px; min-width: 0; }
@@ -243,7 +285,83 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .pill .icon { width: 16px; height: 16px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
 .content { position: relative; min-height: 0; min-width: 0; }
-.page { height: 100%; overflow-y: auto; padding: 1px 1px 24px 1px; scrollbar-width: thin; }
+/* A page ends where the panels beside it end: the same 8 px above the window's edge or the ground
+   (1 px keeps the ring of the panels in it). */
+.page { height: 100%; overflow-y: auto; padding: 1px; scrollbar-width: thin; }
+
+/* ---------- the birch: the crown along the top, the ground at the end ---------- */
+/* The crown hangs in from above along the whole top, on every screen the same (owner, 2026-09-25:
+   „durchgehend und auf allen Geräten“): fixed to the window, under the rail and the view, so the
+   mark and the search stand in front of it. Two masks per season in the season's tone
+   (design/birch): at the left the head — the mark, and over the title a clearing where only the
+   crown's edge hangs in, so the name stands free („ein natürlicher Platz für die Schrift“) — and
+   from 420 px on a tile that repeats to the right edge, cut to its own box (content-box), so the
+   two never draw over each other. Spring's catkins have a colour of their own. */
+.crown { position: fixed; z-index: 0; top: 0; left: 0; right: 0; height: 64px; pointer-events: none; --crown-head: url("/assets/birch/summer-crown-head.svg"); --crown-mask: url("/assets/birch/summer-crown.svg"); }
+.crown::before, .crown::after {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 64px; padding-left: 420px; background: var(--crown);
+  -webkit-mask-image: var(--crown-head), var(--crown-mask); mask-image: var(--crown-head), var(--crown-mask);
+  -webkit-mask-repeat: no-repeat, repeat-x; mask-repeat: no-repeat, repeat-x;
+  -webkit-mask-position: left top; mask-position: left top;
+  -webkit-mask-origin: border-box, content-box; mask-origin: border-box, content-box;
+  -webkit-mask-clip: border-box, content-box; mask-clip: border-box, content-box;
+}
+.crown::after { display: none; background: var(--crown-ck); --crown-head: url("/assets/birch/spring-crown-head-ck.svg"); --crown-mask: url("/assets/birch/spring-crown-ck.svg"); }
+:root[data-season="spring"] .crown { --crown-head: url("/assets/birch/spring-crown-head.svg"); --crown-mask: url("/assets/birch/spring-crown.svg"); }
+:root[data-season="spring"] .crown::after { display: block; }
+:root[data-season="autumn"] .crown { --crown-head: url("/assets/birch/autumn-crown-head.svg"); --crown-mask: url("/assets/birch/autumn-crown.svg"); }
+:root[data-season="winter"] .crown { --crown-head: url("/assets/birch/winter-crown-head.svg"); --crown-mask: url("/assets/birch/winter-crown.svg"); }
+
+/* The ground: the footer after all of a page, across everything right of the rail. The roots
+   grow into it from its edge and fade downwards (a mask, like the crown); in autumn the fallen
+   leaves lie on its edge, in the gap above it. As it stands here it lies after the view, and the
+   window scrolls to it: so it is without enhance.js, and so it follows the page on a phone. */
+.ground { position: relative; z-index: 1; grid-column: 2; grid-row: 2; margin: 0 var(--gap) var(--gap) 0; min-height: var(--ground-h); border-radius: 12px; background: var(--ground); color: var(--ground-text); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ground-text) 6%, transparent); }
+.ground::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--ground-root); -webkit-mask: url("/assets/birch/roots.svg") repeat-x left top; mask: url("/assets/birch/roots.svg") repeat-x left top; pointer-events: none; }
+.ground::after { content: ""; display: none; position: absolute; left: 0; right: 0; top: -12px; height: 24px; background: var(--crown); -webkit-mask: url("/assets/birch/litter.svg") repeat-x left top; mask: url("/assets/birch/litter.svg") repeat-x left top; pointer-events: none; }
+:root[data-season="autumn"] .ground::after { display: block; }
+.ground-top { position: relative; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 26px 28px 0; }
+.ground-name { display: flex; align-items: baseline; gap: 10px; }
+.ground .wordmark { color: var(--ground-text); }
+.ground-name small { color: var(--ground-muted); font-size: 13px; }
+.ground-note { margin-top: 8px; color: var(--ground-muted); font-size: 12.5px; }
+.ground-legal { display: flex; gap: 6px; }
+.ground-legal a { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: var(--r-ctl); background: color-mix(in srgb, var(--ground-text) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ground-text) 10%, transparent); color: var(--ground-text); font-size: 13px; font-weight: 560; }
+.ground-legal a:hover { background: color-mix(in srgb, var(--ground-text) 12%, transparent); text-decoration: none; }
+.ground-foot { position: absolute; left: 28px; right: 28px; bottom: 22px; display: flex; justify-content: space-between; gap: 16px; color: var(--ground-muted); font-size: 12px; }
+.ground-foot p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.ground-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--ground-muted); }
+.ground-foot .icon { width: 13px; height: 13px; }
+/* On a wide screen the page scrolls inside the view, and its scrollbar is the only one: the
+   window's is never shown. With enhance.js (`data-ground` on <html>) the ground waits below the
+   window's edge, fixed to the window. Once the page is at its end (`end`), the window has room to
+   scroll by as far as the ground comes up; the next turn of the wheel scrolls it, and the ground
+   comes up by as much (`in`). The header stays, the view gets that much shorter: the page's end
+   goes up with the ground, the panels beside it are only cut off, their content standing still
+   (owner, 2026-09-25). Nothing else moves with the window: the rail and the view stick to its
+   top. How far the ground is in, enhance.js writes straight onto the boxes that move (the view's
+   height, the ground's shift, the bodies of the panels beside the page, which keep their height
+   by a negative margin); a custom property on <html> made the browser work out the style of the
+   whole page again in every frame. It also has the rest (the wheel on the way back, a page that
+   leaves its end). */
+@media (min-width: 901px) {
+  html.js { scrollbar-width: none; }
+  :root[data-ground] .main { position: sticky; top: 0; }
+  :root[data-ground] .ground { position: fixed; left: var(--rail); right: var(--gap); bottom: var(--gap); height: var(--ground-h); margin: 0; transform: translateY(var(--ground-reach)); will-change: transform; }
+  :root[data-ground="end"] body::after, :root[data-ground="in"] body::after { content: ""; grid-column: 2; grid-row: 2; height: var(--ground-reach); }
+  :root[data-ground]:not([data-ground="in"]) .ground::after { display: none; }
+}
+@media (max-width: 900px) {
+  /* On a phone the crown is the ground of the bar at the top: it carries the bar's frosted
+     background, over the page and under the search. The ground follows the page, full width, the
+     bottom bar floating over its lower part. */
+  .crown { z-index: 20; height: var(--bar); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); }
+  /* No title in the bar, so no clearing: the tile alone, from the left edge. */
+  .crown::before, .crown::after { padding-left: 0; --crown-head: none; }
+  .ground { margin: 12px 0 0; min-height: 0; border-radius: 18px 18px 0 0; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .ground-top { flex-direction: column; gap: 14px; padding: 22px 18px 0; }
+  .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
+}
 
 .panel { background: var(--panel); border-radius: var(--r-panel); box-shadow: var(--shadow-panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .panel-head { display: flex; align-items: center; gap: 8px; min-height: 50px; padding: 8px 8px 6px 14px; }
@@ -1172,9 +1290,8 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .faq details[open] summary .icon { transform: rotate(45deg); color: var(--text); }
 .faq details p { padding: 0 24px 18px; max-width: 80ch; color: var(--text-2); font-size: 14px; line-height: 1.6; text-wrap: pretty; }
 
-/* The sidebar of the start page: the sections (the one the page is at inverted), the Datenstand
-   and the versions as label | value rows, and at its foot what is legal. */
-.sidebar .body:has(.side-foot) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* The sidebar of the start page: the sections (the one the page is at inverted) and the
+   Datenstand as label | value rows. The versions and what is legal are the ground's. */
 .toc a[aria-current="location"] { background: var(--invert); color: var(--on-invert); }
 .home-toc a > .icon, .legal-toc a > .icon { width: 16px; height: 16px; color: var(--text-3); }
 .home-toc a[aria-current] > .icon, .legal-toc a[aria-current] > .icon { color: inherit; }
@@ -1187,12 +1304,6 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .kv dd.quiet { color: var(--text-3); font-weight: 500; }
 .kv dd a { display: inline-flex; align-items: center; gap: 2px; color: var(--text); }
 .kv dd a .icon { width: 14px; height: 14px; color: var(--text-3); }
-.side-foot { margin-top: auto; padding: 16px 2px 2px; }
-.side-note { margin: 0 0 10px; padding: 0 8px; color: var(--text-3); font-size: 12px; line-height: 1.45; }
-.side-legal { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.side-legal a { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12.5px; font-weight: 580; text-decoration: none; }
-.side-legal a:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
-.side-legal a .icon { width: 15px; height: 15px; color: var(--text-3); }
 
 /* Impressum and Datenschutz (pages/legal.rs): one panel of text. While they are placeholders, the
    list of what is still owed: numbered rows on continuous rules, title and detail on two columns. */
@@ -1433,7 +1544,7 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
    the same handle and remembered width, and the page next to it. A page can add a panel on the
    right (a module, the numbers of the view): unlike the catalog's preview it is a column of the
    layout, so it covers nothing and the page keeps the room that is left. */
-.framed > .page { padding: 0 1px 24px 0; }
+.framed > .page { padding: 0 1px 1px 0; }
 /* A frame's panel on the right is the catalog's preview (`.work > .detail`): it floats over the
    page, docked to the right edge, and is there only while something is picked (ui::Frame). */
 .detail.aside .hero { padding-top: 18px; }
@@ -1505,11 +1616,10 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
    a `t-…` class (--tint), as on the start page and in the week grid. */
 /* One column that never grows past the page: its grid items hold lines that do not wrap. */
 .page-inner.sp { min-height: 100%; grid-template-columns: minmax(0, 1fr); }
-/* The panel ends where the sidebar ends (the page keeps no room under it), and the page is the
-   size container the fold measures itself by (cqh). A module opened from the plan floats over
-   the page at its right edge, as on every other page (owner, 2026-09-25: „nicht tiling, sondern
-   attached"). */
-@media (min-width: 901px) { .framed > .page:has(> .page-inner.sp) { padding-bottom: 1px; container: plan-page / size; } }
+/* The page is the size container the fold measures itself by (cqh); like every framed page it ends
+   where the sidebar ends. A module opened from the plan floats over the page at its right edge, as
+   on every other page (owner, 2026-09-25: „nicht tiling, sondern attached"). */
+@media (min-width: 901px) { .framed > .page:has(> .page-inner.sp) { container: plan-page / size; } }
 .sp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; padding: 16px 24px 24px; overflow: visible; overflow-wrap: break-word; }
 /* The semester in three parts (SemesterView): above the fold (div.sp-fold) the head, the red
    alerts, the quiet line and the view (div.sp-view); the planned modules (div.sp-side); under the
@@ -1866,7 +1976,7 @@ html:not(.js) .plan-toggle, html:not(.js) .mine-toggle { display: none; }
    mark and panel share the left edge; the field is 16px so phones do not zoom in. */
 /* `display` again, because phones turn the body of the app into a block; more room below than
    above, so the column sits a little over the middle, where it looks centred. */
-body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 24px 16px 12vh; }
+body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; place-items: center; padding: 24px 16px 12vh; }
 .gate-main { width: min(100%, 400px); }
 .gate-panel { padding: 26px 28px 28px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
 .gate-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
@@ -1967,10 +2077,13 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .top-end .pill:first-child { display: none; }
 }
 @media (max-width: 900px) {
+  /* The bar at the top: 20 px above the search for the crown, 48 for the search, 10 below. */
+  :root { --bar: 78px; }
   body { display: block; }
   .rail { display: none; }
-  .main { display: block; height: auto; padding: 0 0 92px; }
-  .topbar { position: sticky; top: 0; z-index: 20; height: auto; padding: 10px 12px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); }
+  .main { position: static; display: block; height: auto; margin: 0; padding: 0; }
+  /* The crown carries the bar's frosted ground (see „the birch"), so the bar itself lets it through. */
+  .topbar { position: sticky; top: 0; z-index: 21; height: auto; padding: 20px 12px 10px; }
   .crumb, .top-end, kbd { display: none; }
   .brand-phone { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
   .brand-phone .logo { margin: 0; }
@@ -1978,7 +2091,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .brand-phone small { color: var(--text-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .search { height: 48px; }
   .content, .page { height: auto; overflow: visible; }
-  .page { padding: 0 12px 24px; }
+  .page { padding: 0 12px 12px; }
   .work, .work.no-detail { display: block; height: auto; }
   .work > .panel.list { border-radius: 0; box-shadow: none; background: transparent; overflow: visible; }
   .list-head { padding: 4px 16px 0; }
@@ -1994,7 +2107,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .plan-note { margin: 0 0 10px; }
   .rows.scroll:not(.virtual) > .plan-note { margin-bottom: 2px; }
   .app .keys { display: none; }
-  .sem { top: 68px; background: var(--bg); padding: 12px 4px 4px; }
+  .sem { top: var(--bar); background: var(--bg); padding: 12px 4px 4px; }
   .rows .row-wrap { contain-intrinsic-size: auto 84px; }
   .row { grid-template-columns: minmax(0, 1fr) auto; min-height: 72px; padding: 12px 52px 12px 18px; background: var(--panel); box-shadow: var(--shadow-panel); border-radius: var(--r-panel); }
   .row .t b { font-size: 15.5px; }
@@ -2078,7 +2191,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .resizer { display: none; }
   .detail .scroll { overflow: visible; }
   .back { display: grid !important; }
-  .pending-page, .pending-page.columns { position: fixed; z-index: 19; padding: 68px 0 92px; overflow: hidden; background: var(--bg); pointer-events: auto; }
+  .pending-page, .pending-page.columns { position: fixed; z-index: 19; padding: var(--bar) 0 92px; overflow: hidden; background: var(--bg); pointer-events: auto; }
   .pending-page .sidebar { display: none; }
   .sk-home, .sk-subject { grid-template-columns: minmax(0, 1fr); }
   .sk-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); border-left: 0; border-top: 1px solid var(--line); }
@@ -2088,7 +2201,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
   .sk-row { min-height: 124px; }
   .sk-subject-head { display: none; }
   .sk-stage { min-height: 300px; }
-  .rows-pending { top: 68px; }
+  .rows-pending { top: var(--bar); }
   .rows-pending-fill { left: 0; right: 0; padding: 0; display: grid; gap: 8px; align-content: start; background: var(--bg); }
   .bottomnav { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: 62px; padding: 5px; border-radius: 16px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(18px); box-shadow: var(--shadow-pop); }
   .bottomnav .nav { width: auto; font-size: 11px; font-weight: 560; gap: 0; align-content: center; }
@@ -2159,4 +2272,4 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); place-items: c
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
-@media print { .rail, .topbar, .filters, .bottomnav, .pager { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }
+@media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }

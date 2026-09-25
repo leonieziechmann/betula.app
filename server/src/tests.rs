@@ -461,6 +461,17 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, content_type), "{path}");
         assert!(body.starts_with(magic), "{path}");
     }
+    // The birch: every mask the stylesheet names is served (a name it misses would leave a hole
+    // in the crown or the ground without any error).
+    let stylesheet = include_str!("../../app/assets/app.css");
+    let masks: std::collections::BTreeSet<&str> = stylesheet.split("url(\"").skip(1).filter_map(|rest| rest.split('"').next()).filter(|url| url.starts_with("/assets/birch/")).collect();
+    assert!(masks.len() >= 12, "{masks:?}");
+    for path in masks {
+        let (status, headers, body) = request(&router, path, &[]).await;
+        assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/svg+xml"), "{path}");
+        assert!(body.starts_with(b"<svg"), "{path}");
+    }
+    assert_eq!(request(&router, "/assets/birch/no-such-season.svg", &[]).await.0, StatusCode::NOT_FOUND);
     // A module and a program have their own picture: named in the head with the site's outside
     // address, drawn on the first request, kept after that, and answered with 304 to its ETag.
     assert!(module.contains("content=\"https://catalog.example/cards/module/11101.png\"") && !module.contains("/assets/og.png"), "{module}");

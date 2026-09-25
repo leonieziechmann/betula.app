@@ -35,7 +35,19 @@ use crate::timetable::views;
 use crate::url::{BookmarkSort, CatalogUrl, Season, PAGE_SIZE};
 use crate::variants::{self, PlanVariant, Supplement};
 
-/// The landing page and the footer: how big and how fresh the catalog is.
+/// The ground at the end of every page: which Radix built the data, how fresh it is, and the
+/// semester it is about. Cheap, so every page can have it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Ground {
+    pub meta: Meta,
+    pub current_semester: Option<Semester>,
+}
+
+pub fn ground(db: &dyn Database) -> Result<Ground, DbError> {
+    Ok(Ground { meta: queries::meta(db)?, current_semester: queries::semesters(db)?.into_iter().find(|s| s.is_current) })
+}
+
+/// The landing page: how big and how fresh the catalog is.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Overview {
     pub meta: Meta,
