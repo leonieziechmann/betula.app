@@ -127,7 +127,13 @@ pub struct Pending {
     to: RwSignal<Option<String>>,
     change: RwSignal<Option<Change>>,
     slow: RwSignal<bool>,
-    inner: StoredValue<Inner, LocalStorage>,
+    /// The browser's alone, `None` on the server: it holds the router's navigation, an `Rc`, so it
+    /// is bound to the thread it was made on. The server renders a page in a task that can go on
+    /// on another thread (`leptos_meta` waits a tick for its tags), and such a value dropped
+    /// there at the end of the render panics: on 2026-09-26 that ended the warm-up of the cache
+    /// after a few hundred pages (`server/src/warm.rs`), and a visitor's render could lose its
+    /// answer the same way (docs/frontend.md R22).
+    inner: Option<StoredValue<Inner, LocalStorage>>,
 }
 
 impl Pending {
@@ -138,7 +144,7 @@ impl Pending {
             to: RwSignal::new(None),
             change: RwSignal::new(None),
             slow: RwSignal::new(false),
-            inner: StoredValue::new_local(Inner { via: Via::Link { replace: false, scroll: true }, navigate: None, location: None, turn: 0, due: false, took: HashMap::new() }),
+            inner: cfg!(feature = "csr").then(|| StoredValue::new_local(Inner { via: Via::Link { replace: false, scroll: true }, navigate: None, location: None, turn: 0, due: false, took: HashMap::new() })),
         };
         provide_context(pending);
         #[cfg(feature = "csr")]
@@ -212,7 +218,7 @@ impl Pending {
         match self.change_to(to) {
             Some(change) => self.start(to.to_string(), via, change, quiet),
             None => {
-                if let Some(navigate) = self.inner.with_value(|inner| inner.navigate.clone()) {
+                if let Some(navigate) = self.inner.and_then(|inner| inner.with_value(|inner| inner.navigate.clone())) {
                     navigate(to, options);
                 }
             }
@@ -221,32 +227,33 @@ impl Pending {
 
     /// What going from where the router is to `to` changes; `None` without the router.
     fn change_to(&self, to: &str) -> Option<Change> {
-        let from = self.inner.with_value(|inner| inner.location.as_ref().map(|location| (location.pathname.get_untracked(), location.search.get_untracked())))?;
+        let from = self.inner?.with_value(|inner| inner.location.as_ref().map(|location| (location.pathname.get_untracked(), location.search.get_untracked())))?;
         change(&from.0, &from.1, path_of(to), search_of(to), crate::nav::is_phone())
     }
 
     fn start(&self, to: String, via: Via, change: Change, quiet: bool) {
+        let Some(inner) = self.inner else { return };
         // A step back or forward that has not reached the router yet goes first, so that its
         // idea of the history stays right. Not when this is another such step: the router reads
         // where the browser is when it hears of it, and handing it the first one from inside the
         // listener of the second would call that listener again while it runs.
-        if via != Via::History && self.inner.with_value(|inner| inner.due && inner.via == Via::History) {
+        if via != Via::History && inner.with_value(|inner| inner.due && inner.via == Via::History) {
             self.commit();
         }
-        let slow = !quiet && self.inner.with_value(|inner| inner.took.get(&change).is_none_or(|took| *took >= SLOW_MS));
-        self.inner.update_value(|inner| inner.via = via);
+        let slow = !quiet && inner.with_value(|inner| inner.took.get(&change).is_none_or(|took| *took >= SLOW_MS));
+        inner.update_value(|inner| inner.via = via);
         self.to.set(Some(to));
         self.change.set(Some(change));
         self.slow.set(slow);
-        let turn = self.inner.with_value(|inner| inner.turn).wrapping_add(1);
-        self.inner.update_value(|inner| {
+        let turn = inner.with_value(|inner| inner.turn).wrapping_add(1);
+        inner.update_value(|inner| {
             inner.turn = turn;
             inner.due = true;
         });
         // A newer navigation takes the place of this one: it runs only while it is still due.
         let pending = *self;
         crate::nav::after_paint(move || {
-            if pending.inner.with_value(|inner| inner.due && inner.turn == turn) {
+            if inner.with_value(|inner| inner.due && inner.turn == turn) {
                 pending.commit();
             }
         });
@@ -254,10 +261,10 @@ impl Pending {
 
     /// The router takes the address now; the skeleton goes in the same frame as the page comes.
     fn commit(&self) {
-        let Some(to) = self.to.get_untracked() else { return };
-        let (via, navigate) = self.inner.with_value(|inner| (inner.via, inner.navigate.clone()));
+        let (Some(to), Some(inner)) = (self.to.get_untracked(), self.inner) else { return };
+        let (via, navigate) = inner.with_value(|inner| (inner.via, inner.navigate.clone()));
         let change = self.change.get_untracked();
-        self.inner.update_value(|inner| inner.due = false);
+        inner.update_value(|inner| inner.due = false);
         // What replaces a skeleton comes as it is: without the entrance of a panel that opens.
         #[cfg(feature = "csr")]
         if self.slow.get_untracked() {
@@ -282,7 +289,6 @@ impl Pending {
         // How long it took: until everything the router set off has run.
         #[cfg(feature = "csr")]
         if let Some(change) = change {
-            let inner = self.inner;
             set_timeout(
                 move || {
                     let took = browser::now() - started;
@@ -299,13 +305,14 @@ impl Pending {
     }
 }
 
-/// Hands the router's navigation and location to `Pending`; lives inside `<Router>`.
+/// Hands the router's navigation and location to `Pending`; lives inside `<Router>`. Nothing on
+/// the server, where `Pending` has no part to hand them to.
 #[component]
 pub fn Bind() -> impl IntoView {
-    if let Some(pending) = Pending::expect() {
+    if let Some(inner) = Pending::expect().and_then(|pending| pending.inner) {
         let navigate = use_navigate();
         let location = use_location();
-        pending.inner.update_value(|inner| {
+        inner.update_value(|inner| {
             inner.navigate = Some(Rc::new(navigate));
             inner.location = Some(location);
         });
@@ -493,7 +500,7 @@ mod browser {
 
     /// Where the router is, as `(path, search)`.
     fn here(pending: &Pending) -> Option<(String, String)> {
-        pending.inner.with_value(|inner| inner.location.as_ref().map(|location| (location.pathname.get_untracked(), location.search.get_untracked())))
+        pending.inner?.with_value(|inner| inner.location.as_ref().map(|location| (location.pathname.get_untracked(), location.search.get_untracked())))
     }
 
     pub(super) fn listen(pending: Pending) {
