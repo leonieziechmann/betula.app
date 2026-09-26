@@ -904,8 +904,41 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
 - **Structured data states only what the page shows:** `WebSite` with its search and `FAQPage` on
-  the landing page, `Course` (code, credits, language, provider, `sameAs` the BTU's page) and
-  `BreadcrumbList` on a module, `BreadcrumbList` on a program.
+  the landing page, `Course` and `BreadcrumbList` on a module, `EducationalOccupationalProgram`
+  and `BreadcrumbList` on a program. Since 2026-09-26 it carries what search engines answer
+  questions with (owner: Google's AI answers should know when a module's Termine and exams are and
+  in which semester a plan places it — as much as sensible, without bloating the page):
+  - the `Course` of a module: code, credits (`QuantitativeValue`), language, provider, `sameAs`
+    the BTU's page, the modules it requires (`coursePrerequisites`), the semester each validated
+    plan places it in (`educationalAlignment`: the plan is the framework, „1. Semester" the
+    level), and its Termine as `hasCourseInstance`: a `CourseInstance` per semester the page
+    shows, with a `Schedule` per slot of the week (days, times, first and last date, `P1W`/`P2W`,
+    `Europe/Berlin`) and the exam dates as `EducationEvent`s (`subEvent`) with the day's offset
+    (`+01:00`/`+02:00`, `catalog::timetable::day::berlin_offset`). A Termin without a time of the
+    week has no slot; an exam date the page marks (QIS's placeholder, a doubtful time) is not
+    stated. Exams of another semester than the teaching are an instance of their own.
+  - the program: degree, the semesters and credits its validated plans agree on
+    (`timeToComplete`, `numberOfCredits`; left out where the plans differ) and, on the plan's
+    view, the modules of the plan shown (`hasCourse`, each by the address of its page). One `@id`
+    for both views: the plan's address.
+  - No rich result comes of any of it in German any more (Course info ended in June 2025, the
+    course list is English only, event results take events the public can book): it is for the
+    index and the answers built on it. validator.schema.org: no errors, no warnings (fixture of
+    2026-09-26). What it costs: a module with two lectures, two groups and two exams +2.4 kB,
+    +0.5 kB compressed; one with thirteen Termine +4.7 kB, +0.5 kB compressed; a plan +1 kB.
+- **The facts are text first.** What the answers of a search engine quote is the page's text, so
+  it says them plainly: a module's sections are headings (`h3.label` under the title's `h2`,
+  styled as the labels were), a day in a Termin's line is `<time datetime="2027-02-15">`, and
+  „Studiengänge" names the semester each validated plan places the module in („PO 2008 ·
+  1. Semester · …"; „5.–6. Semester" for a span, „4. oder 5. Semester" where the study directions
+  differ; `v_program_plan_entry` by module, `queries::module_plan_places`; `plan_semester` of
+  `v_program_module` is the smallest exact semester and has none for a span). That line wraps
+  in the room the name leaves (`contain: inline-size`), so the kind at the right end stays whole.
+- **The server's page is what crawlers index**, also those that run JavaScript: `robots.txt`
+  disallows `/api/`, so a crawler's renderer gets no `/api/status`, `boot.js` does not start the
+  browser app, and the page stays as the server wrote it. Without that line Googlebot could
+  download the catalog and let the app replace the page (`start()` empties the body and the
+  head's tags).
 - **`/sitemap.xml`** (made once per snapshot): the three entrances, every module that has a page,
   every current program with its views; `robots.txt` names it. Addresses are absolute and use
   `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).

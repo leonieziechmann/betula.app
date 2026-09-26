@@ -118,6 +118,22 @@ pub fn clock(minutes: u16) -> String {
     format!("{:02}:{:02}", minutes / 60, minutes % 60)
 }
 
+/// How far `Europe/Berlin` is ahead of UTC at a time of `day` (minutes since its midnight):
+/// `+02:00` in summer time, from 02:00 on the last Sunday of March to 03:00 on the last Sunday of
+/// October, else `+01:00`. The hour October has twice counts as summer time. What a date and a
+/// time need to name one moment for a reader outside the calendar (the structured data of a page).
+pub fn berlin_offset(day: Day, minutes: u16) -> &'static str {
+    let (year, _, _) = day.ymd();
+    let last_sunday = |month| Day::from_ymd(year, month, 31).map(|end| end.plus(-(i32::from(end.weekday()) % 7)));
+    let (Some(spring), Some(autumn)) = (last_sunday(3), last_sunday(10)) else { return "+01:00" };
+    let summer = (day > spring || (day == spring && minutes >= 2 * 60)) && (day < autumn || (day == autumn && minutes < 3 * 60));
+    if summer {
+        "+02:00"
+    } else {
+        "+01:00"
+    }
+}
+
 /// Easter Sunday of a Gregorian year (the anonymous computus of Meeus, Jones and Butcher).
 pub fn easter_sunday(year: i32) -> Day {
     let y = i64::from(year);
@@ -337,11 +353,28 @@ mod tests {
     }
 
     #[test]
+    fn berlin_is_an_hour_ahead_in_winter_and_two_in_summer() {
+        let at = |y, m, d, hhmm| berlin_offset(day(y, m, d), minutes(hhmm).unwrap());
+        // 2026: summer time from 29 March, 02:00, to 25 October, 03:00.
+        assert_eq!(at(2026, 3, 29, "01:59"), "+01:00");
+        assert_eq!(at(2026, 3, 29, "03:00"), "+02:00");
+        assert_eq!(at(2026, 7, 1, "12:00"), "+02:00");
+        assert_eq!(at(2026, 10, 25, "02:30"), "+02:00");
+        assert_eq!(at(2026, 10, 25, "03:00"), "+01:00");
+        assert_eq!(at(2027, 2, 15, "09:00"), "+01:00");
+        // 2027: the last Sunday of October is its last day.
+        assert_eq!(at(2027, 3, 27, "10:00"), "+01:00");
+        assert_eq!(at(2027, 3, 28, "10:00"), "+02:00");
+        assert_eq!(at(2027, 10, 31, "02:59"), "+02:00");
+        assert_eq!(at(2027, 10, 31, "03:00"), "+01:00");
+    }
+
+    #[test]
     fn the_ends_of_the_range_do_not_panic() {
         assert_eq!(Day(i32::MAX).plus(1), Day(i32::MAX));
         assert_eq!(Day(i32::MIN).plus(-1), Day(i32::MIN));
         for d in [Day(i32::MAX), Day(i32::MIN)] {
-            let _ = (d.ymd(), d.weekday(), d.monday(), d.iso_week(), d.iso());
+            let _ = (d.ymd(), d.weekday(), d.monday(), d.iso_week(), d.iso(), berlin_offset(d, 0));
         }
     }
 }

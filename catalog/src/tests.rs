@@ -190,7 +190,10 @@ fn every_query_runs_against_the_snapshot() {
     let id = pick("SELECT module_id FROM v_module_exam LIMIT 1");
     assert!(!queries::module_exams(&db, &id).unwrap().is_empty());
     let id = pick("SELECT module_id FROM v_module_program_link WHERE program_slug IS NOT NULL LIMIT 1");
-    assert!(queries::module_program_links(&db, &id).unwrap().iter().any(|l| l.program_slug.is_some()));
+    assert!(queries::module_program_links(&db, &id).unwrap().iter().any(|l| l.program_slug.is_some() && l.program_id.is_some()));
+    let id = pick("SELECT module_id FROM v_program_plan_entry WHERE module_id IS NOT NULL LIMIT 1");
+    let places = queries::module_plan_places(&db, &id).unwrap();
+    assert!(!places.is_empty() && places.iter().all(|place| !place.program_id.is_empty()), "{places:?}");
 
     let id = pick("SELECT program_id FROM v_program_version LIMIT 1");
     assert!(!queries::program_versions(&db, &id).unwrap().is_empty());

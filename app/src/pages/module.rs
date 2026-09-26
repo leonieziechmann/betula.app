@@ -22,10 +22,11 @@ use std::collections::BTreeSet;
 use catalog::exam_reading::{self, ExamReading, Reason, Slot};
 use catalog::labels::{OfferStatus, PrerequisiteKind, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind, TurnusSeason};
 use catalog::pages::{self, ModuleData, Overlay};
-use catalog::rows::{Prerequisite, Semester};
-use catalog::rows_detail::EventDate;
+use catalog::rows::{Module, Prerequisite, Semester};
+use catalog::rows_detail::{EventDate, ProgramLink};
 use catalog::timetable::day::{clock, minutes, Day};
 use catalog::timetable::grid;
+use catalog::timetable::ics::TZID;
 use catalog::timetable::kind::{class_of, kinds_of, Class, EventKind, KindSet};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::semester::SemesterKey;
@@ -76,15 +77,7 @@ fn derive(data: &ModuleData) -> Derived {
                 None => l.name.clone(),
             })
             .collect(),
-        campus: [
-            (m.at_zentralcampus, "Zentralcampus Cottbus"),
-            (m.at_sachsendorf, "Cottbus-Sachsendorf"),
-            (m.at_senftenberg, "Senftenberg"),
-        ]
-        .iter()
-        .filter(|(at, _)| *at == Some(true))
-        .map(|(_, label)| *label)
-        .collect(),
+        campus: campuses(m),
         workload: data
             .teaching_forms
             .iter()
@@ -106,8 +99,35 @@ fn derive(data: &ModuleData) -> Derived {
     }
 }
 
+/// The campuses the module is taught at, as the page names them.
+fn campuses(m: &Module) -> Vec<&'static str> {
+    [(m.at_zentralcampus, "Zentralcampus Cottbus"), (m.at_sachsendorf, "Cottbus-Sachsendorf"), (m.at_senftenberg, "Senftenberg")]
+        .iter()
+        .filter(|(at, _)| *at == Some(true))
+        .map(|(_, label)| *label)
+        .collect()
+}
+
+/// The programs whose curricula the module belongs to, as „Studiengänge" lists them.
+fn curricula(data: &ModuleData) -> Vec<ProgramLink> {
+    data.programs
+        .iter()
+        .filter(|l| l.resolve_status.is(ResolveStatus::Resolved) && l.relation.as_ref().is_some_and(|r| r.is(Relation::Curricular)))
+        .cloned()
+        .collect()
+}
+
+/// Where the validated plan of a program the module belongs to places it: „1. Semester".
+fn plan_semesters(data: &ModuleData, link: &ProgramLink) -> Option<String> {
+    format::plan_semesters(&data.plan_semesters(link.program_id.as_deref()?))
+}
+
 /// The module as schema.org knows it (a `Course` of the university) and the way to it. Only what
-/// the page shows.
+/// the page shows, and what a search engine answers questions with: when and where the module is
+/// taught and examined, what it requires, and in which semester the study plans place it. Its
+/// Termine are the course's instance in their semester (`schedule_of`), its exam dates events of
+/// the semester they are listed under (`exam_event`). Kept small: the texts only as the short
+/// description, no Termin without a time of the week, no exam date the page marks as doubtful.
 fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
     let m = &data.module;
     let mut course = serde_json::json!({
@@ -116,7 +136,7 @@ fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
         "url": seo::absolute(&url::module_path(&m.id)),
         "name": m.title,
         "courseCode": m.id,
-        "provider": { "@type": "CollegeOrUniversity", "name": seo::UNIVERSITY, "url": seo::UNIVERSITY_URL },
+        "provider": seo::university(),
     });
     let languages: Vec<&str> = [(m.teaches_german, "de"), (m.teaches_english, "en")].iter().filter(|(taught, _)| *taught == Some(true)).map(|(_, code)| *code).collect();
     if let Some(course) = course.as_object_mut() {
@@ -124,7 +144,7 @@ fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
             course.insert("description".into(), seo::excerpt(text, 500).into());
         }
         if let Some(credits) = m.credits {
-            course.insert("numberOfCredits".into(), serde_json::json!({ "@type": "StructuredValue", "value": credits, "unitText": "ECTS" }));
+            course.insert("numberOfCredits".into(), serde_json::json!({ "@type": "QuantitativeValue", "value": credits, "unitText": "ECTS" }));
         }
         if !languages.is_empty() {
             course.insert("inLanguage".into(), languages.into());
@@ -132,11 +152,211 @@ fn structured(data: &ModuleData) -> Vec<serde_json::Value> {
         if let Some(source) = &m.source_url {
             course.insert("sameAs".into(), source.clone().into());
         }
+        let required = required_modules(data);
+        if !required.is_empty() {
+            course.insert("coursePrerequisites".into(), required.into());
+        }
+        let plans = plan_alignments(data);
+        if !plans.is_empty() {
+            course.insert("educationalAlignment".into(), plans.into());
+        }
+        let instances = course_instances(data);
+        if !instances.is_empty() {
+            course.insert("hasCourseInstance".into(), instances.into());
+        }
     }
     vec![
         course,
         seo::breadcrumbs(&[("Betula", url::HOME.to_string()), ("Modulkatalog", url::CATALOG.to_string()), (m.title.as_str(), url::module_path(&m.id))]),
     ]
+}
+
+/// The modules the description names as required and the catalog knows, as the page links them.
+fn required_modules(data: &ModuleData) -> Vec<serde_json::Value> {
+    data.prerequisites
+        .iter()
+        .filter(|p| p.kind.is(PrerequisiteKind::Mandatory))
+        .map(|p| {
+            let mut module = serde_json::json!({ "@type": "Course", "@id": seo::absolute(&url::module_path(&p.required_module_id)), "courseCode": p.required_module_id });
+            if let (Some(module), Some(title)) = (module.as_object_mut(), &p.required_title) {
+                module.insert("name".into(), title.clone().into());
+            }
+            module
+        })
+        .collect()
+}
+
+/// Where the validated study plans place the module, in the words of schema.org's alignment of a
+/// learning resource with a framework: the plan is the framework, its semester the level.
+fn plan_alignments(data: &ModuleData) -> Vec<serde_json::Value> {
+    let mut seen = BTreeSet::new();
+    curricula(data)
+        .iter()
+        .filter(|link| link.program_id.as_ref().is_some_and(|id| seen.insert(id.clone())))
+        .filter_map(|link| {
+            let semesters = plan_semesters(data, link)?;
+            let slug = link.program_slug.as_deref()?;
+            let degree = link.degree_display.clone().or(link.degree_raw.clone()).unwrap_or_default();
+            let po = link.po_version.clone().unwrap_or_default();
+            Some(serde_json::json!({
+                "@type": "AlignmentObject",
+                "alignmentType": "educationalLevel",
+                "educationalFramework": format!("Regelstudienplan {} ({degree}), PO {po}", link.program_name.clone().unwrap_or_default()),
+                "targetName": semesters,
+                "targetUrl": seo::absolute(&url::program_path(slug, ProgramTab::Plan)),
+            }))
+        })
+        .collect()
+}
+
+/// The module's Termine as schema.org's course instances, one per semester the page shows them
+/// for: the teaching semester's with a `Schedule` per slot of its week, and the exam dates as
+/// its `subEvent`s where they are of the same semester, else as an instance of their own.
+fn course_instances(data: &ModuleData) -> Vec<serde_json::Value> {
+    let m = &data.module;
+    let newest = data.schedule.first().map(|d| (d.semester_key.clone(), d.semester_label.clone()));
+    let teaching: Vec<&EventDate> = data.schedule.iter().filter(|d| newest.as_ref().is_some_and(|(key, _)| *key == d.semester_key)).collect();
+    let exam_semester = data.exams.first().map(|d| (d.semester_key.clone(), d.semester_label.clone()));
+    let exam_row = exam_semester.as_ref().and_then(|(key, _)| data.semesters.iter().find(|s| s.key == *key));
+    let mut exams: Vec<(Day, serde_json::Value)> = data
+        .exams
+        .iter()
+        .filter(|d| exam_semester.as_ref().is_some_and(|(key, _)| *key == d.semester_key))
+        .filter_map(|d| exam_event(d, &exam_reading::read(d, exam_row)))
+        .collect();
+    let shared = newest.as_ref().zip(exam_semester.as_ref()).is_some_and(|((teaching, _), (exam, _))| teaching == exam);
+    let mut instances = Vec::new();
+    if let Some((_, label)) = &newest {
+        let own = if shared { std::mem::take(&mut exams) } else { Vec::new() };
+        instances.push(course_instance(m, label, &teaching, own));
+    }
+    if let Some((_, label)) = exam_semester.filter(|_| !exams.is_empty()) {
+        instances.push(course_instance(m, &label, &[], exams));
+    }
+    instances
+}
+
+/// One semester of the module: from its first Termin to its last, where it is taught, the slots
+/// of its week and its exam dates. An instance of exam dates alone spans them.
+fn course_instance(m: &Module, semester: &str, teaching: &[&EventDate], exams: Vec<(Day, serde_json::Value)>) -> serde_json::Value {
+    let mut days: Vec<Day> = teaching.iter().flat_map(|d| [d.first_date.as_deref(), d.last_date.as_deref()]).flatten().filter_map(Day::parse).collect();
+    if teaching.is_empty() {
+        days.extend(exams.iter().map(|(day, _)| *day));
+    }
+    let mut instance = serde_json::Map::new();
+    instance.insert("@type".into(), "CourseInstance".into());
+    instance.insert("name".into(), format!("{} ({semester})", m.title).into());
+    if let (Some(first), Some(last)) = (days.iter().min(), days.iter().max()) {
+        instance.insert("startDate".into(), first.iso().into());
+        instance.insert("endDate".into(), last.iso().into());
+    }
+    let places: Vec<serde_json::Value> = campuses(m).into_iter().map(|name| serde_json::json!({ "@type": "Place", "name": name })).collect();
+    if !teaching.is_empty() && !places.is_empty() {
+        instance.insert("location".into(), places.into());
+    }
+    let week = schedule_of(teaching);
+    if !week.is_empty() {
+        instance.insert("courseSchedule".into(), week.into());
+    }
+    if !exams.is_empty() {
+        instance.insert("subEvent".into(), exams.into_iter().map(|(_, event)| event).collect::<Vec<_>>().into());
+    }
+    serde_json::Value::Object(instance)
+}
+
+/// The week of a semester's Termine as schema.org `Schedule`s: every row with a weekday and a
+/// time, from its first date to its last and at its rhythm, rows alike in all but the weekday as
+/// one. A row without a time, or „nach Absprache", has no slot (the page says „Zeit offen").
+fn schedule_of(teaching: &[&EventDate]) -> Vec<serde_json::Value> {
+    /// What the slot is, its times, its dates and how often it repeats.
+    type Slot = (String, u16, u16, Option<String>, Option<String>, Option<&'static str>);
+    let mut slots: Vec<(Slot, Vec<u8>)> = Vec::new();
+    for d in teaching {
+        let Some(day) = d.weekday.and_then(|day| u8::try_from(day).ok()).filter(|day| (1..=7).contains(day)) else { continue };
+        let (Some(from), Some(to)) = (d.start_time.as_deref().and_then(minutes), d.end_time.as_deref().and_then(minutes)) else { continue };
+        if to <= from {
+            continue;
+        }
+        let repeat = match d.rhythm.as_ref().and_then(|rhythm| rhythm.known()) {
+            Some(Rhythm::Other) => continue,
+            Some(Rhythm::Weekly) => Some("P1W"),
+            Some(Rhythm::WeekA | Rhythm::WeekB) => Some("P2W"),
+            _ => None,
+        };
+        let kind = d.event_type.as_deref().map(str::trim).filter(|kind| !kind.is_empty());
+        // QIS writes „[unbenannt]" for a group without a name.
+        let group = d.group_name.as_deref().map(str::trim).filter(|group| !group.is_empty() && !group.starts_with('['));
+        let name = match (kind, group) {
+            (Some(kind), Some(group)) => format!("{kind} ({group})"),
+            (Some(kind), None) => kind.to_string(),
+            (None, Some(group)) => format!("{} ({group})", d.event_title),
+            (None, None) => d.event_title.clone(),
+        };
+        let first = d.first_date.as_deref().and_then(Day::parse).map(Day::iso);
+        let last = d.last_date.as_deref().and_then(Day::parse).map(Day::iso).or(first.clone());
+        let slot = (name, from, to, first, last, repeat);
+        match slots.iter_mut().find(|(known, _)| *known == slot) {
+            Some((_, days)) if !days.contains(&day) => days.push(day),
+            Some(_) => {}
+            None => slots.push((slot, vec![day])),
+        }
+    }
+    slots
+        .into_iter()
+        .map(|((name, from, to, first, last, repeat), mut days)| {
+            days.sort_unstable();
+            let mut slot = serde_json::Map::new();
+            slot.insert("@type".into(), "Schedule".into());
+            slot.insert("name".into(), name.into());
+            slot.insert("byDay".into(), days.into_iter().filter_map(seo::day_of_week).collect::<Vec<_>>().into());
+            slot.insert("startTime".into(), clock(from).into());
+            // 24:00 is no time of the day the slot is on.
+            if to < 24 * 60 {
+                slot.insert("endTime".into(), clock(to).into());
+            }
+            if let Some(first) = first {
+                slot.insert("startDate".into(), first.into());
+            }
+            if let Some(last) = last {
+                slot.insert("endDate".into(), last.into());
+            }
+            if let Some(repeat) = repeat {
+                slot.insert("repeatFrequency".into(), repeat.into());
+            }
+            slot.insert("scheduleTimezone".into(), TZID.into());
+            serde_json::Value::Object(slot)
+        })
+        .collect()
+}
+
+/// An exam date as a schema.org `EducationEvent`, as the page reads it (`exam_reading`): its times
+/// as moments in `Europe/Berlin`, a deadline as its day. What the page marks (QIS's placeholder
+/// for a date not fixed yet, a time that is probably an input error) is no date to state. With the
+/// day it starts on, which an instance of exam dates alone spans.
+fn exam_event(date: &EventDate, reading: &ExamReading) -> Option<(Day, serde_json::Value)> {
+    if reading.is_marked() {
+        return None;
+    }
+    let shown = &reading.shown;
+    let first = Day::parse(shown.first_date.as_deref()?)?;
+    let last = shown.last_date.as_deref().and_then(Day::parse).unwrap_or(first);
+    let at = |day: Day, time: Option<&str>| time.and_then(|time| seo::berlin_time(day, time)).unwrap_or_else(|| day.iso());
+    let mut event = serde_json::Map::new();
+    event.insert("@type".into(), "EducationEvent".into());
+    event.insert("name".into(), format!("Prüfung {}", date.event_title).into());
+    event.insert("startDate".into(), at(first, shown.start_time.as_deref()).into());
+    let end = match (&shown.start_time, &shown.end_time) {
+        (Some(_), Some(end)) if seo::berlin_time(last, end).is_some() => Some(at(last, Some(end))),
+        _ => (last != first).then(|| last.iso()),
+    };
+    if let Some(end) = end {
+        event.insert("endDate".into(), end.into());
+    }
+    // The room's whole name, which the page gives the short form of as its tooltip.
+    if let Some(room) = date.room.as_deref().map(str::trim).filter(|room| !room.is_empty()).or(date.room_shown()) {
+        event.insert("location".into(), serde_json::json!({ "@type": "Place", "name": room }));
+    }
+    Some((first, serde_json::Value::Object(event)))
 }
 
 /// The preview next to a list. `close_href` is the same page without the preview. `docked` gives
@@ -414,7 +634,7 @@ fn Side(data: ModuleData) -> impl IntoView {
         })}
         <Schedule data=data.clone()/>
         <div class="section" id="blick">
-            <p class="label">"Auf einen Blick"</p>
+            <h3 class="label">"Auf einen Blick"</h3>
             <dl class="facts">
                 <Fact icon="file-check-2" label="Prüfung" value=m.exam_form.as_ref().map(format::exam_short).or(m.exam_form_raw.clone())/>
                 <Fact icon="award" label="Benotung" value=m.is_graded.map(|g| if g { "benotet".to_string() } else { "unbenotet".to_string() }).or(m.grading_raw.clone())/>
@@ -459,7 +679,7 @@ fn Main(data: ModuleData) -> impl IntoView {
     view! {
         {has_prerequisites.then(|| view! {
             <div class="section" id="voraussetzungen">
-                <p class="label">"Voraussetzungen"</p>
+                <h3 class="label">"Voraussetzungen"</h3>
                 <div class="linklist">
                     {prerequisite_links(derived.mandatory.clone(), "zwingend")}
                     {prerequisite_links(derived.recommended.clone(), "empfohlen")}
@@ -468,9 +688,9 @@ fn Main(data: ModuleData) -> impl IntoView {
                 {m.prerequisites_recommended.clone().map(|text| view! { <details class="more"><summary>"Empfohlen, im Wortlaut"</summary><Prose text/></details> })}
             </div>
         })}
-        {m.contents.clone().map(|text| view! { <div class="section" id="inhalte"><p class="label">"Inhalte"</p><Prose text/></div> })}
-        {m.learning_outcomes.clone().map(|text| view! { <div class="section" id="lernziele"><p class="label">"Lernziele"</p><Prose text/></div> })}
-        {m.exam_details.clone().map(|text| view! { <div class="section" id="pruefungsleistung"><p class="label">"Prüfungsleistung"</p><Prose text/></div> })}
+        {m.contents.clone().map(|text| view! { <div class="section" id="inhalte"><h3 class="label">"Inhalte"</h3><Prose text/></div> })}
+        {m.learning_outcomes.clone().map(|text| view! { <div class="section" id="lernziele"><h3 class="label">"Lernziele"</h3><Prose text/></div> })}
+        {m.exam_details.clone().map(|text| view! { <div class="section" id="pruefungsleistung"><h3 class="label">"Prüfungsleistung"</h3><Prose text/></div> })}
         {(!literature.is_empty()).then(|| view! {
             <div class="section" id="literatur">
                 <details class="more"><summary>"Literatur ("{literature.len()}")"</summary>
@@ -478,7 +698,7 @@ fn Main(data: ModuleData) -> impl IntoView {
                 </details>
             </div>
         })}
-        {m.remarks.clone().map(|text| view! { <div class="section" id="bemerkungen"><p class="label">"Bemerkungen"</p><Prose text/></div> })}
+        {m.remarks.clone().map(|text| view! { <div class="section" id="bemerkungen"><h3 class="label">"Bemerkungen"</h3><Prose text/></div> })}
     }
 }
 
@@ -569,16 +789,16 @@ fn Schedule(data: ModuleData) -> impl IntoView {
                 let stated = reading.as_ref().filter(|r| r.shown != r.stated && !r.is_marked()).map(|r| format!("In QIS: {}", stated_slot(r)));
                 let marker = reading.as_ref().filter(|r| r.is_marked()).map(marker_text);
                 let rhythm = d.rhythm.as_ref().map(|r| r.label().to_string()).or(d.rhythm_raw.clone());
-                let details: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm, date_range(&slot), d.room_shown().map(str::to_string), d.instructor.clone(), d.comment.clone()]
-                    .into_iter()
-                    .flatten()
-                    .collect();
+                let head: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm].into_iter().flatten().collect();
+                let tail: Vec<String> = [d.room_shown().map(str::to_string), d.instructor.clone(), d.comment.clone()].into_iter().flatten().collect();
+                let days = slot.first_date.clone().map(|first| (first, slot.last_date.clone().filter(|last| Some(last) != slot.first_date.as_ref())));
+                let details = !head.is_empty() || days.is_some() || !tail.is_empty();
                 // The short form stands in the line; QIS's whole name is the tooltip (owner, 2026-09-25).
                 let room_long = d.room_short.is_some().then(|| d.room.clone()).flatten();
                 let body = view! {
                     <span class="when" title=stated>{when.unwrap_or_else(|| open.to_string())}</span>
                     <b>{d.event_title.clone()}</b>
-                    {(!details.is_empty() || marker.is_none()).then(|| view! { <small title=room_long>{details.join(" · ")}</small> })}
+                    {(details || marker.is_none()).then(|| view! { <small title=room_long>{detail_line(head, days, tail)}</small> })}
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
                 match d.source_url.clone() {
@@ -591,7 +811,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
 
     view! {
         <div class="section" id="termine">
-            <p class="label">"Termine"{newest.as_ref().map(|(_, label)| view! { <span>{label.clone()}</span> })}</p>
+            <h3 class="label">"Termine"{newest.as_ref().map(|(_, label)| view! { <span>{label.clone()}</span> })}</h3>
             <WeekGrid slots/>
             {week_line}
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
@@ -600,7 +820,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
         </div>
         {exam_semester.map(|(_, label)| view! {
             <div class="section" id="pruefungstermine">
-                <p class="label">"Prüfungstermine"<span>{label}</span></p>
+                <h3 class="label">"Prüfungstermine"<span>{label}</span></h3>
                 <div class="evlist">{event_list(exams)}</div>
                 {exam_line}
                 {exam_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
@@ -786,6 +1006,35 @@ fn shown_when(slot: &Slot) -> Option<String> {
     }
 }
 
+/// The line under a Termin: type, group and rhythm, its days, then room, lecturers and comment,
+/// joined by „ · ". The days are `<time>` elements: „15.02.2027" to a reader, 2027-02-15 to a
+/// machine (a search engine reading the page).
+fn detail_line(head: Vec<String>, days: Option<(String, Option<String>)>, tail: Vec<String>) -> impl IntoView {
+    let mut lead = head.join(" · ");
+    let mut rest = tail.join(" · ");
+    if !lead.is_empty() && (days.is_some() || !rest.is_empty()) {
+        lead.push_str(" · ");
+    }
+    if days.is_some() && !rest.is_empty() {
+        rest.insert_str(0, " · ");
+    }
+    // An empty text would still be a text node, which the server writes as a space.
+    view! {
+        {(!lead.is_empty()).then_some(lead)}
+        {days.map(|(first, last)| view! { {date_of(&first)}{last.map(|last| view! { " – "{date_of(&last)} })} })}
+        {(!rest.is_empty()).then_some(rest)}
+    }
+}
+
+/// A day as the page writes it, „15.02.2027", with its date for machines; anything that is no
+/// `YYYY-MM-DD` as it is.
+fn date_of(iso: &str) -> AnyView {
+    match Day::parse(iso) {
+        Some(day) => view! { <time datetime=day.iso()>{day.german()}</time> }.into_any(),
+        None => format::date(iso).into_any(),
+    }
+}
+
 /// „27.12.2015", „08.02.2027 – 19.02.2027"
 fn date_range(slot: &Slot) -> Option<String> {
     match (&slot.first_date, &slot.last_date) {
@@ -863,23 +1112,27 @@ fn exam_note<'a>(readings: impl Iterator<Item = &'a ExamReading> + Clone, semest
 #[component]
 fn Programs(data: ModuleData) -> impl IntoView {
     let resolved: Vec<_> = data.programs.iter().filter(|l| l.resolve_status.is(ResolveStatus::Resolved)).cloned().collect();
-    let curricular: Vec<_> = resolved.iter().filter(|l| l.relation.as_ref().is_some_and(|r| r.is(Relation::Curricular))).cloned().collect();
+    // Each with the semester its validated plan places the module in, where it has one.
+    let curricular: Vec<(ProgramLink, Option<String>)> = curricula(&data).into_iter().map(|link| {
+        let semesters = plan_semesters(&data, &link);
+        (link, semesters)
+    }).collect();
     let fues = resolved.iter().filter(|l| l.relation.as_ref().is_some_and(|r| r.is(Relation::Fues))).count();
     let unresolved = data.programs.iter().filter(|l| l.resolve_status.is(ResolveStatus::Unresolved)).count();
 
     (!data.programs.is_empty()).then(|| view! {
         <div class="section" id="studiengaenge">
-            <p class="label">"Studiengänge"<span>{curricular.len()}" Curricula"</span></p>
+            <h3 class="label">"Studiengänge"<span>{curricular.len()}" Curricula"</span></h3>
             {curricular.is_empty().then(|| view! { <p class="hint">"Das Modul gehört zu keinem Curriculum eines Studiengangs im Katalog."</p> })}
             <div class="linklist">
-                {curricular.into_iter().map(|link| {
+                {curricular.into_iter().map(|(link, semesters)| {
                     let slug = link.program_slug.clone().unwrap_or_default();
                     view! {
                         <a class="pre" href=url::program_path(&slug, ProgramTab::Plan)>
                             <b>
                                 {link.program_name.clone().unwrap_or_default()}" · "
                                 {link.degree_display.clone().or(link.degree_raw.clone()).unwrap_or_default()}
-                                <span class="subtitle">"PO "{link.po_version.clone().unwrap_or_default()}{link.area.clone().map(|area| format!(" · {area}"))}</span>
+                                <span class="subtitle">"PO "{link.po_version.clone().unwrap_or_default()}{semesters.map(|semesters| format!(" · {semesters}"))}{link.area.clone().map(|area| format!(" · {area}"))}</span>
                             </b>
                             <small><KindBadge kind=link.kind.clone()/></small>
                             <Icon name="chevron-right"/>
@@ -1168,5 +1421,181 @@ mod tests {
         );
         let plain = read(&exam(Some(2), Some("09:00"), Some("11:00"), Some("2027-02-09")));
         assert_eq!(exam_note([&plain].into_iter(), "WiSe 2026/27"), None);
+    }
+
+    /// Analysis I as the page shows it, with these Termine and exam dates: taught in the
+    /// Informatik B.Sc., whose plan places it in the first semester, and requiring module 11000.
+    fn analysis(schedule: Vec<EventDate>, exams: Vec<EventDate>) -> ModuleData {
+        use catalog::labels::Code;
+        let module = Module {
+            id: "11101".into(),
+            title: "Analysis I".into(),
+            title_de: Some("Analysis I".into()),
+            title_en: None,
+            credits: Some(8.0),
+            language_raw: Some("Deutsch".into()),
+            teaches_german: Some(true),
+            teaches_english: Some(false),
+            duration_raw: None,
+            duration_semesters: None,
+            turnus_raw: None,
+            turnus_season: Some(Code::parse("winter")),
+            turnus_parity: None,
+            offer_status: Code::parse("active"),
+            limitation_raw: None,
+            is_limited: None,
+            participant_limit: None,
+            exam_form: None,
+            exam_form_raw: None,
+            exam_details: None,
+            grading_raw: None,
+            is_graded: None,
+            is_fues: false,
+            department: None,
+            learning_outcomes: None,
+            contents: Some("Folgen und Reihen, Stetigkeit, Differentialrechnung.".into()),
+            prerequisites_recommended: None,
+            prerequisites_mandatory: None,
+            remarks: None,
+            source_url: Some("https://www.b-tu.de/modul/11101".into()),
+            fetched_at: None,
+            at_zentralcampus: Some(true),
+            at_sachsendorf: None,
+            at_senftenberg: None,
+        };
+        let informatik = ProgramLink {
+            degree_raw: Some("Bachelor (universitär)".into()),
+            program_raw: Some("Informatik".into()),
+            po_raw: Some("2008".into()),
+            resolve_status: Code::parse("resolved"),
+            program_id: Some("079-82-2008".into()),
+            program_slug: Some("bachelor-informatik-2008".into()),
+            program_name: Some("Informatik".into()),
+            degree_display: Some("B.Sc.".into()),
+            po_version: Some("2008".into()),
+            is_latest_po: Some(true),
+            relation: Some(Code::parse("curricular")),
+            kind: Some(Code::parse("compulsory")),
+            kind_source: None,
+            area: None,
+        };
+        let semester = |key: &str, label: &str, starts: &str, ends: &str| Semester {
+            key: key.into(),
+            season: Code::parse(if key.ends_with('W') { "winter" } else { "summer" }),
+            year: 2026,
+            label: label.into(),
+            starts_on: starts.into(),
+            ends_on: ends.into(),
+            is_current: key == "2026W",
+            teaching_events: 1,
+            exam_events: 1,
+        };
+        ModuleData {
+            module,
+            lecturers: Vec::new(),
+            teaching_forms: Vec::new(),
+            text_items: Vec::new(),
+            prerequisites: vec![Prerequisite {
+                module_id: "11101".into(),
+                required_module_id: "11000".into(),
+                kind: Code::parse("mandatory"),
+                required_title: Some("Brückenkurs Mathematik".into()),
+                required_offer_status: None,
+            }],
+            successors: Vec::new(),
+            schedule,
+            exams,
+            programs: vec![informatik],
+            plan_places: vec![catalog::rows_detail::PlanPlace { program_id: "079-82-2008".into(), semester: Some(1), start_semester: Some(1), end_semester: Some(1) }],
+            semesters: vec![semester("2026S", "SoSe 2026", "2026-04-01", "2026-09-30"), semester("2026W", "WiSe 2026/27", "2026-10-01", "2027-03-31")],
+        }
+    }
+
+    #[test]
+    fn structured_data_states_the_termine_the_exams_and_the_plan_s_semester() {
+        let schedule = vec![
+            // Monday and Wednesday at the same time over the same weeks: one slot on two days.
+            teaching("148663", "Vorlesung", "[unbenannt]", 1, ("09:15", "10:45"), "weekly", "2026-10-12", "2027-01-25"),
+            teaching("148663", "Vorlesung", "[unbenannt]", 3, ("09:15", "10:45"), "weekly", "2026-10-12", "2027-01-25"),
+            teaching("150132", "Übung", "1-Gruppe", 2, ("13:45", "15:15"), "week_a", "2026-10-13", "2027-01-26"),
+            teaching("148663", "Vorlesung", "[unbenannt]", 2, ("11:45", "15:00"), "single", "2027-02-23", "2027-02-23"),
+            // No time of the week: the page says „Zeit offen", the data says nothing.
+            teaching("150133", "Tutorium", "C", 2, ("10:00", ""), "weekly", "2026-10-13", "2027-01-26"),
+            teaching("150134", "Konsultation", "D", 5, ("10:00", "12:00"), "other", "2026-10-16", "2027-01-29"),
+        ];
+        let exams = vec![
+            EventDate { room: Some("Audimax 1".into()), ..exam(Some(1), Some("09:00"), Some("11:00"), Some("2027-02-15")) },
+            // QIS's placeholder for a date not fixed yet, and a deadline.
+            exam(Some(7), Some("01:00"), Some("02:30"), Some("2015-12-27")),
+            exam(Some(7), Some("23:45"), Some("24:00"), Some("2027-03-21")),
+        ];
+        let graph = structured(&analysis(schedule, exams));
+        let course = &graph[0];
+        assert_eq!(course["educationalAlignment"][0]["targetName"], "1. Semester");
+        assert_eq!(course["educationalAlignment"][0]["educationalFramework"], "Regelstudienplan Informatik (B.Sc.), PO 2008");
+        assert_eq!(course["educationalAlignment"][0]["targetUrl"], "https://betula.app/programs/bachelor-informatik-2008/plan");
+        assert_eq!(course["coursePrerequisites"][0]["@id"], "https://betula.app/catalog/module/11000");
+
+        let instances = course["hasCourseInstance"].as_array().unwrap();
+        assert_eq!(instances.len(), 1, "exams of the teaching semester belong to its instance: {instances:?}");
+        let winter = &instances[0];
+        assert_eq!((&winter["name"], &winter["startDate"], &winter["endDate"]), (&"Analysis I (WiSe 2026/27)".into(), &"2026-10-12".into(), &"2027-02-23".into()));
+        assert_eq!(winter["location"][0]["name"], "Zentralcampus Cottbus");
+        let week: Vec<String> = winter["courseSchedule"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|slot| {
+                let days: Vec<&str> = slot["byDay"].as_array().unwrap().iter().filter_map(|day| day.as_str()?.strip_prefix("https://schema.org/")).collect();
+                let field = |name: &str| slot[name].as_str().unwrap_or("-").to_string();
+                format!("{} {} {}–{} {}…{} {}", field("name"), days.join("+"), field("startTime"), field("endTime"), field("startDate"), field("endDate"), field("repeatFrequency"))
+            })
+            .collect();
+        assert_eq!(
+            week,
+            [
+                "Vorlesung Monday+Wednesday 09:15–10:45 2026-10-12…2027-01-25 P1W",
+                "Übung (1-Gruppe) Tuesday 13:45–15:15 2026-10-13…2027-01-26 P2W",
+                "Vorlesung Tuesday 11:45–15:00 2027-02-23…2027-02-23 -",
+            ]
+        );
+        assert!(winter["courseSchedule"].as_array().unwrap().iter().all(|slot| slot["scheduleTimezone"] == "Europe/Berlin"));
+        let exams: Vec<String> = winter["subEvent"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|event| format!("{} {} {} {}", event["name"], event["startDate"], event["endDate"], event["location"]["name"]))
+            .collect();
+        assert_eq!(
+            exams,
+            [
+                "\"Prüfung Analysis I\" \"2027-02-15T09:00:00+01:00\" \"2027-02-15T11:00:00+01:00\" \"Audimax 1\"",
+                "\"Prüfung Analysis I\" \"2027-03-21\" null null",
+            ]
+        );
+
+        // What it costs a page: the whole block, with the breadcrumbs.
+        let json = seo::json_ld(&serde_json::json!({ "@context": "https://schema.org", "@graph": graph }));
+        assert!(json.len() < 3_000, "{} bytes: {json}", json.len());
+    }
+
+    #[test]
+    fn exams_of_another_semester_are_an_instance_of_their_own() {
+        // Taught in the summer, retaken in the winter.
+        let summer = EventDate { semester_key: "2026S".into(), semester_label: "SoSe 2026".into(), ..teaching("149001", "Vorlesung", "[unbenannt]", 2, ("09:15", "10:45"), "weekly", "2026-04-14", "2026-07-14") };
+        let retake = exam(Some(3), Some("13:00"), Some("15:00"), Some("2026-10-07"));
+        let graph = structured(&analysis(vec![summer], vec![retake.clone()]));
+        let instances = graph[0]["hasCourseInstance"].as_array().unwrap();
+        let shown: Vec<(&str, Option<&str>, usize)> = instances
+            .iter()
+            .map(|i| (i["name"].as_str().unwrap(), i["startDate"].as_str(), i["subEvent"].as_array().map_or(0, Vec::len)))
+            .collect();
+        assert_eq!(shown, [("Analysis I (SoSe 2026)", Some("2026-04-14"), 0), ("Analysis I (WiSe 2026/27)", Some("2026-10-07"), 1)]);
+        assert_eq!(instances[1]["subEvent"][0]["startDate"], "2026-10-07T13:00:00+02:00");
+        assert!(instances[1].get("courseSchedule").is_none() && instances[1].get("location").is_none());
+
+        // Neither Termine nor exam dates the page could state: no instance at all.
+        let placeholder = exam(Some(7), Some("01:00"), Some("02:30"), Some("2015-12-27"));
+        assert!(structured(&analysis(Vec::new(), vec![placeholder]))[0].get("hasCourseInstance").is_none());
     }
 }

@@ -609,6 +609,9 @@ pub async fn robots(State(state): State<AppState>) -> Response {
         let body = format!("User-agent: *\nAllow: {}\nDisallow: /\n", subscription::CALENDAR_PREFIX);
         return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], body).into_response();
     }
+    // Disallowing `/api/` also keeps a crawler that runs JavaScript (Googlebot) on the server's page:
+    // without `/api/status` the browser app does not start (`app/assets/boot.js`), so it indexes the
+    // page as the server wrote it and never downloads the catalog to let the app replace it.
     let body = format!("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {}/sitemap.xml\n", state.public_url);
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
 }

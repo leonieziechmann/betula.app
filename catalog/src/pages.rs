@@ -15,8 +15,8 @@ use crate::queries;
 use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
 use crate::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleSws,
-    ModuleTeachingForm, Plan, PlanEntry, PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramVersion, Successor,
-    TextItem,
+    ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramVersion,
+    Successor, TextItem,
 };
 use crate::timetable::clash;
 use crate::timetable::day::{clock, Day};
@@ -697,7 +697,26 @@ pub struct ModuleData {
     pub schedule: Vec<EventDate>,
     pub exams: Vec<EventDate>,
     pub programs: Vec<ProgramLink>,
+    /// Where the validated study plans place the module (`plan_semesters`).
+    pub plan_places: Vec<PlanPlace>,
     pub semesters: Vec<Semester>,
+}
+
+impl ModuleData {
+    /// The semesters the validated plan of `program_id` places the module in, each once and in
+    /// order: `[(1, 1)]`, `[(5, 6)]` for a span the regulation prints, `[(4, 4), (5, 5)]` where its
+    /// study directions place it differently. Empty where no plan of the program names it.
+    pub fn plan_semesters(&self, program_id: &str) -> Vec<(i64, i64)> {
+        let mut spans: Vec<(i64, i64)> = self
+            .plan_places
+            .iter()
+            .filter(|place| place.program_id == program_id)
+            .filter_map(|place| plan::span_of(place.semester, place.start_semester, place.end_semester))
+            .collect();
+        spans.sort_unstable();
+        spans.dedup();
+        spans
+    }
 }
 
 pub fn module(db: &dyn Database, id: &str) -> Result<Option<ModuleData>, DbError> {
@@ -711,6 +730,7 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<ModuleData>, DbError
         schedule: queries::module_schedule(db, id)?,
         exams: queries::module_exams(db, id)?,
         programs: queries::module_program_links(db, id)?,
+        plan_places: queries::module_plan_places(db, id)?,
         semesters: queries::semesters(db)?,
         module,
     }))

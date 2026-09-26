@@ -23,7 +23,7 @@
 //! a module, an area, a row of the plan — is the page, opened with one tap and one history entry,
 //! and „Zurück" leads to what it was picked from.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use catalog::filter::ProgramScope;
 use catalog::labels::{Code, ModuleKind, OfferStatus, TurnusSeason};
@@ -473,11 +473,14 @@ fn ProgramView(
         ProgramTab::MyPlan => "Mein Plan",
     };
     let name = format!("{} ({})", p.name, p.degree());
-    let trail = vec![seo::breadcrumbs(&[
-        ("Betula", url::HOME.to_string()),
-        ("Studiengänge", url::PROGRAMS.to_string()),
-        (name.as_str(), url::program_path(&p.slug, ProgramTab::Plan)),
-    ])];
+    let trail = vec![
+        structured(&p, &plans, tab, variant.get_untracked()),
+        seo::breadcrumbs(&[
+            ("Betula", url::HOME.to_string()),
+            ("Studiengänge", url::PROGRAMS.to_string()),
+            (name.as_str(), url::program_path(&p.slug, ProgramTab::Plan)),
+        ]),
+    ];
     // What the catalog knows about a module of this program, for the tables of every view.
     let known: HashMap<String, ProgramModule> =
         data.curricular.iter().chain(data.fues.iter()).map(|m| (m.module_id.clone(), m.clone())).collect();
@@ -524,6 +527,56 @@ fn ProgramView(
                 </section>
             })}
         </article>
+    }
+}
+
+/// The program as schema.org knows it: a study program of the university, with what its head says
+/// in numbers (the degree, and the semesters and credits its validated plans agree on) and, on the
+/// view of the plan, the modules of the plan shown (`hasCourse`, each as the address of its page,
+/// where its `Course` is). One address for both views: the plan's.
+fn structured(p: &Program, plans: &[PlanVariant], tab: ProgramTab, variant: usize) -> serde_json::Value {
+    let address = seo::absolute(&url::program_path(&p.slug, ProgramTab::Plan));
+    let mut program = serde_json::json!({
+        "@type": "EducationalOccupationalProgram",
+        "@id": address,
+        "url": address,
+        "name": format!("{} ({})", p.name, p.degree()),
+        "educationalCredentialAwarded": p.degree(),
+        "provider": seo::university(),
+    });
+    let Some(fields) = program.as_object_mut() else { return program };
+    let semesters: Vec<i64> = plans.iter().map(|plan| plan.semesters).collect();
+    if let Some(&length) = semesters.first().filter(|first| **first > 0 && semesters.iter().all(|n| n == *first)) {
+        fields.insert("timeToComplete".into(), duration(length).into());
+    }
+    // A plan whose regulation prints a span of credits has no one number.
+    let credits: Vec<f64> = plans.iter().filter(|plan| plan.credits_max - plan.credits <= 0.01).map(|plan| plan.credits).collect();
+    if let Some(&total) = credits.first().filter(|first| **first > 0.0 && credits.len() == plans.len() && credits.iter().all(|c| (c - **first).abs() < 0.01)) {
+        fields.insert("numberOfCredits".into(), serde_json::json!({ "@type": "QuantitativeValue", "value": total, "unitText": "ECTS" }));
+    }
+    let shown = plans.get(variant.min(plans.len()).saturating_sub(1)).filter(|_| tab == ProgramTab::Plan);
+    if let Some(plan) = shown {
+        let mut seen = BTreeSet::new();
+        let courses: Vec<serde_json::Value> = plan
+            .entries
+            .iter()
+            .filter_map(|entry| Some((entry.module_id.as_deref()?, entry.module_name.as_str())))
+            .filter(|(id, _)| seen.insert(*id))
+            .map(|(id, name)| serde_json::json!({ "@type": "Course", "@id": seo::absolute(&url::module_path(id)), "name": name }))
+            .collect();
+        if !courses.is_empty() {
+            fields.insert("hasCourse".into(), courses.into());
+        }
+    }
+    program
+}
+
+/// Semesters as an ISO 8601 duration: 6 → `P3Y`, 7 → `P3Y6M`, 1 → `P6M`.
+fn duration(semesters: i64) -> String {
+    match (semesters / 2, semesters % 2 == 1) {
+        (0, _) => "P6M".to_string(),
+        (years, false) => format!("P{years}Y"),
+        (years, true) => format!("P{years}Y6M"),
     }
 }
 
