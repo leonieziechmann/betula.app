@@ -974,8 +974,9 @@ impl StudyplanData {
     }
 }
 
-/// The catalog's rows of the modules of every semester of a plan (the Übersicht), by title, and
-/// the ids the catalog does not know.
+/// The catalog's rows of planned modules outside the semester a page loaded (a module beside the
+/// plan that the plan holds elsewhere, what counts for a placeholder's row in its other semesters),
+/// by title, and the ids the catalog does not know.
 pub fn studyplan_modules(db: &dyn Database, ids: &[String]) -> Result<(Vec<CatalogRow>, Vec<String>), DbError> {
     catalog_rows(db, &checked_ids(ids))
 }

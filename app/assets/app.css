@@ -1727,6 +1727,24 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-row.sp-add .t b { display: flex; align-items: center; gap: 8px; }
 .sp-row.sp-add .icon { width: 16px; height: 16px; color: var(--text-3); }
 .sp-row.sp-add:hover .t b, .sp-row.sp-add:hover .icon { color: var(--text); }
+/* A placeholder a module counts for (div.sp-area, owner 2026-09-26: „sehen, dass das ein Bereich
+   ist, wo ein Modul ausgewählt ist"): the dashed line of the open one around its head (the row's
+   name, what it asks for at the right, under it the Fachsemester of a row over several and what
+   counts for it so far), its modules as rows of the list, those of its row's other semesters
+   quiet (a.sp-row.other), and „Weiteres Modul" while the row takes more (a.sp-area-add). */
+.sp-area { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin: 2px 0; padding: 0 3px 3px; border-radius: var(--r-row); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+.sp-area-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; min-height: 40px; padding: 7px 42px 2px 12px; }
+.sp-area-head .t { min-width: 0; }
+.sp-area-head .t b { display: block; color: var(--text-2); font-weight: 560; font-size: 13px; line-height: 1.3; letter-spacing: -.01em; }
+.sp-area-head .t small { display: block; margin-top: 2px; color: var(--text-3); font-size: 12px; }
+.sp-area-head .lp { color: var(--text-2); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.sp-area-head .lp small { margin-left: 2px; color: var(--text-3); font-weight: 500; font-size: 11px; }
+.sp-row.other .t b { color: var(--text-2); font-weight: 560; }
+.sp-row.other .lp { color: var(--text-2); font-weight: 600; }
+.sp-area-add { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 12px; border-radius: var(--r-row); color: var(--text-2); font-weight: 560; font-size: 13px; text-decoration: none; transition: background .1s; }
+.sp-area-add:hover { background: var(--panel-2); color: var(--text); text-decoration: none; }
+.sp-area-add .icon { width: 15px; height: 15px; color: var(--text-3); }
+.sp-area-add:hover .icon { color: var(--text); }
 /* The × of a row (owner, 2026-09-25: „gleich da auch wieder raus nehmen"): beside the row's link,
    not inside it, at its right end as the mark of the Merkliste's rows, quiet until the row is
    pointed at; a finger has it at once. The row taken out stays in its place, its title struck,
@@ -2257,7 +2275,8 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .sp-head .seg { flex: 1 1 100%; margin-top: 4px; }
   .sp-sum { margin-top: -8px; }
   .sp-row { min-height: 56px; padding-right: 50px; }
-  .sp-list-head { padding-right: 50px; }
+  .sp-list-head, .sp-area-head { padding-right: 50px; }
+  .sp-area-add { min-height: 44px; }
   .sp-remove { right: 2px; width: 44px; height: 44px; margin-top: -22px; --hit-y: 6px; --hit-l: 2px; --hit-r: 2px; }
   .slot small { display: none; }
   .eye { width: 44px; height: 44px; --hit: 0px; }
