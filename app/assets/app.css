@@ -354,7 +354,8 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 @media (max-width: 900px) {
   /* On a phone the crown is the ground of the bar at the top: it carries the bar's frosted
      background, over the page and under the search. The ground follows the page, full width, the
-     bottom bar floating over its lower part. */
+     bottom bar floating over its lower part; under a page shorter than the window it lies at the
+     window's lower edge all the same (the body's column, „phone and tablet"). */
   .crown { z-index: 20; height: var(--bar); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); }
   /* No title in the bar, so no clearing: the tile alone, from the left edge. */
   .crown::before, .crown::after { padding-left: 0; --crown-head: none; }
@@ -1983,7 +1984,7 @@ html:not(.js) .plan-toggle, html:not(.js) .mine-toggle { display: none; }
    A document of its own (server/src/access.rs): no rail, no app, one column in the middle of the
    screen. The lockup stands on the page as in the app (on a panel the light mark would vanish),
    mark and panel share the left edge; the field is 16px so phones do not zoom in. */
-/* `display` again, because phones turn the body of the app into a block; more room below than
+/* `display` again, because phones turn the body of the app into a column; more room below than
    above, so the column sits a little over the middle, where it looks centred. */
 body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; place-items: center; padding: 24px 16px 12vh; }
 .gate-main { width: min(100%, 400px); }
@@ -2088,9 +2089,13 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 @media (max-width: 900px) {
   /* The bar at the top: 20 px above the search for the crown, 48 for the search, 10 below. */
   :root { --bar: 78px; }
-  body { display: block; }
+  /* The view and the ground one under the other, at least as high as the window: a page shorter
+     than the window leaves its room above the ground, which stays at the window's lower edge
+     instead of floating halfway up the screen (see „the birch"). `dvh`: the window as it is now,
+     with the browser's bars shown or hidden; where it is unknown, the base rule's 100 % stays. */
+  body { display: flex; flex-direction: column; min-height: 100dvh; }
   .rail { display: none; }
-  .main { position: static; display: block; height: auto; margin: 0; padding: 0; }
+  .main { position: static; display: block; flex-grow: 1; height: auto; margin: 0; padding: 0; }
   /* The crown carries the bar's frosted ground (see „the birch"), so the bar itself lets it through. */
   .topbar { position: sticky; top: 0; z-index: 21; height: auto; padding: 20px 12px 10px; }
   .crumb, .top-end, kbd { display: none; }

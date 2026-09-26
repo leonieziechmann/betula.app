@@ -863,7 +863,11 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   the ground, as above the window's edge (a framed page keeps 1 px under its last panel, not 24).
   Without `enhance.js` the ground lies after the view in the body's second row and the window
   scrolls to it; on a phone the ground follows the page, full width, the bottom bar floating over
-  its lower part, and the crown carries the frosted background of the bar at the top.
+  its lower part, and the crown carries the frosted background of the bar at the top. A page
+  shorter than the window does not leave the ground floating halfway up the screen (owner,
+  2026-09-26: „mindestens unten bündig"): the body is a column at least as high as the window
+  (`100dvh`, the window with the browser's bars as they are), the view takes the room that is
+  left, and the ground ends at the window's lower edge.
 
 The pieces: `app/src/ground.rs` (`Crown`, `Ground`; the ground's data is `pages::ground`, the meta
 and the current semester), „the birch" in `app/assets/app.css`, the ground's behaviour in
@@ -1608,7 +1612,8 @@ ground coming up at the end with the rail and the header standing, the page's en
 beside it 8 px above it, the panel cut off and not scrolled by the wheel, upwards the ground
 leaving first, a short list bringing it at once without its rows moving, the end of the whole
 virtual list going up with it, a question opened and a page opened from the ground sending it
-away, Tab bringing it up; on a phone the ground at the end of the page.
+away, Tab bringing it up; on a phone the ground at the end of the page, and under a page shorter
+than the window (the empty Stundenplan) at the window's lower edge.
 
 ```bash
 cd e2e && node pwa.mjs
