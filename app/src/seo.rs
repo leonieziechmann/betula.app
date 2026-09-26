@@ -8,10 +8,13 @@
 //!   preview of a module points to the module's own page.
 //! - Addresses in the tags are absolute. The host says what the site is called from outside
 //!   (`SiteUrl`, the server's `--public-url`).
-//! - Structured data only states what the page shows.
+//! - Structured data only states what the page shows, and says it compactly: what search engines
+//!   and the answers built on their index read of a module is its Termine, exams and semesters in
+//!   the study plans, not a second copy of the page.
 
 use std::sync::Arc;
 
+use catalog::timetable::day::{berlin_offset, clock, minutes, Day};
 use leptos::prelude::*;
 use leptos_meta::{Link, Meta, Script};
 
@@ -65,6 +68,26 @@ pub fn excerpt(text: &str, limit: usize) -> String {
 /// JSON for a `<script>`: `<` must not end the element.
 pub fn json_ld(value: &serde_json::Value) -> String {
     value.to_string().replace('<', "\\u003c")
+}
+
+/// The university as structured data names it: the provider of every module and program.
+pub fn university() -> serde_json::Value {
+    serde_json::json!({ "@type": "CollegeOrUniversity", "name": UNIVERSITY, "url": UNIVERSITY_URL })
+}
+
+/// A day of the week as schema.org names it (`Schedule.byDay`), 1 = Monday … 7 = Sunday as in the
+/// event tables.
+pub fn day_of_week(day: u8) -> Option<String> {
+    const DAYS: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    DAYS.get(usize::from(day).checked_sub(1)?).map(|name| format!("https://schema.org/{name}"))
+}
+
+/// A time of a day at the BTU as one moment, with the offset of `Europe/Berlin` on that day:
+/// 2027-02-15 and „09:00" → `2027-02-15T09:00:00+01:00`. `None` for what is no time of a day
+/// (24:00 included: it is the next day's midnight).
+pub fn berlin_time(day: Day, hhmm: &str) -> Option<String> {
+    let at = minutes(hhmm).filter(|at| *at < 24 * 60)?;
+    Some(format!("{}T{}:00{}", day.iso(), clock(at), berlin_offset(day, at)))
 }
 
 /// The way from the start page to this page, as structured data: (name, path).
@@ -128,5 +151,22 @@ pub fn Seo(
         <Meta name="twitter:image" content=image/>
         <Meta name="twitter:image:alt" content=alt/>
         {data.map(|json| view! { <Script type_="application/ld+json">{json}</Script> })}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn times_and_days_as_schema_org_reads_them() {
+        let day = |iso| Day::parse(iso).unwrap();
+        assert_eq!(berlin_time(day("2027-02-15"), "09:00").as_deref(), Some("2027-02-15T09:00:00+01:00"));
+        assert_eq!(berlin_time(day("2026-10-07"), "13:00").as_deref(), Some("2026-10-07T13:00:00+02:00"));
+        assert_eq!(berlin_time(day("2027-03-01"), "24:00"), None);
+        assert_eq!(berlin_time(day("2027-03-01"), "offen"), None);
+        assert_eq!(day_of_week(1).as_deref(), Some("https://schema.org/Monday"));
+        assert_eq!(day_of_week(7).as_deref(), Some("https://schema.org/Sunday"));
+        assert_eq!((day_of_week(0), day_of_week(8)), (None, None));
     }
 }

@@ -235,28 +235,48 @@ pub fn CatalogPage() -> impl IntoView {
     let going_open = Memo::new(move |_| going.filter(|p| p.change() == Some(Change::Preview)).and_then(|_| going_to.with(|to| to.as_ref().map(|to| to.open.clone()))));
     let marked = Memo::new(move |_| going_open.get().unwrap_or_else(|| open.get()));
 
-    let title = move || match list.get() {
-        Ok((_, data)) => match &data.program {
-            Some(p) => format!("Module · {} {}", p.name, p.degree()),
-            None => "Modulkatalog: alle Module der BTU Cottbus-Senftenberg".to_string(),
-        },
-        Err(_) => "Modulkatalog".to_string(),
+    // The server's page names its page of the list (a page of the site of its own, below); the
+    // app's list scrolls through all of them and keeps the title it started with.
+    let page_of = move |title: String| match list.with(|list| list.as_ref().ok().map(|(current, _)| current.page)) {
+        Some(page) if page > 1 && !APP => format!("{title}, Seite {page}"),
+        _ => title,
+    };
+    let title = move || {
+        page_of(match list.get() {
+            Ok((_, data)) => match &data.program {
+                Some(p) => format!("Module · {} {}", p.name, p.degree()),
+                None => "Modulkatalog: alle Module der BTU Cottbus-Senftenberg".to_string(),
+            },
+            Err(_) => "Modulkatalog".to_string(),
+        })
     };
 
     view! {
         <Title text=title/>
         <div class="work" class:no-detail=move || open.get().is_none()>
-            // One address for search engines: the unfiltered first page. Filters, further pages and
-            // the preview are views of it (their links are followed, they are not listed).
+            // The unfiltered list is a page of the site on each of its pages, with an address of its
+            // own: the pages are how a crawler reaches every module, those that no program's page
+            // links included, and a page that is not listed is one whose links a search engine
+            // stops following in the end. Filters, the preview and a page past the end are views
+            // (their links are followed, they are not listed).
             {move || {
                 let here = url.get();
-                let plain = here == CatalogUrl::default();
+                let pages = list.with(|list| list.as_ref().ok().map(|(_, data)| data.page.total.div_ceil(PAGE_SIZE).max(1)));
+                let listed = here.with_page(1) == CatalogUrl::default() && pages.is_some_and(|pages| here.page <= pages);
+                let description = "Alle Module der BTU Cottbus-Senftenberg durchsuchen und filtern: nach Studiengang, Turnus, Lehrform, Prüfungsform, Sprache, Campus, Leistungspunkten und Dozierenden.";
+                let (title, description) = match (here.page, pages) {
+                    (page, Some(pages)) if page > 1 => (
+                        format!("Modulkatalog der BTU Cottbus-Senftenberg, Seite {page}"),
+                        format!("Seite {page} von {pages} des Modulkatalogs. {description}"),
+                    ),
+                    _ => ("Modulkatalog der BTU Cottbus-Senftenberg".to_string(), description.to_string()),
+                };
                 view! {
                     <Seo
-                        title="Modulkatalog der BTU Cottbus-Senftenberg"
-                        description="Alle Module der BTU Cottbus-Senftenberg durchsuchen und filtern: nach Studiengang, Turnus, Lehrform, Prüfungsform, Sprache, Campus, Leistungspunkten und Dozierenden."
+                        title=title
+                        description=description
                         path=here.path()
-                        noindex=!plain
+                        noindex=!listed
                     />
                 }
             }}

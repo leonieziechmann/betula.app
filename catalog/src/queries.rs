@@ -17,8 +17,8 @@ use crate::rows::{
 };
 use crate::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleAbbrev, ModuleSws,
-    ModuleTeachingForm, Plan, PlanEntry, PlanTotal, PlanTotalEntry, ProgramDepartmentCount, ProgramLink, ProgramVersion,
-    Successor, TextItem,
+    ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry, ProgramDepartmentCount, ProgramLink,
+    ProgramVersion, Successor, TextItem,
 };
 use crate::url::is_module_id;
 
@@ -359,10 +359,22 @@ pub fn module_program_links(db: &dyn Database, module_id: &str) -> Result<Vec<Pr
     fetch(
         db,
         "module_program_links",
-        "SELECT degree_raw, program_raw, po_raw, resolve_status, program_slug, program_name, degree_display, \
+        "SELECT degree_raw, program_raw, po_raw, resolve_status, program_id, program_slug, program_name, degree_display, \
          po_version, is_latest_po, relation, kind, kind_source, area \
          FROM v_module_program_link WHERE module_id = ? \
          ORDER BY program_slug IS NULL, relation, program_name COLLATE NOCASE, po_version DESC, ord",
+        &[Value::from(module_id)],
+    )
+}
+
+/// Where the validated study plans place a module: every row of a plan that names it, in the
+/// plan's order (docs/schema-v2.md, `get_curriculum_entries`).
+pub fn module_plan_places(db: &dyn Database, module_id: &str) -> Result<Vec<PlanPlace>, DbError> {
+    fetch(
+        db,
+        "module_plan_places",
+        "SELECT program_id, semester, start_semester, end_semester FROM v_program_plan_entry \
+         WHERE module_id = ? ORDER BY program_id, ord",
         &[Value::from(module_id)],
     )
 }

@@ -14,7 +14,13 @@ use crate::rows_detail::{PlanEntry, PlanTotal};
 
 /// Which semesters a row of the plan belongs to: one, a span, or none at all.
 pub fn semester_span(entry: &PlanEntry) -> Option<(i64, i64)> {
-    match (entry.semester, entry.start_semester, entry.end_semester) {
+    span_of(entry.semester, entry.start_semester, entry.end_semester)
+}
+
+/// `semester_span` of the three columns a plan row states its semesters in: the exact semester,
+/// else the span the regulation prints („5-6"), else the one end it names.
+pub fn span_of(semester: Option<i64>, start_semester: Option<i64>, end_semester: Option<i64>) -> Option<(i64, i64)> {
+    match (semester, start_semester, end_semester) {
         (Some(n), _, _) => Some((n, n)),
         (None, Some(from), Some(to)) => Some((from.min(to), from.max(to))),
         (None, Some(n), None) | (None, None, Some(n)) => Some((n, n)),
