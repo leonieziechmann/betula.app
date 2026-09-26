@@ -426,6 +426,13 @@ groups:
       # deliberate removal (docker stack rm) looks the same: silence it, do not wait for it. Only a
       # warning (daily reminder): what the site needs is in (2b), and excluded here so it does not
       # alert twice.
+      # Except blue-green, which removes a colour on purpose after a switch (deploy/README.md
+      # section 4): <name> and <name>-green are two colours of one site (label "site" below: the
+      # stack without "-green"), and a stack of which no container runs while another colour of
+      # its site runs counts as retired and is left out. A service missing from a stack that still
+      # runs is reported as before, and so is every service of both colours when neither runs. The
+      # price: a colour that fails as a whole while the other one runs passes for retired as well;
+      # Traefik then sends the site to the other one.
       - uid: betula-service-down
         title: Service has no running container
         condition: C
@@ -441,7 +448,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: "(count by (stack, service) (count_over_time(container_last_seen{service!=\"\", service!~\"edge_traefik|betula_folia|placeholder_web|betula_radix\"}[7d])) unless count by (stack, service) (container_last_seen{service!=\"\"})) and on() (count(container_last_seen{id=\"/\"}) > 0)"
+              expr: "((count by (stack, service) (count_over_time(container_last_seen{service!=\"\", service!~\"edge_traefik|betula_folia|placeholder_web|betula_radix\"}[7d])) unless count by (stack, service) (container_last_seen{service!=\"\"})) unless on(stack) (label_replace(count by (stack) (count_over_time(container_last_seen{stack!=\"\"}[7d])) unless count by (stack) (container_last_seen{stack!=\"\"}), \"site\", \"$1\", \"stack\", \"(.+?)(-green)?\") and on(site) label_replace(count by (stack) (container_last_seen{stack!=\"\"}), \"site\", \"$1\", \"stack\", \"(.+?)(-green)?\"))) and on() (count(container_last_seen{id=\"/\"}) > 0)"
               instant: true
               range: false
               intervalMs: 1000
@@ -494,7 +501,7 @@ groups:
           severity: warning
         annotations:
           summary: "{{ $labels.service }} is not running"
-          description: "{{ $labels.service }} had a container within the last 7 days and has none now. Check: docker service ps --no-trunc {{ $labels.service }}. If the service was removed on purpose, add a silence (Alerting > Silences, matcher service={{ $labels.service }}, 7 days): the rule only forgets a service after 7 days, and a \"resolved\" message then does NOT mean it is back. If EVERY service is listed, cAdvisor inside Alloy has lost sight of Docker - check docker service logs monitoring_alloy."
+          description: "{{ $labels.service }} had a container within the last 7 days and has none now. Check: docker service ps --no-trunc {{ $labels.service }}. If the service was removed on purpose, add a silence (Alerting > Silences, matcher service={{ $labels.service }}, 7 days): the rule only forgets a service after 7 days, and a \"resolved\" message then does NOT mean it is back. (A blue-green colour removed while the other colour runs is not reported in the first place.) If EVERY service is listed, cAdvisor inside Alloy has lost sight of Docker - check docker service logs monitoring_alloy."
   - orgId: 1
     name: betula-host
     folder: Betula alerts
