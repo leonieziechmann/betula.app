@@ -466,11 +466,31 @@ fn ProgramView(
         p.curricular_modules
     );
 
-    // Each view of the program is a page of its own; `/programs/<slug>` is the plan.
-    let view_name = match tab {
-        ProgramTab::Plan => "Regelstudienplan",
-        ProgramTab::Areas => "Wahlpflicht und Bereiche",
-        ProgramTab::MyPlan => "Mein Plan",
+    // Each view of the program is a page of its own; `/programs/<slug>` is the plan. So is the
+    // plan of each study direction (`?variant=<n>`, the first at the plain address): a search for
+    // the plan of one direction finds its page, and the modules of every direction are linked
+    // from a page that is listed. A number past the last plan shows the last, and names its page.
+    let chosen = variant.get_untracked().clamp(1, plans.len().max(1));
+    let direction = plans.get(chosen - 1).filter(|_| tab == ProgramTab::Plan && plans.len() > 1).map(|plan| plan.label.clone());
+    let address = match tab {
+        ProgramTab::Plan => ProgramUrl::new(&p.slug, tab).with_variant(chosen).path(),
+        _ => url::program_path(&p.slug, tab),
+    };
+    let view_name = match (tab, &direction) {
+        (ProgramTab::Plan, Some(direction)) => format!("Regelstudienplan {direction}"),
+        (ProgramTab::Plan, None) => "Regelstudienplan".to_string(),
+        (ProgramTab::Areas, _) => "Wahlpflicht und Bereiche".to_string(),
+        (ProgramTab::MyPlan, _) => "Mein Plan".to_string(),
+    };
+    let description = match &direction {
+        Some(direction) => format!(
+            "{} ({}, PO {}) an der BTU Cottbus-Senftenberg, Studienrichtung {direction}: Regelstudienplan, {} Module, Wahlpflichtbereiche und Ordnungen.",
+            p.name,
+            p.degree(),
+            p.po_version,
+            p.curricular_modules
+        ),
+        None => description,
     };
     let name = format!("{} ({})", p.name, p.degree());
     let trail = vec![
@@ -488,9 +508,8 @@ fn ProgramView(
     view! {
         <Title text=format!("{name}: {view_name} · BTU Cottbus-Senftenberg")/>
         // Older examination regulations stay reachable but are not what a search should find,
-        // nor is „Mein Plan". A chosen study plan is a facet of the same page, so the address
-        // stays the plain one.
-        <Seo title=format!("{name}: {view_name}") description=description path=url::program_path(&p.slug, tab) card=crate::seo::program_card(&p.slug) noindex=!p.is_latest_po || !tab.indexed() data=trail/>
+        // nor is „Mein Plan".
+        <Seo title=format!("{name}: {view_name}") description=description path=address card=crate::seo::program_card(&p.slug) noindex=!p.is_latest_po || !tab.indexed() data=trail/>
         <article class="page-inner" data-walk="program-page" data-walk-id=p.slug.clone()>
             <ProgramHead program=p.clone() plans=plans.clone()/>
 

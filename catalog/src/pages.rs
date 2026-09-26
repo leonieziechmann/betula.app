@@ -753,6 +753,17 @@ pub struct ProgramData {
     pub plan_totals: Vec<PlanTotal>,
 }
 
+/// How many plans a program's validated study plan prints, one per study direction
+/// (`variants::plan_variants`, as its page tells them apart): the pages of its plan
+/// (`?variant=<n>`), as the sitemap lists them. 0 without a plan.
+pub fn study_plans(db: &dyn Database, program_id: &str) -> Result<usize, DbError> {
+    let entries = queries::program_plan_entries(db, program_id)?;
+    if entries.is_empty() {
+        return Ok(0);
+    }
+    Ok(variants::plan_variants(&entries, &queries::program_plan_totals(db, program_id)?).len())
+}
+
 pub fn program(db: &dyn Database, slug: &str) -> Result<Option<ProgramData>, DbError> {
     let Some(program) = queries::program_by_slug(db, slug)? else { return Ok(None) };
     let id = program.id.clone();

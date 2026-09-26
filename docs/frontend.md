@@ -35,7 +35,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it. The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
+| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
 | `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
@@ -896,10 +896,16 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   address, Open Graph tags (picture: `app/assets/og.png`, made from `design/og/og.html`) and
   structured data. Nothing of it is set for the whole app. (Before, every page carried the app's
   default description, program pages a second one, and the module page lost its own.)
-- **One address per page.** Filters, further pages and the preview of the catalog, and a filtered
-  program overview are views: `noindex, follow`. `/programs/<slug>` names `/programs/<slug>/plan`
-  as its address. Older examination regulations are `noindex`. Links that only lead to views
-  (examples, entry links, toggles) carry `rel="nofollow"`.
+- **One address per page.** Filters and the preview of the catalog, and a filtered program
+  overview are views: `noindex, follow`. `/programs/<slug>` names `/programs/<slug>/plan` as its
+  address. Older examination regulations are `noindex`. Links that only lead to views (examples,
+  entry links, toggles) carry `rel="nofollow"`.
+- **Every module and every plan is reached through pages that are listed** (2026-09-26): the pages
+  of the unfiltered catalog (`/catalog?page=<n>`, with „Seite n" in the title) have addresses of
+  their own and are indexed — they are the way to a module that no program's page links, and a
+  search engine stops following the links of a page it is told not to list; a page past the last
+  stays `noindex`. The plan of every study direction has its own address (`?variant=<n>`, see
+  „Routes"). The cache counts both as pages, not as views (`cache::listed`).
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
@@ -939,9 +945,19 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   browser app, and the page stays as the server wrote it. Without that line Googlebot could
   download the catalog and let the app replace the page (`start()` empties the body and the
   head's tags).
-- **`/sitemap.xml`** (made once per snapshot): the three entrances, every module that has a page,
-  every current program with its views; `robots.txt` names it. Addresses are absolute and use
-  `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
+- **`/sitemap.xml`**: the three entrances, every module that has a page, every current program
+  with its views and the plan of each further study direction; `robots.txt` names it. Addresses
+  are absolute and use `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
+  **`lastmod`** (2026-09-26, `server/src/lastmod.rs`): when the page last said something new, so
+  that a search engine fetches again the pages whose Termine or exam dates changed and not the
+  thousands that did not. The warm-up renders every page once per snapshot and notes a fingerprint
+  of its `<main>` — without the build in its addresses and without the line of when the source was
+  fetched, which change although the page says nothing new; where it changed, the page's date is
+  the snapshot's `data_changed_at` (the same for every instance, so two colours agree). The record
+  is `lastmod.json` in the data directory: a restart or a deploy keeps it. The sitemap is made anew
+  after each round of the warm-up (its ETag is its content's); without the warm-up it names no
+  dates. Measured on a fixture: a newer snapshot in which one exam moved gave that module's page
+  and the landing page („Zuletzt geändert") a new date, the 73 other pages kept theirs.
 - The browser app removes the server's tags from the head when it takes over and writes its own,
   so the head describes the page that is shown. What is the same on every page (the stylesheet,
   the preloaded font, the icons) is part of the document (`app::shell`) and never written by the
@@ -1013,8 +1029,8 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   nothing: the „Offline bereit" notice is gone (owner, 2026-09-21: „wenn es einfach
   funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh; `e2e/schema.mjs` plants a copy of an older schema and starts with and without a network.
 
-Not done: submitting the sitemap to the search consoles (needs the owner's accounts), a
-`lastmod` per module (the snapshot has no date per module), English pages.
+Not done: submitting the sitemap to the search consoles (needs the owner's accounts), English
+pages.
 
 ## 2. Rules
 
@@ -1441,7 +1457,7 @@ queue grew to 15 s). Now:
   services come back later. Cached pages, files and `/livez` need no place.
 - **One more worker thread than processors**: with one thread for everything, renders starved the
   accept loop and connections were refused before any request could be told 503.
-- **The cache keeps pages compressed only**, drops views before the pages of the sitemap, and renders
+- **The cache keeps pages compressed only**, drops views before the pages search engines list (the sitemap's, and the further pages of the catalog), and renders
   a page once however many ask for it at the same time (`server/src/cache.rs`). 128 MiB used to hold
   1,200 pages — not even the modules; the sitemap's 5,235 pages take 29 MiB now.
 - **Warm-up** (`server/src/warm.rs`): after every new snapshot and after a start, every page of the
@@ -1508,7 +1524,8 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` (a code names somebody's plan) |
 | WARN | `http.request` with `cache=busy` | a request turned away with 503 because every place was taken ("Load"): no error of the server |
 | WARN | `server.busy` | the same, at most once a minute: `what` (`render`, `calendar`), `places`, `wait_ms`, `turned_away` since the start. Often: more processors, or a crawler to slow down |
-| INFO | `cache.warmed` | the pages of the sitemap are in the cache (`pages`, `rendered`, `kept`, `ms`, `generation`) |
+| INFO | `cache.warmed` | the pages of the sitemap are in the cache (`pages`, `rendered`, `kept`, `changed`: pages that say something new, their `lastmod`; `ms`, `generation`) |
+| WARN | `lastmod.write_failed` | the dates of the sitemap (`lastmod.json`) could not be written to the data directory; they are kept in memory until the next start |
 | WARN | `cache.warm_failed`, `snapshot.choices_failed` | the sitemap could not be listed for the warm-up / the pickers of the catalog are loaded per page again |
 | DEBUG | `http.request` with `path=/livez` | the container's own probe, twice a minute |
 | DEBUG | `calendar.served` | a calendar feed was made (`bytes`, `ms`; never the code or the modules) |

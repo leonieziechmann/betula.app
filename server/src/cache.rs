@@ -48,7 +48,7 @@ pub struct WarmUp;
 struct Entry {
     gzip: Bytes,
     last_used: u64,
-    /// No query in the key: a page of the sitemap, dropped only when no view is left.
+    /// A page search engines list (`listed`), dropped only when no view is left.
     canonical: bool,
 }
 
@@ -120,7 +120,7 @@ impl HtmlCache {
         }
         inner.tick += 1;
         let tick = inner.tick;
-        let canonical = !key.contains('?');
+        let canonical = listed(&key);
         if let Some(old) = inner.entries.insert(key.clone(), Entry { gzip, last_used: tick, canonical }) {
             inner.bytes = inner.bytes.saturating_sub(key.len() + old.gzip.len());
         }
@@ -190,6 +190,20 @@ pub fn cache_key(uri: &Uri) -> String {
     }
 }
 
+/// Whether the page of a cache key is one search engines list (and the sitemap names), not a view
+/// of one: an address without a query, the plan of a further study direction
+/// (`/programs/<slug>/plan?variant=<n>`) and a further page of the unfiltered catalog
+/// (`/catalog?page=<n>`). Keys are canonical spellings (`cache_key`), so these stand alone.
+fn listed(key: &str) -> bool {
+    let number = |value: &str| !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit());
+    match key.split_once('?') {
+        None => true,
+        Some((path, query)) if path.starts_with("/programs/") && path.ends_with("/plan") => query.strip_prefix("variant=").is_some_and(number),
+        Some((path, query)) if path == catalog::url::CATALOG => query.strip_prefix("page=").is_some_and(number),
+        Some(_) => false,
+    }
+}
+
 fn accepts_gzip(headers: &HeaderMap) -> bool {
     headers
         .get(header::ACCEPT_ENCODING)
@@ -205,7 +219,7 @@ pub fn gzip(body: &[u8]) -> Bytes {
     }
 }
 
-fn gunzip(compressed: &[u8]) -> Option<Bytes> {
+pub fn gunzip(compressed: &[u8]) -> Option<Bytes> {
     let mut body = Vec::with_capacity(compressed.len() * 5);
     flate2::read::GzDecoder::new(compressed).read_to_end(&mut body).ok()?;
     Some(Bytes::from(body))
@@ -402,6 +416,16 @@ mod tests {
         assert!(only_pages.get(1, "/a").is_some());
         only_pages.put(1, "/c".into(), body(2000));
         assert!(only_pages.get(1, "/b").is_none() && only_pages.get(1, "/a").is_some());
+    }
+
+    #[test]
+    fn a_study_direction_and_a_page_of_the_catalog_are_pages_too() {
+        for key in ["/", "/catalog/module/11101", "/programs/bachelor-elektrotechnik-2022/plan?variant=2", "/catalog?page=3"] {
+            assert!(listed(key), "{key}");
+        }
+        for key in ["/catalog?q=analysis", "/catalog?page=2&q=analysis", "/catalog?turnus=winter&page=2", "/programs/x/areas?variant=2", "/programs/x/plan?variant=2&area=7", "/programs?level=master"] {
+            assert!(!listed(key), "{key}");
+        }
     }
 
     #[test]

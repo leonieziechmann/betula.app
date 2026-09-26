@@ -49,8 +49,9 @@ pub struct Snapshot {
     pub pickers: Option<app::pages::catalog::PickerChoices>,
     /// The data of the program overview, the same for each of its filters (`app::pages::programs`).
     pub programs: Option<app::pages::programs::ProgramsReady>,
-    /// `/sitemap.xml` (plain, gzip), made on first request.
-    pub sitemap: std::sync::OnceLock<(axum::body::Bytes, axum::body::Bytes)>,
+    /// `/sitemap.xml` as made on first request: the round of the warm-up whose dates it names
+    /// (`lastmod::Changes::rounds`; made anew after the next), its ETag, plain and gzip.
+    pub sitemap: Mutex<Option<(u64, String, axum::body::Bytes, axum::body::Bytes)>>,
     pool: Mutex<Vec<NativeDatabase>>,
 }
 
@@ -108,7 +109,7 @@ impl Snapshot {
             program_map,
             pickers,
             programs,
-            sitemap: std::sync::OnceLock::new(),
+            sitemap: Mutex::new(None),
             pool: Mutex::new(vec![db]),
         })
     }

@@ -105,44 +105,85 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
 
 /// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
 /// and every current program with its views. Filters of the lists are not pages (`app::seo`).
+/// Each page with the time it last changed where the warm-up has seen it (`lastmod`); the sitemap
+/// is made anew once a round of the warm-up has finished, and its ETag is its content's.
 pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let Some(snapshot) = state.store.current() else {
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
     };
-    if snapshot.sitemap.get().is_none() {
-        let paths = match sitemap_paths(&snapshot) {
-            Ok(paths) => paths,
-            Err(error) => {
-                tracing::error!(component = "http", event = "sitemap.failed", error = %error, "the sitemap could not be read from the snapshot");
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    let round = state.changes.as_ref().map_or(0, |changes| changes.rounds());
+    let made = snapshot.sitemap.lock().ok().and_then(|made| made.clone()).filter(|(made_in, ..)| *made_in == round);
+    let (etag, body) = match made {
+        Some((_, etag, plain, compressed)) => (etag, (plain, compressed)),
+        None => {
+            // A few hundred queries (the study directions of every program): off the threads that
+            // answer requests, as the warm-up does.
+            let (from, changes, public_url) = (snapshot.clone(), state.changes.clone(), state.public_url.clone());
+            let xml = match tokio::task::spawn_blocking(move || sitemap_xml(&from, changes.as_deref(), &public_url)).await {
+                Ok(Ok(xml)) => xml,
+                Ok(Err(error)) => {
+                    tracing::error!(component = "http", event = "sitemap.failed", error = %error, "the sitemap could not be read from the snapshot");
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+                Err(error) => {
+                    tracing::error!(component = "http", event = "sitemap.failed", error = %error, "the sitemap task failed");
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            };
+            let etag = crate::snapshot::content_etag("sitemap", xml.as_bytes());
+            let compressed = crate::cache::gzip(xml.as_bytes());
+            let body = (axum::body::Bytes::from(xml), compressed);
+            if let Ok(mut made) = snapshot.sitemap.lock() {
+                *made = Some((round, etag.clone(), body.0.clone(), body.1.clone()));
             }
-        };
-        let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
-        for path in paths {
-            let address = format!("{}{path}", state.public_url).replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
-            xml.push_str(&format!("<url><loc>{address}</loc></url>\n"));
+            (etag, body)
         }
-        xml.push_str("</urlset>\n");
-        let compressed = crate::cache::gzip(xml.as_bytes());
-        let _ = snapshot.sitemap.set((axum::body::Bytes::from(xml), compressed));
+    };
+    per_snapshot(&headers, &etag, "application/xml; charset=utf-8", &body)
+}
+
+/// The sitemap's XML: every page of `sitemap_paths`, with the time it last changed where
+/// `changes` knows it.
+fn sitemap_xml(snapshot: &crate::snapshot::Snapshot, changes: Option<&crate::lastmod::Changes>, public_url: &str) -> Result<String, catalog::DbError> {
+    let escape = |text: &str| text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+    for path in sitemap_paths(snapshot)? {
+        let address = escape(&format!("{public_url}{path}"));
+        match changes.and_then(|changes| changes.since(&path)) {
+            Some(since) => xml.push_str(&format!("<url><loc>{address}</loc><lastmod>{}</lastmod></url>\n", escape(&since))),
+            None => xml.push_str(&format!("<url><loc>{address}</loc></url>\n")),
+        }
     }
-    match snapshot.sitemap.get() {
-        Some(body) => per_snapshot(&headers, &snapshot.etag, "application/xml; charset=utf-8", body),
-        None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    }
+    xml.push_str("</urlset>\n");
+    Ok(xml)
 }
 
 /// The pages of the sitemap, in its order: the three entrances, every current program with its
-/// views, every module. The warm-up of the cache renders the same list (`warm`).
+/// views (the plan of each further study direction after the first's), every module. The warm-up
+/// of the cache renders the same list (`warm`).
 pub fn sitemap_paths(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, catalog::DbError> {
-    let mut listed: Result<(Vec<String>, Vec<catalog::rows::Program>), catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
+    use catalog::url::{ProgramTab, ProgramUrl};
+    type Listed = (Vec<String>, Vec<(catalog::rows::Program, usize)>);
+    let mut listed: Result<Listed, catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
     snapshot.with_db(&mut |db| {
-        listed = catalog::queries::module_ids(db).and_then(|modules| Ok((modules, catalog::queries::programs(db)?)));
+        listed = catalog::queries::module_ids(db).and_then(|modules| {
+            let mut programs = Vec::new();
+            for program in catalog::queries::programs(db)?.into_iter().filter(|program| program.is_latest_po) {
+                let plans = if program.has_plan { catalog::pages::study_plans(db, &program.id)? } else { 0 };
+                programs.push((program, plans));
+            }
+            Ok((modules, programs))
+        });
     })?;
     let (modules, programs) = listed?;
     let mut paths = vec![catalog::url::HOME.to_string(), catalog::url::CATALOG.to_string(), catalog::url::PROGRAMS.to_string()];
-    for program in programs.iter().filter(|program| program.is_latest_po) {
-        paths.extend(catalog::url::ProgramTab::ALL.iter().filter(|tab| tab.indexed()).map(|tab| catalog::url::program_path(&program.slug, *tab)));
+    for (program, plans) in &programs {
+        for tab in ProgramTab::ALL.iter().copied().filter(|tab| tab.indexed()) {
+            paths.push(catalog::url::program_path(&program.slug, tab));
+            if tab == ProgramTab::Plan {
+                paths.extend((2..=*plans).map(|variant| ProgramUrl::new(&program.slug, tab).with_variant(variant).path()));
+            }
+        }
     }
     paths.extend(modules.iter().map(|id| catalog::url::module_path(id)));
     Ok(paths)
