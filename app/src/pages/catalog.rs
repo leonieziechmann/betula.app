@@ -1612,9 +1612,6 @@ fn Chip(
     toggle: Toggle,
     #[prop(into)] label: String,
     icon: Option<&'static str>,
-    /// A word after the label, quieter („WiSe 26/27").
-    #[prop(optional, into)]
-    small: Option<Signal<String>>,
     /// What the chip means, where its label says it short.
     #[prop(optional)]
     title: Option<&'static str>,
@@ -1686,7 +1683,7 @@ fn Chip(
         >
             <span class="box"><Icon name="check"/><Icon name="x"/></span>
             {icon.map(|name| view! { <Icon name=name/> })}
-            <span class="chip-label">{label}{small.map(|small| view! { " "<small>{small}</small> })}</span>
+            <span class="chip-label">{label}</span>
             {opens.then(|| view! { <Icon name="chevron-right" class="chip-more"/> })}
         </a>
     }
@@ -2112,11 +2109,11 @@ fn Filters(
                 move |q, state| q.fits = (state == Tri::With).then(|| finder_on(aim())),
             )
         };
-        let checked = Signal::derive(move || query.with(|q| q.fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester))).unwrap_or_else(aim).short());
-        // No icon: the chip needs the width for its label and the semester it names, which goes
-        // under the label where the panel has no room beside it. The chevron at its end says
-        // that the classes it compares open under it.
-        view! { <Chip query open fill toggle label="Passt in meinen Stundenplan" icon=None small=checked finder=true opens=true/> }
+        // The label alone, without the semester it checks (owner, 2026-09-26: „nur mit Passt in
+        // meinen Stundenplan ohne das semester"; switched on, its tag above the list names it). No
+        // icon either: the chip needs the width for its label. The chevron at its end says that
+        // the classes it compares open under it.
+        view! { <Chip query open fill toggle label="Passt in meinen Stundenplan" icon=None finder=true opens=true/> }
     });
     // What it compares while it is on is what it compares when it is switched on next, here and
     // from the Stundenplan (`finder_on`): kept whenever it changes, in a phone's sheet as well.

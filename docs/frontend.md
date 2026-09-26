@@ -83,8 +83,10 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     read as the Regelstudienplan) is a toggle with more under it: switched on, the classes it
     compares show below it (Vorlesungen, Übungen, Prüfungen, auch ohne Termine), and a chevron at
     its end says so, like the head of an accordion: pointing right while it is off, down while
-    they show (`aria-expanded`). The semester it checks stands after the label and goes under it
-    where the panel has no room beside it. Switched on again it compares what it compared the
+    they show (`aria-expanded`). It names no semester (owner, 2026-09-26: „nur mit Passt in
+    meinen Stundenplan ohne das semester"): which one it checks, its tag above the list says once
+    it is on. Where the panel is too narrow for the label on one line (at its narrowest), the label
+    takes a second one instead of being cut off. Switched on again it compares what it compared the
     last time (owner, 2026-09-26: „nicht immer resettet"), from the Stundenplan's „+ Modul" and
     „Modul finden" as well: the browser keeps the choice as the address writes it
     (`localStorage` `betula.finder`, e.g. `fits-skip=exam&fits-undated=1`; nothing while it
