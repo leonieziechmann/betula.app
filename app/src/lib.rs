@@ -218,6 +218,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
                     </Routes>
                     <skeleton::PendingPage/>
+                    <ui::ToTop/>
                 </main>
             </div>
             <Ground/>

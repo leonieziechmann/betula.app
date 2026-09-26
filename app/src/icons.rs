@@ -15,6 +15,7 @@ pub const SPRITE: &str = "/assets/icons.svg";
 pub const ICONS: &[(&str, &str)] = &[
     ("arrow-down-up", r#"<path d="m3 16 4 4 4-4"/> <path d="M7 20V4"/> <path d="m21 8-4-4-4 4"/> <path d="M17 4v16"/>"#),
     ("arrow-left", r#"<path d="m12 19-7-7 7-7"/> <path d="M19 12H5"/>"#),
+    ("arrow-up", r#"<path d="m5 12 7-7 7 7"/> <path d="M12 19V5"/>"#),
     ("arrow-up-right", r#"<path d="M7 7h10v10"/> <path d="M7 17 17 7"/>"#),
     ("award", r#"<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/> <circle cx="12" cy="8" r="6"/>"#),
     ("bookmark", r#"<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>"#),

@@ -95,12 +95,18 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await page.waitForTimeout(900);
   f = await at(page);
   check(f.inset === 0 && f.state !== "in", `a question opened under the ground: the ground stayed: ${JSON.stringify(f)}`);
-  // Tab into the ground: it comes up.
+  // Tab into the ground: it comes up. On the way from the page's end „Nach oben", which stands
+  // between the page and the ground (the page is far down, so it shows) and leaves the ground down.
   await page.evaluate((PAGE) => { const el = document.querySelector(PAGE); el.scrollTop = el.scrollHeight; const all = [...el.querySelectorAll("a[href], summary")]; all.at(-1).focus(); }, PAGE);
+  await page.waitForTimeout(300);
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(300);
+  const between = await page.evaluate(() => ({ at: document.activeElement?.id, inset: Math.round(scrollY) }));
   await page.keyboard.press("Tab");
   await page.waitForTimeout(900);
   f = await at(page);
   const focused = await page.evaluate(() => Boolean(document.activeElement?.closest(".ground")));
+  check(between.at === "to-top" && between.inset === 0, `Tab from the page's end did not reach „Nach oben" first: ${JSON.stringify(between)}`);
   check(focused && f.inset === 208, `Tab into the ground did not bring it up: ${JSON.stringify(f)}`);
   // Leaving through the ground: the next page starts without it.
   await page.click('.ground-legal a[href="/impressum"]');
