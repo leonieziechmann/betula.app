@@ -6,7 +6,8 @@
 // cut off (its content does not move, and the wheel over it does not scroll it), 8 px between
 // every panel and the ground. Upwards the ground leaves first, then the page scrolls. A short list
 // brings it at once; a page that leaves its end (a question opened) and a new page send it away;
-// Tab into it brings it up. A phone scrolls the ground with the page.
+// Tab into it brings it up. A phone scrolls the ground with the page, and under a page shorter
+// than the window the ground ends at the window's lower edge, not halfway up the screen.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node ground.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 import { chromium } from "playwright-core";
 
@@ -137,6 +138,23 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await page.waitForTimeout(500);
   const f = await page.evaluate(() => ({ state: document.documentElement.dataset.ground ?? null, ground: Math.round(document.querySelector(".ground").getBoundingClientRect().bottom), inner: innerHeight, position: getComputedStyle(document.querySelector(".ground")).position }));
   check(f.state === null && f.position === "relative" && Math.abs(f.ground - f.inner) <= 1, `a phone: the ground is not at the end of the page: ${JSON.stringify(f)}`);
+  await context.close();
+}
+
+// ---------- a phone, a short page: the ground at the window's lower edge ----------
+// A new visitor's Stundenplan is empty and shorter than the window: the room is left above the
+// ground, which does not float halfway up the screen.
+{
+  const { context, page } = await open("/studyplan", { width: 390, height: 844 });
+  const f = await page.evaluate(() => {
+    const el = document.querySelector(".ground");
+    const ground = el.getBoundingClientRect();
+    // How far down the page and the ground right after it would reach.
+    const needs = document.querySelector("#content").getBoundingClientRect().bottom + parseFloat(getComputedStyle(el).marginTop) + ground.height;
+    return { room: document.documentElement.scrollHeight - innerHeight, needs: Math.round(needs), ground: Math.round(ground.bottom), inner: innerHeight };
+  });
+  check(f.needs < f.inner, `a phone: the empty Stundenplan is not shorter than the window any more, so it tells nothing: ${JSON.stringify(f)}`);
+  check(f.room === 0 && Math.abs(f.ground - f.inner) <= 1, `a phone, a short page: the ground does not end at the window's lower edge: ${JSON.stringify(f)}`);
   await context.close();
 }
 
