@@ -35,9 +35,9 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it. The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
-| `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
+| `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`), „Wahlpflicht & Bereiche“ (`areas`) and „Mein Plan“ (`my-plan`: a placeholder so far, the visitor's, so `noindex` and not in the sitemap, `ProgramTab::indexed`). „Mein Plan“ took the place of „Alle Module“ on 2026-09-25: the program's modules are its catalog (`/catalog?program=<slug>`), and `…/modules` is a 404. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
+| `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`catalog::timetable::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
@@ -88,6 +88,20 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     handler (the router turns the click into a navigation), work without JavaScript, carry
     `rel="nofollow"` and `data-noscroll`, and the space bar flips them like a checkbox.
     „One of a few" (list, plan semester, duration, years) is a segmented row of the same links.
+  - **„Passt in meinen Stundenplan"** (the finder; until 2026-09-26 „Passt in meinen Plan", which
+    read as the Regelstudienplan, and so the line under a module's week: „Passt in deinen
+    Stundenplan (WiSe 2026/27)") is a toggle with more under it: switched on, the classes it
+    compares show below it (Vorlesungen, Übungen, Prüfungen, auch ohne Termine), and a chevron at
+    its end says so, like the head of an accordion: pointing right while it is off, down while
+    they show (`aria-expanded`). It names no semester (owner, 2026-09-26: „nur mit Passt in
+    meinen Stundenplan ohne das semester"): which one it checks, its tag above the list says once
+    it is on. Where the panel is too narrow for the label on one line (at its narrowest), the label
+    takes a second one instead of being cut off. Switched on again it compares what it compared the
+    last time (owner, 2026-09-26: „nicht immer resettet"), from the Stundenplan's „+ Modul" and
+    „Modul finden" as well: the browser keeps the choice as the address writes it
+    (`localStorage` `betula.finder`, e.g. `fits-skip=exam&fits-undated=1`; nothing while it
+    compares everything), a view setting like the width of the panel (R13), read back like an
+    address (`pages::catalog::finder_on`).
   - **Pickers** (`app/src/combobox.rs`: program, area, lecturers, department) have a search that
     forgives typos and knows initials and abbreviations (`catalog::fuzzy`: „infomatik bsc"), arrow
     keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
@@ -872,7 +886,11 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   the ground, as above the window's edge (a framed page keeps 1 px under its last panel, not 24).
   Without `enhance.js` the ground lies after the view in the body's second row and the window
   scrolls to it; on a phone the ground follows the page, full width, the bottom bar floating over
-  its lower part, and the crown carries the frosted background of the bar at the top.
+  its lower part, and the crown carries the frosted background of the bar at the top. A page
+  shorter than the window does not leave the ground floating halfway up the screen (owner,
+  2026-09-26: „mindestens unten bündig"): the body is a column at least as high as the window
+  (`100dvh`, the window with the browser's bars as they are), the view takes the room that is
+  left, and the ground ends at the window's lower edge.
 
 The pieces: `app/src/ground.rs` (`Crown`, `Ground`; the ground's data is `pages::ground`, the meta
 and the current semester), „the birch" in `app/assets/app.css`, the ground's behaviour in
@@ -891,20 +909,24 @@ The masks are coloured by tokens (`--crown`, `--crown-ck` for spring's catkins, 
 theme), so the same files serve light and dark. `node design/birch/birch.mjs` draws all
 masks, the roots and the leaf litter again (deterministic, seeded); the server serves them under
 `/assets/birch/` (`api::birch`), and a server test fetches every mask the stylesheet names.
-`node e2e/ground.mjs` drives it with a real wheel.
+`node e2e/ground.mjs` drives it with a real wheel. The link-preview cards hang the same crown from
+their top (see „Search engines"), with heads of their own that `birch.mjs` draws beside the site's
+(`<season>-card-head.svg` for the cards the server draws, not served; `<season>-og-head.svg` for the
+standard picture): the same twigs and seeds, only the clearing where the card's wordmark stands.
 
 ### Search engines (`app/src/seo.rs`, 2026-09-20)
 
 Aim: a search for a module or a program of the BTU finds the page here. What that rests on:
 
 - **Every page states itself once** with `seo::Seo` (inside its frame): description, canonical
-  address, Open Graph tags (picture: `app/assets/og.png`, made from `design/og/og.html`) and
+  address, Open Graph tags (picture: `app/assets/og-<season>.png`, made from `design/og/og.html`) and
   structured data. Nothing of it is set for the whole app. (Before, every page carried the app's
   default description, program pages a second one, and the module page lost its own.)
 - **One address per page.** Filters, further pages and the preview of the catalog, and a filtered
   program overview are views: `noindex, follow`. `/programs/<slug>` names `/programs/<slug>/plan`
-  as its address. Older examination regulations are `noindex`. Links that only lead to views
-  (examples, entry links, toggles) carry `rel="nofollow"`.
+  as its address. Older examination regulations are `noindex`, and so is a program's „Mein Plan“
+  (`…/my-plan`, the visitor's: `ProgramTab::indexed`). Links that only lead to views (examples,
+  entry links, toggles) carry `rel="nofollow"`.
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
@@ -912,8 +934,8 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   the landing page, `Course` (code, credits, language, provider, `sameAs` the BTU's page) and
   `BreadcrumbList` on a module, `BreadcrumbList` on a program.
 - **`/sitemap.xml`** (made once per snapshot): the three entrances, every module that has a page,
-  every current program with its views; `robots.txt` names it. Addresses are absolute and use
-  `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
+  every current program with its plan and its areas; `robots.txt` names it. Addresses are absolute
+  and use `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
 - The browser app removes the server's tags from the head when it takes over and writes its own,
   so the head describes the page that is shown. What is the same on every page (the stylesheet,
   the preloaded font, the icons) is part of the document (`app::shell`) and never written by the
@@ -927,21 +949,41 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
 - **A module and a program have their own picture** (`/cards/module/<id>.png`,
   `/cards/program/<slug>.png`; `seo::module_card`, `seo::program_card`): the logo, the kind and
   number, the title (four sizes, at most four lines, then „…"), a line of facts and a quieter
-  one (department; size of the curriculum). Every other page names the standard picture
-  `og.png`. The server draws the cards itself (`server/src/cards.rs`): an SVG put together in
-  Rust, set by resvg in static cuts of Inter (`server/assets/inter-*.ttf`, cut once from the
-  app's variable font by `design/cards/make-fonts.py`, a development tool; nothing but the
-  server's own process runs in production), measured with the same shaper before it is set,
-  written as a palette PNG (20–30 kB). About 15 ms of drawing and 65 ms of packing in a dev
-  build; the pixel crates are optimised in the dev profile for that.
+  one (department; size of the curriculum). So do the Merkliste and the Stundenplan
+  (`/cards/bookmarks.png`, `/cards/studyplan.png`; owner, 2026-09-26): what the page is, the same
+  for everybody, since what a visitor keeps lives in the browser. A Stundenplan handed on by a link
+  (R20) has its own (`/cards/studyplan/<code>.png`): its modules as tags in the plan's tones, by
+  the names its week grid gives them (`StudyplanData::slot_names`: „MIT-1", „AuP"; three sizes,
+  then „+3"), how many, their credits and the program, and their titles as the quiet line, cut
+  between two titles. Every other page names the standard picture `og.png`.
+- **The birch's crown hangs along the top of every card** (owner, 2026-09-26), in the season the
+  card is drawn in (`birch::Season`: the months the site's script goes by, on the server's clock),
+  half as large again as along the site's top, since a preview is seen small. The card has a head
+  of its own (`<season>-card-head.svg`): its clearing is just as wide as the wordmark („viel zu
+  weit und links etwas daneben" was the site's head there), and the mark stands in front of the
+  crown before it, as the rail's does. The season is part of what a card's hash is made of, so a
+  card is drawn anew, under a new ETag, when the season turns. The grey, the face, the crown and
+  the face's hairline are drawn once per season and every card onto a copy: the crown's 1,500
+  leaves took two thirds of a card's time. The standard picture is `design/og/og.html` in the four
+  seasons (`app/assets/og-<season>.png`, with its own head, `<season>-og-head.svg`, fitted to its
+  larger wordmark); `/assets/og.png` answers with the season's, the season in its ETag.
+- **The server draws the cards itself** (`server/src/cards.rs`): an SVG put together in Rust, set
+  by resvg in static cuts of Inter (`server/assets/inter-*.ttf`, cut once from the app's variable
+  font by `design/cards/make-fonts.py`, a development tool; nothing but the server's own process
+  runs in production), measured with the same shaper before it is set, written as a palette PNG
+  (40–50 kB with the crown; a card of tags, whose eight tones with their grounds a palette does
+  not hold, in true colour, about 80 kB). About 70–120 ms a card in a dev build, the first of a
+  season some 230 ms (its ground); the pixel crates are optimised in the dev profile for that.
   - **Kept:** a finished card stays in memory (`--card-cache-mb`, 64 MiB ≈ 2,500 cards) under
     the hash of what it says, so a new snapshot only redraws the cards whose text changed. The
     hash is also the ETag (`If-None-Match` → 304); `Cache-Control: public, max-age=86400`.
   - **Never in the way of the pages:** drawing runs on the blocking pool, at most half the
     processors at once (1–4). If every place is taken, or there is no snapshot, or drawing
-    fails, the answer is `og.png` at once with `no-store`, so the next fetch gets the real card.
-    An unknown module or program is a 404. Look at the design with
-    `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review`.
+    fails, the answer is the season's `og.png` at once with `no-store`, so the next fetch gets the
+    real card. An unknown module or program is a 404, and so is a shared plan's code that does not
+    decode or names no module the catalog knows. Look at the design with
+    `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review` (`FOLIA_CARD_SEASON=spring`
+    for another season than today's).
 - **Who the site is, outside a page** (static in the document's head, `app::shell`, so it
   survives the takeover): `/favicon.ico` (32 and 48 px) and the SVG icon, both the mark;
   `/apple-touch-icon.png` (180 px, full bleed: iOS rounds it and uses it for the home screen and
@@ -1022,7 +1064,7 @@ URL, UI state never triggers a query; keyed lists; one source of truth; design t
 inline styles; keyboard and phone usable. Added in phase 0/1:
 
 - **R9. Server HTML is user-independent.** Merkliste, Studienplan, Mein Studiengang and the
-  finder switch („Passt in meinen Plan") follow the Merkliste: they live in the browser, the
+  finder switch („Passt in meinen Stundenplan") follow the Merkliste: they live in the browser, the
   server renders them empty, and they are applied after the takeover, never during the first
   render (passed modules will do the same).
 - **R10. Shortcuts are written next to their button** (`kbd`): Esc closes the filter sheet or the
@@ -1103,7 +1145,18 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   addresses and never re-adds it once removed. Like the Merkliste's `open`, the Studienplan's
   address names the one module and Termin shown beside it (`open`, `row`), and the catalog's
   app-only `fill=p<n>` names a placeholder by its local number (it says nothing about the visitor;
-  the server drops it) — never a list of what is planned.
+  the server drops it) — never a list of what is planned. And a Stundenplan handed on by a link
+  (owner, 2026-09-26: the link preview of a shared Stundenplan shows its modules, „MIT-1, AuP,
+  EEG"; a preview runs no JavaScript and has no storage, so only the address can carry them):
+  `/studyplan?share=<code>` carries the semester, the planned modules in their order and the
+  program whose abbreviations name them, as a `pack` code of kind `studyplan`
+  (`catalog::timetable::share`), nothing hidden or chosen. The visitor makes it („Link zum Teilen
+  kopieren" in the sidebar's group „Plan"), whoever opens it is offered the modules to take over
+  (`app/src/pages/studyplan/share.rs`), and the server's page names them in its tags and its
+  picture (`/cards/studyplan/<code>.png`), resolving the code anew on every request and keeping
+  nothing; Folia's own log writes the page's path without its query and the picture's as
+  `/cards/studyplan/….png`; the edge's access log keeps the address like every address. The
+  privacy notice's part is „Stundenplan teilen".
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -1505,7 +1558,7 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
-| INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` (a code names somebody's plan) |
+| INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` and every path under `/cards/studyplan/` `/cards/studyplan/….png` (a code names somebody's plan; a shared Stundenplan's page, `?share=`, is logged without its query like every page) |
 | WARN | `http.request` with `cache=busy` | a request turned away with 503 because every place was taken ("Load"): no error of the server |
 | WARN | `server.busy` | the same, at most once a minute: `what` (`render`, `calendar`), `places`, `wait_ms`, `turned_away` since the start. Often: more processors, or a crawler to slow down |
 | INFO | `cache.warmed` | the pages of the sitemap are in the cache (`pages`, `rendered`, `kept`, `ms`, `generation`) |
@@ -1578,9 +1631,10 @@ cargo clippy -p folia-client --target wasm32-unknown-unknown
 cd e2e && node crawl.mjs
 ```
 
-crawls the running site like a search engine: every program × tab, the whole catalog page by
-page (the pages must add up to the header's total), module pages, the 404s. Last run: 817 pages,
-0 failures, slowest page 113 ms on a debug build.
+crawls the running site like a search engine: every program in each view its sidebar links (the
+plan and the areas for search engines, „Mein Plan“ `noindex`), the whole catalog page by page (the
+pages must add up to the header's total), module pages, the 404s (the former `…/modules` among
+them). Last run: 821 pages, 0 failures, slowest page 291 ms (the first, `/`) on a debug build.
 
 ```bash
 cd e2e && node spa.mjs
@@ -1645,7 +1699,8 @@ ground coming up at the end with the rail and the header standing, the page's en
 beside it 8 px above it, the panel cut off and not scrolled by the wheel, upwards the ground
 leaving first, a short list bringing it at once without its rows moving, the end of the whole
 virtual list going up with it, a question opened and a page opened from the ground sending it
-away, Tab bringing it up; on a phone the ground at the end of the page.
+away, Tab bringing it up; on a phone the ground at the end of the page, and under a page shorter
+than the window (the empty Stundenplan) at the window's lower edge.
 
 ```bash
 cd e2e && node pwa.mjs
@@ -1776,7 +1831,7 @@ to the result.
 
 ### „Merken": what is left (2026-09-20)
 
-- **Marks in the tables of a program's page** (plan, areas, all modules): `bookmarks::MarkButton`
+- **Marks in the tables of a program's page** (plan, areas): `bookmarks::MarkButton`
   with `MarkLook::Row` next to a row's link is made for it. Left out on purpose while the page
   itself is being worked on (owner, 2026-09-20); the panel beside the page already has the switch,
   because it is the catalog's module preview.

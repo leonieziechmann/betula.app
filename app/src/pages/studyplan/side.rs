@@ -2,7 +2,8 @@
 //! „Studiengang" (the timetable's program, „Mein Studiengang" by default, and the way to its page),
 //! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then its view, what is
 //! shown, the Standort and its calendar, and last „Plan": save the timetable under a name, load or
-//! delete a saved one, empty it. The storage hint under it is `mod.rs`'s, the same on the server.
+//! delete a saved one, hand it on by a link (`share.rs`), empty it. The storage hint under it is
+//! `mod.rs`'s, the same on the server.
 //!
 //! The groups stay where they are, whatever is planned (owner, 2026-09-25: „Da sollte sich das
 //! Layout nicht viel shiften"): with nothing to show or to do a group says so or greys its control
@@ -27,6 +28,7 @@ use leptos_router::NavigateOptions;
 
 use super::export::CalendarGroup;
 use super::import::ImportGroup;
+use super::share::ShareAction;
 use super::{key_of, PlanCtx};
 use crate::combobox::{ComboItem, Combobox};
 use crate::format;
@@ -314,8 +316,8 @@ fn default_name(program: Option<&Program>, imported: Option<u8>, semester: Semes
 
 /// „Plan": „Plan speichern" (a name, the same name replaces), the saved plans (a click loads one
 /// into the semester shown, asking first where that would lose a timetable no saved plan holds;
-/// × deletes one), and „Plan leeren" („Wirklich leeren?"), which „Rückgängig" takes back. The
-/// saved plan the timetable holds is marked.
+/// × deletes one), „Link zum Teilen kopieren" (`share`), and „Plan leeren" („Wirklich leeren?"),
+/// which „Rückgängig" takes back. The saved plan the timetable holds is marked.
 #[component]
 fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Option<u8>>) -> impl IntoView {
     let saved = Saved::open();
@@ -508,6 +510,7 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
                     }
                 }
             />
+            <ShareAction ctx/>
             {move || match (cleared.get(), confirming.get(), empty.get()) {
                 (true, _, _) => view! {
                     <p class="action note-action">

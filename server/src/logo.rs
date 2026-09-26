@@ -1,25 +1,15 @@
-//! The logo as the server draws it with resvg, for the pictures it makes: the mark, the square of
-//! birch bark whose bars also read as the rows of a list (the link-preview cards, `cards`; its
-//! grids in `design/logo/logo.html`), the icon of the installed app, the birch leaf that carries
-//! the mark's bars on the green of the leaf (the launch screens of iOS, `launch`; the paths of
-//! `design/logo/app-icon.mjs`, which `node design/logo/render-icons.mjs` prints), and the wordmark
-//! with the spacing of `logo.html` (display cut, offsets in em of its size, measured on Inter).
+//! The icon of the installed app and the wordmark as the server draws them with resvg, for the
+//! launch screens of iOS (`launch`): the birch leaf that carries the mark's bars on the green of
+//! the leaf (the paths of `design/logo/app-icon.mjs`, which `node design/logo/render-icons.mjs`
+//! prints), and the wordmark with the spacing of `design/logo/logo.html` (display cut, offsets in
+//! em of its size, measured on Inter). The link-preview cards draw the mark themselves (`cards`).
 
-/// The ink of the text, of the mark's bars and of the marks on the leaf.
+/// The ink of the text and of the marks on the leaf.
 pub const INK: [u8; 3] = [0x10, 0x15, 0x1f];
 
 /// A colour as SVG writes it.
 pub fn hex([red, green, blue]: [u8; 3]) -> String {
     format!("#{red:02x}{green:02x}{blue:02x}")
-}
-
-/// The mark at (x, y), `size` wide, on its 96 grid, with the hairline it has on a light page.
-pub fn mark(svg: &mut String, x: f32, y: f32, size: f32) {
-    let (scale, ink) = (size / 96.0, hex(INK));
-    svg.push_str(&format!(
-        "<g transform=\"translate({x} {y}) scale({scale})\"><rect x=\".5\" y=\".5\" width=\"95\" height=\"95\" rx=\"20.5\" fill=\"#fff\" stroke=\"{ink}\" stroke-opacity=\".14\" stroke-width=\"1.6\"/>\
-         <path fill=\"{ink}\" d=\"M0 20h40v8H0zM68 36h28v8H68zM0 52h16v8H0zM52 68h44v8H52z\"/></g>"
-    ));
 }
 
 /// The leaf of the icon of the installed app, on the 96 grid.

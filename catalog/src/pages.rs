@@ -30,6 +30,7 @@ use crate::timetable::occur::Every;
 use crate::timetable::rowkey::RowKey;
 use crate::timetable::select::Selection;
 use crate::timetable::semester::SemesterKey;
+use crate::timetable::share::SharedPlan;
 use crate::timetable::subscription::Subscription;
 use crate::timetable::views;
 use crate::url::{BookmarkSort, CatalogUrl, Season, PAGE_SIZE};
@@ -925,18 +926,7 @@ impl StudyplanData {
     /// else its title cut short (`views::short_title`). An abbreviation two planned modules share
     /// (each module's own list is unique only within a program) names neither.
     pub fn slot_names(&self) -> BTreeMap<String, String> {
-        let mut uses: BTreeMap<String, usize> = BTreeMap::new();
-        for abbrev in self.abbrevs.values() {
-            *uses.entry(abbrev.to_lowercase()).or_default() += 1;
-        }
-        let unique = |abbrev: &&String| uses.get(&abbrev.to_lowercase()) == Some(&1);
-        self.modules
-            .iter()
-            .map(|row| {
-                let name = self.abbrevs.get(&row.id).filter(unique).cloned().unwrap_or_else(|| views::short_title(&row.title));
-                (row.id.clone(), name)
-            })
-            .collect()
+        slot_names(&self.modules, &self.abbrevs)
     }
 
     /// The calendar of `table`, a timetable of this data, before it is written: the page asks
@@ -972,6 +962,22 @@ impl StudyplanData {
         }
         data
     }
+}
+
+/// `StudyplanData::slot_names` of `modules` with their `abbrevs`.
+fn slot_names(modules: &[CatalogRow], abbrevs: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+    let mut uses: BTreeMap<String, usize> = BTreeMap::new();
+    for abbrev in abbrevs.values() {
+        *uses.entry(abbrev.to_lowercase()).or_default() += 1;
+    }
+    let unique = |abbrev: &&String| uses.get(&abbrev.to_lowercase()) == Some(&1);
+    modules
+        .iter()
+        .map(|row| {
+            let name = abbrevs.get(&row.id).filter(unique).cloned().unwrap_or_else(|| views::short_title(&row.title));
+            (row.id.clone(), name)
+        })
+        .collect()
 }
 
 /// The catalog's rows of the modules of every semester of a plan (the Übersicht), by title, and
@@ -1085,7 +1091,7 @@ pub fn my_program(db: &dyn Database, program_id: &str) -> Result<Option<MyProgra
     })
 }
 
-/// What „Passt in meinen Plan" leaves in the catalog (A.7).
+/// What „Passt in meinen Stundenplan" leaves in the catalog (A.7).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FitResult {
     /// The semester has a dated teaching row. Without one nothing is checked, and only the
@@ -1184,8 +1190,8 @@ pub struct Overlay {
     /// The module's own rows in a hard clash with the plan.
     pub clashing: BTreeSet<RowKey>,
     /// The line under the week: `(true, „Überschneidet sich mit: …")` warns; a hint says „Passt in
-    /// deinen Plan (WiSe 2026/27)" or „Passt mit Übung Do 13:45". `None` when the module has no
-    /// shown Termin with a time to compare.
+    /// deinen Stundenplan (WiSe 2026/27)" or „Passt mit Übung Do 13:45". `None` when the module
+    /// has no shown Termin with a time to compare.
     pub line: Option<(bool, String)>,
     /// The line under „Prüfungstermine": the module's exam warnings against the plan. `(true, …)`
     /// warns, as one of them is hard (no Termin of either module avoids it); soft ones alone
@@ -1264,7 +1270,7 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap
         .any(|event| event.rows.iter().any(|row| row.hidden.is_none() && row.from.is_some() && held(row)));
     let line = timed.then(|| match clash_line(t, &own, &title) {
         Some(text) => (true, text),
-        None => (false, choice_line(t, &own).unwrap_or_else(|| format!("Passt in deinen Plan ({label})"))),
+        None => (false, choice_line(t, &own).unwrap_or_else(|| format!("Passt in deinen Stundenplan ({label})"))),
     });
 
     let mut warnings: Vec<&ExamWarning> =
@@ -1490,6 +1496,61 @@ pub fn calendar(db: &dyn Database, subscription: &Subscription) -> Result<String
     let data = studyplan_in(db, key, &subscription.module_ids(), subscription.program.as_deref())?;
     let table = data.timetable(&subscription.selection());
     Ok(data.ics(&table))
+}
+
+/// A plan handed on by a link (`timetable::share`) as its link preview and the offer to take it
+/// over name it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SharedPlanData {
+    pub key: SemesterKey,
+    /// The semester's label as the snapshot writes it („WiSe 2026/27"), else the key's.
+    pub label: String,
+    /// The modules the catalog knows, in the order they were planned.
+    pub modules: Vec<SharedModule>,
+    /// The code's modules the catalog does not know (any more), in the plan's order.
+    pub missing: Vec<String>,
+    /// The program whose abbreviations name the modules, while the snapshot has it.
+    pub program: Option<Program>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SharedModule {
+    pub id: String,
+    /// What the week grid names the module by: its abbreviation (the program's where the code names
+    /// one, else its own), else its title cut short (`StudyplanData::slot_names`).
+    pub name: String,
+    pub title: String,
+    pub credits: Option<f64>,
+}
+
+impl SharedPlanData {
+    /// The credits of the modules that state them.
+    pub fn credits(&self) -> f64 {
+        self.modules.iter().filter_map(|module| module.credits).sum()
+    }
+}
+
+/// What a shared plan's code names, from the snapshot: its semester's label, its modules as the
+/// week grid names them, with title and credits, and its program. `None` for a plan without a
+/// semester (a code decodes only with one).
+pub fn shared_plan(db: &dyn Database, plan: &SharedPlan) -> Result<Option<SharedPlanData>, DbError> {
+    let Some(key) = plan.key() else { return Ok(None) };
+    let ids = checked_ids(&plan.module_ids());
+    let (rows, missing) = catalog_rows(db, &ids)?;
+    let abbrevs: BTreeMap<String, String> = queries::modules_abbrevs(db, &ids, plan.program.as_deref())?.into_iter().map(|abbrev| (abbrev.module_id, abbrev.abbrev)).collect();
+    let names = slot_names(&rows, &abbrevs);
+    let modules = ids
+        .iter()
+        .filter_map(|id| rows.iter().find(|row| row.id == *id))
+        .map(|row| SharedModule { id: row.id.clone(), name: names.get(&row.id).cloned().unwrap_or_else(|| views::short_title(&row.title)), title: row.title.clone(), credits: row.credits })
+        .collect();
+    let semester_key = key.key();
+    let label = queries::semesters(db)?.into_iter().find(|semester| semester.key == semester_key).map_or_else(|| key.label(), |semester| semester.label);
+    let program = match plan.program.as_deref() {
+        Some(id) => queries::programs(db)?.into_iter().find(|program| program.id == id),
+        None => None,
+    };
+    Ok(Some(SharedPlanData { key, label, modules, missing, program }))
 }
 
 #[cfg(test)]
@@ -1740,6 +1801,29 @@ mod studyplan_tests {
         assert_eq!(text.matches("BEGIN:VTIMEZONE\r\n").count(), 1);
     }
 
+    /// A plan handed on by a link names its modules as the week grid of the same plan does, in the
+    /// plan's order; a module the catalog does not know is counted, not named.
+    #[test]
+    fn a_shared_plan_names_its_modules_as_the_week_does() {
+        let (db, _, key) = snapshot("a_shared_plan_names_its_modules_as_the_week_does");
+        let plan = SharedPlan::of(key, &ids(&FS1), Some(INFORMATIK)).unwrap();
+        let shared = shared_plan(&db, &plan).unwrap().unwrap();
+        let data = studyplan_in(&db, key, &ids(&FS1), Some(INFORMATIK)).unwrap();
+        let names = data.slot_names();
+        let known: Vec<&str> = FS1.iter().copied().filter(|id| !data.missing.iter().any(|missing| missing == id)).collect();
+        assert_eq!(shared.modules.iter().map(|module| module.id.as_str()).collect::<Vec<_>>(), known, "the plan's order");
+        for module in &shared.modules {
+            assert_eq!(names.get(&module.id), Some(&module.name), "{}", module.id);
+        }
+        assert_eq!((shared.label.as_str(), shared.program.as_ref().map(|program| program.id.as_str())), (data.label.as_str(), Some(INFORMATIK)));
+        let credits: f64 = data.modules.iter().filter_map(|row| row.credits).sum();
+        assert!((shared.credits() - credits).abs() < 1e-9);
+
+        let unknown = SharedPlan::of(key, &ids(&["99999", "12104"]), None).unwrap();
+        let shared = shared_plan(&db, &unknown).unwrap().unwrap();
+        assert_eq!((shared.missing, shared.program), (ids(&["99999"]), None));
+    }
+
     /// The server's feed of the pinned code and the browser's download of the same plan are one
     /// text, made twice the same. On the pinned snapshot: the Termine the design names, the town
     /// derived, the choice made, 149408 hidden.
@@ -1895,9 +1979,9 @@ mod studyplan_tests {
         }
     }
 
-    /// „Passt in meinen Plan" as the catalog asks for it: what was checked and does not clash, the
-    /// clashing and the planned ones left out, the notes of partial fits and unknowns; a second
-    /// question with the same key does not rebuild the candidates.
+    /// „Passt in meinen Stundenplan" as the catalog asks for it: what was checked and does not
+    /// clash, the clashing and the planned ones left out, the notes of partial fits and unknowns;
+    /// a second question with the same key does not rebuild the candidates.
     #[test]
     fn the_finder_lists_what_was_checked_and_fits() {
         let (db, is_pinned, key) = snapshot("the_finder_lists_what_was_checked_and_fits (pages)");
@@ -2173,7 +2257,7 @@ mod studyplan_tests {
 
         // Nothing meets: it fits.
         let friday = overlay_in(&[plan.as_slice(), &[friday_lecture]].concat(), &[], &["P", "Q", "M"]);
-        assert_eq!(friday.line, Some((false, "Passt in deinen Plan (WiSe 2026/27)".to_string())));
+        assert_eq!(friday.line, Some((false, "Passt in deinen Stundenplan (WiSe 2026/27)".to_string())));
         assert!(friday.clashing.is_empty());
 
         // Without a Termin of its own that has a time there is nothing to say under its week.

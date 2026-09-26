@@ -3,10 +3,10 @@
 //! `/`                                  landing page
 //! `/catalog?…`                         module catalog; the query string is a `CatalogQuery`.
 //!                                      `fits=<semester>` (with `fits-skip`, `fits-undated`) is the
-//!                                      switch „Passt in meinen Plan"; which modules fit comes from
-//!                                      the browser, like the marked ones. `fill=p<n>` (the
-//!                                      placeholder a module found there would fill) is the app's:
-//!                                      the server's page and its cache key drop it
+//!                                      switch „Passt in meinen Stundenplan"; which modules fit
+//!                                      comes from the browser, like the marked ones. `fill=p<n>`
+//!                                      (the placeholder a module found there would fill) is the
+//!                                      app's: the server's page and its cache key drop it
 //! `/catalog/module/<id>`               module page; `?plan=<semester>&fill=p<n>` is the app's hint
 //!                                      of where its plan button plans to (`ModuleHint`)
 //! `/bookmarks?…[&open=<id>][&full=1]`  the visitor's marked modules (`BookmarksUrl`); which ones
@@ -18,10 +18,13 @@
 //!                                      tabs, which of several study plans is shown, which module
 //!                                      stands beside it, and whether that module fills the page
 //!                                      (`ProgramUrl`)
-//! `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>`   the visitor's Studienplan
-//!                                      (`StudyplanUrl`): which semester and view, the module and
-//!                                      Termin beside it, the Regelstudienplan being taken over.
-//!                                      What is planned lives in the browser, never in a URL
+//! `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]`   the
+//!                                      visitor's Studienplan (`StudyplanUrl`): which semester and
+//!                                      view, the module and Termin beside it, the Regelstudienplan
+//!                                      being taken over. What is planned lives in the browser,
+//!                                      never in a URL, but for a plan handed on by a link
+//!                                      (`share`, `timetable::share`), which the page offers to
+//!                                      take over and whose link preview names its modules
 //! `/calendar/<code>.ics`               a calendar subscription, served by the server (not a page):
 //!                                      the code says semester, modules and what is hidden
 //!                                      (`timetable::subscription`)
@@ -44,6 +47,7 @@ use crate::filter::{
 use crate::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
 use crate::timetable::rowkey::RowKey;
 use crate::timetable::semester::SemesterKey;
+use crate::timetable::share::{self, SharedPlan};
 
 pub const HOME: &str = "/";
 pub const CATALOG: &str = "/catalog";
@@ -627,7 +631,10 @@ fn is_import(value: &str) -> bool {
 /// How the plan is shown, never what is in it (R20): which semester and which view, the one module
 /// and Termin shown beside the plan (as the Merkliste's `open`), and which program's
 /// Regelstudienplan is being taken over. Tolerant and canonical like `CatalogUrl`. The server
-/// renders one explanation for every query (R9) and caches it by the path alone.
+/// renders one explanation for every query (R9) and caches it by the path alone. The one exception
+/// is `share`: a plan somebody handed on by a link (`timetable::share`, the owner's decision of
+/// 2026-09-26), whose modules the server's page names in its link preview, so it is part of the
+/// page's cache key.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StudyplanUrl {
     /// The calendar semester shown (`SemesterKey::key()`). `None` is the default semester, which
@@ -644,11 +651,14 @@ pub struct StudyplanUrl {
     /// Which of that program's study plans, 1-based as on the program's page; the first is not
     /// written. Nothing without `import`.
     pub variant: usize,
+    /// The code of a plan handed on by a link (`share=<code>`, `timetable::share::SharedPlan`),
+    /// which the page offers to take over. Only a code that decodes.
+    pub share: Option<String>,
 }
 
 impl Default for StudyplanUrl {
     fn default() -> Self {
-        Self { sem: None, view: PlanView::Week, open: None, row: None, import: None, variant: 1 }
+        Self { sem: None, view: PlanView::Week, open: None, row: None, import: None, variant: 1, share: None }
     }
 }
 
@@ -670,6 +680,7 @@ impl StudyplanUrl {
             },
             open,
             import,
+            share: first(share::PARAM).filter(|code| SharedPlan::from_code(code).is_some()),
         }
     }
 
@@ -679,7 +690,7 @@ impl StudyplanUrl {
     }
 
     /// `/studyplan` with the canonical query string: `sem`, `view`, `open`, `row`, `import`,
-    /// `variant`, each only when it says something.
+    /// `variant`, `share`, each only when it says something.
     pub fn path(&self) -> String {
         let mut out: Vec<(&str, String)> = Vec::new();
         if let Some(sem) = &self.sem {
@@ -699,6 +710,9 @@ impl StudyplanUrl {
             if self.variant > 1 {
                 out.push(("variant", self.variant.to_string()));
             }
+        }
+        if let Some(code) = &self.share {
+            out.push((share::PARAM, code.clone()));
         }
         if out.is_empty() {
             return STUDYPLAN.to_string();
@@ -726,6 +740,11 @@ impl StudyplanUrl {
     pub fn without_import(&self) -> Self {
         Self { import: None, variant: 1, ..self.clone() }
     }
+
+    /// The same page once a shared plan is taken over or put aside.
+    pub fn without_share(&self) -> Self {
+        Self { share: None, ..self.clone() }
+    }
 }
 
 /// The highest placeholder number (the store's `pid`) a `fill=` may name.
@@ -742,9 +761,9 @@ fn parse_fill(text: &str) -> Option<u32> {
 }
 
 /// What a module's page is asked to plan the module into, when it was reached from the catalog's
-/// „Passt in meinen Plan" (`/catalog/module/<id>?plan=2026W&fill=p3`): the semester its plan button
-/// aims at and the placeholder the module would fill. The app's alone: the server keys the page by
-/// its path and ignores both, like every other query of a module page.
+/// „Passt in meinen Stundenplan" (`/catalog/module/<id>?plan=2026W&fill=p3`): the semester its
+/// plan button aims at and the placeholder the module would fill. The app's alone: the server keys
+/// the page by its path and ignores both, like every other query of a module page.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ModuleHint {
     /// `SemesterKey::key()`.
@@ -1376,6 +1395,7 @@ mod tests {
                 row: Some("148369-aaf38".into()),
                 import: Some("mine".into()),
                 variant: 1,
+                share: None,
             }
         );
         let back = |url: &StudyplanUrl| StudyplanUrl::parse(url.path().split_once('?').map(|(_, query)| query).unwrap_or_default());
@@ -1434,6 +1454,23 @@ mod tests {
         let import = StudyplanUrl::parse("view=all&import=bachelor-informatik-2008&variant=2");
         assert_eq!(import.without_import().with_view(PlanView::Overview).path(), "/studyplan?view=all");
         assert_eq!(import.without_import().variant, 1);
+    }
+
+    #[test]
+    fn a_shared_plan_stays_in_the_address_until_it_is_answered() {
+        let key = SemesterKey::parse("2026W").unwrap();
+        let code = SharedPlan::of(key, &["12104".to_string(), "11101".to_string()], Some("079-82-2008")).unwrap().code().unwrap();
+        let url = StudyplanUrl::parse(&format!("share={code}&view=dates"));
+        assert_eq!(url.share.as_deref(), Some(code.as_str()));
+        assert_eq!(url.path(), format!("/studyplan?view=dates&share={code}"));
+        // Looking around keeps it; taking it over or putting it aside ends it.
+        assert_eq!(url.with_view(PlanView::Week).share, url.share);
+        assert_eq!(url.with_open(Some("12104"), None).share, url.share);
+        assert_eq!(url.without_share().path(), "/studyplan?view=dates");
+        // What is no code of a plan is no share.
+        for wrong in ["", "x", "12104", &code[1..]] {
+            assert_eq!(StudyplanUrl::parse(&format!("share={wrong}")).share, None, "{wrong}");
+        }
     }
 
     #[test]

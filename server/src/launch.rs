@@ -9,7 +9,7 @@
 //! processor, and only a home screen waits for it), and kept: sixty pictures of 20–60 kB at most.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use app::launch::Picture;
 use axum::body::Bytes;
@@ -95,9 +95,24 @@ fn svg(picture: &Picture, regular: &rustybuzz::Face<'_>) -> String {
     svg
 }
 
+/// The cuts of Inter the cards are set in (`cards`), loaded once, when the first picture is drawn.
+fn typeface() -> Arc<usvg::fontdb::Database> {
+    static FONTS: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+    FONTS
+        .get_or_init(|| {
+            let mut fonts = usvg::fontdb::Database::new();
+            for cut in [cards::INTER_400, cards::INTER_500, cards::INTER_600, cards::INTER_800] {
+                fonts.load_font_data(cut.to_vec());
+            }
+            fonts.set_sans_serif_family("Inter");
+            Arc::new(fonts)
+        })
+        .clone()
+}
+
 fn draw(picture: Picture) -> Result<Vec<u8>, String> {
     let regular = rustybuzz::Face::from_slice(cards::INTER_400, 0).ok_or("the typeface of the launch screens cannot be read")?;
-    let options = usvg::Options { fontdb: cards::typeface(), font_family: "Inter".to_string(), ..usvg::Options::default() };
+    let options = usvg::Options { fontdb: typeface(), font_family: "Inter".to_string(), ..usvg::Options::default() };
     let tree = usvg::Tree::from_str(&svg(&picture, &regular), &options).map_err(|error| error.to_string())?;
     let (width, height) = picture.pixels();
     let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or("no pixmap")?;

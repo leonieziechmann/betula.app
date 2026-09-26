@@ -124,8 +124,8 @@ pub enum HiddenBy {
     Row,
 }
 
-/// Which classes „Passt in meinen Plan" compares (the finder, `fit`). Here and not in `fit`, so
-/// the catalog's filter can name it before the finder exists.
+/// Which classes „Passt in meinen Stundenplan" compares (the finder, `fit`). Here and not in
+/// `fit`, so the catalog's filter can name it before the finder exists.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FitOptions {
     pub lectures: bool,

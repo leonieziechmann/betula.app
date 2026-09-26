@@ -22,9 +22,9 @@ pub fn Crown() -> impl IntoView {
 
 /// The ground: the footer of every page, after all of its content. On the desktop it comes up from
 /// the window's edge once the page is at its end, and the panels get shorter for it (`enhance.js`);
-/// on a phone it follows the page. It holds what belongs at the bottom of a site — who is behind
-/// it, the legal pages, the versions of Folia and Radix (the roots: Radix brings the data) and how
-/// fresh the data is.
+/// on a phone it follows the page, and ends at the window's lower edge under a page shorter than
+/// the window. It holds what belongs at the bottom of a site — who is behind it, the legal pages,
+/// the versions of Folia and Radix (the roots: Radix brings the data) and how fresh the data is.
 #[component]
 pub fn Ground() -> impl IntoView {
     let facts = use_source().ok().and_then(|source| source.run(pages::ground).ok());
