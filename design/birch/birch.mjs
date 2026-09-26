@@ -17,7 +17,13 @@
 //                        and the twigs at its sides lean away from it, so the name stands free as it
 //                        did before (owner, 2026-09-25); its last part is the tile's own end, so the
 //                        seam does not show. A phone has no title in its bar and shows the tile alone.
-//   spring-crown*-ck.svg the catkins of April, coloured apart (`--crown-ck`).
+//   <season>-card-head.svg  300 × 64, the same at the left end of a link-preview card, which hangs
+//                        the crown from its top at 1.5 times the size (server/src/cards.rs): the
+//                        clearing just as wide as the card's wordmark („viel zu weit und links etwas
+//                        daneben" was the site's head there, owner, 2026-09-26); not served.
+//   <season>-og-head.svg  360 × 64, the same for the standard picture's larger wordmark
+//                        (design/og/og.html).
+//   spring-*-ck.svg      the catkins of April, coloured apart (`--crown-ck`).
 //   roots.svg          1200 × 200, repeats along the ground, fading downwards.
 //   litter.svg         1200 × 24, the leaves of October lying on the ground's edge.
 // Deterministic: the same numbers draw the same tree.
@@ -249,6 +255,38 @@ mkdirSync(out, { recursive: true });
 const written = [];
 const write = (name, svg) => { writeFileSync(out + name, svg); written.push(`${name} ${(svg.length / 1024).toFixed(1)} KB`); };
 
+// A head: what hangs at the left end before the tile. Before the clearing the mark stands in front
+// of the crown; over the clearing (`clear`: from, to) only the crown's edge hangs in, and the twigs
+// at its sides lean away from it, so a name stands free; after it the crown is dense again. Then
+// what hangs just before the tile's start in an endless row of tiles (the tile's end and what
+// crosses its left edge), so that head and tile meet without a seam at `width`. The head's own
+// twigs end well before that (`seam`): its picture is cut at `width`, the tile's picture begins there.
+function head(S, season, L, extra, { seed, width, clear: [from, to], seam }) {
+  const rh = rng(seed), Hd = layers();
+  const floorHead = (x) => x < from - 12 ? 46 : x < from ? 28 : x < to ? 12 : x < to + 16 ? 30 : 46;
+  const lean = (x) => x < from ? [95, 135] : x >= to ? [45, 85] : [60, 120];
+  strands(rh, S, season, Hd, { from: -6, to: from - 2, every: [10, 16], reach: (x, r) => between(r, 26, 42), floor: floorHead, angles: lean });
+  strands(rh, S, season, Hd, { from: to, to: seam, every: [9, 15], reach: (x, r) => between(r, 26, 42) * clamp((x - to + 10) / 36, .55, 1), floor: floorHead, angles: lean });
+  mass(rh, S, Hd, { from: -6, to: from, floor: () => 18 });
+  mass(rh, S, Hd, { from: to, to: seam, floor: () => 18 });
+  // Over the clearing the edge only: smaller leaves higher up, a fine twig here and there.
+  for (let x = from - 2; x < to + 2; x += between(rh, 4, 8) * S.scale) {
+    const isFront = rh() < .36;
+    if (S.bare) {
+      twigSystem(rh, { x, y: between(rh, -8, -2), angle: between(rh, 55, 125), length: between(rh, 5, 10), droop: .08, wiggle: .1, kink: .15, w0: .9, w1: .4, gap: [4, 7], len: [0, 0], tilt: [0, 0], floor: () => 12, bare: true, branch: .3, depth: 1 }, isFront ? Hd.front : Hd.back);
+      continue;
+    }
+    const l = { x, y: between(rh, -10, -3), rot: between(rh, -60, 60), len: between(rh, 9, 13) * S.scale, sx: turn(rh), shape: weighted(rh, SHAPE_MIX) };
+    if (fits(l, () => 12)) (isFront ? Hd.front : Hd.back).leaves.push(leafItem(l));
+  }
+  const shift = (item, dx) => ({ ...item, x0: item.x0 + dx, x1: item.x1 + dx, svg: (d = 0) => item.svg(d + dx) });
+  for (const side of ["back", "front"]) for (const part of ["twigs", "leaves", "catkins", "apart"]) for (const item of L[side][part]) {
+    if (item.x1 > CW - (width - seam)) Hd[side][part].push(shift(item, width - CW));
+    if (item.x0 < 0) Hd[side][part].push(shift(item, width));
+  }
+  return { Hd, extra: extra.filter((item) => item.x1 > CW - (width - seam)).map((item) => shift(item, width - CW)) };
+}
+
 // How deep the crown hangs at x: long waves that fit the tile a whole number of times, so the
 // edges meet; between 14 and 42 px.
 const CW = 1200, HEAD = 420;
@@ -270,36 +308,21 @@ for (const [season, S] of Object.entries(SEASONS)) {
   write(`${season}-crown.svg`, mask(CW, H, L, { wrap: true, extra }));
   if (season === "spring") write("spring-crown-ck.svg", mask(CW, H, L, { wrap: true, part: "catkins" }));
 
-  // The head: the mark (0–48), the clearing over the title (60–300), its far side (300–372), then
-  // what hangs just before the tile's start in an endless row of tiles (the tile's end and what
-  // crosses its left edge), so that head and tile meet without a seam at HEAD. The head's own
-  // twigs end well before HEAD: its picture is cut there, the tile's picture begins there.
-  const rh = rng(303), Hd = layers();
-  const floorHead = (x) => x < 48 ? 46 : x < 60 ? 28 : x < 300 ? 12 : x < 316 ? 30 : 46;
-  const lean = (x) => x < 60 ? [95, 135] : x >= 300 ? [45, 85] : [60, 120];
-  strands(rh, S, season, Hd, { from: -6, to: 58, every: [10, 16], reach: (x, r) => between(r, 26, 42), floor: floorHead, angles: lean });
-  strands(rh, S, season, Hd, { from: 300, to: 372, every: [9, 15], reach: (x, r) => between(r, 26, 42) * clamp((x - 290) / 36, .55, 1), floor: floorHead, angles: lean });
-  mass(rh, S, Hd, { from: -6, to: 60, floor: () => 18 });
-  mass(rh, S, Hd, { from: 300, to: 372, floor: () => 18 });
-  // Over the clearing the edge only: smaller leaves higher up, a fine twig here and there.
-  for (let x = 58; x < 302; x += between(rh, 4, 8) * S.scale) {
-    const isFront = rh() < .36;
-    if (S.bare) {
-      twigSystem(rh, { x, y: between(rh, -8, -2), angle: between(rh, 55, 125), length: between(rh, 5, 10), droop: .08, wiggle: .1, kink: .15, w0: .9, w1: .4, gap: [4, 7], len: [0, 0], tilt: [0, 0], floor: () => 12, bare: true, branch: .3, depth: 1 }, isFront ? Hd.front : Hd.back);
-      continue;
-    }
-    const l = { x, y: between(rh, -10, -3), rot: between(rh, -60, 60), len: between(rh, 9, 13) * S.scale, sx: turn(rh), shape: weighted(rh, SHAPE_MIX) };
-    if (fits(l, () => 12)) (isFront ? Hd.front : Hd.back).leaves.push(leafItem(l));
-  }
-  const shift = (item, dx) => ({ ...item, x0: item.x0 + dx, x1: item.x1 + dx, svg: (d = 0) => item.svg(d + dx) });
-  const SEAM = 372;
-  for (const side of ["back", "front"]) for (const part of ["twigs", "leaves", "catkins", "apart"]) for (const item of L[side][part]) {
-    if (item.x1 > CW - (HEAD - SEAM)) Hd[side][part].push(shift(item, HEAD - CW));
-    if (item.x0 < 0) Hd[side][part].push(shift(item, HEAD));
-  }
-  const headExtra = extra.filter((item) => item.x1 > CW - (HEAD - SEAM)).map((item) => shift(item, HEAD - CW));
-  write(`${season}-crown-head.svg`, mask(HEAD, H, Hd, { extra: headExtra }));
-  if (season === "spring") write("spring-crown-head-ck.svg", mask(HEAD, H, Hd, { part: "catkins" }));
+  // The site's head: the mark (0–48), the clearing over the title (60–300), its far side (300–372).
+  const site = head(S, season, L, extra, { seed: 303, width: HEAD, clear: [60, 300], seam: 372 });
+  write(`${season}-crown-head.svg`, mask(HEAD, H, site.Hd, { extra: site.extra }));
+  if (season === "spring") write("spring-crown-head-ck.svg", mask(HEAD, H, site.Hd, { part: "catkins" }));
+  // The link-preview cards (server/src/cards.rs) hang the crown from the top of their face at 1.5
+  // times the size, the logo 64 px in: the clearing over the wordmark alone, whose ink runs from 91
+  // to 179 in the mask's units; the mark stands in front of the crown before it, as on the site.
+  const card = head(S, season, L, extra, { seed: 404, width: 300, clear: [87, 183], seam: 252 });
+  write(`${season}-card-head.svg`, mask(300, H, card.Hd, { extra: card.extra }));
+  if (season === "spring") write("spring-card-head-ck.svg", mask(300, H, card.Hd, { part: "catkins" }));
+  // The standard picture (design/og/og.html), the same way around its larger logo: the wordmark's
+  // ink from 110 to 238.
+  const og = head(S, season, L, extra, { seed: 808, width: 360, clear: [106, 242], seam: 312 });
+  write(`${season}-og-head.svg`, mask(360, H, og.Hd, { extra: og.extra }));
+  if (season === "spring") write("spring-og-head-ck.svg", mask(360, H, og.Hd, { part: "catkins" }));
 }
 
 // ---------- the ground ----------

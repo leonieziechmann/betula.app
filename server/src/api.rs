@@ -12,7 +12,8 @@ use catalog::timetable::subscription::{self, Subscription};
 use serde_json::json;
 use tokio_util::io::ReaderStream;
 
-use crate::cards::{Card, CardText};
+use crate::birch::Season;
+use crate::cards::{Card, CardText, Headline};
 use crate::AppState;
 
 fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
@@ -286,9 +287,15 @@ pub async fn health(State(state): State<AppState>) -> Response {
 /// A file embedded in the binary. Revalidated on every use (the 304 costs nothing and a new
 /// build shows up at once); compressed once per process.
 fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8]) -> Response {
+    tagged_asset(state, headers, content_type, body, "")
+}
+
+/// `asset` for an address whose file changes within a build (the standard picture with the
+/// season): `variant` names which one it is, in the ETag.
+fn tagged_asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8], variant: &str) -> Response {
     static COMPRESSED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<usize, axum::body::Bytes>>> = std::sync::OnceLock::new();
 
-    let etag = format!("\"{}\"", state.build_id);
+    let etag = if variant.is_empty() { format!("\"{}\"", state.build_id) } else { format!("\"{}-{variant}\"", state.build_id) };
     if if_none_match(headers, &etag) {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
     }
@@ -361,24 +368,12 @@ pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<Strin
 
 /// `GET /assets/birch/<name>.svg`: the birch around the app — the crown along the top in each
 /// season and the roots of the ground (`design/birch/birch.mjs` draws them; the stylesheet colours
-/// them). Embedded like every other asset.
+/// them). Embedded once (`birch::file`): the link-preview cards draw the same crown.
 pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
-    let body: &'static [u8] = match file.as_str() {
-        "spring-crown.svg" => include_bytes!("../../app/assets/birch/spring-crown.svg"),
-        "spring-crown-ck.svg" => include_bytes!("../../app/assets/birch/spring-crown-ck.svg"),
-        "spring-crown-head.svg" => include_bytes!("../../app/assets/birch/spring-crown-head.svg"),
-        "spring-crown-head-ck.svg" => include_bytes!("../../app/assets/birch/spring-crown-head-ck.svg"),
-        "summer-crown.svg" => include_bytes!("../../app/assets/birch/summer-crown.svg"),
-        "summer-crown-head.svg" => include_bytes!("../../app/assets/birch/summer-crown-head.svg"),
-        "autumn-crown.svg" => include_bytes!("../../app/assets/birch/autumn-crown.svg"),
-        "autumn-crown-head.svg" => include_bytes!("../../app/assets/birch/autumn-crown-head.svg"),
-        "winter-crown.svg" => include_bytes!("../../app/assets/birch/winter-crown.svg"),
-        "winter-crown-head.svg" => include_bytes!("../../app/assets/birch/winter-crown-head.svg"),
-        "roots.svg" => include_bytes!("../../app/assets/birch/roots.svg"),
-        "litter.svg" => include_bytes!("../../app/assets/birch/litter.svg"),
-        _ => return StatusCode::NOT_FOUND.into_response(),
-    };
-    asset(&state, &headers, "image/svg+xml", body)
+    match crate::birch::file(&file) {
+        Some(body) => asset(&state, &headers, "image/svg+xml", body.as_bytes()),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// `GET /assets/icons.svg`: the icons of the app as one sprite (`app::icons`), which every icon
@@ -389,8 +384,21 @@ pub async fn icons(State(state): State<AppState>, headers: HeaderMap) -> Respons
     asset(&state, &headers, "image/svg+xml", body)
 }
 
+/// `GET /assets/og.png`: the site's standard picture for link previews, in the season's crown
+/// (`design/og/og.html` in four pictures), like every card the server draws.
 pub async fn og_image(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/og.png"))
+    let season = Season::now();
+    tagged_asset(&state, &headers, "image/png", standard_picture(season), season.name())
+}
+
+/// The standard picture of a season.
+pub fn standard_picture(season: Season) -> &'static [u8] {
+    match season {
+        Season::Spring => include_bytes!("../../app/assets/og-spring.png"),
+        Season::Summer => include_bytes!("../../app/assets/og-summer.png"),
+        Season::Autumn => include_bytes!("../../app/assets/og-autumn.png"),
+        Season::Winter => include_bytes!("../../app/assets/og-winter.png"),
+    }
 }
 
 /// The mark as pictures (`design/logo/render-icons.mjs`): `/favicon.ico` for what asks for it
@@ -443,7 +451,7 @@ pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>
             if let Some(exam) = &module.exam_form {
                 facts.push(app::format::exam_short(exam));
             }
-            CardText { eyebrow: format!("Modul {}", module.id), title: module.title, facts, note: module.department }
+            CardText { eyebrow: format!("Modul {}", module.id), headline: Headline::Title(module.title), facts, note: module.department }
         }))
     })
     .await
@@ -467,10 +475,78 @@ pub async fn program_card(State(state): State<AppState>, Path(file): Path<String
             if program.has_plan {
                 note.push("mit Regelstudienplan".to_string());
             }
-            CardText { eyebrow: "Studiengang".to_string(), title: program.name, facts, note: Some(note.join("  ·  ")) }
+            CardText { eyebrow: "Studiengang".to_string(), headline: Headline::Title(program.name), facts, note: Some(note.join("  ·  ")) }
         }))
     })
     .await
+}
+
+/// `GET /cards/bookmarks.png`: the picture of the Merkliste's link preview. The same for everybody:
+/// what is marked lives in the visitor's browser (R20), so it says what the Merkliste is.
+pub async fn bookmarks_card_png(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    card(&state, &headers, "b".to_string(), |_| Ok(Some(bookmarks_card()))).await
+}
+
+pub fn bookmarks_card() -> CardText {
+    CardText {
+        eyebrow: "Merkliste".to_string(),
+        headline: Headline::Title("Module merken und wiederfinden".to_string()),
+        facts: vec!["Kein Konto".to_string(), "per Link auf ein anderes Gerät".to_string()],
+        note: Some("Die Merkliste liegt nur im eigenen Browser.".to_string()),
+    }
+}
+
+/// `GET /cards/studyplan.png`: the picture of the Stundenplan's link preview, the same for
+/// everybody (a plan lives in the browser, R20), with the semester the catalog has dates for. A
+/// shared plan has its own (`shared_plan_card`).
+pub async fn studyplan_card_png(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    card(&state, &headers, "s".to_string(), |db| {
+        let meta = catalog::queries::meta(db)?;
+        let semester = meta.current_semester.as_deref().and_then(catalog::timetable::semester::SemesterKey::parse).map(|key| key.label());
+        Ok(Some(studyplan_card(semester.as_deref())))
+    })
+    .await
+}
+
+/// `GET /cards/studyplan/<code>.png`: the picture of a shared Stundenplan's link preview
+/// (`timetable::share`): its modules as tags in the tones of the plan, by the names the week grid
+/// gives them („MIT-1", „AuP"), how many and how many credits, and their titles. A code that does
+/// not decode, or names no module the catalog knows, is a 404.
+pub async fn shared_plan_card(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+    let Some((code, plan)) = catalog::timetable::share::code_of_card(&file).and_then(|code| Some((code, catalog::timetable::share::SharedPlan::from_code(code)?))) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let key = format!("{}{code}", crate::cards::SHARED_PLAN);
+    card(&state, &headers, key, move |db| Ok(catalog::pages::shared_plan(db, &plan)?.and_then(|shared| shared_plan_text(&shared)))).await
+}
+
+/// What the card of a shared plan says; `None` without a module the catalog knows.
+pub fn shared_plan_text(shared: &catalog::pages::SharedPlanData) -> Option<CardText> {
+    if shared.modules.is_empty() {
+        return None;
+    }
+    let mut facts = vec![app::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX))];
+    if shared.modules.iter().any(|module| module.credits.is_some()) {
+        facts.push(format!("{} LP", app::format::number(shared.credits())));
+    }
+    if let Some(program) = &shared.program {
+        facts.push(format!("{} ({})", program.name, program.degree()));
+    }
+    Some(CardText {
+        eyebrow: format!("Stundenplan · {}", shared.label),
+        headline: Headline::Tags(shared.modules.iter().map(|module| module.name.clone()).collect()),
+        facts,
+        note: Some(shared.modules.iter().map(|module| module.title.as_str()).collect::<Vec<_>>().join(" · ")),
+    })
+}
+
+pub fn studyplan_card(semester: Option<&str>) -> CardText {
+    CardText {
+        eyebrow: semester.map_or_else(|| "Stundenplan".to_string(), |semester| format!("Stundenplan · {semester}")),
+        headline: Headline::Title("Die Woche deiner Module".to_string()),
+        facts: vec!["Termine".to_string(), "Prüfungen".to_string(), "Kalender-Abo".to_string()],
+        note: Some("Der Stundenplan liegt nur im eigenen Browser.".to_string()),
+    }
 }
 
 /// A card: what it says is read from the snapshot, the picture is kept or drawn. When the server
@@ -478,7 +554,7 @@ pub async fn program_card(State(state): State<AppState>, Path(file): Path<String
 /// not to be kept, so the next fetch gets the real one.
 async fn card(state: &AppState, headers: &HeaderMap, key: String, read: impl FnOnce(&dyn catalog::Database) -> Result<Option<CardText>, catalog::DbError>) -> Response {
     let standard = || {
-        let mut response = Response::new(Body::from(&include_bytes!("../../app/assets/og.png")[..]));
+        let mut response = Response::new(Body::from(standard_picture(Season::now())));
         let out = response.headers_mut();
         out.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
         out.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -496,7 +572,7 @@ async fn card(state: &AppState, headers: &HeaderMap, key: String, read: impl FnO
         });
         ran.and(text).map_err(|error| error.to_string())
     };
-    match state.cards.get(&key, state.store.generation(), text).await {
+    match state.cards.get(&key, state.store.generation(), Season::now(), text).await {
         Ok(Card::Drawn(etag, png)) => {
             let mut response = if if_none_match(headers, &etag) { StatusCode::NOT_MODIFIED.into_response() } else { Response::new(Body::from(png)) };
             let out = response.headers_mut();

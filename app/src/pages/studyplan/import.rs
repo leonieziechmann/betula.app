@@ -26,7 +26,7 @@ use crate::pending::Pending;
 use crate::ui::Icon;
 
 /// How the note of an import begins; the sidebar's „Plan geleert" is the other note of `undo`.
-const IMPORTED: &str = "Übernommen: ";
+pub(super) const IMPORTED: &str = "Übernommen: ";
 
 /// The id of „Übernehmen".
 const GO_ID: &str = "sp-import-go";
@@ -115,7 +115,7 @@ pub(super) fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, semest
 }
 
 /// „Übernommen: 4 Module, 1 Platzhalter".
-fn imported_note(modules: usize, placeholders: usize) -> String {
+pub(super) fn imported_note(modules: usize, placeholders: usize) -> String {
     let mut parts = Vec::new();
     if modules > 0 {
         parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX)));
@@ -130,7 +130,7 @@ fn imported_note(modules: usize, placeholders: usize) -> String {
 }
 
 /// Seconds since 1970, for when the modules were planned; 0 outside the browser.
-fn now_secs() -> u64 {
+pub(super) fn now_secs() -> u64 {
     #[cfg(feature = "csr")]
     {
         let millis = web_sys::js_sys::Date::now();

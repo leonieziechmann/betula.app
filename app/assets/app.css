@@ -1643,6 +1643,8 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
    in fractions of the day's height, the hours share it. A phone lists the days instead. */
 .sp-fold { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .sp-fold > .hint, .sp-fold > .note { margin-top: 0; }
+/* A plan from a link (`share=`) offered at the top of the plan, as the Merkliste offers a list. */
+.sp-fold > .offer { margin: 0; }
 .sp-view { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .sp-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; min-width: 0; }
 .sp-below { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }

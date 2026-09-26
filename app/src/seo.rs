@@ -21,7 +21,7 @@ pub struct SiteUrl(pub Arc<str>);
 
 pub const DEFAULT_SITE_URL: &str = "https://betula.app";
 pub const SITE_NAME: &str = "Betula";
-/// What the picture of link previews shows (`app/assets/og.png`), for those who cannot see it.
+/// What the picture of link previews shows (`app/assets/og-<season>.png`), for those who cannot see it.
 pub const OG_IMAGE_ALT: &str = "Betula: alle Module und Studiengänge der BTU Cottbus-Senftenberg. Durchsuchen, filtern, Studium planen. Inoffizieller Modulkatalog.";
 /// The university the catalog is about, as structured data names it.
 pub const UNIVERSITY: &str = "Brandenburgische Technische Universität Cottbus-Senftenberg";
@@ -45,6 +45,11 @@ pub fn module_card(id: &str) -> String {
 pub fn program_card(slug: &str) -> String {
     format!("/cards/program/{slug}.png")
 }
+
+/// The pictures of the Merkliste and the Stundenplan: what the page is, the same for everybody
+/// (what a visitor keeps lives in their browser, R20).
+pub const BOOKMARKS_CARD: &str = "/cards/bookmarks.png";
+pub const STUDYPLAN_CARD: &str = "/cards/studyplan.png";
 
 /// Text for a description: one line, at most `limit` characters, cut at a word.
 pub fn excerpt(text: &str, limit: usize) -> String {

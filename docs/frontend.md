@@ -38,6 +38,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
+| `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`catalog::timetable::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
@@ -882,14 +883,17 @@ The masks are coloured by tokens (`--crown`, `--crown-ck` for spring's catkins, 
 theme), so the same files serve light and dark. `node design/birch/birch.mjs` draws all
 masks, the roots and the leaf litter again (deterministic, seeded); the server serves them under
 `/assets/birch/` (`api::birch`), and a server test fetches every mask the stylesheet names.
-`node e2e/ground.mjs` drives it with a real wheel.
+`node e2e/ground.mjs` drives it with a real wheel. The link-preview cards hang the same crown from
+their top (see „Search engines"), with heads of their own that `birch.mjs` draws beside the site's
+(`<season>-card-head.svg` for the cards the server draws, not served; `<season>-og-head.svg` for the
+standard picture): the same twigs and seeds, only the clearing where the card's wordmark stands.
 
 ### Search engines (`app/src/seo.rs`, 2026-09-20)
 
 Aim: a search for a module or a program of the BTU finds the page here. What that rests on:
 
 - **Every page states itself once** with `seo::Seo` (inside its frame): description, canonical
-  address, Open Graph tags (picture: `app/assets/og.png`, made from `design/og/og.html`) and
+  address, Open Graph tags (picture: `app/assets/og-<season>.png`, made from `design/og/og.html`) and
   structured data. Nothing of it is set for the whole app. (Before, every page carried the app's
   default description, program pages a second one, and the module page lost its own.)
 - **One address per page.** Filters, further pages and the preview of the catalog, and a filtered
@@ -918,21 +922,41 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
 - **A module and a program have their own picture** (`/cards/module/<id>.png`,
   `/cards/program/<slug>.png`; `seo::module_card`, `seo::program_card`): the logo, the kind and
   number, the title (four sizes, at most four lines, then „…"), a line of facts and a quieter
-  one (department; size of the curriculum). Every other page names the standard picture
-  `og.png`. The server draws the cards itself (`server/src/cards.rs`): an SVG put together in
-  Rust, set by resvg in static cuts of Inter (`server/assets/inter-*.ttf`, cut once from the
-  app's variable font by `design/cards/make-fonts.py`, a development tool; nothing but the
-  server's own process runs in production), measured with the same shaper before it is set,
-  written as a palette PNG (20–30 kB). About 15 ms of drawing and 65 ms of packing in a dev
-  build; the pixel crates are optimised in the dev profile for that.
+  one (department; size of the curriculum). So do the Merkliste and the Stundenplan
+  (`/cards/bookmarks.png`, `/cards/studyplan.png`; owner, 2026-09-26): what the page is, the same
+  for everybody, since what a visitor keeps lives in the browser. A Stundenplan handed on by a link
+  (R20) has its own (`/cards/studyplan/<code>.png`): its modules as tags in the plan's tones, by
+  the names its week grid gives them (`StudyplanData::slot_names`: „MIT-1", „AuP"; three sizes,
+  then „+3"), how many, their credits and the program, and their titles as the quiet line, cut
+  between two titles. Every other page names the standard picture `og.png`.
+- **The birch's crown hangs along the top of every card** (owner, 2026-09-26), in the season the
+  card is drawn in (`birch::Season`: the months the site's script goes by, on the server's clock),
+  half as large again as along the site's top, since a preview is seen small. The card has a head
+  of its own (`<season>-card-head.svg`): its clearing is just as wide as the wordmark („viel zu
+  weit und links etwas daneben" was the site's head there), and the mark stands in front of the
+  crown before it, as the rail's does. The season is part of what a card's hash is made of, so a
+  card is drawn anew, under a new ETag, when the season turns. The grey, the face, the crown and
+  the face's hairline are drawn once per season and every card onto a copy: the crown's 1,500
+  leaves took two thirds of a card's time. The standard picture is `design/og/og.html` in the four
+  seasons (`app/assets/og-<season>.png`, with its own head, `<season>-og-head.svg`, fitted to its
+  larger wordmark); `/assets/og.png` answers with the season's, the season in its ETag.
+- **The server draws the cards itself** (`server/src/cards.rs`): an SVG put together in Rust, set
+  by resvg in static cuts of Inter (`server/assets/inter-*.ttf`, cut once from the app's variable
+  font by `design/cards/make-fonts.py`, a development tool; nothing but the server's own process
+  runs in production), measured with the same shaper before it is set, written as a palette PNG
+  (40–50 kB with the crown; a card of tags, whose eight tones with their grounds a palette does
+  not hold, in true colour, about 80 kB). About 70–120 ms a card in a dev build, the first of a
+  season some 230 ms (its ground); the pixel crates are optimised in the dev profile for that.
   - **Kept:** a finished card stays in memory (`--card-cache-mb`, 64 MiB ≈ 2,500 cards) under
     the hash of what it says, so a new snapshot only redraws the cards whose text changed. The
     hash is also the ETag (`If-None-Match` → 304); `Cache-Control: public, max-age=86400`.
   - **Never in the way of the pages:** drawing runs on the blocking pool, at most half the
     processors at once (1–4). If every place is taken, or there is no snapshot, or drawing
-    fails, the answer is `og.png` at once with `no-store`, so the next fetch gets the real card.
-    An unknown module or program is a 404. Look at the design with
-    `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review`.
+    fails, the answer is the season's `og.png` at once with `no-store`, so the next fetch gets the
+    real card. An unknown module or program is a 404, and so is a shared plan's code that does not
+    decode or names no module the catalog knows. Look at the design with
+    `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review` (`FOLIA_CARD_SEASON=spring`
+    for another season than today's).
 - **Who the site is, outside a page** (static in the document's head, `app::shell`, so it
   survives the takeover): `/favicon.ico` (32 and 48 px) and the SVG icon, `/apple-touch-icon.png`
   (180 px, full bleed: iOS rounds it and uses it for the home screen and for previews in
@@ -1069,7 +1093,18 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   addresses and never re-adds it once removed. Like the Merkliste's `open`, the Studienplan's
   address names the one module and Termin shown beside it (`open`, `row`), and the catalog's
   app-only `fill=p<n>` names a placeholder by its local number (it says nothing about the visitor;
-  the server drops it) — never a list of what is planned.
+  the server drops it) — never a list of what is planned. And a Stundenplan handed on by a link
+  (owner, 2026-09-26: the link preview of a shared Stundenplan shows its modules, „MIT-1, AuP,
+  EEG"; a preview runs no JavaScript and has no storage, so only the address can carry them):
+  `/studyplan?share=<code>` carries the semester, the planned modules in their order and the
+  program whose abbreviations name them, as a `pack` code of kind `studyplan`
+  (`catalog::timetable::share`), nothing hidden or chosen. The visitor makes it („Link zum Teilen
+  kopieren" in the sidebar's group „Plan"), whoever opens it is offered the modules to take over
+  (`app/src/pages/studyplan/share.rs`), and the server's page names them in its tags and its
+  picture (`/cards/studyplan/<code>.png`), resolving the code anew on every request and keeping
+  nothing; Folia's own log writes the page's path without its query and the picture's as
+  `/cards/studyplan/….png`; the edge's access log keeps the address like every address. The
+  privacy notice's part is „Stundenplan teilen".
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -1468,7 +1503,7 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
-| INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` (a code names somebody's plan) |
+| INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` and every path under `/cards/studyplan/` `/cards/studyplan/….png` (a code names somebody's plan; a shared Stundenplan's page, `?share=`, is logged without its query like every page) |
 | WARN | `http.request` with `cache=busy` | a request turned away with 503 because every place was taken ("Load"): no error of the server |
 | WARN | `server.busy` | the same, at most once a minute: `what` (`render`, `calendar`), `places`, `wait_ms`, `turned_away` since the start. Often: more processors, or a crawler to slow down |
 | INFO | `cache.warmed` | the pages of the sitemap are in the cache (`pages`, `rendered`, `kept`, `ms`, `generation`) |

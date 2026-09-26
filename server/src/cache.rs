@@ -166,7 +166,8 @@ fn evict(inner: &mut Inner, target: usize) {
 /// path alone (tracking parameters and the like do not change what is rendered). What the app
 /// lays beside a page or fills it with (`open`, `full`, `area`, `req`) changes nothing on the
 /// server's page, so it is no part of the key either; nor does the placeholder a catalog list
-/// is looking for (`fill`), which only the app's plan button reads.
+/// is looking for (`fill`), which only the app's plan button reads. A shared Stundenplan
+/// (`share=<code>`) is: the page names its modules for link previews.
 pub fn cache_key(uri: &Uri) -> String {
     let path = match uri.path().trim_end_matches('/') {
         "" => "/",
@@ -185,6 +186,12 @@ pub fn cache_key(uri: &Uri) -> String {
         let tab = path.rsplit('/').next().and_then(catalog::url::ProgramTab::from_segment).unwrap_or_default();
         let url = catalog::url::ProgramUrl::parse("", tab, uri.query().unwrap_or_default());
         format!("{path}{}", catalog::url::ProgramUrl { open: None, full: false, area: None, req: None, ..url }.query())
+    } else if path == catalog::url::STUDYPLAN {
+        // One page for every view of the plan; one for each plan handed on by a link.
+        match catalog::url::StudyplanUrl::parse(uri.query().unwrap_or_default()).share {
+            Some(code) => catalog::timetable::share::path(&code),
+            None => path.to_string(),
+        }
     } else {
         path.to_string()
     }
@@ -351,6 +358,10 @@ mod tests {
         assert_eq!(key("/catalog/module/12104?plan=2026W&fill=p3"), "/catalog/module/12104");
         // The Studienplan is one explanation for every address; the plan is the browser's.
         assert_eq!(key("/studyplan?sem=2026W&view=dates&open=12104&row=148369-aaf38&import=mine"), "/studyplan");
+        let semester = catalog::timetable::semester::SemesterKey::parse("2026W").unwrap();
+        let code = catalog::timetable::share::SharedPlan::of(semester, &["12104".to_string()], None).unwrap().code().unwrap();
+        assert_eq!(key(&format!("/studyplan?view=dates&share={code}&open=12104")), format!("/studyplan?share={code}"));
+        assert_eq!(key("/studyplan?share=not-a-code"), "/studyplan");
         assert_eq!(key("/programs/x/plan?variant=2&open=11101&full=1&area=3&req=4"), "/programs/x/plan?variant=2");
         assert_eq!(key("/programs?q=+%C3%96ko"), "/programs?q=oko");
         assert_eq!(key("/programs/x/plan?utm_source=x"), "/programs/x/plan");

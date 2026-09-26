@@ -126,6 +126,7 @@ pub fn BookmarksPage() -> impl IntoView {
                     title="Merkliste"
                     description="Module der BTU Cottbus-Senftenberg merken und wiederfinden. Die Merkliste liegt nur im eigenen Browser: kein Konto, keine Daten auf dem Server."
                     path=url::BOOKMARKS
+                    card=crate::seo::BOOKMARKS_CARD
                     noindex=true
                 />
                 <aside class="panel sidebar" id="sidebar" aria-label="Merkliste">
