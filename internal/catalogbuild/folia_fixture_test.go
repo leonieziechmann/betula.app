@@ -124,6 +124,30 @@ func TestWriteFoliaFixture(t *testing.T) {
 	languages := []string{"Deutsch", "Deutsch", "Englisch", "Deutsch / Englisch"}
 	exams := []string{"Klausur, 90 min.", "mündliche Prüfung, 30 min.", "Hausarbeit", "Klausur, 120 min. oder mündliche Prüfung", "Vortrag und schriftliche Ausarbeitung"}
 	credits := []string{"6", "6", "5", "8", "4", "10", "3", "12"}
+	// Teaching forms mixed as on the real module pages (a lecture in three modules of five, an
+	// exercise or a seminar in two, a practical in one of six, a project in one of nine), each with
+	// the workload of 6 LP, in turn down the list. It is two nines long, so that the modules with a
+	// lecture event, every ninth (below), come to the first of each nine, which states a lecture.
+	teaching := [][]string{
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 4 SWS", "Übung / 2 SWS", "Selbststudium / 90 Stunden"},
+		{"Seminar / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Projekt / 4 SWS", "Exkursion / 1 SWS", "Selbststudium / 105 Stunden"},
+		{"Vorlesung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Übung / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 1 SWS", "Praktikum / 1 SWS", "Selbststudium / 120 Stunden"},
+		{"Seminar / 4 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Praktikum / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Übung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 4 SWS", "Selbststudium / 120 Stunden"},
+		{"Seminar / 2 SWS", "Projekt / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 1 SWS", "Seminar / 1 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Praktikum / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Tutorium / 1 SWS", "Selbststudium / 105 Stunden"},
+	}
 
 	const total = 1200
 	seed := uint32(7)
@@ -414,7 +438,7 @@ func TestWriteFoliaFixture(t *testing.T) {
 		<tr><td>Leistungspunkte:</td><td>` + credits[next(len(credits))] + `</td></tr>
 		<tr><td>Empfohlene Voraussetzungen:</td><td>keine</td></tr>
 		<tr><td>Zwingende Voraussetzungen:</td><td>keine</td></tr>
-		<tr><td>Lehrformen und Arbeitsumfang:</td><td><ul><li>Vorlesung / 2 SWS</li><li>Übung / 2 SWS</li><li>Selbststudium / 120 Stunden</li></ul></td></tr>
+		<tr><td>Lehrformen und Arbeitsumfang:</td><td><ul><li>` + strings.Join(teaching[i%len(teaching)], "</li><li>") + `</li></ul></td></tr>
 		<tr><td>Modulprüfung:</td><td>Modulabschlussprüfung (MAP)</td></tr>
 		<tr><td>Prüfungsleistung/en für Modulprüfung:</td><td>` + exams[next(len(exams))] + `</td></tr>
 		<tr><td>Bewertung der Modulprüfung:</td><td>Prüfungsleistung - benotet</td></tr>
