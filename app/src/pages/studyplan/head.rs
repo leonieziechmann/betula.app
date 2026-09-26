@@ -96,10 +96,11 @@ fn now_secs() -> u64 {
 
 // ---------- the head ----------
 
-/// The placeholders standing in a semester that count for it: those of this semester alone (a row
-/// spanning several stands under its first, A.4) that no module fills yet. Their number.
+/// The placeholders standing in a semester that nothing counts for yet, in any semester of their
+/// row (a row over several Fachsemester stands in each it was taken over into): the dashed rows
+/// of the list of modules. Their number.
 fn open_placeholders(doc: &PlanDoc, key: SemesterKey) -> usize {
-    doc.placeholders_in(key).into_iter().filter(|p| p.span.0 == p.span.1 && doc.fillers(p.pid).is_empty()).count()
+    doc.placeholders_in(key).into_iter().filter(|p| doc.same_row(p).iter().all(|q| doc.fillers(q.pid).is_empty())).count()
 }
 
 /// The line under the head: the program, then the numbers („Informatik B.Sc. · 5 Module · 1
@@ -1259,7 +1260,8 @@ mod tests {
         assert_eq!(sum_line(None, 1, 0), "1 Modul");
         // Nothing planned: the program alone, or nothing.
         assert_eq!((sum_line(informatik, 0, 0), sum_line(None, 0, 0)), ("Informatik B.Sc.".to_string(), String::new()));
-        // A placeholder counts in its own semester alone, and only while nothing fills it.
+        // A placeholder counts in its own semester, a row over several in each it stands in, and
+        // only while nothing counts for its row.
         let placeholder = |pid: u32, span: (u8, u8), credits: &str| Placeholder {
             pid,
             semester: key("2026W"),
@@ -1276,8 +1278,13 @@ mod tests {
             ..PlanDoc::default()
         };
         assert!(doc.plan(key("2026W"), "12104", 1, Some(4)));
-        assert_eq!(open_placeholders(&doc, key("2026W")), 2);
+        assert_eq!(open_placeholders(&doc, key("2026W")), 3);
         assert_eq!(open_placeholders(&doc, key("2027S")), 0);
+        // Row 2 in the summer as well: open there too, until a module counts for it in either.
+        doc.placeholders.push(Placeholder { pid: 5, semester: key("2027S"), ..placeholder(2, (1, 6), "60") });
+        assert_eq!(open_placeholders(&doc, key("2027S")), 1);
+        assert!(doc.plan(key("2026W"), "12107", 1, Some(2)));
+        assert_eq!((open_placeholders(&doc, key("2026W")), open_placeholders(&doc, key("2027S"))), (2, 0));
     }
 
     #[test]

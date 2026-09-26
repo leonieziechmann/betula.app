@@ -6,7 +6,9 @@
 //     another tab, read garbage as an empty plan, and never reach the server's HTML; the plan is an
 //     area of its own (its tab, the module beside it and in full, „Zurück");
 //   5 without the app: the explanation, no „Plan" in the rail, and on a phone the app's frame;
-//   8 the week's labels: a cut first word ends a label, a module's own slots say their kinds.
+//   8 the week's labels: a cut first word ends a label, a module's own slots say their kinds;
+//   9 the placeholders' boxes: a module chosen for one stands in its box, „Weiteres Modul" while
+//     its row takes more.
 // Needs the snapshot whose current semester is WiSe 2026/27 (the plans below are of that
 // semester); another snapshot skips the blocks with a note. Prints {timings, problems} (block 7)
 // and fails on a page load after takeover, a console error, or a step that does not show up.
@@ -36,6 +38,23 @@ const FS1 = [
   "",
 ].join("\n");
 const MINE_FS1 = "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2026W\n";
+// Its fifth semester as „Importieren" takes it over, three modules chosen since: the
+// Bachelor-Arbeit; Betriebssysteme II for the Komplex Grundlagen der Informatik (10–24 LP over the
+// fifth and sixth Fachsemester), which a summer before counted Foundations of Data Mining for; the
+// Proseminar for „Seminar oder Praktikum" (4 LP).
+const FS5 = [
+  "g\t079-82-2008",
+  "m\t2026S\t11881\t1780000000\t5",
+  "m\t2026W\t12333\t1790000000\t\tplan",
+  "m\t2026W\t12339\t1790000000\t1",
+  "m\t2026W\t12111\t1790000000\t4",
+  "p\t1\t2026W\t079-82-2008\t19\t5-6\t10–24\telective\t\tKomplex Grundlagen der Informatik",
+  "p\t2\t2026W\t079-82-2008\t20\t5-6\t10–24\telective\t\tKomplex Praktische Informatik",
+  "p\t3\t2026W\t079-82-2008\t21\t5-6\t10–24\telective\t\tKomplex Angewandte und Technische Informatik",
+  "p\t4\t2026W\t079-82-2008\t22\t5-6\t4\telective\t\tSeminar oder Praktikum",
+  "p\t5\t2026S\t079-82-2008\t19\t5-6\t10–24\telective\t\tKomplex Grundlagen der Informatik",
+  "",
+].join("\n");
 // What of the plan must never leave the browser: ids of planned modules, of hidden and chosen
 // events, the program's id.
 const SECRETS = ["12104", "12107", "149408", "148369", "079-82-2008"];
@@ -198,6 +217,38 @@ async function withoutTheApp() {
   await context.close();
 }
 
+// ---------- 9: the placeholders' boxes ----------
+// A placeholder a module counts for is a box around it (owner, 2026-09-26: „sehen, dass das ein
+// Bereich ist, wo ein Modul ausgewählt ist"), with what counts for its row in another semester and
+// „Weiteres Modul" while the row takes more (a range of credits); a full one has none, one nothing
+// counts for is the dashed row. The store keeps the row's placeholder of each semester.
+async function areas() {
+  const context = await browser.newContext({ viewport: { width: 1500, height: 900 } });
+  await context.addInitScript(([plan, mine, planText, mineText]) => { if (!localStorage.getItem(plan)) { localStorage.setItem(plan, planText); localStorage.setItem(mine, mineText); } }, [PLAN, MINE, FS5, MINE_FS1]);
+  const page = await context.newPage();
+  watch(page);
+  await page.goto(base + "/studyplan", { waitUntil: "domcontentloaded" });
+  await takeover(page);
+  await page.waitForFunction(() => document.querySelectorAll(".sp-list .sp-area").length === 2, null, { timeout: 8000 }).catch(() => problems.push("the placeholders' boxes do not show"));
+  const seen = await page.evaluate(() => ({
+    own: [...document.querySelectorAll(".sp-list > .sp-row-wrap .mono")].map((id) => id.textContent),
+    boxes: [...document.querySelectorAll(".sp-list > .sp-area")].map((box) => ({
+      head: box.querySelector(".sp-area-head b")?.textContent,
+      small: box.querySelector(".sp-area-head small")?.textContent,
+      modules: [...box.querySelectorAll(".sp-row .mono")].map((id) => id.textContent),
+      more: box.querySelector("a.sp-area-add")?.getAttribute("href") ?? null,
+    })),
+    open: [...document.querySelectorAll(".sp-list > a.open-slot:not(.sp-add) b")].map((b) => b.textContent),
+  }));
+  const [komplex, seminar] = seen.boxes;
+  check(JSON.stringify(seen.own) === JSON.stringify(["12333"]), `the list's own rows: ${JSON.stringify(seen)}`);
+  check(komplex?.head === "Komplex Grundlagen der Informatik" && komplex.small === "5.–6. FS · 12 LP geplant" && JSON.stringify(komplex.modules) === JSON.stringify(["12339", "11881"]) && Boolean(komplex.more?.endsWith("fill=p1")), `the Komplex's box: ${JSON.stringify(komplex)}`);
+  check(seminar?.head === "Seminar oder Praktikum" && JSON.stringify(seminar.modules) === JSON.stringify(["12111"]) && seminar.more === null, `a full box: ${JSON.stringify(seminar)}`);
+  check(JSON.stringify(seen.open) === JSON.stringify(["Komplex Praktische Informatik", "Komplex Angewandte und Technische Informatik"]), `the open placeholders: ${JSON.stringify(seen.open)}`);
+  check((await stored(page, PLAN)) === FS5, "showing the boxes changed what is stored");
+  await context.close();
+}
+
 // ---------- 8: the week's labels ----------
 // A slot's label breaks between words only; a word wider than its slot ends in „…", and a first
 // word that had to be cut ends the label (review 2026-09-25: „Mathe…" over „IT-1"). A module's
@@ -237,7 +288,7 @@ async function labels() {
   }
 }
 
-const blocks = { 3: persistence, 5: withoutTheApp, 8: labels };
+const blocks = { 3: persistence, 5: withoutTheApp, 8: labels, 9: areas };
 const status = await (await fetch(base + "/api/status")).json().catch(() => null);
 const semester = status?.snapshot?.current_semester;
 if (semester !== "2026W") {

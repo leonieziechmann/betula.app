@@ -1366,11 +1366,14 @@ pub(super) fn only_its_events(t: &Timetable, id: &str) -> Vec<u32> {
 }
 
 /// The placeholders a module planned in `sem` can count for: those whose span reaches `sem`, and
-/// the one it counts for now, wherever that stands.
+/// the one it counts for now, wherever that stands. A row over several Fachsemester stands in each
+/// semester it was taken over into; of its placeholders that reach `sem`, the last one is offered,
+/// the one in `sem` where there is one.
 fn placeholder_choices(doc: &PlanDoc, sem: SemesterKey, start: Option<SemesterKey>, fills: Option<u32>) -> Vec<(u32, String)> {
+    let offered = |p: &Placeholder| covers(p, sem, start) && !doc.same_row(p).iter().any(|q| q.semester > p.semester && covers(q, sem, start));
     doc.placeholders
         .iter()
-        .filter(|p| Some(p.pid) == fills || covers(p, sem, start))
+        .filter(|p| Some(p.pid) == fills || offered(p))
         .map(|p| (p.pid, format!("Für „{}“", p.name)))
         .collect()
 }
@@ -1833,5 +1836,13 @@ mod tests {
         assert_eq!(pids(placeholder_choices(&doc, key("2027W"), Some(key("2026W")), Some(1))), vec![1, 2]);
         let first = placeholder_choices(&doc, key("2026W"), None, None);
         assert_eq!(first.first().map(|(_, label)| label.as_str()), Some("Für „Fachübergreifendes Studium“"));
+        // The Anwendungsfach's row taken over into the summer too: there, and after it, that one
+        // is offered.
+        let mut both = doc.clone();
+        both.placeholders.push(Placeholder { pid: 4, semester: key("2027S"), ..placeholder(2, "2026W", (1, 3), "Anwendungsfach") });
+        assert_eq!(pids(placeholder_choices(&both, key("2027S"), Some(key("2026W")), None)), vec![3, 4]);
+        assert_eq!(pids(placeholder_choices(&both, key("2027S"), Some(key("2026W")), Some(2))), vec![2, 3, 4]);
+        assert_eq!(pids(placeholder_choices(&both, key("2027W"), Some(key("2026W")), None)), vec![4]);
+        assert_eq!(pids(placeholder_choices(&both, key("2026W"), Some(key("2026W")), None)), vec![1, 2]);
     }
 }

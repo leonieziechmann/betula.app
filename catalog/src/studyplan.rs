@@ -144,11 +144,14 @@ pub struct Planned {
 pub struct Placeholder {
     /// A number of this browser's own, 1–9999 and unique in the plan; `fill=p<pid>` names it.
     pub pid: u32,
-    /// Where it stands: the first semester of its span that was taken over.
+    /// Where it stands: the semester it was taken over into.
     pub semester: SemesterKey,
     pub program_id: String,
-    /// The row's `PlanEntry::ord`. With the program it makes a placeholder one row of one plan: a
-    /// program has one placeholder per row at most.
+    /// The row's `PlanEntry::ord`. With the program it makes a placeholder one row of one plan,
+    /// and a row has one placeholder per semester at most: a row over several Fachsemester („5.–6.
+    /// FS") stands in each semester one of them was taken over into (owner, 2026-09-26: not in the
+    /// first alone), and what counts for it in all of them together is what the row asks for
+    /// (`PlanDoc::same_row`).
     pub ord: i64,
     /// The Fachsemester the row spans, as the plan states them (`plan::semester_span`).
     pub span: (u8, u8),
@@ -182,8 +185,10 @@ impl SemesterHides {
 impl PlanDoc {
     /// The plan of a stored text. Every line is checked like URL input and dropped alone when it
     /// fails; duplicates count once (the first `m` of a semester and module, the first `p` of a
-    /// pid and of a plan row, the last `a` of a semester); the caps keep the first lines in the
-    /// order of the text. Never fails.
+    /// pid and of a plan row in a semester, the last `a` of a semester); the caps keep the first
+    /// lines in the order of the text. Never fails. (A build before 2026-09-26 keeps the first `p`
+    /// of a plan row in any semester: going back to it drops a row's placeholders in its later
+    /// semesters, and their modules then count for nothing.)
     pub fn restored(text: &str) -> Self {
         let mut doc = PlanDoc::default();
         // `m` lines come before the `p` lines they may name, so what they fill is set at the end.
@@ -355,6 +360,12 @@ impl PlanDoc {
     /// The modules that count for a placeholder, wherever they are planned.
     pub fn fillers(&self, pid: u32) -> Vec<&Planned> {
         self.modules.iter().filter(|m| m.fills == Some(pid)).collect()
+    }
+
+    /// The placeholders of the plan row `p` stands for, `p` among them, by pid: one in every
+    /// semester the row was taken over into.
+    pub fn same_row(&self, p: &Placeholder) -> Vec<&Placeholder> {
+        self.placeholders.iter().filter(|q| q.program_id == p.program_id && q.ord == p.ord).collect()
     }
 
     /// What the visitor chose to see of a semester, with the town of Mein Studiengang. A town left
@@ -630,8 +641,8 @@ impl PlanDoc {
         (self.program.as_deref(), modules, rows, self.hidden.get(&s))
     }
 
-    /// Adds a placeholder in pid order, when it is valid, its pid and its plan row are new and the
-    /// caps allow it.
+    /// Adds a placeholder in pid order, when it is valid, its pid is new, its plan row has none in
+    /// its semester yet, and the caps allow it.
     fn add_placeholder(&mut self, p: Placeholder) -> bool {
         let valid = (1..=url::MAX_PID).contains(&p.pid)
             && url::is_program_id(&p.program_id)
@@ -639,7 +650,7 @@ impl PlanDoc {
             && 1 <= p.span.0
             && p.span.0 <= p.span.1
             && p.span.1 <= MAX_SPAN;
-        let taken = self.placeholders.iter().any(|q| q.pid == p.pid || (q.program_id == p.program_id && q.ord == p.ord));
+        let taken = self.placeholders.iter().any(|q| q.pid == p.pid || (q.program_id == p.program_id && q.ord == p.ord && q.semester == p.semester));
         if !valid || taken || self.placeholders.len() >= MAX_PLACEHOLDERS || !self.admits(p.semester) {
             return false;
         }
@@ -1089,8 +1100,11 @@ fn row_placeholder(program_id: &str, variant: &PlanVariant, entry: &PlanEntry, s
 /// Stundenplan's „Importieren"): every row whose span holds `fs`, placed into `semester`. A row
 /// naming a module plans it, unless the semester holds it already (counted as „schon geplant";
 /// another semester does not count, the timetable is this one); every other row becomes a
-/// placeholder, unless its row has one already (a program has one per row). Rows of prose never
-/// come. `page` as in `import`. So taking the same Fachsemester twice adds nothing.
+/// placeholder, unless its row has one in the semester already. A row over several Fachsemester
+/// comes with each of them, into the semester it is taken over into (owner, 2026-09-26: „nur dem
+/// ersten Semester zugeordnet" was wrong), and its placeholders there count together
+/// (`PlanDoc::same_row`). Rows of prose never come. `page` as in `import`. So taking the same
+/// Fachsemester twice adds nothing.
 pub fn import_fs(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Option<(&PlanVariant, i64)>, semester: SemesterKey, fs: u8) -> Import {
     let parts = std::iter::once((core, page.map(|(_, filled)| filled))).chain(page.map(|(page, _)| (page, None)));
     let mut out = Import::default();
@@ -1119,7 +1133,7 @@ pub fn import_fs(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Opti
                 }
                 None => {
                     let Some(placeholder) = row_placeholder(program_id, variant, entry, semester, &name) else { continue };
-                    if doc.placeholders.iter().any(|p| p.program_id == program_id && p.ord == entry.ord) {
+                    if doc.placeholders.iter().any(|p| p.program_id == program_id && p.ord == entry.ord && p.semester == semester) {
                         out.skipped += 1;
                         continue;
                     }
@@ -1288,6 +1302,40 @@ pub fn placeholder_line(p: &Placeholder, requirement: Option<&SemesterRequiremen
 /// or name (`plan::is_fues`): its modules are the FÜS list, whatever the program's tree says.
 pub fn is_fues_placeholder(p: &Placeholder) -> bool {
     plan::is_fues(&stored_entry(p))
+}
+
+/// Whether a placeholder asks for one module the plan names without a link to the catalog
+/// (Pflicht, Abschlussarbeit, Praktikum: `plan::is_single_module`), not for a choice.
+pub fn is_single_placeholder(p: &Placeholder) -> bool {
+    plan::is_single_module(&stored_entry(p))
+}
+
+/// The most credits a placeholder's row takes: the upper end of a range („10–24" → 24), else the
+/// number it states („7,5"); `None` where it states none.
+pub fn most_credits(p: &Placeholder) -> Option<f64> {
+    let text = p.credits.as_deref()?;
+    let last = text.rsplit(['–', '-']).next()?.trim().replace(',', ".");
+    last.parse::<f64>().ok().filter(|most| most.is_finite() && *most > 0.0)
+}
+
+/// Whether a placeholder's row takes another module, given the credits of the modules that count
+/// for it in all its semesters (`None` where the catalog states none). A row that asks for one
+/// module takes one; a choice takes modules while their credits stay below the most it takes
+/// (owner, 2026-09-26: „die wo das nicht nur ein einziges Modul ist, sondern so ne Range" take
+/// more), so „≥ 6" takes one module of 6 and „10–24" up to 24. Where the row or a module states no
+/// credits, there is no telling, and it takes more.
+pub fn takes_more(p: &Placeholder, chosen: &[Option<f64>]) -> bool {
+    if chosen.is_empty() {
+        return true;
+    }
+    if is_single_placeholder(p) {
+        return false;
+    }
+    let known: Option<f64> = chosen.iter().copied().sum();
+    match (most_credits(p), known) {
+        (Some(most), Some(sum)) => sum + 1e-9 < most,
+        _ => true,
+    }
 }
 
 /// A placeholder as the plan row it was taken from, as far as it keeps it: enough for
@@ -1727,15 +1775,43 @@ mod tests {
     }
 
     #[test]
-    fn a_plan_row_has_one_placeholder() {
-        let text = "p\t1\t2026W\t079-82-2008\t15\t3-3\t6\telective\t\tAnwendungsfach\n\
-            p\t2\t2027S\t079-82-2008\t15\t3-3\t6\telective\t\tAnwendungsfach\n\
-            p\t3\t2027S\t048-82-2022\t15\t3-3\t6\telective\t\tAnwendungsfach\n";
+    fn a_plan_row_has_one_placeholder_per_semester() {
+        let text = "p\t1\t2026W\t079-82-2008\t19\t5-6\t10–24\telective\t\tKomplex Grundlagen der Informatik\n\
+            p\t2\t2027S\t079-82-2008\t19\t5-6\t10–24\telective\t\tKomplex Grundlagen der Informatik\n\
+            p\t3\t2026W\t079-82-2008\t19\t5-6\t10–24\telective\t\tKomplex Grundlagen der Informatik\n\
+            p\t4\t2027S\t048-82-2022\t19\t5-6\t10–24\telective\t\tKomplex Grundlagen der Informatik\n";
         let mut doc = PlanDoc::restored(text);
-        assert_eq!(doc.placeholders.iter().map(|p| (p.pid, p.semester.key())).collect::<Vec<_>>(), [(1, "2026W".to_string()), (3, "2027S".to_string())]);
-        let twin = Placeholder { semester: key("2028S"), ord: 15, ..placeholder() };
-        assert_eq!(doc.apply(&with_placeholders(vec![twin]), 0), (0, 0));
-        assert_eq!(doc.next_pid(), 4);
+        // The row in the winter and in the summer; a second one in the winter is dropped.
+        assert_eq!(doc.placeholders.iter().map(|p| (p.pid, p.semester.key())).collect::<Vec<_>>(), [(1, "2026W".to_string()), (2, "2027S".to_string()), (4, "2027S".to_string())]);
+        assert_eq!(PlanDoc::restored(&doc.stored()), doc);
+        let komplex = Placeholder { ord: 19, span: (5, 6), ..placeholder() };
+        assert_eq!(doc.apply(&with_placeholders(vec![komplex.clone()]), 0), (0, 0), "the winter has it");
+        assert_eq!(doc.apply(&with_placeholders(vec![Placeholder { semester: key("2027W"), ..komplex }]), 0), (0, 1));
+        assert_eq!(doc.next_pid(), 6);
+        // The row's placeholders in all its semesters; another program's row of the same `ord` is
+        // another row.
+        let first = doc.placeholders[0].clone();
+        assert_eq!(doc.same_row(&first).iter().map(|p| p.pid).collect::<Vec<_>>(), [1, 2, 5]);
+        assert_eq!(doc.same_row(&doc.placeholders[2].clone()).iter().map(|p| p.pid).collect::<Vec<_>>(), [4]);
+    }
+
+    #[test]
+    fn a_choice_takes_modules_up_to_its_credits() {
+        let row = |credits: Option<&str>, kind: &str| Placeholder { credits: credits.map(str::to_string), kind: Some(kind.to_string()), ..placeholder() };
+        let (komplex, anwendungsfach, open, thesis) = (row(Some("10–24"), "elective"), row(Some("6"), "elective"), row(None, "elective"), row(Some("12"), "thesis"));
+        assert_eq!((most_credits(&komplex), most_credits(&anwendungsfach), most_credits(&open)), (Some(24.0), Some(6.0), None));
+        assert_eq!(most_credits(&row(Some("7,5"), "elective")), Some(7.5));
+        // Nothing counts for it yet: every row takes a module.
+        assert!([&komplex, &anwendungsfach, &open, &thesis].iter().all(|p| takes_more(p, &[])));
+        // „10–24": modules up to 24.
+        assert!(takes_more(&komplex, &[Some(6.0)]) && takes_more(&komplex, &[Some(6.0), Some(12.0)]));
+        assert!(!takes_more(&komplex, &[Some(12.0), Some(12.0)]) && !takes_more(&komplex, &[Some(18.0), Some(8.0)]));
+        // „≥ 6": one module of 6; one of 5 leaves room.
+        assert!(!takes_more(&anwendungsfach, &[Some(6.0)]) && takes_more(&anwendungsfach, &[Some(5.0)]));
+        // One module where the row asks for one; no telling where credits are missing.
+        assert!(!takes_more(&thesis, &[Some(6.0)]));
+        assert!(takes_more(&open, &[Some(30.0)]) && takes_more(&anwendungsfach, &[None]));
+        assert!(is_single_placeholder(&thesis) && !is_single_placeholder(&komplex));
     }
 
     #[test]
@@ -2144,6 +2220,34 @@ town	cottbus
         assert!(both.modules.contains(&(key("2027S"), "10010".to_string())));
     }
 
+    #[test]
+    fn a_row_over_several_fachsemester_comes_with_each_of_them() {
+        let module = |ord: i64, id: &str, span: (i64, i64)| PlanEntry { module_id: Some(id.to_string()), ..plan_row(ord, &format!("Modul {id}"), span, "") };
+        let entries = vec![
+            module(1, "10005", (5, 5)),
+            PlanEntry { credits: None, min_credits: Some(10.0), max_credits: Some(24.0), ..plan_row(2, "Komplex Praktische Informatik", (5, 6), "") },
+            module(3, "10006", (6, 6)),
+        ];
+        let core = plan_variants(&entries, &[]).remove(0);
+        let (w, s, program) = (key("2026W"), key("2027S"), "079-82-2008");
+        let mut doc = PlanDoc::default();
+        // The fifth Fachsemester into the winter, the sixth into the summer: the row stands in both.
+        let fifth = import_fs(&doc, program, &core, None, w, 5);
+        assert_eq!(fifth.placeholders.iter().map(|p| (p.semester, p.ord, p.span)).collect::<Vec<_>>(), [(w, 2, (5, 6))]);
+        assert_eq!(doc.apply(&fifth, 1), (1, 1));
+        let sixth = import_fs(&doc, program, &core, None, s, 6);
+        let placed: Vec<(SemesterKey, i64)> = sixth.placeholders.iter().map(|p| (p.semester, p.ord)).collect();
+        assert_eq!((sixth.modules.clone(), placed, sixth.skipped), (vec![(s, "10006".to_string())], vec![(s, 2)], 0));
+        assert_eq!(doc.apply(&sixth, 2), (1, 1));
+        let winter = doc.placeholders_in(w)[0].clone();
+        assert_eq!(doc.same_row(&winter).iter().map(|p| p.semester).collect::<Vec<_>>(), [w, s]);
+        // Each Fachsemester again adds nothing; the sixth into the winter only what the winter
+        // lacks.
+        assert_eq!(import_fs(&doc, program, &core, None, s, 6).skipped, 2);
+        let again = import_fs(&doc, program, &core, None, w, 6);
+        assert_eq!((again.modules.len(), again.placeholders.len(), again.skipped), (1, 0, 1));
+    }
+
     /// The design's pinned imports (C.19) on the snapshot they were taken from; on any snapshot,
     /// every plan of every program taken over twice adds nothing the second time, reads back
     /// whole, and finds each of its placeholders' rows again.
@@ -2427,5 +2531,16 @@ town	cottbus
         let fs3 = import_fs(&doc, "079-82-2008", plan, None, w, 3);
         assert_eq!(fs3.modules.iter().map(|(_, id)| id.as_str()).collect::<Vec<_>>(), ["11787", "12202", "11213"]);
         assert_eq!(fs3.placeholders.iter().map(|p| p.ord).collect::<Vec<_>>(), [15]);
+
+        // The fifth into the winter, the sixth into the summer after it: the three Komplexe (10–24
+        // LP) and „Seminar oder Praktikum" span both, and stand in both.
+        let (mut late, s) = (PlanDoc::default(), key("2027S"));
+        let fs5 = import_fs(&late, "079-82-2008", plan, None, w, 5);
+        assert_eq!(fs5.placeholders.iter().map(|p| (p.ord, p.span, p.credits.as_deref())).collect::<Vec<_>>(), [(19, (5, 6), Some("10–24")), (20, (5, 6), Some("10–24")), (21, (5, 6), Some("10–24")), (22, (5, 6), Some("4"))]);
+        late.apply(&fs5, 1);
+        let fs6 = import_fs(&late, "079-82-2008", plan, None, s, 6);
+        assert_eq!(fs6.placeholders.iter().map(|p| (p.semester, p.ord)).collect::<Vec<_>>(), [(s, 19), (s, 20), (s, 21), (s, 22)]);
+        late.apply(&fs6, 2);
+        assert_eq!(import_fs(&late, "079-82-2008", plan, None, s, 6).placeholders.len(), 0);
     }
 }
