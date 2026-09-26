@@ -12,6 +12,7 @@
 
 mod access;
 mod api;
+mod birch;
 mod busy;
 mod cache;
 mod cards;
@@ -103,9 +104,11 @@ fn init_logging(config: &Config) {
 async fn access_log(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let started = Instant::now();
     let method = request.method().clone();
-    // A calendar feed's address carries somebody's plan (`/calendar/<code>.ics`): the log, kept 30
-    // days, writes every path under `/calendar/` as one fixed text, valid code or not.
-    let path = catalog::timetable::subscription::redacted_path(request.uri().path()).to_string();
+    // A calendar feed's address carries somebody's plan (`/calendar/<code>.ics`), and so does the
+    // card of a shared Stundenplan (`/cards/studyplan/<code>.png`): the log, kept 30 days, writes
+    // every path under them as one fixed text, valid code or not. (A page's query, where a shared
+    // plan's code travels, is never written.)
+    let path = catalog::timetable::share::redacted_path(catalog::timetable::subscription::redacted_path(request.uri().path())).to_string();
     let mut response = next.run(request).await;
 
     let headers = response.headers_mut();
@@ -210,6 +213,9 @@ pub fn router(state: AppState) -> Router {
         .route(app::MANIFEST, get(api::manifest))
         .route("/cards/module/{file}", get(api::module_card))
         .route("/cards/program/{file}", get(api::program_card))
+        .route(app::seo::BOOKMARKS_CARD, get(api::bookmarks_card_png))
+        .route(app::seo::STUDYPLAN_CARD, get(api::studyplan_card_png))
+        .route("/cards/studyplan/{file}", get(api::shared_plan_card))
         // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
         // (axum refuses two routes for one path at startup).
         .route("/calendar/{file}", get(api::calendar))

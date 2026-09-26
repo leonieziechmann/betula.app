@@ -33,6 +33,7 @@ mod export;
 mod head;
 mod import;
 mod modules;
+mod share;
 mod side;
 mod week;
 
@@ -44,6 +45,7 @@ use catalog::timetable::day::Day;
 use catalog::timetable::model::Timetable;
 use catalog::timetable::select::Selection;
 use catalog::timetable::semester::SemesterKey;
+use catalog::timetable::share::{self as shared_plan, SharedPlan};
 use catalog::url::{self, PlanView, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
@@ -304,6 +306,7 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
     };
     view! {
         <div class="sp-fold">
+            <share::ShareOffer ctx/>
             <SemesterHead ctx/>
             {move || match failed.get() {
                 Some(error) => view! { <ErrorState error/> }.into_any(),
@@ -355,11 +358,38 @@ pub(super) fn StorageHint() -> impl IntoView {
     }
 }
 
-/// A page of one visitor: the same address and the same explanation for everybody, for no index.
+/// A page of one visitor: the same address and the same explanation for everybody, for no index,
+/// with the Stundenplan's own picture. A plan handed on by a link (`share=`, `share.rs`) is the
+/// exception: its tags name its semester and modules, and its picture shows them
+/// (`/cards/studyplan/<code>.png`), so the preview of the link says what was shared. What the code
+/// names comes from the snapshot, on the server as in the app.
 #[component]
 fn PlanSeo() -> impl IntoView {
-    view! {
-        <Seo title=TITLE description="Dein Stundenplan: Termine, Prüfungen und Kalender-Abo der geplanten Module." path=url::STUDYPLAN noindex=true/>
+    let location = use_location();
+    let source = use_source().ok();
+    // The tags change with the code alone, not with every view of the plan.
+    let code = Memo::new(move |_| StudyplanUrl::parse(&location.search.get()).share);
+    move || {
+        let shared = code.get().and_then(|code| {
+            let plan = SharedPlan::from_code(&code)?;
+            let data = source.as_ref()?.run(|db| pages::shared_plan(db, &plan)).ok()??;
+            (!data.modules.is_empty()).then_some((code, data))
+        });
+        match shared {
+            Some((code, data)) => {
+                let names = data.modules.iter().map(|module| module.name.as_str()).collect::<Vec<_>>().join(", ");
+                let count = crate::format::modules(i64::try_from(data.modules.len()).unwrap_or(i64::MAX));
+                let description = format!("{count}: {names}. In Betula öffnen und in den eigenen Stundenplan übernehmen.");
+                view! {
+                    <Seo title=format!("Stundenplan · {}", data.label) description path=shared_plan::path(&code) card=shared_plan::card_path(&code) noindex=true/>
+                }
+                .into_any()
+            }
+            None => view! {
+                <Seo title=TITLE description="Dein Stundenplan: Termine, Prüfungen und Kalender-Abo der geplanten Module." path=url::STUDYPLAN card=crate::seo::STUDYPLAN_CARD noindex=true/>
+            }
+            .into_any(),
+        }
     }
 }
 

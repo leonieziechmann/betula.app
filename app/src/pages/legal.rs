@@ -19,6 +19,9 @@
 //!   `assets/boot.js`, `assets/sw.js`);
 //! - „Kalender-Abo": `catalog::timetable::subscription` (what a code carries), `server/src/api.rs`,
 //!   the ways to subscribe in `pages/studyplan/export.rs`;
+//! - „Stundenplan teilen": `catalog::timetable::share` (what a code carries), the page's tags and
+//!   its picture (`pages/studyplan/mod.rs`, `server/src/api.rs`), the link and the offer
+//!   (`pages/studyplan/share.rs`), Folia's log without the code (`access_log` in `server/src/main.rs`);
 //! - „Cookies": the gate's cookie (`server/src/access.rs`), the only one;
 //! - „Namen von Lehrenden": `v_module_lecturer` (docs/schema-v2.md), and how long Radix keeps what
 //!   it read (`--event-retention`, `--archive-grace`, docs/operations.md).
@@ -114,13 +117,14 @@ static IMPRINT: [Part; 3] = [
 ];
 
 /// The parts of the privacy notice, in the order of the page.
-pub static PRIVACY: [Part; 11] = [
+pub static PRIVACY: [Part; 12] = [
     Part { id: "kurz", heading: "Kurz gesagt", body: privacy_summary },
     Part { id: "verantwortlich", heading: "Verantwortlich", body: privacy_controller },
     Part { id: "server", heading: "Wo Betula läuft", body: privacy_hosting },
     Part { id: "protokoll", heading: "Zugriffsprotokoll", body: privacy_access_log },
     Part { id: "browser", heading: "Speicher im Browser", body: privacy_browser },
     Part { id: "kalender", heading: "Kalender-Abo", body: privacy_calendar },
+    Part { id: "teilen", heading: "Stundenplan teilen", body: privacy_share },
     Part { id: "cookies", heading: "Cookies", body: privacy_cookies },
     Part { id: "e-mail", heading: "E-Mail", body: privacy_email },
     Part { id: "lehrende", heading: "Namen von Lehrenden", body: privacy_lecturers },
@@ -299,7 +303,7 @@ fn privacy_browser() -> AnyView {
             <li>"eine Kopie des Katalogs, die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert."</li>
         </ul>
         <p>"Das alles liegt nur auf deinem Gerät; ich kann es nicht einsehen, und ein Konto gibt es nicht. Ein anderes Gerät hat seine eigenen Daten. Der Link, mit dem du deine Merkliste auf ein anderes Gerät bringst, trägt sie hinter dem „#“, und diesen Teil einer Adresse sendet kein Browser an einen Server."</p>
-        <p>"Den Server erreicht nur, was in der Adresse einer Seite steht, wenn du sie aufrufst, neu lädst oder teilst. Eine Adresse sagt, was gerade angezeigt wird, aber nie, was auf deiner Merkliste oder in deinem Stundenplan steht: etwa den Studiengang, nach dem der Katalog gefiltert ist (auch „Mein Studiengang“, wenn du den Katalog darüber öffnest), das Modul, das neben Merkliste oder Stundenplan offen ist, oder Semester und Platzhalter, für die du Module suchst. Solche Adressen stehen wie alle anderen im Zugriffsprotokoll. Deinen Stundenplan bekommt der Server nur, wenn du ihn als Kalender abonnierst."</p>
+        <p>"Den Server erreicht nur, was in der Adresse einer Seite steht, wenn du sie aufrufst, neu lädst oder teilst. Eine Adresse sagt, was gerade angezeigt wird, aber nie, was auf deiner Merkliste oder in deinem Stundenplan steht: etwa den Studiengang, nach dem der Katalog gefiltert ist (auch „Mein Studiengang“, wenn du den Katalog darüber öffnest), das Modul, das neben Merkliste oder Stundenplan offen ist, oder Semester und Platzhalter, für die du Module suchst. Solche Adressen stehen wie alle anderen im Zugriffsprotokoll. Deinen Stundenplan bekommt der Server nur, wenn du ihn als Kalender abonnierst oder einen Link zum Teilen weitergibst und dieser aufgerufen wird."</p>
         <p>"Die Speicherung ist für die Funktionen nötig, die du nutzt, und braucht deshalb keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG). Löschen kannst du alles jederzeit in den Einstellungen deines Browsers, indem du die Websitedaten von betula.app löschst."</p>
     }
     .into_any()
@@ -331,6 +335,35 @@ fn privacy_calendar() -> AnyView {
             </div>
         </dl>
         <p>"Eine heruntergeladene .ics-Datei entsteht in deinem Browser und erreicht den Server nicht."</p>
+    }
+    .into_any()
+}
+
+fn privacy_share() -> AnyView {
+    view! {
+        <p>"Du kannst einen Link zu deinem Stundenplan kopieren und weitergeben. Er beginnt mit betula.app/studyplan?share= und enthält als Code das Semester, die geplanten Module in ihrer Reihenfolge und den Studiengang, dessen Modulkürzel verwendet werden; was du ausgeblendet oder ausgewählt hast, enthält er nicht."</p>
+        <dl class="legal-facts">
+            <div>
+                <dt>"Ablauf"</dt>
+                <dd>"Wer den Link öffnet, sieht die Module und kann sie in den eigenen Stundenplan übernehmen. Schickst du ihn über einen Messenger oder ein soziales Netzwerk, ruft dieses, je nach Dienst von deinem Gerät oder von den Servern des Anbieters, die Seite und ihr Vorschaubild ab, auf dem die Module stehen. Betula erstellt Seite und Bild bei jedem Abruf aus dem Code und den aktuellen Daten und speichert dazu nichts."</dd>
+            </div>
+            <div>
+                <dt>"Protokolle"</dt>
+                <dd>"Im Zugriffsprotokoll steht jeder Abruf mit der vollständigen Adresse und der IP-Adresse, von der er kommt; wie alles dort wird er nach 7 Tagen gelöscht. Das Protokoll der Anwendung enthält den Code nicht."</dd>
+            </div>
+            <div>
+                <dt>"Rechtsgrundlage"</dt>
+                <dd>"Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir das Teilen anzubieten, das du selbst auslöst."</dd>
+            </div>
+            <div>
+                <dt>"Weitergabe"</dt>
+                <dd>"Betula selbst gibt nichts weiter. Wer den Link kennt, sieht die Module: Gib ihn nur an Menschen weiter, denen du deinen Plan zeigen möchtest."</dd>
+            </div>
+            <div>
+                <dt>"Beenden"</dt>
+                <dd>"Ein weitergegebener Link lässt sich nicht zurückholen. Er zeigt aber nur, was beim Kopieren geplant war; was du danach änderst, erreicht ihn nicht."</dd>
+            </div>
+        </dl>
     }
     .into_any()
 }

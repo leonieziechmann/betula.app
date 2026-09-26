@@ -2,8 +2,9 @@
 //! base 66, with two check characters at the end.
 //!
 //! For what has to travel in a link and nowhere else: the marked modules on their way to another
-//! device (`/bookmarks#m=…`, `app/src/bookmarks.rs`), and the timetable a calendar subscribes to
-//! (`/calendar/<code>.ics`, `catalog::timetable::subscription`).
+//! device (`/bookmarks#m=…`, `app/src/bookmarks.rs`), the timetable a calendar subscribes to
+//! (`/calendar/<code>.ics`, `catalog::timetable::subscription`), and a Stundenplan handed on
+//! (`/studyplan?share=…`, `catalog::timetable::share`).
 //! A value becomes a code of the unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`, RFC
 //! 3986), which no browser, server or chat program escapes or cuts, and comes back as the same value:
 //!
