@@ -24,7 +24,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -432,6 +432,27 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   leichter, sieht trotzdem komisch aus"; the width wants content, not air.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added).
+- **„Nach oben" (owner, 2026-09-26: „wenn man im Modulkatalog ne weile gescrolled hat, … richtig
+  schwierig wieder nach oben zu kommen"; `ui::ToTop`, `enhance.js`):** one round button for every
+  page, in the corner of what scrolls. On a wide screen that is the page — what the ground takes
+  for the page: the catalog's list, the marked modules, a framed page — and the button stands
+  16 px inside its panel, left of a module or an area that floats beside it (`--preview`, now
+  declared on the view so that the button can use it), and goes up with the view when the ground
+  comes; the wheel over it turns the page under it. On a phone it is the window, and the button
+  floats 12 px above the bottom bar at its right edge (44 px), under the bars, the sheets and the
+  skeleton of a page. It shows once the page is more than a screen down — the page is asked where
+  it is when it scrolls and when another page stands there, never for a skeleton, so the frame
+  after a click (R21) lays out nothing ahead of time for it — and takes it to its top: at once to
+  a screen above the top, then gliding the rest in a third of a second, a frame at a time. Not the
+  browser's own smooth scrolling: over the virtual list it would build every row it passes and end
+  where the list makes up for a row taller than estimated (a script's scroll ends a smooth one);
+  written frame by frame, the glide arrives at the top whatever the list did in between. A wheel,
+  a touch, a click or a key stops it; where less motion is wanted it is up at once. The list
+  follows as it follows any scroll (`page` leaves the address), a module beside it stays, and on a
+  wide screen the ground goes back down (the page has left its end). Pressed with the keyboard,
+  the focus goes to the start of the page (`#content`, where „Zum Inhalt springen" leads), not to
+  where the button was; Tab from the end of a page meets it before the ground. It needs
+  JavaScript (R15); the classic site before the takeover has it as well.
 - **Tokens:** `app/assets/app.css` starts with the token block (colors, radii, shadows); everything
   below uses tokens only. One look, light and dark: dark follows the system, the switch in the rail
   overrides it (`data-theme` on `<html>`, remembered in `localStorage`). Accent color only for
@@ -1609,6 +1630,21 @@ beside it 8 px above it, the panel cut off and not scrolled by the wheel, upward
 leaving first, a short list bringing it at once without its rows moving, the end of the whole
 virtual list going up with it, a question opened and a page opened from the ground sending it
 away, Tab bringing it up; on a phone the ground at the end of the page.
+
+```bash
+cd e2e && node top.mjs
+```
+
+drives „Nach oben": on a wide screen the catalog's whole list (out of sight at its top and less
+than a screen down, in the corner of the list far down; the wheel over it turning the list; a click
+bringing the list to its top with its first row, `page` gone from the address, the button gone
+and no page loaded; a wheel stopping the way up; with a module beside the list the button left of
+it and the module staying; Enter on it, and Tab going on from the start of the page; the module's
+page opened from far down starting without it, and Back to the list far down bringing it again), a
+long page with the ground in (the button above it, the ground going back down), less motion (up at
+once); on a phone the window (the button 12 px above the bottom bar, a tap), and a page far down
+before the app takes over (the app's own button there after it); the classic site with the app
+kept away; without JavaScript no button.
 
 ```bash
 cd e2e && node pwa.mjs

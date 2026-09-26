@@ -284,7 +284,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .pill b { color: var(--text); font-weight: 600; }
 .pill .icon { width: 16px; height: 16px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
-.content { position: relative; min-height: 0; min-width: 0; }
+/* How wide a module or an area is that floats beside the page (`.work > .detail`): here and not on
+   `.work`, because „Nach oben" stands beside it too and is no part of `.work`. Its 100 % is the
+   width of what uses it: `.work`, or the view for the button, and the two are as wide. */
+.content { position: relative; min-height: 0; min-width: 0; --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px)); }
 /* A page ends where the panels beside it end: the same 8 px above the window's edge or the ground
    (1 px keeps the ring of the panels in it). */
 .page { height: 100%; overflow-y: auto; padding: 1px; scrollbar-width: thin; }
@@ -363,6 +366,36 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
 }
 
+/* ---------- back to the top ---------- */
+/* „Nach oben" (`ui::ToTop`; owner, 2026-09-26: after a while in the catalog's list it was hard to
+   get back to its top). Round and floating like the arrows of the start page's carousel, in the
+   corner of what scrolls; enhance.js shows it once the page is more than a screen down
+   (`data-shown`) and takes the page up. On a wide screen it stands in the corner of the view,
+   16 px inside the page's panel, and left of a module or an area that floats beside the page,
+   moving along as that one comes and goes (at once while its edge is dragged); when the ground
+   comes up, the view gets shorter and the button goes up with it. On a phone it floats above the
+   bottom bar, a finger's size, under the bars, the sheets and the skeleton of a page on its way. */
+.to-top {
+  position: absolute; z-index: 12; right: 16px; bottom: 16px; width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--panel); box-shadow: var(--shadow-pop); color: var(--text-2);
+  opacity: 0; visibility: hidden; transform: translateY(10px) scale(.9);
+  transition: opacity .15s, transform .2s var(--ease), visibility 0s .2s, right .18s var(--ease), background .12s, color .12s;
+}
+.to-top[data-shown] { opacity: 1; visibility: visible; transform: none; transition: opacity .15s, transform .3s var(--spring), right .18s var(--ease), background .12s, color .12s; }
+.to-top:hover { background: var(--panel-2); color: var(--text); }
+.to-top:active { transform: scale(.94); }
+.resizing .to-top { transition: none; }
+/* A keyboard that pressed it goes on from the start of the page (enhance.js): the view itself
+   takes the focus there, and a frame around all of it would say nothing. */
+.content:focus { outline: none; }
+@media (min-width: 901px) {
+  .content:has(> .work > .detail) > .to-top { right: calc(var(--preview) + 16px); }
+}
+@media (max-width: 900px) {
+  /* 12 px above the bottom bar (10 px from the edge, 62 px high), at its right edge. */
+  .to-top { position: fixed; z-index: 18; right: 10px; bottom: calc(84px + env(safe-area-inset-bottom)); width: 44px; height: 44px; }
+}
+
 .panel { background: var(--panel); border-radius: var(--r-panel); box-shadow: var(--shadow-panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .panel-head { display: flex; align-items: center; gap: 8px; min-height: 50px; padding: 8px 8px 6px 14px; }
 .panel-head h2 { font-size: 15px; font-weight: 650; letter-spacing: -.015em; margin-right: auto; }
@@ -385,10 +418,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .label { font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
 
 /* ---------- catalog: three panels ---------- */
-.work {
-  position: relative; height: 100%; display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); gap: var(--gap); min-height: 0;
-  --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px));
-}
+.work { position: relative; height: 100%; display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); gap: var(--gap); min-height: 0; }
 /* The preview does not take room from the list: it floats above it, docked to the right edge. */
 .work > .detail { position: absolute; z-index: 10; top: 0; right: 0; bottom: 0; width: var(--preview); box-shadow: var(--shadow-pop); animation: preview-in .18s var(--ease); }
 /* Resize handles: an invisible zone much wider than the grip it shows, around the edge it moves.
@@ -2281,4 +2311,4 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
-@media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }
+@media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }

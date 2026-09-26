@@ -286,6 +286,21 @@ pub fn Shortcut(keys: &'static str) -> impl IntoView {
     view! { <JsOnly><kbd>{keys}</kbd></JsOnly> }
 }
 
+/// „Nach oben" (owner, 2026-09-26: after a while in the catalog's list it was hard to get back to
+/// its top): one button for every page, floating in the corner of what scrolls — the page on a
+/// wide screen (left of a module or an area that floats beside it), the window on a phone, above
+/// the bottom bar. `enhance.js` shows it once the page is more than a screen down and takes the
+/// page back to its top. It needs JavaScript (R15), and the server's page is the same for
+/// everybody (R9), so it is part of every page and stays out of sight until it has a way to go.
+#[component]
+pub fn ToTop() -> impl IntoView {
+    view! {
+        <button class="to-top js-only" id="to-top" type="button" data-action="to-top" title="Nach oben" aria-label="Nach oben">
+            <Icon name="arrow-up"/>
+        </button>
+    }
+}
+
 /// An icon of the set (`crate::icons`): a pointer into the sprite the server serves once, linked
 /// with the build of the page like the stylesheet (`crate::asset`). Unknown names render an empty
 /// box, never panic.
