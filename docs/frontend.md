@@ -1664,8 +1664,11 @@ needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails wi
 Without a crawl, a synthetic one serves for development and for the browser checks below
 (`internal/catalogbuild/folia_fixture_test.go`: 1,200 modules with varied facets, 115 programs
 with trees, areas and degree labels, Informatik B.Sc. and Elektrotechnik B.Sc. with validated
-plans, a few events — numbers made up, nothing of it says anything about the BTU; the checks
-that compare pinned or real-data numbers fail on it, everything else runs):
+plans, a lecture for every ninth module — dated in the semester the build date makes the current
+one, spread over its week in each campus's grid of times, a few in the A or the B weeks only, so
+the finder and the Stundenplan compare real slots whenever it is made; numbers made up, nothing
+of it says anything about the BTU; the checks that compare pinned or real-data numbers fail on
+it, everything else runs):
 
 ```bash
 BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteFoliaFixture -count=1
