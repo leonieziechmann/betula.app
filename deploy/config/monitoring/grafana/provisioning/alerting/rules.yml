@@ -1103,3 +1103,14 @@ groups:
         annotations:
           summary: "{{ $labels.job }} cannot be scraped"
           description: "Prometheus has not been able to scrape {{ $labels.job }} ({{ $labels.instance }}) for 5 minutes. traefik: is the edge stack running and attached to the monitoring network? integrations/unix or integrations/cadvisor: Alloy. Check docker stack services monitoring."
+
+# Rules this file provisioned once and no longer defines (see the header). Grafana deletes them on
+# every provisioning run; a uid that is already gone is a no-op there, so an entry may stay.
+# orgId is the first key of an entry: 91-verify-stacks.sh counts the lines "- uid: " as defined rules.
+#   betula-btu-error-logs, betula-btu-unstructured-errors: queried {stack="btu"}; renamed to
+#   betula-error-logs and betula-unstructured-errors in b391757 (2026-09-20).
+deleteRules:
+  - orgId: 1
+    uid: betula-btu-error-logs
+  - orgId: 1
+    uid: betula-btu-unstructured-errors
