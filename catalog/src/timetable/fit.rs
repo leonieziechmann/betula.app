@@ -1,5 +1,5 @@
-//! The finder („Passt in meinen Plan"): the modules of a semester that fit a Studienplan without
-//! taking its last free Übung.
+//! The finder („Passt in meinen Stundenplan"): the modules of a semester that fit a Studienplan
+//! without taking its last free Übung.
 //!
 //! A candidate is every module with a dated row in the semester, teaching or exam, built as a plan
 //! of its own: its own SWS decide its choices, the visitor's hidden kinds apply, and a module taught

@@ -13,7 +13,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use catalog::filter::{CatalogQuery, FitsFilter, ProgramScope};
+use catalog::filter::{CatalogQuery, ProgramScope};
 use catalog::labels::{Campus, Code, Rhythm};
 use catalog::pages::{self, BookmarksData, StudyplanData};
 use catalog::studyplan::PlanDoc;
@@ -35,6 +35,7 @@ use crate::bookmarks::Bookmarks;
 use crate::format;
 use crate::myprogram::MineResolved;
 use crate::nav;
+use crate::pages::catalog::finder_on;
 use crate::ui::Icon;
 
 /// The tones of the plan's modules, in the order of `app.css`'s `t-…` classes: the first planned
@@ -70,15 +71,16 @@ fn day_name(day: Day) -> String {
     format!("{} {}", weekday_name(day.weekday()), day.german())
 }
 
-/// Where „+ Modul" leads: the catalog's modules that fit the semester (`fits=`), within „Mein
-/// Studiengang" where the stored program is in the snapshot (the one kind of address its slug may
-/// stand in, A.10). Tracked.
+/// Where „+ Modul" leads: the catalog's modules that fit the semester (`fits=`, comparing what the
+/// finder compared the last time it was on, `finder_on`), within „Mein Studiengang" where the
+/// stored program is in the snapshot (the one kind of address its slug may stand in, A.10).
+/// Tracked.
 pub(super) fn add_module_href(resolved: Option<MineResolved>, key: SemesterKey) -> String {
     let program = resolved
         .and_then(|resolved| resolved.0.get())
         .filter(|info| info.exact)
         .map(|info| ProgramScope { program_slug: info.program.slug, ..Default::default() });
-    let query = CatalogQuery { program, fits: Some(FitsFilter::all(&key.key())), ..Default::default() };
+    let query = CatalogQuery { program, fits: Some(finder_on(key)), ..Default::default() };
     CatalogUrl { query, ..Default::default() }.path()
 }
 

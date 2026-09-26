@@ -79,6 +79,20 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     handler (the router turns the click into a navigation), work without JavaScript, carry
     `rel="nofollow"` and `data-noscroll`, and the space bar flips them like a checkbox.
     „One of a few" (list, plan semester, duration, years) is a segmented row of the same links.
+  - **„Passt in meinen Stundenplan"** (the finder; until 2026-09-26 „Passt in meinen Plan", which
+    read as the Regelstudienplan, and so the line under a module's week: „Passt in deinen
+    Stundenplan (WiSe 2026/27)") is a toggle with more under it: switched on, the classes it
+    compares show below it (Vorlesungen, Übungen, Prüfungen, auch ohne Termine), and a chevron at
+    its end says so, like the head of an accordion: pointing right while it is off, down while
+    they show (`aria-expanded`). It names no semester (owner, 2026-09-26: „nur mit Passt in
+    meinen Stundenplan ohne das semester"): which one it checks, its tag above the list says once
+    it is on. Where the panel is too narrow for the label on one line (at its narrowest), the label
+    takes a second one instead of being cut off. Switched on again it compares what it compared the
+    last time (owner, 2026-09-26: „nicht immer resettet"), from the Stundenplan's „+ Modul" and
+    „Modul finden" as well: the browser keeps the choice as the address writes it
+    (`localStorage` `betula.finder`, e.g. `fits-skip=exam&fits-undated=1`; nothing while it
+    compares everything), a view setting like the width of the panel (R13), read back like an
+    address (`pages::catalog::finder_on`).
   - **Pickers** (`app/src/combobox.rs`: program, area, lecturers, department) have a search that
     forgives typos and knows initials and abbreviations (`catalog::fuzzy`: „infomatik bsc"), arrow
     keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
@@ -992,7 +1006,7 @@ URL, UI state never triggers a query; keyed lists; one source of truth; design t
 inline styles; keyboard and phone usable. Added in phase 0/1:
 
 - **R9. Server HTML is user-independent.** Merkliste, Studienplan, Mein Studiengang and the
-  finder switch („Passt in meinen Plan") follow the Merkliste: they live in the browser, the
+  finder switch („Passt in meinen Stundenplan") follow the Merkliste: they live in the browser, the
   server renders them empty, and they are applied after the takeover, never during the first
   render (passed modules will do the same).
 - **R10. Shortcuts are written next to their button** (`kbd`): Esc closes the filter sheet or the
