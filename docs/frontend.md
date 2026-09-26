@@ -1094,6 +1094,21 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   control that shows where the visitor is shows where the app is going as well (`Pending::to`,
   `search_on`, `path`), and what takes a new page or list to compute has its skeleton
   (`Pending::waits`, `skeleton`). A new page gets a `pending::Shape`, or one that looks like it.
+- **R22. A render on the server makes nothing that is bound to its thread** (2026-09-26). A
+  page renders in a task that can go on on another worker thread: `leptos_meta` waits a tick
+  for its tags (a little task of its own that wakes the render again), and after three such
+  hand-overs in a row tokio puts the woken task where an idle worker can take it over
+  (`MAX_LIFO_POLLS_PER_TICK`). The page's reactive owner is cleaned up at the end of the render,
+  on whatever thread that is, and a value made with `StoredValue::new_local` or
+  `RwSignal::new_local` (anything kept in a `SendWrapper`) panics when it is dropped on another
+  thread than it was made on. `Pending` kept the router's navigation (an `Rc`) in such a value.
+  The warm-up, which renders page after page in one task, died on it after 307 of 5,235 pages in
+  one run and 515 in the next: a race, within a few hundred pages under load, while on an idle
+  workstation a run could get through. A visitor's render is handed over once and stayed on its
+  thread (none of 5,235 failed under the same load), but nothing promises that. What needs such
+  a value is the browser's: make it only with the feature `csr` and leave it `None` on the
+  server, as `Pending`'s own part and `nav::watch_size` do; what the server renders stays the
+  same.
 
 ## 3. Running it
 
@@ -1428,6 +1443,9 @@ queue grew to 15 s). Now:
 - **Warm-up** (`server/src/warm.rs`): after every new snapshot and after a start, every page of the
   sitemap is rendered into the cache while the server is idle — 22 s on one processor here, about a
   minute on the server — so crawlers walking the sitemap and visitors after a deploy meet no render.
+  Each page renders in a task of its own: a render that panics costs that page, logged as
+  `cache.warm_page_failed`, and the warm-up goes on (before, one ended it until the next restart,
+  R22).
 - `/api/db` hands every browser the same bytes from memory.
 
 Measured on three processors (the new CPU limit, `deploy/stacks/betula.yml`): 197 filtered lists a
@@ -1489,7 +1507,7 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` (a code names somebody's plan) |
 | WARN | `http.request` with `cache=busy` | a request turned away with 503 because every place was taken ("Load"): no error of the server |
 | WARN | `server.busy` | the same, at most once a minute: `what` (`render`, `calendar`), `places`, `wait_ms`, `turned_away` since the start. Often: more processors, or a crawler to slow down |
-| INFO | `cache.warmed` | the pages of the sitemap are in the cache (`pages`, `rendered`, `kept`, `ms`, `generation`) |
+| INFO | `cache.warmed` | the pages of the sitemap are in the cache (`pages`, `rendered`, `kept`, `other`, `failed`, `ms`, `generation`) |
 | WARN | `cache.warm_failed`, `snapshot.choices_failed` | the sitemap could not be listed for the warm-up / the pickers of the catalog are loaded per page again |
 | DEBUG | `http.request` with `path=/livez` | the container's own probe, twice a minute |
 | DEBUG | `calendar.served` | a calendar feed was made (`bytes`, `ms`; never the code or the modules) |
@@ -1504,6 +1522,7 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | ERROR | `snapshot.outdated` | the active snapshot is of an older schema than this build reads (`schema_version`, `needs`): pages that need the newer columns fail, browsers do not start the app on it. Served all the same; Radix has to export a new one (with `RADIX_CRAWL=off` it never does by itself) |
 | ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
 | ERROR | `http.request` with `status >= 500`, `render.failed`, `snapshot.unreadable` | a request failed |
+| ERROR | `cache.warm_page_failed` | a page of the sitemap panicked while it was rendered for the warm-up (`path`, `generation`, `error` with the panic's message); it is left out and the warm-up goes on (R22) |
 | ERROR | `card.failed` | a card's text could not be read or the card could not be drawn; the preview got the standard picture |
 | ERROR | `calendar.failed` | a calendar feed could not be read from the snapshot (or its task failed); the calendar service got a 500 and asks again later |
 | ERROR | `server.start_failed`, `server.failed` | the server cannot run |

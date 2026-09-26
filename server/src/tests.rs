@@ -853,6 +853,43 @@ async fn the_warm_up_renders_the_pages_of_the_sitemap() {
     assert!(!crate::warm::warm(&pages, &store, store.generation() + 1, &some).await);
 }
 
+/// A render that panics costs the warm-up that page, not the pages after it; its place and its
+/// key are free again, and the log names it. (On 2026-09-26 one ended the warm-up after a few
+/// hundred pages, and no later snapshot was warmed until a restart.)
+#[tokio::test(flavor = "multi_thread")]
+async fn the_warm_up_goes_on_after_a_render_that_panics() {
+    use futures_util::StreamExt;
+
+    let store = store_with("warm-panic", &snapshot_file());
+    let state = state(store.clone());
+    let page = |text: &'static str| move || async move { axum::response::Html(text) };
+    // Half a page, then a panic, where the render panicked: at the end of its stream, when its
+    // reactive owner was cleaned up.
+    let panics = || async {
+        let half = futures_util::stream::iter([Ok::<_, std::io::Error>(axum::body::Bytes::from_static(b"<!DOCTYPE html><p>half a page"))]);
+        let end = futures_util::stream::poll_fn(|_| -> std::task::Poll<Option<Result<axum::body::Bytes, std::io::Error>>> { panic!("a render that panics") });
+        ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], Body::from_stream(half.chain(end)))
+    };
+    let pages = Router::new()
+        .route("/a", get(page("<p>a</p>")))
+        .route("/b", get(panics))
+        .route("/c", get(page("<p>c</p>")))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), crate::cache::html_cache))
+        .with_state(state.clone());
+    let paths = ["/a", "/b", "/c"].map(String::from);
+    let log = Captured::default();
+    let logging = log.start();
+    assert!(crate::warm::warm(&pages, &store, store.generation(), &paths).await);
+    // Neither its place nor its key is held: asked for again, it is rendered again (and panics).
+    let again = tokio::time::timeout(std::time::Duration::from_secs(10), crate::warm::warm(&pages, &store, store.generation(), &paths[1..2])).await;
+    drop(logging);
+    assert_eq!(again.ok(), Some(true));
+    assert_eq!(state.cache.size().0, 2, "the pages before and after it are in the cache");
+    let log = log.text();
+    assert_eq!(log.matches("cache.warm_page_failed").count(), 2, "{log}");
+    assert!(log.contains("path=/b") && log.contains("a render that panics") && log.contains("rendered=2") && log.contains("failed=1"), "{log}");
+}
+
 /// The icons of a page point into one sprite, served once, with the build of the page.
 #[tokio::test(flavor = "multi_thread")]
 async fn icons_point_into_the_sprite() {

@@ -45,7 +45,7 @@ pub async fn run(pages: Router, store: Arc<SnapshotStore>) {
 /// Renders `paths` into the cache of `generation`. False when a newer snapshot came in between.
 pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths: &[String]) -> bool {
     let started = Instant::now();
-    let (mut rendered, mut kept, mut other) = (0usize, 0usize, 0usize);
+    let (mut rendered, mut kept, mut other, mut failed) = (0usize, 0usize, 0usize, 0usize);
     for path in paths {
         loop {
             if store.generation() != generation {
@@ -54,9 +54,18 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
             let Ok(request) = Request::builder().uri(path.as_str()).header(header::ACCEPT, "text/html").header(header::ACCEPT_ENCODING, "gzip").extension(WarmUp).body(Body::empty()) else {
                 break;
             };
-            let Ok(response) = pages.clone().oneshot(request).await;
-            let state = response.headers().get("x-cache").and_then(|value| value.to_str().ok()).unwrap_or_default().to_string();
-            let _ = axum::body::to_bytes(response.into_body(), 64 * 1024 * 1024).await;
+            // Each page in a task of its own: a render that panics costs this page, not the rest
+            // of the warm-up. On 2026-09-26 one ended it after a few hundred pages, and no later
+            // snapshot was warmed until a restart (a value of the browser's in `app::pending`,
+            // dropped on another thread).
+            let state = match tokio::spawn(ask(pages.clone(), request)).await {
+                Ok(state) => state,
+                Err(error) => {
+                    failed += 1;
+                    tracing::error!(component = "cache", event = "cache.warm_page_failed", generation, path = %path, error = %error, "a page of the sitemap failed to render and is left out of the warm-up");
+                    break;
+                }
+            };
             match state.as_str() {
                 // Visitors first: try again once the server is idle.
                 crate::busy::BUSY => tokio::time::sleep(Duration::from_millis(200)).await,
@@ -83,8 +92,18 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
         rendered,
         kept,
         other,
+        failed,
         ms = started.elapsed().as_millis() as u64,
         "the pages of the sitemap are in the cache"
     );
     true
+}
+
+/// Asks the pages for one of them and reads it to the end (the cache takes it on the way): what
+/// the cache says it did (`x-cache`).
+async fn ask(pages: Router, request: Request<Body>) -> String {
+    let Ok(response) = pages.oneshot(request).await;
+    let state = response.headers().get("x-cache").and_then(|value| value.to_str().ok()).unwrap_or_default().to_string();
+    let _ = axum::body::to_bytes(response.into_body(), 64 * 1024 * 1024).await;
+    state
 }
