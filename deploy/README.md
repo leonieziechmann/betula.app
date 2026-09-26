@@ -227,7 +227,8 @@ only to a service whose task is healthy:
 3. The other colour keeps running. It is the **rollback** (`55-switch.sh canary`, seconds), and
    Traefik sends it the host's requests while the live one has no healthy task, so even an
    in-place update of the live colour leaves no gap. Once the new one has proven itself:
-   `docker stack rm canary`; its volumes stay until you remove them.
+   `docker stack rm canary`; its volumes stay until you remove them. Grafana's rule „Service has
+   no running container" leaves a colour removed this way alone, no silence needed.
 
 Only with `RADIX_CRAWL=off` in both files (two Radix that crawl would ask the university for
 everything twice) and the same `FOLIA_ACCESS_GATE`; `50-app.sh` refuses anything else. The next
