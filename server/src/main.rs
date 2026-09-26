@@ -17,6 +17,8 @@ mod busy;
 mod cache;
 mod cards;
 mod config;
+mod launch;
+mod logo;
 mod snapshot;
 #[cfg(test)]
 mod tests;
@@ -47,6 +49,8 @@ pub struct AppState {
     pub cache: Arc<HtmlCache>,
     /// The pictures of link previews, one per module and program (`cards`).
     pub cards: Arc<cards::Cards>,
+    /// The launch screens of the installed app on iOS (`launch`).
+    pub launch: Arc<launch::Launch>,
     /// Changes with every start of the process, so browsers drop pages and assets of an older build.
     pub build_id: Arc<str>,
     pub stale_after: Option<Duration>,
@@ -210,7 +214,10 @@ pub fn router(state: AppState) -> Router {
         .route(app::ICON_192, get(api::icon_192))
         .route(app::ICON_512, get(api::icon_512))
         .route(app::ICON_MASKABLE, get(api::icon_maskable))
+        .route(app::ICON_MASKABLE_LARGE, get(api::icon_maskable_large))
+        .route(app::ICON_MONOCHROME, get(api::icon_monochrome))
         .route(app::MANIFEST, get(api::manifest))
+        .route("/assets/launch/{file}", get(api::launch_screen))
         .route("/cards/module/{file}", get(api::module_card))
         .route("/cards/program/{file}", get(api::program_card))
         .route(app::seo::BOOKMARKS_CARD, get(api::bookmarks_card_png))
@@ -335,6 +342,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         store,
         cache: Arc::new(HtmlCache::new(config.html_cache_mb * 1024 * 1024)),
         cards: Arc::new(cards::Cards::new(config.card_cache_mb * 1024 * 1024, cards::Cards::places_for_this_machine())),
+        launch: Arc::default(),
         build_id: format!("{}-{started_at:x}", env!("CARGO_PKG_VERSION")).into(),
         stale_after: config.stale_after(),
         public_url: config.public_url.trim_end_matches('/').into(),

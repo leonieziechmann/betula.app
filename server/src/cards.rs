@@ -54,10 +54,11 @@ const INK_2: &str = "#4b5565";
 const INK_3: &str = "#8790a0";
 const GREY: &str = "#f1f2f4";
 
-static INTER_400: &[u8] = include_bytes!("../assets/inter-400.ttf");
-static INTER_500: &[u8] = include_bytes!("../assets/inter-500.ttf");
-static INTER_600: &[u8] = include_bytes!("../assets/inter-600.ttf");
-static INTER_800: &[u8] = include_bytes!("../assets/inter-800.ttf");
+// The launch screens of iOS (`launch`) are set in the same cuts.
+pub(crate) static INTER_400: &[u8] = include_bytes!("../assets/inter-400.ttf");
+pub(crate) static INTER_500: &[u8] = include_bytes!("../assets/inter-500.ttf");
+pub(crate) static INTER_600: &[u8] = include_bytes!("../assets/inter-600.ttf");
+pub(crate) static INTER_800: &[u8] = include_bytes!("../assets/inter-800.ttf");
 
 /// What a card says. Its hash, with the season, is the card's identity in the cache and its ETag.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
