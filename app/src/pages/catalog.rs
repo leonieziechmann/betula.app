@@ -5,9 +5,11 @@
 //! links to the list they lead to, so the page works without JavaScript; the browser app adds
 //! what links cannot do (pickers with a search, the credit slider).
 //!
-//! „Passt in meinen Plan" (`fits=<semester>`) is a filter like „Gemerkt": the address says only
-//! that it is on and against which semester, and the browser app works out from the Studienplan
-//! it keeps which modules fit (`with_fits`); the server's page, which knows no plan, lists none.
+//! „Passt in meinen Stundenplan" (`fits=<semester>`) is a filter like „Gemerkt": the address says
+//! only that it is on and against which semester, and the browser app works out from the
+//! Studienplan it keeps which modules fit (`with_fits`); the server's page, which knows no plan,
+//! lists none. What it compares is kept in the browser for the next time it is switched on
+//! (`finder_on`).
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -342,8 +344,8 @@ fn addressed(query: &CatalogQuery) -> CatalogQuery {
     CatalogQuery { only_ids: None, without_ids: Vec::new(), fits_ids: None, ..query.clone() }
 }
 
-/// What „Passt in meinen Plan" makes of a query (A.7): the query with the modules the browser
-/// worked out from the plan (`fits_ids`), and what the list says about them.
+/// What „Passt in meinen Stundenplan" makes of a query (A.7): the query with the modules the
+/// browser worked out from the plan (`fits_ids`), and what the list says about them.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Fitted {
     query: CatalogQuery,
@@ -469,12 +471,41 @@ fn semester_label(key: &str) -> String {
     SemesterKey::parse(key).map(SemesterKey::label).unwrap_or_else(|| key.to_string())
 }
 
-/// The semester „Passt in meinen Plan" checks against once it is switched on: that of the
+/// The semester „Passt in meinen Stundenplan" checks against once it is switched on: that of the
 /// placeholder the list is looked through for (`fill`), while the plan holds it, else the current
 /// one. So the switch turned off and on again checks the semester „Einplanen" then plans into
 /// (`studyplan::target_semester`), not another one.
 fn finder_semester(doc: &PlanDoc, fill: Option<u32>, current: SemesterKey) -> SemesterKey {
     fill.and_then(|pid| doc.placeholders.iter().find(|placeholder| placeholder.pid == pid)).map_or(current, |placeholder| placeholder.semester)
+}
+
+/// Where this browser remembers what „Passt in meinen Stundenplan" compares, for the next time it
+/// is switched on (owner, 2026-09-26: the choice below it is kept, not reset with every switch):
+/// the part of the address that says it (`fits-skip=exam&fits-undated=1`), nothing while it
+/// compares everything. A view setting like the width of the panel (R13): never in server HTML.
+const FINDER_KEY: &str = "betula.finder";
+
+/// The finder switched on for `semester` (the catalog's switch, „+ Modul" and „Modul finden" of the
+/// Stundenplan): comparing what it compared when this browser had it on last, everything the
+/// first time. The server's page knows nothing of it (R9).
+pub(crate) fn finder_on(semester: SemesterKey) -> FitsFilter {
+    finder_kept(nav::local_get(FINDER_KEY).as_deref(), semester)
+}
+
+/// `finder_on` with what is stored. Read as the address is read (what comes from storage is
+/// checked like what comes from a URL, R20), and a choice that compares no class at all is none.
+fn finder_kept(stored: Option<&str>, semester: SemesterKey) -> FitsFilter {
+    let all = FitsFilter::all(&semester.key());
+    let Some(stored) = stored.filter(|stored| !stored.is_empty()) else { return all };
+    CatalogUrl::parse(&format!("fits={}&{stored}", all.semester)).query.fits.filter(|kept| kept.lectures || kept.exercises || kept.exams).unwrap_or(all)
+}
+
+/// What `FINDER_KEY` keeps of the finder: its pairs of the address without the semester, written
+/// by the address's own codec. Empty while it compares everything (`nav::local_set` then takes
+/// the key out).
+fn finder_text(fits: &FitsFilter) -> String {
+    let only_finder = CatalogUrl { query: CatalogQuery { fits: Some(fits.clone()), ..CatalogQuery::default() }, ..CatalogUrl::default() };
+    only_finder.to_query_string().split('&').filter(|pair| !pair.starts_with("fits=")).collect::<Vec<_>>().join("&")
 }
 
 /// What to leave out when nothing fits: the classes compared besides the lectures, which have to
@@ -726,14 +757,14 @@ fn List(
             // Nothing fits the plan: the classes that could be left out of the comparison.
             (false, Some(fits), true) if finder_emptied => view! {
                 <div class="state">
-                    <p class="state-title">{format!("Kein Modul passt in deinen Plan für {}", semester_label(&fits.semester))}</p>
+                    <p class="state-title">{format!("Kein Modul passt in deinen Stundenplan für {}", semester_label(&fits.semester))}</p>
                     <p>{fit_advice(fits)}</p>
                 </div>
             }.into_any(),
             (false, Some(_), false) => view! {
                 <div class="state">
-                    <p class="state-title">"Deinen Studienplan kennt nur dein Browser"</p>
-                    <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier die Module, die in deinen Studienplan passen."</p>
+                    <p class="state-title">"Deinen Stundenplan kennt nur dein Browser"</p>
+                    <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier die Module, die in deinen Stundenplan passen."</p>
                     <a class="btn secondary" href=without_fits.clone()>"Ohne diesen Filter"</a>
                 </div>
             }.into_any(),
@@ -1315,8 +1346,9 @@ pub(crate) fn Row(
         let (bookmarks, id) = (Bookmarks::expect(), row.id.clone());
         Memo::new(move |_| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&id)))
     });
-    // With „Passt in meinen Plan" on: how the module fits, where it fits only in part („Übung 1
-    // von 3 frei") or could not be checked. One memo a row (R5); the catalog's list alone has it.
+    // With „Passt in meinen Stundenplan" on: how the module fits, where it fits only in part
+    // („Übung 1 von 3 frei") or could not be checked. One memo a row (R5); the catalog's list
+    // alone has it.
     let fit_note = finder.map(|finder| {
         let id = row.id.clone();
         Memo::new(move |_| finder.view.with(|view| view.note_of(&id, !has_events)))
@@ -1586,11 +1618,16 @@ fn Chip(
     /// What the chip means, where its label says it short.
     #[prop(optional)]
     title: Option<&'static str>,
-    /// A chip of „Passt in meinen Plan", which only the browser app can act on: part of the
+    /// A chip of „Passt in meinen Stundenplan", which only the browser app can act on: part of the
     /// server's page all the same, kept in its place but not shown until the app runs (`.fit-chip`,
     /// R9, R15), so the filters below it do not move at the takeover.
     #[prop(optional)]
     finder: bool,
+    /// Switched on, it shows more choices under it (the classes the finder compares): a chevron
+    /// at its end says so, like the head of an accordion, and points down while they show
+    /// (owner, 2026-09-26: „so dass man sieht dass dann noch mehr kommt").
+    #[prop(optional)]
+    opens: bool,
 ) -> impl IntoView {
     let read = toggle.read.clone();
     let state = Memo::new(move |_| query.with(|q| read(q)));
@@ -1634,6 +1671,7 @@ fn Chip(
                 Tri::With => "true",
                 Tri::Without => "mixed",
             }
+            aria-expanded=move || opens.then(|| if state.get() == Tri::With { "true" } else { "false" })
             aria-label=move || match state.get() {
                 Tri::Without => format!("{name}: ausgeschlossen"),
                 _ => name.clone(),
@@ -1649,6 +1687,7 @@ fn Chip(
             <span class="box"><Icon name="check"/><Icon name="x"/></span>
             {icon.map(|name| view! { <Icon name=name/> })}
             <span class="chip-label">{label}{small.map(|small| view! { " "<small>{small}</small> })}</span>
+            {opens.then(|| view! { <Icon name="chevron-right" class="chip-more"/> })}
         </a>
     }
 }
@@ -2049,12 +2088,14 @@ fn Filters(
         .into_any()
     };
 
-    // ---- „Passt in meinen Plan": only the browser app can act on it, as only it knows the plan.
+    // ---- „Passt in meinen Stundenplan" (until 2026-09-26 „Passt in meinen Plan", which read as
+    // the Regelstudienplan): only the browser app can act on it, as only it knows the plan.
     // The server's page has its chips all the same, the same for everybody (the semester is the
     // snapshot's), kept in their place but not shown until the app runs (R9, R15): the chip does
     // not fit beside „Bestätigt", and the filters below would move at the takeover.
     // Switched on it checks against the semester „Einplanen" would plan into: a placeholder's
-    // („Modul finden", `fill`) or the snapshot's current one.
+    // („Modul finden", `fill`) or the snapshot's current one, comparing what it compared the last
+    // time it was on (`finder_on`).
     let current = use_source().ok().and_then(|source| source.run(queries::meta).ok()).and_then(|meta| meta.current_semester).and_then(|key| SemesterKey::parse(&key));
     let plan = Studyplan::expect().filter(|_| APP);
     let fits_on = Memo::new(move |_| query.with(|q| q.fits.is_some()));
@@ -2068,12 +2109,22 @@ fn Filters(
             excludes: false,
             ..Toggle::new(
                 |q| if q.fits.is_some() { Tri::With } else { Tri::Off },
-                move |q, state| q.fits = (state == Tri::With).then(|| FitsFilter::all(&aim().key())),
+                move |q, state| q.fits = (state == Tri::With).then(|| finder_on(aim())),
             )
         };
         let checked = Signal::derive(move || query.with(|q| q.fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester))).unwrap_or_else(aim).short());
-        // No icon: the chip needs the width for the semester it names.
-        view! { <Chip query open fill toggle label="Passt in meinen Plan" icon=None small=checked finder=true/> }
+        // No icon: the chip needs the width for its label and the semester it names, which goes
+        // under the label where the panel has no room beside it. The chevron at its end says
+        // that the classes it compares open under it.
+        view! { <Chip query open fill toggle label="Passt in meinen Stundenplan" icon=None small=checked finder=true opens=true/> }
+    });
+    // What it compares while it is on is what it compares when it is switched on next, here and
+    // from the Stundenplan (`finder_on`): kept whenever it changes, in a phone's sheet as well.
+    let compared = Memo::new(move |_| query.with(|q| q.fits.as_ref().map(finder_text)));
+    Effect::new(move |_| {
+        if let Some(text) = compared.get() {
+            nav::local_set(FINDER_KEY, &text);
+        }
     });
     // While it is on: which classes it compares (all by default, and one at least: comparing
     // none would list every module of the semester as fitting), and whether modules without a
@@ -2416,6 +2467,28 @@ mod tests {
         assert_eq!(finder_semester(&doc, None, current), current);
         assert_eq!(finder_semester(&doc, Some(7), current), current);
         assert_eq!(finder_semester(&PlanDoc::default(), Some(2), current), current);
+    }
+
+    #[test]
+    fn switched_on_again_the_finder_compares_what_it_compared_last() {
+        let summer = SemesterKey::parse("2027S").unwrap();
+        // The first time: every class compared, modules without dates left out.
+        assert_eq!(finder_kept(None, summer), FitsFilter::all("2027S"));
+        // What it compared is kept as the address says it, and holds for any semester.
+        let chosen = FitsFilter { exams: false, undated: true, ..FitsFilter::all("2026W") };
+        assert_eq!(finder_text(&chosen), "fits-skip=exam&fits-undated=1");
+        assert_eq!(finder_kept(Some(&finder_text(&chosen)), summer), FitsFilter { semester: "2027S".to_string(), ..chosen });
+        let lectures_only = FitsFilter { exercises: false, exams: false, ..FitsFilter::all("2026W") };
+        assert_eq!(finder_kept(Some(&finder_text(&lectures_only)), summer), FitsFilter { semester: "2027S".to_string(), ..lectures_only });
+        // Everything compared keeps nothing: the key goes.
+        assert_eq!(finder_text(&FitsFilter::all("2026W")), "");
+        assert_eq!(finder_kept(Some(""), summer), FitsFilter::all("2027S"));
+        // Read as an address is read: what it does not know is left out, another semester or
+        // another filter changes nothing, and a choice that compares nothing is none.
+        let odd = finder_kept(Some("fits-skip=EXAM,yoga&fits=1999W&marked=only&fits-undated=yes"), summer);
+        assert_eq!(odd, FitsFilter { exams: false, ..FitsFilter::all("2027S") });
+        assert_eq!(finder_kept(Some("fits-skip=lecture,exercise,exam"), summer), FitsFilter::all("2027S"));
+        assert_eq!(finder_kept(Some("&&=#?"), summer), FitsFilter::all("2027S"));
     }
 
     #[test]

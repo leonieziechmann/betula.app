@@ -452,9 +452,16 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .chip:hover { box-shadow: inset 0 0 0 1px var(--text-3); color: var(--text); text-decoration: none; }
 .chip:active { transform: scale(.98); }
 .chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* „Passt in meinen Plan" names the semester it checks against, quieter than what it does: by
-   size and weight alone, as a fainter colour fell below 4.5:1 on the chip. */
+/* „Passt in meinen Stundenplan" names the semester it checks against, quieter than what it does:
+   by size and weight alone, as a fainter colour fell below 4.5:1 on the chip. Where the panel has
+   no room for both on one line, the semester goes under the label instead of being cut off. */
 .chip-label small { font-size: 12px; font-weight: 500; }
+.chip.fit-chip .chip-label { white-space: normal; padding: 5px 0; line-height: 1.3; }
+.chip.fit-chip .chip-label small { white-space: nowrap; }
+/* A chip that opens more under it while it is on (the classes the finder compares): a chevron at
+   its end, like the head of an accordion, pointing down while they show. */
+.chip > .chip-more { margin-left: auto; transition: transform .2s var(--ease); }
+.chip[data-state="with"] > .chip-more { transform: rotate(90deg); }
 .box { flex: none; width: 15px; height: 15px; border-radius: 4px; display: inline-grid; place-items: center; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text-3); color: transparent; transition: background .12s, box-shadow .12s; }
 .box .icon { grid-area: 1 / 1; width: 11px; height: 11px; stroke-width: 3.2; display: none; }
 .chip[data-state="with"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
@@ -467,13 +474,13 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .chip[data-state="without"] > .icon { color: inherit; }
 .chip[data-state="without"] .box, .box.without { background: var(--no); box-shadow: none; color: var(--panel); }
 .chip[data-state="without"] .box .icon:last-child, .box.without .icon { display: block; }
-/* A chip that has to stay as it is for now (the last class „Passt in meinen Plan" compares): no
-   link, and nothing that looks like one. */
+/* A chip that has to stay as it is for now (the last class „Passt in meinen Stundenplan"
+   compares): no link, and nothing that looks like one. */
 .chip[aria-disabled="true"] { cursor: default; }
 .chip[aria-disabled="true"]:active { transform: none; }
-/* The chips of „Passt in meinen Plan": part of the server's page (R9, the same for everybody),
-   kept in their place but not shown until the app runs, and gone without JavaScript (R15) — the
-   pattern of .mark-toggle, so the filters below them do not move at the takeover. */
+/* The chips of „Passt in meinen Stundenplan": part of the server's page (R9, the same for
+   everybody), kept in their place but not shown until the app runs, and gone without JavaScript
+   (R15) — the pattern of .mark-toggle, so the filters below them do not move at the takeover. */
 .fit-chip { visibility: hidden; }
 .app .fit-chip { visibility: visible; }
 html:not(.js) .fit-chip { display: none; }
@@ -580,7 +587,7 @@ html:not(.js) .fit-chip { display: none; }
 .count-label { color: var(--text-2); font-weight: 520; }
 .list-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
 .active-filters { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px 0 8px; min-height: 8px; }
-/* „Passt in meinen Plan" against a semester without dates: nothing could be checked. */
+/* „Passt in meinen Stundenplan" against a semester without dates: nothing could be checked. */
 .list-head > .fit-line { margin: 0 0 8px; }
 .tag { min-height: 26px; padding: 0 4px 0 10px; border-radius: 7px; display: inline-flex; align-items: center; gap: 4px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; font-weight: 560; color: var(--text); }
 /* With a semester chosen: what the plan asks for in it besides the modules it places there, a

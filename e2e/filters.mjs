@@ -5,8 +5,8 @@
 // credit slider → width of the panel (limits, localStorage) → the area picker and the list of a
 // program (plan order, the semester at the row, the second page reached by scrolling, the note of
 // a semester scrolling away, confirmed dates only) → nothing of the panel moves at the takeover
-// (the chips of „Passt in meinen Plan" are the app's, but part of the server's page) → the same
-// panel without JavaScript.
+// (the chips of „Passt in meinen Stundenplan" are the app's, but part of the server's page) → the
+// same panel without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -357,9 +357,9 @@ check(number(inArea) > 0 && number(inArea) < number(all), `area: ${inArea} modul
 check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by picking an area");
 await step("area: the tag takes it out again", () => page.click('.tag:has(em:text("Bereich")) a'), () => !location.search.includes("area="));
 
-// ---- nothing of the panel moves at the takeover. „Passt in meinen Plan" needs the plan, which only
-// the app knows, and does not fit beside „Bestätigt": the server's page has its chips all the same,
-// invisible until the app runs, so every group below stands where it stood.
+// ---- nothing of the panel moves at the takeover. „Passt in meinen Stundenplan" needs the plan,
+// which only the app knows, and does not fit beside „Bestätigt": the server's page has its chips
+// all the same, invisible until the app runs, so every group below stands where it stood.
 const groupTops = (p) => p.evaluate(() => [...document.querySelectorAll("#filters .fgroup")].map((g) => `${g.querySelector(".label")?.textContent.trim().slice(0, 12)} ${g.getBoundingClientRect().top.toFixed(1)}`));
 for (const path of ["/catalog", "/catalog?fits=2026W&fits-skip=exam"]) {
   const server = await browser.newContext({ viewport: { width: 1500, height: 900 } });
@@ -377,7 +377,7 @@ for (const path of ["/catalog", "/catalog?fits=2026W&fits-skip=exam"]) {
   await after.evaluate(() => document.fonts.ready);
   const is = await groupTops(after);
   check(was.length > 5 && was.join() === is.join(), `takeover (${path}): the filter groups stood at ${was.join(", ")} and stand at ${is.join(", ")}`);
-  check(hidden === 0, `takeover (${path}): ${hidden} chips of „Passt in meinen Plan" show before the app runs`);
+  check(hidden === 0, `takeover (${path}): ${hidden} chips of „Passt in meinen Stundenplan" show before the app runs`);
   await app.close();
 }
 
@@ -388,7 +388,7 @@ await still.goto(base + "/catalog?exam=written&not-exam=presentation", { waitUnt
 check((await still.getAttribute('#filters a.chip:has-text("Vortrag")', "data-state")) === "without", "no JS: the excluded chip is not shown as excluded");
 check((await still.locator('#filters select[name="program"] option').count()) > 50, "no JS: no plain program select");
 // What needs JavaScript (shortcut hints, drag handles, the slider, the theme switch, the chips of
-// „Passt in meinen Plan") is not shown.
+// „Passt in meinen Stundenplan") is not shown.
 await still.goto(base + "/catalog?open=11101", { waitUntil: "domcontentloaded" });
 const leftovers = await still.evaluate(() => [...document.querySelectorAll("kbd, .resizer, .slider, .scale, .theme-toggle, .keys, .load-more, .fit-chip")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
 check(leftovers.length === 0, `no JS: still visible: ${leftovers.join(", ")}`);

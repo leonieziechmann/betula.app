@@ -15,7 +15,8 @@
 //!   the rate limit per address (`deploy/config/traefik/dynamic/middlewares.yml`); Folia's own log
 //!   without addresses, 30 days (`access_log` in `server/src/main.rs`);
 //! - „Speicher im Browser": R20 (docs/frontend.md) and the stores (`bookmarks`, `studyplan`,
-//!   `myprogram`, `tabs`, `assets/enhance.js`, `assets/boot.js`, `assets/sw.js`);
+//!   `myprogram`, `tabs`, what the finder compares in `pages/catalog`, `assets/enhance.js`,
+//!   `assets/boot.js`, `assets/sw.js`);
 //! - „Kalender-Abo": `catalog::timetable::subscription` (what a code carries), `server/src/api.rs`,
 //!   the ways to subscribe in `pages/studyplan/export.rs`;
 //! - „Cookies": the gate's cookie (`server/src/access.rs`), the only one;
@@ -293,7 +294,7 @@ fn privacy_browser() -> AnyView {
             <li>"deine Merkliste,"</li>
             <li>"deinen Stundenplan mit geplanten Modulen, Platzhaltern, Ausgeblendetem und ausgewählten Terminen, deine gespeicherten Pläne und die Adressen deiner Kalender-Abos,"</li>
             <li>"„Mein Studiengang“ mit Studienrichtung, Studienbeginn und Standort,"</li>
-            <li>"Einstellungen, etwa hell oder dunkel und die Breite der Seitenleisten,"</li>
+            <li>"Einstellungen, etwa hell oder dunkel, die Breite der Seitenleisten und was „Passt in meinen Stundenplan“ vergleicht,"</li>
             <li>"für die laufende Sitzung, wo du in jedem Bereich zuletzt warst und wie weit du gescrollt hast,"</li>
             <li>"eine Kopie des Katalogs, die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert."</li>
         </ul>
