@@ -18,10 +18,13 @@
 //!                                      tabs, which of several study plans is shown, which module
 //!                                      stands beside it, and whether that module fills the page
 //!                                      (`ProgramUrl`)
-//! `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>`   the visitor's Studienplan
-//!                                      (`StudyplanUrl`): which semester and view, the module and
-//!                                      Termin beside it, the Regelstudienplan being taken over.
-//!                                      What is planned lives in the browser, never in a URL
+//! `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]`   the
+//!                                      visitor's Studienplan (`StudyplanUrl`): which semester and
+//!                                      view, the module and Termin beside it, the Regelstudienplan
+//!                                      being taken over. What is planned lives in the browser,
+//!                                      never in a URL, but for a plan handed on by a link
+//!                                      (`share`, `timetable::share`), which the page offers to
+//!                                      take over and whose link preview names its modules
 //! `/calendar/<code>.ics`               a calendar subscription, served by the server (not a page):
 //!                                      the code says semester, modules and what is hidden
 //!                                      (`timetable::subscription`)
