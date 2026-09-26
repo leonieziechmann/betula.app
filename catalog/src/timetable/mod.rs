@@ -25,5 +25,6 @@ pub mod occur;
 pub mod rowkey;
 pub mod select;
 pub mod semester;
+pub mod share;
 pub mod subscription;
 pub mod views;

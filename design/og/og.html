@@ -4,10 +4,18 @@
 <meta charset="utf-8">
 <title>Betula: picture for link previews (Open Graph)</title>
 <style>
-/* 1200 × 630. Render it to app/assets/og.png:
-   node e2e/shot.mjs file:///<repo>/design/og/og.html app/assets/og.png 1200 630
+/* 1200 × 630, one picture per season (the crown follows the year, as along the site's top).
+   Render them to app/assets/og-<season>.png:
+     for s in spring summer autumn winter; do
+       node e2e/shot.mjs "file:///<repo>/design/og/og.html?season=$s" app/assets/og-$s.png 1200 630
+     done
    The dots are a cut of the program map (catalog::graph), drawn by hand into this file: the
-   picture says "programs and how they hang together", it is not data. */
+   picture says "programs and how they hang together", it is not data.
+   The crown hangs from the top of the card as it hangs from the top of the site, 1.5 times as
+   large (as on the cards the server draws, server/src/cards.rs), in the season's tone of the light
+   theme: a head of its own whose clearing fits this wordmark (<season>-og-head.svg), then the
+   site's tile. The masks are pictures here, coloured by a filter: a CSS mask does not load from
+   a file:// page. */
 @font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; src: url("../../app/assets/inter-latin.woff2") format("woff2"), local("Inter"); }
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 1200px; height: 630px; }
@@ -33,10 +41,26 @@ svg.map { position: absolute; right: -40px; top: 0; width: 520px; height: 550px;
 .map .b { fill: #10151f; stroke: #10151f; stroke-width: 2.4; }
 .map .m { fill: #fff; stroke: #10151f; stroke-width: 2.4; }
 .map .o { fill: #8790a0; stroke: #8790a0; stroke-width: 2.4; }
+svg.crown { position: absolute; left: 0; top: 0; width: 1120px; height: 96px; }
 </style>
+<script>
+  // ?season=spring|summer|autumn|winter (summer without it, as the site without its script).
+  const TONES = { spring: ["#9fbf7f", "#cbbc62"], summer: ["#84b08a"], autumn: ["#d6ab61"], winter: ["#89736c"] };
+  const asked = new URLSearchParams(location.search).get("season");
+  const season = asked in TONES ? asked : "summer";
+  addEventListener("DOMContentLoaded", () => {
+    const [tone, catkins] = TONES[season];
+    const layers = [[tone, "og-head", "crown"]].concat(catkins ? [[catkins, "og-head-ck", "crown-ck"]] : []);
+    document.querySelector("svg.crown").innerHTML = layers.map(([colour, head, tile], i) =>
+      `<filter id="tone${i}" x="0" y="0" width="1" height="1"><feFlood flood-color="${colour}"/><feComposite in2="SourceAlpha" operator="in"/></filter>` +
+      `<g filter="url(#tone${i})"><image href="../../app/assets/birch/${season}-${head}.svg" width="540" height="96"/>` +
+      `<image href="../../app/assets/birch/${season}-${tile}.svg" x="540" width="1800" height="96"/></g>`).join("");
+  });
+</script>
 </head>
 <body>
 <div class="card">
+  <svg class="crown" viewBox="0 0 1120 96" aria-hidden="true"></svg>
   <svg class="map" viewBox="0 0 520 550" aria-hidden="true">
     <line x1="96" y1="120" x2="170" y2="92"/><line x1="170" y1="92" x2="236" y2="130"/><line x1="236" y1="130" x2="212" y2="204"/>
     <line x1="96" y1="120" x2="132" y2="196"/><line x1="132" y1="196" x2="212" y2="204"/><line x1="212" y1="204" x2="286" y2="246"/>

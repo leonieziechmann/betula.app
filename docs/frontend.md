@@ -37,6 +37,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`), „Wahlpflicht & Bereiche“ (`areas`) and „Mein Plan“ (`my-plan`: a placeholder so far, the visitor's, so `noindex` and not in the sitemap, `ProgramTab::indexed`). „Mein Plan“ took the place of „Alle Module“ on 2026-09-25: the program's modules are its catalog (`/catalog?program=<slug>`), and `…/modules` is a 404. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
+| `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`catalog::timetable::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
@@ -57,6 +58,15 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   inoffiziell", so the two read as one logo; on a phone the start page carries both itself.
   „Inoffiziell" always stays with the name, and nothing borrows the university's colours or mark.
   Sizes, grids and numbers: `design/logo/logo.html`.
+- **The icon of the installed app is a birch leaf** (owner, 2026-09-26): the mark cut to a circle
+  „sieht bei einer Kugel mit Material You wirklich nach nichts aus" (its bars run out to the edges
+  of its square, and a launcher's circle leaves a white disc with stubs). The leaf is white on the
+  green of the birch leaf and carries the mark's four bars as the marks of bark, entering from its
+  edges as they enter the square: close enough to the mark that it is recognised, and whole in any
+  shape a launcher cuts and in one colour for Android's themed icons. It is the icon of the home
+  screen only (the manifest's icons, `apple-touch-icon.png`, the splash screens); the site keeps
+  the mark in the tab, the rail and the link previews („ich mag das aktuelle Icon eigentlich sehr").
+  `design/logo/app-icon.mjs`, described in `logo.html`.
 - **Layout:** a thin icon rail (52 px), a top bar with the search, and the whole remaining screen
   for content, with 8 px gaps and 9 px corners. The catalog is three panels side by side: filters,
   list, and the preview of the selected module (`open=<id>`). The preview floats above the list,
@@ -899,14 +909,17 @@ The masks are coloured by tokens (`--crown`, `--crown-ck` for spring's catkins, 
 theme), so the same files serve light and dark. `node design/birch/birch.mjs` draws all
 masks, the roots and the leaf litter again (deterministic, seeded); the server serves them under
 `/assets/birch/` (`api::birch`), and a server test fetches every mask the stylesheet names.
-`node e2e/ground.mjs` drives it with a real wheel.
+`node e2e/ground.mjs` drives it with a real wheel. The link-preview cards hang the same crown from
+their top (see „Search engines"), with heads of their own that `birch.mjs` draws beside the site's
+(`<season>-card-head.svg` for the cards the server draws, not served; `<season>-og-head.svg` for the
+standard picture): the same twigs and seeds, only the clearing where the card's wordmark stands.
 
 ### Search engines (`app/src/seo.rs`, 2026-09-20)
 
 Aim: a search for a module or a program of the BTU finds the page here. What that rests on:
 
 - **Every page states itself once** with `seo::Seo` (inside its frame): description, canonical
-  address, Open Graph tags (picture: `app/assets/og.png`, made from `design/og/og.html`) and
+  address, Open Graph tags (picture: `app/assets/og-<season>.png`, made from `design/og/og.html`) and
   structured data. Nothing of it is set for the whole app. (Before, every page carried the app's
   default description, program pages a second one, and the module page lost its own.)
 - **One address per page.** Filters, further pages and the preview of the catalog, and a filtered
@@ -936,28 +949,73 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
 - **A module and a program have their own picture** (`/cards/module/<id>.png`,
   `/cards/program/<slug>.png`; `seo::module_card`, `seo::program_card`): the logo, the kind and
   number, the title (four sizes, at most four lines, then „…"), a line of facts and a quieter
-  one (department; size of the curriculum). Every other page names the standard picture
-  `og.png`. The server draws the cards itself (`server/src/cards.rs`): an SVG put together in
-  Rust, set by resvg in static cuts of Inter (`server/assets/inter-*.ttf`, cut once from the
-  app's variable font by `design/cards/make-fonts.py`, a development tool; nothing but the
-  server's own process runs in production), measured with the same shaper before it is set,
-  written as a palette PNG (20–30 kB). About 15 ms of drawing and 65 ms of packing in a dev
-  build; the pixel crates are optimised in the dev profile for that.
+  one (department; size of the curriculum). So do the Merkliste and the Stundenplan
+  (`/cards/bookmarks.png`, `/cards/studyplan.png`; owner, 2026-09-26): what the page is, the same
+  for everybody, since what a visitor keeps lives in the browser. A Stundenplan handed on by a link
+  (R20) has its own (`/cards/studyplan/<code>.png`): its modules as tags in the plan's tones, by
+  the names its week grid gives them (`StudyplanData::slot_names`: „MIT-1", „AuP"; three sizes,
+  then „+3"), how many, their credits and the program, and their titles as the quiet line, cut
+  between two titles. Every other page names the standard picture `og.png`.
+- **The birch's crown hangs along the top of every card** (owner, 2026-09-26), in the season the
+  card is drawn in (`birch::Season`: the months the site's script goes by, on the server's clock),
+  half as large again as along the site's top, since a preview is seen small. The card has a head
+  of its own (`<season>-card-head.svg`): its clearing is just as wide as the wordmark („viel zu
+  weit und links etwas daneben" was the site's head there), and the mark stands in front of the
+  crown before it, as the rail's does. The season is part of what a card's hash is made of, so a
+  card is drawn anew, under a new ETag, when the season turns. The grey, the face, the crown and
+  the face's hairline are drawn once per season and every card onto a copy: the crown's 1,500
+  leaves took two thirds of a card's time. The standard picture is `design/og/og.html` in the four
+  seasons (`app/assets/og-<season>.png`, with its own head, `<season>-og-head.svg`, fitted to its
+  larger wordmark); `/assets/og.png` answers with the season's, the season in its ETag.
+- **The server draws the cards itself** (`server/src/cards.rs`): an SVG put together in Rust, set
+  by resvg in static cuts of Inter (`server/assets/inter-*.ttf`, cut once from the app's variable
+  font by `design/cards/make-fonts.py`, a development tool; nothing but the server's own process
+  runs in production), measured with the same shaper before it is set, written as a palette PNG
+  (40–50 kB with the crown; a card of tags, whose eight tones with their grounds a palette does
+  not hold, in true colour, about 80 kB). About 70–120 ms a card in a dev build, the first of a
+  season some 230 ms (its ground); the pixel crates are optimised in the dev profile for that.
   - **Kept:** a finished card stays in memory (`--card-cache-mb`, 64 MiB ≈ 2,500 cards) under
     the hash of what it says, so a new snapshot only redraws the cards whose text changed. The
     hash is also the ETag (`If-None-Match` → 304); `Cache-Control: public, max-age=86400`.
   - **Never in the way of the pages:** drawing runs on the blocking pool, at most half the
     processors at once (1–4). If every place is taken, or there is no snapshot, or drawing
-    fails, the answer is `og.png` at once with `no-store`, so the next fetch gets the real card.
-    An unknown module or program is a 404. Look at the design with
-    `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review`.
+    fails, the answer is the season's `og.png` at once with `no-store`, so the next fetch gets the
+    real card. An unknown module or program is a 404, and so is a shared plan's code that does not
+    decode or names no module the catalog knows. Look at the design with
+    `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review` (`FOLIA_CARD_SEASON=spring`
+    for another season than today's).
 - **Who the site is, outside a page** (static in the document's head, `app::shell`, so it
-  survives the takeover): `/favicon.ico` (32 and 48 px) and the SVG icon, `/apple-touch-icon.png`
-  (180 px, full bleed: iOS rounds it and uses it for the home screen and for previews in
-  Messages), `/manifest.webmanifest` (name, colours, icons 192/512 and a maskable one) and
+  survives the takeover): `/favicon.ico` (32 and 48 px) and the SVG icon, both the mark;
+  `/apple-touch-icon.png` (180 px, full bleed: iOS rounds it and uses it for the home screen and
+  for previews in Messages) and `/manifest.webmanifest` (name, colours, icons 192/512, maskable
+  ones of 512 and 1024 px and a monochrome one), all the icon of the installed app; and
   `theme-color` (the page background; the head script and the theme switch turn it dark). The
-  pictures are made from the mark's grids by `node design/logo/render-icons.mjs`. The manifest
-  makes the site installable; the service worker makes it start without a network.
+  pictures are made from the mark's grids and from `design/logo/app-icon.mjs` by
+  `node design/logo/render-icons.mjs`. The manifest makes the site installable; the service
+  worker makes it start without a network.
+  - **Android** (2026-09-26) cuts the maskable icon into the launcher's shape and shows its middle
+    87 % (Chromium pads the web's safe circle of 80 % onto Android's, 66 of 108 dp; the mask shows
+    72): the leaf is drawn smaller by that much and sits in the middle, so a circle, a squircle
+    or a teardrop shows the whole of it. With themed icons (Material You) the launcher tints the
+    monochrome icon, the leaf with its marks cut out, in the colours of the wallpaper; without it
+    the icon of an installed app did not take part. The splash screen of the installed app is
+    Android's own: the manifest's background (the light page, `#f1f2f4`) with the maskable icon in
+    its middle, drawn at about 220 dp, which the 1024 px icon keeps sharp.
+  - **iOS** draws no splash screen for a web app: it shows the picture the page names for exactly
+    its screen, orientation and colour scheme (`apple-touch-startup-image`), and without one a
+    blank screen until the page is drawn. The head script names the pictures of the screen it runs
+    on (only where `navigator.standalone` exists, that is on iOS: two on a phone, upright, light
+    and dark; four on a tablet, turned too), and iOS takes them when the app is added to the home
+    screen. Sixty `<link>`s for all screens in every page would have cost every visitor almost a
+    kilobyte for what only a home screen of iOS reads. The server draws them
+    (`/assets/launch/<width>x<height>[-dark].png`, `server/src/launch.rs`, resvg like the cards)
+    for the screens of `app::launch` (12 iPhones, 9 iPads): the icon of the installed app in the
+    middle of the page's background, as large as twice an icon of the home screen, on a soft
+    shadow in the light, the wordmark and „Modulkatalog · inoffiziell" at the bottom; on its first
+    request, one at a time, and keeps them (20–40 kB each, 2 MB for all). The gate lets them
+    through like the icons. A screen that is not listed gets no picture and starts blank as before:
+    a new iPhone is one line in `app/src/launch.rs`. Look at all of them with
+    `FOLIA_LAUNCH_OUT=<dir> cargo test -p folia-server launch_screens_for_review`.
 - **Offline (`app/assets/sw.js`, served as `/sw.js`, registered by `boot.js`; 2026-09-21):** the
   worker keeps the shell of the app — a page of the site (the browser app renders whatever the
   address names from the local catalog), the scripts, the styles, the bundle, the font, the icons,
@@ -1087,7 +1145,18 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   addresses and never re-adds it once removed. Like the Merkliste's `open`, the Studienplan's
   address names the one module and Termin shown beside it (`open`, `row`), and the catalog's
   app-only `fill=p<n>` names a placeholder by its local number (it says nothing about the visitor;
-  the server drops it) — never a list of what is planned.
+  the server drops it) — never a list of what is planned. And a Stundenplan handed on by a link
+  (owner, 2026-09-26: the link preview of a shared Stundenplan shows its modules, „MIT-1, AuP,
+  EEG"; a preview runs no JavaScript and has no storage, so only the address can carry them):
+  `/studyplan?share=<code>` carries the semester, the planned modules in their order and the
+  program whose abbreviations name them, as a `pack` code of kind `studyplan`
+  (`catalog::timetable::share`), nothing hidden or chosen. The visitor makes it („Link zum Teilen
+  kopieren" in the sidebar's group „Plan"), whoever opens it is offered the modules to take over
+  (`app/src/pages/studyplan/share.rs`), and the server's page names them in its tags and its
+  picture (`/cards/studyplan/<code>.png`), resolving the code anew on every request and keeping
+  nothing; Folia's own log writes the page's path without its query and the picture's as
+  `/cards/studyplan/….png`; the edge's access log keeps the address like every address. The
+  privacy notice's part is „Stundenplan teilen".
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -1275,8 +1344,10 @@ heard from; for an uptime monitor), `GET /livez` (200 while the process answers;
 healthcheck, which must not restart a server that still serves its last snapshot),
 `/assets/app.css`, `/assets/icons.svg` (the sprite every icon points at), `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
-`/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/manifest.webmanifest`,
-`/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`, `/sitemap.xml`, and
+`/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/assets/icon-maskable-1024.png`,
+`/assets/icon-monochrome-512.png`, `/manifest.webmanifest`, `/assets/launch/<w>x<h>[-dark].png`
+(the launch screens of iOS), `/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`,
+`/sitemap.xml`, and
 `GET`/`POST /access` (the login page of closed testing). The stylesheet and the scripts answer
 under any `?v=<build>` as well (the page links them so, see Offline). Every answer carries the
 header `x-build` with the build of the process (version and start time, as in `/api/status`).
@@ -1309,8 +1380,9 @@ FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
   the password (HMAC-SHA256). The server keeps no sessions and nothing about visitors: a
   restart or a new container keeps everybody in, **a new password ends every visit at once**.
 - **Open without the password** is only what the login page, a home screen and a supervisor
-  need: `/access`, the stylesheet, the font, the icons, `/manifest.webmanifest` (browsers fetch it
-  without cookies), `/healthz` (uptime monitor), `/livez` (the container's healthcheck) and
+  need: `/access`, the stylesheet, the font, the icons, the launch screens of iOS (those of the
+  listed screens only), `/manifest.webmanifest` (browsers fetch it without cookies), `/healthz`
+  (uptime monitor), `/livez` (the container's healthcheck) and
   `/robots.txt`, which says `Disallow: /` while the gate is on, except `Allow: /calendar/`. The
   login page is `noindex` and `no-store`.
 - **And a Studienplan's calendar subscription** (owner decision 2026-09-24): `/calendar/<code>.ics`
@@ -1486,7 +1558,7 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
-| INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` (a code names somebody's plan) |
+| INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` and every path under `/cards/studyplan/` `/cards/studyplan/….png` (a code names somebody's plan; a shared Stundenplan's page, `?share=`, is logged without its query like every page) |
 | WARN | `http.request` with `cache=busy` | a request turned away with 503 because every place was taken ("Load"): no error of the server |
 | WARN | `server.busy` | the same, at most once a minute: `what` (`render`, `calendar`), `places`, `wait_ms`, `turned_away` since the start. Often: more processors, or a crawler to slow down |
 | INFO | `cache.warmed` | the pages of the sitemap are in the cache (`pages`, `rendered`, `kept`, `ms`, `generation`) |
@@ -1638,6 +1710,15 @@ installs the app with the network (the worker has the shell, the bundle included
 pill once the app runs), then cuts the network and loads pages afresh: the catalog with a
 filter, a module page never seen before, the program page seen before, and a step inside the
 app out of the local catalog.
+
+```bash
+cd e2e && node launch.mjs
+```
+
+checks the launch screens of iOS: an iPhone (with `navigator.standalone`, as iOS has it) names
+the two pictures of its screen, upright, light and dark; an iPad also the turned ones; a desktop
+browser none. Every picture named is served as a PNG exactly as large as the screen. Needs no
+snapshot.
 
 ```bash
 cd e2e && node bookmarks.mjs

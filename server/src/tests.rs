@@ -14,6 +14,7 @@ use axum::routing::get;
 use axum::Router;
 use catalog::native::NativeDatabase;
 use catalog::timetable::semester::SemesterKey;
+use catalog::timetable::share::{self, SharedPlan};
 use catalog::timetable::subscription::{self, Subscription};
 use leptos::prelude::LeptosOptions;
 use tower::ServiceExt;
@@ -193,6 +194,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         store,
         cache: Arc::new(HtmlCache::new(32 * 1024 * 1024)),
         cards: Arc::new(crate::cards::Cards::new(8 * 1024 * 1024, 1)),
+        launch: Arc::default(),
         build_id: "test".into(),
         stale_after: None,
         public_url: "https://catalog.example".into(),
@@ -229,6 +231,26 @@ async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str)
     (parts.status, parts.headers, String::from_utf8(body).unwrap())
 }
 
+/// The launch screens of iOS (`app::launch`): the head script of every page names those of its
+/// screen, and the server draws each one it can name, as large as its screen, and answers it again
+/// with 304 to its ETag; no other name is there. Needs no snapshot.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_launch_screens_of_ios_are_drawn_as_large_as_their_screen() {
+    let router = crate::router(state(SnapshotStore::new(temp_dir("launch")).unwrap()));
+    let page = String::from_utf8(request(&router, "/", &[]).await.2).unwrap();
+    let head = page.split("</head>").next().unwrap_or_default();
+    assert!(head.contains(app::HEAD_SCRIPT) && app::HEAD_SCRIPT.contains("apple-touch-startup-image"), "{page}");
+    let (status, headers, png) = request(&router, "/assets/launch/1179x2556-dark.png", &[]).await;
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"));
+    assert!(png.starts_with(b"\x89PNG") && png[16..24] == [0, 0, 4, 155, 0, 0, 9, 252], "1179 x 2556");
+    let etag = headers[header::ETAG].to_str().unwrap().to_string();
+    assert_eq!(request(&router, "/assets/launch/1179x2556-dark.png", &[("if-none-match", &etag)]).await.0, StatusCode::NOT_MODIFIED);
+    // A phone opens upright only; names that are no picture are not there.
+    for missing in ["/assets/launch/2556x1179.png", "/assets/launch/1179x2556.jpg", "/assets/launch/100x100.png"] {
+        assert_eq!(request(&router, missing, &[]).await.0, StatusCode::NOT_FOUND, "{missing}");
+    }
+}
+
 /// Closed testing (`access`): nothing but the login page and what it needs, and a calendar
 /// subscription with a valid code, answers without the password; with it the site is what it
 /// was. Needs no snapshot.
@@ -256,9 +278,11 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 
     // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away
     // from everything but the calendar feeds (Google Calendar asks robots.txt before fetching one).
-    for path in [app::STYLESHEET, "/assets/app.css?v=test", app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::MANIFEST] {
+    for path in [app::STYLESHEET, "/assets/app.css?v=test", app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::ICON_MASKABLE_LARGE, app::ICON_MONOCHROME, app::MANIFEST, "/assets/launch/750x1334.png"] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
+    // Only the launch screens a page names: another name under their path stays behind the gate.
+    assert_eq!(request(&router, "/assets/launch/100x100.png", &[]).await.0, StatusCode::UNAUTHORIZED);
     assert_eq!(request(&router, "/healthz", &[]).await.0, StatusCode::SERVICE_UNAVAILABLE, "answered by the health check (no snapshot here), not by the gate");
     // The container's own probe (`folia healthcheck`) has no password and needs no snapshot.
     let (status, headers, body) = request(&router, crate::api::LIVENESS, &[]).await;
@@ -527,6 +551,31 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     for missing in ["/cards/module/00000.png", "/cards/module/11101", "/cards/program/no-such-program.png"] {
         assert_eq!(request(&router, missing, &[]).await.0, StatusCode::NOT_FOUND, "{missing}");
     }
+    // The Merkliste and the Stundenplan: a picture each, the same for everybody (what a visitor
+    // keeps lives in the browser), named by their pages.
+    for (page, card) in [(catalog::url::BOOKMARKS, app::seo::BOOKMARKS_CARD), (catalog::url::STUDYPLAN, app::seo::STUDYPLAN_CARD)] {
+        let body = String::from_utf8(request(&router, page, &[]).await.2).unwrap();
+        assert!(head(&body).contains(&format!("content=\"https://catalog.example{card}\"")), "{page}: {body}");
+        let (status, headers, png) = request(&router, card, &[]).await;
+        assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"), "{card}");
+        assert!(png.starts_with(b"\x89PNG"), "{card}");
+    }
+    // A Stundenplan handed on by a link: its page (one per code) names its modules and its own
+    // picture, which shows them; a code whose modules the catalog does not know has none.
+    let semester = SemesterKey::parse("2026W").unwrap();
+    let code = SharedPlan::of(semester, &["11101".to_string()], None).unwrap().code().unwrap();
+    let shared = String::from_utf8(request(&router, &share::path(&code), &[]).await.2).unwrap();
+    let card = share::card_path(&code);
+    assert!(head(&shared).contains(&format!("content=\"https://catalog.example{card}\"")) && head(&shared).contains("1 Modul: "), "{shared}");
+    let plain = String::from_utf8(request(&router, catalog::url::STUDYPLAN, &[]).await.2).unwrap();
+    assert!(!plain.contains(&code), "the plain page is another page than the shared one");
+    let (status, headers, png) = request(&router, &card, &[]).await;
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"));
+    assert!(png.starts_with(b"\x89PNG") && png[16..24] == [0, 0, 4, 176, 0, 0, 2, 118], "1200 x 630");
+    let unknown = SharedPlan::of(semester, &["99999".to_string()], None).unwrap().code().unwrap();
+    for missing in [share::card_path(&unknown), "/cards/studyplan/not-a-code.png".to_string(), format!("/cards/studyplan/{code}")] {
+        assert_eq!(request(&router, &missing, &[]).await.0, StatusCode::NOT_FOUND, "{missing}");
+    }
 
     let (status, headers, body) = request(&router, "/manifest.webmanifest", &[]).await;
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/manifest+json"));
@@ -765,6 +814,28 @@ async fn the_log_keeps_no_calendar_code() {
     assert_eq!(log.matches("http.request").count(), 2 * asked.len(), "one line per request: {log}");
     assert_eq!(log.matches("/calendar/….ics").count(), 2 * asked.len(), "{log}");
     for secret in [&FIRST_SEMESTER_CODE[1..], "Ab.ics", "secret", "%62"] {
+        assert!(!log.contains(secret), "{secret} in {log}");
+    }
+}
+
+/// A shared Stundenplan's code names someone's modules too: Folia's log writes the path of its
+/// picture as one fixed text, and a page's query, where the code travels, never.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_log_keeps_no_shared_plan() {
+    let semester = SemesterKey::parse("2026W").unwrap();
+    let code = SharedPlan::of(semester, &["12104".to_string(), "11101".to_string()], Some("079-82-2008")).unwrap().code().unwrap();
+    let router = crate::router(state(SnapshotStore::new(temp_dir("log-share")).unwrap()));
+    let asked = [share::card_path(&code), share::path(&code), "/cards/studyplan/secret.png".to_string()];
+    let log = Captured::default();
+    let logging = log.start();
+    for path in &asked {
+        request(&router, path, &[]).await;
+    }
+    drop(logging);
+    let log = log.text();
+    assert_eq!(log.matches("http.request").count(), asked.len(), "one line per request: {log}");
+    assert_eq!(log.matches("/cards/studyplan/….png").count(), 2, "{log}");
+    for secret in [code.as_str(), "secret"] {
         assert!(!log.contains(secret), "{secret} in {log}");
     }
 }

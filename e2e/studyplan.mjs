@@ -7,7 +7,9 @@
 //     area of its own (its tab, the module beside it and in full, „Zurück");
 //   5 without the app: the explanation, no „Plan" in the rail, and on a phone the app's frame;
 //   8 the week's labels: a cut first word ends a label, a module's own slots say their kinds;
-//   9 the placeholders' boxes: a module chosen for one stands in its box, „Weiteres Modul" while
+//   9 a plan handed on by a link: its page's tags and picture, the offer, taking it over, the note
+//     with „Rückgängig", and the same link handed on again;
+//   10 the placeholders' boxes: a module chosen for one stands in its box, „Weiteres Modul" while
 //     its row takes more.
 // Needs the snapshot whose current semester is WiSe 2026/27 (the plans below are of that
 // semester); another snapshot skips the blocks with a note. Prints {timings, problems} (block 7)
@@ -217,7 +219,7 @@ async function withoutTheApp() {
   await context.close();
 }
 
-// ---------- 9: the placeholders' boxes ----------
+// ---------- 10: the placeholders' boxes ----------
 // A placeholder a module counts for is a box around it (owner, 2026-09-26: „sehen, dass das ein
 // Bereich ist, wo ein Modul ausgewählt ist"), with what counts for its row in another semester and
 // „Weiteres Modul" while the row takes more (a range of credits); a full one has none, one nothing
@@ -288,7 +290,50 @@ async function labels() {
   }
 }
 
-const blocks = { 3: persistence, 5: withoutTheApp, 8: labels, 9: areas };
+// ---------- 9: a plan handed on by a link ----------
+// „Link zum Teilen kopieren" hands the semester shown on (`/studyplan?share=<code>`, owner
+// 2026-09-26): the link carries the planned modules and the program (R20's exception), nothing
+// hidden or chosen. The server's page names the modules in its tags and its picture; a fresh
+// browser that opens the link is offered them, takes them over (the code leaves the address, the
+// note with „Rückgängig" stands where the offer stood) and hands on the same link.
+async function shared() {
+  const sidebarLink = (page) => page.getAttribute('.sidebar [data-action="copy-text"][data-absolute][data-text^="/studyplan?share="]', "data-text", { timeout: 8000 }).catch(() => null);
+  const sender = await open({ viewport: { width: 1500, height: 900 } }, "/studyplan");
+  await sender.page.evaluate(([plan, mine, planText, mineText]) => { localStorage.setItem(plan, planText); localStorage.setItem(mine, mineText); }, [PLAN, MINE, FS1, MINE_FS1]);
+  await sender.page.reload({ waitUntil: "domcontentloaded" });
+  await takeover(sender.page);
+  await sender.page.waitForFunction(aPlan, null, { timeout: 8000 }).catch(() => problems.push("shared: the sender's plan does not show"));
+  const link = await sidebarLink(sender.page);
+  await sender.context.close();
+  check(Boolean(link), "shared: no „Link zum Teilen kopieren“ for a planned semester");
+  if (!link) return;
+  check(!["149408", "148369", "tutorial"].some((secret) => link.includes(secret)), `shared: the link carries what is hidden or chosen: ${link}`);
+
+  // What a messenger reads: the page's tags and its picture.
+  const head = (await (await fetch(base + link)).text()).split("</head>")[0];
+  const card = link.replace("/studyplan?share=", "/cards/studyplan/") + ".png";
+  check(head.includes(card) && head.includes("4 Module: "), `shared: the page's tags do not name the plan: ${head.slice(0, 300)}`);
+  const picture = await fetch(base + card);
+  check(picture.ok && picture.headers.get("content-type") === "image/png", `shared: its picture answers ${picture.status}`);
+
+  // The receiver: a fresh browser.
+  const receiver = await open({ viewport: { width: 1500, height: 900 } }, link);
+  await receiver.page.waitForSelector("#sp-share-take", { timeout: 8000 }).catch(() => problems.push("shared: the receiver is not offered the plan"));
+  const offer = await receiver.page.textContent(".sp-fold > .offer").catch(() => "");
+  check(offer.includes("Geteilter Stundenplan") && offer.includes("4 Module"), `shared: the offer says ${offer}`);
+  await receiver.step("„Übernehmen“ takes a shared plan over", () => receiver.page.click("#sp-share-take"), () => !location.search.includes("share=") && (document.querySelector(".sp-fold > .offer")?.textContent ?? "").includes("Aus dem Link übernommen: 4 Module"));
+  const taken = (await stored(receiver.page, PLAN)) ?? "";
+  const modules = taken.split("\n").filter((line) => line.startsWith("m\t2026W\t")).map((line) => line.split("\t")[2]);
+  check(JSON.stringify(modules) === JSON.stringify(["12104", "12107", "12102", "11112"]), `shared: taken over ${JSON.stringify(modules)}`);
+  check(taken.includes("079-82-2008") && !taken.includes("149408") && !taken.includes("148369"), `shared: the plan taken over is ${JSON.stringify(taken)}`);
+  const handedOn = await sidebarLink(receiver.page);
+  check(handedOn === link, `shared: the receiver hands on ${handedOn} instead of ${link}`);
+  await receiver.step("„Rückgängig“ takes the shared plan back", () => receiver.page.click("#sp-share-undo"), () => !document.querySelector(".sp-fold > .offer"));
+  check((await stored(receiver.page, PLAN)) === null, "shared: „Rückgängig“ left a plan behind");
+  await receiver.context.close();
+}
+
+const blocks = { 3: persistence, 5: withoutTheApp, 8: labels, 9: shared, 10: areas };
 const status = await (await fetch(base + "/api/status")).json().catch(() => null);
 const semester = status?.snapshot?.current_semester;
 if (semester !== "2026W") {
