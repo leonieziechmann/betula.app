@@ -17,7 +17,7 @@ mod cache;
 mod cards;
 mod config;
 mod launch;
-mod mark;
+mod logo;
 mod snapshot;
 #[cfg(test)]
 mod tests;

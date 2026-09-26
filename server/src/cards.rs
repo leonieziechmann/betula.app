@@ -24,8 +24,6 @@ use axum::body::Bytes;
 use resvg::{tiny_skia, usvg};
 use tokio::sync::Semaphore;
 
-use crate::mark;
-
 const WIDTH: f32 = 1200.0;
 const HEIGHT: f32 = 630.0;
 /// The text column: from the left edge of the logo to the same distance from the right.
@@ -330,13 +328,13 @@ fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// The logo at (x, y of its top): the mark (`mark`) and the wordmark beside it.
+/// The logo at (x, y of its top): the mark and the wordmark beside it (`crate::logo`).
 fn logo(svg: &mut String, x: f32, y: f32) {
-    let size = 52.0;
-    mark::mark(svg, x, y, size, "mark");
+    let mark = 52.0;
+    crate::logo::mark(svg, x, y, mark);
+    let size = 44.0;
     // Capitals are .728 em high: their middle on the middle of the mark.
-    let em = 44.0;
-    mark::wordmark(svg, x + size + 18.0, y + size / 2.0 + em * 0.364, em, INK);
+    crate::logo::wordmark(svg, x + mark + 18.0, y + mark / 2.0 + size * 0.364, size, INK);
 }
 
 fn svg(text: &CardText, ruler: &Ruler) -> String {
@@ -400,35 +398,21 @@ fn draw(text: &CardText, fonts: Arc<usvg::fontdb::Database>) -> Result<Vec<u8>, 
     encode(&pixmap)
 }
 
-/// The colours a card is made of, so that the picture fits a palette of 256 colours (a palette
-/// PNG is a fifth of the size of the true-colour one and is packed faster): white towards each
-/// ink and towards the page's grey, in as many steps as antialiasing needs of each; and the mark
-/// (`mark`), its green from the top of the square to the bottom, and that green towards the white
-/// of the leaf and of the card and towards the ink of the rows, where their edges cut a pixel.
+/// The colours a card is made of: white towards each ink and towards the page's grey, in 64
+/// steps each (what antialiasing produces), so the picture fits a palette of 256 colours. A
+/// palette PNG is a fifth of the size of the true-colour one and is packed faster.
 fn palette() -> Vec<[u8; 3]> {
-    const WHITE: [u8; 3] = [255, 255, 255];
-    let mix = |from: [u8; 3], to: [u8; 3], share: f32| {
-        let mut colour = [0u8; 3];
-        for (out, (from, to)) in colour.iter_mut().zip(from.iter().zip(to)) {
-            *out = (f32::from(*from) + (f32::from(to) - f32::from(*from)) * share).round() as u8;
-        }
-        colour
-    };
+    let white = [255.0, 255.0, 255.0];
     let mut colours = Vec::with_capacity(256);
-    for (target, steps) in [([0x10, 0x15, 0x1f], 56), ([0x4b, 0x55, 0x65], 40), ([0x87, 0x90, 0xa0], 40), ([0xf1, 0xf2, 0xf4], 16)] {
-        for step in 0..steps {
-            colours.push(mix(WHITE, target, step as f32 / (steps - 1) as f32));
+    for target in [[0x10u8, 0x15, 0x1f], [0x4b, 0x55, 0x65], [0x87, 0x90, 0xa0], [0xf1, 0xf2, 0xf4]] {
+        for step in 0..64 {
+            let share = step as f32 / 63.0;
+            let mut colour = [0u8; 3];
+            for (out, (from, to)) in colour.iter_mut().zip(white.iter().zip(target)) {
+                *out = (from + (f32::from(to) - from) * share).round() as u8;
+            }
+            colours.push(colour);
         }
-    }
-    for step in 0..40 {
-        colours.push(mix(mark::GREEN_TOP, mark::GREEN_BOTTOM, step as f32 / 39.0));
-    }
-    for step in 0..12 {
-        let green = mix(mark::GREEN_TOP, mark::GREEN_BOTTOM, step as f32 / 11.0);
-        for share in [0.25, 0.5, 0.75] {
-            colours.push(mix(green, WHITE, share));
-        }
-        colours.push(mix(green, mark::INK, 0.5));
     }
     colours
 }
@@ -504,16 +488,6 @@ mod tests {
         let small = Cards::new(1, 1);
         assert!(matches!(small.get("m:1", 1, || Ok(Some(text("Analysis I")))).await.unwrap(), Card::Drawn(..)));
         assert_eq!(small.kept(), (0, 0), "a card larger than the budget is not kept");
-    }
-
-    /// The colours of the mark have their places among the 256 of a card.
-    #[test]
-    fn the_palette_holds_the_mark_and_fits_a_png() {
-        let colours = palette();
-        assert!(colours.len() <= 256, "{} colours", colours.len());
-        for colour in [mark::GREEN_TOP, mark::GREEN_BOTTOM, mark::INK, [255, 255, 255], [0xf1, 0xf2, 0xf4]] {
-            assert!(colours.contains(&colour), "{colour:?}");
-        }
     }
 
     /// For looking at the design: `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review`.

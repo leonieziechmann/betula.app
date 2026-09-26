@@ -1,7 +1,8 @@
 //! The launch screens of the installed app on iPhones and iPads (`app::launch`), drawn in this
-//! process like the link-preview cards: the mark in the middle of the page's background, the
-//! wordmark and what Betula is at the bottom, in the light and in the dark scheme. The same
-//! picture as Android's splash screen, which shows the maskable icon on the manifest's background.
+//! process like the link-preview cards: the icon of the installed app (the leaf) in the middle of
+//! the page's background, the wordmark and what Betula is at the bottom, in the light and in the
+//! dark scheme. The same picture as Android's splash screen, which shows the maskable icon on the
+//! manifest's background; and what iOS shows when the icon on the home screen opens into the app.
 //!
 //! iOS fetches the picture of its screen when the app is added to the home screen and keeps it.
 //! So a picture is drawn on its first request, one at a time (a large one takes a moment of a
@@ -15,7 +16,7 @@ use axum::body::Bytes;
 use resvg::{tiny_skia, usvg};
 use tokio::sync::Semaphore;
 
-use crate::{cards, mark};
+use crate::{cards, logo};
 
 /// The page's background and its text, as in `app/assets/app.css` (`--bg`, `--text`, `--text-3`).
 const LIGHT: (&str, &str, &str) = ("#f1f2f4", "#10151f", "#8790a0");
@@ -65,7 +66,7 @@ fn svg(picture: &Picture, regular: &rustybuzz::Face<'_>) -> String {
     let mut svg = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" font-family=\"Inter\"><rect width=\"{w}\" height=\"{h}\" fill=\"{background}\"/>"
     );
-    // The mark in the middle, as large as twice an icon of the home screen on a phone (a quarter
+    // The icon in the middle, as large as twice an icon of the home screen on a phone (a quarter
     // of the shorter side), no larger on a tablet.
     let size = (0.28 * w.min(h)).clamp(96.0, 128.0);
     let (x, y) = ((w - size) / 2.0, (h - size) / 2.0);
@@ -82,11 +83,11 @@ fn svg(picture: &Picture, regular: &rustybuzz::Face<'_>) -> String {
             size * 0.22
         ));
     }
-    mark::mark(&mut svg, x, y, size, "mark");
+    logo::app_icon(&mut svg, x, y, size, "icon");
     // At the bottom, clear of the home indicator: the wordmark, and under it what Betula is.
     let last = h - (0.075 * h).max(44.0);
     let em = 28.0;
-    mark::wordmark(&mut svg, (w - mark::wordmark_width(regular, em)) / 2.0, last - 24.0, em, text);
+    logo::wordmark(&mut svg, (w - logo::wordmark_width(regular, em)) / 2.0, last - 24.0, em, text);
     svg.push_str(&format!(
         "<text x=\"{}\" y=\"{last}\" text-anchor=\"middle\" font-size=\"13\" font-weight=\"500\" letter-spacing=\"-.08\" fill=\"{quiet}\">Modulkatalog · inoffiziell</text></svg>",
         w / 2.0

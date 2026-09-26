@@ -25,12 +25,8 @@
   --text-3: #8790a0;
   --invert: #161b26;
   --on-invert: #ffffff;
-  /* The mark (design/logo): the green of the birch leaf from top to bottom, the leaf white, its
-     marks the ink of the text. The same in both themes, like any app icon. */
-  --mark-top: #6dac78;
-  --mark-bottom: #2d6945;
-  --mark-leaf: #ffffff;
-  --mark-ink: #10151f;
+  --bark: #ffffff;
+  --bark-ink: #10151f;
 
   /* The accent is a muted birch-leaf green (owner, 2026-09-22): the hue of their tone
      oklch(.6867 .0996 149), deep enough for white labels (5.1:1) and quieter in chroma. The same
@@ -97,6 +93,8 @@
     --text-3: #6a748a;
     --invert: #e9edf5;
     --on-invert: #0d1017;
+    --bark: #e9edf5;
+    --bark-ink: #0d1017;
     --accent: oklch(.53 .07 149);
     --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
     --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
@@ -133,6 +131,8 @@
   --text-3: #6a748a;
   --invert: #e9edf5;
   --on-invert: #0d1017;
+  --bark: #e9edf5;
+  --bark-ink: #0d1017;
   --accent: oklch(.53 .07 149);
   --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
   --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
@@ -219,16 +219,13 @@ table { border-collapse: collapse; width: 100%; }
 
 /* ---------- rail ---------- */
 .rail { grid-row: 1 / span 2; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--gap) 0; }
-/* The mark: a white birch leaf with the black marks of birch bark, which also read as the rows of a
-   list, on the green of the leaf; the same in both themes (--mark-*). Drawn on a 32px grid (the rows
-   2px high, on whole pixels). The green is the picture's own background, rounded with the box, so
-   the SVG needs no ids. Its middle sits on the middle of the top bar, so mark and wordmark read as
-   one on the start page. */
+/* The mark: birch bark that also reads as the rows of a list; light in both themes (--bark). Drawn
+   on a 32px grid (bars 3px, 2px apart, 7px to the edges). Its middle sits on the middle of the top
+   bar, so mark and wordmark read as one on the start page. */
 .logo { --hit: 4px; width: 32px; height: 32px; margin: 4px 0 10px; border-radius: 7px; display: block; flex: none; box-shadow: var(--shadow-panel); }
-.mark { display: block; width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(var(--mark-top), var(--mark-bottom)); }
-.mark-leaf { fill: var(--mark-leaf); }
-.mark-rows { fill: var(--mark-ink); }
-.mark-stem { fill: none; stroke: var(--mark-leaf); stroke-width: 1.5; stroke-linecap: round; }
+.mark { display: block; width: 100%; height: 100%; }
+.mark rect { fill: var(--bark); }
+.mark path { fill: var(--bark-ink); }
 /* The wordmark: B, T and U in full, E, L and A as small capitals, the E under the bar of the T.
    Measured on Inter 800: the stem of the T starts .252em from its origin, its bar ends .587em above
    the baseline. The small capitals are sized so that the air above the E equals the air between
@@ -1071,12 +1068,12 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .intro-actions .btn { min-height: 46px; padding: 0 18px; font-size: 14.5px; }
 .intro-actions .btn .icon { width: 17px; height: 17px; }
 /* The figures, bare, in the colours of the theme: on the panel, in its text (owner, 2026-09-22;
-   before, they stood on the light bark of the first mark, a bright block on a dark page).
+   before, they stood on --bark, light in both themes like the mark, a bright block on a dark page).
    Each is set so large that all of them are about equally wide (--em, its width in units of its
    size, home.rs); a single digit grows no larger than three would. Quiet: a moderate weight, not
    the text's full strength. Between them thin rules, and on each a stroke of bark from alternating
-   edges, the strokes of the first mark (13, 9 and 5 of 32), whose rows the leaf carries on. On a
-   narrow page they stand under the text, the number over its name. */
+   edges, the strokes of the mark (13, 9 and 5 of 32). On a narrow page they stand under the text,
+   the number over its name. */
 .birch { container: birch / inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--line); --fig-w: 50cqi; --rule: color-mix(in srgb, var(--text) 11%, transparent); }
 .birch > div { position: relative; min-width: 0; display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 4px; padding: 14px 12px 14px 20px; container-type: inline-size; }
 .birch > div + div { border-left: 1px solid var(--rule); }

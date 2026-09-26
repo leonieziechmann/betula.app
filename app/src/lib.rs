@@ -56,11 +56,13 @@ pub const VERSION: &str = concat!("alpha-", env!("CARGO_PKG_VERSION"));
 /// Where the host serves the files of `app/assets`.
 pub const STYLESHEET: &str = "/assets/app.css";
 pub const FAVICON: &str = "/assets/favicon.svg";
-/// The mark as pictures, for what cannot read the SVG (`design/logo/render-icons.mjs` makes them):
-/// the classic `/favicon.ico`, the icon of iOS (home screen, link previews of Messages) and the
-/// icons of the web app manifest: plain ones for desktops, maskable ones for Android's launchers
-/// and the splash screen of the installed app (the large one keeps it sharp there), and the
-/// monochrome one that Android's themed icons tint in the colours of the wallpaper.
+/// The pictures for what cannot read the SVG (`design/logo/render-icons.mjs` makes them): the
+/// classic `/favicon.ico`, the mark like the SVG; and the icon of the installed app, the birch leaf
+/// that carries the mark's bars (`design/logo/app-icon.mjs`): the icon of iOS (home screen, link
+/// previews of Messages) and the icons of the web app manifest, plain ones for desktops, maskable
+/// ones for Android's launchers and the splash screen of the installed app (the large one keeps it
+/// sharp there), and the monochrome one that Android's themed icons tint in the colours of the
+/// wallpaper. The site keeps its mark; the leaf stands whole in whatever shape a launcher cuts.
 pub const FAVICON_ICO: &str = "/favicon.ico";
 pub const TOUCH_ICON: &str = "/apple-touch-icon.png";
 pub const ICON_192: &str = "/assets/icon-192.png";

@@ -52,17 +52,21 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 - **Name and logo** (owner decision 2026-09-20, domain `betula.app`): the product is **Betula**
   (the birch; B-T-U stands in the name). Running text says „Betula", only the wordmark stresses
   the three letters: BᴇTUʟᴀ in Inter 800 with E, L and A as small capitals and the E under the bar
-  of the T (`ui::Wordmark`, `.wordmark`; the spacing is measured, not guessed). The mark is a
-  birch leaf, white, with the black marks of birch bark on it, on the green of the leaf (owner,
-  2026-09-26: the first mark, a square of bark whose bars ran out to its edges, „sieht bei einer
-  Kugel mit Material You wirklich nach nichts aus"): its four marks are the bars of the first
-  mark, entering the leaf from its edges, so it still reads as the rows of a list, and it stands
-  on its own in whatever shape a launcher cuts, in one colour for Android's themed icons, and
-  down to 16 px (`ui::Mark`, 32 px grid; favicon on the same grid). Every picture of it comes
-  from `design/logo/mark.mjs`. The rail carries the mark, the top bar of the start page the
-  wordmark with „Modulkatalog · inoffiziell", so the two read as one logo; on a phone the start
-  page carries both itself. „Inoffiziell" always stays with the name, and nothing borrows the
-  university's colours or mark. Sizes, grids and numbers: `design/logo/logo.html`.
+  of the T (`ui::Wordmark`, `.wordmark`; the spacing is measured, not guessed). The mark is birch
+  bark that also reads as the rows of a list (`ui::Mark`, 32 px grid; favicon on the same grid).
+  The rail carries the mark, the top bar of the start page the wordmark with „Modulkatalog ·
+  inoffiziell", so the two read as one logo; on a phone the start page carries both itself.
+  „Inoffiziell" always stays with the name, and nothing borrows the university's colours or mark.
+  Sizes, grids and numbers: `design/logo/logo.html`.
+- **The icon of the installed app is a birch leaf** (owner, 2026-09-26): the mark cut to a circle
+  „sieht bei einer Kugel mit Material You wirklich nach nichts aus" (its bars run out to the edges
+  of its square, and a launcher's circle leaves a white disc with stubs). The leaf is white on the
+  green of the birch leaf and carries the mark's four bars as the marks of bark, entering from its
+  edges as they enter the square: close enough to the mark that it is recognised, and whole in any
+  shape a launcher cuts and in one colour for Android's themed icons. It is the icon of the home
+  screen only (the manifest's icons, `apple-touch-icon.png`, the splash screens); the site keeps
+  the mark in the tab, the rail and the link previews („ich mag das aktuelle Icon eigentlich sehr").
+  `design/logo/app-icon.mjs`, described in `logo.html`.
 - **Layout:** a thin icon rail (52 px), a top bar with the search, and the whole remaining screen
   for content, with 8 px gaps and 9 px corners. The catalog is three panels side by side: filters,
   list, and the preview of the selected module (`open=<id>`). The preview floats above the list,
@@ -755,9 +759,8 @@ for wide screens, the page still behind it).** The first panel is flat: text and
 the left, the four figures on the right from a container width of 700 px on (the owner's notebook),
 under the text below it. The figures (`dl.birch`) stand on the panel in the colours of the theme
 (owner, 2026-09-22: „sollten sich mit dem Thema anpassen", only the colours; until then they stood
-on the light bark of the first mark, a bright block on a dark page), one under the
-other with thin rules, and on each rule a stroke from alternating edges, the strokes of the first
-mark, whose rows the leaf of the mark carries on;
+on `--bark`, light in both themes like the mark, a bright block on a dark page), one under the
+other with thin rules, and on each rule a stroke from alternating edges, the strokes of the mark;
 each number is set so large that all of them are about equally wide (`--em`, its width in units of
 its size, from `figure_em`; a single digit grows only as large as three), quiet in weight and
 colour (owner: „kleiner und etwas dezenter"). Under it a
@@ -940,17 +943,18 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     An unknown module or program is a 404. Look at the design with
     `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review`.
 - **Who the site is, outside a page** (static in the document's head, `app::shell`, so it
-  survives the takeover): `/favicon.ico` (16, 32 and 48 px) and the SVG icon, `/apple-touch-icon.png`
-  (180 px, full bleed: iOS rounds it and uses it for the home screen and for previews in
-  Messages), `/manifest.webmanifest` (name, colours, icons 192/512, maskable ones of 512 and
-  1024 px and a monochrome one) and `theme-color` (the page background; the head script and the
-  theme switch turn it dark). The pictures are made from the mark (`design/logo/mark.mjs`) by
+  survives the takeover): `/favicon.ico` (32 and 48 px) and the SVG icon, both the mark;
+  `/apple-touch-icon.png` (180 px, full bleed: iOS rounds it and uses it for the home screen and
+  for previews in Messages) and `/manifest.webmanifest` (name, colours, icons 192/512, maskable
+  ones of 512 and 1024 px and a monochrome one), all the icon of the installed app; and
+  `theme-color` (the page background; the head script and the theme switch turn it dark). The
+  pictures are made from the mark's grids and from `design/logo/app-icon.mjs` by
   `node design/logo/render-icons.mjs`. The manifest makes the site installable; the service
   worker makes it start without a network.
   - **Android** (2026-09-26) cuts the maskable icon into the launcher's shape and shows its middle
     87 % (Chromium pads the web's safe circle of 80 % onto Android's, 66 of 108 dp; the mask shows
-    72): the glyph is drawn smaller by that much and sits in the middle, so a circle, a squircle
-    or a teardrop shows the whole leaf. With themed icons (Material You) the launcher tints the
+    72): the leaf is drawn smaller by that much and sits in the middle, so a circle, a squircle
+    or a teardrop shows the whole of it. With themed icons (Material You) the launcher tints the
     monochrome icon, the leaf with its marks cut out, in the colours of the wallpaper; without it
     the icon of an installed app did not take part. The splash screen of the installed app is
     Android's own: the manifest's background (the light page, `#f1f2f4`) with the maskable icon in
@@ -963,12 +967,12 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     screen. Sixty `<link>`s for all screens in every page would have cost every visitor almost a
     kilobyte for what only a home screen of iOS reads. The server draws them
     (`/assets/launch/<width>x<height>[-dark].png`, `server/src/launch.rs`, resvg like the cards)
-    for the screens of `app::launch` (12 iPhones, 9 iPads): the mark in the middle of the page's
-    background, as large as twice an icon of the home screen, on a soft shadow in the light, the
-    wordmark and „Modulkatalog · inoffiziell" at the bottom; on its first request, one at a time,
-    and keeps them (20–40 kB each, 2 MB for all). The gate lets them through like the icons. A
-    screen that is not listed gets no picture and starts blank as before: a new iPhone is one line
-    in `app/src/launch.rs`. Look at all of them with
+    for the screens of `app::launch` (12 iPhones, 9 iPads): the icon of the installed app in the
+    middle of the page's background, as large as twice an icon of the home screen, on a soft
+    shadow in the light, the wordmark and „Modulkatalog · inoffiziell" at the bottom; on its first
+    request, one at a time, and keeps them (20–40 kB each, 2 MB for all). The gate lets them
+    through like the icons. A screen that is not listed gets no picture and starts blank as before:
+    a new iPhone is one line in `app/src/launch.rs`. Look at all of them with
     `FOLIA_LAUNCH_OUT=<dir> cargo test -p folia-server launch_screens_for_review`.
 - **Offline (`app/assets/sw.js`, served as `/sw.js`, registered by `boot.js`; 2026-09-21):** the
   worker keeps the shell of the app — a page of the site (the browser app renders whatever the

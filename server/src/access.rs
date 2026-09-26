@@ -341,7 +341,7 @@ fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<
             </head>
             <body class="gate">
                 <main class="gate-main">
-                    // The lockup stands on the page, as the start page of the app has it.
+                    // The lockup stands on the page like in the app: on a panel the light mark would vanish.
                     <div class="gate-brand">
                         <span class="logo"><app::ui::Mark/></span>
                         <span><app::ui::Wordmark/><small>"Modulkatalog · inoffiziell"</small></span>
