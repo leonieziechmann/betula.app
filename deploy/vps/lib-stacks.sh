@@ -248,6 +248,7 @@ load_instance() {
   INSTANCE_HOST=""
   INSTANCE_GATE="on"
   INSTANCE_CRAWL="on"
+  INSTANCE_INDEXING="off"
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -n "${line}" && "${line}" != \#* ]] || continue
     [[ "${line}" == *=* ]] || die "${file}: '${line}' is not NAME=value"
@@ -258,7 +259,8 @@ load_instance() {
       APP_HOST) INSTANCE_HOST="${value}" ;;
       FOLIA_ACCESS_GATE) INSTANCE_GATE="${value}" ;;
       RADIX_CRAWL) INSTANCE_CRAWL="${value}" ;;
-      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL)" ;;
+      FOLIA_INDEXING) INSTANCE_INDEXING="${value}" ;;
+      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL, FOLIA_INDEXING)" ;;
     esac
   done <"${file}"
   [[ "${INSTANCE_STACK}" == "${name}" ]] || die "${file}: STACK_NAME is '${INSTANCE_STACK}', the file says '${name}'; they have to agree"
@@ -268,6 +270,7 @@ load_instance() {
   [[ "${INSTANCE_HOST}" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || die "${file}: APP_HOST '${INSTANCE_HOST}' is not a host name"
   [[ "${INSTANCE_GATE}" == "on" || "${INSTANCE_GATE}" == "off" ]] || die "${file}: FOLIA_ACCESS_GATE is '${INSTANCE_GATE}', not on or off"
   [[ "${INSTANCE_CRAWL}" == "on" || "${INSTANCE_CRAWL}" == "off" ]] || die "${file}: RADIX_CRAWL is '${INSTANCE_CRAWL}', not on or off"
+  [[ "${INSTANCE_INDEXING}" == "on" || "${INSTANCE_INDEXING}" == "off" ]] || die "${file}: FOLIA_INDEXING is '${INSTANCE_INDEXING}', not on or off"
 }
 
 # Blue-green: two instances whose files name the same APP_HOST are two colours of one site

@@ -203,6 +203,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         render_wait: std::time::Duration::from_secs(3),
         feeds: Arc::new(crate::busy::Places::new("calendar", 2, std::time::Duration::from_secs(10))),
         changes: None,
+        indexing: true,
         leptos: LeptosOptions::builder().output_name("folia-app").site_root("no-site").build(),
     }
 }
@@ -791,6 +792,35 @@ async fn calendar_services_may_fetch_feeds() {
     assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
     assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|cards\\/|calendar\\/)/;"));
+}
+
+/// Search engines list the site only when it says so (`--indexing`). Otherwise every answer says
+/// `noindex`, and robots.txt names no sitemap but forbids no page: a page a crawler may not fetch
+/// is never seen saying `noindex`. The gate keeps its own robots.txt either way.
+#[tokio::test(flavor = "multi_thread")]
+async fn indexing_is_a_switch() {
+    let mut hidden = state(SnapshotStore::new(temp_dir("indexing-off")).unwrap());
+    hidden.indexing = false;
+    let router = crate::router(hidden);
+    let (status, headers, robots) = request(&router, "/robots.txt", &[]).await;
+    assert_eq!((status, String::from_utf8(robots).unwrap().as_str()), (StatusCode::OK, "User-agent: *\nAllow: /\nDisallow: /api/\n"));
+    assert_eq!(headers["x-robots-tag"], crate::NOINDEX);
+    for path in [app::STYLESHEET, crate::api::LIVENESS, "/catalog", "/sitemap.xml", "/no-such-page"] {
+        let (_, headers, _) = request(&router, path, &[]).await;
+        assert_eq!(headers.get("x-robots-tag").and_then(|value| value.to_str().ok()), Some(crate::NOINDEX), "{path}");
+    }
+
+    let router = crate::router(state(SnapshotStore::new(temp_dir("indexing-on")).unwrap()));
+    let (_, headers, robots) = request(&router, "/robots.txt", &[]).await;
+    assert!(String::from_utf8(robots).unwrap().ends_with("\nSitemap: https://catalog.example/sitemap.xml\n") && !headers.contains_key("x-robots-tag"));
+    let (_, headers, _) = request(&router, app::STYLESHEET, &[]).await;
+    assert!(!headers.contains_key("x-robots-tag"));
+
+    let mut gated = state(SnapshotStore::new(temp_dir("indexing-gated")).unwrap());
+    gated.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+    let (_, _, robots) = request(&crate::router(gated), "/robots.txt", &[]).await;
+    let robots = String::from_utf8(robots).unwrap();
+    assert!(robots.contains("\nDisallow: /\n") && !robots.contains("Sitemap"), "{robots}");
 }
 
 /// A server with more work than places (`busy`): a page that finds no place within the wait is

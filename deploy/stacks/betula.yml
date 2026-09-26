@@ -124,6 +124,9 @@ services:
       # Closed unless somebody says "off": a deploy that forgets the variable must not publish
       # the site. On without the secret, the server refuses to start instead of serving it openly.
       FOLIA_ACCESS_GATE: "${FOLIA_ACCESS_GATE:-on}"
+      # Listed by search engines only when somebody says "on": off, every answer says noindex and
+      # robots.txt names no sitemap. The gate sends crawlers away either way.
+      FOLIA_INDEXING: "${FOLIA_INDEXING:-off}"
     secrets:
       # Found without configuration at /run/secrets/folia-access-password; listed even while the
       # gate is off, so that turning it on is one value. A new password ends every visit at once.

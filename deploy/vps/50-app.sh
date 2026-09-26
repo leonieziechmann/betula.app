@@ -8,7 +8,8 @@
 #                                                              # change to canary.env or betula.yml)
 #
 # An instance is a file stacks/<instance>.env: the name of its stack, its public host name,
-# whether the site asks for the password of closed testing (FOLIA_ACCESS_GATE) and whether Radix
+# whether the site asks for the password of closed testing (FOLIA_ACCESS_GATE), whether search
+# engines may list it (FOLIA_INDEXING; off = every answer says noindex) and whether Radix
 # fetches anything from the university (RADIX_CRAWL; off = it only serves the snapshot it has,
 # stacks/betula.offline.yml). Rollback = the previous tag again; it is still loaded
 # (docker image ls 'betula-*').
@@ -20,8 +21,8 @@
 #
 # Blue-green (lib-stacks.sh): an instance whose host another instance serves already is deployed
 # as its standby - running, but without the host's traffic - and only when both files name the
-# same host, say RADIX_CRAWL=off and agree on FOLIA_ACCESS_GATE. This script never moves the
-# traffic of a host; vps/55-switch.sh does.
+# same host, say RADIX_CRAWL=off and agree on FOLIA_ACCESS_GATE and FOLIA_INDEXING. This script
+# never moves the traffic of a host; vps/55-switch.sh does.
 #
 # Environment (all optional):
 #   PUBLIC_ADDRESSES="..."  this machine's public addresses, if they are not on an interface (NAT)
@@ -105,11 +106,12 @@ ensure_snapshot() {
 
 # check_siblings - another stack routed for this instance's host is only allowed as the other colour
 # of blue-green: an instance whose own file names the same host, both offline, both closed or both
-# open. Two Radix that crawl would ask the university for everything twice, and a switch between
-# the colours must not open or close the site. Sets SIBLINGS.
+# open, both listed by search engines or both not. Two Radix that crawl would ask the university
+# for everything twice, and a switch between the colours must not open or close the site, nor let
+# search engines in or send them away. Sets SIBLINGS.
 check_siblings() {
   local other
-  local -a self=("${INSTANCE_STACK}" "${INSTANCE_HOST}" "${INSTANCE_GATE}" "${INSTANCE_CRAWL}")
+  local -a self=("${INSTANCE_STACK}" "${INSTANCE_HOST}" "${INSTANCE_GATE}" "${INSTANCE_CRAWL}" "${INSTANCE_INDEXING}")
   SIBLINGS=()
   while IFS= read -r other; do
     [[ -n "${other}" && "${other}" != "${self[0]}" ]] || continue
@@ -123,9 +125,11 @@ check_siblings() {
       die "stack ${other} serves https://${self[1]} already. Two colours of one site need RADIX_CRAWL=off in both files (${self[0]}.env: ${self[3]}, ${other}.env: ${INSTANCE_CRAWL}): two Radix that crawl would ask the university for everything twice"
     [[ "${INSTANCE_GATE}" == "${self[2]}" ]] ||
       die "FOLIA_ACCESS_GATE is ${self[2]} in ${self[0]}.env and ${INSTANCE_GATE} in ${other}.env: switching between the two would open or close the site"
+    [[ "${INSTANCE_INDEXING}" == "${self[4]}" ]] ||
+      die "FOLIA_INDEXING is ${self[4]} in ${self[0]}.env and ${INSTANCE_INDEXING} in ${other}.env: switching between the two would let search engines in or send them away"
     SIBLINGS+=("${other}")
   done < <(app_stacks_for_host "${self[1]}")
-  INSTANCE_STACK="${self[0]}" INSTANCE_HOST="${self[1]}" INSTANCE_GATE="${self[2]}" INSTANCE_CRAWL="${self[3]}"
+  INSTANCE_STACK="${self[0]}" INSTANCE_HOST="${self[1]}" INSTANCE_GATE="${self[2]}" INSTANCE_CRAWL="${self[3]}" INSTANCE_INDEXING="${self[4]}"
 }
 
 # priority_to_deploy -> the priority of this instance's router. A deployed web server keeps its
@@ -159,7 +163,7 @@ preflight() {
   [[ "${facts}" == "overlay swarm true" ]] || die "overlay network edge is missing or not attachable (run vps/30-docker.sh)"
   stack_exists edge || die "stack edge is not deployed: nothing would route to the application (run vps/40-stacks.sh)"
 
-  log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, release ${TAG}"
+  log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, indexing ${INSTANCE_INDEXING}, crawling ${INSTANCE_CRAWL}, release ${TAG}"
   for image in "${RADIX_IMAGE}" "${FOLIA_IMAGE}"; do
     docker image inspect "${image}" >/dev/null 2>&1 ||
       die "image ${image} is not loaded on this server (deploy/ship.sh builds and loads it; loaded: $(docker image ls --format '{{.Repository}}:{{.Tag}}' "${image%%:*}" | tr '\n' ' '))"
@@ -185,6 +189,11 @@ preflight() {
   if [[ "${INSTANCE_GATE}" == "off" ]]; then
     warn "FOLIA_ACCESS_GATE=off: https://${INSTANCE_HOST} will be open to everybody"
   fi
+  if [[ "${INSTANCE_INDEXING}" == "on" && "${INSTANCE_GATE}" == "on" ]]; then
+    warn "FOLIA_INDEXING=on has no effect while closed testing is on: search engines are sent away until FOLIA_ACCESS_GATE=off"
+  elif [[ "${INSTANCE_INDEXING}" == "on" ]]; then
+    warn "FOLIA_INDEXING=on: search engines may list https://${INSTANCE_HOST} (robots.txt names its sitemap)"
+  fi
 }
 
 deploy_app() {
@@ -202,7 +211,7 @@ deploy_app() {
     files+=("${OFFLINE_FILE}")
   fi
   # Substituted into the stack files by "docker stack deploy".
-  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY
+  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" FOLIA_INDEXING="${INSTANCE_INDEXING}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY
   # never: the default asks a registry for the digest of the tag, and no registry knows these images.
   STACK_DEPLOY_ARGS=(--resolve-image never)
   deploy_stack "${INSTANCE_STACK}" "${files[@]}"
