@@ -1,8 +1,9 @@
 package catalogbuild
 
 // A synthetic catalog for developing the web tier without a crawl: several programs with
-// trees, areas and a plan, hundreds of modules with varied facets, a few events. Written only
-// when BETULA_FIXTURE_DIR names a directory:
+// trees, areas and a plan, hundreds of modules with varied facets, a lecture for every ninth
+// module, spread over the week of the semester the snapshot presents. Written only when
+// BETULA_FIXTURE_DIR names a directory:
 //
 //	BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteFoliaFixture -count=1
 //
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +47,39 @@ func fixtureTreePage(p fixtureProgram, links ...string) string {
 	}
 	b.WriteString(`</ul></body></html>`)
 	return b.String()
+}
+
+// fixtureSlot is when a lecture of the fixture meets, as QIS prints it: „Di.", „09:15 bis 10:45",
+// „A/B", „14.04.2026 bis 21.07.2026".
+type fixtureSlot struct{ day, time, rhythm, dates string }
+
+// fixtureEventPage is the page of eventPageHTML (build_test.go) for a lecture of the fixture,
+// whose semester and slot vary; the pages of the build's own tests all meet on Tuesday at 9:15 in
+// the summer of 2026.
+func fixtureEventPage(title, semester, room string, slot fixtureSlot) string {
+	return `<html><body><h1>` + title + ` - Einzelansicht</h1>
+	<table summary="Grunddaten zur Veranstaltung"><tr><th>Veranstaltungsart</th><td>Vorlesung</td><th>Semester</th><td>` + semester + `</td></tr>
+		<tr><th>SWS</th><td>2</td><th>Max. Teilnehmer/-innen</th><td>80</td></tr></table>
+	<table summary="Übersicht über alle Veranstaltungstermine"><caption>Termine Gruppe: 1</caption>
+		<tr><th>Tag</th><th>Zeit</th><th>Rhythmus</th><th>Dauer</th><th>Raum</th><th>Lehrperson</th></tr>
+		<tr><td>` + slot.day + `</td><td>` + slot.time + `</td><td>` + slot.rhythm + `</td><td>` + slot.dates + `</td><td><a href="#">` + room + `</a></td><td><a href="#">Meyer</a></td></tr></table>
+	</body></html>`
+}
+
+// fixtureSemester is the semester of key as QIS names it, the Monday its lectures begin and the
+// number of weeks they run, as BTU's run: in summer from the second Monday of April for 15 weeks,
+// in winter from the first Monday of October for 17, the Christmas break inside (2026: 13.04. to
+// 24.07.2026 and 05.10.2026 to 29.01.2027).
+func fixtureSemester(key string) (label string, first time.Time, weeks int) {
+	year, _ := strconv.Atoi(key[:len(key)-1])
+	firstMonday := func(month time.Month) time.Time {
+		day := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
+		return day.AddDate(0, 0, (8-int(day.Weekday()))%7)
+	}
+	if strings.HasSuffix(key, "W") {
+		return fmt.Sprintf("WS %d/%02d", year, (year+1)%100), firstMonday(time.October), 17
+	}
+	return fmt.Sprintf("SS %d", year), firstMonday(time.April).AddDate(0, 0, 7), 15
 }
 
 func TestWriteFoliaFixture(t *testing.T) {
@@ -89,6 +124,30 @@ func TestWriteFoliaFixture(t *testing.T) {
 	languages := []string{"Deutsch", "Deutsch", "Englisch", "Deutsch / Englisch"}
 	exams := []string{"Klausur, 90 min.", "mündliche Prüfung, 30 min.", "Hausarbeit", "Klausur, 120 min. oder mündliche Prüfung", "Vortrag und schriftliche Ausarbeitung"}
 	credits := []string{"6", "6", "5", "8", "4", "10", "3", "12"}
+	// Teaching forms mixed as on the real module pages (a lecture in three modules of five, an
+	// exercise or a seminar in two, a practical in one of six, a project in one of nine), each with
+	// the workload of 6 LP, in turn down the list. It is two nines long, so that the modules with a
+	// lecture event, every ninth (below), come to the first of each nine, which states a lecture.
+	teaching := [][]string{
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 4 SWS", "Übung / 2 SWS", "Selbststudium / 90 Stunden"},
+		{"Seminar / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Projekt / 4 SWS", "Exkursion / 1 SWS", "Selbststudium / 105 Stunden"},
+		{"Vorlesung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Übung / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 1 SWS", "Praktikum / 1 SWS", "Selbststudium / 120 Stunden"},
+		{"Seminar / 4 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Praktikum / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Übung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 4 SWS", "Selbststudium / 120 Stunden"},
+		{"Seminar / 2 SWS", "Projekt / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 1 SWS", "Seminar / 1 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Praktikum / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Tutorium / 1 SWS", "Selbststudium / 105 Stunden"},
+	}
 
 	const total = 1200
 	seed := uint32(7)
@@ -274,6 +333,44 @@ func TestWriteFoliaFixture(t *testing.T) {
 		put(catalogdb.SourceQISTree, treeBase+root, fixtureTreePage(p, links...))
 	}
 
+	// ---- the lectures: every ninth module has one ----
+	// They are dated in the semester the snapshot will present, the calendar's (currentSemester),
+	// so that the finder and the Stundenplan compare real slots whenever the snapshot is made:
+	// lectures of the summer in a snapshot of October would leave them nothing to compare.
+	semesterKey := currentSemesterKey(time.Now())
+	semester, lectures, weeks := fixtureSemester(semesterKey)
+	// Room names as QIS prints them, one campus each, the lectures taking turns; their short forms
+	// are ZHG/HS.A, SD/11.301 and SFB/14C.103. Each campus teaches in its own grid of times, as the
+	// real schedules do.
+	rooms := []string{"Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus", "Gebäude 11 - Hörsaal SD - 11.301 Hörsaal C - Campus Sachsendorf", "Gebäude 14.C - SFB - 14C.103 Hörsaal - Campus Senftenberg"}
+	grids := [][]string{
+		{"07:30 bis 09:00", "09:15 bis 10:45", "11:30 bis 13:00", "13:45 bis 15:15", "15:30 bis 17:00", "17:30 bis 19:00"}, // Zentralcampus
+		{"07:30 bis 09:00", "09:15 bis 10:45", "11:00 bis 12:30", "13:30 bis 15:00", "15:15 bis 16:45", "17:00 bis 18:30"}, // Sachsendorf
+		{"08:00 bis 09:30", "10:00 bis 11:30", "12:30 bis 14:00", "14:30 bis 16:00", "16:30 bis 18:00", "18:30 bis 20:00"}, // Senftenberg
+	}
+	// The k-th lecture takes the slot of its campus's week (five days, six times) seven on from the
+	// campus's lecture before it, so that lectures close in the list never meet at the same time;
+	// the 31st to 45th of a campus share a slot with one of the first 15. A planned module then
+	// clashes with two to eight others and leaves the rest to fit. Every ninth meets fortnightly:
+	// in the A weeks, or in the B weeks when it is the second in its slot, beside one of the A weeks.
+	lecture := func(k int) (room string, slot fixtureSlot) {
+		campus, turn := k%3, k/3
+		at := (7*turn + 11*campus) % 30
+		rhythm, week, every := "A/B", 0, 1
+		if k%9 == 4 {
+			rhythm, every = "A", 2
+			if turn >= 30 {
+				rhythm, week = "B", 1
+			}
+		}
+		first := lectures.AddDate(0, 0, 7*week+at%5)
+		last := first.AddDate(0, 0, 7*every*((weeks-1-week)/every))
+		return rooms[campus], fixtureSlot{
+			day: []string{"Mo.", "Di.", "Mi.", "Do.", "Fr."}[at%5], time: grids[campus][at/5], rhythm: rhythm,
+			dates: first.Format("02.01.2006") + " bis " + last.Format("02.01.2006"),
+		}
+	}
+
 	// ---- module pages, the lists ----
 	var list strings.Builder
 	list.WriteString(`<table><tbody class="list">`)
@@ -304,10 +401,8 @@ func TestWriteFoliaFixture(t *testing.T) {
 		if i%9 == 0 {
 			eventNo++
 			extra += fmt.Sprintf(`<tr><td>Veranstaltungen im aktuellen Semester:</td><td><ul><li><a href="https://www.b-tu.de/qisserver3/rds?state=verpublish&veranstaltung.veranstid=%d">%d Vorlesung</a></li></ul></td></tr>`, eventNo, eventNo)
-			// Room names as QIS prints them, one after the other (i is a multiple of 9 here);
-			// their short forms are ZHG/HS.A, SD/11.301 and SFB/14C.103.
-			rooms := []string{"Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus", "Gebäude 11 - Hörsaal SD - 11.301 Hörsaal C - Campus Sachsendorf", "Gebäude 14.C - SFB - 14C.103 Hörsaal - Campus Senftenberg"}
-			events = append(events, fmt.Sprintf("%d", eventNo), eventPageHTML(m.title, "Vorlesung", rooms[(i/9)%3], "14.04.2026 bis 21.07.2026"))
+			room, slot := lecture(i / 9)
+			events = append(events, fmt.Sprintf("%d", eventNo), fixtureEventPage(m.title, semester, room, slot))
 		}
 		// The remarks name the programs with their degree label, as the live pages do; that is
 		// where „B.Sc." and „M.Sc." come from. No kind is stated here: the tree states it.
@@ -343,7 +438,7 @@ func TestWriteFoliaFixture(t *testing.T) {
 		<tr><td>Leistungspunkte:</td><td>` + credits[next(len(credits))] + `</td></tr>
 		<tr><td>Empfohlene Voraussetzungen:</td><td>keine</td></tr>
 		<tr><td>Zwingende Voraussetzungen:</td><td>keine</td></tr>
-		<tr><td>Lehrformen und Arbeitsumfang:</td><td><ul><li>Vorlesung / 2 SWS</li><li>Übung / 2 SWS</li><li>Selbststudium / 120 Stunden</li></ul></td></tr>
+		<tr><td>Lehrformen und Arbeitsumfang:</td><td><ul><li>` + strings.Join(teaching[i%len(teaching)], "</li><li>") + `</li></ul></td></tr>
 		<tr><td>Modulprüfung:</td><td>Modulabschlussprüfung (MAP)</td></tr>
 		<tr><td>Prüfungsleistung/en für Modulprüfung:</td><td>` + exams[next(len(exams))] + `</td></tr>
 		<tr><td>Bewertung der Modulprüfung:</td><td>Prüfungsleistung - benotet</td></tr>
@@ -482,6 +577,22 @@ Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></t
 		if c.Status == catalogdb.StatusFail {
 			t.Errorf("validate: %s = %d %v", c.Name, c.Value, c.Samples)
 		}
+	}
+	// The lectures are in the semester the snapshot presents, and planning any one of them leaves
+	// nine in ten of the others free (another day, another time, or the other of the A and B weeks).
+	var current string
+	if err := db.SQL().QueryRow("SELECT value FROM meta WHERE key = 'current_semester'").Scan(&current); err != nil || current != semesterKey {
+		t.Errorf("current semester %q (err %v), the lectures are in %s", current, err, semesterKey)
+	}
+	var dated, most int
+	err = db.SQL().QueryRow(`
+		SELECT (SELECT COUNT(DISTINCT module_id) FROM v_module_schedule WHERE semester_key = ?1), COALESCE(MAX(n), 0) FROM (
+			SELECT COUNT(DISTINCT b.module_id) AS n FROM v_module_schedule a
+			JOIN v_module_schedule b ON b.semester_key = a.semester_key AND b.module_id <> a.module_id AND b.weekday = a.weekday
+				AND b.start_time < a.end_time AND a.start_time < b.end_time AND (a.rhythm = b.rhythm OR 'weekly' IN (a.rhythm, b.rhythm))
+			WHERE a.semester_key = ?1 GROUP BY a.module_id)`, semesterKey).Scan(&dated, &most)
+	if err != nil || dated == 0 || most*10 > dated {
+		t.Errorf("%d modules with a lecture in %s, one of them meets %d others (err %v)", dated, semesterKey, most, err)
 	}
 	snap, err := db.Export(context.Background(), dir)
 	if err != nil {

@@ -162,17 +162,16 @@ for (const slow of [1, 4]) {
     result: () => location.search.includes("fits=") && document.querySelectorAll(".rows a.row").length > 2 && !document.querySelector(".list[data-pending]"),
   }, slow);
   // „Einplanen" in the preview with the finder on: the button in the first frame; the plan is
-  // written after it, and the planned module leaves the list. What stays is what still fits, or
-  // the list says that nothing does: in the synthetic snapshot every class meets on Tuesday at
-  // 9:15, so none fits beside the planned module.
+  // written after it, and the planned module leaves the list. What stays is what still fits
+  // beside it: the lectures of the synthetic snapshot are spread over the week, so a planned
+  // module clashes with a few of them only.
   await click(page, ".rows a.row >> nth=2")();
   await page.waitForFunction(() => document.querySelector("#preview .plan-toggle.mark-switch") && location.search.includes("open="), null, { timeout: 15000 }).catch(() => problems.push("the finder: no preview"));
   await page.evaluate(() => { window.__planned = new URL(location.href).searchParams.get("open"); });
   await page.waitForTimeout(250);
   await watch(page, "Einplanen with the finder on" + tag, click(page, "#preview .plan-toggle.mark-switch"), {
     feedback: () => document.querySelector("#preview .plan-toggle.mark-switch")?.getAttribute("aria-pressed") === "true",
-    result: () => (localStorage.getItem("betula.studyplan.v1") || "").includes(window.__planned) && !document.querySelector(`.rows a.row[data-id="${window.__planned}"]`)
-      && (document.querySelectorAll(".rows a.row").length > 0 || document.querySelector(".rows .state-title")?.textContent.startsWith("Kein Modul passt")),
+    result: () => (localStorage.getItem("betula.studyplan.v1") || "").includes(window.__planned) && !document.querySelector(`.rows a.row[data-id="${window.__planned}"]`) && document.querySelectorAll(".rows a.row").length > 0,
   }, slow);
   check((await page.evaluate(() => document.querySelectorAll(".pending-page, .rows-pending, .sk-detail").length)) === 0, "a skeleton stayed after the last step" + tag);
   await context.close();
