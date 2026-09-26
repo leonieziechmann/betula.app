@@ -37,6 +37,31 @@ pub struct Config {
     #[arg(long, env = "FOLIA_HTML_CACHE_MB", default_value_t = 128)]
     pub html_cache_mb: usize,
 
+    /// Worker threads of the runtime. 0: one more than the processors the container may use (its
+    /// CPU limit), so that one is free for connections while every processor renders.
+    #[arg(long, env = "FOLIA_WORKERS", default_value_t = 0)]
+    pub workers: usize,
+
+    /// Pages rendered at the same time; a page that finds every place taken waits (`busy`). 0: one
+    /// per processor the container may use.
+    #[arg(long, env = "FOLIA_RENDER_PLACES", default_value_t = 0)]
+    pub render_places: usize,
+
+    /// How long a page waits for a place to be rendered in before it is answered 503 with
+    /// `Retry-After`, in milliseconds.
+    #[arg(long, env = "FOLIA_RENDER_WAIT_MS", default_value_t = 3000)]
+    pub render_wait_ms: u64,
+
+    /// Calendar feeds made at the same time (0: one per processor); a feed waits for a place at
+    /// most ten seconds.
+    #[arg(long, env = "FOLIA_FEED_PLACES", default_value_t = 0)]
+    pub feed_places: usize,
+
+    /// After each new snapshot, render every page of the sitemap into the cache while the server
+    /// is idle (`on`/`off`).
+    #[arg(long, env = "FOLIA_WARM_CACHE", default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set, value_parser = clap::builder::BoolishValueParser::new())]
+    pub warm_cache: bool,
+
     /// Finished link-preview cards (`/cards/…png`) kept in memory, in MiB.
     #[arg(long, env = "FOLIA_CARD_CACHE_MB", default_value_t = 64)]
     pub card_cache_mb: usize,

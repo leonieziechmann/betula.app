@@ -12,12 +12,14 @@
 
 mod access;
 mod api;
+mod busy;
 mod cache;
 mod cards;
 mod config;
 mod snapshot;
 #[cfg(test)]
 mod tests;
+mod warm;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -56,6 +58,12 @@ pub struct AppState {
     pub packages: Packages,
     /// Closed testing: the password in front of the whole site (`access`); `None` when it is open.
     pub gate: Option<Arc<access::Gate>>,
+    /// Where pages that are not in the cache are rendered, and how long a page waits for a place
+    /// before it is answered 503 (`busy`).
+    pub renders: Arc<busy::Places>,
+    pub render_wait: Duration,
+    /// Where calendar feeds are made.
+    pub feeds: Arc<busy::Places>,
 }
 
 /// The header that names the build of the server on every answer (`AppState::build_id`).
@@ -114,7 +122,11 @@ async fn access_log(State(state): State<AppState>, request: Request, next: Next)
     let cache = response.headers().get("x-cache").and_then(|v| v.to_str().ok()).unwrap_or("-").to_string();
     let bytes = response.headers().get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<u64>().ok());
     let ms = started.elapsed().as_secs_f64() * 1000.0;
-    if status >= 500 {
+    if cache == busy::BUSY {
+        // Turned away on purpose, the server being busy (`busy`): no error of the server, but
+        // worth seeing when it happens often.
+        tracing::warn!(component = "http", event = "http.request", %method, path, status, ms, cache, bytes, "request turned away: the server is busy");
+    } else if status >= 500 {
         tracing::error!(component = "http", event = "http.request", %method, path, status, ms, cache, bytes, "request failed");
     } else if path == api::LIVENESS {
         // The container's own probe, twice a minute: not part of the story of a run.
@@ -125,7 +137,9 @@ async fn access_log(State(state): State<AppState>, request: Request, next: Next)
     response
 }
 
-pub fn router(state: AppState) -> Router {
+/// The rendered pages with their cache, and nothing in front of them: the site's pages inside
+/// `router`, and what the warm-up asks for directly (`warm`), past the gate and the access log.
+pub fn pages(state: &AppState) -> Router<AppState> {
     let source = Source(Arc::new(ActiveSnapshot(state.store.clone())));
     let routes = generate_route_list(app::App);
     let options = state.leptos.clone();
@@ -138,15 +152,23 @@ pub fn router(state: AppState) -> Router {
             provide_context(source.clone());
             provide_context(site.clone());
             provide_context(build.clone());
-            if let Some((map, ..)) = store.current().and_then(|snapshot| snapshot.program_map.clone()) {
-                provide_context(app::data::ProgramMapHandle(map));
+            if let Some(snapshot) = store.current() {
+                if let Some((map, ..)) = snapshot.program_map.clone() {
+                    provide_context(app::data::ProgramMapHandle(map));
+                }
+                if let Some(pickers) = snapshot.pickers.clone() {
+                    provide_context(pickers);
+                }
+                if let Some(programs) = snapshot.programs.clone() {
+                    provide_context(programs);
+                }
             }
         }
     };
 
-    let pages = Router::new()
+    Router::new()
         .leptos_routes_with_context(
-            &state,
+            state,
             routes,
             provide.clone(),
             {
@@ -155,8 +177,10 @@ pub fn router(state: AppState) -> Router {
             },
         )
         .fallback(leptos_axum::file_and_error_handler_with_context::<AppState, _>(provide, app::shell))
-        .layer(middleware::from_fn_with_state(state.clone(), cache::html_cache));
+        .layer(middleware::from_fn_with_state(state.clone(), cache::html_cache))
+}
 
+pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/db", get(api::database))
         .route("/api/status", get(api::status))
@@ -164,6 +188,7 @@ pub fn router(state: AppState) -> Router {
         .route("/healthz", get(api::health))
         .route(api::LIVENESS, get(api::alive))
         .route(app::STYLESHEET, get(api::stylesheet))
+        .route(app::icons::SPRITE, get(api::icons))
         .route(app::FAVICON, get(api::favicon))
         .route(app::FONT, get(api::font))
         .route(app::OG_IMAGE, get(api::og_image))
@@ -191,7 +216,7 @@ pub fn router(state: AppState) -> Router {
         .route("/robots.txt", get(api::robots))
         .route("/sitemap.xml", get(api::sitemap))
         .route(access::PATH, get(access::page).post(access::enter))
-        .merge(pages)
+        .merge(pages(&state))
         // Around everything above, the page cache included; the access log sees what it turns away.
         .layer(middleware::from_fn_with_state(state.clone(), access::gate))
         .layer(middleware::from_fn_with_state(state.clone(), access_log))
@@ -247,9 +272,27 @@ async fn healthcheck(addr: std::net::SocketAddr) -> std::process::ExitCode {
     }
 }
 
-#[tokio::main]
-async fn main() -> std::process::ExitCode {
+fn main() -> std::process::ExitCode {
     let config = Config::parse();
+    // The processors the container may use (Rust counts the CPU limit of its cgroup): renders and
+    // calendar feeds run on as many at once (`busy`). The runtime gets one worker thread more, so
+    // that one is always free to accept connections and answer what needs no render — cached
+    // pages, files, `/livez` — while every processor renders. With one thread for everything (the
+    // default of a container limited to one processor) a queue of renders starved the accept loop:
+    // in the load test of 2026-09-26 connections were refused before any of them could be told 503.
+    let cpus = std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1);
+    let workers = if config.workers > 0 { config.workers } else { cpus + 1 };
+    let runtime = match tokio::runtime::Builder::new_multi_thread().worker_threads(workers).enable_all().build() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("folia: cannot start the runtime: {error}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+    runtime.block_on(serve(config, cpus, workers))
+}
+
+async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::ExitCode {
     if let Some(config::Command::Healthcheck) = config.command {
         return healthcheck(config.addr).await;
     }
@@ -279,6 +322,9 @@ async fn main() -> std::process::ExitCode {
     tokio::spawn(snapshot::run(store.clone(), config.snapshot_url.clone(), config.poll_interval(), config.stale_after()));
 
     let started_at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    // One place per processor unless configured.
+    let places = |configured: usize| if configured > 0 { configured } else { cpus };
+    let render_wait = Duration::from_millis(config.render_wait_ms);
     let state = AppState {
         store,
         cache: Arc::new(HtmlCache::new(config.html_cache_mb * 1024 * 1024)),
@@ -289,6 +335,9 @@ async fn main() -> std::process::ExitCode {
         site_root: config.site_root.clone(),
         packages: Arc::default(),
         gate,
+        renders: Arc::new(busy::Places::new("render", places(config.render_places), render_wait)),
+        render_wait,
+        feeds: Arc::new(busy::Places::new("calendar", places(config.feed_places), Duration::from_secs(10))),
         leptos: LeptosOptions::builder()
             .output_name("folia-app")
             .site_root(config.site_root.to_string_lossy().into_owned())
@@ -304,7 +353,23 @@ async fn main() -> std::process::ExitCode {
             return std::process::ExitCode::FAILURE;
         }
     };
-    tracing::info!(component = "server", event = "server.listening", addr = %config.addr, snapshot_url = %config.snapshot_url, "web server started");
+    tracing::info!(
+        component = "server",
+        event = "server.listening",
+        addr = %config.addr,
+        snapshot_url = %config.snapshot_url,
+        cpus,
+        workers,
+        render_places = state.renders.count(),
+        render_wait_ms = config.render_wait_ms,
+        feed_places = state.feeds.count(),
+        html_cache_mb = config.html_cache_mb,
+        warm_cache = config.warm_cache,
+        "web server started"
+    );
+    if config.warm_cache {
+        tokio::spawn(warm::run(pages(&state).with_state(state.clone()), state.store.clone()));
+    }
 
     match axum::serve(listener, router(state)).with_graceful_shutdown(shutdown_signal()).await {
         Ok(()) => std::process::ExitCode::SUCCESS,

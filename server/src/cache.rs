@@ -4,10 +4,25 @@
 //! on the user), so the first request renders it and every later one is a memory copy, until
 //! the next snapshot starts a new generation. Browsers and proxies get an ETag per generation
 //! and revalidate with a 304 that costs no rendering at all.
+//!
+//! **Kept compressed only** (2026-09-26): nearly every client asks for gzip, and compressed a
+//! page takes a fourth to a ninth of the memory (a module 27 → 6 kB with both copies before, a
+//! filtered list 146 → 17 kB, the start page 516 → 106 kB). 128 MiB held about 1,200 pages
+//! before — not even the modules of the sitemap — and now hold all 5,200 pages of the sitemap
+//! and thousands of views besides. The rare client without gzip gets the page unpacked on the
+//! way out. A full cache drops a tenth of itself at once, views (an address with a query:
+//! filters, further pages, variants) before the pages of the sitemap, least recently used
+//! first: a crawler walking through filters cannot push the site's own pages out.
+//!
+//! **One render per page** at a time: whoever asks for a page that is being rendered waits for
+//! that render and is answered from the cache (after a new snapshot or a restart the start page
+//! is asked for many times before its first render is done). A render needs one of the server's
+//! places (`busy::Places`): without one within the wait, the page is answered 503.
 
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use axum::body::{Body, Bytes};
 use axum::extract::{Request, State};
@@ -15,16 +30,26 @@ use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use catalog::url::CatalogUrl;
+use tokio::sync::watch;
 
 use crate::AppState;
 
 const MAX_PAGE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_KEY_BYTES: usize = 2048;
+/// A full cache drops pages until it is at this share of its size, so that it does not sort its
+/// entries for every page it takes.
+const EVICT_TO_PERCENT: usize = 90;
+
+/// Marks a request of the warm-up (`warm`): rendered only while the server has nothing else to
+/// do, never waited for.
+#[derive(Clone, Copy)]
+pub struct WarmUp;
 
 struct Entry {
-    body: Bytes,
     gzip: Bytes,
     last_used: u64,
+    /// No query in the key: a page of the sitemap, dropped only when no view is left.
+    canonical: bool,
 }
 
 #[derive(Default)]
@@ -38,14 +63,38 @@ struct Inner {
 pub struct HtmlCache {
     inner: Mutex<Inner>,
     max_bytes: usize,
+    /// The pages being rendered right now, by key. Whoever asks for one of them waits until the
+    /// sender is dropped (the render is over, cached or not).
+    rendering: Mutex<HashMap<String, watch::Receiver<()>>>,
+}
+
+/// The render of one key, held by the request that renders it: when it ends, however it ends,
+/// the key is free again and whoever waited looks into the cache.
+struct Rendering<'a> {
+    cache: &'a HtmlCache,
+    key: String,
+    _done: watch::Sender<()>,
+}
+
+impl Drop for Rendering<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut rendering) = self.cache.rendering.lock() {
+            rendering.remove(&self.key);
+        }
+    }
+}
+
+enum Turn<'a> {
+    Render(Rendering<'a>),
+    Wait(watch::Receiver<()>),
 }
 
 impl HtmlCache {
     pub fn new(max_bytes: usize) -> Self {
-        Self { inner: Mutex::new(Inner::default()), max_bytes }
+        Self { inner: Mutex::new(Inner::default()), max_bytes, rendering: Mutex::new(HashMap::new()) }
     }
 
-    fn get(&self, generation: u64, key: &str) -> Option<(Bytes, Bytes)> {
+    fn get(&self, generation: u64, key: &str) -> Option<Bytes> {
         let mut inner = self.inner.lock().ok()?;
         if inner.generation != generation {
             return None;
@@ -54,11 +103,11 @@ impl HtmlCache {
         let tick = inner.tick;
         let entry = inner.entries.get_mut(key)?;
         entry.last_used = tick;
-        Some((entry.body.clone(), entry.gzip.clone()))
+        Some(entry.gzip.clone())
     }
 
-    fn put(&self, generation: u64, key: String, body: Bytes, gzip: Bytes) {
-        let size = key.len() + body.len() + gzip.len();
+    fn put(&self, generation: u64, key: String, gzip: Bytes) {
+        let size = key.len() + gzip.len();
         if size > self.max_bytes {
             return;
         }
@@ -71,21 +120,45 @@ impl HtmlCache {
         }
         inner.tick += 1;
         let tick = inner.tick;
-        if let Some(old) = inner.entries.insert(key.clone(), Entry { body, gzip, last_used: tick }) {
-            inner.bytes -= key.len() + old.body.len() + old.gzip.len();
+        let canonical = !key.contains('?');
+        if let Some(old) = inner.entries.insert(key.clone(), Entry { gzip, last_used: tick, canonical }) {
+            inner.bytes = inner.bytes.saturating_sub(key.len() + old.gzip.len());
         }
         inner.bytes += size;
-        while inner.bytes > self.max_bytes {
-            let Some(oldest) = inner.entries.iter().min_by_key(|(_, entry)| entry.last_used).map(|(key, _)| key.clone()) else { break };
-            if let Some(evicted) = inner.entries.remove(&oldest) {
-                inner.bytes -= oldest.len() + evicted.body.len() + evicted.gzip.len();
-            }
+        if inner.bytes > self.max_bytes {
+            evict(&mut inner, self.max_bytes / 100 * EVICT_TO_PERCENT);
         }
+    }
+
+    /// Whether this request renders `key` or waits for the request that does.
+    fn turn(&self, key: &str) -> Option<Turn<'_>> {
+        let mut rendering = self.rendering.lock().ok()?;
+        if let Some(receiver) = rendering.get(key) {
+            return Some(Turn::Wait(receiver.clone()));
+        }
+        let (done, receiver) = watch::channel(());
+        rendering.insert(key.to_string(), receiver);
+        Some(Turn::Render(Rendering { cache: self, key: key.to_string(), _done: done }))
     }
 
     /// (pages, bytes) for /api/status.
     pub fn size(&self) -> (usize, usize) {
         self.inner.lock().map(|inner| (inner.entries.len(), inner.bytes)).unwrap_or((0, 0))
+    }
+}
+
+/// Drops pages until the cache holds at most `target` bytes: views before the pages of the
+/// sitemap, each group least recently used first.
+fn evict(inner: &mut Inner, target: usize) {
+    let mut order: Vec<(bool, u64, String)> = inner.entries.iter().map(|(key, entry)| (entry.canonical, entry.last_used, key.clone())).collect();
+    order.sort_unstable();
+    for (_, _, key) in order {
+        if inner.bytes <= target {
+            break;
+        }
+        if let Some(entry) = inner.entries.remove(&key) {
+            inner.bytes = inner.bytes.saturating_sub(key.len() + entry.gzip.len());
+        }
     }
 }
 
@@ -132,9 +205,25 @@ pub fn gzip(body: &[u8]) -> Bytes {
     }
 }
 
-fn page(body: Bytes, compressed: Bytes, etag: &str, cache_state: &'static str, wants_gzip: bool) -> Response {
+fn gunzip(compressed: &[u8]) -> Option<Bytes> {
+    let mut body = Vec::with_capacity(compressed.len() * 5);
+    flate2::read::GzDecoder::new(compressed).read_to_end(&mut body).ok()?;
+    Some(Bytes::from(body))
+}
+
+/// A page as the client can take it: compressed if it asked for gzip, else unpacked (or as it
+/// came from the render, when that is at hand).
+fn page(compressed: Bytes, plain: Option<Bytes>, etag: &str, cache_state: &'static str, wants_gzip: bool) -> Response {
     let use_gzip = wants_gzip && !compressed.is_empty();
-    let mut response = Response::new(Body::from(if use_gzip { compressed } else { body }));
+    let body = match (use_gzip, plain) {
+        (true, _) => compressed,
+        (false, Some(plain)) => plain,
+        (false, None) => match gunzip(&compressed) {
+            Some(plain) => plain,
+            None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        },
+    };
+    let mut response = Response::new(Body::from(body));
     let headers = response.headers_mut();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
     // Asked again every time (the ETag makes it a 304 from memory): a page names the build of its
@@ -154,7 +243,9 @@ fn page(body: Bytes, compressed: Bytes, etag: &str, cache_state: &'static str, w
 
 /// Middleware around the rendered routes.
 pub async fn html_cache(State(state): State<AppState>, request: Request, next: Next) -> Response {
-    if request.method() != Method::GET {
+    // HEAD is a GET without the body (hyper leaves it out): some crawlers ask so, and it must not
+    // render past the cache and the places.
+    if request.method() != Method::GET && request.method() != Method::HEAD {
         return next.run(request).await;
     }
     let Some(snapshot) = state.store.current() else {
@@ -173,14 +264,43 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
         .get(header::IF_NONE_MATCH)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.split(',').any(|tag| tag.trim() == etag));
+    let warm_up = request.extensions().get::<WarmUp>().is_some();
     let key = cache_key(request.uri());
-
-    if let Some((body, compressed)) = state.cache.get(generation, &key) {
+    let cached = |state: &AppState| state.cache.get(generation, &key);
+    let answer_cached = |compressed: Bytes, cache_state: &'static str| {
         if revalidates {
-            return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+            return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag.clone())]).into_response();
         }
-        return page(body, compressed, &etag, "hit", wants_gzip);
+        page(compressed, None, &etag, cache_state, wants_gzip)
+    };
+
+    if let Some(compressed) = cached(&state) {
+        return answer_cached(compressed, "hit");
     }
+
+    // Somebody renders this page already: wait for that render, then answer from the cache.
+    // (A render that ends without a page for the cache — a 404, a 503 — leaves the waiting ones
+    // to render it themselves.)
+    let mut rendering = None;
+    if key.len() <= MAX_KEY_BYTES {
+        match state.cache.turn(&key) {
+            Some(Turn::Wait(mut done)) if !warm_up => {
+                let _ = tokio::time::timeout(state.render_wait + Duration::from_secs(5), done.changed()).await;
+                if let Some(compressed) = cached(&state) {
+                    return answer_cached(compressed, "hit");
+                }
+            }
+            Some(Turn::Wait(_)) => return crate::busy::busy(10, true),
+            Some(Turn::Render(turn)) => rendering = Some(turn),
+            None => {}
+        }
+    }
+
+    // A place to render in: a visitor waits for one (a while), the warm-up only takes a free one.
+    let place = if warm_up { state.renders.enter_idle() } else { state.renders.enter().await };
+    let Some(_place) = place else {
+        return crate::busy::busy(10, true);
+    };
 
     let response = next.run(request).await;
     let (parts, body) = response.into_parts();
@@ -200,13 +320,14 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
     }
 
     let compressed = gzip(&body);
-    if key.len() <= MAX_KEY_BYTES && state.store.generation() == generation {
-        state.cache.put(generation, key, body.clone(), compressed.clone());
+    if !compressed.is_empty() && key.len() <= MAX_KEY_BYTES && state.store.generation() == generation {
+        state.cache.put(generation, key, compressed.clone());
     }
+    drop(rendering);
     if revalidates {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
     }
-    page(body, compressed, &etag, "miss", wants_gzip)
+    page(compressed, Some(body), &etag, "miss", wants_gzip)
 }
 
 #[cfg(test)]
@@ -245,18 +366,49 @@ mod tests {
     fn the_cache_is_bounded_and_forgets_old_generations() {
         let cache = HtmlCache::new(1000);
         let body = |n: usize| Bytes::from(vec![b'x'; n]);
-        cache.put(1, "/a".into(), body(400), body(30));
-        cache.put(1, "/b".into(), body(400), body(30));
+        cache.put(1, "/a".into(), body(400));
+        cache.put(1, "/b".into(), body(400));
         assert!(cache.get(1, "/a").is_some());
-        cache.put(1, "/c".into(), body(400), body(30));
+        cache.put(1, "/c".into(), body(400));
         // "/b" was used least recently.
         assert!(cache.get(1, "/b").is_none() && cache.get(1, "/a").is_some() && cache.get(1, "/c").is_some());
         assert!(cache.size().1 <= 1000);
 
         assert!(cache.get(2, "/a").is_none(), "a new snapshot must not see old pages");
-        cache.put(2, "/d".into(), body(10), body(1));
+        cache.put(2, "/d".into(), body(10));
         assert_eq!(cache.size().0, 1);
-        cache.put(2, "/huge".into(), body(5000), body(1));
+        cache.put(2, "/huge".into(), body(5000));
         assert!(cache.get(2, "/huge").is_none());
+    }
+
+    #[test]
+    fn views_go_before_the_pages_of_the_sitemap() {
+        let cache = HtmlCache::new(10_000);
+        let body = |n: usize| Bytes::from(vec![b'x'; n]);
+        cache.put(1, "/catalog/module/1".into(), body(2000));
+        cache.put(1, "/catalog/module/2".into(), body(2000));
+        // A crawler walks through filters: many views, each used once, all of them newer.
+        for n in 0..20 {
+            cache.put(1, format!("/catalog?q={n}"), body(900));
+        }
+        assert!(cache.size().1 <= 10_000);
+        assert!(cache.get(1, "/catalog/module/1").is_some() && cache.get(1, "/catalog/module/2").is_some(), "the sitemap's pages stay");
+        assert!(cache.get(1, "/catalog?q=19").is_some(), "the newest view stays");
+        assert!(cache.get(1, "/catalog?q=0").is_none(), "the oldest view went");
+        // With no view left, the least recently used page of the sitemap goes.
+        let only_pages = HtmlCache::new(5000);
+        only_pages.put(1, "/a".into(), body(2000));
+        only_pages.put(1, "/b".into(), body(2000));
+        assert!(only_pages.get(1, "/a").is_some());
+        only_pages.put(1, "/c".into(), body(2000));
+        assert!(only_pages.get(1, "/b").is_none() && only_pages.get(1, "/a").is_some());
+    }
+
+    #[test]
+    fn a_page_is_kept_compressed_and_unpacked_for_who_asks() {
+        let html = "<!DOCTYPE html><p>Grundlagen der Informatik</p>".repeat(50);
+        let compressed = gzip(html.as_bytes());
+        assert!(compressed.len() < html.len() / 5);
+        assert_eq!(gunzip(&compressed).as_deref(), Some(html.as_bytes()));
     }
 }

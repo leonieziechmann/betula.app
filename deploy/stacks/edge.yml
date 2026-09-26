@@ -174,7 +174,7 @@ services:
       # flags are given). As a variable and not pasted into the script: a value is data, never shell code.
       ACME_CASERVER: "${ACME_CASERVER:-}"
       # Soft limit below the container limit: the Go runtime collects harder instead of being OOM-killed.
-      GOMEMLIMIT: "220MiB"
+      GOMEMLIMIT: "450MiB"
     ports:
       # mode: host bypasses the routing mesh, so Traefik (and the rate limiter, and the access log) see the
       # real client address instead of an ingress-network address. True for IPv4 only, see "ipv6" above.
@@ -243,8 +243,12 @@ services:
           - node.role == manager
       resources:
         limits:
-          cpus: "1.0"
-          memory: 256M
+          # Every request of every site passes here, TLS included. Two of the host's four
+          # processors and room for many connections at once (2026-09-26): a lecture hall opening
+          # the app downloads the catalog (7.6 MB) hundreds of times over slow phones, each a
+          # connection with its buffers, and an OOM-killed Traefik takes every site down with it.
+          cpus: "2.0"
+          memory: 512M
           pids: 512
         reservations:
           cpus: "0.10"

@@ -218,16 +218,27 @@ struct Shown {
     filtered: bool,
 }
 
+/// The data of the overview, made once per snapshot by a host that can (the server,
+/// `server/src/snapshot.rs`) and handed to every render: every filter of the overview shows a part
+/// of the same programs, and loading them anew was most of the 31 ms such a page cost the server
+/// (load test 2026-09-26).
+#[derive(Clone)]
+pub struct ProgramsReady(pub std::sync::Arc<pages::ProgramsData>);
+
 #[component]
 pub fn ProgramsPage() -> impl IntoView {
     let source = use_source();
     let status = PageStatus::capture();
     let location = use_location();
     let url = Memo::new(move |_| ProgramsUrl::parse(&location.search.get()));
-    // Loaded and grouped once; the URL only decides what of it is shown.
-    let loaded = source.and_then(|source| source.run(pages::programs_overview));
+    // Loaded and grouped once; the URL only decides what of it is shown. A host that has the data
+    // ready for the snapshot (`ProgramsReady`) hands it over.
+    let loaded = match use_context::<ProgramsReady>() {
+        Some(ready) => Ok(group(&ready.0)),
+        None => source.and_then(|source| source.run(pages::programs_overview)).map(|data| group(&data)),
+    };
     let all = match loaded {
-        Ok(data) => group(&data),
+        Ok(all) => all,
         Err(error) => {
             status.for_error(&error);
             return view! { <Title text="Studiengänge"/><div class="page"><ErrorState error/></div> }.into_any();
