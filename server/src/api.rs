@@ -653,13 +653,6 @@ pub async fn robots(State(state): State<AppState>) -> Response {
     // Disallowing `/api/` also keeps a crawler that runs JavaScript (Googlebot) on the server's page:
     // without `/api/status` the browser app does not start (`app/assets/boot.js`), so it indexes the
     // page as the server wrote it and never downloads the catalog to let the app replace it.
-    // Not for search engines (`--indexing off`): no sitemap invites them, but the pages are not
-    // forbidden either. They say `noindex` themselves (`access_log`), and a page a crawler may not
-    // fetch is never seen saying so: it may still be listed by its bare address.
-    if !state.indexing {
-        let body = "User-agent: *\nAllow: /\nDisallow: /api/\n";
-        return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], body).into_response();
-    }
     let body = format!("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {}/sitemap.xml\n", state.public_url);
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
 }

@@ -940,16 +940,6 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   differ; `v_program_plan_entry` by module, `queries::module_plan_places`; `plan_semester` of
   `v_program_module` is the smallest exact semester and has none for a span). That line wraps
   in the room the name leaves (`contain: inline-size`), so the kind at the right end stays whole.
-- **Listed only when the instance says so** (`FOLIA_INDEXING`, owner 2026-09-26: „dass man
-  indexing ein und aus schalten kann"): off — the default of the binary and of
-  `deploy/stacks/betula.yml` — every answer carries `X-Robots-Tag: noindex, nofollow` (added in
-  `access_log`; an answer that says it already, a calendar feed or the login page, keeps its own)
-  and `robots.txt` names no sitemap. It does not forbid the pages: a page a crawler may not fetch is
-  never seen saying `noindex` and may still be listed by its bare address (what the placeholder of
-  betula.app does too). On, the site is as described here. Independent of closed testing, whose
-  `robots.txt` sends every crawler away while it is on (`server.indexing_gated` warns when both are
-  on): a test instance open to everybody (canary without the gate) stays out of the results, where
-  it would compete with betula.app under its own canonical addresses.
 - **The server's page is what crawlers index**, also those that run JavaScript: `robots.txt`
   disallows `/api/`, so a crawler's renderer gets no `/api/status`, `boot.js` does not start the
   browser app, and the page stays as the server wrote it. Without that line Googlebot could
@@ -1308,7 +1298,6 @@ keeps serving the last good one when Radix is away, also after a restart.
 | `--card-cache-mb` | `FOLIA_CARD_CACHE_MB` | `64` | finished link-preview cards kept in memory |
 | `--public-url` | `FOLIA_PUBLIC_URL` | `https://betula.app` | the site's address from outside: canonical links, link previews, sitemap |
 | `--access-gate` | `FOLIA_ACCESS_GATE` | `off` | closed testing: the whole site asks for one shared password (see below) |
-| `--indexing` | `FOLIA_INDEXING` | `off` | search engines may list the site: `robots.txt` names the sitemap. Off, every answer carries `X-Robots-Tag: noindex, nofollow` and no sitemap is named („Search engines"); the gate sends crawlers away either way |
 | `--log-format`, `--log-level` | `FOLIA_LOG_FORMAT`, `FOLIA_LOG_LEVEL` | `text`, `info` | `json` in production |
 
 `folia healthcheck` is not the server but its probe (like `radix healthcheck`): it asks the server
@@ -1394,7 +1383,6 @@ services:
   folia:
     environment:
       FOLIA_ACCESS_GATE: "on"          # "off" opens the site; the secret may stay
-      FOLIA_INDEXING: "off"            # "on" lets search engines list it, once the gate is off
     secrets: [folia-access-password]   # found at /run/secrets/folia-access-password
 secrets:
   folia-access-password:
@@ -1542,7 +1530,6 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | DEBUG | `http.request` with `path=/livez` | the container's own probe, twice a minute |
 | DEBUG | `calendar.served` | a calendar feed was made (`bytes`, `ms`; never the code or the modules) |
 | INFO | `access.gate_on` | closed testing is on (`source`: where the password was found, never the password) |
-| WARN | `server.indexing_gated` | `FOLIA_INDEXING` is on while closed testing is on: nothing is listed until the gate is off |
 | INFO | `access.granted` | the access password was entered |
 | WARN | `access.denied` | a wrong access password (`failures` in this minute, `closed` when the form closed; at most ten lines a minute) |
 | DEBUG | `card.drawn` | a link-preview card was drawn (`key`, `bytes`, `ms`) |

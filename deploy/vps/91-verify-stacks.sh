@@ -185,7 +185,7 @@ check_colours() {
 # check_standby NAME LIVE - an instance whose host another one serves (blue-green): its public URL
 # reaches LIVE, so it is asked directly, past Traefik - what 55-switch.sh asks before a switch.
 check_standby() {
-  local name=$1 live=$2 address path code tag
+  local name=$1 live=$2 address path code
   pass "${name}: standby for https://${INSTANCE_HOST}, which ${live} serves (router priority $(router_priority "${INSTANCE_STACK}") < $(router_priority "${live}"); switch: bash ${BETULA_ROOT}/vps/55-switch.sh ${name})"
   address="$(folia_address "${INSTANCE_STACK}")"
   if [[ -z "${address}" ]]; then
@@ -212,35 +212,6 @@ check_standby() {
         fail "${name}: ${path} -> ${code:-no answer} without the password (asked directly), expected 401: a switch would make the catalog public"
       fi
     done
-  fi
-  tag="$(header_value "$(curl -sS -o /dev/null -D - --max-time 15 "http://${address}:8080/livez" 2>/dev/null || true)" X-Robots-Tag)"
-  if [[ "${INSTANCE_INDEXING}" == "off" && "${tag}" == *noindex* ]] || [[ "${INSTANCE_INDEXING}" == "on" && -z "${tag}" ]]; then
-    pass "${name}: tells search engines what ${name}.env says (FOLIA_INDEXING=${INSTANCE_INDEXING}; asked directly)"
-  else
-    fail "${name}: ${name}.env says FOLIA_INDEXING=${INSTANCE_INDEXING}, but /livez says X-Robots-Tag '${tag:-nothing}' (asked directly): a switch would change what search engines are told"
-  fi
-}
-
-# check_indexing NAME URL - does the live instance tell search engines what its file says
-# (FOLIA_INDEXING)? Off: every answer says noindex (asked: /livez, open with the gate too) and
-# robots.txt names no sitemap; on: no answer says noindex and, the gate off, robots.txt names the
-# sitemap.
-check_indexing() {
-  local name=$1 url=$2 tag body
-  tag="$(header_value "$(curl -sS -k -o /dev/null -D - --max-time 15 "${url}/livez" 2>/dev/null || true)" X-Robots-Tag)"
-  body="$(curl -sS -k --max-time 15 "${url}/robots.txt" 2>/dev/null || true)"
-  if [[ "${INSTANCE_INDEXING}" == "off" ]]; then
-    if [[ "${tag}" == *noindex* && "${body}" != *"Sitemap:"* ]]; then pass "${name}: search engines are told not to list ${url} (X-Robots-Tag: ${tag})"; else
-      fail "${name}: ${name}.env says FOLIA_INDEXING=off, but ${url}/livez says X-Robots-Tag '${tag:-nothing}' and robots.txt '${body//$'\n'/ | }'"
-    fi
-  elif [[ -n "${tag}" ]]; then
-    fail "${name}: ${name}.env says FOLIA_INDEXING=on, but ${url}/livez says X-Robots-Tag '${tag}'"
-  elif [[ "${INSTANCE_GATE}" == "on" ]]; then
-    warning "${name}: FOLIA_INDEXING=on, but closed testing sends search engines away until FOLIA_ACCESS_GATE=off"
-  elif [[ "${body}" == *"Sitemap: https://${INSTANCE_HOST}/sitemap.xml"* ]]; then
-    pass "${name}: search engines may list ${url} (robots.txt names the sitemap)"
-  else
-    fail "${name}: ${name}.env says FOLIA_INDEXING=on, but robots.txt names no sitemap ('${body//$'\n'/ | }')"
   fi
 }
 
@@ -531,7 +502,6 @@ check_app() {
       code="$(curl -sS -k -o /dev/null --max-time 15 -H 'Accept: text/html' -w '%{http_code}' "${url}/" 2>/dev/null || true)"
       if [[ "${code}" == "200" || "${code}" == "503" ]]; then pass "${name}: ${url}/ -> ${code}"; else fail "${name}: ${url}/ -> ${code:-no answer}"; fi
     fi
-    check_indexing "${name}" "${url}"
   done < <(instance_names)
   if [[ "${deployed}" -eq 0 ]]; then
     warning "no instance of the application is deployed (from the workstation: deploy/ship.sh canary)"

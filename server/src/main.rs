@@ -68,16 +68,10 @@ pub struct AppState {
     /// When each page of the sitemap last changed (`lastmod`), recorded by the warm-up; `None`
     /// without it.
     pub changes: Option<Arc<lastmod::Changes>>,
-    /// Search engines may list the site (`--indexing`). Without it every answer says `noindex`
-    /// (`access_log`) and `robots.txt` names no sitemap (`api::robots`).
-    pub indexing: bool,
 }
 
 /// The header that names the build of the server on every answer (`AppState::build_id`).
 pub const BUILD_HEADER: &str = "x-build";
-
-/// What a site that search engines are not to list says on every answer (`AppState::indexing`).
-pub const NOINDEX: &str = "noindex, nofollow";
 
 /// name → (etag, bytes, gzip)
 pub type Packages = Arc<std::sync::Mutex<std::collections::HashMap<String, (String, axum::body::Bytes, axum::body::Bytes)>>>;
@@ -127,11 +121,6 @@ async fn access_log(State(state): State<AppState>, request: Request, next: Next)
     headers.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
     headers.insert("referrer-policy", HeaderValue::from_static("strict-origin-when-cross-origin"));
     headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
-    // Not for search engines (`--indexing off`): every answer says so, a page as well as a file,
-    // and an answer that says it already (a calendar feed, the login page) keeps its own words.
-    if !state.indexing && !headers.contains_key("x-robots-tag") {
-        headers.insert("x-robots-tag", HeaderValue::from_static(NOINDEX));
-    }
 
     let status = response.status().as_u16();
     let cache = response.headers().get("x-cache").and_then(|v| v.to_str().ok()).unwrap_or("-").to_string();
@@ -354,7 +343,6 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         render_wait,
         feeds: Arc::new(busy::Places::new("calendar", places(config.feed_places), Duration::from_secs(10))),
         changes: config.warm_cache.then(|| Arc::new(lastmod::Changes::load(&config.data_dir))),
-        indexing: config.indexing,
         leptos: LeptosOptions::builder()
             .output_name("folia-app")
             .site_root(config.site_root.to_string_lossy().into_owned())
@@ -382,12 +370,8 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         feed_places = state.feeds.count(),
         html_cache_mb = config.html_cache_mb,
         warm_cache = config.warm_cache,
-        indexing = config.indexing,
         "web server started"
     );
-    if config.indexing && state.gate.is_some() {
-        tracing::warn!(component = "server", event = "server.indexing_gated", "indexing is on, but the access gate keeps crawlers out: nothing is listed until the gate is off");
-    }
     if config.warm_cache {
         tokio::spawn(warm::run(pages(&state).with_state(state.clone()), state.store.clone(), state.changes.clone()));
     }

@@ -209,12 +209,6 @@ By hand, on the server: `bash /opt/betula/vps/50-app.sh canary <tag>` deploys a 
 loaded already - that is also the **rollback** (`docker image ls 'betula-*'` lists what is there) -
 and `bash /opt/betula/vps/50-app.sh canary` applies a change of `canary.env` or `betula.yml` to the
 release that runs. Opening the site: `FOLIA_ACCESS_GATE=off` in `canary.env`, sync, `50-app.sh canary`.
-Letting search engines list it is a switch of its own, `FOLIA_INDEXING` (off unless the file says
-`on`): off, every answer says `noindex` and `robots.txt` names no sitemap - so a site can be open to
-everybody and still stay out of the results, as a test instance should (its canonical links name
-its own host). The gate sends crawlers away whatever `FOLIA_INDEXING` says; `50-app.sh` warns when
-the two meet, and `91-verify-stacks.sh app` checks that the site tells search engines what its
-file says.
 
 **Blue-green** (owner, 2026-09-23): two instance files with the same `APP_HOST` are two colours of
 one site, `canary.env` (the stack that ran first) and `canary-green.env`. Each is a stack of its
@@ -237,8 +231,7 @@ only to a service whose task is healthy:
    no running container" leaves a colour removed this way alone, no silence needed.
 
 Only with `RADIX_CRAWL=off` in both files (two Radix that crawl would ask the university for
-everything twice) and the same `FOLIA_ACCESS_GATE` and `FOLIA_INDEXING`; `50-app.sh` refuses
-anything else. The next
+everything twice) and the same `FOLIA_ACCESS_GATE`; `50-app.sh` refuses anything else. The next
 release goes to the colour that does not serve. Its volume keeps its database: for new data
 remove its stack and volume and ship it with `--seed` again; after a release with a new schema,
 build and export a new snapshot in its Radix (`docker exec <its radix container> /bin/radix build

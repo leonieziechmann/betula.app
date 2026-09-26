@@ -81,13 +81,6 @@ pub struct Config {
     #[arg(long, env = "FOLIA_ACCESS_GATE", default_value_t = false, num_args = 0..=1, default_missing_value = "true", value_parser = clap::builder::BoolishValueParser::new())]
     pub access_gate: bool,
 
-    /// Search engines may list the site (`on`/`off`): `robots.txt` names the sitemap, and no
-    /// answer says `noindex`. Off (the default: a site is listed only when somebody says so),
-    /// every answer carries `X-Robots-Tag: noindex, nofollow` and `robots.txt` names no sitemap.
-    /// The access gate keeps crawlers out either way.
-    #[arg(long, env = "FOLIA_INDEXING", default_value_t = false, num_args = 0..=1, default_missing_value = "true", value_parser = clap::builder::BoolishValueParser::new())]
-    pub indexing: bool,
-
     /// `text` or `json`.
     #[arg(long, env = "FOLIA_LOG_FORMAT", default_value = "text")]
     pub log_format: String,
