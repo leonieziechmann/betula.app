@@ -120,9 +120,10 @@ for (const slow of [1, 4]) {
     result: () => location.pathname.startsWith("/programs/bachelor-informatik") && document.querySelector(".prog-head h1"),
     skeleton: true,
   }, slow);
-  await watch(page, "a view of the program" + tag, click(page, '.sidebar a[data-walk="tab"][href$="/modules"]'), {
-    feedback: () => document.querySelector('.sidebar a[data-walk="tab"][aria-current="page"]')?.getAttribute("href").endsWith("/modules"),
-    result: () => location.pathname.endsWith("/modules") && document.querySelector("table.modules"),
+  // „Wahlpflicht & Bereiche": the tab in the first frame, then the table of the program's areas.
+  await watch(page, "a view of the program" + tag, click(page, '.sidebar a[data-walk="tab"][href$="/areas"]'), {
+    feedback: () => document.querySelector('.sidebar a[data-walk="tab"][aria-current="page"]')?.getAttribute("href").endsWith("/areas"),
+    result: () => location.pathname.endsWith("/areas") && document.querySelector("table.areas tr.group"),
     skeleton: true,
   }, slow);
   // Another view of the program, the second one: a skeleton only where the first one was slow.
@@ -135,10 +136,10 @@ for (const slow of [1, 4]) {
     result: () => location.pathname === "/" && document.querySelector(".home-hero h1"),
     skeleton: true,
   }, slow);
-  // The Studienplan: the tab and the title in the first frame, the frame of the plan as its
+  // The Stundenplan: the tab and the title in the first frame, the frame of the plan as its
   // skeleton, then the plan (an empty one: this browser has planned nothing).
-  await watch(page, "the rail: Studienplan" + tag, click(page, '.rail a.nav[data-area="studyplan"]'), {
-    feedback: () => document.querySelector('.rail a.nav[data-area="studyplan"]')?.getAttribute("aria-current") === "page" && document.querySelector(".crumb h1")?.textContent === "Studienplan",
+  await watch(page, "the rail: Stundenplan" + tag, click(page, '.rail a.nav[data-area="studyplan"]'), {
+    feedback: () => document.querySelector('.rail a.nav[data-area="studyplan"]')?.getAttribute("aria-current") === "page" && document.querySelector(".crumb h1")?.textContent === "Stundenplan",
     result: () => location.pathname === "/studyplan" && document.querySelector(".sp-body .state-actions"),
     skeleton: true,
   }, slow);
@@ -161,14 +162,17 @@ for (const slow of [1, 4]) {
     result: () => location.search.includes("fits=") && document.querySelectorAll(".rows a.row").length > 2 && !document.querySelector(".list[data-pending]"),
   }, slow);
   // „Einplanen" in the preview with the finder on: the button in the first frame; the plan is
-  // written after it, and the planned module leaves the list.
+  // written after it, and the planned module leaves the list. What stays is what still fits, or
+  // the list says that nothing does: in the synthetic snapshot every class meets on Tuesday at
+  // 9:15, so none fits beside the planned module.
   await click(page, ".rows a.row >> nth=2")();
   await page.waitForFunction(() => document.querySelector("#preview .plan-toggle.mark-switch") && location.search.includes("open="), null, { timeout: 15000 }).catch(() => problems.push("the finder: no preview"));
   await page.evaluate(() => { window.__planned = new URL(location.href).searchParams.get("open"); });
   await page.waitForTimeout(250);
   await watch(page, "Einplanen with the finder on" + tag, click(page, "#preview .plan-toggle.mark-switch"), {
     feedback: () => document.querySelector("#preview .plan-toggle.mark-switch")?.getAttribute("aria-pressed") === "true",
-    result: () => (localStorage.getItem("betula.studyplan.v1") || "").includes(window.__planned) && !document.querySelector(`.rows a.row[data-id="${window.__planned}"]`) && document.querySelectorAll(".rows a.row").length > 0,
+    result: () => (localStorage.getItem("betula.studyplan.v1") || "").includes(window.__planned) && !document.querySelector(`.rows a.row[data-id="${window.__planned}"]`)
+      && (document.querySelectorAll(".rows a.row").length > 0 || document.querySelector(".rows .state-title")?.textContent.startsWith("Kein Modul passt")),
   }, slow);
   check((await page.evaluate(() => document.querySelectorAll(".pending-page, .rows-pending, .sk-detail").length)) === 0, "a skeleton stayed after the last step" + tag);
   await context.close();
@@ -191,7 +195,7 @@ for (const slow of [1, 4]) {
     result: () => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page h2"),
     skeleton: true,
   }, slow);
-  await watch(small, "phone: the bottom bar: Studienplan" + tag, tap(small, '.bottomnav a.nav[data-area="studyplan"]'), {
+  await watch(small, "phone: the bottom bar: Stundenplan" + tag, tap(small, '.bottomnav a.nav[data-area="studyplan"]'), {
     feedback: () => document.querySelector('.bottomnav a.nav[data-area="studyplan"]')?.getAttribute("aria-current") === "page",
     result: () => location.pathname === "/studyplan" && document.querySelector(".sp-body .state-actions"),
     skeleton: true,
