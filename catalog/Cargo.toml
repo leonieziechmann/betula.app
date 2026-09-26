@@ -34,3 +34,13 @@ panic = "deny"
 [[example]]
 name = "area_survey"
 required-features = ["native"]
+
+# Load tests (e2e/load): calendar feeds people would subscribe to, and where a catalog page's
+# time goes.
+[[example]]
+name = "loadtest_feeds"
+required-features = ["native"]
+
+[[example]]
+name = "loadtest_profile"
+required-features = ["native"]
