@@ -35,8 +35,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it. The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/programs/<slug>/plan\|areas\|modules[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
-| `/programs/<slug>/plan\|areas\|modules` | Program page; its views are switched in the sidebar |
+| `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`), „Wahlpflicht & Bereiche“ (`areas`) and „Mein Plan“ (`my-plan`: a placeholder so far, the visitor's, so `noindex` and not in the sitemap, `ProgramTab::indexed`). „Mein Plan“ took the place of „Alle Module“ on 2026-09-25: the program's modules are its catalog (`/catalog?program=<slug>`), and `…/modules` is a 404. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all of them (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key; the canonical address stays the plain one. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
 | `/impressum`, `/datenschutz` | The legal pages (`app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
@@ -898,8 +897,9 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   default description, program pages a second one, and the module page lost its own.)
 - **One address per page.** Filters, further pages and the preview of the catalog, and a filtered
   program overview are views: `noindex, follow`. `/programs/<slug>` names `/programs/<slug>/plan`
-  as its address. Older examination regulations are `noindex`. Links that only lead to views
-  (examples, entry links, toggles) carry `rel="nofollow"`.
+  as its address. Older examination regulations are `noindex`, and so is a program's „Mein Plan“
+  (`…/my-plan`, the visitor's: `ProgramTab::indexed`). Links that only lead to views (examples,
+  entry links, toggles) carry `rel="nofollow"`.
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
@@ -907,8 +907,8 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   the landing page, `Course` (code, credits, language, provider, `sameAs` the BTU's page) and
   `BreadcrumbList` on a module, `BreadcrumbList` on a program.
 - **`/sitemap.xml`** (made once per snapshot): the three entrances, every module that has a page,
-  every current program with its views; `robots.txt` names it. Addresses are absolute and use
-  `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
+  every current program with its plan and its areas; `robots.txt` names it. Addresses are absolute
+  and use `--public-url` (`SiteUrl` in the app; the browser app uses its own origin).
 - The browser app removes the server's tags from the head when it takes over and writes its own,
   so the head describes the page that is shown. What is the same on every page (the stylesheet,
   the preloaded font, the icons) is part of the document (`app::shell`) and never written by the
@@ -1545,9 +1545,10 @@ cargo clippy -p folia-client --target wasm32-unknown-unknown
 cd e2e && node crawl.mjs
 ```
 
-crawls the running site like a search engine: every program × tab, the whole catalog page by
-page (the pages must add up to the header's total), module pages, the 404s. Last run: 817 pages,
-0 failures, slowest page 113 ms on a debug build.
+crawls the running site like a search engine: every program in each view its sidebar links (the
+plan and the areas for search engines, „Mein Plan“ `noindex`), the whole catalog page by page (the
+pages must add up to the header's total), module pages, the 404s (the former `…/modules` among
+them). Last run: 821 pages, 0 failures, slowest page 291 ms (the first, `/`) on a debug build.
 
 ```bash
 cd e2e && node spa.mjs
@@ -1735,7 +1736,7 @@ to the result.
 
 ### „Merken": what is left (2026-09-20)
 
-- **Marks in the tables of a program's page** (plan, areas, all modules): `bookmarks::MarkButton`
+- **Marks in the tables of a program's page** (plan, areas): `bookmarks::MarkButton`
   with `MarkLook::Row` next to a row's link is made for it. Left out on purpose while the page
   itself is being worked on (owner, 2026-09-20); the panel beside the page already has the switch,
   because it is the catalog's module preview.

@@ -1,11 +1,12 @@
 // Crawl of the server-rendered site, without a browser: what a search engine or a visitor
 // without JavaScript gets. Usage:
 //
-//   CRAWL_BASE_URL=http://127.0.0.1:8080 node crawl.mjs          (every program × tab, 300 modules)
+//   CRAWL_BASE_URL=http://127.0.0.1:8080 node crawl.mjs          (every program: plan, areas, my-plan; 300 modules)
 //   CRAWL_MODULES=all node crawl.mjs                              (every module of the catalog)
 //
 // Fails (exit 1) on any status other than 200, a page without <title> or <h1>, an error
-// state in the HTML, a catalog whose pages do not add up to its total, or a wrong 404.
+// state in the HTML, a catalog whose pages do not add up to its total, a view of a program
+// hidden from search engines or offered to them against `ProgramTab::indexed`, or a wrong 404.
 const base = (process.env.CRAWL_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const moduleLimit = process.env.CRAWL_MODULES === "all" ? Infinity : Number(process.env.CRAWL_MODULES || 300);
 
@@ -35,11 +36,16 @@ const overview = await get("/programs");
 const programs = links(overview, /href="(\/programs\/[^"/]+)\/plan"/g);
 if (programs.length < 50) failures.push(`/programs lists only ${programs.length} programs`);
 
-// Every program with every tab.
+// Every program in every view its sidebar links (`ProgramTab` in catalog/src/url.rs): the plan
+// and the areas are for search engines, „Mein Plan" is the visitor's and says `noindex`.
+const views = { plan: true, areas: true, "my-plan": false };
 for (const program of programs) {
-  for (const tab of ["plan", "areas", "modules"]) {
+  for (const [tab, indexed] of Object.entries(views)) {
     const html = await get(`${program}/${tab}`);
     if (!html.includes('data-walk="program-page"')) failures.push(`${program}/${tab}: not a program page`);
+    if (html.includes('content="noindex') === indexed) failures.push(`${program}/${tab}: ${indexed ? "hidden from" : "offered to"} search engines`);
+    const linked = links(html, /data-walk="tab" href="\/programs\/[^"/]+\/([^"/?]+)"/g).join();
+    if (linked !== Object.keys(views).join()) failures.push(`${program}/${tab}: links the views ${linked || "(none)"}, the crawl knows ${Object.keys(views).join()}`);
   }
 }
 
@@ -79,6 +85,8 @@ if (programs[0]) await get(`/catalog?program=${programs[0].split("/").pop()}&lis
 await get("/catalog/module/00000", 404);
 await get("/programs/no-such-program", 404);
 if (programs[0]) await get(`${programs[0]}/no-such-tab`, 404);
+// „Alle Module" gave way to „Mein Plan" (2026-09-25; the program's modules are its catalog).
+if (programs[0]) await get(`${programs[0]}/modules`, 404);
 await get("/no-such-page", 404);
 
 const summary = { base, pages, programs: programs.length, catalogTotal: total, catalogPages, modulePages, slowest, failures: failures.length };
