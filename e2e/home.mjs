@@ -113,9 +113,14 @@ check(await page.evaluate(() => localStorage.getItem("betula.showcase") === null
 
 // A click on the map opens it large; there a pointer shows a program, a click picks it.
 if ((await current()) !== "Die Karte") { await page.click(".show-tabs button:has-text('Karte')"); await waitFor("Die Karte"); }
-const scrolled = await page.evaluate(() => document.getElementById("page-scroll").scrollTop);
+// Where the page stands when the click reaches it: Playwright now and then scrolls the page before
+// it clicks (313 px, even with the map in full view), which is no doing of the page; measured
+// before the click, that used to fail the check of the wheel below.
+await page.evaluate(() => addEventListener("pointerdown", () => { window.__atClick = document.getElementById("page-scroll").scrollTop; }, { capture: true, once: true }));
 await page.click(".cslide.is-current");
 await page.waitForSelector(".map-dialog[open]");
+const scrolled = await page.evaluate(() => document.getElementById("page-scroll").scrollTop);
+check(await page.evaluate((top) => window.__atClick === top, scrolled), "opening the map moves the page behind it");
 check(await page.evaluate(() => location.pathname === "/"), "a click on the map navigated");
 check(await page.evaluate(() => document.querySelector(".showcase").classList.contains("paused")), "the carousel does not stand still while the map is open");
 // A wide screen: the legend and the caption beside the map, the map 4:3 as high as it can be.
