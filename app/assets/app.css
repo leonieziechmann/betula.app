@@ -284,7 +284,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .pill b { color: var(--text); font-weight: 600; }
 .pill .icon { width: 16px; height: 16px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
-.content { position: relative; min-height: 0; min-width: 0; }
+/* How wide a module or an area is that floats beside the page (`.work > .detail`): here and not on
+   `.work`, because „Nach oben" stands beside it too and is no part of `.work`. Its 100 % is the
+   width of what uses it: `.work`, or the view for the button, and the two are as wide. */
+.content { position: relative; min-height: 0; min-width: 0; --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px)); }
 /* A page ends where the panels beside it end: the same 8 px above the window's edge or the ground
    (1 px keeps the ring of the panels in it). */
 .page { height: 100%; overflow-y: auto; padding: 1px; scrollbar-width: thin; }
@@ -364,6 +367,36 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
 }
 
+/* ---------- back to the top ---------- */
+/* „Nach oben" (`ui::ToTop`; owner, 2026-09-26: after a while in the catalog's list it was hard to
+   get back to its top). Round and floating like the arrows of the start page's carousel, in the
+   corner of what scrolls; enhance.js shows it once the page is more than a screen down
+   (`data-shown`) and takes the page up. On a wide screen it stands in the corner of the view,
+   16 px inside the page's panel, and left of a module or an area that floats beside the page,
+   moving along as that one comes and goes (at once while its edge is dragged); when the ground
+   comes up, the view gets shorter and the button goes up with it. On a phone it floats above the
+   bottom bar, a finger's size, under the bars, the sheets and the skeleton of a page on its way. */
+.to-top {
+  position: absolute; z-index: 12; right: 16px; bottom: 16px; width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--panel); box-shadow: var(--shadow-pop); color: var(--text-2);
+  opacity: 0; visibility: hidden; transform: translateY(10px) scale(.9);
+  transition: opacity .15s, transform .2s var(--ease), visibility 0s .2s, right .18s var(--ease), background .12s, color .12s;
+}
+.to-top[data-shown] { opacity: 1; visibility: visible; transform: none; transition: opacity .15s, transform .3s var(--spring), right .18s var(--ease), background .12s, color .12s; }
+.to-top:hover { background: var(--panel-2); color: var(--text); }
+.to-top:active { transform: scale(.94); }
+.resizing .to-top { transition: none; }
+/* A keyboard that pressed it goes on from the start of the page (enhance.js): the view itself
+   takes the focus there, and a frame around all of it would say nothing. */
+.content:focus { outline: none; }
+@media (min-width: 901px) {
+  .content:has(> .work > .detail) > .to-top { right: calc(var(--preview) + 16px); }
+}
+@media (max-width: 900px) {
+  /* 12 px above the bottom bar (10 px from the edge, 62 px high), at its right edge. */
+  .to-top { position: fixed; z-index: 18; right: 10px; bottom: calc(84px + env(safe-area-inset-bottom)); width: 44px; height: 44px; }
+}
+
 .panel { background: var(--panel); border-radius: var(--r-panel); box-shadow: var(--shadow-panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .panel-head { display: flex; align-items: center; gap: 8px; min-height: 50px; padding: 8px 8px 6px 14px; }
 .panel-head h2 { font-size: 15px; font-weight: 650; letter-spacing: -.015em; margin-right: auto; }
@@ -386,10 +419,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .label { font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
 
 /* ---------- catalog: three panels ---------- */
-.work {
-  position: relative; height: 100%; display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); gap: var(--gap); min-height: 0;
-  --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px));
-}
+.work { position: relative; height: 100%; display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); gap: var(--gap); min-height: 0; }
 /* The preview does not take room from the list: it floats above it, docked to the right edge. */
 .work > .detail { position: absolute; z-index: 10; top: 0; right: 0; bottom: 0; width: var(--preview); box-shadow: var(--shadow-pop); animation: preview-in .18s var(--ease); }
 /* Resize handles: an invisible zone much wider than the grip it shows, around the edge it moves.
@@ -717,43 +747,68 @@ html:not(.js) .mark-toggle { display: none; }
 .row-wrap > .row.missing, .row-wrap:hover > .row.missing { background: none; cursor: default; }
 .row.missing .t b { font-weight: 560; color: var(--text-2); }
 .count-more { color: var(--text-3); font-weight: 450; }
-/* In the line of a module's badges (credits, turnus, language), at its right end, in the preview
-   and on the module's page: „Einplanen" and „Merken", switches with their shortcuts, as tall as
-   the toggles of the filter panel; the badges stand on their middle. The two are one item of the
-   line (`.switches`, markup: p.badges > span.badge… + span.switches > button.plan-toggle +
-   button.mark-toggle): where the line is full they take the next one together, still at the
-   right. A label keeps its width, so a switch does not change its size when „Merken" becomes
-   „Gemerkt". */
-.badges { align-items: center; }
+/* The line under a module's heading, in the preview and on the module's page (`.hero-line`,
+   markup: div.hero-line > p.badges > span.badge… + div.switches > button.plan-toggle +
+   button.mark-toggle): the badges (credits, turnus, language) on the left, and at its right end
+   „Einplanen" and „Merken", switches with their shortcuts, as tall as the toggles of the filter
+   panel. Where the line has room the two stand side by side; where it has not they stand one
+   over the other, and the badges have the rest of the line and wrap in it (owner, 2026-09-26:
+   the pair taking a line of its own under the badges made the heading jump about). The badges
+   keep the width of their one line while that leaves room for the stack (flex-grow 0); the
+   switches take what is left (flex-basis 0) and wrap in it, so they are side by side exactly
+   where both fit. Where the stack does not fit beside the badges, the switches keep its width,
+   their automatic minimum, and the badges give way. A label keeps its width, so a switch does
+   not change its size when „Merken" becomes „Gemerkt", and both are as wide, so the stack is
+   straight. */
+.hero-line { display: flex; align-items: flex-start; gap: 6px; margin-top: 12px; }
+/* The badges stand on the middle of the switches (26px in 32px), a line of them beside each
+   switch of the stack. A badge wider than their column (the narrowest preview has 176px for „jedes
+   Semester (ungerade Jahre)") breaks into two lines rather than push the stack out. */
+.hero-line > .badges { margin-top: 0; padding: 3px 0; align-items: center; row-gap: 12px; }
+.hero-line > .badges > .badge { padding-top: 3px; padding-bottom: 3px; line-height: 1.25; white-space: normal; }
 /* Its right edge is the right edge of what stands under the heading (the body of a module is
    inset by 20px, the heading of the preview by 14px and that of the page by 18px). */
-.badges > .switches { min-width: 0; margin-left: auto; margin-right: 6px; display: flex; align-items: center; gap: 6px; }
-.module-page > .hero .badges > .switches { margin-right: 2px; }
-html:not(.js) .badges > .switches { display: none; }
+.hero-line > .switches { flex: 1 1 0; margin-right: 6px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.module-page > .hero .hero-line > .switches { margin-right: 2px; }
+html:not(.js) .hero-line > .switches { display: none; }
+html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
 .mark-switch { --hit-y: 5px; --hit-x: 4px; min-height: 32px; padding: 0 7px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-weight: 600; font-size: 13.5px; transition: background .12s, color .12s, box-shadow .12s, transform .12s; }
 .mark-switch:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
 .mark-switch:active { transform: scale(.98); }
 .mark-switch .icon { width: 16px; height: 16px; }
-.mark-switch > span:first-of-type { min-width: 57px; text-align: left; }
+.mark-switch > span:first-of-type { min-width: 70px; text-align: left; }
 .mark-switch kbd { padding: 2px 6px; }
 .mark-switch[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
 .mark-switch[aria-pressed="true"] kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
 /* „Einplanen" keeps the width of „Eingeplant". What it says beyond that in the app (the
    placeholder it plans for, the other semesters the module is planned in) is its small line: one
-   line that gives way first, so the pair never breaks in two. */
-.switches > .mark-toggle { flex: none; }
-.switches > .plan-toggle { min-width: 0; }
-.plan-toggle.mark-switch > span:first-of-type { flex: none; min-width: 70px; }
+   line that gives way first. The two are 6px apart, side by side or one over the other: towards
+   each other their areas meet in the middle. */
+.switches > .mark-toggle { flex: none; --hit-l: 3px; --hit-t: 3px; }
+.switches > .plan-toggle { min-width: 0; --hit-r: 3px; --hit-b: 3px; }
+.plan-toggle.mark-switch > span:first-of-type { flex: none; }
 .plan-toggle.mark-switch > small { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 500; opacity: .8; }
-/* On a module's page its sidebar says that under „Einplanen": the switch keeps the width the
-   server gave it, so the line does not break anew at the takeover (R15). */
 @media (min-width: 901px) {
+  /* The small line has a column of its own, which the switch's smallest width leaves out: one over
+     the other, the two are as narrow as without it, and it takes what the line leaves. Side by
+     side only where it fits whole. Its gap is inside the column (::before), so that an empty
+     column adds none. */
+  .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto auto minmax(0, max-content) auto; gap: 0; }
+  .plan-toggle.mark-switch:has(> small) > .icon { margin-right: 8px; }
+  .plan-toggle.mark-switch:has(> small) > small { grid-column: 3; }
+  .plan-toggle.mark-switch:has(> small) > small::before { content: ""; padding-left: 8px; }
+  .plan-toggle.mark-switch:has(> small) kbd { grid-column: 4; margin-left: 8px; }
+  /* On a module's page its sidebar says that under „Einplanen": the switch keeps the width the
+     server gave it, so the line does not break anew at the takeover (R15). */
   .module-page > .hero .plan-toggle.mark-switch > small { display: none; }
 }
 /* On a phone the pair takes a line of its own, and the small line is the switch's second line,
-   in the switch's height: it has more room there than beside the label. */
+   in the switch's height: it has more room there than beside the label. It gives way on that
+   line instead of breaking the pair, so nothing moves when the app adds it (R15). */
 @media (max-width: 900px) {
-  .badges > .switches { flex-basis: 100%; justify-content: flex-end; }
+  .hero-line { flex-wrap: wrap; }
+  .hero-line > .badges { padding: 0; row-gap: 6px; }
+  .hero-line > .switches { flex-basis: 100%; flex-wrap: nowrap; }
   .plan-toggle.mark-switch > span:first-of-type { min-width: 77px; }
   .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 8px; align-content: center; }
   .plan-toggle.mark-switch:has(> small) > .icon { grid-row: span 2; }
@@ -2311,4 +2366,4 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
-@media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }
+@media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }

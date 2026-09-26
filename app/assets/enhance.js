@@ -5,7 +5,8 @@
 // page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search; in the app
 // M marks the module the visitor is at and P plans it into the Studienplan), the theme
 // switch, the filter sheet, the widths of the filter panel and the module preview (dragged,
-// kept in localStorage), and the room the panels make for the ground at the end of a page.
+// kept in localStorage), the room the panels make for the ground at the end of a page, and the
+// way back to the top of a page („Nach oben").
 (() => {
   const root = document.documentElement;
   const appRuns = () => window.__betulaApp === true;
@@ -248,6 +249,9 @@
         section.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
         break;
       }
+      case "to-top":
+        toTop(target);
+        break;
       case "copy-link":
       case "copy-text": {
         // The address of the page, or what the control carries (`data-text`: the marked modules
@@ -477,6 +481,85 @@
     window.scrollTo({ top: root.scrollHeight, behavior: glide() });
   });
   ground();
+
+  // ---- back to the top („Nach oben", `ui::ToTop`) ----
+  // Once the page is more than a screen down, a button in its corner takes it back to its top
+  // (owner, 2026-09-26: after a while in the catalog's list it was hard to get back up). The page
+  // is what the ground takes for it on a wide screen, the window on a phone. The way up jumps to a
+  // screen above the top and glides the rest, a frame at a time, written here: the catalog's list
+  // is virtual, and the browser's own smooth scrolling over it would build every row it passes
+  // and end where the list makes up for a row that turned out taller than it was taken for (the
+  // list scrolls by the difference, and a script's scroll ends a smooth one). Each frame here puts
+  // the page where the glide is, whatever the list did in between, so it arrives at the top. A
+  // wheel, a touch, a click or a key stops it; where less motion is wanted the page is up at once.
+  // At the top the ground on a wide screen goes down by itself: the page has left its end.
+  const pageScroller = () => (phone() ? document.scrollingElement : document.querySelector(PAGE));
+  let topFrame = 0;
+  let topPage = null; // the page and the button it was last worked out for
+  let topButton = null;
+  const showTop = () => {
+    topFrame = 0;
+    topPage = pageScroller();
+    topButton = document.getElementById("to-top");
+    if (!topButton) return;
+    const far = Boolean(topPage) && topPage.scrollTop > topPage.clientHeight;
+    if (topButton.hasAttribute("data-shown") !== far) topButton.toggleAttribute("data-shown", far);
+  };
+  const showTopSoon = () => { if (!topFrame) topFrame = requestAnimationFrame(showTop); };
+  document.addEventListener("scroll", showTopSoon, { capture: true, passive: true });
+  addEventListener("resize", showTopSoon);
+  // The app's pages replace each other without a scroll, and the app takes the page over with a
+  // button of its own: another page or another button is looked at once it is there. Nothing
+  // else that changes (rows coming and going, the skeleton in the frame after a click) makes the
+  // page say where it is, which would lay it out ahead of time.
+  new MutationObserver(() => {
+    if (!topFrame && (pageScroller() !== topPage || document.getElementById("to-top") !== topButton)) showTopSoon();
+  }).observe(document.body, { childList: true, subtree: true });
+  showTop();
+  // The button stands over the page but is no part of what scrolls: the wheel over it turns the
+  // page under it, and at the page's end goes on to the window, as over the page itself. While the
+  // ground is in, the wheel belongs to the ground (above). A phone scrolls the window anyway.
+  document.addEventListener("wheel", (e) => {
+    if (e.ctrlKey || root.dataset.ground === "in" || !e.target.closest?.("#to-top")) return;
+    const page = pageScroller();
+    if (!page || page === document.scrollingElement) return;
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * page.clientHeight : e.deltaY;
+    page.scrollBy({ top: dy, behavior: Math.abs(dy) >= 50 ? glide() : "instant" });
+  }, { passive: true });
+  let rising = 0; // the next frame of a glide to the top
+  const STOP_RISING = ["wheel", "touchstart", "pointerdown", "keydown"];
+  const stopRising = () => {
+    if (!rising) return;
+    cancelAnimationFrame(rising);
+    rising = 0;
+    for (const type of STOP_RISING) removeEventListener(type, stopRising, true);
+  };
+  function toTop(button) {
+    const page = pageScroller();
+    if (!page) return;
+    stopRising();
+    const put = (y) => { if (page === document.scrollingElement) window.scrollTo(0, y); else page.scrollTop = y; };
+    // A keyboard goes on from the start of the page, where „Zum Inhalt springen" leads, and not
+    // from the button, which is gone at the top.
+    if (button.matches(":focus-visible")) {
+      const content = document.getElementById("content");
+      content?.setAttribute("tabindex", "-1");
+      content?.addEventListener("blur", () => content.removeAttribute("tabindex"), { once: true });
+      content?.focus({ preventScroll: true });
+    }
+    const from = Math.min(page.scrollTop, page.clientHeight);
+    if (glide() === "instant") { put(0); return; }
+    put(from);
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / 320);
+      put(Math.round(from * (1 - t) ** 3));
+      if (t < 1) rising = requestAnimationFrame(step);
+      else stopRising();
+    };
+    rising = requestAnimationFrame(step);
+    for (const type of STOP_RISING) addEventListener(type, stopRising, { capture: true, passive: true });
+  }
 
   // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {
