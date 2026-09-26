@@ -16,7 +16,7 @@
 //! click and changes the plan after the next frame (R21); „Rückgängig" puts back the plan as it was
 //! (`PlanCtx::undo`, which the import and „Plan leeren" share).
 
-use catalog::filter::{CatalogQuery, FitsFilter, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
+use catalog::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
 use catalog::labels::ModuleKind;
 use catalog::pages::StudyplanData;
 use catalog::rows::Program;
@@ -31,6 +31,7 @@ use super::head::{add_module_href, hue, is_past, tone_at};
 use super::{key_of, PlanCtx};
 use crate::format;
 use crate::myprogram::MineResolved;
+use crate::pages::catalog::finder_on;
 use crate::pending::{Change, Pending};
 use crate::ui::Icon;
 
@@ -134,7 +135,8 @@ struct OpenSlot {
 }
 
 /// The placeholders standing in `key` that no module fills, in the plan's order. `mine`: „Mein
-/// Studiengang" while the snapshot has it, whose electives a placeholder of it is found among.
+/// Studiengang" while the snapshot has it, whose electives a placeholder of it is found among. The
+/// catalog it leads to has the finder on, comparing what it compared the last time (`finder_on`).
 fn open_slots(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>) -> Vec<OpenSlot> {
     doc.placeholders_in(key)
         .into_iter()
@@ -163,7 +165,7 @@ fn open_slots(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>) -> Vec<Op
                 CatalogQuery { program, ..Default::default() }
             };
             let turnus = TurnusFilter { winter: key.winter, summer: !key.winter, ..Default::default() };
-            let query = CatalogQuery { turnus, fits: Some(FitsFilter::all(&key.key())), ..query };
+            let query = CatalogQuery { turnus, fits: Some(finder_on(key)), ..query };
             OpenSlot { pid: p.pid, text, credits, href: CatalogUrl { query, fill: Some(p.pid), ..Default::default() }.path() }
         })
         .collect()

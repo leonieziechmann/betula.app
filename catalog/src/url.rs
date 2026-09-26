@@ -3,10 +3,10 @@
 //! `/`                                  landing page
 //! `/catalog?…`                         module catalog; the query string is a `CatalogQuery`.
 //!                                      `fits=<semester>` (with `fits-skip`, `fits-undated`) is the
-//!                                      switch „Passt in meinen Plan"; which modules fit comes from
-//!                                      the browser, like the marked ones. `fill=p<n>` (the
-//!                                      placeholder a module found there would fill) is the app's:
-//!                                      the server's page and its cache key drop it
+//!                                      switch „Passt in meinen Stundenplan"; which modules fit
+//!                                      comes from the browser, like the marked ones. `fill=p<n>`
+//!                                      (the placeholder a module found there would fill) is the
+//!                                      app's: the server's page and its cache key drop it
 //! `/catalog/module/<id>`               module page; `?plan=<semester>&fill=p<n>` is the app's hint
 //!                                      of where its plan button plans to (`ModuleHint`)
 //! `/bookmarks?…[&open=<id>][&full=1]`  the visitor's marked modules (`BookmarksUrl`); which ones
@@ -742,9 +742,9 @@ fn parse_fill(text: &str) -> Option<u32> {
 }
 
 /// What a module's page is asked to plan the module into, when it was reached from the catalog's
-/// „Passt in meinen Plan" (`/catalog/module/<id>?plan=2026W&fill=p3`): the semester its plan button
-/// aims at and the placeholder the module would fill. The app's alone: the server keys the page by
-/// its path and ignores both, like every other query of a module page.
+/// „Passt in meinen Stundenplan" (`/catalog/module/<id>?plan=2026W&fill=p3`): the semester its
+/// plan button aims at and the placeholder the module would fill. The app's alone: the server keys
+/// the page by its path and ignores both, like every other query of a module page.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ModuleHint {
     /// `SemesterKey::key()`.

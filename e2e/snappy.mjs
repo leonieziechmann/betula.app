@@ -4,9 +4,9 @@
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node snappy.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Records every frame after an interaction: the first one must come quickly and show the
 // feedback (the tab of the rail, the toggle, the row, the view of a program, „Einplanen" with
-// „Passt in meinen Plan" on), a skeleton where the page, the list or the preview is being built
-// (the first change of each kind has no measured duration yet, so it always gets one), and a
-// later one the result without a skeleton. Then the
+// „Passt in meinen Stundenplan" on), a skeleton where the page, the list or the preview is being
+// built (the first change of each kind has no measured duration yet, so it always gets one), and
+// a later one the result without a skeleton. Then the
 // same on a phone and with the CPU slowed down four times, where the skeletons are what bridges
 // the wait. Fails on a page load after takeover, a console error, or a frame that does not show
 // what it should.
@@ -155,10 +155,10 @@ for (const slow of [1, 4]) {
     feedback: () => document.querySelector('#filters a.chip[data-state="with"]'),
     result: () => location.search.includes("form=lecture") && location.search.includes("seminar") && document.querySelectorAll(".rows a.row").length > 0 && !document.querySelector(".list[data-pending]"),
   }, slow);
-  // „Passt in meinen Plan": the chip and its tag in the first frame, then what fits the plan (an
-  // empty one here), however long the first check of the semester takes.
-  await watch(page, "the finder" + tag, click(page, '#filters a.chip:has-text("Passt in meinen Plan")'), {
-    feedback: () => document.querySelector('#filters a.chip[data-state="with"]')?.textContent.includes("Passt in meinen Plan") && [...document.querySelectorAll(".tag")].some((t) => t.textContent.includes("Passt in")),
+  // „Passt in meinen Stundenplan": the chip and its tag in the first frame, then what fits the
+  // plan (an empty one here), however long the first check of the semester takes.
+  await watch(page, "the finder" + tag, click(page, '#filters a.chip:has-text("Passt in meinen Stundenplan")'), {
+    feedback: () => document.querySelector('#filters a.chip[data-state="with"]')?.textContent.includes("Passt in meinen Stundenplan") && [...document.querySelectorAll(".tag")].some((t) => t.textContent.includes("Passt in")),
     result: () => location.search.includes("fits=") && document.querySelectorAll(".rows a.row").length > 2 && !document.querySelector(".list[data-pending]"),
   }, slow);
   // „Einplanen" in the preview with the finder on: the button in the first frame; the plan is
