@@ -80,7 +80,8 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     `rel="nofollow"` and `data-noscroll`, and the space bar flips them like a checkbox.
     „One of a few" (list, plan semester, duration, years) is a segmented row of the same links.
   - **„Passt in meinen Stundenplan"** (the finder; until 2026-09-26 „Passt in meinen Plan", which
-    read as the Regelstudienplan) is a toggle with more under it: switched on, the classes it
+    read as the Regelstudienplan, and so the line under a module's week: „Passt in deinen
+    Stundenplan (WiSe 2026/27)") is a toggle with more under it: switched on, the classes it
     compares show below it (Vorlesungen, Übungen, Prüfungen, auch ohne Termine), and a chevron at
     its end says so, like the head of an accordion: pointing right while it is off, down while
     they show (`aria-expanded`). It names no semester (owner, 2026-09-26: „nur mit Passt in
