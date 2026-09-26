@@ -24,6 +24,8 @@ use axum::body::Bytes;
 use resvg::{tiny_skia, usvg};
 use tokio::sync::Semaphore;
 
+use crate::mark;
+
 const WIDTH: f32 = 1200.0;
 const HEIGHT: f32 = 630.0;
 /// The text column: from the left edge of the logo to the same distance from the right.
@@ -37,10 +39,26 @@ const INK: &str = "#10151f";
 const INK_2: &str = "#4b5565";
 const INK_3: &str = "#8790a0";
 
-static INTER_400: &[u8] = include_bytes!("../assets/inter-400.ttf");
+pub static INTER_400: &[u8] = include_bytes!("../assets/inter-400.ttf");
 static INTER_500: &[u8] = include_bytes!("../assets/inter-500.ttf");
 static INTER_600: &[u8] = include_bytes!("../assets/inter-600.ttf");
 static INTER_800: &[u8] = include_bytes!("../assets/inter-800.ttf");
+
+/// The typeface resvg sets the pictures of the server in (the cards, the launch screens): the
+/// four cuts of Inter, loaded once.
+pub fn typeface() -> Arc<usvg::fontdb::Database> {
+    static FONTS: std::sync::OnceLock<Arc<usvg::fontdb::Database>> = std::sync::OnceLock::new();
+    FONTS
+        .get_or_init(|| {
+            let mut fonts = usvg::fontdb::Database::new();
+            for cut in [INTER_400, INTER_500, INTER_600, INTER_800] {
+                fonts.load_font_data(cut.to_vec());
+            }
+            fonts.set_sans_serif_family("Inter");
+            Arc::new(fonts)
+        })
+        .clone()
+}
 
 /// What a card says. Its hash is the card's identity in the cache and its ETag.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -95,13 +113,8 @@ pub struct Cards {
 impl Cards {
     /// `budget`: bytes of finished cards to keep. `places`: cards drawn at the same time.
     pub fn new(budget: usize, places: usize) -> Self {
-        let mut fonts = usvg::fontdb::Database::new();
-        for cut in [INTER_400, INTER_500, INTER_600, INTER_800] {
-            fonts.load_font_data(cut.to_vec());
-        }
-        fonts.set_sans_serif_family("Inter");
         Self {
-            fonts: Arc::new(fonts),
+            fonts: typeface(),
             kept: Mutex::default(),
             budget,
             permits: Arc::new(Semaphore::new(places)),
@@ -317,24 +330,13 @@ fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// The logo at (x, y of its top): the mark on its 96 grid and the wordmark with the spacing of
-/// `design/logo/logo.html` (display cut; offsets in em of the wordmark's size, measured on Inter).
+/// The logo at (x, y of its top): the mark (`mark`) and the wordmark beside it.
 fn logo(svg: &mut String, x: f32, y: f32) {
-    let mark = 52.0;
-    let scale = mark / 96.0;
-    svg.push_str(&format!(
-        "<g transform=\"translate({x} {y}) scale({scale})\"><rect x=\".5\" y=\".5\" width=\"95\" height=\"95\" rx=\"20.5\" fill=\"#fff\" stroke=\"{INK}\" stroke-opacity=\".14\" stroke-width=\"1.6\"/>\
-         <path fill=\"{INK}\" d=\"M0 20h40v8H0zM68 36h28v8H68zM0 52h16v8H0zM52 68h44v8H52z\"/></g>"
-    ));
-    let size = 44.0;
-    let small = size * 0.72;
-    let left = x + mark + 18.0;
+    let size = 52.0;
+    mark::mark(svg, x, y, size, "mark");
     // Capitals are .728 em high: their middle on the middle of the mark.
-    let baseline = y + mark / 2.0 + size * 0.364;
-    for (offset, letter, capital) in [(0.0, "B", true), (0.63871, "E", false), (0.83563, "T", true), (1.47239, "U", true), (2.14984, "L", false), (2.57135, "A", false)] {
-        let (font_size, weight) = if capital { (size, 800) } else { (small, 400) };
-        svg.push_str(&format!("<text x=\"{}\" y=\"{baseline}\" font-size=\"{font_size}\" font-weight=\"{weight}\" fill=\"{INK}\">{letter}</text>", left + offset * size));
-    }
+    let em = 44.0;
+    mark::wordmark(svg, x + size + 18.0, y + size / 2.0 + em * 0.364, em, INK);
 }
 
 fn svg(text: &CardText, ruler: &Ruler) -> String {
@@ -398,21 +400,35 @@ fn draw(text: &CardText, fonts: Arc<usvg::fontdb::Database>) -> Result<Vec<u8>, 
     encode(&pixmap)
 }
 
-/// The colours a card is made of: white towards each ink and towards the page's grey, in 64
-/// steps each (what antialiasing produces), so the picture fits a palette of 256 colours. A
-/// palette PNG is a fifth of the size of the true-colour one and is packed faster.
+/// The colours a card is made of, so that the picture fits a palette of 256 colours (a palette
+/// PNG is a fifth of the size of the true-colour one and is packed faster): white towards each
+/// ink and towards the page's grey, in as many steps as antialiasing needs of each; and the mark
+/// (`mark`), its green from the top of the square to the bottom, and that green towards the white
+/// of the leaf and of the card and towards the ink of the rows, where their edges cut a pixel.
 fn palette() -> Vec<[u8; 3]> {
-    let white = [255.0, 255.0, 255.0];
-    let mut colours = Vec::with_capacity(256);
-    for target in [[0x10u8, 0x15, 0x1f], [0x4b, 0x55, 0x65], [0x87, 0x90, 0xa0], [0xf1, 0xf2, 0xf4]] {
-        for step in 0..64 {
-            let share = step as f32 / 63.0;
-            let mut colour = [0u8; 3];
-            for (out, (from, to)) in colour.iter_mut().zip(white.iter().zip(target)) {
-                *out = (from + (f32::from(to) - from) * share).round() as u8;
-            }
-            colours.push(colour);
+    const WHITE: [u8; 3] = [255, 255, 255];
+    let mix = |from: [u8; 3], to: [u8; 3], share: f32| {
+        let mut colour = [0u8; 3];
+        for (out, (from, to)) in colour.iter_mut().zip(from.iter().zip(to)) {
+            *out = (f32::from(*from) + (f32::from(to) - f32::from(*from)) * share).round() as u8;
         }
+        colour
+    };
+    let mut colours = Vec::with_capacity(256);
+    for (target, steps) in [([0x10, 0x15, 0x1f], 56), ([0x4b, 0x55, 0x65], 40), ([0x87, 0x90, 0xa0], 40), ([0xf1, 0xf2, 0xf4], 16)] {
+        for step in 0..steps {
+            colours.push(mix(WHITE, target, step as f32 / (steps - 1) as f32));
+        }
+    }
+    for step in 0..40 {
+        colours.push(mix(mark::GREEN_TOP, mark::GREEN_BOTTOM, step as f32 / 39.0));
+    }
+    for step in 0..12 {
+        let green = mix(mark::GREEN_TOP, mark::GREEN_BOTTOM, step as f32 / 11.0);
+        for share in [0.25, 0.5, 0.75] {
+            colours.push(mix(green, WHITE, share));
+        }
+        colours.push(mix(green, mark::INK, 0.5));
     }
     colours
 }
@@ -488,6 +504,16 @@ mod tests {
         let small = Cards::new(1, 1);
         assert!(matches!(small.get("m:1", 1, || Ok(Some(text("Analysis I")))).await.unwrap(), Card::Drawn(..)));
         assert_eq!(small.kept(), (0, 0), "a card larger than the budget is not kept");
+    }
+
+    /// The colours of the mark have their places among the 256 of a card.
+    #[test]
+    fn the_palette_holds_the_mark_and_fits_a_png() {
+        let colours = palette();
+        assert!(colours.len() <= 256, "{} colours", colours.len());
+        for colour in [mark::GREEN_TOP, mark::GREEN_BOTTOM, mark::INK, [255, 255, 255], [0xf1, 0xf2, 0xf4]] {
+            assert!(colours.contains(&colour), "{colour:?}");
+        }
     }
 
     /// For looking at the design: `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review`.

@@ -415,6 +415,41 @@ pub async fn icon_maskable(State(state): State<AppState>, headers: HeaderMap) ->
     asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-maskable-512.png"))
 }
 
+pub async fn icon_maskable_large(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-maskable-1024.png"))
+}
+
+pub async fn icon_monochrome(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-monochrome-512.png"))
+}
+
+/// `GET /assets/launch/<width>x<height>[-dark].png`: a launch screen of the installed app on iOS
+/// (`app::launch`), for the screens a page names; drawn on its first request and kept (`launch`).
+/// Revalidated like the other assets: it changes with the build at most.
+pub async fn launch_screen(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+    let Some(picture) = app::launch::Picture::from_file(&file) else { return StatusCode::NOT_FOUND.into_response() };
+    let etag = format!("\"{}\"", state.build_id);
+    if if_none_match(&headers, &etag) {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+    }
+    match state.launch.get(picture).await {
+        Ok(png) => {
+            let mut response = Response::new(Body::from(png));
+            let out = response.headers_mut();
+            out.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
+            out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
+            if let Ok(value) = HeaderValue::from_str(&etag) {
+                out.insert(header::ETAG, value);
+            }
+            response
+        }
+        Err(error) => {
+            tracing::error!(component = "launch", event = "launch.failed", file, error = %error, "a launch screen could not be drawn");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 /// `GET /cards/module/<id>.png`: the picture of a module's link preview (`cards`).
 pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
     let Some(id) = file.strip_suffix(".png").filter(|id| !id.is_empty() && id.len() <= 32) else { return StatusCode::NOT_FOUND.into_response() };

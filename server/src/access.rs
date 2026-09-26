@@ -63,6 +63,8 @@ const OPEN: &[&str] = &[
     app::ICON_192,
     app::ICON_512,
     app::ICON_MASKABLE,
+    app::ICON_MASKABLE_LARGE,
+    app::ICON_MONOCHROME,
     app::MANIFEST,
 ];
 
@@ -216,11 +218,14 @@ fn resolve(name: &str, docker_secrets: &Path) -> Result<Option<(String, String)>
 pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let Some(gate) = state.gate.as_ref() else { return next.run(request).await };
     let path = request.uri().path();
+    // The launch screens of iOS are the home screen's like its icons (`app::launch`); another name
+    // under their path stays behind the gate.
+    let launch_screen = path.strip_prefix(app::launch::PATH).is_some_and(|file| app::launch::Picture::from_file(file).is_some());
     // A calendar feed passes when its code decodes: the owner's decision of 2026-09-24, since a
     // calendar service has no password to give. The check characters turn guesses away before any
     // handler runs, and what it shows is the QIS schedule of the modules the code names; every
     // other path under `/calendar/` stays behind the gate. Its answer is `private` already.
-    if OPEN.contains(&path) || catalog::timetable::subscription::is_feed_path(path) {
+    if OPEN.contains(&path) || launch_screen || catalog::timetable::subscription::is_feed_path(path) {
         return next.run(request).await;
     }
     if !gate.admits(request.headers()) {
@@ -336,7 +341,7 @@ fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<
             </head>
             <body class="gate">
                 <main class="gate-main">
-                    // The lockup stands on the page like in the app: on a panel the light mark would vanish.
+                    // The lockup stands on the page, as the start page of the app has it.
                     <div class="gate-brand">
                         <span class="logo"><app::ui::Mark/></span>
                         <span><app::ui::Wordmark/><small>"Modulkatalog · inoffiziell"</small></span>

@@ -15,6 +15,7 @@ pub mod data;
 pub mod format;
 pub mod ground;
 pub mod icons;
+pub mod launch;
 pub mod local;
 pub mod myprogram;
 pub mod nav;
@@ -57,12 +58,16 @@ pub const STYLESHEET: &str = "/assets/app.css";
 pub const FAVICON: &str = "/assets/favicon.svg";
 /// The mark as pictures, for what cannot read the SVG (`design/logo/render-icons.mjs` makes them):
 /// the classic `/favicon.ico`, the icon of iOS (home screen, link previews of Messages) and the
-/// icons of the web app manifest.
+/// icons of the web app manifest: plain ones for desktops, maskable ones for Android's launchers
+/// and the splash screen of the installed app (the large one keeps it sharp there), and the
+/// monochrome one that Android's themed icons tint in the colours of the wallpaper.
 pub const FAVICON_ICO: &str = "/favicon.ico";
 pub const TOUCH_ICON: &str = "/apple-touch-icon.png";
 pub const ICON_192: &str = "/assets/icon-192.png";
 pub const ICON_512: &str = "/assets/icon-512.png";
 pub const ICON_MASKABLE: &str = "/assets/icon-maskable-512.png";
+pub const ICON_MASKABLE_LARGE: &str = "/assets/icon-maskable-1024.png";
+pub const ICON_MONOCHROME: &str = "/assets/icon-monochrome-512.png";
 /// Name, colours and icons of the site for a home screen or an installed window.
 pub const MANIFEST: &str = "/manifest.webmanifest";
 /// The page background of the light and the dark theme (`--bg`), for the browser's own chrome.
@@ -111,9 +116,13 @@ pub fn asset(path: &str) -> String {
 /// view settings live in localStorage, never in the URL and never in server HTML (R9). A browser
 /// that keeps „Mein Studiengang" marks the document with `mine`: the program overview's line about
 /// it is the app's, and the page keeps its room from the first paint, so the list does not move
-/// when the app takes over (R15). Public for the one document the server writes without the app:
-/// the login page of closed testing.
-pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem('betula.myprogram.v1')||''))d.classList.add('mine')}catch(e){}";
+/// when the app takes over (R15). On an iPhone or iPad (`navigator.standalone` exists there only)
+/// it names the launch screens of this screen, upright and, on a tablet, turned, light and dark
+/// (`launch`): iOS takes them when the app is added to the home screen, from the page as it is
+/// then. Written here and not as sixty `<link>`s into every page, which would cost every visitor
+/// almost a kilobyte for what only a home screen of iOS reads. Public for the one document the
+/// server writes without the app: the login page of closed testing.
+pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem('betula.myprogram.v1')||''))d.classList.add('mine')}catch(e){}if('standalone'in navigator)(function(){var s=screen,r=Math.round(devicePixelRatio),a=Math.min(s.width,s.height)*r,b=Math.max(s.width,s.height)*r;(a<1400?[[a,b,'portrait']]:[[a,b,'portrait'],[b,a,'landscape']]).forEach(function(o){['light','dark'].forEach(function(c){var l=document.createElement('link');l.rel='apple-touch-startup-image';l.media='(orientation: '+o[2]+') and (prefers-color-scheme: '+c+')';l.href='/assets/launch/'+o[0]+'x'+o[1]+(c==='dark'?'-dark':'')+'.png';document.head.appendChild(l)})})})()";
 
 /// The opt-in to the fade between pages, in the head of every document the server writes (this
 /// shell and the login page of closed testing). Not in app.css: Chromium decides whether a new

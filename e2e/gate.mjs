@@ -24,10 +24,11 @@ const status = async (path) => {
   await response.arrayBuffer();
   return response.status;
 };
-for (const path of ["/api/db", "/api/status", "/sitemap.xml", "/pkg/folia_client.js", "/assets/boot.js"]) {
+for (const path of ["/api/db", "/api/status", "/sitemap.xml", "/pkg/folia_client.js", "/assets/boot.js", "/assets/launch/100x100.png"]) {
   check((await status(path)) === 401, `${path} answers without the password`);
 }
-for (const path of ["/assets/app.css", "/assets/inter-latin.woff2", "/favicon.ico", "/manifest.webmanifest"]) {
+// What a home screen reads: the manifest and its icons, and the launch screens of iOS.
+for (const path of ["/assets/app.css", "/assets/inter-latin.woff2", "/favicon.ico", "/manifest.webmanifest", "/assets/icon-maskable-1024.png", "/assets/icon-monochrome-512.png", "/assets/launch/1179x2556.png"]) {
   check((await status(path)) === 200, `${path} is not open`);
 }
 check((await status("/healthz")) !== 401, "/healthz is behind the gate (a supervisor has no password)");

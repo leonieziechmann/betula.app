@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-  <rect width="96" height="96" rx="21" fill="#fff"/>
-  <path fill="#0b0b0b" d="M0 20h40v8H0zM68 36h28v8H68zM0 52h16v8H0zM52 68h44v8H52z"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="96" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6dac78"/><stop offset="1" stop-color="#2d6945"/></linearGradient></defs><rect width="96" height="96" rx="21" fill="url(#g)"/><g><path d="M48 65.9Q48.8 72.6 45.5 78.2" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round"/><path d="M48 14.7C49.6 23.6 59.9 37 67.6 49.2C71.7 55.3 71.5 60.4 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C24.5 60.4 24.3 55.3 28.4 49.2C36.1 37 46.4 23.6 48 14.7Z" fill="#ffffff"/><path d="M48.9 31.3H40.12C39.15 32.85 38.13 34.42 37.08 36H48.9ZM50.4 40.2H61.7C62.75 41.77 63.8 43.34 64.82 44.9H50.4ZM38.8 49.1H28.46C28.44 49.13 28.42 49.17 28.4 49.2C27.32 50.81 26.53 52.35 26.04 53.8H38.8ZM42.7 58H70.57C70.42 59.9 69.59 61.5 68.13 62.7H42.7Z" fill="#10151f"/></g></svg>

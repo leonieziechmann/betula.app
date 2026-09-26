@@ -193,6 +193,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         store,
         cache: Arc::new(HtmlCache::new(32 * 1024 * 1024)),
         cards: Arc::new(crate::cards::Cards::new(8 * 1024 * 1024, 1)),
+        launch: Arc::default(),
         build_id: "test".into(),
         stale_after: None,
         public_url: "https://catalog.example".into(),
@@ -229,6 +230,26 @@ async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str)
     (parts.status, parts.headers, String::from_utf8(body).unwrap())
 }
 
+/// The launch screens of iOS (`app::launch`): the head script of every page names those of its
+/// screen, and the server draws each one it can name, as large as its screen, and answers it again
+/// with 304 to its ETag; no other name is there. Needs no snapshot.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_launch_screens_of_ios_are_drawn_as_large_as_their_screen() {
+    let router = crate::router(state(SnapshotStore::new(temp_dir("launch")).unwrap()));
+    let page = String::from_utf8(request(&router, "/", &[]).await.2).unwrap();
+    let head = page.split("</head>").next().unwrap_or_default();
+    assert!(head.contains(app::HEAD_SCRIPT) && app::HEAD_SCRIPT.contains("apple-touch-startup-image"), "{page}");
+    let (status, headers, png) = request(&router, "/assets/launch/1179x2556-dark.png", &[]).await;
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"));
+    assert!(png.starts_with(b"\x89PNG") && png[16..24] == [0, 0, 4, 155, 0, 0, 9, 252], "1179 x 2556");
+    let etag = headers[header::ETAG].to_str().unwrap().to_string();
+    assert_eq!(request(&router, "/assets/launch/1179x2556-dark.png", &[("if-none-match", &etag)]).await.0, StatusCode::NOT_MODIFIED);
+    // A phone opens upright only; names that are no picture are not there.
+    for missing in ["/assets/launch/2556x1179.png", "/assets/launch/1179x2556.jpg", "/assets/launch/100x100.png"] {
+        assert_eq!(request(&router, missing, &[]).await.0, StatusCode::NOT_FOUND, "{missing}");
+    }
+}
+
 /// Closed testing (`access`): nothing but the login page and what it needs, and a calendar
 /// subscription with a valid code, answers without the password; with it the site is what it
 /// was. Needs no snapshot.
@@ -256,9 +277,11 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 
     // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away
     // from everything but the calendar feeds (Google Calendar asks robots.txt before fetching one).
-    for path in [app::STYLESHEET, "/assets/app.css?v=test", app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::MANIFEST] {
+    for path in [app::STYLESHEET, "/assets/app.css?v=test", app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::ICON_MASKABLE_LARGE, app::ICON_MONOCHROME, app::MANIFEST, "/assets/launch/750x1334.png"] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
+    // Only the launch screens a page names: another name under their path stays behind the gate.
+    assert_eq!(request(&router, "/assets/launch/100x100.png", &[]).await.0, StatusCode::UNAUTHORIZED);
     assert_eq!(request(&router, "/healthz", &[]).await.0, StatusCode::SERVICE_UNAVAILABLE, "answered by the health check (no snapshot here), not by the gate");
     // The container's own probe (`folia healthcheck`) has no password and needs no snapshot.
     let (status, headers, body) = request(&router, crate::api::LIVENESS, &[]).await;

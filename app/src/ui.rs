@@ -7,14 +7,18 @@ use leptos_meta::Title;
 
 use crate::data::DataError;
 
-/// The mark of Betula: birch bark that also reads as the rows of a list. Drawn on a 32 px grid, the
-/// size it has in the rail (`.logo`), so its bars fall on whole pixels. Larger cuts: `design/logo`.
+/// The mark of Betula: a birch leaf, white, with the black marks of birch bark on it, which also
+/// read as the rows of a list, on the green of the leaf. Drawn on the 32 px grid, the size it has
+/// in the rail (`.logo`), where its rows fall on whole pixels; the green is the element's
+/// background (`.mark`), so the picture needs no ids and can stand on a page more than once. The
+/// paths come from `design/logo/mark.mjs`, with the larger cuts.
 #[component]
 pub fn Mark() -> impl IntoView {
     view! {
         <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
-            <rect width="32" height="32" rx="7"/>
-            <path d="M0 7h13v3H0zM23 12h9v3h-9zM0 17h5v3H0zM17 22h15v3H17z"/>
+            <path class="mark-stem" d="M16 22Q16.27 24.2 15.17 26.07"/>
+            <path class="mark-leaf" d="M16 4.9C16.53 7.87 19.97 12.33 22.53 16.4C23.9 18.43 23.83 20.13 22.53 21.03C20.57 21.97 17.97 22.33 16 22.73C14.03 22.33 11.43 21.97 9.47 21.03C8.17 20.13 8.1 18.43 9.47 16.4C12.03 12.33 15.47 7.87 16 4.9Z"/>
+            <path class="mark-rows" d="M16.3 10H13.64C13.24 10.65 12.81 11.32 12.36 12H16.3ZM16.8 13H20.3C20.75 13.67 21.19 14.34 21.63 15H16.8ZM12.9 16H9.72C9.64 16.13 9.55 16.27 9.47 16.4C9.09 16.96 8.82 17.5 8.66 18H12.9ZM14.2 19H23.53C23.56 19.84 23.24 20.52 22.58 21H14.2Z"/>
         </svg>
     }
 }
