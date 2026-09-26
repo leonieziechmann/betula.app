@@ -22,7 +22,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use catalog::filter::{CatalogQuery, FitsFilter, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
+use catalog::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
 use catalog::labels::ModuleKind;
 use catalog::pages::{self, StudyplanData};
 use catalog::rows::{CatalogRow, Program};
@@ -37,6 +37,7 @@ use super::head::{add_module_href, hue, is_past, tone_at};
 use super::{key_of, PlanCtx};
 use crate::format;
 use crate::myprogram::MineResolved;
+use crate::pages::catalog::finder_on;
 use crate::pending::{Change, Pending};
 use crate::ui::Icon;
 
@@ -181,7 +182,8 @@ fn placeholder_text(p: &Placeholder) -> String {
 
 /// The placeholders standing in `key`, in the plan's order, with what counts for them. `mine`:
 /// „Mein Studiengang" while the snapshot has it, whose electives a placeholder of it is found
-/// among.
+/// among. The catalog a placeholder leads to has the finder on, comparing what it compared the
+/// last time (`finder_on`).
 fn areas_of(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>) -> Held {
     let here = doc.placeholders_in(key);
     let areas = here
@@ -210,7 +212,7 @@ fn areas_of(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>) -> Held {
                 CatalogQuery { program, ..Default::default() }
             };
             let turnus = TurnusFilter { winter: key.winter, summer: !key.winter, ..Default::default() };
-            let query = CatalogQuery { turnus, fits: Some(FitsFilter::all(&key.key())), ..query };
+            let query = CatalogQuery { turnus, fits: Some(finder_on(key)), ..query };
             let row: Vec<u32> = doc.same_row(p).iter().map(|q| q.pid).collect();
             let counts = |fills: Option<u32>| fills.is_some_and(|pid| row.contains(&pid));
             AreaPlan {

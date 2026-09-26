@@ -192,8 +192,8 @@ fn campus_column(campus: Campus) -> Option<&'static str> {
     }
 }
 
-/// „Passt in meinen Plan": the semester whose timetable a module must fit, which classes are
-/// compared, and whether modules without dated rows are listed too. The URL carries it
+/// „Passt in meinen Stundenplan": the semester whose timetable a module must fit, which classes
+/// are compared, and whether modules without dated rows are listed too. The URL carries it
 /// (`fits=2026W&fits-skip=exercise&fits-undated=1`), since a semester is public and says nothing
 /// about the visitor; which modules fit is worked out by the browser from the plan it keeps
 /// (`CatalogQuery::fits_ids`).
@@ -321,9 +321,9 @@ pub struct CatalogQuery {
     pub prerequisites_met_by: Option<Vec<String>>,
     pub sort: SortKey,
     pub descending: bool,
-    /// „Passt in meinen Plan": the URL carries the switch, the browser fills `fits_ids` from the
-    /// plan before it asks. Where nothing filled them, nothing is listed: a page that does not know
-    /// the plan (the server's) must not answer as if every module fit.
+    /// „Passt in meinen Stundenplan": the URL carries the switch, the browser fills `fits_ids`
+    /// from the plan before it asks. Where nothing filled them, nothing is listed: a page that does
+    /// not know the plan (the server's) must not answer as if every module fit.
     pub fits: Option<FitsFilter>,
     /// Derived from the plan, never part of a URL; ignored without `fits`.
     pub fits_ids: Option<FitIds>,

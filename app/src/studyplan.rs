@@ -195,9 +195,9 @@ fn stored_text(doc: &PlanDoc) -> String {
     doc.stored()
 }
 
-/// What a page asks „Einplanen" to plan into: the semester the catalog's „Passt in meinen Plan"
-/// was checked against (`plan=`), and the placeholder a module found for it would fill (`fill=`),
-/// whose semester wins (`target_semester`).
+/// What a page asks „Einplanen" to plan into: the semester that „Passt in meinen Stundenplan" in
+/// the catalog was checked against (`plan=`), and the placeholder a module found for it would fill
+/// (`fill=`), whose semester wins (`target_semester`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanHint {
     pub semester: Option<SemesterKey>,
@@ -720,8 +720,8 @@ mod tests {
         });
         let fill = PlanHint { semester: None, fill: Some(3) };
         assert_eq!(target_semester(now, Some(now), None, Some(&fill), &with_placeholder), key("2027W"));
-        // The finder checked another semester („Passt in meinen Plan" off and on again, `fill`
-        // kept): the placeholder still decides, so the module lands where it fills it.
+        // The finder checked another semester („Passt in meinen Stundenplan" off and on again,
+        // `fill` kept): the placeholder still decides, so the module lands where it fills it.
         let both = PlanHint { semester: Some(now), fill: Some(3) };
         assert_eq!(target_semester(now, Some(now), None, Some(&both), &with_placeholder), key("2027W"));
         // One the plan no longer has changes nothing: the finder's semester, else the module's.

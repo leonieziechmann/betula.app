@@ -1086,7 +1086,7 @@ pub fn my_program(db: &dyn Database, program_id: &str) -> Result<Option<MyProgra
     })
 }
 
-/// What „Passt in meinen Plan" leaves in the catalog (A.7).
+/// What „Passt in meinen Stundenplan" leaves in the catalog (A.7).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FitResult {
     /// The semester has a dated teaching row. Without one nothing is checked, and only the
@@ -1185,8 +1185,8 @@ pub struct Overlay {
     /// The module's own rows in a hard clash with the plan.
     pub clashing: BTreeSet<RowKey>,
     /// The line under the week: `(true, „Überschneidet sich mit: …")` warns; a hint says „Passt in
-    /// deinen Plan (WiSe 2026/27)" or „Passt mit Übung Do 13:45". `None` when the module has no
-    /// shown Termin with a time to compare.
+    /// deinen Stundenplan (WiSe 2026/27)" or „Passt mit Übung Do 13:45". `None` when the module
+    /// has no shown Termin with a time to compare.
     pub line: Option<(bool, String)>,
     /// The line under „Prüfungstermine": the module's exam warnings against the plan. `(true, …)`
     /// warns, as one of them is hard (no Termin of either module avoids it); soft ones alone
@@ -1265,7 +1265,7 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap
         .any(|event| event.rows.iter().any(|row| row.hidden.is_none() && row.from.is_some() && held(row)));
     let line = timed.then(|| match clash_line(t, &own, &title) {
         Some(text) => (true, text),
-        None => (false, choice_line(t, &own).unwrap_or_else(|| format!("Passt in deinen Plan ({label})"))),
+        None => (false, choice_line(t, &own).unwrap_or_else(|| format!("Passt in deinen Stundenplan ({label})"))),
     });
 
     let mut warnings: Vec<&ExamWarning> =
@@ -1896,9 +1896,9 @@ mod studyplan_tests {
         }
     }
 
-    /// „Passt in meinen Plan" as the catalog asks for it: what was checked and does not clash, the
-    /// clashing and the planned ones left out, the notes of partial fits and unknowns; a second
-    /// question with the same key does not rebuild the candidates.
+    /// „Passt in meinen Stundenplan" as the catalog asks for it: what was checked and does not
+    /// clash, the clashing and the planned ones left out, the notes of partial fits and unknowns;
+    /// a second question with the same key does not rebuild the candidates.
     #[test]
     fn the_finder_lists_what_was_checked_and_fits() {
         let (db, is_pinned, key) = snapshot("the_finder_lists_what_was_checked_and_fits (pages)");
@@ -2174,7 +2174,7 @@ mod studyplan_tests {
 
         // Nothing meets: it fits.
         let friday = overlay_in(&[plan.as_slice(), &[friday_lecture]].concat(), &[], &["P", "Q", "M"]);
-        assert_eq!(friday.line, Some((false, "Passt in deinen Plan (WiSe 2026/27)".to_string())));
+        assert_eq!(friday.line, Some((false, "Passt in deinen Stundenplan (WiSe 2026/27)".to_string())));
         assert!(friday.clashing.is_empty());
 
         // Without a Termin of its own that has a time there is nothing to say under its week.
