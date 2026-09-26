@@ -35,8 +35,8 @@ resvg = { version = "0.45", default-features = false, features = ["text"] }
 rustybuzz = "0.20"
 # The cards are written as palette PNGs (a fifth of the size of tiny-skia's true-colour ones).
 png = "0.17"
-
-[dev-dependencies]
+# `oneshot` for the warm-up of the page cache (src/warm.rs), which asks the page router directly.
+# Axum depends on it already.
 tower = { version = "0.5", features = ["util"] }
 
 [lints.clippy]

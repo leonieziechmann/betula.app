@@ -33,6 +33,10 @@ pub struct Snapshot {
     pub schema_version: i64,
     /// The same file gzip-compressed, made once per snapshot.
     pub gzip: Option<(PathBuf, u64)>,
+    /// That file in memory (7.6 MB in September 2026): `/api/db` hands every browser the same
+    /// bytes, instead of a file read and a buffer of its own per download — a lecture hall
+    /// opening the app at once used to mean hundreds of both.
+    pub gzip_bytes: Option<axum::body::Bytes>,
     pub meta: Meta,
     pub activated_at: SystemTime,
     /// The map of the programs on the landing page, laid out once when the snapshot is opened
@@ -40,6 +44,11 @@ pub struct Snapshot {
     /// The ETag is the content's, not the snapshot's: a new layout of the same catalog (a new
     /// Folia) must not be answered with „304, unchanged" from a browser's cache.
     pub program_map: Option<(Arc<catalog::graph::ProgramMap>, axum::body::Bytes, axum::body::Bytes, String)>,
+    /// What the pickers of the catalog offer (every program, department and person), made once
+    /// here instead of in every render of a page of the catalog (`app::pages::catalog`).
+    pub pickers: Option<app::pages::catalog::PickerChoices>,
+    /// The data of the program overview, the same for each of its filters (`app::pages::programs`).
+    pub programs: Option<app::pages::programs::ProgramsReady>,
     /// `/sitemap.xml` (plain, gzip), made on first request.
     pub sitemap: std::sync::OnceLock<(axum::body::Bytes, axum::body::Bytes)>,
     pool: Mutex<Vec<NativeDatabase>>,
@@ -75,10 +84,33 @@ impl Snapshot {
                 None
             }
         };
+        let pickers = match catalog::pages::catalog_choices(&db) {
+            Ok(choices) => Some(app::pages::catalog::PickerChoices::of(&choices)),
+            Err(error) => {
+                tracing::warn!(component = "snapshot", event = "snapshot.choices_failed", error = %error, "the pickers of the catalog are loaded per page");
+                None
+            }
+        };
+        let programs = catalog::pages::programs_overview(&db).ok().map(|data| app::pages::programs::ProgramsReady(Arc::new(data)));
         let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let gzip_path = gzip_path_of(&path);
-        let gzip = std::fs::metadata(&gzip_path).ok().map(|m| (gzip_path, m.len()));
-        Ok(Self { etag, path, bytes, schema_version, gzip, meta: overview.meta, activated_at: SystemTime::now(), program_map, sitemap: std::sync::OnceLock::new(), pool: Mutex::new(vec![db]) })
+        let gzip_bytes = std::fs::read(&gzip_path).ok().map(axum::body::Bytes::from);
+        let gzip = gzip_bytes.as_ref().map(|bytes| (gzip_path, bytes.len() as u64));
+        Ok(Self {
+            etag,
+            path,
+            bytes,
+            schema_version,
+            gzip,
+            gzip_bytes,
+            meta: overview.meta,
+            activated_at: SystemTime::now(),
+            program_map,
+            pickers,
+            programs,
+            sitemap: std::sync::OnceLock::new(),
+            pool: Mutex::new(vec![db]),
+        })
     }
 
     pub fn with_db(&self, job: &mut dyn FnMut(&dyn Database)) -> Result<(), DbError> {

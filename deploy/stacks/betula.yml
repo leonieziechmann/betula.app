@@ -112,8 +112,15 @@ services:
       FOLIA_LOG_LEVEL: info
       # Canonical links, link previews and the sitemap are written with it.
       FOLIA_PUBLIC_URL: "https://${APP_HOST:?APP_HOST is not set}"
-      # Rendered pages kept in memory; part of the memory limit below (default 128).
-      FOLIA_HTML_CACHE_MB: "128"
+      # Rendered pages kept in memory, compressed (server/src/cache.rs); part of the memory limit
+      # below. 256 MiB hold every page of the sitemap (about 36 MiB, rendered after each new
+      # snapshot while the server is idle: FOLIA_WARM_CACHE) and some 13,000 filtered lists.
+      FOLIA_HTML_CACHE_MB: "256"
+      # Renders and calendar feeds run one per processor of the CPU limit below, with one worker
+      # thread more for everything else (FOLIA_RENDER_PLACES, FOLIA_FEED_PLACES, FOLIA_WORKERS: 0 =
+      # derived from the limit); a page that finds every place taken for FOLIA_RENDER_WAIT_MS is
+      # answered 503 with Retry-After instead of joining a queue that only grows
+      # (server/src/busy.rs; docs/frontend.md, "Load").
       # Closed unless somebody says "off": a deploy that forgets the variable must not publish
       # the site. On without the secret, the server refuses to start instead of serving it openly.
       FOLIA_ACCESS_GATE: "${FOLIA_ACCESS_GATE:-on}"
@@ -156,10 +163,16 @@ services:
         order: stop-first
       resources:
         limits:
-          cpus: "1.0"
-          # Holds the HTML cache (up to 128 MB), the card cache (up to 64 MB) and the open snapshot
-          # (SQLite, about 40 MB on disk); /api/db is streamed from the file.
-          memory: 768M
+          # Three of the host's four processors (owner, 2026-09-26: the VPS is for the site, live
+          # and canary and what runs around them). A limit, not a reservation: what one instance
+          # does not use, the others may, and under load the kernel shares out by container, so
+          # Traefik and the monitoring keep their turn. With 1.0 the load test of 2026-09-26 made
+          # 13 filtered lists or 20 calendar feeds a second on this host before the queue grew.
+          cpus: "3.0"
+          # Holds the HTML cache (up to 256 MB), the card cache (up to 64 MB), the snapshot's
+          # compressed copy that /api/db hands out (7.6 MB) and the open snapshot (SQLite, about
+          # 44 MB on disk).
+          memory: 1G
           pids: 256
       labels:
         # Service labels (deploy.labels): the swarm provider does not read container labels.

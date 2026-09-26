@@ -187,6 +187,14 @@ fn program_map() -> Option<app::data::ProgramMapHandle> {
     serde_json::from_str(&text).ok().map(|map| app::data::ProgramMapHandle(Arc::new(map)))
 }
 
+/// The build the server wrote the page with: the `?v=` of its stylesheet (`app::BuildId`), which
+/// stays in the head when the app takes the body over.
+fn build_of_page(document: &web_sys::Document) -> Option<String> {
+    let href = document.query_selector("link[rel=stylesheet]").ok()??.get_attribute("href")?;
+    let (_, build) = href.split_once("?v=")?;
+    Some(build.split(['&', '#']).next()?.to_string()).filter(|build| !build.is_empty())
+}
+
 /// Called by `boot.js` when the local database is open.
 #[wasm_bindgen]
 pub fn start() {
@@ -210,8 +218,13 @@ pub fn start() {
     }
     let map = program_map();
     let site = web_sys::window().and_then(|w| w.location().origin().ok());
+    let build = build_of_page(&document);
     leptos::mount::mount_to_body(move || {
         provide_context(Source(Arc::new(LocalSource)));
+        // The icons point into the sprite of this build (`app::icons`), as the server's page did.
+        if let Some(build) = build.clone() {
+            provide_context(app::BuildId(build.into()));
+        }
         if let Some(map) = map.clone() {
             provide_context(map);
         }

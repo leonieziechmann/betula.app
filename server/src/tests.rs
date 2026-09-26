@@ -199,6 +199,9 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         site_root: "no-site".into(),
         packages: Arc::default(),
         gate: None,
+        renders: Arc::new(crate::busy::Places::new("render", 2, std::time::Duration::from_secs(3))),
+        render_wait: std::time::Duration::from_secs(3),
+        feeds: Arc::new(crate::busy::Places::new("calendar", 2, std::time::Duration::from_secs(10))),
         leptos: LeptosOptions::builder().output_name("folia-app").site_root("no-site").build(),
     }
 }
@@ -784,4 +787,108 @@ async fn calendar_services_may_fetch_feeds() {
     assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
     assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|cards\\/|calendar\\/)/;"));
+}
+
+/// A server with more work than places (`busy`): a page that finds no place within the wait is
+/// answered 503 with `Retry-After`, and so is a calendar feed; what needs no place — `/livez`, a
+/// cached page, a file — answers as always. (Measured before, on one processor: a queue that
+/// only grew, `/livez` included, 6 to 13 seconds after half a minute.)
+#[tokio::test(flavor = "multi_thread")]
+async fn a_busy_server_turns_work_away_and_stays_alive() {
+    let mut state = state(store_with("busy", &snapshot_file()));
+    state.renders = Arc::new(crate::busy::Places::new("render", 1, std::time::Duration::from_millis(50)));
+    state.feeds = Arc::new(crate::busy::Places::new("calendar", 1, std::time::Duration::from_millis(50)));
+    let router = crate::router(state.clone());
+    assert_eq!(request(&router, "/catalog/module/11101", &[]).await.1["x-cache"], "miss");
+
+    // Every place taken, for longer than the wait.
+    let _render = state.renders.enter().await.unwrap();
+    let _feed = state.feeds.enter().await.unwrap();
+    let (status, headers, body) = request(&router, "/catalog?turnus=winter", &[("accept", "text/html")]).await;
+    assert_eq!((status, headers["x-cache"].to_str().unwrap(), headers[header::RETRY_AFTER].to_str().unwrap()), (StatusCode::SERVICE_UNAVAILABLE, "busy", "10"));
+    assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+    assert!(String::from_utf8(body).unwrap().contains("in ein paar Sekunden"));
+    let head = Request::builder().method("HEAD").uri("/catalog?turnus=summer").body(Body::empty()).unwrap();
+    assert_eq!(router.clone().oneshot(head).await.unwrap().status(), StatusCode::SERVICE_UNAVAILABLE, "HEAD renders under the same rules");
+    let (status, headers, _) = request(&router, &subscription::path(FIRST_SEMESTER_CODE), &[]).await;
+    assert_eq!((status, headers[header::RETRY_AFTER].to_str().unwrap()), (StatusCode::SERVICE_UNAVAILABLE, "120"));
+
+    assert_eq!(request(&router, crate::api::LIVENESS, &[]).await.0, StatusCode::OK);
+    assert_eq!(request(&router, "/catalog/module/11101", &[]).await.1["x-cache"], "hit");
+    assert_eq!(request(&router, app::STYLESHEET, &[]).await.0, StatusCode::OK);
+}
+
+/// A page asked for many times at once is rendered once: the others wait for that render and
+/// are answered from the cache.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_page_asked_for_at_once_is_rendered_once() {
+    let router = crate::router(state(store_with("once", &snapshot_file())));
+    let asks: Vec<_> = (0..8)
+        .map(|_| {
+            let router = router.clone();
+            tokio::spawn(async move { request(&router, "/", &[("accept-encoding", "gzip")]).await.1["x-cache"].to_str().unwrap().to_string() })
+        })
+        .collect();
+    let mut answers = Vec::new();
+    for ask in asks {
+        answers.push(ask.await.unwrap());
+    }
+    assert_eq!(answers.iter().filter(|answer| *answer == "miss").count(), 1, "{answers:?}");
+    assert_eq!(answers.iter().filter(|answer| *answer == "hit").count(), 7, "{answers:?}");
+}
+
+/// The warm-up renders the pages of the sitemap into the cache, past the gate, and says how many.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_warm_up_renders_the_pages_of_the_sitemap() {
+    let store = store_with("warm", &snapshot_file());
+    let mut state = state(store.clone());
+    state.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+    let paths = crate::api::sitemap_paths(&store.current().unwrap()).unwrap();
+    assert!(paths.len() > 1000 && paths.first().map(String::as_str) == Some("/"));
+    let some: Vec<String> = paths.iter().take(3).chain(paths.iter().rev().take(2)).cloned().collect();
+    let pages = crate::pages(&state).with_state(state.clone());
+    assert!(crate::warm::warm(&pages, &store, store.generation(), &some).await);
+    assert_eq!(state.cache.size().0, some.len());
+    // A newer snapshot stops it.
+    assert!(!crate::warm::warm(&pages, &store, store.generation() + 1, &some).await);
+}
+
+/// The icons of a page point into one sprite, served once, with the build of the page.
+#[tokio::test(flavor = "multi_thread")]
+async fn icons_point_into_the_sprite() {
+    let router = crate::router(state(store_with("icons", &snapshot_file())));
+    let (_, _, body) = request(&router, "/catalog", &[]).await;
+    let html = String::from_utf8(body).unwrap();
+    assert!(html.contains("<use href=\"/assets/icons.svg?v=test#"), "icons link the sprite of the build");
+    assert!(!html.contains("<path d=\"M20 6 9 17l-5-5\"/>"), "no icon carries its path data any more");
+    assert!(!html.contains("<datalist"), "no list of every person on the catalog");
+    let (status, headers, sprite) = request(&router, "/assets/icons.svg?v=test", &[]).await;
+    let sprite = String::from_utf8(sprite).unwrap();
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/svg+xml"));
+    assert!(sprite.contains("<symbol id=\"check\" viewBox=\"0 0 24 24\"><path d=\"M20 6 9 17l-5-5\"/></symbol>"));
+    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    assert!(String::from_utf8(worker).unwrap().contains("\"/assets/icons.svg\","), "the service worker keeps the sprite");
+}
+
+/// `/api/db` hands every browser the same compressed bytes from memory.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_catalog_download_comes_from_memory() {
+    // A restart finds the compressed copy next to the snapshot, as the download left it.
+    let dir = temp_dir("db-memory");
+    let raw = std::fs::read(snapshot_file()).unwrap();
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("catalog-test.db"), &raw).unwrap();
+    std::fs::write(dir.join("catalog-test.db.gz"), crate::cache::gzip(&raw)).unwrap();
+    std::fs::write(dir.join("current.json"), r#"{"file":"catalog-test.db","etag":"\"test\""}"#).unwrap();
+    let store = SnapshotStore::new(dir).unwrap();
+    assert!(store.restore());
+    let router = crate::router(state(store.clone()));
+    let snapshot = store.current().unwrap();
+    let kept = snapshot.gzip_bytes.clone().expect("the compressed snapshot is kept in memory");
+    let (status, headers, body) = request(&router, "/api/db", &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "gzip"));
+    assert_eq!(body, kept.to_vec());
+    let (_, headers, body) = request(&router, "/api/db", &[]).await;
+    assert!(headers.get(header::CONTENT_ENCODING).is_none());
+    assert_eq!(body.len() as u64, snapshot.bytes);
 }

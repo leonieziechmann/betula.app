@@ -1,8 +1,8 @@
 // The service worker of Betula: the app starts without a network as well.
 //
 // What it keeps is the shell of the app — a page of the site (any one: the browser app renders
-// the page the address names from the local catalog), the scripts, the styles, the WASM bundle,
-// the font, the icons and the manifest. The catalog itself (`/api/db`) lives in IndexedDB,
+// the page the address names from the local catalog), the scripts, the styles, the sprite of the
+// icons, the WASM bundle, the font, the site's icons and the manifest. The catalog itself (`/api/db`) lives in IndexedDB,
 // where `boot.js` keeps it, and the worker never touches it or the other `/api/*` answers. Nor a
 // Studienplan's calendar feed (`/calendar/…`): a calendar service fetches it from its own servers,
 // and a feed kept here would be somebody's plan in Cache Storage, or the shell offline.
@@ -29,6 +29,7 @@ const KEPT_PAGES = 60;
 const TAG = new URL("?v=" + VERSION, self.location.href).search;
 const BUILT = [
   "/assets/app.css",
+  "/assets/icons.svg",
   "/assets/enhance.js",
   "/assets/boot.js",
   "/assets/sql-wasm.js",

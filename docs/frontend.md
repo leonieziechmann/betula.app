@@ -465,8 +465,10 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   What the browser app shows between a click and the page is the page's skeleton, one frame
   before the page is built („A click answers first" below), not a state the page waits in.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
-  request renders (5–100 ms) and later ones are a memory copy (2 ms), gzip included. A new
-  snapshot starts a new generation. ETag per generation and build → `304` without rendering.
+  request renders (5–100 ms) and later ones are a memory copy (2 ms), gzip included; the cache keeps
+  the compressed page only, and the pages of the sitemap are rendered into it after every new
+  snapshot while the server is idle („Load“ in §3). A new snapshot starts a new generation. ETag
+  per generation and build → `304` without rendering.
   Pages are `public, no-cache`: the browser asks every time and mostly hears `304` (until
   2026-09-21 they were `max-age=300, stale-while-revalidate=86400`, so after a deploy a browser
   showed the old build's page with the new build's stylesheet for up to five minutes, and once
@@ -1233,7 +1235,12 @@ keeps serving the last good one when Radix is away, also after a restart.
 | `--data-dir` | `FOLIA_DATA_DIR` | `web-data` | downloaded snapshots |
 | `--poll-seconds` | `FOLIA_SNAPSHOT_POLL` | `60` | check interval (conditional GET) |
 | `--stale-after-seconds` | `FOLIA_SNAPSHOT_STALE_AFTER` | `21600` | `/healthz` fails when Radix was silent this long (0: never) |
-| `--html-cache-mb` | `FOLIA_HTML_CACHE_MB` | `128` | rendered pages kept in memory |
+| `--html-cache-mb` | `FOLIA_HTML_CACHE_MB` | `128` | rendered pages kept in memory, compressed (256 in production) |
+| `--warm-cache` | `FOLIA_WARM_CACHE` | `on` | render every page of the sitemap into the cache after a new snapshot, while idle ("Load") |
+| `--workers` | `FOLIA_WORKERS` | `0` | worker threads; 0: one more than the processors the container may use |
+| `--render-places` | `FOLIA_RENDER_PLACES` | `0` | pages rendered at once; 0: one per processor |
+| `--render-wait-ms` | `FOLIA_RENDER_WAIT_MS` | `3000` | how long a page waits for a place before it is answered 503 with `Retry-After` |
+| `--feed-places` | `FOLIA_FEED_PLACES` | `0` | calendar feeds made at once (0: one per processor); a feed waits at most 10 s |
 | `--site-root` | `FOLIA_SITE_ROOT` | `site` | browser bundle (`pkg/`), from phase 2 |
 | `--card-cache-mb` | `FOLIA_CARD_CACHE_MB` | `64` | finished link-preview cards kept in memory |
 | `--public-url` | `FOLIA_PUBLIC_URL` | `https://betula.app` | the site's address from outside: canonical links, link previews, sitemap |
@@ -1248,7 +1255,7 @@ Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /api/map.jso
 programs, with the snapshot's ETag), `GET /healthz` (200 while a snapshot is served and Radix was
 heard from; for an uptime monitor), `GET /livez` (200 while the process answers; for the container's
 healthcheck, which must not restart a server that still serves its last snapshot),
-`/assets/app.css`, `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
+`/assets/app.css`, `/assets/icons.svg` (the sprite every icon points at), `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
 `/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/manifest.webmanifest`,
 `/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`, `/sitemap.xml`, and
@@ -1350,6 +1357,108 @@ inside: `FOLIA_ADDR=0.0.0.0:8080`, `FOLIA_DATA_DIR=/data`, `FOLIA_SITE_ROOT=/sit
 in the Nix build (they need a snapshot). Shipping both images to the server and deploying an
 instance is `deploy/ship.sh` (`deploy/README.md` §4).
 
+### Load (2026-09-26)
+
+Owner: „wie viel Traffic meine Seite aushält … von Crawlern, richtigen Benutzern, Benutzern ohne
+JS und Abfragen von Google Calendar“, then „optimiere das Setup auf Performance … du kannst alle
+Ressourcen des VPS verwenden“ (live and canary, each Folia and Radix, and the management around
+them). Measured with `e2e/load` (below) in a lab on the workstation — Folia's release build as Nix
+builds it, the production settings, pinned to as many processors as its container gets — and
+against https://canary.betula.app for what is open there (calendar feeds, the rate limit).
+
+**What a request costs.** One processor of the workstation; the server's is about 2.5 times
+slower (the same calendar feeds took 10 ms here and about 28 ms there, the heaviest 47 and 114
+ms). Before → after this round:
+
+| | before | after |
+|---|---|---|
+| a filtered list of the catalog, not cached | 31 ms (32/s per processor) | 11.5 ms (85/s) |
+| the program overview with a filter / without | 31 ms / 31 ms | 3.3 ms / 5.5 ms |
+| a module / a program's page, not cached | 4.3 ms / 10 ms | the same |
+| any cached page | 0.2–0.3 ms (3,000/s) | the same |
+| a calendar feed | 12 ms (85/s) | the same, one per processor at a time |
+| a first visit with JavaScript | 57 ms, 10.8 MB (7.6 MB of them `/api/db`) | the same |
+| a page view without JavaScript (cached page, stylesheet and font revalidated) | 1 ms | the same |
+
+The filtered list spent 12 of its 31 ms loading what its pickers offer — every program, department
+and person (the persons alone 8.5 ms) — on every render, though that changes only with the snapshot;
+the program overview likewise its programs. Both are made once per snapshot now and handed to the
+renders (`PickerChoices`, `ProgramsReady`, like the map of the programs). The persons' `<datalist>`
+(705 names, 28 kB of every page of the catalog) is gone: the server's catalog is there to lead search
+engines to the modules, and the persons stand on the module's page (owner: „das soll nur auf die
+Modulseite“). The icons point into one sprite (`app::icons`) instead of carrying their paths
+(owner: „das kann ja auch alles statisch geserved und nur verlinkt werden“): a page of the catalog
+went from 129 to 91 kB (18.5 to 11.3 kB compressed), a module's from 20 to 18 kB.
+
+**How the server behaves under load** (the part that mattered most). One processor and one worker
+thread, as in production until now: a crawler asking for filtered lists faster than they were made
+(45 a second, below the 50 Traefik lets one address ask) built a queue that only grew — after half
+a minute every answer took 6 to 13 seconds, `/livez` included, and the container's healthcheck
+(3 failed probes of 3 s) would have restarted it with an empty cache. On the server that was 13
+lists a second; canary really did tip over at 20 calendar feeds a second (test from outside, the
+queue grew to 15 s). Now:
+
+- **Places** (`server/src/busy.rs`): renders and calendar feeds run one per processor; a request
+  that finds every place taken waits (at most `FOLIA_RENDER_WAIT_MS`, and never behind more than 64
+  waiting per place) and is then answered **503 with `Retry-After`** — crawlers and calendar
+  services come back later. Cached pages, files and `/livez` need no place.
+- **One more worker thread than processors**: with one thread for everything, renders starved the
+  accept loop and connections were refused before any request could be told 503.
+- **The cache keeps pages compressed only**, drops views before the pages of the sitemap, and renders
+  a page once however many ask for it at the same time (`server/src/cache.rs`). 128 MiB used to hold
+  1,200 pages — not even the modules; the sitemap's 5,235 pages take 29 MiB now.
+- **Warm-up** (`server/src/warm.rs`): after every new snapshot and after a start, every page of the
+  sitemap is rendered into the cache while the server is idle — 22 s on one processor here, about a
+  minute on the server — so crawlers walking the sitemap and visitors after a deploy meet no render.
+- `/api/db` hands every browser the same bytes from memory.
+
+Measured on three processors (the new CPU limit, `deploy/stacks/betula.yml`): 197 filtered lists a
+second not cached; at 1.5 and 3 times that the surplus got 503 within about a second, and `/livez`
+answered in 17–39 ms (p99). A mix of crawlers (cold and cached pages), visitors without JavaScript,
+first and returning visitors with JavaScript and calendar services at 200 visits a second (590
+requests, 109 MB a second: among them 60 lists rendered, 10 first visits and 40 feeds a second)
+used 1.6 of the 3 processors, every answer within 110 ms (p99).
+
+**What that means on the server** (4 shared vCPUs, factor 2.5; Folia may use 3): about 80
+filtered lists or 270 modules a second not cached, over 3,000 cached pages, about 100 calendar
+feeds (Google fetches a subscription every few hours: 7,000 subscriptions are 1 a second). What
+runs out first with real visitors is the **bandwidth**: a first visit with JavaScript downloads about
+10 MB (9 MB with the release bundle), so 200 Mbit/s carry 2.5 first visits a second — 9,000 an
+hour — and 1 Gbit/s five times that (see the Contabo plan for the port). A new snapshot makes every
+returning visitor download `/api/db` again (7.6 MB). From the workstation (100–125 Mbit/s) the
+server's own port could not be measured.
+
+**Traefik's rate limit** (50 a second per address, bursts of 100, `config/traefik/dynamic/
+middlewares.yml`) works as configured: of 800 requests in 10 s from one address 596 passed (= 100 +
+50 × 10). A first visit with JavaScript is about 30 requests, so one address carries about 3 first
+visits at once and 1.7 a second after that — worth raising if a campus network puts many students
+behind one address (a lecture hall opening the app together).
+
+**Not changed, noted:** a catalog page still renders 155 icons and a list of 183 programs into a
+`<select>` for visitors without JavaScript; a filtered list's remaining 11.5 ms are 7.7 ms of queries
+(the totals of the program's two lists, the page, the program's areas) and the render. The home page
+is 410 kB (106 kB compressed), rendered once per snapshot.
+
+**Running it** — `e2e/load` is a Go program without dependencies (`go build -o betula-load.exe .`
+in that directory); `e2e/load/lab.ps1` starts the lab on Windows:
+
+```bash
+betula-load discover -base http://127.0.0.1:18080 -out pages.tsv -max 40000     # what a crawler finds
+cargo run --release -p folia-catalog --features native --example loadtest_feeds -- <catalog-*.db> 2026W --heavy 20 > feeds.tsv
+betula-load run -base http://127.0.0.1:18080 -scenario crawl-cold -pages pages.tsv -rates 50,100,200 -step 30s -probe -pid <folia>
+betula-load run -base http://127.0.0.1:18080 -scenario "crawl-cold=30,crawl-warm=20,nojs=10,js-first=5,js-return=15,ics=20" -pages pages.tsv -hot 3000 -feeds feeds.tsv -rates 25,50,100,200
+betula-load run -base https://canary.betula.app -scenario ics -feeds feeds.tsv -rates 5,10,20 -abort-p99 5s   # the server, what is open there
+betula-load logstats -log folia.log                                                # what each kind of page cost the server
+```
+
+Jobs: `crawl-cold` (every address once: renders), `crawl-warm` (popular pages more often),
+`nojs`, `js-first`, `js-return`, `js-update` (a returning visitor after a new snapshot), `ics`,
+`livez`; `-rates` starts them on a Poisson schedule whatever the server does (an overloaded server
+shows as latency and errors, not as a politely lower rate), `-concs` runs that many back to back.
+`-probe` asks `/livez` every second next to the load. `cargo run … --example loadtest_profile --
+<catalog-*.db> pages.tsv` times every query a page of the catalog runs. Against the server stay
+below the rate limit and watch Grafana: the whole site is one small VPS.
+
 ### Log events (same rules as `docs/operations.md` §2: ERROR = a human has to act)
 
 | Level | `event` | Meaning |
@@ -1360,6 +1469,10 @@ instance is `deploy/ship.sh` (`deploy/README.md` §4).
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
 | INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` (a code names somebody's plan) |
+| WARN | `http.request` with `cache=busy` | a request turned away with 503 because every place was taken ("Load"): no error of the server |
+| WARN | `server.busy` | the same, at most once a minute: `what` (`render`, `calendar`), `places`, `wait_ms`, `turned_away` since the start. Often: more processors, or a crawler to slow down |
+| INFO | `cache.warmed` | the pages of the sitemap are in the cache (`pages`, `rendered`, `kept`, `ms`, `generation`) |
+| WARN | `cache.warm_failed`, `snapshot.choices_failed` | the sitemap could not be listed for the warm-up / the pickers of the catalog are loaded per page again |
 | DEBUG | `http.request` with `path=/livez` | the container's own probe, twice a minute |
 | DEBUG | `calendar.served` | a calendar feed was made (`bytes`, `ms`; never the code or the modules) |
 | INFO | `access.gate_on` | closed testing is on (`source`: where the password was found, never the password) |

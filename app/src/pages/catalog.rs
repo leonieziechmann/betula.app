@@ -107,11 +107,16 @@ pub fn CatalogPage() -> impl IntoView {
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
     let failed = Memo::new(move |_| list.with(|list| list.as_ref().err().cloned()));
     let facts = Memo::new(move |_| list.with(|list| list.as_ref().map(|(_, data)| Facts::of(data)).unwrap_or_default()));
-    // What the pickers offer does not depend on the filter: loaded once, not with every list.
+    // What the pickers offer does not depend on the filter: loaded once, not with every list, and
+    // where the host has it ready for the snapshot (`PickerChoices`), not even that.
+    let ready = use_context::<PickerChoices>();
     let choices_source = source.clone();
     let choices = Memo::new(move |_| {
+        if let Some(ready) = &ready {
+            return ready.0.clone();
+        }
         let loaded = choices_source.clone().and_then(|source| source.run(pages::catalog_choices));
-        loaded.map(|choices| Choices::of(&choices)).unwrap_or_default()
+        Arc::new(loaded.map(|choices| Choices::of(&choices)).unwrap_or_default())
     });
 
     // On a phone the filter panel is a sheet over the list, and what is picked there is a
@@ -1406,6 +1411,19 @@ fn area_item(area: &CatalogArea) -> ComboItem {
         .in_group(area.section.clone().unwrap_or_default())
 }
 
+/// What the pickers of the catalog offer, made once per snapshot by a host that can (the server,
+/// `server/src/snapshot.rs`) and handed to every render: every program, department and person does
+/// not change with the filter, and loading them was 12 of the 30 ms a page of the catalog cost the
+/// server (load test 2026-09-26: the persons alone 8.5 ms). A page without it loads them itself.
+#[derive(Clone)]
+pub struct PickerChoices(Arc<Choices>);
+
+impl PickerChoices {
+    pub fn of(data: &CatalogChoices) -> Self {
+        Self(Arc::new(Choices::of(data)))
+    }
+}
+
 /// What the pickers offer: the same for every filter, it changes only with the snapshot.
 #[derive(Clone, Default, PartialEq)]
 struct Choices {
@@ -1687,7 +1705,7 @@ fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<O
 fn Filters(
     query: Memo<CatalogQuery>,
     facts: Memo<Facts>,
-    choices: Memo<Choices>,
+    choices: Memo<Arc<Choices>>,
     open: Memo<Option<String>>,
     /// The placeholder the list is looked through for: every link of the panel keeps it, only
     /// „Zurücksetzen" drops it with the rest.
@@ -1990,14 +2008,15 @@ fn Filters(
         }
         .into_any()
     } else {
+        // Without the app a name is typed. No list of every person to pick from (a `<datalist>`
+        // of 705 names, 28 kB on every page of the catalog until 2026-09-26): the server's catalog
+        // is there to lead search engines to the modules, and the persons stand on the module's
+        // own page (owner: „das soll nur auf die Modulseite").
         view! {
             <label class="field">
                 <span class="visually-hidden">"Lehrt oder verantwortet"</span>
-                <input type="text" name="lecturer" list="lecturers" placeholder="Nachname, Vorname"/>
+                <input type="text" name="lecturer" placeholder="Nachname, Vorname"/>
             </label>
-            <datalist id="lecturers">
-                {move || choices.with(|c| c.lecturers.iter().map(|l| view! { <option value=l.id.clone()></option> }).collect_view())}
-            </datalist>
         }
         .into_any()
     };

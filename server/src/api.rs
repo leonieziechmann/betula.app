@@ -39,19 +39,23 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, snapshot.etag.clone())]).into_response();
     }
 
-    let (path, length, compressed) = match (&snapshot.gzip, accepts_gzip(&headers)) {
-        (Some((path, length)), true) => (path.clone(), *length, true),
-        _ => (snapshot.path.clone(), snapshot.bytes, false),
-    };
-    let file = match tokio::fs::File::open(&path).await {
-        Ok(file) => file,
-        Err(error) => {
-            tracing::error!(component = "http", event = "snapshot.unreadable", path = %path.display(), error = %error, "active snapshot file cannot be opened");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    // Compressed from memory: every browser gets the same bytes, and a download holds no file and
+    // no buffer of its own. Uncompressed (hardly anybody) streamed from the file.
+    let (body, length, compressed) = match (&snapshot.gzip_bytes, accepts_gzip(&headers)) {
+        (Some(bytes), true) => (Body::from(bytes.clone()), bytes.len() as u64, true),
+        _ => {
+            let file = match tokio::fs::File::open(&snapshot.path).await {
+                Ok(file) => file,
+                Err(error) => {
+                    tracing::error!(component = "http", event = "snapshot.unreadable", path = %snapshot.path.display(), error = %error, "active snapshot file cannot be opened");
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            };
+            (Body::from_stream(ReaderStream::with_capacity(file, 256 * 1024)), snapshot.bytes, false)
         }
     };
 
-    let mut response = Response::new(Body::from_stream(ReaderStream::with_capacity(file, 256 * 1024)));
+    let mut response = Response::new(body);
     let out = response.headers_mut();
     out.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/vnd.sqlite3"));
     // Always revalidate: the 304 is cheap and a changed snapshot is picked up at once.
@@ -106,22 +110,13 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
     };
     if snapshot.sitemap.get().is_none() {
-        let mut listed: Result<(Vec<String>, Vec<catalog::rows::Program>), catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
-        let ran = snapshot.with_db(&mut |db| {
-            listed = catalog::queries::module_ids(db).and_then(|modules| Ok((modules, catalog::queries::programs(db)?)));
-        });
-        let (modules, programs) = match ran.and(listed) {
-            Ok(listed) => listed,
+        let paths = match sitemap_paths(&snapshot) {
+            Ok(paths) => paths,
             Err(error) => {
                 tracing::error!(component = "http", event = "sitemap.failed", error = %error, "the sitemap could not be read from the snapshot");
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
         };
-        let mut paths = vec![catalog::url::HOME.to_string(), catalog::url::CATALOG.to_string(), catalog::url::PROGRAMS.to_string()];
-        for program in programs.iter().filter(|program| program.is_latest_po) {
-            paths.extend(catalog::url::ProgramTab::ALL.iter().filter(|tab| tab.indexed()).map(|tab| catalog::url::program_path(&program.slug, *tab)));
-        }
-        paths.extend(modules.iter().map(|id| catalog::url::module_path(id)));
         let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
         for path in paths {
             let address = format!("{}{path}", state.public_url).replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
@@ -135,6 +130,22 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
         Some(body) => per_snapshot(&headers, &snapshot.etag, "application/xml; charset=utf-8", body),
         None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
+}
+
+/// The pages of the sitemap, in its order: the three entrances, every current program with its
+/// views, every module. The warm-up of the cache renders the same list (`warm`).
+pub fn sitemap_paths(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, catalog::DbError> {
+    let mut listed: Result<(Vec<String>, Vec<catalog::rows::Program>), catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
+    snapshot.with_db(&mut |db| {
+        listed = catalog::queries::module_ids(db).and_then(|modules| Ok((modules, catalog::queries::programs(db)?)));
+    })?;
+    let (modules, programs) = listed?;
+    let mut paths = vec![catalog::url::HOME.to_string(), catalog::url::CATALOG.to_string(), catalog::url::PROGRAMS.to_string()];
+    for program in programs.iter().filter(|program| program.is_latest_po) {
+        paths.extend(catalog::url::ProgramTab::ALL.iter().filter(|tab| tab.indexed()).map(|tab| catalog::url::program_path(&program.slug, *tab)));
+    }
+    paths.extend(modules.iter().map(|id| catalog::url::module_path(id)));
+    Ok(paths)
 }
 
 /// `GET /calendar/<code>.ics`: a Studienplan as a calendar feed. The code carries semester, modules
@@ -152,6 +163,11 @@ pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMa
     let Some(subscription) = subscription::code_of_path(uri.path()).and_then(|code| Subscription::from_code(&code)) else { return gone() };
     let Some(snapshot) = state.store.current() else {
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
+    };
+    // A place to make it in (`busy`): a calendar service that finds none within the wait hears 503
+    // and asks again later; the feeds of many subscribers never queue up without bound.
+    let Some(_place) = state.feeds.enter().await else {
+        return crate::busy::busy(120, false);
     };
     let started = Instant::now();
     let key = subscription.key().map(|key| key.key()).unwrap_or_default();
@@ -362,6 +378,14 @@ pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, head
         "litter.svg" => include_bytes!("../../app/assets/birch/litter.svg"),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
+    asset(&state, &headers, "image/svg+xml", body)
+}
+
+/// `GET /assets/icons.svg`: the icons of the app as one sprite (`app::icons`), which every icon
+/// on a page points at.
+pub async fn icons(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    static SPRITE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
+    let body = SPRITE.get_or_init(|| Box::leak(app::icons::sprite().into_boxed_str()).as_bytes());
     asset(&state, &headers, "image/svg+xml", body)
 }
 

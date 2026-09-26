@@ -286,10 +286,12 @@ pub fn Shortcut(keys: &'static str) -> impl IntoView {
     view! { <JsOnly><kbd>{keys}</kbd></JsOnly> }
 }
 
-/// An icon of the inlined set (`crate::icons`). Unknown names render an empty box, never panic.
+/// An icon of the set (`crate::icons`): a pointer into the sprite the server serves once, linked
+/// with the build of the page like the stylesheet (`crate::asset`). Unknown names render an empty
+/// box, never panic.
 #[component]
 pub fn Icon(name: &'static str, #[prop(optional)] class: &'static str) -> impl IntoView {
-    let markup = crate::icons::markup(name).unwrap_or_default();
+    let markup = crate::icons::markup(name).map(|_| format!("<use href=\"{}#{name}\"/>", crate::asset(crate::icons::SPRITE))).unwrap_or_default();
     let class = if class.is_empty() { "icon".to_string() } else { format!("icon {class}") };
     view! { <svg class=class viewBox="0 0 24 24" aria-hidden="true" inner_html=markup></svg> }
 }
