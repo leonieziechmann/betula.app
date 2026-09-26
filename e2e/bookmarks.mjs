@@ -51,6 +51,18 @@ const stored = (page) => page.evaluate((key) => (localStorage.getItem(key) || ""
 const badge = (page) => page.evaluate(() => document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent ?? null);
 const pressed = (page, selector) => page.evaluate((s) => document.querySelector(s)?.getAttribute("aria-pressed") ?? null, selector);
 const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".rows a.row")].map((row) => row.dataset.id));
+// Where the switch „Merken" of a module's heading stands: at the right end of the line of the
+// credits, where the content under the heading ends, or, where the line has no room for the pair
+// side by side, under „Einplanen", which stands there.
+const placement = (page, root, body) => page.evaluate(([root, body]) => {
+  const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+  const [credits, mark, edge] = [`${root} .badges .badge.strong`, `${root} .mark-toggle.mark-switch`, body].map(rect);
+  const plan = rect(`${root} .plan-toggle.mark-switch`) ?? mark;
+  const inLine = mark.top >= plan.bottom ? plan : mark;
+  const middle = (r) => (r.top + r.bottom) / 2;
+  const badges = [...document.querySelectorAll(`${root} .badges > .badge`)].map((badge) => badge.getBoundingClientRect().right);
+  return { sameLine: Math.abs(middle(credits) - middle(inLine)), edge: Math.abs(mark.right - edge.right), afterBadges: Math.min(plan.left, mark.left) - Math.max(...badges), height: mark.height };
+}, [root, body]);
 
 // ---------- desktop ----------
 {
@@ -118,11 +130,8 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   await step("preview", () => page.click(`a.row[data-id="${ids[6]}"]`), () => Boolean(document.querySelector(".detail .mark-toggle.mark-switch")));
   check((await pressed(page, ".detail .mark-toggle.mark-switch")) === "false", "the preview of an unmarked module shows it marked");
   check(await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch kbd")?.textContent === "M"), "the shortcut is not written on the switch");
-  // In the line of the credits, at its right end: where the content under the heading ends.
-  const placed = await page.evaluate(() => {
-    const [credits, mark, body, last] = [".detail .badges .badge.strong", ".detail .mark-toggle.mark-switch", ".detail .dbody .section", ".detail .badges > .badge:nth-last-child(1 of .badge)"].map((s) => document.querySelector(s).getBoundingClientRect());
-    return { sameLine: Math.abs((credits.top + credits.bottom) / 2 - (mark.top + mark.bottom) / 2), edge: Math.abs(mark.right - body.right), afterBadges: mark.left - last.right, height: mark.height };
-  });
+  // In the line of the credits, at its right end (or under „Einplanen" there).
+  const placed = await placement(page, ".detail", ".detail .dbody .section");
   check(placed.sameLine <= 0.5 && placed.edge <= 0.5 && placed.afterBadges >= 6 && placed.height >= 32, `the switch is not at the right end of the line of the credits: ${JSON.stringify(placed)}`);
   await page.evaluate(() => document.activeElement?.blur());
   const widthBefore = await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch").getBoundingClientRect().width);
@@ -141,8 +150,8 @@ const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".ro
   await page.evaluate(() => document.activeElement?.blur());
   await step("full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && Boolean(document.querySelector(".module-page .mark-toggle.mark-switch")));
   check((await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true" && (await pressed(page, ".sidebar .action.mark-toggle")) === "true", "the module's page does not know the mark");
-  const onPage = await page.evaluate(() => { const [credits, mark, body] = [".module-page .badges .badge.strong", ".module-page .mark-toggle.mark-switch", ".module-grid > aside .section"].map((s) => document.querySelector(s).getBoundingClientRect()); return [Math.abs((credits.top + credits.bottom) / 2 - (mark.top + mark.bottom) / 2), Math.abs(mark.right - body.right)]; });
-  check(onPage[0] <= 0.5 && onPage[1] <= 0.5, `on the module's page the switch is not at the right end of the line of the credits: ${onPage}`);
+  const onPage = await placement(page, ".module-page", ".module-grid > aside .section");
+  check(onPage.sameLine <= 0.5 && onPage.edge <= 0.5, `on the module's page the switch is not at the right end of the line of the credits: ${JSON.stringify(onPage)}`);
   await step("the sidebar's action takes the mark away", () => page.click(".sidebar .action.mark-toggle"), () => document.querySelector(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed") === "false" && document.querySelector(".sidebar .action.mark-toggle").textContent.includes("Merken"));
   await step("and M gives it back", () => page.keyboard.press("m"), () => document.querySelector(".sidebar .action.mark-toggle").getAttribute("aria-pressed") === "true");
 

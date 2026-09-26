@@ -6,8 +6,9 @@
 // preview (times and facts, then the description), back returns to the tapped row, and a shared
 // link with a preview becomes the page.
 // „Einplanen" and „Merken": one pair at the right end of the line of the badges, in the order of
-// the Tab key, wherever the line breaks; „Einplanen" keeps its width when pressed; what the plan
-// adds to it shows, and on the module's page the heading is as tall as the server's.
+// the Tab key, side by side or, where the line has no room for that, one over the other beside
+// the badges (a line of their own only on a phone); „Einplanen" keeps its width when pressed; what
+// the plan adds to it shows, and on the module's page the heading is as tall as the server's.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -116,29 +117,37 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
 }
 
 // ---------- „Einplanen" beside „Merken" ----------
-// Datenbanken (12330) has four badges, so the pair takes the next line in the preview, and on a
-// phone always. A plan in another semester and the finder's placeholder make the switch say more.
+// Datenbanken (12330) has four badges, which leave the preview no room for the pair side by side:
+// there the two stand one over the other beside them, and on a phone they take a line of their
+// own. A plan in another semester and the finder's placeholder make the switch say more.
 {
   const PLAN = "m\t2027S\t12330\t1790000000\t\np\t3\t2026W\t079-82-2008\t17\t1-1\t6\tfues\t\tFachübergreifendes Studium\n";
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
   const pair = (page, root, body) => page.evaluate(([root, body]) => {
-    const badges = document.querySelector(`${root} .badges`);
-    const [plan, mark, edge] = [badges.querySelector(".plan-toggle"), badges.querySelector(".mark-toggle"), document.querySelector(body)].map((el) => el.getBoundingClientRect());
-    const last = [...badges.querySelectorAll(":scope > .badge")].pop().getBoundingClientRect();
+    const line = document.querySelector(`${root} .hero-line`);
+    const [plan, mark, edge] = [line.querySelector(".plan-toggle"), line.querySelector(".mark-toggle"), document.querySelector(body)].map((el) => el.getBoundingClientRect());
+    const badges = [...line.querySelectorAll(".badges > .badge")].map((el) => el.getBoundingClientRect());
     const middle = (r) => (r.top + r.bottom) / 2;
     return {
       together: Math.abs(middle(plan) - middle(mark)),
       gap: mark.left - plan.right,
+      // One over the other: „Merken" 6px under „Einplanen", their right edges in line.
+      under: mark.top - plan.bottom,
+      aligned: Math.abs(mark.right - plan.right),
       edge: Math.abs(mark.right - edge.right),
-      clear: plan.left >= last.right + 6 || plan.top >= last.bottom,
-      below: plan.top >= last.bottom,
-      tab: Boolean(badges.querySelector(".plan-toggle").compareDocumentPosition(badges.querySelector(".mark-toggle")) & Node.DOCUMENT_POSITION_FOLLOWING),
-      note: badges.querySelector(".plan-toggle > small")?.checkVisibility() ? badges.querySelector(".plan-toggle > small").textContent : null,
-      label: badges.querySelector(".plan-toggle > span").textContent,
+      // Right of every badge, „Einplanen" on the middle of the credits; or under all of them.
+      beside: plan.left >= Math.max(...badges.map((b) => b.right)) + 6 && Math.abs(middle(plan) - middle(badges[0])) <= 0.5,
+      below: plan.top >= Math.max(...badges.map((b) => b.bottom)),
+      tab: Boolean(line.querySelector(".plan-toggle").compareDocumentPosition(line.querySelector(".mark-toggle")) & Node.DOCUMENT_POSITION_FOLLOWING),
+      note: line.querySelector(".plan-toggle > small")?.checkVisibility() ? line.querySelector(".plan-toggle > small").textContent : null,
+      label: line.querySelector(".plan-toggle > span").textContent,
       width: plan.width,
     };
   }, [root, body]);
-  const expect = (where, seen) => check(seen.together <= 0.5 && Math.abs(seen.gap - 6) <= 0.5 && seen.edge <= 0.5 && seen.clear && seen.tab, `${where}: „Einplanen" and „Merken" are not one pair at the right end, in order: ${JSON.stringify(seen)}`);
+  const sideBySide = (seen) => seen.together <= 0.5 && Math.abs(seen.gap - 6) <= 0.5;
+  const stacked = (seen) => Math.abs(seen.under - 6) <= 0.5 && seen.aligned <= 0.5;
+  // Beside the badges on a wide screen, never on a line of their own; under them on a phone.
+  const expect = (where, seen, onPhone = false) => check((sideBySide(seen) || stacked(seen)) && seen.edge <= 0.5 && (onPhone ? seen.below : seen.beside) && seen.tab, `${where}: „Einplanen" and „Merken" are not one pair at the right end, in order: ${JSON.stringify(seen)}`);
   const preview = ["#preview", "#preview .dbody .section"];
   const onPage = [".module-page", ".module-grid > aside .section"];
 
@@ -147,6 +156,7 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
     await page.waitForSelector("#preview .plan-toggle", { timeout: 8000 }).catch(() => problems.push(`preview at ${width}px: no „Einplanen"`));
     const before = await pair(page, ...preview);
     expect(`preview at ${width}px`, before);
+    check(stacked(before), `preview at ${width}px: the four badges leave no room for the pair side by side, and yet the two do not stand one over the other: ${JSON.stringify(before)}`);
     if (width === 1500) {
       await page.evaluate(() => document.activeElement?.blur());
       await step("„Einplanen“ plans", () => page.click("#preview .plan-toggle"), () => document.querySelector("#preview .plan-toggle").getAttribute("aria-pressed") === "true" && !document.querySelector("#preview .plan-toggle").hasAttribute("aria-busy"));
@@ -195,7 +205,7 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
     await page.waitForFunction(() => document.querySelector(".sidebar .plan-toggle small")?.textContent.includes("geplant"), null, { timeout: 8000 }).catch(() => {});
     await page.evaluate(() => document.fonts.ready);
     const seen = await pair(page, ...onPage);
-    expect(`the module's page with a plan (${where})`, seen);
+    expect(`the module's page with a plan (${where})`, seen, where === "phone");
     const side = await page.evaluate(() => document.querySelector(".sidebar .plan-toggle small")?.textContent);
     check(side === "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027", `the module's page with a plan (${where}): the sidebar says ${side}`);
     check(where === "phone" ? seen.below && seen.note?.startsWith("für „Fach") : seen.note === null, `the module's page with a plan (${where}): the switch says ${JSON.stringify(seen)}`);

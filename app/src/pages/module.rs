@@ -375,23 +375,26 @@ fn Heading(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
     view! {
         <h2>{m.title.clone()}</h2>
         {derived.other_title.map(|title| view! { <p class="en">{title}</p> })}
-        <p class="badges">
-            <span class="badge strong num">{format::credits(m.credits)}</span>
-            <span class="badge">{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref())}</span>
-            {format::languages(m.teaches_german, m.teaches_english).map(|l| view! { <span class="badge">{l}</span> })}
-            {m.is_fues.then(|| view! { <span class="badge">"FÜS"</span> })}
-            {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label().to_string()}</span> })}
-            // „Merken" stands in the line of the credits, at its right end (owner, 2026-09-20), in
-            // the preview and on the module's page alike, and „Einplanen" before it. The two are
-            // one item of the line, so that where it is full they take the next one together; in
-            // the order they are seen, for the Tab key. Marking and planning belong to the browser
-            // app: the switches are part of server HTML so that nothing moves at the takeover, and
-            // the stylesheet shows them once the app runs (R9, R15).
-            <span class="switches">
+        // „Merken" stands in the line of the credits, at its right end (owner, 2026-09-20), in the
+        // preview and on the module's page alike, and „Einplanen" before it. Where the line has no
+        // room for the two side by side they stand one over the other at its end, and the badges
+        // wrap in the rest of it (owner, 2026-09-26): the two never leave the line. In the order
+        // they are seen, for the Tab key. Marking and planning belong to the browser app: the
+        // switches are part of server HTML so that nothing moves at the takeover, and the
+        // stylesheet shows them once the app runs (R9, R15).
+        <div class="hero-line">
+            <p class="badges">
+                <span class="badge strong num">{format::credits(m.credits)}</span>
+                <span class="badge">{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref())}</span>
+                {format::languages(m.teaches_german, m.teaches_english).map(|l| view! { <span class="badge">{l}</span> })}
+                {m.is_fues.then(|| view! { <span class="badge">"FÜS"</span> })}
+                {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label().to_string()}</span> })}
+            </p>
+            <div class="switches">
                 {plan_button(&data, hint, PlanLook::Hero)}
                 <MarkButton id=m.id.clone() title=m.title.clone() look=MarkLook::Hero/>
-            </span>
-        </p>
+            </div>
+        </div>
     }
 }
 
