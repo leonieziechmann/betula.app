@@ -1048,7 +1048,7 @@ fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize) 
             SlotAct::leave("Nicht diese Gruppe", Act::Drop { event: id, rows: keys.to_vec() }),
         ],
         _ if slots > 1 && !keys.is_empty() => vec![SlotAct::leave("Termin ausblenden", Act::HideRows(keys.to_vec()))],
-        _ => vec![SlotAct::leave(format!("{} ausblenden", kind_word(event)), Act::HideEvent(id))],
+        _ => vec![SlotAct::leave(format!("{} ausblenden", kind_word(event, crate::i18n::locale())), Act::HideEvent(id))],
     }
 }
 

@@ -23,6 +23,10 @@
 //! kopieren") too, so the page can say when the plan has moved on from what a calendar shows
 //! („Abo veraltet").
 //!
+//! The file and the feed speak the page's language: the file is written in it, and the address
+//! handed out is the feed's in it (`/en/calendar/<code>.ics`, the prefix kept in the `webcal://`
+//! and the absolute addresses), which the server serves in that language.
+//!
 //! R16: the subscription is worked out from the timetable, from a memo of what the semester hides
 //! (`hides`) and from one of the program the data is loaded for (`program`), which are the
 //! timetable's siblings (derived from `selection` and from `data` as it is), never from `selection`
@@ -42,6 +46,7 @@ use leptos::prelude::*;
 
 use super::PlanCtx;
 use crate::data::DataError;
+use crate::i18n::{self, Locale};
 use crate::nav;
 use crate::ui::Icon;
 
@@ -113,16 +118,17 @@ struct Ways {
 }
 
 /// The ways to subscribe to the code's address on the site at `origin` (`https://betula.app`,
-/// whose `host` is `betula.app`), for the calendar named after `label` („WiSe 2026/27").
-fn ways(origin: &str, host: &str, code: &str, label: &str) -> Ways {
-    let path = subscription::path(code);
+/// whose `host` is `betula.app`), for the calendar named after `label` („WiSe 2026/27"): the
+/// feed in `locale`, named as the feed names itself.
+fn ways(origin: &str, host: &str, code: &str, label: &str, locale: Locale) -> Ways {
+    let path = locale.path(&subscription::path(code));
     let webcal = format!("webcal://{host}{path}");
     Ways {
         google: format!("https://calendar.google.com/calendar/r?cid={}", component(&webcal)),
         outlook: format!(
             "https://outlook.office.com/calendar/0/addfromweb?url={}&name={}",
             component(&format!("{origin}{path}")),
-            component(&format!("Studienplan {label}"))
+            component(&(locale.texts().timetable.feed_name)(label))
         ),
         apple: webcal,
         path,
@@ -170,11 +176,11 @@ enum File {
 /// What the link offers of `file` while the page shows the semester `shown`: the file's address,
 /// or the line saying why there is none. Nothing of another semester's file, which the link still
 /// holds for a moment after ‹ ›.
-fn link_of(file: &File, shown: SemesterKey) -> (Option<String>, Option<&'static str>) {
+fn link_of(file: &File, shown: SemesterKey, t: &'static i18n::Texts) -> (Option<String>, Option<&'static str>) {
     match file {
         File::Ready { key, url } if *key == shown => (Some(url.clone()), None),
-        File::Empty { key, unpublished: true } if *key == shown => (None, Some("noch keine Termine")),
-        File::Empty { key, unpublished: false } if *key == shown => (None, Some("keine Termine")),
+        File::Empty { key, unpublished: true } if *key == shown => (None, Some(t.studyplan_export.not_yet)),
+        File::Empty { key, unpublished: false } if *key == shown => (None, Some(t.studyplan_export.none)),
         _ => (None, None),
     }
 }
@@ -187,14 +193,14 @@ fn unpublished(data: &StudyplanData) -> bool {
     data.counts.is_empty() && !past
 }
 
-/// The calendar text of the semester (`Ok`), or whether its dates are unpublished when it has no
-/// entry (`Err`). `None` while the data failed or the timetable is not of its semester.
-fn calendar_text(data: &Result<StudyplanData, DataError>, table: &Option<Timetable>) -> Option<(SemesterKey, Result<String, bool>)> {
+/// The calendar text of the semester in `locale` (`Ok`), or whether its dates are unpublished when
+/// it has no entry (`Err`). `None` while the data failed or the timetable is not of its semester.
+fn calendar_text(data: &Result<StudyplanData, DataError>, table: &Option<Timetable>, locale: Locale) -> Option<(SemesterKey, Result<String, bool>)> {
     let (data, table) = (data.as_ref().ok()?, table.as_ref()?);
     if data.key != table.key {
         return None;
     }
-    let calendar = data.calendar(table, crate::i18n::locale());
+    let calendar = data.calendar(table, locale);
     if calendar.entries.is_empty() {
         return Some((data.key, Err(unpublished(data))));
     }
@@ -231,6 +237,8 @@ fn revoke(url: &str) {
 /// the group stays where it is (owner, 2026-09-25: the sidebar holds still).
 #[component]
 pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.studyplan_export;
     // ---- the subscription
     let hides = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.clone()));
     let program = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(|data| data.program.clone())));
@@ -253,11 +261,12 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
     });
     let ways = Memo::new(move |_| {
         abo.with(|abo| match abo {
-            Some(Abo { key, offer: Offer::Code(code), .. }) => site().map(|(origin, host)| ways(&origin, &host, code, &key.label(crate::i18n::locale()))),
+            Some(Abo { key, offer: Offer::Code(code), .. }) => site().map(|(origin, host)| ways(&origin, &host, code, &key.label(t.locale), t.locale)),
             _ => None,
         })
     });
-    let path = Memo::new(move |_| code.get().map(|code| subscription::path(&code)));
+    // The address „Neue Adresse kopieren" copies: the feed in the page's language.
+    let path = Memo::new(move |_| code.get().map(|code| t.path(&subscription::path(&code))));
     // Whether there is a new address to copy, apart from which one: the stale note's button stays
     // while the code changes under it.
     let copyable = Memo::new(move |_| path.with(Option::is_some));
@@ -322,7 +331,7 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
         if done.try_get_value() == Some(mine) {
             return;
         }
-        let text = ctx.data.with_untracked(|data| ctx.table.with_untracked(|table| calendar_text(data, table)));
+        let text = ctx.data.with_untracked(|data| ctx.table.with_untracked(|table| calendar_text(data, table, t.locale)));
         let next = match text {
             Some((key, Ok(text))) => object_url(&text).map_or(File::Waiting, |url| File::Ready { key, url }),
             Some((key, Err(unpublished))) => File::Empty { key, unpublished },
@@ -362,10 +371,10 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
             revoke(&url);
         }
     });
-    let href = Memo::new(move |_| made.with(|made| link_of(made, ctx.key.get()).0));
-    let none = Memo::new(move |_| made.with(|made| link_of(made, ctx.key.get()).1));
+    let href = Memo::new(move |_| made.with(|made| link_of(made, ctx.key.get(), t).0));
+    let none = Memo::new(move |_| made.with(|made| link_of(made, ctx.key.get(), t).1));
     // Named after the semester shown, with a file or without: the link is the same link.
-    let name = Memo::new(move |_| format!("studienplan-{}.ics", ctx.key.get().key()));
+    let name = Memo::new(move |_| (s.file_name)(&ctx.key.get().key()));
     let anchor = NodeRef::<leptos::html::A>::new();
     // A click that finds the file behind the plan (a pointer that rested on the link through a
     // change, a click from a script) makes it now and gives the link its address itself: the
@@ -385,7 +394,7 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
 
     view! {
         <div class="fgroup actions">
-            <p class="flabel label">"Kalender"</p>
+            <p class="flabel label">{s.calendar}</p>
             // Without a file the link has no address: it downloads nothing, rather than
             // the page.
             <a
@@ -399,7 +408,7 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                 on:click=follow
             >
                 <Icon name="download"/>
-                <span>".ics herunterladen"{move || none.get().map(|text| view! { <small>{text}</small> })}</span>
+                <span>{s.download}{move || none.get().map(|text| view! { <small>{text}</small> })}</span>
             </a>
             <button
                 class="action"
@@ -415,7 +424,7 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                 }
             >
                 <Icon name="calendar-plus"/>
-                <span>"Abonnieren"</span>
+                <span>{s.subscribe}</span>
             </button>
             {move || {
                 if !open.get() || !offered.get() {
@@ -425,9 +434,9 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                     return view! {
                         <div class="sp-sub" id=WAYS_ID>
                             <p class="note note-action ask">
-                                <span>"Zu viel ausgeblendet für ein Abo."</span>
+                                <span>{s.too_much_hidden}</span>
                                 // A stale address's note below has the button already.
-                                {move || (!stale.get()).then(|| view! { <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button> })}
+                                {move || (!stale.get()).then(|| view! { <button class="mini hit" type="button" on:click=show_all>{s.show_all}</button> })}
                             </p>
                         </div>
                     }
@@ -437,7 +446,7 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                 view! {
                     <div class="sp-sub" id=WAYS_ID>
                         <a class="action" href=ways.apple rel="external" on:click=move |_| remember() on:auxclick=move |_| remember() on:contextmenu=move |_| remember()>
-                            "Apple Kalender"
+                            {s.apple}
                         </a>
                         <a
                             class="action"
@@ -448,7 +457,7 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                             on:auxclick=move |_| remember()
                             on:contextmenu=move |_| remember()
                         >
-                            "Google Kalender"
+                            {s.google}
                         </a>
                         <a
                             class="action"
@@ -463,9 +472,9 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                         </a>
                         <button class="action" type="button" data-action="copy-text" data-absolute="" data-text=ways.path on:click=move |_| remember()>
                             <Icon name="copy"/>
-                            <span>"Adresse kopieren"</span>
+                            <span>{s.copy_address}</span>
                         </button>
-                        <p class="hint">"Die Adresse enthält Semester, Module und Ausgeblendetes; dein Kalender holt Änderungen selbst (Google etwa täglich)."</p>
+                        <p class="hint">{s.subscription_hint}</p>
                     </div>
                 }
                 .into_any()
@@ -474,24 +483,24 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                 stale.get().then(|| {
                     view! {
                         <p class="note note-action ask">
-                            <span>"Abo veraltet: Plan seitdem geändert"</span>
+                            <span>{s.stale}</span>
                             // The way to an address the calendar can follow: a new one, or,
                             // with too much hidden for one, back to all Termine.
                             {move || {
                                 copyable.get().then(|| {
                                     view! {
                                         <button class="mini hit" type="button" data-action="copy-text" data-absolute="" data-text=move || path.get() on:click=renew>
-                                            "Neue Adresse kopieren"
+                                            {s.copy_new}
                                         </button>
                                     }
                                 })
                             }}
-                            {move || too_long.get().then(|| view! { <button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button> })}
+                            {move || too_long.get().then(|| view! { <button class="mini hit" type="button" on:click=show_all>{s.show_all}</button> })}
                         </p>
                     }
                 })
             }}
-            {move || renewed_shown.get().then(|| view! { <p class="action note-action"><Icon name="check"/><span>"Neue Adresse kopiert"</span></p> })}
+            {move || renewed_shown.get().then(|| view! { <p class="action note-action"><Icon name="check"/><span>{s.new_copied}</span></p> })}
         </div>
     }
 }
@@ -510,6 +519,7 @@ mod tests {
     use catalog::timetable::rowkey::RowKey;
 
     use super::*;
+    use crate::i18n::{DE, EN};
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
@@ -640,7 +650,7 @@ mod tests {
 
     #[test]
     fn each_way_carries_the_same_address() {
-        let ways = ways("http://127.0.0.1:8181", "127.0.0.1:8181", "b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0", "WiSe 2026/27");
+        let ways = ways("http://127.0.0.1:8181", "127.0.0.1:8181", "b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0", "WiSe 2026/27", Locale::De);
         assert_eq!(ways.path, "/calendar/b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics");
         assert_eq!(ways.apple, "webcal://127.0.0.1:8181/calendar/b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics");
         assert_eq!(ways.google, "https://calendar.google.com/calendar/r?cid=webcal%3A%2F%2F127.0.0.1%3A8181%2Fcalendar%2Fb3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics");
@@ -648,6 +658,11 @@ mod tests {
             ways.outlook,
             "https://outlook.office.com/calendar/0/addfromweb?url=http%3A%2F%2F127.0.0.1%3A8181%2Fcalendar%2Fb3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics&name=Studienplan%20WiSe%202026%2F27"
         );
+        // An English page hands out the English feed, the prefix kept in every way.
+        let english = super::ways("http://127.0.0.1:8181", "127.0.0.1:8181", "b3MO", "Winter 2026/27", Locale::En);
+        assert_eq!((english.path.as_str(), english.apple.as_str()), ("/en/calendar/b3MO.ics", "webcal://127.0.0.1:8181/en/calendar/b3MO.ics"));
+        assert!(english.google.ends_with("cid=webcal%3A%2F%2F127.0.0.1%3A8181%2Fen%2Fcalendar%2Fb3MO.ics"), "{}", english.google);
+        assert!(english.outlook.ends_with("url=http%3A%2F%2F127.0.0.1%3A8181%2Fen%2Fcalendar%2Fb3MO.ics&name=Timetable%20Winter%202026%2F27"), "{}", english.outlook);
         // Every character of a code stays as it is, as encodeURIComponent leaves it.
         assert_eq!(component("Az09-_.~"), "Az09-_.~");
         assert_eq!(component("SoSe 2027 · ä&?=#+"), "SoSe%202027%20%C2%B7%20%C3%A4%26%3F%3D%23%2B");
@@ -656,22 +671,23 @@ mod tests {
     #[test]
     fn the_link_offers_only_a_file_of_the_semester_shown() {
         let winter = File::Ready { key: key("2026W"), url: "blob:http://127.0.0.1:8181/1".into() };
-        assert_eq!(link_of(&winter, key("2026W")), (Some("blob:http://127.0.0.1:8181/1".into()), None));
+        assert_eq!(link_of(&winter, key("2026W"), &DE), (Some("blob:http://127.0.0.1:8181/1".into()), None));
         // Right after ‹ ›, the winter's file is no file of the summer, nor is the summer's line.
-        assert_eq!(link_of(&winter, key("2027S")), (None, None));
+        assert_eq!(link_of(&winter, key("2027S"), &DE), (None, None));
         let summer = File::Empty { key: key("2027S"), unpublished: true };
-        assert_eq!(link_of(&summer, key("2027S")), (None, Some("noch keine Termine")));
-        assert_eq!(link_of(&summer, key("2026W")), (None, None));
-        assert_eq!(link_of(&File::Empty { key: key("2026W"), unpublished: false }, key("2026W")), (None, Some("keine Termine")));
-        assert_eq!(link_of(&File::Waiting, key("2026W")), (None, None));
+        assert_eq!(link_of(&summer, key("2027S"), &DE), (None, Some("noch keine Termine")));
+        assert_eq!(link_of(&summer, key("2027S"), &EN), (None, Some("no dates yet")));
+        assert_eq!(link_of(&summer, key("2026W"), &DE), (None, None));
+        assert_eq!(link_of(&File::Empty { key: key("2026W"), unpublished: false }, key("2026W"), &DE), (None, Some("keine Termine")));
+        assert_eq!(link_of(&File::Waiting, key("2026W"), &DE), (None, None));
     }
 
     #[test]
     fn a_calendar_without_entries_says_why() {
         let data = |semester: &str| StudyplanData {
             key: key(semester),
-            locale: crate::i18n::locale(),
-            label: key(semester).label(crate::i18n::locale()),
+            locale: Locale::De,
+            label: key(semester).label(Locale::De),
             semester: None,
             meta: Meta { current_semester: Some("2026W".into()), data_changed_at: Some("2026-09-23T12:35:16Z".into()), ..Default::default() },
             ids: vec!["12104".into()],
@@ -687,12 +703,12 @@ mod tests {
         // Nothing published for the summer to come; a past summer's dates are gone.
         let summer = data("2027S");
         let table = Some(summer.timetable(&Selection::default()));
-        assert_eq!(calendar_text(&Ok(summer), &table), Some((key("2027S"), Err(true))));
+        assert_eq!(calendar_text(&Ok(summer), &table, Locale::De), Some((key("2027S"), Err(true))));
         let past = data("2026S");
         let table = Some(past.timetable(&Selection::default()));
-        assert_eq!(calendar_text(&Ok(past), &table), Some((key("2026S"), Err(false))));
+        assert_eq!(calendar_text(&Ok(past), &table, Locale::De), Some((key("2026S"), Err(false))));
         // A timetable of another semester, or none: nothing yet.
-        assert_eq!(calendar_text(&Ok(data("2026W")), &table), None);
-        assert_eq!(calendar_text(&Ok(data("2026W")), &None), None);
+        assert_eq!(calendar_text(&Ok(data("2026W")), &table, Locale::De), None);
+        assert_eq!(calendar_text(&Ok(data("2026W")), &None, Locale::De), None);
     }
 }
