@@ -148,6 +148,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         <html lang=t.locale.code()>
             <head>
                 <meta charset="utf-8"/>
+                // First of all: the page in the visitor's language, before anything is loaded or drawn.
+                <script inner_html=languages::language_script()></script>
                 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
                 <meta name="color-scheme" content="light dark"/>
                 // Who the site is, for tabs, home screens and link previews. Static and the same
@@ -307,7 +309,7 @@ fn Rail() -> impl IntoView {
             <a class="logo hit" href=t.path(url::HOME) aria-label=t.app.logo_label><ui::Mark/></a>
             <nav aria-label=t.app.main_navigation><NavItems/></nav>
             <div class="rail-end">
-                <languages::Languages short=true/>
+                <languages::Languages/>
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label=t.app.theme_toggle>
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
                 </button>

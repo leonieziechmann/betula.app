@@ -1174,7 +1174,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   history entry, so the browser's back always works too.
 - **R13. Personal view settings never go into the URL**: theme and the widths of the filter panel
   and the preview live in `localStorage` and are applied before the first paint by the script in
-  `<head>`.
+  `<head>`. So does the language (`betula.language`, `docs/i18n.md`): the first script of the head
+  opens the page in it, which is a page load, because a language is an address.
 - **R14. Virtual oversizing.** A small control takes the pointer in an area larger than it shows:
   an invisible layer that belongs to the control itself (a wrapper element would receive the click
   instead of the control). Set per side with `--hit`, `--hit-x`/`--hit-y`, `--hit-t/-r/-b/-l`;

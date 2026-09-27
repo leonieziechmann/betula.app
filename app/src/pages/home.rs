@@ -253,7 +253,9 @@ fn Hero(home: Option<HomeData>) -> impl IntoView {
     view! {
         <section class="panel home-hero" id="ueberblick">
             <div class="home-hero-text">
-                <p class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>{t.common.tagline}</small></span></p>
+                // On a phone the start page carries the brand, and at the end of its line the switch
+                // between the languages (`languages`): the phone has no rail to hold it.
+                <div class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>{t.common.tagline}</small></span><crate::languages::Languages/></div>
                 <p class="eyebrow-pill"><i></i>{t.home.eyebrow}</p>
                 <h1>{t.home.title_before}<span class="nowrap">"BTU Cottbus-Senftenberg"</span>{t.home.title_after}</h1>
                 <p class="lead">{t.home.lead}</p>

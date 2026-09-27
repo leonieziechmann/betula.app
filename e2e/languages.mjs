@@ -1,7 +1,11 @@
 // Checks the browser app in another language (docs/i18n.md): on `/en/…` it takes over like on the
 // German pages, every step stays under `/en` and inside the app (no page load), every link it
 // writes leads to an English page or to what has no language, and the switch in the rail leads to
-// the same page in German, as a page load of its own.
+// the same page in German, as a page load of its own. Then the language a browser opens the site in
+// (`app::languages::language_script`): its own on the first visit, kept in `localStorage`, the
+// kept one on every later visit, the switch's once it was used, the default for a browser that
+// speaks none of the site's languages. (An automated browser is left where it is, so the checks
+// of the German pages run as they are; here the browser says it is none.)
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node languages.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a page load after takeover, a console error, a link out of English, or a step that does
 // not show up.
@@ -63,6 +67,49 @@ await page.waitForFunction(() => document.documentElement.lang === "de" && windo
 const german = new URL(page.url());
 if (german.pathname !== english.pathname.replace(/^\/en/, "") || german.search !== english.search) problems.push(`the switch led from ${english.pathname}${english.search} to ${german.pathname}${german.search}`);
 if (await page.evaluate(() => window.__marker === 1)) problems.push("the switch stayed in the app of the other language");
+
+// The language of a visit.
+const visitor = async (locale) => {
+  const context = await browser.newContext({ locale, viewport: { width: 1500, height: 900 } });
+  await context.addInitScript(() => Object.defineProperty(Navigator.prototype, "webdriver", { get: () => false, configurable: true }));
+  const tab = await context.newPage();
+  tab.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
+  return { context, tab };
+};
+const arrive = async (tab, path, expected, name) => {
+  // The page may be replaced while it loads: that is the point.
+  await tab.goto(base + path, { waitUntil: "commit" }).catch(() => {});
+  await tab.waitForFunction((want) => location.pathname + location.search === want, expected, { timeout: 15000 }).catch(() => {});
+  await tab.waitForLoadState("domcontentloaded").catch(() => {});
+  const at = await tab.evaluate(() => location.pathname + location.search);
+  if (at !== expected) problems.push(`${name}: ${path} ended at ${at}, not ${expected}`);
+  return tab.evaluate(() => localStorage.getItem("betula.language"));
+};
+{
+  const { context, tab } = await visitor("en-US");
+  let kept = await arrive(tab, "/catalog?turnus=winter", "/en/catalog?turnus=winter", "an English browser's first visit");
+  if (kept !== "en") problems.push(`the first visit kept ${kept}, not en`);
+  await arrive(tab, "/programs", "/en/programs", "the next visit of the English browser");
+  await tab.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the app did not take over on /en/programs"));
+  await tab.click('.rail .languages a[hreflang="de"]');
+  await tab.waitForFunction(() => location.pathname === "/programs" && document.documentElement.lang === "de", null, { timeout: 15000 }).catch(() => problems.push(`the switch led to ${tab.url()}`));
+  kept = await tab.evaluate(() => localStorage.getItem("betula.language"));
+  if (kept !== "de") problems.push(`the switch kept ${kept}, not de`);
+  await arrive(tab, "/en/catalog", "/catalog", "a visit after the switch to German");
+  await context.close();
+}
+{
+  const { context, tab } = await visitor("de-DE");
+  const kept = await arrive(tab, "/en", "/", "a German browser's first visit");
+  if (kept !== "de") problems.push(`the German browser kept ${kept}, not de`);
+  await context.close();
+}
+{
+  const { context, tab } = await visitor("fr-FR");
+  const kept = await arrive(tab, "/en/programs", "/programs", "a browser in none of the site's languages");
+  if (kept !== "de") problems.push(`the French browser kept ${kept}, not the default`);
+  await context.close();
+}
 
 await browser.close();
 if (problems.length) {

@@ -10,7 +10,6 @@ use leptos::prelude::*;
 use crate::data::use_source;
 use crate::format;
 use crate::i18n;
-use crate::languages::Languages;
 use crate::seo;
 use crate::ui::{Icon, Wordmark};
 
@@ -42,13 +41,10 @@ pub fn Ground() -> impl IntoView {
                     <p class="ground-name"><Wordmark small=true/><small>{t.common.tagline}</small></p>
                     <p class="ground-note">{t.ground.note}</p>
                 </div>
-                <div class="ground-links">
-                    <nav class="ground-legal" aria-label=t.ground.legal>
-                        <a href=t.path(url::IMPRINT)>{t.ground.imprint}</a>
-                        <a href=t.path(url::PRIVACY)>{t.ground.privacy}</a>
-                    </nav>
-                    <Languages/>
-                </div>
+                <nav class="ground-legal" aria-label=t.ground.legal>
+                    <a href=t.path(url::IMPRINT)>{t.ground.imprint}</a>
+                    <a href=t.path(url::PRIVACY)>{t.ground.privacy}</a>
+                </nav>
             </div>
             <div class="ground-foot">
                 <p>

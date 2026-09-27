@@ -250,10 +250,13 @@ table { border-collapse: collapse; width: 100%; }
 .rail nav { display: grid; gap: 2px; }
 .nav.soon { opacity: .4; pointer-events: none; }
 .rail-end { margin-top: auto; display: grid; gap: 6px; justify-items: center; }
-/* The other languages of the site by their codes (app::languages): a new page load each. */
-.languages.short { display: grid; gap: 2px; justify-items: center; }
-.languages.short a { width: 40px; height: 30px; border-radius: var(--r-ctl); display: grid; place-items: center; color: var(--text-3); font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-decoration: none; transition: background .12s, color .12s; --hit-x: 6px; --hit-y: 1px; }
-.languages.short a:hover { background: var(--panel-3); color: var(--text); }
+/* The switch between the languages (app::languages): in the rail above the theme's and as large,
+   the icon of languages over the code of the language it leads to. A new page load. */
+.languages { display: grid; gap: 2px; justify-items: center; }
+.lang-switch { align-content: center; gap: 2px; }
+.lang-switch .icon { width: 17px; height: 17px; }
+.lang-switch b { font-size: 9.5px; font-weight: 700; letter-spacing: .08em; line-height: 1; }
+.lang-switch:hover { text-decoration: none; }
 .theme-toggle .icon-sun { display: none; }
 :root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 :root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
@@ -332,11 +335,9 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .ground .wordmark { color: var(--ground-text); }
 .ground-name small { color: var(--ground-muted); font-size: 13px; }
 .ground-note { margin-top: 8px; color: var(--ground-muted); font-size: 12.5px; }
-.ground-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 14px; }
-.ground-legal, .ground .languages { display: flex; gap: 6px; }
-.ground-legal a, .ground .languages a { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: var(--r-ctl); background: color-mix(in srgb, var(--ground-text) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ground-text) 10%, transparent); color: var(--ground-text); font-size: 13px; font-weight: 560; }
-.ground-legal a:hover, .ground .languages a:hover { background: color-mix(in srgb, var(--ground-text) 12%, transparent); text-decoration: none; }
-.ground .languages a[aria-current] { background: var(--ground-text); color: var(--ground); box-shadow: none; }
+.ground-legal { display: flex; gap: 6px; }
+.ground-legal a { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: var(--r-ctl); background: color-mix(in srgb, var(--ground-text) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ground-text) 10%, transparent); color: var(--ground-text); font-size: 13px; font-weight: 560; }
+.ground-legal a:hover { background: color-mix(in srgb, var(--ground-text) 12%, transparent); text-decoration: none; }
 .ground-foot { position: absolute; left: 28px; right: 28px; bottom: 22px; display: flex; justify-content: space-between; gap: 16px; color: var(--ground-muted); font-size: 12px; }
 .ground-foot p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 .ground-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--ground-muted); }
@@ -370,7 +371,6 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .crown::before, .crown::after { padding-left: 0; --crown-head: none; }
   .ground { margin: 12px 0 0; min-height: 0; border-radius: 18px 18px 0 0; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
   .ground-top { flex-direction: column; gap: 14px; padding: 22px 18px 0; }
-  .ground-links { justify-content: flex-start; }
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
 }
 
@@ -2248,6 +2248,10 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .brand-phone .logo { margin: 0; }
   .brand-phone > span { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .brand-phone small { color: var(--text-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* The switch between the languages at the end of the brand's line: a target of its own, framed so
+     that it reads as a button where nothing hovers. */
+  .brand-phone .languages { margin-left: auto; }
+  .brand-phone .lang-switch { width: 44px; height: 44px; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
   .search { height: 48px; }
   .content, .page { height: auto; overflow: visible; }
   .page { padding: 0 12px 12px; }

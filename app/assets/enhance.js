@@ -115,6 +115,16 @@
     if (fields?.ects_max) fields.ects_max.value = +high.value < +high.max ? high.value : "";
   });
 
+  // The switch between the languages (app::languages): the language it leads to is kept before the
+  // page is left, so that every later visit opens in it (`language_script` in the head).
+  const keepLanguage = (e) => {
+    const link = e.target.closest?.("a[data-language]");
+    if (!link) return;
+    try { localStorage.setItem("betula.language", link.dataset.language); } catch {}
+  };
+  document.addEventListener("click", keepLanguage, true);
+  document.addEventListener("auxclick", keepLanguage, true);
+
   // The app filters while typing; Enter must not load a page on top of that.
   document.addEventListener("submit", (e) => {
     if (appRuns() && e.target.matches("form[data-live-search]")) e.preventDefault();
