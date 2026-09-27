@@ -21,10 +21,10 @@ use catalog::rows::{Department, Program};
 use catalog::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use crate::i18n::use_location;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
 use crate::nav;
 use crate::pending::Pending;
@@ -58,18 +58,20 @@ impl Faculty {
     }
 
     /// „Fakultät 1" for the numbered ones, the abbreviation for the others.
-    fn short(&self) -> String {
+    fn short(&self, t: &Texts) -> String {
         match &self.department {
-            Some(d) if d.code.chars().all(|c| c.is_ascii_digit()) => format!("Fakultät {}", d.code),
+            Some(d) if d.code.chars().all(|c| c.is_ascii_digit()) => (t.programs.faculty)(&d.code),
             Some(d) => d.code.clone(),
-            None => "Ohne Zuordnung".to_string(),
+            None => t.programs.unassigned_short.to_string(),
         }
     }
 
-    fn name(&self) -> String {
+    /// The faculty's name as the BTU writes it (data: the same in every language); the section of
+    /// programs without a faculty is named in the page's language.
+    fn name(&self, t: &Texts) -> String {
         match &self.department {
             Some(d) => d.name_de.clone(),
-            None => "Fakultätsübergreifend oder nicht eindeutig zuzuordnen".to_string(),
+            None => t.programs.unassigned.to_string(),
         }
     }
 
@@ -123,8 +125,10 @@ fn level_order(program: &Program) -> usize {
     LevelGroup::ALL.iter().position(|l| *l == level).unwrap_or(LevelGroup::ALL.len())
 }
 
-fn matches(program: &Program, url: &ProgramsUrl) -> bool {
-    let text = format!("{} {} {}", program.name, program.degree(), program.degree_level.label(crate::i18n::locale()));
+/// Whether a program is left by the filters and the search of `url`; the search also finds the
+/// degree level as the page's language names it.
+fn matches(program: &Program, url: &ProgramsUrl, locale: Locale) -> bool {
+    let text = format!("{} {} {}", program.name, program.degree(), program.degree_level.label(locale));
     (url.levels.is_empty() || url.levels.contains(&LevelGroup::of(&program.degree_level)))
         && (url.forms.is_empty() || FormGroup::of(program.study_variant.as_ref()).is_some_and(|form| url.forms.contains(&form)))
         && (!url.with_plan || program.has_plan)
@@ -157,25 +161,26 @@ impl Stage {
         }
     }
 
-    fn label(self) -> &'static str {
+    /// Bachelor and Master as the filter of degrees names them.
+    fn label(self, t: &Texts) -> &'static str {
         match self {
-            Stage::Bachelor => "Bachelor",
-            Stage::Master => "Master",
-            Stage::Other => "Weitere",
+            Stage::Bachelor => LevelGroup::Bachelor.label(t.locale),
+            Stage::Master => LevelGroup::Master.label(t.locale),
+            Stage::Other => t.programs.stage_other,
         }
     }
 }
 
 /// The degree as a control says it: „B.Sc.", else „Bachelor", else „ohne Abschluss".
-fn degree_short(program: &Program) -> String {
-    program.degree_display.clone().unwrap_or_else(|| program.degree_level.label(crate::i18n::locale()).to_string())
+fn degree_short(program: &Program, locale: Locale) -> String {
+    program.degree_display.clone().unwrap_or_else(|| program.degree_level.label(locale).to_string())
 }
 
 /// What tells a form of study from the plain program of its subject: „dual, Praxis", „erweitert".
 /// „Maschinenbau - dual" adds the „dual" of its name where the form does not say it already.
-fn form_label(program: &Program, subject: &str) -> Option<String> {
+fn form_label(program: &Program, subject: &str, locale: Locale) -> Option<String> {
     let added = program.name.strip_prefix(subject).map(|rest| rest.trim_matches([' ', '-'])).filter(|rest| !rest.is_empty());
-    match (added, program.study_variant.as_ref().map(|variant| format::variant_short(variant, crate::i18n::locale()))) {
+    match (added, program.study_variant.as_ref().map(|variant| format::variant_short(variant, locale))) {
         (Some(added), Some(variant)) if !variant.contains(added) => Some(format!("{added}, {variant}")),
         (Some(added), None) => Some(added.to_string()),
         (_, variant) => variant,
@@ -188,14 +193,15 @@ struct Group {
     forms: Vec<Program>,
 }
 
-fn groups(programs: Vec<Program>, subject: &str) -> Vec<Group> {
+fn groups(programs: Vec<Program>, subject: &str, locale: Locale) -> Vec<Group> {
     let is_form = |p: &Program| p.study_variant.is_some() || p.name != subject;
+    let degree = |p: &Program| degree_short(p, locale);
     let mut programs = programs;
-    programs.sort_by_key(|p| (is_form(p), std::cmp::Reverse(p.po_year), degree_short(p)));
+    programs.sort_by_key(|p| (is_form(p), std::cmp::Reverse(p.po_year), degree(p)));
     let mut groups: Vec<Group> = Vec::new();
     for program in programs {
         let base = match is_form(&program) {
-            true => groups.iter_mut().find(|g| !is_form(&g.main) && degree_short(&g.main) == degree_short(&program) && g.main.po_year == program.po_year),
+            true => groups.iter_mut().find(|g| !is_form(&g.main) && degree(&g.main) == degree(&program) && g.main.po_year == program.po_year),
             false => None,
         };
         match base {
@@ -227,6 +233,7 @@ pub struct ProgramsReady(pub std::sync::Arc<pages::ProgramsData>);
 
 #[component]
 pub fn ProgramsPage() -> impl IntoView {
+    let t = i18n::t();
     let source = use_source();
     let status = PageStatus::capture();
     let location = use_location();
@@ -241,7 +248,7 @@ pub fn ProgramsPage() -> impl IntoView {
         Ok(all) => all,
         Err(error) => {
             status.for_error(&error);
-            return view! { <Title text="Studiengänge"/><div class="page"><ErrorState error/></div> }.into_any();
+            return view! { <Title text=t.app.programs/><div class="page"><ErrorState error/></div> }.into_any();
         }
     };
     let total: usize = all.iter().map(Faculty::programs).sum();
@@ -272,7 +279,7 @@ pub fn ProgramsPage() -> impl IntoView {
                     subjects: faculty
                         .subjects
                         .iter()
-                        .map(|subject| Subject { title: subject.title.clone(), programs: subject.programs.iter().filter(|p| matches(p, &url)).cloned().collect() })
+                        .map(|subject| Subject { title: subject.title.clone(), programs: subject.programs.iter().filter(|p| matches(p, &url, t.locale)).cloned().collect() })
                         .filter(|subject| !subject.programs.is_empty())
                         .collect(),
                 })
@@ -290,8 +297,9 @@ pub fn ProgramsPage() -> impl IntoView {
         }
     });
 
-    // Every control of the sidebar is a link to the overview it leads to (as in the catalog). They
-    // show the filter the app is going to at once (`pending`); the matrix follows the address.
+    // Every control of the sidebar is a link to the overview it leads to (as in the catalog), in the
+    // page's language. They show the filter the app is going to at once (`pending`); the matrix
+    // follows the address.
     let going = Pending::expect();
     let going_url = Memo::new(move |_| going.and_then(|going| going.search_on(url::PROGRAMS)).map(|search| ProgramsUrl::parse(&search)));
     let shown_url = Memo::new(move |_| going_url.get().unwrap_or_else(|| url.get()));
@@ -299,7 +307,7 @@ pub fn ProgramsPage() -> impl IntoView {
         Signal::derive(move || {
             let mut next = shown_url.get();
             change(&mut next, index);
-            next.path()
+            t.path(&next.path())
         })
     };
     fn flip<T: PartialEq + Copy>(list: &mut Vec<T>, all: &[T], value: Option<&T>) {
@@ -315,13 +323,13 @@ pub fn ProgramsPage() -> impl IntoView {
     let sidebar = move || {
         view! {
             <div class="fgroup first">
-                <div class="flabel label">"Abschluss"</div>
+                <div class="flabel label">{t.programs.level}</div>
                 <div class="chips">
                     {level_counts.iter().enumerate().filter(|(_, (_, count))| *count > 0).map(|(index, (level, count))| {
                         let level = *level;
                         view! {
                             <ToggleLink
-                                label=level.label(crate::i18n::locale())
+                                label=level.label(t.locale)
                                 count=*count
                                 on=Signal::derive(move || shown_url.with(|u| u.levels.contains(&level)))
                                 href=toggled(|u, index| flip(&mut u.levels, LevelGroup::ALL, LevelGroup::ALL.get(index)), index)
@@ -331,13 +339,13 @@ pub fn ProgramsPage() -> impl IntoView {
                 </div>
             </div>
             <div class="fgroup">
-                <div class="flabel label">"Studienform"</div>
+                <div class="flabel label">{t.programs.form}</div>
                 <div class="chips">
                     {form_counts.iter().enumerate().filter(|(_, (_, count))| *count > 0).map(|(index, (form, count))| {
                         let form = *form;
                         view! {
                             <ToggleLink
-                                label=form.label(crate::i18n::locale())
+                                label=form.label(t.locale)
                                 count=*count
                                 on=Signal::derive(move || shown_url.with(|u| u.forms.contains(&form)))
                                 href=toggled(|u, index| flip(&mut u.forms, FormGroup::ALL, FormGroup::ALL.get(index)), index)
@@ -347,53 +355,55 @@ pub fn ProgramsPage() -> impl IntoView {
                 </div>
             </div>
             <div class="fgroup">
-                <div class="flabel label">"Daten"</div>
+                <div class="flabel label">{t.programs.data}</div>
                 <div class="chips">
                     <ToggleLink
-                        label="Mit Regelstudienplan"
+                        label=t.programs.with_plan
                         count=plan_count
                         on=Signal::derive(move || url.with(|u| u.with_plan))
                         href=toggled(|u, _| u.with_plan = !u.with_plan, 0)
                     />
                 </div>
             </div>
-            <nav class="fgroup toc jumps" aria-label="Fakultäten">
-                <p class="flabel label">"Fakultäten"</p>
+            <nav class="fgroup toc jumps" aria-label=t.programs.faculties>
+                <p class="flabel label">{t.programs.faculties}</p>
                 {move || shown.get().faculties.into_iter().map(|faculty| view! {
-                    <a href=format!("#{}", faculty.anchor()) data-action="jump" title=faculty.name()>
-                        <b>{faculty.short()}</b>
-                        <span class="toc-name">{faculty.name()}</span>
+                    <a href=format!("#{}", faculty.anchor()) data-action="jump" title=faculty.name(t)>
+                        <b>{faculty.short(t)}</b>
+                        <span class="toc-name">{faculty.name(t)}</span>
                         <span class="num">{faculty.programs()}</span>
                     </a>
                 }).collect_view()}
-                <p class="hint">
-                    "Die BTU nennt zu einem Studiengang keine Fakultät. Zugeordnet ist die Fakultät des Abschlussmoduls, "
-                    "sonst die, die den größten Teil des Curriculums anbietet."
-                </p>
+                <p class="hint">{t.programs.faculties_hint}</p>
             </nav>
             <div class="filter-actions sheet-only">
-                <a class="btn primary" href="#" data-action="sheet-close">{move || format::count(shown.with(|s| s.programs as u64), crate::i18n::locale())}" Studiengänge anzeigen"</a>
+                <a class="btn primary" href="#" data-action="sheet-close">
+                    {move || {
+                        let n = shown.with(|s| s.programs as u64);
+                        (t.programs.show_programs)(n, &format::count(n, t.locale))
+                    }}
+                </a>
             </div>
         }
     };
     let head = move || {
         view! {
             {move || url.with(ProgramsUrl::is_filtered).then(|| view! {
-                <a class="ghost" href=url::PROGRAMS data-noscroll=""><Icon name="rotate-ccw"/>"Zurücksetzen"</a>
+                <a class="ghost" href=t.path(url::PROGRAMS) data-noscroll=""><Icon name="rotate-ccw"/>{t.common.reset}</a>
             })}
         }
     };
 
     view! {
-        <Title text="Studiengänge der BTU Cottbus-Senftenberg: Regelstudienpläne und Module"/>
-        <Frame title="Filter" head sidebar sheet=true>
+        <Title text=t.programs.title/>
+        <Frame title=t.programs.filters head sidebar sheet=true>
             <div class="page-inner">
                 {move || {
                     let here = url.get();
                     view! {
                         <Seo
-                            title="Studiengänge der BTU Cottbus-Senftenberg"
-                            description=format!("Alle {total} Studiengänge der BTU Cottbus-Senftenberg nach Fakultät: Bachelor, Master, dual und Lehramt, jeweils mit Regelstudienplan, Wahlpflichtbereichen, Modulen und Ordnungen.")
+                            title=t.programs.seo_title
+                            description=(t.programs.seo_description)(total)
                             path=here.path()
                             noindex=here.is_filtered()
                         />
@@ -402,26 +412,26 @@ pub fn ProgramsPage() -> impl IntoView {
                 // The same opening as the catalog's list: the number, then what it counts.
                 <header class="summary">
                     <h1>
-                        <span class="count num">{move || format::count(shown.with(|s| s.programs as u64), crate::i18n::locale())}</span>
+                        <span class="count num">{move || format::count(shown.with(|s| s.programs as u64), t.locale)}</span>
                         <span class="count-label">
                             {move || shown.with(|shown| match (shown.filtered, shown.text.is_empty()) {
-                                (false, _) => "Studiengänge in ihrer aktuellen Prüfungsordnung".to_string(),
-                                (true, true) => format!("von {total} Studiengängen"),
-                                (true, false) => format!("von {total} Studiengängen passen zu „{}“", shown.text),
+                                (false, _) => t.programs.count_all.to_string(),
+                                (true, true) => (t.programs.count_of)(total),
+                                (true, false) => (t.programs.count_of_matching)(total, &shown.text),
                             })}
                         </span>
                     </h1>
                     <MineLine/>
-                    <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>"Filter"</a>
+                    <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>{t.programs.filters}</a>
                 </header>
                 {move || {
                     let shown = shown.get();
                     if shown.faculties.is_empty() {
                         return view! {
                             <div class="state">
-                                <p class="state-title">"Kein Studiengang gefunden"</p>
-                                <p>"Nimm einen Filter zurück oder suche nach einem Teil des Namens."</p>
-                                <a class="btn secondary" href=url::PROGRAMS>"Alle Studiengänge zeigen"</a>
+                                <p class="state-title">{t.programs.none_title}</p>
+                                <p>{t.programs.none_hint}</p>
+                                <a class="btn secondary" href=t.path(url::PROGRAMS)>{t.programs.show_all}</a>
                             </div>
                         }.into_any();
                     }
@@ -449,6 +459,7 @@ fn MineLine() -> impl IntoView {
     if !APP {
         return view! { <span class="mine-line mine-room" aria-hidden="true"></span> }.into_any();
     }
+    let t = i18n::t();
     let mine = MyProgram::expect();
     let resolved = MineResolved::expect();
     let source = use_source().ok();
@@ -463,21 +474,21 @@ fn MineLine() -> impl IntoView {
         Some(match known.get() {
             Some((program, true)) => {
                 let (href, name) = (program_href(source.as_ref(), &program, caption.as_deref(), direction.as_deref()), program_name(&program));
-                let title = format!("Mein Studiengang: {name}");
+                let title = (t.programs.mine_title)(&name);
                 view! {
-                    <a class="mine-line" href=href title=title>
-                        <Icon name="star"/><span><small>"Mein Studiengang: "</small>{name}</span><Icon name="chevron-right"/>
+                    <a class="mine-line" href=t.path(&href) title=title>
+                        <Icon name="star"/><span><small>{t.programs.mine_prefix}</small>{name}</span><Icon name="chevron-right"/>
                     </a>
                 }
                 .into_any()
             }
             latest => {
-                let gone_text = format!("Dein Studiengang {name} ist nicht mehr im Katalog.");
-                let text = view! { <Icon name="star"/><span><small>"Nicht mehr im Katalog: "</small>{name}</span> };
+                let gone_text = (t.programs.gone)(&name);
+                let text = view! { <Icon name="star"/><span><small>{t.programs.gone_prefix}</small>{name}</span> };
                 match latest.map(|(latest, _)| latest) {
                     Some(latest) => {
-                        let (href, title) = (program_href(source.as_ref(), &latest, None, None), format!("{gone_text} Zur PO {}", po_of(&latest)));
-                        view! { <a class="mine-line" href=href title=title>{text}<Icon name="chevron-right"/></a> }.into_any()
+                        let (href, title) = (program_href(source.as_ref(), &latest, None, None), format!("{gone_text} {}", (t.programs.to_po)(&po_of(&latest))));
+                        view! { <a class="mine-line" href=t.path(&href) title=title>{text}<Icon name="chevron-right"/></a> }.into_any()
                     }
                     None => view! { <span class="mine-line" title=gone_text>{text}</span> }.into_any(),
                 }
@@ -488,26 +499,26 @@ fn MineLine() -> impl IntoView {
 }
 
 /// One link of the matrix. `as_form`: a segment behind its plain program, saying only what differs.
-fn program_link(program: &Program, subject: &str, as_form: bool) -> impl IntoView {
+fn program_link(program: &Program, subject: &str, as_form: bool, t: &'static Texts) -> impl IntoView {
     let year = program.po_year.map(|year| year.to_string()).unwrap_or_else(|| program.po_version.clone());
-    let form = form_label(program, subject);
+    let form = form_label(program, subject, t.locale);
     let described = format!(
         "{} · {} · PO {}{}",
         program.name,
         program.degree(),
         program.po_version,
-        program.study_variant.as_ref().map(|v| format!(" · {}", v.label(crate::i18n::locale()))).unwrap_or_default()
+        program.study_variant.as_ref().map(|v| format!(" · {}", v.label(t.locale))).unwrap_or_default()
     );
     let tooltip = format!(
-        "{described} · {} Module · {}",
-        program.curricular_modules,
-        if program.has_plan { "geprüfter Regelstudienplan" } else { "noch kein geprüfter Regelstudienplan" }
+        "{described} · {} · {}",
+        (t.programs.modules)(program.curricular_modules),
+        if program.has_plan { t.programs.plan_checked } else { t.programs.plan_unchecked }
     );
     let text = if as_form {
         view! { <span>{form.unwrap_or_else(|| program.name.clone())}</span> }.into_any()
     } else {
         view! {
-            <b>{degree_short(program)}</b>
+            <b>{degree_short(program, t.locale)}</b>
             <span class="num">{year}</span>
             {form.map(|form| view! { <span class="variant">{form}</span> })}
         }
@@ -520,7 +531,7 @@ fn program_link(program: &Program, subject: &str, as_form: bool) -> impl IntoVie
             class:no-plan=!program.has_plan
             data-walk="program-link"
             data-id=program.slug.clone()
-            href=url::program_path(&program.slug, ProgramTab::Plan)
+            href=t.path(&url::program_path(&program.slug, ProgramTab::Plan))
             title=tooltip
             aria-label=described
         >
@@ -531,8 +542,9 @@ fn program_link(program: &Program, subject: &str, as_form: bool) -> impl IntoVie
 
 #[component]
 fn FacultySection(faculty: Faculty, bachelor: bool, master: bool) -> impl IntoView {
+    let t = i18n::t();
     let programs = faculty.programs();
-    let (anchor, short, name) = (faculty.anchor(), faculty.short(), faculty.name());
+    let (anchor, short, name) = (faculty.anchor(), faculty.short(t), faculty.name(t));
     let has_other = faculty.subjects.iter().flat_map(|s| &s.programs).any(|p| Stage::of(p) == Stage::Other);
     // The columns are the same in every section (so they line up down the whole page); the
     // narrow last one is labelled only where something is in it.
@@ -543,16 +555,16 @@ fn FacultySection(faculty: Faculty, bachelor: bool, master: bool) -> impl IntoVi
             <header class="faculty-head">
                 <span class="faculty-code">{short}</span>
                 <h2>{name.clone()}</h2>
-                <span class="tab-count">{programs}{if programs == 1 { " Studiengang" } else { " Studiengänge" }}</span>
+                <span class="tab-count">{programs}{(t.programs.programs_after)(programs)}</span>
             </header>
             {faculty.department.is_none().then(|| view! {
-                <p class="hint">"Für diese Studiengänge lässt sich aus den Daten keine Fakultät eindeutig ableiten, zum Beispiel weil mehrere Fakultäten sie gemeinsam tragen."</p>
+                <p class="hint">{t.programs.unassigned_hint}</p>
             })}
             <div class="subjects" role="table" aria-label=name>
                 <div class="matrix-row matrix-head label" role="row">
-                    <span role="columnheader">"Fach"</span>
+                    <span role="columnheader">{t.programs.subject}</span>
                     {head.into_iter().map(|stage| view! {
-                        <span role="columnheader">{(stage != Stage::Other || has_other).then(|| stage.label())}</span>
+                        <span role="columnheader">{(stage != Stage::Other || has_other).then(|| stage.label(t))}</span>
                     }).collect_view()}
                 </div>
                 {faculty.subjects.into_iter().map(|subject| {
@@ -565,10 +577,10 @@ fn FacultySection(faculty: Faculty, bachelor: bool, master: bool) -> impl IntoVi
                                 let empty = of_stage.is_empty();
                                 view! {
                                     <span class="cell" class:empty=empty role="cell" data-stage=stage.code()>
-                                        {groups(of_stage, &title).into_iter().map(|group| view! {
+                                        {groups(of_stage, &title, t.locale).into_iter().map(|group| view! {
                                             <span class="pill-group">
-                                                {program_link(&group.main, &title, false)}
-                                                {group.forms.iter().map(|form| program_link(form, &title, true)).collect_view()}
+                                                {program_link(&group.main, &title, false, t)}
+                                                {group.forms.iter().map(|form| program_link(form, &title, true, t)).collect_view()}
                                             </span>
                                         }).collect_view()}
                                     </span>
@@ -579,5 +591,27 @@ fn FacultySection(faculty: Faculty, bachelor: bool, master: bool) -> impl IntoVi
                 }).collect_view()}
             </div>
         </section>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The page names a faculty in its language; the faculty's own name is the BTU's.
+    #[test]
+    fn a_faculty_is_named_in_the_page_s_language() {
+        let (de, en) = (i18n::texts(Locale::De), i18n::texts(Locale::En));
+        let faculty = |code: &str| Faculty {
+            department: Some(Department { id: 1, code: code.to_string(), label: String::new(), name_de: "Mathematik, Informatik, Physik".to_string(), name_en: None, modules: 0 }),
+            subjects: Vec::new(),
+        };
+        let none = Faculty { department: None, subjects: Vec::new() };
+        assert_eq!((faculty("1").short(de), faculty("1").short(en), faculty("ZE").short(en)), ("Fakultät 1".to_string(), "Faculty 1".to_string(), "ZE".to_string()));
+        assert_eq!((none.short(de), none.short(en)), ("Ohne Zuordnung".to_string(), "Unassigned".to_string()));
+        assert_eq!(faculty("1").name(en), "Mathematik, Informatik, Physik");
+        assert_eq!((Stage::Other.label(de), Stage::Other.label(en), Stage::Master.label(en)), ("Weitere", "Other", "Master"));
+        assert_eq!(((de.programs.show_programs)(1, "1"), (en.programs.show_programs)(1, "1")), ("1 Studiengänge anzeigen".to_string(), "Show 1 degree programme".to_string()));
+        assert_eq!((en.programs.show_programs)(1204, "1,204"), "Show 1,204 degree programmes");
     }
 }
