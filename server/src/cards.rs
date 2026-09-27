@@ -803,8 +803,9 @@ mod tests {
             ("long", CardText { eyebrow: "Modul 13849".into(), headline: Headline::Title("Advanced Geophysical Methods in Natural Resource Investigation and Environmental Monitoring of Post-Mining Landscapes (ANRI)".into()), facts: vec!["wird nicht mehr angeboten".into(), "6 LP".into(), "jedes Semester".into(), "Englisch".into(), "MCA".into()], note: None }),
             ("program", CardText { eyebrow: "Studiengang".into(), headline: Headline::Title("Informatik".into()), facts: vec!["B.Sc.".into(), "Prüfungsordnung 2021".into()], note: Some("64 Module im Curriculum  ·  mit Regelstudienplan".into()) }),
             ("program-long", CardText { eyebrow: "Studiengang".into(), headline: Headline::Title("Umweltingenieurwesen – Verfahrenstechnik und Kreislaufwirtschaft".into()), facts: vec!["M.Sc.".into(), "dual, praxisintegrierend".into(), "Prüfungsordnung 2019".into()], note: Some("38 Module im Curriculum".into()) }),
-            ("bookmarks", crate::api::bookmarks_card()),
-            ("studyplan", crate::api::studyplan_card(Some("WiSe 2026/27"))),
+            ("bookmarks", crate::api::bookmarks_card(catalog::Locale::De)),
+            ("studyplan", crate::api::studyplan_card(Some("WiSe 2026/27"), catalog::Locale::De)),
+            ("studyplan-en", crate::api::studyplan_card(Some("Winter 2026/27"), catalog::Locale::En)),
             ("shared-plan", CardText { eyebrow: "Stundenplan · WiSe 2026/27".into(), headline: tags(&["MIT-1", "AuP", "EEG", "LinA", "PhyA", "SWT"]), facts: vec!["6 Module".into(), "36 LP".into(), "Informatik (B.Sc.)".into()], note: Some("Mathematik für Ingenieure 1 · Algorithmen und Programmierung · Elektrotechnik und Elektronik für Informatiker · Lineare Algebra · Physik · Softwaretechnik".into()) }),
             ("shared-plan-many", CardText { eyebrow: "Stundenplan · SoSe 2027".into(), headline: tags(&["MIT-2", "DB", "RN", "BS", "TheoInf", "Mathe II", "IT-Sich", "KI", "SWT-P", "Stat", "WiMa", "Proj", "Sem", "Engl B2", "ProgP"]), facts: vec!["15 Module".into(), "84 LP".into(), "Informatik (B.Sc.)".into()], note: None }),
         ]

@@ -150,7 +150,8 @@ pub fn Seo(
         .collect_view();
     // A card says the page's title; the standard picture says what the site is.
     let alt = if card.is_some() { format!("{title} · {SITE_NAME}") } else { t.seo.image_alt.to_string() };
-    let image = absolute_file(card.as_deref().unwrap_or(crate::OG_IMAGE));
+    // A card speaks the page's language (`/en/cards/…`); the standard picture is one for all.
+    let image = card.as_deref().map_or_else(|| absolute_file(crate::OG_IMAGE), |card| absolute_file(&t.path(card)));
     let data = (!data.is_empty()).then(|| json_ld(&serde_json::json!({ "@context": "https://schema.org", "@graph": data })));
     view! {
         <Meta name="description" content=description.clone()/>

@@ -21,6 +21,7 @@ mod lastmod;
 mod launch;
 mod logo;
 mod snapshot;
+mod texts;
 #[cfg(test)]
 mod tests;
 mod warm;
@@ -223,6 +224,26 @@ async fn language_redirect(uri: axum::http::Uri) -> Response {
     axum::response::Redirect::permanent(&target).into_response()
 }
 
+/// What the server draws or writes in the language of its address, as the pages are: the
+/// manifest, the cards of link previews and the calendar feed (`/cards/…`, `/en/cards/…`).
+fn in_every_language() -> Router<AppState> {
+    let mut router = Router::new();
+    for locale in catalog::Locale::ALL.iter().copied() {
+        let at = |path: &str| locale.path(path);
+        router = router
+            .route(&at(app::MANIFEST), get(api::manifest))
+            .route(&at("/cards/module/{file}"), get(api::module_card))
+            .route(&at("/cards/program/{file}"), get(api::program_card))
+            .route(&at(app::seo::BOOKMARKS_CARD), get(api::bookmarks_card_png))
+            .route(&at(app::seo::STUDYPLAN_CARD), get(api::studyplan_card_png))
+            .route(&at("/cards/studyplan/{file}"), get(api::shared_plan_card))
+            // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
+            // (axum refuses two routes for one path at startup).
+            .route(&at("/calendar/{file}"), get(api::calendar));
+    }
+    router
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/de", get(language_redirect))
@@ -256,19 +277,11 @@ pub fn router(state: AppState) -> Router {
         .route(app::ICON_MASKABLE, get(api::icon_maskable))
         .route(app::ICON_MASKABLE_LARGE, get(api::icon_maskable_large))
         .route(app::ICON_MONOCHROME, get(api::icon_monochrome))
-        .route(app::MANIFEST, get(api::manifest))
         .route("/assets/launch/{file}", get(api::launch_screen))
-        .route("/cards/module/{file}", get(api::module_card))
-        .route("/cards/program/{file}", get(api::program_card))
-        .route(app::seo::BOOKMARKS_CARD, get(api::bookmarks_card_png))
-        .route(app::seo::STUDYPLAN_CARD, get(api::studyplan_card_png))
-        .route("/cards/studyplan/{file}", get(api::shared_plan_card))
-        // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
-        // (axum refuses two routes for one path at startup).
-        .route("/calendar/{file}", get(api::calendar))
         .route("/robots.txt", get(api::robots))
         .route("/sitemap.xml", get(api::sitemap))
         .route(access::PATH, get(access::page).post(access::enter))
+        .merge(in_every_language())
         .merge(pages(&state))
         // Around everything above, the page cache included; the access log sees what it turns away.
         .layer(middleware::from_fn_with_state(state.clone(), access::gate))

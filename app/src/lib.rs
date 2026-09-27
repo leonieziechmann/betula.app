@@ -159,7 +159,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="icon" href=FAVICON_ICO sizes="32x32"/>
                 <link rel="icon" type="image/svg+xml" href=FAVICON/>
                 <link rel="apple-touch-icon" href=TOUCH_ICON/>
-                <link rel="manifest" href=MANIFEST/>
+                // The app a home screen installs from this page: this language's (`/en/…`).
+                <link rel="manifest" href=t.path(MANIFEST)/>
                 <script inner_html=HEAD_SCRIPT></script>
                 // The font and the stylesheet are the same on every page, so they are part of the
                 // document and not of `App`: the browser app does not hydrate, it mounts fresh, and

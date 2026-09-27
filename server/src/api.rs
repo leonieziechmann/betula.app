@@ -9,11 +9,13 @@ use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use catalog::timetable::subscription::{self, Subscription};
+use catalog::Locale;
 use serde_json::json;
 use tokio_util::io::ReaderStream;
 
 use crate::birch::Season;
 use crate::cards::{Card, CardText, Headline};
+use crate::texts::texts;
 use crate::AppState;
 
 fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
@@ -219,7 +221,8 @@ pub fn sitemap_pages(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>
 /// with a 400).
 pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     // Never a 5xx for a wrong address: the access log reports those as errors a human has to act on.
-    let gone = || (StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-store")], "Kein Kalender unter dieser Adresse.\n").into_response();
+    let locale = language_of(&uri);
+    let gone = || (StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-store")], texts(locale).no_calendar).into_response();
     let Some(subscription) = subscription::code_of_path(uri.path()).and_then(|code| Subscription::from_code(&code)) else { return gone() };
     let Some(snapshot) = state.store.current() else {
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
@@ -517,59 +520,75 @@ pub async fn launch_screen(State(state): State<AppState>, Path(file): Path<Strin
     }
 }
 
+/// The language of a card or a feed: the prefix of its address, as for a page (`/en/cards/…`).
+fn language_of(uri: &Uri) -> Locale {
+    Locale::split(uri.path()).0
+}
+
+/// The key of a card in the cache of cards: what it shows and its language. The language comes
+/// last, so that the key of a shared plan still begins with `cards::SHARED_PLAN` (the log names
+/// such keys without their code).
+fn card_key(key: String, locale: Locale) -> String {
+    format!("{key}@{}", locale.code())
+}
+
 /// `GET /cards/module/<id>.png`: the picture of a module's link preview (`cards`).
-pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
     let Some(id) = file.strip_suffix(".png").filter(|id| !id.is_empty() && id.len() <= 32) else { return StatusCode::NOT_FOUND.into_response() };
     let id = id.to_string();
-    card(&state, &headers, format!("m:{id}"), move |db| {
+    let locale = language_of(&uri);
+    let t = texts(locale);
+    card(&state, &headers, card_key(format!("m:{id}"), locale), move |db| {
         Ok(catalog::queries::module(db, &id)?.map(|module| {
             let mut facts = Vec::new();
             if !module.offer_status.is(catalog::labels::OfferStatus::Active) {
-                facts.push(module.offer_status.label(catalog::Locale::De).to_string());
+                facts.push(module.offer_status.label(locale).to_string());
             }
             if module.credits.is_some() {
-                facts.push(app::format::credits(module.credits, catalog::Locale::De /* i18n: pending */));
+                facts.push(app::format::credits(module.credits, locale));
             }
             if let Some(season) = &module.turnus_season {
                 facts.push(match &module.turnus_parity {
-                    Some(parity) => format!("{} ({})", season.label(catalog::Locale::De), parity.label(catalog::Locale::De)),
-                    None => season.label(catalog::Locale::De).to_string(),
+                    Some(parity) => format!("{} ({})", season.label(locale), parity.label(locale)),
+                    None => season.label(locale).to_string(),
                 });
             }
             match (module.teaches_german, module.teaches_english) {
-                (Some(true), Some(true)) => facts.push("Deutsch und Englisch".to_string()),
-                (Some(true), _) => facts.push("Deutsch".to_string()),
-                (_, Some(true)) => facts.push("Englisch".to_string()),
+                (Some(true), Some(true)) => facts.push(t.teaches_both.to_string()),
+                (Some(true), _) => facts.push(t.teaches_german.to_string()),
+                (_, Some(true)) => facts.push(t.teaches_english.to_string()),
                 _ => {}
             }
             if let Some(exam) = &module.exam_form {
-                facts.push(app::format::exam_short(exam, catalog::Locale::De /* i18n: pending */));
+                facts.push(app::format::exam_short(exam, locale));
             }
-            CardText { eyebrow: format!("Modul {}", module.id), headline: Headline::Title(module.title), facts, note: module.department }
+            CardText { eyebrow: (t.card_module)(&module.id), headline: Headline::Title(module.title), facts, note: module.department }
         }))
     })
     .await
 }
 
 /// `GET /cards/program/<slug>.png`: the picture of a program's link preview.
-pub async fn program_card(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+pub async fn program_card(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
     let Some(slug) = file.strip_suffix(".png").filter(|slug| !slug.is_empty() && slug.len() <= 200) else { return StatusCode::NOT_FOUND.into_response() };
     let slug = slug.to_string();
-    card(&state, &headers, format!("p:{slug}"), move |db| {
+    let locale = language_of(&uri);
+    let t = texts(locale);
+    card(&state, &headers, card_key(format!("p:{slug}"), locale), move |db| {
         Ok(catalog::queries::program_by_slug(db, &slug)?.map(|program| {
             let mut facts = vec![program.degree().to_string()];
             if let Some(variant) = &program.study_variant {
-                facts.push(variant.label(catalog::Locale::De).to_string());
+                facts.push(variant.label(locale).to_string());
             }
             facts.push(match program.po_year {
-                Some(year) => format!("Prüfungsordnung {year}"),
-                None => format!("Prüfungsordnung {}", program.po_version),
+                Some(year) => (t.regulations)(&year.to_string()),
+                None => (t.regulations)(&program.po_version),
             });
-            let mut note = vec![format!("{} Module im Curriculum", app::format::count(program.curricular_modules.max(0) as u64, catalog::Locale::De /* i18n: pending */))];
+            let mut note = vec![(t.curricular_modules)(&app::format::count(program.curricular_modules.max(0) as u64, locale))];
             if program.has_plan {
-                note.push("mit Regelstudienplan".to_string());
+                note.push(t.with_plan.to_string());
             }
-            CardText { eyebrow: "Studiengang".to_string(), headline: Headline::Title(program.name), facts, note: Some(note.join("  ·  ")) }
+            CardText { eyebrow: t.card_program.to_string(), headline: Headline::Title(program.name), facts, note: Some(note.join("  ·  ")) }
         }))
     })
     .await
@@ -577,27 +596,30 @@ pub async fn program_card(State(state): State<AppState>, Path(file): Path<String
 
 /// `GET /cards/bookmarks.png`: the picture of the Merkliste's link preview. The same for everybody:
 /// what is marked lives in the visitor's browser (R20), so it says what the Merkliste is.
-pub async fn bookmarks_card_png(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    card(&state, &headers, "b".to_string(), |_| Ok(Some(bookmarks_card()))).await
+pub async fn bookmarks_card_png(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    let locale = language_of(&uri);
+    card(&state, &headers, card_key("b".to_string(), locale), move |_| Ok(Some(bookmarks_card(locale)))).await
 }
 
-pub fn bookmarks_card() -> CardText {
+pub fn bookmarks_card(locale: Locale) -> CardText {
+    let t = texts(locale);
     CardText {
-        eyebrow: "Merkliste".to_string(),
-        headline: Headline::Title("Module merken und wiederfinden".to_string()),
-        facts: vec!["Kein Konto".to_string(), "per Link auf ein anderes Gerät".to_string()],
-        note: Some("Die Merkliste liegt nur im eigenen Browser.".to_string()),
+        eyebrow: t.bookmarks_eyebrow.to_string(),
+        headline: Headline::Title(t.bookmarks_title.to_string()),
+        facts: t.bookmarks_facts.iter().map(|fact| fact.to_string()).collect(),
+        note: Some(t.bookmarks_note.to_string()),
     }
 }
 
 /// `GET /cards/studyplan.png`: the picture of the Stundenplan's link preview, the same for
 /// everybody (a plan lives in the browser, R20), with the semester the catalog has dates for. A
 /// shared plan has its own (`shared_plan_card`).
-pub async fn studyplan_card_png(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    card(&state, &headers, "s".to_string(), |db| {
+pub async fn studyplan_card_png(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    let locale = language_of(&uri);
+    card(&state, &headers, card_key("s".to_string(), locale), move |db| {
         let meta = catalog::queries::meta(db)?;
-        let semester = meta.current_semester.as_deref().and_then(catalog::timetable::semester::SemesterKey::parse).map(|key| key.label(catalog::Locale::De));
-        Ok(Some(studyplan_card(semester.as_deref())))
+        let semester = meta.current_semester.as_deref().and_then(catalog::timetable::semester::SemesterKey::parse).map(|key| key.label(locale));
+        Ok(Some(studyplan_card(semester.as_deref(), locale)))
     })
     .await
 }
@@ -606,40 +628,43 @@ pub async fn studyplan_card_png(State(state): State<AppState>, headers: HeaderMa
 /// (`timetable::share`): its modules as tags in the tones of the plan, by the names the week grid
 /// gives them („MIT-1", „AuP"), how many and how many credits, and their titles. A code that does
 /// not decode, or names no module the catalog knows, is a 404.
-pub async fn shared_plan_card(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+pub async fn shared_plan_card(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
     let Some((code, plan)) = catalog::timetable::share::code_of_card(&file).and_then(|code| Some((code, catalog::timetable::share::SharedPlan::from_code(code)?))) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let key = format!("{}{code}", crate::cards::SHARED_PLAN);
-    card(&state, &headers, key, move |db| Ok(catalog::pages::shared_plan(db, &plan)?.and_then(|shared| shared_plan_text(&shared)))).await
+    let locale = language_of(&uri);
+    let key = card_key(format!("{}{code}", crate::cards::SHARED_PLAN), locale);
+    card(&state, &headers, key, move |db| Ok(catalog::pages::shared_plan(db, &plan)?.and_then(|shared| shared_plan_text(&shared, locale)))).await
 }
 
 /// What the card of a shared plan says; `None` without a module the catalog knows.
-pub fn shared_plan_text(shared: &catalog::pages::SharedPlanData) -> Option<CardText> {
+pub fn shared_plan_text(shared: &catalog::pages::SharedPlanData, locale: Locale) -> Option<CardText> {
     if shared.modules.is_empty() {
         return None;
     }
-    let mut facts = vec![app::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX), catalog::Locale::De /* i18n: pending */)];
+    let t = texts(locale);
+    let mut facts = vec![app::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX), locale)];
     if shared.modules.iter().any(|module| module.credits.is_some()) {
-        facts.push(format!("{} LP", app::format::number(shared.credits(), catalog::Locale::De /* i18n: pending */)));
+        facts.push(app::format::credits(Some(shared.credits()), locale));
     }
     if let Some(program) = &shared.program {
         facts.push(format!("{} ({})", program.name, program.degree()));
     }
     Some(CardText {
-        eyebrow: format!("Stundenplan · {}", shared.label),
+        eyebrow: (t.studyplan_of)(&shared.label),
         headline: Headline::Tags(shared.modules.iter().map(|module| module.name.clone()).collect()),
         facts,
         note: Some(shared.modules.iter().map(|module| module.title.as_str()).collect::<Vec<_>>().join(" · ")),
     })
 }
 
-pub fn studyplan_card(semester: Option<&str>) -> CardText {
+pub fn studyplan_card(semester: Option<&str>, locale: Locale) -> CardText {
+    let t = texts(locale);
     CardText {
-        eyebrow: semester.map_or_else(|| "Stundenplan".to_string(), |semester| format!("Stundenplan · {semester}")),
-        headline: Headline::Title("Die Woche deiner Module".to_string()),
-        facts: vec!["Termine".to_string(), "Prüfungen".to_string(), "Kalender-Abo".to_string()],
-        note: Some("Der Stundenplan liegt nur im eigenen Browser.".to_string()),
+        eyebrow: semester.map_or_else(|| t.studyplan_eyebrow.to_string(), t.studyplan_of),
+        headline: Headline::Title(t.studyplan_title.to_string()),
+        facts: t.studyplan_facts.iter().map(|fact| fact.to_string()).collect(),
+        note: Some(t.studyplan_note.to_string()),
     }
 }
 
@@ -688,9 +713,31 @@ async fn card(state: &AppState, headers: &HeaderMap, key: String, read: impl FnO
     }
 }
 
-/// `GET /manifest.webmanifest`: name, colours and icons of the site for a home screen.
-pub async fn manifest(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "application/manifest+json", include_bytes!("../../app/assets/manifest.webmanifest"))
+/// `GET /manifest.webmanifest`: name, colours and icons of the site for a home screen; `/en/…` the
+/// same in English, an app of its own that starts at `/en` (a home screen keeps each language's).
+pub async fn manifest(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    static MANIFESTS: std::sync::OnceLock<Vec<(Locale, &'static [u8])>> = std::sync::OnceLock::new();
+    let locale = language_of(&uri);
+    let manifests = MANIFESTS.get_or_init(|| Locale::ALL.iter().map(|locale| (*locale, &*Box::leak(localized_manifest(*locale).into_bytes().into_boxed_slice()))).collect());
+    let body = manifests.iter().find(|(language, _)| *language == locale).map_or(&include_bytes!("../../app/assets/manifest.webmanifest")[..], |(_, body)| body);
+    asset(&state, &headers, "application/manifest+json", body)
+}
+
+/// `app/assets/manifest.webmanifest` in a language: its name, description, language, and where the
+/// app starts. The file is the default language's; a manifest the server cannot read stays as it is.
+pub fn localized_manifest(locale: Locale) -> String {
+    let file = include_str!("../../app/assets/manifest.webmanifest");
+    let Ok(mut manifest) = serde_json::from_str::<serde_json::Value>(file) else { return file.to_string() };
+    let t = texts(locale);
+    let home = locale.path("/");
+    if let Some(fields) = manifest.as_object_mut() {
+        fields.insert("name".to_string(), json!(t.app_name));
+        fields.insert("description".to_string(), json!(t.app_description));
+        fields.insert("lang".to_string(), json!(locale.code()));
+        fields.insert("id".to_string(), json!(home));
+        fields.insert("start_url".to_string(), json!(home));
+    }
+    serde_json::to_string_pretty(&manifest).unwrap_or_else(|_| file.to_string())
 }
 
 pub async fn font(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -776,7 +823,9 @@ pub async fn robots(State(state): State<AppState>) -> Response {
     // In closed testing (`access`) there is nothing else for a crawler but a login page. The
     // longer rule wins (RFC 9309); `Allow` comes first for crawlers that take the first match.
     if state.gate.is_some() {
-        let body = format!("User-agent: *\nAllow: {}\nDisallow: /\n", subscription::CALENDAR_PREFIX);
+        // Every language's feeds (`/calendar/`, `/en/calendar/`).
+        let allowed: String = Locale::ALL.iter().map(|locale| format!("Allow: {}\n", locale.path(subscription::CALENDAR_PREFIX))).collect();
+        let body = format!("User-agent: *\n{allowed}Disallow: /\n");
         return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], body).into_response();
     }
     // Disallowing `/api/` also keeps a crawler that runs JavaScript (Googlebot) on the server's page:
