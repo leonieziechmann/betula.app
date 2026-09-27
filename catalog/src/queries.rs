@@ -325,7 +325,10 @@ pub fn module_successors(db: &dyn Database, module_id: &str) -> Result<Vec<Succe
 
 const EVENT_ORDER: &str = "ORDER BY semester_key DESC, event_title COLLATE NOCASE, event_id, ord";
 
-/// The teaching events of a module, newest semester first. Exams are not in here.
+/// The teaching events of a module, newest semester first. Exams are not in here. A date without a
+/// semester is left out rather than failing the page, which shows the dates of a semester: the schema
+/// allows one (Radix leaves `event.semester_key` NULL where it cannot read it, and `validate` warns),
+/// and a build of 2026-09-27 wrote two events QIS had emptied without one.
 pub fn module_schedule(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>, DbError> {
     fetch(
         db,
@@ -333,13 +336,15 @@ pub fn module_schedule(db: &dyn Database, module_id: &str) -> Result<Vec<EventDa
         &format!(
             "SELECT semester_key, semester_label, event_id, event_number, event_title, event_type, group_name, \
              weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, \
-             comment, source_url, room_short FROM v_module_schedule WHERE module_id = ? {EVENT_ORDER}"
+             comment, source_url, room_short FROM v_module_schedule WHERE module_id = ? AND semester_key IS NOT NULL \
+             {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
     )
 }
 
-/// The exam dates of a module, newest semester first.
+/// The exam dates of a module, newest semester first; one without a semester is left out, as in
+/// `module_schedule`.
 pub fn module_exams(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>, DbError> {
     fetch(
         db,
@@ -348,7 +353,7 @@ pub fn module_exams(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>
             "SELECT semester_key, semester_label, event_id, event_number, event_title, NULL AS event_type, \
              NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, first_date, \
              last_date, room, campus, NULL AS instructor, comment, source_url, room_short \
-             FROM v_module_exam WHERE module_id = ? {EVENT_ORDER}"
+             FROM v_module_exam WHERE module_id = ? AND semester_key IS NOT NULL {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
     )
@@ -671,5 +676,73 @@ mod id_tests {
         let capped = id_json(&many);
         assert_eq!(capped.matches(',').count(), MAX_PLANNED - 1);
         assert!(capped.starts_with(r#"["00000","00001","#) && capped.ends_with(r#""00399"]"#), "{capped}");
+    }
+}
+
+/// What the views allow and a page must survive, in a catalog of its own: the snapshot of the other
+/// tests holds only what Radix builds today.
+#[cfg(test)]
+mod view_edge_tests {
+    use std::path::{Path, PathBuf};
+
+    use crate::native::NativeDatabase;
+    use crate::rows_detail::EventDate;
+    use crate::{pages, queries};
+
+    /// A catalog at `path` made by Radix's own migrations (`internal/catalogdb/migrations`), with `rows`.
+    fn catalog(path: &Path, rows: &str) -> NativeDatabase {
+        let _ = std::fs::remove_file(path);
+        let conn = rusqlite::Connection::open(path).unwrap();
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../internal/catalogdb/migrations");
+        let mut migrations: Vec<PathBuf> = std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "sql"))
+            .collect();
+        migrations.sort();
+        for migration in &migrations {
+            let sql = std::fs::read_to_string(migration).unwrap();
+            conn.execute_batch(&sql).unwrap_or_else(|e| panic!("{}: {e}", migration.display()));
+        }
+        conn.execute_batch(&format!("PRAGMA user_version = {};\n{rows}", migrations.len())).unwrap();
+        drop(conn);
+        NativeDatabase::open(path).unwrap()
+    }
+
+    /// The build of 2026-09-27 wrote two events QIS had emptied as events titled with their ID,
+    /// without a semester or a date, and the module descriptions still linked them: the pages of
+    /// those modules failed on the NULL. Radix no longer builds such an event, and a date without a
+    /// semester, which the schema allows, leaves the page with its other dates.
+    #[test]
+    fn a_date_without_a_semester_leaves_the_module_page_with_the_others() {
+        let path = std::env::temp_dir().join(format!("folia-catalog-no-semester-{}.db", std::process::id()));
+        let db = catalog(
+            &path,
+            "INSERT INTO meta (key, value) VALUES ('current_semester', '2026W');
+             INSERT INTO semester (key, season, year, label, starts_on, ends_on)
+                 VALUES ('2026W', 'winter', 2026, 'WiSe 2026/27', '2026-10-01', '2027-03-31');
+             INSERT INTO module (id, title, detail_status, offer_status, is_fues)
+                 VALUES ('21501', 'Internationales Bau- und Planungsrecht', 'ok', 'active', 0);
+             INSERT INTO event (id, title, type_raw, category, semester_key, source_url, fetched_at) VALUES
+                 ('149001', 'Internationales Bau- und Planungsrecht', 'Seminar', 'teaching', '2026W', 'https://qis/149001', '2026-09-27T08:00:00Z'),
+                 ('149002', 'Prüfung Internationales Bau- und Planungsrecht', 'Prüfung', 'exam', '2026W', 'https://qis/149002', '2026-09-27T08:00:00Z'),
+                 ('149396', '149396', NULL, 'other', NULL, 'https://qis/149396', '2026-09-27T08:41:57Z'),
+                 ('149397', 'Mündliche Prüfung', 'Prüfung', 'exam', NULL, 'https://qis/149397', '2026-09-27T08:41:57Z');
+             INSERT INTO event_date (event_id, ord, weekday, start_time, end_time, rhythm, first_date, last_date) VALUES
+                 ('149001', 1, 1, '13:45', '15:15', 'weekly', '2026-10-05', '2027-01-25'),
+                 ('149002', 1, 5, '10:00', '12:00', 'single', '2027-02-12', '2027-02-12'),
+                 ('149397', 1, 3, '09:00', '09:30', 'single', '2027-02-17', '2027-02-17');
+             INSERT INTO module_event (module_id, event_id)
+                 VALUES ('21501', '149001'), ('21501', '149002'), ('21501', '149396'), ('21501', '149397');",
+        );
+        let ids = |dates: &[EventDate]| dates.iter().map(|date| date.event_id.clone()).collect::<Vec<_>>();
+
+        assert_eq!(ids(&queries::module_schedule(&db, "21501").unwrap()), ["149001"]);
+        assert_eq!(ids(&queries::module_exams(&db, "21501").unwrap()), ["149002"]);
+        let page = pages::module(&db, "21501").unwrap().expect("the module has a page");
+        assert_eq!((ids(&page.schedule), ids(&page.exams)), (vec!["149001".to_string()], vec!["149002".to_string()]));
+
+        drop(db);
+        let _ = std::fs::remove_file(&path);
     }
 }
