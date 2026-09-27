@@ -30,6 +30,13 @@
 //! A subscription's code carries the semester, the planned modules and what is hidden. It keeps
 //! only what the loaded timetable has, so hide rules of Termine QIS has since removed do not make
 //! the code longer, and such a removal does not make a subscription stale either.
+//!
+//! A calendar is written in one language (`Locale`): the page's for the download, the address's
+//! for the feed (`/calendar/<code>.ics` German, `/en/calendar/<code>.ics` English). The language
+//! decides the words around the data (`i18n::timetable`), the kinds, campuses, holidays and dates;
+//! what QIS says (the type of an event, titles, rooms, people, its comments and the reasons it
+//! gives) stays as QIS says it. UIDs do not depend on the language, so a subscription that changes
+//! its language updates its entries.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -38,13 +45,14 @@ use super::exams::{Exam, ExamRow, ExamShape};
 use super::ics::{self, Calendar, Entry, When};
 use super::kind::{EventKind, KindSet};
 use super::model::{Event, Row, Timetable};
-use super::occur::{Every, BREAK_NOTE};
+use super::occur::{Every, Skipped};
 use super::rowkey::{fingerprint, RowKey};
 use super::select::{Selection, TownChoice};
 use super::semester::SemesterKey;
 use super::subscription::Subscription;
 use super::views::{kind_and_title, kind_short, short_title, type_text};
 use crate::exam_reading::Reason;
+use crate::i18n::timetable::Texts;
 use crate::i18n::Locale;
 use crate::labels::{Code, Rhythm};
 use crate::rows::Meta;
@@ -62,12 +70,6 @@ pub const MAX_ENTRIES: usize = 5000;
 /// The DTSTAMP when the snapshot names no moment: fixed, never the clock, so the bytes do not
 /// change from one fetch to the next.
 const EPOCH_STAMP: &str = "19700101T000000Z";
-
-/// The last line of every entry's description.
-const SOURCE: &str = "Quelle: QIS";
-
-/// What the calendar says of itself before the date of its data.
-const ABOUT: &str = "Betula (inoffiziell) · Termine laut QIS";
 
 /// The group QIS gives a row that belongs to no group.
 const UNNAMED_GROUP: &str = "[unbenannt]";
@@ -87,44 +89,50 @@ pub fn snapshot_stamp(meta: &Meta) -> String {
 ///
 /// `titles` maps planned module ids to their titles for the descriptions, `names` to what the
 /// week's slots call them for the entries' titles (`StudyplanData::slot_names`). `label` is the
-/// semester's label („WiSe 2026/27"; empty: the key's). `stamp` is every entry's DTSTAMP, as
-/// `snapshot_stamp` makes it, or a moment in RFC 3339 and UTC; anything else is the epoch.
+/// semester's label („WiSe 2026/27"; empty: the key's in `locale`). `stamp` is every entry's
+/// DTSTAMP, as `snapshot_stamp` makes it, or a moment in RFC 3339 and UTC; anything else is the
+/// epoch. `locale` is the language the calendar is written in.
 pub fn calendar_of(
     t: &Timetable,
     titles: &BTreeMap<String, String>,
     names: &BTreeMap<String, String>,
     label: &str,
     stamp: &str,
+    locale: Locale,
 ) -> Calendar {
+    let texts = &locale.texts().timetable;
     let stamp = dtstamp(stamp);
     let names = Names { titles, short: names };
     let mut entries = Entries::default();
     for event in t.events.iter().filter(|event| event.hidden.is_none()) {
-        teaching(&mut entries, t, event, &names);
+        teaching(&mut entries, t, event, &names, locale);
     }
     for exam in t.exams.iter().filter(|exam| exam.hidden.is_none()) {
-        exam_dates(&mut entries, exam, &names);
+        exam_dates(&mut entries, exam, &names, locale);
     }
-    let mut entries = entries.finish();
+    let mut entries = entries.finish(texts);
     entries.sort_by(|a, b| start(&a.when).cmp(&start(&b.when)).then_with(|| a.uid.cmp(&b.uid)));
     let cut = entries.len() > MAX_ENTRIES;
     entries.truncate(MAX_ENTRIES);
 
     let label = match label.trim() {
-        "" => t.key.label(Locale::De /* i18n: pending */),
+        "" => t.key.label(locale),
         label => label.to_string(),
     };
-    let mut description = ABOUT.to_string();
+    let mut description = texts.feed_about.to_string();
     if let Some(day) = berlin_day(&stamp).filter(|_| stamp != EPOCH_STAMP) {
-        description.push_str(&format!(", Stand {}", day.german()));
+        description.push_str(", ");
+        description.push_str(&(texts.feed_as_of)(&day.date(locale)));
     }
     if !published(t) {
-        description.push_str(" · Noch keine Termine veröffentlicht");
+        description.push_str(" · ");
+        description.push_str(texts.feed_unpublished);
     }
     if cut {
-        description.push_str(&format!(" · nur die ersten {MAX_ENTRIES} Termine"));
+        description.push_str(" · ");
+        description.push_str(&(texts.feed_first_only)(MAX_ENTRIES));
     }
-    Calendar { name: format!("Studienplan {label}"), description, stamp, entries }
+    Calendar { name: (texts.feed_name)(&label), description, stamp, entries }
 }
 
 impl Subscription {
@@ -322,20 +330,20 @@ impl Entries {
     }
 
     /// The entries, each with its places in their short forms as its LOCATION („ZHG/HS.A /
-    /// ZHG/HS.B") and its lines as its DESCRIPTION, the places as QIS names them among them.
-    fn finish(self) -> Vec<Entry> {
+    /// ZHG/HS.B") and its lines as its DESCRIPTION, the places as QIS names them among them, in
+    /// the language of `texts`.
+    fn finish(self, texts: &Texts) -> Vec<Entry> {
         self.list
             .into_iter()
             .map(|Gathered { entry, places, mut lines }| {
                 let short: Vec<&str> = places.iter().map(|place| place.short.as_str()).collect();
                 let long: Vec<&str> = places.iter().map(|place| place.long.as_str()).collect();
                 if long != short {
-                    let word = if places.len() > 1 { "Räume" } else { "Raum" };
-                    lines.push((Part::Room, format!("{word}: {}", long.join(" / "))));
+                    lines.push((Part::Room, (texts.feed_rooms)(places.len(), &long.join(" / "))));
                 }
                 Entry {
                     location: (!places.is_empty()).then(|| short.join(" / ")),
-                    description: Some(description(lines)),
+                    description: Some(description(lines, texts)),
                     ..entry
                 }
             })
@@ -400,15 +408,15 @@ fn slot_text(kinds: &str, names: &str) -> String {
 }
 
 /// The lines in the order of their parts, the names of who teaches as one line, and the source.
-fn description(mut lines: Vec<Line>) -> String {
+fn description(mut lines: Vec<Line>, texts: &Texts) -> String {
     // A stable sort: within a part, the order met.
     lines.sort_by_key(|(part, _)| *part);
     let teachers: Vec<&str> =
         lines.iter().filter(|(part, _)| *part == Part::Teacher).map(|(_, name)| name.as_str()).collect();
-    let teachers = (!teachers.is_empty()).then(|| format!("Lehrende: {}", teachers.join(" / ")));
+    let teachers = (!teachers.is_empty()).then(|| (texts.feed_lecturers)(&teachers.join(" / ")));
     let before = lines.iter().filter(|(part, _)| *part < Part::Teacher).map(|(_, line)| line.clone());
     let after = lines.iter().filter(|(part, _)| *part > Part::Teacher).map(|(_, line)| line.clone());
-    before.chain(teachers).chain(after).chain([SOURCE.to_string()]).collect::<Vec<_>>().join("\n")
+    before.chain(teachers).chain(after).chain([texts.feed_source.to_string()]).collect::<Vec<_>>().join("\n")
 }
 
 /// Two dates of one UID as one: from the earlier start to the later end.
@@ -435,11 +443,12 @@ fn start(when: &When) -> (Day, u32) {
 /// The entries of a visible teaching event: every held date of its visible rows. A row with an
 /// unclear time is left out (its times say nothing a calendar can place), unless it is a block
 /// without times, whose dates are whole days.
-fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names) {
+fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names, locale: Locale) {
+    let texts = &locale.texts().timetable;
     // As its slot in the week: „VL EvS".
-    let label = slot_text(&kind_short(event, Locale::De /* i18n: pending */), &names.short_of(&event.modules, &event.title));
-    let what = names.what(&type_text(event, Locale::De /* i18n: pending */), &event.title, &event.modules);
-    let categories: Vec<String> = event.kinds.iter().map(|kind| kind.label(Locale::De /* i18n: pending */).to_string()).collect();
+    let label = slot_text(&kind_short(event, locale), &names.short_of(&event.modules, &event.title));
+    let what = names.what(&type_text(event, locale), &event.title, &event.modules);
+    let categories: Vec<String> = event.kinds.iter().map(|kind| kind.label(locale).to_string()).collect();
     let open = event.unresolved();
     let placed = |row: &&Row| row.hidden.is_none() && (row.from.zip(row.to).is_some() || row.occ.all_day);
     // The rows of each key, in the order met: they are one entry per date, so what that entry
@@ -453,17 +462,17 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names) 
         }
     }
     for (key, rows) in &keys {
-        let termin = termin_lines(event, rows, what.as_deref(), names.titles);
+        let termin = termin_lines(event, rows, what.as_deref(), names.titles, locale);
         for row in rows {
             let times = row.from.zip(row.to);
             let option = open && row.option.is_some();
             // An option of a choice not made yet says so, as its slot does: „Ü AuP · 1 von 3".
             let summary = match option {
-                true => format!("{label} · 1 von {}", event.visible_options().len()),
+                true => (texts.feed_one_of)(&label, event.visible_options().len()),
                 false => label.clone(),
             };
-            let lines: Vec<Line> = termin.iter().cloned().chain(row_lines(t, event, row, option)).collect();
-            let place = place(&row.date);
+            let lines: Vec<Line> = termin.iter().cloned().chain(row_lines(t, event, row, option, locale)).collect();
+            let place = place(&row.date, locale);
             for day in &row.occ.days {
                 let when = match times {
                     Some((from, to)) => When::Timed { day: *day, from, to },
@@ -474,7 +483,7 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names) 
                     .notes
                     .iter()
                     .filter(|(on, _)| on == day)
-                    .map(|(_, note)| (Part::Note, format!("Hinweis: {}", note.trim())));
+                    .map(|(_, note)| (Part::Note, (texts.feed_note)(note.trim())));
                 let entry = Entry {
                     uid: uid(key, *day),
                     when,
@@ -494,41 +503,40 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names) 
 
 /// What the entries of one Termin say of it, whichever of its rows holds a date: what it is, its
 /// modules, its group, its rhythm and the range its rows span, and the dates none of them holds.
-fn termin_lines(event: &Event, rows: &[&Row], what: Option<&str>, titles: &BTreeMap<String, String>) -> Vec<Line> {
+fn termin_lines(
+    event: &Event,
+    rows: &[&Row],
+    what: Option<&str>,
+    titles: &BTreeMap<String, String>,
+    locale: Locale,
+) -> Vec<Line> {
+    let texts = &locale.texts().timetable;
     let group = rows
         .first()
         .and_then(|row| text(&row.date.group_name))
         .filter(|group| *group != UNNAMED_GROUP)
-        .map(|group| format!("Gruppe: {group}"));
-    let head = module_lines(&event.modules, titles).into_iter().chain(group).chain(rhythm_line(rows));
+        .map(texts.feed_group);
+    let head = module_lines(&event.modules, titles, texts).into_iter().chain(group).chain(rhythm_line(rows, locale));
     let what = what.map(|what| (Part::What, what.to_string()));
     what.into_iter()
         .chain(head.map(|line| (Part::Head, line)))
-        .chain(dropped(rows).map(|line| (Part::Dropped, line)))
+        .chain(dropped(rows, locale).map(|line| (Part::Dropped, line)))
         .collect()
 }
 
 /// What a teaching row says of itself on each of its dates: who teaches, QIS's comment, an
 /// assumed range and an open choice.
-fn row_lines(t: &Timetable, event: &Event, row: &Row, option: bool) -> Vec<Line> {
+fn row_lines(t: &Timetable, event: &Event, row: &Row, option: bool, locale: Locale) -> Vec<Line> {
+    let texts = &locale.texts().timetable;
     let date = &row.date;
     let mut lines: Vec<Line> = Vec::new();
     lines.extend(text(&date.instructor).map(|name| (Part::Teacher, name.to_string())));
     lines.extend(text(&date.comment).map(|comment| (Part::Said, comment.to_string())));
     if let Some((first, last)) = t.facts.lecture.filter(|_| row.occ.assumed) {
-        let line = format!(
-            "Zeitraum in QIS nicht angegeben; angenommen: Vorlesungszeit {}–{}",
-            first.german(),
-            last.german()
-        );
-        lines.push((Part::Assumed, line));
+        lines.push((Part::Assumed, (texts.feed_assumed)(&first.date(locale), &last.date(locale))));
     }
     if option {
-        let line = format!(
-            "Eine von {} {}; in Betula wählen",
-            event.visible_options().len(),
-            groups_word(event.kinds)
-        );
+        let line = (texts.feed_choose)(event.visible_options().len(), groups_word(event.kinds, texts));
         lines.push((Part::Choice, line));
     }
     lines
@@ -536,48 +544,47 @@ fn row_lines(t: &Timetable, event: &Event, row: &Row, option: bool) -> Vec<Line>
 
 /// „Modul 12104 Entwicklung von Softwaresystemen", one line per module, by id: the browser holds
 /// the plan's order, a code does not.
-fn module_lines(modules: &[String], titles: &BTreeMap<String, String>) -> Vec<String> {
+fn module_lines(modules: &[String], titles: &BTreeMap<String, String>, texts: &Texts) -> Vec<String> {
     by_id(modules)
         .into_iter()
-        .map(|id| match titles.get(id).map(|title| title.trim()).filter(|title| !title.is_empty()) {
-            Some(title) => format!("Modul {id} {title}"),
-            None => format!("Modul {id}"),
-        })
+        .map(|id| (texts.feed_module)(id, titles.get(id).map(|title| title.trim()).filter(|title| !title.is_empty())))
         .collect()
 }
 
 /// The options of an open choice by what they are: „Übungsgruppen", else „Gruppen".
-fn groups_word(kinds: KindSet) -> &'static str {
+fn groups_word(kinds: KindSet, texts: &Texts) -> &'static str {
     let mut each = kinds.iter();
     let only = match (each.next(), each.next()) {
         (Some(kind), None) => Some(kind),
         _ => None,
     };
     match only {
-        Some(EventKind::Exercise) => "Übungsgruppen",
-        Some(EventKind::Practical) => "Praktikumsgruppen",
-        Some(EventKind::Seminar) => "Seminargruppen",
-        Some(EventKind::Tutorial) => "Tutoriumsgruppen",
-        Some(EventKind::Project) => "Projektgruppen",
-        _ => "Gruppen",
+        Some(EventKind::Exercise) => texts.exercise_groups,
+        Some(EventKind::Practical) => texts.practical_groups,
+        Some(EventKind::Seminar) => texts.seminar_groups,
+        Some(EventKind::Tutorial) => texts.tutorial_groups,
+        Some(EventKind::Project) => texts.project_groups,
+        _ => texts.groups,
     }
 }
 
 /// The rhythm and the range the rows of a Termin state, from the first of their first dates to
 /// the last of their last: „wöchentlich 13.10.2026–26.01.2027". An assumed range is not stated (a
 /// line of its own says so), and a single date is the entry's own. The rows share their rhythm
-/// (the key holds it), so the first one names it.
-fn rhythm_line(rows: &[&Row]) -> Option<String> {
+/// (the key holds it), so the first one names it; a rhythm only QIS's words name is written as
+/// QIS writes it.
+fn rhythm_line(rows: &[&Row], locale: Locale) -> Option<String> {
+    let texts = &locale.texts().timetable;
     let date = &rows.first()?.date;
     let rhythm = date.rhythm.as_ref().and_then(Code::known);
     let name = match Every::of(date) {
-        Some(Every::Week) => Some("wöchentlich".to_string()),
-        Some(Every::AWeek) => Some("14-täglich (A-Woche)".to_string()),
-        Some(Every::BWeek) => Some("14-täglich (B-Woche)".to_string()),
-        Some(Every::FourWeeks) => Some("vierwöchentlich".to_string()),
+        Some(Every::Week) => Some(texts.weekly.to_string()),
+        Some(Every::AWeek) => Some(texts.fortnightly_a.to_string()),
+        Some(Every::BWeek) => Some(texts.fortnightly_b.to_string()),
+        Some(Every::FourWeeks) => Some(texts.every_four_weeks.to_string()),
         None => match rhythm {
-            Some(Rhythm::Single) => Some("Einzeltermin".to_string()),
-            Some(Rhythm::Block) => Some("Blockveranstaltung".to_string()),
+            Some(Rhythm::Single) => Some(texts.single_date.to_string()),
+            Some(Rhythm::Block) => Some(texts.block_course.to_string()),
             _ => text(&date.rhythm_raw).map(str::to_string),
         },
     };
@@ -592,7 +599,7 @@ fn rhythm_line(rows: &[&Row]) -> Option<String> {
         .reduce(|(first, last), (other_first, other_last)| (first.min(other_first), last.max(other_last)));
     let range = stated
         .filter(|(first, last)| rhythm != Some(Rhythm::Single) && first != last)
-        .map(|(first, last)| format!("{}–{}", first.german(), last.german()));
+        .map(|(first, last)| format!("{}–{}", first.date(locale), last.date(locale)));
     match (name, range) {
         (Some(name), Some(range)) => Some(format!("{name} {range}")),
         (name, range) => name.or(range),
@@ -603,14 +610,16 @@ fn rhythm_line(rows: &[&Row]) -> Option<String> {
 /// dates the rows of a Termin drop, the break first, then the holidays, then what QIS cancels, each
 /// reason once with its dates. A date another row of the Termin holds is not dropped: the calendar
 /// has an entry on it, in that row's room and times. A date two rows drop is named once, for the
-/// first reason met.
-fn dropped(rows: &[&Row]) -> Option<String> {
+/// first reason met. The reason QIS gives is its own text; where it gives none, „laut QIS".
+fn dropped(rows: &[&Row], locale: Locale) -> Option<String> {
+    let texts = &locale.texts().timetable;
     let skipped = || rows.iter().flat_map(|row| row.occ.skipped.iter().map(|(day, why)| (*day, *why)));
-    let mut breaks: Vec<(Day, &str)> = skipped().filter(|(_, why)| *why == BREAK_NOTE).collect();
-    let mut holidays: Vec<(Day, &str)> = skipped().filter(|(_, why)| *why != BREAK_NOTE).collect();
+    let named_why = |(day, why): (Day, Skipped)| (day, why.text(locale));
+    let mut breaks: Vec<(Day, &str)> = skipped().filter(|(_, why)| *why == Skipped::Break).map(named_why).collect();
+    let mut holidays: Vec<(Day, &str)> = skipped().filter(|(_, why)| *why != Skipped::Break).map(named_why).collect();
     let mut cancelled: Vec<(Day, &str)> = rows
         .iter()
-        .flat_map(|row| row.occ.cancelled.iter().map(|(day, note, _)| (*day, text(note).unwrap_or("laut QIS"))))
+        .flat_map(|row| row.occ.cancelled.iter().map(|(day, note, _)| (*day, text(note).unwrap_or(texts.cancelled_by_qis))))
         .collect();
     // Each list by day, as one row's lists are; a stable sort keeps the first row's reason first.
     for list in [&mut breaks, &mut holidays, &mut cancelled] {
@@ -628,9 +637,9 @@ fn dropped(rows: &[&Row]) -> Option<String> {
     }
     let parts: Vec<String> = groups
         .iter()
-        .map(|(why, days)| format!("{} ({why})", days.iter().map(|day| day.short()).collect::<Vec<_>>().join(", ")))
+        .map(|(why, days)| format!("{} ({why})", days.iter().map(|day| day.day_month(locale)).collect::<Vec<_>>().join(", ")))
         .collect();
-    Some(format!("Entfällt: {}", parts.join("; ")))
+    Some((texts.feed_dropped)(&parts.join("; ")))
 }
 
 /// Adds a day to the group of its reason, a new group at the end for a new reason.
@@ -648,29 +657,32 @@ fn group<'a>(groups: &mut Vec<(&'a str, Vec<Day>)>, why: &'a str, day: Day) {
 /// retake and a later sitting say so after it („· Wdh.", „· 2. Termin"), since each may be one of
 /// two entries of the module that a student does not both attend. The description says when a
 /// deadline ends and that a day has no time, which the entry's whole days only suggest.
-fn exam_dates(entries: &mut Entries, exam: &Exam, names: &Names) {
-    let modules: Vec<Line> = module_lines(&exam.modules, names.titles).into_iter().map(|line| (Part::Head, line)).collect();
+fn exam_dates(entries: &mut Entries, exam: &Exam, names: &Names, locale: Locale) {
+    let texts = &locale.texts().timetable;
+    let modules: Vec<Line> = module_lines(&exam.modules, names.titles, texts).into_iter().map(|line| (Part::Head, line)).collect();
     let name = names.short_of(&exam.modules, &exam.title);
     for row in exam.rows.iter().filter(|row| row.hidden.is_none()) {
         let (when, what, when_said) = match row.shape {
-            ExamShape::Sitting { day, from, to } => (When::Timed { day, from, to }, "Prüfung", None),
-            ExamShape::Deadline { day } => (When::AllDay { first: day, last: day }, "Abgabe", Some("bis 24:00")),
-            ExamShape::Window { first, last } => (When::AllDay { first, last }, "Prüfungszeitraum", None),
-            ExamShape::DayOnly { day } => (When::AllDay { first: day, last: day }, "Prüfung", Some("Uhrzeit offen")),
+            ExamShape::Sitting { day, from, to } => (When::Timed { day, from, to }, texts.exam, None),
+            ExamShape::Deadline { day } => (When::AllDay { first: day, last: day }, texts.submission, Some(texts.by_midnight)),
+            ExamShape::Window { first, last } => (When::AllDay { first, last }, texts.exam_period, None),
+            ExamShape::DayOnly { day } => (When::AllDay { first: day, last: day }, texts.exam, Some(texts.time_open)),
             ExamShape::Open => continue,
         };
         let mut summary = slot_text(what, &name);
         if exam.retake {
-            summary.push_str(" · Wdh.");
+            summary.push_str(" · ");
+            summary.push_str(texts.retake);
         }
         if row.rank == 2 {
-            summary.push_str(" · 2. Termin");
+            summary.push_str(" · ");
+            summary.push_str(texts.second_sitting);
         }
         let full = names.what(what, &exam.title, &exam.modules).map(|full| match when_said {
             Some(said) => format!("{full} ({said})"),
             None => full,
         });
-        let said = odd(row).into_iter().chain(text(&row.date.comment).map(str::to_string));
+        let said = odd(row, texts).into_iter().chain(text(&row.date.comment).map(str::to_string));
         let lines: Vec<Line> = full
             .map(|full| (Part::What, full))
             .into_iter()
@@ -684,26 +696,26 @@ fn exam_dates(entries: &mut Entries, exam: &Exam, names: &Names) {
             location: None,
             description: None,
             url: exam.source_url.clone(),
-            categories: vec![EventKind::Exam.label(Locale::De /* i18n: pending */).to_string()],
+            categories: vec![EventKind::Exam.label(locale).to_string()],
             tentative: row.rank == 2 || exam.retake,
             transparent: matches!(when, When::AllDay { .. }),
         };
-        entries.add(entry, place(&row.date), lines);
+        entries.add(entry, place(&row.date, locale), lines);
     }
 }
 
 /// What is odd about an exam date shown as QIS states it, in the module page's words.
-fn odd(row: &ExamRow) -> Option<String> {
+fn odd(row: &ExamRow, texts: &Texts) -> Option<String> {
     let odd: Vec<&str> = [
-        (Reason::UnusualTime, "Uhrzeit ungewöhnlich"),
-        (Reason::EndsBeforeStart, "Ende vor Beginn"),
-        (Reason::DateOutsideSemester, "Datum außerhalb des Semesters"),
+        (Reason::UnusualTime, texts.unusual_time),
+        (Reason::EndsBeforeStart, texts.ends_before_start),
+        (Reason::DateOutsideSemester, texts.outside_semester),
     ]
     .into_iter()
     .filter(|(reason, _)| row.reading.has(*reason))
     .map(|(_, text)| text)
     .collect();
-    (!odd.is_empty()).then(|| format!("Laut QIS: {}", odd.join(", ")))
+    (!odd.is_empty()).then(|| (texts.qis_states)(&odd.join(", ")))
 }
 
 /// The row key as text, `148369-aaf38`; for an event id that is no number (none is), the id and
@@ -719,12 +731,12 @@ fn uid(key: &str, day: Day) -> String {
 
 /// Where a row is: its room in the short form of schema 9 („HG/0.20", `EventDate::room_shown`)
 /// and as QIS names it, with its campus („Hauptgebäude - HG 0.20 - Zentralcampus"); else the
-/// campus alone, both ways.
-fn place(date: &EventDate) -> Option<Place> {
+/// campus alone, both ways, in `locale`.
+fn place(date: &EventDate, locale: Locale) -> Option<Place> {
     match text(&date.room) {
         Some(room) => Some(Place { short: date.room_shown().unwrap_or(room).to_string(), long: room.to_string() }),
         None => {
-            let campus = date.campus.as_ref().map(|campus| campus.label(Locale::De /* i18n: pending */).trim().to_string()).filter(|label| !label.is_empty())?;
+            let campus = date.campus.as_ref().map(|campus| campus.label(locale).trim().to_string()).filter(|label| !label.is_empty())?;
             Some(Place { short: campus.clone(), long: campus })
         }
     }
@@ -973,7 +985,7 @@ mod tests {
     }
 
     fn calendar(t: &Timetable) -> Calendar {
-        calendar_of(t, &titles(), &names(), "WiSe 2026/27", "2026-09-23T12:35:16Z")
+        calendar_of(t, &titles(), &names(), "WiSe 2026/27", "2026-09-23T12:35:16Z", Locale::De)
     }
 
     fn entry<'c>(calendar: &'c Calendar, uid: &str) -> &'c Entry {
@@ -1189,20 +1201,93 @@ mod tests {
         assert_eq!(c.stamp, "20260923T123516Z");
         assert_eq!(c.description, "Betula (inoffiziell) · Termine laut QIS, Stand 23.09.2026");
         assert_eq!(
-            calendar_of(&t, &titles(), &names(), "", "20260923T123516Z"),
+            calendar_of(&t, &titles(), &names(), "", "20260923T123516Z", Locale::De),
             c,
             "a DTSTAMP is kept, the key names the semester"
         );
-        let unknown = calendar_of(&t, &titles(), &names(), "WiSe 2026/27", "gestern");
-        assert_eq!((unknown.stamp.as_str(), unknown.description.as_str()), (EPOCH_STAMP, ABOUT));
+        let unknown = calendar_of(&t, &titles(), &names(), "WiSe 2026/27", "gestern", Locale::De);
+        assert_eq!((unknown.stamp.as_str(), unknown.description.as_str()), (EPOCH_STAMP, Locale::De.texts().timetable.feed_about));
         // A snapshot changed late in the evening is of the next day in Cottbus.
-        let late = calendar_of(&t, &titles(), &names(), "WiSe 2026/27", "2026-09-23T22:30:00Z");
+        let late = calendar_of(&t, &titles(), &names(), "WiSe 2026/27", "2026-09-23T22:30:00Z", Locale::De);
         assert_eq!(late.description, "Betula (inoffiziell) · Termine laut QIS, Stand 24.09.2026");
         let text = ics::write(&c);
         assert!(text.starts_with("BEGIN:VCALENDAR\r\n") && text.ends_with("END:VCALENDAR\r\n"));
         assert!(text.contains("\r\nX-WR-CALNAME:Studienplan WiSe 2026/27\r\n"));
         assert!(text.contains("\r\nX-WR-CALDESC:Betula (inoffiziell) · Termine laut QIS\\, Stand 23.09.2026\r\n"));
         assert_eq!(text.matches("BEGIN:VEVENT\r\n").count(), c.entries.len());
+    }
+
+    /// The feed of `/en/calendar/<code>.ics`: the same entries with the same UIDs, the words around
+    /// the data in English, and what QIS says as QIS says it.
+    #[test]
+    fn the_calendar_in_english() {
+        let rows = rows();
+        let exams = exams();
+        let t = semester();
+        let de = calendar_of(&t, &titles(), &names(), "", "2026-09-23T12:35:16Z", Locale::De);
+        let c = calendar_of(&t, &titles(), &names(), "", "2026-09-23T12:35:16Z", Locale::En);
+        assert_eq!(c.name, "Study plan Winter 2026/27");
+        assert_eq!(c.description, "Betula (unofficial) · dates according to QIS, as of 23 Sep 2026");
+        let uids = |c: &Calendar| c.entries.iter().map(|entry| (entry.uid.clone(), entry.when, entry.tentative)).collect::<Vec<_>>();
+        assert_eq!(uids(&c), uids(&de), "a subscription that changes its language updates its entries");
+
+        // The lecture: „Vorlesung" is what QIS calls it, the rest is English.
+        let lecture = entry(&c, &uid_of(&rows[0], "2026-10-06"));
+        assert_eq!((lecture.summary.as_str(), lecture.categories.as_slice()), ("Lec SWT", ["Lecture".to_string()].as_slice()));
+        assert_eq!(
+            lecture.description.as_deref(),
+            Some(
+                "Vorlesung\nModule 11111 Softwaretechnik\nweekly 6 Oct 2026–26 Jan 2027\nRooms: Zentrales \
+                 Hörsaalgebäude - Hörsaal A - Zentralcampus / Zentrales Hörsaalgebäude - Hörsaal B - \
+                 Zentralcampus\nCancelled: 22 Dec, 29 Dec (no lectures)\nSource: QIS"
+            )
+        );
+        // An open choice, and a range QIS does not state.
+        let option = &of_event(&c, "20")[0];
+        assert_eq!(option.summary, "Ex DB · 1 of 2");
+        assert!(option.description.as_deref().unwrap().contains("\nOne of 2 exercise groups; choose in Betula\n"));
+        assert_eq!(
+            of_event(&c, "30")[0].description.as_deref(),
+            Some(
+                "Seminar 30\nModule 11111 Softwaretechnik\nweekly\nPeriod not stated in QIS; assumed: lecture period \
+                 5 Oct 2026–31 Jan 2027\nCancelled: 24 Dec, 31 Dec (no lectures)\nSource: QIS"
+            )
+        );
+        // The Saturdays: the break, a holiday, a date QIS cancels without a reason, a room note.
+        let lines = "Übung\nModule 11111 Softwaretechnik\nweekly 10 Oct 2026–30 Jan 2027\nLecturers: Robel\nCancelled: \
+                     26 Dec, 2 Jan (no lectures); 31 Oct (Reformation Day); 7 Nov (according to QIS)";
+        let noted = entry(&c, &uid_of(&rows[3], "2026-11-14"));
+        assert_eq!(noted.description.as_deref(), Some(format!("{lines}\nNote: Raumwechsel\nSource: QIS").as_str()));
+
+        // Exams, and the whole days of a window, a deadline and a day without a time.
+        let summary = |row: &DateRow| entry(&c, &exam_uid(row)).summary.clone();
+        assert_eq!(
+            [&exams[0], &exams[1], &exams[6], &exams[2], &exams[3], &exams[4]].map(summary),
+            ["Exam SWT", "Exam SWT · 2nd sitting", "Exam DB · Retake", "Exam period DB", "Submission DB", "Exam DB"]
+        );
+        let first = entry(&c, &exam_uid(&exams[0]));
+        assert_eq!(first.categories, ["Exam"]);
+        assert_eq!(
+            first.description.as_deref(),
+            Some("Exam\nModule 11111 Softwaretechnik\nRoom: Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus\nSource: QIS")
+        );
+        let first_line = |row: &DateRow| entry(&c, &exam_uid(row)).description.as_deref().unwrap().lines().next().unwrap().to_string();
+        assert_eq!(first_line(&exams[3]), "Submission · Hausarbeit Datenbanken (by 24:00)");
+        assert_eq!(first_line(&exams[4]), "Exam · Mündliche Prüfung Datenbanken (time to be announced)");
+        // A block without a room is at its campus, in English.
+        assert_eq!(of_event(&c, "40")[0].location.as_deref(), Some("Central Campus Cottbus"));
+
+        // Longer than the German, the description is folded: read it unfolded.
+        let text = ics::write(&c).replace("\r\n ", "");
+        assert!(text.contains("\r\nX-WR-CALNAME:Study plan Winter 2026/27\r\n"));
+        assert!(text.contains("\r\nX-WR-CALDESC:Betula (unofficial) · dates according to QIS\\, as of 23 Sep 2026\r\n"));
+
+        // A semester without dates says so in English, and a name given is kept.
+        let summer = SemesterFacts::derive(SemesterKey::parse("2027S").unwrap(), None, &[]);
+        let empty = build_in(&summer, &[], &[], &[A], &[], &Selection::default());
+        let c = calendar_of(&empty, &titles(), &names(), "Summer 2027", "2026-09-23T12:35:16Z", Locale::En);
+        assert_eq!(c.name, "Study plan Summer 2027");
+        assert_eq!(c.description, "Betula (unofficial) · dates according to QIS, as of 23 Sep 2026 · No dates published yet");
     }
 
     #[test]
@@ -1246,7 +1331,7 @@ mod tests {
     fn a_semester_without_data_is_an_empty_calendar() {
         let summer = SemesterFacts::derive(SemesterKey::parse("2027S").unwrap(), None, &[]);
         let t = build_in(&summer, &[], &[], &[A], &[], &Selection::default());
-        let c = calendar_of(&t, &titles(), &names(), "SoSe 2027", "2026-09-23T12:35:16Z");
+        let c = calendar_of(&t, &titles(), &names(), "SoSe 2027", "2026-09-23T12:35:16Z", Locale::De);
         assert!(c.entries.is_empty());
         assert_eq!(
             c.description,
@@ -1272,6 +1357,8 @@ mod tests {
         let c = calendar(&t);
         assert_eq!(c.entries.len(), MAX_ENTRIES);
         assert!(c.description.ends_with(", Stand 23.09.2026 · nur die ersten 5000 Termine"), "{}", c.description);
+        let english = calendar_of(&t, &titles(), &names(), "", "2026-09-23T12:35:16Z", Locale::En).description;
+        assert!(english.ends_with(", as of 23 Sep 2026 · only the first 5,000 dates"), "{english}");
         // 14 entries a day: 357 whole days and two of the next.
         assert_eq!(c.entries.first().map(day_of), days.first().copied());
         assert_eq!(c.entries.last().map(day_of), days.get(357).copied());
@@ -1467,8 +1554,8 @@ mod tests {
         let stamp = snapshot_stamp(&meta);
         let in_plan = planned(&db, &semester, &plan, &selection);
         let by_id = planned(&db, &semester, &subscription.module_ids(), &selection);
-        let browser = ics::write(&calendar_of(&in_plan, &titles, &names, "", &stamp));
-        let feed = ics::write(&calendar_of(&by_id, &titles, &names, "", &stamp));
+        let browser = ics::write(&calendar_of(&in_plan, &titles, &names, "", &stamp, Locale::De));
+        let feed = ics::write(&calendar_of(&by_id, &titles, &names, "", &stamp, Locale::De));
         assert_eq!(browser, feed, "the download is the feed");
         let uids: Vec<&str> = feed.split("\r\n").filter_map(|line| line.strip_prefix("UID:")).collect();
         assert_eq!(uids.iter().collect::<BTreeSet<_>>().len(), uids.len(), "every UID once");
@@ -1479,7 +1566,7 @@ mod tests {
         assert_eq!(stamp, "20260925T083015Z");
         let (of_plan, _) = Subscription::of(in_plan.key, &plan, Some("079-82-2008"), &selection, Some(&in_plan));
         assert_eq!(of_plan.code().as_deref(), Ok(code));
-        let c = calendar_of(&in_plan, &titles, &names, "", &stamp);
+        let c = calendar_of(&in_plan, &titles, &names, "", &stamp, Locale::De);
         assert_eq!(c.name, "Studienplan WiSe 2026/27");
         // The stand is the build's, which wrote the short names on 25.09. (the data is of 23.09.).
         assert_eq!(c.description, "Betula (inoffiziell) · Termine laut QIS, Stand 25.09.2026");

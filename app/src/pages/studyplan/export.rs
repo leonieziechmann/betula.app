@@ -194,7 +194,7 @@ fn calendar_text(data: &Result<StudyplanData, DataError>, table: &Option<Timetab
     if data.key != table.key {
         return None;
     }
-    let calendar = data.calendar(table);
+    let calendar = data.calendar(table, crate::i18n::locale());
     if calendar.entries.is_empty() {
         return Some((data.key, Err(unpublished(data))));
     }

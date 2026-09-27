@@ -19,7 +19,7 @@
 use std::collections::BTreeMap;
 
 use super::clash::Weeks;
-use super::day::{self, Day};
+use super::day::{self, Day, Holiday};
 use super::semester::SemesterKey;
 use crate::labels::{Code, Rhythm};
 use crate::rows::Semester;
@@ -59,7 +59,7 @@ pub struct SemesterFacts {
     /// Monday of the period's first A week; `None` when the A and B rows do not agree.
     pub a_week: Option<Day>,
     /// Brandenburg's public holidays inside `bounds`, in date order.
-    pub holidays: Vec<(Day, &'static str)>,
+    pub holidays: Vec<(Day, Holiday)>,
 }
 
 impl SemesterFacts {
@@ -100,12 +100,11 @@ impl SemesterFacts {
         self.breaks.iter().any(|(first, last)| *first <= day && day <= *last)
     }
 
-    /// The name of the public holiday on `day`, if it is one. A semester's rows reach past its
-    /// half-year (145750's „Block+SaSo" of 2026S runs to 03.10.), so a day outside `bounds` is
-    /// looked up in the law of its year rather than taken as a working day.
-    pub fn holiday(&self, day: Day) -> Option<&'static str> {
-        let named =
-            |holidays: &[(Day, &'static str)]| holidays.iter().find(|(date, _)| *date == day).map(|(_, name)| *name);
+    /// The public holiday on `day`, if it is one (`Holiday::name` names it). A semester's rows
+    /// reach past its half-year (145750's „Block+SaSo" of 2026S runs to 03.10.), so a day outside
+    /// `bounds` is looked up in the law of its year rather than taken as a working day.
+    pub fn holiday(&self, day: Day) -> Option<Holiday> {
+        let named = |holidays: &[(Day, Holiday)]| holidays.iter().find(|(date, _)| *date == day).map(|(_, holiday)| *holiday);
         if self.bounds.0 <= day && day <= self.bounds.1 {
             named(&self.holidays)
         } else {
@@ -247,6 +246,7 @@ fn weight(count: &DateCount) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::Locale;
     use crate::queries;
 
     fn d(iso: &str) -> Day {
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn the_holidays_of_the_half_year() {
         let facts = SemesterFacts::derive(winter(), None, &[]);
-        let names: Vec<(String, &str)> = facts.holidays.iter().map(|(day, name)| (day.iso(), *name)).collect();
+        let names: Vec<(String, &str)> = facts.holidays.iter().map(|(day, holiday)| (day.iso(), holiday.name(Locale::De))).collect();
         assert_eq!(
             names,
             [
@@ -330,13 +330,16 @@ mod tests {
                 ("2027-03-29".to_string(), "Ostermontag"),
             ]
         );
-        assert_eq!(facts.holiday(d("2026-10-31")), Some("Reformationstag"));
-        assert_eq!(facts.holiday(d("2026-11-01")), None);
+        let holiday = |day: &str, locale: Locale| facts.holiday(d(day)).map(|holiday| holiday.name(locale));
+        assert_eq!(holiday("2026-10-31", Locale::De), Some("Reformationstag"));
+        assert_eq!(holiday("2026-10-31", Locale::En), Some("Reformation Day"));
+        assert_eq!(holiday("2026-11-01", Locale::De), None);
         // Neujahr 2026 and Christi Himmelfahrt 2027 lie outside the winter: not in its list, but a
         // row that reaches them is still told they are holidays.
-        assert_eq!(facts.holiday(d("2026-01-01")), Some("Neujahr"));
-        assert_eq!(facts.holiday(d("2027-05-06")), Some("Christi Himmelfahrt"));
-        assert_eq!(facts.holiday(d("2027-05-07")), None);
+        assert_eq!(holiday("2026-01-01", Locale::De), Some("Neujahr"));
+        assert_eq!(holiday("2027-05-06", Locale::De), Some("Christi Himmelfahrt"));
+        assert_eq!(holiday("2027-05-06", Locale::En), Some("Ascension Day"));
+        assert_eq!(holiday("2027-05-07", Locale::De), None);
     }
 
     #[test]
