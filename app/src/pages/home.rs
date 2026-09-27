@@ -25,6 +25,9 @@
 //! a tall one for phones; this page only draws it (`data::ProgramMapHandle`). The dialog is in the
 //! server's HTML too (closed), so its dots are links that search engines follow; without
 //! JavaScript the picture of the map leads to the program overview.
+//!
+//! The words of the page are in `i18n/home.rs`, in every language; the names of the programs
+//! and the faculties are the BTU's, in every language (docs/i18n.md).
 
 use std::sync::Arc;
 
@@ -32,18 +35,19 @@ use catalog::filter::{ExamPart, Language, TurnusFilter};
 use catalog::graph::{Cycle, Layout, ProgramMap};
 use catalog::labels::Campus;
 use catalog::pages::{self, HomeData};
+use catalog::rows::Semester;
+use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, CatalogUrl, ProgramTab};
-use catalog::CatalogQuery;
+use catalog::{CatalogQuery, Locale};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
 use crate::data::{use_source, PageStatus, ProgramMapHandle};
 use crate::format;
+use crate::i18n::{self, Texts};
 use crate::nav;
 use crate::seo::{self, Seo};
 use crate::ui::{ErrorState, Frame, Icon, Mark, Wordmark};
-
-const DESCRIPTION: &str = "Alle Module und Studiengänge der BTU Cottbus-Senftenberg an einem Ort: durchsuchen, nach Turnus, Prüfung, Sprache und Studiengang filtern, Regelstudienpläne und Voraussetzungen ansehen. Inoffiziell, kostenlos, mit Link zum Original.";
 
 /// A way into the catalog: a filter people come for, with the number of modules behind it. The
 /// tint colours its icon (`t-…` in app.css), after what it is about: winter cool, summer warm.
@@ -55,17 +59,18 @@ struct Entry {
     query: CatalogQuery,
 }
 
-fn entries() -> Vec<Entry> {
-    let entry = |label, hint, icon, tint, query| Entry { label, hint, icon, tint, query };
+fn entries(t: &'static Texts) -> Vec<Entry> {
+    let entry = |text: &'static i18n::home::Entry, icon, tint, query| Entry { label: text.label, hint: text.hint, icon, tint, query };
+    let t = &t.home;
     vec![
-        entry("Im Wintersemester", "Module mit Turnus Wintersemester", "snowflake", "t-ice", CatalogQuery { turnus: TurnusFilter { winter: true, ..Default::default() }, ..Default::default() }),
-        entry("Im Sommersemester", "Module mit Turnus Sommersemester", "sun", "t-sun", CatalogQuery { turnus: TurnusFilter { summer: true, ..Default::default() }, ..Default::default() }),
-        entry("Auf Englisch", "Module, die auf Englisch gelehrt werden", "languages", "t-violet", CatalogQuery { languages: vec![Language::English], ..Default::default() }),
-        entry("Fachübergreifendes Studium", "FÜS-Module aller Fakultäten", "shuffle", "t-teal", CatalogQuery { fues: Some(true), ..Default::default() }),
-        entry("Ohne Klausur", "Module, deren Prüfung keine Klausur nennt", "file-check-2", "t-green", CatalogQuery { exam_parts_exclude: vec![ExamPart::Written], ..Default::default() }),
-        entry("Mit mündlicher Prüfung", "Module mit mündlicher Prüfung", "users-round", "t-coral", CatalogQuery { exam_parts: vec![ExamPart::Oral], ..Default::default() }),
-        entry("In Senftenberg", "Module am Campus Senftenberg", "map-pin", "t-rose", CatalogQuery { campuses: vec![Campus::Senftenberg], ..Default::default() }),
-        entry("Unbenotet", "Module, die ohne Note abgeschlossen werden", "circle-check-big", "t-slate", CatalogQuery { graded: Some(false), ..Default::default() }),
+        entry(&t.winter, "snowflake", "t-ice", CatalogQuery { turnus: TurnusFilter { winter: true, ..Default::default() }, ..Default::default() }),
+        entry(&t.summer, "sun", "t-sun", CatalogQuery { turnus: TurnusFilter { summer: true, ..Default::default() }, ..Default::default() }),
+        entry(&t.english, "languages", "t-violet", CatalogQuery { languages: vec![Language::English], ..Default::default() }),
+        entry(&t.fues, "shuffle", "t-teal", CatalogQuery { fues: Some(true), ..Default::default() }),
+        entry(&t.no_written_exam, "file-check-2", "t-green", CatalogQuery { exam_parts_exclude: vec![ExamPart::Written], ..Default::default() }),
+        entry(&t.oral_exam, "users-round", "t-coral", CatalogQuery { exam_parts: vec![ExamPart::Oral], ..Default::default() }),
+        entry(&t.senftenberg, "map-pin", "t-rose", CatalogQuery { campuses: vec![Campus::Senftenberg], ..Default::default() }),
+        entry(&t.ungraded, "circle-check-big", "t-slate", CatalogQuery { graded: Some(false), ..Default::default() }),
     ]
 }
 
@@ -73,98 +78,33 @@ fn entries() -> Vec<Entry> {
 const PAUSED_KEY: &str = "betula.showcase";
 
 /// The sections of the page, as the sidebar lists them: id, icon, name.
-const SECTIONS: [(&str, &str, &str); 4] = [
-    ("ueberblick", "house", "Überblick"),
-    ("einstiege", "layout-list", "Einstiege und Fakultäten"),
-    ("funktionen", "circle-check-big", "Was Betula kann"),
-    ("fragen", "info", "Fragen und Antworten"),
-];
+fn sections(t: &'static Texts) -> [(&'static str, &'static str, &'static str); 4] {
+    let t = &t.home;
+    [("ueberblick", "house", t.overview), ("einstiege", "layout-list", t.ways_in_and_faculties), ("funktionen", "circle-check-big", t.abilities), ("fragen", "info", t.questions)]
+}
 
-const ABILITIES: [(&str, &str, &str); 6] = [
-    ("search", "Ein Suchfeld für alle Module", "Deutscher und englischer Titel und die Modulnummer in einer Suche, über alle Fakultäten. Die Treffer stehen da, während du tippst."),
-    ("sliders-horizontal", "Filter, die zusammenpassen", "Studiengang, Turnus, Lehrform, Prüfungsform, Sprache, Campus, Leistungspunkte, Dozierende. Viele lassen sich auch umkehren: „alles außer Klausur“."),
-    ("calendar-range", "Der Regelstudienplan als Plan", "Semester für Semester, mit Pflicht- und Wahlpflichtbereichen, der FÜS-Liste und den Ordnungen des Studiengangs."),
-    ("repeat", "Voraussetzungen zum Anklicken", "Was ein Modul voraussetzt und wofür es selbst Voraussetzung ist, führt direkt zum nächsten Modul."),
-    ("calendar-days", "Termine aus dem Vorlesungsverzeichnis", "Vorlesungen, Übungen und Prüfungen als Wochenplan beim Modul und in deinem Studienplan, auch als Kalender-Abo."),
-    ("shield-check", "Ehrlich bei Lücken", "Wo die Quelle nichts sagt, steht „nicht angegeben“ und keine Vermutung. Jedes Modul verlinkt auf sein Original bei der BTU."),
-];
+/// What Betula does, each with its icon.
+fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability); 6] {
+    let t = &t.home;
+    [("search", &t.search), ("sliders-horizontal", &t.filters), ("calendar-range", &t.study_plan), ("repeat", &t.prerequisites), ("calendar-days", &t.dates), ("shield-check", &t.gaps)]
+}
 
 /// Questions and answers, in two groups: about Betula, and about studying (for first semesters).
-/// The answers only say what the app really does; who runs it is the imprint's business.
-const QUESTIONS: [(&str, &[(&str, &str)]); 2] = [
-    (
-        "Über Betula",
-        &[
-            (
-                "Ist Betula ein Angebot der BTU?",
-                "Nein. Betula ist ein inoffizielles, unabhängiges Projekt und gehört nicht zur BTU Cottbus-Senftenberg. Verbindlich sind allein die Modulbeschreibungen, Prüfungs- und Studienordnungen der Universität; jede Seite hier verlinkt deshalb auf ihr Original.",
-            ),
-            (
-                "Wer macht Betula?",
-                "Betula ist ein privates, unabhängiges Projekt; die BTU hat es weder beauftragt noch geprüft. Wer dahintersteht und wie du Kontakt aufnimmst, steht im Impressum. Hinweise auf Fehler sind willkommen.",
-            ),
-            (
-                "Warum heißt es Betula?",
-                "Betula ist der lateinische Name der Birke. Sie ist eine Pionierpflanze und wächst als eine der ersten auf den Flächen, die der Bergbau in der Lausitz hinterlassen hat. Und in BeTUla steckt die BTU.",
-            ),
-            (
-                "Wie funktioniert Betula?",
-                "Betula hat zwei Teile. Radix liest die öffentlichen Seiten der BTU ein und baut daraus einen Datenstand: Module, Studiengänge mit ihren Ordnungen und Regelstudienplänen, die Termine des Vorlesungsverzeichnisses. Folia ist die Web-App, die du gerade siehst: Sie lädt den Datenstand einmal in deinen Browser, danach laufen Suche und Filter direkt bei dir. Welche Versionen gerade laufen, steht in der Seitenleiste.",
-            ),
-            (
-                "Woher kommen die Daten?",
-                "Aus den öffentlichen Modulbeschreibungen, den Studiengangsseiten mit ihren Prüfungs- und Studienordnungen und dem Vorlesungsverzeichnis der BTU. Betula ordnet sie und macht sie durchsuchbar; am Inhalt wird nichts geändert und nichts ergänzt. Wo die Quelle nichts sagt, steht „nicht angegeben“.",
-            ),
-            (
-                "Wie aktuell ist der Katalog?",
-                "Der Datenstand steht in der Seitenleiste dieser Seite und wird mit jedem Einlesen erneuert. Kurzfristige Änderungen, etwa verlegte Termine, stehen zuerst bei der BTU; im Zweifel gilt das Original.",
-            ),
-            (
-                "Kostet das etwas, brauche ich ein Konto?",
-                "Nein. Betula ist kostenlos, ohne Anmeldung und ohne Werbung. Der Katalog wird einmal in deinen Browser geladen; danach antworten Suche und Filter ohne Wartezeit.",
-            ),
-            (
-                "Kann ich mir Module merken?",
-                "Ja. Jedes Modul hat ein Lesezeichen, die Taste M tut dasselbe. Die Merkliste liegt nur in deinem Browser: kein Konto, und nichts davon erreicht den Server. Ein Link bringt sie auf ein anderes Gerät.",
-            ),
-        ],
-    ),
-    (
-        "Fürs Studium",
-        &[
-            (
-                "Wie finde ich die Module für mein Studium?",
-                "Über deinen Studiengang. Welche Module du belegst, legt seine Studien- und Prüfungsordnung fest; Betula bereitet sie auf und bündelt alles an einem Ort. Unter „Studiengang wählen“ findest du den Regelstudienplan Semester für Semester (wo die Ordnung einen enthält), die Wahlpflichtbereiche und alle Module des Studiengangs. Ein Klick auf ein Modul zeigt Inhalte, Termine und Prüfung.",
-            ),
-            (
-                "Was ist ein Modul, und was steht in einer Modulbeschreibung?",
-                "Ein Modul ist eine abgeschlossene Lehreinheit, meist über ein Semester, für die es Leistungspunkte (LP) gibt. Die Modulbeschreibung nennt Inhalte und Lernziele, Lehrformen und Umfang, Voraussetzungen, die Prüfungsleistung, den Turnus und die Verantwortlichen. Zusammen bilden die Beschreibungen das Modulhandbuch eines Studiengangs.",
-            ),
-            (
-                "Was sind Leistungspunkte (LP)?",
-                "Leistungspunkte, auch ECTS-Punkte genannt, messen den Arbeitsaufwand eines Moduls: Vorlesung, Übung und Selbststudium zusammen. Ein Punkt steht für etwa 25 bis 30 Stunden. Ein Semester nach Regelstudienplan umfasst in der Regel 30 LP.",
-            ),
-            (
-                "Was bedeuten Pflicht und Wahlpflicht?",
-                "Pflichtmodule belegen alle im Studiengang. Bei Wahlpflichtmodulen wählst du aus einem Bereich, den die Ordnung festlegt, bis die geforderten Leistungspunkte erreicht sind. Betula zeigt die Bereiche jedes Studiengangs unter „Wahlpflicht & Bereiche“.",
-            ),
-            (
-                "Wann wird ein Modul angeboten?",
-                "Das sagt der Turnus: im Wintersemester, im Sommersemester oder in jedem Semester. Im Katalog kannst du danach filtern, und die Termine des aktuellen Semesters stehen als Wochenplan beim Modul.",
-            ),
-            (
-                "Wo melde ich mich für Module und Prüfungen an?",
-                "Nicht bei Betula. Anmeldungen laufen über die Systeme der BTU; Fristen und Regeln stehen dort und in deiner Prüfungsordnung. Betula hilft beim Planen und verlinkt jedes Modul auf sein Original.",
-            ),
-        ],
-    ),
-];
+fn questions(t: &'static Texts) -> [&'static i18n::home::Faq; 2] {
+    [&t.home.about_betula, &t.home.for_studies]
+}
+
+/// The name of a semester in the page's language (the snapshot's `label` is German).
+fn semester_name(semester: &Semester, locale: Locale) -> String {
+    SemesterKey::parse(&semester.key).map_or_else(|| semester.label.clone(), |key| key.label(locale))
+}
 
 #[component]
 pub fn HomePage() -> impl IntoView {
+    let t = i18n::t();
     let source = use_source();
     let status = PageStatus::capture();
-    let entries = entries();
+    let entries = entries(t);
     let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).collect();
     let loaded = source.and_then(|source| source.run(|db| pages::home(db, &queries)));
     let map = use_context::<ProgramMapHandle>().map(|handle| handle.0);
@@ -175,21 +115,21 @@ pub fn HomePage() -> impl IntoView {
         move || {
             view! {
                 // The section the page is at is marked while it scrolls (`data-spy`, enhance.js).
-                <nav class="toc jumps home-toc" data-spy="" aria-label="Auf dieser Seite">
-                    <p class="flabel label">"Auf dieser Seite"</p>
-                    {SECTIONS.iter().enumerate().map(|(i, (id, icon, name))| view! {
-                        <a href=format!("#{id}") data-action="jump" aria-current=(i == 0).then_some("location")><Icon name=*icon/>{*name}</a>
+                <nav class="toc jumps home-toc" data-spy="" aria-label=t.home.on_this_page>
+                    <p class="flabel label">{t.home.on_this_page}</p>
+                    {sections(t).into_iter().enumerate().map(|(i, (id, icon, name))| view! {
+                        <a href=format!("#{id}") data-action="jump" aria-current=(i == 0).then_some("location")><Icon name=icon/>{name}</a>
                     }).collect_view()}
                 </nav>
                 {facts.as_ref().map(|home| view! {
                     <div class="fgroup">
-                        <p class="flabel label">"Datenstand"</p>
+                        <p class="flabel label">{t.home.data}</p>
                         <dl class="kv">
-                            {home.overview.current_semester.as_ref().map(|s| view! { <div><dt><Icon name="calendar-days"/>"Semester"</dt><dd>{s.label.clone()}</dd></div> })}
-                            {home.overview.meta.data_changed_at.as_deref().map(|at| view! { <div><dt><Icon name="rotate-ccw"/>"Zuletzt geändert"</dt><dd>{format::date(at, crate::i18n::locale())}</dd></div> })}
+                            {home.overview.current_semester.as_ref().map(|s| view! { <div><dt><Icon name="calendar-days"/>{t.home.semester}</dt><dd>{semester_name(s, t.locale)}</dd></div> })}
+                            {home.overview.meta.data_changed_at.as_deref().map(|at| view! { <div><dt><Icon name="rotate-ccw"/>{t.home.last_changed}</dt><dd>{format::date(at, t.locale)}</dd></div> })}
                             <div>
-                                <dt><Icon name="building-2"/>"Quelle"</dt>
-                                <dd><a href=seo::UNIVERSITY_URL rel="noopener" title="Modulbeschreibungen, Studiengangsseiten und Vorlesungsverzeichnis der BTU Cottbus-Senftenberg">"BTU"<Icon name="arrow-up-right"/></a></dd>
+                                <dt><Icon name="building-2"/>{t.home.source}</dt>
+                                <dd><a href=seo::UNIVERSITY_URL rel="noopener" title=t.home.source_title>"BTU"<Icon name="arrow-up-right"/></a></dd>
                             </div>
                         </dl>
                     </div>
@@ -204,9 +144,9 @@ pub fn HomePage() -> impl IntoView {
             "@id": seo::absolute("/#website"),
             "url": seo::absolute(url::HOME),
             "name": seo::SITE_NAME,
-            "alternateName": ["Betula Modulkatalog", "Modulkatalog BTU Cottbus-Senftenberg (inoffiziell)"],
-            "description": DESCRIPTION,
-            "inLanguage": "de",
+            "alternateName": t.home.alternate_names,
+            "description": t.home.description,
+            "inLanguage": t.locale.code(),
             "about": { "@type": "CollegeOrUniversity", "name": seo::UNIVERSITY, "alternateName": "BTU Cottbus-Senftenberg", "url": seo::UNIVERSITY_URL },
             "potentialAction": {
                 "@type": "SearchAction",
@@ -216,7 +156,7 @@ pub fn HomePage() -> impl IntoView {
         }),
         serde_json::json!({
             "@type": "FAQPage",
-            "mainEntity": QUESTIONS.iter().flat_map(|(_, questions)| questions.iter()).map(|(question, answer)| serde_json::json!({
+            "mainEntity": questions(t).into_iter().flat_map(|faq| faq.questions.iter()).map(|(question, answer)| serde_json::json!({
                 "@type": "Question",
                 "name": question,
                 "acceptedAnswer": { "@type": "Answer", "text": answer },
@@ -226,8 +166,8 @@ pub fn HomePage() -> impl IntoView {
 
     view! {
         <Title text=""/>
-        <Frame title="Start" sidebar><div class="page-inner home">
-        <Seo title="Betula · Modulkatalog für die BTU Cottbus-Senftenberg" description=DESCRIPTION path=url::HOME data/>
+        <Frame title=t.app.home sidebar><div class="page-inner home">
+        <Seo title=t.home.seo_title description=t.home.description path=url::HOME data/>
         {match loaded {
             Err(error) => {
                 status.for_error(&error);
@@ -244,33 +184,33 @@ pub fn HomePage() -> impl IntoView {
         }}
         <section class="panel abilities" id="funktionen" aria-labelledby="funktionen-titel">
             <header class="block-head">
-                <h2 id="funktionen-titel">"Was Betula kann"</h2>
-                <p>"Dieselben Daten wie bei der BTU, so aufbereitet, dass man mit ihnen planen kann."</p>
+                <h2 id="funktionen-titel">{t.home.abilities}</h2>
+                <p>{t.home.abilities_lead}</p>
             </header>
             <ul class="ability-grid">
-                {ABILITIES.iter().map(|(icon, title, text)| view! {
+                {abilities(t).into_iter().map(|(icon, ability)| view! {
                     <li class="ability">
                         <span class="ico"><Icon name=icon/></span>
-                        <h3>{*title}</h3>
-                        <p>{*text}</p>
+                        <h3>{ability.title}</h3>
+                        <p>{ability.text}</p>
                     </li>
                 }).collect_view()}
             </ul>
             <p class="soon-line">
-                <span class="label">"In Arbeit"</span>
-                <span><Icon name="circle-check-big"/>"Studienverlauf: bestandene Module abhaken, Voraussetzungen prüfen"</span>
+                <span class="label">{t.home.in_progress}</span>
+                <span><Icon name="circle-check-big"/>{t.home.coming}</span>
             </p>
         </section>
         // The questions are the list; an answer opens in place. The text is in the page either way
         // (and in the FAQPage data above).
         <section class="panel questions" id="fragen" aria-labelledby="fragen-titel">
             <header class="block-head">
-                <h2 id="fragen-titel">"Fragen und Antworten"</h2>
+                <h2 id="fragen-titel">{t.home.questions}</h2>
             </header>
-            {QUESTIONS.iter().map(|(group, questions)| view! {
+            {questions(t).into_iter().map(|faq| view! {
                 <div class="faq">
-                    <h3 class="faq-group label">{*group}</h3>
-                    {questions.iter().map(|(question, answer)| view! {
+                    <h3 class="faq-group label">{faq.name}</h3>
+                    {faq.questions.iter().map(|(question, answer)| view! {
                         <details>
                             <summary>{*question}<Icon name="plus"/></summary>
                             <p>{*answer}</p>
@@ -287,17 +227,18 @@ pub fn HomePage() -> impl IntoView {
 /// (below the text on a narrow page), one under the other between strokes of birch bark.
 #[component]
 fn Hero(home: Option<HomeData>) -> impl IntoView {
+    let t = i18n::t();
     let figures = home.map(|home| {
         // The faculties are the numbered ones; centres that offer programs too are listed below.
         let faculties = home.faculties.iter().filter(|(department, _)| department.as_ref().is_some_and(|d| d.code.chars().all(|c| c.is_ascii_digit()))).count();
-        let mut rows: Vec<(&str, Option<String>, u64)> = vec![("Module", None, home.overview.modules), ("Studiengänge", None, home.overview.programs), ("Fakultäten", None, faculties as u64)];
+        let mut rows: Vec<(&str, Option<String>, u64)> = vec![(t.home.figure_modules, None, home.overview.modules), (t.home.figure_programs, None, home.overview.programs), (t.home.figure_faculties, None, faculties as u64)];
         if let Some(semester) = &home.overview.current_semester {
-            rows.push(("Termine", Some(format!("im {}", semester.label)), semester.teaching_events.max(0) as u64));
+            rows.push((t.home.figure_dates, Some((t.home.in_semester)(&semester_name(semester, t.locale))), semester.teaching_events.max(0) as u64));
         }
         view! {
             <dl class="birch">
                 {rows.into_iter().map(|(label, detail, value)| {
-                    let figure = format::count(value, crate::i18n::locale());
+                    let figure = format::count(value, t.locale);
                     let em = figure_em(&figure);
                     view! {
                         <div style=format!("--em:{em}")>
@@ -312,16 +253,13 @@ fn Hero(home: Option<HomeData>) -> impl IntoView {
     view! {
         <section class="panel home-hero" id="ueberblick">
             <div class="home-hero-text">
-                <p class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>"Modulkatalog · inoffiziell"</small></span></p>
-                <p class="eyebrow-pill"><i></i>"Inoffiziell · für die BTU Cottbus-Senftenberg"</p>
-                <h1>"Alle Module und Studiengänge der "<span class="nowrap">"BTU Cottbus-Senftenberg"</span>", an einem Ort."</h1>
-                <p class="lead">
-                    "Module mit Inhalten, Voraussetzungen, Prüfungsform und Terminen, Studiengänge mit Regelstudienplan: "
-                    "durchsuchbar und filterbar, statt Modulhandbücher zu wälzen."
-                </p>
+                <p class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>{t.common.tagline}</small></span></p>
+                <p class="eyebrow-pill"><i></i>{t.home.eyebrow}</p>
+                <h1>{t.home.title_before}<span class="nowrap">"BTU Cottbus-Senftenberg"</span>{t.home.title_after}</h1>
+                <p class="lead">{t.home.lead}</p>
                 <p class="intro-actions">
-                    <a class="btn primary" href=url::CATALOG><Icon name="layout-list"/>"Module durchsuchen"</a>
-                    <a class="btn secondary" href=url::PROGRAMS><Icon name="graduation-cap"/>"Studiengang wählen"</a>
+                    <a class="btn primary" href=t.path(url::CATALOG)><Icon name="layout-list"/>{t.home.browse_modules}</a>
+                    <a class="btn secondary" href=t.path(url::PROGRAMS)><Icon name="graduation-cap"/>{t.home.choose_program}</a>
                 </p>
             </div>
             {figures}
@@ -379,49 +317,49 @@ fn place(i: usize, current: usize, count: usize, dir: i32, staged: Option<i32>) 
 /// neighbour.
 #[component]
 fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView {
+    let t = i18n::t();
+    let home = &t.home;
     let mut slides: Vec<Slide> = Vec::new();
     if let Some(map) = map.clone() {
         slides.push(Slide {
-            tab: "Karte",
-            title: "Die Karte",
-            text: format!("{} Studiengänge, verbunden durch gemeinsame Module", map.programs.len()),
-            action: "Groß ansehen",
-            href: url::PROGRAMS.to_string(),
+            tab: home.map_slide.tab,
+            title: home.map_slide.title,
+            text: (home.map_text)(map.programs.len()),
+            action: home.map_slide.action,
+            href: t.path(url::PROGRAMS),
             wash: "wash-map",
             picture: Picture::Map(map),
         });
     }
     slides.push(Slide {
-        tab: "Katalog",
-        title: "Der Katalog",
+        tab: home.catalog_slide.tab,
+        title: home.catalog_slide.title,
         text: match modules {
-            Some(modules) => format!("Alle {} Module, gefiltert während du tippst", format::count(modules, crate::i18n::locale())),
-            None => "Alle Module, gefiltert während du tippst".to_string(),
+            Some(modules) => (home.catalog_text)(&format::count(modules, t.locale)),
+            None => home.catalog_text_plain.to_string(),
         },
-        action: "Zum Katalog",
-        href: url::CATALOG.to_string(),
+        action: home.catalog_slide.action,
+        href: t.path(url::CATALOG),
         wash: "wash-catalog",
-        picture: Picture::Shot { file: "catalog", alt: "Der Modulkatalog: die Suche „datenbank“ mit sechs Treffern, rechts das Modul Datenbanken mit seinem Wochenplan" },
+        picture: Picture::Shot { file: "catalog", alt: home.catalog_alt },
     });
     slides.push(Slide {
-        // „Studienplan" names the visitor's own plan now (the area „Plan"); the program's plan is
-        // the Regelstudienplan.
-        tab: "Regelstudienplan",
-        title: "Der Regelstudienplan",
-        text: "Semester für Semester, als Matrix".to_string(),
-        action: "Studiengang wählen",
-        href: url::PROGRAMS.to_string(),
+        tab: home.plan_slide.tab,
+        title: home.plan_slide.title,
+        text: home.plan_text.to_string(),
+        action: home.plan_slide.action,
+        href: t.path(url::PROGRAMS),
         wash: "wash-program",
-        picture: Picture::Shot { file: "program", alt: "Der Regelstudienplan von Informatik B.Sc. als Matrix: Module mal Semester, mit Pflicht und Wahlpflicht" },
+        picture: Picture::Shot { file: "program", alt: home.plan_alt },
     });
     slides.push(Slide {
-        tab: "Modul",
-        title: "Ein Modul",
-        text: "Inhalte, Prüfung und Termine auf einer Seite".to_string(),
-        action: "Beispiel ansehen",
-        href: url::module_path("12330"),
+        tab: home.module_slide.tab,
+        title: home.module_slide.title,
+        text: home.module_text.to_string(),
+        action: home.module_slide.action,
+        href: t.path(&url::module_path("12330")),
         wash: "wash-module",
-        picture: Picture::Shot { file: "module", alt: "Die Seite des Moduls Datenbanken: Inhalte, Lernziele, Prüfungsleistung und der Wochenplan der Termine" },
+        picture: Picture::Shot { file: "module", alt: home.module_alt },
     });
     let count = slides.len();
 
@@ -510,11 +448,11 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
 
     let map_for_dialog = map.clone();
     view! {
-        <section class="panel showcase" class:paused=move || map_open.get() || !playing.get() aria-roledescription="Karussell" aria-label="Betula im Bild">
+        <section class="panel showcase" class:paused=move || map_open.get() || !playing.get() aria-roledescription=home.carousel aria-label=home.carousel_label>
             <div
                 class="carousel"
                 tabindex="0"
-                aria-label="Bilder, mit den Pfeiltasten zu wechseln"
+                aria-label=home.carousel_keys
                 on:keydown=on_key
                 on:pointerdown=on_down
                 on:pointerup=on_up
@@ -571,8 +509,8 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                             style=move || format!("--at:{}", at())
                             href=slide.href.clone()
                             draggable="false"
-                            aria-roledescription="Bild"
-                            aria-label=format!("{} von {count}: {}", i + 1, slide.title)
+                            aria-roledescription=home.slide
+                            aria-label=(home.slide_of)(i + 1, count, slide.title)
                             aria-current=move || (at() == 0).then_some("true")
                             tabindex=move || if at() == 0 { "0" } else { "-1" }
                             on:click=on_click
@@ -588,12 +526,12 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                         </a>
                     }
                 }).collect_view()}
-                <button type="button" class="show-arrow previous js-only" aria-label="Vorheriges Bild" on:click=move |_| previous()><Icon name="chevron-left"/></button>
-                <button type="button" class="show-arrow next js-only" aria-label="Nächstes Bild" on:click=move |_| next()><Icon name="chevron-right"/></button>
+                <button type="button" class="show-arrow previous js-only" aria-label=home.previous on:click=move |_| previous()><Icon name="chevron-left"/></button>
+                <button type="button" class="show-arrow next js-only" aria-label=home.next on:click=move |_| next()><Icon name="chevron-right"/></button>
             </div>
             <div class="show-bar js-only">
                 // The mark of the current tab slides to it (`--i`).
-                <nav class="seg show-tabs" role="radiogroup" aria-label="Bilder" style=move || format!("--i:{};--n:{count}", current.get())>
+                <nav class="seg show-tabs" role="radiogroup" aria-label=home.tabs style=move || format!("--i:{};--n:{count}", current.get())>
                     <i class="show-mark" aria-hidden="true"></i>
                     {slides.iter().enumerate().map(|(i, slide)| view! {
                         <button type="button" role="radio" aria-checked=move || (current.get() == i).to_string() on:click=move |_| show(i)>
@@ -606,8 +544,8 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                 <button
                     type="button"
                     class="show-play"
-                    aria-label=move || if playing.get() { "Bilder anhalten" } else { "Bilder abspielen" }
-                    title=move || if playing.get() { "Anhalten" } else { "Abspielen" }
+                    aria-label=move || if playing.get() { home.pause_pictures } else { home.play_pictures }
+                    title=move || if playing.get() { home.pause } else { home.play }
                     on:click=toggle_play
                 >
                     {move || if playing.get() { view! { <Icon name="pause"/> } } else { view! { <Icon name="play"/> } }}
@@ -632,10 +570,10 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                 >
                     <header class="map-dialog-head">
                         <div>
-                            <h2 id="karte-titel">"Wie die Studiengänge zusammenhängen"</h2>
-                            <p>"Jeder Punkt ist ein Studiengang; eine Linie verbindet zwei, deren Curricula sich Module teilen. Ein Klick auf einen Punkt zeigt, wohin er gehört."</p>
+                            <h2 id="karte-titel">{home.map_heading}</h2>
+                            <p>{home.map_hint}</p>
                         </div>
-                        <button type="button" class="icon-btn map-dialog-close" aria-label="Karte schließen" on:click=move |_| close_map()><Icon name="x"/></button>
+                        <button type="button" class="icon-btn map-dialog-close" aria-label=home.close_map on:click=move |_| close_map()><Icon name="x"/></button>
                     </header>
                     <MapStage map/>
                 </dialog>
@@ -647,6 +585,7 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
 /// The map as a picture in the carousel: links, dots and names, nothing that reacts.
 #[component]
 fn MapPreview(map: Arc<ProgramMap>) -> impl IntoView {
+    let t = i18n::t();
     let sheets = [("map-wide", map.wide.clone()), ("map-tall", map.tall.clone())].map(|(class, layout)| {
         let [weak, medium, strong] = link_paths(&map, &layout);
         view! {
@@ -665,9 +604,9 @@ fn MapPreview(map: Arc<ProgramMap>) -> impl IntoView {
     });
     view! {
         <p class="map-key" aria-hidden="true">
-            <span><i class="dot-key bachelor"></i>"Bachelor"</span>
-            <span><i class="dot-key master"></i>"Master"</span>
-            <span><i class="dot-key other"></i>"Weitere"</span>
+            <span><i class="dot-key bachelor"></i>{t.home.bachelor}</span>
+            <span><i class="dot-key master"></i>{t.home.master}</span>
+            <span><i class="dot-key other"></i>{t.home.other}</span>
         </p>
         <div class="map-holder">{sheets}</div>
     }
@@ -676,22 +615,23 @@ fn MapPreview(map: Arc<ProgramMap>) -> impl IntoView {
 /// The entry links with their counts, and the faculties: two lists on the same lines.
 #[component]
 fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
+    let t = i18n::t();
     let counts = home.entry_counts.clone();
     view! {
         <div class="home-lists" id="einstiege">
             <section class="panel linklist-panel" aria-labelledby="einstiege-titel">
                 <header class="block-head">
-                    <h2 id="einstiege-titel">"Einstiege in den Katalog"</h2>
-                    <a class="ghost" href=url::CATALOG>"Alle "{format::count(home.overview.modules, crate::i18n::locale())}" Module"<Icon name="chevron-right"/></a>
+                    <h2 id="einstiege-titel">{t.home.ways_in}</h2>
+                    <a class="ghost" href=t.path(url::CATALOG)>{(t.home.all_modules_count)(&format::count(home.overview.modules, t.locale))}<Icon name="chevron-right"/></a>
                 </header>
                 <ul class="rowlist">
                     {entries.into_iter().zip(counts).map(|(entry, count)| {
-                        let href = CatalogUrl { query: entry.query, ..Default::default() }.path();
+                        let href = t.path(&CatalogUrl { query: entry.query, ..Default::default() }.path());
                         view! {
                             <li><a class="rowlink" href=href rel="nofollow">
                                 <span class=format!("ico {}", entry.tint)><Icon name=entry.icon/></span>
                                 <span class="rowlink-text"><b>{entry.label}</b><small>{entry.hint}</small></span>
-                                <span class="rowlink-count num">{format::count(count, crate::i18n::locale())}</span>
+                                <span class="rowlink-count num">{format::count(count, t.locale)}</span>
                                 <Icon name="chevron-right"/>
                             </a></li>
                         }
@@ -700,8 +640,8 @@ fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
             </section>
             <section class="panel linklist-panel" aria-labelledby="fakultaeten-titel">
                 <header class="block-head">
-                    <h2 id="fakultaeten-titel">"Studiengänge nach Fakultät"</h2>
-                    <a class="ghost" href=url::PROGRAMS>"Alle "{format::count(home.overview.programs, crate::i18n::locale())}" Studiengänge"<Icon name="chevron-right"/></a>
+                    <h2 id="fakultaeten-titel">{t.home.programs_by_faculty}</h2>
+                    <a class="ghost" href=t.path(url::PROGRAMS)>{(t.home.all_programs_count)(&format::count(home.overview.programs, t.locale))}<Icon name="chevron-right"/></a>
                 </header>
                 <ul class="rowlist">
                     {home.faculties.iter().map(|(department, programs)| {
@@ -709,11 +649,11 @@ fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
                         let (code, name, anchor, class) = match department {
                             Some(d) if d.code.chars().all(|c| c.is_ascii_digit()) => (format!("F{}", d.code), d.name_de.clone(), format!("fakultaet-{}", d.id), format!("ico code fac-{}", d.code)),
                             Some(d) => (d.code.clone(), d.name_de.clone(), format!("fakultaet-{}", d.id), "ico code".to_string()),
-                            None => ("–".to_string(), "Fakultätsübergreifend oder nicht eindeutig zuzuordnen".to_string(), "ohne-fakultaet".to_string(), "ico code".to_string()),
+                            None => ("–".to_string(), t.home.no_faculty.to_string(), "ohne-fakultaet".to_string(), "ico code".to_string()),
                         };
                         let full_name = name.clone();
                         view! {
-                            <li><a class="rowlink" href=format!("{}#{anchor}", url::PROGRAMS) title=full_name>
+                            <li><a class="rowlink" href=t.path(&format!("{}#{anchor}", url::PROGRAMS)) title=full_name>
                                 <span class=class>{code}</span>
                                 <span class="rowlink-text"><b>{name}</b></span>
                                 <span class="rowlink-count num">{*programs}</span>
@@ -754,6 +694,7 @@ fn faculty_class(map: &ProgramMap, faculty: usize) -> String {
 /// a click picks it (its faculty's outline shows, the others step back, the caption links to it).
 #[component]
 fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
+    let t = i18n::t();
     // The app only (server HTML has no state): the program under the pointer or with the focus,
     // and the one picked by a click. The map shows the first, else the second.
     let hover = RwSignal::new(None::<usize>);
@@ -796,31 +737,31 @@ fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
         move || {
             let Some((i, program)) = shown.get().and_then(|i| map.programs.get(i).map(|program| (i, program))) else {
                 return view! {
-                    <span class="cap-text"><b>{format!("{} Studiengänge", map.programs.len())}</b><span>"Linien zeigen gemeinsame Module"</span></span>
-                    <a class="cap-link" href=url::PROGRAMS>"Alle Studiengänge"<Icon name="chevron-right"/></a>
+                    <span class="cap-text"><b>{(t.home.program_count)(map.programs.len())}</b><span>{t.home.lines_show}</span></span>
+                    <a class="cap-link" href=t.path(url::PROGRAMS)>{t.home.all_programs}<Icon name="chevron-right"/></a>
                 }
                 .into_any();
             };
-            let faculty = program.faculty.and_then(|f| map.faculties.get(f)).map(|f| format!(" · Fakultät {}", f.code)).unwrap_or_default();
+            let faculty = program.faculty.and_then(|f| map.faculties.get(f)).map(|f| format!(" · {}", (t.home.faculty)(&f.code))).unwrap_or_default();
             let relatives = map.relatives(i);
-            let named: Vec<String> = relatives.iter().take(2).filter_map(|(other, shared)| map.programs.get(*other).map(|other| format!("{shared} mit {}", other.name))).collect();
+            let named: Vec<String> = relatives.iter().take(2).filter_map(|(other, shared)| map.programs.get(*other).map(|other| (t.home.shared_with)(*shared, &other.name))).collect();
             // Beside the map on a wide screen there is room for the closest five, one per line.
-            let closest: Vec<(String, usize)> = relatives.iter().take(5).filter_map(|(other, shared)| map.programs.get(*other).map(|other| (other.title(crate::i18n::locale()), *shared))).collect();
+            let closest: Vec<(String, usize)> = relatives.iter().take(5).filter_map(|(other, shared)| map.programs.get(*other).map(|other| (other.title(t.locale), *shared))).collect();
             let is_picked = picked.get() == Some(i);
             view! {
                 <span class="cap-text">
-                    <b>{program.title(crate::i18n::locale())}</b>
-                    <span class="quiet">{format!("{} Module{faculty}", program.modules)}<span class="cap-shares">{(!named.is_empty()).then(|| format!(" · teilt {}", named.join(", ")))}</span></span>
+                    <b>{program.title(t.locale)}</b>
+                    <span class="quiet">{format!("{}{faculty}", (t.home.program_modules)(program.modules))}<span class="cap-shares">{(!named.is_empty()).then(|| format!(" · {}", (t.home.shares)(&named.join(", "))))}</span></span>
                 </span>
                 {(!closest.is_empty()).then(|| view! {
                     <div class="cap-relatives">
-                        <p class="label">"Gemeinsame Module mit"</p>
+                        <p class="label">{t.home.shared_modules_with}</p>
                         <ol>{closest.into_iter().map(|(name, shared)| view! { <li><span>{name}</span><b class="num">{shared}</b></li> }).collect_view()}</ol>
                     </div>
                 })}
                 {is_picked.then(|| view! {
-                    <a class="cap-link picked" href=url::program_path(&program.slug, ProgramTab::Plan)>"Zum Studiengang"<Icon name="chevron-right"/></a>
-                    <button type="button" class="icon-btn cap-close" aria-label="Auswahl aufheben" on:click=move |_| picked.set(None)><Icon name="x"/></button>
+                    <a class="cap-link picked" href=t.path(&url::program_path(&program.slug, ProgramTab::Plan))>{t.home.to_program}<Icon name="chevron-right"/></a>
+                    <button type="button" class="icon-btn cap-close" aria-label=t.home.clear_pick on:click=move |_| picked.set(None)><Icon name="x"/></button>
                 })}
             }
             .into_any()
@@ -869,15 +810,15 @@ fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
                 // under all dots, so in a tight group a dot is never covered by its neighbour's halo.
                 {map.programs.iter().zip(layout.dots.iter()).enumerate().map(|(i, (program, (x, y, r)))| view! {
                     <g>
-                        <a class="map-halo" href=url::program_path(&program.slug, ProgramTab::Plan) data-i=i tabindex="-1" aria-hidden="true">
+                        <a class="map-halo" href=t.path(&url::program_path(&program.slug, ProgramTab::Plan)) data-i=i tabindex="-1" aria-hidden="true">
                             <circle cx=px(*x) cy=px(*y) r=px(*r + 5.0)/>
                         </a>
                     </g>
                 }).collect_view()}
                 {map.programs.iter().zip(layout.dots.iter()).enumerate().map(|(i, (program, (x, y, r)))| {
                     let program_faculty = program.faculty;
-                    let faculty = program.faculty.and_then(|f| map.faculties.get(f)).map(|f| format!(" · Fakultät {}", f.code)).unwrap_or_default();
-                    let label = format!("{} · {} Module{faculty}", program.title(crate::i18n::locale()), program.modules);
+                    let faculty = program.faculty.and_then(|f| map.faculties.get(f)).map(|f| format!(" · {}", (t.home.faculty)(&f.code))).unwrap_or_default();
+                    let label = format!("{} · {}{faculty}", program.title(t.locale), (t.home.program_modules)(program.modules));
                     let tooltip = label.clone();
                     let class = match program.cycle {
                         Cycle::Bachelor => "map-dot bachelor",
@@ -886,7 +827,7 @@ fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
                     };
                     view! {
                         <g>
-                            <a class=class class:picked=move || picked.get() == Some(i) class:outside=move || picked_faculty.get().is_some_and(|f| program_faculty != Some(f)) href=url::program_path(&program.slug, ProgramTab::Plan) data-i=i aria-label=label>
+                            <a class=class class:picked=move || picked.get() == Some(i) class:outside=move || picked_faculty.get().is_some_and(|f| program_faculty != Some(f)) href=t.path(&url::program_path(&program.slug, ProgramTab::Plan)) data-i=i aria-label=label>
                                 <title>{tooltip}</title>
                                 <circle cx=px(*x) cy=px(*y) r=px(*r)/>
                             </a>
@@ -900,7 +841,7 @@ fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
                 {layout.regions.iter().map(|region| {
                     let f = region.faculty;
                     view! {
-                        <g><text class=format!("map-faculty {}", faculty_class(&map, f)) class:shown=move || picked_faculty.get() == Some(f) x=px(region.x) y=px(region.y) text-anchor=region.anchor.code()>{region.label(&map, crate::i18n::locale())}</text></g>
+                        <g><text class=format!("map-faculty {}", faculty_class(&map, f)) class:shown=move || picked_faculty.get() == Some(f) x=px(region.x) y=px(region.y) text-anchor=region.anchor.code()>{region.label(&map, t.locale)}</text></g>
                     }
                 }).collect_view()}
             </svg>
@@ -926,11 +867,11 @@ fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
         // On the map's upper left corner, or beside the map on a wide screen, with the caption
         // under it (the dialog's grid places them).
         <div class="map-key live-key" aria-hidden="true">
-            <b class="label">"Legende"</b>
-            <span><i class="dot-key bachelor"></i>"Bachelor"</span>
-            <span><i class="dot-key master"></i>"Master"</span>
-            <span><i class="dot-key other"></i>"Weitere"</span>
-            <span class="key-links"><i class="link-key"></i>"Gemeinsame Module"</span>
+            <b class="label">{t.home.legend}</b>
+            <span><i class="dot-key bachelor"></i>{t.home.bachelor}</span>
+            <span><i class="dot-key master"></i>{t.home.master}</span>
+            <span><i class="dot-key other"></i>{t.home.other}</span>
+            <span class="key-links"><i class="link-key"></i>{t.home.shared_modules}</span>
         </div>
         <div class="cap map-cap" aria-live="polite">{caption}</div>
     }
