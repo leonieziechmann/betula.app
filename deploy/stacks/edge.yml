@@ -53,7 +53,7 @@
 #               is kept 30 days). Not in Docker's local log files: they rotate by size only, so on a quiet site
 #               they kept addresses for months (40-stacks.sh removes Traefik's stopped containers that still
 #               have such files). The privacy notice of the site names the fields and the 7 days
-#               ("Zugriffsprotokoll" in app/src/pages/legal.rs): change it with them. Traefik cannot shorten
+#               ("Zugriffsprotokoll" in app/src/i18n/legal.rs, in every language): change it with them. Traefik cannot shorten
 #               addresses; the levers are dropped fields (see the accessLog flags) and the retention.
 # ipv6          The host has a global IPv6 address and Docker publishes 80/443 on [::] too, but no Docker
 #               network has IPv6: docker-proxy relays those connections, and Traefik sees the gateway of
