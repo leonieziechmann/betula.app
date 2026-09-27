@@ -261,7 +261,10 @@ so that nothing Radix fetched is lost and nothing is fetched twice. `<old>` craw
    stop leaves none).
 3. `RADIX_CRAWL=off` in `<new>.env` for now, and `SEED_DB=<the copy> SSH_TARGET=betula bash
    deploy/ship.sh <new> --seed`: `50-app.sh` builds and exports a snapshot from it with the new
-   release, without a network, and deploys the standby. Wait for Folia's `cache.warmed`.
+   release, without a network, and deploys the standby. Wait for Folia's `cache.warmed`. A
+   colour that ran before still has its old database, and `45-seed.sh` refuses it: first
+   `docker stack rm <new>` and `docker volume rm <new>_radix-data` (it is the standby, and the
+   copy is the newer data).
 4. `55-switch.sh <new>`.
 5. `RADIX_CRAWL=on` in `<new>.env`, sync, `bash /opt/betula/vps/50-app.sh <new>`: its Radix
    crawls on from where the other one stopped (`50-app.sh` refuses while `<old>_radix` crawls).
