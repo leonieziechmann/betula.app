@@ -21,6 +21,7 @@ use catalog::pages::MAX_BOOKMARKS;
 use catalog::url::is_module_id;
 use leptos::prelude::*;
 
+use crate::i18n;
 use crate::nav;
 use crate::ui::{Icon, Shortcut};
 
@@ -283,6 +284,7 @@ pub enum MarkLook {
 /// the page jump when the app takes over; the stylesheet shows it once the app runs.
 #[component]
 pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: MarkLook) -> impl IntoView {
+    let t = i18n::t();
     let bookmarks = Bookmarks::expect();
     let marked = {
         let id = id.clone();
@@ -294,13 +296,13 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
         }
     };
     let pressed = move || if marked.get() { "true" } else { "false" };
-    let hint = move || if marked.get() { "Gemerkt. Noch einmal nimmt das Modul von der Merkliste (M)" } else { "Auf die Merkliste setzen (M)" };
-    let label = move || if marked.get() { "Gemerkt" } else { "Merken" };
+    let hint = move || if marked.get() { t.marks.saved_hint } else { t.marks.save_hint };
+    let label = move || if marked.get() { t.marks.saved } else { t.marks.save };
     match look {
         // In a list the row is the stop of the Tab key, as before there were marks; the keyboard
         // marks with M on the row (the head of the list says so).
         MarkLook::Row => view! {
-            <button class="mark-toggle icon-btn" type="button" tabindex="-1" data-action="mark" on:click=toggle aria-pressed=pressed aria-label=format!("{title} merken") title=hint>
+            <button class="mark-toggle icon-btn" type="button" tabindex="-1" data-action="mark" on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint>
                 <Icon name="bookmark"/>
             </button>
         }

@@ -31,7 +31,7 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_navigate;
 
-use crate::i18n::use_location;
+use crate::i18n::{self, use_location, Locale};
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
@@ -50,6 +50,7 @@ use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 
 #[component]
 pub fn CatalogPage() -> impl IntoView {
+    let t = i18n::t();
     let location = use_location();
     // The server's page lays nothing beside itself: `open` (the preview) is the app's, so the
     // server renders the list the address names as if it were not there, every row leading to
@@ -78,7 +79,7 @@ pub fn CatalogPage() -> impl IntoView {
     // a sibling of it, so a changed note reaches its row even when the list stays the same.
     let (plan, mine) = (Studyplan::expect().filter(|_| APP), MyProgram::expect());
     let fit_source = source.clone().ok();
-    let fitted = Memo::new(move |_| with_fits(list_query.get(), plan, mine, fit_source.as_ref()));
+    let fitted = Memo::new(move |_| with_fits(list_query.get(), plan, mine, fit_source.as_ref(), t));
     let asked = Memo::new(move |_| fitted.with(|fitted| fitted.failed.clone().map_or_else(|| Ok(with_marks(fitted.query.clone(), bookmarks)), Err)));
     let fit_view = Memo::new(move |_| fitted.with(|fitted| fitted.view.clone()));
     let page = Memo::new(move |_| url.get().page);
@@ -116,11 +117,11 @@ pub fn CatalogPage() -> impl IntoView {
     let ready = use_context::<PickerChoices>();
     let choices_source = source.clone();
     let choices = Memo::new(move |_| {
-        if let Some(ready) = &ready {
-            return ready.0.clone();
+        if let Some(ready) = ready.as_ref().and_then(|ready| ready.in_language(t.locale)) {
+            return ready;
         }
         let loaded = choices_source.clone().and_then(|source| source.run(pages::catalog_choices));
-        Arc::new(loaded.map(|choices| Choices::of(&choices)).unwrap_or_default())
+        Arc::new(loaded.map(|choices| Choices::of(&choices, t.locale)).unwrap_or_default())
     });
 
     // On a phone the filter panel is a sheet over the list, and what is picked there is a
@@ -153,7 +154,7 @@ pub fn CatalogPage() -> impl IntoView {
     });
     let summary_source = source.clone();
     let draft_facts = Memo::new(move |_| {
-        let fitted = with_fits(counted.get()?, plan, mine, summary_source.as_ref().ok());
+        let fitted = with_fits(counted.get()?, plan, mine, summary_source.as_ref().ok(), t);
         let query = with_marks(fitted.query, bookmarks);
         summary_source.clone().and_then(|source| source.run(|db| pages::catalog_summary(db, &query))).ok().map(|summary| Facts::of_summary(&summary))
     });
@@ -240,16 +241,16 @@ pub fn CatalogPage() -> impl IntoView {
     // The server's page names its page of the list (a page of the site of its own, below); the
     // app's list scrolls through all of them and keeps the title it started with.
     let page_of = move |title: String| match list.with(|list| list.as_ref().ok().map(|(current, _)| current.page)) {
-        Some(page) if page > 1 && !APP => format!("{title}, Seite {page}"),
+        Some(page) if page > 1 && !APP => (t.catalog.title_page)(&title, page),
         _ => title,
     };
     let title = move || {
         page_of(match list.get() {
             Ok((_, data)) => match &data.program {
-                Some(p) => format!("Module · {} {}", p.name, p.degree()),
-                None => "Modulkatalog: alle Module der BTU Cottbus-Senftenberg".to_string(),
+                Some(p) => (t.catalog.title_program)(&p.name, p.degree()),
+                None => t.catalog.title_all.to_string(),
             },
-            Err(_) => "Modulkatalog".to_string(),
+            Err(_) => t.catalog.title_failed.to_string(),
         })
     };
 
@@ -265,13 +266,10 @@ pub fn CatalogPage() -> impl IntoView {
                 let here = url.get();
                 let pages = list.with(|list| list.as_ref().ok().map(|(_, data)| data.page.total.div_ceil(PAGE_SIZE).max(1)));
                 let listed = here.with_page(1) == CatalogUrl::default() && pages.is_some_and(|pages| here.page <= pages);
-                let description = "Alle Module der BTU Cottbus-Senftenberg durchsuchen und filtern: nach Studiengang, Turnus, Lehrform, Prüfungsform, Sprache, Campus, Leistungspunkten und Dozierenden.";
+                let description = t.catalog.seo_description;
                 let (title, description) = match (here.page, pages) {
-                    (page, Some(pages)) if page > 1 => (
-                        format!("Modulkatalog der BTU Cottbus-Senftenberg, Seite {page}"),
-                        format!("Seite {page} von {pages} des Modulkatalogs. {description}"),
-                    ),
-                    _ => ("Modulkatalog der BTU Cottbus-Senftenberg".to_string(), description.to_string()),
+                    (page, Some(pages)) if page > 1 => ((t.catalog.seo_title_page)(page), (t.catalog.seo_description_page)(page, pages, description)),
+                    _ => (t.catalog.seo_title.to_string(), description.to_string()),
                 };
                 view! {
                     <Seo
@@ -290,7 +288,7 @@ pub fn CatalogPage() -> impl IntoView {
                 None => view! {
                     <Filters query=panel_query facts=panel_facts choices open fill draft phone/>
                     // The handle for the panel's width sits in the gap between the two boxes.
-                    <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="filters" aria-label="Breite der Filter ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                    <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="filters" aria-label=t.catalog.resize_filters tabindex="0"></div>
                     {move || list.get().ok().map(|(current, data)| {
                         let reveal = come_back_to.try_update_value(Option::take).flatten();
                         let fresh = first_list.try_update_value(|first| std::mem::replace(first, false)).unwrap_or(false);
@@ -307,20 +305,21 @@ pub fn CatalogPage() -> impl IntoView {
                     Some(Some(_)) if going.is_some_and(|p| p.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some()/> }.into_any(),
                     _ => {}
                 }
+                // A path of the app, as `ModulePanel` takes it: the panel writes it as a link.
                 let close_href = url.get().with_open(None).path();
                 match preview.get() {
                     Ok(None) | Err(_) => ().into_any(),
                     Ok(Some(Some(data))) => view! {
                         <ModulePanel data close_href hint/>
                         // Its handle is a sibling, not a child: the panel would clip the part in front of its edge.
-                        <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                        <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label=t.ui.resize_preview tabindex="0"></div>
                     }.into_any(),
                     Ok(Some(None)) => view! {
                         <section class="panel detail">
                             <div class="state">
-                                <p class="state-title">"Modul nicht gefunden"</p>
-                                <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
-                                <a class="btn secondary" href=close_href>"Vorschau schließen"</a>
+                                <p class="state-title">{t.catalog.module_not_found}</p>
+                                <p>{t.catalog.module_not_in_catalog}</p>
+                                <a class="btn secondary" href=t.path(&close_href)>{t.catalog.close_preview}</a>
                             </div>
                         </section>
                     }.into_any(),
@@ -440,10 +439,11 @@ thread_local! {
 
 /// Fills `fits_ids` from the plan when the query has the finder switch on, like `with_marks` the
 /// marks, and reads the plan only then (A.7, D.7). Without a plan (the server's page) the ids
-/// stay unfilled, and the query then lists nothing.
-fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgram>, source: Option<&Source>) -> Fitted {
+/// stay unfilled, and the query then lists nothing. What the list says about them is in the
+/// language of `t`.
+fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgram>, source: Option<&Source>, t: &'static i18n::Texts) -> Fitted {
     let Some(filter) = query.fits.clone() else { return Fitted { query, ..Fitted::default() } };
-    let (Some(plan), Some(source)) = (plan, source) else { return fitted(query, &filter, None) };
+    let (Some(plan), Some(source)) = (plan, source) else { return fitted(query, &filter, None, t) };
     let key = SemesterKey::parse(&filter.semester);
     let planned = key.map(|key| plan.modules_in(key)).unwrap_or_default();
     let town = mine.map(MyProgram::town).unwrap_or_default();
@@ -451,7 +451,7 @@ fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgra
     let asked: FitAsked = (filter.clone(), planned, selection);
     let kept = FIT_CACHE.with(|cache| cache.try_borrow().ok().and_then(|cache| cache.last.as_ref().filter(|(last, _)| *last == asked).map(|(_, result)| result.clone())));
     if let Some(result) = kept {
-        return fitted(query, &filter, Some(&result));
+        return fitted(query, &filter, Some(&result), t);
     }
     // The candidates are taken out while the finder runs, so nothing is borrowed across it.
     let mut set = FIT_CACHE.with(|cache| cache.try_borrow_mut().ok().and_then(|mut cache| cache.set.take()));
@@ -463,34 +463,34 @@ fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgra
         }
     });
     match answer {
-        Ok(result) => fitted(query, &filter, Some(&result)),
-        Err(error) => Fitted { failed: Some(error), ..fitted(query, &filter, None) },
+        Ok(result) => fitted(query, &filter, Some(&result), t),
+        Err(error) => Fitted { failed: Some(error), ..fitted(query, &filter, None, t) },
     }
 }
 
 /// The query and the view of a finder's answer (`None`: no plan to check against). A semester
 /// without dates is not checked, so it lists every module but the planned ones; with „auch ohne
 /// Termine" every module but the clashing and the planned ones; else the modules checked that fit.
-fn fitted(mut query: CatalogQuery, filter: &FitsFilter, result: Option<&FitResult>) -> Fitted {
+fn fitted(mut query: CatalogQuery, filter: &FitsFilter, result: Option<&FitResult>, t: &'static i18n::Texts) -> Fitted {
     let Some(result) = result else {
         query.fits_ids = None;
         return Fitted { query, ..Fitted::default() };
     };
-    let label = semester_label(&filter.semester);
+    let label = semester_label(&filter.semester, t.locale);
     query.fits_ids = Some(if !result.has_data || filter.undated { FitIds::Without(result.excluded.clone()) } else { FitIds::Only(result.fitting.clone()) });
     let view = FitView {
         notes: result.notes.clone(),
         quiet: result.unknown.clone(),
         fitting: result.fitting.iter().cloned().collect(),
-        undated_note: (result.has_data && filter.undated).then(|| format!("keine Termine im {label}")),
-        line: (!result.has_data).then(|| format!("{label}: noch keine Termine veröffentlicht.")),
+        undated_note: (result.has_data && filter.undated).then(|| (t.catalog.fit_undated)(&label)),
+        line: (!result.has_data).then(|| (t.catalog.fit_unpublished)(&label)),
     };
     Fitted { query, view, failed: None }
 }
 
-/// „WiSe 2026/27" for `2026W`; a key that is none as it stands.
-fn semester_label(key: &str) -> String {
-    SemesterKey::parse(key).map(|key| key.label(crate::i18n::locale())).unwrap_or_else(|| key.to_string())
+/// „WiSe 2026/27" for `2026W` (in English "Winter 2026/27"); a key that is none as it stands.
+fn semester_label(key: &str, locale: Locale) -> String {
+    SemesterKey::parse(key).map(|key| key.label(locale)).unwrap_or_else(|| key.to_string())
 }
 
 /// The semester „Passt in meinen Stundenplan" checks against once it is switched on: that of the
@@ -532,25 +532,26 @@ fn finder_text(fits: &FitsFilter) -> String {
 
 /// What to leave out when nothing fits: the classes compared besides the lectures, which have to
 /// be free anyway.
-fn fit_advice(filter: &FitsFilter) -> &'static str {
+fn fit_advice(filter: &FitsFilter, t: &'static i18n::Texts) -> &'static str {
     match (filter.exercises, filter.exams, filter.lectures) {
-        (true, true, _) => "Übungen oder Prüfungen abwählen.",
-        (true, false, _) => "Übungen abwählen.",
-        (false, true, _) => "Prüfungen abwählen.",
-        (false, false, true) => "Vorlesungen abwählen.",
-        (false, false, false) => "Nimm Filter zurück oder suche nach einem anderen Begriff.",
+        (true, true, _) => t.catalog.advice_exercises_or_exams,
+        (true, false, _) => t.catalog.advice_exercises,
+        (false, true, _) => t.catalog.advice_exams,
+        (false, false, true) => t.catalog.advice_lectures,
+        (false, false, false) => t.catalog.advice_filters,
     }
 }
 
-/// A link that keeps whatever preview is open at the time it is followed.
-fn keep_open(target: CatalogUrl, open: Memo<Option<String>>) -> impl Fn() -> String + Clone + Send + Sync + 'static {
-    move || target.with_open(open.get().as_deref()).path()
+/// A link that keeps whatever preview is open at the time it is followed, as a page in the
+/// language of `t` writes it (`Texts::path`).
+fn keep_open(target: CatalogUrl, open: Memo<Option<String>>, t: &'static i18n::Texts) -> impl Fn() -> String + Clone + Send + Sync + 'static {
+    move || t.path(&target.with_open(open.get().as_deref()).path())
 }
 
-/// The active filters as removable tags: (group, value, the list without it). `areas` and
-/// `departments` name what the URL has as a number.
-fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department]) -> Vec<(String, String, CatalogUrl)> {
-    let q = &current.query;
+/// The active filters as removable tags: (group, value, the list without it), in the language of
+/// `t`. `areas` and `departments` name what the URL has as a number.
+fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department], t: &'static i18n::Texts) -> Vec<(String, String, CatalogUrl)> {
+    let (q, c, locale) = (&current.query, &t.catalog, t.locale);
     let mut out: Vec<(String, String, CatalogUrl)> = Vec::new();
     let mut push = |group: &str, value: String, change: &dyn Fn(&mut CatalogQuery)| {
         let mut next = current.with_page(1);
@@ -559,16 +560,16 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
     };
 
     if !q.text.trim().is_empty() {
-        push("Suche", q.text.trim().to_string(), &|q| q.text.clear());
+        push(c.tag_search, q.text.trim().to_string(), &|q| q.text.clear());
     }
     if let Some(scope) = &q.program {
         match scope.plan_semester {
-            Some(PlanSemesterFilter::Semester(n)) => push("Semester", format!("{n}."), &|q| {
+            Some(PlanSemesterFilter::Semester(n)) => push(c.tag_semester, (t.format.semester_one)(i64::from(n)), &|q| {
                 if let Some(s) = q.program.as_mut() {
                     s.plan_semester = None;
                 }
             }),
-            Some(PlanSemesterFilter::Unstated) => push("Semester", "ohne Angabe".to_string(), &|q| {
+            Some(PlanSemesterFilter::Unstated) => push(c.tag_semester, c.unstated.to_string(), &|q| {
                 if let Some(s) = q.program.as_mut() {
                     s.plan_semester = None;
                 }
@@ -576,18 +577,18 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
             None => {}
         }
         let kind_label = |kind: KindFilter| match kind {
-            KindFilter::Stated(kind) => kind.label(crate::i18n::locale()).to_string(),
-            KindFilter::Unstated => "nicht angegeben".to_string(),
+            KindFilter::Stated(kind) => kind.label(locale).to_string(),
+            KindFilter::Unstated => t.common.not_stated.to_string(),
         };
         for kind in scope.kinds.clone() {
-            push("Art", kind_label(kind), &move |q| {
+            push(c.tag_kind, kind_label(kind), &move |q| {
                 if let Some(s) = q.program.as_mut() {
                     s.kinds.retain(|k| *k != kind);
                 }
             });
         }
         for kind in scope.kinds_exclude.clone() {
-            push("Art", format!("ohne {}", kind_label(kind)), &move |q| {
+            push(c.tag_kind, (c.without_value)(&kind_label(kind)), &move |q| {
                 if let Some(s) = q.program.as_mut() {
                     s.kinds_exclude.retain(|k| *k != kind);
                 }
@@ -595,8 +596,8 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
         }
         // One tag per area: a row of the plan may have opened the list with several.
         for id in scope.areas.clone() {
-            let label = areas.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| format!("Bereich {id}"));
-            push("Bereich", label, &move |q| {
+            let label = areas.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| (c.area_numbered)(id));
+            push(c.area, label, &move |q| {
                 if let Some(s) = q.program.as_mut() {
                     s.areas.retain(|area| *area != id);
                 }
@@ -604,100 +605,101 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
         }
     }
     if let Some(scheduled) = q.scheduled {
-        push("Termine", if scheduled { "bestätigt" } else { "noch keine" }.to_string(), &|q| q.scheduled = None);
+        push(c.dates, if scheduled { c.scheduled } else { c.unscheduled }.to_string(), &|q| q.scheduled = None);
     }
     if let Some(fits) = &q.fits {
-        push("Passt in", semester_label(&fits.semester), &|q| q.fits = None);
+        push(c.tag_fits, semester_label(&fits.semester, locale), &|q| q.fits = None);
     }
     if q.turnus.winter {
-        push("Turnus", "Winter".to_string(), &|q| q.turnus.winter = false);
+        push(c.turnus, c.winter.to_string(), &|q| q.turnus.winter = false);
     }
     if q.turnus.summer {
-        push("Turnus", "Sommer".to_string(), &|q| q.turnus.summer = false);
+        push(c.turnus, c.summer.to_string(), &|q| q.turnus.summer = false);
     }
     if q.turnus.irregular {
-        push("Turnus", "unregelmäßig".to_string(), &|q| q.turnus.irregular = false);
+        push(c.turnus, c.irregular.to_string(), &|q| q.turnus.irregular = false);
     }
     if q.turnus.not_winter {
-        push("Turnus", "nicht im Winter".to_string(), &|q| q.turnus.not_winter = false);
+        push(c.turnus, c.not_winter.to_string(), &|q| q.turnus.not_winter = false);
     }
     if q.turnus.not_summer {
-        push("Turnus", "nicht im Sommer".to_string(), &|q| q.turnus.not_summer = false);
+        push(c.turnus, c.not_summer.to_string(), &|q| q.turnus.not_summer = false);
     }
     if q.turnus.not_irregular {
-        push("Turnus", "nicht unregelmäßig".to_string(), &|q| q.turnus.not_irregular = false);
+        push(c.turnus, c.not_irregular.to_string(), &|q| q.turnus.not_irregular = false);
     }
     if let Some(parity) = q.turnus.year_parity {
-        push("Jahre", parity.label(crate::i18n::locale()).to_string(), &|q| q.turnus.year_parity = None);
+        push(c.years, parity.label(locale).to_string(), &|q| q.turnus.year_parity = None);
     }
     for form in q.teaching_forms.clone() {
-        push("Lehrform", form.label(crate::i18n::locale()).to_string(), &move |q| q.teaching_forms.retain(|f| *f != form));
+        push(c.teaching_form, form.label(locale).to_string(), &move |q| q.teaching_forms.retain(|f| *f != form));
     }
     for form in q.teaching_forms_exclude.clone() {
-        push("Lehrform", format!("ohne {}", form.label(crate::i18n::locale())), &move |q| q.teaching_forms_exclude.retain(|f| *f != form));
+        push(c.teaching_form, (c.without_value)(form.label(locale)), &move |q| q.teaching_forms_exclude.retain(|f| *f != form));
     }
     for part in q.exam_parts.clone() {
-        push("Prüfung", part.label(crate::i18n::locale()).to_string(), &move |q| q.exam_parts.retain(|p| *p != part));
+        push(c.exam, part.label(locale).to_string(), &move |q| q.exam_parts.retain(|p| *p != part));
     }
     for form in q.exam_forms.clone() {
-        push("Prüfung", format::exam_short(&Code::Known(form), crate::i18n::locale()), &move |q| q.exam_forms.retain(|f| *f != form));
+        push(c.exam, format::exam_short(&Code::Known(form), locale), &move |q| q.exam_forms.retain(|f| *f != form));
     }
     for part in q.exam_parts_exclude.clone() {
-        push("Prüfung", format!("ohne {}", part.label(crate::i18n::locale())), &move |q| q.exam_parts_exclude.retain(|p| *p != part));
+        push(c.exam, (c.without_value)(part.label(locale)), &move |q| q.exam_parts_exclude.retain(|p| *p != part));
     }
     for language in q.languages.clone() {
-        push("Sprache", language.label(crate::i18n::locale()).to_string(), &move |q| q.languages.retain(|l| *l != language));
+        push(c.language, language.label(locale).to_string(), &move |q| q.languages.retain(|l| *l != language));
     }
     for language in q.languages_exclude.clone() {
-        push("Sprache", format!("nicht {}", language.label(crate::i18n::locale())), &move |q| q.languages_exclude.retain(|l| *l != language));
+        push(c.language, (c.not_value)(language.label(locale)), &move |q| q.languages_exclude.retain(|l| *l != language));
     }
     if q.credits_min.is_some() || q.credits_max.is_some() {
         let label = match (q.credits_min, q.credits_max) {
-            (Some(a), Some(b)) => format!("{}–{}", format::number(a, crate::i18n::locale()), format::number(b, crate::i18n::locale())),
-            (Some(a), None) => format!("ab {}", format::number(a, crate::i18n::locale())),
-            (None, Some(b)) => format!("bis {}", format::number(b, crate::i18n::locale())),
+            (Some(a), Some(b)) => format!("{}–{}", format::number(a, locale), format::number(b, locale)),
+            (Some(a), None) => (c.credits_from)(&format::number(a, locale)),
+            (None, Some(b)) => (c.credits_up_to)(&format::number(b, locale)),
             (None, None) => String::new(),
         };
-        push("LP", label, &|q| {
+        push(t.common.credits_unit, label, &|q| {
             q.credits_min = None;
             q.credits_max = None;
         });
     }
     if let Some(graded) = q.graded {
-        push("Benotung", if graded { "benotet" } else { "unbenotet" }.to_string(), &|q| q.graded = None);
+        push(c.tag_grading, if graded { c.graded } else { c.ungraded }.to_string(), &|q| q.graded = None);
     }
     if let Some(limited) = q.limited {
-        push("Plätze", if limited { "begrenzt" } else { "unbegrenzt" }.to_string(), &|q| q.limited = None);
+        push(c.tag_places, if limited { c.limited } else { c.unlimited }.to_string(), &|q| q.limited = None);
     }
     if let Some(fues) = q.fues {
-        push("FÜS", if fues { "nur FÜS" } else { "ohne FÜS" }.to_string(), &|q| q.fues = None);
+        // „FÜS" is the BTU's name, the same in every language (docs/i18n.md).
+        push("FÜS", if fues { c.fues_only } else { c.fues_without }.to_string(), &|q| q.fues = None);
     }
     if let Some(n) = q.duration_semesters {
-        push("Dauer", format!("{n} Semester"), &|q| q.duration_semesters = None);
+        push(c.duration, (c.semesters)(n), &|q| q.duration_semesters = None);
     }
     if let Some(id) = q.department_id {
         let label = departments.iter().find(|d| d.id == id).map(|d| d.label.clone()).unwrap_or_else(|| id.to_string());
-        push("Fachgebiet", label, &|q| q.department_id = None);
+        push(c.department, label, &|q| q.department_id = None);
     }
     for name in q.lecturers_include.clone() {
         let keep = name.clone();
-        push("bei", name, &move |q| q.lecturers_include.retain(|n| *n != keep));
+        push(c.tag_lecturer, name, &move |q| q.lecturers_include.retain(|n| *n != keep));
     }
     for name in q.lecturers_exclude.clone() {
         let keep = name.clone();
-        push("nicht bei", name, &move |q| q.lecturers_exclude.retain(|n| *n != keep));
+        push(c.tag_not_lecturer, name, &move |q| q.lecturers_exclude.retain(|n| *n != keep));
     }
     for campus in q.campuses.clone() {
-        push("Standort", campus.label(crate::i18n::locale()).to_string(), &move |q| q.campuses.retain(|c| *c != campus));
+        push(c.location, campus.label(locale).to_string(), &move |q| q.campuses.retain(|c| *c != campus));
     }
     for campus in q.campuses_exclude.clone() {
-        push("Standort", format!("nicht {}", campus.label(crate::i18n::locale())), &move |q| q.campuses_exclude.retain(|c| *c != campus));
+        push(c.location, (c.not_value)(campus.label(locale)), &move |q| q.campuses_exclude.retain(|c| *c != campus));
     }
     if q.offer.is_some() {
-        push("Status", "auch nicht mehr angebotene".to_string(), &|q| q.offer = None);
+        push(c.tag_status, c.not_offered_too.to_string(), &|q| q.offer = None);
     }
     if let Some(marked) = q.marked {
-        push("Merkliste", if marked { "nur gemerkte" } else { "ohne gemerkte" }.to_string(), &|q| q.marked = None);
+        push(c.tag_bookmarks, if marked { c.saved_only } else { c.saved_without }.to_string(), &|q| q.marked = None);
     }
     out
 }
@@ -720,6 +722,7 @@ fn List(
     /// Where the row at the top of the screen is kept for the list that may replace this one.
     top_row: StoredValue<Option<Anchor>>,
 ) -> impl IntoView {
+    let t = i18n::t();
     let q = current.query.clone();
     let total = data.page.total;
     let pages_total = total.div_ceil(PAGE_SIZE).max(1);
@@ -727,10 +730,10 @@ fn List(
     let with_program = data.program.is_some();
     let unknown_program = q.program.is_some() && !with_program;
     let label = match (&data.program, q.program.as_ref().map(|s| s.relation)) {
-        (Some(_), Some(ProgramRelation::Fues)) => "FÜS-Module dieses Studiengangs",
-        (Some(_), _) => "Module im Curriculum",
-        _ if total == 1 => "Modul",
-        _ => "Module",
+        (Some(_), Some(ProgramRelation::Fues)) => t.catalog.count_fues,
+        (Some(_), _) => t.catalog.count_curriculum,
+        _ if total == 1 => t.catalog.count_one,
+        _ => t.catalog.count_many,
     };
     // The tags are those of the filter on its way (`pending`) as soon as it is clicked, so that the
     // head of the list has its height before the rows come.
@@ -738,7 +741,7 @@ fn List(
     let going_url = Memo::new(move |_| going.filter(|going| going.change() == Some(Change::List)).and_then(|going| going.search_on(url::CATALOG)).map(|search| CatalogUrl::parse(&search)));
     let active = {
         let (current, areas, departments) = (current.clone(), data.areas.clone(), data.departments.clone());
-        Memo::new(move |_| tags(&going_url.get().unwrap_or_else(|| current.clone()), &areas, &departments))
+        Memo::new(move |_| tags(&going_url.get().unwrap_or_else(|| current.clone()), &areas, &departments, t))
     };
     let active_count = move || active.with(Vec::len);
     let fit_line = use_context::<Finder>();
@@ -753,14 +756,14 @@ fn List(
             (true, true) => " ↓",
             _ => "",
         };
-        view! { <a class=class href=keep_open(next, open) aria-current=on.then_some("true")>{text}{arrow}</a> }
+        view! { <a class=class href=keep_open(next, open, t) aria-current=on.then_some("true")>{text}{arrow}</a> }
     };
 
     // What the list says instead of rows.
     let without_fits = {
         let mut next = current.with_page(1);
         next.query.fits = None;
-        next.path()
+        t.path(&next.path())
     };
     // An empty list with the finder on is the finder's doing only when the rest of the filter
     // holds modules (a search for nothing is not helped by comparing fewer classes): one count,
@@ -773,39 +776,39 @@ fn List(
             .is_ok_and(|count| count > 0);
     let states = view! {
         {unknown_program.then(|| view! {
-            <div class="state"><p class="state-title">"Diesen Studiengang gibt es nicht (mehr)"</p><p>"Wähle links einen anderen Studiengang oder „Alle Studiengänge“."</p></div>
+            <div class="state"><p class="state-title">{t.catalog.unknown_program_title}</p><p>{t.catalog.unknown_program_hint}</p></div>
         })}
         {(total == 0 && !unknown_program).then(|| match (q.marked == Some(true), q.fits.as_ref(), APP) {
             // Nothing fits the plan: the classes that could be left out of the comparison.
             (false, Some(fits), true) if finder_emptied => view! {
                 <div class="state">
-                    <p class="state-title">{format!("Kein Modul passt in deinen Stundenplan für {}", semester_label(&fits.semester))}</p>
-                    <p>{fit_advice(fits)}</p>
+                    <p class="state-title">{(t.catalog.nothing_fits)(&semester_label(&fits.semester, t.locale))}</p>
+                    <p>{fit_advice(fits, t)}</p>
                 </div>
             }.into_any(),
             (false, Some(_), false) => view! {
                 <div class="state">
-                    <p class="state-title">"Deinen Stundenplan kennt nur dein Browser"</p>
-                    <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier die Module, die in deinen Stundenplan passen."</p>
-                    <a class="btn secondary" href=without_fits.clone()>"Ohne diesen Filter"</a>
+                    <p class="state-title">{t.catalog.fits_server_title}</p>
+                    <p>{t.catalog.fits_server_hint}</p>
+                    <a class="btn secondary" href=without_fits.clone()>{t.catalog.without_filter}</a>
                 </div>
             }.into_any(),
             (true, _, true) => view! {
                 <div class="state">
-                    <p class="state-title">"Keine gemerkten Module in dieser Liste"</p>
-                    <p>"Kein gemerktes Modul passt zu den übrigen Filtern."</p>
-                    <a class="btn secondary" href=url::BOOKMARKS>"Zur Merkliste"</a>
+                    <p class="state-title">{t.catalog.saved_none_title}</p>
+                    <p>{t.catalog.saved_none_hint}</p>
+                    <a class="btn secondary" href=t.path(url::BOOKMARKS)>{t.catalog.to_bookmarks}</a>
                 </div>
             }.into_any(),
             (true, _, false) => view! {
                 <div class="state">
-                    <p class="state-title">"Deine Merkliste kennt nur dein Browser"</p>
-                    <p>"Diese Seite kommt vom Server, und dort liegt nichts von dir. Mit JavaScript zeigt die App hier deine gemerkten Module."</p>
-                    <a class="btn secondary" href=url::CATALOG>"Alle Module zeigen"</a>
+                    <p class="state-title">{t.catalog.saved_server_title}</p>
+                    <p>{t.catalog.saved_server_hint}</p>
+                    <a class="btn secondary" href=t.path(url::CATALOG)>{t.catalog.show_all}</a>
                 </div>
             }.into_any(),
             _ => view! {
-                <div class="state"><p class="state-title">"Keine Module gefunden"</p><p>"Nimm Filter zurück oder suche nach einem anderen Begriff."</p><a class="btn secondary" href=url::CATALOG>"Alle Filter zurücksetzen"</a></div>
+                <div class="state"><p class="state-title">{t.catalog.none_found_title}</p><p>{t.catalog.advice_filters}</p><a class="btn secondary" href=t.path(url::CATALOG)>{t.catalog.reset_all}</a></div>
             }.into_any(),
         })}
     }
@@ -815,15 +818,15 @@ fn List(
     // of the columns stay at the top (owner, 2026-09-23: the note fixed above the list left room
     // for two rows).
     let head = view! {
-        {plan_note(data.semester_plan.as_ref(), &current, open)}
+        {plan_note(data.semester_plan.as_ref(), &current, open, t)}
         <div class="cols label" id=HEAD_ID>
-            {sort_link(if with_program { SortKey::Default } else { SortKey::Title }, "Modul", "")}
-            <span class="c-resp">"Verantwortlich"</span>
-            <span class="c-exam">"Prüfung"</span>
-            {sort_link(SortKey::Credits, "LP", "c-lp")}
-            <span class="c-turnus">"Turnus"</span>
-            <span class="c-lang">"Spr."</span>
-            {sort_link(SortKey::Events, "Termine", "c-events")}
+            {sort_link(if with_program { SortKey::Default } else { SortKey::Title }, t.catalog.col_module, "")}
+            <span class="c-resp">{t.catalog.col_responsible}</span>
+            <span class="c-exam">{t.catalog.exam}</span>
+            {sort_link(SortKey::Credits, t.common.credits_unit, "c-lp")}
+            <span class="c-turnus">{t.catalog.turnus}</span>
+            <span class="c-lang">{t.catalog.col_language}</span>
+            {sort_link(SortKey::Events, t.catalog.dates, "c-events")}
         </div>
     }
     .into_any();
@@ -842,21 +845,21 @@ fn List(
         <section class="panel list" aria-live="polite" data-pending=move || waiting().then_some("")>
             <div class="list-head">
                 <div class="count-row">
-                    <span class="count num">{format::count(total, crate::i18n::locale())}</span>
+                    <span class="count num">{format::count(total, t.locale)}</span>
                     <span class="count-label">{label}</span>
                     <div class="list-tools">
-                        <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau, M merkt das gewählte Modul"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen "<kbd>"M"</kbd>" merken"</span>
+                        <ListKeys/>
                         <a class="sheet-toggle" href="#filters" data-action="sheet-open">
-                            <Icon name="sliders-horizontal"/>"Filter"{move || (active_count() > 0).then(|| view! { <em>{active_count()}</em> })}
+                            <Icon name="sliders-horizontal"/>{t.catalog.filters}{move || (active_count() > 0).then(|| view! { <em>{active_count()}</em> })}
                         </a>
                         {data.program.as_ref().map(|p| view! {
-                            <a class="ghost" href=url::program_path(&p.slug, ProgramTab::Plan)><Icon name="graduation-cap"/>"Studiengangsseite"</a>
+                            <a class="ghost" href=t.path(&url::program_path(&p.slug, ProgramTab::Plan))><Icon name="graduation-cap"/>{t.catalog.program_page}</a>
                         })}
                     </div>
                 </div>
                 <div class="active-filters">
                     {move || active.get().into_iter().map(|(group, value, target)| view! {
-                        <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open) aria-label="Filter entfernen"><Icon name="x"/></a></span>
+                        <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open, t) aria-label=t.catalog.remove_filter><Icon name="x"/></a></span>
                     }).collect_view()}
                 </div>
                 // The finder against a semester without dates: nothing could be checked.
@@ -874,21 +877,21 @@ fn List(
 /// „Modul aus dem Bereich Praktische Mathematik"; owner, 2026-09-23: „Viel Redundanz"), and so
 /// are the areas the name fits less well. Where the modules are taken from is derived from the
 /// names, and the note says so; the areas are links to the list narrowed down to them.
-fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Option<String>>) -> Option<AnyView> {
+fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Option<String>>, t: &'static i18n::Texts) -> Option<AnyView> {
     let plan = plan.filter(|plan| !plan.requirements.is_empty())?;
     let area_link = |id: i64, label: &str| {
         let mut target = current.with_page(1);
         if let Some(scope) = target.query.program.as_mut() {
             scope.areas = vec![id];
         }
-        view! { <a href=keep_open(target, open) data-noscroll="">"„"{label.to_string()}"“"</a> }
+        view! { <a href=keep_open(target, open, t) data-noscroll="">{(t.catalog.quoted)(label)}</a> }
     };
     let links = |areas: &[CatalogArea]| {
         areas
             .iter()
             .enumerate()
             .map(|(i, area)| view! {
-                {(i > 0).then(|| if i + 1 < areas.len() { ", " } else { " oder " })}
+                {(i > 0).then(|| if i + 1 < areas.len() { ", ".to_string() } else { format!(" {} ", t.catalog.or) })}
                 {area_link(area.id, area.name())}
             })
             .collect_view()
@@ -899,7 +902,7 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
             scope.relation = ProgramRelation::Fues;
             scope.areas.clear();
         }
-        keep_open(target, open)
+        keep_open(target, open, t)
     };
     let rows = plan
         .requirements
@@ -909,16 +912,16 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
             // module, or a range, is what it says.
             let credits = row.credits.as_ref().map(|credits| {
                 let at_least = if row.single || credits.contains('–') { "" } else { "≥\u{a0}" };
-                view! { <b>{format!("{at_least}{credits}\u{a0}LP")}</b>" " }
+                view! { <b>{format!("{at_least}{credits}\u{a0}{}", t.common.credits_unit)}</b>" " }
             });
             let what = if row.single {
-                view! { {row.shown_name().to_string()}": unter diesem Namen nicht im Katalog" }.into_any()
+                view! { {(t.catalog.plan_not_in_catalog)(row.shown_name())} }.into_any()
             } else if row.fues {
-                view! { "Fachübergreifendes Studium: siehe "<a href=fues_list.clone() data-noscroll="">"FÜS-Liste"</a> }.into_any()
+                view! { {t.catalog.plan_fues}" "<a href=fues_list.clone() data-noscroll="">{t.catalog.fues_list}</a> }.into_any()
             } else if row.areas.is_empty() {
-                view! { {row.shown_name().to_string()}": alle Wahlpflichtmodule" }.into_any()
+                view! { {(t.catalog.plan_all_electives)(row.shown_name())} }.into_any()
             } else if row.named_by_areas() {
-                view! { {if row.ambiguous() { "aus den Bereichen: " } else { "aus dem Bereich: " }}{links(&row.areas)} }.into_any()
+                view! { {if row.ambiguous() { t.catalog.plan_from_areas } else { t.catalog.plan_from_area }}" "{links(&row.areas)} }.into_any()
             } else {
                 view! { {row.shown_name().to_string()}": "{links(&row.areas)} }.into_any()
             };
@@ -932,9 +935,9 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
         <div class="plan-note">
             <Icon name="info"/>
             <div>
-                <p class="plan-note-lead">"Der Regelstudienplan sieht im "{plan.semester}". Semester außerdem vor:"</p>
+                <p class="plan-note-lead">{(t.catalog.plan_lead)(plan.semester)}</p>
                 <ul>{rows}</ul>
-                {derived.then(|| view! { <p class="plan-note-hint">"Welche Module gemeint sind, ist aus den Namen im Plan abgeleitet."</p> })}
+                {derived.then(|| view! { <p class="plan-note-hint">{t.catalog.plan_derived}</p> })}
             </div>
         </div>
     }.into_any())
@@ -956,6 +959,7 @@ fn PlainRows(
     head: AnyView,
     states: AnyView,
 ) -> impl IntoView {
+    let t = i18n::t();
     view! {
         <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows">
             {head}
@@ -967,10 +971,10 @@ fn PlainRows(
                 view! { <Row row preview current phone with_program/> }
             }).collect_view()}
             {(pages_total > 1).then(|| view! {
-                <nav class="pager" aria-label="Seiten">
-                    {(start_page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(start_page - 1), open)>"Zurück"</a> })}
-                    <span class="num">"Seite "{start_page}" von "{pages_total}</span>
-                    {(start_page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(start_page + 1), open)>"Weiter"</a> })}
+                <nav class="pager" aria-label=t.catalog.pages>
+                    {(start_page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(start_page - 1), open, t)>{t.common.back}</a> })}
+                    <span class="num">{(t.catalog.page_of)(start_page, pages_total)}</span>
+                    {(start_page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(start_page + 1), open, t)>{t.catalog.next}</a> })}
                 </nav>
             })}
         </div>
@@ -1035,6 +1039,7 @@ fn VirtualRows(
     head: AnyView,
     states: AnyView,
 ) -> impl IntoView {
+    let t = i18n::t();
     let total = usize::try_from(total).unwrap_or(0);
     let per_page = usize::try_from(PAGE_SIZE).unwrap_or(50).max(1);
     let pages_total = total.div_ceil(per_page).max(1);
@@ -1312,7 +1317,7 @@ fn VirtualRows(
                     }
                 }/>
             </div>
-            {(total > per_page).then(|| view! { <p class="list-end">"Ende der Liste · "{format::count(total as u64, crate::i18n::locale())}" Module"</p> })}
+            {(total > per_page).then(|| view! { <p class="list-end">{(t.catalog.list_end)(&format::count(total as u64, t.locale))}</p> })}
         </div>
     }
 }
@@ -1337,32 +1342,30 @@ pub(crate) fn Row(
     /// the row leads to `preview`, where the module is the page, not to the module's own page.
     #[prop(optional)] in_place: bool,
 ) -> impl IntoView {
+    let t = i18n::t();
     let language = format::languages(row.teaches_german, row.teaches_english);
     let (turnus_icon, turnus_text) = match row.turnus_season.as_ref().and_then(|s| s.known()) {
-        Some(TurnusSeason::Winter) => ("snowflake", "Winter".to_string()),
-        Some(TurnusSeason::Summer) => ("sun", "Sommer".to_string()),
-        Some(TurnusSeason::Both) => ("repeat", "jedes Sem.".to_string()),
-        Some(TurnusSeason::Irregular) => ("shuffle", "unregelm.".to_string()),
-        None => ("minus", row.turnus_season.as_ref().map(|s| s.label(crate::i18n::locale()).to_string()).unwrap_or_else(|| "k. A.".to_string())),
+        Some(TurnusSeason::Winter) => ("snowflake", t.catalog.row_winter.to_string()),
+        Some(TurnusSeason::Summer) => ("sun", t.catalog.row_summer.to_string()),
+        Some(TurnusSeason::Both) => ("repeat", t.catalog.row_every.to_string()),
+        Some(TurnusSeason::Irregular) => ("shuffle", t.catalog.row_irregular.to_string()),
+        None => ("minus", row.turnus_season.as_ref().map(|s| s.label(t.locale).to_string()).unwrap_or_else(|| t.catalog.row_unknown.to_string())),
     };
-    let events = match row.teaching_events {
-        0 => "noch keine Termine".to_string(),
-        1 => "1 Termin".to_string(),
-        n => format!("{n} Termine"),
-    };
+    let events = (t.catalog.events)(row.teaching_events);
     let has_events = row.teaching_events > 0;
     let target = row.id.clone();
     let finder = use_context::<Finder>();
     // The preview next to the list; on a phone the module's own page, or where the list shows it
     // in place, the module filling the list's page. The module's page takes along what „Einplanen"
-    // aims at from the catalog (`?plan=…&fill=…`), as the preview's „Vollbild" does.
+    // aims at from the catalog (`?plan=…&fill=…`), as the preview's „Vollbild" does. `preview` is a
+    // path of the app; the link carries the language's prefix.
     let href = move || {
-        if phone.get() && !in_place {
+        t.path(&if phone.get() && !in_place {
             let hint = finder.and_then(|finder| finder.hint.get()).map(|hint| hint.query()).unwrap_or_default();
             format!("{}{hint}", url::module_path(&target))
         } else {
             preview.get()
-        }
+        })
     };
     let unmarked = dim_unmarked.then(|| {
         let (bookmarks, id) = (Bookmarks::expect(), row.id.clone());
@@ -1386,28 +1389,38 @@ pub(crate) fn Row(
                         {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
                         // Inside a program the study plan's semester stands at the row (the
                         // list is in plan order, without headings between the semesters).
-                        {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{n}". Semester"</span> }))}
+                        {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}
                         <OfferBadge status=row.offer_status.clone()/>
                         {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
-                        {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">"begrenzte Plätze"</span> })}
+                        {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
                         {fit_note}
                         <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
                     </small>
                 </div>
                 <span class="resp">{row.responsible.clone()}</span>
-                <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, crate::i18n::locale()))}</span>
-                <span class="lp num">{row.credits.map(|value| format::number(value, crate::i18n::locale()))}<small>"LP"</small></span>
+                <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale))}</span>
+                <span class="lp num">{row.credits.map(|value| format::number(value, t.locale))}<small>{t.common.credits_unit}</small></span>
                 <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
-                <span class="lang" class:unknown=language.is_none()>{language.unwrap_or("k. A.")}</span>
+                <span class="lang" class:unknown=language.is_none()>{language.unwrap_or(t.catalog.row_unknown)}</span>
                 <span class="events" class:none=!has_events>
                     {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
-                    {if has_events { events } else { "noch keine".to_string() }}
+                    {if has_events { events } else { t.catalog.events_none.to_string() }}
                 </span>
             </a>
             // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
             // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
             {APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> })}
         </div>
+    }
+}
+
+/// The keys of a list as its head names them (`enhance.js` does what they say): the catalog's,
+/// and the list of marked modules.
+#[component]
+pub(crate) fn ListKeys() -> impl IntoView {
+    let t = i18n::t();
+    view! {
+        <span class="keys" title=t.catalog.keys_title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}</span>
     }
 }
 
@@ -1459,8 +1472,8 @@ impl Facts {
 /// 2026-09-21: the path of the tree beside the name pushed the names into „Wahlpflichtmod…"),
 /// under the heading of its section (`pages::catalog_areas`: „Nebenfach" for Mathematik,
 /// Physik …). The full label and the path still find the area when they are typed.
-fn area_item(area: &CatalogArea) -> ComboItem {
-    ComboItem::new(area.id.to_string(), area.name().to_string(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX), crate::i18n::locale()), 0)
+fn area_item(area: &CatalogArea, locale: Locale) -> ComboItem {
+    ComboItem::new(area.id.to_string(), area.name().to_string(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX), locale), 0)
         .also_found_by(&format!("{} {}", area.label, area.path))
         .in_group(area.section.clone().unwrap_or_default())
 }
@@ -1469,12 +1482,18 @@ fn area_item(area: &CatalogArea) -> ComboItem {
 /// `server/src/snapshot.rs`) and handed to every render: every program, department and person does
 /// not change with the filter, and loading them was 12 of the 30 ms a page of the catalog cost the
 /// server (load test 2026-09-26: the persons alone 8.5 ms). A page without it loads them itself.
+/// What an entry says beside its name is in the page's language („17 Module", "17 modules"), so
+/// there is one set per language.
 #[derive(Clone)]
-pub struct PickerChoices(Arc<Choices>);
+pub struct PickerChoices(Arc<Vec<(Locale, Arc<Choices>)>>);
 
 impl PickerChoices {
     pub fn of(data: &CatalogChoices) -> Self {
-        Self(Arc::new(Choices::of(data)))
+        Self(Arc::new(Locale::ALL.iter().map(|locale| (*locale, Arc::new(Choices::of(data, *locale)))).collect()))
+    }
+
+    fn in_language(&self, locale: Locale) -> Option<Arc<Choices>> {
+        self.0.iter().find(|(language, _)| *language == locale).map(|(_, choices)| choices.clone())
     }
 }
 
@@ -1487,12 +1506,12 @@ struct Choices {
 }
 
 impl Choices {
-    fn of(data: &CatalogChoices) -> Self {
+    fn of(data: &CatalogChoices, locale: Locale) -> Self {
         // A program is its name, the short degree and the year of its PO: one shape for all
         // (owner decision 2026-09-20; amendments are not part of it). Where two programs would
         // read the same, and only there, the form of study tells them apart.
         let short = |p: &Program| (p.name.clone(), p.degree().to_string(), p.po_year);
-        let variant = |p: &Program| p.study_variant.as_ref().map(|variant| format::variant_short(variant, crate::i18n::locale()));
+        let variant = |p: &Program| p.study_variant.as_ref().map(|variant| format::variant_short(variant, locale));
         Self {
             programs: data
                 .programs
@@ -1507,21 +1526,22 @@ impl Choices {
                     ComboItem::new(p.slug.clone(), p.name.clone(), detail, i64::from(p.is_latest_po))
                 })
                 .collect(),
-            departments: data.departments.iter().map(|d| ComboItem::new(d.id.to_string(), d.label.clone(), format::modules(d.modules, crate::i18n::locale()), 0)).collect(),
+            departments: data.departments.iter().map(|d| ComboItem::new(d.id.to_string(), d.label.clone(), format::modules(d.modules, locale), 0)).collect(),
             lecturers: data.lecturers.iter().map(|l| ComboItem::new(l.name.clone(), l.name.clone(), l.title.clone().unwrap_or_default(), 0)).collect(),
         }
     }
 }
 
 /// The program picker's entries with „Mein Studiengang" (its slug) once more at the top, under
-/// that heading; the others stay as they are, the program among them.
-fn mine_first(programs: &[ComboItem], mine: Option<&str>) -> Vec<ComboItem> {
-    let first = mine.and_then(|slug| programs.iter().find(|item| item.id == slug)).map(|item| item.clone().in_group("Mein Studiengang"));
+/// `heading`; the others stay as they are, the program among them.
+fn mine_first(programs: &[ComboItem], mine: Option<&str>, heading: &str) -> Vec<ComboItem> {
+    let first = mine.and_then(|slug| programs.iter().find(|item| item.id == slug)).map(|item| item.clone().in_group(heading));
     first.into_iter().chain(programs.iter().cloned()).collect()
 }
 
-/// The catalog that `change` leads to from the current filter: what a control links to. It keeps
-/// the module previewed and the placeholder the list is looked through for (`fill`).
+/// The catalog that `change` leads to from the current filter: what a control links to (a path of
+/// the app: the link writes it with the language's prefix). It keeps the module previewed and the
+/// placeholder the list is looked through for (`fill`).
 fn target(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, change: impl FnOnce(&mut CatalogQuery)) -> String {
     let mut next = query.get();
     change(&mut next);
@@ -1648,6 +1668,7 @@ fn Chip(
     #[prop(optional)]
     opens: bool,
 ) -> impl IntoView {
+    let t = i18n::t();
     let read = toggle.read.clone();
     let state = Memo::new(move |_| query.with(|q| read(q)));
     let excludes = toggle.excludes;
@@ -1664,10 +1685,10 @@ fn Chip(
         if toggle.held.as_ref().is_some_and(|(held, _)| query.with(|q| held(q))) {
             return None;
         }
-        Some(target(query, open, fill, |q| {
+        Some(t.path(&target(query, open, fill, |q| {
             let next = toggle.after((toggle.read)(q));
             (toggle.write)(q, next)
-        }))
+        })))
     };
     let name = label.clone();
     view! {
@@ -1692,14 +1713,14 @@ fn Chip(
             }
             aria-expanded=move || opens.then(|| if state.get() == Tri::With { "true" } else { "false" })
             aria-label=move || match state.get() {
-                Tri::Without => format!("{name}: ausgeschlossen"),
+                Tri::Without => (t.catalog.excluded)(&name),
                 _ => name.clone(),
             }
             title=move || match (held.get(), state.get(), excludes) {
                 (true, _, _) => why,
-                (false, Tri::Off, true) => Some("Klick: nur mit · zweiter Klick: ohne"),
-                (false, Tri::With, true) => Some("Nur mit. Noch ein Klick schließt aus"),
-                (false, Tri::Without, _) => Some("Ausgeschlossen. Ein Klick hebt das auf"),
+                (false, Tri::Off, true) => Some(t.catalog.chip_off),
+                (false, Tri::With, true) => Some(t.catalog.chip_with),
+                (false, Tri::Without, _) => Some(t.catalog.chip_without),
                 _ => title,
             }
         >
@@ -1730,14 +1751,14 @@ impl Choice {
     }
 }
 
-fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, label: &'static str, choices: Vec<Choice>) -> impl IntoView {
+fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, label: &'static str, choices: Vec<Choice>, t: &'static i18n::Texts) -> impl IntoView {
     let links = choices
         .into_iter()
         .map(|choice| {
             let Choice { label, title, count, is_on, choose } = choice;
             view! {
                 <a
-                    href=move || target(query, open, fill, |q| choose(q))
+                    href=move || t.path(&target(query, open, fill, |q| choose(q)))
                     role="radio"
                     rel="nofollow"
                     draggable="false"
@@ -1746,7 +1767,7 @@ fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<O
                     aria-checked=move || if query.with(|q| is_on(q)) { "true" } else { "false" }
                 >
                     {label}
-                    {count.map(|count| view! { <span class="num">{move || count.get().map(|count| format::count(count, crate::i18n::locale()))}</span> })}
+                    {count.map(|count| view! { <span class="num">{move || count.get().map(|count| format::count(count, t.locale))}</span> })}
                 </a>
             }
         })
@@ -1771,6 +1792,7 @@ fn Filters(
     draft: RwSignal<Option<CatalogQuery>>,
     phone: RwSignal<bool>,
 ) -> impl IntoView {
+    let t = i18n::t();
     let going = Pending::expect();
     let go = Callback::new(move |next: CatalogQuery| {
         if phone.get_untracked() {
@@ -1786,7 +1808,12 @@ fn Filters(
             return;
         }
         let Some(href) = nav::link_under(ev.target()) else { return };
-        let Some(search) = href.strip_prefix(url::CATALOG).filter(|rest| rest.is_empty() || rest.starts_with('?')) else { return };
+        // The link as written carries the language's prefix (`/en/catalog?…`).
+        let (language, path) = Locale::split(&href);
+        if language != t.locale {
+            return;
+        }
+        let Some(search) = path.strip_prefix(url::CATALOG).filter(|rest| rest.is_empty() || rest.starts_with('?')) else { return };
         ev.prevent_default();
         draft.set(Some(CatalogUrl::parse(search).query));
     };
@@ -1826,7 +1853,7 @@ fn Filters(
         let mine_slug = Memo::new(move |_| mine.and_then(MineResolved::exact).map(|program| program.slug));
         let items = Memo::new(move |_| {
             let mine = mine_slug.get();
-            choices.with(|c| mine_first(&c.programs, mine.as_deref()))
+            choices.with(|c| mine_first(&c.programs, mine.as_deref(), t.catalog.my_program))
         });
         let selected = Memo::new(move |_| query.with(|q| q.program.as_ref().map(|scope| scope.program_slug.clone())));
         let pick = Callback::new(move |slug: Option<String>| {
@@ -1836,16 +1863,16 @@ fn Filters(
             }))
         });
         view! {
-            <Combobox id="pick-program" label="Studiengang" placeholder="Alle Studiengänge" search_placeholder="Studiengang suchen" icon="graduation-cap" min_width=480.0 items selected on_select=pick/>
+            <Combobox id="pick-program" label=t.catalog.program placeholder=t.catalog.all_programs search_placeholder=t.catalog.search_program icon="graduation-cap" min_width=480.0 items selected on_select=pick/>
         }
         .into_any()
     } else {
         view! {
             <label class="select-wrap">
                 <Icon name="graduation-cap"/>
-                <span class="visually-hidden">"Studiengang"</span>
+                <span class="visually-hidden">{t.catalog.program}</span>
                 <select name="program">
-                    <option value="">"Alle Studiengänge"</option>
+                    <option value="">{t.catalog.all_programs}</option>
                     {move || {
                         let selected = query.with(|q| q.program.as_ref().map(|scope| scope.program_slug.clone()));
                         choices.with(|c| c.programs.iter().map(|p| {
@@ -1913,16 +1940,16 @@ fn Filters(
             let semester_part = move || {
                 let semesters = semesters.get();
                 if semesters.is_empty() {
-                    return view! { <p class="hint">"Für diesen Studiengang liegt kein geprüfter Regelstudienplan vor, Fachsemester sind deshalb nicht bekannt."</p> }.into_any();
+                    return view! { <p class="hint">{t.catalog.no_plan}</p> }.into_any();
                 }
-                let mut all = vec![semester_choice("Alle".to_string(), None, None)];
+                let mut all = vec![semester_choice(t.catalog.all.to_string(), None, None)];
                 all.extend(semesters.iter().filter_map(|n| u8::try_from(*n).ok()).map(|n| {
                     semester_choice(n.to_string(), None, Some(PlanSemesterFilter::Semester(n)))
                 }));
-                all.push(semester_choice("?".to_string(), Some("Module, die der Regelstudienplan keinem Semester zuordnet"), Some(PlanSemesterFilter::Unstated)));
+                all.push(semester_choice("?".to_string(), Some(t.catalog.unplaced), Some(PlanSemesterFilter::Unstated)));
                 view! {
-                    <div class="flabel label">"Fachsemester laut Plan"</div>
-                    {segmented(query, open, fill, "Fachsemester", all)}
+                    <div class="flabel label">{t.catalog.plan_semesters}</div>
+                    {segmented(query, open, fill, t.catalog.plan_semester, all, t)}
                 }
                 .into_any()
             };
@@ -1933,7 +1960,7 @@ fn Filters(
                 let sections = pages::area_sections(&areas.get());
                 (curricular.get() && !sections.is_empty()).then(|| {
                     let picker = if APP {
-                        let items = StoredValue::new(sections.iter().flat_map(|(_, areas)| areas.iter().map(area_item)).collect::<Vec<_>>());
+                        let items = StoredValue::new(sections.iter().flat_map(|(_, areas)| areas.iter().map(|area| area_item(area, t.locale))).collect::<Vec<_>>());
                         let chosen = move || query.with(|q| q.program.as_ref().map(|scope| scope.areas.clone()).unwrap_or_default());
                         let selected = Signal::derive(move || match chosen().as_slice() {
                             [id] => Some(id.to_string()),
@@ -1946,7 +1973,7 @@ fn Filters(
                         let summary = Signal::derive(move || match chosen().as_slice() {
                             [] => None,
                             [id] => areas.with(|areas| areas.iter().find(|area| area.id == *id && !area.choice).map(|area| area.name().to_string())),
-                            several => Some(format!("{} Bereiche", several.len())),
+                            several => Some((t.catalog.areas_count)(several.len())),
                         });
                         let pick = Callback::new(move |id: Option<String>| {
                             go.run(changed(query, |q| {
@@ -1956,7 +1983,7 @@ fn Filters(
                             }))
                         });
                         view! {
-                            <Combobox id="pick-area" label="Bereich" placeholder="Alle Bereiche" search_placeholder="Bereich suchen" icon="layout-list" min_width=440.0 items=Signal::derive(move || items.get_value()) selected summary on_select=pick/>
+                            <Combobox id="pick-area" label=t.catalog.area placeholder=t.catalog.all_areas search_placeholder=t.catalog.search_area icon="layout-list" min_width=440.0 items=Signal::derive(move || items.get_value()) selected summary on_select=pick/>
                         }
                         .into_any()
                     } else {
@@ -1969,12 +1996,12 @@ fn Filters(
                         // form keeps them.
                         let several = (chosen.len() > 1).then(|| {
                             let value = chosen.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",");
-                            view! { <option value=value selected=true>{format!("{} Bereiche", chosen.len())}</option> }
+                            view! { <option value=value selected=true>{(t.catalog.areas_count)(chosen.len())}</option> }
                         });
                         view! {
                             <span class="select-wrap plain">
-                                <select name="area" aria-label="Bereich">
-                                    <option value="">"Alle Bereiche"</option>
+                                <select name="area" aria-label=t.catalog.area>
+                                    <option value="">{t.catalog.all_areas}</option>
                                     {several}
                                     {sections.into_iter().map(|(group, areas)| {
                                         let options = areas.into_iter().map(|area| view! {
@@ -1992,22 +2019,23 @@ fn Filters(
                         .into_any()
                     };
                     view! {
-                        <div class="flabel label">"Bereich"</div>
+                        <div class="flabel label">{t.catalog.area}</div>
                         {picker}
                     }
                 })
             };
             view! {
-                {segmented(query, open, fill, "Liste", vec![
-                    relation(ProgramRelation::Curricular, "Curriculum", Signal::derive(move || facts.with(|f| f.curricular_total))),
+                {segmented(query, open, fill, t.catalog.list, vec![
+                    relation(ProgramRelation::Curricular, t.catalog.curriculum, Signal::derive(move || facts.with(|f| f.curricular_total))),
+                    // „FÜS" is the BTU's name, the same in every language (docs/i18n.md).
                     relation(ProgramRelation::Fues, "FÜS", Signal::derive(move || facts.with(|f| f.fues_total))),
-                ])}
+                ], t)}
                 <div class="fgroup">
-                    <div class="flabel label">"Modulart"</div>
+                    <div class="flabel label">{t.catalog.module_kind}</div>
                     <div class="chips">
                         {[ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship]
-                            .iter().map(|k| chip(k.label(crate::i18n::locale()), None, kind(KindFilter::Stated(*k)))).collect_view()}
-                        {chip("Nicht angegeben", None, kind(KindFilter::Unstated))}
+                            .iter().map(|k| chip(k.label(t.locale), None, kind(KindFilter::Stated(*k)))).collect_view()}
+                        {chip(t.catalog.not_stated, None, kind(KindFilter::Unstated))}
                     </div>
                     {area_part}
                     {semester_part}
@@ -2033,7 +2061,7 @@ fn Filters(
         let title = choices.with_untracked(|c| c.lecturers.iter().find(|item| item.id == name).map(|item| item.detail.clone())).unwrap_or_default();
         let link = |wanted: Option<bool>| {
             let name = name.clone();
-            move || target(query, open, fill, |q| place(q, &name, wanted))
+            move || t.path(&target(query, open, fill, |q| place(q, &name, wanted)))
         };
         let is_unwanted = {
             let name = name.clone();
@@ -2043,11 +2071,11 @@ fn Filters(
         view! {
             <div class="person" data-state=move || if unwanted_1() { "without" } else { "with" }>
                 <div class="seg mini" role="radiogroup" aria-label=name.clone()>
-                    <a href=link(Some(true)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="plus" title="Module mit dieser Person" aria-label="mit" aria-checked=move || if unwanted_2() { "false" } else { "true" }><Icon name="plus"/></a>
-                    <a href=link(Some(false)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="cross" title="Module ohne diese Person" aria-label="ohne" aria-checked=move || if unwanted_3() { "true" } else { "false" }><Icon name="x"/></a>
+                    <a href=link(Some(true)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="plus" title=t.catalog.with_person aria-label=t.catalog.with aria-checked=move || if unwanted_2() { "false" } else { "true" }><Icon name="plus"/></a>
+                    <a href=link(Some(false)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="cross" title=t.catalog.without_person aria-label=t.catalog.without aria-checked=move || if unwanted_3() { "true" } else { "false" }><Icon name="x"/></a>
                 </div>
                 <span class="person-name"><b>{name.clone()}</b>{(!title.is_empty()).then(|| view! { <small>{title}</small> })}</span>
-                <a class="icon-btn remove" href=link(None) rel="nofollow" draggable="false" data-noscroll="" title="Entfernen" aria-label=format!("{name} entfernen")><Icon name="trash-2"/></a>
+                <a class="icon-btn remove" href=link(None) rel="nofollow" draggable="false" data-noscroll="" title=t.catalog.remove aria-label=(t.catalog.remove_person)(&name)><Icon name="trash-2"/></a>
             </div>
         }
     };
@@ -2062,7 +2090,7 @@ fn Filters(
             }
         });
         view! {
-            <Combobox id="pick-lecturer" label="Lehrende" placeholder="Person hinzufügen" search_placeholder="Name suchen" icon="users-round" items selected=Signal::derive(|| None::<String>) on_select=add clearable=false/>
+            <Combobox id="pick-lecturer" label=t.catalog.lecturers placeholder=t.catalog.add_person search_placeholder=t.catalog.search_name icon="users-round" items selected=Signal::derive(|| None::<String>) on_select=add clearable=false/>
         }
         .into_any()
     } else {
@@ -2072,8 +2100,8 @@ fn Filters(
         // own page (owner: „das soll nur auf die Modulseite").
         view! {
             <label class="field">
-                <span class="visually-hidden">"Lehrt oder verantwortet"</span>
-                <input type="text" name="lecturer" placeholder="Nachname, Vorname"/>
+                <span class="visually-hidden">{t.catalog.teaches}</span>
+                <input type="text" name="lecturer" placeholder=t.catalog.name_placeholder/>
             </label>
         }
         .into_any()
@@ -2085,14 +2113,14 @@ fn Filters(
         let selected = Memo::new(move |_| query.with(|q| q.department_id.map(|id| id.to_string())));
         let pick = Callback::new(move |id: Option<String>| go.run(changed(query, |q| q.department_id = id.and_then(|id| id.parse().ok()))));
         view! {
-            <Combobox id="pick-department" label="Fachgebiet" placeholder="Alle Fachgebiete" search_placeholder="Fachgebiet suchen" icon="building-2" items selected on_select=pick/>
+            <Combobox id="pick-department" label=t.catalog.department placeholder=t.catalog.all_departments search_placeholder=t.catalog.search_department icon="building-2" items selected on_select=pick/>
         }
         .into_any()
     } else {
         view! {
             <span class="select-wrap plain">
-                <select name="department" aria-label="Fachgebiet">
-                    <option value="">"Alle Fachgebiete"</option>
+                <select name="department" aria-label=t.catalog.department>
+                    <option value="">{t.catalog.all_departments}</option>
                     {move || {
                         let selected = query.with(|q| q.department_id.map(|id| id.to_string()));
                         choices.with(|c| c.departments.iter().map(|d| {
@@ -2135,7 +2163,7 @@ fn Filters(
         // meinen Stundenplan ohne das semester"; switched on, its tag above the list names it). No
         // icon either: the chip needs the width for its label. The chevron at its end says that
         // the classes it compares open under it.
-        view! { <Chip query open fill toggle label="Passt in meinen Stundenplan" icon=None finder=true opens=true/> }
+        view! { <Chip query open fill toggle label=t.catalog.fits icon=None finder=true opens=true/> }
     });
     // What it compares while it is on is what it compares when it is switched on next, here and
     // from the Stundenplan (`finder_on`): kept whenever it changes, in a phone's sheet as well.
@@ -2152,7 +2180,7 @@ fn Filters(
         excludes: false,
         held: compared.then(|| {
             let last: Arc<Held> = Arc::new(move |q: &CatalogQuery| q.fits.as_ref().is_some_and(|fits| get(fits) && [fits.lectures, fits.exercises, fits.exams].into_iter().filter(|on| *on).count() == 1));
-            (last, "Mindestens eine Art wird verglichen")
+            (last, t.catalog.fits_held)
         }),
         ..Toggle::new(
             move |q| if q.fits.as_ref().is_some_and(get) { Tri::With } else { Tri::Off },
@@ -2166,10 +2194,10 @@ fn Filters(
     let finder_options = move || {
         fits_on.get().then(|| view! {
             <div class="chips fit-chip">
-                <Chip query open fill toggle=class(|f| f.lectures, |f, on| f.lectures = on, true) label="Vorlesungen" icon=None/>
-                <Chip query open fill toggle=class(|f| f.exercises, |f, on| f.exercises = on, true) label="Übungen" icon=None title="Übungen, Seminare, Praktika, Projekte, Tutorien …"/>
-                <Chip query open fill toggle=class(|f| f.exams, |f, on| f.exams = on, true) label="Prüfungen" icon=None/>
-                <Chip query open fill toggle=class(|f| f.undated, |f, on| f.undated = on, false) label="auch ohne Termine" icon=None title="Auch Module ohne Termine in diesem Semester: sie lassen sich nicht prüfen"/>
+                <Chip query open fill toggle=class(|f| f.lectures, |f, on| f.lectures = on, true) label=t.catalog.lectures icon=None/>
+                <Chip query open fill toggle=class(|f| f.exercises, |f, on| f.exercises = on, true) label=t.catalog.exercises icon=None title=t.catalog.exercises_title/>
+                <Chip query open fill toggle=class(|f| f.exams, |f, on| f.exams = on, true) label=t.catalog.exams icon=None/>
+                <Chip query open fill toggle=class(|f| f.undated, |f, on| f.undated = on, false) label=t.catalog.undated icon=None title=t.catalog.undated_title/>
             </div>
         })
     };
@@ -2188,12 +2216,12 @@ fn Filters(
 
     view! {
         // `data-draft`: the sheet of a phone is a step of its own in the history (`enhance.js`).
-        <aside class="panel filters" id="filters" aria-label="Filter" data-draft=APP.then_some("") on:click=into_draft>
-            <form method="get" action=url::CATALOG data-autosubmit="" on:submit=move |ev| if APP { ev.prevent_default() }>
+        <aside class="panel filters" id="filters" aria-label=t.catalog.filters data-draft=APP.then_some("") on:click=into_draft>
+            <form method="get" action=t.path(url::CATALOG) data-autosubmit="" on:submit=move |ev| if APP { ev.prevent_default() }>
                 <div class="panel-head">
-                    <h2>"Filter"</h2>
-                    <a class="ghost hit" style=Hit::y(7.0).style() href=move || CatalogUrl { open: open.get(), ..Default::default() }.path() data-noscroll=""><Icon name="rotate-ccw"/>"Zurücksetzen"</a>
-                    <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label="Filter schließen"><Icon name="x"/></a>
+                    <h2>{t.catalog.filters}</h2>
+                    <a class="ghost hit" style=Hit::y(7.0).style() href=move || t.path(&CatalogUrl { open: open.get(), ..Default::default() }.path()) data-noscroll=""><Icon name="rotate-ccw"/>{t.common.reset}</a>
+                    <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label=t.catalog.close_filters><Icon name="x"/></a>
                 </div>
                 <div class="body scroll" data-keep-scroll="filters" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))>
                     {carried}
@@ -2203,96 +2231,96 @@ fn Filters(
                     // Next to the semesters of the plan (owner, 2026-09-23): a module without
                     // published dates probably does not take place.
                     <div class="fgroup">
-                        <div class="flabel label">"Termine"</div>
+                        <div class="flabel label">{t.catalog.dates}</div>
                         <div class="chips">
-                            {chip("Bestätigt", Some("calendar-check-2"), Toggle::flag(|q| q.scheduled, |q, value| q.scheduled = value))}
+                            {chip(t.catalog.confirmed, Some("calendar-check-2"), Toggle::flag(|q| q.scheduled, |q, value| q.scheduled = value))}
                             {finder_chip}
                         </div>
                         {finder_options}
                     </div>
                     <div class="fgroup">
-                        <div class="flabel label">"Angeboten im"<span class="legend"><i class="box with"><Icon name="check"/></i>"mit"<i class="box without"><Icon name="x"/></i>"ohne"</span></div>
+                        <div class="flabel label">{t.catalog.offered_in}<span class="legend"><i class="box with"><Icon name="check"/></i>{t.catalog.with}<i class="box without"><Icon name="x"/></i>{t.catalog.without}</span></div>
                         <div class="chips">
-                            {chip("Winter", Some("snowflake"), Toggle::new(
+                            {chip(t.catalog.winter_chip, Some("snowflake"), Toggle::new(
                                 |q| if q.turnus.winter { Tri::With } else if q.turnus.not_winter { Tri::Without } else { Tri::Off },
                                 |q, state| (q.turnus.winter, q.turnus.not_winter) = (state == Tri::With, state == Tri::Without),
                             ))}
-                            {chip("Sommer", Some("sun"), Toggle::new(
+                            {chip(t.catalog.summer_chip, Some("sun"), Toggle::new(
                                 |q| if q.turnus.summer { Tri::With } else if q.turnus.not_summer { Tri::Without } else { Tri::Off },
                                 |q, state| (q.turnus.summer, q.turnus.not_summer) = (state == Tri::With, state == Tri::Without),
                             ))}
-                            {chip("Unregelmäßig", Some("shuffle"), Toggle::new(
+                            {chip(t.catalog.irregular_chip, Some("shuffle"), Toggle::new(
                                 |q| if q.turnus.irregular { Tri::With } else if q.turnus.not_irregular { Tri::Without } else { Tri::Off },
                                 |q, state| (q.turnus.irregular, q.turnus.not_irregular) = (state == Tri::With, state == Tri::Without),
                             ))}
                         </div>
                     </div>
                     <div class="fgroup">
-                        <div class="flabel label">"Lehrform"</div>
+                        <div class="flabel label">{t.catalog.teaching_form}</div>
                         <div class="chips">
                             {[TeachingForm::Lecture, TeachingForm::Exercise, TeachingForm::Seminar, TeachingForm::Practical, TeachingForm::Project, TeachingForm::Excursion]
-                                .iter().map(|form| chip(form.label(crate::i18n::locale()), None, Toggle::in_lists(*form, |q| (&q.teaching_forms, &q.teaching_forms_exclude), |q| (&mut q.teaching_forms, &mut q.teaching_forms_exclude)))).collect_view()}
+                                .iter().map(|form| chip(form.label(t.locale), None, Toggle::in_lists(*form, |q| (&q.teaching_forms, &q.teaching_forms_exclude), |q| (&mut q.teaching_forms, &mut q.teaching_forms_exclude)))).collect_view()}
                         </div>
                     </div>
                     <div class="fgroup">
-                        <div class="flabel label">"Prüfung"</div>
+                        <div class="flabel label">{t.catalog.exam}</div>
                         <div class="chips">
-                            {ExamPart::ALL.iter().map(|part| chip(part.short_label(crate::i18n::locale()), None, Toggle::in_lists(*part, |q| (&q.exam_parts, &q.exam_parts_exclude), |q| (&mut q.exam_parts, &mut q.exam_parts_exclude)))).collect_view()}
+                            {ExamPart::ALL.iter().map(|part| chip(part.short_label(t.locale), None, Toggle::in_lists(*part, |q| (&q.exam_parts, &q.exam_parts_exclude), |q| (&mut q.exam_parts, &mut q.exam_parts_exclude)))).collect_view()}
                         </div>
                     </div>
                     <Credits query go/>
                     <div class="fgroup">
-                        <div class="flabel label">"Sprache"</div>
+                        <div class="flabel label">{t.catalog.language}</div>
                         <div class="chips">
-                            {Language::ALL.iter().map(|language| chip(language.label(crate::i18n::locale()), None, Toggle::in_lists(*language, |q| (&q.languages, &q.languages_exclude), |q| (&mut q.languages, &mut q.languages_exclude)))).collect_view()}
+                            {Language::ALL.iter().map(|language| chip(language.label(t.locale), None, Toggle::in_lists(*language, |q| (&q.languages, &q.languages_exclude), |q| (&mut q.languages, &mut q.languages_exclude)))).collect_view()}
                         </div>
                     </div>
                     <div class="fgroup">
-                        <div class="flabel label">"Eigenschaften"</div>
+                        <div class="flabel label">{t.catalog.properties}</div>
                         <div class="chips">
-                            {chip("Benotet", None, Toggle::flag(|q| q.graded, |q, value| q.graded = value))}
-                            {chip("Begrenzte Plätze", None, Toggle::flag(|q| q.limited, |q, value| q.limited = value))}
-                            {chip("FÜS-Liste", None, Toggle::flag(|q| q.fues, |q, value| q.fues = value))}
+                            {chip(t.catalog.graded_chip, None, Toggle::flag(|q| q.graded, |q, value| q.graded = value))}
+                            {chip(t.catalog.limited_chip, None, Toggle::flag(|q| q.limited, |q, value| q.limited = value))}
+                            {chip(t.catalog.fues_list, None, Toggle::flag(|q| q.fues, |q, value| q.fues = value))}
                             // Marking works in the browser app only, so the filter is there only
                             // (R15); without it the chip would promise what no link can keep.
-                            {APP.then(|| chip("Gemerkt", Some("bookmark"), Toggle::flag(|q| q.marked, |q, value| q.marked = value)))}
+                            {APP.then(|| chip(t.catalog.saved_chip, Some("bookmark"), Toggle::flag(|q| q.marked, |q, value| q.marked = value)))}
                         </div>
                     </div>
 
                     <details class="fgroup more" open=more_open>
-                        <summary class="label">"Weitere Filter"</summary>
-                        <div class="flabel label">"Lehrende"</div>
+                        <summary class="label">{t.catalog.more_filters}</summary>
+                        <div class="flabel label">{t.catalog.lecturers}</div>
                         {lecturer_picker}
                         {move || {
                             let names = chosen_lecturers.get();
                             (!names.is_empty()).then(|| view! {
                                 <div class="people">{names.into_iter().map(person).collect_view()}</div>
-                                <p class="hint people-hint"><span><b>"+"</b>"mindestens eine dieser Personen"</span><span><b>"×"</b>"keine dieser Personen"</span></p>
+                                <p class="hint people-hint"><span><b>"+"</b>{t.catalog.people_any}</span><span><b>"×"</b>{t.catalog.people_none}</span></p>
                             })
                         }}
-                        <div class="flabel label">"Fachgebiet"</div>
+                        <div class="flabel label">{t.catalog.department}</div>
                         {department_picker}
-                        <div class="flabel label">"Dauer"</div>
-                        {segmented(query, open, fill, "Dauer", vec![
-                            Choice::new("Egal", |q| q.duration_semesters.is_none(), |q| q.duration_semesters = None),
-                            Choice::new("1 Semester", |q| q.duration_semesters == Some(1), |q| q.duration_semesters = Some(1)),
-                            Choice::new("2 Semester", |q| q.duration_semesters == Some(2), |q| q.duration_semesters = Some(2)),
-                        ])}
-                        <div class="flabel label">"Nur in bestimmten Jahren"</div>
-                        {segmented(query, open, fill, "Jahre", vec![
-                            Choice::new("Egal", |q| q.turnus.year_parity.is_none(), |q| q.turnus.year_parity = None),
-                            Choice::new("Gerade", |q| q.turnus.year_parity == Some(TurnusParity::Even), |q| q.turnus.year_parity = Some(TurnusParity::Even)),
-                            Choice::new("Ungerade", |q| q.turnus.year_parity == Some(TurnusParity::Odd), |q| q.turnus.year_parity = Some(TurnusParity::Odd)),
-                        ])}
-                        <div class="flabel label">"Standort"</div>
+                        <div class="flabel label">{t.catalog.duration}</div>
+                        {segmented(query, open, fill, t.catalog.duration, vec![
+                            Choice::new(t.catalog.any, |q| q.duration_semesters.is_none(), |q| q.duration_semesters = None),
+                            Choice::new((t.catalog.semesters)(1), |q| q.duration_semesters == Some(1), |q| q.duration_semesters = Some(1)),
+                            Choice::new((t.catalog.semesters)(2), |q| q.duration_semesters == Some(2), |q| q.duration_semesters = Some(2)),
+                        ], t)}
+                        <div class="flabel label">{t.catalog.years_only}</div>
+                        {segmented(query, open, fill, t.catalog.years, vec![
+                            Choice::new(t.catalog.any, |q| q.turnus.year_parity.is_none(), |q| q.turnus.year_parity = None),
+                            Choice::new(t.catalog.even, |q| q.turnus.year_parity == Some(TurnusParity::Even), |q| q.turnus.year_parity = Some(TurnusParity::Even)),
+                            Choice::new(t.catalog.odd, |q| q.turnus.year_parity == Some(TurnusParity::Odd), |q| q.turnus.year_parity = Some(TurnusParity::Odd)),
+                        ], t)}
+                        <div class="flabel label">{t.catalog.location}</div>
                         <div class="chips">
                             {[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg]
-                                .iter().map(|campus| chip(campus.label(crate::i18n::locale()), None, Toggle::in_lists(*campus, |q| (&q.campuses, &q.campuses_exclude), |q| (&mut q.campuses, &mut q.campuses_exclude)))).collect_view()}
+                                .iter().map(|campus| chip(campus.label(t.locale), None, Toggle::in_lists(*campus, |q| (&q.campuses, &q.campuses_exclude), |q| (&mut q.campuses, &mut q.campuses_exclude)))).collect_view()}
                         </div>
-                        <p class="hint">"Der Standort ist nur für Module mit Raumangaben in diesem Semester bekannt."</p>
+                        <p class="hint">{t.catalog.location_hint}</p>
                         {move || program.get().is_none().then(|| view! {
                             <div class="chips">
-                                {chip("Nicht mehr angebotene zeigen", None, Toggle {
+                                {chip(t.catalog.show_not_offered, None, Toggle {
                                     excludes: false,
                                     ..Toggle::new(
                                         |q| if q.offer.as_ref().is_some_and(|offer| offer.contains(&OfferStatus::NotOffered)) { Tri::With } else { Tri::Off },
@@ -2304,8 +2332,8 @@ fn Filters(
                     </details>
                 </div>
                 <div class="filter-actions">
-                    <button class="btn primary apply" type="submit">"Filter anwenden"</button>
-                    <a class="btn primary show" href="#" data-action="sheet-close">{move || format::count(facts.with(|f| f.total), crate::i18n::locale())}" Module anzeigen"</a>
+                    <button class="btn primary apply" type="submit">{t.catalog.apply}</button>
+                    <a class="btn primary show" href="#" data-action="sheet-close">{move || facts.with(|f| (t.catalog.show)(f.total, &format::count(f.total, t.locale)))}</a>
                 </div>
             </form>
         </aside>
@@ -2316,6 +2344,7 @@ fn Filters(
 /// exact values (they also are what a plain form submits).
 #[component]
 fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoView {
+    let t = i18n::t();
     let on_slider = |q: &CatalogQuery| {
         (q.credits_min.unwrap_or(0.0).clamp(0.0, CREDITS_MAX), q.credits_max.unwrap_or(CREDITS_MAX).clamp(0.0, CREDITS_MAX))
     };
@@ -2338,28 +2367,29 @@ fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoVi
         value
     };
     let typed = move |ev: &leptos::ev::Event| event_target_value(ev).trim().replace(',', ".").parse::<f64>().ok().filter(|n| n.is_finite() && *n >= 0.0);
+    let number = move |value: f64| format::number(value, t.locale);
     let summary = move || match (low.get(), high.get()) {
-        (a, b) if a <= 0.0 && b >= CREDITS_MAX => "alle".to_string(),
-        (a, b) if b >= CREDITS_MAX => format!("ab {} LP", format::number(a, crate::i18n::locale())),
-        (a, b) if a <= 0.0 => format!("bis {} LP", format::number(b, crate::i18n::locale())),
-        (a, b) if a == b => format!("{} LP", format::number(a, crate::i18n::locale())),
-        (a, b) => format!("{}–{} LP", format::number(a, crate::i18n::locale()), format::number(b, crate::i18n::locale())),
+        (a, b) if a <= 0.0 && b >= CREDITS_MAX => t.catalog.credits_all.to_string(),
+        (a, b) if b >= CREDITS_MAX => (t.format.credits)(&(t.catalog.credits_from)(&number(a))),
+        (a, b) if a <= 0.0 => (t.format.credits)(&(t.catalog.credits_up_to)(&number(b))),
+        (a, b) if a == b => (t.format.credits)(&number(a)),
+        (a, b) => (t.format.credits)(&format!("{}–{}", number(a), number(b))),
     };
 
     view! {
         <div class="fgroup credits">
-            <div class="flabel label">"Leistungspunkte"<span>{summary}</span></div>
+            <div class="flabel label">{t.catalog.credit_points}<span>{summary}</span></div>
             <div
                 class="slider js-only"
                 style=move || format!("--from:{:.4};--to:{:.4}", low.get() / CREDITS_MAX, high.get() / CREDITS_MAX)
                 // Both thumbs at the right end: the lower one has to be the one on top.
                 data-low-on-top=move || (low.get() > CREDITS_MAX / 2.0).then_some("")
             >
-                <input type="range" min="0" max="30" step="1" aria-label="Leistungspunkte mindestens"
+                <input type="range" min="0" max="30" step="1" aria-label=t.catalog.credits_min
                     value=start_low.to_string() prop:value=move || low.get().to_string()
                     on:input=move |ev| { dragged(&ev, true); }
                     on:change=move |ev| { let value = dragged(&ev, true); go.run(changed(query, |q| q.credits_min = (value > 0.0).then_some(value))) }/>
-                <input type="range" min="0" max="30" step="1" aria-label="Leistungspunkte höchstens"
+                <input type="range" min="0" max="30" step="1" aria-label=t.catalog.credits_max
                     value=start_high.to_string() prop:value=move || high.get().to_string()
                     on:input=move |ev| { dragged(&ev, false); }
                     on:change=move |ev| { let value = dragged(&ev, false); go.run(changed(query, |q| q.credits_max = (value < CREDITS_MAX).then_some(value))) }/>
@@ -2371,12 +2401,12 @@ fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoVi
                 }).collect_view()}
             </div>
             <div class="range">
-                <input type="number" name="ects_min" min="0" max="60" step="0.5" inputmode="decimal" aria-label="Leistungspunkte mindestens" placeholder="von"
+                <input type="number" name="ects_min" min="0" max="60" step="0.5" inputmode="decimal" aria-label=t.catalog.credits_min placeholder=t.catalog.from
                     value=query.with_untracked(|q| q.credits_min.map(|n| n.to_string()))
                     prop:value=move || query.with(|q| q.credits_min.map(|n| n.to_string()).unwrap_or_default())
                     on:change=move |ev| if APP { go.run(changed(query, |q| q.credits_min = typed(&ev))) }/>
                 <span>"–"</span>
-                <input type="number" name="ects_max" min="0" max="60" step="0.5" inputmode="decimal" aria-label="Leistungspunkte höchstens" placeholder="bis"
+                <input type="number" name="ects_max" min="0" max="60" step="0.5" inputmode="decimal" aria-label=t.catalog.credits_max placeholder=t.catalog.to
                     value=query.with_untracked(|q| q.credits_max.map(|n| n.to_string()))
                     prop:value=move || query.with(|q| q.credits_max.map(|n| n.to_string()).unwrap_or_default())
                     on:change=move |ev| if APP { go.run(changed(query, |q| q.credits_max = typed(&ev))) }/>
@@ -2396,11 +2426,13 @@ mod tests {
     #[test]
     fn mein_studiengang_heads_the_program_picker() {
         let programs = vec![ComboItem::new("bachelor-bwl-2021", "BWL", "B.Sc. · 2021", 1), ComboItem::new("bachelor-informatik-2008", "Informatik", "B.Sc. · 2008", 1)];
-        let listed = mine_first(&programs, Some("bachelor-informatik-2008"));
+        let heading = i18n::DE.catalog.my_program;
+        let listed = mine_first(&programs, Some("bachelor-informatik-2008"), heading);
         assert_eq!(listed.iter().map(|item| (item.id.as_str(), item.group.as_str())).collect::<Vec<_>>(), [("bachelor-informatik-2008", "Mein Studiengang"), ("bachelor-bwl-2021", ""), ("bachelor-informatik-2008", "")]);
+        assert_eq!(mine_first(&programs, Some("bachelor-bwl-2021"), i18n::EN.catalog.my_program).first().map(|item| item.group.as_str()), Some("My programme"));
         // None set, or a slug the picker does not know: the picker as it was.
-        assert_eq!(mine_first(&programs, None), programs);
-        assert_eq!(mine_first(&programs, Some("bachelor-weg-1999")), programs);
+        assert_eq!(mine_first(&programs, None, heading), programs);
+        assert_eq!(mine_first(&programs, Some("bachelor-weg-1999"), heading), programs);
     }
 
     fn switched_on(filter: FitsFilter) -> CatalogQuery {
@@ -2428,11 +2460,11 @@ mod tests {
     fn the_finder_asks_the_plan_only_when_it_is_on() {
         // Without the switch the query is left as it is.
         let plain = CatalogQuery { text: "analysis".to_string(), marked: Some(true), ..CatalogQuery::default() };
-        assert_eq!(with_fits(plain.clone(), None, None, None), Fitted { query: plain, ..Fitted::default() });
+        assert_eq!(with_fits(plain.clone(), None, None, None, &i18n::DE), Fitted { query: plain, ..Fitted::default() });
         // With it, but without a plan to check against (the server's page): no ids, which lists
         // nothing, and nothing to say at the rows.
         let on = switched_on(FitsFilter::all("2026W"));
-        let unknown = with_fits(on.clone(), None, None, None);
+        let unknown = with_fits(on.clone(), None, None, None, &i18n::DE);
         assert_eq!((unknown.query, unknown.view, unknown.failed), (on, FitView::default(), None));
     }
 
@@ -2441,7 +2473,7 @@ mod tests {
         // By default the modules checked that fit, with the notes of those that fit in part or
         // could not be checked.
         let filter = FitsFilter::all("2026W");
-        let checked = fitted(switched_on(filter.clone()), &filter, Some(&answer()));
+        let checked = fitted(switched_on(filter.clone()), &filter, Some(&answer()), &i18n::DE);
         assert_eq!(checked.query.fits_ids, Some(FitIds::Only(ids(&["12101", "12330", "12974", "13583"]))));
         assert_eq!(checked.query.text, "analysis");
         // A partial fit warns; what could not be checked, a retake alone included, is quiet.
@@ -2457,9 +2489,11 @@ mod tests {
         // „auch ohne Termine": every module but the clashing and the planned ones, and a module
         // that could not be checked says why — unless its row says so already.
         let undated = FitsFilter { undated: true, ..filter.clone() };
-        let also = fitted(switched_on(undated.clone()), &undated, Some(&answer()));
+        let also = fitted(switched_on(undated.clone()), &undated, Some(&answer()), &i18n::DE);
         assert_eq!(also.query.fits_ids, Some(FitIds::Without(ids(&["11103", "12104"]))));
         assert_eq!(also.view.note_of("13164", false), Some(("keine Termine im WiSe 2026/27".to_string(), true)));
+        let english = fitted(switched_on(undated.clone()), &undated, Some(&answer()), &i18n::EN);
+        assert_eq!(english.view.note_of("13164", false), Some(("no dates in Winter 2026/27".to_string(), true)));
         assert_eq!(also.view.note_of("11454", true), None);
         assert_eq!((also.view.note_of("12330", false), also.view.note_of("13583", false).map(|(_, quiet)| quiet)), (None, Some(false)));
 
@@ -2467,11 +2501,12 @@ mod tests {
         // above the list, nothing at the rows.
         let summer = FitsFilter::all("2027S");
         let unpublished = FitResult { has_data: false, excluded: ids(&["12204"]), ..FitResult::default() };
-        let open = fitted(switched_on(summer.clone()), &summer, Some(&unpublished));
+        let open = fitted(switched_on(summer.clone()), &summer, Some(&unpublished), &i18n::DE);
         assert_eq!(open.query.fits_ids, Some(FitIds::Without(ids(&["12204"]))));
         assert_eq!(open.view.line.as_deref(), Some("SoSe 2027: noch keine Termine veröffentlicht."));
+        assert_eq!(fitted(switched_on(summer.clone()), &summer, Some(&unpublished), &i18n::EN).view.line.as_deref(), Some("Summer 2027: no dates published yet."));
         assert_eq!(open.view.note_of("11454", false), None);
-        let open_too = fitted(switched_on(FitsFilter { undated: true, ..summer.clone() }), &summer, Some(&unpublished));
+        let open_too = fitted(switched_on(FitsFilter { undated: true, ..summer.clone() }), &summer, Some(&unpublished), &i18n::DE);
         assert_eq!(open_too.query.fits_ids, Some(FitIds::Without(ids(&["12204"]))));
     }
 
@@ -2513,23 +2548,29 @@ mod tests {
     #[test]
     fn what_the_finder_adds_to_the_list_stays_out_of_its_address() {
         let filter = FitsFilter { exams: false, ..FitsFilter::all("2026W") };
-        let mut query = fitted(switched_on(filter.clone()), &filter, Some(&answer())).query;
+        let mut query = fitted(switched_on(filter.clone()), &filter, Some(&answer()), &i18n::DE).query;
         query.only_ids = Some(ids(&["12330"]));
         query.without_ids = ids(&["11103"]);
         assert_eq!(addressed(&query), switched_on(filter));
         // The tag names the semester and takes the switch away with the rest of the list kept.
         let current = CatalogUrl { query: switched_on(FitsFilter::all("2026W")), fill: Some(3), ..CatalogUrl::default() };
-        let found = tags(&current, &[], &[]).into_iter().find(|(group, _, _)| group == "Passt in");
+        let found = tags(&current, &[], &[], &i18n::DE).into_iter().find(|(group, _, _)| group == "Passt in");
         let (_, value, without) = found.unwrap();
         assert_eq!((value.as_str(), without.path()), ("WiSe 2026/27", "/catalog?q=analysis&fill=p3".to_string()));
+        // In English the tag says the same in its words; the list it leads to is the same list.
+        let found = tags(&current, &[], &[], &i18n::EN).into_iter().find(|(group, _, _)| group == "Fits in");
+        let (_, value, without) = found.unwrap();
+        assert_eq!((value.as_str(), without.path()), ("Winter 2026/27", "/catalog?q=analysis&fill=p3".to_string()));
     }
 
     #[test]
     fn nothing_fits_names_what_to_leave_out() {
         let all = FitsFilter::all("2026W");
-        assert_eq!(fit_advice(&all), "Übungen oder Prüfungen abwählen.");
-        assert_eq!(fit_advice(&FitsFilter { exams: false, ..all.clone() }), "Übungen abwählen.");
-        assert_eq!(fit_advice(&FitsFilter { exercises: false, ..all.clone() }), "Prüfungen abwählen.");
-        assert_eq!(fit_advice(&FitsFilter { exercises: false, exams: false, ..all }), "Vorlesungen abwählen.");
+        let de = &i18n::DE;
+        assert_eq!(fit_advice(&all, de), "Übungen oder Prüfungen abwählen.");
+        assert_eq!(fit_advice(&FitsFilter { exams: false, ..all.clone() }, de), "Übungen abwählen.");
+        assert_eq!(fit_advice(&FitsFilter { exercises: false, ..all.clone() }, de), "Prüfungen abwählen.");
+        assert_eq!(fit_advice(&FitsFilter { exercises: false, exams: false, ..all.clone() }, de), "Vorlesungen abwählen.");
+        assert_eq!(fit_advice(&all, &i18n::EN), "Leave out exercises or exams.");
     }
 }
