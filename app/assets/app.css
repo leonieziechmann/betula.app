@@ -802,15 +802,18 @@ html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
      server gave it, so the line does not break anew at the takeover (R15). */
   .module-page > .hero .plan-toggle.mark-switch > small { display: none; }
 }
-/* On a phone the pair takes a line of its own, and the small line is the switch's second line,
-   in the switch's height: it has more room there than beside the label. It gives way on that
-   line instead of breaking the pair, so nothing moves when the app adds it (R15). */
+/* On a phone the pair takes a line of its own under the badges and fills it, each switch half of
+   it with its content in the middle (owner, 2026-09-27: kept at the line's right end, the two
+   stood oddly under the badges). The small line is the switch's second line, in the switch's
+   height: it has more room there than beside the label. It gives way on that line instead of
+   breaking the pair, so nothing moves when the app adds it (R15). */
 @media (max-width: 900px) {
-  .hero-line { flex-wrap: wrap; }
+  .hero-line { flex-wrap: wrap; row-gap: 10px; }
   .hero-line > .badges { padding: 0; row-gap: 6px; }
   .hero-line > .switches { flex-basis: 100%; flex-wrap: nowrap; }
+  .switches > .plan-toggle, .switches > .mark-toggle { flex: 1 1 0; justify-content: center; }
   .plan-toggle.mark-switch > span:first-of-type { min-width: 77px; }
-  .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 8px; align-content: center; }
+  .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, max-content); justify-content: center; gap: 0 8px; align-content: center; }
   .plan-toggle.mark-switch:has(> small) > .icon { grid-row: span 2; }
   .plan-toggle.mark-switch:has(> small) > span:first-of-type { line-height: 19px; }
   .plan-toggle.mark-switch > small { font-size: 12.5px; line-height: 16px; }

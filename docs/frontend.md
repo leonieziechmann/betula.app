@@ -211,7 +211,8 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
     (owner, 2026-09-20), in the preview and on its page, as a switch „Merken" / „Gemerkt" with
     its shortcut, beside „Einplanen" — where the line has no room for the two side by side, they
     stand one over the other at its end and the badges wrap in the rest of it (owner,
-    2026-09-26; on a phone the pair has a line of its own); and among the actions of the module
+    2026-09-26; on a phone the pair has a line of its own under the badges and fills it, half
+    each, owner 2026-09-27); and among the actions of the module
     page's sidebar, which stays in view while the page scrolls. All of them show one state.
     **`M`** marks what the visitor is at: the row the keyboard is on, else the module that is
     open. A marked module is neutral and strong (filled, inverted), like a chosen chip; the
@@ -1770,7 +1771,8 @@ drives a module in its two sizes. Desktop: preview → page with the sidebar exa
 filter panel was, the same order of sections in both, jumps without history entries, one width
 for sidebar and filter panel, Esc back to the list with the row in view. Phone: a tap opens the
 page directly, the page starts with times and facts, back returns to the tapped row deep in the
-endless list, a shared preview link becomes the page.
+endless list, a shared preview link becomes the page; „Einplanen" and „Merken" on a line of
+their own under the badges, filling it half each.
 
 ```bash
 cd e2e && node phone.mjs

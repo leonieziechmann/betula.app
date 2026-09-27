@@ -119,7 +119,8 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
 // ---------- „Einplanen" beside „Merken" ----------
 // Datenbanken (12330) has four badges, which leave the preview no room for the pair side by side:
 // there the two stand one over the other beside them, and on a phone they take a line of their
-// own. A plan in another semester and the finder's placeholder make the switch say more.
+// own and fill it, half each (owner, 2026-09-27). A plan in another semester and the finder's
+// placeholder make the switch say more.
 {
   const PLAN = "m\t2027S\t12330\t1790000000\t\np\t3\t2026W\t079-82-2008\t17\t1-1\t6\tfues\t\tFachübergreifendes Studium\n";
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
@@ -138,6 +139,10 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
       // Right of every badge, „Einplanen" on the middle of the credits; or under all of them.
       beside: plan.left >= Math.max(...badges.map((b) => b.right)) + 6 && Math.abs(middle(plan) - middle(badges[0])) <= 0.5,
       below: plan.top >= Math.max(...badges.map((b) => b.bottom)),
+      // On a line of their own the two fill it: „Einplanen" starts where the badges start, and
+      // both are as wide.
+      fill: Math.abs(plan.left - badges[0].left),
+      halves: Math.abs(plan.width - mark.width),
       tab: Boolean(line.querySelector(".plan-toggle").compareDocumentPosition(line.querySelector(".mark-toggle")) & Node.DOCUMENT_POSITION_FOLLOWING),
       note: line.querySelector(".plan-toggle > small")?.checkVisibility() ? line.querySelector(".plan-toggle > small").textContent : null,
       label: line.querySelector(".plan-toggle > span").textContent,
@@ -146,8 +151,10 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   }, [root, body]);
   const sideBySide = (seen) => seen.together <= 0.5 && Math.abs(seen.gap - 6) <= 0.5;
   const stacked = (seen) => Math.abs(seen.under - 6) <= 0.5 && seen.aligned <= 0.5;
-  // Beside the badges on a wide screen, never on a line of their own; under them on a phone.
-  const expect = (where, seen, onPhone = false) => check((sideBySide(seen) || stacked(seen)) && seen.edge <= 0.5 && (onPhone ? seen.below : seen.beside) && seen.tab, `${where}: „Einplanen" and „Merken" are not one pair at the right end, in order: ${JSON.stringify(seen)}`);
+  // Beside the badges on a wide screen, never on a line of their own; under them on a phone,
+  // filling that line.
+  const filled = (seen) => seen.below && sideBySide(seen) && seen.fill <= 0.5 && seen.halves <= 0.5;
+  const expect = (where, seen, onPhone = false) => check((sideBySide(seen) || stacked(seen)) && seen.edge <= 0.5 && (onPhone ? filled(seen) : seen.beside) && seen.tab, `${where}: „Einplanen" and „Merken" are not one pair at the right end${onPhone ? ", filling their line" : ""}, in order: ${JSON.stringify(seen)}`);
   const preview = ["#preview", "#preview .dbody .section"];
   const onPage = [".module-page", ".module-grid > aside .section"];
 
