@@ -1,5 +1,6 @@
-//! The sidebar group „Kalender" (design A.8, D.9): the semester as an .ics file, and as an address
-//! a calendar service fetches by itself.
+//! The group „Kalender" (design A.8, D.9): the semester as an .ics file, and as an address a
+//! calendar service fetches by itself. It stands in the sidebar, on a phone under the Termine
+//! (`mod.rs`: the sidebar is the sheet „Anpassen" there).
 //!
 //! The file is made in the browser, from the page's own data and timetable, by the function the
 //! feed uses (`StudyplanData::calendar`), so a download and a subscription of the same plan carry

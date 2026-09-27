@@ -3,7 +3,9 @@
 //! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then its view, what is
 //! shown, the Standort and its calendar, and last „Plan": save the timetable under a name, load or
 //! delete a saved one, hand it on by a link (`share.rs`), empty it. The storage hint under it is
-//! `mod.rs`'s, the same on the server.
+//! `mod.rs`'s, the same on the server. On a phone the sidebar is a sheet, „Anpassen", and the
+//! calendar is not in it: it stands under the Termine (`mod.rs`, owner 2026-09-27: among what is
+//! shown nobody looks for it).
 //!
 //! The groups stay where they are, whatever is planned (owner, 2026-09-25: „Da sollte sich das
 //! Layout nicht viel shiften"): with nothing to show or to do a group says so or greys its control
@@ -62,7 +64,9 @@ pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
         <ViewGroup ctx/>
         <KindsGroup ctx/>
         <TownGroup ctx/>
-        <CalendarGroup ctx/>
+        // On a phone the sidebar is the sheet „Anpassen", and the calendar stands under the Termine
+        // instead (`SemesterView`).
+        {move || (!ctx.phone.get()).then(|| view! { <CalendarGroup ctx/> })}
         <PlanGroup ctx program=programs.shown imported/>
     }
 }

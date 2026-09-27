@@ -4,15 +4,17 @@
 //! weekday and time in the week grid (`crate::week`, fitted to the page's height), and the dates of
 //! an event that do not recur gathered into one slot („3 Termine"). The week is there before
 //! anything is planned, an empty frame with „Noch keine Termine" in its middle and the ways to
-//! modules under it (`NothingPlanned`, owner 2026-09-25). A slot says in
-//! three lines what and whose („VL EvS"), when and in which weeks („07:30–09:00 A") and where
-//! („ZHG/HS.C"); its tooltip says the rest. Each slot is a link to its module beside the plan,
-//! pointing at that Termin (`open`, `row`). A phone has no room for five columns: there the same
-//! slots are a list of days. What has no fixed time stands under „Ohne feste Zeit", once for the
-//! semester, under the fold (`WeekLoose`). Where the plan has Termine of A or B weeks only,
-//! „A-Woche · B-Woche · A/B" in the head shows one kind of week or both (`PlanCtx::weeks`); a slot
-//! that overlaps another in the week shown is red and names the other in its tooltip (owner's
-//! redesign of 2026-09-25).
+//! modules under it (`NothingPlanned`, owner 2026-09-25; on a phone the words and the ways alone,
+//! the page shorter than the screen). A slot says in three lines what and whose („VL EvS"), when
+//! and in which weeks („07:30–09:00 A") and where („ZHG/HS.C"); its tooltip says the rest. Each
+//! slot is a link to its module beside the plan, pointing at that Termin (`open`, `row`). A phone
+//! has the grid too, as wide as its screen and as tall as it leaves it (owner, 2026-09-27), and
+//! under it the same slots as a list of days, closed until asked for, whose rows are large enough
+//! for a finger and its buttons. What has no fixed time stands under „Ohne feste Zeit", once for
+//! the semester, under the fold (`WeekLoose`). Where the plan has Termine of A or B weeks only,
+//! „A-Woche · B-Woche · A/B" in the head shows one kind of week or both (`PlanCtx::weeks`), on a
+//! phone the tabs of a carousel of the three (`WeekCarousel`); a slot that overlaps another in the
+//! week shown is red and names the other in its tooltip (owner's redesign of 2026-09-25).
 //!
 //! What to do with a Termin is decided right on it (owner, 2026-09-25: „ja der fliegt raus, die
 //! Übung möchte ich", without the module beside the plan, and without a menu in between): „✓"
@@ -65,7 +67,6 @@ use super::head::{hue, kind_word, tone_at, NothingPlanned};
 use super::PlanCtx;
 use crate::format;
 use crate::nav;
-use crate::pages::catalog::phone_layout;
 use crate::pending::Pending;
 use crate::ui::Icon;
 use crate::week::{slot_buttons, GridSlot, SlotButton, WeekGrid};
@@ -73,18 +74,24 @@ use crate::week::{slot_buttons, GridSlot, SlotButton, WeekGrid};
 /// Where this browser tab remembers the link the visitor last left a view by (`Place`).
 const LEFT_KEY: &str = "betula.studyplan.left";
 
+/// The id of a phone's list of days, which its line opens.
+const DAYS_ID: &str = "sp-days";
+
 const WEEKDAYS: [&str; 7] = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
 /// The module and the Termin the address puts beside the plan: what a slot or a row is marked by.
 type Picked = (Option<String>, Option<RowKey>);
 
 /// „Woche": the Regelwoche as a grid that fits the page's height (`WeekGrid`'s `fit`, in
-/// `div.sp-week`), on a phone as a list of days (in `div.sp-days`); with „Alle Termine" what the
-/// plan leaves out besides, faint. A slot's buttons change the plan right there (`SlotAct`).
+/// `div.sp-week`), on a phone as a grid that fits the screen over the list of its days (in
+/// `div.sp-days`, closed until its line opens it, `PlanCtx::days`), a carousel of its weeks where
+/// the plan has A or B weeks (`WeekCarousel`); with „Alle Termine" what the plan leaves out
+/// besides, faint. A slot's buttons change the plan right there (`SlotAct`), on a phone a row's.
 /// Without a planned module, the empty week and in its middle what is to do (`NothingPlanned`,
-/// with the marked modules the semester could take, `marked`). What has no fixed time stands
-/// under the page's fold (`WeekLoose`), the switches of the Termine shown and of A and B weeks in
-/// the head (`AllSwitch`, `WeekSwitch`).
+/// with the marked modules the semester could take, `marked`), on a phone what is to do alone.
+/// What has no fixed time stands under the page's fold (`WeekLoose`), the switches of the Termine
+/// shown and of A and B weeks in the head (`AllSwitch`, `WeekSwitch`; on a phone the weeks are the
+/// carousel's tabs).
 #[component]
 pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> impl IntoView {
     let base = base_of(ctx);
@@ -92,9 +99,19 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> imp
     // What the slots name the modules by, their abbreviations („EvS"; owner, 2026-09-25: only where
     // no title fits): a sibling of the timetable, both derived from the semester's data (R16).
     let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default()));
+    // The slots of each week (`WEEKS`): a phone's carousel shows all three at once. A memo is
+    // worked out only where it is read, so a wide screen works out the week it shows alone.
+    let weeks = WEEKS.map(|(week, _)| {
+        let slots = Memo::new(move |_| {
+            let (base, all) = (base.get(), ctx.all.get());
+            titles.with(|titles| ctx.table.with(|table| table.as_ref().map(|table| week_slots(table, &base, titles, week, all)).unwrap_or_default()))
+        });
+        (week, slots)
+    });
+    // The week shown (`PlanCtx::weeks`): the grid's, the list's and the buttons'.
     let slots = Memo::new(move |_| {
-        let (base, shown, all) = (base.get(), ctx.weeks.get(), ctx.all.get());
-        titles.with(|titles| ctx.table.with(|table| table.as_ref().map(|table| week_slots(table, &base, titles, shown, all)).unwrap_or_default()))
+        let shown = ctx.weeks.get();
+        weeks.iter().find(|(week, _)| *week == shown).map(|(_, slots)| slots.get()).unwrap_or_default()
     });
     let empty = Memo::new(move |_| ctx.wanted.with(|wanted| wanted.1.is_empty()));
     let nothing = move || empty.get().then(|| view! { <NothingPlanned ctx marked/> });
@@ -107,14 +124,43 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> imp
         let semester = ctx.key.get_untracked();
         plan.update_after_paint(move |doc| act.apply(doc, semester));
     };
-    let phone = phone_layout();
+    // On a phone the list of days is closed until asked for (owner, 2026-09-27): the grid over it
+    // shows the week. Its line says how many Termine it holds.
+    let rows = Memo::new(move |_| slots.with(Vec::len));
     let week = move || {
-        if phone.get() {
+        // A phone with nothing planned says what to do where the week will stand, and the page
+        // stays shorter than the screen: an empty week would take all of it.
+        if ctx.phone.get() && empty.get() {
+            return view! { <NothingPlanned ctx marked/> }.into_any();
+        }
+        if ctx.phone.get() {
             return view! {
-                <div class="sp-days" on:click=act>
-                    <DayList slots picked/>
-                </div>
-                {nothing}
+                <WeekCarousel ctx weeks shown=slots picked/>
+                {move || {
+                    (rows.get() > 0).then(|| {
+                        view! {
+                            <button
+                                class="sp-days-toggle"
+                                type="button"
+                                aria-expanded=move || if ctx.days.get() { "true" } else { "false" }
+                                aria-controls=DAYS_ID
+                                on:click=move |_| ctx.days.update(|open| *open = !*open)
+                            >
+                                "Termine als Liste"
+                                <span class="num">{move || format!("({})", rows.get())}</span>
+                            </button>
+                        }
+                    })
+                }}
+                {move || {
+                    (ctx.days.get() && rows.get() > 0).then(|| {
+                        view! {
+                            <div class="sp-days" id=DAYS_ID on:click=act>
+                                <DayList slots picked/>
+                            </div>
+                        }
+                    })
+                }}
             }
             .into_any();
         }
@@ -145,6 +191,185 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> imp
     week
 }
 
+/// The Regelwoche on a phone and a small screen (owner, 2026-09-27: „Es gibt keine Wochenansicht
+/// beim Kalender auf dem Smartphone"): the grid of a wide screen, as wide as the screen and as tall
+/// as it leaves it, over the list of its days (closed until asked for). Where the plan has Termine
+/// of A or B weeks only (`has_ab`), a carousel of the three weeks „A-Woche", „B-Woche" and „A/B",
+/// as the pictures of the start page are one (`home.rs`), with the tabs under it: the week shown
+/// fills the screen's width, another one comes with a swipe, the finger carrying the weeks, or with
+/// its tab. They stand in the order of the head's switch and do not go round: the three are no
+/// cycle. The week shown is the page's (`PlanCtx::weeks`), which the list under the carousel
+/// follows. Without A or B weeks the three would be one and the same: the grid alone. Its slots are
+/// links to their module (on a phone the module is the page); their buttons are the list's, as
+/// large as a finger (in a day's narrow column they would cover the slot). With nothing planned
+/// there is no week (`WeekView`).
+#[component]
+fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: Memo<Vec<PlanSlot>>, picked: Memo<Picked>) -> impl IntoView {
+    let ab = Memo::new(move |_| ctx.table.with(|table| table.as_ref().is_some_and(has_ab)));
+    let current = Memo::new(move |_| week_at(ctx.weeks.get()));
+    // A grid of the carousel: its slots, the one beside the plan marked, without buttons.
+    let grid = move |slots: Memo<Vec<PlanSlot>>| {
+        Signal::derive(move || {
+            let picked = picked.get();
+            slots.with(|slots| slots.iter().map(|slot| GridSlot { current: slot.row.is(&picked), acts: Vec::new(), asks: false, ..slot.slot.clone() }).collect::<Vec<_>>())
+        })
+    };
+    // To the week at `to` of `WEEKS`; the ends stay where they are.
+    let go = move |to: usize| {
+        if let Some((week, _)) = WEEKS.get(to) {
+            ctx.weeks.set(*week);
+        }
+    };
+    // A finger that moves sideways further than up or down carries the weeks with it (`drag`, in
+    // pixels; the page scrolls under any other move), less where no week lies beyond. Let go
+    // further than `SWIPE`, the next week or the one before comes, else the week goes back. It
+    // ends in a click on what lay under the finger, and that click opens nothing.
+    let start = StoredValue::new(None::<(i32, i32)>);
+    let carried = StoredValue::new(false);
+    let drag = RwSignal::new(0i32);
+    let dragging = RwSignal::new(false);
+    let down = move |ev: leptos::ev::PointerEvent| {
+        carried.set_value(false);
+        start.set_value(Some((ev.client_x(), ev.client_y())));
+    };
+    let moving = move |ev: leptos::ev::PointerEvent| {
+        let Some((x, y)) = start.get_value() else { return };
+        let (dx, dy) = (ev.client_x() - x, ev.client_y() - y);
+        if !dragging.get_untracked() {
+            if dx.abs() < DRAG || dx.abs() <= dy.abs() {
+                return;
+            }
+            carried.set_value(true);
+            dragging.set(true);
+        }
+        let now = current.get_untracked();
+        let beyond = (dx > 0 && now == 0) || (dx < 0 && now + 1 >= WEEKS.len());
+        drag.set(if beyond { dx / 3 } else { dx });
+    };
+    let up = move |ev: leptos::ev::PointerEvent| {
+        let Some((x, y)) = start.get_value() else { return };
+        start.set_value(None);
+        dragging.set(false);
+        drag.set(0);
+        let (dx, dy) = (ev.client_x() - x, ev.client_y() - y);
+        if dx.abs() > SWIPE && dx.abs() > dy.abs() {
+            carried.set_value(true);
+            let now = current.get_untracked();
+            go(if dx < 0 { now + 1 } else { now.wrapping_sub(1) });
+        }
+    };
+    let cancel = move |_| {
+        start.set_value(None);
+        dragging.set(false);
+        drag.set(0);
+    };
+    let click = move |ev: leptos::ev::MouseEvent| {
+        if carried.get_value() {
+            carried.set_value(false);
+            ev.prevent_default();
+            return;
+        }
+        remember(Within::Grid, &ev);
+    };
+    // A week of the carousel, named by `label`; the grid alone has no name but the page's.
+    let slide = move |at: Signal<i32>, label: Option<&'static str>, slots: Memo<Vec<PlanSlot>>| {
+        view! {
+            <div
+                class="sp-slide"
+                class:is-current=move || at.get() == 0
+                class:is-side=move || at.get().abs() == 1
+                class:is-far=move || { at.get().abs() > 1 }
+                style=move || format!("--at:{};--drag:{}px", at.get(), drag.get())
+                role=label.map(|_| "group")
+                aria-roledescription=label.map(|_| "Woche")
+                aria-label=label
+                inert=move || (at.get() != 0).then_some("")
+            >
+                <div class="sp-week">
+                    <WeekGrid slots=grid(slots) fit=true/>
+                </div>
+            </div>
+        }
+    };
+    move || {
+        if !ab.get() {
+            // One week: the grid alone.
+            return view! {
+                <div class="sp-carousel" on:click=move |ev| remember(Within::Grid, &ev)>
+                    {slide(Signal::stored(0), None, shown)}
+                </div>
+            }
+            .into_any();
+        }
+        let slides = WEEKS
+            .into_iter()
+            .zip(weeks)
+            .enumerate()
+            .map(|(i, ((_, label), (_, slots)))| {
+                // Its place counted from the week shown: 0 in the middle, ±1 at the sides, ±2 out of
+                // sight at the side it lies on.
+                let at = Signal::derive(move || place_of(i, current.get()));
+                slide(at, Some(label), slots)
+            })
+            .collect_view();
+        view! {
+            // A link dragged with a mouse would leave the page's hands (the browser's own drag
+            // cancels the pointer): the slots are not dragged.
+            <div
+                class="sp-carousel"
+                class:dragging=move || dragging.get()
+                aria-roledescription="Karussell"
+                aria-label="Wochen"
+                on:pointerdown=down
+                on:pointermove=moving
+                on:pointerup=up
+                on:pointerleave=up
+                on:pointercancel=cancel
+                on:click=click
+                on:dragstart=|ev| ev.prevent_default()
+            >
+                {slides}
+            </div>
+            // The tabs name the weeks; the mark of the one shown slides to it (`--i`).
+            <div class="seg sp-weektabs" role="radiogroup" aria-label="Woche" style=move || format!("--i:{}", current.get())>
+                <i class="sp-weekmark" aria-hidden="true"></i>
+                {WEEKS
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, (week, label))| {
+                        view! {
+                            <button type="button" role="radio" aria-checked=move || if current.get() == i { "true" } else { "false" } on:click=move |_| ctx.weeks.set(week)>
+                                {label}
+                            </button>
+                        }
+                    })
+                    .collect_view()}
+            </div>
+        }
+        .into_any()
+    }
+}
+
+/// The weeks a Regelwoche can show, in the order of the head's switch and of a phone's carousel.
+const WEEKS: [(Weeks, &str); 3] = [(Weeks::A, "A-Woche"), (Weeks::B, "B-Woche"), (Weeks::All, "A/B")];
+
+/// How far a finger moves sideways, in pixels, before it carries the carousel's weeks, and how far
+/// it carries them before letting go brings another week.
+const DRAG: i32 = 8;
+const SWIPE: i32 = 40;
+
+/// The place of `week` among `WEEKS`.
+fn week_at(week: Weeks) -> usize {
+    WEEKS.iter().position(|(shown, _)| *shown == week).unwrap_or(WEEKS.len() - 1)
+}
+
+/// Where the slide `i` of the carousel stands while the one at `current` is shown: 0 in the
+/// middle, ±1 at its sides, ±2 for any further out, out of sight on the side it lies on.
+fn place_of(i: usize, current: usize) -> i32 {
+    let signed = |n: usize| i32::try_from(n).unwrap_or(i32::MAX);
+    (signed(i) - signed(current)).clamp(-2, 2)
+}
+
 /// „Ohne feste Zeit": what of the Regelwoche has no fixed time, once for the semester. It stands
 /// under the fold, so that the week keeps the room above it.
 #[component]
@@ -170,7 +395,7 @@ pub(super) fn WeekSwitch(weeks: RwSignal<Weeks>) -> impl IntoView {
     };
     view! {
         <div class="seg sp-weeks" role="radiogroup" aria-label="Woche">
-            {[(Weeks::A, "A-Woche"), (Weeks::B, "B-Woche"), (Weeks::All, "A/B")].into_iter().map(choice).collect_view()}
+            {WEEKS.into_iter().map(choice).collect_view()}
         </div>
     }
 }
@@ -375,11 +600,12 @@ fn come_back(left: &StudyplanUrl, week: Option<String>) {
 }
 
 /// What holds a link a view is left by: a week of the agenda (its anchor), the phone's list of
-/// days, the lines without a fixed time or date.
+/// days, the phone's grid of the week, the lines without a fixed time or date.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Within {
     Week(String),
     Days,
+    Grid,
     Loose,
 }
 
@@ -393,11 +619,12 @@ struct Place {
 }
 
 impl Place {
-    /// „kw-2026-50 /studyplan?…", „days /studyplan?…", „loose /studyplan?…".
+    /// „kw-2026-50 /studyplan?…", „days /studyplan?…", „grid /studyplan?…", „loose /studyplan?…".
     fn stored(&self) -> String {
         let within = match &self.within {
             Within::Week(id) => id.as_str(),
             Within::Days => "days",
+            Within::Grid => "grid",
             Within::Loose => "loose",
         };
         format!("{within} {}", self.href)
@@ -410,6 +637,7 @@ impl Place {
         let (within, href) = text.split_once(' ')?;
         let within = match within {
             "days" => Within::Days,
+            "grid" => Within::Grid,
             "loose" => Within::Loose,
             id if is_week_id(id) => Within::Week(id.to_string()),
             _ => return None,
@@ -419,11 +647,14 @@ impl Place {
         ours.then(|| Place { within, href: href.to_string() })
     }
 
-    /// The link in the page: `#kw-2026-50 a[href="…"]`, `.sp-daylist a[href="…"]`.
+    /// What the page shows again: the link, `#kw-2026-50 a[href="…"]`, `.sp-daylist a[href="…"]`;
+    /// of the phone's grid the whole week it was on (a slot in its middle would leave the rest of
+    /// the week above or under the screen).
     fn selector(&self) -> String {
         let within = match &self.within {
             Within::Week(id) => format!("#{id}"),
             Within::Days => ".sp-daylist".to_string(),
+            Within::Grid => return ".sp-carousel".to_string(),
             Within::Loose => ".sp-loose".to_string(),
         };
         format!("{within} a[href=\"{}\"]", self.href)
@@ -432,7 +663,7 @@ impl Place {
     fn week(&self) -> Option<&str> {
         match &self.within {
             Within::Week(id) => Some(id),
-            Within::Days | Within::Loose => None,
+            Within::Days | Within::Grid | Within::Loose => None,
         }
     }
 
@@ -925,7 +1156,8 @@ fn day_groups(rows: impl IntoIterator<Item = DayRow>) -> Vec<(u8, Vec<DayRow>)> 
     days.into_iter().collect()
 }
 
-/// The Regelwoche on a phone: a list of days, each Termin a row as tall as a finger.
+/// The Regelwoche on a phone, under its grid: a list of days, each Termin a row as tall as a
+/// finger, with its buttons.
 #[component]
 fn DayList(slots: Memo<Vec<PlanSlot>>, picked: Memo<Picked>) -> impl IntoView {
     let groups = Memo::new(move |_| slots.with(|slots| day_groups(slots.iter().map(|slot| slot.row.clone()))));
@@ -2096,6 +2328,19 @@ mod tests {
     }
 
     #[test]
+    fn the_carousel_of_a_phone_holds_its_weeks_in_a_row() {
+        // „A-Woche", „B-Woche", „A/B", as the head's switch has them; a week it does not know is
+        // „A/B", the page's default.
+        assert_eq!(WEEKS.map(|(week, _)| week_at(week)), [0, 1, 2]);
+        assert_eq!(WEEKS.map(|(_, label)| label), ["A-Woche", "B-Woche", "A/B"]);
+        // The week shown in the middle, its neighbours at its sides; they do not go round, so a
+        // week two away waits out of sight on its own side.
+        assert_eq!([0, 1, 2].map(|i| place_of(i, 2)), [-2, -1, 0]);
+        assert_eq!([0, 1, 2].map(|i| place_of(i, 1)), [-1, 0, 1]);
+        assert_eq!([0, 1, 2].map(|i| place_of(i, 0)), [0, 1, 2]);
+    }
+
+    #[test]
     fn a_view_remembers_the_link_it_was_left_by() {
         let href = "/studyplan?sem=2026W&view=dates&open=12104&row=148701-b7025";
         let place = Place { within: Within::Week("kw-2026-50".into()), href: href.into() };
@@ -2106,6 +2351,10 @@ mod tests {
         assert_eq!(Place::restored(&days.stored()), Some(days.clone()));
         assert_eq!((days.selector().as_str(), days.week()), (".sp-daylist a[href=\"/studyplan?open=12104\"]", None));
         assert_eq!(Place::restored("loose /studyplan?view=dates&open=12107").map(|place| place.within), Some(Within::Loose));
+        // Of the phone's grid the whole week comes back, not the slot.
+        let grid = Place { within: Within::Grid, href: "/studyplan?open=12104&row=148701-b7025".into() };
+        assert_eq!(Place::restored(&grid.stored()), Some(grid.clone()));
+        assert_eq!((grid.selector().as_str(), grid.week()), (".sp-carousel", None));
         // What is read back is checked: a week's anchor, a link of the plan, nothing that would
         // break out of the selector.
         for bad in ["kw-2026 /studyplan?open=1", "week /studyplan?open=1", "days /catalog?open=1", "days /studyplan?open=1\"]", "days /studyplanx", "days"] {
