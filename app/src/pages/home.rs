@@ -805,11 +805,11 @@ fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
             let relatives = map.relatives(i);
             let named: Vec<String> = relatives.iter().take(2).filter_map(|(other, shared)| map.programs.get(*other).map(|other| format!("{shared} mit {}", other.name))).collect();
             // Beside the map on a wide screen there is room for the closest five, one per line.
-            let closest: Vec<(String, usize)> = relatives.iter().take(5).filter_map(|(other, shared)| map.programs.get(*other).map(|other| (other.title(), *shared))).collect();
+            let closest: Vec<(String, usize)> = relatives.iter().take(5).filter_map(|(other, shared)| map.programs.get(*other).map(|other| (other.title(crate::i18n::locale()), *shared))).collect();
             let is_picked = picked.get() == Some(i);
             view! {
                 <span class="cap-text">
-                    <b>{program.title()}</b>
+                    <b>{program.title(crate::i18n::locale())}</b>
                     <span class="quiet">{format!("{} Module{faculty}", program.modules)}<span class="cap-shares">{(!named.is_empty()).then(|| format!(" · teilt {}", named.join(", ")))}</span></span>
                 </span>
                 {(!closest.is_empty()).then(|| view! {
@@ -877,7 +877,7 @@ fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
                 {map.programs.iter().zip(layout.dots.iter()).enumerate().map(|(i, (program, (x, y, r)))| {
                     let program_faculty = program.faculty;
                     let faculty = program.faculty.and_then(|f| map.faculties.get(f)).map(|f| format!(" · Fakultät {}", f.code)).unwrap_or_default();
-                    let label = format!("{} · {} Module{faculty}", program.title(), program.modules);
+                    let label = format!("{} · {} Module{faculty}", program.title(crate::i18n::locale()), program.modules);
                     let tooltip = label.clone();
                     let class = match program.cycle {
                         Cycle::Bachelor => "map-dot bachelor",
@@ -900,7 +900,7 @@ fn MapStage(map: Arc<ProgramMap>) -> impl IntoView {
                 {layout.regions.iter().map(|region| {
                     let f = region.faculty;
                     view! {
-                        <g><text class=format!("map-faculty {}", faculty_class(&map, f)) class:shown=move || picked_faculty.get() == Some(f) x=px(region.x) y=px(region.y) text-anchor=region.anchor.code()>{region.label.clone()}</text></g>
+                        <g><text class=format!("map-faculty {}", faculty_class(&map, f)) class:shown=move || picked_faculty.get() == Some(f) x=px(region.x) y=px(region.y) text-anchor=region.anchor.code()>{region.label(&map, crate::i18n::locale())}</text></g>
                     }
                 }).collect_view()}
             </svg>

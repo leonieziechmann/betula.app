@@ -157,7 +157,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
     let id = Memo::new(move |_| program.with(|program| program.as_ref().map(|program| program.id.clone())));
     let plans = Memo::new(move |_| {
         let Some(id) = id.get() else { return Plans::NoProgram };
-        match ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::plan_source(db, &id)).ok().flatten())) {
+        match ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::plan_source(db, &id, crate::i18n::locale())).ok().flatten())) {
             Some(plans) if !plans.variants.is_empty() => Plans::Found(Box::new(plans)),
             _ => Plans::NoPlan,
         }

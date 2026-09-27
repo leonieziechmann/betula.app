@@ -670,6 +670,7 @@ mod tests {
     fn a_calendar_without_entries_says_why() {
         let data = |semester: &str| StudyplanData {
             key: key(semester),
+            locale: crate::i18n::locale(),
             label: key(semester).label(crate::i18n::locale()),
             semester: None,
             meta: Meta { current_semester: Some("2026W".into()), data_changed_at: Some("2026-09-23T12:35:16Z".into()), ..Default::default() },

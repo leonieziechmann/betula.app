@@ -199,7 +199,7 @@ pub fn catalog_href(info: Option<&MyProgramInfo>) -> String {
 /// whose caption was stored, the first where none or none of that caption is.
 pub fn program_href(source: Option<&Source>, program: &Program, caption: Option<&str>, direction: Option<&str>) -> String {
     let place = caption.filter(|caption| !caption.trim().is_empty()).and_then(|caption| {
-        let plans = source?.run(|db| pages::plan_source(db, &program.id)).ok()??;
+        let plans = source?.run(|db| pages::plan_source(db, &program.id, crate::i18n::locale())).ok()??;
         ProgramPlans::new(&plans.variants, plans.supplements).place(caption, direction)
     });
     ProgramUrl::new(&program.slug, ProgramTab::Plan).with_variant(place.map_or(1, |place| place.shown() + 1)).path()
@@ -551,7 +551,7 @@ mod tests {
     fn a_link_to_mein_studiengang_shows_the_kept_plan() {
         let source = snapshot();
         let program = |id: &str| source.run(|db| pages::my_program(db, id)).unwrap().expect("the program is in the snapshot").program;
-        let plans = |id: &str| source.run(|db| pages::plan_source(db, id)).unwrap().expect("the program has plans");
+        let plans = |id: &str| source.run(|db| pages::plan_source(db, id, catalog::Locale::De)).unwrap().expect("the program has plans");
 
         let elektrotechnik = program("048-82-2022");
         let two = plans("048-82-2022");

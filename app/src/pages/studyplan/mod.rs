@@ -193,7 +193,7 @@ pub fn StudyplanPage() -> impl IntoView {
     let data = Memo::new(move |_| {
         let (key, ids, program) = wanted.get();
         source.with_value(|source| match source {
-            Some(source) => source.run(|db| pages::studyplan_in(db, key, &ids, program.as_deref())),
+            Some(source) => source.run(|db| pages::studyplan_in(db, key, &ids, program.as_deref(), crate::i18n::locale())),
             None => Err(DataError { unavailable: true, message: "no data source was provided".to_string() }),
         })
     });
@@ -389,7 +389,7 @@ fn PlanSeo() -> impl IntoView {
     move || {
         let shared = code.get().and_then(|code| {
             let plan = SharedPlan::from_code(&code)?;
-            let data = source.as_ref()?.run(|db| pages::shared_plan(db, &plan)).ok()??;
+            let data = source.as_ref()?.run(|db| pages::shared_plan(db, &plan, crate::i18n::locale())).ok()??;
             (!data.modules.is_empty()).then_some((code, data))
         });
         match shared {

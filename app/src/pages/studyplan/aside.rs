@@ -308,7 +308,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
         let loaded = match place.sem {
             Some(sem) if sem == place.shown => Loaded::Page,
             Some(sem) => Loaded::Other(ctx.source.with_value(|source| match source {
-                Some(source) => source.run(|db| pages::studyplan(db, sem, &place.ids)),
+                Some(source) => source.run(|db| pages::studyplan(db, sem, &place.ids, crate::i18n::locale())),
                 None => Err(unavailable()),
             })),
             None => Loaded::Nowhere(ctx.source.with_value(|source| match source {

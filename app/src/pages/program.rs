@@ -235,7 +235,7 @@ pub fn ProgramPage() -> impl IntoView {
 /// clicked — or, as `page`, what fills the page on a phone. With nothing picked nothing stands
 /// beside the page (`ui::Frame`).
 fn picked_panel(data: &ProgramData, variant: usize, area: Option<i64>, req: Option<usize>, links: Memo<ProgramUrl>, page: bool) -> AnyView {
-    let plans = plan_variants(&data.plan_entries, &data.plan_totals);
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals, crate::i18n::locale());
     let areas = area_groups(&data.areas);
     let known = pages::catalog_areas(&data.areas, &data.area_tree);
     let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
@@ -327,7 +327,7 @@ fn ProgramSidebar(
     // „Mein Studiengang" and the Studienplan take the plan shown: its Studienrichtung is what the
     // store keeps (a page that fills a core plan's row: the core, with the page as its direction),
     // and „In den Stundenplan" takes it over (A.10). Only the plan's tab shows one.
-    let plans = plan_variants(&data.plan_entries, &data.plan_totals);
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals, crate::i18n::locale());
     let count = plans.len();
     let mine_plans = ProgramPlans::new(&plans, variants::supplements(&plans));
     let shown = Signal::derive(move || (tab == ProgramTab::Plan && count > 0).then(|| variant.get().saturating_sub(1)));
@@ -459,7 +459,7 @@ fn ProgramView(
     req: Memo<Option<usize>>,
 ) -> impl IntoView {
     let p = data.program.clone();
-    let plans = plan_variants(&data.plan_entries, &data.plan_totals);
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals, crate::i18n::locale());
     let description = format!(
         "{} ({}, PO {}) an der BTU Cottbus-Senftenberg: {} Module, Regelstudienplan, Wahlpflichtbereiche und Ordnungen.",
         p.name,
@@ -1452,13 +1452,13 @@ fn catalog_for(data: &ProgramData, variant: usize, area: Option<i64>, req: Optio
         let name = known.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| "Bereich".to_string());
         return (scoped(ProgramScope { areas: vec![id], ..base }), name);
     }
-    let plans = plan_variants(&data.plan_entries, &data.plan_totals);
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals, crate::i18n::locale());
     let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
     let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row.checked_sub(1)?).map(|entry| (entry, plan))));
     let Some((entry, plan)) = row else {
         return (scoped(base), format!("{} Module", data.program.curricular_modules));
     };
-    let (query, what) = variants::row_query(&data.program.slug, plan, entry, &known);
+    let (query, what) = variants::row_query(&data.program.slug, plan, entry, &known, crate::i18n::locale());
     (path(query), what)
 }
 
@@ -1892,7 +1892,7 @@ mod tests {
             total(3, "Summe Studium", "plan", 5, 6, 56.0, 42.0, 84.0, vec![2, 3, 4, 5]),
         ];
         // The semesters the plan sums together have one figure between them, not none each.
-        let plans = plan_variants(&entries, &totals);
+        let plans = plan_variants(&entries, &totals, catalog::Locale::De);
         assert_eq!(shared_semester_totals(&plans[0]), vec![(5, 6, 56.0)]);
         assert_eq!(credits_label(&plans[0]), "64");
 
@@ -1900,7 +1900,7 @@ mod tests {
         let mut finer = totals.clone();
         finer.push(total(4, "Summe Studium", "plan", 5, 5, 26.0, 20.0, 60.0, vec![2, 3, 4]));
         finer.push(total(5, "Summe Studium", "plan", 6, 6, 30.0, 12.0, 52.0, vec![5]));
-        let plans = plan_variants(&entries, &finer);
+        let plans = plan_variants(&entries, &finer, catalog::Locale::De);
         assert!(shared_semester_totals(&plans[0]).is_empty(), "the span stands in for semesters that have no figure");
 
         // A plan whose regulation prints a span for a semester comes to a span.

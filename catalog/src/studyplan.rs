@@ -19,6 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
+use crate::i18n::Locale;
 use crate::labels::{Code, Labelled, ModuleKind, Season, TurnusSeason};
 use crate::plan::{self, SemesterRequirement};
 use crate::queries::MAX_PLANNED;
@@ -1212,18 +1213,23 @@ fn only<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
 /// What a placeholder asks for, in the format of the catalog's note of a semester's requirements
 /// (`catalog.rs::plan_note`): „≥ 6 LP Anwendungsfach: „Mathematik“, … oder „Physik“". A page
 /// writes `credits` in bold, then `lead`, then after a colon the `areas` („„A“, „B“ oder „C““),
-/// else the `tail` (`text` does exactly that).
+/// else the `tail` (`text` does exactly that). Its words are in `locale`; the names of the row
+/// and of the areas are the plan's.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlaceholderLine {
     /// „≥ 6 LP" for a choice (a module of the area may have more), „6 LP" for one module,
     /// „10–24 LP" for a range; the spaces are non-breaking.
     pub credits: Option<String>,
+    /// The same without the unit („≥ 6", „6", „10–24"), for a page that writes the unit itself.
+    pub amount: Option<String>,
     /// The row's name, or „aus dem Bereich" / „aus den Bereichen" where the name only repeats its
     /// areas.
     pub lead: Option<String>,
     /// The names of the areas the row takes its modules from.
     pub areas: Vec<String>,
     pub tail: Option<&'static str>,
+    /// The language of the line (`placeholder_line`'s), in which `text` lists the areas.
+    pub locale: Locale,
 }
 
 impl PlaceholderLine {
@@ -1242,7 +1248,7 @@ impl PlaceholderLine {
         let rest = match (self.areas.as_slice(), self.tail) {
             ([], None) => None,
             ([], Some(tail)) => Some(tail.to_string()),
-            (areas, _) => Some(quoted_list(areas)),
+            (areas, _) => Some(quoted_list(areas, self.locale)),
         };
         if let Some(rest) = rest {
             out.push_str(": ");
@@ -1252,50 +1258,57 @@ impl PlaceholderLine {
     }
 }
 
-/// „„A“, „B“ oder „C“".
-fn quoted_list(items: &[String]) -> String {
+/// „„A“, „B“ oder „C“" in German, "“A”, “B” or “C”" in English.
+fn quoted_list(items: &[String], locale: Locale) -> String {
+    let texts = &locale.texts().plans;
     let mut out = String::new();
     for (i, item) in items.iter().enumerate() {
         if i > 0 {
-            out.push_str(if i + 1 < items.len() { ", " } else { " oder " });
+            if i + 1 < items.len() {
+                out.push_str(", ");
+            } else {
+                let _ = write!(out, " {} ", texts.or);
+            }
         }
-        let _ = write!(out, "„{item}“");
+        out.push_str(&(texts.quoted)(item));
     }
     out
 }
 
-/// The line of a placeholder: from `requirement`, what `plan::requirement_of` makes of its row
-/// when `resolve_placeholder` found one; else from the stored name, credits and kind, without
-/// areas and without a claim about where its modules come from.
-pub fn placeholder_line(p: &Placeholder, requirement: Option<&SemesterRequirement>) -> PlaceholderLine {
+/// The line of a placeholder in `locale`: from `requirement`, what `plan::requirement_of` makes of
+/// its row when `resolve_placeholder` found one; else from the stored name, credits and kind,
+/// without areas and without a claim about where its modules come from.
+pub fn placeholder_line(p: &Placeholder, requirement: Option<&SemesterRequirement>, locale: Locale) -> PlaceholderLine {
+    let texts = &locale.texts().plans;
     let (name, credits, single, fues) = match requirement {
         Some(row) => (row.shown_name().to_string(), row.credits.clone(), row.single, row.fues),
         None => {
             let stored = stored_entry(p);
-            (plan::shown_name(&p.name).to_string(), p.credits.clone(), plan::is_single_module(&stored), plan::is_fues(&stored))
+            let credits = p.credits.as_deref().map(|credits| plan::credits_in(credits, locale));
+            (plan::shown_name(&p.name).to_string(), credits, plan::is_single_module(&stored), plan::is_fues(&stored))
         }
     };
     let areas: Vec<String> = requirement.map(|row| row.areas.iter().map(|area| area.name().to_string()).collect()).unwrap_or_default();
     // A choice asks for at least that much; one module, or a range, is what it says.
-    let credits = credits.map(|credits| match single || credits.contains(['–', '-']) {
-        true => format!("{credits}\u{a0}LP"),
-        false => format!("≥\u{a0}{credits}\u{a0}LP"),
+    let amount = credits.map(|credits| match single || credits.contains(['–', '-']) {
+        true => credits,
+        false => format!("≥\u{a0}{credits}"),
     });
     let name = (!name.is_empty()).then_some(name);
     let (lead, areas, tail) = if single {
-        (name, Vec::new(), Some("unter diesem Namen nicht im Katalog"))
+        (name, Vec::new(), Some(texts.not_in_catalog))
     } else if fues {
-        (Some("Fachübergreifendes Studium".to_string()), Vec::new(), None)
+        (Some(texts.fues.to_string()), Vec::new(), None)
     } else if areas.is_empty() {
         // Without its row there is no telling where the modules come from.
-        (name, areas, requirement.map(|_| "alle Wahlpflichtmodule"))
+        (name, areas, requirement.map(|_| texts.all_electives))
     } else if requirement.is_some_and(SemesterRequirement::named_by_areas) {
-        let lead = if areas.len() > 1 { "aus den Bereichen" } else { "aus dem Bereich" };
+        let lead = if areas.len() > 1 { texts.from_areas } else { texts.from_area };
         (Some(lead.to_string()), areas, None)
     } else {
         (name, areas, None)
     };
-    PlaceholderLine { credits, lead, areas, tail }
+    PlaceholderLine { credits: amount.as_deref().map(texts.credits), amount, lead, areas, tail, locale }
 }
 
 /// Whether a placeholder asks for a module of the Fachübergreifendes Studium, by its stored kind
@@ -1960,7 +1973,7 @@ mod tests {
             Resolved::Row(_, entry) => Some(entry.ord),
             _ => None,
         };
-        let resolve = |entries: Vec<PlanEntry>| ord_of(resolve_placeholder(&stored, Some(&plan_variants(&entries, &[]))));
+        let resolve = |entries: Vec<PlanEntry>| ord_of(resolve_placeholder(&stored, Some(&plan_variants(&entries, &[], Locale::De))));
         let caption = "Regelstudienplan";
         // The same plan: the row of the same ord, whatever else is called so.
         assert_eq!(resolve(vec![plan_row(15, "Anwendungsfach", (3, 3), caption), plan_row(16, "Anwendungsfach", (4, 4), caption)]), Some(15));
@@ -1973,7 +1986,7 @@ mod tests {
             plan_row(15, "Anwendungsfach", (3, 3), "B"),
             plan_row(16, "–  anwendungsfach¹", (4, 4), "B"),
         ];
-        let variants = plan_variants(&several, &[]);
+        let variants = plan_variants(&several, &[], Locale::De);
         assert!(matches!(resolve_placeholder(&stored, Some(&variants)), Resolved::Row(plan, entry) if plan.full == "B" && entry.ord == 15));
         // A shifted ord: the only row of the name and the span …
         assert_eq!(
@@ -1985,8 +1998,8 @@ mod tests {
         // Two rows of the name and neither of the span: no guess.
         assert_eq!(resolve(vec![plan_row(20, "Anwendungsfach", (5, 5), caption), plan_row(21, "Anwendungsfach", (6, 6), caption)]), None);
         // A renamed row, and several plans of which none is recognisable.
-        assert_eq!(resolve_placeholder(&stored, Some(&plan_variants(&[plan_row(15, "Nebenfach", (3, 3), caption)], &[]))), Resolved::Changed);
-        let strangers = plan_variants(&[plan_row(1, "Mathematik", (1, 1), "A"), plan_row(2, "Physik", (1, 1), "B")], &[]);
+        assert_eq!(resolve_placeholder(&stored, Some(&plan_variants(&[plan_row(15, "Nebenfach", (3, 3), caption)], &[], Locale::De))), Resolved::Changed);
+        let strangers = plan_variants(&[plan_row(1, "Mathematik", (1, 1), "A"), plan_row(2, "Physik", (1, 1), "B")], &[], Locale::De);
         assert_eq!(resolve_placeholder(&stored, Some(&strangers)), Resolved::Changed);
         assert_eq!(resolve_placeholder(&stored, Some(&[])), Resolved::Changed);
         // The program gone.
@@ -1998,12 +2011,12 @@ mod tests {
         let areas = real::areas(real::INFORMATIK_BSC);
         let rows = real::informatik_bsc_rows();
         let text = |entry: PlanEntry| {
-            let requirement = plan::requirement_of(&entry, "", &areas, &rows);
-            placeholder_line(&placeholder(), Some(&requirement)).text()
+            let requirement = plan::requirement_of(&entry, "", &areas, &rows, Locale::De);
+            placeholder_line(&placeholder(), Some(&requirement), Locale::De).text()
         };
         let named = |name: &str, kind: ModuleKind| row(name, 3, Some(kind), None);
         // A choice from the areas the name points at.
-        let line = placeholder_line(&placeholder(), Some(&plan::requirement_of(&named("Anwendungsfach", ModuleKind::Elective), "", &areas, &rows)));
+        let line = placeholder_line(&placeholder(), Some(&plan::requirement_of(&named("Anwendungsfach", ModuleKind::Elective), "", &areas, &rows, Locale::De)), Locale::De);
         assert_eq!(line.credits.as_deref(), Some("≥\u{a0}6\u{a0}LP"));
         assert_eq!(line.lead.as_deref(), Some("Anwendungsfach"));
         assert_eq!(line.tail, None);
@@ -2026,7 +2039,7 @@ mod tests {
         assert_eq!(text(range), "10–24\u{a0}LP aus dem Bereich: „Praktische Informatik“");
 
         // Without its row: the stored text, and no claim where the modules come from.
-        let alone = |p: Placeholder| placeholder_line(&p, None).text();
+        let alone = |p: Placeholder| placeholder_line(&p, None, Locale::De).text();
         assert_eq!(alone(placeholder()), "≥\u{a0}6\u{a0}LP Anwendungsfach");
         assert_eq!(
             alone(Placeholder { kind: Some("compulsory".to_string()), name: "Raumbezogene Datenbanken und GIS".to_string(), ..placeholder() }),
@@ -2035,6 +2048,28 @@ mod tests {
         assert_eq!(alone(Placeholder { name: "Modul aus dem FÜS-Katalog der BTU".to_string(), ..placeholder() }), "≥\u{a0}6\u{a0}LP Fachübergreifendes Studium");
         assert_eq!(alone(Placeholder { credits: Some("10–24".to_string()), name: "Komplex Praktische Informatik".to_string(), ..placeholder() }), "10–24\u{a0}LP Komplex Praktische Informatik");
         assert_eq!(alone(Placeholder { credits: None, ..placeholder() }), "Anwendungsfach");
+
+        // In English: the words and the credits the page's, the names the plan's.
+        let english = |entry: PlanEntry| {
+            let requirement = plan::requirement_of(&entry, "", &areas, &rows, Locale::En);
+            placeholder_line(&placeholder(), Some(&requirement), Locale::En).text()
+        };
+        let line = placeholder_line(&placeholder(), Some(&plan::requirement_of(&named("Anwendungsfach", ModuleKind::Elective), "", &areas, &rows, Locale::En)), Locale::En);
+        assert_eq!((line.credits.as_deref(), line.amount.as_deref()), (Some("≥\u{a0}6\u{a0}CP"), Some("≥\u{a0}6")));
+        assert_eq!(
+            line.text(),
+            "≥\u{a0}6\u{a0}CP Anwendungsfach: “Mathematik”, “Maschinenbau / Elektrotechnik”, “Wirtschaftswissenschaften”, “Bauingenieurwesen” or “Physik”"
+        );
+        assert_eq!(
+            english(named("Raumbezogene Datenbanken und GIS", ModuleKind::Compulsory)),
+            "6\u{a0}CP Raumbezogene Datenbanken und GIS: not in the catalogue under this name"
+        );
+        assert_eq!(english(named("Fachübergreifendes Studium", ModuleKind::Fues)), "≥\u{a0}6\u{a0}CP Interdisciplinary studies");
+        assert_eq!(english(named("Wahlpflichtmodul 3", ModuleKind::Elective)), "≥\u{a0}6\u{a0}CP Wahlpflichtmodul 3: all compulsory elective modules");
+        assert_eq!(english(named("Modul aus dem Bereich Praktische Mathematik", ModuleKind::Elective)), "≥\u{a0}6\u{a0}CP from the area: “Praktische Mathematik”");
+        let half = |p: Placeholder| placeholder_line(&p, None, Locale::En).text();
+        assert_eq!(half(Placeholder { credits: Some("7,5".to_string()), ..placeholder() }), "≥\u{a0}7.5\u{a0}CP Anwendungsfach");
+        assert_eq!(placeholder_line(&Placeholder { credits: Some("7,5".to_string()), ..placeholder() }, None, Locale::De).amount.as_deref(), Some("≥\u{a0}7,5"));
         // The FÜS by its name or its kind; any other row is none.
         assert!(is_fues_placeholder(&Placeholder { name: "Modul aus dem FÜS-Katalog der BTU".to_string(), ..placeholder() }));
         assert!(is_fues_placeholder(&Placeholder { kind: Some("fues".to_string()), name: "Wahlmodul".to_string(), ..placeholder() }));
@@ -2138,7 +2173,7 @@ town	cottbus
     fn the_intake_season_follows_the_odd_semesters() {
         let linked = |id: &str, semester: i64| PlanEntry { module_id: Some(id.to_string()), ..row(id, semester, Some(ModuleKind::Compulsory), None) };
         let rows = [catalog_row("A", "winter"), catalog_row("B", "winter"), catalog_row("C", "summer"), catalog_row("D", "summer"), catalog_row("E", "both"), catalog_row("F", "summer")];
-        let season = |entries: Vec<PlanEntry>| intake_season(&plan_variants(&entries, &[]).remove(0), &rows);
+        let season = |entries: Vec<PlanEntry>| intake_season(&plan_variants(&entries, &[], Locale::De).remove(0), &rows);
         // Two winters to one summer; an even semester and a module of both seasons do not count.
         assert_eq!(season(vec![linked("A", 1), linked("B", 3), linked("C", 3), linked("D", 2), linked("E", 1)]), Some(Season::Winter));
         // A module the plan names twice counts once.
@@ -2150,7 +2185,7 @@ town	cottbus
         let captioned = |caption: &str, entries: Vec<PlanEntry>| {
             let entries: Vec<PlanEntry> =
                 entries.into_iter().map(|entry| PlanEntry { specialization: Some(caption.to_string()), ..entry }).collect();
-            intake_season(&plan_variants(&entries, &[]).remove(0), &rows)
+            intake_season(&plan_variants(&entries, &[], Locale::De).remove(0), &rows)
         };
         assert_eq!(captioned("Regelstudienplans (Beispiel: Studienbeginn im Sommersemester", vec![linked("E", 1)]), Some(Season::Summer));
         assert_eq!(captioned("Regelstudienplan – Beispiel für Start im Wintersemester", vec![linked("C", 1), linked("F", 3)]), Some(Season::Winter));
@@ -2175,7 +2210,7 @@ town	cottbus
             PlanEntry { credits: None, kind: None, ..plan_row(5, "Hinweis zum Auslandssemester", (1, 1), "") },
             module(6, "10003", (5, 6)),
         ];
-        let core = plan_variants(&entries, &[]).remove(0);
+        let core = plan_variants(&entries, &[], Locale::De).remove(0);
         let (w, program) = (key("2026W"), "079-82-2008");
 
         // From the third Fachsemester: what ends before it is left out, a span stands at the first
@@ -2214,7 +2249,7 @@ town	cottbus
 
         // A page that fills row 4: its rows come in, row 4 does not.
         let page_rows = vec![PlanEntry { specialization: Some("Studienplan · Seite 7".to_string()), ..module(10, "10010", (2, 2)) }];
-        let page = plan_variants(&page_rows, &[]).remove(0);
+        let page = plan_variants(&page_rows, &[], Locale::De).remove(0);
         let both = import(&PlanDoc::default(), program, &core, Some((&page, 4)), w, 1);
         assert!(both.placeholders.is_empty());
         assert!(both.modules.contains(&(key("2027S"), "10010".to_string())));
@@ -2228,7 +2263,7 @@ town	cottbus
             PlanEntry { credits: None, min_credits: Some(10.0), max_credits: Some(24.0), ..plan_row(2, "Komplex Praktische Informatik", (5, 6), "") },
             module(3, "10006", (6, 6)),
         ];
-        let core = plan_variants(&entries, &[]).remove(0);
+        let core = plan_variants(&entries, &[], Locale::De).remove(0);
         let (w, s, program) = (key("2026W"), key("2027S"), "079-82-2008");
         let mut doc = PlanDoc::default();
         // The fifth Fachsemester into the winter, the sixth into the summer: the row stands in both.
@@ -2256,7 +2291,7 @@ town	cottbus
         let pinned = crate::tests::studyplan_db("the_regelstudienplan_is_imported");
         let is_pinned = pinned.is_some();
         let db = pinned.unwrap_or_else(crate::tests::open);
-        let plans = |program: &str| plan_variants(&queries::program_plan_entries(&db, program).unwrap(), &queries::program_plan_totals(&db, program).unwrap());
+        let plans = |program: &str| plan_variants(&queries::program_plan_entries(&db, program).unwrap(), &queries::program_plan_totals(&db, program).unwrap(), Locale::De);
         let w = key("2026W");
 
         let mut imported = 0;
@@ -2507,7 +2542,7 @@ town	cottbus
     #[test]
     fn one_fachsemester_is_imported() {
         let Some(db) = crate::tests::studyplan_db("one_fachsemester_is_imported") else { return };
-        let variants = plan_variants(&queries::program_plan_entries(&db, "079-82-2008").unwrap(), &queries::program_plan_totals(&db, "079-82-2008").unwrap());
+        let variants = plan_variants(&queries::program_plan_entries(&db, "079-82-2008").unwrap(), &queries::program_plan_totals(&db, "079-82-2008").unwrap(), Locale::De);
         let [plan] = variants.as_slice() else { panic!("Informatik prints one plan") };
         let w = key("2026W");
         let fs1 = import_fs(&PlanDoc::default(), "079-82-2008", plan, None, w, 1);

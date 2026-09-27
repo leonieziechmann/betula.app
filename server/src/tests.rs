@@ -697,7 +697,7 @@ async fn a_studyplan_is_a_calendar_feed() {
     // The feed is the loader's calendar of the code, byte for byte: the text the page offers as a
     // download is made by the same function from the same rows.
     let db = NativeDatabase::open(&file).unwrap();
-    assert_eq!(ics, catalog::pages::calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap()).unwrap());
+    assert_eq!(ics, catalog::pages::calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap(), catalog::Locale::De).unwrap());
     if pinned {
         let text = unfolded(&ics);
         assert!(text.contains("UID:148701-a2633-20261013@betula.app") && text.contains("UID:148369-a4d12-") && text.contains("Entwicklung von Softwaresystemen"), "{text}");

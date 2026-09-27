@@ -106,7 +106,7 @@ pub fn CatalogPage() -> impl IntoView {
         // link named another placeholder than the address would plan into the wrong one.
         let query = asked.get()?;
         let current = CatalogUrl { query, page: page.get_untracked(), open: None, fill: fill.get() };
-        list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current))).map(|data| (current, data))
+        list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current, crate::i18n::locale()))).map(|data| (current, data))
     });
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
     let failed = Memo::new(move |_| list.with(|list| list.as_ref().err().cloned()));
