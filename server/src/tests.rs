@@ -204,6 +204,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         renders: Arc::new(crate::busy::Places::new("render", 2, std::time::Duration::from_secs(3))),
         render_wait: std::time::Duration::from_secs(3),
         feeds: Arc::new(crate::busy::Places::new("calendar", 2, std::time::Duration::from_secs(10))),
+        changes: None,
         leptos: LeptosOptions::builder().output_name("folia-app").site_root("no-site").build(),
     }
 }
@@ -590,7 +591,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let sitemap = String::from_utf8(body).unwrap();
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/xml; charset=utf-8"));
     assert!(sitemap.contains("<loc>https://catalog.example/</loc>") && sitemap.contains("<loc>https://catalog.example/catalog/module/11101</loc>"));
-    assert!(sitemap.matches("<loc>").count() > 3000 && sitemap.lines().all(|line| !line.starts_with("<url>") || !line.contains('?')), "pages only, no filters");
+    // Pages only, no filters: an address with a query is the plan of a further study direction.
+    let urls: Vec<&str> = sitemap.lines().filter(|line| line.starts_with("<url>")).collect();
+    assert!(urls.len() > 3000 && urls.iter().all(|line| !line.contains('?') || line.contains("/plan?variant=")), "pages only, no filters");
+    assert!(sitemap.contains("/plan?variant=2</loc>"), "the plan of every study direction is listed (Elektrotechnik B.Sc. has two)");
     // „Mein Plan" is the visitor's (a placeholder so far): not listed, not indexed.
     assert!(sitemap.contains("/areas</loc>") && !sitemap.contains("/my-plan</loc>"));
     let (status, _, body) = request(&router, &format!("/programs/{slug}/my-plan"), &[]).await;
@@ -918,10 +922,14 @@ async fn the_warm_up_renders_the_pages_of_the_sitemap() {
     assert!(paths.len() > 1000 && paths.first().map(String::as_str) == Some("/"));
     let some: Vec<String> = paths.iter().take(3).chain(paths.iter().rev().take(2)).cloned().collect();
     let pages = crate::pages(&state).with_state(state.clone());
-    assert!(crate::warm::warm(&pages, &store, store.generation(), &some).await);
+    // On its way it notes what each page says: the dates of the sitemap.
+    let changes = crate::lastmod::Changes::load(&temp_dir("warm-lastmod"));
+    assert!(crate::warm::warm(&pages, &store, store.generation(), &some, Some(&changes)).await);
     assert_eq!(state.cache.size().0, some.len());
+    let since = store.current().unwrap().meta.data_changed_at.clone().unwrap();
+    assert!(some.iter().all(|path| changes.since(path).as_deref() == Some(since.as_str())), "{some:?}");
     // A newer snapshot stops it.
-    assert!(!crate::warm::warm(&pages, &store, store.generation() + 1, &some).await);
+    assert!(!crate::warm::warm(&pages, &store, store.generation() + 1, &some, None).await);
 }
 
 /// A render that panics costs the warm-up that page, not the pages after it; its place and its
@@ -950,9 +958,9 @@ async fn the_warm_up_goes_on_after_a_render_that_panics() {
     let paths = ["/a", "/b", "/c"].map(String::from);
     let log = Captured::default();
     let logging = log.start();
-    assert!(crate::warm::warm(&pages, &store, store.generation(), &paths).await);
+    assert!(crate::warm::warm(&pages, &store, store.generation(), &paths, None).await);
     // Neither its place nor its key is held: asked for again, it is rendered again (and panics).
-    let again = tokio::time::timeout(std::time::Duration::from_secs(10), crate::warm::warm(&pages, &store, store.generation(), &paths[1..2])).await;
+    let again = tokio::time::timeout(std::time::Duration::from_secs(10), crate::warm::warm(&pages, &store, store.generation(), &paths[1..2], None)).await;
     drop(logging);
     assert_eq!(again.ok(), Some(true));
     assert_eq!(state.cache.size().0, 2, "the pages before and after it are in the cache");

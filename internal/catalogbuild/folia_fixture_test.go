@@ -49,20 +49,28 @@ func fixtureTreePage(p fixtureProgram, links ...string) string {
 	return b.String()
 }
 
-// fixtureSlot is when a lecture of the fixture meets, as QIS prints it: „Di.", „09:15 bis 10:45",
-// „A/B", „14.04.2026 bis 21.07.2026".
-type fixtureSlot struct{ day, time, rhythm, dates string }
+// fixtureSlot is a date row of an event of the fixture, as QIS prints it: „Di.", „09:15 bis
+// 10:45", „A/B", „14.04.2026 bis 21.07.2026", and the room where the row names one.
+type fixtureSlot struct{ day, time, rhythm, dates, room string }
 
-// fixtureEventPage is the page of eventPageHTML (build_test.go) for a lecture of the fixture,
-// whose semester and slot vary; the pages of the build's own tests all meet on Tuesday at 9:15 in
+// fixtureEventPage is the page of eventPageHTML (build_test.go) for an event of the fixture, whose
+// type, semester and dates vary; the pages of the build's own tests all meet on Tuesday at 9:15 in
 // the summer of 2026.
-func fixtureEventPage(title, semester, room string, slot fixtureSlot) string {
+func fixtureEventPage(title, eventType, semester string, slots ...fixtureSlot) string {
+	var rows strings.Builder
+	for _, slot := range slots {
+		room := ""
+		if slot.room != "" {
+			room = `<a href="#">` + slot.room + `</a>`
+		}
+		rows.WriteString(`
+		<tr><td>` + slot.day + `</td><td>` + slot.time + `</td><td>` + slot.rhythm + `</td><td>` + slot.dates + `</td><td>` + room + `</td><td><a href="#">Meyer</a></td></tr>`)
+	}
 	return `<html><body><h1>` + title + ` - Einzelansicht</h1>
-	<table summary="Grunddaten zur Veranstaltung"><tr><th>Veranstaltungsart</th><td>Vorlesung</td><th>Semester</th><td>` + semester + `</td></tr>
+	<table summary="Grunddaten zur Veranstaltung"><tr><th>Veranstaltungsart</th><td>` + eventType + `</td><th>Semester</th><td>` + semester + `</td></tr>
 		<tr><th>SWS</th><td>2</td><th>Max. Teilnehmer/-innen</th><td>80</td></tr></table>
 	<table summary="Übersicht über alle Veranstaltungstermine"><caption>Termine Gruppe: 1</caption>
-		<tr><th>Tag</th><th>Zeit</th><th>Rhythmus</th><th>Dauer</th><th>Raum</th><th>Lehrperson</th></tr>
-		<tr><td>` + slot.day + `</td><td>` + slot.time + `</td><td>` + slot.rhythm + `</td><td>` + slot.dates + `</td><td><a href="#">` + room + `</a></td><td><a href="#">Meyer</a></td></tr></table>
+		<tr><th>Tag</th><th>Zeit</th><th>Rhythmus</th><th>Dauer</th><th>Raum</th><th>Lehrperson</th></tr>` + rows.String() + `</table>
 	</body></html>`
 }
 
@@ -102,7 +110,7 @@ func TestWriteFoliaFixture(t *testing.T) {
 
 	// ---- modules ----
 	prefixes := []string{"Grundlagen der", "Einführung in die", "Vertiefung", "Angewandte", "Theoretische", "Praktische", "Numerische", "Verteilte", "Digitale", "Moderne", "Experimentelle", "Höhere"}
-	subjects := []string{"Informatik", "Mathematik", "Physik", "Elektrotechnik", "Regelungstechnik", "Thermodynamik", "Datenanalyse", "Softwaretechnik", "Rechnernetze", "Betriebssysteme", "Künstliche Intelligenz", "Robotik", "Signalverarbeitung", "Werkstoffkunde", "Baukonstruktion", "Stadtplanung", "Energiesysteme", "Optimierung", "Statistik", "Strömungsmechanik", "Bildverarbeitung", "Datenbanken", "Kryptographie", "Mechanik", "Chemie"}
+	subjects := []string{"Informatik", "Mathematik", "Physik", "Elektrotechnik", "Regelungstechnik", "Thermodynamik", "Datenanalyse", "Softwaretechnik", "Rechnernetze", "Betriebssysteme", "Künstliche Intelligenz", "Robotik", "Signalverarbeitung", "Werkstoffkunde", "Baukonstruktion", "Stadtplanung", "Energiesysteme", "Optimierung", "Statistik", "Strömungsmechanik", "Bildverarbeitung", "Informationssysteme", "Kryptographie", "Mechanik", "Chemie"}
 	suffixes := []string{"", "", " I", " II", " für Ingenieurinnen und Ingenieure", " und ihre Anwendungen", " in der Praxis"}
 	departments := []string{
 		"Fakultät 1 - MINT - Mathematik, Informatik, Physik, Elektro- und Informationstechnik",
@@ -168,12 +176,21 @@ func TestWriteFoliaFixture(t *testing.T) {
 			title = fmt.Sprintf("%s (%d)", title, titles[title])
 		}
 		id := fmt.Sprintf("%05d", 20001+i)
-		// Ids and a title the tests of the web tier and its browser checks look for.
+		// Ids and titles the tests of the web tier and its browser checks look for. No generated
+		// title names Datenbanken („Informationssysteme" stands in its place), so that a search for
+		// „datenbank" finds a short list, as in the real catalog (e2e/ground.mjs). What else
+		// e2e/module.mjs reads of 12330, 12000 and 11103 is below.
 		switch i {
 		case 0:
 			id, title = "11101", "Lineare Algebra"
 		case 1:
 			id, title = "11112", "Algorithmen und Datenstrukturen"
+		case 289:
+			id, title = "12330", "Datenbanken"
+		case 290:
+			id, title = "12000", "Veranstaltungsmanagement und Recht"
+		case 349:
+			id, title = "11103", "Analysis I"
 		}
 		modules = append(modules, &mod{id: id, title: title})
 	}
@@ -353,7 +370,7 @@ func TestWriteFoliaFixture(t *testing.T) {
 	// the 31st to 45th of a campus share a slot with one of the first 15. A planned module then
 	// clashes with two to eight others and leaves the rest to fit. Every ninth meets fortnightly:
 	// in the A weeks, or in the B weeks when it is the second in its slot, beside one of the A weeks.
-	lecture := func(k int) (room string, slot fixtureSlot) {
+	lecture := func(k int) fixtureSlot {
 		campus, turn := k%3, k/3
 		at := (7*turn + 11*campus) % 30
 		rhythm, week, every := "A/B", 0, 1
@@ -365,23 +382,34 @@ func TestWriteFoliaFixture(t *testing.T) {
 		}
 		first := lectures.AddDate(0, 0, 7*week+at%5)
 		last := first.AddDate(0, 0, 7*every*((weeks-1-week)/every))
-		return rooms[campus], fixtureSlot{
+		return fixtureSlot{
 			day: []string{"Mo.", "Di.", "Mi.", "Do.", "Fr."}[at%5], time: grids[campus][at/5], rhythm: rhythm,
-			dates: first.Format("02.01.2006") + " bis " + last.Format("02.01.2006"),
+			dates: first.Format("02.01.2006") + " bis " + last.Format("02.01.2006"), room: rooms[campus],
 		}
 	}
+	// Exam dates e2e/module.mjs reads as it reads the real ones: Analysis I's exam as QIS enters one
+	// whose date is not fixed (twice: Sunday, 27.12.2015, 01:00 to 02:30), and the day a term paper
+	// of Veranstaltungsmanagement und Recht is due (23:45 to 24:00 on the Sunday that ends the
+	// last week of lectures).
+	placeholder := fixtureSlot{day: "So.", time: "01:00 bis 02:30", rhythm: "Einzel", dates: "am 27.12.2015"}
+	due := fixtureSlot{day: "So.", time: "23:45 bis 24:00", rhythm: "Einzel", dates: "am " + lectures.AddDate(0, 0, 7*weeks-1).Format("02.01.2006")}
+	examDates := map[string][]fixtureSlot{"11103": {placeholder, placeholder}, "12000": {due}}
 
 	// ---- module pages, the lists ----
 	var list strings.Builder
 	list.WriteString(`<table><tbody class="list">`)
 	var fues strings.Builder
 	fues.WriteString(`<table summary="Suchergebnis"><tr><th>Nr.</th><th>Modultitel</th><th>Sprache</th><th>LP</th><th>FÜS</th><th>Teilnehmerbeschränkung</th></tr>`)
-	isFues := make(map[string]bool)
+	// Datenbanken and Veranstaltungsmanagement und Recht are FÜS modules, as the real ones are.
+	isFues := map[string]bool{"12330": true, "12000": true}
 	for _, id := range fuesIDs {
 		isFues[id] = true
 	}
-	eventNo := 200000
+	eventNo, examNo := 200000, 300000
 	var events []string
+	link := func(no int, kind string) string {
+		return fmt.Sprintf(`<li><a href="https://www.b-tu.de/qisserver3/rds?state=verpublish&veranstaltung.veranstid=%d">%d %s</a></li>`, no, no, kind)
+	}
 	for i, m := range modules {
 		fmt.Fprintf(&list, `<tr><td class="moduleNumber"><a href="/modul/%s">%s</a></td><td class="title">%s</td></tr>`, m.id, m.id, m.title)
 		if isFues[m.id] {
@@ -398,11 +426,20 @@ func TestWriteFoliaFixture(t *testing.T) {
 		if isFues[m.id] {
 			extra += `<tr><td>&nbsp;</td><td>Das Modul ist für das Fachübergreifende Studium zugelassen.</td></tr>`
 		}
+		// The module's events of the semester, as its page links them.
+		var held []string
 		if i%9 == 0 {
 			eventNo++
-			extra += fmt.Sprintf(`<tr><td>Veranstaltungen im aktuellen Semester:</td><td><ul><li><a href="https://www.b-tu.de/qisserver3/rds?state=verpublish&veranstaltung.veranstid=%d">%d Vorlesung</a></li></ul></td></tr>`, eventNo, eventNo)
-			room, slot := lecture(i / 9)
-			events = append(events, fmt.Sprintf("%d", eventNo), fixtureEventPage(m.title, semester, room, slot))
+			held = append(held, link(eventNo, "Vorlesung"))
+			events = append(events, fmt.Sprintf("%d", eventNo), fixtureEventPage(m.title, "Vorlesung", semester, lecture(i/9)))
+		}
+		if dates, ok := examDates[m.id]; ok {
+			examNo++
+			held = append(held, link(examNo, "Prüfung"))
+			events = append(events, fmt.Sprintf("%d", examNo), fixtureEventPage(m.title, "Prüfung", semester, dates...))
+		}
+		if len(held) > 0 {
+			extra += `<tr><td>Veranstaltungen im aktuellen Semester:</td><td><ul>` + strings.Join(held, "") + `</ul></td></tr>`
 		}
 		// The remarks name the programs with their degree label, as the live pages do; that is
 		// where „B.Sc." and „M.Sc." come from. No kind is stated here: the tree states it.
@@ -425,22 +462,31 @@ func TestWriteFoliaFixture(t *testing.T) {
 		if len(remarks) > 0 {
 			extra += `<tr><td>Bemerkungen:</td><td>` + strings.Join(remarks, " ") + `</td></tr>`
 		}
+		// Every module draws its facets, in this order, also one that keeps its own: the modules
+		// after it keep theirs.
+		department, person, language := departments[next(len(departments))], persons[next(len(persons))], languages[next(len(languages))]
+		offered, lp, examForm := turnus[next(len(turnus))], credits[next(len(credits))], exams[next(len(exams))]
+		if m.id == "12330" {
+			// The four badges of the real Datenbanken (6 LP, jedes Semester, DE, FÜS), which leave
+			// the preview no room for „Einplanen" and „Merken" side by side (e2e/module.mjs).
+			offered, lp, language = "jedes Semester", "6", "Deutsch"
+		}
 		var page strings.Builder
 		page.WriteString(`<html><body><div class="tx-btusysteme"><h1>` + m.id + ` - ` + m.title + ` <small>Modulübersicht</small></h1><table>
 		<tr><td>Modulnummer:</td><td>` + m.id + `</td></tr>
 		<tr><td>Modultitel:</td><td>` + m.title + `</td></tr>
 		<tr><td>&nbsp;</td><td>` + m.title + ` (EN)</td></tr>
-		<tr><td>Einrichtung:</td><td>` + departments[next(len(departments))] + `</td></tr>
-		<tr><td>Verantwortlich:</td><td><ul><li>` + persons[next(len(persons))] + `</li></ul></td></tr>
-		<tr><td>Lehr- und Prüfungssprache:</td><td>` + languages[next(len(languages))] + `</td></tr>
+		<tr><td>Einrichtung:</td><td>` + department + `</td></tr>
+		<tr><td>Verantwortlich:</td><td><ul><li>` + person + `</li></ul></td></tr>
+		<tr><td>Lehr- und Prüfungssprache:</td><td>` + language + `</td></tr>
 		<tr><td>Dauer:</td><td>1 Semester</td></tr>
-		<tr><td>Angebotsturnus:</td><td>` + turnus[next(len(turnus))] + `</td></tr>
-		<tr><td>Leistungspunkte:</td><td>` + credits[next(len(credits))] + `</td></tr>
+		<tr><td>Angebotsturnus:</td><td>` + offered + `</td></tr>
+		<tr><td>Leistungspunkte:</td><td>` + lp + `</td></tr>
 		<tr><td>Empfohlene Voraussetzungen:</td><td>keine</td></tr>
 		<tr><td>Zwingende Voraussetzungen:</td><td>keine</td></tr>
 		<tr><td>Lehrformen und Arbeitsumfang:</td><td><ul><li>` + strings.Join(teaching[i%len(teaching)], "</li><li>") + `</li></ul></td></tr>
 		<tr><td>Modulprüfung:</td><td>Modulabschlussprüfung (MAP)</td></tr>
-		<tr><td>Prüfungsleistung/en für Modulprüfung:</td><td>` + exams[next(len(exams))] + `</td></tr>
+		<tr><td>Prüfungsleistung/en für Modulprüfung:</td><td>` + examForm + `</td></tr>
 		<tr><td>Bewertung der Modulprüfung:</td><td>Prüfungsleistung - benotet</td></tr>
 		<tr><td>Teilnehmerbeschränkung:</td><td>keine</td></tr>
 		<tr><td>Inhalte:</td><td>Dieses Modul behandelt die Grundlagen von ` + m.title + `. Es vermittelt Begriffe, Methoden und Werkzeuge und übt sie an Beispielen ein.

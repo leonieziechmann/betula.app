@@ -17,6 +17,7 @@ mod busy;
 mod cache;
 mod cards;
 mod config;
+mod lastmod;
 mod launch;
 mod logo;
 mod snapshot;
@@ -69,6 +70,9 @@ pub struct AppState {
     pub render_wait: Duration,
     /// Where calendar feeds are made.
     pub feeds: Arc<busy::Places>,
+    /// When each page of the sitemap last changed (`lastmod`), recorded by the warm-up; `None`
+    /// without it.
+    pub changes: Option<Arc<lastmod::Changes>>,
 }
 
 /// The header that names the build of the server on every answer (`AppState::build_id`).
@@ -352,6 +356,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         renders: Arc::new(busy::Places::new("render", places(config.render_places), render_wait)),
         render_wait,
         feeds: Arc::new(busy::Places::new("calendar", places(config.feed_places), Duration::from_secs(10))),
+        changes: config.warm_cache.then(|| Arc::new(lastmod::Changes::load(&config.data_dir))),
         leptos: LeptosOptions::builder()
             .output_name("folia-app")
             .site_root(config.site_root.to_string_lossy().into_owned())
@@ -382,7 +387,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         "web server started"
     );
     if config.warm_cache {
-        tokio::spawn(warm::run(pages(&state).with_state(state.clone()), state.store.clone()));
+        tokio::spawn(warm::run(pages(&state).with_state(state.clone()), state.store.clone(), state.changes.clone()));
     }
 
     match axum::serve(listener, router(state)).with_graceful_shutdown(shutdown_signal()).await {

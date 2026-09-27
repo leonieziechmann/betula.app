@@ -62,6 +62,18 @@ pub fn date(iso: &str) -> String {
     }
 }
 
+/// „1. Semester", „5.–6. Semester", „4. oder 5. Semester": where a validated study plan places a
+/// module (`ModuleData::plan_semesters`), several where its study directions differ. `None` for
+/// no semester.
+pub fn plan_semesters(spans: &[(i64, i64)]) -> Option<String> {
+    let named: Vec<String> = spans.iter().map(|(from, to)| if from == to { format!("{from}.") } else { format!("{from}.–{to}.") }).collect();
+    let (last, rest) = named.split_last()?;
+    Some(match rest.is_empty() {
+        true => format!("{last} Semester"),
+        false => format!("{} oder {last} Semester", rest.join(", ")),
+    })
+}
+
 /// „WiSe", „SoSe (gerade Jahre)", „jedes Semester", „unregelmäßig"
 pub fn turnus(season: Option<&Code<TurnusSeason>>, parity: Option<&Code<TurnusParity>>) -> String {
     let Some(season) = season else { return "Turnus nicht angegeben".to_string() };
@@ -148,5 +160,10 @@ mod tests {
         assert_eq!(half_hours("24:00"), Some(48.0));
         assert_eq!(half_hours("24:01"), None);
         assert_eq!(half_hours("offen"), None);
+        assert_eq!(plan_semesters(&[(1, 1)]).as_deref(), Some("1. Semester"));
+        assert_eq!(plan_semesters(&[(5, 6)]).as_deref(), Some("5.–6. Semester"));
+        assert_eq!(plan_semesters(&[(4, 4), (5, 5)]).as_deref(), Some("4. oder 5. Semester"));
+        assert_eq!(plan_semesters(&[(1, 1), (2, 2), (3, 4)]).as_deref(), Some("1., 2. oder 3.–4. Semester"));
+        assert_eq!(plan_semesters(&[]), None);
     }
 }

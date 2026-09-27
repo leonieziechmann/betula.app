@@ -254,6 +254,9 @@ pub struct ProgramLink {
     pub program_raw: Option<String>,
     pub po_raw: Option<String>,
     pub resolve_status: Code<ResolveStatus>,
+    /// The program in the catalog, where the triple is resolved: what a plan's rows name
+    /// (`PlanPlace`).
+    pub program_id: Option<String>,
     pub program_slug: Option<String>,
     pub program_name: Option<String>,
     pub degree_display: Option<String>,
@@ -272,6 +275,7 @@ impl FromRow for ProgramLink {
             program_raw: row.opt_text("program_raw")?,
             po_raw: row.opt_text("po_raw")?,
             resolve_status: Code::parse(&row.text("resolve_status")?),
+            program_id: row.opt_text("program_id")?,
             program_slug: row.opt_text("program_slug")?,
             program_name: row.opt_text("program_name")?,
             degree_display: row.opt_text("degree_display")?,
@@ -476,6 +480,28 @@ impl FromRow for PlanEntry {
             catalog_title: row.opt_text("catalog_title")?,
             credits_differ_from_catalog: row.opt_flag("credits_differ_from_catalog")?.unwrap_or(false),
             source_page: row.opt_int("source_page")?,
+        })
+    }
+}
+
+/// `v_program_plan_entry` by module: a row of a validated study plan that names the module, and
+/// the semesters it places it in (`plan::span_of`). A plan with several study directions may
+/// place a module once in each, and not always in the same semester.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanPlace {
+    pub program_id: String,
+    pub semester: Option<i64>,
+    pub start_semester: Option<i64>,
+    pub end_semester: Option<i64>,
+}
+
+impl FromRow for PlanPlace {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            program_id: row.text("program_id")?,
+            semester: row.opt_int("semester")?,
+            start_semester: row.opt_int("start_semester")?,
+            end_semester: row.opt_int("end_semester")?,
         })
     }
 }
