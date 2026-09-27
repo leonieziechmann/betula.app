@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ type sources struct {
 	eventLinks    map[string][]model.ModuleEvent
 	poTrees       []*poTree
 	events        map[string]*eventPage
+	eventsGone    map[string]bool // events whose page was read and states nothing, and the search does not show them: QIS removed them
 }
 
 type modulePage struct {
@@ -60,6 +62,7 @@ func loadSources(ctx context.Context, db *catalogdb.DB, report *Report) (*source
 		moduleGone:    make(map[string]bool),
 		eventLinks:    make(map[string][]model.ModuleEvent),
 		events:        make(map[string]*eventPage),
+		eventsGone:    make(map[string]bool),
 	}
 
 	if list, err := db.GetPage(catalogdb.SourceModuleCatalog, "list"); err == nil {
@@ -212,18 +215,30 @@ func loadSources(ctx context.Context, db *catalogdb.DB, report *Report) (*source
 // that a change of the dates reaches the catalog as soon as the search shows it; otherwise
 // the page, which then is the newer reading of the same state. The list names a room by
 // building and number only; a room some page names gets that page's name, campus included.
+//
+// A reading that states nothing of the event (parser.NoEvent) is none: QIS answers the page
+// of an event BTU has removed with HTTP 200 and its empty frame, while the search no longer
+// shows it. An event without a reading is not published, and every row the archive holds of
+// it is unused: the archive stage removes them once nothing has fetched them for its grace
+// period. While a module page still links the event, the crawler keeps asking about it, so
+// its rows stay fresh and an event BTU restores comes back.
 func loadEvents(ctx context.Context, db *catalogdb.DB, src *sources, report *Report) error {
+	archived := make(map[string][]string) // event ID → the sources that hold a row of it
 	eventParser := parser.NewEventParser()
 	err := db.EachPage(catalogdb.SourceQISEvent, func(p *catalogdb.RawPage) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		archived[p.Key] = append(archived[p.Key], catalogdb.SourceQISEvent)
 		if p.HTTPStatus != 200 || len(p.Body) == 0 {
 			return nil
 		}
 		d, err := eventParser.Parse(bytes.NewReader(p.Body), p.Key, p.URL)
 		if err != nil {
 			return fmt.Errorf("event page %s: %w", p.Key, err)
+		}
+		if parser.NoEvent(d) {
+			return nil
 		}
 		src.events[p.Key] = &eventPage{detail: d, url: p.URL, fetchedAt: p.FetchedAt}
 		return nil
@@ -234,16 +249,20 @@ func loadEvents(ctx context.Context, db *catalogdb.DB, src *sources, report *Rep
 
 	rooms := roomNames(src.events)
 	listParser := parser.NewEventListParser()
-	return db.EachPage(catalogdb.SourceQISEventEntry, func(p *catalogdb.RawPage) error {
+	err = db.EachPage(catalogdb.SourceQISEventEntry, func(p *catalogdb.RawPage) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		archived[p.Key] = append(archived[p.Key], catalogdb.SourceQISEventEntry)
 		if p.HTTPStatus != 200 || len(p.Body) == 0 {
 			return nil // the search does not show the event; its page is all there is
 		}
 		entry, err := listParser.Parse(bytes.NewReader(p.Body), p.Key, p.URL)
 		if err != nil {
 			return fmt.Errorf("event entry %s: %w", p.Key, err)
+		}
+		if parser.NoEvent(entry) {
+			return nil
 		}
 		page := src.events[p.Key]
 		switch {
@@ -263,6 +282,24 @@ func loadEvents(ctx context.Context, db *catalogdb.DB, src *sources, report *Rep
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	for id, sources := range archived {
+		if src.events[id] != nil {
+			continue
+		}
+		for _, source := range sources {
+			report.Unused[source] = append(report.Unused[source], id)
+		}
+		if slices.Contains(sources, catalogdb.SourceQISEvent) {
+			src.eventsGone[id] = true // its page was read: an event without a page yet is merely not archived
+		}
+	}
+	sort.Strings(report.Unused[catalogdb.SourceQISEvent])
+	sort.Strings(report.Unused[catalogdb.SourceQISEventEntry])
+	return nil
 }
 
 // roomNames maps the QIS ID of a room to the name the event pages give it

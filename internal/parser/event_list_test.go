@@ -14,7 +14,9 @@ import (
 // of nine of them, cut to the content. They were chosen for what they show: groups,
 // single dates, a series without an end, a cancelled date with a note, remarks the list
 // does not show, an exam of the summer semester, the placeholder QIS enters for an exam
-// without a date, and an event without any date.
+// without a date, and an event without any date. testdata/qis_event_149396.html is the page
+// of an event BTU had removed, whole, as QIS answered it on 2026-09-27: HTTP 200 and the
+// empty frame.
 func readEventList(t *testing.T) *EventList {
 	t.Helper()
 	body, err := os.ReadFile("testdata/qis_event_list.html")
@@ -222,6 +224,25 @@ func TestSameScheduleSeesChanges(t *testing.T) {
 	entry.Schedules[0], entry.Schedules[1] = entry.Schedules[1], entry.Schedules[0]
 	if !SameSchedule(entry, page) {
 		t.Errorf("the order of the dates made a difference")
+	}
+}
+
+// The page of an event BTU has removed is the empty frame of QIS. Its head names the
+// semester QIS calls current, which is not the event's.
+func TestNoEvent(t *testing.T) {
+	emptied := eventPage(t, "149396")
+	if !NoEvent(emptied) {
+		t.Errorf("the empty frame states an event: %+v", emptied)
+	}
+	list := readEventList(t)
+	for _, id := range []string{"145503", "147828", "147988", "149030", "150708", "151102", "151278", "151296", "152864"} {
+		if NoEvent(eventPage(t, id)) || NoEvent(listEntry(t, list, id)) {
+			t.Errorf("%s: a reading of a real event states no event", id)
+		}
+	}
+	// 149030 has no date at all, and still is an event.
+	if d := eventPage(t, "149030"); len(d.Schedules) != 0 || NoEvent(d) {
+		t.Errorf("149030: %d dates, NoEvent %v", len(d.Schedules), NoEvent(d))
 	}
 }
 

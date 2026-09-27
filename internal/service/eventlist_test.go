@@ -18,6 +18,10 @@ import (
 	"github.com/leonieziechmann/betula/internal/parser"
 )
 
+// emptiedEventPage is what QIS answered on 2026-09-27 for the page of an event BTU had
+// removed: HTTP 200 and its empty frame (internal/parser/testdata).
+const emptiedEventPage = "qis_event_149396.html"
+
 // fakeEventSearch answers the event search of QIS with the real entries of
 // internal/parser/testdata (the events asked for that it knows, and only those), and
 // serves the real event pages of the same directory.
@@ -26,6 +30,7 @@ type fakeEventSearch struct {
 
 	mu       sync.Mutex
 	entries  map[string]string // event ID → the markup of its entry
+	removed  map[string]bool   // events BTU removed: the search leaves them out, their page is the empty frame of QIS
 	searches [][]string        // the IDs each search asked for
 	pages    []string          // the event pages fetched
 	ignoreID bool              // answer every search with every event, as if QIS dropped the filter
@@ -41,7 +46,7 @@ func newFakeEventSearch(t *testing.T) *fakeEventSearch {
 	if err != nil {
 		t.Fatalf("SplitEventList: %v", err)
 	}
-	f := &fakeEventSearch{entries: make(map[string]string)}
+	f := &fakeEventSearch{entries: make(map[string]string), removed: make(map[string]bool)}
 	for _, e := range list.Entries {
 		f.entries[e.ID] = string(e.HTML)
 	}
@@ -74,7 +79,7 @@ func (f *fakeEventSearch) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		var shown []string
 		for _, id := range ids {
-			if entry, ok := f.entries[id]; ok {
+			if entry, ok := f.entries[id]; ok && !f.removed[id] {
 				shown = append(shown, `<div class="abstand_veranstaltung"></div>`+entry)
 			}
 		}
@@ -83,7 +88,11 @@ func (f *fakeEventSearch) serve(w http.ResponseWriter, r *http.Request) {
 	case "/event":
 		id := r.URL.Query().Get("veranstaltung.veranstid")
 		f.pages = append(f.pages, id)
-		body, err := os.ReadFile(filepath.Join("..", "parser", "testdata", "qis_event_"+id+".html"))
+		file := "qis_event_" + id + ".html"
+		if f.removed[id] {
+			file = emptiedEventPage
+		}
+		body, err := os.ReadFile(filepath.Join("..", "parser", "testdata", file))
 		if err != nil {
 			http.NotFound(w, r)
 			return
@@ -395,6 +404,53 @@ func TestEventPagesByDay(t *testing.T) {
 	}
 	if got := crawlEvents(t, f, db, false); strings.Join(got, ",") != "149030,150708" {
 		t.Errorf("fetched %v by day, want the two pages the search has news for", got)
+	}
+}
+
+// When BTU removes an event, the search stops showing it and its page turns into the empty
+// frame of QIS. That the search no longer shows it is news: the page is fetched in the same
+// run, however long the search had vouched for it, by night and by day, and only once.
+func TestEventPagesFollowTheSearchWhenBTURemovesAnEvent(t *testing.T) {
+	f := newFakeEventSearch(t)
+	db := openTestDB(t)
+	ids := []string{"151296", "152864", "150708"}
+	linkEvents(t, db, ids...)
+	if got := crawlEvents(t, f, db, true); len(got) != 3 {
+		t.Fatalf("first run fetched %v", got)
+	}
+	for _, id := range ids { // a day on
+		age(t, db, catalogdb.SourceQISEvent, id, 25*time.Hour)
+		age(t, db, catalogdb.SourceQISEventEntry, id, 25*time.Hour)
+	}
+
+	// Removed in the evening: the night's lookup does not find 152864, whose page the search
+	// had vouched for a month, and the page follows at once.
+	f.mu.Lock()
+	f.removed["152864"] = true
+	f.mu.Unlock()
+	if got := crawlEvents(t, f, db, true); strings.Join(got, ",") != "152864" {
+		t.Errorf("fetched %v, want the page of the event the search no longer shows", got)
+	}
+	page, err := db.GetPage(catalogdb.SourceQISEvent, "152864")
+	if err != nil || !strings.Contains(string(page.Body), `id="choosesemester"`) || strings.Contains(string(page.Body), "Grunddaten") {
+		t.Errorf("the page of the removed event is not the empty frame (%v)", err)
+	}
+	// Read once, the empty page is no news again.
+	for _, id := range ids {
+		age(t, db, catalogdb.SourceQISEventEntry, id, 13*time.Hour)
+	}
+	if got := crawlEvents(t, f, db, true); len(got) != 0 {
+		t.Errorf("fetched %v again", got)
+	}
+
+	// By day the search is asked about the exam without a date every two hours; removed by
+	// day, its page follows by day.
+	f.mu.Lock()
+	f.removed["150708"] = true
+	f.mu.Unlock()
+	age(t, db, catalogdb.SourceQISEventEntry, "150708", 3*time.Hour)
+	if got := crawlEvents(t, f, db, false); strings.Join(got, ",") != "150708" {
+		t.Errorf("fetched %v by day, want the page of the exam the search no longer shows", got)
 	}
 }
 

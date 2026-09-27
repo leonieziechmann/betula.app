@@ -108,7 +108,8 @@ impl FromRow for Successor {
     }
 }
 
-/// `v_module_schedule` and `v_module_exam`: one date of an event. Exams have no group or rhythm.
+/// `v_module_schedule` and `v_module_exam`: one date of an event. Exams have no group or rhythm. The
+/// views allow a date without a semester; the queries leave it out (`queries::module_schedule`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EventDate {
     pub semester_key: String,

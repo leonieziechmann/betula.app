@@ -51,7 +51,7 @@ and the `plan*` tables is derived and replaced by each build.
 | `program_module_assertion` | one row per statement "module M is in program P" per source, with `kind`, `kind_basis` (`stated`/`inferred`) and area | module page, QIS tree, validated plan |
 | `plan`, `plan_entry`, `plan_scan_status` | validated study plans; written transactionally by `SavePlan`, never touched by the build; not foreign-keyed to derived tables, so a plan survives an incomplete crawl | statute PDFs |
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
-| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/data-sources.md` §11); the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
+| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
@@ -105,6 +105,11 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_semester` | semester | `key, season, year, label, starts_on, ends_on, is_current, teaching_events, exam_events`. `is_current` follows `meta.current_semester`: the calendar decides (April–September summer, October–March winter), but a semester whose schedule is already published wins over it — a semester counts as published once 100 modules have a dated teaching event in it, so that the few events BTU releases early cannot move the catalog. |
 | `program_coverage` | program | `program_id, program_name, degree, po_version, tree_modules, page_modules, plan_entries, plan_entries_linked, modules_without_kind, plan_status` |
 | `v_meta` | key | `key, value` |
+
+`semester_key` and `semester_label` of `v_module_schedule` and `v_module_exam` are NULL for an event
+whose semester Radix cannot read. `validate` warns when a module links one, and Folia leaves its
+dates off the module page (2026-09-27: two events QIS had emptied were built so, and Folia could not
+read the pages of their modules; such an event is no longer built, `docs/data-sources.md` §11).
 
 Every view is exercised by `internal/catalogbuild/build_test.go` against a miniature catalog
 with the markup of the live pages. Measured on the real data, each of the queries below takes
@@ -167,7 +172,9 @@ Done (see `docs/operations.md`):
   refetched but unchanged page does not make every browser download the database again.
   `meta.data_changed_at` says when the content last changed.
 - **Retention.** Events are removed one month after their last date (`prune`, and in every
-  service cycle) and remembered in `event_tombstone`, because module pages keep linking them.
+  service cycle) and remembered in `event_tombstone`, because module pages keep linking them. An
+  event BTU removed is not built at all; its page and search entry are unused archive pages, which
+  the `archive` stage removes a week after nothing fetches them any more (2026-09-27).
 - **QIS tree complete.** `crawl-tree` fetched the 152 missing index pages; a walk from the root now
   reaches all 2,652 pages, so new programs and PO versions are discovered.
 - **Events archived** by `crawl-events` (section 8).

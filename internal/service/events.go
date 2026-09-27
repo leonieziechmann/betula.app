@@ -319,18 +319,21 @@ const (
 
 // pageRank says whether the page of event id is due, and whether the search vouches for it.
 // The search has news for a page when its entry changed after the page was fetched and now
-// states other dates: a change, not a difference in reading, so that no page is fetched
-// again and again for the same entry. It vouches for a page that states the same dates when
-// they are settled: the page is read once per pace.ConfirmedMaxAge. A page that states the
-// same dates while they are not settled is read once per pace.UnsettledMaxAge: the search,
-// asked about those dates every two hours, shows when they come, and the page is read for
-// what it states alone, a remark such as „Termin nach Vereinbarung". Any other page is in
-// doubt and is read once per pace.MaxAge, as every page was before the search was asked (a
-// search that stopped working vouches for nothing). With pace.Spread each page has a day
-// of its own in its period, so that pages read in the same night do not come due together
-// again.
+// states other dates, or no longer shows the event: a change, not a difference in reading,
+// so that no page is fetched again and again for the same entry. An event BTU removes drops
+// out of the search, and its page, the empty frame of QIS then, takes it out of the catalog
+// in the same cycle (docs/data-sources.md §11). The search vouches for a page that states
+// the same dates when they are settled: the page is read once per pace.ConfirmedMaxAge. A
+// page that states the same dates while they are not settled is read once per
+// pace.UnsettledMaxAge: the search, asked about those dates every two hours, shows when they
+// come, and the page is read for what it states alone, a remark such as „Termin nach
+// Vereinbarung". Any other page is in doubt and is read once per pace.MaxAge, as every page
+// was before the search was asked (a search that stopped working vouches for nothing). With
+// pace.Spread each page has a day of its own in its period, so that pages read in the same
+// night do not come due together again.
 func pageRank(id string, st *eventState, pace EventPagePace, now time.Time) (rank int, vouched bool) {
-	listed := st.entryListed && pace.EntryFresh > 0 && now.Sub(st.entryAt) < pace.EntryFresh
+	asked := st.entryAsked && pace.EntryFresh > 0 && now.Sub(st.entryAt) < pace.EntryFresh
+	listed := asked && st.entryListed
 	agrees := listed && st.paged && parser.SameSchedule(st.entry, st.page)
 	due := func(period time.Duration) int {
 		if pace.due(id, st.pageAt, now, period) {
@@ -341,7 +344,7 @@ func pageRank(id string, st *eventState, pace EventPagePace, now time.Time) (ran
 	switch {
 	case st.pageAt.IsZero():
 		return pageNew, false
-	case listed && !agrees && st.entryChangedAt.After(st.pageAt):
+	case asked && !agrees && st.entryChangedAt.After(st.pageAt):
 		return pageListNews, false
 	case agrees && pace.ConfirmedMaxAge > 0 && !parser.Unsettled(st.entry):
 		return due(pace.ConfirmedMaxAge), true
@@ -378,7 +381,8 @@ func CrawlEvents(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Event
 		}
 	} else {
 		// By day only an entry that changed since its page was fetched, or one without a
-		// page, can make a page due; the archive says which without reading a body.
+		// page, can make a page due; the archive says which without reading a body. That
+		// the search no longer shows an event is such a change.
 		entries, err := db.PageStates(catalogdb.SourceQISEventEntry)
 		if err != nil {
 			return crawl.Stats{}, err
@@ -388,7 +392,7 @@ func CrawlEvents(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Event
 			return crawl.Stats{}, err
 		}
 		for id, e := range entries {
-			if e.HTTPStatus != http.StatusOK || pace.EntryFresh <= 0 || now.Sub(e.FetchedAt) >= pace.EntryFresh {
+			if pace.EntryFresh <= 0 || now.Sub(e.FetchedAt) >= pace.EntryFresh {
 				continue
 			}
 			if p, ok := pages[id]; !ok || e.ChangedAt.After(p.FetchedAt) {

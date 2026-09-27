@@ -155,8 +155,9 @@ func runCrawlTree(ctx context.Context, args []string) {
 }
 
 // runPrune removes everything that is not part of the current dataset: events past
-// their retention, and archived pages the current lists and the QIS root no longer
-// lead to. Run `build` afterwards to drop them from the canonical tables as well.
+// their retention, archived pages the current lists and the QIS root no longer lead
+// to, and the pages of events QIS has removed. Run `build` afterwards to drop them
+// from the canonical tables as well.
 func runPrune(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("prune", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "Database path")
@@ -193,5 +194,6 @@ func runPrune(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 	log.Info("archive pruned", "event", "retention.archive_pruned", "removed", pages,
-		"unused_module_pages", len(unused[catalogdb.SourceModulePage]), "unused_tree_pages", len(unused[catalogdb.SourceQISTree]), "grace", grace.String())
+		"unused_module_pages", len(unused[catalogdb.SourceModulePage]), "unused_tree_pages", len(unused[catalogdb.SourceQISTree]),
+		"unused_event_pages", len(unused[catalogdb.SourceQISEvent]), "grace", grace.String())
 }
