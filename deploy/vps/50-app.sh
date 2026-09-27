@@ -20,8 +20,8 @@
 #
 # Blue-green (lib-stacks.sh): an instance whose host another instance serves already is deployed
 # as its standby - running, but without the host's traffic - and only when both files name the
-# same host, say RADIX_CRAWL=off and agree on FOLIA_ACCESS_GATE. This script never moves the
-# traffic of a host; vps/55-switch.sh does.
+# same host, agree on FOLIA_ACCESS_GATE and at most one of them says RADIX_CRAWL=on. This script
+# never moves the traffic of a host; vps/55-switch.sh does.
 #
 # Environment (all optional):
 #   PUBLIC_ADDRESSES="..."  this machine's public addresses, if they are not on an interface (NAT)
@@ -104,11 +104,11 @@ ensure_snapshot() {
 }
 
 # check_siblings - another stack routed for this instance's host is only allowed as the other colour
-# of blue-green: an instance whose own file names the same host, both offline, both closed or both
-# open. Two Radix that crawl would ask the university for everything twice, and a switch between
-# the colours must not open or close the site. Sets SIBLINGS.
+# of blue-green: an instance whose own file names the same host, at most one of the two crawling,
+# both closed or both open. Two Radix that crawl would ask the university for everything twice,
+# and a switch between the colours must not open or close the site. Sets SIBLINGS.
 check_siblings() {
-  local other
+  local other args
   local -a self=("${INSTANCE_STACK}" "${INSTANCE_HOST}" "${INSTANCE_GATE}" "${INSTANCE_CRAWL}")
   SIBLINGS=()
   while IFS= read -r other; do
@@ -119,8 +119,15 @@ check_siblings() {
     load_instance "${other}"
     [[ "${INSTANCE_HOST}" == "${self[1]}" ]] ||
       die "stack ${other} is routed for https://${self[1]}, but ${other}.env names ${INSTANCE_HOST}: bash ${BETULA_ROOT}/vps/50-app.sh ${other} first"
-    [[ "${self[3]}" == "off" && "${INSTANCE_CRAWL}" == "off" ]] ||
-      die "stack ${other} serves https://${self[1]} already. Two colours of one site need RADIX_CRAWL=off in both files (${self[0]}.env: ${self[3]}, ${other}.env: ${INSTANCE_CRAWL}): two Radix that crawl would ask the university for everything twice"
+    [[ "${self[3]}" == "off" || "${INSTANCE_CRAWL}" == "off" ]] ||
+      die "stack ${other} serves https://${self[1]} already, and ${self[0]}.env and ${other}.env both say RADIX_CRAWL=on: two Radix that crawl would ask the university for everything twice. At most one colour crawls (README.md section 4)"
+    # The file is a plan; what the other Radix runs is what counts. It stops crawling only once
+    # 50-app.sh has deployed its RADIX_CRAWL=off.
+    if [[ "${self[3]}" == "on" ]]; then
+      args="$(docker service inspect "${other}_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
+      [[ "${args}" == serve-snapshot* ]] ||
+        die "${other}.env says RADIX_CRAWL=off, but ${other}_radix runs \"${args:-run}\" and still crawls: bash ${BETULA_ROOT}/vps/50-app.sh ${other} first"
+    fi
     [[ "${INSTANCE_GATE}" == "${self[2]}" ]] ||
       die "FOLIA_ACCESS_GATE is ${self[2]} in ${self[0]}.env and ${INSTANCE_GATE} in ${other}.env: switching between the two would open or close the site"
     SIBLINGS+=("${other}")

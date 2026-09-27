@@ -142,10 +142,11 @@ when their bind-mounted configuration changed.
 The application (Radix + Folia) is one stack file, `stacks/betula.yml`, for every **instance** of it.
 An instance is a file `stacks/<instance>.env`: the name of its stack, its public host name, and
 whether the site asks for the password of closed testing. `canary.env` is the closed test at
-https://canary.betula.app; `betula.env` is the public site at https://betula.app (since
-2026-09-27, one colour: it crawls). The placeholder kept https://betula.app until then; the
-router of `betula` outranks its priority 1, so there was no gap, and it answers only while
-`betula` has no healthy web server (`docker stack rm placeholder` removes it). A new instance
+https://canary.betula.app; `betula.env` and `betula-green.env` are the two colours of the public
+site at https://betula.app (since 2026-09-27; one of them crawls, see „A colour that crawls"
+below). The placeholder kept https://betula.app until then; the routers of both outrank its
+priority 1, so there was no gap, and it answers only while neither has a healthy web server
+(`docker stack rm placeholder` removes it). A new instance
 also has to be named in the two log rules of
 `config/monitoring/grafana/provisioning/alerting/rules.yml` (`stack=~"(betula|canary)(-green)?"`),
 or its errors stay silent.
@@ -232,8 +233,10 @@ only to a service whose task is healthy:
    `docker stack rm canary`; its volumes stay until you remove them. Grafana's rule „Service has
    no running container" leaves a colour removed this way alone, no silence needed.
 
-Only with `RADIX_CRAWL=off` in both files (two Radix that crawl would ask the university for
-everything twice) and the same `FOLIA_ACCESS_GATE`; `50-app.sh` refuses anything else. The next
+Only with the same `FOLIA_ACCESS_GATE` in both files and `RADIX_CRAWL=on` in at most one of them
+(two Radix that crawl would ask the university for everything twice); `50-app.sh` refuses
+anything else, and before it deploys a colour that crawls it checks that the other one's Radix
+really runs `serve-snapshot`. Both canary colours are offline. The next
 release goes to the colour that does not serve. Its volume keeps its database: for new data
 remove its stack and volume and ship it with `--seed` again; after a release with a new schema,
 build and export a new snapshot in its Radix (`docker exec <its radix container> /bin/radix build
@@ -242,6 +245,30 @@ build and export a new snapshot in its Radix (`docker exec <its radix container>
 The build is not optional: the new binary migrates the database when it opens it, but only a
 build fills what the migration adds (schema 9: the short names), and `export` validates first
 and refuses a database that was not built again. Do not reach for `--skip-validate` here.
+
+**A colour that crawls** (the public site, owner 2026-09-27): the database goes with the crawl,
+so that nothing Radix fetched is lost and nothing is fetched twice. `<old>` crawls and serves,
+`<new>` is the colour that takes over (`betula`, `betula-green`):
+
+1. `RADIX_CRAWL=off` in `<old>.env`, sync, `bash /opt/betula/vps/50-app.sh <old>`. Only Radix
+   restarts, as `serve-snapshot` with the snapshot it exported last; Folia serves on. Radix stores
+   every page as it arrives, so a stop costs at most the request in flight - none in the pause
+   between two cycles (`docker service logs <old>_radix`: `cycle.finished`, then 30 minutes).
+2. Its database, which nothing has open any more, to the workstation (a container that is never
+   started, as in `50-app.sh`: the image has no shell):
+   `ssh betula 'docker create --name radix-copy -v <old>_radix-data:/data:ro betula-radix:<its tag> >/dev/null && docker cp radix-copy:/data/radix.db -; docker rm -f radix-copy >/dev/null' > radix.db.tar`,
+   then `tar -xf radix.db.tar` (a `radix.db-wal` next to it would have to come along; a clean
+   stop leaves none).
+3. `RADIX_CRAWL=off` in `<new>.env` for now, and `SEED_DB=<the copy> SSH_TARGET=betula bash
+   deploy/ship.sh <new> --seed`: `50-app.sh` builds and exports a snapshot from it with the new
+   release, without a network, and deploys the standby. Wait for Folia's `cache.warmed`.
+4. `55-switch.sh <new>`.
+5. `RADIX_CRAWL=on` in `<new>.env`, sync, `bash /opt/betula/vps/50-app.sh <new>`: its Radix
+   crawls on from where the other one stopped (`50-app.sh` refuses while `<old>_radix` crawls).
+
+Between 1 and 5 nobody crawls: what is due is fetched afterwards, nothing is lost. `<old>` stays
+the rollback with the data of the handover; before it crawls again, the database goes back the
+same way.
 
 Swarm compares service definitions, not image contents: re-loading an existing tag restarts nothing,
 hence a tag per commit and never `latest`. Old versions stay until you remove them
