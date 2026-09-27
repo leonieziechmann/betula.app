@@ -56,7 +56,7 @@ pub const EN: Texts = Texts {
     credits: |n| format!("{n} CP"),
     credits_unknown: "CP not stated",
     modules: |n, written| if n == 1 { "1 module".to_string() } else { format!("{written} modules") },
-    semester_one: |n| format!("{}", ordinal(n)),
+    semester_one: ordinal,
     semester_span: |from, to| format!("{}–{}", ordinal(from), ordinal(to)),
     semesters: |named| format!("{named} semester"),
     semesters_or: |rest, last| format!("{rest} or {last} semester"),
