@@ -47,6 +47,12 @@ states: a module whose campus or turnus is unknown stays in the list (R12). Lect
 wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhler) and not
 (Lambers or Hofstedt).
 
+**Every route in every language** (2026-09-27, `docs/i18n.md`): the addresses above are the
+German pages; the same page in English is the same address under `/en` (`/en/catalog?…`, the start
+page `/en`), and so are the cards, the manifest and the calendar feed (`/en/cards/…`,
+`/en/manifest.webmanifest`, `/en/calendar/<code>.ics`). `/de/…` leads to the plain address. The
+paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R23).
+
 ### Look and interaction (since 2026-09-19, owner-approved direction)
 
 - **Name and logo** (owner decision 2026-09-20, domain `betula.app`): the product is **Betula**
@@ -1257,6 +1263,14 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   control that shows where the visitor is shows where the app is going as well (`Pending::to`,
   `search_on`, `path`), and what takes a new page or list to compute has its skeleton
   (`Pending::waits`, `skeleton`). A new page gets a `pending::Shape`, or one that looks like it.
+- **R23. What the app writes is in the page's language** (2026-09-27, `docs/i18n.md`). A text of
+  the app lives in a group of texts (`app/src/i18n/<group>.rs`, a field and one `const` per
+  language), never as a literal in a view; a component takes them once (`let t = i18n::t();`).
+  Every address of the app written into a page goes through `t.path(…)`, and what reads an
+  address uses `i18n::use_location` (the path without the language's prefix). The data is not
+  translated: titles, descriptions and names are shown as the BTU writes them. A server test
+  renders every kind of page in English and lists every link out of English
+  (`a_page_in_english_stays_in_english`).
 - **R22. A render on the server makes nothing that is bound to its thread** (2026-09-26). A
   page renders in a task that can go on on another worker thread: `leptos_meta` waits a tick
   for its tags (a little task of its own that wakes the render again), and after three such
