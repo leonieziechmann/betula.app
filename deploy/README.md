@@ -19,7 +19,7 @@ deploy/
     90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 55
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
   stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, betula(.gemini|.offline).yml,
-                          canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
+                          betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/
 ```
 
@@ -142,9 +142,11 @@ when their bind-mounted configuration changed.
 The application (Radix + Folia) is one stack file, `stacks/betula.yml`, for every **instance** of it.
 An instance is a file `stacks/<instance>.env`: the name of its stack, its public host name, and
 whether the site asks for the password of closed testing. `canary.env` is the closed test at
-https://canary.betula.app; the placeholder keeps https://betula.app until an instance gets
-`APP_HOST=betula.app` (its router outranks the placeholder's priority 1, so there is no gap; then
-`docker stack rm placeholder`). A new instance also has to be named in the two log rules of
+https://canary.betula.app; `betula.env` is the public site at https://betula.app (since
+2026-09-27, one colour: it crawls). The placeholder kept https://betula.app until then; the
+router of `betula` outranks its priority 1, so there was no gap, and it answers only while
+`betula` has no healthy web server (`docker stack rm placeholder` removes it). A new instance
+also has to be named in the two log rules of
 `config/monitoring/grafana/provisioning/alerting/rules.yml` (`stack=~"(betula|canary)(-green)?"`),
 or its errors stay silent.
 
