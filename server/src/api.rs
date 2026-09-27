@@ -237,7 +237,7 @@ pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMa
     // A semester's rows and a few hundred entries: made off the threads that answer requests.
     let built = tokio::task::spawn_blocking(move || {
         let mut out: Result<String, catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
-        let ran = snapshot.with_db(&mut |db| out = catalog::pages::calendar(db, &subscription));
+        let ran = snapshot.with_db(&mut |db| out = catalog::pages::calendar(db, &subscription, locale));
         ran.and(out)
     })
     .await;
@@ -639,7 +639,7 @@ pub async fn shared_plan_card(State(state): State<AppState>, Path(file): Path<St
     };
     let locale = language_of(&uri);
     let key = card_key(format!("{}{code}", crate::cards::SHARED_PLAN), locale);
-    card(&state, &headers, key, move |db| Ok(catalog::pages::shared_plan(db, &plan)?.and_then(|shared| shared_plan_text(&shared, locale)))).await
+    card(&state, &headers, key, move |db| Ok(catalog::pages::shared_plan(db, &plan, locale)?.and_then(|shared| shared_plan_text(&shared, locale)))).await
 }
 
 /// What the card of a shared plan says; `None` without a module the catalog knows.

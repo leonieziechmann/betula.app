@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::Locale;
 use crate::labels::{Code, ModuleKind};
 use crate::pages::CatalogArea;
 use crate::rows_detail::{PlanEntry, PlanTotal};
@@ -28,7 +29,9 @@ pub fn span_of(semester: Option<i64>, start_semester: Option<i64>, end_semester:
     }
 }
 
-/// What a row of the plan says about its credits: a number, a range, or nothing.
+/// What a row of the plan says about its credits: a number, a range, or nothing. Written the one
+/// way the Studienplan's store keeps it, whatever the language of the page („6", „7,5",
+/// „10–24"); a page writes it in its language with `credits_in`.
 pub fn credits_of(entry: &PlanEntry) -> Option<String> {
     let number = |n: f64| if n.fract() == 0.0 { format!("{}", n as i64) } else { format!("{n}").replace('.', ",") };
     match (entry.credits, entry.min_credits, entry.max_credits) {
@@ -37,6 +40,13 @@ pub fn credits_of(entry: &PlanEntry) -> Option<String> {
         (None, Some(value), _) | (None, None, Some(value)) => Some(number(value)),
         _ => None,
     }
+}
+
+/// Credits as `credits_of` writes them („7,5", „10–24"), as a page in `locale` writes them:
+/// "7.5" in English.
+pub fn credits_in(credits: &str, locale: Locale) -> String {
+    let separator = locale.texts().common.decimal_separator;
+    credits.chars().map(|c| if c == ',' { separator } else { c }).collect()
 }
 
 /// A row stated as Pflicht, Abschlussarbeit or Praktikum means one module, not a choice: without
@@ -339,7 +349,8 @@ pub fn areas_for_row(entry: &PlanEntry, plan: &str, areas: &[CatalogArea], rows:
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SemesterRequirement {
     pub name: String,
-    /// „12", „10–24"; `None` where the plan states none.
+    /// „12", „10–24", „7,5" (in English "7.5": `requirement_of`'s language); `None` where the
+    /// plan states none.
     pub credits: Option<String>,
     pub kind: Option<Code<ModuleKind>>,
     /// One module the catalog does not know under this name, not a choice.
@@ -472,13 +483,13 @@ fn without_reference(name: &str) -> &str {
 /// is the caption of the plan the row belongs to (`""` where a program has one plan), `rows` the
 /// rows of that plan, which tell what this row does not mean (`areas_for_row`). A semester's
 /// requirements are these, merged across study directions (`semester_plan`); the Studienplan's
-/// placeholders read their row the same way.
-pub fn requirement_of(entry: &PlanEntry, caption: &str, areas: &[CatalogArea], rows: &[PlanEntry]) -> SemesterRequirement {
+/// placeholders read their row the same way. Its credits are written in `locale`.
+pub fn requirement_of(entry: &PlanEntry, caption: &str, areas: &[CatalogArea], rows: &[PlanEntry], locale: Locale) -> SemesterRequirement {
     let (single, fues) = (is_single_module(entry), is_fues(entry));
     let found = if single || fues { RowAreas::default() } else { areas_for_row(entry, caption, areas, rows) };
     SemesterRequirement {
         name: entry.module_name.clone(),
-        credits: credits_of(entry),
+        credits: credits_of(entry).map(|credits| credits_in(&credits, locale)),
         kind: entry.kind.clone(),
         single,
         fues,
@@ -514,8 +525,8 @@ impl SemesterPlan {
 }
 
 /// The rows of the plan that lie in `semester` (a row over several semesters lies in each of
-/// them) and name no module, with the areas they point at.
-pub fn semester_plan(semester: u8, entries: &[PlanEntry], areas: &[CatalogArea]) -> SemesterPlan {
+/// them) and name no module, with the areas they point at and their credits written in `locale`.
+pub fn semester_plan(semester: u8, entries: &[PlanEntry], areas: &[CatalogArea], locale: Locale) -> SemesterPlan {
     let mut plan = SemesterPlan { semester, requirements: Vec::new() };
     for entry in entries.iter().filter(|entry| entry.module_id.is_none()) {
         let in_semester = semester_span(entry).is_some_and(|(from, to)| from <= i64::from(semester) && i64::from(semester) <= to);
@@ -528,7 +539,7 @@ pub fn semester_plan(semester: u8, entries: &[PlanEntry], areas: &[CatalogArea])
             true => Vec::new(),
             false => entries.iter().filter(|other| other.specialization == entry.specialization).cloned().collect(),
         };
-        let requirement = requirement_of(entry, entry.specialization.as_deref().unwrap_or_default(), areas, &rows);
+        let requirement = requirement_of(entry, entry.specialization.as_deref().unwrap_or_default(), areas, &rows, locale);
         let add = |into: &mut Vec<CatalogArea>, areas: Vec<CatalogArea>| {
             for area in areas {
                 if !into.iter().any(|known| known.id == area.id) {
@@ -856,7 +867,7 @@ mod tests {
             row("Fachübergreifendes Studium", 5, E, None),
             PlanEntry { module_id: Some("11101".into()), ..row("Lineare Algebra", 5, Some(ModuleKind::Compulsory), None) },
         ];
-        let plan = semester_plan(5, &entries, &areas);
+        let plan = semester_plan(5, &entries, &areas, Locale::De);
         let names: Vec<&str> = plan.requirements.iter().map(|row| row.name.as_str()).collect();
         // The same row of two study directions is one; the linked row and the 6th semester are not here.
         assert_eq!(names, vec!["Komplex Praktische Informatik", entries[3].module_name.as_str(), "Freie Wahl", "Bachelor-Arbeit", "Fachübergreifendes Studium"]);
@@ -875,10 +886,14 @@ mod tests {
 
         // A span of semesters lies in each of them.
         let spanning = PlanEntry { semester: None, start_semester: Some(5), end_semester: Some(6), ..row("Wahlpflichtmodule", 5, None, None) };
-        assert_eq!(semester_plan(6, std::slice::from_ref(&spanning), &areas).requirements.len(), 1);
-        assert_eq!(semester_plan(4, &[spanning], &areas).requirements.len(), 0);
+        assert_eq!(semester_plan(6, std::slice::from_ref(&spanning), &areas, Locale::De).requirements.len(), 1);
+        assert_eq!(semester_plan(4, &[spanning], &areas, Locale::De).requirements.len(), 0);
         assert_eq!(credits_of(&PlanEntry { credits: None, min_credits: Some(10.0), max_credits: Some(24.0), ..row("x", 1, None, None) }).as_deref(), Some("10–24"));
         assert_eq!(credits_of(&PlanEntry { credits: Some(7.5), ..row("x", 1, None, None) }).as_deref(), Some("7,5"));
+        // The store's form is the same in every language; a page writes it in its own.
+        assert_eq!((credits_in("7,5", Locale::De), credits_in("7,5", Locale::En), credits_in("10–24", Locale::En)), ("7,5".to_string(), "7.5".to_string(), "10–24".to_string()));
+        let half = PlanEntry { credits: Some(7.5), ..row("Freie Wahl", 5, E, None) };
+        assert_eq!(semester_plan(5, std::slice::from_ref(&half), &areas, Locale::En).requirements[0].credits.as_deref(), Some("7.5"));
     }
 
     #[test]
@@ -901,10 +916,10 @@ mod tests {
             let listed: Vec<SemesterRequirement> = rows
                 .iter()
                 .filter(|entry| semester_span(entry).is_some_and(|(from, to)| from <= i64::from(semester) && i64::from(semester) <= to))
-                .map(|entry| requirement_of(entry, "", &areas, &rows))
+                .map(|entry| requirement_of(entry, "", &areas, &rows, Locale::De))
                 .collect();
             seen += listed.len();
-            assert_eq!(semester_plan(semester, &rows, &areas).requirements, listed, "semester {semester}");
+            assert_eq!(semester_plan(semester, &rows, &areas, Locale::De).requirements, listed, "semester {semester}");
         }
         assert_eq!(seen, rows.len());
 
@@ -920,9 +935,9 @@ mod tests {
                 .iter()
                 .filter(|entry| entry.module_id.is_none() && !entry.module_name.trim().is_empty())
                 .filter(|entry| semester_span(entry).is_some_and(|(from, to)| from <= i64::from(semester) && i64::from(semester) <= to))
-                .map(|entry| requirement_of(entry, entry.specialization.as_deref().unwrap_or_default(), &areas, &entries))
+                .map(|entry| requirement_of(entry, entry.specialization.as_deref().unwrap_or_default(), &areas, &entries, Locale::De))
                 .collect();
-            assert_eq!(semester_plan(semester, &entries, &areas).requirements, listed, "semester {semester}");
+            assert_eq!(semester_plan(semester, &entries, &areas, Locale::De).requirements, listed, "semester {semester}");
         }
     }
 

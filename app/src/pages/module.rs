@@ -951,7 +951,7 @@ fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterK
         };
         source
             .run(|db| {
-                let plan = pages::studyplan_in(db, key, &others, program.as_deref())?;
+                let plan = pages::studyplan_in(db, key, &others, program.as_deref(), crate::i18n::locale())?;
                 pages::overlay(db, &plan, &id, &selection)
             })
             .unwrap_or_default()

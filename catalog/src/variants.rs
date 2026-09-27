@@ -10,6 +10,7 @@
 //! on the server alike.
 
 use crate::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope};
+use crate::i18n::Locale;
 use crate::labels::ModuleKind;
 use crate::pages::CatalogArea;
 use crate::plan;
@@ -20,7 +21,8 @@ use crate::url;
 /// plan per study direction, each is its own plan with its own semesters and its own sum.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlanVariant {
-    /// What the chips say: the name of the plan without its boilerplate.
+    /// What the chips say: the name of the plan without its boilerplate; for a plan without a
+    /// name, „Regelstudienplan" in the language `plan_variants` was asked for.
     pub label: String,
     /// The name as the regulations print it (the title of the chip): the rows' `specialization`,
     /// empty for the one unnamed plan. It is what identifies a plan in a visitor's store, never
@@ -88,8 +90,8 @@ pub struct Choice {
 
 /// Splits the rows of the plan into the plans they were printed as, and gives each the sums the
 /// regulation prints over its rows. The order is the order of the document; rows without a name
-/// of their own form one unnamed plan.
-pub fn plan_variants(entries: &[PlanEntry], totals: &[PlanTotal]) -> Vec<PlanVariant> {
+/// of their own form one unnamed plan. The chips are labelled in `locale`.
+pub fn plan_variants(entries: &[PlanEntry], totals: &[PlanTotal], locale: Locale) -> Vec<PlanVariant> {
     let mut plans: Vec<PlanVariant> = Vec::new();
     for entry in entries {
         let full = entry.specialization.clone().unwrap_or_default();
@@ -131,7 +133,7 @@ pub fn plan_variants(entries: &[PlanEntry], totals: &[PlanTotal]) -> Vec<PlanVar
     }
     plans.truncate(url::MAX_PLAN_VARIANTS);
     // The chips say what tells the plans apart, which only all of them together can say.
-    let labels = tell_plans_apart(&plans.iter().map(|plan| plan.full.clone()).collect::<Vec<_>>());
+    let labels = tell_plans_apart(&plans.iter().map(|plan| plan.full.clone()).collect::<Vec<_>>(), locale);
     for (plan, label) in plans.iter_mut().zip(labels) {
         plan.label = label;
     }
@@ -141,13 +143,14 @@ pub fn plan_variants(entries: &[PlanEntry], totals: &[PlanTotal]) -> Vec<PlanVar
 /// The name of a plan without the words every plan of this program carries anyway. The captions
 /// of the regulations differ in one place only — „Regelstudienplan der Studienrichtungen **MIT
 /// und EET** im grundständigen Studium" — so a chip says „MIT und EET" and keeps the whole
-/// caption as its title. Nothing is invented: where the names do not differ, the name stays.
-pub fn tell_plans_apart(names: &[String]) -> Vec<String> {
+/// caption as its title. Nothing is invented: where the names do not differ, the name stays. A
+/// plan without a name is called „Regelstudienplan" in `locale`.
+pub fn tell_plans_apart(names: &[String], locale: Locale) -> Vec<String> {
     let stripped: Vec<&str> = names.iter().map(|name| strip_plan_boilerplate(name)).collect();
     let words: Vec<Vec<&str>> = stripped.iter().map(|name| name.split_whitespace().collect()).collect();
     let shortest = words.iter().map(Vec::len).min().unwrap_or(0);
     if names.len() < 2 || shortest == 0 {
-        return stripped.iter().map(|name| clip_plan_name(name)).collect();
+        return stripped.iter().map(|name| clip_plan_name(name, locale)).collect();
     }
     let same_at = |i: usize| {
         let first = words.first().and_then(|first| first.get(i));
@@ -173,8 +176,8 @@ pub fn tell_plans_apart(names: &[String]) -> Vec<String> {
         .map(|(name, whole)| {
             let rest: Vec<&str> = name.iter().skip(lead).take(name.len().saturating_sub(lead + tail)).copied().collect();
             match rest.is_empty() {
-                true => clip_plan_name(whole),
-                false => clip_plan_name(rest.join(" ").trim_matches(|c: char| c == '–' || c == '-' || c == ',' || c == ';' || c.is_whitespace())),
+                true => clip_plan_name(whole, locale),
+                false => clip_plan_name(rest.join(" ").trim_matches(|c: char| c == '–' || c == '-' || c == ',' || c == ';' || c.is_whitespace()), locale),
             }
         })
         .collect()
@@ -201,11 +204,12 @@ pub fn strip_plan_boilerplate(name: &str) -> &str {
 }
 
 /// Long captions are cut at a word, never in the middle of one; the chip shortens what is still
-/// too wide for it, and the whole caption is its title.
-pub fn clip_plan_name(name: &str) -> String {
+/// too wide for it, and the whole caption is its title. No caption at all is „Regelstudienplan"
+/// in `locale`.
+pub fn clip_plan_name(name: &str, locale: Locale) -> String {
     let name = name.trim();
     if name.is_empty() {
-        return "Regelstudienplan".to_string();
+        return locale.texts().plans.unnamed_plan.to_string();
     }
     if name.chars().count() <= 72 {
         return name.to_string();
@@ -221,21 +225,23 @@ pub fn clip_plan_name(name: &str) -> String {
 /// under that name; the areas its name points at (`plan::areas_for_row`, all of them where it
 /// means several); else every elective of the program. The program page links a row of its plan
 /// this way, and a placeholder of the Studienplan („Modul finden") does too. `areas` are the
-/// program's (`pages::catalog_areas`); `program_slug` is what the catalog's URL carries.
-pub fn row_query(program_slug: &str, variant: &PlanVariant, entry: &PlanEntry, areas: &[CatalogArea]) -> (CatalogQuery, String) {
+/// program's (`pages::catalog_areas`); `program_slug` is what the catalog's URL carries. What
+/// the link says is in `locale`, but for the names of the data (a row's, an area's).
+pub fn row_query(program_slug: &str, variant: &PlanVariant, entry: &PlanEntry, areas: &[CatalogArea], locale: Locale) -> (CatalogQuery, String) {
+    let texts = &locale.texts().plans;
     let base = ProgramScope { program_slug: program_slug.to_string(), ..Default::default() };
     let scoped = |scope: ProgramScope| CatalogQuery { program: Some(scope), ..Default::default() };
     if plan::is_fues(entry) {
-        return (scoped(ProgramScope { relation: ProgramRelation::Fues, ..base }), "FÜS-Liste des Studiengangs".to_string());
+        return (scoped(ProgramScope { relation: ProgramRelation::Fues, ..base }), texts.fues_list.to_string());
     }
     if plan::is_single_module(entry) {
         return (CatalogQuery { text: entry.module_name.clone(), ..Default::default() }, entry.module_name.clone());
     }
     let found = plan::areas_for_row(entry, &variant.full, areas, &variant.entries);
     match found.areas.as_slice() {
-        [] => (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..base }), "Wahlpflichtmodule des Studiengangs".to_string()),
+        [] => (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..base }), texts.program_electives.to_string()),
         [one] => (scoped(ProgramScope { areas: vec![one.id], ..base }), one.name().to_string()),
-        several => (scoped(ProgramScope { areas: several.iter().map(|area| area.id).collect(), ..base }), format!("{} Bereiche", several.len())),
+        several => (scoped(ProgramScope { areas: several.iter().map(|area| area.id).collect(), ..base }), (texts.areas)(several.len())),
     }
 }
 
@@ -325,7 +331,7 @@ mod tests {
             tell_plans_apart(&names(&[
                 "Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium",
                 "Regelstudienplan der Studienrichtungen PA und IoT im grundständigen Studium",
-            ])),
+            ]), Locale::De),
             vec!["MIT und EET", "PA und IoT"],
         );
         assert_eq!(
@@ -333,7 +339,7 @@ mod tests {
                 "Regelstudienplan Bachelor of Science – grundlagenorientiert (180 LP) Studienrichtung Konstruktiver Ingenieurbau",
                 "Regelstudienplan Bachelor of Science – grundlagenorientiert (180 LP) Studienrichtung Allgemeiner Ingenieurbau",
                 "Regelstudienplan Bachelor of Science – praxisorientiert (240 LP) Studienrichtung Konstruktiver Ingenieurbau",
-            ])),
+            ]), Locale::De),
             vec![
                 "grundlagenorientiert (180 LP) Studienrichtung Konstruktiver Ingenieurbau",
                 "grundlagenorientiert (180 LP) Studienrichtung Allgemeiner Ingenieurbau",
@@ -341,13 +347,16 @@ mod tests {
             ],
         );
         // One plan keeps its name, and a plan without one is still called what it is.
-        assert_eq!(tell_plans_apart(&names(&["Regelstudienplan"])), vec!["Regelstudienplan"]);
-        assert_eq!(tell_plans_apart(&names(&[""])), vec!["Regelstudienplan"]);
+        assert_eq!(tell_plans_apart(&names(&["Regelstudienplan"]), Locale::De), vec!["Regelstudienplan"]);
+        assert_eq!(tell_plans_apart(&names(&[""]), Locale::De), vec!["Regelstudienplan"]);
+        // What the regulation calls a plan is its name in every language; only the missing one is
+        // said in the page's.
+        assert_eq!(tell_plans_apart(&names(&["", "Regelstudienplan"]), Locale::En), vec!["Standard study plan", "Regelstudienplan"]);
         // Names that do not differ are not cut down to nothing.
-        assert_eq!(tell_plans_apart(&names(&["Studienplan · Seite 5", "Studienplan · Seite 5"])), vec!["Seite 5", "Seite 5"]);
+        assert_eq!(tell_plans_apart(&names(&["Studienplan · Seite 5", "Studienplan · Seite 5"]), Locale::De), vec!["Seite 5", "Seite 5"]);
         // A plan that differs in one word keeps the word, not only what is around it.
         assert_eq!(
-            tell_plans_apart(&names(&["Regelstudienplan Studienrichtung Konstruktiver Ingenieurbau", "Regelstudienplan Studienrichtung Allgemeiner Ingenieurbau"])),
+            tell_plans_apart(&names(&["Regelstudienplan Studienrichtung Konstruktiver Ingenieurbau", "Regelstudienplan Studienrichtung Allgemeiner Ingenieurbau"]), Locale::De),
             vec!["Konstruktiver Ingenieurbau", "Allgemeiner Ingenieurbau"],
         );
     }
@@ -404,10 +413,10 @@ mod tests {
             total(3, "Summe Studium", "plan", 5, 6, 56.0, 42.0, 84.0, vec![2, 3, 4, 5]),
         ];
         // Adding the rows up gives 8 + 10 + 10 + 10 + 12 = 50; the plan states 8 + 56.
-        let plain = plan_variants(&entries, &[]);
+        let plain = plan_variants(&entries, &[], Locale::De);
         assert_eq!(plain[0].credits, 50.0);
         assert!(!plain[0].stated);
-        let plans = plan_variants(&entries, &totals);
+        let plans = plan_variants(&entries, &totals, Locale::De);
         assert_eq!(plans.len(), 1);
         assert_eq!(plans[0].credits, 64.0);
         assert!(plans[0].stated);
@@ -422,7 +431,7 @@ mod tests {
         let mut finer = totals.clone();
         finer.push(total(4, "Summe Studium", "plan", 5, 5, 26.0, 20.0, 60.0, vec![2, 3, 4]));
         finer.push(total(5, "Summe Studium", "plan", 6, 6, 30.0, 12.0, 52.0, vec![5]));
-        let plans = plan_variants(&entries, &finer);
+        let plans = plan_variants(&entries, &finer, Locale::De);
         assert_eq!(plans[0].semester_credits(5), Some(26.0));
         // The whole plan is still read by the widest line it prints.
         assert_eq!(plans[0].credits, 64.0);
@@ -441,11 +450,11 @@ mod tests {
     fn a_row_asks_the_catalog_what_the_program_page_asked() {
         const SLUG: &str = "bachelor-informatik-2008";
         let areas = real::areas(real::INFORMATIK_BSC);
-        let variant = plan_variants(&real::informatik_bsc_rows(), &[]).remove(0);
+        let variant = plan_variants(&real::informatik_bsc_rows(), &[], Locale::De).remove(0);
         let id = |label: &str| areas.iter().find(|area| area.label == label).map(|area| area.id).unwrap();
         let scope = ProgramScope { program_slug: SLUG.to_string(), ..Default::default() };
         let scoped = |scope: ProgramScope| CatalogQuery { program: Some(scope), ..Default::default() };
-        let ask = |name: &str, kind: Option<ModuleKind>| row_query(SLUG, &variant, &row(name, 3, kind, None), &areas);
+        let ask = |name: &str, kind: Option<ModuleKind>| row_query(SLUG, &variant, &row(name, 3, kind, None), &areas, Locale::De);
         let path = |query: CatalogQuery| CatalogUrl { query, ..Default::default() }.path();
 
         // FÜS: the program's FÜS list, by the name as well as by the kind.
@@ -472,6 +481,15 @@ mod tests {
         let none = ask("Wahlpflichtmodul 3", Some(ModuleKind::Elective));
         assert_eq!(none, (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..scope }), "Wahlpflichtmodule des Studiengangs".to_string()));
         assert_eq!(path(none.0), "/catalog?program=bachelor-informatik-2008&kind=elective");
+
+        // In English the same questions, the link's words in English and the names of the data
+        // as they are.
+        let english = |name: &str, kind: Option<ModuleKind>| row_query(SLUG, &variant, &row(name, 3, kind, None), &areas, Locale::En).1;
+        assert_eq!(english("Fachübergreifendes Studium", Some(ModuleKind::Elective)), "FÜS list of the degree programme");
+        assert_eq!(english("Anwendungsfach", Some(ModuleKind::Elective)), "5 areas");
+        assert_eq!(english("Wahlpflichtmodul 3", Some(ModuleKind::Elective)), "Compulsory elective modules of the degree programme");
+        assert_eq!(english("Komplex Praktische Informatik", Some(ModuleKind::Elective)), "Praktische Informatik");
+        assert_eq!(english("Bachelor-Arbeit", Some(ModuleKind::Thesis)), "Bachelor-Arbeit");
     }
 
     #[test]
@@ -480,11 +498,11 @@ mod tests {
             PlanEntry { specialization: Some("Regelstudienplan der Studienrichtungen MIT und EET".into()), ..row("A", 1, None, None) },
             PlanEntry { specialization: Some("Regelstudienplan der Studienrichtungen PA und IoT".into()), ..row("B", 1, None, None) },
         ];
-        let variants = plan_variants(&entries, &[]);
+        let variants = plan_variants(&entries, &[], Locale::De);
         assert_eq!(variant_for(&variants, "Regelstudienplan der Studienrichtungen PA und IoT").map(|v| v.label.as_str()), Some("PA und IoT"));
         assert_eq!(variant_for(&variants, " Regelstudienplan der Studienrichtungen MIT und EET ").map(|v| v.label.as_str()), Some("MIT und EET"));
         assert!(variant_for(&variants, "Regelstudienplan").is_none(), "no plan of another name stands in");
-        let unnamed = plan_variants(&[row("A", 1, None, None)], &[]);
+        let unnamed = plan_variants(&[row("A", 1, None, None)], &[], Locale::De);
         assert_eq!(variant_for(&unnamed, "").map(|v| v.full.as_str()), Some(""));
     }
 
@@ -507,7 +525,7 @@ mod tests {
             // A page of the FÜS row's size: that row is filled from the FÜS list, not by a page.
             page(13, linked(40, 2, 42.0)),
         ];
-        let variants = plan_variants(&entries, &[]);
+        let variants = plan_variants(&entries, &[], Locale::De);
         assert_eq!(variants.iter().map(|v| v.credits).collect::<Vec<_>>(), vec![180.0, 60.0, 60.0, 60.0, 42.0]);
         assert_eq!(supplements(&variants), vec![Supplement { core: 0, ord: 3, page: 1 }, Supplement { core: 0, ord: 3, page: 2 }]);
         // A range is no one number.
@@ -516,7 +534,7 @@ mod tests {
             core(linked(1, 1, 120.0)),
             page(7, linked(10, 1, 60.0)),
         ];
-        assert!(supplements(&plan_variants(&ranged, &[])).is_empty());
+        assert!(supplements(&plan_variants(&ranged, &[], Locale::De)).is_empty());
         assert!(supplements(&[]).is_empty());
     }
 
@@ -534,7 +552,7 @@ mod tests {
         for program in queries::programs(&db).unwrap().into_iter().filter(|program| program.has_plan) {
             let entries = queries::program_plan_entries(&db, &program.id).unwrap();
             let totals = queries::program_plan_totals(&db, &program.id).unwrap();
-            let variants = plan_variants(&entries, &totals);
+            let variants = plan_variants(&entries, &totals, Locale::De);
             let all = supplements(&variants);
             for supplement in &all {
                 let (core, page) = (&variants[supplement.core], &variants[supplement.page]);

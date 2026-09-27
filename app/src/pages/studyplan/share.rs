@@ -101,7 +101,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
     // What the code names, from the local copy of the catalog.
     let shared = Memo::new(move |_| {
         let plan = code.with(|code| code.as_deref().and_then(SharedPlan::from_code))?;
-        let data = ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::shared_plan(db, &plan)).ok()))??;
+        let data = ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::shared_plan(db, &plan, crate::i18n::locale())).ok()))??;
         Some((plan, data))
     });
     let offer = Memo::new(move |_| {

@@ -56,7 +56,7 @@ fn main() -> std::process::ExitCode {
         let parsed = CatalogUrl::parse(query);
         // What the page component asks for besides the list (app/src/pages/catalog.rs): the
         // summary of the filter panel, the choices of its pickers, the meta row.
-        if pages::catalog(&timed, &parsed).is_err() || pages::catalog_summary(&timed, &parsed.query).is_err() || pages::catalog_choices(&timed).is_err() || catalog::queries::meta(&timed).is_err() {
+        if pages::catalog(&timed, &parsed, catalog::Locale::De).is_err() || pages::catalog_summary(&timed, &parsed.query).is_err() || pages::catalog_choices(&timed).is_err() || catalog::queries::meta(&timed).is_err() {
             failed += 1;
         }
         slowest.push((one.elapsed(), url));

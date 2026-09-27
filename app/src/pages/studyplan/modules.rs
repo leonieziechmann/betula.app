@@ -176,7 +176,7 @@ struct Held {
 
 /// A placeholder's name as a row says it, without its credits: „Fachübergreifendes Studium".
 fn placeholder_text(p: &Placeholder) -> String {
-    let line = studyplan::placeholder_line(p, None);
+    let line = studyplan::placeholder_line(p, None, crate::i18n::locale());
     PlaceholderLine { credits: None, tail: None, ..line }.text()
 }
 
@@ -189,8 +189,8 @@ fn areas_of(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>) -> Held {
     let areas = here
         .iter()
         .map(|p| {
-            let line = studyplan::placeholder_line(p, None);
-            let credits = line.credits.as_deref().map(|credits| credits.trim_end_matches("\u{a0}LP").to_string());
+            let line = studyplan::placeholder_line(p, None, crate::i18n::locale());
+            let credits = line.amount.clone();
             // Without the plan's row, only a row that names one module has a tail („unter diesem
             // Namen nicht im Katalog"): the row is not repeated here.
             let single = line.tail.is_some();
@@ -615,6 +615,7 @@ mod tests {
     fn first_semester() -> StudyplanData {
         StudyplanData {
             key: key("2026W"),
+            locale: catalog::Locale::De,
             label: "WiSe 2026/27".into(),
             semester: None,
             meta: Meta { current_semester: Some("2026W".into()), ..Default::default() },
