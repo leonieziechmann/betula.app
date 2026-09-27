@@ -212,7 +212,7 @@ pub fn start() {
     body.set_inner_html("");
     // The same goes for what the server wrote into the head for this page (`app::seo`): the app
     // writes its own, and what stayed would describe the first page on every later one.
-    let stale = "meta[name=description], meta[name=robots], link[rel=canonical], meta[property^='og:'], meta[name^='twitter:'], script[type='application/ld+json']";
+    let stale = "meta[name=description], meta[name=robots], link[rel=canonical], link[rel=alternate][hreflang], meta[property^='og:'], meta[name^='twitter:'], script[type='application/ld+json']";
     if let Ok(tags) = document.query_selector_all(stale) {
         for i in 0..tags.length() {
             if let Some(tag) = tags.item(i) {
