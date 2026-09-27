@@ -2246,7 +2246,9 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .crumb, .top-end, kbd { display: none; }
   .brand-phone { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
   .brand-phone .logo { margin: 0; }
-  .brand-phone > span { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  /* „inoffiziell" stays with the name, whole: where the line has no room for it beside the
+     wordmark (the switch of the languages at its end, a longer language), it goes under it. */
+  .brand-phone > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
   .brand-phone small { color: var(--text-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* The switch between the languages at the end of the brand's line: a target of its own, framed so
      that it reads as a button where nothing hovers. */
