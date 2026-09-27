@@ -24,6 +24,7 @@ use catalog::variants::{PlanVariant, Supplement};
 use leptos::prelude::*;
 
 use crate::data::{use_source, Source};
+use crate::i18n;
 use crate::nav;
 use crate::ui::Icon;
 
@@ -164,7 +165,8 @@ impl MineResolved {
     }
 
     /// The catalog as a way into it: filtered by „Mein Studiengang" while the stored program is in
-    /// the snapshot, else the whole catalog. Tracked.
+    /// the snapshot, else the whole catalog. The app's path, without the language's prefix: what
+    /// writes it into a page writes `Texts::path` of it. Tracked.
     pub fn catalog_href(self) -> String {
         self.0.with(|info| catalog_href(info.as_ref()))
     }
@@ -183,7 +185,7 @@ pub fn po_of(program: &Program) -> String {
 
 /// The catalog filtered by the program (`program=<slug>`), the one kind of address „Mein
 /// Studiengang" may stand in (A.10), where the stored program is in the snapshot; else the whole
-/// catalog.
+/// catalog. The app's path, without the language's prefix (it is compared and remembered, too).
 pub fn catalog_href(info: Option<&MyProgramInfo>) -> String {
     match info.filter(|info| info.exact) {
         Some(info) => {
@@ -196,7 +198,8 @@ pub fn catalog_href(info: Option<&MyProgramInfo>) -> String {
 
 /// The program's page as an app-made link to the visitor's own program shows it: with the plan of
 /// the stored Studienrichtung (`variant=`, A.10) — the page stored as the direction, else the plan
-/// whose caption was stored, the first where none or none of that caption is.
+/// whose caption was stored, the first where none or none of that caption is. The app's path,
+/// without the language's prefix: what writes it into a page writes `Texts::path` of it.
 pub fn program_href(source: Option<&Source>, program: &Program, caption: Option<&str>, direction: Option<&str>) -> String {
     let place = caption.filter(|caption| !caption.trim().is_empty()).and_then(|caption| {
         let plans = source?.run(|db| pages::plan_source(db, &program.id, crate::i18n::locale())).ok()??;
@@ -315,6 +318,7 @@ pub fn MineButton(
     #[prop(into)]
     shown: Signal<Option<usize>>,
 ) -> impl IntoView {
+    let t = i18n::t();
     let mine = MyProgram::expect().filter(|_| APP);
     let plans = StoredValue::new(plans);
     // One memo each (R5), both from the store alone: whether this program is kept and where its
@@ -358,11 +362,11 @@ pub fn MineButton(
             said.try_set(None);
         });
     };
-    let label = move || if pressed.get() { "Mein Studiengang" } else { "Als meinen Studiengang setzen" };
+    let label = move || if pressed.get() { t.myprogram.mine } else { t.myprogram.set_mine };
     let tip = move || match (pressed.get(), replaced.get(), kept.get()) {
-        (true, ..) => Some("Dein Studiengang. Noch einmal hebt das auf".to_string()),
-        (false, Some(other), _) => Some(format!("Ersetzt: {other}")),
-        (false, None, Some(Some(place))) => plans.with_value(|plans| plans.label(place)).map(|label| format!("Ersetzt: {label}")),
+        (true, ..) => Some(t.myprogram.unset_title.to_string()),
+        (false, Some(other), _) => Some((t.myprogram.replaces)(&other)),
+        (false, None, Some(Some(place))) => plans.with_value(|plans| plans.label(place)).map(|label| (t.myprogram.replaces)(&label)),
         (false, None, _) => None,
     };
     view! {

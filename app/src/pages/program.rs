@@ -38,10 +38,9 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
-use crate::i18n::use_location;
-
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::i18n::{self, use_location, Locale, Texts};
 use crate::local::{self, ModuleInPlace};
 use crate::myprogram::{program_name, MineButton, ProgramPlans};
 use crate::nav;
@@ -88,10 +87,10 @@ impl PlanShape {
         }
     }
 
-    fn label(self) -> &'static str {
+    fn label(self, t: &Texts) -> &'static str {
         match self {
-            PlanShape::Matrix => "Matrix",
-            PlanShape::List => "Liste",
+            PlanShape::Matrix => t.program.matrix,
+            PlanShape::List => t.program.list,
         }
     }
 
@@ -111,6 +110,7 @@ impl PlanShape {
 
 #[component]
 pub fn ProgramPage() -> impl IntoView {
+    let t = i18n::t();
     let params = use_params_map();
     let location = use_location();
     let slug = Memo::new(move |_| params.read().get("slug").unwrap_or_default());
@@ -198,10 +198,10 @@ pub fn ProgramPage() -> impl IntoView {
             Filling::Area(_) | Filling::Req(_) => {
                 let name = format!("{} ({})", data.program.name, data.program.degree());
                 view! {
-                    <Title text=format!("{name}: {} · BTU Cottbus-Senftenberg", if matches!(filling.get_untracked(), Filling::Area(_)) { "Bereich" } else { "Regelstudienplan" })/>
+                    <Title text=format!("{name}: {} · BTU Cottbus-Senftenberg", if matches!(filling.get_untracked(), Filling::Area(_)) { t.program.area } else { t.program.plan })/>
                     <div class="work framed picked-page">
                         <div class="page" id="page-scroll">
-                            {picked_panel(&data, variant.get_untracked(), area.get_untracked(), req.get_untracked(), links, true)}
+                            {picked_panel(&data, variant.get_untracked(), area.get_untracked(), req.get_untracked(), links, true, t)}
                         </div>
                     </div>
                 }
@@ -217,7 +217,7 @@ pub fn ProgramPage() -> impl IntoView {
                     move || view! { <ProgramAside data=data.clone() variant open area req target links/> }
                 };
                 view! {
-                    <Frame title="Studiengang" sidebar sidebar_first=true aside aside_picked=picked>
+                    <Frame title=t.program.program sidebar sidebar_first=true aside aside_picked=picked>
                         <ProgramView data tab variant shape=drawn room links open area req/>
                     </Frame>
                 }
@@ -226,7 +226,7 @@ pub fn ProgramPage() -> impl IntoView {
         },
         _ => {
             status.set(404);
-            view! { <div class="page"><NotFound title="Studiengang nicht gefunden" hint="Diesen Studiengang oder diese Ansicht gibt es nicht (mehr)."/></div> }.into_any()
+            view! { <div class="page"><NotFound title=t.program.not_found_title hint=t.program.not_found_hint/></div> }.into_any()
         }
     }
 }
@@ -234,8 +234,8 @@ pub fn ProgramPage() -> impl IntoView {
 /// What stands beside the page with no module picked — the area or the row of the plan one
 /// clicked — or, as `page`, what fills the page on a phone. With nothing picked nothing stands
 /// beside the page (`ui::Frame`).
-fn picked_panel(data: &ProgramData, variant: usize, area: Option<i64>, req: Option<usize>, links: Memo<ProgramUrl>, page: bool) -> AnyView {
-    let plans = plan_variants(&data.plan_entries, &data.plan_totals, crate::i18n::locale());
+fn picked_panel(data: &ProgramData, variant: usize, area: Option<i64>, req: Option<usize>, links: Memo<ProgramUrl>, page: bool, t: &'static Texts) -> AnyView {
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals, t.locale);
     let areas = area_groups(&data.areas);
     let known = pages::catalog_areas(&data.areas, &data.area_tree);
     let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
@@ -244,12 +244,12 @@ fn picked_panel(data: &ProgramData, variant: usize, area: Option<i64>, req: Opti
         let here = links.get_untracked();
         // Opened out of a row of the plan, the area says how one got there and closing it
         // returns to the row; else it is where the tree puts it, and closing it leaves the page.
-        let trail = row.as_ref().map(|(row, entry, plan)| row_trail(*row, entry, plan, group, &known, &areas, &here)).unwrap_or_default();
+        let trail = row.as_ref().map(|(row, entry, plan)| row_trail(*row, entry, plan, group, &known, &areas, &here, t)).unwrap_or_default();
         let close = match &row {
             Some((row, ..)) => here.with_req(Some(*row)).path(),
             None => here.with_area(None).path(),
         };
-        let catalog = catalog_for(data, variant, Some(group.id), req);
+        let catalog = catalog_for(data, variant, Some(group.id), req, t);
         return view! { <AreaPanel group=group.snapshot() modules=data.curricular.clone() trail catalog close links page/> }.into_any();
     }
     match row {
@@ -257,16 +257,16 @@ fn picked_panel(data: &ProgramData, variant: usize, area: Option<i64>, req: Opti
             let fitting = areas_for_row(&entry, chosen, &known, &areas);
             let plan = (plans.len() > 1).then(|| chosen.label.clone());
             let known: HashMap<String, ProgramModule> = data.curricular.iter().chain(data.fues.iter()).map(|m| (m.module_id.clone(), m.clone())).collect();
-            let catalog = catalog_for(data, variant, None, req);
+            let catalog = catalog_for(data, variant, None, req, t);
             let choice = chosen.choice_for(&entry);
             view! { <PlanRowPanel entry plan program=data.program.clone() fitting known catalog choice links page/> }.into_any()
         }
         None => view! {
             <section class="panel detail aside" id="preview">
                 <div class="state">
-                    <p class="state-title">"Nicht gefunden"</p>
-                    <p>"Diesen Bereich oder diese Zeile des Regelstudienplans gibt es nicht (mehr)."</p>
-                    <p><a class="button" href=links.get_untracked().with_area(None).path() data-action="close-detail">"Zum Studiengang"</a></p>
+                    <p class="state-title">{t.program.picked_not_found_title}</p>
+                    <p>{t.program.picked_not_found_hint}</p>
+                    <p><a class="button" href=t.path(&links.get_untracked().with_area(None).path()) data-action="close-detail">{t.program.to_program}</a></p>
                 </div>
             </section>
         }
@@ -277,8 +277,9 @@ fn picked_panel(data: &ProgramData, variant: usize, area: Option<i64>, req: Opti
 /// How one got to an area opened out of a row of the plan: the row, then the areas from the one
 /// its name points at down to this one, without it — „Anwendungsfach / Mathematik" is the row and
 /// the area. Each step leads back to where it was: the row to its panel, an area to its own with
-/// the row kept.
-fn row_trail(row: usize, entry: &PlanEntry, plan: &PlanVariant, group: &AreaGroup, known: &[CatalogArea], areas: &[AreaGroup], here: &ProgramUrl) -> Vec<(String, String)> {
+/// the row kept. The paths are the app's, without the language's prefix.
+#[allow(clippy::too_many_arguments)]
+fn row_trail(row: usize, entry: &PlanEntry, plan: &PlanVariant, group: &AreaGroup, known: &[CatalogArea], areas: &[AreaGroup], here: &ProgramUrl, t: &Texts) -> Vec<(String, String)> {
     let mut steps = vec![(entry.module_name.clone(), here.with_req(Some(row)).path())];
     let under = |above: &str, path: &str| path.starts_with(&format!("{above} / "));
     let fitting = areas_for_row(entry, plan, known, areas);
@@ -294,7 +295,7 @@ fn row_trail(row: usize, entry: &PlanEntry, plan: &PlanVariant, group: &AreaGrou
     let next = steps.get(1).map_or(group.label.as_str(), |(label, _)| label.as_str());
     let twice = entry.module_name.trim().eq_ignore_ascii_case(next.trim());
     if let Some((label, _)) = steps.first_mut().filter(|_| twice) {
-        *label = "Regelstudienplan".to_string();
+        *label = t.program.plan.to_string();
     }
     steps
 }
@@ -316,11 +317,12 @@ fn ProgramSidebar(
     area: Memo<Option<i64>>,
     req: Memo<Option<usize>>,
 ) -> impl IntoView {
+    let t = i18n::t();
     let p = data.program.clone();
     // The catalog with what is picked on the page: first in the sidebar (owner, 2026-09-21).
     let catalog = {
         let data = data.clone();
-        Memo::new(move |_| catalog_for(&data, variant.get(), area.get(), req.get()))
+        Memo::new(move |_| catalog_for(&data, variant.get(), area.get(), req.get(), t))
     };
     let related = data.counterpart.is_some() || !data.versions.is_empty();
     let areas = area_groups(&data.areas);
@@ -333,30 +335,30 @@ fn ProgramSidebar(
     let shown = Signal::derive(move || (tab == ProgramTab::Plan && count > 0).then(|| variant.get().saturating_sub(1)));
     let import = {
         let slug = p.slug.clone();
-        move || StudyplanUrl { view: PlanView::Overview, import: Some(slug.clone()), variant: variant.get().clamp(1, count.max(1)), ..Default::default() }.path()
+        move || t.path(&StudyplanUrl { view: PlanView::Overview, import: Some(slug.clone()), variant: variant.get().clamp(1, count.max(1)), ..Default::default() }.path())
     };
     // The view the app is going to is the current one at once (`pending`); its page follows.
     let going = Pending::expect();
     let slug = p.slug.clone();
     let shown_tab = Memo::new(move |_| {
         let path = going.and_then(|going| going.path());
-        path.and_then(|path| ProgramTab::ALL.iter().copied().find(|t| path == url::program_path(&slug, *t) || (*t == ProgramTab::default() && path == url::program_path(&slug, *t).trim_end_matches(t.segment()).trim_end_matches('/')))).unwrap_or(tab)
+        path.and_then(|path| ProgramTab::ALL.iter().copied().find(|v| path == url::program_path(&slug, *v) || (*v == ProgramTab::default() && path == url::program_path(&slug, *v).trim_end_matches(v.segment()).trim_end_matches('/')))).unwrap_or(tab)
     });
     let shapes = (tab == ProgramTab::Plan && !data.plan_entries.is_empty()).then_some(());
     let jumps = (tab == ProgramTab::Areas && !areas.is_empty()).then_some(());
     view! {
         <div class="fgroup actions catalog-jump">
-            <a class="action" data-walk="catalog" href=move || catalog.with(|(href, _)| href.clone())>
+            <a class="action" data-walk="catalog" href=move || catalog.with(|(href, _)| t.path(href))>
                 <Icon name="layout-list"/>
-                <span>"Im Modulkatalog"<small>{move || catalog.with(|(_, what)| what.clone())}</small></span>
+                <span>{t.program.in_catalog}<small>{move || catalog.with(|(_, what)| what.clone())}</small></span>
                 <Icon name="chevron-right"/>
             </a>
         </div>
-        <nav class="toc views" aria-label="Ansichten des Studiengangs">
-            <p class="flabel label">"Ansichten"</p>
-            {ProgramTab::ALL.iter().map(|t| {
-                let t = *t;
-                view! { <a data-walk="tab" href=url::program_path(&p.slug, t) data-noscroll="" aria-current=move || (shown_tab.get() == t).then_some("page")>{t.label(crate::i18n::locale())}</a> }
+        <nav class="toc views" aria-label=t.program.views_label>
+            <p class="flabel label">{t.program.views}</p>
+            {ProgramTab::ALL.iter().map(|view| {
+                let view = *view;
+                view! { <a data-walk="tab" href=t.path(&url::program_path(&p.slug, view)) data-noscroll="" aria-current=move || (shown_tab.get() == view).then_some("page")>{view.label(t.locale)}</a> }
             }).collect_view()}
         </nav>
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
@@ -367,8 +369,8 @@ fn ProgramSidebar(
         // (`.plan-shapes`), so the page does not move up when the app takes over.
         {move || shapes.filter(|_| !phone.get()).map(|_| view! {
             <div class="fgroup js-only plan-shapes">
-                <p class="flabel label">"Darstellung"</p>
-                <div class="seg" role="radiogroup" aria-label="Darstellung des Regelstudienplans">
+                <p class="flabel label">{t.program.shape}</p>
+                <div class="seg" role="radiogroup" aria-label=t.program.shape_label>
                     {PlanShape::ALL.iter().map(|option| {
                         let option = *option;
                         let blocked = move || option == PlanShape::Matrix && !room.get();
@@ -385,23 +387,23 @@ fn ProgramSidebar(
                                     shape.set(option);
                                     nav::local_set(PLAN_SHAPE_KEY, option.code());
                                 }
-                            >{option.label()}</button>
+                            >{option.label(t)}</button>
                         }
                     }).collect_view()}
                 </div>
                 {move || (!room.get()).then(|| view! {
-                    <p class="hint">"Für die Matrix ist die Seite gerade zu schmal. Mit mehr Platz kommt sie wieder."</p>
+                    <p class="hint">{t.program.too_narrow}</p>
                 })}
             </div>
         })}
         {jumps.map(|_| view! {
-            <nav class="toc jumps" aria-label="Bereiche des Studiengangs">
-                <p class="flabel label">"Bereiche"</p>
+            <nav class="toc jumps" aria-label=t.program.areas_label>
+                <p class="flabel label">{t.program.areas}</p>
                 {areas.iter().map(|group| {
                     let id = group.id;
                     view! {
                         <a
-                            href=move || area_href(&links.get(), id)
+                            href=move || t.path(&area_href(&links.get(), id))
                             data-walk="area"
                             data-noscroll=""
                             class=format!("depth-{}", group.depth.clamp(1, 4))
@@ -417,31 +419,31 @@ fn ProgramSidebar(
         })}
         {related.then(|| view! {
             <div class="fgroup actions">
-                <p class="flabel label">"Verwandt"</p>
+                <p class="flabel label">{t.program.related}</p>
                 {data.counterpart.as_ref().map(|c| view! {
-                    <a class="action" href=url::program_path(&c.slug, ProgramTab::Plan)>
+                    <a class="action" href=t.path(&url::program_path(&c.slug, ProgramTab::Plan))>
                         <Icon name="graduation-cap"/>
-                        <span>{format!("Passender {}", c.level.label(crate::i18n::locale()))}<small>{c.name.clone()}" · PO "{c.po_version.clone()}</small></span>
+                        <span>{(t.program.counterpart)(c.level.label(t.locale))}<small>{c.name.clone()}" · PO "{c.po_version.clone()}</small></span>
                     </a>
                 })}
                 {data.versions.iter().map(|v| view! {
-                    <a class="action" href=url::program_path(&v.slug, tab)>
+                    <a class="action" href=t.path(&url::program_path(&v.slug, tab))>
                         <Icon name="file-check-2"/>
-                        <span>"PO "{v.po_version.clone()}{v.is_latest_po.then_some(" (aktuell)")}</span>
+                        <span>"PO "{v.po_version.clone()}{v.is_latest_po.then_some(t.program.current_po)}</span>
                     </a>
                 }).collect_view()}
             </div>
         })}
         <div class="fgroup actions">
-            <p class="flabel label">"Aktionen"</p>
+            <p class="flabel label">{t.program.actions}</p>
             // Both are part of server HTML, invisible until the app runs and gone without it
             // (`.mine-toggle`), so the actions under them do not move at the takeover (R15).
             <MineButton program_id=p.id.clone() name=program_name(&p) plans=mine_plans shown/>
             {(count > 0).then(|| view! {
-                <a class="action mine-toggle" href=import><Icon name="calendar-plus"/><span>"In den Stundenplan"</span></a>
+                <a class="action mine-toggle" href=import><Icon name="calendar-plus"/><span>{t.program.to_studyplan}</span></a>
             })}
-            {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>"Ordnungen & Dokumente"</a> })}
-            <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>"Im Verzeichnis der BTU"</a>
+            {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>{t.program.documents}</a> })}
+            <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>{t.program.at_btu}</a>
         </div>
     }
 }
@@ -458,15 +460,9 @@ fn ProgramView(
     area: Memo<Option<i64>>,
     req: Memo<Option<usize>>,
 ) -> impl IntoView {
+    let t = i18n::t();
     let p = data.program.clone();
-    let plans = plan_variants(&data.plan_entries, &data.plan_totals, crate::i18n::locale());
-    let description = format!(
-        "{} ({}, PO {}) an der BTU Cottbus-Senftenberg: {} Module, Regelstudienplan, Wahlpflichtbereiche und Ordnungen.",
-        p.name,
-        p.degree(),
-        p.po_version,
-        p.curricular_modules
-    );
+    let plans = plan_variants(&data.plan_entries, &data.plan_totals, t.locale);
 
     // Each view of the program is a page of its own; `/programs/<slug>` is the plan. So is the
     // plan of each study direction (`?variant=<n>`, the first at the plain address): a search for
@@ -479,27 +475,22 @@ fn ProgramView(
         _ => url::program_path(&p.slug, tab),
     };
     let view_name = match (tab, &direction) {
-        (ProgramTab::Plan, Some(direction)) => format!("Regelstudienplan {direction}"),
-        (ProgramTab::Plan, None) => "Regelstudienplan".to_string(),
-        (ProgramTab::Areas, _) => "Wahlpflicht und Bereiche".to_string(),
-        (ProgramTab::MyPlan, _) => "Mein Plan".to_string(),
+        (ProgramTab::Plan, Some(direction)) => (t.program.plan_of)(direction),
+        (ProgramTab::Plan, None) => t.program.plan.to_string(),
+        (ProgramTab::Areas, _) => t.program.areas_title.to_string(),
+        (ProgramTab::MyPlan, _) => ProgramTab::MyPlan.label(t.locale).to_string(),
     };
     let description = match &direction {
-        Some(direction) => format!(
-            "{} ({}, PO {}) an der BTU Cottbus-Senftenberg, Studienrichtung {direction}: Regelstudienplan, {} Module, Wahlpflichtbereiche und Ordnungen.",
-            p.name,
-            p.degree(),
-            p.po_version,
-            p.curricular_modules
-        ),
-        None => description,
+        Some(direction) => (t.program.seo_description_track)(&p.name, p.degree(), &p.po_version, direction, p.curricular_modules),
+        None => (t.program.seo_description)(&p.name, p.degree(), &p.po_version, p.curricular_modules),
     };
     let name = format!("{} ({})", p.name, p.degree());
     let trail = vec![
         structured(&p, &plans, tab, variant.get_untracked()),
+        // The paths of the app: `breadcrumbs` writes them in the page's language.
         seo::breadcrumbs(&[
             ("Betula", url::HOME.to_string()),
-            ("Studiengänge", url::PROGRAMS.to_string()),
+            (t.app.programs, url::PROGRAMS.to_string()),
             (name.as_str(), url::program_path(&p.slug, ProgramTab::Plan)),
         ]),
     ];
@@ -520,10 +511,10 @@ fn ProgramView(
                     let missing = p
                         .plan_status
                         .as_ref()
-                        .map(|status| status.label(crate::i18n::locale()).to_string())
-                        .unwrap_or_else(|| "Für diesen Studiengang liegt kein geprüfter Regelstudienplan vor".to_string());
+                        .map(|status| status.label(t.locale).to_string())
+                        .unwrap_or_else(|| t.program.no_plan.to_string());
                     let validated = data.plan.as_ref().and_then(|plan| plan.validated_at.clone());
-                    let source = data.plan.as_ref().and_then(plan_source);
+                    let source = data.plan.as_ref().and_then(|plan| plan_source(plan, t));
                     view! { <PlanTab plans=plans.clone() validated source missing variant shape room links open req/> }.into_any()
                 }
                 ProgramTab::Areas => view! { <AreasTab areas=data.areas.clone() known=known.clone() links open area/> }.into_any(),
@@ -532,14 +523,14 @@ fn ProgramView(
 
             {(!data.documents.is_empty()).then(|| view! {
                 <section class="panel" id="dokumente">
-                    <header class="block-head"><h2>"Ordnungen & Dokumente"</h2></header>
+                    <header class="block-head"><h2>{t.program.documents}</h2></header>
                     <ul class="doclist">
                         {data.documents.iter().map(|d| view! {
                             <li>
                                 <a class="docrow" href=d.url.clone() rel="noopener">
                                     <Icon name="file-check-2"/>
                                     <span class="docname">{d.title.clone()}</span>
-                                    <small>{d.doc_type.label(crate::i18n::locale()).to_string()}</small>
+                                    <small>{d.doc_type.label(t.locale).to_string()}</small>
                                     <Icon name="arrow-up-right" class="go"/>
                                 </a>
                             </li>
@@ -617,6 +608,7 @@ fn ProgramAside(
     target: Memo<Option<ProgramUrl>>,
     links: Memo<ProgramUrl>,
 ) -> impl IntoView {
+    let t = i18n::t();
     let source = use_source();
     let module = Memo::new(move |_| match open.get() {
         None => Ok(None),
@@ -639,17 +631,17 @@ fn ProgramAside(
                 view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href)/> }.into_any()
             }
             Ok(Some(None)) | Err(_) => view! {
-                <section class="panel detail aside" id="preview" aria-label="Modulvorschau">
+                <section class="panel detail aside" id="preview" aria-label=t.program.preview>
                     <div class="state">
-                        <p class="state-title">"Modul nicht gefunden"</p>
-                        <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
-                        <p><a class="button" href=links.get().path()>"Vorschau schließen"</a></p>
+                        <p class="state-title">{t.program.module_not_found_title}</p>
+                        <p>{t.program.module_not_found_hint}</p>
+                        <p><a class="button" href=t.path(&links.get().path())>{t.program.close_preview}</a></p>
                     </div>
                 </section>
             }
             .into_any(),
             // No module picked: the area or the row of the plan one clicked.
-            Ok(None) => picked_panel(&data, variant.get(), area.get(), req.get(), links, false),
+            Ok(None) => picked_panel(&data, variant.get(), area.get(), req.get(), links, false, t),
         }
     }
 }
@@ -676,13 +668,13 @@ fn PlanRowPanel(
     /// The panel is the page (a phone): „Zurück" instead of „Schließen".
     #[prop(optional)] page: bool,
 ) -> impl IntoView {
+    let t = i18n::t();
     let close = links.get_untracked().with_req(None).path();
     let semester = match plan::semester_span(&entry) {
-        Some((from, to)) if from == to => Some(format!("{from}. Semester")),
-        Some((from, to)) => Some(format!("{from}.–{to}. Semester")),
-        None => entry.semester_span.clone().map(|span| format!("Semester {span}")),
+        Some(span) => format::plan_semesters(&[span], t.locale),
+        None => entry.semester_span.clone().map(|span| (t.program.semester_as_written)(&span)),
     };
-    let credits = plan_credits(&entry).map(|credits| format!("{credits} LP"));
+    let credits = plan_credits(&entry, t.locale).map(|credits| (t.format.credits)(&credits));
     // The FÜS by its kind or by its name („Fachübergreifendes Studium", „Modul aus dem FÜS-Katalog").
     let fues = catalog::plan::is_fues(&entry);
     // A row the plan states as Pflicht (or as the thesis, or as the internship) means one module,
@@ -703,13 +695,13 @@ fn PlanRowPanel(
     // asks one to do, so it comes first; what can be chosen follows under it.
     let (catalog, catalog_what) = catalog;
     let (action_icon, action) = if fues {
-        ("sliders-horizontal", "FÜS-Module im Katalog")
+        ("sliders-horizontal", t.program.fues_in_catalog)
     } else if one_module {
-        ("search", "Im Katalog suchen")
+        ("search", t.program.search_catalog)
     } else if has_fitting {
-        ("sliders-horizontal", "Passende Module im Katalog")
+        ("sliders-horizontal", t.program.fitting_in_catalog)
     } else {
-        ("sliders-horizontal", "Wahlpflichtmodule im Katalog")
+        ("sliders-horizontal", t.program.electives_in_catalog)
     };
     // The head states the row once: its study direction and the area the plan prints it under
     // on one line, credits, kind and semesters as badges. An area the row's name already says
@@ -717,19 +709,19 @@ fn PlanRowPanel(
     let named = entry.module_name.to_lowercase();
     let area = area.filter(|area| !named.contains(&area.trim().to_lowercase()));
     let context = [plan, area].into_iter().flatten().collect::<Vec<_>>().join(" · ");
-    let kind = entry.kind.as_ref().map(|kind| kind.label(crate::i18n::locale()).to_string()).or_else(|| entry.kind_raw.clone());
+    let kind = entry.kind.as_ref().map(|kind| kind.label(t.locale).to_string()).or_else(|| entry.kind_raw.clone());
     let note_class = if one_module { "note" } else { "note quiet" };
 
     view! {
-        <section class="panel detail aside" id="preview" aria-label="Zeile des Regelstudienplans">
+        <section class="panel detail aside" id="preview" aria-label=t.program.row>
             <div class="scroll">
                 <header class="hero">
                     <div class="hero-top">
                         {page.then(|| view! { <BackLink area=Area::Programs to=Some(close.clone())/> })}
-                        <span class="mono">"Regelstudienplan"</span>
+                        <span class="mono">{t.program.plan}</span>
                         {(!page).then(|| view! {
-                            <a class="ghost" href=close.clone() data-action="close-detail" title="Schließen (Esc)">
-                                <Icon name="x"/>"Schließen"<Shortcut keys="Esc"/>
+                            <a class="ghost" href=t.path(&close) data-action="close-detail" title=t.program.close_title>
+                                <Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/>
                             </a>
                         })}
                     </div>
@@ -742,7 +734,7 @@ fn PlanRowPanel(
                     </p>
                 </header>
                 <div class="dbody">
-                    <a class="btn primary row-action" href=catalog title=catalog_what data-walk="catalog">
+                    <a class="btn primary row-action" href=t.path(&catalog) title=catalog_what data-walk="catalog">
                         <Icon name=action_icon/>{action}
                     </a>
                     // What can be chosen: the area the name points at with its modules, the
@@ -754,11 +746,11 @@ fn PlanRowPanel(
                         let path = area.path.clone();
                         view! {
                             <div class="section">
-                                <p class="label">"Vermutlich " {label.clone()}<span>{format::modules(count as i64, crate::i18n::locale())}</span></p>
+                                <p class="label">{t.program.probably}{label.clone()}<span>{format::modules(count as i64, t.locale)}</span></p>
                                 {(!path.is_empty()).then(|| view! { <p class="hint">{path}</p> })}
-                                <div class="linklist">{area_module_links(&area.modules, &known, links)}</div>
-                                <a class="pre more-area" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
-                                    <b>"Diesen Bereich ganz ansehen"</b>
+                                <div class="linklist">{area_module_links(&area.modules, &known, links, t)}</div>
+                                <a class="pre more-area" href=move || t.path(&area_within_href(&links.get(), id)) data-walk="area" data-noscroll="">
+                                    <b>{t.program.whole_area}</b>
                                     <small>{label}</small>
                                     <Icon name="chevron-right"/>
                                 </a>
@@ -767,14 +759,14 @@ fn PlanRowPanel(
                     })}
                     {(!others.is_empty()).then(|| view! {
                         <div class="section">
-                            <p class="label">{if ambiguous { "Passende Bereiche" } else { "Kommt auch in Frage" }}<span>{others.len()}</span></p>
+                            <p class="label">{if ambiguous { t.program.fitting_areas } else { t.program.also_possible }}<span>{others.len()}</span></p>
                             <div class="linklist">
                                 {others.clone().into_iter().map(|area| {
                                     let id = area.id;
                                     view! {
-                                        <a class="pre" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
+                                        <a class="pre" href=move || t.path(&area_within_href(&links.get(), id)) data-walk="area" data-noscroll="">
                                             <b>{area.label.clone()}</b>
-                                            <small>{format::modules(area.modules.len() as i64, crate::i18n::locale())}</small>
+                                            <small>{format::modules(area.modules.len() as i64, t.locale)}</small>
                                             <Icon name="chevron-right"/>
                                         </a>
                                     }
@@ -786,11 +778,11 @@ fn PlanRowPanel(
                     // its modules are listed.
                     {(!fues && !one_module && !has_fitting).then(|| view! {
                         <div class="section">
-                            <p class="label">"Bereiche des Studiengangs"</p>
+                            <p class="label">{t.program.program_areas}</p>
                             <div class="linklist">
-                                <a class="pre" href=url::program_path(&program.slug, ProgramTab::Areas)>
-                                    <b>"Wahlpflicht & Bereiche"</b>
-                                    <small>"alle Bereiche"</small>
+                                <a class="pre" href=t.path(&url::program_path(&program.slug, ProgramTab::Areas))>
+                                    <b>{ProgramTab::Areas.label(t.locale)}</b>
+                                    <small>{t.program.all_areas}</small>
                                     <Icon name="chevron-right"/>
                                 </a>
                             </div>
@@ -801,25 +793,19 @@ fn PlanRowPanel(
                     {choice.map(|choice| {
                         // The regulation may print a span here as well, and then that span is
                         // everything it says: „28–32 LP", not a number we picked out of it.
-                        let together = printed_credits(&choice.total);
-                        let least = format::number(choice.total.min_credits, crate::i18n::locale());
-                        let most = format::number(choice.total.max_credits, crate::i18n::locale());
+                        let together = printed_credits(&choice.total, t.locale);
+                        let least = format::number(choice.total.min_credits, t.locale);
+                        let most = format::number(choice.total.max_credits, t.locale);
                         let label = choice.total.label.clone();
-                        let span = choice_span(&choice.total);
+                        let span = choice_span(&choice.total, t);
                         let others = choice.with.len();
                         view! {
                             <div class="section">
-                                <p class="label">"Zusammen zu belegen"<span>{together.clone()}" LP"</span></p>
-                                <p class="hint">
-                                    "Diese Zeile nennt eine Spanne, keine feste Zahl. Die Prüfungsordnung weist sie mit "
-                                    {if others == 1 { "einer weiteren Zeile".to_string() } else { format!("{others} weiteren Zeilen") }}
-                                    " zusammen aus — „"{label}"“: "{together.clone()}" LP in "{span}
-                                    ". Einzeln lassen diese Zeilen "{least}" bis "{most}" LP zu; wie die "{together}
-                                    " LP auf sie aufgeteilt werden, ist die Wahl der Studierenden."
-                                </p>
+                                <p class="label">{t.program.together}<span>{(t.format.credits)(&together)}</span></p>
+                                <p class="hint">{(t.program.choice_hint)(others, &label, &together, &span, &least, &most)}</p>
                                 <div class="linklist">
                                     {choice.with.into_iter().map(|(row, name)| view! {
-                                        <a class="pre" href=links.get_untracked().with_req(Some(row)).path() data-noscroll="">
+                                        <a class="pre" href=t.path(&links.get_untracked().with_req(Some(row)).path()) data-noscroll="">
                                             <b>{name}</b>
                                             <Icon name="chevron-right"/>
                                         </a>
@@ -834,15 +820,15 @@ fn PlanRowPanel(
                         <Icon name="info"/>
                         <span>
                             {if one_module {
-                                "Der Plan nennt hier ein einzelnes Modul, das der Modulkatalog unter diesem Namen nicht führt — es kann anders heißen oder nicht mehr angeboten werden."
+                                t.program.note_one_module
                             } else if fues {
-                                "Der Plan verlangt hier ein Modul aus dem Fachübergreifenden Studium. Angerechnet wird, was in der FÜS-Liste dieses Studiengangs steht."
+                                t.program.note_fues
                             } else if ambiguous {
-                                "Der Plan nennt für diese Zeile kein einzelnes Modul. Die Bereiche oben sind aus ihrem Namen abgeleitet und passen gleich gut."
+                                t.program.note_ambiguous
                             } else if has_fitting {
-                                "Der Plan nennt für diese Zeile kein einzelnes Modul. Der Bereich oben ist aus ihrem Namen abgeleitet, nicht aus dem Plan."
+                                t.program.note_fitting
                             } else {
-                                "Der Plan nennt für diese Zeile kein einzelnes Modul. Welche Module in Frage kommen, steht in den Bereichen dieses Studiengangs."
+                                t.program.note_none
                             }}
                         </span>
                     </p>
@@ -853,19 +839,19 @@ fn PlanRowPanel(
 }
 
 /// The modules of an area as links that open them beside the page.
-fn area_module_links(modules: &[AreaPlacement], known: &HashMap<String, ProgramModule>, links: Memo<ProgramUrl>) -> AnyView {
+fn area_module_links(modules: &[AreaPlacement], known: &HashMap<String, ProgramModule>, links: Memo<ProgramUrl>, t: &'static Texts) -> AnyView {
     modules
         .iter()
         .map(|placement| {
             let id = placement.module_id.clone();
             let kind = placement.kind.clone().or_else(|| known.get(&placement.module_id).and_then(|m| m.kind.clone()));
             view! {
-                <a class="pre" href=move || module_href(&links.get(), &id) data-walk="module" data-noscroll="">
+                <a class="pre" href=move || t.path(&module_href(&links.get(), &id)) data-walk="module" data-noscroll="">
                     <span class="mono">{placement.module_id.clone()}</span>
                     <b>{placement.module_title.clone()}</b>
                     <small>
-                        {kind.map(|kind| format!("{} · ", kind.label(crate::i18n::locale()))).unwrap_or_default()}
-                        {format::credits(placement.module_credits, crate::i18n::locale())}
+                        {kind.map(|kind| format!("{} · ", kind.label(t.locale))).unwrap_or_default()}
+                        {format::credits(placement.module_credits, t.locale)}
                     </small>
                     <Icon name="chevron-right"/>
                 </a>
@@ -916,6 +902,7 @@ fn AreaPanel(
     /// The panel is the page (a phone): „Zurück" instead of „Schließen".
     #[prop(optional)] page: bool,
 ) -> impl IntoView {
+    let t = i18n::t();
     let known: HashMap<String, ProgramModule> = modules.into_iter().map(|m| (m.module_id.clone(), m)).collect();
     let count = group.modules.len();
     let sum: f64 = group.modules.iter().filter_map(|placement| placement.module_credits).sum();
@@ -924,15 +911,15 @@ fn AreaPanel(
     let (catalog, catalog_what) = catalog;
 
     view! {
-        <section class="panel detail aside" id="preview" aria-label="Bereich">
+        <section class="panel detail aside" id="preview" aria-label=t.program.area>
             <div class="scroll">
                 <header class="hero">
                     <div class="hero-top">
                         {page.then(|| view! { <BackLink area=Area::Programs to=Some(close.clone())/> })}
-                        <span class="mono">"Bereich"</span>
+                        <span class="mono">{t.program.area}</span>
                         {(!page).then(|| view! {
-                            <a class="ghost" href=close.clone() data-action="close-detail" title="Schließen (Esc)">
-                                <Icon name="x"/>"Schließen"<Shortcut keys="Esc"/>
+                            <a class="ghost" href=t.path(&close) data-action="close-detail" title=t.program.close_title>
+                                <Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/>
                             </a>
                         })}
                     </div>
@@ -942,29 +929,29 @@ fn AreaPanel(
                     } else {
                         view! {
                             <p class="en trail">
-                                {trail.into_iter().map(|(label, href)| view! { <a href=href data-noscroll="">{label}</a><span class="sep">" / "</span> }).collect_view()}
+                                {trail.into_iter().map(|(label, href)| view! { <a href=t.path(&href) data-noscroll="">{label}</a><span class="sep">" / "</span> }).collect_view()}
                                 <span aria-current="page">{group.label.clone()}</span>
                             </p>
                         }
                         .into_any()
                     }}
                     <p class="badges">
-                        <span class="badge strong num">{format::modules(count as i64, crate::i18n::locale())}</span>
-                        {(sum > 0.0).then(|| view! { <span class="badge num">{format::number(sum, crate::i18n::locale())}" LP"</span> })}
+                        <span class="badge strong num">{format::modules(count as i64, t.locale)}</span>
+                        {(sum > 0.0).then(|| view! { <span class="badge num">{(t.format.credits)(&format::number(sum, t.locale))}</span> })}
                     </p>
                 </header>
                 <div class="dbody">
-                    <a class="btn primary row-action" href=catalog title=catalog_what data-walk="catalog">
-                        <Icon name="sliders-horizontal"/>"Passende Module im Katalog"
+                    <a class="btn primary row-action" href=t.path(&catalog) title=catalog_what data-walk="catalog">
+                        <Icon name="sliders-horizontal"/>{t.program.fitting_in_catalog}
                     </a>
                     {(!children.is_empty()).then(|| view! {
                         <div class="section">
-                            <p class="label">"Bereiche darin"<span>{children.len()}</span></p>
+                            <p class="label">{t.program.areas_within}<span>{children.len()}</span></p>
                             <div class="linklist">
                                 {children.into_iter().map(|(id, label, modules)| view! {
-                                    <a class="pre" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
+                                    <a class="pre" href=move || t.path(&area_within_href(&links.get(), id)) data-walk="area" data-noscroll="">
                                         <b>{label}</b>
-                                        <small>{format::modules(modules as i64, crate::i18n::locale())}</small>
+                                        <small>{format::modules(modules as i64, t.locale)}</small>
                                         <Icon name="chevron-right"/>
                                     </a>
                                 }).collect_view()}
@@ -972,8 +959,8 @@ fn AreaPanel(
                         </div>
                     })}
                     <div class="section">
-                        <p class="label">"Module"<span>{count}</span></p>
-                        <div class="linklist">{area_module_links(&group.modules, &known, links)}</div>
+                        <p class="label">{t.program.modules_heading}<span>{count}</span></p>
+                        <div class="linklist">{area_module_links(&group.modules, &known, links, t)}</div>
                     </div>
                 </div>
             </div>
@@ -997,37 +984,38 @@ fn shared_semester_totals(plan: &PlanVariant) -> Vec<(i64, i64, f64)> {
 /// and under which regulations. The numbers stand on the title's line, right of it.
 #[component]
 fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
+    let t = i18n::t();
     let level = url::LevelGroup::of(&program.degree_level);
     let level_link = url::ProgramsUrl { levels: vec![level], ..Default::default() }.path();
     // Length and size of the studies are what the validated plan says, not what a source states.
-    let semesters = span_of(plans.iter().map(|plan| plan.semesters as f64));
-    let credits = span_of(plans.iter().flat_map(|plan| [plan.credits, plan.credits_max]));
+    let semesters = span_of(plans.iter().map(|plan| plan.semesters as f64), t.locale);
+    let credits = span_of(plans.iter().flat_map(|plan| [plan.credits, plan.credits_max]), t.locale);
     view! {
         <header class="panel prog-head">
             <div class="hero-top">
                 <BackLink area=Area::Programs/>
-                <nav class="crumbs" aria-label="Pfad">
-                    <a href=url::PROGRAMS>"Studiengänge"</a>
-                    <a href=level_link>{level.label(crate::i18n::locale())}</a>
+                <nav class="crumbs" aria-label=t.program.crumbs>
+                    <a href=t.path(url::PROGRAMS)>{t.app.programs}</a>
+                    <a href=t.path(&level_link)>{level.label(t.locale)}</a>
                 </nav>
             </div>
             <div class="prog-title">
                 <h1>{program.name.clone()}</h1>
                 <p class="prog-facts">
-                    {semesters.map(|text| view! { <span class="pfact" title="Fachsemester laut Regelstudienplan"><b>{text}</b>" Semester"</span> })}
-                    {credits.map(|text| view! { <span class="pfact" title="Leistungspunkte laut Regelstudienplan"><b>{text}</b>" LP"</span> })}
-                    <span class="pfact"><b>{program.curricular_modules}</b>" Module"</span>
-                    <span class="pfact"><b>{program.fues_modules}</b>" FÜS-Module"</span>
+                    {semesters.map(|text| view! { <span class="pfact" title=t.program.semesters_title><b>{text.clone()}</b>{(t.program.semesters_after)(&text)}</span> })}
+                    {credits.map(|text| view! { <span class="pfact" title=t.program.credits_title><b>{text}</b>" "{t.common.credits_unit}</span> })}
+                    <span class="pfact"><b>{program.curricular_modules}</b>{(t.program.modules_after)(program.curricular_modules)}</span>
+                    <span class="pfact"><b>{program.fues_modules}</b>{(t.program.fues_modules_after)(program.fues_modules)}</span>
                 </p>
             </div>
             <p class="prog-meta">
                 <span class="degree">{program.degree().to_string()}</span>
-                <span>"Prüfungsordnung "{program.po_version.clone()}</span>
-                {program.study_variant.as_ref().map(|v| view! { <span>{format::variant_short(v, crate::i18n::locale())}</span> })}
+                <span>{t.program.regulations}{program.po_version.clone()}</span>
+                {program.study_variant.as_ref().map(|v| view! { <span>{format::variant_short(v, t.locale)}</span> })}
                 {if program.is_latest_po {
-                    view! { <span class="current">"aktuell"</span> }.into_any()
+                    view! { <span class="current">{t.program.current}</span> }.into_any()
                 } else {
-                    view! { <span class="flag">"ältere Prüfungsordnung"</span> }.into_any()
+                    view! { <span class="flag">{t.program.older}</span> }.into_any()
                 }}
             </p>
         </header>
@@ -1038,32 +1026,32 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
 
 /// What a plan comes to, as it is written: „180" or, where the regulation prints spans,
 /// „116–126".
-fn credits_label(plan: &PlanVariant) -> String {
+fn credits_label(plan: &PlanVariant, locale: Locale) -> String {
     match plan.credits_max - plan.credits > 0.01 {
-        true => format!("{}–{}", format::number(plan.credits, crate::i18n::locale()), format::number(plan.credits_max, crate::i18n::locale())),
-        false => format::number(plan.credits, crate::i18n::locale()),
+        true => format!("{}–{}", format::number(plan.credits, locale), format::number(plan.credits_max, locale)),
+        false => format::number(plan.credits, locale),
     }
 }
 
 /// „6" or „3–4": one number where all plans agree, the range where they do not. `None` where no
 /// plan says anything.
-fn span_of(values: impl Iterator<Item = f64>) -> Option<String> {
+fn span_of(values: impl Iterator<Item = f64>, locale: Locale) -> Option<String> {
     let values: Vec<f64> = values.filter(|value| *value > 0.0).collect();
     let low = values.iter().copied().fold(f64::INFINITY, f64::min);
     let high = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     match values.is_empty() {
         true => None,
-        false if low == high => Some(format::number(low, crate::i18n::locale())),
-        false => Some(format!("{}–{}", format::number(low, crate::i18n::locale()), format::number(high, crate::i18n::locale()))),
+        false if low == high => Some(format::number(low, locale)),
+        false => Some(format!("{}–{}", format::number(low, locale), format::number(high, locale))),
     }
 }
 
 /// What a row of the plan says about its credits: a number, a range, or nothing.
-fn plan_credits(entry: &PlanEntry) -> Option<String> {
+fn plan_credits(entry: &PlanEntry, locale: Locale) -> Option<String> {
     match (entry.credits, entry.min_credits, entry.max_credits) {
-        (Some(credits), _, _) => Some(format::number(credits, crate::i18n::locale())),
-        (None, Some(min), Some(max)) if min != max => Some(format!("{}–{}", format::number(min, crate::i18n::locale()), format::number(max, crate::i18n::locale()))),
-        (None, Some(value), _) | (None, None, Some(value)) => Some(format::number(value, crate::i18n::locale())),
+        (Some(credits), _, _) => Some(format::number(credits, locale)),
+        (None, Some(min), Some(max)) if min != max => Some(format!("{}–{}", format::number(min, locale), format::number(max, locale))),
+        (None, Some(value), _) | (None, None, Some(value)) => Some(format::number(value, locale)),
         _ => None,
     }
 }
@@ -1071,12 +1059,12 @@ fn plan_credits(entry: &PlanEntry) -> Option<String> {
 /// How the plan's place in the regulation reads: „Seite 9" or „Seite 9–11", with the heading it
 /// stands under where the document prints one. A plan whose pages were not recorded says nothing
 /// rather than guessing.
-fn plan_source(plan: &Plan) -> Option<(String, Option<String>)> {
+fn plan_source(plan: &Plan, t: &Texts) -> Option<(String, Option<String>)> {
     let pages = plan.source_pages.as_deref()?.trim();
     if pages.is_empty() {
         return None;
     }
-    let word = if pages.contains(['\u{2013}', ',']) { "Seiten" } else { "Seite" };
+    let word = if pages.contains(['\u{2013}', ',']) { t.program.pages } else { t.program.page };
     Some((format!("{word} {pages}"), plan.source_label.as_deref().and_then(plan_heading)))
 }
 
@@ -1116,9 +1104,10 @@ fn PlanTab(
     open: Memo<Option<String>>,
     req: Memo<Option<usize>>,
 ) -> impl IntoView {
+    let t = i18n::t();
     if plans.is_empty() {
         return view! {
-            <EmptyState title=missing hint="Die Module findest du unter „Wahlpflicht & Bereiche“ und im Modulkatalog. Fachsemester werden nur angezeigt, wenn ein Regelstudienplan sie nennt."/>
+            <EmptyState title=missing hint=t.program.no_plan_hint/>
         }
         .into_any();
     }
@@ -1148,14 +1137,10 @@ fn PlanTab(
     view! {
         <section class="panel plan-block" id=PLAN_BLOCK_ID>
             <header class="block-head">
-                <h2>"Regelstudienplan"</h2>
+                <h2>{t.program.plan}</h2>
                 <p>
-                    "Aus der Prüfungs- und Studienordnung übernommen und geprüft"
-                    {validated.as_deref().map(|at| format!(" am {}", format::date(at, crate::i18n::locale())))}"."
-                    {source.as_ref().map(|(pages, label)| view! {
-                        " Dort auf "{pages.clone()}
-                        {label.clone().map(|label| format!(", unter „{label}“"))}"."
-                    })}
+                    {(t.program.taken_from)(validated.as_deref().map(|at| format::date(at, t.locale)).as_deref())}
+                    {source.as_ref().map(|(pages, label)| (t.program.found_at)(pages, label.as_deref()))}
                 </p>
             </header>
             {move || {
@@ -1164,7 +1149,7 @@ fn PlanTab(
                 let now = variant.get();
                 (plans.len() > 1).then(|| view! {
                     <div class="variants">
-                        <p class="flabel label">"Studienrichtung"</p>
+                        <p class="flabel label">{t.program.track}</p>
                         <p class="chip-links">
                             {plans.iter().enumerate().map(|(i, plan)| {
                                 let number = i + 1;
@@ -1173,14 +1158,14 @@ fn PlanTab(
                                     <a
                                         class="chip"
                                         data-walk="plan-variant"
-                                        href=here.with_variant(number).path()
+                                        href=t.path(&here.with_variant(number).path())
                                         title=plan.full.clone()
                                         data-noscroll=""
                                         aria-current=chosen.then_some("true")
                                         data-state=if chosen { "with" } else { "off" }
                                     >
                                         <span class="chip-label">{plan.label.clone()}</span>
-                                        <span class="chip-count num">{credits_label(plan)}" LP"</span>
+                                        <span class="chip-count num">{(t.format.credits)(&credits_label(plan, t.locale))}</span>
                                     </a>
                                 }
                             }).collect_view()}
@@ -1219,6 +1204,7 @@ fn matrix_min_width(semesters: i64) -> f64 {
 /// the cell. Modules over several semesters span their columns.
 #[component]
 fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String>>, req: Memo<Option<usize>>) -> impl IntoView {
+    let t = i18n::t();
     let last = plan.semesters.max(1);
     let columns = (1..=last).collect::<Vec<i64>>();
     let width = usize::try_from(last).unwrap_or(1) + 2;
@@ -1261,31 +1247,31 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
                 </colgroup>
                 <thead>
                     <tr>
-                        <th scope="col" rowspan="2" class="c-name">"Modul"</th>
-                        <th scope="col" rowspan="2" class="c-kind">"Art"</th>
-                        <th scope="colgroup" colspan=last class="c-group">"Leistungspunkte im Semester"</th>
+                        <th scope="col" rowspan="2" class="c-name">{t.program.module}</th>
+                        <th scope="col" rowspan="2" class="c-kind">{t.program.kind}</th>
+                        <th scope="colgroup" colspan=last class="c-group">{t.program.credits_per_semester}</th>
                     </tr>
                     <tr>
                         {columns.iter().map(|n| view! { <th scope="col" class="c-sem num">{*n}</th> }).collect_view()}
                     </tr>
                 </thead>
-                {section_groups(&plan.entries).into_iter().map(|(section, entries)| view! {
+                {section_groups(&plan.entries, t).into_iter().map(|(section, entries)| view! {
                     <tbody>
                         {section.map(|name| view! { <tr class="group"><th colspan=width scope="rowgroup"><span class="ginner"><span class="gname">{name}</span></span></th></tr> })}
                         {entries.into_iter().map(|(row, entry)| {
                             let span = plan::semester_span(&entry);
-                            let credits = plan_credits(&entry);
+                            let credits = plan_credits(&entry, t.locale);
                             let row_id = entry.module_id.clone();
                             view! {
                                 <tr class:open=move || is_open(&row_id, open) || req.get() == Some(row)>
-                                    <th scope="row" class="c-name">{plan_module(&entry, row, links, open)}</th>
-                                    <td class="c-kind">{kind_cell(entry.kind.clone())}</td>
+                                    <th scope="row" class="c-name">{plan_module(&entry, row, links, open, t)}</th>
+                                    <td class="c-kind">{kind_cell(entry.kind.clone(), t)}</td>
                                     {columns.iter().filter_map(|n| match span {
                                         Some((from, to)) if *n == from => {
                                             let class = if to > from { "lp num spans" } else { "lp num" };
                                             Some(view! {
                                                 <td class=class colspan=to - from + 1 class:differs=entry.credits_differ_from_catalog
-                                                    title=entry.credits_differ_from_catalog.then(|| "Die LP dieses Plans weichen vom Modulkatalog ab".to_string())>
+                                                    title=entry.credits_differ_from_catalog.then_some(t.program.credits_differ)>
                                                     {credits.clone().unwrap_or_else(|| "·".to_string())}
                                                 </td>
                                             }.into_any())
@@ -1294,7 +1280,7 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
                                         Some(_) => Some(view! { <td class="empty"></td> }.into_any()),
                                         // The plan names no semester for this module.
                                         None if *n == 1 => Some(view! {
-                                            <td class="lp num loose" colspan=last title="Der Plan ordnet dieses Modul keinem Semester zu">
+                                            <td class="lp num loose" colspan=last title=t.program.no_semester_title>
                                                 {credits.clone().unwrap_or_else(|| "·".to_string())}
                                             </td>
                                         }.into_any()),
@@ -1307,11 +1293,11 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
                 }).collect_view()}
                 <tfoot>
                     <tr>
-                        <th scope="row" class="c-name">"Summe"</th>
+                        <th scope="row" class="c-name">{t.program.total}</th>
                         <td class="c-kind"></td>
                         {foot.into_iter().map(|(over, sum)| {
                             let spans = over > 1;
-                            view! { <td class="lp num" class:spans=spans colspan=over>{sum.map(|value| format::number(value, crate::i18n::locale()))}</td> }
+                            view! { <td class="lp num" class:spans=spans colspan=over>{sum.map(|value| format::number(value, t.locale))}</td> }
                         }).collect_view()}
                     </tr>
                 </tfoot>
@@ -1319,9 +1305,9 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
         </div>
         {(spread || differs || stated).then(|| view! {
             <p class="hint footnote">
-                {stated.then_some("Die Summen sind die der Prüfungsordnung; Zeilen mit einer Spanne („10–24“) gehen in der Summe ihres Semesters auf. ")}
-                {spread.then_some("Module über mehrere Semester stehen über ihrem Zeitraum und sind in keiner Semestersumme enthalten. ")}
-                {differs.then_some("Markierte LP weichen vom Modulkatalog ab.")}
+                {stated.then_some(t.program.stated_note)}
+                {spread.then_some(t.program.spread_note)}
+                {differs.then_some(t.program.differs_note)}
             </p>
         })}
     }
@@ -1330,6 +1316,7 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
 /// The same plan as a list: semester after semester, a row per module.
 #[component]
 fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String>>, req: Memo<Option<usize>>) -> impl IntoView {
+    let t = i18n::t();
     let with_area = plan.entries.iter().any(|entry| entry.study_section.is_some() || entry.subject_area.is_some());
     let head_cols = if with_area { 3 } else { 2 };
     // Semesters the plan names, in order, with the rows they hold.
@@ -1337,10 +1324,9 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
     for (row, entry) in plan.entries.iter().cloned().enumerate().map(|(i, entry)| (i + 1, entry)) {
         let span = plan::semester_span(&entry);
         let label = match (span, &entry.semester_span) {
-            (Some((from, to)), _) if from == to => format!("{from}. Semester"),
-            (Some((from, to)), _) => format!("{from}.–{to}. Semester"),
-            (None, Some(span)) => format!("Semester {span}"),
-            (None, None) => "Ohne Semesterangabe im Plan".to_string(),
+            (Some(span), _) => format::plan_semesters(&[span], t.locale).unwrap_or_default(),
+            (None, Some(span)) => (t.program.semester_as_written)(span),
+            (None, None) => t.program.no_semester.to_string(),
         };
         let key = span.unwrap_or((i64::MAX, i64::MAX));
         match groups.iter_mut().find(|(existing, ..)| *existing == key) {
@@ -1361,10 +1347,10 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
                 </colgroup>
                 <thead>
                     <tr>
-                        <th scope="col" class="c-name">"Modul"</th>
-                        <th scope="col" class="c-kind">"Art"</th>
-                        {with_area.then(|| view! { <th scope="col" class="c-area">"Bereich"</th> })}
-                        <th scope="col" class="c-lp num">"LP"</th>
+                        <th scope="col" class="c-name">{t.program.module}</th>
+                        <th scope="col" class="c-kind">{t.program.kind}</th>
+                        {with_area.then(|| view! { <th scope="col" class="c-area">{t.program.area}</th> })}
+                        <th scope="col" class="c-lp num">{t.common.credits_unit}</th>
                     </tr>
                 </thead>
                 {groups.into_iter().map(|(key, label, entries)| {
@@ -1380,20 +1366,20 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
                                 <th colspan=head_cols scope="rowgroup">
                                     <span class="ginner">
                                         <span class="gname">{label}</span>
-                                        <span class="gcount">{count}" Module"</span>
+                                        <span class="gcount">{(t.program.modules)(count)}</span>
                                     </span>
                                 </th>
-                                <td class="c-lp num">{(sum > 0.0).then(|| format::number(sum, crate::i18n::locale()))}</td>
+                                <td class="c-lp num">{(sum > 0.0).then(|| format::number(sum, t.locale))}</td>
                             </tr>
                             {entries.into_iter().map(|(row, entry)| {
                                 let row_id = entry.module_id.clone();
                                 view! {
                                     <tr class:open=move || is_open(&row_id, open) || req.get() == Some(row)>
-                                        <th scope="row" class="c-name">{plan_module(&entry, row, links, open)}</th>
-                                        <td class="c-kind">{kind_cell(entry.kind.clone())}</td>
+                                        <th scope="row" class="c-name">{plan_module(&entry, row, links, open, t)}</th>
+                                        <td class="c-kind">{kind_cell(entry.kind.clone(), t)}</td>
                                         {with_area.then(|| view! { <td class="c-area">{entry.study_section.clone().or(entry.subject_area.clone())}</td> })}
                                         <td class="c-lp num" class:differs=entry.credits_differ_from_catalog>
-                                            {plan_credits(&entry)}
+                                            {plan_credits(&entry, t.locale)}
                                         </td>
                                     </tr>
                                 }
@@ -1409,16 +1395,16 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
 /// A row of the plan: a link to its module where the row is linked to the catalog, and a link to
 /// what the plan says about it („Wahlpflichtmodule der Studienrichtung" names no module) where it
 /// is not. Every row of the plan can be picked; what it opens differs.
-fn plan_module(entry: &PlanEntry, row: usize, links: Memo<ProgramUrl>, open: Memo<Option<String>>) -> AnyView {
+fn plan_module(entry: &PlanEntry, row: usize, links: Memo<ProgramUrl>, open: Memo<Option<String>>, t: &'static Texts) -> AnyView {
     match &entry.module_id {
-        Some(id) => module_link(id, &entry.module_name, links, open),
+        Some(id) => module_link(id, &entry.module_name, links, open, t),
         // A row that names no module: in the app it opens beside the page (`?req=<n>`); the
         // server's page has no page for it, so there it is what the plan says, as text.
         None if !APP => view! { <span class="unstated">{entry.module_name.clone()}</span> }.into_any(),
         None => {
             let name = entry.module_name.clone();
             view! {
-                <a class="unstated" href=move || links.get().with_req(Some(row)).path() data-walk="plan-row" data-noscroll="" title="Was der Plan zu dieser Zeile sagt">
+                <a class="unstated" href=move || t.path(&links.get().with_req(Some(row)).path()) data-walk="plan-row" data-noscroll="" title=t.program.row_title>
                     {name}
                 </a>
             }
@@ -1428,7 +1414,8 @@ fn plan_module(entry: &PlanEntry, row: usize, links: Memo<ProgramUrl>, open: Mem
 }
 
 /// Where a module of the program leads: in the app beside the page (`?open=<id>`, as in the
-/// catalog, with „Vollbild" there); on the server's page to the module's own page.
+/// catalog, with „Vollbild" there); on the server's page to the module's own page. The app's path,
+/// without the language's prefix.
 fn module_href(links: &ProgramUrl, id: &str) -> String {
     if APP {
         links.with_open(Some(id)).path()
@@ -1442,21 +1429,21 @@ fn module_href(links: &ProgramUrl, id: &str) -> String {
 /// what `variants::row_query` makes of it — the areas its name means (the derivation of the row's
 /// panel, all of them where it means several), the FÜS list for a FÜS row, the name for a single
 /// module, else the program's electives; nothing picked is the program. The server's page picks
-/// nothing.
-fn catalog_for(data: &ProgramData, variant: usize, area: Option<i64>, req: Option<usize>) -> (String, String) {
+/// nothing. The path is the app's, without the language's prefix.
+fn catalog_for(data: &ProgramData, variant: usize, area: Option<i64>, req: Option<usize>, t: &Texts) -> (String, String) {
     let base = ProgramScope { program_slug: data.program.slug.clone(), ..Default::default() };
     let path = |query: CatalogQuery| CatalogUrl { query, page: 1, open: None, fill: None }.path();
     let scoped = |scope: ProgramScope| path(CatalogQuery { program: Some(scope), ..Default::default() });
     let known = pages::catalog_areas(&data.areas, &data.area_tree);
     if let Some(id) = area {
-        let name = known.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| "Bereich".to_string());
+        let name = known.iter().find(|area| area.id == id).map(|area| area.name().to_string()).unwrap_or_else(|| t.program.area.to_string());
         return (scoped(ProgramScope { areas: vec![id], ..base }), name);
     }
     let plans = plan_variants(&data.plan_entries, &data.plan_totals, crate::i18n::locale());
     let chosen = plans.get(variant.min(plans.len()).saturating_sub(1));
     let row = req.and_then(|row| chosen.and_then(|plan| plan.entries.get(row.checked_sub(1)?).map(|entry| (entry, plan))));
     let Some((entry, plan)) = row else {
-        return (scoped(base), format!("{} Module", data.program.curricular_modules));
+        return (scoped(base), (t.programs.modules)(data.program.curricular_modules));
     };
     let (query, what) = variants::row_query(&data.program.slug, plan, entry, &known, crate::i18n::locale());
     (path(query), what)
@@ -1490,11 +1477,11 @@ fn area_href(links: &ProgramUrl, id: i64) -> String {
 }
 
 /// A module of the program, opening beside the page (`?open=<id>`, as in the catalog).
-fn module_link(id: &str, title: &str, links: Memo<ProgramUrl>, open: Memo<Option<String>>) -> AnyView {
+fn module_link(id: &str, title: &str, links: Memo<ProgramUrl>, open: Memo<Option<String>>, t: &'static Texts) -> AnyView {
     let id = id.to_string();
     let href = {
         let id = id.clone();
-        move || module_href(&links.get(), &id)
+        move || t.path(&module_href(&links.get(), &id))
     };
     view! {
         <a href=href data-walk="module" data-id=id.clone() data-noscroll="" aria-current=move || is_open(&Some(id.clone()), open).then_some("true")>
@@ -1519,7 +1506,7 @@ type RowGroup = (Option<String>, Vec<NumberedRow>);
 
 /// The rows of a plan in the sections it names, in the order of the document, each with its place
 /// in the plan. `None` where the plan states no sections: then the table has no group rows at all.
-fn section_groups(entries: &[PlanEntry]) -> Vec<RowGroup> {
+fn section_groups(entries: &[PlanEntry], t: &Texts) -> Vec<RowGroup> {
     let numbered: Vec<NumberedRow> = entries.iter().cloned().enumerate().map(|(i, entry)| (i + 1, entry)).collect();
     let named = entries.iter().any(|entry| entry.study_section.is_some() || entry.subject_area.is_some());
     if !named {
@@ -1527,7 +1514,7 @@ fn section_groups(entries: &[PlanEntry]) -> Vec<RowGroup> {
     }
     let mut groups: Vec<RowGroup> = Vec::new();
     for (row, entry) in numbered {
-        let name = entry.study_section.clone().or_else(|| entry.subject_area.clone()).unwrap_or_else(|| "Ohne Bereich im Plan".to_string());
+        let name = entry.study_section.clone().or_else(|| entry.subject_area.clone()).unwrap_or_else(|| t.program.no_area.to_string());
         match groups.iter_mut().find(|(existing, _)| existing.as_deref() == Some(name.as_str())) {
             Some((_, rows)) => rows.push((row, entry)),
             None => groups.push((Some(name), vec![(row, entry)])),
@@ -1540,10 +1527,10 @@ fn section_groups(entries: &[PlanEntry]) -> Vec<RowGroup> {
 
 /// „Pflicht", „Wahlpflicht" … as a table cell; „–" where no source states the kind (the full
 /// wording stays in the title, so nothing is invented and nothing is claimed).
-fn kind_cell(kind: Option<Code<ModuleKind>>) -> AnyView {
+fn kind_cell(kind: Option<Code<ModuleKind>>, t: &Texts) -> AnyView {
     match kind {
-        Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(crate::i18n::locale()).to_string()}</span> }.into_any(),
-        None => view! { <span class="unknown" title="Art nicht angegeben">"–"</span> }.into_any(),
+        Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(t.locale).to_string()}</span> }.into_any(),
+        None => view! { <span class="unknown" title=t.ui.kind_unknown>"–"</span> }.into_any(),
     }
 }
 
@@ -1558,36 +1545,36 @@ struct ModuleRow {
     offer: Code<OfferStatus>,
 }
 
-fn module_head() -> AnyView {
+fn module_head(t: &Texts) -> AnyView {
     view! {
         <thead>
             <tr>
-                <th scope="col" class="c-id">"Nr."</th>
-                <th scope="col" class="c-name">"Modul"</th>
-                <th scope="col" class="c-kind">"Art"</th>
-                <th scope="col" class="c-lp num">"LP"</th>
-                <th scope="col" class="c-turnus">"Turnus"</th>
-                <th scope="col" class="c-sem num">"Sem."</th>
+                <th scope="col" class="c-id">{t.program.number}</th>
+                <th scope="col" class="c-name">{t.program.module}</th>
+                <th scope="col" class="c-kind">{t.program.kind}</th>
+                <th scope="col" class="c-lp num">{t.common.credits_unit}</th>
+                <th scope="col" class="c-turnus">{t.program.turnus}</th>
+                <th scope="col" class="c-sem num">{t.program.semester_short}</th>
             </tr>
         </thead>
     }
     .into_any()
 }
 
-fn module_row(row: ModuleRow, links: Memo<ProgramUrl>, open: Memo<Option<String>>) -> AnyView {
+fn module_row(row: ModuleRow, links: Memo<ProgramUrl>, open: Memo<Option<String>>, t: &'static Texts) -> AnyView {
     let id = row.id.clone();
     view! {
         <tr class:open=move || is_open(&Some(id.clone()), open)>
             <td class="c-id">{row.id.clone()}</td>
             <th scope="row" class="c-name">
-                {module_link(&row.id, &row.title, links, open)}
+                {module_link(&row.id, &row.title, links, open, t)}
                 <OfferBadge status=row.offer/>
             </th>
-            <td class="c-kind">{kind_cell(row.kind)}</td>
-            <td class="c-lp num">{row.credits.map(|value| format::number(value, crate::i18n::locale()))}</td>
-            <td class="c-turnus">{row.turnus.as_ref().map(|season| format::turnus(Some(season), None, crate::i18n::locale()))}</td>
+            <td class="c-kind">{kind_cell(row.kind, t)}</td>
+            <td class="c-lp num">{row.credits.map(|value| format::number(value, t.locale))}</td>
+            <td class="c-turnus">{row.turnus.as_ref().map(|season| format::turnus(Some(season), None, t.locale))}</td>
             <td class="c-sem num" class:unknown=row.semester.is_none()>
-                {row.semester.map(|n| format!("{n}.")).unwrap_or_else(|| "–".to_string())}
+                {row.semester.map(t.format.semester_one).unwrap_or_else(|| "–".to_string())}
             </td>
         </tr>
     }
@@ -1683,10 +1670,11 @@ fn AreasTab(
     open: Memo<Option<String>>,
     area: Memo<Option<i64>>,
 ) -> impl IntoView {
+    let t = i18n::t();
     let groups = area_groups(&areas);
     if groups.is_empty() {
         return view! {
-            <EmptyState title="Keine Bereiche bekannt" hint="Das Vorlesungsverzeichnis gliedert diesen Studiengang nicht in Bereiche."/>
+            <EmptyState title=t.program.no_areas_title hint=t.program.no_areas_hint/>
         }
         .into_any();
     }
@@ -1701,12 +1689,12 @@ fn AreasTab(
     view! {
         <section class="panel">
             <header class="block-head">
-                <h2>"Wahlpflicht & Bereiche "<span class="tab-count">{groups.len()}</span></h2>
-                <p>"Wie das Vorlesungsverzeichnis diesen Studiengang gliedert. Ein Modul kann in mehreren Bereichen stehen."</p>
+                <h2>{ProgramTab::Areas.label(t.locale)}" "<span class="tab-count">{groups.len()}</span></h2>
+                <p>{t.program.areas_intro}</p>
             </header>
             <div class="table-scroll">
                 <table class="ptable modules areas">
-                    {module_head()}
+                    {module_head(t)}
                     {groups.into_iter().map(|group| {
                         let sum: f64 = group.modules.iter().filter_map(|m| m.module_credits).sum();
                         let count = group.modules.len();
@@ -1716,10 +1704,10 @@ fn AreasTab(
                                 <tr class=format!("group depth-{}", group.depth.clamp(1, 4)) id=format!("area-{}", group.id) class:open=move || area.get() == Some(group.id)>
                                     <th colspan="6" scope="rowgroup">
                                         // The area itself is a link: it shows beside the page what it holds.
-                                        <a class="ginner" data-walk="area" data-noscroll="" href=move || area_href(&links.get(), group.id) aria-current=move || (area.get() == Some(group.id)).then_some("true")>
+                                        <a class="ginner" data-walk="area" data-noscroll="" href=move || t.path(&area_href(&links.get(), group.id)) aria-current=move || (area.get() == Some(group.id)).then_some("true")>
                                             <span class="gname">{group.label}</span>
                                             {group.parent.map(|parent| view! { <span class="gpath">{parent}</span> })}
-                                            <span class="gcount">{count}" Module"{(sum > 0.0).then(|| format!(" · {} LP", format::number(sum, crate::i18n::locale())))}</span>
+                                            <span class="gcount">{(t.program.modules)(count)}{(sum > 0.0).then(|| format!(" · {}", (t.format.credits)(&format::number(sum, t.locale))))}</span>
                                         </a>
                                     </th>
                                 </tr>
@@ -1733,7 +1721,7 @@ fn AreasTab(
                                         offer: catalog.map(|m| m.offer_status.clone()).unwrap_or(Code::Known(OfferStatus::Active)),
                                         id: placement.module_id,
                                         title: placement.module_title,
-                                    }, links, open)
+                                    }, links, open, t)
                                 }).collect_view()}
                             </tbody>
                         }
@@ -1750,34 +1738,35 @@ fn AreasTab(
 /// program in the catalog (where „Alle Module" went).
 #[component]
 fn MyPlanTab(slug: String) -> impl IntoView {
+    let t = i18n::t();
     view! {
         <section class="panel my-plan">
             <header class="block-head">
-                <h2>"Mein Plan"</h2>
-                <p>"Hier planst du bald dein ganzes Studium, Semester für Semester."</p>
+                <h2>{ProgramTab::MyPlan.label(t.locale)}</h2>
+                <p>{t.program.my_plan_hint}</p>
             </header>
             <div class="my-plan-links">
-                <a class="action" href=url::STUDYPLAN><Icon name="calendar-plus"/><span>"Zum Stundenplan"</span><Icon name="chevron-right"/></a>
-                <a class="action" href=url::program_catalog_path(&slug, None)><Icon name="layout-list"/><span>"Alle Module des Studiengangs im Katalog"</span><Icon name="chevron-right"/></a>
+                <a class="action" href=t.path(url::STUDYPLAN)><Icon name="calendar-plus"/><span>{t.program.to_timetable}</span><Icon name="chevron-right"/></a>
+                <a class="action" href=t.path(&url::program_catalog_path(&slug, None))><Icon name="layout-list"/><span>{t.program.all_modules}</span><Icon name="chevron-right"/></a>
             </div>
         </section>
     }
 }
 
 /// What a sum prints: a number, or the span the regulation prints in its place.
-fn printed_credits(total: &PlanTotal) -> String {
+fn printed_credits(total: &PlanTotal, locale: Locale) -> String {
     match total.is_span() {
-        true => format!("{}–{}", format::number(total.credits, crate::i18n::locale()), format::number(total.credits_max, crate::i18n::locale())),
-        false => format::number(total.credits, crate::i18n::locale()),
+        true => format!("{}–{}", format::number(total.credits, locale), format::number(total.credits_max, locale)),
+        false => format::number(total.credits, locale),
     }
 }
 
 /// The semesters a printed sum covers, as a sentence names them.
-fn choice_span(total: &PlanTotal) -> String {
+fn choice_span(total: &PlanTotal, t: &Texts) -> String {
     if total.start_semester == total.end_semester {
-        format!("Semester {}", total.start_semester)
+        (t.program.choice_one)(total.start_semester)
     } else {
-        format!("den Semestern {} bis {}", total.start_semester, total.end_semester)
+        (t.program.choice_many)(total.start_semester, total.end_semester)
     }
 }
 
@@ -1894,7 +1883,7 @@ mod tests {
         // The semesters the plan sums together have one figure between them, not none each.
         let plans = plan_variants(&entries, &totals, catalog::Locale::De);
         assert_eq!(shared_semester_totals(&plans[0]), vec![(5, 6, 56.0)]);
-        assert_eq!(credits_label(&plans[0]), "64");
+        assert_eq!(credits_label(&plans[0], Locale::De), "64");
 
         // Where the plan also sums those semesters one by one, the finer statement says more.
         let mut finer = totals.clone();
@@ -1905,14 +1894,47 @@ mod tests {
 
         // A plan whose regulation prints a span for a semester comes to a span.
         let spans = PlanVariant { credits: 116.0, credits_max: 126.0, ..plans[0].clone() };
-        assert_eq!(credits_label(&spans), "116–126");
+        assert_eq!(credits_label(&spans, Locale::De), "116–126");
+        let half = PlanVariant { credits: 7.5, credits_max: 7.5, ..spans };
+        assert_eq!((credits_label(&half, Locale::De), credits_label(&half, Locale::En)), ("7,5".to_string(), "7.5".to_string()));
     }
 
     #[test]
     fn the_head_says_one_number_where_all_plans_agree() {
-        assert_eq!(span_of([6.0, 6.0].into_iter()).as_deref(), Some("6"));
-        assert_eq!(span_of([4.0, 6.0, 0.0].into_iter()).as_deref(), Some("4–6"));
-        assert_eq!(span_of([0.0].into_iter()), None);
+        assert_eq!(span_of([6.0, 6.0].into_iter(), Locale::De).as_deref(), Some("6"));
+        assert_eq!(span_of([4.0, 6.0, 0.0].into_iter(), Locale::De).as_deref(), Some("4–6"));
+        assert_eq!(span_of([0.0].into_iter(), Locale::De), None);
+        assert_eq!(span_of([172.5, 180.0].into_iter(), Locale::En).as_deref(), Some("172.5–180"));
+    }
+
+    /// The sentences of the page say the same in each language, with the words of the language.
+    #[test]
+    fn the_page_says_its_sentences_in_each_language() {
+        let (de, en) = (i18n::texts(Locale::De), i18n::texts(Locale::En));
+        let total = PlanTotal {
+            ord: 1,
+            label: "Summe".to_string(),
+            scope: Code::parse("plan"),
+            specialization: None,
+            start_semester: 5,
+            end_semester: 6,
+            credits: 28.0,
+            credits_max: 32.0,
+            min_credits: 10.0,
+            max_credits: 24.0,
+            is_choice: true,
+            entry_count: 2,
+            entries: vec![1, 2],
+        };
+        assert_eq!((choice_span(&total, de), choice_span(&total, en)), ("den Semestern 5 bis 6".to_string(), "semesters 5 to 6".to_string()));
+        assert_eq!((printed_credits(&total, Locale::De), printed_credits(&total, Locale::En)), ("28–32".to_string(), "28–32".to_string()));
+        assert_eq!(
+            (de.program.choice_hint)(1, "Summe", "28–32", "den Semestern 5 bis 6", "10", "24"),
+            "Diese Zeile nennt eine Spanne, keine feste Zahl. Die Prüfungsordnung weist sie mit einer weiteren Zeile zusammen aus — „Summe“: 28–32 LP in den Semestern 5 bis 6. Einzeln lassen diese Zeilen 10 bis 24 LP zu; wie die 28–32 LP auf sie aufgeteilt werden, ist die Wahl der Studierenden."
+        );
+        assert!((en.program.choice_hint)(2, "Total", "60", "semesters 5 to 6", "10", "24").contains("together with 2 more rows — \"Total\": 60 CP in semesters 5 to 6."));
+        assert_eq!(((de.program.taken_from)(Some("19.09.2026")), (en.program.taken_from)(None)), ("Aus der Prüfungs- und Studienordnung übernommen und geprüft am 19.09.2026.".to_string(), "Taken from the examination and study regulations and checked.".to_string()));
+        assert_eq!(((de.program.found_at)("Seite 9", Some("A")), (en.program.found_at)("pages 9–11", None)), (" Dort auf Seite 9, unter „A“.".to_string(), " There on pages 9–11.".to_string()));
     }
     /// A heading is only worth repeating when it says which plan was read. „Regelstudienplan" is
     /// the word the page is already under, and a heading the PDF cut mid-parenthesis is closed so
