@@ -376,7 +376,7 @@ async fn legal_pages_are_one_step_from_every_page() {
     let (_, _, body) = request(&router, catalog::url::PRIVACY, &[]).await;
     let privacy = String::from_utf8(body).unwrap();
     for part in &app::pages::legal::PRIVACY {
-        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, part.heading);
+        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&app::i18n::legal::DE));
     }
 
     // Any other page, here the program overview, which says that it has no catalog: the ground at

@@ -7,6 +7,11 @@
 //! `PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, it keeps these pages out of
 //! search engines and every instance that is open to everybody from shipping.
 //!
+//! Both pages are in every language of the site (2026-09-27). The words are in
+//! `i18n/legal.rs`, one struct per part; this module has the parts, their order and their markup.
+//! The German text is the one that counts: every other language says at the top that it is a
+//! translation, with a link to the German page (`BINDING`).
+//!
 //! The privacy notice says what the software does, so it changes with it. Where each part of it
 //! comes from:
 //! - „Zugriffsprotokoll": the edge's access log (`deploy/stacks/edge.yml`, „privacy"), 7 days in
@@ -30,6 +35,7 @@ use catalog::url;
 use leptos::prelude::*;
 use leptos_meta::Title;
 
+use crate::i18n::{self, legal::Texts, Locale};
 use crate::seo::Seo;
 use crate::ui::{Frame, Icon};
 
@@ -44,8 +50,17 @@ const TOWN: &str = "14656 Brieselang";
 pub const EMAIL: &str = "info@betula.app";
 const MAILTO: &str = "mailto:info@betula.app";
 
-/// When the privacy notice last changed.
-const PRIVACY_AS_OF: &str = "25. September 2026";
+/// The supervisory authority the rights name, by its own name and address in every language.
+const AUTHORITY: [&str; 3] = ["Die Landesbeauftragte für den Datenschutz und für das Recht auf Akteneinsicht Brandenburg", "Stahnsdorfer Damm 77", "14532 Kleinmachnow"];
+const AUTHORITY_URL: &str = "https://www.lda.brandenburg.de/";
+const AUTHORITY_SITE: &str = "www.lda.brandenburg.de";
+
+/// When the privacy notice last changed: day, month, year.
+const PRIVACY_AS_OF: (u32, u32, i32) = (25, 9, 2026);
+
+/// The language whose text counts. A page in any other language is a translation and links to
+/// the page in this one (`legal::Texts::translated`).
+const BINDING: Locale = Locale::De;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Legal {
@@ -54,25 +69,25 @@ enum Legal {
 }
 
 impl Legal {
-    fn title(self) -> &'static str {
+    fn title(self, t: &Texts) -> &'static str {
         match self {
-            Legal::Imprint => "Impressum",
-            Legal::Privacy => "Datenschutz",
+            Legal::Imprint => t.imprint_title,
+            Legal::Privacy => t.privacy_title,
         }
     }
 
-    fn heading(self) -> &'static str {
+    fn heading(self, t: &Texts) -> &'static str {
         match self {
-            Legal::Imprint => "Impressum",
-            Legal::Privacy => "Datenschutzerklärung",
+            Legal::Imprint => t.imprint_heading,
+            Legal::Privacy => t.privacy_heading,
         }
     }
 
     /// The line under the heading, and the page's description for search engines.
-    fn lead(self) -> &'static str {
+    fn lead(self, t: &Texts) -> &'static str {
         match self {
-            Legal::Imprint => "Wer Betula betreibt und wie du Kontakt aufnimmst.",
-            Legal::Privacy => "Welche Daten beim Besuch von Betula anfallen, wozu und wie lange.",
+            Legal::Imprint => t.imprint_lead,
+            Legal::Privacy => t.privacy_lead,
         }
     }
 
@@ -103,33 +118,34 @@ impl Legal {
     }
 }
 
-/// A section of a page: its anchor, its heading (also its entry under „Auf dieser Seite") and its text.
+/// A section of a page: its anchor (the same in every language), its heading (also its entry
+/// under „Auf dieser Seite") and its text, both in the language of the texts handed in.
 pub struct Part {
     pub id: &'static str,
-    pub heading: &'static str,
-    body: fn() -> AnyView,
+    pub heading: fn(&Texts) -> &'static str,
+    body: fn(&'static Texts) -> AnyView,
 }
 
 static IMPRINT: [Part; 3] = [
-    Part { id: "anschrift", heading: "Angaben nach § 5 DDG", body: imprint_address },
-    Part { id: "kontakt", heading: "Kontakt", body: imprint_contact },
-    Part { id: "hinweis", heading: "Kein Angebot der BTU", body: imprint_note },
+    Part { id: "anschrift", heading: |t| t.operator.heading, body: imprint_address },
+    Part { id: "kontakt", heading: |t| t.contact.heading, body: imprint_contact },
+    Part { id: "hinweis", heading: |t| t.not_btu.heading, body: imprint_note },
 ];
 
 /// The parts of the privacy notice, in the order of the page.
 pub static PRIVACY: [Part; 12] = [
-    Part { id: "kurz", heading: "Kurz gesagt", body: privacy_summary },
-    Part { id: "verantwortlich", heading: "Verantwortlich", body: privacy_controller },
-    Part { id: "server", heading: "Wo Betula läuft", body: privacy_hosting },
-    Part { id: "protokoll", heading: "Zugriffsprotokoll", body: privacy_access_log },
-    Part { id: "browser", heading: "Speicher im Browser", body: privacy_browser },
-    Part { id: "kalender", heading: "Kalender-Abo", body: privacy_calendar },
-    Part { id: "teilen", heading: "Stundenplan teilen", body: privacy_share },
-    Part { id: "cookies", heading: "Cookies", body: privacy_cookies },
-    Part { id: "e-mail", heading: "E-Mail", body: privacy_email },
-    Part { id: "lehrende", heading: "Namen von Lehrenden", body: privacy_lecturers },
-    Part { id: "weitergabe", heading: "Weitergabe und Links", body: privacy_recipients },
-    Part { id: "rechte", heading: "Deine Rechte", body: privacy_rights },
+    Part { id: "kurz", heading: |t| t.summary.heading, body: privacy_summary },
+    Part { id: "verantwortlich", heading: |t| t.controller.heading, body: privacy_controller },
+    Part { id: "server", heading: |t| t.hosting.heading, body: privacy_hosting },
+    Part { id: "protokoll", heading: |t| t.access_log.heading, body: privacy_access_log },
+    Part { id: "browser", heading: |t| t.browser.heading, body: privacy_browser },
+    Part { id: "kalender", heading: |t| t.calendar.heading, body: privacy_calendar },
+    Part { id: "teilen", heading: |t| t.share.heading, body: privacy_share },
+    Part { id: "cookies", heading: |t| t.cookies.heading, body: privacy_cookies },
+    Part { id: "e-mail", heading: |t| t.email.heading, body: privacy_email },
+    Part { id: "lehrende", heading: |t| t.lecturers.heading, body: privacy_lecturers },
+    Part { id: "weitergabe", heading: |t| t.recipients.heading, body: privacy_recipients },
+    Part { id: "rechte", heading: |t| t.rights.heading, body: privacy_rights },
 ];
 
 #[component]
@@ -144,18 +160,20 @@ pub fn PrivacyPage() -> impl IntoView {
 
 #[component]
 fn LegalPage(page: Legal) -> impl IntoView {
+    let t = i18n::t();
+    let texts = &t.legal;
     let sidebar = move || view! {
-        <nav class="toc fgroup first legal-toc" aria-label="Rechtliches">
+        <nav class="toc fgroup first legal-toc" aria-label=texts.legal>
             {[Legal::Imprint, Legal::Privacy].into_iter().map(|other| view! {
-                <a href=other.path() aria-current=(other == page).then_some("page")><Icon name=other.icon()/>{other.title()}</a>
+                <a href=t.path(other.path()) aria-current=(other == page).then_some("page")><Icon name=other.icon()/>{other.title(texts)}</a>
             }).collect_view()}
         </nav>
         {page.lists_parts().then(|| view! {
             // The part the page is at is marked while it scrolls (`data-spy`, enhance.js).
-            <nav class="toc fgroup jumps" data-spy="" aria-label="Auf dieser Seite">
-                <p class="flabel label">"Auf dieser Seite"</p>
+            <nav class="toc fgroup jumps" data-spy="" aria-label=texts.on_this_page>
+                <p class="flabel label">{texts.on_this_page}</p>
                 {page.parts().iter().enumerate().map(|(i, part)| view! {
-                    <a href=format!("#{}", part.id) data-action="jump" aria-current=(i == 0).then_some("location")>{part.heading}</a>
+                    <a href=format!("#{}", part.id) data-action="jump" aria-current=(i == 0).then_some("location")>{(part.heading)(texts)}</a>
                 }).collect_view()}
             </nav>
         })}
@@ -163,23 +181,40 @@ fn LegalPage(page: Legal) -> impl IntoView {
         // and the imprint at length.
     };
     view! {
-        <Title text=page.title()/>
-        <Frame title="Rechtliches" sidebar><div class="page-inner legal">
-            <Seo title=page.title() description=page.lead() path=page.path() noindex=PLACEHOLDER/>
-            <article class="panel legal-panel">
-                <header class="legal-head">
-                    <h1>{page.heading()}</h1>
-                    <p>{page.lead()}</p>
-                    {(page == Legal::Privacy).then(|| view! { <p class="legal-stand">"Stand: "{PRIVACY_AS_OF}</p> })}
-                </header>
-                {page.parts().iter().map(|part| view! {
-                    <section class="legal-part" id=part.id aria-labelledby=format!("{}-titel", part.id)>
-                        <h2 id=format!("{}-titel", part.id)>{part.heading}</h2>
-                        {(part.body)()}
-                    </section>
-                }).collect_view()}
-            </article>
+        <Title text=page.title(texts)/>
+        <Frame title=texts.legal sidebar><div class="page-inner legal">
+            <Seo title=page.title(texts) description=page.lead(texts) path=page.path() noindex=PLACEHOLDER/>
+            {article(page, texts)}
         </div></Frame>
+    }
+}
+
+/// The text of a page in the language of `t`: heading, lead, the note of a translation, the parts.
+fn article(page: Legal, t: &'static Texts) -> impl IntoView {
+    // Another language: a link, not a step within the app (`languages`).
+    let translated = t.translated.as_ref().map(|note| view! {
+        <p class="legal-translation">
+            {note.before}
+            <a href=BINDING.path(page.path()) hreflang=BINDING.code() lang=BINDING.code() rel="alternate external">{page.heading(&i18n::texts(BINDING).legal)}</a>
+            {note.after}
+        </p>
+    });
+    let (day, month, year) = PRIVACY_AS_OF;
+    view! {
+        <article class="panel legal-panel">
+            <header class="legal-head">
+                <h1>{page.heading(t)}</h1>
+                <p>{page.lead(t)}</p>
+                {(page == Legal::Privacy).then(|| view! { <p class="legal-stand">{(t.as_of)(day, month, year)}</p> })}
+                {translated}
+            </header>
+            {page.parts().iter().map(|part| view! {
+                <section class="legal-part" id=part.id aria-labelledby=format!("{}-titel", part.id)>
+                    <h2 id=format!("{}-titel", part.id)>{(part.heading)(t)}</h2>
+                    {(part.body)(t)}
+                </section>
+            }).collect_view()}
+        </article>
     }
 }
 
@@ -198,248 +233,205 @@ fn mail_link() -> impl IntoView {
     view! { <a href=MAILTO>{EMAIL}</a> }
 }
 
+fn paragraphs(texts: &'static [&'static str]) -> AnyView {
+    texts.iter().map(|text| view! { <p>{*text}</p> }).collect_view().into_any()
+}
+
+fn points(texts: &'static [&'static str]) -> impl IntoView {
+    view! { <ul>{texts.iter().map(|text| view! { <li>{*text}</li> }).collect_view()}</ul> }
+}
+
+/// One of the facts of a part (`<dl class="legal-facts">`): what it is about, and what it says.
+fn fact(label: &'static str, text: &'static str) -> impl IntoView {
+    view! {
+        <div>
+            <dt>{label}</dt>
+            <dd>{text}</dd>
+        </div>
+    }
+}
+
 // ---------------------------------------------------------------- Impressum
 
-fn imprint_address() -> AnyView {
+fn imprint_address(t: &'static Texts) -> AnyView {
     view! {
-        <p>"Betula wird betrieben von:"</p>
+        <p>{t.operator.run_by}</p>
         {address()}
     }
     .into_any()
 }
 
-fn imprint_contact() -> AnyView {
+fn imprint_contact(t: &'static Texts) -> AnyView {
     view! {
-        <p>"E-Mail: "{mail_link()}</p>
-        <p>"Fragen, Hinweise auf Fehler und Anregungen zu Betula gern per E-Mail."</p>
+        <p>{t.email_label}{mail_link()}</p>
+        <p>{t.contact.hint}</p>
     }
     .into_any()
 }
 
-fn imprint_note() -> AnyView {
-    view! {
-        <p>"Betula ist ein privates, nicht-kommerzielles Projekt. Es gehört nicht zur Brandenburgischen Technischen Universität Cottbus-Senftenberg (BTU), und die BTU hat es weder beauftragt noch geprüft."</p>
-        <p>"Die Angaben zu Modulen, Studiengängen, Ordnungen und Terminen stammen von den öffentlichen Seiten der BTU. Betula ordnet sie und macht sie durchsuchbar, ändert aber nichts an ihrem Inhalt. Trotz aller Sorgfalt kann beim Einlesen etwas fehlen, falsch gelesen werden oder veralten. Verbindlich sind allein die Angaben der BTU; jede Seite von Betula verlinkt deshalb auf ihr Original."</p>
-        <p>"Für die Inhalte verlinkter Seiten ist allein verantwortlich, wer sie anbietet."</p>
-    }
-    .into_any()
+fn imprint_note(t: &'static Texts) -> AnyView {
+    paragraphs(t.not_btu.texts)
 }
 
 // ---------------------------------------------------------------- Datenschutz
 
-fn privacy_summary() -> AnyView {
-    view! {
-        <ul>
-            <li>"Kein Konto, keine Werbung, kein Tracking: Betula nutzt keine Analysedienste und setzt keine Cookies, die dich wiedererkennen. Schrift, Symbole und Skripte liefert betula.app selbst aus; von fremden Servern wird nichts geladen."</li>
-            <li>"Merkliste, Stundenplan und „Mein Studiengang“ liegen nur in deinem Browser."</li>
-            <li>"Der Server protokolliert jeden Aufruf mit IP-Adresse, um Betula zu betreiben und vor Missbrauch zu schützen, und löscht die Einträge nach 7 Tagen."</li>
-            <li>"Betula zeigt die Namen von Lehrenden, die die BTU in ihren Modulbeschreibungen veröffentlicht."</li>
-        </ul>
-    }
-    .into_any()
+fn privacy_summary(t: &'static Texts) -> AnyView {
+    points(t.summary.texts).into_any()
 }
 
-fn privacy_controller() -> AnyView {
+fn privacy_controller(t: &'static Texts) -> AnyView {
     view! {
-        <p>"Verantwortlich für die Verarbeitung personenbezogener Daten auf betula.app im Sinne der Datenschutz-Grundverordnung (DSGVO) ist:"</p>
+        <p>{t.controller.text}</p>
         {address()}
-        <p>"E-Mail: "{mail_link()}</p>
+        <p>{t.email_label}{mail_link()}</p>
     }
     .into_any()
 }
 
-fn privacy_hosting() -> AnyView {
-    view! {
-        <p>"Betula läuft auf einem gemieteten Server der Contabo GmbH, Welfenstraße 22, 81541 München, in einem Rechenzentrum in Deutschland. Dort wird alles verarbeitet, was beim Besuch anfällt, auch die Protokolle und ihre Auswertung; andere Dienste sind daran nicht beteiligt."</p>
-        <p>"Contabo stellt den Server bereit und verarbeitet die Daten darauf nur in meinem Auftrag; dafür besteht ein Vertrag zur Auftragsverarbeitung (Art. 28 DSGVO). Die Verbindung zwischen deinem Browser und Betula ist verschlüsselt (HTTPS)."</p>
-    }
-    .into_any()
+fn privacy_hosting(t: &'static Texts) -> AnyView {
+    paragraphs(t.hosting.texts)
 }
 
-fn privacy_access_log() -> AnyView {
+fn privacy_access_log(t: &'static Texts) -> AnyView {
+    let (facts, log) = (&t.facts, &t.access_log);
     view! {
-        <p>"Bei jedem Aufruf schickt dein Browser Angaben mit, ohne die der Server keine Seite ausliefern kann. Der Server hält jeden Aufruf in einem Zugriffsprotokoll fest."</p>
+        <p>{log.intro}</p>
         <dl class="legal-facts">
             <div>
-                <dt>"Welche Daten"</dt>
+                <dt>{facts.data}</dt>
                 <dd>
-                    <ul>
-                        <li>"deine IP-Adresse und der Port deines Geräts,"</li>
-                        <li>"Datum und Uhrzeit,"</li>
-                        <li>"die aufgerufene Adresse, auch mit dem Teil nach dem „?“, in dem etwa Suchbegriffe und Filter stehen,"</li>
-                        <li>"die Art der Anfrage und der Verbindung, Statuscode, Größe und Dauer der Antwort,"</li>
-                        <li>"die Kennung deines Browsers (User-Agent)."</li>
-                    </ul>
-                    <p>"Nicht erfasst werden die Seite, von der du kommst, Cookies und alle übrigen Angaben deines Browsers."</p>
+                    {points(log.data)}
+                    <p>{log.not_recorded}</p>
                 </dd>
             </div>
-            <div>
-                <dt>"Zweck"</dt>
-                <dd>"Betula stabil und sicher betreiben, Fehler finden, Angriffe und Missbrauch erkennen und abwehren. Dazu zählt der Server auch, wie viele Anfragen in kurzer Zeit von einer IP-Adresse kommen, und bremst, wenn es zu viele werden; diese Zählung liegt nur im Arbeitsspeicher."</dd>
-            </div>
-            <div>
-                <dt>"Rechtsgrundlage"</dt>
-                <dd>"Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist ein sicherer und funktionierender Betrieb."</dd>
-            </div>
-            <div>
-                <dt>"Speicherdauer"</dt>
-                <dd>"Die Einträge stehen im Systemprotokoll des Servers und in einer Protokollauswertung auf demselben Server und werden an beiden Stellen nach 7 Tagen automatisch gelöscht."</dd>
-            </div>
+            {fact(facts.purpose, log.purpose)}
+            {fact(facts.legal_basis, log.legal_basis)}
+            {fact(facts.retention, log.retention)}
         </dl>
-        <p>"Daneben führt die Anwendung ein eigenes Protokoll: welche Seite wann aufgerufen wurde, ohne den Teil nach dem „?“, mit Statuscode und Dauer, aber ohne IP-Adresse und ohne Browserkennung. In der Protokollauswertung wird es nach 30 Tagen gelöscht."</p>
+        <p>{log.app_log}</p>
     }
     .into_any()
 }
 
-fn privacy_browser() -> AnyView {
+fn privacy_browser(t: &'static Texts) -> AnyView {
+    let browser = &t.browser;
     view! {
-        <p>"Vieles, was du in Betula tust, passiert direkt in deinem Browser. Damit das geht, speichert Betula auf deinem Gerät, im Speicher des Browsers (Local Storage, Session Storage, IndexedDB und Cache Storage):"</p>
-        <ul>
-            <li>"deine Merkliste,"</li>
-            <li>"deinen Stundenplan mit geplanten Modulen, Platzhaltern, Ausgeblendetem und ausgewählten Terminen, deine gespeicherten Pläne und die Adressen deiner Kalender-Abos,"</li>
-            <li>"„Mein Studiengang“ mit Studienrichtung, Studienbeginn und Standort,"</li>
-            <li>"Einstellungen, etwa hell oder dunkel, die Breite der Seitenleisten und was „Passt in meinen Stundenplan“ vergleicht,"</li>
-            <li>"für die laufende Sitzung, wo du in jedem Bereich zuletzt warst und wie weit du gescrollt hast,"</li>
-            <li>"eine Kopie des Katalogs, die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert."</li>
-        </ul>
-        <p>"Das alles liegt nur auf deinem Gerät; ich kann es nicht einsehen, und ein Konto gibt es nicht. Ein anderes Gerät hat seine eigenen Daten. Der Link, mit dem du deine Merkliste auf ein anderes Gerät bringst, trägt sie hinter dem „#“, und diesen Teil einer Adresse sendet kein Browser an einen Server."</p>
-        <p>"Den Server erreicht nur, was in der Adresse einer Seite steht, wenn du sie aufrufst, neu lädst oder teilst. Eine Adresse sagt, was gerade angezeigt wird, aber nie, was auf deiner Merkliste oder in deinem Stundenplan steht: etwa den Studiengang, nach dem der Katalog gefiltert ist (auch „Mein Studiengang“, wenn du den Katalog darüber öffnest), das Modul, das neben Merkliste oder Stundenplan offen ist, oder Semester und Platzhalter, für die du Module suchst. Solche Adressen stehen wie alle anderen im Zugriffsprotokoll. Deinen Stundenplan bekommt der Server nur, wenn du ihn als Kalender abonnierst oder einen Link zum Teilen weitergibst und dieser aufgerufen wird."</p>
-        <p>"Die Speicherung ist für die Funktionen nötig, die du nutzt, und braucht deshalb keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG). Löschen kannst du alles jederzeit in den Einstellungen deines Browsers, indem du die Websitedaten von betula.app löschst."</p>
+        <p>{browser.intro}</p>
+        {points(browser.kept)}
+        {paragraphs(browser.texts)}
     }
     .into_any()
 }
 
-fn privacy_calendar() -> AnyView {
+fn privacy_calendar(t: &'static Texts) -> AnyView {
+    let (facts, calendar) = (&t.facts, &t.calendar);
     view! {
-        <p>"Du kannst deinen Stundenplan als Kalender abonnieren. Dein Kalenderdienst bekommt dafür eine Adresse, die mit betula.app/calendar/ beginnt. Sie enthält als Code das Semester, die geplanten Module, den Studiengang, dessen Modulkürzel die Einträge verwenden, den Standort und was du ausgeblendet oder ausgewählt hast."</p>
+        <p>{calendar.intro}</p>
         <dl class="legal-facts">
-            <div>
-                <dt>"Ablauf"</dt>
-                <dd>"Dein Kalender, etwa von Apple, Google oder Microsoft, ruft die Adresse regelmäßig ab, je nach Dienst von deinem Gerät oder von den Servern des Anbieters. Betula erstellt den Kalender bei jedem Abruf neu aus dem Code und den aktuellen Terminen und speichert dazu nichts."</dd>
-            </div>
-            <div>
-                <dt>"Protokolle"</dt>
-                <dd>"Im Zugriffsprotokoll steht jeder Abruf mit der vollständigen Adresse und der IP-Adresse, von der er kommt; wie alles dort wird er nach 7 Tagen gelöscht. Das Protokoll der Anwendung enthält den Code nicht."</dd>
-            </div>
-            <div>
-                <dt>"Rechtsgrundlage"</dt>
-                <dd>"Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir das Abo anzubieten, das du selbst anlegst."</dd>
-            </div>
-            <div>
-                <dt>"Weitergabe"</dt>
-                <dd>"Wählst du „Google Kalender“ oder „Outlook“, öffnet dein Browser die Seite dieses Dienstes und übergibt ihm die Adresse; ab da gilt dessen Datenschutzerklärung. Betula selbst gibt nichts weiter. Wer die Adresse kennt, kann den Kalender ebenfalls abrufen: Gib sie nur an Menschen weiter, denen du deinen Plan zeigen möchtest."</dd>
-            </div>
-            <div>
-                <dt>"Beenden"</dt>
-                <dd>"Entferne den Kalender in deinem Kalenderdienst; dann wird die Adresse nicht mehr abgerufen."</dd>
-            </div>
+            {fact(facts.course, calendar.course)}
+            {fact(facts.logs, calendar.logs)}
+            {fact(facts.legal_basis, calendar.legal_basis)}
+            {fact(facts.disclosure, calendar.disclosure)}
+            {fact(facts.ending, calendar.ending)}
         </dl>
-        <p>"Eine heruntergeladene .ics-Datei entsteht in deinem Browser und erreicht den Server nicht."</p>
+        <p>{calendar.download}</p>
     }
     .into_any()
 }
 
-fn privacy_share() -> AnyView {
+fn privacy_share(t: &'static Texts) -> AnyView {
+    let (facts, share) = (&t.facts, &t.share);
     view! {
-        <p>"Du kannst einen Link zu deinem Stundenplan kopieren und weitergeben. Er beginnt mit betula.app/studyplan?share= und enthält als Code das Semester, die geplanten Module in ihrer Reihenfolge und den Studiengang, dessen Modulkürzel verwendet werden; was du ausgeblendet oder ausgewählt hast, enthält er nicht."</p>
+        <p>{share.intro}</p>
         <dl class="legal-facts">
-            <div>
-                <dt>"Ablauf"</dt>
-                <dd>"Wer den Link öffnet, sieht die Module und kann sie in den eigenen Stundenplan übernehmen. Schickst du ihn über einen Messenger oder ein soziales Netzwerk, ruft dieses, je nach Dienst von deinem Gerät oder von den Servern des Anbieters, die Seite und ihr Vorschaubild ab, auf dem die Module stehen. Betula erstellt Seite und Bild bei jedem Abruf aus dem Code und den aktuellen Daten und speichert dazu nichts."</dd>
-            </div>
-            <div>
-                <dt>"Protokolle"</dt>
-                <dd>"Im Zugriffsprotokoll steht jeder Abruf mit der vollständigen Adresse und der IP-Adresse, von der er kommt; wie alles dort wird er nach 7 Tagen gelöscht. Das Protokoll der Anwendung enthält den Code nicht."</dd>
-            </div>
-            <div>
-                <dt>"Rechtsgrundlage"</dt>
-                <dd>"Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir das Teilen anzubieten, das du selbst auslöst."</dd>
-            </div>
-            <div>
-                <dt>"Weitergabe"</dt>
-                <dd>"Betula selbst gibt nichts weiter. Wer den Link kennt, sieht die Module: Gib ihn nur an Menschen weiter, denen du deinen Plan zeigen möchtest."</dd>
-            </div>
-            <div>
-                <dt>"Beenden"</dt>
-                <dd>"Ein weitergegebener Link lässt sich nicht zurückholen. Er zeigt aber nur, was beim Kopieren geplant war; was du danach änderst, erreicht ihn nicht."</dd>
-            </div>
+            {fact(facts.course, share.course)}
+            {fact(facts.logs, share.logs)}
+            {fact(facts.legal_basis, share.legal_basis)}
+            {fact(facts.disclosure, share.disclosure)}
+            {fact(facts.ending, share.ending)}
         </dl>
     }
     .into_any()
 }
 
-fn privacy_cookies() -> AnyView {
+fn privacy_cookies(t: &'static Texts) -> AnyView {
+    let cookies = &t.cookies;
     view! {
-        <p>"Betula setzt keine Cookies, mit einer Ausnahme: Solange Betula nur mit Passwort erreichbar ist, etwa während eines geschlossenen Tests, setzt der Server nach der Eingabe des richtigen Passworts ein Cookie namens "<code>"betula_access"</code>"."</p>
-        <p>"Es enthält nur, wann dein Zugang endet, und eine Signatur, an der der Server erkennt, dass er es selbst ausgestellt hat; gespeichert wird dazu nichts. Es gilt 90 Tage, wird nur über verschlüsselte Verbindungen an Betula gesendet und ist für Skripte nicht lesbar. Weil es für den Zugang, den du angefragt hast, unbedingt nötig ist, braucht es keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG)."</p>
+        <p>{cookies.before}<code>"betula_access"</code>{cookies.after}</p>
+        <p>{cookies.details}</p>
     }
     .into_any()
 }
 
-fn privacy_email() -> AnyView {
-    view! {
-        <p>"Schreibst du mir eine E-Mail, verarbeite ich deine E-Mail-Adresse, deinen Namen, wenn du ihn nennst, und deine Nachricht, um dir zu antworten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; mein berechtigtes Interesse ist, Anfragen zu beantworten. Die Nachrichten liegen bei meinem E-Mail-Anbieter. Ich lösche sie, sobald dein Anliegen erledigt ist und sie nicht mehr gebraucht werden."</p>
-    }
-    .into_any()
+fn privacy_email(t: &'static Texts) -> AnyView {
+    paragraphs(t.email.texts)
 }
 
-fn privacy_lecturers() -> AnyView {
+fn privacy_lecturers(t: &'static Texts) -> AnyView {
+    let (facts, lecturers) = (&t.facts, &t.lecturers);
     view! {
-        <p>"Die Modulbeschreibungen und das Vorlesungsverzeichnis der BTU nennen, wer ein Modul verantwortet und wer eine Veranstaltung hält. Betula übernimmt diese Angaben und zeigt sie bei den Modulen und Terminen; im Katalog lässt sich nach ihnen filtern. Die folgenden Angaben richten sich an die genannten Personen (Art. 14 DSGVO)."</p>
+        <p>{lecturers.intro}</p>
         <dl class="legal-facts">
+            {fact(facts.data, lecturers.data)}
+            {fact(facts.source, lecturers.source)}
+            {fact(facts.purpose, lecturers.purpose)}
+            {fact(facts.legal_basis, lecturers.legal_basis)}
+            {fact(facts.recipients, lecturers.recipients)}
+            {fact(facts.retention, lecturers.retention)}
             <div>
-                <dt>"Welche Daten"</dt>
-                <dd>"Name, akademischer Titel und Rolle (etwa verantwortlich oder lehrend), jeweils mit dem Modul oder der Veranstaltung."</dd>
-            </div>
-            <div>
-                <dt>"Quelle"</dt>
-                <dd>"die öffentlich zugänglichen Seiten der BTU Cottbus-Senftenberg, vor allem die Modulbeschreibungen und das Vorlesungsverzeichnis im Portal QIS."</dd>
-            </div>
-            <div>
-                <dt>"Zweck"</dt>
-                <dd>"Studierende sollen an einer Stelle sehen, wer ein Modul verantwortet und lehrt, so wie die BTU es selbst veröffentlicht."</dd>
-            </div>
-            <div>
-                <dt>"Rechtsgrundlage"</dt>
-                <dd>"Art. 6 Abs. 1 lit. f DSGVO. Das berechtigte Interesse ist, diese von der BTU veröffentlichten Angaben übersichtlich und durchsuchbar zugänglich zu machen. Betula zeigt sie im selben Zusammenhang wie die BTU und ergänzt nichts."</dd>
-            </div>
-            <div>
-                <dt>"Empfänger"</dt>
-                <dd>"alle, die Betula aufrufen; mit dem Katalog landen die Angaben auch in der Kopie in ihrem Browser. Die Seiten der Module können von Suchmaschinen erfasst werden."</dd>
-            </div>
-            <div>
-                <dt>"Speicherdauer"</dt>
-                <dd>"Betula baut seinen Datenstand bei jedem Einlesen aus dem aktuellen Stand der BTU. Ändert oder entfernt die BTU eine Angabe, ändert sie sich oder verschwindet mit dem nächsten Datenstand auch hier. Termine werden einen Monat nach ihrem letzten Datum gelöscht, Kopien von Seiten, die die BTU nicht mehr führt, nach sieben Tagen."</dd>
-            </div>
-            <div>
-                <dt>"Widerspruch"</dt>
-                <dd>"Du kannst der Verarbeitung jederzeit widersprechen (Art. 21 DSGVO); eine E-Mail an "{mail_link()}" genügt. Ist eine Angabe falsch, sag bitte Bescheid."</dd>
+                <dt>{facts.objection}</dt>
+                <dd>{lecturers.objection_before}{mail_link()}{lecturers.objection_after}</dd>
             </div>
         </dl>
     }
     .into_any()
 }
 
-fn privacy_recipients() -> AnyView {
-    view! {
-        <p>"Deine Daten verkaufe ich nicht und gebe sie nicht weiter. Andere bekommen sie nur, wie oben beschrieben: Contabo als Betreiber des Servers, mein E-Mail-Anbieter, wenn du mir schreibst, und dein Kalenderdienst, wenn du ein Abo anlegst. Betula selbst übermittelt keine Daten in Länder außerhalb der EU; für einen Kalenderdienst, den du wählst, gilt dessen Datenschutzerklärung. Es gibt keine automatisierten Entscheidungen und keine Profile."</p>
-        <p>"Du musst keine Daten angeben, um Betula zu nutzen. Ohne die Angaben, die dein Browser bei jedem Aufruf mitschickt, etwa die IP-Adresse, lassen sich die Seiten aber nicht ausliefern."</p>
-        <p>"Betula verlinkt auf die Originale bei der BTU und auf andere Seiten. Folgst du einem solchen Link, erfährt die andere Seite nur, dass du von betula.app kommst, nicht von welcher Seite; ab da gilt ihre Datenschutzerklärung."</p>
-    }
-    .into_any()
+fn privacy_recipients(t: &'static Texts) -> AnyView {
+    paragraphs(t.recipients.texts)
 }
 
-fn privacy_rights() -> AnyView {
+fn privacy_rights(t: &'static Texts) -> AnyView {
+    let rights = &t.rights;
     view! {
-        <p>"Du hast das Recht auf Auskunft über deine Daten (Art. 15 DSGVO), auf Berichtigung (Art. 16), Löschung (Art. 17) und Einschränkung der Verarbeitung (Art. 18). Verarbeitungen, die auf Art. 6 Abs. 1 lit. f DSGVO beruhen – das sind alle hier beschriebenen –, kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, widersprechen (Art. 21). Eine formlose E-Mail an "{mail_link()}" genügt."</p>
-        <p>"Weil Betula keine Konten kennt, kann ich Einträge im Zugriffsprotokoll nur finden, wenn du mir sagst, von welcher IP-Adresse und wann du Betula aufgerufen hast (Art. 11 DSGVO)."</p>
-        <p>"Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO), zum Beispiel bei der für Brandenburg zuständigen:"</p>
+        <p>{rights.before}{mail_link()}{rights.after}</p>
+        <p>{rights.access_log}</p>
+        <p>{rights.complaint}</p>
         <address class="legal-address">
-            <span>"Die Landesbeauftragte für den Datenschutz und für das Recht auf Akteneinsicht Brandenburg"</span>
-            <span>"Stahnsdorfer Damm 77"</span>
-            <span>"14532 Kleinmachnow"</span>
-            <span><a href="https://www.lda.brandenburg.de/" rel="noopener">"www.lda.brandenburg.de"</a></span>
+            {AUTHORITY.iter().map(|line| view! { <span>{*line}</span> }).collect_view()}
+            <span><a href=AUTHORITY_URL rel="noopener">{AUTHORITY_SITE}</a></span>
         </address>
     }
     .into_any()
+}
+
+// Rendering to HTML needs the server's build (`ssr`), as in `cargo test -p folia-app -p folia-server`.
+#[cfg(all(test, feature = "ssr"))]
+mod tests {
+    use super::*;
+
+    /// Every language names who runs Betula and how to reach them, with every part; a page in
+    /// a language whose text does not count links the German page, which does.
+    #[test]
+    fn every_language_has_every_part_and_a_translation_links_the_german_text() {
+        for page in [Legal::Imprint, Legal::Privacy] {
+            for locale in Locale::ALL.iter().copied() {
+                let texts = &i18n::texts(locale).legal;
+                let html = article(page, texts).to_html().replace("<!>", "");
+                for text in [NAME, STREET, TOWN, &format!("href=\"{MAILTO}\"")] {
+                    assert!(html.contains(text), "{locale:?} {}: {text}", page.path());
+                }
+                for part in page.parts() {
+                    assert!(html.contains(&format!("id=\"{}\"", part.id)) && html.contains((part.heading)(texts)), "{locale:?}: {}", part.id);
+                }
+                let original = format!("href=\"{}\" hreflang=\"de\" lang=\"de\" rel=\"alternate external\"", page.path());
+                assert_eq!(html.contains(&original), locale != BINDING, "{locale:?} {}: {html}", page.path());
+            }
+        }
+        let privacy = |locale| article(Legal::Privacy, &i18n::texts(locale).legal).to_html().replace("<!>", "");
+        let (de, en) = (privacy(Locale::De), privacy(Locale::En));
+        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 25. September 2026"), "{de}");
+        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 25 September 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        assert!(en.contains("Art. 6(1)(f) GDPR (DSGVO)") && !en.contains("Rechtsgrundlage"), "{en}");
+    }
 }
