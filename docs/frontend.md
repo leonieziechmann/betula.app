@@ -1666,9 +1666,11 @@ Without a crawl, a synthetic one serves for development and for the browser chec
 with trees, areas and degree labels, Informatik B.Sc. and Elektrotechnik B.Sc. with validated
 plans, a lecture for every ninth module — dated in the semester the build date makes the current
 one, spread over its week in each campus's grid of times, a few in the A or the B weeks only, so
-the finder and the Stundenplan compare real slots whenever it is made; numbers made up, nothing
-of it says anything about the BTU; the checks that compare pinned or real-data numbers fail on
-it, everything else runs):
+the finder and the Stundenplan compare real slots whenever it is made; and the modules the
+browser checks look for, as the real catalog has them: Datenbanken (12330) with its four badges
+and the only title with „Datenbank", Analysis I (11103) with an exam as QIS enters one without a
+date, 12000 with a deadline at 23:45–24:00; numbers made up, nothing of it says anything about
+the BTU; the checks that compare pinned or real-data numbers fail on it, everything else runs):
 
 ```bash
 BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteFoliaFixture -count=1
