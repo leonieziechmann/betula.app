@@ -48,7 +48,7 @@ check(await page.evaluate(() => document.querySelectorAll("head link[rel=canonic
 // Two stylesheets could come from different places (the service worker, the network) and mix.
 check(await page.evaluate(() => document.querySelectorAll("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
 check(await page.evaluate(() => document.querySelectorAll("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
-check(await page.evaluate(() => /^alpha-/.test(document.querySelector(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
+check(await page.evaluate(() => /^\d+\.\d+\.\d+/.test(document.querySelector(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
 // The first panel is flat: the figures stand beside the text, one under the other, and the ones
 // with several digits are about equally wide (the single digit only grows as large as three).
 const hero = await page.evaluate(() => {
