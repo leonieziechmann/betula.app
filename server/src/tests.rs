@@ -1029,11 +1029,14 @@ fn addresses(html: &str) -> Vec<(String, bool)> {
 }
 
 /// Whether `address`, written into a page in English, leads to an English page or to what has
-/// no language (a file, the site's API, another site, a place on the same page).
+/// no language (a file, the site's API, another site, a place on the same page). Only a path of
+/// this site can lead into German; what is no such path (another site, the synthetic snapshot's
+/// source addresses, which are bare numbers) is not the page's to say.
 fn stays_in_english(address: &str) -> bool {
     let in_english = address == "/en" || ["/en/", "/en?", "/en#"].iter().any(|prefix| address.starts_with(prefix));
-    let no_language = ["#", "?", "https://", "http://", "mailto:", "tel:", "/assets/", "/pkg/", "/api/", "/favicon", "/apple-touch-icon", "/sw.js"].iter().any(|prefix| address.starts_with(prefix));
-    in_english || no_language || address.is_empty()
+    let no_language = ["/assets/", "/pkg/", "/api/", "/favicon", "/apple-touch-icon", "/sw.js"].iter().any(|prefix| address.starts_with(prefix));
+    let site_path = address.starts_with('/') && !address.starts_with("//");
+    in_english || no_language || !site_path
 }
 
 /// Every page in English (`/en/…`): the document says so, every address it writes leads to an
