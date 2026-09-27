@@ -36,13 +36,15 @@ use super::aside::only_its_events;
 use super::head::{add_module_href, hue, is_past, tone_at};
 use super::{key_of, PlanCtx};
 use crate::format;
+use crate::i18n::{self, Locale};
 use crate::myprogram::MineResolved;
 use crate::pages::catalog::finder_on;
 use crate::pending::{Change, Pending};
 use crate::ui::Icon;
 
 /// How the note of a module taken out of the list begins (`PlanCtx::undo`), the module's id after
-/// it: the import's note and „Plan geleert" are the others.
+/// it: the import's note and „Plan geleert" are the others. A key the list finds its note by, never
+/// shown.
 const REMOVED: &str = "Entfernt: ";
 
 /// A planned module as a row.
@@ -67,7 +69,7 @@ struct ModuleItem {
 /// The rows of a semester's planned modules, in plan order, each in the tone the week gives it. A
 /// module without a dated Termin says so where the semester's dates are there to be had (neither
 /// past, whose dates are gone, nor unpublished, which the head says for all of them).
-fn module_items(data: &StudyplanData) -> Vec<ModuleItem> {
+fn module_items(data: &StudyplanData, t: &'static i18n::Texts) -> Vec<ModuleItem> {
     let dated = !data.counts.is_empty() && !is_past(data);
     let names = data.slot_names();
     data.ids
@@ -77,15 +79,15 @@ fn module_items(data: &StudyplanData) -> Vec<ModuleItem> {
             let row = data.modules.iter().find(|row| row.id == *id);
             let undated = dated && !data.schedule.iter().any(|date| date.module_id == *id && date.ord.is_some());
             let note = match (row, undated) {
-                (None, _) => Some("nicht im Modulkatalog"),
-                (Some(_), true) => Some("keine Termine"),
+                (None, _) => Some(t.studyplan_modules.not_in_catalog),
+                (Some(_), true) => Some(t.studyplan_modules.no_dates),
                 (Some(_), false) => None,
             };
             ModuleItem {
                 id: id.clone(),
                 key: data.abbrevs.get(id).filter(|abbrev| names.get(id) == Some(*abbrev)).cloned(),
-                title: row.map_or_else(|| format!("Modul {id}"), |row| row.title.clone()),
-                credits: row.and_then(|row| row.credits).map(|value| format::number(value, crate::i18n::locale())),
+                title: row.map_or_else(|| (t.studyplan_modules.module_numbered)(id), |row| row.title.clone()),
+                credits: row.and_then(|row| row.credits).map(|value| format::number(value, t.locale)),
                 note,
                 counts_for: None,
                 hue: hue(tone_at(position)),
@@ -95,8 +97,8 @@ fn module_items(data: &StudyplanData) -> Vec<ModuleItem> {
 }
 
 /// Credits added up, „32", or „≥ 26" where a module states none (R12).
-fn credits_text(credits: &[Option<f64>]) -> String {
-    let sum = format::number(credits.iter().flatten().sum(), crate::i18n::locale());
+fn credits_text(credits: &[Option<f64>], locale: Locale) -> String {
+    let sum = format::number(credits.iter().flatten().sum(), locale);
     if credits.iter().any(Option::is_none) {
         format!("≥\u{a0}{sum}")
     } else {
@@ -106,12 +108,12 @@ fn credits_text(credits: &[Option<f64>]) -> String {
 
 /// The credits of the planned modules, the head's sum (owner, 2026-09-25: „die Summe aus allen
 /// geplanten Modulen"): „32", „≥ 26" where a module states none (R12). None without a module.
-fn credits_sum(data: &StudyplanData) -> Option<String> {
+fn credits_sum(data: &StudyplanData, locale: Locale) -> Option<String> {
     if data.ids.is_empty() {
         return None;
     }
     let credits: Vec<Option<f64>> = data.ids.iter().map(|id| data.modules.iter().find(|row| row.id == *id).and_then(|row| row.credits)).collect();
-    Some(credits_text(&credits))
+    Some(credits_text(&credits, locale))
 }
 
 /// A row of the list: a planned module, or the one just taken out, in its place.
@@ -175,8 +177,8 @@ struct Held {
 }
 
 /// A placeholder's name as a row says it, without its credits: „Fachübergreifendes Studium".
-fn placeholder_text(p: &Placeholder) -> String {
-    let line = studyplan::placeholder_line(p, None, crate::i18n::locale());
+fn placeholder_text(p: &Placeholder, locale: Locale) -> String {
+    let line = studyplan::placeholder_line(p, None, locale);
     PlaceholderLine { credits: None, tail: None, ..line }.text()
 }
 
@@ -184,12 +186,12 @@ fn placeholder_text(p: &Placeholder) -> String {
 /// „Mein Studiengang" while the snapshot has it, whose electives a placeholder of it is found
 /// among. The catalog a placeholder leads to has the finder on, comparing what it compared the
 /// last time (`finder_on`).
-fn areas_of(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>) -> Held {
+fn areas_of(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>, t: &i18n::Texts) -> Held {
     let here = doc.placeholders_in(key);
     let areas = here
         .iter()
         .map(|p| {
-            let line = studyplan::placeholder_line(p, None, crate::i18n::locale());
+            let line = studyplan::placeholder_line(p, None, t.locale);
             let credits = line.amount.clone();
             // Without the plan's row, only a row that names one module has a tail („unter diesem
             // Namen nicht im Katalog"): the row is not repeated here.
@@ -219,7 +221,7 @@ fn areas_of(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>) -> Held {
                 placeholder: (*p).clone(),
                 text,
                 credits,
-                span: (p.span.0 != p.span.1).then(|| format!("{}.–{}.\u{a0}FS", p.span.0, p.span.1)),
+                span: (p.span.0 != p.span.1).then(|| (t.studyplan_modules.fs_span)(p.span.0, p.span.1)),
                 href: CatalogUrl { query, fill: Some(p.pid), ..Default::default() }.path(),
                 members: doc.modules.iter().filter(|m| m.semester == key && counts(m.fills)).map(|m| m.module_id.clone()).collect(),
                 others: doc.modules.iter().filter(|m| m.semester != key && counts(m.fills)).map(|m| (m.semester, m.module_id.clone())).collect(),
@@ -233,7 +235,7 @@ fn areas_of(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>) -> Held {
         .filter(|m| m.semester == key)
         .filter_map(|m| {
             let p = doc.placeholders.iter().find(|p| Some(p.pid) == m.fills)?;
-            (!rows_here.contains(&(p.program_id.as_str(), p.ord))).then(|| (m.module_id.clone(), placeholder_text(p)))
+            (!rows_here.contains(&(p.program_id.as_str(), p.ord))).then(|| (m.module_id.clone(), placeholder_text(p, t.locale)))
         })
         .collect();
     Held { areas, elsewhere, rows: Vec::new() }
@@ -305,8 +307,8 @@ impl Listed {
 
 /// The list of a semester: its data, what the store says of its placeholders, and the module just
 /// taken out.
-fn listed(data: &StudyplanData, held: &Held, gone: Option<&Gone>) -> Listed {
-    let items = module_items(data);
+fn listed(data: &StudyplanData, held: &Held, gone: Option<&Gone>, t: &'static i18n::Texts) -> Listed {
+    let items = module_items(data, t);
     let credits_here = |id: &str| data.modules.iter().find(|row| row.id == id).and_then(|row| row.credits);
     let boxed: BTreeSet<&str> = held.areas.iter().flat_map(|area| area.members.iter().map(String::as_str)).collect();
     let own: Vec<ModuleItem> = items
@@ -325,9 +327,9 @@ fn listed(data: &StudyplanData, held: &Held, gone: Option<&Gone>) -> Listed {
                 .iter()
                 .map(|(semester, id)| Other {
                     id: id.clone(),
-                    title: row_of(id).map_or_else(|| format!("Modul {id}"), |row| row.title.clone()),
-                    credits: row_of(id).and_then(|row| row.credits).map(|value| format::number(value, crate::i18n::locale())),
-                    semester: semester.label(crate::i18n::locale()),
+                    title: row_of(id).map_or_else(|| (t.studyplan_modules.module_numbered)(id), |row| row.title.clone()),
+                    credits: row_of(id).and_then(|row| row.credits).map(|value| format::number(value, t.locale)),
+                    semester: semester.label(t.locale),
                 })
                 .collect();
             let chosen: Vec<Option<f64>> =
@@ -340,7 +342,7 @@ fn listed(data: &StudyplanData, held: &Held, gone: Option<&Gone>) -> Listed {
                 href: area.href.clone(),
                 entries: entries(&members, gone, Some(area.placeholder.pid)),
                 others,
-                chosen: (!chosen.is_empty()).then(|| credits_text(&chosen)),
+                chosen: (!chosen.is_empty()).then(|| credits_text(&chosen, t.locale)),
                 more: studyplan::takes_more(&area.placeholder, &chosen),
             }
         })
@@ -365,12 +367,14 @@ fn open_shown(ctx: PlanCtx) -> Memo<Option<String>> {
 /// with what counts for them, and „Modul hinzufügen".
 #[component]
 pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
-    let sum = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(credits_sum)));
+    let t = i18n::t();
+    let words = &t.studyplan_modules;
+    let sum = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(|data| credits_sum(data, t.locale))));
     let resolved = MineResolved::expect();
     let held = Memo::new(move |_| {
         let (url, current) = (ctx.url.get(), ctx.current.get());
         let mine = resolved.and_then(MineResolved::exact);
-        let mut held = ctx.plan.map(|plan| plan.with(|doc| areas_of(doc, key_of(&url, current, doc, ctx.today), mine.as_ref()))).unwrap_or_default();
+        let mut held = ctx.plan.map(|plan| plan.with(|doc| areas_of(doc, key_of(&url, current, doc, ctx.today), mine.as_ref(), t))).unwrap_or_default();
         // The titles and credits of what counts for a row in its other semesters: one question to
         // the catalog, and none where nothing does.
         let ids: Vec<String> = held.areas.iter().flat_map(|area| area.others.iter().map(|(_, id)| id.clone())).collect();
@@ -381,7 +385,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         held
     });
     let open = open_shown(ctx);
-    let add = move || add_module_href(resolved, ctx.key.get());
+    let add = move || t.path(&add_module_href(resolved, ctx.key.get()));
 
     // The module just taken out keeps its place while its note is the plan's last (another
     // „Rückgängig" replaces it: the import, „Plan leeren", another module taken out).
@@ -395,7 +399,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
     // plan (R16).
     let list = Memo::new(move |_| {
         let gone = gone_shown.get();
-        held.with(|held| ctx.data.with(|data| data.as_ref().map(|data| listed(data, held, gone.as_ref())).unwrap_or_default()))
+        held.with(|held| ctx.data.with(|data| data.as_ref().map(|data| listed(data, held, gone.as_ref(), t)).unwrap_or_default()))
     });
     let rows = Memo::new(move |_| list.with(|list| list.rows.clone()));
     let areas = Memo::new(move |_| list.with(|list| list.areas.clone()));
@@ -436,7 +440,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
             let id = id.clone();
             Memo::new(move |_| open.with(|open| open.as_deref() == Some(id.as_str())))
         };
-        let href = move || ctx.url.with(|url| url.with_open(Some(&id), None).path());
+        let href = move || ctx.url.with(|url| t.path(&url.with_open(Some(&id), None).path()));
         (href, move || current.get().then_some("true"))
     };
     let row = move |entry: Entry| match entry {
@@ -446,8 +450,8 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                 Some(key) => view! { <span class="sp-key">{key}</span> }.into_any(),
                 None => view! { <i class="sp-key"></i> }.into_any(),
             };
-            let counts_for = item.counts_for.map(|name| view! { <span>{format!("für „{name}“")}</span> });
-            let (id, label) = (item.id.clone(), format!("„{}“ aus dem Stundenplan nehmen", item.title));
+            let counts_for = item.counts_for.map(|name| view! { <span>{(words.counts_for)(&name)}</span> });
+            let (id, label) = (item.id.clone(), (words.remove_named)(&item.title));
             view! {
                 <div class="sp-row-wrap">
                     <a class=format!("sp-row {}", item.hue) href=href aria-current=current data-noscroll="">
@@ -455,10 +459,10 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                             <b>{item.title}</b>
                             <small>{key}<span class="mono">{item.id}</span>{item.note.map(|note| view! { <span>{note}</span> })}{counts_for}</small>
                         </span>
-                        <span class="lp num">{item.credits.map(|credits| view! { {credits}<small>"LP"</small> })}</span>
+                        <span class="lp num">{item.credits.map(|credits| view! { {credits}<small>{t.common.credits_unit}</small> })}</span>
                     </a>
                     // Beside the row's link, not inside it (as „Merken" beside a row of the list).
-                    <button class="icon-btn sp-remove" type="button" title="Aus dem Stundenplan nehmen" aria-label=label on:click=move |_| remove(id.clone())>
+                    <button class="icon-btn sp-remove" type="button" title=words.remove aria-label=label on:click=move |_| remove(id.clone())>
                         <Icon name="x"/>
                     </button>
                 </div>
@@ -470,9 +474,9 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                 <div class="sp-row gone">
                     <span class="t">
                         <b>{title}</b>
-                        <small><span>"aus dem Stundenplan genommen"</span></small>
+                        <small><span>{words.removed}</span></small>
                     </span>
-                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>"Rückgängig"</button>
+                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                 </div>
             </div>
         }
@@ -487,16 +491,17 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                     <b>{other.title}</b>
                     <small><span>{other.semester}</span><span class="mono">{other.id}</span></small>
                 </span>
-                <span class="lp num">{other.credits.map(|credits| view! { {credits}<small>"LP"</small> })}</span>
+                <span class="lp num">{other.credits.map(|credits| view! { {credits}<small>{t.common.credits_unit}</small> })}</span>
             </a>
         }
     };
     let area = move |area: Area| {
-        let credits = area.credits.clone().map(|credits| view! { {credits}<small>"LP"</small> });
+        let credits = area.credits.clone().map(|credits| view! { {credits}<small>{t.common.credits_unit}</small> });
+        let href = t.path(&area.href);
         if area.is_open() {
-            let small = ["Platzhalter".to_string()].into_iter().chain(area.span.clone()).chain(["Modul\u{a0}finden".to_string()]).collect::<Vec<_>>().join(" · ");
+            let small = [words.placeholder.to_string()].into_iter().chain(area.span.clone()).chain([words.find_module.to_string()]).collect::<Vec<_>>().join(" · ");
             return view! {
-                <a class="sp-row open-slot" href=area.href>
+                <a class="sp-row open-slot" href=href>
                     <span class="t">
                         <b>{area.text}</b>
                         <small><span>{small}</span></small>
@@ -508,10 +513,10 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         }
         // What counts for it so far, while it takes more; the span of a row over several
         // Fachsemester.
-        let chosen = area.chosen.clone().filter(|_| area.more).map(|chosen| format!("{chosen}\u{a0}LP geplant"));
+        let chosen = area.chosen.clone().filter(|_| area.more).map(|chosen| (words.credits_planned)(&chosen));
         let small: Vec<String> = area.span.clone().into_iter().chain(chosen).collect();
         let small = (!small.is_empty()).then(|| view! { <small><span>{small.join(" · ")}</span></small> });
-        let label = format!("Bereich „{}“", area.text);
+        let label = (words.area)(&area.text);
         view! {
             <div class="sp-area" role="group" aria-label=label>
                 <div class="sp-area-head">
@@ -521,23 +526,23 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                 {area.entries.into_iter().map(row).collect_view()}
                 {area.others.into_iter().map(other).collect_view()}
                 {area.more.then(|| view! {
-                    <a class="sp-area-add" href=area.href><Icon name="plus"/>"Weiteres Modul"</a>
+                    <a class="sp-area-add" href=href><Icon name="plus"/>{words.another_module}</a>
                 })}
             </div>
         }
         .into_any()
     };
     view! {
-        <section class="sp-list" aria-label="Module im Stundenplan">
+        <section class="sp-list" aria-label=words.list>
             <div class="sp-list-head">
-                <h2 class="label">"Module"</h2>
-                {move || sum.get().map(|sum| view! { <span class="lp num">{sum}<small>"LP"</small></span> })}
+                <h2 class="label">{words.heading}</h2>
+                {move || sum.get().map(|sum| view! { <span class="lp num">{sum}<small>{t.common.credits_unit}</small></span> })}
             </div>
             <For each=move || rows.get() key=|entry| entry.clone() children=row/>
             <For each=move || areas.get() key=|area| area.clone() children=area/>
             // „+ Modul" as a box like the placeholders' (owner, 2026-09-25): the modules that fit.
             <a class="sp-row open-slot sp-add" href=add>
-                <span class="t"><b><Icon name="plus"/>"Modul hinzufügen"</b></span>
+                <span class="t"><b><Icon name="plus"/>{words.add_module}</b></span>
             </a>
         </section>
     }
@@ -647,7 +652,7 @@ mod tests {
             hue,
         };
         assert_eq!(
-            module_items(&first_semester()),
+            module_items(&first_semester(), &i18n::DE),
             [
                 item("12104", Some("EvS"), "Entwicklung von Softwaresystemen", Some("6"), None, "t-ice"),
                 // An abbreviation two planned modules share names neither: the week says its name.
@@ -658,16 +663,27 @@ mod tests {
         );
         // A semester without published dates says nothing of a module's own.
         let unpublished = StudyplanData { counts: Vec::new(), ..first_semester() };
-        assert_eq!(module_items(&unpublished).get(2).and_then(|item| item.note), None);
+        assert_eq!(module_items(&unpublished, &i18n::DE).get(2).and_then(|item| item.note), None);
+        // In English: the words, and the credits as English writes them.
+        let english: Vec<(String, Option<String>, Option<&str>)> = module_items(&first_semester(), &i18n::EN).into_iter().map(|item| (item.title, item.credits, item.note)).skip(1).collect();
+        assert_eq!(
+            english,
+            [
+                ("Elektrische und elektronische Grundlagen der Informatik".to_string(), Some("7.5".to_string()), None),
+                ("Mathematik IT-1".to_string(), Some("8".to_string()), Some("no dates")),
+                ("Module 13000".to_string(), None, Some("not in the module catalogue")),
+            ]
+        );
     }
 
     #[test]
     fn the_head_sums_the_planned_modules() {
         // 6 + 7,5 + 8; 13000 states none, so the sum is the least they come to.
-        assert_eq!(credits_sum(&first_semester()).as_deref(), Some("≥\u{a0}21,5"));
+        assert_eq!(credits_sum(&first_semester(), Locale::De).as_deref(), Some("≥\u{a0}21,5"));
+        assert_eq!(credits_sum(&first_semester(), Locale::En).as_deref(), Some("≥\u{a0}21.5"));
         let known = StudyplanData { ids: vec!["12104".into(), "12107".into()], ..first_semester() };
-        assert_eq!(credits_sum(&known).as_deref(), Some("13,5"));
-        assert_eq!(credits_sum(&StudyplanData { ids: Vec::new(), ..first_semester() }), None);
+        assert_eq!(credits_sum(&known, Locale::De).as_deref(), Some("13,5"));
+        assert_eq!(credits_sum(&StudyplanData { ids: Vec::new(), ..first_semester() }, Locale::De), None);
     }
 
     fn ids(entries: &[Entry]) -> Vec<String> {
@@ -682,7 +698,7 @@ mod tests {
 
     #[test]
     fn a_module_taken_out_keeps_its_place() {
-        let items = module_items(&first_semester());
+        let items = module_items(&first_semester(), &i18n::DE);
         let gone: Gone = (None, 1, "12107".into(), "Elektrische und elektronische Grundlagen der Informatik".into());
         // In the click, while the plan still holds it: in place of its row.
         assert_eq!(ids(&entries(&items, Some(&gone), None)), ["12104", "-12107", "11112", "13000"]);
@@ -749,7 +765,7 @@ mod tests {
         };
         // A module counts for the fourth: it is in its box.
         assert!(doc.plan(key("2026W"), "12104", 1, Some(4)));
-        let held = areas_of(&doc, key("2026W"), Some(&informatik()));
+        let held = areas_of(&doc, key("2026W"), Some(&informatik()), &i18n::DE);
         let shown: Vec<(u32, &str, Option<&str>, Vec<&str>)> =
             held.areas.iter().map(|area| (area.placeholder.pid, area.text.as_str(), area.credits.as_deref(), area.members.iter().map(String::as_str).collect())).collect();
         assert_eq!(
@@ -769,11 +785,11 @@ mod tests {
         assert!(hrefs.get(3).is_some_and(|href| href.ends_with("fill=p4")), "{hrefs:?}");
         // Without „Mein Studiengang" (or with another one): the BTU's FÜS modules, and for the
         // electives whatever fits the week.
-        let alone = areas_of(&doc, key("2026W"), None);
+        let alone = areas_of(&doc, key("2026W"), None, &i18n::DE);
         assert!(alone.areas.first().is_some_and(|area| area.href.contains("fues=only")), "{alone:?}");
         assert!(alone.areas.get(1).is_some_and(|area| !area.href.contains("program=")), "{alone:?}");
         // Another semester has none of them.
-        assert!(areas_of(&doc, key("2027S"), None).areas.is_empty());
+        assert!(areas_of(&doc, key("2027S"), None, &i18n::DE).areas.is_empty());
     }
 
     /// Informatik's fifth semester: the Bachelor-Arbeit, and two Komplexe of 10–24 LP over the fifth
@@ -797,7 +813,7 @@ mod tests {
     #[test]
     fn a_module_for_a_placeholder_stands_in_its_box() {
         let (doc, data) = fifth_semester();
-        let list = listed(&data, &areas_of(&doc, key("2026W"), None), None);
+        let list = listed(&data, &areas_of(&doc, key("2026W"), None, &i18n::DE), None, &i18n::DE);
         // The Bachelor-Arbeit counts for none: a row of the list's own.
         assert_eq!(ids(&list.rows), ["12333"]);
         let [first, second] = list.areas.as_slice() else { panic!("{list:?}") };
@@ -813,7 +829,7 @@ mod tests {
         let mut without = doc.clone();
         without.unplan(key("2026W"), "12339", &[]);
         let data_without = StudyplanData { ids: vec!["12333".into()], ..data.clone() };
-        let after = listed(&data_without, &areas_of(&without, key("2026W"), None), Some(&gone));
+        let after = listed(&data_without, &areas_of(&without, key("2026W"), None, &i18n::DE), Some(&gone), &i18n::DE);
         assert_eq!((ids(&after.rows), ids(&after.areas[0].entries)), (vec!["12333".to_string()], vec!["-12339".to_string()]));
         assert!(!after.areas[0].is_open());
     }
@@ -833,16 +849,19 @@ mod tests {
             modules: [data.modules, vec![catalog_row("12340", "Rechnernetze", Some(6.0)), catalog_row("12341", "Compilerbau", Some(6.0))]].concat(),
             ..data
         };
-        let mut held = areas_of(&doc, w, None);
+        let mut held = areas_of(&doc, w, None, &i18n::DE);
         assert_eq!(held.areas[0].others, [(s, "12342".to_string())]);
         held.rows = vec![catalog_row("12342", "Datenbanken II", Some(6.0))];
-        let list = listed(&data, &held, None);
+        let list = listed(&data, &held, None, &i18n::DE);
         let komplex = &list.areas[0];
         assert_eq!(ids(&komplex.entries), ["12339", "12340", "12341"]);
         assert_eq!(komplex.others, [Other { id: "12342".into(), title: "Datenbanken II".into(), credits: Some("6".into()), semester: "SoSe 2027".into() }]);
         assert_eq!((komplex.chosen.as_deref(), komplex.more), (Some("24"), false));
+        // In English the span of Fachsemester and the other semester read as English writes them.
+        let english = listed(&data, &Held { rows: held.rows.clone(), ..areas_of(&doc, w, None, &i18n::EN) }, None, &i18n::EN);
+        assert_eq!((english.areas[0].span.as_deref(), english.areas[0].others[0].semester.as_str()), (Some("semesters\u{a0}5–6"), "Summer 2027"));
         // In the summer: its own module in its box, the winter's three beside it.
-        let summer = areas_of(&doc, s, None);
+        let summer = areas_of(&doc, s, None, &i18n::DE);
         assert_eq!((summer.areas.len(), summer.areas[0].members.clone(), summer.areas[0].others.len()), (1, vec!["12342".to_string()], 3));
     }
 
@@ -853,9 +872,9 @@ mod tests {
         // The Bachelor-Arbeit counts for a placeholder of the summer whose row the winter lacks.
         doc.placeholders.push(Placeholder { pid: 7, semester: s, ord: 40, span: (6, 6), ..placeholder(7, "elective", "Wahlpflichtmodul Informatik", "6") });
         doc.set_fills(w, "12333", Some(7));
-        let held = areas_of(&doc, w, None);
+        let held = areas_of(&doc, w, None, &i18n::DE);
         assert_eq!(held.elsewhere, BTreeMap::from([("12333".to_string(), "Wahlpflichtmodul Informatik".to_string())]));
-        let list = listed(&data, &held, None);
+        let list = listed(&data, &held, None, &i18n::DE);
         assert!(matches!(list.rows.as_slice(), [Entry::Module(item)] if item.counts_for.as_deref() == Some("Wahlpflichtmodul Informatik")), "{list:?}");
     }
 }
