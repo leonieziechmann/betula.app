@@ -350,7 +350,7 @@ fn campus_name(campus: &Code<Campus>) -> String {
 
 /// „Fr 12.03.2027".
 fn day_name(day: Day) -> String {
-    format!("{} {}", weekday_name(day.weekday()), day.german())
+    format!("{} {}", weekday_name(day.weekday(), crate::i18n::locale()), day.german())
 }
 
 /// „08.–19.02.2027", „25.02.–05.03.2027", „28.12.2026–08.01.2027".

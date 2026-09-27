@@ -1089,7 +1089,7 @@ fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: To
 /// „0 von 4 Terminen frei: Übung · Entwicklung von Softwaresystemen", in the words of the
 /// semester's notes (`head::blocked_line`), with the event's own title.
 fn blocked_text(event: &Event) -> String {
-    blocked_line(event, &event.title)
+    blocked_line(event, &event.title, crate::i18n::locale())
 }
 
 /// „Prüfungen gleichzeitig: Mo 08.02.2027 11:00 · Mathematik W-1 · ERP - Integrierte betriebliche
