@@ -232,6 +232,7 @@ fn in_every_language() -> Router<AppState> {
         let at = |path: &str| locale.path(path);
         router = router
             .route(&at(app::MANIFEST), get(api::manifest))
+            .route(&at(app::OG_IMAGE), get(api::og_image))
             .route(&at("/cards/module/{file}"), get(api::module_card))
             .route(&at("/cards/program/{file}"), get(api::program_card))
             .route(&at(app::seo::BOOKMARKS_CARD), get(api::bookmarks_card_png))
@@ -259,7 +260,6 @@ pub fn router(state: AppState) -> Router {
         .route(app::icons::SPRITE, get(api::icons))
         .route(app::FAVICON, get(api::favicon))
         .route(app::FONT, get(api::font))
-        .route(app::OG_IMAGE, get(api::og_image))
         .route("/assets/shots/{file}", get(api::showcase_shot))
         .route("/assets/birch/{file}", get(api::birch))
         .route(app::ENHANCE_SCRIPT, get(api::enhance_script))

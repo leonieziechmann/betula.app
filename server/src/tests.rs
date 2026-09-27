@@ -1133,4 +1133,7 @@ async fn a_page_in_english_stays_in_english() {
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"));
     let (_, _, german) = request(&router, &format!("/cards/module/{module}.png"), &[]).await;
     assert_ne!(card, german, "the card says „Modul“ in German and \"Module\" in English");
+    let (status, _, picture) = request(&router, "/en/assets/og.png", &[]).await;
+    let (_, _, german) = request(&router, app::OG_IMAGE, &[]).await;
+    assert!(status == StatusCode::OK && picture.starts_with(b"\x89PNG") && picture != german, "the standard picture in English");
 }

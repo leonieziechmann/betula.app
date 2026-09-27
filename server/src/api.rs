@@ -447,19 +447,24 @@ pub async fn icons(State(state): State<AppState>, headers: HeaderMap) -> Respons
 }
 
 /// `GET /assets/og.png`: the site's standard picture for link previews, in the season's crown
-/// (`design/og/og.html` in four pictures), like every card the server draws.
-pub async fn og_image(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let season = Season::now();
-    tagged_asset(&state, &headers, "image/png", standard_picture(season), season.name())
+/// (`design/og/og.html` in four pictures), like every card the server draws; `/en/assets/og.png`
+/// the same in English.
+pub async fn og_image(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    let (season, locale) = (Season::now(), language_of(&uri));
+    tagged_asset(&state, &headers, "image/png", standard_picture(season, locale), season.name())
 }
 
-/// The standard picture of a season.
-pub fn standard_picture(season: Season) -> &'static [u8] {
-    match season {
-        Season::Spring => include_bytes!("../../app/assets/og-spring.png"),
-        Season::Summer => include_bytes!("../../app/assets/og-summer.png"),
-        Season::Autumn => include_bytes!("../../app/assets/og-autumn.png"),
-        Season::Winter => include_bytes!("../../app/assets/og-winter.png"),
+/// The standard picture of a season in a language.
+pub fn standard_picture(season: Season, locale: Locale) -> &'static [u8] {
+    match (locale, season) {
+        (Locale::De, Season::Spring) => include_bytes!("../../app/assets/og-spring.png"),
+        (Locale::De, Season::Summer) => include_bytes!("../../app/assets/og-summer.png"),
+        (Locale::De, Season::Autumn) => include_bytes!("../../app/assets/og-autumn.png"),
+        (Locale::De, Season::Winter) => include_bytes!("../../app/assets/og-winter.png"),
+        (Locale::En, Season::Spring) => include_bytes!("../../app/assets/og-spring-en.png"),
+        (Locale::En, Season::Summer) => include_bytes!("../../app/assets/og-summer-en.png"),
+        (Locale::En, Season::Autumn) => include_bytes!("../../app/assets/og-autumn-en.png"),
+        (Locale::En, Season::Winter) => include_bytes!("../../app/assets/og-winter-en.png"),
     }
 }
 
@@ -672,8 +677,10 @@ pub fn studyplan_card(semester: Option<&str>, locale: Locale) -> CardText {
 /// has no free place to draw (or no snapshot yet), the site's standard picture answers instead,
 /// not to be kept, so the next fetch gets the real one.
 async fn card(state: &AppState, headers: &HeaderMap, key: String, read: impl FnOnce(&dyn catalog::Database) -> Result<Option<CardText>, catalog::DbError>) -> Response {
+    // The language is the key's last part (`card_key`).
+    let locale = key.rsplit_once('@').and_then(|(_, code)| Locale::from_code(code)).unwrap_or_default();
     let standard = || {
-        let mut response = Response::new(Body::from(standard_picture(Season::now())));
+        let mut response = Response::new(Body::from(standard_picture(Season::now(), locale)));
         let out = response.headers_mut();
         out.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
         out.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
