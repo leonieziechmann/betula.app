@@ -39,10 +39,8 @@ use std::collections::BTreeMap;
 use catalog::timetable::grid::{self, Placed, Span};
 use leptos::prelude::*;
 
+use crate::i18n;
 use crate::ui::Icon;
-
-/// The heads of the days, Monday first; a grid shows as many as it has days.
-const DAY_HEADS: [&str; 7] = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 /// The fewest hours a grid spans, so that one short slot still reads as a time of day.
 pub const MIN_HOURS: u16 = 4;
@@ -356,9 +354,10 @@ fn halves(minutes: u16) -> String {
 
 /// A week grid: a column per day (Monday to Friday, with Saturday and Sunday when a slot needs
 /// them), the hours the slots need (at least `min_hours`, `MIN_HOURS` by default), and the slots,
-/// side by side where they overlap. `heads` names the days instead of „Mo" … „So". `fit`: the
-/// grid fits the room it is given (see the module's doc). Without any slot to draw, a module's
-/// grid renders nothing and a fitted one its frame, an empty week.
+/// side by side where they overlap. The heads of the days are the weekdays in a few letters, in
+/// the page's language („Mo" … „So", "Mon" … "Sun"), Monday first; `heads` names the days
+/// instead. `fit`: the grid fits the room it is given (see the module's doc). Without any slot to
+/// draw, a module's grid renders nothing and a fitted one its frame, an empty week.
 #[component]
 pub fn WeekGrid(
     #[prop(into)] slots: Signal<Vec<GridSlot>>,
@@ -366,12 +365,14 @@ pub fn WeekGrid(
     #[prop(optional)] min_hours: Option<u16>,
     #[prop(optional)] fit: bool,
 ) -> impl IntoView {
+    let t = i18n::t();
     let min_hours = min_hours.unwrap_or(MIN_HOURS);
     move || {
         slots.with(|slots| {
             let Layout { span, week, slots: styles, frames, framed } = layout(slots, min_hours, fit)?;
+            let days = &t.data.common.weekdays_short;
             let heads: Vec<String> = (0..usize::from(span.days))
-                .map(|i| heads.as_ref().and_then(|heads| heads.get(i).cloned()).or_else(|| DAY_HEADS.get(i).map(|head| head.to_string())).unwrap_or_default())
+                .map(|i| heads.as_ref().and_then(|heads| heads.get(i).cloned()).or_else(|| days.get(i).map(|head| head.to_string())).unwrap_or_default())
                 .collect();
             let columns = (1..=span.days)
                 .map(|day| {
