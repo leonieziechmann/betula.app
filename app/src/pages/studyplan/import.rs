@@ -20,13 +20,11 @@ use leptos_router::NavigateOptions;
 
 use super::{key_of, PlanCtx};
 use crate::format;
+use crate::i18n;
 use crate::myprogram::program_name;
 use crate::nav;
 use crate::pending::Pending;
 use crate::ui::Icon;
-
-/// How the note of an import begins; the sidebar's „Plan geleert" is the other note of `undo`.
-pub(super) const IMPORTED: &str = "Übernommen: ";
 
 /// The id of „Übernehmen".
 const GO_ID: &str = "sp-import-go";
@@ -83,7 +81,8 @@ fn default_fs(intake: Option<Season>, semester: SemesterKey, most: u8) -> u8 {
 
 /// The form for `source`: the defaults where nothing was picked, and what the import adds to the
 /// timetable of `semester`. `variant` is the plan the address names for this program.
-pub(super) fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, semester: SemesterKey, variant: Option<usize>, core: Option<usize>, fs: Option<u8>) -> Option<Form> {
+#[allow(clippy::too_many_arguments)]
+pub(super) fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, semester: SemesterKey, variant: Option<usize>, core: Option<usize>, fs: Option<u8>, t: &i18n::Texts) -> Option<Form> {
     let own = mine.program.as_deref() == Some(source.program.id.as_str());
     let (caption, direction) = if own && variant.is_none() { (mine.caption.as_deref(), mine.direction.as_deref()) } else { (None, None) };
     let listed = cores(source);
@@ -96,16 +95,16 @@ pub(super) fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, semest
     let import = studyplan::import_fs(doc, &source.program.id, plan, page_plan, semester, fs);
     let mut adds = Vec::new();
     if !import.modules.is_empty() {
-        adds.push(format::modules(i64::try_from(import.modules.len()).unwrap_or(i64::MAX)));
+        adds.push(format::modules(i64::try_from(import.modules.len()).unwrap_or(i64::MAX), t.locale));
     }
     if !import.placeholders.is_empty() {
-        adds.push(format!("{} Platzhalter", import.placeholders.len()));
+        adds.push((t.studyplan_head.placeholders)(import.placeholders.len()));
     }
     let any = !adds.is_empty();
     let adds = match (any, import.skipped) {
         (true, _) => adds.join(" · "),
-        (false, 0) => "Nichts zu übernehmen".to_string(),
-        (false, _) => "Schon im Plan".to_string(),
+        (false, 0) => t.studyplan_import.nothing_to_take.to_string(),
+        (false, _) => t.studyplan_import.already.to_string(),
     };
     let cores = match listed.len() {
         0 | 1 => Vec::new(),
@@ -114,19 +113,26 @@ pub(super) fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, semest
     Some(Form { cores, core, page, most, fs, adds, any })
 }
 
-/// „Übernommen: 4 Module, 1 Platzhalter".
-pub(super) fn imported_note(modules: usize, placeholders: usize) -> String {
+/// „Übernommen: 4 Module, 1 Platzhalter": the note of an import (`PlanCtx::undo`), which begins
+/// with `studyplan_import::imported`; the sidebar's „Plan geleert" and the note of a plan taken
+/// over from a link are the others.
+fn imported_note(modules: usize, placeholders: usize, t: &i18n::Texts) -> String {
+    format!("{}{}", t.studyplan_import.imported, taken_parts(modules, placeholders, t))
+}
+
+/// „4 Module, 1 Platzhalter", „nichts": what a note says was taken over.
+pub(super) fn taken_parts(modules: usize, placeholders: usize, t: &i18n::Texts) -> String {
     let mut parts = Vec::new();
     if modules > 0 {
-        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX)));
+        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX), t.locale));
     }
     if placeholders > 0 {
-        parts.push(format!("{placeholders} Platzhalter"));
+        parts.push((t.studyplan_head.placeholders)(placeholders));
     }
     if parts.is_empty() {
-        parts.push("nichts".to_string());
+        parts.push(t.studyplan_import.nothing.to_string());
     }
-    format!("{IMPORTED}{}", parts.join(", "))
+    parts.join(", ")
 }
 
 /// Seconds since 1970, for when the modules were planned; 0 outside the browser.
@@ -154,10 +160,12 @@ enum Plans {
 /// Fachsemester last taken over, for the name „Plan speichern" suggests.
 #[component]
 pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Option<u8>>) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.studyplan_import;
     let id = Memo::new(move |_| program.with(|program| program.as_ref().map(|program| program.id.clone())));
     let plans = Memo::new(move |_| {
         let Some(id) = id.get() else { return Plans::NoProgram };
-        match ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::plan_source(db, &id)).ok().flatten())) {
+        match ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::plan_source(db, &id, t.locale)).ok().flatten())) {
             Some(plans) if !plans.variants.is_empty() => Plans::Found(Box::new(plans)),
             _ => Plans::NoPlan,
         }
@@ -182,7 +190,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
             let variant = url.import.as_deref().filter(|slug| *slug == source.program.slug).map(|_| url.variant);
             let doc = ctx.plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
             let semester = key_of(&url, current, &doc, ctx.today);
-            form_of(source, &doc, &mine, semester, variant, core, fs)
+            form_of(source, &doc, &mine, semester, variant, core, fs, t)
         })
     });
     let cores = Memo::new(move |_| form.with(|form| form.as_ref().map(|form| form.cores.clone()).unwrap_or_default()));
@@ -197,7 +205,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
             Plans::Found(_) => 2,
         })
     });
-    let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().map(|(note, _)| note.clone()).filter(|note| note.starts_with(IMPORTED))));
+    let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().map(|(note, _)| note.clone()).filter(|note| note.starts_with(s.imported))));
 
     let pick_core = move |ev: leptos::ev::Event| {
         let (Some(id), Ok(index)) = (id.get_untracked(), event_target_value(&ev).parse::<usize>()) else { return };
@@ -232,7 +240,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                     doc.program = Some(program.id.clone());
                     let import = studyplan::import_fs(doc, &program.id, &core, page.as_ref().map(|(page, ord)| (page, *ord)), semester, form.fs);
                     let (modules, placeholders) = doc.apply(&import, now_secs());
-                    (imported_note(modules, placeholders), before)
+                    (imported_note(modules, placeholders, t), before)
                 });
                 let _ = undo.try_set(Some(note));
             }
@@ -264,21 +272,21 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
 
     view! {
         <div class="fgroup sp-import" id="sp-import">
-            <p class="flabel label">"Importieren"</p>
-            <div class="seg" role="radiogroup" aria-label="Quelle">
-                <button type="button" role="radio" aria-checked="true">"Regelstudienplan"</button>
-                <button type="button" role="radio" aria-checked="false" aria-disabled="true" title="Kommt mit „Mein Plan“ auf der Studiengangsseite">
-                    "Mein Plan"<small>"bald"</small>
+            <p class="flabel label">{s.import}</p>
+            <div class="seg" role="radiogroup" aria-label=s.source>
+                <button type="button" role="radio" aria-checked="true">{s.standard_plan}</button>
+                <button type="button" role="radio" aria-checked="false" aria-disabled="true" title=s.my_plan_soon>
+                    {s.my_plan}<small>{s.soon}</small>
                 </button>
             </div>
             {move || match state.get() {
-                0 => view! { <p class="hint">"Erst einen Studiengang wählen."</p> }.into_any(),
-                1 => view! { <p class="hint">"Kein Regelstudienplan für diesen Studiengang."</p> }.into_any(),
+                0 => view! { <p class="hint">{s.choose_program_first}</p> }.into_any(),
+                1 => view! { <p class="hint">{s.no_plan}</p> }.into_any(),
                 _ => view! {
                     {move || {
                         (!cores.with(Vec::is_empty)).then(|| view! {
                             <span class="select-wrap plain">
-                                <select aria-label="Plan" prop:value=move || core.get().map(|core| core.to_string()).unwrap_or_default() on:change=pick_core>
+                                <select aria-label=s.plan prop:value=move || core.get().map(|core| core.to_string()).unwrap_or_default() on:change=pick_core>
                                     <For
                                         each=move || cores.get()
                                         key=|entry| entry.clone()
@@ -291,11 +299,11 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                     }}
                     <div class="sp-import-go">
                         <span class="select-wrap plain">
-                            <select aria-label="Fachsemester" prop:value=move || fs.get().map(|fs| fs.to_string()).unwrap_or_default() on:change=pick_fs>
+                            <select aria-label=s.fachsemester prop:value=move || fs.get().map(|fs| fs.to_string()).unwrap_or_default() on:change=pick_fs>
                                 <For
                                     each=move || semesters.get()
                                     key=|fs| *fs
-                                    children=move |n: u8| view! { <option value=n.to_string() selected=move || fs.get() == Some(n)>{format!("{n}. FS")}</option> }
+                                    children=move |n: u8| view! { <option value=n.to_string() selected=move || fs.get() == Some(n)>{(s.fs)(n)}</option> }
                                 />
                             </select>
                             <Icon name="chevrons-up-down"/>
@@ -308,7 +316,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                             aria-busy=move || busy.get().then_some("true")
                             on:click=take
                         >
-                            "Übernehmen"
+                            {s.take}
                         </button>
                     </div>
                     {move || match note.get() {
@@ -316,7 +324,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                             <p class="action note-action">
                                 <Icon name="check"/>
                                 <span>{note}</span>
-                                <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>"Rückgängig"</button>
+                                <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                             </p>
                         }
                         .into_any(),
@@ -332,6 +340,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::{DE, EN};
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
@@ -347,7 +356,8 @@ mod tests {
         assert_eq!(default_fs(None, key("2027S"), 6), 2);
         // A plan of one semester has only the first.
         assert_eq!(default_fs(None, key("2027S"), 1), 1);
-        assert_eq!(imported_note(4, 1), "Übernommen: 4 Module, 1 Platzhalter");
-        assert_eq!(imported_note(0, 0), "Übernommen: nichts");
+        assert_eq!(imported_note(4, 1, &DE), "Übernommen: 4 Module, 1 Platzhalter");
+        assert_eq!(imported_note(0, 0, &DE), "Übernommen: nichts");
+        assert_eq!((imported_note(4, 1, &EN), imported_note(1, 2, &EN)), ("Imported: 4 modules, 1 placeholder".to_string(), "Imported: 1 module, 2 placeholders".to_string()));
     }
 }

@@ -34,14 +34,12 @@ use super::share::ShareAction;
 use super::{key_of, PlanCtx};
 use crate::combobox::{ComboItem, Combobox};
 use crate::format;
+use crate::i18n;
 use crate::myprogram::{po_of, program_name, MyProgram};
 use crate::nav;
 use crate::pending::Pending;
 use crate::studyplan::{Saved, Studyplan};
 use crate::ui::Icon;
-
-/// The note „Rückgängig" answers after „Plan leeren" (`PlanCtx::undo`, which the import shares).
-const CLEARED: &str = "Plan geleert";
 
 /// The id of „Plan leeren", where the focus returns from „Abbrechen" and „Rückgängig".
 const CLEAR_ID: &str = "sp-clear";
@@ -123,13 +121,14 @@ fn shown_program<'a>(all: &'a [Program], asked: Option<&str>, stored: Option<&st
 /// it sets „Mein Studiengang" only while none is set.
 #[component]
 fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
+    let t = i18n::t();
     let Programs { all, mine, shown } = programs;
     let items = Signal::derive(move || {
         let mine = mine.get();
         all.with(|all| {
             let item = |program: &Program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · PO {}", program.degree(), po_of(program)), i64::from(program.is_latest_po));
             let own = mine.as_deref().and_then(|id| all.iter().find(|program| program.id == id));
-            own.map(|program| item(program).in_group("Mein Studiengang")).into_iter().chain(all.iter().map(item)).collect::<Vec<_>>()
+            own.map(|program| item(program).in_group(t.studyplan_side.mine)).into_iter().chain(all.iter().map(item)).collect::<Vec<_>>()
         })
     });
     let selected = Signal::derive(move || shown.with(|program| program.as_ref().map(|program| program.id.clone())));
@@ -149,15 +148,15 @@ fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
         }
     });
     // „Mein Plan" on the program's page, where the whole study is to be planned.
-    let link = Memo::new(move |_| shown.with(|program| program.as_ref().map(|program| url::program_path(&program.slug, ProgramTab::MyPlan))));
+    let link = Memo::new(move |_| shown.with(|program| program.as_ref().map(|program| t.path(&url::program_path(&program.slug, ProgramTab::MyPlan)))));
     view! {
         <div class="fgroup first sp-program">
-            <p class="flabel label">"Studiengang"</p>
+            <p class="flabel label">{t.studyplan_side.program}</p>
             <Combobox
                 id="sp-program"
-                label="Studiengang"
-                placeholder="Studiengang wählen"
-                search_placeholder="Studiengang suchen"
+                label=t.studyplan_side.program
+                placeholder=t.studyplan_side.choose_program
+                search_placeholder=t.studyplan_side.search_program
                 icon="graduation-cap"
                 min_width=480.0
                 items
@@ -165,7 +164,7 @@ fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
                 on_select=pick
                 clearable=false
             />
-            {move || link.get().map(|href| view! { <a class="sp-more" href=href>"Studium planen →"</a> })}
+            {move || link.get().map(|href| view! { <a class="sp-more" href=href>{t.studyplan_side.plan_studies}</a> })}
         </div>
     }
 }
@@ -175,24 +174,25 @@ fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
 /// „Ansicht": Woche · Termine · Prüfungen, the module beside the plan staying.
 #[component]
 fn ViewGroup(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
     let shown = shown_url(ctx);
     let link = move |view: PlanView| {
         let checked = Memo::new(move |_| shown.with(|shown| shown.view == view));
         view! {
             <a
-                href=move || ctx.url.with(|url| url.with_view(view).path())
+                href=move || t.path(&ctx.url.with(|url| url.with_view(view).path()))
                 role="radio"
                 draggable="false"
                 aria-checked=move || if checked.get() { "true" } else { "false" }
             >
-                {view.label()}
+                {view.label(t.locale)}
             </a>
         }
     };
     view! {
         <div class="fgroup">
-            <p class="flabel label">"Ansicht"</p>
-            <div class="seg" role="radiogroup" aria-label="Ansicht">
+            <p class="flabel label">{t.studyplan_side.view}</p>
+            <div class="seg" role="radiogroup" aria-label=t.studyplan_side.view>
                 {[PlanView::Week, PlanView::Dates, PlanView::Exams].into_iter().map(link).collect_view()}
             </div>
         </div>
@@ -202,26 +202,26 @@ fn ViewGroup(ctx: PlanCtx) -> impl IntoView {
 // ---------- 3. Zeigen ----------
 
 /// Under the chips, where an event counts for two kinds: „„Vorlesung/Übung“ zählt als beides."
-fn combined_hint(table: &Timetable) -> Option<String> {
+fn combined_hint(table: &Timetable, t: &i18n::Texts) -> Option<String> {
     let kinds = table.events.iter().map(|event| event.kinds.known()).find(|kinds| kinds.iter().count() >= 2)?;
-    let labels: Vec<&str> = kinds.iter().map(EventKind::label).collect();
-    let as_what = if labels.len() == 2 { "beides" } else { "jede dieser Arten" };
-    Some(format!("„{}“ zählt als {as_what}.", labels.join("/")))
+    let labels: Vec<&str> = kinds.iter().map(|kind| kind.label(t.locale)).collect();
+    Some((t.studyplan_side.combined)(&labels.join("/"), labels.len()))
 }
 
 /// „Zeigen": a chip per kind of the semester with its number of events; a click hides or shows
 /// the kind (an event goes only when all its kinds are hidden). Without any Termin a line says so.
 #[component]
 fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
     let kinds = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(Timetable::kinds_present).unwrap_or_default()));
     let hidden = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.hidden_kinds));
-    let combined = Memo::new(move |_| ctx.table.with(|table| table.as_ref().and_then(combined_hint)));
+    let combined = Memo::new(move |_| ctx.table.with(|table| table.as_ref().and_then(|table| combined_hint(table, t))));
     let any = Memo::new(move |_| kinds.with(|kinds| !kinds.is_empty()));
     view! {
         <div class="fgroup">
-            <p class="flabel label">"Zeigen"</p>
+            <p class="flabel label">{t.studyplan_side.show}</p>
             {move || match any.get() {
-                false => view! { <p class="hint sp-none">"Keine Termine im Plan."</p> }.into_any(),
+                false => view! { <p class="hint sp-none">{t.studyplan_side.no_dates}</p> }.into_any(),
                 true => view! {
                     <div class="chips">
                         <For
@@ -241,10 +241,10 @@ fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
                                         type="button"
                                         aria-pressed=move || if off.get() { "false" } else { "true" }
                                         data-state=move || if off.get() { "without" } else { "off" }
-                                        title=move || if off.get() { "Einblenden" } else { "Ausblenden" }
+                                        title=move || if off.get() { t.studyplan_side.unhide } else { t.studyplan_side.hide }
                                         on:click=toggle
                                     >
-                                        <span class="chip-label">{kind.label()}</span>
+                                        <span class="chip-label">{kind.label(t.locale)}</span>
                                         <span class="chip-count num">{count}</span>
                                     </button>
                                 }
@@ -267,6 +267,7 @@ fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
 /// towns (the choice then waits for one).
 #[component]
 fn TownGroup(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
     let derived = Memo::new(move |_| ctx.table.with(|table| table.as_ref().filter(|table| table.town_derived).and_then(|table| table.town)));
     let choice = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.town));
     let checked = Memo::new(move |_| match choice.get() {
@@ -292,11 +293,11 @@ fn TownGroup(ctx: PlanCtx) -> impl IntoView {
     };
     view! {
         <div class="fgroup">
-            <p class="flabel label">"Standort"</p>
-            <div class="seg" role="radiogroup" aria-label="Standort">
-                {button("Cottbus", TownChoice::Only(Town::Cottbus))}
-                {button("Senftenberg", TownChoice::Only(Town::Senftenberg))}
-                {button("Beide", TownChoice::Both)}
+            <p class="flabel label">{t.studyplan_side.town}</p>
+            <div class="seg" role="radiogroup" aria-label=t.studyplan_side.town>
+                {button(Town::Cottbus.label(), TownChoice::Only(Town::Cottbus))}
+                {button(Town::Senftenberg.label(), TownChoice::Only(Town::Senftenberg))}
+                {button(t.studyplan_side.both_towns, TownChoice::Both)}
             </div>
         </div>
     }
@@ -307,14 +308,14 @@ fn TownGroup(ctx: PlanCtx) -> impl IntoView {
 /// The name „Plan speichern" suggests: the saved plan the timetable holds (saving again replaces
 /// it), else the program with the Fachsemester last taken over („Informatik 1. FS") or the
 /// semester, else „Plan n".
-fn default_name(program: Option<&Program>, imported: Option<u8>, semester: SemesterKey, held: Option<String>, count: usize) -> String {
+fn default_name(program: Option<&Program>, imported: Option<u8>, semester: SemesterKey, held: Option<String>, count: usize, t: &i18n::Texts) -> String {
     if let Some(held) = held {
         return held;
     }
     match (program, imported) {
-        (Some(program), Some(fs)) => format!("{} {fs}. FS", program.name),
-        (Some(program), None) => format!("{} {}", program.name, semester.short()),
-        (None, _) => format!("Plan {}", count + 1),
+        (Some(program), Some(fs)) => (t.studyplan_side.name_fs)(&program.name, fs),
+        (Some(program), None) => format!("{} {}", program.name, semester.short(t.locale)),
+        (None, _) => (t.studyplan_side.name_numbered)(count + 1),
     }
 }
 
@@ -324,6 +325,8 @@ fn default_name(program: Option<&Program>, imported: Option<u8>, semester: Semes
 /// which „Rückgängig" takes back. The saved plan the timetable holds is marked.
 #[component]
 fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Option<u8>>) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.studyplan_side;
     let saved = Saved::open();
     let empty = Memo::new(move |_| ctx.plan.is_none_or(Studyplan::is_empty));
     // Whether the semester shown holds a timetable, and the saved plan it is.
@@ -341,7 +344,7 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
     let any = Memo::new(move |_| held.with(|held| held.0));
     let marked = Memo::new(move |_| held.with(|held| held.1.clone()));
     let entries = Memo::new(move |_| saved.with(|saved| saved.plans.iter().map(|p| (p.name.clone(), p.modules())).collect::<Vec<_>>()));
-    let cleared = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().is_some_and(|(note, _)| note == CLEARED)));
+    let cleared = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().is_some_and(|(note, _)| note == s.cleared)));
 
     // „Plan speichern".
     let naming = RwSignal::new(false);
@@ -349,7 +352,7 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
     let taken = Memo::new(move |_| name.with(|name| saved.with(|saved| saved.get(name.trim()).is_some())));
     let start_saving = move |_| {
         let count = entries.with_untracked(Vec::len);
-        let suggested = program.with_untracked(|program| default_name(program.as_ref(), imported.get_untracked(), ctx.key.get_untracked(), marked.get_untracked(), count));
+        let suggested = program.with_untracked(|program| default_name(program.as_ref(), imported.get_untracked(), ctx.key.get_untracked(), marked.get_untracked(), count, t));
         name.set(suggested);
         naming.set(true);
         request_animation_frame(|| nav::focus_by_id(NAME_ID));
@@ -416,7 +419,7 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
     let clear = move |_| {
         confirming.set(false);
         let Some(plan) = ctx.plan else { return };
-        ctx.undo.set(Some((CLEARED.to_string(), plan.with_untracked(Clone::clone))));
+        ctx.undo.set(Some((s.cleared.to_string(), plan.with_untracked(Clone::clone))));
         plan.update_after_paint(|doc| {
             *doc = PlanDoc { program: doc.program.take(), extra: std::mem::take(&mut doc.extra), ..PlanDoc::default() };
         });
@@ -446,14 +449,14 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
     // nothing to save or to empty, its actions are greyed out.
     view! {
         <div class="fgroup actions">
-            <p class="flabel label">"Plan"</p>
+            <p class="flabel label">{s.plan}</p>
             {move || match (any.get(), naming.get()) {
                 (false, _) => view! {
-                    <button class="action" type="button" aria-disabled="true" title="Nichts zu speichern"><Icon name="bookmark"/><span>"Plan speichern"</span></button>
+                    <button class="action" type="button" aria-disabled="true" title=s.nothing_to_save><Icon name="bookmark"/><span>{s.save_plan}</span></button>
                 }
                 .into_any(),
                 (true, false) => view! {
-                    <button class="action" type="button" id=SAVE_ID on:click=start_saving><Icon name="bookmark"/><span>"Plan speichern"</span></button>
+                    <button class="action" type="button" id=SAVE_ID on:click=start_saving><Icon name="bookmark"/><span>{s.save_plan}</span></button>
                 }
                 .into_any(),
                 (true, true) => view! {
@@ -462,7 +465,7 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
                             id=NAME_ID
                             type="text"
                             maxlength=MAX_SAVED_NAME.to_string()
-                            aria-label="Name des Plans"
+                            aria-label=s.plan_name
                             autocomplete="off"
                             prop:value=move || name.get()
                             on:input=move |ev| name.set(event_target_value(&ev))
@@ -472,8 +475,8 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
                                 }
                             }
                         />
-                        <button class="mini hit" type="submit">{move || if taken.get() { "Ersetzen" } else { "Speichern" }}</button>
-                        <button class="mini hit" type="button" on:click=move |_| stop_saving()>"Abbrechen"</button>
+                        <button class="mini hit" type="submit">{move || if taken.get() { s.replace } else { s.save }}</button>
+                        <button class="mini hit" type="button" on:click=move |_| stop_saving()>{s.cancel}</button>
                     </form>
                 }
                 .into_any(),
@@ -495,9 +498,9 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
                         <div class="sp-saved">
                             <button class="action" type="button" aria-current=move || here.get().then_some("true") on:click=move |_| load(one.clone())>
                                 <span>{which.clone()}</span>
-                                <small class="num">{format::modules(i64::try_from(count).unwrap_or(i64::MAX))}</small>
+                                <small class="num">{format::modules(i64::try_from(count).unwrap_or(i64::MAX), t.locale)}</small>
                             </button>
-                            <button class="icon-btn" type="button" aria-label=format!("„{which}“ löschen") title="Löschen" on:click=move |_| delete(two.clone())>
+                            <button class="icon-btn" type="button" aria-label=(s.delete_named)(&which) title=s.delete on:click=move |_| delete(two.clone())>
                                 <Icon name="x"/>
                             </button>
                         </div>
@@ -505,9 +508,9 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
                             let three = three.clone();
                             asked.get().then(|| view! {
                                 <p class="action note-action ask">
-                                    <span>"Aktuellen Plan ersetzen?"</span>
-                                    <button class="mini danger hit" type="button" id=LOAD_ID on:click=move |_| load_now(three.clone())>"Ersetzen"</button>
-                                    <button class="mini hit" type="button" on:click=move |_| asking.set(None)>"Abbrechen"</button>
+                                    <span>{s.replace_current}</span>
+                                    <button class="mini danger hit" type="button" id=LOAD_ID on:click=move |_| load_now(three.clone())>{s.replace}</button>
+                                    <button class="mini hit" type="button" on:click=move |_| asking.set(None)>{s.cancel}</button>
                                 </p>
                             })
                         }}
@@ -519,25 +522,25 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
                 (true, _, _) => view! {
                     <p class="action note-action">
                         <Icon name="check"/>
-                        <span>{CLEARED}</span>
-                        <button class="mini hit" type="button" id="sp-clear-undo" aria-busy=move || restoring.get().then_some("true") on:click=undo>"Rückgängig"</button>
+                        <span>{s.cleared}</span>
+                        <button class="mini hit" type="button" id="sp-clear-undo" aria-busy=move || restoring.get().then_some("true") on:click=undo>{t.common.undo}</button>
                     </p>
                 }
                 .into_any(),
                 (false, true, _) => view! {
                     <p class="action note-action ask">
-                        <span>"Wirklich leeren?"</span>
-                        <button class="mini danger hit" type="button" id="sp-clear-yes" on:click=clear>"Leeren"</button>
-                        <button class="mini hit" type="button" on:click=cancel>"Abbrechen"</button>
+                        <span>{s.really_clear}</span>
+                        <button class="mini danger hit" type="button" id="sp-clear-yes" on:click=clear>{s.clear}</button>
+                        <button class="mini hit" type="button" on:click=cancel>{s.cancel}</button>
                     </p>
                 }
                 .into_any(),
                 (false, false, false) => view! {
-                    <button class="action" type="button" id=CLEAR_ID on:click=ask><Icon name="trash-2"/><span>"Plan leeren"</span></button>
+                    <button class="action" type="button" id=CLEAR_ID on:click=ask><Icon name="trash-2"/><span>{s.clear_plan}</span></button>
                 }
                 .into_any(),
                 (false, false, true) => view! {
-                    <button class="action" type="button" aria-disabled="true" title="Nichts geplant"><Icon name="trash-2"/><span>"Plan leeren"</span></button>
+                    <button class="action" type="button" aria-disabled="true" title=s.nothing_planned><Icon name="trash-2"/><span>{s.clear_plan}</span></button>
                 }
                 .into_any(),
             }}
@@ -554,6 +557,7 @@ mod tests {
     use catalog::timetable::model::{Attendance, Event, Row};
 
     use super::*;
+    use crate::i18n::{DE, EN};
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
@@ -601,10 +605,11 @@ mod tests {
     fn plan_speichern_suggests_a_name() {
         let inf = program("079-82-2008", "bachelor-informatik-2008", "Informatik");
         let w = key("2026W");
-        assert_eq!(default_name(Some(&inf), Some(1), w, None, 0), "Informatik 1. FS");
-        assert_eq!(default_name(Some(&inf), None, w, None, 0), "Informatik WiSe 26/27");
-        assert_eq!(default_name(None, None, w, None, 2), "Plan 3");
-        assert_eq!(default_name(Some(&inf), Some(1), w, Some("Für Lea".into()), 0), "Für Lea");
+        assert_eq!(default_name(Some(&inf), Some(1), w, None, 0, &DE), "Informatik 1. FS");
+        assert_eq!(default_name(Some(&inf), None, w, None, 0, &DE), "Informatik WiSe 26/27");
+        assert_eq!(default_name(None, None, w, None, 2, &DE), "Plan 3");
+        assert_eq!(default_name(Some(&inf), Some(1), w, Some("Für Lea".into()), 0, &DE), "Für Lea");
+        assert_eq!((default_name(Some(&inf), Some(1), w, None, 0, &EN), default_name(Some(&inf), None, w, None, 0, &EN)), ("Informatik semester 1".to_string(), "Informatik WS 26/27".to_string()));
     }
 
     fn event(id: &str, type_raw: &str, module: &str, rows: Vec<Row>, chosen: Option<usize>) -> Event {
@@ -643,8 +648,9 @@ mod tests {
             place_unknown: Vec::new(),
             without_dates: Vec::new(),
         };
-        assert_eq!(combined_hint(&table), None);
+        assert_eq!(combined_hint(&table, &DE), None);
         table.events.push(event("2", "Vorlesung/Übung", "1", Vec::new(), None));
-        assert_eq!(combined_hint(&table).as_deref(), Some("„Vorlesung/Übung“ zählt als beides."));
+        assert_eq!(combined_hint(&table, &DE).as_deref(), Some("„Vorlesung/Übung“ zählt als beides."));
+        assert_eq!(combined_hint(&table, &EN).as_deref(), Some("“Lecture/Exercise” counts as both."));
     }
 }

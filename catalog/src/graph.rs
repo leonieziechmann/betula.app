@@ -28,12 +28,18 @@
 //! program without one only follows its links. Faculties are grouped by their number: the
 //! snapshot lists faculties 1 to 4 twice (the names before and after the restructuring), which
 //! are one faculty each.
+//!
+//! The map is the same for every language of the site (one `/api/map.json` per snapshot), so it
+//! holds no word of any: a program's form of study is its code, a faculty's outline says only
+//! whether its long name fits, and the app writes both in the page's language
+//! (`MapProgram::title`, `Region::label`). A name is placed where it fits in every language.
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::labels::DegreeLevel;
+use crate::i18n::Locale;
+use crate::labels::{Code, DegreeLevel, StudyVariant};
 use crate::rows::Program;
 
 /// Modules in more programs than this say nothing about kinship.
@@ -133,8 +139,10 @@ pub struct MapProgram {
     pub name: String,
     /// „B.Sc.", else „Bachelor", else the raw text of the source (`Program::degree`).
     pub degree: String,
-    /// The form of study where it is not the plain one („dual, praxisintegrierend"): what tells
-    /// two programs of the same name and degree apart.
+    /// The form of study where it is not the plain one, as its code (`StudyVariant`:
+    /// `dual_practice`, which reads „dual, praxisintegrierend"): what tells two programs of the
+    /// same name and degree apart. A map of an earlier build has its German label here, which
+    /// `title` shows as it is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variant: Option<String>,
     pub cycle: Cycle,
@@ -153,16 +161,23 @@ pub struct MapFaculty {
 }
 
 impl MapFaculty {
-    pub fn title(&self) -> String {
-        format!("Fakultät {} · {}", self.code, self.name)
+    /// „Fakultät 1 · MINT" in German, "Faculty 1 · MINT" in English.
+    pub fn title(&self, locale: Locale) -> String {
+        (locale.texts().plans.faculty_named)(&self.code, &self.name)
+    }
+
+    /// „Fakultät 1" in German, "Faculty 1" in English.
+    pub fn short(&self, locale: Locale) -> String {
+        (locale.texts().plans.faculty)(&self.code)
     }
 }
 
 impl MapProgram {
-    /// „Maschinenbau B.Sc." or „Maschinenbau - dual B.Sc. (dual, praxisintegrierend)".
-    pub fn title(&self) -> String {
+    /// „Maschinenbau B.Sc." or „Maschinenbau - dual B.Sc. (dual, praxisintegrierend)", the form of
+    /// study in `locale`.
+    pub fn title(&self, locale: Locale) -> String {
         match &self.variant {
-            Some(variant) => format!("{} {} ({variant})", self.name, self.degree),
+            Some(variant) => format!("{} {} ({})", self.name, self.degree, Code::<StudyVariant>::parse(variant).label(locale)),
             None => format!("{} {}", self.name, self.degree),
         }
     }
@@ -210,11 +225,25 @@ pub struct Region {
     pub faculty: usize,
     /// A closed, smooth SVG path around the faculty's dots.
     pub path: String,
-    /// The name: „Fakultät 1 · MINT", or only „Fakultät 1" where the long one does not fit.
-    pub label: String,
+    /// Whether the long name stands there („Fakultät 1 · MINT"), or only the short one where the
+    /// long one does not fit („Fakultät 1"): `label` writes it.
+    #[serde(default)]
+    pub long: bool,
     pub x: f64,
     pub y: f64,
     pub anchor: Anchor,
+}
+
+impl Region {
+    /// The name of the region's faculty of `map` in `locale`, long or short as the place has room
+    /// for (`long`).
+    pub fn label(&self, map: &ProgramMap, locale: Locale) -> String {
+        match map.faculties.get(self.faculty) {
+            Some(faculty) if self.long => faculty.title(locale),
+            Some(faculty) => faculty.short(locale),
+            None => String::new(),
+        }
+    }
 }
 
 /// The programs on one sheet.
@@ -279,7 +308,7 @@ pub fn program_map(programs: &[Program], curriculum: &[(String, String)], facult
             slug: program.slug.clone(),
             name: program.name.trim().to_string(),
             degree: program.degree().to_string(),
-            variant: program.study_variant.as_ref().map(|variant| variant.label().to_string()),
+            variant: program.study_variant.as_ref().map(|variant| variant.code().to_string()),
             cycle: Cycle::of(program),
             modules: *modules,
             faculty: *faculty,
@@ -572,14 +601,16 @@ fn regions(faculties: &[MapFaculty], faculty: &[Option<usize>], dots: &[(f64, f6
         let (left, right) = hull.iter().fold((f64::MAX, f64::MIN), |(l, r), p| (l.min(p.0), r.max(p.0)));
         let (top, bottom) = hull.iter().fold((f64::MAX, f64::MIN), |(t, b), p| (t.min(p.1), b.max(p.1)));
         let middle = (left + right) / 2.0;
-        let short = format!("Fakultät {}", about.code);
 
         // The name stays at its island: above it or below it, the long name before the short; then
         // the short name beside it or inside along its top and bottom. The first place that
         // covers nothing wins; where every place covers something, the one that covers least (a
-        // dot counts more than a name), the earlier one on a tie.
-        let (long, gap, mid_y) = (about.title(), font * 0.5, (top + bottom) / 2.0 + font * 0.35);
-        let (w_long, w_short) = (text_width(&long, font), text_width(&short, font));
+        // dot counts more than a name), the earlier one on a tie. A name is as wide as it is in
+        // the language that writes it widest, so its place fits every language (the text is
+        // centred there).
+        let widest = |text: fn(&MapFaculty, Locale) -> String| Locale::ALL.iter().map(|locale| text_width(&text(about, *locale), font)).fold(0.0, f64::max);
+        let (w_long, w_short) = (widest(MapFaculty::title), widest(MapFaculty::short));
+        let (gap, mid_y) = (font * 0.5, (top + bottom) / 2.0 + font * 0.35);
         let around = |w: f64| [
             (middle, top - font * 0.35),
             (left + w / 2.0, top - font * 0.35),
@@ -588,25 +619,25 @@ fn regions(faculties: &[MapFaculty], faculty: &[Option<usize>], dots: &[(f64, f6
             (left + w / 2.0, bottom + font * 1.05),
             (right - w / 2.0, bottom + font * 1.05),
         ];
-        let mut places: Vec<(&str, f64, f64, f64)> = around(w_long).into_iter().map(|(x, y)| (long.as_str(), w_long, x, y)).collect();
-        places.extend(around(w_short).into_iter().map(|(x, y)| (short.as_str(), w_short, x, y)));
+        let mut places: Vec<(bool, f64, f64, f64)> = around(w_long).into_iter().map(|(x, y)| (true, w_long, x, y)).collect();
+        places.extend(around(w_short).into_iter().map(|(x, y)| (false, w_short, x, y)));
         for (x, y) in [(left - gap - w_short / 2.0, mid_y), (right + gap + w_short / 2.0, mid_y), (middle, top + font * 1.3), (middle, bottom - font * 0.5)] {
-            places.push((short.as_str(), w_short, x, y));
+            places.push((false, w_short, x, y));
         }
-        let mut best: Option<(usize, String, f64, f64)> = None;
-        for (text, w, x, y) in places {
+        let mut best: Option<(usize, bool, f64, f64)> = None;
+        for (long, w, x, y) in places {
             let (x, y) = (x.clamp(w / 2.0 + 2.0, width - w / 2.0 - 2.0), y.clamp(font + 2.0, height - font * 0.3 - 2.0));
             let area = text_box(x, y, w, Anchor::Middle, font);
             let covered = taken.iter().enumerate().filter(|(_, b)| overlap(area, **b)).map(|(i, _)| if i < dots.len() { 3 } else { 1 }).sum::<usize>();
             if best.as_ref().is_none_or(|(least, ..)| covered < *least) {
-                best = Some((covered, text.to_string(), x, y));
+                best = Some((covered, long, x, y));
             }
             if covered == 0 {
                 break;
             }
         }
-        let Some((_, label, x, y)) = best else { continue };
-        regions.push(Region { faculty: *f, path, label, x: round(x), y: round(y), anchor: Anchor::Middle });
+        let Some((_, long, x, y)) = best else { continue };
+        regions.push(Region { faculty: *f, path, long, x: round(x), y: round(y), anchor: Anchor::Middle });
     }
     regions
 }
@@ -805,4 +836,68 @@ fn names(programs: &[Program], modules: &[usize], dots: &[(f64, f64, f64)], shee
         }
     }
     names
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn program(id: &str, name: &str, variant: Option<&str>) -> Program {
+        Program {
+            id: id.to_string(),
+            slug: id.to_string(),
+            name: name.to_string(),
+            degree_level: Code::parse("bachelor"),
+            study_variant: variant.map(Code::parse),
+            degree_label: Some("B.Sc.".to_string()),
+            degree_raw: String::new(),
+            degree_display: Some("B.Sc.".to_string()),
+            po_version: "2022".to_string(),
+            po_year: Some(2022),
+            family_key: id.to_string(),
+            name_key: name.to_lowercase(),
+            is_latest_po: true,
+            source_url: String::new(),
+            has_plan: false,
+            plan_status: None,
+            curricular_modules: 0,
+            fues_modules: 0,
+            documents: 0,
+        }
+    }
+
+    /// The map holds no word of a language: the app writes the form of study and the names of
+    /// the faculties in the page's.
+    #[test]
+    fn the_map_is_the_same_for_every_language() {
+        let programs = [program("a", "Maschinenbau", None), program("b", "Maschinenbau - dual", Some("dual_practice")), program("c", "Informatik", None)];
+        let curriculum: Vec<(String, String)> =
+            [("a", "1"), ("a", "2"), ("b", "1"), ("b", "2"), ("c", "2"), ("c", "3")].iter().map(|(p, m)| (p.to_string(), m.to_string())).collect();
+        let faculties = vec![MapFaculty { code: "3".to_string(), name: "Maschinenbau, Elektro- und Energiesysteme".to_string() }, MapFaculty { code: "1".to_string(), name: "MINT".to_string() }];
+        let map = program_map(&programs, &curriculum, faculties, &[Some(0), Some(0), Some(1)]);
+        let json = serde_json::to_string(&map).unwrap();
+        for word in ["Fakultät", "Faculty", "praxisintegrierend", "integrated practice"] {
+            assert!(!json.contains(word), "{word} in {json}");
+        }
+        assert_eq!(map.programs[1].variant.as_deref(), Some("dual_practice"));
+        assert_eq!(map.programs[1].title(Locale::De), "Maschinenbau - dual B.Sc. (dual, praxisintegrierend)");
+        assert_eq!(map.programs[1].title(Locale::En), "Maschinenbau - dual B.Sc. (dual, with integrated practice)");
+        assert_eq!(map.programs[0].title(Locale::En), "Maschinenbau B.Sc.");
+
+        let region = map.wide.regions.iter().find(|region| region.faculty == 1).unwrap();
+        let (de, en) = (region.label(&map, Locale::De), region.label(&map, Locale::En));
+        match region.long {
+            true => assert_eq!((de.as_str(), en.as_str()), ("Fakultät 1 · MINT", "Faculty 1 · MINT")),
+            false => assert_eq!((de.as_str(), en.as_str()), ("Fakultät 1", "Faculty 1")),
+        }
+        assert_eq!((map.faculties[0].title(Locale::En), map.faculties[0].short(Locale::De)), ("Faculty 3 · Maschinenbau, Elektro- und Energiesysteme".to_string(), "Fakultät 3".to_string()));
+
+        // A map of an earlier build: its German label of the form of study stays as it is, and a
+        // region without `long` has the short name.
+        let old = r#"{"faculty":0,"path":"M0 0Z","label":"Fakultät 3","x":1.0,"y":2.0,"anchor":"middle"}"#;
+        let region: Region = serde_json::from_str(old).unwrap();
+        assert_eq!(region.label(&map, Locale::En), "Faculty 3");
+        let earlier = MapProgram { variant: Some("dual, praxisintegrierend".to_string()), ..map.programs[1].clone() };
+        assert_eq!(earlier.title(Locale::En), "Maschinenbau - dual B.Sc. (dual, praxisintegrierend)");
+    }
 }

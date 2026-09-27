@@ -47,13 +47,11 @@ use super::head::blocked_line;
 use super::{full_href, key_of, PlanCtx};
 use crate::data::DataError;
 use crate::format;
+use crate::i18n::{self, Locale};
 use crate::myprogram::MyProgram;
 use crate::nav;
 use crate::pending::Pending;
 use crate::ui::{ErrorState, Icon, Shortcut};
-
-/// The weekdays as a line names them, Monday first.
-const WEEKDAYS: [&str; 7] = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 /// The group QIS gives a row that belongs to no group.
 const UNNAMED_GROUP: &str = "[unbenannt]";
@@ -288,6 +286,7 @@ struct Shown {
 
 #[component]
 pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
     let going = Pending::expect();
     let town = move || ctx.mine.map(MyProgram::town).unwrap_or_default();
 
@@ -308,7 +307,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
         let loaded = match place.sem {
             Some(sem) if sem == place.shown => Loaded::Page,
             Some(sem) => Loaded::Other(ctx.source.with_value(|source| match source {
-                Some(source) => source.run(|db| pages::studyplan(db, sem, &place.ids)),
+                Some(source) => source.run(|db| pages::studyplan(db, sem, &place.ids, t.locale)),
                 None => Err(unavailable()),
             })),
             None => Loaded::Nowhere(ctx.source.with_value(|source| match source {
@@ -351,7 +350,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
             })
         })
     });
-    let shown_all = Memo::new(move |_| info.with(|info| info.as_ref().map(|info| table.with(|table| shown_of_panel(info, table.as_ref())))));
+    let shown_all = Memo::new(move |_| info.with(|info| info.as_ref().map(|info| table.with(|table| shown_of_panel(info, table.as_ref(), t)))));
     let head = Memo::new(move |_| info.with(|info| info.as_ref().map(head_of)));
     let body = Memo::new(move |_| shown_all.with(|all| all.as_ref().map(|all| all.body.clone()).unwrap_or_default()));
     let shown = Memo::new(move |_| shown_all.with(|all| all.as_ref().map(|all| all.blocks.clone()).unwrap_or_default()));
@@ -367,7 +366,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
             let sem = home_semester(doc, shown, &id)?;
             let fills = doc.modules.iter().find(|m| m.semester == sem && m.module_id == id).and_then(|m| m.fills);
             Some(Choices {
-                placeholders: placeholder_choices(doc, sem, start, fills),
+                placeholders: placeholder_choices(doc, sem, start, fills, t),
                 elsewhere: doc.planned_in(&id).into_iter().filter(|other| *other != sem).collect(),
                 id,
                 sem,
@@ -394,15 +393,15 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
         open
     });
 
-    let close = move || ctx.url.with(|url| url.with_open(None, None).path());
-    let full = move || ctx.url.with(|url| url.open.as_deref().map(|id| full_href(url, id)).unwrap_or_default());
+    let close = move || ctx.url.with(|url| t.path(&url.with_open(None, None).path()));
+    let full = move || ctx.url.with(|url| url.open.as_deref().map(|id| t.path(&full_href(url, id))).unwrap_or_default());
     let id = move || ctx.url.with(|url| url.open.clone().unwrap_or_default());
 
     let heading = move || {
         head.get().map(|head| {
             view! {
                 <h2>{head.title}</h2>
-                {head.missing.then(|| view! { <p class="hint">"Nicht im Modulkatalog."</p> })}
+                {head.missing.then(|| view! { <p class="hint">{t.studyplan_aside.not_in_catalog}</p> })}
             }
         })
     };
@@ -418,19 +417,19 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
     });
     let notes_view = move || {
         let notes = notes.get();
-        (!notes.is_empty()).then(|| view! { <div class="section sp-notes">{notes.into_iter().map(|note| note_view(ctx, note)).collect_view()}</div> })
+        (!notes.is_empty()).then(|| view! { <div class="section sp-notes">{notes.into_iter().map(|note| note_view(ctx, note, t)).collect_view()}</div> })
     };
 
     view! {
-        <section class="panel detail aside" id="preview" aria-label="Modul im Plan">
+        <section class="panel detail aside" id="preview" aria-label=t.studyplan_aside.panel>
             <div class="scroll" id=SCROLL_ID>
                 <header class="hero">
                     // No arrow back on a phone as well, where the panel is the page: „Schließen"
                     // says it, and a phone has no room for both beside „Modul ansehen".
                     <div class="hero-top">
                         <span class="mono">{id}</span>
-                        <a class="ghost" href=full data-action="fullscreen" title="Als ganze Seite öffnen (F)"><Icon name="maximize-2"/>"Modul ansehen"<Shortcut keys="F"/></a>
-                        <a class="ghost" href=close data-action="close-detail" title="Schließen (Esc)"><Icon name="x"/>"Schließen"<Shortcut keys="Esc"/></a>
+                        <a class="ghost" href=full data-action="fullscreen" title=t.studyplan_aside.full_title><Icon name="maximize-2"/>{t.studyplan_aside.full}<Shortcut keys="F"/></a>
+                        <a class="ghost" href=close data-action="close-detail" title=t.studyplan_aside.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
                     {heading}
                     <Actions ctx going head place table choices/>
@@ -460,7 +459,8 @@ fn Actions(
     table: Memo<Option<Timetable>>,
     choices: Memo<Option<Choices>>,
 ) -> impl IntoView {
-    let credits = Memo::new(move |_| head.with(|head| head.as_ref().map(|head| format::credits(head.credits))));
+    let t = i18n::t();
+    let credits = Memo::new(move |_| head.with(|head| head.as_ref().map(|head| format::credits(head.credits, t.locale))));
     let planned = Memo::new(move |_| choices.with(Option::is_some));
     let placeholders = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.placeholders.clone()).unwrap_or_default()));
     let fills = Memo::new(move |_| choices.with(|c| c.as_ref().and_then(|c| c.fills)));
@@ -490,14 +490,14 @@ fn Actions(
         planned.get().then(|| {
             view! {
                 {move || (!placeholders.with(Vec::is_empty)).then(|| view! {
-                    <select aria-label="Zählt für" on:change=set_fills>
-                        <option value="" prop:selected=move || fills.get().is_none()>"Für keinen Platzhalter"</option>
+                    <select aria-label=t.studyplan_aside.counts_for on:change=set_fills>
+                        <option value="" prop:selected=move || fills.get().is_none()>{t.studyplan_aside.no_placeholder}</option>
                         {move || placeholders.get().into_iter().map(|(pid, label)| view! {
                             <option value=pid.to_string() prop:selected=move || fills.get() == Some(pid)>{label}</option>
                         }).collect_view()}
                     </select>
                 })}
-                <button class="mini" type="button" on:click=remove aria-busy=move || removing.get().then_some("true")>"Entfernen"</button>
+                <button class="mini" type="button" on:click=remove aria-busy=move || removing.get().then_some("true")>{t.studyplan_aside.remove}</button>
             }
         })
     };
@@ -513,14 +513,14 @@ fn Actions(
                     let href = move || {
                         ctx.url.with(|url| {
                             let open = url.open.clone();
-                            StudyplanUrl { sem: Some(sem.key()), open, row: None, ..url.clone() }.path()
+                            t.path(&StudyplanUrl { sem: Some(sem.key()), open, row: None, ..url.clone() }.path())
                         })
                     };
                     let overview = move || ctx.url.with(|url| (url.view == PlanView::Overview).then_some(""));
-                    view! { {(n > 0).then_some(", ")}<a href=href data-noscroll=overview>{sem.label()}</a> }
+                    view! { {(n > 0).then_some(", ")}<a href=href data-noscroll=overview>{sem.label(t.locale)}</a> }
                 })
                 .collect_view();
-            view! { <p class="hint sp-also">"Auch geplant: "{links}</p> }
+            view! { <p class="hint sp-also">{t.studyplan_aside.also_planned}{links}</p> }
         })
     };
     view! {
@@ -538,6 +538,7 @@ fn Actions(
 /// changes its lines), what is hidden of it `shown`; its head stays, and so does its eye.
 #[component]
 fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<BlockShown>>) -> impl IntoView {
+    let t = i18n::t();
     let sem = key.sem;
     // The key names one event or exam of the semester, so its number and its link stay; its head
     // names the module's title, which another module sharing the event has otherwise.
@@ -559,10 +560,10 @@ fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<Bloc
         }
     };
     let label = move || match (key.exam, pressed.get()) {
-        (false, false) => "Veranstaltung ausblenden",
-        (false, true) => "Veranstaltung einblenden",
-        (true, false) => "Prüfung ausblenden",
-        (true, true) => "Prüfung einblenden",
+        (false, false) => t.studyplan_aside.hide_event,
+        (false, true) => t.studyplan_aside.show_event,
+        (true, false) => t.studyplan_aside.hide_exam,
+        (true, true) => t.studyplan_aside.show_exam,
     };
     let lines = move || {
         items
@@ -571,7 +572,7 @@ fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<Bloc
             .enumerate()
             .map(|(item, it)| {
                 let state = Memo::new(move |_| shown.with(|shown| key.state(shown).and_then(|s| s.items.get(item).copied()).unwrap_or_default()));
-                item_view(ctx, key.sem, event, it, state, choice)
+                item_view(ctx, key.sem, event, it, state, choice, t)
             })
             .collect_view()
     };
@@ -591,7 +592,7 @@ fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<Bloc
                     (false, false) => view! { <i class="eye" aria-hidden="true"></i> }.into_any(),
                 }}
                 <span>{move || head.get()}</span>
-                {qis.map(|href| view! { <a href=href rel="noopener">"In QIS"</a> })}
+                {qis.map(|href| view! { <a href=href rel="noopener">{t.studyplan_aside.in_qis}</a> })}
             </h3>
             {move || reason.get().map(|reason| view! { <p class="sp-choice">{reason}</p> })}
             {lines}
@@ -603,7 +604,7 @@ fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<Bloc
 /// line of an option is the choice itself, with a radio mark at its left (owner, 2026-09-25): a
 /// click chooses it, a click on the one chosen opens the choice again, as „Wahl aufheben" does.
 /// A choice changes what is shown, not what is listed, so the lines stay and so does the focus.
-fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, state: Memo<ItemShown>, choice: Memo<Option<(usize, bool)>>) -> AnyView {
+fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, state: Memo<ItemShown>, choice: Memo<Option<(usize, bool)>>, t: &'static i18n::Texts) -> AnyView {
     let pick = move |key: Option<RowKey>| {
         move |_: leptos::ev::MouseEvent| {
             let (Some(plan), Some(event), Some(key)) = (ctx.plan, event, key) else { return };
@@ -612,7 +613,7 @@ fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, sta
         }
     };
     match item {
-        Item::Line(line) => line_view(ctx, sem, line, state, pick),
+        Item::Line(line) => line_view(ctx, sem, line, state, pick, t),
         Item::Choice => {
             let reopen = move |_: leptos::ev::MouseEvent| {
                 if let (Some(plan), Some(event)) = (ctx.plan, event) {
@@ -623,8 +624,8 @@ fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, sta
                 choice.get().map(|(of, chosen)| {
                     view! {
                         <p class="sp-choice">
-                            <span>{format!("1 von {of} wählen")}</span>
-                            {chosen.then(|| view! { <button class="mini" type="button" data-action="reopen" on:click=reopen>"Wahl aufheben"</button> })}
+                            <span>{(t.studyplan_aside.choose_one_of)(of)}</span>
+                            {chosen.then(|| view! { <button class="mini" type="button" data-action="reopen" on:click=reopen>{t.studyplan_aside.clear_choice}</button> })}
                         </p>
                     }
                 })
@@ -633,23 +634,23 @@ fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, sta
         }
         Item::Option { name, key, .. } => {
             let text = view! { <span class="rt"><b>{name}</b></span> };
-            view! { <div class="sp-rowline sp-option">{pick_button(state, pick(key), text)}</div> }.into_any()
+            view! { <div class="sp-rowline sp-option">{pick_button(state, pick(key), text, t)}</div> }.into_any()
         }
-        Item::Undated => view! { <p class="sp-choice">"Termine nicht angegeben"</p> }.into_any(),
+        Item::Undated => view! { <p class="sp-choice">{t.studyplan_aside.undated}</p> }.into_any(),
     }
 }
 
 /// The line of an option as its choice: a radio mark and the text, pressed while it is the one
 /// chosen.
-fn pick_button<H>(state: Memo<ItemShown>, pick: H, text: impl IntoView + 'static) -> AnyView
+fn pick_button<H>(state: Memo<ItemShown>, pick: H, text: impl IntoView + 'static, t: &'static i18n::Texts) -> AnyView
 where
     H: Fn(leptos::ev::MouseEvent) + Send + Sync + 'static,
 {
     let chosen = Memo::new(move |_| state.with(|s| s.chosen));
     let choosable = Memo::new(move |_| state.with(|s| s.choosable));
     let title = move || match (chosen.get(), choosable.get()) {
-        (true, true) => Some("Wahl aufheben"),
-        (false, true) => Some("Diesen wählen"),
+        (true, true) => Some(t.studyplan_aside.clear_choice),
+        (false, true) => Some(t.studyplan_aside.choose_this),
         _ => None,
     };
     view! {
@@ -663,7 +664,7 @@ where
 
 /// A Termin in its two lines, with its eye; the one the address points at is current. The line
 /// of an option is its choice (`pick_button`).
-fn line_view<C, H>(ctx: PlanCtx, sem: SemesterKey, line: Line, state: Memo<ItemShown>, pick: C) -> AnyView
+fn line_view<C, H>(ctx: PlanCtx, sem: SemesterKey, line: Line, state: Memo<ItemShown>, pick: C, t: &'static i18n::Texts) -> AnyView
 where
     C: Fn(Option<RowKey>) -> H + Copy + Send + Sync + 'static,
     H: Fn(leptos::ev::MouseEvent) + Copy + Send + Sync + 'static,
@@ -685,7 +686,7 @@ where
             plan.update(|doc| doc.set_row(sem, key, hide));
         }
     };
-    let label = move || if pressed.get() { "Termin einblenden" } else { "Termin ausblenden" };
+    let label = move || if pressed.get() { t.studyplan_aside.show_date } else { t.studyplan_aside.hide_date };
     let text = &line.text;
     // The second line breaks between its parts, not inside „05.10.–25.01.".
     let detail = (!text.detail.is_empty()).then(|| {
@@ -700,14 +701,14 @@ where
         </span>
     };
     let first = match line.choose {
-        Some(_) => pick_button(state, pick(key), lines),
+        Some(_) => pick_button(state, pick(key), lines, t),
         None => view! { <span class="rl">{lines}</span> }.into_any(),
     };
     view! {
         <div class="sp-rowline" aria-current=move || current.get().then_some("true") data-hidden=move || hidden.get().then_some("") data-off=move || off.get().then_some("")>
             {first}
-            {move || clash.get().then(|| view! { <small class="clash">"Überschneidung"</small> })}
-            {move || second.get().then(|| view! { <small>"2. Termin"</small> })}
+            {move || clash.get().then(|| view! { <small class="clash">{t.studyplan_aside.clash}</small> })}
+            {move || second.get().then(|| view! { <small>{t.data.timetable.second_sitting}</small> })}
             {key.is_some().then_some(move || eye.get().then(|| view! {
                 <button class="eye" type="button" on:click=toggle aria-pressed=move || if pressed.get() { "true" } else { "false" } aria-label=label title=label>
                     {move || eye_icon(pressed.get())}
@@ -719,12 +720,12 @@ where
 }
 
 /// A note of the module; one about another module leads to it beside the plan.
-fn note_view(ctx: PlanCtx, note: Note) -> AnyView {
+fn note_view(ctx: PlanCtx, note: Note, t: &'static i18n::Texts) -> AnyView {
     let class = if note.warn { "note" } else { "note quiet" };
     let icon = note.warn.then(|| view! { <Icon name="triangle-alert"/> });
     match note.to {
         Some((module, row)) => {
-            let href = move || ctx.url.with(|url| url.with_open(Some(&module), row).path());
+            let href = move || ctx.url.with(|url| t.path(&url.with_open(Some(&module), row).path()));
             view! { <a class=class href=href data-noscroll="">{icon}<span>{note.text}</span></a> }.into_any()
         }
         None => view! { <p class=class>{icon}<span>{note.text}</span></p> }.into_any(),
@@ -803,59 +804,60 @@ fn head_of(info: &Info) -> Head {
 }
 
 /// Everything below the head, from the module's semester and its timetable (`None` while the
-/// timetable of that semester is not there yet).
-fn shown_of_panel(info: &Info, table: Option<&Timetable>) -> Shown {
+/// timetable of that semester is not there yet), in the words of `texts`.
+fn shown_of_panel(info: &Info, table: Option<&Timetable>, texts: &i18n::Texts) -> Shown {
     let place = &info.place;
     if let Some(error) = &info.error {
         return Shown { body: Body { sem: place.sem, error: Some(error.clone()), ..Body::default() }, ..Shown::default() };
     }
     let Some(sem) = place.sem else {
-        return Shown { body: Body { lead: Some("Nicht im Studienplan.".to_string()), ..Body::default() }, ..Shown::default() };
+        return Shown { body: Body { lead: Some(texts.studyplan_aside.not_planned.to_string()), ..Body::default() }, ..Shown::default() };
     };
     let Some(t) = table.filter(|t| t.key == sem) else {
         return Shown { body: Body { sem: Some(sem), ..Body::default() }, ..Shown::default() };
     };
-    let blocks = blocks_of(t, &place.id, info.title.as_deref());
+    let blocks = blocks_of(t, &place.id, info.title.as_deref(), texts);
     Shown {
-        blocks: shown_of(t, &blocks),
-        notes: notes_of(t, &place.id, &info.titles, place.town),
-        body: Body { sem: Some(sem), error: None, lead: lead_of(info, t, sem), blocks },
+        blocks: shown_of(t, &blocks, texts),
+        notes: notes_of(t, &place.id, &info.titles, place.town, texts),
+        body: Body { sem: Some(sem), error: None, lead: lead_of(info, t, sem, texts), blocks },
     }
 }
 
 /// The line above the events where the semester has none of the module's (A.5). A semester before
 /// the current one is over, whether the data still holds some of its dates or none at all
 /// (retention removes them): its dates are not still to come.
-fn lead_of(info: &Info, t: &Timetable, sem: SemesterKey) -> Option<String> {
-    let label = sem.label();
+fn lead_of(info: &Info, t: &Timetable, sem: SemesterKey, texts: &i18n::Texts) -> Option<String> {
+    let words = &texts.studyplan_aside;
+    let label = sem.label(texts.locale);
     if info.dated && !t.without_dates.contains(&info.place.id) {
         return None;
     }
     if info.place.current.is_some_and(|current| sem < current) {
-        return Some(format!("{label} ist vorbei; vergangene Termine fehlen im Datenstand."));
+        return Some((words.past)(&label));
     }
     if !info.dated {
-        return Some(format!("{label}: noch keine Termine veröffentlicht."));
+        return Some((words.unpublished)(&label));
     }
     let season = match (info.turnus, sem.winter) {
-        (Some(TurnusSeason::Summer), true) => " (laut Beschreibung im Sommer)",
-        (Some(TurnusSeason::Winter), false) => " (laut Beschreibung im Winter)",
+        (Some(TurnusSeason::Summer), true) => words.said_summer,
+        (Some(TurnusSeason::Winter), false) => words.said_winter,
         _ => "",
     };
-    Some(format!("Keine Termine im {label}{season}."))
+    Some((words.no_dates)(&label, season))
 }
 
 /// The module's events and exams in `t`, in the timetable's order, with their lines; what the
 /// Standort hides after the rest.
-fn blocks_of(t: &Timetable, id: &str, title: Option<&str>) -> Vec<Block> {
+fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) -> Vec<Block> {
     let own = |modules: &[String]| modules.iter().any(|module| module == id);
     let events = t.events.iter().enumerate().filter(|(_, event)| own(&event.modules)).map(|(index, event)| Block {
         exam: false,
         index,
         event: event_number(&event.id),
-        head: head_text(&kind_word(event), &event.title, title),
+        head: head_text(&kind_word(event, texts), &event.title, title),
         qis: event.source_url.clone(),
-        items: items_of(event),
+        items: items_of(event, texts),
     });
     let exams = t.exams.iter().enumerate().filter(|(_, exam)| own(&exam.modules)).map(|(index, exam)| {
         let items = if exam.rows.is_empty() {
@@ -865,11 +867,11 @@ fn blocks_of(t: &Timetable, id: &str, title: Option<&str>) -> Vec<Block> {
                 .into_iter()
                 .map(|(key, rows)| {
                     let refs: Vec<&ExamRow> = rows.iter().filter_map(|row| exam.rows.get(*row)).collect();
-                    Item::Line(Line { text: exam_text(&refs), rows, key, choose: None })
+                    Item::Line(Line { text: exam_text(&refs, texts), rows, key, choose: None })
                 })
                 .collect()
         };
-        Block { exam: true, index, event: event_number(&exam.event_id), head: head_text("Prüfung", &exam.title, title), qis: exam.source_url.clone(), items }
+        Block { exam: true, index, event: event_number(&exam.event_id), head: head_text(texts.data.timetable.exam, &exam.title, title), qis: exam.source_url.clone(), items }
     });
     // The other town's course of a module taught in both comes last: first what the student
     // attends, its exams included.
@@ -891,7 +893,7 @@ fn blocks_of(t: &Timetable, id: &str, title: Option<&str>) -> Vec<Block> {
 /// An event's lines: its required Termine, then its choice („1 von 4 wählen") and every option,
 /// open or made — a Termin alone is its own choice, a group of several stands under its name,
 /// which is the choice.
-fn items_of(event: &Event) -> Vec<Item> {
+fn items_of(event: &Event, texts: &i18n::Texts) -> Vec<Item> {
     if event.rows.is_empty() {
         return vec![Item::Undated];
     }
@@ -902,7 +904,7 @@ fn items_of(event: &Event) -> Vec<Item> {
                 let rows: Vec<usize> = positions.iter().filter_map(|position| indices.get(*position).copied()).collect();
                 let refs: Vec<&Row> = rows.iter().filter_map(|row| event.rows.get(*row)).collect();
                 let group = refs.first().filter(|_| with_group).and_then(|row| group_of(row));
-                Line { text: row_text(&refs, group), rows, key, choose: None }
+                Line { text: row_text(&refs, group, texts), rows, key, choose: None }
             })
             .collect()
     };
@@ -921,7 +923,7 @@ fn items_of(event: &Event) -> Vec<Item> {
             continue;
         }
         let key = option_lines.first().and_then(|line| line.key);
-        items.push(Item::Option { name: option_name(event, options, option, groups), key, option });
+        items.push(Item::Option { name: option_name(event, options, option, groups, texts), key, option });
         // Under the option's name its lines need not repeat it.
         items.extend(lines(rows, false).into_iter().map(Item::Line));
     }
@@ -942,20 +944,20 @@ fn by_key(keys: impl Iterator<Item = Option<RowKey>>) -> Vec<(Option<RowKey>, Ve
 }
 
 /// What an option is called: its group, else the weekday and start of its first Termin.
-fn option_name(event: &Event, options: &[Vec<usize>], option: usize, groups: bool) -> String {
+fn option_name(event: &Event, options: &[Vec<usize>], option: usize, groups: bool, texts: &i18n::Texts) -> String {
     let first = options.get(option).and_then(|rows| rows.first()).and_then(|row| event.rows.get(*row));
     let named = first.and_then(|row| {
         if groups {
             group_of(row).map(str::to_string)
         } else {
-            Some(format!("{} {}", weekday_name(weekday_of(row)?), clock(row.from?)))
+            Some(format!("{} {}", weekday_name(weekday_of(row)?, texts), clock(row.from?)))
         }
     });
-    named.unwrap_or_else(|| format!("Gruppe {}", option + 1))
+    named.unwrap_or_else(|| (texts.studyplan_aside.group)(option + 1))
 }
 
 /// What is shown of the blocks in `t` now.
-fn shown_of(t: &Timetable, blocks: &[Block]) -> Vec<BlockShown> {
+fn shown_of(t: &Timetable, blocks: &[Block], texts: &i18n::Texts) -> Vec<BlockShown> {
     let hard = clash::hard_rows(&t.events);
     blocks
         .iter()
@@ -974,7 +976,7 @@ fn shown_of(t: &Timetable, blocks: &[Block]) -> Vec<BlockShown> {
                         _ => ItemShown::default(),
                     })
                     .collect();
-                let reason = reason_text(exam.hidden, KindSet::default().with(EventKind::Exam), exam.town());
+                let reason = reason_text(exam.hidden, KindSet::default().with(EventKind::Exam), exam.town(), texts);
                 return BlockShown { hidden: exam.hidden, reason, choice: None, items, ..none };
             }
             let Some(event) = t.events.get(block.index) else { return none };
@@ -1006,57 +1008,35 @@ fn shown_of(t: &Timetable, blocks: &[Block]) -> Vec<BlockShown> {
                     _ => ItemShown::default(),
                 })
                 .collect();
-            BlockShown { hidden: event.hidden, reason: reason_text(event.hidden, event.kinds, event.town()), choice, items, ..none }
+            BlockShown { hidden: event.hidden, reason: reason_text(event.hidden, event.kinds, event.town(), texts), choice, items, ..none }
         })
         .collect()
 }
 
 /// Why an event is hidden, when that is decided elsewhere: its kinds switched off in the sidebar
-/// („Übungen ausgeblendet"), or the course of the other town („Standort Senftenberg", the town it
-/// is held in).
-fn reason_text(hidden: Option<HiddenBy>, kinds: KindSet, own: Option<Town>) -> Option<String> {
+/// („Übungen ausgeblendet", each kind as the chips' plural says it), or the course of the other
+/// town („Standort Senftenberg", the town it is held in).
+fn reason_text(hidden: Option<HiddenBy>, kinds: KindSet, own: Option<Town>, texts: &i18n::Texts) -> Option<String> {
+    let words = &texts.studyplan_aside;
     match hidden? {
         HiddenBy::Kinds => {
-            let words: Vec<&str> = kinds.iter().map(plural).collect();
-            let text = match words.as_slice() {
-                [] => "Ausgeblendet".to_string(),
-                [one] => format!("{one} ausgeblendet"),
-                [rest @ .., last] => format!("{} und {last} ausgeblendet", rest.join(", ")),
-            };
-            Some(text)
+            let plurals: Vec<&str> = kinds.iter().map(words.plural).collect();
+            Some((words.kinds_hidden)(&plurals))
         }
         HiddenBy::Town(shown) => {
             let other = match shown {
                 Town::Cottbus => Town::Senftenberg,
                 Town::Senftenberg => Town::Cottbus,
             };
-            Some(format!("Standort {}", own.unwrap_or(other).label()))
+            Some((words.location)(own.unwrap_or(other).label()))
         }
         HiddenBy::Event | HiddenBy::Choice | HiddenBy::Row => None,
     }
 }
 
-/// A kind as the chips' plural says it switched off.
-fn plural(kind: EventKind) -> &'static str {
-    match kind {
-        EventKind::Lecture => "Vorlesungen",
-        EventKind::Exercise => "Übungen",
-        EventKind::Seminar => "Seminare",
-        EventKind::Practical => "Praktika",
-        EventKind::Project => "Projekte",
-        EventKind::Tutorial => "Tutorien",
-        EventKind::Consultation => "Konsultationen",
-        EventKind::Excursion => "Exkursionen",
-        EventKind::SelfStudy => "Selbststudium",
-        EventKind::Paper => "Hausarbeiten",
-        EventKind::Other => "Sonstige",
-        EventKind::Exam => "Prüfungen",
-    }
-}
-
 /// The module's notes in `t`, in the words of the semester's notes (A.5): its hard clashes, its
 /// choices without a free option and its hard exam warnings first, then the quiet lines.
-fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: TownChoice) -> Vec<Note> {
+fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: TownChoice, texts: &i18n::Texts) -> Vec<Note> {
     let own = |modules: &[String]| modules.iter().any(|module| module == id);
     let title = |module: &str| titles.get(module).cloned().unwrap_or_else(|| module.to_string());
     let (mut warnings, mut quiet): (Vec<Note>, Vec<Note>) = (Vec::new(), Vec::new());
@@ -1073,14 +1053,14 @@ fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: To
     let termine = if warned.is_empty() { Vec::new() } else { exams::termine(&t.exams, &t.modules) };
     for warning in warned {
         let other = if warning.a.module_id == id { &warning.b.module_id } else { &warning.a.module_id };
-        let text = warning_text(warning, id, &termine, &title);
+        let text = warning_text(warning, id, &termine, &title, texts);
         add(Note { warn: warning.hard, text, to: Some((other.clone(), None)) });
     }
     for (day, modules) in t.place_unknown.iter().filter(|(_, modules)| own(modules)) {
-        add(Note { warn: false, text: format!("Ort offen: {} Prüfungen am {}", modules.len(), dated(*day)), to: None });
+        add(Note { warn: false, text: (texts.studyplan_aside.room_open)(modules.len(), &dated(*day, texts)), to: None });
     }
     if t.tracks.contains(id) && t.town.is_none() && town == TownChoice::Derive {
-        add(Note { warn: false, text: "Standort wählen: Cottbus oder Senftenberg".to_string(), to: None });
+        add(Note { warn: false, text: texts.studyplan_aside.choose_location.to_string(), to: None });
     }
     warnings.extend(quiet);
     warnings
@@ -1089,35 +1069,29 @@ fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: To
 /// „0 von 4 Terminen frei: Übung · Entwicklung von Softwaresystemen", in the words of the
 /// semester's notes (`head::blocked_line`), with the event's own title.
 fn blocked_text(event: &Event) -> String {
-    blocked_line(event, &event.title)
+    blocked_line(event, &event.title, crate::i18n::locale())
 }
 
 /// „Prüfungen gleichzeitig: Mo 08.02.2027 11:00 · Mathematik W-1 · ERP - Integrierte betriebliche
 /// Systeme" or „0 min von Zentralcampus nach Senftenberg: Mo 08.02.2027 · Kraftwerkstechnik I bis
 /// 10:00 · Gentechnik ab 10:00"; a warning another Termin avoids says which, from the module's
 /// side (`avoid_text`).
-fn warning_text(warning: &ExamWarning, id: &str, termine: &[(String, Vec<TerminAt>)], title: &dyn Fn(&str) -> String) -> String {
+fn warning_text(warning: &ExamWarning, id: &str, termine: &[(String, Vec<TerminAt>)], title: &dyn Fn(&str) -> String, texts: &i18n::Texts) -> String {
+    let words = &texts.studyplan_aside;
     let (a, b) = (&warning.a, &warning.b);
-    let day = dated(warning.day);
+    let day = dated(warning.day, texts);
     let mut text = match &warning.kind {
-        WarningKind::Overlap => {
-            format!("Prüfungen gleichzeitig: {day} {} · {} · {}", clock(a.from.max(b.from)), title(&a.module_id), title(&b.module_id))
+        WarningKind::Overlap => (words.same_time)(&format!("{day} {} · {} · {}", clock(a.from.max(b.from)), title(&a.module_id), title(&b.module_id))),
+        WarningKind::Tight { gap, from, to } => {
+            let sittings = format!("{day} · {} · {}", (words.ends)(&title(&a.module_id), &clock(a.to)), (words.starts)(&title(&b.module_id), &clock(b.from)));
+            (words.tight)(*gap, &campus_name(from, texts.locale), &campus_name(to, texts.locale), &sittings)
         }
-        WarningKind::Tight { gap, from, to } => format!(
-            "{gap} min von {} nach {}: {day} · {} bis {} · {} ab {}",
-            campus_name(from),
-            campus_name(to),
-            title(&a.module_id),
-            clock(a.to),
-            title(&b.module_id),
-            clock(b.from)
-        ),
     };
     if let Some(avoid) = warning.avoid.filter(|_| !warning.hard) {
         let (mine, theirs) = if a.module_id == id { (a, b) } else { (b, a) };
         let (my_termine, their_termine) = (termine_of(termine, &mine.module_id), termine_of(termine, &theirs.module_id));
         text.push_str(" · ");
-        text.push_str(&avoid_text(warning.day, avoid, (mine, my_termine), (theirs, their_termine), &title(&theirs.module_id)));
+        text.push_str(&avoid_text(warning.day, avoid, (mine, my_termine), (theirs, their_termine), &title(&theirs.module_id), texts));
     }
     text
 }
@@ -1128,11 +1102,13 @@ fn termine_of<'a>(termine: &'a [(String, Vec<TerminAt>)], module: &str) -> &'a [
 }
 
 /// What avoids a soft exam warning on `day`, from the module's side (the module page's words,
-/// `pages::overlay`): its own Termin on the day `avoid` free of the other's („Zweittermin 11.03.
-/// passt", „Erstermin 25.02. passt" where that is its earliest), else the other module's („Analysis
-/// I am 25.02. passt"), else „andere Termine passen" (only a change of both avoids it).
-fn avoid_text(day: Day, avoid: Day, mine: (&Termin, &[TerminAt]), theirs: (&Termin, &[TerminAt]), name: &str) -> String {
-    let both = || "andere Termine passen".to_string();
+/// `pages::overlay`, the data contract's `plans`): its own Termin on the day `avoid` free of the
+/// other's („Zweittermin 11.03. passt", „Erstermin 25.02. passt" where that is its earliest), else
+/// the other module's („Analysis I am 25.02. passt"), else „andere Termine passen" (only a change
+/// of both avoids it).
+fn avoid_text(day: Day, avoid: Day, mine: (&Termin, &[TerminAt]), theirs: (&Termin, &[TerminAt]), name: &str, texts: &i18n::Texts) -> String {
+    let words = &texts.data.plans;
+    let both = || words.other_dates_fit.to_string();
     let my_issue = mine.1.iter().find(|at| at.day == day && at.termin == *mine.0);
     let their_issue = theirs.1.iter().find(|at| at.day == day && at.termin == *theirs.0);
     let (Some(my_issue), Some(their_issue)) = (my_issue, their_issue) else {
@@ -1141,24 +1117,26 @@ fn avoid_text(day: Day, avoid: Day, mine: (&Termin, &[TerminAt]), theirs: (&Term
     let instead = |list: &[TerminAt], issue: &TerminAt, against: &TerminAt| {
         list.iter().position(|at| at.day == avoid && at != issue && exams::collision(at, against).is_none())
     };
+    let when = avoid.day_month(texts.locale);
     if let Some(index) = instead(mine.1, my_issue, their_issue) {
-        let rank = if index == 0 { "Erstermin" } else { "Zweittermin" };
-        return format!("{rank} {} passt", avoid.short());
+        let fits = if index == 0 { words.first_sitting_fits } else { words.second_sitting_fits };
+        return fits(&when);
     }
     if instead(theirs.1, their_issue, my_issue).is_some() {
-        return format!("{name} am {} passt", avoid.short());
+        return (words.other_sitting_fits)(name, &when);
     }
     both()
 }
 
-/// A campus as a line names it: „Zentralcampus", „Sachsendorf", „Senftenberg".
-fn campus_name(campus: &Code<Campus>) -> String {
+/// A campus as a line names it: „Zentralcampus", „Sachsendorf", „Senftenberg" (names, the same
+/// in every language).
+fn campus_name(campus: &Code<Campus>, locale: Locale) -> String {
     match campus.known() {
         Some(Campus::Zentralcampus) => "Zentralcampus".to_string(),
         Some(Campus::Sachsendorf) => "Sachsendorf".to_string(),
         Some(Campus::Senftenberg) => "Senftenberg".to_string(),
         Some(Campus::Nord) => "Cottbus Nord".to_string(),
-        None => campus.label().to_string(),
+        None => campus.label(locale).to_string(),
     }
 }
 
@@ -1168,7 +1146,8 @@ fn campus_name(campus: &Code<Campus>) -> String {
 /// not weekly names its date instead of the weekday („Do 12.11. 13:45–15:15 · … · einmalig", a
 /// block its first and last day); a range QIS leaves open is the lecture period's
 /// („Vorlesungszeit", R12).
-fn row_text(rows: &[&Row], group: Option<&str>) -> RowText {
+fn row_text(rows: &[&Row], group: Option<&str>, texts: &i18n::Texts) -> RowText {
+    let words = &texts.studyplan_aside;
     let Some(first) = rows.first() else {
         return RowText::default();
     };
@@ -1185,29 +1164,29 @@ fn row_text(rows: &[&Row], group: Option<&str>) -> RowText {
     let to = rows.iter().filter_map(|row| row.to).max();
     let time = match (from, to) {
         (Some(from), Some(to)) => format!("{}–{}", clock(from), clock(to)),
-        _ if first.occ.all_day => "ganztags".to_string(),
-        _ if date.start_time.is_some() => "Zeit unklar".to_string(),
-        _ => "Zeit offen".to_string(),
+        _ if first.occ.all_day => words.all_day.to_string(),
+        _ if date.start_time.is_some() => words.time_unclear.to_string(),
+        _ => words.time_open.to_string(),
     };
     // The day: the weekday of a weekly Termin, the date of a single one, the days of a block.
     let day = match (single, block) {
-        (true, _) => first_day.map(|day| format!("{} {}", weekday_name(day.weekday()), day.short())),
-        (false, true) => stated.map(|(a, b)| if a == b { a.short() } else { span(a, b) }),
-        (false, false) => weekday_of(first).map(|weekday| weekday_name(weekday).to_string()),
+        (true, _) => first_day.map(|day| format!("{} {}", weekday_name(day.weekday(), texts), day.day_month(texts.locale))),
+        (false, true) => stated.map(|(a, b)| if a == b { a.day_month(texts.locale) } else { (words.span)(a, b) }),
+        (false, false) => weekday_of(first).map(|weekday| weekday_name(weekday, texts).to_string()),
     };
     let when = match day {
         Some(day) => format!("{day} {time}"),
         None => time,
     };
     let week = match (every, rhythm) {
-        _ if single => "einmalig".to_string(),
+        _ if single => words.once.to_string(),
         (Some(Every::Week), _) => "A/B".to_string(),
         (Some(Every::AWeek), _) => "A".to_string(),
         (Some(Every::BWeek), _) => "B".to_string(),
-        (Some(Every::FourWeeks), _) => "4-wöchentlich".to_string(),
-        (None, Some(Rhythm::Block)) => "Block".to_string(),
-        (None, Some(Rhythm::Other)) => date.rhythm_raw.as_deref().map(str::trim).filter(|raw| !raw.is_empty()).unwrap_or("nach Absprache").to_string(),
-        (None, _) => "Rhythmus offen".to_string(),
+        (Some(Every::FourWeeks), _) => words.every_four_weeks.to_string(),
+        (None, Some(Rhythm::Block)) => words.block.to_string(),
+        (None, Some(Rhythm::Other)) => date.rhythm_raw.as_deref().map(str::trim).filter(|raw| !raw.is_empty()).unwrap_or(words.by_arrangement).to_string(),
+        (None, _) => words.rhythm_open.to_string(),
     };
 
     let days: BTreeSet<Day> = rows.iter().flat_map(|row| row.occ.days.iter().copied()).collect();
@@ -1215,23 +1194,20 @@ fn row_text(rows: &[&Row], group: Option<&str>) -> RowText {
         rows.iter().flat_map(|row| row.occ.cancelled.iter().map(|(day, ..)| *day)).filter(|day| !days.contains(day)).collect();
     let mut detail: Vec<String> = group.map(str::to_string).into_iter().collect();
     if !single && !days.is_empty() {
-        detail.push(match days.len() {
-            1 => "1 Termin".to_string(),
-            n => format!("{n} Termine"),
-        });
+        detail.push((words.sessions)(days.len()));
     }
     match (single, cancelled.len()) {
         (_, 0) => {}
-        (true, _) => detail.push("fällt aus".to_string()),
-        (false, 1) => detail.push("1 fällt aus".to_string()),
-        (false, n) => detail.push(format!("{n} fallen aus")),
+        (true, _) => detail.push(words.cancelled_once.to_string()),
+        (false, n) => detail.push((words.cancelled)(n)),
     }
-    detail.extend(campuses(rows.iter().map(|row| row.date.campus.as_ref())));
+    detail.extend(campuses(rows.iter().map(|row| row.date.campus.as_ref()), texts.locale));
     if !single && !block {
         if rows.iter().any(|row| row.occ.assumed) {
-            detail.push("Vorlesungszeit".to_string());
+            detail.push(words.lecture_period.to_string());
         } else if let Some((a, b)) = stated {
-            detail.push(if a == b { a.short() } else { format!("{}–{}", a.short(), b.short()) });
+            let locale = texts.locale;
+            detail.push(if a == b { a.day_month(locale) } else { format!("{}–{}", a.day_month(locale), b.day_month(locale)) });
         }
     }
     RowText { when, room: rooms(rows.iter().map(|row| row.date.room_shown())), week: Some(week), detail }
@@ -1239,21 +1215,22 @@ fn row_text(rows: &[&Row], group: Option<&str>) -> RowText {
 
 /// An exam sitting's line: „Fr 12.03.2027 11:00–13:00", a window „08.–19.02. nach Absprache",
 /// a deadline „So 14.02. bis 24:00", „Termin offen"; with its room, and its campus under it.
-fn exam_text(rows: &[&ExamRow]) -> RowText {
+fn exam_text(rows: &[&ExamRow], texts: &i18n::Texts) -> RowText {
+    let words = &texts.studyplan_aside;
     let Some(first) = rows.first() else {
         return RowText::default();
     };
     let when = match &first.shape {
         ExamShape::Sitting { day, from, to } => {
             let latest = rows.iter().filter_map(|row| if let ExamShape::Sitting { to, .. } = row.shape { Some(to) } else { None }).max().unwrap_or(*to);
-            format!("{} {}–{}", dated(*day), clock(*from), clock(latest))
+            format!("{} {}–{}", dated(*day, texts), clock(*from), clock(latest))
         }
-        ExamShape::Deadline { day } => format!("{} {} bis 24:00", weekday_name(day.weekday()), day.short()),
-        ExamShape::Window { first, last } => format!("{} nach Absprache", span(*first, *last)),
-        ExamShape::DayOnly { day } => format!("{} Uhrzeit offen", dated(*day)),
-        ExamShape::Open => "Termin offen".to_string(),
+        ExamShape::Deadline { day } => format!("{} {} {}", weekday_name(day.weekday(), texts), day.day_month(texts.locale), texts.data.timetable.by_midnight),
+        ExamShape::Window { first, last } => format!("{} {}", (words.span)(*first, *last), words.by_arrangement),
+        ExamShape::DayOnly { day } => format!("{} {}", dated(*day, texts), texts.data.timetable.time_open),
+        ExamShape::Open => words.date_open.to_string(),
     };
-    let detail = campuses(rows.iter().map(|row| row.date.campus.as_ref())).into_iter().collect();
+    let detail = campuses(rows.iter().map(|row| row.date.campus.as_ref()), texts.locale).into_iter().collect();
     RowText { when, room: rooms(rows.iter().map(|row| row.date.room_shown())), week: None, detail }
 }
 
@@ -1280,9 +1257,9 @@ fn without_campus(room: &str) -> &str {
 }
 
 /// The campuses of a Termin, each once: „Zentralcampus".
-fn campuses<'a>(codes: impl Iterator<Item = Option<&'a Code<Campus>>>) -> Option<String> {
+fn campuses<'a>(codes: impl Iterator<Item = Option<&'a Code<Campus>>>, locale: Locale) -> Option<String> {
     let mut seen: Vec<String> = Vec::new();
-    for name in codes.flatten().map(campus_name) {
+    for name in codes.flatten().map(|campus| campus_name(campus, locale)) {
         if !seen.contains(&name) {
             seen.push(name);
         }
@@ -1297,23 +1274,14 @@ fn range(rows: &[&Row]) -> Option<(Day, Day)> {
     Some((*first.iter().min()?, *last.iter().max()?))
 }
 
-/// „Fr 12.03.2027".
-fn dated(day: Day) -> String {
-    format!("{} {}", weekday_name(day.weekday()), day.german())
+/// „Fr 12.03.2027", "Fri 12 Mar 2027".
+fn dated(day: Day, texts: &i18n::Texts) -> String {
+    format!("{} {}", weekday_name(day.weekday(), texts), day.date(texts.locale))
 }
 
-/// „08.–19.02." within a month, else „28.01.–05.02.".
-fn span(first: Day, last: Day) -> String {
-    let ((first_year, first_month, first_day), (last_year, last_month, _)) = (first.ymd(), last.ymd());
-    if (first_year, first_month) == (last_year, last_month) {
-        format!("{first_day:02}.–{}", last.short())
-    } else {
-        format!("{}–{}", first.short(), last.short())
-    }
-}
-
-fn weekday_name(weekday: u8) -> &'static str {
-    WEEKDAYS.get(usize::from(weekday).wrapping_sub(1)).copied().unwrap_or("")
+/// The weekday as a line names it, 1 = Monday: „Mo", "Mon"; nothing for what is no weekday.
+fn weekday_name(weekday: u8, texts: &i18n::Texts) -> &'static str {
+    texts.data.common.weekday_short(i64::from(weekday)).unwrap_or_default()
 }
 
 /// A row's weekday as QIS states it, 1 = Monday.
@@ -1327,11 +1295,11 @@ fn group_of(row: &Row) -> Option<&str> {
 }
 
 /// What an event is called in a line: its type as QIS writes it („Übung", „Vorlesung/Übung"),
-/// else its first kind.
-fn kind_word(event: &Event) -> String {
+/// else its first kind, else „Termin".
+fn kind_word(event: &Event, texts: &i18n::Texts) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
         Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or("Termin", EventKind::label).to_string(),
+        None => event.kinds.iter().next().map_or(texts.data.plans.session, |kind| kind.label(texts.locale)).to_string(),
     }
 }
 
@@ -1369,12 +1337,12 @@ pub(super) fn only_its_events(t: &Timetable, id: &str) -> Vec<u32> {
 /// the one it counts for now, wherever that stands. A row over several Fachsemester stands in each
 /// semester it was taken over into; of its placeholders that reach `sem`, the last one is offered,
 /// the one in `sem` where there is one.
-fn placeholder_choices(doc: &PlanDoc, sem: SemesterKey, start: Option<SemesterKey>, fills: Option<u32>) -> Vec<(u32, String)> {
+fn placeholder_choices(doc: &PlanDoc, sem: SemesterKey, start: Option<SemesterKey>, fills: Option<u32>, texts: &i18n::Texts) -> Vec<(u32, String)> {
     let offered = |p: &Placeholder| covers(p, sem, start) && !doc.same_row(p).iter().any(|q| q.semester > p.semester && covers(q, sem, start));
     doc.placeholders
         .iter()
         .filter(|p| Some(p.pid) == fills || offered(p))
-        .map(|p| (p.pid, format!("Für „{}“", p.name)))
+        .map(|p| (p.pid, (texts.studyplan_aside.for_placeholder)(&p.name)))
         .collect()
 }
 
@@ -1571,9 +1539,9 @@ mod tests {
         let t = table(&uebung(), &[], &["12104"], &two_sws(), &Selection::default());
         let first = t.events.first().unwrap().rows.first().unwrap();
         // Twice in the break (21.12., 28.12.): 14 of 16 Mondays are held.
-        assert_eq!(row_text(&[first], None).text(), "Mo 15:30–17:00 · LG 10/214 · A/B | 14 Termine · Zentralcampus · 12.10.–25.01.");
+        assert_eq!(row_text(&[first], None, &i18n::DE).text(), "Mo 15:30–17:00 · LG 10/214 · A/B | 14 Termine · Zentralcampus · 12.10.–25.01.");
         // The day and the time are bold, the rest follows; how many and where under it.
-        let text = row_text(&[first], None);
+        let text = row_text(&[first], None, &i18n::DE);
         assert_eq!((text.when.as_str(), text.rest().as_deref()), ("Mo 15:30–17:00", Some("LG 10/214 · A/B")));
 
         // A-weeks, a group, a cancellation; the campus QIS ends the room with is the second line's.
@@ -1585,7 +1553,7 @@ mod tests {
         let t = table(&rows, &[], &["12104"], &[], &Selection::default());
         let row = t.events.first().unwrap().rows.first().unwrap();
         assert_eq!(
-            row_text(&[row], group_of(row)).text(),
+            row_text(&[row], group_of(row), &i18n::DE).text(),
             "Di 07:30–09:00 · Hauptgebäude - HG 0.20 · A | 1-Gruppe · 7 Termine · 1 fällt aus · Zentralcampus · 06.10.–26.01."
         );
 
@@ -1593,26 +1561,26 @@ mod tests {
         let rows = [teaching("2", 1, "Übung", 2, "11:45", "13:15").rhythm("single").range("2027-02-23", "2027-02-23").room("HG 0.20")];
         let t = table(&rows, &[], &["12104"], &[], &Selection::default());
         let row = t.events.first().unwrap().rows.first().unwrap();
-        assert_eq!(row_text(&[row], None).text(), "Di 23.02. 11:45–13:15 · HG 0.20 · einmalig | Zentralcampus");
+        assert_eq!(row_text(&[row], None, &i18n::DE).text(), "Di 23.02. 11:45–13:15 · HG 0.20 · einmalig | Zentralcampus");
 
         // A block names its days.
         let rows = [teaching("8", 1, "Übung", 1, "09:00", "16:00").rhythm("block").range("2027-02-22", "2027-02-26").room("HG 0.20")];
         let t = table(&rows, &[], &["12104"], &[], &Selection::default());
         let row = t.events.first().unwrap().rows.first().unwrap();
-        assert!(row_text(&[row], None).text().starts_with("22.–26.02. 09:00–16:00 · HG 0.20 · Block | "), "{}", row_text(&[row], None).text());
+        assert!(row_text(&[row], None, &i18n::DE).text().starts_with("22.–26.02. 09:00–16:00 · HG 0.20 · Block | "), "{}", row_text(&[row], None, &i18n::DE).text());
 
         // Without a range the lecture period stands in, and the line says so.
         let rows = [teaching("3", 1, "Übung", 3, "09:15", "10:45").undated()];
         let t = table(&rows, &[], &["12104"], &[], &Selection::default());
         let row = t.events.first().unwrap().rows.first().unwrap();
-        assert_eq!(row_text(&[row], None).text(), "Mi 09:15–10:45 · Raum 3/1 · A/B | 15 Termine · Zentralcampus · Vorlesungszeit");
+        assert_eq!(row_text(&[row], None, &i18n::DE).text(), "Mi 09:15–10:45 · Raum 3/1 · A/B | 15 Termine · Zentralcampus · Vorlesungszeit");
 
         // One Termin in two rooms, one of them ending later: one line, the latest end, both rooms.
         let mut late = teaching("4", 2, "Übung", 4, "09:15", "10:45").room("B");
         late.0.date.end_time = Some("11:30".into());
         let rows = [teaching("4", 1, "Übung", 4, "09:15", "10:45").room("A"), late];
         let t = table(&rows, &[], &["12104"], &[], &Selection::default());
-        let block = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen")).remove(0);
+        let block = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"), &i18n::DE).remove(0);
         assert_eq!(texts(&block), vec!["Do 09:15–11:30 · A / B · A/B | 15 Termine · Zentralcampus · 08.10.–28.01.".to_string()]);
         assert_eq!(without_campus("Gebäude 14.E - SFB - 14E.202 Rechner- Pool II - Campus Senftenberg"), "Gebäude 14.E - SFB - 14E.202 Rechner- Pool II");
         assert_eq!(without_campus(" LG 10/214 "), "LG 10/214");
@@ -1621,7 +1589,7 @@ mod tests {
     #[test]
     fn the_line_of_an_option_is_its_choice_open_or_made() {
         let t = table(&uebung(), &[], &["12104"], &two_sws(), &Selection::default());
-        let blocks = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"));
+        let blocks = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"), &i18n::DE);
         let block = blocks.first().unwrap();
         // The event's title is the module's: its head says only what it is.
         assert_eq!(block.head, "Übung");
@@ -1635,7 +1603,7 @@ mod tests {
                 "( ) Di 17:30–19:00 · Raum 148369/4 · A/B | 14 Termine · Zentralcampus · 13.10.–26.01.",
             ]
         );
-        let shown = shown_of(&t, &blocks);
+        let shown = shown_of(&t, &blocks, &i18n::DE);
         // Each state names its block: the keyed list finds it by that, not by its place.
         assert_eq!(shown.iter().map(|s| (s.exam, s.index)).collect::<Vec<_>>(), blocks.iter().map(|b| (b.exam, b.index)).collect::<Vec<_>>());
         assert_eq!(shown.first().unwrap().choice, Some((4, false)));
@@ -1645,7 +1613,7 @@ mod tests {
         let hidden = RowKey::of(&uebung().get(1).unwrap().0.date).unwrap();
         let selection = Selection { hidden_rows: BTreeSet::from([hidden]), ..Selection::default() };
         let t = table(&uebung(), &[], &["12104"], &two_sws(), &selection);
-        let shown = shown_of(&t, &blocks_of(&t, "12104", None));
+        let shown = shown_of(&t, &blocks_of(&t, "12104", None, &i18n::DE), &i18n::DE);
         let first = shown.first().unwrap();
         assert_eq!(first.choice, Some((3, false)));
         assert_eq!(first.items.get(2).map(|item| (item.hidden, item.choosable)), Some((Some(HiddenBy::Row), false)));
@@ -1655,9 +1623,9 @@ mod tests {
         let chosen = RowKey::of(&uebung().first().unwrap().0.date).unwrap();
         let selection = Selection { chosen_rows: BTreeSet::from([chosen]), ..Selection::default() };
         let t = table(&uebung(), &[], &["12104"], &two_sws(), &selection);
-        let after = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"));
+        let after = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"), &i18n::DE);
         assert_eq!(after, blocks, "a choice changes what is shown, not what is listed");
-        let shown = shown_of(&t, &after);
+        let shown = shown_of(&t, &after, &i18n::DE);
         let first = shown.first().unwrap();
         assert_eq!(first.choice, Some((4, true)));
         let states: Vec<(bool, bool, Option<HiddenBy>)> = first.items.iter().skip(1).map(|item| (item.chosen, item.choosable, item.hidden)).collect();
@@ -1675,7 +1643,7 @@ mod tests {
             teaching("5", 3, "Übung", 2, "13:45", "15:15").group("Gruppe B").title("Übung zu EvS"),
         ];
         let t = table(&rows, &[], &["12104"], &[], &Selection::default());
-        let block = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen")).remove(0);
+        let block = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"), &i18n::DE).remove(0);
         assert_eq!(block.head, "Übung · Übung zu EvS");
         assert_eq!(
             texts(&block),
@@ -1694,20 +1662,20 @@ mod tests {
         let rows = [teaching("6", 1, "Vorlesung/Übung", 1, "09:15", "10:45")];
         let hidden = KindSet::default().with(EventKind::Lecture).with(EventKind::Exercise);
         let t = table(&rows, &[], &["12104"], &[], &Selection { hidden_kinds: hidden, ..Selection::default() });
-        let shown = shown_of(&t, &blocks_of(&t, "12104", None));
+        let shown = shown_of(&t, &blocks_of(&t, "12104", None, &i18n::DE), &i18n::DE);
         let first = shown.first().unwrap();
         assert_eq!(first.reason.as_deref(), Some("Vorlesungen und Übungen ausgeblendet"));
         assert_eq!(first.items.first().unwrap().hidden, Some(HiddenBy::Kinds));
-        let town = reason_text(Some(HiddenBy::Town(Town::Cottbus)), KindSet::default(), Some(Town::Senftenberg));
+        let town = reason_text(Some(HiddenBy::Town(Town::Cottbus)), KindSet::default(), Some(Town::Senftenberg), &i18n::DE);
         assert_eq!(town.as_deref(), Some("Standort Senftenberg"));
-        assert_eq!(reason_text(Some(HiddenBy::Event), KindSet::default(), None), None);
+        assert_eq!(reason_text(Some(HiddenBy::Event), KindSet::default(), None, &i18n::DE), None);
     }
 
     #[test]
     fn exam_sittings_read_as_their_shape() {
         let exams = [exam("148689", 1, "2027-03-12", "11:00", "13:00"), exam("148689", 2, "2027-03-26", "", "")];
         let t = table(&[teaching("7", 1, "Vorlesung", 2, "11:30", "13:00")], &exams, &["12104"], &[], &Selection::default());
-        let blocks = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"));
+        let blocks = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"), &i18n::DE);
         let sittings = blocks.iter().find(|block| block.exam).unwrap();
         assert_eq!(sittings.head, "Prüfung");
         assert_eq!(
@@ -1717,8 +1685,33 @@ mod tests {
                 "Fr 26.03.2027 Uhrzeit offen · Zentrales Hörsaalgebäude - Audimax 1 | Zentralcampus",
             ]
         );
-        assert_eq!(span(day("2027-02-08"), day("2027-02-19")), "08.–19.02.");
-        assert_eq!(span(day("2027-01-28"), day("2027-02-05")), "28.01.–05.02.");
+        assert_eq!((i18n::DE.studyplan_aside.span)(day("2027-02-08"), day("2027-02-19")), "08.–19.02.");
+        assert_eq!((i18n::DE.studyplan_aside.span)(day("2027-01-28"), day("2027-02-05")), "28.01.–05.02.");
+    }
+
+    #[test]
+    fn the_panel_reads_in_english_too() {
+        let en = &i18n::EN;
+        let exams = [exam("148689", 1, "2027-03-12", "11:00", "13:00"), exam("148689", 2, "2027-03-26", "", "")];
+        let t = table(&uebung(), &exams, &["12104"], &two_sws(), &Selection::default());
+        let first = t.events.first().unwrap().rows.first().unwrap();
+        // QIS's words (the room, the campus) stay as QIS writes them.
+        assert_eq!(row_text(&[first], None, en).text(), "Mon 15:30–17:00 · LG 10/214 · A/B | 14 sessions · Zentralcampus · 12 Oct–25 Jan");
+        let blocks = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"), en);
+        let sittings = blocks.iter().find(|block| block.exam).unwrap();
+        assert_eq!(sittings.head, "Exam");
+        assert_eq!(
+            texts(sittings),
+            vec![
+                "Fri 12 Mar 2027 11:00–13:00 · Zentrales Hörsaalgebäude - Audimax 1 | Zentralcampus",
+                "Fri 26 Mar 2027 time to be announced · Zentrales Hörsaalgebäude - Audimax 1 | Zentralcampus",
+            ]
+        );
+        let hidden = KindSet::default().with(EventKind::Lecture).with(EventKind::Exercise).with(EventKind::Seminar);
+        assert_eq!(reason_text(Some(HiddenBy::Kinds), hidden, None, en).as_deref(), Some("Lectures, exercises and seminars hidden"));
+        assert_eq!(reason_text(Some(HiddenBy::Kinds), KindSet::default(), None, en).as_deref(), Some("Hidden"));
+        assert_eq!(reason_text(Some(HiddenBy::Town(Town::Cottbus)), KindSet::default(), None, en).as_deref(), Some("Location: Senftenberg"));
+        assert_eq!((en.studyplan_aside.span)(day("2027-01-28"), day("2027-02-05")), "28 Jan–5 Feb");
     }
 
     #[test]
@@ -1734,9 +1727,9 @@ mod tests {
         let titles = BTreeMap::from([("12102".to_string(), "Programmierpraktikum".to_string())]);
         // The clash stands at its rows („Überschneidung") and in the week, not as a card here
         // (owner's redesign of 2026-09-25).
-        assert!(notes_of(&t, "12102", &titles, TownChoice::Derive).is_empty());
+        assert!(notes_of(&t, "12102", &titles, TownChoice::Derive, &i18n::DE).is_empty());
         // A module without a clash has no note of it.
-        assert!(notes_of(&t, "12104", &titles, TownChoice::Derive).is_empty());
+        assert!(notes_of(&t, "12104", &titles, TownChoice::Derive, &i18n::DE).is_empty());
         // Removing 12102 takes what the store keeps of its own event along, not 12107's.
         assert_eq!(only_its_events(&t, "12102"), vec![149408]);
     }
@@ -1762,7 +1755,7 @@ mod tests {
         };
         // 12104 has a Termin, 11103 none.
         let t = table(&[teaching("7", 1, "Vorlesung", 2, "11:30", "13:00")], &[], &["12104", "11103"], &[], &Selection::default());
-        let lead = |info: Info| lead_of(&info, &t, info.place.sem.unwrap());
+        let lead = |info: Info| lead_of(&info, &t, info.place.sem.unwrap(), &i18n::DE);
         // A semester before the current one is over, whether the data still has dates of it or
         // none at all (retention removes them).
         let over = Some("WiSe 2025/26 ist vorbei; vergangene Termine fehlen im Datenstand.".to_string());
@@ -1779,6 +1772,13 @@ mod tests {
         );
         assert_eq!(lead(info("11103", "2026W", true, Some(TurnusSeason::Both))).as_deref(), Some("Keine Termine im WiSe 2026/27."));
         assert_eq!(lead(info("12104", "2026W", true, None)), None);
+        // In English, with the semester's English name.
+        let english = |info: Info| lead_of(&info, &t, info.place.sem.unwrap(), &i18n::EN);
+        assert_eq!(
+            english(info("11103", "2026W", true, Some(TurnusSeason::Summer))).as_deref(),
+            Some("No dates in Winter 2026/27 (in summer, according to the description).")
+        );
+        assert_eq!(english(info("11103", "2027S", false, None)).as_deref(), Some("Summer 2027: no dates published yet."));
     }
 
     #[test]
@@ -1787,11 +1787,11 @@ mod tests {
         let error = DataError { unavailable: false, message: "database is locked".into() };
         let failed = info_nowhere(&place, Err(&error));
         assert!(!failed.missing);
-        let shown = shown_of_panel(&failed, None);
+        let shown = shown_of_panel(&failed, None, &i18n::DE);
         assert_eq!((shown.body.error, shown.body.lead), (Some(error), None));
         let unknown = info_nowhere(&place, Ok(None));
         assert!(unknown.missing);
-        assert_eq!(shown_of_panel(&unknown, None).body.lead.as_deref(), Some("Nicht im Studienplan."));
+        assert_eq!(shown_of_panel(&unknown, None, &i18n::DE).body.lead.as_deref(), Some("Nicht im Studienplan."));
     }
 
     #[test]
@@ -1828,21 +1828,23 @@ mod tests {
             ..PlanDoc::default()
         };
         let pids = |choices: Vec<(u32, String)>| choices.into_iter().map(|(pid, _)| pid).collect::<Vec<_>>();
-        assert_eq!(pids(placeholder_choices(&doc, key("2026W"), Some(key("2026W")), None)), vec![1, 2]);
+        assert_eq!(pids(placeholder_choices(&doc, key("2026W"), Some(key("2026W")), None, &i18n::DE)), vec![1, 2]);
         // The span of FS 1–3 reaches the summer; counted from where it stands it does too.
-        assert_eq!(pids(placeholder_choices(&doc, key("2027S"), Some(key("2026W")), None)), vec![2, 3]);
-        assert_eq!(pids(placeholder_choices(&doc, key("2027S"), None, None)), vec![2, 3]);
+        assert_eq!(pids(placeholder_choices(&doc, key("2027S"), Some(key("2026W")), None, &i18n::DE)), vec![2, 3]);
+        assert_eq!(pids(placeholder_choices(&doc, key("2027S"), None, None, &i18n::DE)), vec![2, 3]);
         // The one it counts for stays offered wherever it stands.
-        assert_eq!(pids(placeholder_choices(&doc, key("2027W"), Some(key("2026W")), Some(1))), vec![1, 2]);
-        let first = placeholder_choices(&doc, key("2026W"), None, None);
+        assert_eq!(pids(placeholder_choices(&doc, key("2027W"), Some(key("2026W")), Some(1), &i18n::DE)), vec![1, 2]);
+        let first = placeholder_choices(&doc, key("2026W"), None, None, &i18n::DE);
         assert_eq!(first.first().map(|(_, label)| label.as_str()), Some("Für „Fachübergreifendes Studium“"));
+        let english = placeholder_choices(&doc, key("2026W"), None, None, &i18n::EN);
+        assert_eq!(english.first().map(|(_, label)| label.as_str()), Some("For “Fachübergreifendes Studium”"));
         // The Anwendungsfach's row taken over into the summer too: there, and after it, that one
         // is offered.
         let mut both = doc.clone();
         both.placeholders.push(Placeholder { pid: 4, semester: key("2027S"), ..placeholder(2, "2026W", (1, 3), "Anwendungsfach") });
-        assert_eq!(pids(placeholder_choices(&both, key("2027S"), Some(key("2026W")), None)), vec![3, 4]);
-        assert_eq!(pids(placeholder_choices(&both, key("2027S"), Some(key("2026W")), Some(2))), vec![2, 3, 4]);
-        assert_eq!(pids(placeholder_choices(&both, key("2027W"), Some(key("2026W")), None)), vec![4]);
-        assert_eq!(pids(placeholder_choices(&both, key("2026W"), Some(key("2026W")), None)), vec![1, 2]);
+        assert_eq!(pids(placeholder_choices(&both, key("2027S"), Some(key("2026W")), None, &i18n::DE)), vec![3, 4]);
+        assert_eq!(pids(placeholder_choices(&both, key("2027S"), Some(key("2026W")), Some(2), &i18n::DE)), vec![2, 3, 4]);
+        assert_eq!(pids(placeholder_choices(&both, key("2027W"), Some(key("2026W")), None, &i18n::DE)), vec![4]);
+        assert_eq!(pids(placeholder_choices(&both, key("2026W"), Some(key("2026W")), None, &i18n::DE)), vec![1, 2]);
     }
 }

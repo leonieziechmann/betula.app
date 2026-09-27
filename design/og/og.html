@@ -8,6 +8,7 @@
    Render them to app/assets/og-<season>.png:
      for s in spring summer autumn winter; do
        node e2e/shot.mjs "file:///<repo>/design/og/og.html?season=$s" app/assets/og-$s.png 1200 630
+       node e2e/shot.mjs "file:///<repo>/design/og/og.html?season=$s&lang=en" app/assets/og-$s-en.png 1200 630
      done
    The dots are a cut of the program map (catalog::graph), drawn by hand into this file: the
    picture says "programs and how they hang together", it is not data.
@@ -44,11 +45,20 @@ svg.map { position: absolute; right: -40px; top: 0; width: 520px; height: 550px;
 svg.crown { position: absolute; left: 0; top: 0; width: 1120px; height: 96px; }
 </style>
 <script>
-  // ?season=spring|summer|autumn|winter (summer without it, as the site without its script).
+  // ?season=spring|summer|autumn|winter (summer without it, as the site without its script), and
+  // ?lang=en for the picture of the English pages (app/assets/og-<season>-en.png; German without it).
+  const WORDS = {
+    en: { h1: "Every module and degree programme of BTU Cottbus-Senftenberg.", p: "Search, filter, plan your studies.", catalog: "Module catalogue", unofficial: "unofficial" },
+  };
+  const words = WORDS[new URLSearchParams(location.search).get("lang")];
   const TONES = { spring: ["#9fbf7f", "#cbbc62"], summer: ["#84b08a"], autumn: ["#d6ab61"], winter: ["#89736c"] };
   const asked = new URLSearchParams(location.search).get("season");
   const season = asked in TONES ? asked : "summer";
   addEventListener("DOMContentLoaded", () => {
+    if (words) {
+      document.documentElement.lang = "en";
+      for (const [id, text] of Object.entries(words)) document.getElementById(id).textContent = text;
+    }
     const [tone, catkins] = TONES[season];
     const layers = [[tone, "og-head", "crown"]].concat(catkins ? [[catkins, "og-head-ck", "crown-ck"]] : []);
     document.querySelector("svg.crown").innerHTML = layers.map(([colour, head, tile], i) =>
@@ -81,10 +91,10 @@ svg.crown { position: absolute; left: 0; top: 0; width: 1120px; height: 96px; }
       <svg class="mark" width="76" height="76" viewBox="0 0 96 96"><rect width="96" height="96"/><path d="M0 20h40v8H0zM68 36h28v8H68zM0 52h16v8H0zM52 68h44v8H52z"/></svg>
       <span class="wordmark"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span>
     </div>
-    <h1>Alle Module und Studiengänge der BTU Cottbus-Senftenberg.</h1>
-    <p>Durchsuchen, filtern, Studium planen.</p>
+    <h1 id="h1">Alle Module und Studiengänge der BTU Cottbus-Senftenberg.</h1>
+    <p id="p">Durchsuchen, filtern, Studium planen.</p>
   </div>
-  <div class="foot"><b>betula.app</b><i></i><span>Modulkatalog</span><i></i><span>inoffiziell</span></div>
+  <div class="foot"><b>betula.app</b><i></i><span id="catalog">Modulkatalog</span><i></i><span id="unofficial">inoffiziell</span></div>
 </div>
 </body>
 </html>

@@ -9,6 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::Locale;
 use crate::labels::{Labelled, TeachingForm};
 
 /// FROZEN ORDER: the index is the bit in `Subscription::hidden_kinds`. Append only.
@@ -66,38 +67,62 @@ impl EventKind {
     }
 
     /// The chip's text.
-    pub fn label(self) -> &'static str {
-        match self {
-            EventKind::Lecture => "Vorlesung",
-            EventKind::Exercise => "Übung",
-            EventKind::Seminar => "Seminar",
-            EventKind::Practical => "Praktikum",
-            EventKind::Project => "Projekt",
-            EventKind::Tutorial => "Tutorium",
-            EventKind::Consultation => "Konsultation",
-            EventKind::Excursion => "Exkursion",
-            EventKind::SelfStudy => "Selbststudium",
-            EventKind::Paper => "Hausarbeit",
-            EventKind::Other => "Sonstiges",
-            EventKind::Exam => "Prüfung",
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, EventKind::Lecture) => "Vorlesung",
+            (Locale::De, EventKind::Exercise) => "Übung",
+            (Locale::De, EventKind::Seminar) => "Seminar",
+            (Locale::De, EventKind::Practical) => "Praktikum",
+            (Locale::De, EventKind::Project) => "Projekt",
+            (Locale::De, EventKind::Tutorial) => "Tutorium",
+            (Locale::De, EventKind::Consultation) => "Konsultation",
+            (Locale::De, EventKind::Excursion) => "Exkursion",
+            (Locale::De, EventKind::SelfStudy) => "Selbststudium",
+            (Locale::De, EventKind::Paper) => "Hausarbeit",
+            (Locale::De, EventKind::Other) => "Sonstiges",
+            (Locale::De, EventKind::Exam) => "Prüfung",
+            (Locale::En, EventKind::Lecture) => "Lecture",
+            (Locale::En, EventKind::Exercise) => "Exercise",
+            (Locale::En, EventKind::Seminar) => "Seminar",
+            (Locale::En, EventKind::Practical) => "Practical",
+            (Locale::En, EventKind::Project) => "Project",
+            (Locale::En, EventKind::Tutorial) => "Tutorial",
+            (Locale::En, EventKind::Consultation) => "Consultation",
+            (Locale::En, EventKind::Excursion) => "Excursion",
+            (Locale::En, EventKind::SelfStudy) => "Self-study",
+            (Locale::En, EventKind::Paper) => "Term paper",
+            (Locale::En, EventKind::Other) => "Other",
+            (Locale::En, EventKind::Exam) => "Exam",
         }
     }
 
     /// The label where a slot of the week grid has room for a few letters.
-    pub fn short(self) -> &'static str {
-        match self {
-            EventKind::Lecture => "VL",
-            EventKind::Exercise => "Ü",
-            EventKind::Seminar => "Sem",
-            EventKind::Practical => "Prak",
-            EventKind::Project => "Proj",
-            EventKind::Tutorial => "Tut",
-            EventKind::Consultation => "Kons",
-            EventKind::Excursion => "Exk",
-            EventKind::SelfStudy => "Selbst",
-            EventKind::Paper => "HA",
-            EventKind::Other => "Sonst",
-            EventKind::Exam => "Prüf",
+    pub fn short(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, EventKind::Lecture) => "VL",
+            (Locale::De, EventKind::Exercise) => "Ü",
+            (Locale::De, EventKind::Seminar) => "Sem",
+            (Locale::De, EventKind::Practical) => "Prak",
+            (Locale::De, EventKind::Project) => "Proj",
+            (Locale::De, EventKind::Tutorial) => "Tut",
+            (Locale::De, EventKind::Consultation) => "Kons",
+            (Locale::De, EventKind::Excursion) => "Exk",
+            (Locale::De, EventKind::SelfStudy) => "Selbst",
+            (Locale::De, EventKind::Paper) => "HA",
+            (Locale::De, EventKind::Other) => "Sonst",
+            (Locale::De, EventKind::Exam) => "Prüf",
+            (Locale::En, EventKind::Lecture) => "Lec",
+            (Locale::En, EventKind::Exercise) => "Ex",
+            (Locale::En, EventKind::Seminar) => "Sem",
+            (Locale::En, EventKind::Practical) => "Prac",
+            (Locale::En, EventKind::Project) => "Proj",
+            (Locale::En, EventKind::Tutorial) => "Tut",
+            (Locale::En, EventKind::Consultation) => "Cons",
+            (Locale::En, EventKind::Excursion) => "Exc",
+            (Locale::En, EventKind::SelfStudy) => "Self",
+            (Locale::En, EventKind::Paper) => "TP",
+            (Locale::En, EventKind::Other) => "Other",
+            (Locale::En, EventKind::Exam) => "Exam",
         }
     }
 
@@ -325,10 +350,12 @@ mod tests {
         for form in TeachingForm::ALL {
             assert_eq!(EventKind::of_form(*form).code(), form.code());
         }
-        let labels: Vec<&str> = EventKind::ALL.iter().map(|k| k.label()).collect();
+        let labels: Vec<&str> = EventKind::ALL.iter().map(|k| k.label(Locale::De)).collect();
         assert_eq!(labels.join(" "), "Vorlesung Übung Seminar Praktikum Projekt Tutorium Konsultation Exkursion Selbststudium Hausarbeit Sonstiges Prüfung");
-        let shorts: Vec<&str> = EventKind::ALL.iter().map(|k| k.short()).collect();
+        let shorts: Vec<&str> = EventKind::ALL.iter().map(|k| k.short(Locale::De)).collect();
         assert_eq!(shorts.join(" "), "VL Ü Sem Prak Proj Tut Kons Exk Selbst HA Sonst Prüf");
+        let labels: Vec<&str> = EventKind::ALL.iter().map(|k| k.label(Locale::En)).collect();
+        assert_eq!(labels.join(", "), "Lecture, Exercise, Seminar, Practical, Project, Tutorial, Consultation, Excursion, Self-study, Term paper, Other, Exam");
     }
 
     #[test]

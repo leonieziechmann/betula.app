@@ -50,7 +50,8 @@ const PRECACHE = [
   "/manifest.webmanifest",
 ];
 const ASSET = /^\/(assets\/|pkg\/|favicon\.ico$|apple-touch-icon(-precomposed)?\.png$|manifest\.webmanifest$)/;
-const NEVER = /^\/(api\/|access|sw\.js$|cards\/|calendar\/)/;
+// A language's cards and calendar feeds too (`/en/cards/…`, `/en/calendar/…`).
+const NEVER = /^\/(api\/|access|sw\.js$|([a-z]{2}\/)?(cards|calendar)\/)/;
 
 // Did this build answer? Only such answers are kept.
 const ours = (response) => response.ok && response.headers.get("x-build") === VERSION;

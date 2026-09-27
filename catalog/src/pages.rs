@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::db::{Database, DbError};
+use crate::i18n::Locale;
 use crate::filter::{CatalogQuery, FitsFilter, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey, TurnusFilter};
 use crate::labels::{Labelled, ModuleKind, OfferStatus};
 use crate::plan::{self, SemesterPlan};
@@ -497,8 +498,10 @@ pub struct CatalogData {
     pub meta: Meta,
 }
 
-pub fn catalog(db: &dyn Database, url: &CatalogUrl) -> Result<CatalogData, DbError> {
-    let scope = catalog_scope(db, &url.query)?;
+/// The catalog of `url` for a page in `locale` (the credits of a semester's requirements are
+/// written in it).
+pub fn catalog(db: &dyn Database, url: &CatalogUrl, locale: Locale) -> Result<CatalogData, DbError> {
+    let scope = catalog_scope(db, &url.query, locale)?;
     Ok(CatalogData {
         page: queries::catalog_page(db, &scope.effective, url.offset(), PAGE_SIZE)?,
         plan_semesters: scope.plan_semesters,
@@ -528,7 +531,9 @@ pub struct CatalogSummary {
 }
 
 pub fn catalog_summary(db: &dyn Database, query: &CatalogQuery) -> Result<CatalogSummary, DbError> {
-    let scope = catalog_scope(db, query)?;
+    // The summary says nothing about a semester's requirements, only which areas they point at:
+    // the language their credits are written in does not matter here.
+    let scope = catalog_scope(db, query, Locale::default())?;
     // The list a program's filter chose has been counted with the program's two lists already.
     let counted = match (&scope.effective.program, &scope.program) {
         (Some(chosen), Some(_)) => match chosen.relation {
@@ -563,7 +568,7 @@ struct CatalogScope {
     fues_total: Option<u64>,
 }
 
-fn catalog_scope(db: &dyn Database, query: &CatalogQuery) -> Result<CatalogScope, DbError> {
+fn catalog_scope(db: &dyn Database, query: &CatalogQuery, locale: Locale) -> Result<CatalogScope, DbError> {
     let program = match &query.program {
         Some(scope) => queries::program_by_slug(db, &scope.program_slug)?,
         None => None,
@@ -587,7 +592,7 @@ fn catalog_scope(db: &dyn Database, query: &CatalogQuery) -> Result<CatalogScope
     let mut semester_plan = None;
     if let (Some(scope), Some(program)) = (query.program.as_mut(), program.as_ref()) {
         if let (Some(PlanSemesterFilter::Semester(semester)), true) = (scope.plan_semester, program.has_plan) {
-            let plan = plan::semester_plan(semester, &queries::program_plan_entries(db, &program.id)?, &areas);
+            let plan = plan::semester_plan(semester, &queries::program_plan_entries(db, &program.id)?, &areas, locale);
             scope.semester_areas = plan.area_ids();
             scope.semester_electives = plan.any_elective();
             semester_plan = Some(plan);
@@ -762,7 +767,8 @@ pub fn study_plans(db: &dyn Database, program_id: &str) -> Result<usize, DbError
     if entries.is_empty() {
         return Ok(0);
     }
-    Ok(variants::plan_variants(&entries, &queries::program_plan_totals(db, program_id)?).len())
+    // Only counted: the language of their labels does not matter.
+    Ok(variants::plan_variants(&entries, &queries::program_plan_totals(db, program_id)?, Locale::default()).len())
 }
 
 pub fn program(db: &dyn Database, slug: &str) -> Result<Option<ProgramData>, DbError> {
@@ -861,7 +867,10 @@ pub fn bookmarks(db: &dyn Database, ids: &[String], sort: BookmarkSort, descendi
 #[derive(Clone, Debug, PartialEq)]
 pub struct StudyplanData {
     pub key: SemesterKey,
-    /// The semester's label as the snapshot writes it („WiSe 2026/27"), else the key's.
+    /// The language the data was loaded for: `label` is written in it, and so is what is written
+    /// from the data (the lines of `overlay`).
+    pub locale: Locale,
+    /// The semester's name in `locale` („WiSe 2026/27", "Winter 2026/27").
     pub label: String,
     /// The semester's `v_semester` row; `None` for a semester the snapshot does not have.
     pub semester: Option<Semester>,
@@ -892,17 +901,17 @@ pub struct StudyplanData {
     pub program: Option<String>,
 }
 
-/// The Studienplan of `ids` in semester `key`. For the browser (ids from the store) and the
-/// server (ids from a code) only (R9). Without ids no id query runs; the semester's facts are
-/// loaded all the same.
-pub fn studyplan(db: &dyn Database, key: SemesterKey, ids: &[String]) -> Result<StudyplanData, DbError> {
-    studyplan_in(db, key, ids, None)
+/// The Studienplan of `ids` in semester `key`, for a page in `locale`. For the browser (ids from
+/// the store) and the server (ids from a code) only (R9). Without ids no id query runs; the
+/// semester's facts are loaded all the same.
+pub fn studyplan(db: &dyn Database, key: SemesterKey, ids: &[String], locale: Locale) -> Result<StudyplanData, DbError> {
+    studyplan_in(db, key, ids, None, locale)
 }
 
 /// `studyplan` for a plan of `program_id`: the week grid and the calendar name its modules by the
 /// abbreviations unique within that program (`queries::modules_abbrevs`), not only by each
 /// module's own. An id that is no program id (`url::is_program_id`) is none.
-pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program_id: Option<&str>) -> Result<StudyplanData, DbError> {
+pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program_id: Option<&str>, locale: Locale) -> Result<StudyplanData, DbError> {
     let ids = checked_ids(ids);
     let program_id = program_id.filter(|id| crate::url::is_program_id(id));
     let semester_key = key.key();
@@ -910,7 +919,8 @@ pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program
     let (modules, missing) = catalog_rows(db, &ids)?;
     Ok(StudyplanData {
         key,
-        label: semester.as_ref().map_or_else(|| key.label(), |semester| semester.label.clone()),
+        locale,
+        label: key.label(locale),
         meta: queries::meta(db)?,
         counts: queries::semester_date_counts(db, &semester_key)?,
         schedule: queries::modules_schedule(db, &ids, &semester_key)?,
@@ -962,15 +972,15 @@ impl StudyplanData {
 
     /// The calendar of `table`, a timetable of this data, before it is written: the page asks
     /// whether it has entries at all before it offers a download. Its entries name the modules as
-    /// the week's slots do (`slot_names`).
-    pub fn calendar(&self, table: &Timetable) -> Calendar {
-        export::calendar_of(table, &self.titles(), &self.slot_names(), &self.label, &export::snapshot_stamp(&self.meta))
+    /// the week's slots do (`slot_names`). Written in `locale`.
+    pub fn calendar(&self, table: &Timetable, locale: Locale) -> Calendar {
+        export::calendar_of(table, &self.titles(), &self.slot_names(), &self.label, &export::snapshot_stamp(&self.meta), locale)
     }
 
     /// The calendar text of `table`: the feed and the download both call this, so they are
-    /// byte-identical.
-    pub fn ics(&self, table: &Timetable) -> String {
-        ics::write(&self.calendar(table))
+    /// byte-identical in one language.
+    pub fn ics(&self, table: &Timetable, locale: Locale) -> String {
+        ics::write(&self.calendar(table, locale))
     }
 
     /// The same data with one more module's rows (a module page's overlay): no new SQL for the
@@ -1070,13 +1080,13 @@ pub struct PlanSource {
 }
 
 /// The plans of the program with `program_id` (`program.id`, never the slug: the store keeps
-/// the id), or `None` when the snapshot has no such program.
-pub fn plan_source(db: &dyn Database, program_id: &str) -> Result<Option<PlanSource>, DbError> {
+/// the id), labelled in `locale`, or `None` when the snapshot has no such program.
+pub fn plan_source(db: &dyn Database, program_id: &str, locale: Locale) -> Result<Option<PlanSource>, DbError> {
     let Some(program) = queries::programs(db)?.into_iter().find(|program| program.id == program_id) else {
         return Ok(None);
     };
     let entries = queries::program_plan_entries(db, &program.id)?;
-    let variants = variants::plan_variants(&entries, &queries::program_plan_totals(db, &program.id)?);
+    let variants = variants::plan_variants(&entries, &queries::program_plan_totals(db, &program.id)?, locale);
     let areas = catalog_areas(&queries::program_areas(db, &program.id)?, &queries::program_area_tree(db, &program.id)?);
     let named: Vec<String> = entries.iter().filter_map(|entry| entry.module_id.clone()).collect();
     let (linked, _) = catalog_rows(db, &checked_ids(&named))?;
@@ -1145,13 +1155,15 @@ pub struct FitResult {
 
 /// The finder for the plan of `plan_ids` (the planned modules of `filter.semester`) as
 /// `selection` shows it. `cache`: the plan-independent `CandidateSet`, reused while its key
-/// matches (the app keeps it between calls), so a changed plan re-runs only `fit::fits`.
+/// matches (the app keeps it between calls), so a changed plan re-runs only `fit::fits`. The
+/// notes are in `locale`.
 pub fn fit(
     db: &dyn Database,
     filter: &FitsFilter,
     plan_ids: &[String],
     selection: &Selection,
     cache: &mut Option<CandidateSet>,
+    locale: Locale,
 ) -> Result<FitResult, DbError> {
     let mut seen = BTreeSet::new();
     let planned: Vec<String> = plan_ids.iter().filter(|id| seen.insert(id.as_str())).cloned().collect();
@@ -1189,7 +1201,7 @@ pub fn fit(
             fit::candidates(&rows, &facts, semester.as_ref(), selection, plan.town, options)
         }
     };
-    let verdicts = fit::fits(&plan, &set);
+    let verdicts = fit::fits(&plan, &set, locale);
     *cache = Some(set);
 
     let mut result = FitResult { has_data: true, ..FitResult::default() };
@@ -1246,7 +1258,8 @@ pub struct OverlaySlot {
 /// semester with the module left out: the same ids for every preview, so its answers come from
 /// the visit's cache, and only the module's own three single-id queries are new. The caller
 /// decides whether an overlay is wanted at all (A.9: the semester is the current one or later,
-/// and the plan holds other modules in it).
+/// and the plan holds other modules in it). Its lines are in the language of `plan`
+/// (`StudyplanData::locale`), whose semester name they carry.
 pub fn overlay(db: &dyn Database, plan: &StudyplanData, module_id: &str, selection: &Selection) -> Result<Overlay, DbError> {
     let id = [module_id.to_string()];
     let semester = plan.key.key();
@@ -1257,18 +1270,16 @@ pub fn overlay(db: &dyn Database, plan: &StudyplanData, module_id: &str, selecti
         queries::modules_teaching_sws(db, &id)?,
     );
     let table = data.timetable(selection);
-    Ok(overlay_of(&table, &data.titles(), &data.slot_names(), &data.label, module_id))
+    Ok(overlay_of(&table, &data.titles(), &data.slot_names(), &data.label, module_id, data.locale))
 }
-
-/// The weekdays as a line names them.
-const WEEKDAYS: [&str; 7] = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 /// How many modules the clash line names before it counts the rest („+2").
 const CLASH_NAMES: usize = 3;
 
-/// The overlay of `module_id` in a timetable of the plan and the module together. Its own events
-/// are those it links; a clash is one the Studienplan would name once the module is planned.
-fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap<String, String>, label: &str, module_id: &str) -> Overlay {
+/// The overlay of `module_id` in a timetable of the plan and the module together, its lines in
+/// `locale`. Its own events are those it links; a clash is one the Studienplan would name once
+/// the module is planned.
+fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap<String, String>, label: &str, module_id: &str, locale: Locale) -> Overlay {
     let own = |event: &Event| event.modules.iter().any(|module| module == module_id);
     let title = |id: &str| titles.get(id).cloned().unwrap_or_else(|| id.to_string());
 
@@ -1300,9 +1311,9 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap
         .iter()
         .filter(|event| event.hidden.is_none() && own(event))
         .any(|event| event.rows.iter().any(|row| row.hidden.is_none() && row.from.is_some() && held(row)));
-    let line = timed.then(|| match clash_line(t, &own, &title) {
+    let line = timed.then(|| match clash_line(t, &own, &title, locale) {
         Some(text) => (true, text),
-        None => (false, choice_line(t, &own).unwrap_or_else(|| format!("Passt in deinen Stundenplan ({label})"))),
+        None => (false, choice_line(t, &own, locale).unwrap_or_else(|| (locale.texts().plans.fits_plan)(label))),
     });
 
     let mut warnings: Vec<&ExamWarning> =
@@ -1312,7 +1323,7 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap
     let hard = warnings.iter().any(|w| w.hard);
     let mut texts: Vec<String> = Vec::new();
     for warning in warnings {
-        let text = exam_text(warning, module_id, &termine, &title);
+        let text = exam_text(warning, module_id, &termine, &title, locale);
         if !texts.contains(&text) {
             texts.push(text);
         }
@@ -1332,15 +1343,15 @@ fn weekday_of(row: &Row) -> Option<u8> {
     row.date.weekday.and_then(|weekday| u8::try_from(weekday).ok()).filter(|weekday| (1..=7).contains(weekday))
 }
 
-/// „Di" for 2.
-fn weekday_name(weekday: u8) -> &'static str {
-    WEEKDAYS.get(usize::from(weekday).wrapping_sub(1)).copied().unwrap_or("")
+/// „Di" for 2 in German, "Tue" in English.
+fn weekday_name(weekday: u8, locale: Locale) -> &'static str {
+    locale.texts().common.weekday_short(i64::from(weekday)).unwrap_or("")
 }
 
 /// „Überschneidet sich mit: Analysis I (Di 09:15), Mathematik IT-1 (Di 13:45)": the planned
 /// modules whose Termine the module's own meet in a hard clash, each once at its earliest time, at
 /// most `CLASH_NAMES` of them and then how many more.
-fn clash_line(t: &Timetable, own: &dyn Fn(&Event) -> bool, title: &dyn Fn(&str) -> String) -> Option<String> {
+fn clash_line(t: &Timetable, own: &dyn Fn(&Event) -> bool, title: &dyn Fn(&str) -> String, locale: Locale) -> Option<String> {
     let mut met: Vec<(u8, u16, &str)> = Vec::new();
     for clash in &t.clashes {
         let (Some(a), Some(b)) = (t.events.get(clash.a.0), t.events.get(clash.b.0)) else {
@@ -1364,7 +1375,7 @@ fn clash_line(t: &Timetable, own: &dyn Fn(&Event) -> bool, title: &dyn Fn(&str) 
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     for (weekday, from, module) in met {
         if seen.insert(module) {
-            names.push(format!("{} ({} {})", title(module), weekday_name(weekday), clock(from)));
+            names.push(format!("{} ({} {})", title(module), weekday_name(weekday, locale), clock(from)));
         }
     }
     if names.is_empty() {
@@ -1372,7 +1383,7 @@ fn clash_line(t: &Timetable, own: &dyn Fn(&Event) -> bool, title: &dyn Fn(&str) 
     }
     let more = names.len().saturating_sub(CLASH_NAMES);
     names.truncate(CLASH_NAMES);
-    let mut line = format!("Überschneidet sich mit: {}", names.join(", "));
+    let mut line = (locale.texts().plans.clashes_with)(&names.join(", "));
     if more > 0 {
         line.push_str(&format!(" +{more}"));
     }
@@ -1383,7 +1394,8 @@ fn clash_line(t: &Timetable, own: &dyn Fn(&Event) -> bool, title: &dyn Fn(&str) 
 /// these are the free ones. An option is free when none of its shown Termine meets a shown Termin
 /// of the plan, open options of the plan's choices included: this names the times that leave the
 /// plan as it is. `None` when no choice of the module is cut short.
-fn choice_line(t: &Timetable, own: &dyn Fn(&Event) -> bool) -> Option<String> {
+fn choice_line(t: &Timetable, own: &dyn Fn(&Event) -> bool, locale: Locale) -> Option<String> {
+    let texts = &locale.texts().plans;
     let mut parts: Vec<String> = Vec::new();
     for event in t.events.iter().filter(|event| event.hidden.is_none() && own(event) && event.unresolved()) {
         let others: Vec<&Row> = t
@@ -1411,11 +1423,11 @@ fn choice_line(t: &Timetable, own: &dyn Fn(&Event) -> bool) -> Option<String> {
         let times: BTreeSet<(u8, u16)> = free.into_iter().filter_map(|option| option_time(event, option)).collect();
         if !times.is_empty() {
             let times: Vec<String> =
-                times.into_iter().map(|(weekday, from)| format!("{} {}", weekday_name(weekday), clock(from))).collect();
-            parts.push(format!("{} {}", kind_word(event), times.join(" oder ")));
+                times.into_iter().map(|(weekday, from)| format!("{} {}", weekday_name(weekday, locale), clock(from))).collect();
+            parts.push(format!("{} {}", kind_word(event, locale), times.join(&format!(" {} ", texts.or))));
         }
     }
-    (!parts.is_empty()).then(|| format!("Passt mit {}", parts.join(" · ")))
+    (!parts.is_empty()).then(|| (texts.fits_with)(&parts.join(" · ")))
 }
 
 /// Two timed rows overlap in time on a common day, as `clash` compares them.
@@ -1441,11 +1453,11 @@ fn option_time(event: &Event, option: usize) -> Option<(u8, u16)> {
         .min()
 }
 
-/// What an event is called in a line: its type as QIS writes it, else its first kind.
-fn kind_word(event: &Event) -> String {
+/// What an event is called in a line: its type as QIS writes it, else its first kind in `locale`.
+fn kind_word(event: &Event, locale: Locale) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
         Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or("Termin", |kind| kind.label()).to_string(),
+        None => event.kinds.iter().next().map_or(locale.texts().plans.session, |kind| kind.label(locale)).to_string(),
     }
 }
 
@@ -1458,21 +1470,21 @@ fn exam_text(
     module_id: &str,
     termine: &[(String, Vec<TerminAt>)],
     title: &dyn Fn(&str) -> String,
+    locale: Locale,
 ) -> String {
+    let texts = &locale.texts().plans;
     let mine_first = warning.a.module_id == module_id;
     let (mine, other) = if mine_first { (&warning.a, &warning.b) } else { (&warning.b, &warning.a) };
     let name = title(&other.module_id);
     let mut text = match &warning.kind {
-        WarningKind::Overlap => {
-            format!("Prüfung gleichzeitig mit {name} ({} {})", warning.day.german(), clock(other.from))
-        }
-        WarningKind::Tight { gap, to, .. } if mine_first => format!("{gap} min bis {} zu {name}", to.label()),
-        WarningKind::Tight { gap, to, .. } => format!("{gap} min bis {} nach {name}", to.label()),
+        WarningKind::Overlap => (texts.exam_overlap)(&name, &format!("{} {}", warning.day.date(locale), clock(other.from))),
+        WarningKind::Tight { gap, to, .. } if mine_first => (texts.exam_tight_before)(*gap, to.label(locale), &name),
+        WarningKind::Tight { gap, to, .. } => (texts.exam_tight_after)(*gap, to.label(locale), &name),
     };
     if let Some(avoid) = warning.avoid.filter(|_| !warning.hard) {
         let (mine, theirs) = ((mine, termine_of(termine, module_id)), (other, termine_of(termine, &other.module_id)));
         text.push_str(" · ");
-        text.push_str(&avoid_text(warning.day, avoid, mine, theirs, &name));
+        text.push_str(&avoid_text(warning.day, avoid, mine, theirs, &name, locale));
     }
     text
 }
@@ -1495,8 +1507,10 @@ fn avoid_text(
     mine: (&Termin, &[TerminAt]),
     theirs: (&Termin, &[TerminAt]),
     name: &str,
+    locale: Locale,
 ) -> String {
-    let both = || "andere Termine passen".to_string();
+    let texts = &locale.texts().plans;
+    let both = || texts.other_dates_fit.to_string();
     let my_issue = mine.1.iter().find(|at| at.day == day && at.termin == *mine.0);
     let their_issue = theirs.1.iter().find(|at| at.day == day && at.termin == *theirs.0);
     let (Some(my_issue), Some(their_issue)) = (my_issue, their_issue) else {
@@ -1506,11 +1520,11 @@ fn avoid_text(
         list.iter().position(|at| at.day == avoid && at != issue && exams::collision(at, against).is_none())
     };
     if let Some(index) = instead(mine.1, my_issue, their_issue) {
-        let rank = if index == 0 { "Erstermin" } else { "Zweittermin" };
-        return format!("{rank} {} passt", avoid.short());
+        let fits = if index == 0 { texts.first_sitting_fits } else { texts.second_sitting_fits };
+        return fits(&avoid.day_month(locale));
     }
     if instead(theirs.1, their_issue, my_issue).is_some() {
-        return format!("{name} am {} passt", avoid.short());
+        return (texts.other_sitting_fits)(name, &avoid.day_month(locale));
     }
     both()
 }
@@ -1518,16 +1532,17 @@ fn avoid_text(
 /// The calendar text of a subscription (the server's feed): the timetable is made anew from the
 /// snapshot for the code's semester, modules, program and hide rules, so exams QIS publishes later
 /// arrive by themselves. A semester the snapshot does not have is a calendar without entries that
-/// says so.
-pub fn calendar(db: &dyn Database, subscription: &Subscription) -> Result<String, DbError> {
+/// says so. Written in `locale`, the language of the feed's address.
+pub fn calendar(db: &dyn Database, subscription: &Subscription, locale: Locale) -> Result<String, DbError> {
     let Some(key) = subscription.key() else {
         // A code decodes only with a semester; a subscription made by hand without one has none.
         let stamp = export::snapshot_stamp(&queries::meta(db)?);
-        return Ok(ics::write(&Calendar { name: "Studienplan".to_string(), stamp, ..Calendar::default() }));
+        let name = (locale.texts().timetable.feed_name)("");
+        return Ok(ics::write(&Calendar { name, stamp, ..Calendar::default() }));
     };
-    let data = studyplan_in(db, key, &subscription.module_ids(), subscription.program.as_deref())?;
+    let data = studyplan_in(db, key, &subscription.module_ids(), subscription.program.as_deref(), locale)?;
     let table = data.timetable(&subscription.selection());
-    Ok(data.ics(&table))
+    Ok(data.ics(&table, locale))
 }
 
 /// A plan handed on by a link (`timetable::share`) as its link preview and the offer to take it
@@ -1535,7 +1550,8 @@ pub fn calendar(db: &dyn Database, subscription: &Subscription) -> Result<String
 #[derive(Clone, Debug, PartialEq)]
 pub struct SharedPlanData {
     pub key: SemesterKey,
-    /// The semester's label as the snapshot writes it („WiSe 2026/27"), else the key's.
+    /// The semester's name in the language `shared_plan` was asked for („WiSe 2026/27", "Winter
+    /// 2026/27").
     pub label: String,
     /// The modules the catalog knows, in the order they were planned.
     pub modules: Vec<SharedModule>,
@@ -1562,10 +1578,10 @@ impl SharedPlanData {
     }
 }
 
-/// What a shared plan's code names, from the snapshot: its semester's label, its modules as the
-/// week grid names them, with title and credits, and its program. `None` for a plan without a
-/// semester (a code decodes only with one).
-pub fn shared_plan(db: &dyn Database, plan: &SharedPlan) -> Result<Option<SharedPlanData>, DbError> {
+/// What a shared plan's code names, from the snapshot: its semester's name in `locale`, its
+/// modules as the week grid names them, with title and credits, and its program. `None` for a
+/// plan without a semester (a code decodes only with one).
+pub fn shared_plan(db: &dyn Database, plan: &SharedPlan, locale: Locale) -> Result<Option<SharedPlanData>, DbError> {
     let Some(key) = plan.key() else { return Ok(None) };
     let ids = checked_ids(&plan.module_ids());
     let (rows, missing) = catalog_rows(db, &ids)?;
@@ -1576,8 +1592,7 @@ pub fn shared_plan(db: &dyn Database, plan: &SharedPlan) -> Result<Option<Shared
         .filter_map(|id| rows.iter().find(|row| row.id == *id))
         .map(|row| SharedModule { id: row.id.clone(), name: names.get(&row.id).cloned().unwrap_or_else(|| views::short_title(&row.title)), title: row.title.clone(), credits: row.credits })
         .collect();
-    let semester_key = key.key();
-    let label = queries::semesters(db)?.into_iter().find(|semester| semester.key == semester_key).map_or_else(|| key.label(), |semester| semester.label);
+    let label = key.label(locale);
     let program = match plan.program.as_deref() {
         Some(id) => queries::programs(db)?.into_iter().find(|program| program.id == id),
         None => None,
@@ -1795,9 +1810,13 @@ mod studyplan_tests {
     use crate::labels::Code;
     use crate::native::NativeDatabase;
     use crate::timetable::day::Day;
-    use crate::timetable::fit::{RETAKE_NOTE, UNCOMPARED_NOTE, UNKNOWN_NOTE};
     use crate::timetable::model::tests::{ids, invariants, teaching, winter, Fixture};
     use crate::timetable::select::{FitOptions, Town};
+
+    // The finder's notes in German (`i18n::timetable`), as `fit` writes them for `Locale::De`.
+    const RETAKE_NOTE: &str = crate::i18n::timetable::DE.retake_only;
+    const UNCOMPARED_NOTE: &str = crate::i18n::timetable::DE.not_compared;
+    const UNKNOWN_NOTE: &str = crate::i18n::timetable::DE.no_fixed_dates;
 
     /// Informatik B.Sc., first semester, in plan order (the import's).
     const FS1: [&str; 4] = ["12104", "12107", "12102", "11112"];
@@ -1839,8 +1858,8 @@ mod studyplan_tests {
     fn a_shared_plan_names_its_modules_as_the_week_does() {
         let (db, _, key) = snapshot("a_shared_plan_names_its_modules_as_the_week_does");
         let plan = SharedPlan::of(key, &ids(&FS1), Some(INFORMATIK)).unwrap();
-        let shared = shared_plan(&db, &plan).unwrap().unwrap();
-        let data = studyplan_in(&db, key, &ids(&FS1), Some(INFORMATIK)).unwrap();
+        let shared = shared_plan(&db, &plan, Locale::De).unwrap().unwrap();
+        let data = studyplan_in(&db, key, &ids(&FS1), Some(INFORMATIK), Locale::De).unwrap();
         let names = data.slot_names();
         let known: Vec<&str> = FS1.iter().copied().filter(|id| !data.missing.iter().any(|missing| missing == id)).collect();
         assert_eq!(shared.modules.iter().map(|module| module.id.as_str()).collect::<Vec<_>>(), known, "the plan's order");
@@ -1852,7 +1871,7 @@ mod studyplan_tests {
         assert!((shared.credits() - credits).abs() < 1e-9);
 
         let unknown = SharedPlan::of(key, &ids(&["99999", "12104"]), None).unwrap();
-        let shared = shared_plan(&db, &unknown).unwrap().unwrap();
+        let shared = shared_plan(&db, &unknown, Locale::De).unwrap().unwrap();
         assert_eq!((shared.missing, shared.program), (ids(&["99999"]), None));
     }
 
@@ -1864,32 +1883,38 @@ mod studyplan_tests {
         let (db, is_pinned, key) = snapshot("the_feed_of_informatik_first_semester");
         let subscription = Subscription::from_code(FIRST_SEMESTER_CODE).unwrap();
         let subscription = Subscription { semester: key.index(), ..subscription };
-        let feed = calendar(&db, &subscription).unwrap();
+        let feed = calendar(&db, &subscription, Locale::De).unwrap();
         well_formed(&feed);
-        assert_eq!(calendar(&db, &subscription).unwrap(), feed, "two fetches, the same bytes");
+        assert_eq!(calendar(&db, &subscription, Locale::De).unwrap(), feed, "two fetches, the same bytes");
         let uids: Vec<&str> = feed.split("\r\n").filter_map(|line| line.strip_prefix("UID:")).collect();
         assert_eq!(uids.iter().collect::<BTreeSet<_>>().len(), uids.len(), "every UID once");
 
         // The browser: its plan order, its store's selection, its own data, loaded for the program
         // the code carries.
         assert_eq!(subscription.program.as_deref(), Some(INFORMATIK));
-        let data = studyplan_in(&db, key, &ids(&FS1), Some(INFORMATIK)).unwrap();
+        let data = studyplan_in(&db, key, &ids(&FS1), Some(INFORMATIK), Locale::De).unwrap();
         assert_eq!(data.program.as_deref(), Some(INFORMATIK));
         assert_eq!(data.ids, ids(&FS1), "the plan's order");
         let table = data.timetable(&subscription.selection());
         invariants(&table);
         assert_eq!(table.modules, ids(&FS1));
-        assert_eq!(data.ics(&table), feed, "the download is the feed");
-        assert_eq!(data.calendar(&table).entries.len(), uids.len());
+        assert_eq!(data.ics(&table, Locale::De), feed, "the download is the feed");
+        assert_eq!(data.calendar(&table, Locale::De).entries.len(), uids.len());
         // Without a program the modules go by their own abbreviations, on both sides alike.
         let own = Subscription { program: None, ..subscription.clone() };
-        let plain = studyplan(&db, key, &ids(&FS1)).unwrap();
+        let plain = studyplan(&db, key, &ids(&FS1), Locale::De).unwrap();
         assert_eq!(plain.program, None);
-        assert_eq!(plain.ics(&plain.timetable(&own.selection())), calendar(&db, &own).unwrap(), "the download is the feed");
+        assert_eq!(plain.ics(&plain.timetable(&own.selection()), Locale::De), calendar(&db, &own, Locale::De).unwrap(), "the download is the feed");
         // A subscription made by hand without a semester: a calendar without entries.
-        let nowhere = calendar(&db, &Subscription { semester: 0, ..subscription.clone() }).unwrap();
+        let nowhere = calendar(&db, &Subscription { semester: 0, ..subscription.clone() }, Locale::De).unwrap();
         well_formed(&nowhere);
         assert!(nowhere.contains("X-WR-CALNAME:Studienplan\r\n") && !nowhere.contains("BEGIN:VEVENT"));
+        // The feed of an English address names itself in English, and so does the semester.
+        let english = calendar(&db, &Subscription { semester: 0, ..subscription.clone() }, Locale::En).unwrap();
+        assert!(english.contains("X-WR-CALNAME:Timetable\r\n"), "{english}");
+        let data_en = studyplan_in(&db, key, &ids(&FS1), Some(INFORMATIK), Locale::En).unwrap();
+        assert_eq!((data_en.locale, data_en.label.as_str()), (Locale::En, key.label(Locale::En).as_str()));
+        assert_eq!(data_en.ids, data.ids, "the same plan in every language");
         if !is_pinned {
             return;
         }
@@ -1918,7 +1943,7 @@ mod studyplan_tests {
         // A code made before QIS publishes the semester: a valid calendar that says so, and fills
         // once the dates are there.
         let early = Subscription { semester: SemesterKey::parse("2027S").unwrap().index(), ..subscription };
-        let empty = calendar(&db, &early).unwrap();
+        let empty = calendar(&db, &early, Locale::De).unwrap();
         well_formed(&empty);
         assert!(!empty.contains("BEGIN:VEVENT"));
         assert!(empty.contains("X-WR-CALNAME:Studienplan SoSe 2027\r\n"));
@@ -1940,7 +1965,7 @@ mod studyplan_tests {
         let import = crate::studyplan::Import { modules: imported.iter().map(|id| (key, id.to_string())).collect(), ..Default::default() };
         doc.apply(&import, 1);
         assert!(doc.plan(key, "11112", 2, None));
-        let data = studyplan(&db, key, &doc.modules_in(key)).unwrap();
+        let data = studyplan(&db, key, &doc.modules_in(key), Locale::De).unwrap();
         let every = data.timetable(&Selection::default());
         assert_eq!((every.town, every.town_derived), (Some(Town::Cottbus), true), "every module decides: the elective turns it");
         let selection = doc.selection(key, crate::timetable::select::TownChoice::Derive);
@@ -1950,7 +1975,7 @@ mod studyplan_tests {
         let (code, _) = Subscription::of(key, &table.modules, None, &selection, Some(&table));
         assert_eq!(code.town, crate::timetable::select::TownChoice::Only(Town::Senftenberg).code(), "the feed shows the page's town");
         // Without the elective, the imported modules alone: the same town, as before.
-        let before = studyplan(&db, key, &ids(&imported)).unwrap().timetable(&Selection::default());
+        let before = studyplan(&db, key, &ids(&imported), Locale::De).unwrap().timetable(&Selection::default());
         assert_eq!(before.town, Some(Town::Senftenberg));
     }
 
@@ -1960,7 +1985,7 @@ mod studyplan_tests {
     fn a_plan_is_loaded_in_its_order_and_with_one_module_more() {
         let (db, is_pinned, key) = snapshot("a_plan_is_loaded_in_its_order_and_with_one_module_more");
         let asked = ids(&["12107", "1 OR 1=1", "12104", "12107", "00000", "11112"]);
-        let data = studyplan(&db, key, &asked).unwrap();
+        let data = studyplan(&db, key, &asked, Locale::De).unwrap();
         assert_eq!(data.ids, ids(&["12107", "12104", "00000", "11112"]));
         assert_eq!(data.missing, ids(&["00000"]));
         assert!(data.modules.windows(2).all(|pair| pair[0].title <= pair[1].title), "by title");
@@ -1970,13 +1995,13 @@ mod studyplan_tests {
         assert_eq!(studyplan_modules(&db, &asked).unwrap(), (data.modules.clone(), data.missing.clone()));
 
         // Nothing planned: no rows, the semester all the same.
-        let empty = studyplan(&db, key, &[]).unwrap();
+        let empty = studyplan(&db, key, &[], Locale::De).unwrap();
         assert!(empty.ids.is_empty() && empty.modules.is_empty() && empty.schedule.is_empty() && empty.sws.is_empty());
         assert_eq!(empty.counts, data.counts);
         assert_eq!(studyplan_modules(&db, &[]).unwrap(), (Vec::new(), Vec::new()));
 
         // One module more, as a module page's overlay adds it.
-        let plan = studyplan(&db, key, &ids(&FS1)).unwrap();
+        let plan = studyplan(&db, key, &ids(&FS1), Locale::De).unwrap();
         let id = ids(&["11103"]);
         let rows = queries::modules_schedule(&db, &id, &key.key()).unwrap();
         let exams = queries::modules_exams(&db, &id, &key.key()).unwrap();
@@ -1997,14 +2022,14 @@ mod studyplan_tests {
 
         if is_pinned {
             // A semester the snapshot does not have: no row, no Termin.
-            let later = studyplan(&db, SemesterKey::parse("2027S").unwrap(), &ids(&FS1)).unwrap();
+            let later = studyplan(&db, SemesterKey::parse("2027S").unwrap(), &ids(&FS1), Locale::De).unwrap();
             assert_eq!(later.semester, None);
             assert_eq!(later.label, "SoSe 2027");
             assert!(later.schedule.is_empty() && later.exams.is_empty() && later.counts.is_empty());
             assert_eq!(later.modules.len(), 4, "the modules are the catalog's, whatever the semester");
             let table = later.timetable(&Selection::default());
             assert_eq!(table.without_dates, ids(&FS1));
-            let feed = later.ics(&table);
+            let feed = later.ics(&table, Locale::De);
             well_formed(&feed);
             assert!(!feed.contains("BEGIN:VEVENT"));
             assert!(feed.contains("Noch keine Termine veröffentlicht"));
@@ -2021,7 +2046,7 @@ mod studyplan_tests {
         let selection = sachsendorf_hidden();
         let all = FitsFilter::all(&key.key());
         let mut cache = None;
-        let found = fit(&db, &all, &plan, &selection, &mut cache).unwrap();
+        let found = fit(&db, &all, &plan, &selection, &mut cache, Locale::De).unwrap();
 
         // What holds on any snapshot: the planned ones are left out, nothing is both listed and
         // left out, and a note belongs to a listed module, so no unknown (each has one) is left
@@ -2052,21 +2077,21 @@ mod studyplan_tests {
         if let Some(set) = kept.as_mut() {
             set.modules.clear();
         }
-        let again = fit(&db, &all, &plan, &selection, &mut kept).unwrap();
+        let again = fit(&db, &all, &plan, &selection, &mut kept, Locale::De).unwrap();
         assert!(again.fitting.is_empty() && again.notes.is_empty(), "rebuilt although the key held");
         let planned: Vec<String> = found.excluded.iter().filter(|id| FS1.contains(&id.as_str())).cloned().collect();
         assert_eq!(again.excluded, planned);
         assert!(kept.as_ref().is_some_and(|set| set.modules.is_empty()));
         // Another key builds them anew.
         let lenient = FitsFilter { exercises: false, ..all.clone() };
-        let without_exercises = fit(&db, &lenient, &plan, &selection, &mut kept).unwrap();
+        let without_exercises = fit(&db, &lenient, &plan, &selection, &mut kept, Locale::De).unwrap();
         assert!(kept.as_ref().is_some_and(|set| set.key.1 == FitOptions { exercises: false, ..all.options() }));
         assert_eq!(without_exercises.has_data, found.has_data);
         if found.has_data {
             assert!(kept.as_ref().is_some_and(|set| !set.modules.is_empty()));
         }
         // An address the semester parser refuses checks nothing.
-        let broken = fit(&db, &FitsFilter::all("2026X"), &plan, &selection, &mut None).unwrap();
+        let broken = fit(&db, &FitsFilter::all("2026X"), &plan, &selection, &mut None, Locale::De).unwrap();
         assert_eq!(broken, FitResult { excluded: ids(&["11112", "12102", "12104", "12107"]), ..FitResult::default() });
         if !is_pinned {
             return;
@@ -2099,7 +2124,7 @@ mod studyplan_tests {
         assert!(without_exercises.excluded.iter().any(|id| id == "11103"));
 
         // SoSe 2027 has no Termine yet: nothing is checked, the plan is left out.
-        let summer = fit(&db, &FitsFilter::all("2027S"), &plan, &selection, &mut cache).unwrap();
+        let summer = fit(&db, &FitsFilter::all("2027S"), &plan, &selection, &mut cache, Locale::De).unwrap();
         assert_eq!(summer, FitResult { excluded: ids(&["11112", "12102", "12104", "12107"]), ..FitResult::default() });
         assert_eq!(cache.as_ref().map(|set| set.key.0), Some(key), "a semester without data keeps the candidates");
     }
@@ -2109,7 +2134,7 @@ mod studyplan_tests {
     #[test]
     fn the_overlay_of_analysis_on_the_first_semester() {
         let (db, is_pinned, key) = snapshot("the_overlay_of_analysis_on_the_first_semester");
-        let plan = studyplan(&db, key, &ids(&FS1)).unwrap();
+        let plan = studyplan(&db, key, &ids(&FS1), Locale::De).unwrap();
         let selection = sachsendorf_hidden();
         let overlay = overlay(&db, &plan, "11103", &selection).unwrap();
         let fs1: BTreeSet<&str> = FS1.into();
@@ -2146,7 +2171,7 @@ mod studyplan_tests {
             return;
         }
         let line = |plan: &[&str], module: &str| {
-            overlay(&db, &studyplan(&db, key, &ids(plan)).unwrap(), module, &sachsendorf_hidden()).unwrap()
+            overlay(&db, &studyplan(&db, key, &ids(plan), Locale::De).unwrap(), module, &sachsendorf_hidden()).unwrap()
         };
 
         // Algorithmische Graphentheorie (152760) sits on 25.02., 10.03. and 11.03.; its 10.03. meets
@@ -2200,6 +2225,11 @@ mod studyplan_tests {
 
     /// The overlay of M in a plan of P and Q in 2026W as the data has it.
     fn overlay_in(rows: &[Fixture], exams: &[DateRow], modules: &[&str]) -> Overlay {
+        overlay_in_language(rows, exams, modules, Locale::De)
+    }
+
+    /// The same on a page in `locale`.
+    fn overlay_in_language(rows: &[Fixture], exams: &[DateRow], modules: &[&str], locale: Locale) -> Overlay {
         let facts = winter();
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules = ids(modules);
@@ -2209,7 +2239,7 @@ mod studyplan_tests {
         invariants(&table);
         let titles: BTreeMap<String, String> =
             [("P", "Analysis I"), ("Q", "Mathematik IT-1")].map(|(id, title)| (id.to_string(), title.to_string())).into();
-        overlay_of(&table, &titles, &BTreeMap::new(), "WiSe 2026/27", "M")
+        overlay_of(&table, &titles, &BTreeMap::new(), &facts.key.label(locale), "M", locale)
     }
 
     #[test]
@@ -2367,16 +2397,66 @@ mod studyplan_tests {
         assert_eq!(both.exam_line, quiet(avoided));
     }
 
+    /// The lines of the overlay on an English page: the words, weekdays and dates in English, the
+    /// titles of the modules and QIS's words for an event as the data has them.
+    #[test]
+    fn the_overlay_speaks_the_language_of_its_page() {
+        let english = |rows: &[Fixture], exams: &[DateRow], modules: &[&str]| overlay_in_language(rows, exams, modules, Locale::En);
+        let plan = [teaching("P", "1", 1, "Vorlesung", 2, "09:15", "10:45"), teaching("Q", "2", 1, "Vorlesung", 2, "13:45", "15:15")];
+        let lecture = teaching("M", "3", 1, "Vorlesung", 2, "09:15", "10:45");
+        let exercise = teaching("M", "4", 1, "Übung", 2, "14:00", "15:30");
+        let meets = english(&[plan.as_slice(), &[lecture, exercise]].concat(), &[], &["P", "Q", "M"]);
+        assert_eq!(meets.line, Some((true, "Clashes with: Analysis I (Tue 09:15), Mathematik IT-1 (Tue 13:45)".to_string())));
+
+        let friday_lecture = teaching("M", "3", 1, "Vorlesung", 5, "11:30", "13:00");
+        let friday = english(&[plan.as_slice(), std::slice::from_ref(&friday_lecture)].concat(), &[], &["P", "Q", "M"]);
+        assert_eq!(friday.line, Some((false, "Fits your timetable (Winter 2026/27)".to_string())));
+        let groups = [(4, "16:30", "18:00"), (1, "09:15", "10:45"), (4, "14:30", "16:00")]
+            .into_iter()
+            .zip(1..)
+            .map(|((weekday, from, to), ord)| teaching("M", "5", ord, "Übung", weekday, from, to).group(&format!("{ord}-Gruppe")));
+        let rows: Vec<Fixture> = [teaching("P", "1", 1, "Vorlesung", 1, "09:15", "10:45"), friday_lecture].into_iter().chain(groups).collect();
+        assert_eq!(english(&rows, &[], &["P", "M"]).line, Some((false, "Fits with Übung Thu 14:30 or Thu 16:30".to_string())));
+
+        let p = exam("P", "90", "2027-02-11", "11:00", "13:00", "zentralcampus");
+        let exam_line = |exams: &[DateRow]| english(&[], exams, &["P", "M"]).exam_line;
+        assert_eq!(
+            exam_line(&[p.clone(), exam("M", "91", "2027-02-11", "12:00", "14:00", "zentralcampus")]),
+            Some((true, "Exam at the same time as Analysis I (11 Feb 2027 11:00)".to_string()))
+        );
+        assert_eq!(
+            exam_line(&[p.clone(), exam("M", "91", "2027-02-11", "13:30", "15:00", "senftenberg")]),
+            Some((true, "30 min to Senftenberg after Analysis I".to_string()))
+        );
+        assert_eq!(
+            exam_line(&[exam("P", "92", "2027-02-11", "11:00", "13:00", "senftenberg"), exam("M", "91", "2027-02-11", "08:00", "10:00", "zentralcampus")]),
+            Some((true, "60 min to Senftenberg for Analysis I".to_string()))
+        );
+        let clash = exam("M", "91", "2027-02-11", "11:00", "13:00", "zentralcampus");
+        assert_eq!(
+            exam_line(&[p.clone(), clash.clone(), exam("M", "93", "2027-03-11", "11:00", "13:00", "zentralcampus")]),
+            Some((false, "Exam at the same time as Analysis I (11 Feb 2027 11:00) · second sitting on 11 Mar fits".to_string()))
+        );
+        assert_eq!(
+            exam_line(&[p.clone(), clash.clone(), exam("M", "93", "2027-02-04", "11:00", "13:00", "zentralcampus")]),
+            Some((false, "Exam at the same time as Analysis I (11 Feb 2027 11:00) · first sitting on 4 Feb fits".to_string()))
+        );
+        assert_eq!(
+            exam_line(&[p, exam("P", "94", "2027-02-18", "11:00", "13:00", "zentralcampus"), clash]),
+            Some((false, "Exam at the same time as Analysis I (11 Feb 2027 11:00) · Analysis I on 18 Feb fits".to_string()))
+        );
+    }
+
     /// A program's plans for the import, and „Mein Studiengang" with an id the snapshot has or
     /// lost.
     #[test]
     fn the_plans_of_a_program_and_the_program_of_mine() {
         let (db, is_pinned, _) = snapshot("the_plans_of_a_program_and_the_program_of_mine");
         let programs = queries::programs(&db).unwrap();
-        assert_eq!(plan_source(&db, "no-such-program").unwrap(), None);
+        assert_eq!(plan_source(&db, "no-such-program", Locale::De).unwrap(), None);
         assert_eq!(my_program(&db, "x").unwrap(), None);
         for program in programs.iter().filter(|program| program.has_plan).take(20) {
-            let source = plan_source(&db, &program.id).unwrap().unwrap();
+            let source = plan_source(&db, &program.id, Locale::De).unwrap().unwrap();
             assert_eq!(&source.program, program);
             assert!(!source.variants.is_empty(), "{}", program.id);
             assert!(source.supplements.iter().all(|s| s.core < source.variants.len() && s.page < source.variants.len()));
@@ -2393,13 +2473,13 @@ mod studyplan_tests {
             return;
         }
 
-        let informatik = plan_source(&db, "079-82-2008").unwrap().unwrap();
+        let informatik = plan_source(&db, "079-82-2008", Locale::De).unwrap().unwrap();
         assert_eq!(informatik.program.slug, "bachelor-informatik-2008");
         assert_eq!(informatik.variants.len(), 1);
         assert!(informatik.supplements.is_empty());
         assert!(informatik.linked.iter().any(|row| row.id == "12104"));
         assert!(!informatik.areas.is_empty());
-        let direction = plan_source(&db, "370-82-2023").unwrap().unwrap();
+        let direction = plan_source(&db, "370-82-2023", Locale::De).unwrap().unwrap();
         assert_eq!(direction.supplements.len(), 5);
         assert!(direction.supplements.iter().all(|s| s.ord == 16 && s.core == direction.supplements[0].core));
 

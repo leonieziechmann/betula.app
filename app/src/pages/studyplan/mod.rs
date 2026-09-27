@@ -50,7 +50,7 @@ use catalog::timetable::share::{self as shared_plan, SharedPlan};
 use catalog::url::{self, PlanView, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::use_location;
+use crate::i18n::{self, use_location};
 
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
@@ -166,6 +166,7 @@ pub fn StudyplanPage() -> impl IntoView {
     if !APP {
         return server_page().into_any();
     }
+    let t = i18n::t();
     let location = use_location();
     let plan = Studyplan::expect();
     let mine = MyProgram::expect();
@@ -193,7 +194,7 @@ pub fn StudyplanPage() -> impl IntoView {
     let data = Memo::new(move |_| {
         let (key, ids, program) = wanted.get();
         source.with_value(|source| match source {
-            Some(source) => source.run(|db| pages::studyplan_in(db, key, &ids, program.as_deref())),
+            Some(source) => source.run(|db| pages::studyplan_in(db, key, &ids, program.as_deref(), t.locale)),
             None => Err(DataError { unavailable: true, message: "no data source was provided".to_string() }),
         })
     });
@@ -266,8 +267,8 @@ pub fn StudyplanPage() -> impl IntoView {
             return view! { <ModuleInPlace id area=Area::Studyplan back/> }.into_any();
         }
         view! {
-            <Title text=TITLE/>
-            <Frame title="Anpassen" sheet=true sidebar=move || view! { <PlanSidebar ctx/><StorageHint/> } aside aside_picked=picked>
+            <Title text=t.studyplan.title/>
+            <Frame title=t.studyplan.customise sheet=true sidebar=move || view! { <PlanSidebar ctx/><StorageHint/> } aside aside_picked=picked>
                 <PlanSeo/>
                 <div class="page-inner sp">
                     <section class="panel sp-body">
@@ -362,15 +363,17 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
 /// (`.sheet-toggle`): the head of the plan carries it at its right end.
 #[component]
 pub(super) fn SheetToggle() -> impl IntoView {
-    view! { <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>"Anpassen"</a> }
+    let t = i18n::t();
+    view! { <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>{t.studyplan.customise}</a> }
 }
 
 /// The last group of the sidebar, on the server as in the app: where the plan lives.
 #[component]
 pub(super) fn StorageHint() -> impl IntoView {
+    let t = i18n::t();
     view! {
         <div class="fgroup">
-            <p class="hint storage-hint"><Icon name="shield-check"/><span>"Dein Stundenplan liegt nur in diesem Browser."</span></p>
+            <p class="hint storage-hint"><Icon name="shield-check"/><span>{t.studyplan.storage_hint}</span></p>
         </div>
     }
 }
@@ -382,6 +385,7 @@ pub(super) fn StorageHint() -> impl IntoView {
 /// names comes from the snapshot, on the server as in the app.
 #[component]
 fn PlanSeo() -> impl IntoView {
+    let t = i18n::t();
     let location = use_location();
     let source = use_source().ok();
     // The tags change with the code alone, not with every view of the plan.
@@ -389,21 +393,21 @@ fn PlanSeo() -> impl IntoView {
     move || {
         let shared = code.get().and_then(|code| {
             let plan = SharedPlan::from_code(&code)?;
-            let data = source.as_ref()?.run(|db| pages::shared_plan(db, &plan)).ok()??;
+            let data = source.as_ref()?.run(|db| pages::shared_plan(db, &plan, t.locale)).ok()??;
             (!data.modules.is_empty()).then_some((code, data))
         });
         match shared {
             Some((code, data)) => {
                 let names = data.modules.iter().map(|module| module.name.as_str()).collect::<Vec<_>>().join(", ");
-                let count = crate::format::modules(i64::try_from(data.modules.len()).unwrap_or(i64::MAX));
-                let description = format!("{count}: {names}. In Betula öffnen und in den eigenen Stundenplan übernehmen.");
+                let count = crate::format::modules(i64::try_from(data.modules.len()).unwrap_or(i64::MAX), t.locale);
+                let description = (t.studyplan.shared_description)(&count, &names);
                 view! {
-                    <Seo title=format!("Stundenplan · {}", data.label) description path=shared_plan::path(&code) card=shared_plan::card_path(&code) noindex=true/>
+                    <Seo title=(t.studyplan.shared_title)(&data.label) description path=shared_plan::path(&code) card=shared_plan::card_path(&code) noindex=true/>
                 }
                 .into_any()
             }
             None => view! {
-                <Seo title=TITLE description="Dein Stundenplan: Termine, Prüfungen und Kalender-Abo der geplanten Module." path=url::STUDYPLAN card=crate::seo::STUDYPLAN_CARD noindex=true/>
+                <Seo title=t.studyplan.title description=t.studyplan.seo_description path=url::STUDYPLAN card=crate::seo::STUDYPLAN_CARD noindex=true/>
             }
             .into_any(),
         }
@@ -418,24 +422,19 @@ fn PlanSeo() -> impl IntoView {
 /// the plan lives (`StorageHint`, as in the app), the explanation what it takes to see it; each
 /// says it once (owner review 2026-09-25).
 fn server_page() -> impl IntoView {
+    let t = i18n::t();
     view! {
-        <Title text=TITLE/>
-        <Frame title="Anpassen" sheet=true sidebar=|| view! { <StorageHint/> }>
+        <Title text=t.studyplan.title/>
+        <Frame title=t.studyplan.customise sheet=true sidebar=|| view! { <StorageHint/> }>
             <PlanSeo/>
             <div class="page-inner sp">
                 <section class="panel sp-body">
-                    <EmptyState title=SERVER_TITLE hint="Dafür braucht es JavaScript."/>
+                    <EmptyState title=t.studyplan.server_title hint=t.studyplan.server_hint/>
                 </section>
             </div>
         </Frame>
     }
 }
-
-/// The page's name (owner's redesign of 2026-09-25): a timetable of one semester.
-const TITLE: &str = "Stundenplan";
-
-/// What the server's page says in the place of the plan.
-const SERVER_TITLE: &str = "Dein Stundenplan erscheint, sobald die App geladen ist.";
 
 #[cfg(test)]
 mod tests {

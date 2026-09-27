@@ -8,7 +8,8 @@
 //! program whose abbreviations the entries name the modules by („VL EvS", as compact as the week
 //! the page shows; the owner chose this over each module's own abbreviation, which differs from a
 //! program's in about 7 % of its compulsory modules). `Subscription` is that, packed by `pack` into
-//! `/calendar/<code>.ics`.
+//! `/calendar/<code>.ics`, or `/en/calendar/<code>.ics` for the same calendar in English: the
+//! language is the address's, not the code's.
 //!
 //! A code outlives releases: a calendar keeps its address for months, across blue-green switches
 //! and canary rollbacks. So a code names the layout of the struct it was written in (`VERSION`, four
@@ -17,7 +18,7 @@
 //! a newer writer may put into the fields it knows: kind bits it does not know are dropped, a town
 //! it does not know reads as „derive", and a program of another shape as none.
 //! The address is also what the logs see, so Folia's own log writes every path under
-//! `/calendar/` as one fixed text (`redacted_path`). The privacy notice lists what a code carries
+//! `/calendar/`, after a language's prefix too, as one fixed text (`redacted_path`). The privacy notice lists what a code carries
 //! („Kalender-Abo" in app/src/pages/legal.rs): a field added here is a word added there.
 
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,7 @@ use super::kind::KindSet;
 use super::rowkey::RowKey;
 use super::select::{Selection, TownChoice, MAX_HIDDEN, MAX_MODULES};
 use super::semester::SemesterKey;
+use crate::i18n::Locale;
 use crate::url::is_program_id;
 
 /// The kind of every subscription code. Frozen: it is part of every code's check characters, so a
@@ -42,7 +44,8 @@ pub const VERSION: u8 = 1;
 /// calendar service takes as an address.
 pub const MAX_CODE: usize = 1024;
 
-/// Where the feed lives: `/calendar/<code>.ics`.
+/// Where the feed lives: `/calendar/<code>.ics`, after a language's prefix in another language
+/// (`/en/calendar/<code>.ics`).
 pub const CALENDAR_PREFIX: &str = "/calendar/";
 
 const SUFFIX: &str = ".ics";
@@ -161,7 +164,8 @@ impl Subscription {
     }
 }
 
-/// The address of a code: `/calendar/<code>.ics`.
+/// The address of a code: `/calendar/<code>.ics`, the feed in German; `Locale::path` makes it
+/// another language's (`/en/calendar/<code>.ics`).
 pub fn path(code: &str) -> String {
     format!("{CALENDAR_PREFIX}{code}{SUFFIX}")
 }
@@ -171,9 +175,10 @@ pub fn path(code: &str) -> String {
 /// decoded first (RFC 3986 §6.2.2.2: `%7E` is `~`, and axum's `Path` reads it so), so the gate and
 /// the handler agree on what a path names; any other escape (`%2F`, `%20`) fails. The shape only:
 /// `/calendar/a.ics.ics` has it (code `a.ics`, since `.` is in the alphabet), and whether a code
-/// decodes is `Subscription::from_code`'s question.
+/// decodes is `Subscription::from_code`'s question. A language's prefix comes first where it has
+/// one (`/en/calendar/<code>.ics`, the feed in English; `Locale::split`), and names the same code.
 pub fn code_of_path(path: &str) -> Option<String> {
-    let rest = path.strip_prefix(CALENDAR_PREFIX)?;
+    let rest = Locale::split(path).1.strip_prefix(CALENDAR_PREFIX)?;
     // An escape spells one character in three bytes: anything longer cannot have the shape.
     if rest.len() > 3 * (MAX_CODE + SUFFIX.len()) {
         return None;
@@ -202,9 +207,11 @@ pub fn is_feed_path(path: &str) -> bool {
 
 /// The path as Folia's access log writes it: every path under `CALENDAR_PREFIX` becomes
 /// `/calendar/….ics`, valid or not, because a code names the modules someone plans and what they
-/// hide. Every other path is left as it is.
+/// hide. So does every path that has it further on: the feed in English (`/en/calendar/…`), and
+/// what is no address of the site but reaches the log all the same (`/de/calendar/…` is
+/// redirected, `/en/en/calendar/…` not found). Every other path is left as it is.
 pub fn redacted_path(path: &str) -> &str {
-    if path.starts_with(CALENDAR_PREFIX) {
+    if path.contains(CALENDAR_PREFIX) {
         REDACTED
     } else {
         path
@@ -472,5 +479,40 @@ pub(crate) mod tests {
         assert_eq!(redacted_path("/catalog/module/12104"), "/catalog/module/12104");
         assert_eq!(redacted_path("/calendar"), "/calendar");
         assert_eq!(redacted_path("/"), "/");
+    }
+
+    #[test]
+    fn the_feed_in_english_is_the_same_code() {
+        let code = first_semester().code().unwrap();
+        let english = Locale::En.path(&path(&code));
+        assert_eq!(english, format!("/en/calendar/{code}.ics"));
+        assert_eq!(code_of_path(&english), Some(code.clone()));
+        assert!(is_feed_path(&english));
+        assert_eq!(code_of_path("/en/calendar/%7E9.ics").as_deref(), Some("~9"));
+        // Only a language of the site: `/de/…` is no address of it, and neither is a prefix glued on.
+        for other in [format!("/de/calendar/{code}.ics"), format!("/fr/calendar/{code}.ics"), format!("/encalendar/{code}.ics"), format!("/en/en/calendar/{code}.ics")] {
+            assert_eq!(code_of_path(&other), None, "{other}");
+            assert!(!is_feed_path(&other), "{other}");
+        }
+    }
+
+    #[test]
+    fn the_log_keeps_no_code_in_any_language() {
+        let code = first_semester().code().unwrap();
+        for path in [
+            Locale::En.path(&path(&code)),
+            "/en/calendar/anything".to_string(),
+            "/en/calendar/".to_string(),
+            "/en/calendar/a/b%2F.ics?x=1".to_string(),
+            // No address of the site, but a request for it reaches the log all the same.
+            format!("/de/calendar/{code}.ics"),
+            format!("/en/en/calendar/{code}.ics"),
+            format!("//calendar/{code}.ics"),
+        ] {
+            assert_eq!(redacted_path(&path), "/calendar/….ics", "{path}");
+        }
+        for kept in ["/en", "/en/", "/en/calendar", "/en/catalog/module/12104", "/en/programs/calendar", "/en/calendarx/a.ics"] {
+            assert_eq!(redacted_path(kept), kept);
+        }
     }
 }

@@ -44,6 +44,7 @@ use crate::filter::{
     CatalogQuery, ExamPart, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey,
     TurnusFilter,
 };
+use crate::i18n::Locale;
 use crate::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
 use crate::timetable::rowkey::RowKey;
 use crate::timetable::semester::SemesterKey;
@@ -95,11 +96,14 @@ impl ProgramTab {
         Self::ALL.iter().copied().find(|tab| tab.segment() == segment)
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            ProgramTab::Plan => "Regelstudienplan",
-            ProgramTab::Areas => "Wahlpflicht & Bereiche",
-            ProgramTab::MyPlan => "Mein Plan",
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, ProgramTab::Plan) => "Regelstudienplan",
+            (Locale::De, ProgramTab::Areas) => "Wahlpflicht & Bereiche",
+            (Locale::De, ProgramTab::MyPlan) => "Mein Plan",
+            (Locale::En, ProgramTab::Plan) => "Standard study plan",
+            (Locale::En, ProgramTab::Areas) => "Electives & areas",
+            (Locale::En, ProgramTab::MyPlan) => "My plan",
         }
     }
 
@@ -320,13 +324,16 @@ impl LevelGroup {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            LevelGroup::Bachelor => "Bachelor",
-            LevelGroup::Master => "Master",
-            LevelGroup::Teaching => "Lehramt",
-            LevelGroup::Doctoral => "Promotion",
-            LevelGroup::Other => "Sonstige",
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (_, LevelGroup::Bachelor) => "Bachelor",
+            (_, LevelGroup::Master) => "Master",
+            (Locale::De, LevelGroup::Teaching) => "Lehramt",
+            (Locale::De, LevelGroup::Doctoral) => "Promotion",
+            (Locale::De, LevelGroup::Other) => "Sonstige",
+            (Locale::En, LevelGroup::Teaching) => "Teacher training",
+            (Locale::En, LevelGroup::Doctoral) => "Doctorate",
+            (Locale::En, LevelGroup::Other) => "Other",
         }
     }
 
@@ -362,11 +369,13 @@ impl FormGroup {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            FormGroup::Dual => "Dual",
-            FormGroup::DoubleDegree => "Doppelabschluss",
-            FormGroup::Flexible => "Teilzeit & Fern",
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (_, FormGroup::Dual) => "Dual",
+            (Locale::De, FormGroup::DoubleDegree) => "Doppelabschluss",
+            (Locale::De, FormGroup::Flexible) => "Teilzeit & Fern",
+            (Locale::En, FormGroup::DoubleDegree) => "Double degree",
+            (Locale::En, FormGroup::Flexible) => "Part-time & distance",
         }
     }
 
@@ -472,12 +481,16 @@ impl BookmarkSort {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            BookmarkSort::Added => "Zuletzt gemerkt",
-            BookmarkSort::Title => "Titel",
-            BookmarkSort::Credits => "Leistungspunkte",
-            BookmarkSort::Events => "Termine",
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, BookmarkSort::Added) => "Zuletzt gemerkt",
+            (Locale::De, BookmarkSort::Title) => "Titel",
+            (Locale::De, BookmarkSort::Credits) => "Leistungspunkte",
+            (Locale::De, BookmarkSort::Events) => "Termine",
+            (Locale::En, BookmarkSort::Added) => "Recently saved",
+            (Locale::En, BookmarkSort::Title) => "Title",
+            (Locale::En, BookmarkSort::Credits) => "Credit points",
+            (Locale::En, BookmarkSort::Events) => "Dates",
         }
     }
 }
@@ -499,10 +512,11 @@ impl Season {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Season::Winter => "Winter",
-            Season::Summer => "Sommer",
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (_, Season::Winter) => "Winter",
+            (Locale::De, Season::Summer) => "Sommer",
+            (Locale::En, Season::Summer) => "Summer",
         }
     }
 }
@@ -608,12 +622,16 @@ impl PlanView {
         Self::ALL.iter().copied().find(|view| view.code() == code)
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            PlanView::Week => "Woche",
-            PlanView::Dates => "Termine",
-            PlanView::Exams => "Prüfungen",
-            PlanView::Overview => "Übersicht",
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, PlanView::Week) => "Woche",
+            (Locale::De, PlanView::Dates) => "Termine",
+            (Locale::De, PlanView::Exams) => "Prüfungen",
+            (Locale::De, PlanView::Overview) => "Übersicht",
+            (Locale::En, PlanView::Week) => "Week",
+            (Locale::En, PlanView::Dates) => "Dates",
+            (Locale::En, PlanView::Exams) => "Exams",
+            (Locale::En, PlanView::Overview) => "Overview",
         }
     }
 }
@@ -1408,7 +1426,7 @@ mod tests {
             assert_eq!(PlanView::from_code(view.code()), Some(*view));
             assert_eq!(back(&StudyplanUrl::default().with_view(*view)).view, *view);
         }
-        assert_eq!(PlanView::ALL.iter().map(|view| view.label()).collect::<Vec<_>>(), ["Woche", "Termine", "Prüfungen", "Übersicht"]);
+        assert_eq!(PlanView::ALL.iter().map(|view| view.label(Locale::De)).collect::<Vec<_>>(), ["Woche", "Termine", "Prüfungen", "Übersicht"]);
     }
 
     #[test]

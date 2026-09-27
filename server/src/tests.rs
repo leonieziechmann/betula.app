@@ -289,7 +289,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     let (status, headers, body) = request(&router, crate::api::LIVENESS, &[]).await;
     assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap(), body.as_slice()), (StatusCode::OK, "no-store", &b"ok\n"[..]));
     let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
-    assert_eq!((status, String::from_utf8(robots).unwrap().as_str()), (StatusCode::OK, "User-agent: *\nAllow: /calendar/\nDisallow: /\n"));
+    assert_eq!((status, String::from_utf8(robots).unwrap().as_str()), (StatusCode::OK, "User-agent: *\nAllow: /calendar/\nAllow: /en/calendar/\nDisallow: /\n"));
     // A calendar service has no password: a subscription whose code decodes passes, also with a
     // character of it escaped (here it meets no snapshot, so the feed itself answers 503; the
     // feed's own test serves one). Anything else under `/calendar/` stays behind the gate.
@@ -376,7 +376,7 @@ async fn legal_pages_are_one_step_from_every_page() {
     let (_, _, body) = request(&router, catalog::url::PRIVACY, &[]).await;
     let privacy = String::from_utf8(body).unwrap();
     for part in &app::pages::legal::PRIVACY {
-        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, part.heading);
+        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&app::i18n::legal::DE));
     }
 
     // Any other page, here the program overview, which says that it has no catalog: the ground at
@@ -430,7 +430,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         catalog::queries::catalog_count(&db, &url.query).unwrap()
     };
     assert!(expected > 100);
-    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", app::format::count(expected))), "the header shows the exact total {expected}");
+    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", app::format::count(expected, catalog::Locale::De))), "the header shows the exact total {expected}");
     let etag = headers[header::ETAG].to_str().unwrap().to_string();
     // The same filter written differently is the same page.
     let (_, headers, _) = request(&router, "/catalog?status=all&turnus=winter&form=exercise&q=", &[]).await;
@@ -697,7 +697,7 @@ async fn a_studyplan_is_a_calendar_feed() {
     // The feed is the loader's calendar of the code, byte for byte: the text the page offers as a
     // download is made by the same function from the same rows.
     let db = NativeDatabase::open(&file).unwrap();
-    assert_eq!(ics, catalog::pages::calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap()).unwrap());
+    assert_eq!(ics, catalog::pages::calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap(), catalog::Locale::De).unwrap());
     if pinned {
         let text = unfolded(&ics);
         assert!(text.contains("UID:148701-a2633-20261013@betula.app") && text.contains("UID:148369-a4d12-") && text.contains("Entwicklung von Softwaresystemen"), "{text}");
@@ -861,7 +861,7 @@ async fn calendar_services_may_fetch_feeds() {
     let robots = String::from_utf8(robots).unwrap();
     assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
-    assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|cards\\/|calendar\\/)/;"));
+    assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|([a-z]{2}\\/)?(cards|calendar)\\/)/;"));
 }
 
 /// A server with more work than places (`busy`): a page that finds no place within the wait is
@@ -1007,4 +1007,136 @@ async fn the_catalog_download_comes_from_memory() {
     let (_, headers, body) = request(&router, "/api/db", &[]).await;
     assert!(headers.get(header::CONTENT_ENCODING).is_none());
     assert_eq!(body.len() as u64, snapshot.bytes);
+}
+
+/// The addresses a page writes into its HTML (`href`, `action`, `src`, `content` of a URL), each
+/// with whether its tag names another language (`hreflang`: the language switch and the
+/// alternates in the head).
+fn addresses(html: &str) -> Vec<(String, bool)> {
+    let mut found = Vec::new();
+    for tag in html.split('<').skip(1).map(|rest| rest.split('>').next().unwrap_or_default()) {
+        let other_language = tag.contains(" hreflang=");
+        for attribute in [" href=\"", " action=\"", " src=\""] {
+            let mut rest = tag;
+            while let Some(at) = rest.find(attribute) {
+                rest = &rest[at + attribute.len()..];
+                let value = rest.split('"').next().unwrap_or_default();
+                found.push((value.replace("&amp;", "&"), other_language));
+            }
+        }
+    }
+    found
+}
+
+/// Whether `address`, written into a page in English, leads to an English page or to what has
+/// no language (a file, the site's API, another site, a place on the same page). Only a path of
+/// this site can lead into German; what is no such path (another site, the synthetic snapshot's
+/// source addresses, which are bare numbers) is not the page's to say.
+fn stays_in_english(address: &str) -> bool {
+    let in_english = address == "/en" || ["/en/", "/en?", "/en#"].iter().any(|prefix| address.starts_with(prefix));
+    let no_language = ["/assets/", "/pkg/", "/api/", "/favicon", "/apple-touch-icon", "/sw.js"].iter().any(|prefix| address.starts_with(prefix));
+    let site_path = address.starts_with('/') && !address.starts_with("//");
+    in_english || no_language || !site_path
+}
+
+/// Every page in English (`/en/…`): the document says so, every address it writes leads to an
+/// English page or to what has no language (only the switch and the alternates in the head name
+/// another language), it names the same page in every language, and the frame speaks English.
+/// The German page of the same address keeps its plain links. `/de/…` leads to the plain address.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_page_in_english_stays_in_english() {
+    let store = store_with("english", &snapshot_file());
+    let router = crate::router(state(store.clone()));
+    let (_, _, overview) = request(&router, "/programs", &[]).await;
+    let overview = String::from_utf8(overview).unwrap();
+    let slug = overview.split("href=\"/programs/").nth(1).and_then(|rest| rest.split(['/', '"', '?']).next()).unwrap().to_string();
+    let (_, _, catalog) = request(&router, "/catalog", &[]).await;
+    let catalog = String::from_utf8(catalog).unwrap();
+    let module = catalog.split("href=\"/catalog/module/").nth(1).and_then(|rest| rest.split(['"', '?']).next()).unwrap().to_string();
+    let pages = [
+        "/".to_string(),
+        "/catalog".to_string(),
+        "/catalog?turnus=winter&form=lecture&sort=title".to_string(),
+        format!("/catalog/module/{module}"),
+        "/programs".to_string(),
+        "/programs?level=master".to_string(),
+        format!("/programs/{slug}/plan"),
+        format!("/programs/{slug}/areas"),
+        format!("/programs/{slug}/my-plan"),
+        "/bookmarks".to_string(),
+        "/studyplan".to_string(),
+        catalog::url::IMPRINT.to_string(),
+        catalog::url::PRIVACY.to_string(),
+    ];
+    // Every page is checked before the test fails, so that it lists what is left.
+    let mut problems = Vec::new();
+    for page in &pages {
+        let english = catalog::Locale::En.path(page);
+        let (status, _, body) = request(&router, &english, &[]).await;
+        let html = String::from_utf8(body).unwrap();
+        assert_eq!(status, StatusCode::OK, "{english}");
+        assert!(html.contains("<html lang=\"en\""), "{english}: the document's language");
+        for (address, other_language) in addresses(&html) {
+            if !other_language && !stays_in_english(&address) {
+                problems.push(format!("{english} links {address} out of English"));
+            }
+        }
+        let head = html.split("</head>").next().unwrap_or_default();
+        for (language, address) in [("de", page.clone()), ("en", english.clone()), ("x-default", page.clone())] {
+            // (leptos_meta writes the attributes of a link in its own order.)
+            let alternate = format!("href=\"https://catalog.example{}\" hreflang=\"{language}\"", address.replace('&', "&amp;"));
+            if !head.contains(&alternate) {
+                problems.push(format!("{english}: no {alternate}"));
+            }
+        }
+        for german in ["Zum Inhalt springen", "Hauptnavigation", "Modulkatalog · inoffiziell", "Rechtliches"] {
+            if html.contains(german) {
+                problems.push(format!("{english} says „{german}“"));
+            }
+        }
+        if !html.contains("Skip to content") || !html.contains("href=\"/en/catalog\"") {
+            problems.push(format!("{english}: not the English frame"));
+        }
+
+        // The same page in German: the links it writes are the plain ones.
+        let (status, _, body) = request(&router, page, &[]).await;
+        let html = String::from_utf8(body).unwrap();
+        assert_eq!(status, StatusCode::OK, "{page}");
+        assert!(html.contains("<html lang=\"de\"") && html.contains("Zum Inhalt springen"), "{page}");
+        for (address, other_language) in addresses(&html) {
+            if !other_language && (address == "/en" || address.starts_with("/en/") || address.starts_with("/en?")) {
+                problems.push(format!("{page} links {address} into English"));
+            }
+        }
+    }
+    problems.dedup();
+    assert!(problems.is_empty(), "{} problems:\n{}", problems.len(), problems.join("\n"));
+    // A page that does not exist does not exist in English either.
+    let (status, _, body) = request(&router, "/en/no-such-page", &[]).await;
+    assert!(status == StatusCode::NOT_FOUND && String::from_utf8(body).unwrap().contains("Page not found"));
+    // German has no prefix: `/de/…` is the plain address, the query kept; `/en/` is `/en`.
+    for (asked, target) in [("/de", "/"), ("/de/", "/"), ("/de/catalog?turnus=winter", "/catalog?turnus=winter"), ("/en/", "/en")] {
+        let (status, headers, _) = request(&router, asked, &[]).await;
+        assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::PERMANENT_REDIRECT, target), "{asked}");
+    }
+    // The installed app of each language starts in it.
+    let (status, _, body) = request(&router, "/en/manifest.webmanifest", &[]).await;
+    let manifest: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!((status, manifest["lang"].as_str(), manifest["start_url"].as_str()), (StatusCode::OK, Some("en"), Some("/en")));
+    let (_, _, body) = request(&router, app::MANIFEST, &[]).await;
+    let manifest: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!((manifest["lang"].as_str(), manifest["start_url"].as_str()), (Some("de"), Some("/")));
+    // The sitemap names every page in every language, each with its alternates.
+    let (_, _, body) = request(&router, "/sitemap.xml", &[]).await;
+    let sitemap = String::from_utf8(body).unwrap();
+    assert!(sitemap.contains("<loc>https://catalog.example/en</loc>") && sitemap.contains(&format!("<loc>https://catalog.example/en/catalog/module/{module}</loc>")));
+    assert!(sitemap.contains(&format!("<xhtml:link rel=\"alternate\" hreflang=\"de\" href=\"https://catalog.example/catalog/module/{module}\"/>")));
+    // A card in English is drawn apart from the German one.
+    let (status, headers, card) = request(&router, &format!("/en/cards/module/{module}.png"), &[]).await;
+    assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"));
+    let (_, _, german) = request(&router, &format!("/cards/module/{module}.png"), &[]).await;
+    assert_ne!(card, german, "the card says „Modul“ in German and \"Module\" in English");
+    let (status, _, picture) = request(&router, "/en/assets/og.png", &[]).await;
+    let (_, _, german) = request(&router, app::OG_IMAGE, &[]).await;
+    assert!(status == StatusCode::OK && picture.starts_with(b"\x89PNG") && picture != german, "the standard picture in English");
 }

@@ -14,7 +14,9 @@ pub mod combobox;
 pub mod data;
 pub mod format;
 pub mod ground;
+pub mod i18n;
 pub mod icons;
+pub mod languages;
 pub mod launch;
 pub mod local;
 pub mod myprogram;
@@ -32,11 +34,11 @@ use catalog::url;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::components::{Route, Router, Routes};
-use leptos_router::hooks::use_location;
 use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::bookmarks::Bookmarks;
 use crate::ground::{Crown, Ground};
+use crate::i18n::use_location;
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::legal::{ImprintPage, PrivacyPage};
@@ -140,11 +142,14 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
     // The browser app does not hydrate this HTML: it mounts fresh once its local database is
     // ready (`assets/boot.js`), so no hydration scripts are needed here.
     let _ = options;
+    let t = i18n::t();
     view! {
         <!DOCTYPE html>
-        <html lang="de">
+        <html lang=t.locale.code()>
             <head>
                 <meta charset="utf-8"/>
+                // First of all: the page in the visitor's language, before anything is loaded or drawn.
+                <script inner_html=languages::language_script()></script>
                 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
                 <meta name="color-scheme" content="light dark"/>
                 // Who the site is, for tabs, home screens and link previews. Static and the same
@@ -156,7 +161,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="icon" href=FAVICON_ICO sizes="32x32"/>
                 <link rel="icon" type="image/svg+xml" href=FAVICON/>
                 <link rel="apple-touch-icon" href=TOUCH_ICON/>
-                <link rel="manifest" href=MANIFEST/>
+                // The app a home screen installs from this page: this language's (`/en/…`).
+                <link rel="manifest" href=t.path(MANIFEST)/>
                 <script inner_html=HEAD_SCRIPT></script>
                 // The font and the stylesheet are the same on every page, so they are part of the
                 // document and not of `App`: the browser app does not hydrate, it mounts fresh, and
@@ -181,6 +187,11 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 
 #[component]
 pub fn App() -> impl IntoView {
+    // The language of the address, for the whole life of the app: another language is another
+    // page load (`i18n`).
+    let locale = i18n::locale();
+    provide_context(locale);
+    let t = i18n::texts(locale);
     provide_meta_context();
     Tabs::provide();
     // The visitor's marked modules, Studienplan and „Mein Studiengang": from this browser's
@@ -195,17 +206,18 @@ pub fn App() -> impl IntoView {
     view! {
         // Description, canonical address and the rest of what search engines read belong to the
         // page (`seo::Seo`), not to the app: a page must not carry two descriptions.
-        <Title formatter=|title: String| if title.is_empty() { "Modulkatalog der BTU Cottbus-Senftenberg · Betula (inoffiziell)".to_string() } else { format!("{title} · Betula") }/>
-        <Router>
+        <Title formatter=move |title: String| if title.is_empty() { t.app.default_title.to_string() } else { format!("{title} · Betula") }/>
+        // Below the language's prefix: the routes and every path inside the app are without it.
+        <Router base=locale.prefix()>
             <pending::Bind/>
             <FollowTabs/>
-            <a class="skip-link" href="#content">"Zum Inhalt springen"</a>
+            <a class="skip-link" href="#content">{t.app.skip_to_content}</a>
             <Crown/>
             <Rail/>
             <div class="main">
                 <TopBar/>
                 <main class="content" id="content" aria-busy=move || pending.busy().then_some("true")>
-                    <Routes fallback=|| view! { <div class="page"><ui::NotFound title="Seite nicht gefunden" hint="Diese Adresse gibt es nicht (mehr)."/></div> }>
+                    <Routes fallback=move || view! { <div class="page"><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></div> }>
                         <Route path=path!("/") view=HomePage ssr=SsrMode::Async/>
                         <Route path=path!("/catalog") view=CatalogPage ssr=SsrMode::Async/>
                         <Route path=path!("/catalog/module/:id") view=ModulePage ssr=SsrMode::Async/>
@@ -222,7 +234,7 @@ pub fn App() -> impl IntoView {
                 </main>
             </div>
             <Ground/>
-            <nav class="bottomnav" aria-label="Navigation"><NavItems/></nav>
+            <nav class="bottomnav" aria-label=t.app.navigation><NavItems/></nav>
         </Router>
     }
 }
@@ -238,6 +250,7 @@ fn FollowTabs() -> impl IntoView {
 /// The main navigation. Its items are tabs: each leads to where its area was left (`tabs`).
 #[component]
 fn NavItems() -> impl IntoView {
+    let t = i18n::t();
     let location = use_location();
     let tabs = Tabs::expect();
     // The tab of the page the app is going to is current at once, before the page is there.
@@ -248,54 +261,56 @@ fn NavItems() -> impl IntoView {
     let mine = MineResolved::expect();
     let href = move |area: Area| {
         let path = location.pathname.get();
-        match (tabs, area) {
+        t.path(&match (tabs, area) {
             (Some(tabs), Area::Catalog) => tabs.href_with_root(area, &path, &mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)),
             (Some(tabs), _) => tabs.href(area, &path),
             (None, _) => area.root().to_string(),
-        }
+        })
     };
     let plan = Studyplan::expect();
     let planned = Memo::new(move |_| plan.map(Studyplan::count).unwrap_or(0));
     view! {
-        <a class="nav" data-area="home" href=url::HOME title="Start" aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/></span>"Start"</a>
-        <a class="nav" data-area="catalog" href=move || href(Area::Catalog) title="Module" aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>"Module"</a>
-        <a class="nav" data-area="programs" href=move || href(Area::Programs) title="Studiengänge" aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/></span>"Studium"</a>
+        <a class="nav" data-area="home" href=t.path(url::HOME) title=t.app.home aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/></span>{t.app.home}</a>
+        <a class="nav" data-area="catalog" href=move || href(Area::Catalog) title=t.app.modules aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>{t.app.modules}</a>
+        <a class="nav" data-area="programs" href=move || href(Area::Programs) title=t.app.programs aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/></span>{t.app.study}</a>
         // The marked modules exist in the browser app only (R15). How many there are is known
         // there alone, so the number is never part of server HTML (R9).
-        <a class="nav js-only" data-area="bookmarks" href=move || href(Area::Bookmarks) title="Merkliste" aria-current=move || current(Area::Bookmarks)>
+        <a class="nav js-only" data-area="bookmarks" href=move || href(Area::Bookmarks) title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
             <span class="ind">
                 <Icon name="bookmark"/>
                 {move || {
                     let marked = Bookmarks::expect().map(|bookmarks| bookmarks.count()).unwrap_or(0);
-                    (marked > 0).then(|| view! { <span class="nav-count num" aria-label=format!("{marked} gemerkt")>{if marked > 99 { "99+".to_string() } else { marked.to_string() }}</span> })
+                    (marked > 0).then(|| view! { <span class="nav-count num" aria-label=(t.app.marked_count)(marked)>{if marked > 99 { "99+".to_string() } else { marked.to_string() }}</span> })
                 }}
             </span>
-            "Merkliste"
+            {t.app.bookmarks}
         </a>
         // The Studienplan lives in the browser app alone, like the Merkliste (R15), and so does the
         // number of its modules (R9). The number is a memo of its own: most changes of the plan
         // (a hidden Termin, a move) leave it as it is.
-        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title="Stundenplan" aria-current=move || current(Area::Studyplan)>
+        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
             <span class="ind">
                 <Icon name="calendar-range"/>
                 {move || {
                     let planned = planned.get();
-                    (planned > 0).then(|| view! { <span class="nav-count num" aria-label=format!("{planned} geplant")>{if planned > 99 { "99+".to_string() } else { planned.to_string() }}</span> })
+                    (planned > 0).then(|| view! { <span class="nav-count num" aria-label=(t.app.planned_count)(planned)>{if planned > 99 { "99+".to_string() } else { planned.to_string() }}</span> })
                 }}
             </span>
-            "Stundenplan"
+            {t.app.studyplan}
         </a>
     }
 }
 
 #[component]
 fn Rail() -> impl IntoView {
+    let t = i18n::t();
     view! {
         <aside class="rail">
-            <a class="logo hit" href=url::HOME aria-label="Betula, zur Startseite"><ui::Mark/></a>
-            <nav aria-label="Hauptnavigation"><NavItems/></nav>
+            <a class="logo hit" href=t.path(url::HOME) aria-label=t.app.logo_label><ui::Mark/></a>
+            <nav aria-label=t.app.main_navigation><NavItems/></nav>
             <div class="rail-end">
-                <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label="Hell oder dunkel">
+                <languages::Languages/>
+                <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label=t.app.theme_toggle>
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
                 </button>
             </div>
@@ -305,6 +320,7 @@ fn Rail() -> impl IntoView {
 
 #[component]
 fn TopBar() -> impl IntoView {
+    let t = i18n::t();
     let location = use_location();
     // Title and search belong to the page the app is at or going to (`pending`).
     let going = Pending::expect();
@@ -342,12 +358,13 @@ fn TopBar() -> impl IntoView {
         <header class="topbar">
             {move || {
                 let programs = area_now.get() == Area::Programs;
+                let modules = t.app.search_modules_placeholder;
                 let (title, action, placeholder) = match area_now.get() {
-                    Area::Programs => ("Studiengänge", url::PROGRAMS, "Studiengang suchen"),
-                    Area::Catalog => ("Module", url::CATALOG, "Modul, Nummer oder Thema suchen"),
-                    Area::Bookmarks => ("Merkliste", url::CATALOG, "Modul, Nummer oder Thema suchen"),
-                    Area::Studyplan => ("Stundenplan", url::CATALOG, "Modul, Nummer oder Thema suchen"),
-                    Area::Home => ("Start", url::CATALOG, "Modul, Nummer oder Thema suchen"),
+                    Area::Programs => (t.app.programs, url::PROGRAMS, t.app.search_programs_placeholder),
+                    Area::Catalog => (t.app.modules, url::CATALOG, modules),
+                    Area::Bookmarks => (t.app.bookmarks, url::CATALOG, modules),
+                    Area::Studyplan => (t.app.studyplan, url::CATALOG, modules),
+                    Area::Home => (t.app.home, url::CATALOG, modules),
                 };
                 let initial = url::parse_pairs(&Pending::shown_of(going, location.pathname, location.search).1)
                     .into_iter()
@@ -357,17 +374,17 @@ fn TopBar() -> impl IntoView {
                 // The start page carries the name: next to the mark in the rail it reads as the logo.
                 let home = area_now.get() == Area::Home;
                 let heading = if home {
-                    view! { <h1><ui::Wordmark small=true/></h1><small>"Modulkatalog · inoffiziell"</small> }.into_any()
+                    view! { <h1><ui::Wordmark small=true/></h1><small>{t.common.tagline}</small> }.into_any()
                 } else {
                     view! { <h1>{title}</h1> }.into_any()
                 };
                 view! {
                     <div class="crumb" class:brand=home>{heading}</div>
-                    <form class="search" role="search" method="get" action=action data-live-search="">
+                    <form class="search" role="search" method="get" action=t.path(action) data-live-search="">
                         <Icon name="search"/>
-                        <label class="visually-hidden" for="topsearch">{if programs { "Studiengänge suchen" } else { "Module suchen" }}</label>
+                        <label class="visually-hidden" for="topsearch">{if programs { t.app.search_programs } else { t.app.search_modules }}</label>
                         <input id="topsearch" type="search" name="q" value=initial placeholder=placeholder autocomplete="off" on:input=on_input/>
-                        <ui::Shortcut keys="Strg K"/>
+                        <ui::Shortcut keys=t.common.search_shortcut/>
                     </form>
                     <span class="pill db-status" id="db-status" hidden></span>
                 }

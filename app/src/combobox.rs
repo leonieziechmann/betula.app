@@ -18,6 +18,7 @@ use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::web_sys;
 
+use crate::i18n;
 use crate::nav::{self, PopupPlace};
 use crate::ui::Icon;
 
@@ -87,7 +88,8 @@ fn is_open(open: RwSignal<bool>) -> bool {
 pub fn Combobox(
     /// Id of the button; the parts of the popup derive theirs from it.
     id: &'static str,
-    /// What is being picked, for screen readers: „Studiengang".
+    /// What is being picked, for screen readers: „Studiengang". This and the texts below are in
+    /// the page's language (`i18n`).
     label: &'static str,
     /// The button's text while nothing is selected. With `clearable` also the first entry.
     placeholder: &'static str,
@@ -106,6 +108,7 @@ pub fn Combobox(
     /// The popup is as wide as the button, but not narrower than this (long names need room).
     #[prop(default = 340.0)] min_width: f64,
 ) -> impl IntoView {
+    let t = i18n::t();
     let open = RwSignal::new(false);
     let text = RwSignal::new(String::new());
     let active = RwSignal::new(0usize);
@@ -334,8 +337,8 @@ pub fn Combobox(
                         }
                     })
                     .collect_view();
-                let none = (shown() == 0).then(|| view! { <li class="combo-empty" role="presentation">"Nichts gefunden"</li> });
-                let more = (hidden > 0).then(|| view! { <li class="combo-empty" role="presentation">{format!("{hidden} weitere – tippe, um sie zu finden")}</li> });
+                let none = (shown() == 0).then(|| view! { <li class="combo-empty" role="presentation">{t.combobox.nothing_found}</li> });
+                let more = (hidden > 0).then(|| view! { <li class="combo-empty" role="presentation">{(t.combobox.more)(hidden)}</li> });
                 (entries, none, more)
             };
             view! {
@@ -360,7 +363,7 @@ pub fn Combobox(
                         />
                     </div>
                     <ul class="combo-list scroll" id=list_id.clone() role="listbox" aria-label=label>{entries}</ul>
-                    <div class="combo-foot"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" übernehmen "<kbd>"Esc"</kbd>" schließen"</div>
+                    <div class="combo-foot"><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.combobox.key_move}" "<kbd>"Enter"</kbd>" "{t.combobox.key_take}" "<kbd>"Esc"</kbd>" "{t.combobox.key_close}</div>
                 </div>
             }
         })
@@ -393,7 +396,7 @@ pub fn Combobox(
                 <Icon name="chevrons-up-down" class="combo-chevron"/>
             </button>
             {move || (clearable && current.get().is_some()).then(|| view! {
-                <button type="button" class="combo-clear" aria-label=format!("{label}: Auswahl aufheben") on:click=move |_| { hide(false); on_select.run(None); }>
+                <button type="button" class="combo-clear" aria-label=(t.combobox.clear)(label) on:click=move |_| { hide(false); on_select.run(None); }>
                     <Icon name="x"/>
                 </button>
             })}

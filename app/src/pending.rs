@@ -28,10 +28,11 @@ use std::rc::Rc;
 
 use catalog::url::{self, BookmarksUrl, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
 use leptos::prelude::*;
-use leptos_router::hooks::{use_location, use_navigate};
+use leptos_router::hooks::use_navigate;
 use leptos_router::location::Location;
 use leptos_router::NavigateOptions;
 
+use crate::i18n::use_location;
 use crate::studyplan::PlanAddress;
 
 /// A change of this kind that took this long the last time (smoothed) gets a skeleton: below it,
@@ -529,9 +530,12 @@ mod browser {
             if target.origin() != origin {
                 return;
             }
+            // A link into another language is a new page load, not a step of this app.
+            let pathname = target.pathname();
+            let Some(to_path) = crate::i18n::app_path(&pathname) else { return };
             let Some((from_path, from_search)) = here(&pending) else { return };
-            let to = format!("{}{}{}", target.pathname(), target.search(), target.hash());
-            let Some(change) = super::change(&from_path, &from_search, &target.pathname(), &target.search(), crate::nav::is_phone()) else { return };
+            let to = format!("{to_path}{}{}", target.search(), target.hash());
+            let Some(change) = super::change(&from_path, &from_search, to_path, &target.search(), crate::nav::is_phone()) else { return };
             ev.prevent_default();
             let scroll = !link.has_attribute("noscroll") && !link.has_attribute("data-noscroll");
             pending.start(to, Via::Link { replace: false, scroll }, change, false);
@@ -542,9 +546,10 @@ mod browser {
                 return;
             }
             let Some(location) = web_sys::window().map(|w| w.location()) else { return };
-            let (Ok(path), Ok(search), Ok(hash)) = (location.pathname(), location.search(), location.hash()) else { return };
+            let (Ok(address), Ok(search), Ok(hash)) = (location.pathname(), location.search(), location.hash()) else { return };
+            let Some(path) = crate::i18n::app_path(&address) else { return };
             let Some((from_path, from_search)) = here(&pending) else { return };
-            let Some(change) = super::change(&from_path, &from_search, &path, &search, crate::nav::is_phone()) else { return };
+            let Some(change) = super::change(&from_path, &from_search, path, &search, crate::nav::is_phone()) else { return };
             ev.stop_immediate_propagation();
             pending.start(format!("{path}{search}{hash}"), Via::History, change, false);
         });

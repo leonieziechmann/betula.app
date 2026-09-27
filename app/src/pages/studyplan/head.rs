@@ -20,7 +20,6 @@ use catalog::studyplan::PlanDoc;
 use catalog::timetable::clash::{self, Overlap, Weeks, When};
 use catalog::timetable::day::{clock, Day};
 use catalog::timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
-use catalog::timetable::kind::EventKind;
 use catalog::timetable::model::{Attendance, Basis, Event, Row, Timetable};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::select::TownChoice;
@@ -33,6 +32,7 @@ use super::week::{has_ab, AllSwitch, WeekSwitch};
 use super::{key_of, PlanCtx, SheetToggle};
 use crate::bookmarks::Bookmarks;
 use crate::format;
+use crate::i18n::{self, Locale};
 use crate::myprogram::MineResolved;
 use crate::nav;
 use crate::pages::catalog::finder_on;
@@ -53,28 +53,20 @@ pub(super) fn tone_at(position: usize) -> u8 {
     u8::try_from(position % HUES.len()).map_or(1, |tone| tone + 1)
 }
 
-/// „Mo" … „So" by `Day::weekday` (1 = Monday).
-pub(super) fn weekday_name(weekday: u8) -> &'static str {
-    match weekday {
-        1 => "Mo",
-        2 => "Di",
-        3 => "Mi",
-        4 => "Do",
-        5 => "Fr",
-        6 => "Sa",
-        _ => "So",
-    }
+/// „Mo" … „So", "Mon" … "Sun" by `Day::weekday` (1 = Monday); nothing for what is no weekday.
+pub(super) fn weekday_name(weekday: u8, locale: Locale) -> &'static str {
+    locale.texts().common.weekday_short(i64::from(weekday)).unwrap_or_default()
 }
 
-/// „Mo 08.02.2027".
-fn day_name(day: Day) -> String {
-    format!("{} {}", weekday_name(day.weekday()), day.german())
+/// „Mo 08.02.2027", "Mon 8 Feb 2027".
+fn day_name(day: Day, locale: Locale) -> String {
+    format!("{} {}", weekday_name(day.weekday(), locale), day.date(locale))
 }
 
 /// Where „+ Modul" leads: the catalog's modules that fit the semester (`fits=`, comparing what the
 /// finder compared the last time it was on, `finder_on`), within „Mein Studiengang" where the
 /// stored program is in the snapshot (the one kind of address its slug may stand in, A.10).
-/// Tracked.
+/// Tracked. A path of the app: a link writes it as `t.path(…)`.
 pub(super) fn add_module_href(resolved: Option<MineResolved>, key: SemesterKey) -> String {
     let program = resolved
         .and_then(|resolved| resolved.0.get())
@@ -109,16 +101,16 @@ fn open_placeholders(doc: &PlanDoc, key: SemesterKey) -> usize {
 /// Platzhalter"). Placeholders only where there are any. The credits are the head's of the list of
 /// modules (owner, 2026-09-25: „die Summe aus allen geplanten Modulen", oben rechts), so they are
 /// not said here again. Empty with nothing to count and no program.
-pub(super) fn sum_line(program: Option<&str>, modules: usize, placeholders: usize) -> String {
+pub(super) fn sum_line(program: Option<&str>, modules: usize, placeholders: usize, t: &i18n::Texts) -> String {
     let mut parts = Vec::new();
     if let Some(program) = program.filter(|program| !program.is_empty()) {
         parts.push(program.to_string());
     }
     if modules > 0 {
-        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX)));
+        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX), t.locale));
     }
     if placeholders > 0 {
-        parts.push(format!("{placeholders} Platzhalter"));
+        parts.push((t.studyplan_head.placeholders)(placeholders));
     }
     parts.join(" · ")
 }
@@ -158,6 +150,7 @@ fn head_line(data: &StudyplanData) -> Option<HeadLine> {
 /// of a past semester, or of one whose dates are not out yet.
 #[component]
 pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
     let key = ctx.key;
     // The placeholders come from the plan itself, so the semester is worked out from the address
     // and the plan here, as `wanted` does it (R16), not read from `key`.
@@ -174,7 +167,7 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let sum = Memo::new(move |_| {
         let (placeholders, program) = (held.get(), program.get());
         let modules = ctx.data.with(|data| data.as_ref().map_or(0, |data| data.ids.len()));
-        sum_line(program.as_deref(), modules, placeholders)
+        sum_line(program.as_deref(), modules, placeholders, t)
     });
     let line = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(head_line)));
     // „A-Woche · B-Woche · A/B" at the head's right end, beside the week it switches, where the
@@ -187,7 +180,7 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
 
     view! {
         <div class="sp-head">
-            <h1>"Stundenplan "<span>{move || key.get().label()}</span></h1>
+            <h1>{t.studyplan.title}" "<span>{move || key.get().label(t.locale)}</span></h1>
             <SheetToggle/>
             {move || (weekly.get() && planned.get()).then(|| view! { <AllSwitch all=ctx.all/> })}
             {move || (weekly.get() && ab.get() && !ctx.phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
@@ -197,14 +190,14 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
             (!text.is_empty()).then(|| view! { <p class="sp-sum">{text}</p> })
         }}
         {move || {
-            let label = key.get().label();
+            let label = key.get().label(t.locale);
             match line.get() {
                 Some(HeadLine::Past) => view! {
-                    <p class="note quiet"><span>{format!("{label} ist vorbei; vergangene Termine fehlen im Datenstand.")}</span></p>
+                    <p class="note quiet"><span>{(t.studyplan_head.past)(&label)}</span></p>
                 }
                 .into_any(),
                 Some(HeadLine::Unpublished) => view! {
-                    <p class="note quiet"><span>{format!("{label}: noch keine Termine veröffentlicht.")}</span></p>
+                    <p class="note quiet"><span>{(t.studyplan_head.unpublished)(&label)}</span></p>
                 }
                 .into_any(),
                 None => ().into_any(),
@@ -227,8 +220,9 @@ fn offered(data: &BookmarksData, key: SemesterKey, planned: &[String]) -> Vec<(S
 }
 
 /// How the note of the marked modules taken over at once begins (`PlanCtx::undo`, which the
-/// import, „Plan leeren" and the list's × share); what follows it is shown.
-const FROM_MARKED: &str = "Merkliste: ";
+/// import, „Plan leeren" and the list's × share): a mark of its own, the same in every language;
+/// only what follows it is shown.
+pub(super) const FROM_MARKED: &str = "Merkliste: ";
 
 /// The marked modules the semester shown could still take (`offered`), for the page's two ways to
 /// plan them: the empty week's „übernehmen" and the list's „Aus der Merkliste". One memo for both.
@@ -257,6 +251,7 @@ pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<(String, String)>> {
 /// taken over from a later Fachsemester fills its first semesters with what was taken.
 #[component]
 pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> impl IntoView {
+    let t = i18n::t();
     let any = Memo::new(move |_| list.with(|list| !list.is_empty()));
     let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().and_then(|(note, _)| note.strip_prefix(FROM_MARKED).map(str::to_string))));
     let restoring = RwSignal::new(false);
@@ -285,7 +280,7 @@ pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> 
                 <p class="action note-action sp-marked-note">
                     <Icon name="check"/>
                     <span>{note}</span>
-                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>"Rückgängig"</button>
+                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                 </p>
             }
         })
@@ -294,7 +289,7 @@ pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> 
         any.get().then(|| {
             view! {
                 <details class="sp-marked">
-                    <summary>"Aus der Merkliste ("{move || list.with(Vec::len)}")"</summary>
+                    <summary>{move || (t.studyplan_head.from_bookmarks)(list.with(Vec::len))}</summary>
                     <ul>
                         <For
                             each=move || list.get()
@@ -333,7 +328,7 @@ pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> 
                                         <span class="mono">{id}</span>
                                         <span>{title}</span>
                                         <button class="mini" type="button" aria-busy=move || busy.get().then_some("true") on:click=plan_it>
-                                            {move || if busy.get() { "Eingeplant" } else { "Einplanen" }}
+                                            {move || if busy.get() { t.studyplan_head.planned } else { t.studyplan_head.plan }}
                                         </button>
                                     </li>
                                 }
@@ -350,19 +345,13 @@ pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> 
 // ---------- nothing planned yet ----------
 
 /// „3 gemerkte Module übernehmen", „1 gemerktes Modul übernehmen".
-fn take_marked_label(count: usize) -> String {
-    match count {
-        1 => "1 gemerktes Modul übernehmen".to_string(),
-        count => format!("{count} gemerkte Module übernehmen"),
-    }
+fn take_marked_label(count: usize, t: &i18n::Texts) -> String {
+    (t.studyplan_head.take_marked)(count)
 }
 
 /// „3 gemerkte Module übernommen", after `FROM_MARKED`.
-fn marked_note(count: usize) -> String {
-    match count {
-        1 => format!("{FROM_MARKED}1 gemerktes Modul übernommen"),
-        count => format!("{FROM_MARKED}{count} gemerkte Module übernommen"),
-    }
+fn marked_note(count: usize, t: &i18n::Texts) -> String {
+    format!("{FROM_MARKED}{}", (t.studyplan_head.marked_taken)(count))
 }
 
 /// A semester without a module (owner, 2026-09-25): „Noch keine Termine" in the middle of its empty
@@ -373,6 +362,7 @@ fn marked_note(count: usize) -> String {
 /// stand where the list offers the Merkliste (`FromBookmarks`).
 #[component]
 pub(super) fn NothingPlanned(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> impl IntoView {
+    let t = i18n::t();
     let resolved = MineResolved::expect();
     let count = Memo::new(move |_| marked.with(Vec::len));
     let busy = RwSignal::new(false);
@@ -395,21 +385,21 @@ pub(super) fn NothingPlanned(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) 
                 (ids.iter().filter(|id| doc.plan(key, id, at, None)).count(), before)
             });
             if taken > 0 {
-                let _ = undo.try_set(Some((marked_note(taken), before)));
+                let _ = undo.try_set(Some((marked_note(taken, t), before)));
             }
             let _ = busy.try_set(false);
         });
     };
-    let catalog = move || add_module_href(resolved, ctx.key.get());
+    let catalog = move || t.path(&add_module_href(resolved, ctx.key.get()));
     view! {
         <div class="sp-empty">
-            <p class="state-title">"Noch keine Termine"</p>
+            <p class="state-title">{t.studyplan_head.no_dates}</p>
             <div class="state-actions">
                 {move || match count.get() {
-                    0 => view! { <a class="btn primary" href=catalog>"Zum Katalog"</a> }.into_any(),
+                    0 => view! { <a class="btn primary" href=catalog>{t.studyplan_head.to_catalog}</a> }.into_any(),
                     count => view! {
-                        <button class="btn primary" type="button" aria-busy=move || busy.get().then_some("true") on:click=take>{take_marked_label(count)}</button>
-                        <a class="btn secondary" href=catalog>"Zum Katalog"</a>
+                        <button class="btn primary" type="button" aria-busy=move || busy.get().then_some("true") on:click=take>{take_marked_label(count, t)}</button>
+                        <a class="btn secondary" href=catalog>{t.studyplan_head.to_catalog}</a>
                     }
                     .into_any(),
                 }}
@@ -432,13 +422,13 @@ impl About {
     }
 
     /// A module's title; its number where the catalog has none.
-    fn title(&self, module: &str) -> String {
-        self.titles.get(module).cloned().unwrap_or_else(|| format!("Modul {module}"))
+    fn title(&self, module: &str, t: &i18n::Texts) -> String {
+        self.titles.get(module).cloned().unwrap_or_else(|| (t.studyplan_head.module_numbered)(module))
     }
 
     /// The title an event goes by in a line: its first planned module's.
-    fn title_of(&self, event: &Event) -> String {
-        event.modules.first().map_or_else(|| event.title.clone(), |module| self.title(module))
+    fn title_of(&self, event: &Event, t: &i18n::Texts) -> String {
+        event.modules.first().map_or_else(|| event.title.clone(), |module| self.title(module, t))
     }
 }
 
@@ -462,11 +452,12 @@ impl Note {
     }
 }
 
-/// What an event is called in a line: its type as QIS writes it, else its first kind.
-pub(super) fn kind_word(event: &Event) -> String {
+/// What an event is called in a line: its type as QIS writes it (in every language), else its
+/// first kind, else „Termin".
+pub(super) fn kind_word(event: &Event, locale: Locale) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
         Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or("Termin", EventKind::label).to_string(),
+        None => event.kinds.iter().next().map_or(locale.texts().plans.session, |kind| kind.label(locale)).to_string(),
     }
 }
 
@@ -474,8 +465,8 @@ pub(super) fn kind_word(event: &Event) -> String {
 /// is free, in the words of „1 von 4 wählen: …" — the neutral „Terminen", and the type as QIS
 /// writes it after the colon, never glued to it („Laborausbildungterminen"). The notes of the
 /// semester name the module (`title`), the module beside the plan its event.
-pub(super) fn blocked_line(event: &Event, title: &str) -> String {
-    format!("0 von {} Terminen frei: {} · {}", event.visible_options().len(), kind_word(event), title.trim())
+pub(super) fn blocked_line(event: &Event, title: &str, locale: Locale) -> String {
+    (i18n::texts(locale).studyplan_head.blocked)(event.visible_options().len(), &kind_word(event, locale), title.trim())
 }
 
 /// The first row of the first option still shown of a choice: where its line points.
@@ -485,12 +476,12 @@ fn first_option_row(event: &Event) -> Option<RowKey> {
 }
 
 /// A campus as a hop between two exams names it: „Zentralcampus", „Sachsendorf", „Senftenberg".
-fn campus_name(campus: &Code<Campus>) -> String {
+fn campus_name(campus: &Code<Campus>, t: &i18n::Texts) -> String {
     match campus.known() {
-        Some(Campus::Zentralcampus) => "Zentralcampus".to_string(),
+        Some(Campus::Zentralcampus) => t.studyplan_head.central_campus.to_string(),
         Some(Campus::Sachsendorf) => "Sachsendorf".to_string(),
         Some(Campus::Senftenberg) => "Senftenberg".to_string(),
-        _ => campus.label().to_string(),
+        _ => campus.label(t.locale).to_string(),
     }
 }
 
@@ -501,18 +492,19 @@ fn campus_name(campus: &Code<Campus>) -> String {
 /// Zweittermin 11.03. passt", „…: Erstermin 25.02. passt" where it is that module's earliest. Else
 /// („andere Termine passen", no module) only a change of both avoids it. (`ExamWarning::avoid` is
 /// only a day, so the Termine on it are looked up.)
-fn avoid_text(warning: &ExamWarning, avoid: Day, termine: &[(String, Vec<TerminAt>)], about: &About) -> (String, Option<String>) {
+fn avoid_text(warning: &ExamWarning, avoid: Day, termine: &[(String, Vec<TerminAt>)], about: &About, t: &i18n::Texts) -> (String, Option<String>) {
     let list = |module: &str| termine.iter().find(|(id, _)| id == module).map_or(&[][..], |(_, list)| list.as_slice());
     let issue = |termin: &Termin| list(&termin.module_id).iter().find(|at| at.day == warning.day && at.termin == *termin);
-    let both = || ("andere Termine passen".to_string(), None);
+    let both = || (t.data.plans.other_dates_fit.to_string(), None);
     let (Some(a), Some(b)) = (issue(&warning.a), issue(&warning.b)) else {
         return both();
     };
     for (mine, other) in [(a, b), (b, a)] {
         let module = &mine.termin.module_id;
         if let Some(index) = list(module).iter().position(|at| at.day == avoid && at != mine && exams::collision(at, other).is_none()) {
-            let rank = if index == 0 { "Erstermin" } else { "Zweittermin" };
-            return (format!("{}: {rank} {} passt", about.title(module), avoid.short()), Some(module.clone()));
+            let day = avoid.day_month(t.locale);
+            let fits = if index == 0 { (t.data.plans.first_sitting_fits)(&day) } else { (t.data.plans.second_sitting_fits)(&day) };
+            return (format!("{}: {fits}", about.title(module, t)), Some(module.clone()));
         }
     }
     both()
@@ -530,32 +522,31 @@ pub(super) struct Alert {
 }
 
 /// The exam warnings of a timetable as alerts, in its order.
-pub(super) fn exam_alerts(table: &Timetable, about: &About) -> Vec<Alert> {
+pub(super) fn exam_alerts(table: &Timetable, about: &About, t: &i18n::Texts) -> Vec<Alert> {
     let termine = exams::termine(&table.exams, &table.modules);
-    table.exam_warnings.iter().map(|warning| exam_alert(warning, about, &termine)).collect()
+    table.exam_warnings.iter().map(|warning| exam_alert(warning, about, &termine, t)).collect()
 }
 
 /// „Prüfung A und Prüfung B überschneiden sich" / „Mo 08.02.2027, beide 11:00–13:00";
 /// „Prüfung A und Prüfung B: nur 0 min zwischen Zentralcampus und Senftenberg" / „Mo 08.02.2027,
 /// 08:00–10:00 und 10:00–12:00".
-fn exam_alert(warning: &ExamWarning, about: &About, termine: &[(String, Vec<TerminAt>)]) -> Alert {
-    let (a, b) = (about.title(&warning.a.module_id), about.title(&warning.b.module_id));
+fn exam_alert(warning: &ExamWarning, about: &About, termine: &[(String, Vec<TerminAt>)], t: &i18n::Texts) -> Alert {
+    let h = &t.studyplan_head;
+    let (a, b) = (about.title(&warning.a.module_id, t), about.title(&warning.b.module_id, t));
     let span = |termin: &Termin| format!("{}–{}", clock(termin.from), clock(termin.to));
     let times = if (warning.a.from, warning.a.to) == (warning.b.from, warning.b.to) {
-        format!("beide {}", span(&warning.a))
+        (h.both_at)(&span(&warning.a))
     } else {
-        format!("{} und {}", span(&warning.a), span(&warning.b))
+        (h.each_at)(&span(&warning.a), &span(&warning.b))
     };
     let text = match &warning.kind {
-        WarningKind::Overlap => format!("Prüfung {a} und Prüfung {b} überschneiden sich"),
-        WarningKind::Tight { gap, from, to } => {
-            format!("Prüfung {a} und Prüfung {b}: nur {gap} min zwischen {} und {}", campus_name(from), campus_name(to))
-        }
+        WarningKind::Overlap => (h.exams_clash)(&a, &b),
+        WarningKind::Tight { gap, from, to } => (h.exams_tight)(&a, &b, *gap, &campus_name(from, t), &campus_name(to, t)),
     };
-    let mut when = format!("{}, {times}", day_name(warning.day));
+    let mut when = format!("{}, {times}", day_name(warning.day, t.locale));
     let mut module = warning.b.module_id.clone();
     if let Some(avoid) = warning.avoid.filter(|_| !warning.hard) {
-        let (avoids, whose) = avoid_text(warning, avoid, termine, about);
+        let (avoids, whose) = avoid_text(warning, avoid, termine, about, t);
         when.push_str(" · ");
         when.push_str(&avoids);
         module = whose.unwrap_or(module);
@@ -567,12 +558,13 @@ fn exam_alert(warning: &ExamWarning, about: &About, termine: &[(String, Vec<Term
 /// beside the plan.
 #[component]
 pub(super) fn ExamAlerts(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
     let about = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(About::of).unwrap_or_default()));
-    let alerts = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| about.with(|about| exam_alerts(table, about))).unwrap_or_default()));
+    let alerts = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| about.with(|about| exam_alerts(table, about, t))).unwrap_or_default()));
     let any = Memo::new(move |_| alerts.with(|alerts| !alerts.is_empty()));
     let alert = move |alert: Alert| {
         let module = alert.module.clone();
-        let href = move || ctx.url.with(|url| url.with_open(Some(&module), None).path());
+        let href = move || t.path(&ctx.url.with(|url| url.with_open(Some(&module), None).path()));
         view! {
             <a class="sp-alert" href=href data-noscroll="">
                 <Icon name="triangle-alert"/>
@@ -605,8 +597,8 @@ pub(super) struct Summary {
 
 /// „Vorlesung Programmierpraktikum": the kind as QIS names it and the short name of its module;
 /// the name alone where it begins with its kind („Tutorium Mathematik IT-1").
-fn named(event: &Event, about: &About) -> String {
-    let (kind, title) = (kind_word(event), short_title(&about.title_of(event)));
+fn named(event: &Event, about: &About, t: &i18n::Texts) -> String {
+    let (kind, title) = (kind_word(event, t.locale), short_title(&about.title_of(event, t)));
     if title.starts_with(&kind) {
         return title;
     }
@@ -615,25 +607,20 @@ fn named(event: &Event, about: &About) -> String {
 
 /// „Di 07:30–09:00 · Vorlesung Programmierpraktikum × Vorlesung Elektrische … · A-Woche", „Do
 /// 12.11. 13:45–15:15 · …" for a single day. It opens the later side at its Termin.
-fn overlap_line(table: &Timetable, about: &About, overlap: &Overlap) -> Option<Note> {
+fn overlap_line(table: &Timetable, about: &About, overlap: &Overlap, t: &i18n::Texts) -> Option<Note> {
     let (a, b) = (table.events.get(overlap.a.0)?, table.events.get(overlap.b.0)?);
     let (when, weeks) = match overlap.when {
-        When::Weekly(weeks) => (weekday_name(overlap.weekday).to_string(), weeks),
-        When::Day(day) => (format!("{} {}", weekday_name(day.weekday()), day.short()), Weeks::All),
+        When::Weekly(weeks) => (weekday_name(overlap.weekday, t.locale).to_string(), weeks),
+        When::Day(day) => (format!("{} {}", weekday_name(day.weekday(), t.locale), day.day_month(t.locale)), Weeks::All),
     };
     let weeks = match weeks {
-        Weeks::A => " · A-Woche",
-        Weeks::B => " · B-Woche",
-        Weeks::All => "",
+        Weeks::A => format!(" · {}", t.studyplan_head.week_a),
+        Weeks::B => format!(" · {}", t.studyplan_head.week_b),
+        Weeks::All => String::new(),
     };
-    let text = format!("{when} {}–{} · {} × {}{weeks}", clock(overlap.from), clock(overlap.to), named(a, about), named(b, about));
+    let text = format!("{when} {}–{} · {} × {}{weeks}", clock(overlap.from), clock(overlap.to), named(a, about, t), named(b, about, t));
     let row = b.rows.get(overlap.b.1).and_then(|row| row.key);
     Some(Note::warn(text, b.modules.first().cloned(), row))
-}
-
-/// „1 Überschneidung", „2 Überschneidungen"; „1 Wahl", „2 Wahlen".
-fn counted(count: usize, one: &str, many: &str) -> String {
-    format!("{count} {}", if count == 1 { one } else { many })
 }
 
 /// The line of overlaps and open choices of a timetable. Overlaps count per week (`clash::
@@ -641,16 +628,17 @@ fn counted(count: usize, one: &str, many: &str) -> String {
 /// week) and on single days apart; opened, the line lists the overlaps of that week and those of
 /// single days, then the choices without a free option, the choices still open, and the Standort
 /// to pick (`choice`: the one the visitor chose). Empty parts: no line.
-pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], shown: Weeks, choice: TownChoice) -> Summary {
+pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], shown: Weeks, choice: TownChoice, t: &i18n::Texts) -> Summary {
+    let h = &t.studyplan_head;
     let mut parts = Vec::new();
     let (weekly, days) = (clash::per_week(overlaps, shown), clash::on_days(overlaps));
     if weekly > 0 {
-        parts.push((true, format!("{} pro Woche", counted(weekly, "Überschneidung", "Überschneidungen"))));
+        parts.push((true, (h.clashes_per_week)(weekly)));
     }
     if days > 0 {
         let text = match weekly {
-            0 => format!("{} an einzelnen Tagen", counted(days, "Überschneidung", "Überschneidungen")),
-            _ => format!("{days} an einzelnen Tagen"),
+            0 => (h.clashes_on_days)(days),
+            _ => (h.more_on_days)(days),
         };
         parts.push((true, text));
     }
@@ -658,28 +646,28 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
         When::Weekly(weeks) => weeks.in_week(shown),
         When::Day(_) => true,
     };
-    let mut lines: Vec<Note> = overlaps.iter().filter(shows).filter_map(|overlap| overlap_line(table, about, overlap)).collect();
+    let mut lines: Vec<Note> = overlaps.iter().filter(shows).filter_map(|overlap| overlap_line(table, about, overlap, t)).collect();
 
     let mut open = 0;
     for event in table.blocked.iter().filter_map(|index| table.events.get(*index)) {
         open += 1;
-        lines.push(Note::warn(blocked_line(event, &about.title_of(event)), event.modules.first().cloned(), first_option_row(event)));
+        lines.push(Note::warn(blocked_line(event, &about.title_of(event, t), t.locale), event.modules.first().cloned(), first_option_row(event)));
     }
     for (index, event) in table.events.iter().enumerate() {
         if event.hidden.is_some() || !event.unresolved() || table.blocked.contains(&index) {
             continue;
         }
         open += 1;
-        let text = format!("1 von {} wählen: {} · {}", event.visible_options().len(), kind_word(event), about.title_of(event));
+        let text = (h.choose_one)(event.visible_options().len(), &kind_word(event, t.locale), &about.title_of(event, t));
         lines.push(Note::quiet(text, event.modules.first().cloned(), first_option_row(event)));
     }
     if open > 0 {
-        parts.push((false, format!("{} offen", counted(open, "Wahl", "Wahlen"))));
+        parts.push((false, (h.choices_open)(open)));
     }
     if !table.tracks.is_empty() && table.town.is_none() && choice == TownChoice::Derive {
-        let names: Vec<String> = table.tracks.iter().map(|module| about.title(module)).collect();
-        parts.push((false, "Standort offen".to_string()));
-        let text = format!("Standort wählen: {} · Cottbus oder Senftenberg", names.join(", "));
+        let names: Vec<String> = table.tracks.iter().map(|module| about.title(module, t)).collect();
+        parts.push((false, h.town_open.to_string()));
+        let text = (h.choose_town)(&names.join(", "));
         lines.push(Note::quiet(text, table.tracks.iter().next().cloned(), None));
     }
     Summary { parts, lines }
@@ -692,6 +680,7 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
 /// No line with nothing to say.
 #[component]
 pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
     let about = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(About::of).unwrap_or_default()));
     let choice = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.town));
     let shown = Memo::new(move |_| {
@@ -707,7 +696,7 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
         ctx.table.with(|table| {
             table
                 .as_ref()
-                .map(|table| about.with(|about| summary(table, about, &clash::overlaps(&table.events), shown, choice)))
+                .map(|table| about.with(|about| summary(table, about, &clash::overlaps(&table.events), shown, choice, t)))
                 .unwrap_or_default()
         })
     });
@@ -715,14 +704,14 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
     // both derived from the selection (R16).
     let hides = Memo::new(move |_| ctx.selection.with(|(_, selection)| (selection.hidden_events.clone(), selection.hidden_rows.clone())));
     let hidden = Memo::new(move |_| {
-        hides.with(|(events, rows)| about.with(|about| ctx.table.with(|table| table.as_ref().map(|table| hidden_lines(table, events, rows, &about.titles)).unwrap_or_default())))
+        hides.with(|(events, rows)| about.with(|about| ctx.table.with(|table| table.as_ref().map(|table| hidden_lines(table, events, rows, &about.titles, t)).unwrap_or_default())))
     });
     let parts = Memo::new(move |_| {
         let count = hidden.with(Vec::len);
         built.with(|built| {
             let mut parts = built.parts.clone();
             if count > 0 {
-                parts.push((false, format!("{count} ausgeblendet")));
+                parts.push((false, (t.studyplan_head.hidden)(count)));
             }
             parts
         })
@@ -760,19 +749,19 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
                 <details class="sp-overlaps">
                     <summary>{head}</summary>
                     <ul>
-                        <For each=move || lines.get() key=|note| note.clone() children=move |note: Note| overlap_item(ctx, note)/>
+                        <For each=move || lines.get() key=|note| note.clone() children=move |note: Note| overlap_item(ctx, note, t)/>
                         <For
                             each=move || hidden.get()
                             key=|line| line.clone()
                             children=move |line: HiddenLine| {
                                 let what = line.unhide;
                                 view! {
-                                    <li class="hidden"><span>{line.text}</span><button class="mini hit" type="button" on:click=move |_| unhide(what)>"Einblenden"</button></li>
+                                    <li class="hidden"><span>{line.text}</span><button class="mini hit" type="button" on:click=move |_| unhide(what)>{t.studyplan_head.unhide}</button></li>
                                 }
                             }
                         />
                         {move || several.get().then(|| view! {
-                            <li class="hidden"><button class="mini hit" type="button" on:click=show_all>"Alle einblenden"</button></li>
+                            <li class="hidden"><button class="mini hit" type="button" on:click=show_all>{t.studyplan_head.unhide_all}</button></li>
                         })}
                     </ul>
                 </details>
@@ -799,11 +788,11 @@ struct HiddenLine {
 }
 
 /// When a Termin meets, in a word: „Di 15:30"; a single date with its day („Di 23.02. 11:45").
-fn row_when(row: &Row) -> String {
+fn row_when(row: &Row, locale: Locale) -> String {
     let weekday = row.date.weekday.and_then(|day| u8::try_from(day).ok()).filter(|day| (1..=7).contains(day));
     let single = row.date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Single));
-    let date = row.date.first_date.as_deref().and_then(Day::parse).map(Day::short).filter(|_| single || weekday.is_none());
-    let parts: Vec<String> = [weekday.map(|day| weekday_name(day).to_string()), date, row.from.map(clock)].into_iter().flatten().collect();
+    let date = row.date.first_date.as_deref().and_then(Day::parse).map(|day| day.day_month(locale)).filter(|_| single || weekday.is_none());
+    let parts: Vec<String> = [weekday.map(|day| weekday_name(day, locale).to_string()), date, row.from.map(clock)].into_iter().flatten().collect();
     parts.join(" ")
 }
 
@@ -811,34 +800,34 @@ fn row_when(row: &Row) -> String {
 /// of the semester's timetable, exams included, in the timetable's order. `events` and `rows` are
 /// what the semester hides; a choice is the timetable's own (`Event::chosen`). Hidden kinds keep
 /// their chips in the sidebar. Titles are the modules' (`titles`).
-fn hidden_lines(table: &Timetable, events: &BTreeSet<u32>, rows: &BTreeSet<RowKey>, titles: &BTreeMap<String, String>) -> Vec<HiddenLine> {
+fn hidden_lines(table: &Timetable, events: &BTreeSet<u32>, rows: &BTreeSet<RowKey>, titles: &BTreeMap<String, String>, t: &i18n::Texts) -> Vec<HiddenLine> {
     let title = |modules: &[String], fallback: &str| modules.first().and_then(|module| titles.get(module)).cloned().unwrap_or_else(|| fallback.to_string());
     let mut lines = Vec::new();
     let mut seen = BTreeSet::new();
     for event in &table.events {
-        let name = format!("{} {}", kind_word(event), title(&event.modules, &event.title));
+        let name = format!("{} {}", kind_word(event, t.locale), title(&event.modules, &event.title));
         let id = event.id.parse::<u32>().ok();
         if let Some(id) = id.filter(|id| events.contains(id)) {
             lines.push(HiddenLine { text: name.clone(), unhide: Unhide::Event(id) });
         }
         for row in &event.rows {
             if let Some(key) = row.key.filter(|key| rows.contains(key) && seen.insert(*key)) {
-                lines.push(HiddenLine { text: format!("{name} · {}", row_when(row)), unhide: Unhide::Row(key) });
+                lines.push(HiddenLine { text: format!("{name} · {}", row_when(row, t.locale)), unhide: Unhide::Row(key) });
             }
         }
         if let (Some(option), Some(id)) = (event.chosen, id) {
-            let when = event.rows.iter().find(|row| row.option == Some(option)).map(row_when).unwrap_or_default();
-            lines.push(HiddenLine { text: format!("{name} · nur {when}"), unhide: Unhide::Choice(id) });
+            let when = event.rows.iter().find(|row| row.option == Some(option)).map(|row| row_when(row, t.locale)).unwrap_or_default();
+            lines.push(HiddenLine { text: format!("{name} · {}", (t.studyplan_head.only)(&when)), unhide: Unhide::Choice(id) });
         }
     }
     for exam in &table.exams {
-        let name = format!("Prüfung {}", title(&exam.modules, &exam.title));
+        let name = (t.studyplan_head.exam_of)(&title(&exam.modules, &exam.title));
         if let Some(id) = exam.event_id.parse::<u32>().ok().filter(|id| events.contains(id)) {
             lines.push(HiddenLine { text: name.clone(), unhide: Unhide::Event(id) });
         }
         for row in &exam.rows {
             if let Some(key) = row.key.filter(|key| rows.contains(key) && seen.insert(*key)) {
-                let day = row.date.first_date.as_deref().and_then(Day::parse).map(Day::short).unwrap_or_default();
+                let day = row.date.first_date.as_deref().and_then(Day::parse).map(|day| day.day_month(t.locale)).unwrap_or_default();
                 lines.push(HiddenLine { text: format!("{name} · {day}"), unhide: Unhide::Row(key) });
             }
         }
@@ -848,12 +837,12 @@ fn hidden_lines(table: &Timetable, events: &BTreeSet<u32>, rows: &BTreeSet<RowKe
 
 /// One line of the opened overlaps: a link to its module beside the plan, or plain text where it
 /// names none.
-fn overlap_item(ctx: PlanCtx, note: Note) -> impl IntoView {
+fn overlap_item(ctx: PlanCtx, note: Note, t: &'static i18n::Texts) -> impl IntoView {
     let class = if note.warn { "warn" } else { "" };
     match note.module {
         Some(module) => {
             let row = note.row;
-            let href = move || ctx.url.with(|url| url.with_open(Some(&module), row).path());
+            let href = move || t.path(&ctx.url.with(|url| url.with_open(Some(&module), row).path()));
             view! { <li><a class=class href=href data-noscroll="">{note.text}</a></li> }.into_any()
         }
         None => view! { <li><span class=class>{note.text}</span></li> }.into_any(),
@@ -865,14 +854,15 @@ fn overlap_item(ctx: PlanCtx, note: Note) -> impl IntoView {
 /// The one line that says what the page derived rather than read (R12), with only the parts that
 /// apply: „Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01.,
 /// Übungsgruppen, Standort Cottbus."
-pub(super) fn derived_line(table: &Timetable) -> Option<String> {
+pub(super) fn derived_line(table: &Timetable, t: &i18n::Texts) -> Option<String> {
+    let (h, locale) = (&t.studyplan_head, t.locale);
     let mut parts = Vec::new();
     if let Some((first, last)) = table.facts.lecture {
-        parts.push(format!("Vorlesungszeit {}–{}", first.german(), last.german()));
+        parts.push((h.lecture_period)(&first.date(locale), &last.date(locale)));
     }
     if !table.facts.breaks.is_empty() {
-        let breaks: Vec<String> = table.facts.breaks.iter().map(|(first, last)| format!("{}–{}", first.short(), last.short())).collect();
-        parts.push(format!("vorlesungsfrei {}", breaks.join(", ")));
+        let breaks: Vec<String> = table.facts.breaks.iter().map(|(first, last)| format!("{}–{}", first.day_month(locale), last.day_month(locale))).collect();
+        parts.push((h.lecture_break)(&breaks.join(", ")));
     }
     // Groups QIS names are read; parallel slots of which the SWS need one are derived.
     let groups = table
@@ -880,20 +870,21 @@ pub(super) fn derived_line(table: &Timetable) -> Option<String> {
         .iter()
         .any(|event| event.hidden.is_none() && matches!(event.attendance, Attendance::OneOf { basis: Basis::Sws { .. }, .. }));
     if groups {
-        parts.push("Übungsgruppen".to_string());
+        parts.push(h.groups_derived.to_string());
     }
     // Every plan derives a town from its modules, but the town decides something only where a
     // module is taught in both towns.
     if let Some(town) = table.town.filter(|_| table.town_derived && !table.tracks.is_empty()) {
-        parts.push(format!("Standort {}", town.label()));
+        parts.push((h.town_derived)(town.label()));
     }
-    (!parts.is_empty()).then(|| format!("Abgeleitet: {}.", parts.join(", ")))
+    (!parts.is_empty()).then(|| (h.derived)(&parts.join(", ")))
 }
 
 /// „Abgeleitet: …": one small muted line under the calendar.
 #[component]
 pub(super) fn DerivedLine(ctx: PlanCtx) -> impl IntoView {
-    let line = Memo::new(move |_| ctx.table.with(|table| table.as_ref().and_then(derived_line)));
+    let t = i18n::t();
+    let line = Memo::new(move |_| ctx.table.with(|table| table.as_ref().and_then(|table| derived_line(table, t))));
     move || line.get().map(|text| view! { <p class="hint sp-derived">{text}</p> })
 }
 
@@ -902,6 +893,7 @@ mod tests {
     use catalog::rows_detail::EventDate;
     use catalog::studyplan::Placeholder;
     use catalog::timetable::clash::Clash;
+    use catalog::timetable::kind::EventKind;
     use catalog::timetable::day::minutes;
     use catalog::timetable::facts::SemesterFacts;
     use catalog::timetable::kind::{kinds_of, Class};
@@ -910,6 +902,7 @@ mod tests {
     use catalog::timetable::select::Town;
 
     use super::*;
+    use crate::i18n::{DE, EN};
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
@@ -1061,7 +1054,7 @@ mod tests {
     #[test]
     fn one_line_counts_the_overlaps_per_week_and_the_open_choices() {
         let (table, about) = first_semester();
-        let summary = summary(&table, &about, &[a_week_overlap()], Weeks::All, TownChoice::Derive);
+        let summary = summary(&table, &about, &[a_week_overlap()], Weeks::All, TownChoice::Derive, &DE);
         assert_eq!(
             texts(&summary),
             (
@@ -1085,8 +1078,22 @@ mod tests {
         let both = summary_of(&table, &about, &[a_week_overlap(), day.clone()], Weeks::All);
         assert_eq!(both.parts[..2], [(true, "1 Überschneidung pro Woche".to_string()), (true, "1 an einzelnen Tagen".to_string())]);
         assert!(both.lines[1].text.starts_with("Di 03.11. 07:30–09:00 · "));
-        let alone = summary_of(&table, &about, &[day.clone(), day], Weeks::All);
+        let alone = summary_of(&table, &about, &[day.clone(), day.clone()], Weeks::All);
         assert_eq!(alone.parts[0], (true, "2 Überschneidungen an einzelnen Tagen".to_string()));
+        // In English, the weekdays and dates too; QIS's types and the titles stay as they are.
+        let english = super::summary(&table, &about, &[a_week_overlap(), day], Weeks::All, TownChoice::Derive, &EN);
+        assert_eq!(
+            texts(&english),
+            (
+                vec![(true, "1 clash per week"), (true, "1 on single days"), (false, "2 choices open")],
+                vec![
+                    (true, "Tue 07:30–09:00 · Vorlesung Elektrische und elektronische … × Vorlesung Programmierpraktikum · week A"),
+                    (true, "Tue 3 Nov 07:30–09:00 · Vorlesung Elektrische und elektronische … × Vorlesung Programmierpraktikum"),
+                    (true, "0 of 4 sessions free: Übung · Entwicklung von Softwaresystemen"),
+                    (false, "Choose 1 of 3: Übung · Mathematik IT-1"),
+                ]
+            )
+        );
         // Nothing to say: no line.
         let mut calm = table.clone();
         calm.blocked.clear();
@@ -1095,13 +1102,13 @@ mod tests {
     }
 
     fn summary_of(table: &Timetable, about: &About, overlaps: &[Overlap], shown: Weeks) -> Summary {
-        summary(table, about, overlaps, shown, TownChoice::Derive)
+        summary(table, about, overlaps, shown, TownChoice::Derive, &DE)
     }
 
     #[test]
     fn exams_that_collide_are_red_alerts() {
         let (table, about) = first_semester();
-        let alerts = exam_alerts(&table, &about);
+        let alerts = exam_alerts(&table, &about, &DE);
         let texts: Vec<(&str, &str, &str)> = alerts.iter().map(|alert| (alert.text.as_str(), alert.when.as_str(), alert.module.as_str())).collect();
         assert_eq!(
             texts,
@@ -1111,6 +1118,17 @@ mod tests {
                     "Prüfung Elektrische und elektronische Grundlagen der Informatik und Prüfung Programmierpraktikum: nur 0 min zwischen Zentralcampus und Senftenberg",
                     "Mo 08.02.2027, 08:00–10:00 und 10:00–12:00 · andere Termine passen",
                     "12102"
+                ),
+            ]
+        );
+        let alerts = exam_alerts(&table, &about, &EN);
+        assert_eq!(
+            alerts.iter().map(|alert| (alert.text.as_str(), alert.when.as_str())).collect::<Vec<_>>(),
+            vec![
+                ("The exams of Mathematik IT-1 and Entwicklung von Softwaresystemen clash", "Mon 8 Feb 2027, both 11:00–13:00"),
+                (
+                    "The exams of Elektrische und elektronische Grundlagen der Informatik and Programmierpraktikum: only 0 min between Central Campus and Senftenberg",
+                    "Mon 8 Feb 2027, 08:00–10:00 and 10:00–12:00 · other dates fit"
                 ),
             ]
         );
@@ -1138,14 +1156,16 @@ mod tests {
             ("11405".to_string(), vec![at("2027-02-25", termin("11405", "6", "10:00", "12:00", "zentralcampus")), at("2027-03-10", first.clone())]),
             ("11112".to_string(), vec![at("2027-03-10", second.clone()), at("2027-03-24", termin("11112", "9", "11:00", "13:00", "zentralcampus"))]),
         ];
-        let alert = exam_alert(&warning("2027-02-25"), &about, &termine);
+        let alert = exam_alert(&warning("2027-02-25"), &about, &termine, &DE);
         assert_eq!(alert.text, "Prüfung Algorithmische Graphentheorie und Prüfung Mathematik IT-1 überschneiden sich");
         assert_eq!((alert.when.as_str(), alert.module.as_str()), (&*format!("{lead}Algorithmische Graphentheorie: Erstermin 25.02. passt"), "11405"));
         // The later module's Zweittermin.
-        let alert = exam_alert(&warning("2027-03-24"), &about, &termine);
+        let alert = exam_alert(&warning("2027-03-24"), &about, &termine, &DE);
         assert_eq!((alert.when.as_str(), alert.module.as_str()), (&*format!("{lead}Mathematik IT-1: Zweittermin 24.03. passt"), "11112"));
+        let alert = exam_alert(&warning("2027-03-24"), &about, &termine, &EN);
+        assert_eq!(alert.when, "Wed 10 Mar 2027, 10:00–12:00 and 11:00–13:00 · Mathematik IT-1: second sitting on 24 Mar fits");
         // Only a change of both: the later module.
-        let alert = exam_alert(&warning("2027-03-31"), &about, &termine);
+        let alert = exam_alert(&warning("2027-03-31"), &about, &termine, &DE);
         assert_eq!((alert.when.as_str(), alert.module.as_str()), (&*format!("{lead}andere Termine passen"), "11112"));
     }
 
@@ -1172,7 +1192,7 @@ mod tests {
         let (mut table, about) = first_semester();
         table.tracks = ["12104".to_string()].into_iter().collect();
         let asks = |table: &Timetable, choice| {
-            let summary = summary(table, &about, &[], Weeks::All, choice);
+            let summary = summary(table, &about, &[], Weeks::All, choice, &DE);
             summary.parts.contains(&(false, "Standort offen".to_string()))
                 && summary.lines.iter().any(|note| note.text == "Standort wählen: Entwicklung von Softwaresystemen · Cottbus oder Senftenberg")
         };
@@ -1208,7 +1228,7 @@ mod tests {
         };
         let events: BTreeSet<u32> = [150132].into_iter().collect();
         let rows: BTreeSet<RowKey> = [RowKey { event: 150132, fp: 7 }, RowKey { event: 148019, fp: 3 }].into_iter().collect();
-        let lines = hidden_lines(&table, &events, &rows, &about.titles);
+        let lines = hidden_lines(&table, &events, &rows, &about.titles, &DE);
         let texts: Vec<(&str, Unhide)> = lines.iter().map(|line| (line.text.as_str(), line.unhide)).collect();
         assert_eq!(
             texts,
@@ -1219,20 +1239,26 @@ mod tests {
                 ("Übung Entwicklung von Softwaresystemen · Di 23.02. 11:45", Unhide::Row(RowKey { event: 148019, fp: 3 })),
             ]
         );
+        let english: Vec<String> = hidden_lines(&table, &events, &rows, &about.titles, &EN).into_iter().map(|line| line.text).collect();
+        assert_eq!(english[1..], ["Tutorium Mathematik IT-1 · Tue 15:30", "Übung Entwicklung von Softwaresystemen · only Mon 15:30", "Übung Entwicklung von Softwaresystemen · Tue 23 Feb 11:45"]);
         // Nothing hidden, nothing chosen: no line.
         let calm = Timetable { events: table.events.iter().cloned().map(|event| Event { chosen: None, ..event }).collect(), ..table };
-        assert!(hidden_lines(&calm, &BTreeSet::new(), &BTreeSet::new(), &about.titles).is_empty());
+        assert!(hidden_lines(&calm, &BTreeSet::new(), &BTreeSet::new(), &about.titles, &DE).is_empty());
     }
 
     #[test]
     fn the_derived_line_names_only_what_applies() {
         let (mut table, _) = first_semester();
         // The town is derived in every plan, but decides something only with a module of both towns.
-        assert_eq!(derived_line(&table).as_deref(), Some("Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01., Übungsgruppen."));
+        assert_eq!(derived_line(&table, &DE).as_deref(), Some("Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01., Übungsgruppen."));
         table.tracks = ["12104".to_string()].into_iter().collect();
         assert_eq!(
-            derived_line(&table).as_deref(),
+            derived_line(&table, &DE).as_deref(),
             Some("Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01., Übungsgruppen, Standort Cottbus.")
+        );
+        assert_eq!(
+            derived_line(&table, &EN).as_deref(),
+            Some("Derived: lecture period 5 Oct 2026–31 Jan 2027, lecture break 21 Dec–3 Jan, exercise groups, location Cottbus.")
         );
         // Groups QIS names are not derived.
         for event in &mut table.events {
@@ -1242,9 +1268,9 @@ mod tests {
         }
         table.facts.breaks.clear();
         table.facts.lecture = None;
-        assert_eq!(derived_line(&table).as_deref(), Some("Abgeleitet: Standort Cottbus."));
+        assert_eq!(derived_line(&table, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus."));
         table.tracks.clear();
-        assert_eq!(derived_line(&table), None);
+        assert_eq!(derived_line(&table, &DE), None);
     }
 
     #[test]
@@ -1258,11 +1284,12 @@ mod tests {
     #[test]
     fn the_head_counts_numbers_first() {
         let informatik = Some("Informatik B.Sc.");
-        assert_eq!(sum_line(informatik, 5, 0), "Informatik B.Sc. · 5 Module");
-        assert_eq!(sum_line(informatik, 4, 1), "Informatik B.Sc. · 4 Module · 1 Platzhalter");
-        assert_eq!(sum_line(None, 1, 0), "1 Modul");
+        assert_eq!(sum_line(informatik, 5, 0, &DE), "Informatik B.Sc. · 5 Module");
+        assert_eq!(sum_line(informatik, 4, 1, &DE), "Informatik B.Sc. · 4 Module · 1 Platzhalter");
+        assert_eq!(sum_line(None, 1, 0, &DE), "1 Modul");
+        assert_eq!((sum_line(informatik, 4, 1, &EN), sum_line(None, 1, 2, &EN)), ("Informatik B.Sc. · 4 modules · 1 placeholder".to_string(), "1 module · 2 placeholders".to_string()));
         // Nothing planned: the program alone, or nothing.
-        assert_eq!((sum_line(informatik, 0, 0), sum_line(None, 0, 0)), ("Informatik B.Sc.".to_string(), String::new()));
+        assert_eq!((sum_line(informatik, 0, 0, &DE), sum_line(None, 0, 0, &DE)), ("Informatik B.Sc.".to_string(), String::new()));
         // A placeholder counts in its own semester, a row over several in each it stands in, and
         // only while nothing counts for its row.
         let placeholder = |pid: u32, span: (u8, u8), credits: &str| Placeholder {
@@ -1323,7 +1350,8 @@ mod tests {
         assert_eq!(offered(&data, key("2026W"), &["12104".to_string()]), vec![("11103".to_string(), "Modul 11103".to_string())]);
         assert_eq!(offered(&data, key("2027S"), &[]), vec![("12330".to_string(), "Modul 12330".to_string())]);
         // The empty week takes them over at once, and says how many it took.
-        assert_eq!((take_marked_label(1), take_marked_label(3)), ("1 gemerktes Modul übernehmen".to_string(), "3 gemerkte Module übernehmen".to_string()));
-        assert_eq!((marked_note(1), marked_note(3)), ("Merkliste: 1 gemerktes Modul übernommen".to_string(), "Merkliste: 3 gemerkte Module übernommen".to_string()));
+        assert_eq!((take_marked_label(1, &DE), take_marked_label(3, &DE)), ("1 gemerktes Modul übernehmen".to_string(), "3 gemerkte Module übernehmen".to_string()));
+        assert_eq!((marked_note(1, &DE), marked_note(3, &DE)), ("Merkliste: 1 gemerktes Modul übernommen".to_string(), "Merkliste: 3 gemerkte Module übernommen".to_string()));
+        assert_eq!((take_marked_label(1, &EN), marked_note(3, &EN)), ("Add 1 saved module".to_string(), "Merkliste: 3 saved modules added".to_string()));
     }
 }

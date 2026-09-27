@@ -635,7 +635,7 @@ fn a_semester_lists_what_the_plan_asks_for() {
         },
         ..Default::default()
     };
-    let data = crate::pages::catalog(&db, &url).unwrap();
+    let data = crate::pages::catalog(&db, &url, crate::Locale::De).unwrap();
     let plan = data.semester_plan.expect("the page says what the plan asks for");
     assert_eq!(plan.semester, semester);
     assert!(!plan.requirements.is_empty(), "the requirement row of the plan is part of it");
@@ -660,7 +660,7 @@ fn a_semester_lists_what_the_plan_asks_for() {
     assert_eq!(queries::catalog_count(&db, &data.effective).unwrap(), data.page.total, "further pages come with the same query");
     // The semesters the plan does not place anything in stay what they were.
     let unstated = crate::url::CatalogUrl { query: CatalogQuery { program: Some(ProgramScope { program_slug: slug, plan_semester: Some(PlanSemesterFilter::Unstated), ..Default::default() }), ..Default::default() }, ..Default::default() };
-    assert!(crate::pages::catalog(&db, &unstated).unwrap().semester_plan.is_none());
+    assert!(crate::pages::catalog(&db, &unstated, crate::Locale::De).unwrap().semester_plan.is_none());
 }
 
 #[test]
@@ -934,7 +934,7 @@ fn the_summary_of_a_filter_is_what_its_page_says() {
     ];
     for search in searches {
         let url = CatalogUrl::parse(&search);
-        let page = pages::catalog(&db, &url).unwrap();
+        let page = pages::catalog(&db, &url, crate::Locale::De).unwrap();
         let summary = pages::catalog_summary(&db, &url.query).unwrap();
         assert_eq!(summary.total, page.page.total, "{search}: the total");
         assert_eq!(
@@ -959,7 +959,7 @@ fn page_loaders_return_everything_a_page_shows() {
     assert_eq!((&ground.meta, &ground.current_semester), (&overview.meta, &overview.current_semester));
 
     let url = CatalogUrl::parse(&format!("program={INFORMATIK_BSC}&list=fues"));
-    let catalog = pages::catalog(&db, &url).unwrap();
+    let catalog = pages::catalog(&db, &url, crate::Locale::De).unwrap();
     let program = catalog.program.as_ref().expect("the selected program");
     assert_eq!(catalog.curricular_total, Some(program.curricular_modules as u64));
     assert_eq!(catalog.fues_total, Some(program.fues_modules as u64));
@@ -970,7 +970,7 @@ fn page_loaders_return_everything_a_page_shows() {
     assert!(choices.lecturers.iter().any(|l| l.title.is_some()) && choices.lecturers.iter().any(|l| l.title.is_none()));
 
     // A program that does not exist selects nothing; it is not an error.
-    let unknown = pages::catalog(&db, &CatalogUrl::parse("program=no-such-program")).unwrap();
+    let unknown = pages::catalog(&db, &CatalogUrl::parse("program=no-such-program"), crate::Locale::De).unwrap();
     assert_eq!((unknown.program, unknown.page.total), (None, 0));
 
     let module_id = &catalog.page.rows[0].id;

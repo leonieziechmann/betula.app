@@ -29,6 +29,7 @@ use catalog::url::LocalView;
 use leptos::prelude::*;
 
 use crate::data::{use_source, PageStatus};
+use crate::i18n;
 use crate::pages::module::ModuleFull;
 use crate::tabs::Area;
 use crate::ui::{ErrorState, NotFound};
@@ -56,11 +57,13 @@ pub fn back_href(url: &impl LocalView, phone: bool) -> String {
 }
 
 /// The module filling the page of `area`: the module's whole page (`ModuleFull`, the same page as
-/// at its own address), in the place of the area's page. „Zurück" leads to `back` (`back_href`).
+/// at its own address), in the place of the area's page. „Zurück" leads to `back` (`back_href`),
+/// a path of the app without the language's prefix: the page writes it as a link of its language.
 /// A view of the module's own page is not one for search engines: `noindex`, and its address for
 /// them stays the module's own.
 #[component]
 pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
+    let t = i18n::t();
     let status = PageStatus::capture();
     match use_source().and_then(|source| source.run(|db| pages::module(db, &id))) {
         Err(error) => {
@@ -69,7 +72,7 @@ pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
         }
         Ok(None) => {
             status.set(404);
-            view! { <div class="page"><NotFound title="Modul nicht gefunden" hint="Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."/></div> }.into_any()
+            view! { <div class="page"><NotFound title=t.module.not_found hint=t.module.not_found_hint/></div> }.into_any()
         }
         Ok(Some(data)) => view! { <ModuleFull data back_area=area back_to=Some(back) noindex=true/> }.into_any(),
     }

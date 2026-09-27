@@ -8,6 +8,9 @@
 //!   preview of a module points to the module's own page.
 //! - Addresses in the tags are absolute. The host says what the site is called from outside
 //!   (`SiteUrl`, the server's `--public-url`).
+//! - A page is one page in every language: its canonical address is its own language's, and it
+//!   names the same page in every other (`hreflang`; the default language's also for everybody
+//!   else, `x-default`).
 //! - Structured data only states what the page shows, and says it compactly: what search engines
 //!   and the answers built on their index read of a module is its Termine, exams and semesters in
 //!   the study plans, not a second copy of the page.
@@ -18,14 +21,14 @@ use catalog::timetable::day::{berlin_offset, clock, minutes, Day};
 use leptos::prelude::*;
 use leptos_meta::{Link, Meta, Script};
 
+use crate::i18n::{self, Locale};
+
 /// The address of the site as the world sees it, without a slash at the end.
 #[derive(Clone)]
 pub struct SiteUrl(pub Arc<str>);
 
 pub const DEFAULT_SITE_URL: &str = "https://betula.app";
 pub const SITE_NAME: &str = "Betula";
-/// What the picture of link previews shows (`app/assets/og-<season>.png`), for those who cannot see it.
-pub const OG_IMAGE_ALT: &str = "Betula: alle Module und Studiengänge der BTU Cottbus-Senftenberg. Durchsuchen, filtern, Studium planen. Inoffizieller Modulkatalog.";
 /// The university the catalog is about, as structured data names it.
 pub const UNIVERSITY: &str = "Brandenburgische Technische Universität Cottbus-Senftenberg";
 pub const UNIVERSITY_URL: &str = "https://www.b-tu.de/";
@@ -34,8 +37,14 @@ pub fn site_url() -> String {
     use_context::<SiteUrl>().map(|site| site.0.trim_end_matches('/').to_string()).unwrap_or_else(|| DEFAULT_SITE_URL.to_string())
 }
 
-/// `path` (with its query, if it belongs to the page) as an absolute address.
+/// `path`, a page of the app (with its query, if it belongs to the page), as the absolute address
+/// of that page in the language being rendered.
 pub fn absolute(path: &str) -> String {
+    format!("{}{}", site_url(), i18n::locale().path(path))
+}
+
+/// `path`, a file (a picture), as an absolute address: the same in every language.
+pub fn absolute_file(path: &str) -> String {
     format!("{}{}", site_url(), path)
 }
 
@@ -124,18 +133,35 @@ pub fn Seo(
     #[prop(optional)]
     data: Vec<serde_json::Value>,
 ) -> impl IntoView {
+    let t = i18n::t();
     let address = absolute(&path);
+    // The same page in every language, and for whoever speaks none of them.
+    let site = site_url();
+    let alternates = Locale::ALL
+        .iter()
+        .map(|locale| (locale.code(), format!("{site}{}", locale.path(&path))))
+        .chain([("x-default", format!("{site}{}", Locale::default().path(&path)))])
+        .map(|(language, href)| view! { <Link rel="alternate" hreflang=language href=href/> })
+        .collect_view();
+    let other_territories = Locale::ALL
+        .iter()
+        .filter(|locale| **locale != t.locale)
+        .map(|locale| view! { <Meta property="og:locale:alternate" content=locale.territory()/> })
+        .collect_view();
     // A card says the page's title; the standard picture says what the site is.
-    let alt = if card.is_some() { format!("{title} · {SITE_NAME}") } else { OG_IMAGE_ALT.to_string() };
-    let image = absolute(card.as_deref().unwrap_or(crate::OG_IMAGE));
+    let alt = if card.is_some() { format!("{title} · {SITE_NAME}") } else { t.seo.image_alt.to_string() };
+    // A card and the standard picture speak the page's language (`/en/cards/…`, `/en/assets/og.png`).
+    let image = absolute_file(&t.path(card.as_deref().unwrap_or(crate::OG_IMAGE)));
     let data = (!data.is_empty()).then(|| json_ld(&serde_json::json!({ "@context": "https://schema.org", "@graph": data })));
     view! {
         <Meta name="description" content=description.clone()/>
         <Link rel="canonical" href=address.clone()/>
+        {alternates}
         {noindex.then(|| view! { <Meta name="robots" content="noindex, follow"/> })}
         <Meta property="og:site_name" content=SITE_NAME/>
         <Meta property="og:type" content="website"/>
-        <Meta property="og:locale" content="de_DE"/>
+        <Meta property="og:locale" content=t.locale.territory()/>
+        {other_territories}
         <Meta property="og:title" content=title.clone()/>
         <Meta property="og:description" content=description.clone()/>
         <Meta property="og:url" content=address/>

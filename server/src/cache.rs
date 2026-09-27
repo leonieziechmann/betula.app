@@ -167,28 +167,35 @@ fn evict(inner: &mut Inner, target: usize) {
 /// lays beside a page or fills it with (`open`, `full`, `area`, `req`) changes nothing on the
 /// server's page, so it is no part of the key either; nor does the placeholder a catalog list
 /// is looking for (`fill`), which only the app's plan button reads. A shared Stundenplan
-/// (`share=<code>`) is: the page names its modules for link previews.
+/// (`share=<code>`) is: the page names its modules for link previews. The language is part of
+/// the key (`/en/catalog?…`): the key of a page in a language is the page's key in its prefix.
 pub fn cache_key(uri: &Uri) -> String {
-    let path = match uri.path().trim_end_matches('/') {
+    let (locale, path) = catalog::Locale::split(uri.path());
+    locale.path(&page_key(path, uri.query().unwrap_or_default()))
+}
+
+/// `cache_key` of the app's path (without a language) and its query.
+fn page_key(path: &str, query: &str) -> String {
+    let path = match path.trim_end_matches('/') {
         "" => "/",
         path => path,
     };
     if path == catalog::url::CATALOG {
         // The list with its filters.
-        CatalogUrl::parse(uri.query().unwrap_or_default()).with_open(None).with_fill(None).path()
+        CatalogUrl::parse(query).with_open(None).with_fill(None).path()
     } else if path == catalog::url::PROGRAMS {
         // The program overview with its filters; the search text folded, as the page matches it.
-        let mut overview = catalog::url::ProgramsUrl::parse(uri.query().unwrap_or_default());
+        let mut overview = catalog::url::ProgramsUrl::parse(query);
         overview.text = catalog::search::fold(&overview.text);
         overview.path()
     } else if path.starts_with("/programs/") {
         // A program's page shows one of its study plans.
         let tab = path.rsplit('/').next().and_then(catalog::url::ProgramTab::from_segment).unwrap_or_default();
-        let url = catalog::url::ProgramUrl::parse("", tab, uri.query().unwrap_or_default());
+        let url = catalog::url::ProgramUrl::parse("", tab, query);
         format!("{path}{}", catalog::url::ProgramUrl { open: None, full: false, area: None, req: None, ..url }.query())
     } else if path == catalog::url::STUDYPLAN {
         // One page for every view of the plan; one for each plan handed on by a link.
-        match catalog::url::StudyplanUrl::parse(uri.query().unwrap_or_default()).share {
+        match catalog::url::StudyplanUrl::parse(query).share {
             Some(code) => catalog::timetable::share::path(&code),
             None => path.to_string(),
         }
@@ -203,6 +210,7 @@ pub fn cache_key(uri: &Uri) -> String {
 /// (`/catalog?page=<n>`). Keys are canonical spellings (`cache_key`), so these stand alone.
 fn listed(key: &str) -> bool {
     let number = |value: &str| !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit());
+    let key = catalog::Locale::split(key).1;
     match key.split_once('?') {
         None => true,
         Some((path, query)) if path.starts_with("/programs/") && path.ends_with("/plan") => query.strip_prefix("variant=").is_some_and(number),
@@ -385,6 +393,11 @@ mod tests {
         assert_eq!(key("/programs/x/plan?open=../etc"), "/programs/x/plan");
         assert_eq!(key("/programs/"), "/programs");
         assert_eq!(key("/"), "/");
+        // A page in another language is another page, with the same canonical spelling.
+        assert_eq!(key("/en/catalog?form=exercise&turnus=winter&q="), "/en/catalog?turnus=winter&form=exercise");
+        assert_ne!(key("/en/catalog?turnus=winter"), key("/catalog?turnus=winter"));
+        assert_eq!(key("/en/programs/x/plan?variant=2&open=11101"), "/en/programs/x/plan?variant=2");
+        assert_eq!((key("/en"), key("/en/"), key("/en?utm_source=x")), ("/en".to_string(), "/en".to_string(), "/en".to_string()));
     }
 
     #[test]
@@ -431,10 +444,10 @@ mod tests {
 
     #[test]
     fn a_study_direction_and_a_page_of_the_catalog_are_pages_too() {
-        for key in ["/", "/catalog/module/11101", "/programs/bachelor-elektrotechnik-2022/plan?variant=2", "/catalog?page=3"] {
+        for key in ["/", "/catalog/module/11101", "/programs/bachelor-elektrotechnik-2022/plan?variant=2", "/catalog?page=3", "/en", "/en/catalog?page=3", "/en/programs/x/plan?variant=2"] {
             assert!(listed(key), "{key}");
         }
-        for key in ["/catalog?q=analysis", "/catalog?page=2&q=analysis", "/catalog?turnus=winter&page=2", "/programs/x/areas?variant=2", "/programs/x/plan?variant=2&area=7", "/programs?level=master"] {
+        for key in ["/en/catalog?q=analysis", "/catalog?q=analysis", "/catalog?page=2&q=analysis", "/catalog?turnus=winter&page=2", "/programs/x/areas?variant=2", "/programs/x/plan?variant=2&area=7", "/programs?level=master"] {
             assert!(!listed(key), "{key}");
         }
     }

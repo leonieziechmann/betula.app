@@ -144,11 +144,13 @@ pub fn code_of_card(file: &str) -> Option<&str> {
 }
 
 /// The path as Folia's access log writes it: every path under `CARD_PREFIX` becomes
-/// `/cards/studyplan/….png`, valid or not, because a code names the modules someone plans. Every
-/// other path is left as it is (a page's query, where the Stundenplan's code travels, is never
-/// written).
+/// `/cards/studyplan/….png`, valid or not, because a code names the modules someone plans. So
+/// does every path that has it further on: the card in English (`/en/cards/studyplan/…`), and
+/// what is no address of the site but reaches the log all the same (`/de/cards/studyplan/…` is
+/// redirected). Every other path is left as it is (a page's query, where the Stundenplan's code
+/// travels, is never written).
 pub fn redacted_path(path: &str) -> &str {
-    if path.starts_with(CARD_PREFIX) {
+    if path.contains(CARD_PREFIX) {
         REDACTED
     } else {
         path
@@ -217,5 +219,18 @@ mod tests {
         assert_eq!(redacted_path("/cards/studyplan/anything"), "/cards/studyplan/….png");
         assert_eq!(redacted_path("/cards/module/12104.png"), "/cards/module/12104.png");
         assert_eq!(redacted_path("/cards/studyplan.png"), "/cards/studyplan.png");
+    }
+
+    #[test]
+    fn the_log_never_writes_a_card_of_a_shared_plan_in_any_language() {
+        let code = SharedPlan::of(winter(), &ids(&["12104"]), None).unwrap().code().unwrap();
+        let english = crate::i18n::Locale::En.path(&card_path(&code));
+        assert_eq!(english, format!("/en/cards/studyplan/{code}.png"));
+        for path in [english, "/en/cards/studyplan/anything".to_string(), format!("/de/cards/studyplan/{code}.png"), format!("/en/en/cards/studyplan/{code}.png")] {
+            assert_eq!(redacted_path(&path), "/cards/studyplan/….png", "{path}");
+        }
+        for kept in ["/en/cards/module/12104.png", "/en/cards/studyplan.png", "/en/studyplan", "/en"] {
+            assert_eq!(redacted_path(kept), kept);
+        }
     }
 }

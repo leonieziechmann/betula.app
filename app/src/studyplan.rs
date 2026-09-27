@@ -29,6 +29,7 @@ use catalog::url::{self, LocalView, ModuleHint, StudyplanUrl};
 use leptos::prelude::*;
 
 use crate::data::{use_source, Source};
+use crate::i18n::{self, Texts};
 use crate::myprogram::MyProgram;
 use crate::nav;
 use crate::ui::{Icon, Shortcut};
@@ -283,6 +284,7 @@ pub fn PlanButton(
     #[prop(optional, into)] hint: Signal<Option<PlanHint>>,
     look: PlanLook,
 ) -> impl IntoView {
+    let t = i18n::t();
     let plan = Studyplan::expect().filter(|_| APP);
     let source = use_source().ok();
     let turnus = turnus.and_then(|turnus| turnus.known());
@@ -316,10 +318,10 @@ pub fn PlanButton(
     };
     // The label reads `pressed` alone; the other texts read the click's word and the aim, never
     // `pressed` with the aim it comes from (R16).
-    let label = move || label_text(pressed.get());
+    let label = move || label_text(pressed.get(), t);
     let tip = move || {
         let said = said.get();
-        aim.with(|aim| tooltip_text(aim, said.unwrap_or(aim.pressed)))
+        aim.with(|aim| tooltip_text(aim, said.unwrap_or(aim.pressed), t))
     };
     let pressed_attr = move || if pressed.get() { "true" } else { "false" };
     let busy = move || said.get().map(|_| "true");
@@ -329,7 +331,7 @@ pub fn PlanButton(
     };
     match look {
         PlanLook::Hero => {
-            let note = move || aim.with(hero_note).map(|note| view! { <small>{note}</small> });
+            let note = move || aim.with(|aim| hero_note(aim, t)).map(|note| view! { <small>{note}</small> });
             view! {
                 <button class="plan-toggle mark-switch hit" type="button" data-action="plan" on:click=toggle aria-pressed=pressed_attr aria-busy=busy title=tip>
                     {icon}<span>{label}</span>{note}<Shortcut keys="P"/>
@@ -338,7 +340,7 @@ pub fn PlanButton(
             .into_any()
         }
         PlanLook::Action => {
-            let line = move || aim.with(semester_line);
+            let line = move || aim.with(|aim| semester_line(aim, t));
             view! {
                 <button class="plan-toggle action" type="button" data-action="plan" on:click=toggle aria-pressed=pressed_attr aria-busy=busy title=tip>
                     {icon}<span>{label}<small>{line}</small></span>
@@ -356,6 +358,7 @@ pub fn PlanButton(
 /// server HTML like the one above it, so the actions under it do not move at the takeover.
 #[component]
 fn OtherSemesters(id: String, title: String, current: SemesterKey) -> impl IntoView {
+    let t = i18n::t();
     let plan = Studyplan::expect().filter(|_| APP);
     let mine = MyProgram::expect();
     let open = RwSignal::new(false);
@@ -365,13 +368,13 @@ fn OtherSemesters(id: String, title: String, current: SemesterKey) -> impl IntoV
             Some(plan) => plan.with(|doc| menu_semesters(current, doc)),
             None => menu_semesters(current, &PlanDoc::default()),
         };
-        semesters.into_iter().map(|semester| (semester, semester_entry(semester, start))).collect::<Vec<_>>()
+        semesters.into_iter().map(|semester| (semester, semester_entry(semester, start, t))).collect::<Vec<_>>()
     });
     let list = move || {
         let id = id.clone();
         open.get().then(|| {
             view! {
-                <div class="sp-sub" role="group" aria-label=format!("{title}: Semester")>
+                <div class="sp-sub" role="group" aria-label=(t.planner.semesters_of)(&title)>
                     <For each=move || entries.get() key=|entry| entry.clone() let:entry>
                         <SemesterSwitch id=id.clone() semester=entry.0 label=entry.1/>
                     </For>
@@ -381,7 +384,7 @@ fn OtherSemesters(id: String, title: String, current: SemesterKey) -> impl IntoV
     };
     view! {
         <button class="plan-toggle action" type="button" aria-expanded=move || if open.get() { "true" } else { "false" } on:click=move |_| open.update(|open| *open = !*open)>
-            <Icon name="calendar-range"/><span>"Anderes Semester"</span>
+            <Icon name="calendar-range"/><span>{t.planner.other_semester}</span>
         </button>
         {list}
     }
@@ -391,6 +394,7 @@ fn OtherSemesters(id: String, title: String, current: SemesterKey) -> impl IntoV
 /// written after the next frame (R21).
 #[component]
 fn SemesterSwitch(id: String, semester: SemesterKey, label: String) -> impl IntoView {
+    let t = i18n::t();
     let plan = Studyplan::expect().filter(|_| APP);
     let source = use_source().ok();
     let planned = {
@@ -421,7 +425,7 @@ fn SemesterSwitch(id: String, semester: SemesterKey, label: String) -> impl Into
         false => view! { <Icon name="calendar-plus"/> }.into_any(),
     };
     // Where it is planned, said in words at the end of the line (the pill of `.action em`).
-    let mark = move || pressed.get().then(|| view! { <em>"geplant"</em> });
+    let mark = move || pressed.get().then(|| view! { <em>{t.planner.planned_mark}</em> });
     view! {
         <button class="action" type="button" on:click=toggle aria-pressed=move || if pressed.get() { "true" } else { "false" } aria-busy=move || said.get().map(|_| "true")>
             {icon}<span>{label}</span>{mark}
@@ -472,47 +476,47 @@ fn shortened(name: &str) -> String {
 /// server gave it (R15), a click only swaps the word. What a button says beyond it — the
 /// placeholder it plans for, the other semesters the module is planned in — is its small line
 /// (`hero_note`, `semester_line`), which gives way first where space is short.
-fn label_text(pressed: bool) -> &'static str {
+fn label_text(pressed: bool, t: &'static Texts) -> &'static str {
     if pressed {
-        "Eingeplant"
+        t.planner.planned
     } else {
-        "Einplanen"
+        t.planner.plan
     }
 }
 
 /// „für „Anwendungsfach“" while the hint's placeholder is in the plan.
-fn fill_text(aim: &Aim) -> Option<String> {
-    aim.fill.as_ref().map(|(_, name)| format!("für „{}“", shortened(name)))
+fn fill_text(aim: &Aim, t: &'static Texts) -> Option<String> {
+    aim.fill.as_ref().map(|(_, name)| (t.planner.for_placeholder)(&shortened(name)))
 }
 
 /// „geplant: SoSe 2027" when the plan holds the module in other semesters as well, the semesters
 /// as `label` names them.
-fn elsewhere_text(aim: &Aim, label: fn(SemesterKey) -> String) -> Option<String> {
-    (!aim.elsewhere.is_empty()).then(|| format!("geplant: {}", aim.elsewhere.iter().map(|semester| label(*semester)).collect::<Vec<_>>().join(", ")))
+fn elsewhere_text(aim: &Aim, label: impl Fn(SemesterKey) -> String, t: &'static Texts) -> Option<String> {
+    (!aim.elsewhere.is_empty()).then(|| (t.planner.planned_in)(&aim.elsewhere.iter().map(|semester| label(*semester)).collect::<Vec<_>>().join(", ")))
 }
 
 /// The small line of the switch beside „Merken" („für „Anwendungsfach“ · geplant: SoSe 27"):
 /// `None` for an empty plan without a hint, as on the server.
-fn hero_note(aim: &Aim) -> Option<String> {
-    let parts: Vec<String> = [fill_text(aim), elsewhere_text(aim, SemesterKey::short)].into_iter().flatten().collect();
+fn hero_note(aim: &Aim, t: &'static Texts) -> Option<String> {
+    let parts: Vec<String> = [fill_text(aim, t), elsewhere_text(aim, |key| key.short(t.locale), t)].into_iter().flatten().collect();
     (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
 /// The line under the sidebar's label: the semester a click plans into, the placeholder it plans
 /// for, and where else the module is planned.
-fn semester_line(aim: &Aim) -> String {
-    [Some(aim.target.label()), fill_text(aim), elsewhere_text(aim, SemesterKey::label)].into_iter().flatten().collect::<Vec<_>>().join(" · ")
+fn semester_line(aim: &Aim, t: &'static Texts) -> String {
+    [Some(aim.target.label(t.locale)), fill_text(aim, t), elsewhere_text(aim, |key| key.label(t.locale), t)].into_iter().flatten().collect::<Vec<_>>().join(" · ")
 }
 
 /// What a click does, with the placeholder's whole name and the shortcut.
-fn tooltip_text(aim: &Aim, pressed: bool) -> String {
-    let semester = aim.target.label();
+fn tooltip_text(aim: &Aim, pressed: bool, t: &'static Texts) -> String {
+    let semester = aim.target.label(t.locale);
     let what = match (&aim.fill, pressed) {
-        (_, true) => format!("Eingeplant in {semester}. Noch einmal nimmt das Modul aus dem Plan"),
-        (Some((_, name)), false) => format!("In {semester} einplanen, für „{name}“"),
-        (None, false) => format!("In {semester} einplanen"),
+        (_, true) => (t.planner.unplan_hint)(&semester),
+        (Some((_, name)), false) => (t.planner.plan_for_hint)(&semester, name),
+        (None, false) => (t.planner.plan_hint)(&semester),
     };
-    let elsewhere = elsewhere_text(aim, SemesterKey::label).map(|text| format!(" · {text}")).unwrap_or_default();
+    let elsewhere = elsewhere_text(aim, |key| key.label(t.locale), t).map(|text| format!(" · {text}")).unwrap_or_default();
     format!("{what}{elsewhere} (P)")
 }
 
@@ -567,10 +571,10 @@ pub fn menu_semesters(current: SemesterKey, doc: &PlanDoc) -> Vec<SemesterKey> {
 }
 
 /// „3. FS · SoSe 2027" with a known Studienbeginn (numbers first), else „SoSe 2027".
-fn semester_entry(semester: SemesterKey, start: Option<SemesterKey>) -> String {
+fn semester_entry(semester: SemesterKey, start: Option<SemesterKey>, t: &'static Texts) -> String {
     match start.and_then(|start| fachsemester(semester, start)) {
-        Some(fs) => format!("{fs}. FS · {}", semester.label()),
-        None => semester.label(),
+        Some(fs) => (t.planner.semester_of_study)(fs, &semester.label(t.locale)),
+        None => semester.label(t.locale),
     }
 }
 
@@ -641,6 +645,7 @@ mod tests {
     use catalog::url::PlanView;
 
     use super::*;
+    use crate::i18n::{DE, EN};
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
@@ -787,37 +792,45 @@ mod tests {
         // An empty plan: the module's own semester, unpressed, nothing more to say; what the
         // server renders.
         let plain = aim_of("12330", now, Some(now), None, None, &PlanDoc::default());
-        assert_eq!((plain.target, plain.pressed, label_text(plain.pressed), hero_note(&plain)), (now, false, "Einplanen", None));
-        assert_eq!(label_text(true), "Eingeplant");
-        assert_eq!(tooltip_text(&plain, false), "In WiSe 2026/27 einplanen (P)");
-        assert_eq!(tooltip_text(&plain, true), "Eingeplant in WiSe 2026/27. Noch einmal nimmt das Modul aus dem Plan (P)");
-        assert_eq!(semester_line(&plain), "WiSe 2026/27");
+        assert_eq!((plain.target, plain.pressed, label_text(plain.pressed, &DE), hero_note(&plain, &DE)), (now, false, "Einplanen", None));
+        assert_eq!(label_text(true, &DE), "Eingeplant");
+        assert_eq!(tooltip_text(&plain, false, &DE), "In WiSe 2026/27 einplanen (P)");
+        assert_eq!(tooltip_text(&plain, true, &DE), "Eingeplant in WiSe 2026/27. Noch einmal nimmt das Modul aus dem Plan (P)");
+        assert_eq!(semester_line(&plain, &DE), "WiSe 2026/27");
 
         // Planned in another semester: said beside the semester it aims at, and under the label
         // of the switch in short.
         assert!(doc.plan(key("2027S"), "12330", 1, None));
         let elsewhere = aim_of("12330", now, Some(now), None, None, &doc);
         assert!(!elsewhere.pressed);
-        assert_eq!(semester_line(&elsewhere), "WiSe 2026/27 · geplant: SoSe 2027");
-        assert_eq!(hero_note(&elsewhere).as_deref(), Some("geplant: SoSe 27"));
-        assert_eq!(tooltip_text(&elsewhere, false), "In WiSe 2026/27 einplanen · geplant: SoSe 2027 (P)");
+        assert_eq!(semester_line(&elsewhere, &DE), "WiSe 2026/27 · geplant: SoSe 2027");
+        assert_eq!(hero_note(&elsewhere, &DE).as_deref(), Some("geplant: SoSe 27"));
+        assert_eq!(tooltip_text(&elsewhere, false, &DE), "In WiSe 2026/27 einplanen · geplant: SoSe 2027 (P)");
 
         // For a placeholder: pressed only while the module counts for it; the label stays, the
         // small line names it.
         let hint = PlanHint { semester: None, fill: Some(3) };
         assert!(doc.plan(now, "12330", 1, None));
         let fill = aim_of("12330", now, Some(now), None, Some(&hint), &doc);
-        assert_eq!((fill.pressed, label_text(fill.pressed)), (false, "Einplanen"));
-        assert_eq!(hero_note(&fill).as_deref(), Some("für „Fachübergreifendes Studium“ · geplant: SoSe 27"));
-        assert_eq!(semester_line(&fill), "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027");
-        assert_eq!(tooltip_text(&fill, false), "In WiSe 2026/27 einplanen, für „Fachübergreifendes Studium“ · geplant: SoSe 2027 (P)");
+        assert_eq!((fill.pressed, label_text(fill.pressed, &DE)), (false, "Einplanen"));
+        assert_eq!(hero_note(&fill, &DE).as_deref(), Some("für „Fachübergreifendes Studium“ · geplant: SoSe 27"));
+        assert_eq!(semester_line(&fill, &DE), "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027");
+        assert_eq!(tooltip_text(&fill, false, &DE), "In WiSe 2026/27 einplanen, für „Fachübergreifendes Studium“ · geplant: SoSe 2027 (P)");
         // A long name is cut at a word in the small line; the tooltip keeps it whole.
         let long = aim_of("12330", now, Some(now), None, Some(&PlanHint { semester: None, fill: Some(4) }), &doc);
-        assert_eq!(hero_note(&long).as_deref(), Some("für „wählbar aus dem…“ · geplant: SoSe 27"));
-        assert!(tooltip_text(&long, false).contains("Prü/SL“"));
+        assert_eq!(hero_note(&long, &DE).as_deref(), Some("für „wählbar aus dem…“ · geplant: SoSe 27"));
+        assert!(tooltip_text(&long, false, &DE).contains("Prü/SL“"));
         // A placeholder the plan no longer has asks for nothing.
         let gone = aim_of("12330", now, Some(now), None, Some(&PlanHint { semester: None, fill: Some(9) }), &doc);
-        assert_eq!((gone.fill.clone(), gone.pressed, label_text(gone.pressed)), (None, true, "Eingeplant"));
+        assert_eq!((gone.fill.clone(), gone.pressed, label_text(gone.pressed, &DE)), (None, true, "Eingeplant"));
+
+        // The same in English.
+        assert_eq!((label_text(false, &EN), label_text(true, &EN)), ("Plan", "Planned"));
+        assert_eq!(tooltip_text(&plain, false, &EN), "Plan for Winter 2026/27 (P)");
+        assert_eq!(tooltip_text(&plain, true, &EN), "Planned for Winter 2026/27. Once more removes the module from the plan (P)");
+        assert_eq!(hero_note(&fill, &EN).as_deref(), Some("for \u{201c}Fachübergreifendes Studium\u{201d} · planned: SS 27"));
+        assert_eq!(semester_line(&elsewhere, &EN), "Winter 2026/27 · planned: Summer 2027");
+        assert_eq!(tooltip_text(&fill, false, &EN), "Plan for Winter 2026/27, for \u{201c}Fachübergreifendes Studium\u{201d} · planned: Summer 2027 (P)");
     }
 
     #[test]
@@ -895,8 +908,10 @@ mod tests {
         assert!(doc.plan(key("2025W"), "12104", 1, None) && doc.plan(key("2029W"), "12104", 1, None));
         assert_eq!(menu_semesters(now, &doc), ["2025W", "2026W", "2027S", "2027W", "2028S", "2028W", "2029W"].map(key));
         // The Fachsemester first, when the Studienbeginn is known.
-        assert_eq!(semester_entry(key("2027W"), Some(key("2026W"))), "3. FS · WiSe 2027/28");
-        assert_eq!(semester_entry(key("2025W"), Some(key("2026W"))), "WiSe 2025/26");
-        assert_eq!(semester_entry(key("2027S"), None), "SoSe 2027");
+        assert_eq!(semester_entry(key("2027W"), Some(key("2026W")), &DE), "3. FS · WiSe 2027/28");
+        assert_eq!(semester_entry(key("2025W"), Some(key("2026W")), &DE), "WiSe 2025/26");
+        assert_eq!(semester_entry(key("2027S"), None, &DE), "SoSe 2027");
+        assert_eq!(semester_entry(key("2027W"), Some(key("2026W")), &EN), "3rd sem. · Winter 2027/28");
+        assert_eq!(semester_entry(key("2027S"), None, &EN), "Summer 2027");
     }
 }

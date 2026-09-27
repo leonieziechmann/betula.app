@@ -24,7 +24,9 @@ use catalog::rows::CatalogRow;
 use catalog::url::{self, BookmarkSort, BookmarksUrl, LocalView, Season};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::{use_location, use_navigate};
+use leptos_router::hooks::use_navigate;
+
+use crate::i18n::{self, use_location};
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
@@ -32,7 +34,7 @@ use crate::data::{use_source, DataError};
 use crate::format;
 use crate::local::{self, ModuleInPlace};
 use crate::nav;
-use crate::pages::catalog::{phone_layout, Row};
+use crate::pages::catalog::{phone_layout, ListKeys, Row};
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending};
 use crate::seo::Seo;
@@ -49,6 +51,7 @@ type Loaded = Result<BookmarksData, DataError>;
 
 #[component]
 pub fn BookmarksPage() -> impl IntoView {
+    let t = i18n::t();
     let location = use_location();
     // The server renders one page for every address of the list (its cache knows the page by its
     // path): there is no list to order or to filter there, and no module to show beside it.
@@ -118,22 +121,22 @@ pub fn BookmarksPage() -> impl IntoView {
             reveal_row_soon(id);
         }
         view! {
-            <Title text="Merkliste"/>
+            <Title text=t.bookmarks.title/>
             <div class="work framed">
                 // A page of one visitor: the same address for everybody, nothing to list. What the
                 // server renders here is the explanation, so that is what a link preview shows.
                 <Seo
-                    title="Merkliste"
-                    description="Module der BTU Cottbus-Senftenberg merken und wiederfinden. Die Merkliste liegt nur im eigenen Browser: kein Konto, keine Daten auf dem Server."
+                    title=t.bookmarks.title
+                    description=t.bookmarks.description
                     path=url::BOOKMARKS
                     card=crate::seo::BOOKMARKS_CARD
                     noindex=true
                 />
-                <aside class="panel sidebar" id="sidebar" aria-label="Merkliste">
-                    <div class="panel-head"><h2>"Merkliste"</h2></div>
+                <aside class="panel sidebar" id="sidebar" aria-label=t.bookmarks.title>
+                    <div class="panel-head"><h2>{t.bookmarks.title}</h2></div>
                     <div class="body scroll" data-keep-scroll="sidebar"><Sidebar url=shown_url data/></div>
                 </aside>
-                <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label=t.ui.resize_sidebar tabindex="0"></div>
                 <section class="panel list" aria-live="polite">
                     <Offer/>
                     {move || {
@@ -157,19 +160,21 @@ pub fn BookmarksPage() -> impl IntoView {
                         Ok(None) | Err(_) => ().into_any(),
                         Ok(Some(Some(data))) => {
                             // „Vollbild" stays among the marked modules: the module fills the list's place.
+                            // Both are paths of the app, as `ModulePanel` takes them: the panel writes
+                            // them as links.
                             let full_href = local::full_href(&here, &data.module.id);
                             view! {
                                 <ModulePanel data close_href full_href=Some(full_href)/>
-                                <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                                <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label=t.ui.resize_preview tabindex="0"></div>
                             }
                             .into_any()
                         }
                         Ok(Some(None)) => view! {
                             <section class="panel detail">
                                 <div class="state">
-                                    <p class="state-title">"Modul nicht gefunden"</p>
-                                    <p>"Dieses Modul steht nicht (mehr) im Modulkatalog der BTU."</p>
-                                    <a class="btn secondary" href=close_href>"Vorschau schließen"</a>
+                                    <p class="state-title">{t.catalog.module_not_found}</p>
+                                    <p>{t.catalog.module_not_in_catalog}</p>
+                                    <a class="btn secondary" href=t.path(&close_href)>{t.catalog.close_preview}</a>
                                 </div>
                             </section>
                         }.into_any(),
@@ -207,6 +212,7 @@ fn reveal_row_soon(id: String) {
 /// and nothing of it is offered.
 #[component]
 fn Offer() -> impl IntoView {
+    let t = i18n::t();
     let bookmarks = Bookmarks::expect();
     let location = use_location();
     // The fragment as the browser has it. The router hears of it when a page is opened, not when
@@ -242,10 +248,10 @@ fn Offer() -> impl IntoView {
                         <div class="offer" role="status">
                             <Icon name="info"/>
                             <p>
-                                <b>"Der Link ist beschädigt. "</b>
-                                "Die Merkliste darin lässt sich nicht lesen: Vielleicht fehlt beim Kopieren ein Stück, oder ein Zeichen ist falsch abgetippt."
+                                <b>{t.bookmarks.broken_link}" "</b>
+                                {t.bookmarks.broken_link_hint}
                             </p>
-                            <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| answered.run(false)>"In Ordnung"</button>
+                            <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| answered.run(false)>{t.bookmarks.ok}</button>
                         </div>
                     }
                     .into_any(),
@@ -253,21 +259,20 @@ fn Offer() -> impl IntoView {
             }
         };
         let new = ids.iter().filter(|id| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(id))).count();
-        let modules = |n: usize| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") };
         Some(
             view! {
                 <div class="offer" role="status">
                     <Icon name="bookmark"/>
                     <p>
-                        <b>{modules(ids.len())}" aus einem Link. "</b>
+                        <b>{(t.bookmarks.from_link)(ids.len())}" "</b>
                         {match new {
-                            0 => "Alles davon steht schon auf deiner Merkliste.".to_string(),
-                            n if n == ids.len() => "Auf deine Merkliste setzen?".to_string(),
-                            n => format!("{} davon fehlen auf deiner Merkliste. Hinzufügen?", if n == 1 { "Eins".to_string() } else { n.to_string() }),
+                            0 => t.bookmarks.all_there.to_string(),
+                            n if n == ids.len() => t.bookmarks.add_question.to_string(),
+                            n => (t.bookmarks.some_missing)(n),
                         }}
                     </p>
-                    {(new > 0).then(|| view! { <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| answered.run(true)>"Hinzufügen"</button> })}
-                    <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| answered.run(false)>{if new > 0 { "Verwerfen" } else { "In Ordnung" }}</button>
+                    {(new > 0).then(|| view! { <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| answered.run(true)>{t.bookmarks.add}</button> })}
+                    <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| answered.run(false)>{if new > 0 { t.bookmarks.discard } else { t.bookmarks.ok }}</button>
                 </div>
             }
             .into_any(),
@@ -284,6 +289,7 @@ fn marked_numbers(bookmarks: Option<Bookmarks>, rows: &[(String, Option<f64>)]) 
 
 #[component]
 fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descending: bool, open: Memo<Option<String>>, phone: RwSignal<bool>) -> impl IntoView {
+    let t = i18n::t();
     let bookmarks = Bookmarks::expect();
     let rows: Vec<CatalogRow> = data.rows.iter().filter(|row| season.is_none_or(|season| data.offered_in(season, &row.id))).cloned().collect();
     // A module the snapshot does not know has no turnus: it is listed when nothing is filtered.
@@ -308,72 +314,65 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
             (true, true) => " ↓",
             _ => "",
         };
-        view! { <a class=class href=move || next.with_open(open.get().as_deref()).path() data-noscroll="" aria-current=on.then_some("true")>{text}{arrow}</a> }
+        view! { <a class=class href=move || t.path(&next.with_open(open.get().as_deref()).path()) data-noscroll="" aria-current=on.then_some("true")>{text}{arrow}</a> }
     };
     let without_season = BookmarksUrl { season: None, ..here.clone() };
-    let all_href = { let target = without_season.clone(); move || target.with_open(open.get().as_deref()).path() };
+    let all_href = { let target = without_season.clone(); move || t.path(&target.with_open(open.get().as_deref()).path()) };
 
     view! {
         <div class="list-head">
             <div class="count-row">
-                <span class="count num">{move || format::count(numbers.get().0)}</span>
+                <span class="count num">{move || format::count(numbers.get().0, t.locale)}</span>
                 <span class="count-label">
-                    {move || match (numbers.get().0, season) {
-                        (1, None) => "gemerktes Modul".to_string(),
-                        (_, None) => "gemerkte Module".to_string(),
-                        (1, Some(season)) => format!("gemerktes Modul im {}", season.label()),
-                        (_, Some(season)) => format!("gemerkte Module im {}", season.label()),
-                    }}
+                    {move || (t.bookmarks.count_label)(numbers.get().0, season.map(|season| season.label(t.locale)))}
                     {move || {
                         let (marked, credits, _) = numbers.get();
-                        (marked > 0).then(|| view! { <span class="count-more num">" · "{format::number(credits)}" LP"</span> })
+                        (marked > 0).then(|| view! { <span class="count-more num">" · "{format::credits(Some(credits), t.locale)}</span> })
                     }}
                 </span>
                 <div class="list-tools">
-                    {has_list.then(|| view! {
-                        <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau, M merkt das gewählte Modul"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen "<kbd>"M"</kbd>" merken"</span>
-                    })}
+                    {has_list.then(|| view! { <ListKeys/> })}
                 </div>
             </div>
             <div class="active-filters">
                 {season.map(|season| view! {
-                    <span class="tag"><em>"Turnus"</em>" "{season.label()}<a href=all_href.clone() data-noscroll="" aria-label="Filter entfernen"><Icon name="x"/></a></span>
+                    <span class="tag"><em>{t.catalog.turnus}</em>" "{season.label(t.locale)}<a href=all_href.clone() data-noscroll="" aria-label=t.catalog.remove_filter><Icon name="x"/></a></span>
                 })}
             </div>
         </div>
         {has_list.then(|| view! {
             <div class="cols label">
-                {sort_link(BookmarkSort::Title, "Modul", "")}
-                <span class="c-resp">"Verantwortlich"</span>
-                <span class="c-exam">"Prüfung"</span>
-                {sort_link(BookmarkSort::Credits, "LP", "c-lp")}
-                <span class="c-turnus">"Turnus"</span>
-                <span class="c-lang">"Spr."</span>
-                {sort_link(BookmarkSort::Events, "Termine", "c-events")}
+                {sort_link(BookmarkSort::Title, t.catalog.col_module, "")}
+                <span class="c-resp">{t.catalog.col_responsible}</span>
+                <span class="c-exam">{t.catalog.exam}</span>
+                {sort_link(BookmarkSort::Credits, t.common.credits_unit, "c-lp")}
+                <span class="c-turnus">{t.catalog.turnus}</span>
+                <span class="c-lang">{t.catalog.col_language}</span>
+                {sort_link(BookmarkSort::Events, t.catalog.dates, "c-events")}
             </div>
         })}
         <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows">
             {(!APP).then(|| view! {
                 <div class="state">
-                    <p class="state-title">"Deine Merkliste"</p>
-                    <p>"Sie liegt in deinem Browser, nicht auf dem Server, und erscheint, sobald die App geladen ist. Dafür braucht es JavaScript."</p>
-                    <a class="btn secondary" href=url::CATALOG>"Zum Modulkatalog"</a>
+                    <p class="state-title">{t.bookmarks.server_title}</p>
+                    <p>{t.bookmarks.server_hint}</p>
+                    <a class="btn secondary" href=t.path(url::CATALOG)>{t.common.to_catalog}</a>
                 </div>
             })}
             {(APP && nothing_marked).then(|| view! {
                 <div class="state">
-                    <p class="state-title">"Noch nichts gemerkt"</p>
-                    <p>"Das Lesezeichen an einem Modul setzt es auf diese Liste, die Taste "<kbd>"M"</kbd>" ebenso. Sie bleibt in diesem Browser gespeichert."</p>
-                    <a class="btn secondary" href=url::CATALOG>"Zum Modulkatalog"</a>
+                    <p class="state-title">{t.bookmarks.empty_title}</p>
+                    <p>{t.bookmarks.empty_hint_start}<kbd>"M"</kbd>{t.bookmarks.empty_hint_end}</p>
+                    <a class="btn secondary" href=t.path(url::CATALOG)>{t.common.to_catalog}</a>
                 </div>
             })}
             {nothing_left.then(|| {
-                let season = season.map(Season::label).unwrap_or_default();
+                let season = season.map(|season| season.label(t.locale)).unwrap_or_default();
                 view! {
                     <div class="state">
-                        <p class="state-title">"Nichts davon im "{season}</p>
-                        <p>"Keines der gemerkten Module wird laut Modulbeschreibung im "{season}" angeboten."</p>
-                        <a class="btn secondary" href=all_href.clone() data-noscroll="">"Alle gemerkten zeigen"</a>
+                        <p class="state-title">{(t.bookmarks.nothing_in_season)(season)}</p>
+                        <p>{(t.bookmarks.nothing_in_season_hint)(season)}</p>
+                        <a class="btn secondary" href=all_href.clone() data-noscroll="">{t.bookmarks.show_all_saved}</a>
                     </div>
                 }
             })}
@@ -384,7 +383,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
                 view! { <Row row preview current phone with_program=false dim_unmarked=true in_place=true/> }
             }).collect_view()}
             {(!missing.is_empty()).then(|| view! {
-                <div class="sem">"Nicht im Modulkatalog"</div>
+                <div class="sem">{t.bookmarks.not_in_catalog}</div>
                 {missing.into_iter().map(|id| view! { <MissingRow id/> }).collect_view()}
             })}
         </div>
@@ -394,6 +393,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
 /// A marked module the snapshot does not know: named, and its mark can be taken away.
 #[component]
 fn MissingRow(id: String) -> impl IntoView {
+    let t = i18n::t();
     let bookmarks = Bookmarks::expect();
     let unmarked = {
         let id = id.clone();
@@ -403,11 +403,11 @@ fn MissingRow(id: String) -> impl IntoView {
         <div class="row-wrap" class:unmarked=move || unmarked.get()>
             <div class="row missing">
                 <div class="t">
-                    <b>"Modul "{id.clone()}</b>
-                    <small>"steht nicht (mehr) im Modulkatalog der BTU"</small>
+                    <b>{(t.bookmarks.module_numbered)(&id)}</b>
+                    <small>{t.bookmarks.not_in_catalog_row}</small>
                 </div>
             </div>
-            <MarkButton id=id.clone() title=format!("Modul {id}") look=MarkLook::Row/>
+            <MarkButton id=id.clone() title=(t.bookmarks.module_numbered)(&id) look=MarkLook::Row/>
         </div>
     }
 }
@@ -416,6 +416,7 @@ fn MissingRow(id: String) -> impl IntoView {
 /// it shows, its order, and what can be done with all of it.
 #[component]
 fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
+    let t = i18n::t();
     let bookmarks = Bookmarks::expect();
     let known = Memo::new(move |_| data.with(|data| data.as_ref().map(|data| data.rows.iter().map(|row| (row.id.clone(), row.credits)).collect::<Vec<_>>()).unwrap_or_default()));
     let numbers = Memo::new(move |_| {
@@ -435,30 +436,30 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
         };
         view! {
             <a
-                href=move || BookmarksUrl { season, ..url.get() }.path()
+                href=move || t.path(&BookmarksUrl { season, ..url.get() }.path())
                 role="radio"
                 draggable="false"
                 data-noscroll=""
                 aria-checked=move || if url.with(|url| url.season == season) { "true" } else { "false" }
             >
-                {label}<span class="num">{move || format::count(count())}</span>
+                {label}<span class="num">{move || format::count(count(), t.locale)}</span>
             </a>
         }
     };
     let order_link = move |sort: BookmarkSort| {
         view! {
             <a
-                href=move || BookmarksUrl { sort, descending: false, ..url.get() }.path()
+                href=move || t.path(&BookmarksUrl { sort, descending: false, ..url.get() }.path())
                 draggable="false"
                 data-noscroll=""
                 aria-current=move || url.with(|url| url.sort == sort).then_some("page")
             >
-                {sort.label()}
+                {sort.label(t.locale)}
             </a>
         }
     };
 
-    // The list as text, for a note or a message: number, title, credits.
+    // The list as text, for a note or a message: number, title, credits (in the page's language).
     let as_text = move || {
         data.with(|data| {
             let Ok(data) = data else { return String::new() };
@@ -467,7 +468,7 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
                 .iter()
                 .filter(|row| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&row.id)))
                 .map(|row| match row.credits {
-                    Some(credits) => format!("{}\t{}\t{} LP", row.id, row.title, format::number(credits)),
+                    Some(credits) => format!("{}\t{}\t{}", row.id, row.title, format::credits(Some(credits), t.locale)),
                     None => format!("{}\t{}", row.id, row.title),
                 })
                 .collect();
@@ -475,11 +476,12 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
         })
     };
 
-    // The list for another device: a link to this page with the marked modules in its fragment;
-    // none for a list no code holds, and then no action.
+    // The list for another device: a link to this page with the marked modules in its fragment,
+    // opening there in the language of this page; none for a list no code holds, and then no
+    // action.
     let transfer_link = Memo::new(move |_| {
         let ids: Vec<String> = bookmarks.map(|bookmarks| bookmarks.marks()).unwrap_or_default().into_iter().map(|mark| mark.id).collect();
-        transfer_fragment(&ids).map(|fragment| format!("{}#{fragment}", url::BOOKMARKS))
+        transfer_fragment(&ids).map(|fragment| t.path(&format!("{}#{fragment}", url::BOOKMARKS)))
     });
     let transferable = Memo::new(move |_| transfer_link.with(Option::is_some));
 
@@ -507,56 +509,56 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
     view! {
         {move || anything_listed.get().then(|| view! {
             <div class="fgroup first">
-                <p class="flabel label">"Übersicht"</p>
+                <p class="flabel label">{t.bookmarks.overview}</p>
                 <dl class="side-facts">
                     <div>
-                        <dt>"Gemerkt"</dt>
-                        <dd class="num">{move || match numbers.get().0 { 1 => "1 Modul".to_string(), n => format!("{} Module", format::count(n)) }}</dd>
+                        <dt>{t.bookmarks.saved}</dt>
+                        <dd class="num">{move || format::modules(i64::try_from(numbers.get().0).unwrap_or(i64::MAX), t.locale)}</dd>
                     </div>
                     <div>
-                        <dt>"Leistungspunkte"</dt>
+                        <dt>{t.bookmarks.credit_points}</dt>
                         <dd class="num">
-                            {move || format!("{} LP", format::number(numbers.get().1))}
-                            {move || match numbers.get().2 { 0 => None, n => Some(view! { <small>" · "{n}" ohne Angabe"</small> }) }}
+                            {move || format::credits(Some(numbers.get().1), t.locale)}
+                            {move || match numbers.get().2 { 0 => None, n => Some(view! { <small>" · "{(t.bookmarks.unstated)(n)}</small> }) }}
                         </dd>
                     </div>
                 </dl>
             </div>
             <div class="fgroup">
-                <p class="flabel label">"Angeboten im"</p>
-                <div class="seg" role="radiogroup" aria-label="Angeboten im">
-                    {season_link(None, "Alle")}
-                    {season_link(Some(Season::Winter), "Winter")}
-                    {season_link(Some(Season::Summer), "Sommer")}
+                <p class="flabel label">{t.bookmarks.offered_in}</p>
+                <div class="seg" role="radiogroup" aria-label=t.bookmarks.offered_in>
+                    {season_link(None, t.bookmarks.all)}
+                    {season_link(Some(Season::Winter), Season::Winter.label(t.locale))}
+                    {season_link(Some(Season::Summer), Season::Summer.label(t.locale))}
                 </div>
             </div>
-            <nav class="toc fgroup" aria-label="Reihenfolge">
-                <p class="flabel label">"Reihenfolge"</p>
+            <nav class="toc fgroup" aria-label=t.bookmarks.order>
+                <p class="flabel label">{t.bookmarks.order}</p>
                 {BookmarkSort::ALL.iter().map(|sort| order_link(*sort)).collect_view()}
             </nav>
             <div class="fgroup actions">
-                <p class="flabel label">"Aktionen"</p>
-                <a class="action" href="#" data-action="copy-text" data-text=as_text><Icon name="copy"/><span>"Liste kopieren"</span></a>
+                <p class="flabel label">{t.bookmarks.actions}</p>
+                <a class="action" href="#" data-action="copy-text" data-text=as_text><Icon name="copy"/><span>{t.bookmarks.copy_list}</span></a>
                 {move || transferable.get().then(|| view! {
-                    <a class="action" href="#" data-action="copy-text" data-absolute="" data-text=move || transfer_link.get().unwrap_or_default() title="Der Link trägt die Merkliste hinter dem #: dieser Teil einer Adresse wird nie an einen Server gesendet">
-                        <Icon name="share-2"/><span><span data-label="">"Auf anderes Gerät übertragen"</span><small>"Link kopieren und dort öffnen"</small></span>
+                    <a class="action" href="#" data-action="copy-text" data-absolute="" data-text=move || transfer_link.get().unwrap_or_default() title=t.bookmarks.transfer_title>
+                        <Icon name="share-2"/><span><span data-label="">{t.bookmarks.transfer}</span><small>{t.bookmarks.transfer_hint}</small></span>
                     </a>
                 })}
                 {move || match (cleared.get().is_some(), confirming.get()) {
                     (true, _) => view! {
-                        <p class="action note-action"><Icon name="check"/><span>"Geleert"</span><button class="mini hit" type="button" id="clear-undo" on:click=undo>"Rückgängig"</button></p>
+                        <p class="action note-action"><Icon name="check"/><span>{t.bookmarks.cleared}</span><button class="mini hit" type="button" id="clear-undo" on:click=undo>{t.common.undo}</button></p>
                     }.into_any(),
                     (false, true) => view! {
-                        <p class="action note-action ask"><span>"Alle Merker entfernen?"</span><button class="mini danger hit" type="button" id="clear-yes" on:click=clear>"Leeren"</button><button class="mini hit" type="button" on:click=move |_| confirming.set(false)>"Abbrechen"</button></p>
+                        <p class="action note-action ask"><span>{t.bookmarks.clear_question}</span><button class="mini danger hit" type="button" id="clear-yes" on:click=clear>{t.bookmarks.clear_yes}</button><button class="mini hit" type="button" on:click=move |_| confirming.set(false)>{t.bookmarks.cancel}</button></p>
                     }.into_any(),
                     (false, false) => (numbers.get().0 > 0).then(|| view! {
-                        <button class="action" type="button" on:click=ask><Icon name="trash-2"/><span>"Merkliste leeren"</span></button>
+                        <button class="action" type="button" on:click=ask><Icon name="trash-2"/><span>{t.bookmarks.clear}</span></button>
                     }).into_any(),
                 }}
             </div>
         })}
         <div class="fgroup" class:first=move || !anything_listed.get()>
-            <p class="hint storage-hint"><Icon name="shield-check"/><span>"Die Merkliste liegt nur in diesem Browser: kein Konto, und nichts davon erreicht den Server. Ein anderes Gerät hat seine eigene; der Link zum Übertragen bringt sie dorthin."</span></p>
+            <p class="hint storage-hint"><Icon name="shield-check"/><span>{t.bookmarks.storage_hint}</span></p>
         </div>
     }
 }

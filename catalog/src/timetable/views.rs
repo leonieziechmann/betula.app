@@ -24,10 +24,10 @@ use super::clash::{self, Weeks};
 use super::day::Day;
 use super::exams::ExamShape;
 use super::facts::SemesterFacts;
-use super::kind::EventKind;
 use super::model::{Event, Row, Timetable};
 use super::occur::Every;
 use super::rowkey::RowKey;
+use crate::i18n::Locale;
 use crate::search::fold;
 
 /// Days a recurring Termin's first or last week may lie from the lecture period's first or last
@@ -105,15 +105,16 @@ pub fn short_title(title: &str) -> String {
 
 /// The kinds of an event in a slot's few letters: „VL", „Ü", „VL/Ü". The week's slots and the
 /// calendar's entries begin with them.
-pub fn kind_short(event: &Event) -> String {
-    event.kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/")
+pub fn kind_short(event: &Event, locale: Locale) -> String {
+    event.kinds.iter().map(|kind| kind.short(locale)).collect::<Vec<_>>().join("/")
 }
 
-/// What QIS calls an event („Übung", „Vorlesung/Übung", „Laborausbildung"), else its kinds.
-pub fn type_text(event: &Event) -> String {
+/// What QIS calls an event („Übung", „Vorlesung/Übung", „Laborausbildung": the data's words,
+/// in every language), else its kinds in `locale`.
+pub fn type_text(event: &Event, locale: Locale) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
         Some(text) => text.to_string(),
-        None => event.kinds.iter().map(EventKind::label).collect::<Vec<_>>().join("/"),
+        None => event.kinds.iter().map(|kind| kind.label(locale)).collect::<Vec<_>>().join("/"),
     }
 }
 
@@ -233,7 +234,7 @@ pub struct AgendaWeek {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgendaDay {
     pub day: Day,
-    /// The name of the public holiday on this day.
+    /// The name of the public holiday on this day, in the agenda's language.
     pub holiday: Option<&'static str>,
     /// Items without a time first, then by time.
     pub items: Vec<AgendaItem>,
@@ -481,8 +482,8 @@ impl Timetable {
     /// their day, a window on its first day. Dates the break or a holiday takes are no items.
     /// A Termin is one item per date however many rooms it has: the rows of one `RowKey` and
     /// option held on a day are one item, those cancelled on it another, and the rows of an exam
-    /// with one shape and time on a day are one sitting.
-    pub fn agenda(&self) -> Vec<AgendaWeek> {
+    /// with one shape and time on a day are one sitting. A holiday is named in `locale`.
+    pub fn agenda(&self, locale: Locale) -> Vec<AgendaWeek> {
         let mut gathered: BTreeMap<(Day, ItemKey), Gathered> = BTreeMap::new();
         for (e, _, r, row) in shown(&self.events) {
             let termin = row.key.map_or(Termin::Row(r), Termin::Key);
@@ -529,7 +530,7 @@ impl Timetable {
                 let days = (0..7)
                     .map(|offset| monday.plus(offset))
                     .filter_map(|day| {
-                        let holiday = self.facts.holiday(day);
+                        let holiday = self.facts.holiday(day).map(|holiday| holiday.name(locale));
                         let mut items = by_day.remove(&day).unwrap_or_default();
                         if items.is_empty() && holiday.is_none() {
                             return None;
@@ -736,7 +737,7 @@ mod tests {
     /// 09:15" (teaching), „Prüfung 90/1 11:00" (an exam), „31/1+2" for the rows of one item,
     /// „—" without a time, with „fällt aus: …" and „Raum: …".
     fn week_of(t: &Timetable, monday: &str) -> Vec<(String, Option<&'static str>, Vec<String>)> {
-        let agenda = t.agenda();
+        let agenda = t.agenda(Locale::De);
         let week = agenda.iter().find(|w| w.monday == d(monday)).unwrap_or_else(|| panic!("no week {monday}"));
         week.days
             .iter()
@@ -849,7 +850,7 @@ mod tests {
             }
         }
 
-        let agenda = t.agenda();
+        let agenda = t.agenda(Locale::De);
         assert!(agenda.windows(2).all(|w| w[0].monday < w[1].monday), "weeks once, in order");
         if let Some((start, end)) = t.facts.lecture {
             let mut monday = start.monday();
@@ -872,7 +873,7 @@ mod tests {
             assert!(w.days.windows(2).all(|p| p[0].day < p[1].day));
             for day in &w.days {
                 assert!(w.monday <= day.day && day.day <= w.monday.plus(6));
-                assert_eq!(day.holiday, t.facts.holiday(day.day));
+                assert_eq!(day.holiday, t.facts.holiday(day.day).map(|holiday| holiday.name(Locale::De)));
                 assert!(!day.items.is_empty() || day.holiday.is_some(), "an empty day {}", day.day.iso());
                 assert!(day.items.windows(2).all(|p| item_order(&p[0]) <= item_order(&p[1])));
                 for item in &day.items {
@@ -1040,7 +1041,7 @@ mod tests {
         assert_eq!(WeekLabel::Every(Every::Week).reach(&t.facts), None);
         assert!(t.loose().is_empty());
 
-        let agenda = t.agenda();
+        let agenda = t.agenda(Locale::De);
         // Every week of the lecture period, then the weeks of the February dates.
         let lecture_weeks = (0..17).map(|week| d("2026-10-05").plus(7 * week));
         let mondays: Vec<Day> = agenda.iter().map(|w| w.monday).collect();
@@ -1087,6 +1088,14 @@ mod tests {
             ]
         );
         assert_eq!(week_of(&t, "2026-12-28"), [("2027-01-01".into(), Some("Neujahr"), vec![])]);
+        // In English the holidays have their English names; the rest is the same.
+        let holidays = |locale| -> Vec<(Day, &str)> {
+            t.agenda(locale).into_iter().flat_map(|week| week.days).filter_map(|day| Some((day.day, day.holiday?))).collect()
+        };
+        let english = holidays(Locale::En);
+        assert_eq!(english.first(), Some(&(d("2026-10-31"), "Reformation Day")));
+        assert!(english.contains(&(d("2026-12-26"), "Boxing Day")) && english.contains(&(d("2027-01-01"), "New Year's Day")));
+        assert_eq!(english.iter().map(|(day, _)| *day).collect::<Vec<_>>(), holidays(Locale::De).iter().map(|(day, _)| *day).collect::<Vec<_>>());
         // After the lecture period: a single date and an exam sitting, once for its two rooms; a
         // window on its first day; the open exam date nowhere.
         assert_eq!(
@@ -1185,7 +1194,7 @@ mod tests {
         let wednesday = |monday: &str| week_of(&t, monday).into_iter().find(|day| d(&day.0).weekday() == 3);
         assert_eq!(wednesday("2026-10-05"), Some(("2026-10-07".into(), None, texts(&["31/1+2+3 09:15"]))));
         let lecture = t.events.iter().position(|e| e.id == "31").unwrap();
-        let agenda = t.agenda();
+        let agenda = t.agenda(Locale::De);
         let first = &agenda[0].days.iter().find(|day| day.day == d("2026-10-07")).unwrap().items[0];
         assert_eq!((first.event, first.row, first.rows.as_slice()), (Some(lecture), 0, [0, 1, 2].as_slice()));
         assert_eq!((first.from, first.to), (Some(555), Some(720)));
@@ -1200,7 +1209,7 @@ mod tests {
             Some(("2026-10-28".into(), None, texts(&["31/1+2+3 09:15 Raum: Raumwechsel"])))
         );
         let seminar = t.events.iter().position(|e| e.id == "33").unwrap();
-        let agenda = t.agenda();
+        let agenda = t.agenda(Locale::De);
         let items: Vec<&AgendaItem> = agenda.iter().flat_map(|w| &w.days).flat_map(|day| &day.items).collect();
         assert!(!items.is_empty());
         assert!(items
@@ -1233,7 +1242,7 @@ mod tests {
         for selection in [Selection::default(), both] {
             let t = planned(&db, &current, &many, &selection);
             invariants(&t);
-            assert!(!t.regular_week().is_empty() && !t.agenda().is_empty());
+            assert!(!t.regular_week().is_empty() && !t.agenda(Locale::De).is_empty());
         }
         if !is_pinned {
             return;
@@ -1242,7 +1251,7 @@ mod tests {
         let fs1 = ids(&["12104", "12107", "12102", "11112"]);
         let t = planned(&db, "2026W", &fs1, &Selection::default());
         invariants(&t);
-        let agenda = t.agenda();
+        let agenda = t.agenda(Locale::De);
         // A week per KW of the lecture period, the break from 21.12., and the weeks of the exams.
         let mondays: Vec<String> = agenda.iter().map(|w| w.monday.iso()).collect();
         let lecture_weeks = (0..17).map(|week| d("2026-10-05").plus(7 * week).iso());
@@ -1312,7 +1321,7 @@ mod tests {
         let dates_of = |plan: &str, id: &str| -> Vec<(String, usize)> {
             let t = planned(&db, "2026W", &ids(&[plan]), &Selection::default());
             let mut dates = Vec::new();
-            for day in t.agenda().into_iter().flat_map(|w| w.days) {
+            for day in t.agenda(Locale::De).into_iter().flat_map(|w| w.days) {
                 for item in &day.items {
                     let of = item.event.map(|e| &t.events[e].id).or(item.exam.map(|x| &t.exams[x].event_id));
                     if of.is_some_and(|of| of == id) {

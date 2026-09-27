@@ -225,7 +225,9 @@ pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -
     // calendar service has no password to give. The check characters turn guesses away before any
     // handler runs, and what it shows is the QIS schedule of the modules the code names; every
     // other path under `/calendar/` stays behind the gate. Its answer is `private` already.
-    if OPEN.contains(&path) || launch_screen || catalog::timetable::subscription::is_feed_path(path) {
+    // Every language's manifest is the home screen's, like the icons.
+    let manifest = catalog::Locale::split(path).1 == app::MANIFEST;
+    if OPEN.contains(&path) || launch_screen || manifest || catalog::timetable::subscription::is_feed_path(path) {
         return next.run(request).await;
     }
     if !gate.admits(request.headers()) {
@@ -291,14 +293,14 @@ pub async fn enter(State(state): State<AppState>, headers: HeaderMap, Form(login
     let Some(gate) = state.gate.as_ref() else { return redirect(&next) };
 
     if let Some(seconds) = gate.closed_for() {
-        let mut response = login_page(&state, StatusCode::TOO_MANY_REQUESTS, &next, Some("Zu viele falsche Versuche. Bitte versuche es in einer Minute noch einmal."));
+        let mut response = login_page(&state, StatusCode::TOO_MANY_REQUESTS, &next, Some(language_of(&next).gate_closed));
         response.headers_mut().insert(header::RETRY_AFTER, HeaderValue::from(seconds));
         return response;
     }
     if !gate.knows(login.password.trim()) {
         let failures = gate.failed();
         tracing::warn!(component = "access", event = "access.denied", failures, closed = failures >= MAX_FAILURES, "a wrong access password was entered");
-        return login_page(&state, StatusCode::UNAUTHORIZED, &next, Some("Das Passwort stimmt nicht."));
+        return login_page(&state, StatusCode::UNAUTHORIZED, &next, Some(language_of(&next).gate_wrong));
     }
 
     let Some(token) = gate.token(unix_now() + VISIT.as_secs()) else { return StatusCode::INTERNAL_SERVER_ERROR.into_response() };
@@ -314,22 +316,30 @@ pub async fn enter(State(state): State<AppState>, headers: HeaderMap, Form(login
     response
 }
 
+/// The texts of the login page: in the language of the page the visitor is on the way to.
+fn language_of(next: &str) -> &'static crate::texts::Texts {
+    crate::texts::texts(catalog::Locale::split(next).0)
+}
+
 /// The login page: a document of its own with the site's stylesheet, no app and no script but
 /// the one that applies the remembered theme. Works without JavaScript. The stylesheet carries
-/// the build like on every page (`app::BuildId`).
+/// the build like on every page (`app::BuildId`). It speaks the language of the page the visitor
+/// is on the way to.
 fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<&'static str>) -> Response {
+    let locale = catalog::Locale::split(next).0;
+    let (t, app_texts) = (crate::texts::texts(locale), app::i18n::texts(locale));
     let next = next.to_string();
     let stylesheet = app::BuildId(state.build_id.clone()).asset(app::STYLESHEET);
     let html = view! {
         <!DOCTYPE html>
-        <html lang="de">
+        <html lang=locale.code()>
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
                 <meta name="color-scheme" content="light dark"/>
                 <meta name="robots" content="noindex, nofollow"/>
                 <meta name="theme-color" content=app::THEME_LIGHT/>
-                <title>"Geschlossener Test · Betula"</title>
+                <title>{format!("{} · Betula", t.gate_title)}</title>
                 <link rel="icon" href=app::FAVICON_ICO sizes="32x32"/>
                 <link rel="icon" type="image/svg+xml" href=app::FAVICON/>
                 <link rel="apple-touch-icon" href=app::TOUCH_ICON/>
@@ -344,19 +354,19 @@ fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<
                     // The lockup stands on the page like in the app: on a panel the light mark would vanish.
                     <div class="gate-brand">
                         <span class="logo"><app::ui::Mark/></span>
-                        <span><app::ui::Wordmark/><small>"Modulkatalog · inoffiziell"</small></span>
+                        <span><app::ui::Wordmark/><small>{app_texts.common.tagline}</small></span>
                     </div>
                     <section class="gate-panel">
-                        <h1>"Geschlossener Test"</h1>
-                        <p>"Betula wird gerade in kleinem Kreis getestet. Mit dem Passwort aus deiner Einladung geht es weiter."</p>
+                        <h1>{t.gate_title}</h1>
+                        <p>{t.gate_text}</p>
                         <form method="post" action=PATH>
                             <input type="hidden" name="next" value=next/>
                             // Password managers file a password under a name.
                             <input class="visually-hidden" type="text" name="username" value="Betula" autocomplete="username" tabindex="-1" aria-hidden="true"/>
-                            <label for="password">"Passwort"</label>
+                            <label for="password">{t.gate_password}</label>
                             <input id="password" type="password" name="password" required autofocus autocomplete="current-password" aria-describedby=problem.map(|_| "problem") aria-invalid=problem.map(|_| "true")/>
                             {problem.map(|problem| view! { <p class="gate-problem" id="problem" role="alert">{problem}</p> })}
-                            <button class="button" type="submit">"Öffnen"</button>
+                            <button class="button" type="submit">{t.gate_open}</button>
                         </form>
                     </section>
                 </main>

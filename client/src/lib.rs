@@ -173,7 +173,8 @@ fn install_panic_hook() {
         if let Some(document) = web_sys::window().and_then(|w| w.document()) {
             if let (Ok(banner), Some(body)) = (document.create_element("div"), document.body()) {
                 banner.set_class_name("fatal");
-                banner.set_inner_html("Etwas ist schiefgelaufen. <a href=\"\">Seite neu laden</a>");
+                let t = app::i18n::texts(app::i18n::of_address());
+                banner.set_inner_html(&format!("{} <a href=\"\">{}</a>", t.ui.crashed, t.ui.reload_page));
                 let _ = body.append_child(&banner);
             }
         }
@@ -201,12 +202,17 @@ pub fn start() {
     install_panic_hook();
     let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
     let Some(body) = document.body() else { return };
+    // The language of the address (`app::i18n`): the page the service worker kept for a start
+    // without a network may be of another one.
+    if let Some(root) = document.document_element() {
+        let _ = root.set_attribute("lang", app::i18n::of_address().code());
+    }
     // Not hydration: the local database may be older than the server's page, so the app renders
     // fresh. Same components, same markup, so nothing visibly changes.
     body.set_inner_html("");
     // The same goes for what the server wrote into the head for this page (`app::seo`): the app
     // writes its own, and what stayed would describe the first page on every later one.
-    let stale = "meta[name=description], meta[name=robots], link[rel=canonical], meta[property^='og:'], meta[name^='twitter:'], script[type='application/ld+json']";
+    let stale = "meta[name=description], meta[name=robots], link[rel=canonical], link[rel=alternate][hreflang], meta[property^='og:'], meta[name^='twitter:'], script[type='application/ld+json']";
     if let Ok(tags) = document.query_selector_all(stale) {
         for i in 0..tags.length() {
             if let Some(tag) = tags.item(i) {

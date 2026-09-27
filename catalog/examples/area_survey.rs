@@ -23,7 +23,7 @@ use catalog::rows_detail::AreaPlacement;
 fn kinds(placements: &[AreaPlacement], area: i64) -> String {
     let mut counted: BTreeMap<String, usize> = BTreeMap::new();
     for placement in placements.iter().filter(|placement| placement.area_id == area) {
-        let kind = placement.module_kind.as_ref().or(placement.kind.as_ref()).map(|kind| kind.label().to_string()).unwrap_or_else(|| "?".to_string());
+        let kind = placement.module_kind.as_ref().or(placement.kind.as_ref()).map(|kind| kind.label(catalog::Locale::De).to_string()).unwrap_or_else(|| "?".to_string());
         *counted.entry(kind).or_default() += 1;
     }
     counted.iter().map(|(kind, n)| format!("{kind} {n}")).collect::<Vec<_>>().join(", ")
@@ -190,7 +190,7 @@ fn main() {
             }
             seen.push((entry.module_name.clone(), caption.clone()));
             n.rows += 1;
-            let kind = entry.kind.as_ref().map(|kind| kind.label().to_string()).unwrap_or_else(|| "?".to_string());
+            let kind = entry.kind.as_ref().map(|kind| kind.label(catalog::Locale::De).to_string()).unwrap_or_else(|| "?".to_string());
             let head = format!("    „{}\" [{kind}]{}", entry.module_name, if caption.is_empty() { String::new() } else { format!(" ‹{caption}›") });
             if plan::is_single_module(entry) {
                 n.rows_single += 1;

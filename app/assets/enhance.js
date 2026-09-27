@@ -9,6 +9,13 @@
 // way back to the top of a page („Nach oben").
 (() => {
   const root = document.documentElement;
+  // The page's language, as its address says it (`catalog::Locale::split`): the prefix of its
+  // addresses and its words (docs/i18n.md). The first is the default, without a prefix.
+  const LANGUAGES = [
+    { prefix: "", linkCopied: "Link kopiert", copied: "Kopiert" },
+    { prefix: "/en", linkCopied: "Link copied", copied: "Copied" },
+  ];
+  const language = () => LANGUAGES.find((l) => l.prefix && (location.pathname === l.prefix || location.pathname.startsWith(l.prefix + "/"))) || LANGUAGES[0];
   const appRuns = () => window.__betulaApp === true;
   const phone = () => matchMedia("(max-width: 900px)").matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
@@ -108,6 +115,16 @@
     if (fields?.ects_max) fields.ects_max.value = +high.value < +high.max ? high.value : "";
   });
 
+  // The switch between the languages (app::languages): the language it leads to is kept before the
+  // page is left, so that every later visit opens in it (`language_script` in the head).
+  const keepLanguage = (e) => {
+    const link = e.target.closest?.("a[data-language]");
+    if (!link) return;
+    try { localStorage.setItem("betula.language", link.dataset.language); } catch {}
+  };
+  document.addEventListener("click", keepLanguage, true);
+  document.addEventListener("auxclick", keepLanguage, true);
+
   // The app filters while typing; Enter must not load a page on top of that.
   document.addEventListener("submit", (e) => {
     if (appRuns() && e.target.matches("form[data-live-search]")) e.preventDefault();
@@ -119,7 +136,7 @@
     const row = e.target.closest?.("a.row[data-id]");
     if (!row || appRuns() || !phone() || e.defaultPrevented) return;
     e.preventDefault();
-    location.href = "/catalog/module/" + encodeURIComponent(row.dataset.id);
+    location.href = language().prefix + "/catalog/module/" + encodeURIComponent(row.dataset.id);
   }, true);
 
   // A tap beside the open sheet, on the dimmed page (the target is then the document itself).
@@ -264,7 +281,7 @@
         navigator.clipboard?.writeText(text).then(() => {
           if (!label || label.dataset.was) return;
           label.dataset.was = label.textContent;
-          label.textContent = link ? "Link kopiert" : "Kopiert";
+          label.textContent = link ? language().linkCopied : language().copied;
           setTimeout(() => { label.textContent = label.dataset.was; delete label.dataset.was; }, 1600);
         }).catch(() => {});
         break;

@@ -24,7 +24,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -46,6 +46,12 @@ value that is both wanted and excluded counts as wanted. An exclusion removes on
 states: a module whose campus or turnus is unknown stays in the list (R12). Lecturers: the
 wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhler) and not
 (Lambers or Hofstedt).
+
+**Every route in every language** (2026-09-27, `docs/i18n.md`): the addresses above are the
+German pages; the same page in English is the same address under `/en` (`/en/catalog?…`, the start
+page `/en`), and so are the cards, the manifest and the calendar feed (`/en/cards/…`,
+`/en/manifest.webmanifest`, `/en/calendar/<code>.ics`). `/de/…` leads to the plain address. The
+paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R23).
 
 ### Look and interaction (since 2026-09-19, owner-approved direction)
 
@@ -1168,7 +1174,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   history entry, so the browser's back always works too.
 - **R13. Personal view settings never go into the URL**: theme and the widths of the filter panel
   and the preview live in `localStorage` and are applied before the first paint by the script in
-  `<head>`.
+  `<head>`. So does the language (`betula.language`, `docs/i18n.md`): the first script of the head
+  opens the page in it, which is a page load, because a language is an address.
 - **R14. Virtual oversizing.** A small control takes the pointer in an area larger than it shows:
   an invisible layer that belongs to the control itself (a wrapper element would receive the click
   instead of the control). Set per side with `--hit`, `--hit-x`/`--hit-y`, `--hit-t/-r/-b/-l`;
@@ -1257,6 +1264,14 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   control that shows where the visitor is shows where the app is going as well (`Pending::to`,
   `search_on`, `path`), and what takes a new page or list to compute has its skeleton
   (`Pending::waits`, `skeleton`). A new page gets a `pending::Shape`, or one that looks like it.
+- **R23. What the app writes is in the page's language** (2026-09-27, `docs/i18n.md`). A text of
+  the app lives in a group of texts (`app/src/i18n/<group>.rs`, a field and one `const` per
+  language), never as a literal in a view; a component takes them once (`let t = i18n::t();`).
+  Every address of the app written into a page goes through `t.path(…)`, and what reads an
+  address uses `i18n::use_location` (the path without the language's prefix). The data is not
+  translated: titles, descriptions and names are shown as the BTU writes them. A server test
+  renders every kind of page in English and lists every link out of English
+  (`a_page_in_english_stays_in_english`).
 - **R22. A render on the server makes nothing that is bound to its thread** (2026-09-26). A
   page renders in a task that can go on on another worker thread: `leptos_meta` waits a tick
   for its tags (a little task of its own that wakes the render again), and after three such
@@ -1782,6 +1797,16 @@ rebuilt; only the areas to choose from, under the heading of the area above them
 „Wahlpflichtmodule"), and the same panel without JavaScript (links keep the rest of the filter, the form keeps
 what the links set, nothing that needs JavaScript is visible, a shared address with `open` shows
 the plain list, a row leads to the module's page).
+
+```bash
+cd e2e && node languages.mjs
+```
+
+drives the browser app in English (`docs/i18n.md`): it takes over on `/en/catalog`, and a filter,
+a preview, „Vollbild", Esc, the programmes, a programme and its areas, the Merkliste, the
+Stundenplan, the start page and the search of the top bar all stay under `/en` without a page load,
+with no link of the page leading into German but the switch; the switch in the rail then loads the
+same address in German.
 
 ```bash
 cd e2e && node module.mjs
