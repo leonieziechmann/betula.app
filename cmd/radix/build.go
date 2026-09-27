@@ -50,7 +50,11 @@ func printBuildReport(r *catalogbuild.Report, took time.Duration) {
 	fmt.Printf("Assertions     module_page=%d qis_tree=%d pdf_plan=%d\n", r.Assertions["module_page"], r.Assertions["qis_tree"], r.Assertions["pdf_plan"])
 	fmt.Printf("Plans          %d entries point to modules not in the catalog; %d plans without a program %v\n",
 		r.PlanEntriesUnknownModule, len(r.PlansWithoutProgram), r.PlansWithoutProgram)
-	fmt.Printf("Events         %d (%d event links on module pages are not archived yet)\n", r.Events, r.EventLinksNoArchive)
+	fmt.Printf("Events         %d (%d event links on module pages are not archived yet, %d name events QIS has removed)\n",
+		r.Events, r.EventLinksNoArchive, len(r.EventLinksGone))
+	for _, link := range r.EventLinksGone {
+		fmt.Printf("                 left out: %s\n", link)
+	}
 	fmt.Printf("Short names    %d rooms without a known building, %d rooms kept their long form; abbreviations: %d pairs fell back, %d twins, %d changed since the last build\n",
 		len(r.RoomsUnknownBuilding), len(r.RoomShortCollisions), r.AbbrevFellBack, r.AbbrevTwins, r.AbbrevChanged)
 	for _, line := range r.AbbrevOverridesUnused {

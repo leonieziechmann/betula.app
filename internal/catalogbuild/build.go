@@ -62,8 +62,9 @@ type Report struct {
 	PlansWithoutProgram      []string
 
 	Events              int
-	EventsFromList      int // events whose dates come from the event search: no page yet, or one older than a change the list shows
-	EventLinksNoArchive int // events a module page links that are not archived yet
+	EventsFromList      int      // events whose dates come from the event search: no page yet, or one older than a change the list shows
+	EventLinksNoArchive int      // events a module page links that are not archived yet
+	EventLinksGone      []string // "module → event": a module page links an event QIS has removed (its page states nothing, the search does not show it); left out
 
 	// Short names (docs/schema-v2.md, „Short names“).
 	RoomsUnknownBuilding  map[string]int // event rooms whose building the table lacks → event dates
@@ -83,8 +84,8 @@ type Report struct {
 // Log events: build.started, build.finished, build.failed (ERROR), and one WARN per
 // kind of source data the build could not use (build.unresolved_refs,
 // build.tree_leaves_without_module, build.tree_pages_missing, build.plans_without_program,
-// build.plan_entries_unknown_module, build.modules_without_page, build.rooms_unknown_building,
-// build.room_short_collisions, build.abbrev_overrides_unused).
+// build.plan_entries_unknown_module, build.modules_without_page, build.event_links_gone,
+// build.rooms_unknown_building, build.room_short_collisions, build.abbrev_overrides_unused).
 func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	log := oplog.For("build")
 	start := time.Now()
@@ -111,6 +112,7 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	warn(len(report.PlansWithoutProgram), "build.plans_without_program", "validated plans belong to programs that no longer exist", "programs", report.PlansWithoutProgram)
 	warn(report.PlanEntriesUnknownModule, "build.plan_entries_unknown_module", "plan entries are matched to modules that are not in the catalog")
 	warn(len(report.UnpairedEnglishDep), "build.unpaired_departments", "English department names have no German counterpart", "names", report.UnpairedEnglishDep)
+	warn(len(report.EventLinksGone), "build.event_links_gone", "module pages link events QIS has removed (the page states nothing, the event search does not show them); the links are left out until the descriptions are read again", "links", first(report.EventLinksGone, 10))
 	warn(len(report.RoomsUnknownBuilding), "build.rooms_unknown_building", "event rooms name a building the short-name table lacks; they keep the building's full name", "examples", examples(report.RoomsUnknownBuilding, 5))
 	warn(len(report.RoomShortCollisions), "build.room_short_collisions", "rooms would share a short form; they keep their long form", "rooms", first(report.RoomShortCollisions, 10))
 	warn(len(report.AbbrevOverridesUnused), "build.abbrev_overrides_unused", "lines of the abbreviation override file apply to no module", "lines", report.AbbrevOverridesUnused)

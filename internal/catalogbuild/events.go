@@ -19,7 +19,9 @@ var (
 
 // writeEvents writes the archived QIS events and links them to the modules whose
 // page lists them. Exams are a category of their own, so that consumers can keep
-// them out of the recurring schedule and still show them.
+// them out of the recurring schedule and still show them. An event QIS has removed
+// is not among them (loadEvents), nor is a link to it: a module description is read
+// again monthly, and until then it may name an event that no longer exists.
 func (b *builder) writeEvents() error {
 	ids := make([]string, 0, len(b.src.events))
 	for id := range b.src.events {
@@ -146,7 +148,11 @@ func (b *builder) writeEvents() error {
 				continue
 			}
 			if b.src.events[eventID] == nil {
-				if !tombstones[eventID] { // removed on purpose by retention
+				switch {
+				case tombstones[eventID]: // removed on purpose by retention
+				case b.src.eventsGone[eventID]: // removed by BTU; the description is older
+					b.report.EventLinksGone = append(b.report.EventLinksGone, moduleID+" → "+eventID)
+				default:
 					b.report.EventLinksNoArchive++
 				}
 				continue

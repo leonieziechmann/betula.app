@@ -522,6 +522,26 @@ search. Otherwise the stage fails before anything is archived from the answer: i
 ignored the list of IDs, the answer would be the first page of all events of the current
 semester, and every event asked for would look deleted.
 
+**When BTU removes an event (2026-09-27).** The search stops showing it, and QIS answers its page
+with HTTP 200 and its empty frame: no „Grunddaten", no semester, no date; only the head of the
+frame names a semester, the one QIS calls current (`internal/parser/testdata/qis_event_149396.html`).
+A module description is read again within a month and may name the event until then. On
+2026-09-27 this was 149396 (the seminar „Internationales Bau- und Planungsrecht" of the WiSe
+2026/27, module 21501) and 152211 („BP24 Projektarbeit und Anwendung / Vertiefung", module 12070):
+the build wrote each as an event titled with its ID, without a semester, a type or a date, and
+Folia could not read the pages of the two modules for the missing semester. Since then a reading
+that states nothing of its event (`parser.NoEvent`) is none. The empty frame of an event the
+search still shows gives way to the entry; an event without any reading is not built, nor is a
+link to it (`build.event_links_gone` names the links). That the search no longer shows an event
+is news for its page, which is fetched in the same cycle, so a removal reaches the catalog in the
+cycle that sees it. Every archived row of an event that is not built is unused: while a
+description names the event, the crawler keeps asking about it (the search every two hours, the
+page every three days), so an event BTU restores comes back; once none does, the `archive` stage
+removes its page and its entry seven days after their last fetch. Keeping the last good page
+instead would have kept a seminar that no longer exists in the catalog, with its dates, until the
+description was read again. Folia leaves a date without a semester off the module page instead
+of failing the page, and `validate` warns about an event a module links that has no semester.
+
 **Requests.** Before: up to 600 event pages a night. Now: about ten requests of the search a
 night for all events, a few every two hours for the events whose dates are not settled, and the
 pages that are new or changed, and each of the others on its day: weekly while its dates are not

@@ -96,6 +96,15 @@ func words(s string) string {
 	}), " ")
 }
 
+// NoEvent reports whether a reading states nothing of an event: no title, number, type or
+// semester, and no date. QIS answers the page of an event BTU has removed with HTTP 200 and
+// its empty frame, whose head names only the semester QIS calls current, and the event search
+// no longer shows the event (2026-09-27: 149396 and 152211, events of the WiSe 2026/27 until
+// then; testdata/qis_event_149396.html). Such a reading is none.
+func NoEvent(d *model.EventDetail) bool {
+	return d.Title == "" && d.EventNumber == "" && d.EventType == "" && d.Semester == "" && len(d.Schedules) == 0
+}
+
 // AwaitsDates reports whether an event does not say yet when it takes place: it has no
 // date, or none with a time and a day. The placeholder QIS enters for an exam whose date
 // is not fixed, 01:00 to 02:30 on a Sunday or without a weekday, is no date either

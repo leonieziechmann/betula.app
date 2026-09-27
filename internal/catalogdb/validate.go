@@ -120,6 +120,13 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 
 	v.count("modules without a module page", StatusWarn, "SELECT COUNT(*) FROM module WHERE detail_status = 'missing'",
 		"SELECT id || ' ' || title FROM module WHERE detail_status = 'missing' ORDER BY id")
+	// Folia shows a module's dates by semester and leaves out one without. An event QIS has
+	// removed is not built at all (catalogbuild.loadEvents), so one here is a page whose
+	// semester the parser did not read.
+	v.count("events a module links that have no semester", StatusWarn, `
+		SELECT COUNT(*) FROM event e WHERE e.semester_key IS NULL AND EXISTS (SELECT 1 FROM module_event me WHERE me.event_id = e.id)`,
+		`SELECT e.id || ' ' || e.title || ' → ' || GROUP_CONCAT(me.module_id, ', ') FROM event e JOIN module_event me ON me.event_id = e.id
+		 WHERE e.semester_key IS NULL GROUP BY e.id ORDER BY e.id`)
 	v.count("module page assignments that resolve to no program", StatusWarn, "SELECT COUNT(*) FROM module_program_ref WHERE resolve_status = 'unresolved'",
 		"SELECT degree_raw || ' / ' || program_raw || ' / ' || po_raw || '  ×' || COUNT(*) FROM module_program_ref WHERE resolve_status = 'unresolved' GROUP BY 1 ORDER BY COUNT(*) DESC")
 	v.count("FÜS list and module page sentence disagree", StatusWarn, "SELECT COUNT(*) FROM module WHERE page_states_fues IS NOT NULL AND page_states_fues <> is_fues",
