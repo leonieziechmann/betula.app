@@ -16,6 +16,25 @@ const BUILD = new URL(import.meta.url).search;
 // writes in here). A copy of an older schema lacks columns they select, so it is never opened.
 const SCHEMA = Number("__SCHEMA__");
 
+// What this script says, in the page's language as its address says it (`catalog::Locale::split`;
+// docs/i18n.md). The first is the default, without a prefix. (Offline the service worker may
+// answer with a page it kept in another language; the address is still the visitor's.)
+const LANGUAGES = [
+  {
+    prefix: "",
+    loading: "Daten werden geladen …",
+    loadingShare: (percent) => `Daten werden geladen … ${percent} %`,
+    offline: "Offline – die Daten werden neu geladen, sobald du online bist",
+  },
+  {
+    prefix: "/en",
+    loading: "Loading the data …",
+    loadingShare: (percent) => `Loading the data … ${percent} %`,
+    offline: "Offline – the data will be loaded again once you are online",
+  },
+];
+const T = LANGUAGES.find((l) => l.prefix && (location.pathname === l.prefix || location.pathname.startsWith(l.prefix + "/"))) || LANGUAGES[0];
+
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch((error) => console.info("[catalog] no service worker:", error));
 }
@@ -73,7 +92,7 @@ async function download(total) {
     if (done) break;
     chunks.push(value);
     received += value.length;
-    if (total) status(`Daten werden geladen … ${Math.min(99, Math.round((received / total) * 100))} %`);
+    if (total) status(T.loadingShare(Math.min(99, Math.round((received / total) * 100))));
   }
   const bytes = new Uint8Array(received);
   let offset = 0;
@@ -116,7 +135,7 @@ async function openDatabase() {
     // it with: the app does not start, and the page stays the one the service worker kept.
     if (!server) {
       const error = new Error("the local copy of the catalog is older than this build, and the server is not reachable");
-      error.notice = "Offline – die Daten werden neu geladen, sobald du online bist";
+      error.notice = T.offline;
       throw error;
     }
     current = null;
@@ -124,7 +143,7 @@ async function openDatabase() {
   if (!current) {
     if (!server) throw new Error("no local copy of the catalog and the server is not reachable");
     if (!serverFits) throw new Error(`the server's catalog is of schema ${server.schema_version}, this build reads ${SCHEMA}`);
-    status("Daten werden geladen …");
+    status(T.loading);
     current = { etag: server.etag, bytes: await download(server.bytes) };
     await idbPut("current", current);
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});

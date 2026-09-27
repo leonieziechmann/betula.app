@@ -33,6 +33,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::Locale;
 use crate::labels::DegreeLevel;
 use crate::rows::Program;
 
@@ -279,7 +280,7 @@ pub fn program_map(programs: &[Program], curriculum: &[(String, String)], facult
             slug: program.slug.clone(),
             name: program.name.trim().to_string(),
             degree: program.degree().to_string(),
-            variant: program.study_variant.as_ref().map(|variant| variant.label().to_string()),
+            variant: program.study_variant.as_ref().map(|variant| variant.label(Locale::De /* i18n: pending */).to_string()),
             cycle: Cycle::of(program),
             modules: *modules,
             faculty: *faculty,

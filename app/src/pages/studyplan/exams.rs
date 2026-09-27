@@ -344,7 +344,7 @@ fn campus_name(campus: &Code<Campus>) -> String {
         Some(Campus::Zentralcampus) => "Zentralcampus".to_string(),
         Some(Campus::Sachsendorf) => "Sachsendorf".to_string(),
         Some(Campus::Senftenberg) => "Senftenberg".to_string(),
-        _ => campus.label().to_string(),
+        _ => campus.label(crate::i18n::locale()).to_string(),
     }
 }
 

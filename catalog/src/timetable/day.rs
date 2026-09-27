@@ -9,6 +9,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::Locale;
+
 /// A calendar day: days since 1970-01-01, proleptic Gregorian.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Day(pub i32);
@@ -68,6 +70,18 @@ impl Day {
     pub fn short(self) -> String {
         let (_, m, d) = self.ymd();
         format!("{d:02}.{m:02}.")
+    }
+
+    /// The date as a page in `locale` writes it: „05.10.2026", "5 Oct 2026".
+    pub fn date(self, locale: Locale) -> String {
+        let (y, m, d) = self.ymd();
+        (locale.texts().common.date)(d, m, y)
+    }
+
+    /// The date without its year, for a page that already says it: „05.10.", "5 Oct".
+    pub fn day_month(self, locale: Locale) -> String {
+        let (_, m, d) = self.ymd();
+        (locale.texts().common.day_month)(d, m)
     }
 
     /// 1 = Monday … 7 = Sunday, as in the event tables. 1970-01-01 was a Thursday.

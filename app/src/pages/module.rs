@@ -33,7 +33,9 @@ use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, ModuleHint, ProgramTab};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::{use_location, use_params_map};
+use leptos_router::hooks::use_params_map;
+
+use crate::i18n::use_location;
 
 use crate::bookmarks::{MarkButton, MarkLook};
 use crate::data::{use_source, PageStatus};
@@ -94,8 +96,8 @@ fn derive(data: &ModuleData) -> Derived {
             .contents
             .clone()
             .or_else(|| m.learning_outcomes.clone())
-            .map(|text| seo::excerpt(&format!("{} ({}, {}) an der BTU Cottbus-Senftenberg: {text}", m.title, m.id, format::credits(m.credits)), 300))
-            .unwrap_or_else(|| format!("{} (Modul {}, {}) an der BTU Cottbus-Senftenberg: Turnus, Prüfung, Voraussetzungen und Studiengänge.", m.title, m.id, format::credits(m.credits))),
+            .map(|text| seo::excerpt(&format!("{} ({}, {}) an der BTU Cottbus-Senftenberg: {text}", m.title, m.id, format::credits(m.credits, crate::i18n::locale())), 300))
+            .unwrap_or_else(|| format!("{} (Modul {}, {}) an der BTU Cottbus-Senftenberg: Turnus, Prüfung, Voraussetzungen und Studiengänge.", m.title, m.id, format::credits(m.credits, crate::i18n::locale()))),
     }
 }
 
@@ -119,7 +121,7 @@ fn curricula(data: &ModuleData) -> Vec<ProgramLink> {
 
 /// Where the validated plan of a program the module belongs to places it: „1. Semester".
 fn plan_semesters(data: &ModuleData, link: &ProgramLink) -> Option<String> {
-    format::plan_semesters(&data.plan_semesters(link.program_id.as_deref()?))
+    format::plan_semesters(&data.plan_semesters(link.program_id.as_deref()?), crate::i18n::locale())
 }
 
 /// The module as schema.org knows it (a `Course` of the university) and the way to it. Only what
@@ -604,11 +606,11 @@ fn Heading(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
         // stylesheet shows them once the app runs (R9, R15).
         <div class="hero-line">
             <p class="badges">
-                <span class="badge strong num">{format::credits(m.credits)}</span>
-                <span class="badge">{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref())}</span>
+                <span class="badge strong num">{format::credits(m.credits, crate::i18n::locale())}</span>
+                <span class="badge">{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref(), crate::i18n::locale())}</span>
                 {format::languages(m.teaches_german, m.teaches_english).map(|l| view! { <span class="badge">{l}</span> })}
                 {m.is_fues.then(|| view! { <span class="badge">"FÜS"</span> })}
-                {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label().to_string()}</span> })}
+                {(!m.offer_status.is(OfferStatus::Active)).then(|| view! { <span class="badge warn">{m.offer_status.label(crate::i18n::locale()).to_string()}</span> })}
             </p>
             <div class="switches">
                 {plan_button(&data, hint, PlanLook::Hero)}
@@ -639,7 +641,7 @@ fn Side(data: ModuleData) -> impl IntoView {
         <div class="section" id="blick">
             <h3 class="label">"Auf einen Blick"</h3>
             <dl class="facts">
-                <Fact icon="file-check-2" label="Prüfung" value=m.exam_form.as_ref().map(format::exam_short).or(m.exam_form_raw.clone())/>
+                <Fact icon="file-check-2" label="Prüfung" value=m.exam_form.as_ref().map(|form| format::exam_short(form, crate::i18n::locale())).or(m.exam_form_raw.clone())/>
                 <Fact icon="award" label="Benotung" value=m.is_graded.map(|g| if g { "benotet".to_string() } else { "unbenotet".to_string() }).or(m.grading_raw.clone())/>
                 <Fact icon="clock-3" label="Dauer" value=m.duration_raw.clone()/>
                 <Fact icon="users-round" label="Plätze" value=match (m.is_limited, m.participant_limit) {
@@ -712,7 +714,7 @@ fn Source(data: ModuleData) -> impl IntoView {
         <p class="source">
             <Icon name="shield-check"/>
             "Quelle: Modulbeschreibung der BTU"
-            {m.fetched_at.as_deref().map(|at| format!(" · abgerufen {}", format::date(at)))}
+            {m.fetched_at.as_deref().map(|at| format!(" · abgerufen {}", format::date(at, crate::i18n::locale())))}
             {m.source_url.clone().map(|href| view! { <a href=href rel="noopener">"Original"<Icon name="arrow-up-right"/></a> })}
         </p>
     }
@@ -786,12 +788,12 @@ fn Schedule(data: ModuleData) -> impl IntoView {
             .into_iter()
             .map(|(d, reading)| {
                 let slot = reading.as_ref().map_or_else(|| Slot::of(&d), |r| r.shown.clone());
-                let when = if reading.is_some() { shown_when(&slot) } else { format::time_slot(d.weekday, d.start_time.as_deref(), d.end_time.as_deref()) };
+                let when = if reading.is_some() { shown_when(&slot) } else { format::time_slot(d.weekday, d.start_time.as_deref(), d.end_time.as_deref(), crate::i18n::locale()) };
                 let open = if reading.as_ref().is_some_and(|r| r.has(Reason::PlaceholderTime)) && slot.first_date.is_none() { "Termin offen" } else { "Zeit offen" };
                 // What the BTU wrote where the row shows something else without marking it (a deadline).
                 let stated = reading.as_ref().filter(|r| r.shown != r.stated && !r.is_marked()).map(|r| format!("In QIS: {}", stated_slot(r)));
                 let marker = reading.as_ref().filter(|r| r.is_marked()).map(marker_text);
-                let rhythm = d.rhythm.as_ref().map(|r| r.label().to_string()).or(d.rhythm_raw.clone());
+                let rhythm = d.rhythm.as_ref().map(|r| r.label(crate::i18n::locale()).to_string()).or(d.rhythm_raw.clone());
                 let head: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm].into_iter().flatten().collect();
                 let tail: Vec<String> = [d.room_shown().map(str::to_string), d.instructor.clone(), d.comment.clone()].into_iter().flatten().collect();
                 let days = slot.first_date.clone().map(|first| (first, slot.last_date.clone().filter(|last| Some(last) != slot.first_date.as_ref())));
@@ -887,7 +889,7 @@ fn own_slot(once: bool, day: u8, from: u16, to: u16, date: &EventDate, dates: &B
     let kinds = kinds_of(word);
     let label = match kinds == KindSet::default().with(EventKind::Other) {
         true => word.unwrap_or("Termin").to_string(),
-        false => kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/"),
+        false => kinds.iter().map(|kind| kind.short(crate::i18n::locale())).collect::<Vec<_>>().join("/"),
     };
     let what = match word {
         Some(word) => format!("{word} · {}", date.event_title),
@@ -977,7 +979,7 @@ fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay) -> Vec<GridS
         if !(1..=span.days).contains(&planned.day) || to <= from {
             continue;
         }
-        let when = format::time_slot(Some(i64::from(planned.day)), Some(&clock(planned.from)), Some(&clock(planned.to))).unwrap_or_default();
+        let when = format::time_slot(Some(i64::from(planned.day)), Some(&clock(planned.from)), Some(&clock(planned.to)), crate::i18n::locale()).unwrap_or_default();
         let line = format!("{} · {when}", planned.short);
         let at = (planned.day, from, to);
         match times.iter_mut().find(|(known, ..)| *known == at) {
@@ -1001,11 +1003,11 @@ fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay) -> Vec<GridS
 /// „Mo 09:15–10:45", and „Mo bis 24:00" for a deadline (an end without a start).
 fn shown_when(slot: &Slot) -> Option<String> {
     match (&slot.start_time, &slot.end_time) {
-        (None, Some(end)) => Some(match format::time_slot(slot.weekday, None, None) {
+        (None, Some(end)) => Some(match format::time_slot(slot.weekday, None, None, crate::i18n::locale()) {
             Some(day) => format!("{day} bis {end}"),
             None => format!("bis {end}"),
         }),
-        (start, end) => format::time_slot(slot.weekday, start.as_deref(), end.as_deref()),
+        (start, end) => format::time_slot(slot.weekday, start.as_deref(), end.as_deref(), crate::i18n::locale()),
     }
 }
 
@@ -1034,15 +1036,15 @@ fn detail_line(head: Vec<String>, days: Option<(String, Option<String>)>, tail: 
 fn date_of(iso: &str) -> AnyView {
     match Day::parse(iso) {
         Some(day) => view! { <time datetime=day.iso()>{day.german()}</time> }.into_any(),
-        None => format::date(iso).into_any(),
+        None => format::date(iso, crate::i18n::locale()).into_any(),
     }
 }
 
 /// „27.12.2015", „08.02.2027 – 19.02.2027"
 fn date_range(slot: &Slot) -> Option<String> {
     match (&slot.first_date, &slot.last_date) {
-        (Some(first), Some(last)) if first != last => Some(format!("{} – {}", format::date(first), format::date(last))),
-        (Some(first), _) => Some(format::date(first)),
+        (Some(first), Some(last)) if first != last => Some(format!("{} – {}", format::date(first, crate::i18n::locale()), format::date(last, crate::i18n::locale()))),
+        (Some(first), _) => Some(format::date(first, crate::i18n::locale())),
         _ => None,
     }
 }
@@ -1052,7 +1054,7 @@ fn date_range(slot: &Slot) -> Option<String> {
 fn stated_slot(reading: &ExamReading) -> String {
     let (stated, shown) = (&reading.stated, &reading.shown);
     let dates = (date_range(stated) != date_range(shown)).then(|| date_range(stated)).flatten();
-    [format::time_slot(stated.weekday, stated.start_time.as_deref(), stated.end_time.as_deref()), dates].into_iter().flatten().collect::<Vec<_>>().join(" · ")
+    [format::time_slot(stated.weekday, stated.start_time.as_deref(), stated.end_time.as_deref(), crate::i18n::locale()), dates].into_iter().flatten().collect::<Vec<_>>().join(" · ")
 }
 
 /// The line under a marked exam date: the original where the row shows something else, and what
@@ -1284,7 +1286,7 @@ mod tests {
             key: at.key(),
             season: catalog::labels::Code::parse(if at.winter { "winter" } else { "summer" }),
             year: i64::from(at.year),
-            label: at.label(),
+            label: at.label(crate::i18n::locale()),
             starts_on: String::new(),
             ends_on: String::new(),
             is_current,

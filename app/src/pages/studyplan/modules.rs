@@ -85,7 +85,7 @@ fn module_items(data: &StudyplanData) -> Vec<ModuleItem> {
                 id: id.clone(),
                 key: data.abbrevs.get(id).filter(|abbrev| names.get(id) == Some(*abbrev)).cloned(),
                 title: row.map_or_else(|| format!("Modul {id}"), |row| row.title.clone()),
-                credits: row.and_then(|row| row.credits).map(format::number),
+                credits: row.and_then(|row| row.credits).map(|value| format::number(value, crate::i18n::locale())),
                 note,
                 counts_for: None,
                 hue: hue(tone_at(position)),
@@ -96,7 +96,7 @@ fn module_items(data: &StudyplanData) -> Vec<ModuleItem> {
 
 /// Credits added up, „32", or „≥ 26" where a module states none (R12).
 fn credits_text(credits: &[Option<f64>]) -> String {
-    let sum = format::number(credits.iter().flatten().sum());
+    let sum = format::number(credits.iter().flatten().sum(), crate::i18n::locale());
     if credits.iter().any(Option::is_none) {
         format!("≥\u{a0}{sum}")
     } else {
@@ -326,8 +326,8 @@ fn listed(data: &StudyplanData, held: &Held, gone: Option<&Gone>) -> Listed {
                 .map(|(semester, id)| Other {
                     id: id.clone(),
                     title: row_of(id).map_or_else(|| format!("Modul {id}"), |row| row.title.clone()),
-                    credits: row_of(id).and_then(|row| row.credits).map(format::number),
-                    semester: semester.label(),
+                    credits: row_of(id).and_then(|row| row.credits).map(|value| format::number(value, crate::i18n::locale())),
+                    semester: semester.label(crate::i18n::locale()),
                 })
                 .collect();
             let chosen: Vec<Option<f64>> =

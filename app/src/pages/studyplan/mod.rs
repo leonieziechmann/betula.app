@@ -50,7 +50,7 @@ use catalog::timetable::share::{self as shared_plan, SharedPlan};
 use catalog::url::{self, PlanView, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::use_location;
+use crate::i18n::use_location;
 
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
@@ -395,7 +395,7 @@ fn PlanSeo() -> impl IntoView {
         match shared {
             Some((code, data)) => {
                 let names = data.modules.iter().map(|module| module.name.as_str()).collect::<Vec<_>>().join(", ");
-                let count = crate::format::modules(i64::try_from(data.modules.len()).unwrap_or(i64::MAX));
+                let count = crate::format::modules(i64::try_from(data.modules.len()).unwrap_or(i64::MAX), crate::i18n::locale());
                 let description = format!("{count}: {names}. In Betula öffnen und in den eigenen Stundenplan übernehmen.");
                 view! {
                     <Seo title=format!("Stundenplan · {}", data.label) description path=shared_plan::path(&code) card=shared_plan::card_path(&code) noindex=true/>

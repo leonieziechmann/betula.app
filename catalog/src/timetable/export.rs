@@ -45,6 +45,7 @@ use super::semester::SemesterKey;
 use super::subscription::Subscription;
 use super::views::{kind_and_title, kind_short, short_title, type_text};
 use crate::exam_reading::Reason;
+use crate::i18n::Locale;
 use crate::labels::{Code, Rhythm};
 use crate::rows::Meta;
 use crate::rows_detail::EventDate;
@@ -110,7 +111,7 @@ pub fn calendar_of(
     entries.truncate(MAX_ENTRIES);
 
     let label = match label.trim() {
-        "" => t.key.label(),
+        "" => t.key.label(Locale::De /* i18n: pending */),
         label => label.to_string(),
     };
     let mut description = ABOUT.to_string();
@@ -436,9 +437,9 @@ fn start(when: &When) -> (Day, u32) {
 /// without times, whose dates are whole days.
 fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names) {
     // As its slot in the week: „VL EvS".
-    let label = slot_text(&kind_short(event), &names.short_of(&event.modules, &event.title));
-    let what = names.what(&type_text(event), &event.title, &event.modules);
-    let categories: Vec<String> = event.kinds.iter().map(|kind| kind.label().to_string()).collect();
+    let label = slot_text(&kind_short(event, Locale::De /* i18n: pending */), &names.short_of(&event.modules, &event.title));
+    let what = names.what(&type_text(event, Locale::De /* i18n: pending */), &event.title, &event.modules);
+    let categories: Vec<String> = event.kinds.iter().map(|kind| kind.label(Locale::De /* i18n: pending */).to_string()).collect();
     let open = event.unresolved();
     let placed = |row: &&Row| row.hidden.is_none() && (row.from.zip(row.to).is_some() || row.occ.all_day);
     // The rows of each key, in the order met: they are one entry per date, so what that entry
@@ -683,7 +684,7 @@ fn exam_dates(entries: &mut Entries, exam: &Exam, names: &Names) {
             location: None,
             description: None,
             url: exam.source_url.clone(),
-            categories: vec![EventKind::Exam.label().to_string()],
+            categories: vec![EventKind::Exam.label(Locale::De /* i18n: pending */).to_string()],
             tentative: row.rank == 2 || exam.retake,
             transparent: matches!(when, When::AllDay { .. }),
         };
@@ -723,7 +724,7 @@ fn place(date: &EventDate) -> Option<Place> {
     match text(&date.room) {
         Some(room) => Some(Place { short: date.room_shown().unwrap_or(room).to_string(), long: room.to_string() }),
         None => {
-            let campus = date.campus.as_ref().map(|campus| campus.label().trim().to_string()).filter(|label| !label.is_empty())?;
+            let campus = date.campus.as_ref().map(|campus| campus.label(Locale::De /* i18n: pending */).trim().to_string()).filter(|label| !label.is_empty())?;
             Some(Place { short: campus.clone(), long: campus })
         }
     }

@@ -945,7 +945,7 @@ fn same_weeks(a: Option<Weeks>, b: Option<Weeks>) -> bool {
 /// „„Tutorium“ ausgeblendet", „andere Gruppe gewählt".
 fn reason_text(reason: HiddenBy, event: &Event) -> String {
     match reason {
-        HiddenBy::Kinds => format!("„{}“ ausgeblendet", event.kinds.iter().map(EventKind::label).collect::<Vec<_>>().join("/")),
+        HiddenBy::Kinds => format!("„{}“ ausgeblendet", event.kinds.iter().map(|kind| kind.label(crate::i18n::locale())).collect::<Vec<_>>().join("/")),
         HiddenBy::Choice => "andere Gruppe gewählt".to_string(),
         HiddenBy::Event | HiddenBy::Row | HiddenBy::Town(_) => "ausgeblendet".to_string(),
     }
@@ -1063,7 +1063,7 @@ fn ghost_acts(event: &Event, item: &WeekItem, keys: &[RowKey], reason: HiddenBy)
     let act = match (reason, id, row) {
         (HiddenBy::Kinds, _, _) => {
             let kind = event.kinds.iter().next();
-            SlotAct::take(format!("„{}“ wieder einblenden", kind.map_or("", EventKind::label)), Act::Show { event: None, kind, rows: keys.to_vec() })
+            SlotAct::take(format!("„{}“ wieder einblenden", kind.map_or("", |kind| kind.label(crate::i18n::locale()))), Act::Show { event: None, kind, rows: keys.to_vec() })
         }
         (_, Some(number), Some(row)) if option.is_some() => SlotAct::take("Diese Gruppe nehmen", Act::Choose { event: number, row, rows: keys.to_vec() }),
         _ => SlotAct::take("Wieder einblenden", Act::Show { event: id.filter(|_| reason == HiddenBy::Event), kind: None, rows: keys.to_vec() }),
@@ -1626,8 +1626,8 @@ fn row_facts(date: &EventDate) -> String {
     let said = date.rhythm_raw.clone().filter(|raw| !raw.trim().is_empty());
     let rhythm = match &date.rhythm {
         // Radix's `other` is whatever QIS wrote („nach Absprache" when it wrote nothing else).
-        Some(code) if code.is(Rhythm::Other) => said.or_else(|| Some(code.label().to_string())),
-        Some(code) => Some(code.label().to_string()),
+        Some(code) if code.is(Rhythm::Other) => said.or_else(|| Some(code.label(crate::i18n::locale()).to_string())),
+        Some(code) => Some(code.label(crate::i18n::locale()).to_string()),
         None => said,
     };
     let first = date.first_date.as_deref().and_then(Day::parse);
@@ -1638,7 +1638,7 @@ fn row_facts(date: &EventDate) -> String {
         (Some(first), None) => Some(format!("ab {}", first.short())),
         (None, _) => None,
     };
-    let parts: Vec<String> = format::time_slot(date.weekday, date.start_time.as_deref(), date.end_time.as_deref())
+    let parts: Vec<String> = format::time_slot(date.weekday, date.start_time.as_deref(), date.end_time.as_deref(), crate::i18n::locale())
         .into_iter()
         .chain(rhythm)
         .chain(dates)
@@ -1693,7 +1693,7 @@ fn classes(hue: &'static str, flags: &[(bool, &'static str)]) -> String {
 
 /// „Übung · Entwicklung von Softwaresystemen": what an event is, then its title.
 fn event_text(event: &Event) -> String {
-    kind_and_title(&type_text(event), &event.title)
+    kind_and_title(&type_text(event, crate::i18n::locale()), &event.title)
 }
 
 /// A slot's label, its first line (owner, 2026-09-25: „<type> <short-tag>"): the kinds in their
@@ -1703,7 +1703,7 @@ fn event_text(event: &Event) -> String {
 fn slot_label(event: &Event, titles: &BTreeMap<String, String>) -> String {
     let title = event.modules.first().and_then(|module| titles.get(module)).map_or(event.title.as_str(), String::as_str);
     let name = short_title(title);
-    match kind_short(event) {
+    match kind_short(event, crate::i18n::locale()) {
         short if short.is_empty() => name,
         short => format!("{short} {name}"),
     }

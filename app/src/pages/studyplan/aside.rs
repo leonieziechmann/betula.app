@@ -460,7 +460,7 @@ fn Actions(
     table: Memo<Option<Timetable>>,
     choices: Memo<Option<Choices>>,
 ) -> impl IntoView {
-    let credits = Memo::new(move |_| head.with(|head| head.as_ref().map(|head| format::credits(head.credits))));
+    let credits = Memo::new(move |_| head.with(|head| head.as_ref().map(|head| format::credits(head.credits, crate::i18n::locale()))));
     let planned = Memo::new(move |_| choices.with(Option::is_some));
     let placeholders = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.placeholders.clone()).unwrap_or_default()));
     let fills = Memo::new(move |_| choices.with(|c| c.as_ref().and_then(|c| c.fills)));
@@ -517,7 +517,7 @@ fn Actions(
                         })
                     };
                     let overview = move || ctx.url.with(|url| (url.view == PlanView::Overview).then_some(""));
-                    view! { {(n > 0).then_some(", ")}<a href=href data-noscroll=overview>{sem.label()}</a> }
+                    view! { {(n > 0).then_some(", ")}<a href=href data-noscroll=overview>{sem.label(crate::i18n::locale())}</a> }
                 })
                 .collect_view();
             view! { <p class="hint sp-also">"Auch geplant: "{links}</p> }
@@ -827,7 +827,7 @@ fn shown_of_panel(info: &Info, table: Option<&Timetable>) -> Shown {
 /// the current one is over, whether the data still holds some of its dates or none at all
 /// (retention removes them): its dates are not still to come.
 fn lead_of(info: &Info, t: &Timetable, sem: SemesterKey) -> Option<String> {
-    let label = sem.label();
+    let label = sem.label(crate::i18n::locale());
     if info.dated && !t.without_dates.contains(&info.place.id) {
         return None;
     }
@@ -1158,7 +1158,7 @@ fn campus_name(campus: &Code<Campus>) -> String {
         Some(Campus::Sachsendorf) => "Sachsendorf".to_string(),
         Some(Campus::Senftenberg) => "Senftenberg".to_string(),
         Some(Campus::Nord) => "Cottbus Nord".to_string(),
-        None => campus.label().to_string(),
+        None => campus.label(crate::i18n::locale()).to_string(),
     }
 }
 
@@ -1331,7 +1331,7 @@ fn group_of(row: &Row) -> Option<&str> {
 fn kind_word(event: &Event) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
         Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or("Termin", EventKind::label).to_string(),
+        None => event.kinds.iter().next().map_or("Termin", |kind| kind.label(crate::i18n::locale())).to_string(),
     }
 }
 

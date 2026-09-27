@@ -185,7 +185,7 @@ fn ViewGroup(ctx: PlanCtx) -> impl IntoView {
                 draggable="false"
                 aria-checked=move || if checked.get() { "true" } else { "false" }
             >
-                {view.label()}
+                {view.label(crate::i18n::locale())}
             </a>
         }
     };
@@ -204,7 +204,7 @@ fn ViewGroup(ctx: PlanCtx) -> impl IntoView {
 /// Under the chips, where an event counts for two kinds: „„Vorlesung/Übung“ zählt als beides."
 fn combined_hint(table: &Timetable) -> Option<String> {
     let kinds = table.events.iter().map(|event| event.kinds.known()).find(|kinds| kinds.iter().count() >= 2)?;
-    let labels: Vec<&str> = kinds.iter().map(EventKind::label).collect();
+    let labels: Vec<&str> = kinds.iter().map(|kind| kind.label(crate::i18n::locale())).collect();
     let as_what = if labels.len() == 2 { "beides" } else { "jede dieser Arten" };
     Some(format!("„{}“ zählt als {as_what}.", labels.join("/")))
 }
@@ -244,7 +244,7 @@ fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
                                         title=move || if off.get() { "Einblenden" } else { "Ausblenden" }
                                         on:click=toggle
                                     >
-                                        <span class="chip-label">{kind.label()}</span>
+                                        <span class="chip-label">{kind.label(crate::i18n::locale())}</span>
                                         <span class="chip-count num">{count}</span>
                                     </button>
                                 }
@@ -313,7 +313,7 @@ fn default_name(program: Option<&Program>, imported: Option<u8>, semester: Semes
     }
     match (program, imported) {
         (Some(program), Some(fs)) => format!("{} {fs}. FS", program.name),
-        (Some(program), None) => format!("{} {}", program.name, semester.short()),
+        (Some(program), None) => format!("{} {}", program.name, semester.short(crate::i18n::locale())),
         (None, _) => format!("Plan {}", count + 1),
     }
 }
@@ -495,7 +495,7 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
                         <div class="sp-saved">
                             <button class="action" type="button" aria-current=move || here.get().then_some("true") on:click=move |_| load(one.clone())>
                                 <span>{which.clone()}</span>
-                                <small class="num">{format::modules(i64::try_from(count).unwrap_or(i64::MAX))}</small>
+                                <small class="num">{format::modules(i64::try_from(count).unwrap_or(i64::MAX), crate::i18n::locale())}</small>
                             </button>
                             <button class="icon-btn" type="button" aria-label=format!("„{which}“ löschen") title="Löschen" on:click=move |_| delete(two.clone())>
                                 <Icon name="x"/>

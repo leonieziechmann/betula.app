@@ -144,25 +144,43 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
 }
 
 /// The sitemap's XML: every page of `sitemap_paths`, with the time it last changed where
-/// `changes` knows it.
+/// `changes` knows it, and the same page in every language of the site (`hreflang`; the
+/// default language's is also the page for everybody else, `x-default`).
 fn sitemap_xml(snapshot: &crate::snapshot::Snapshot, changes: Option<&crate::lastmod::Changes>, public_url: &str) -> Result<String, catalog::DbError> {
+    use catalog::Locale;
     let escape = |text: &str| text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
-    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
-    for path in sitemap_paths(snapshot)? {
-        let address = escape(&format!("{public_url}{path}"));
-        match changes.and_then(|changes| changes.since(&path)) {
-            Some(since) => xml.push_str(&format!("<url><loc>{address}</loc><lastmod>{}</lastmod></url>\n", escape(&since))),
-            None => xml.push_str(&format!("<url><loc>{address}</loc></url>\n")),
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n");
+    let pages = sitemap_pages(snapshot)?;
+    for locale in Locale::ALL.iter().copied() {
+        for page in &pages {
+            let path = locale.path(page);
+            let address = escape(&format!("{public_url}{path}"));
+            let mut alternates: String = Locale::ALL
+                .iter()
+                .map(|other| format!("<xhtml:link rel=\"alternate\" hreflang=\"{}\" href=\"{}\"/>", other.code(), escape(&format!("{public_url}{}", other.path(page)))))
+                .collect();
+            alternates.push_str(&format!("<xhtml:link rel=\"alternate\" hreflang=\"x-default\" href=\"{}\"/>", escape(&format!("{public_url}{}", Locale::default().path(page)))));
+            match changes.and_then(|changes| changes.since(&path)) {
+                Some(since) => xml.push_str(&format!("<url><loc>{address}</loc><lastmod>{}</lastmod>{alternates}</url>\n", escape(&since))),
+                None => xml.push_str(&format!("<url><loc>{address}</loc>{alternates}</url>\n")),
+            }
         }
     }
     xml.push_str("</urlset>\n");
     Ok(xml)
 }
 
-/// The pages of the sitemap, in its order: the three entrances, every current program with its
-/// views (the plan of each further study direction after the first's), every module. The warm-up
-/// of the cache renders the same list (`warm`).
+/// The pages of the sitemap in every language (`sitemap_pages`), the default language's first.
+/// The warm-up of the cache renders the same list (`warm`).
 pub fn sitemap_paths(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, catalog::DbError> {
+    let pages = sitemap_pages(snapshot)?;
+    Ok(catalog::Locale::ALL.iter().flat_map(|locale| pages.iter().map(move |page| locale.path(page))).collect())
+}
+
+/// The pages of the sitemap as paths of the app (without a language), in its order: the three
+/// entrances, every current program with its views (the plan of each further study direction
+/// after the first's), every module.
+pub fn sitemap_pages(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, catalog::DbError> {
     use catalog::url::{ProgramTab, ProgramUrl};
     type Listed = (Vec<String>, Vec<(catalog::rows::Program, usize)>);
     let mut listed: Result<Listed, catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
@@ -507,15 +525,15 @@ pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>
         Ok(catalog::queries::module(db, &id)?.map(|module| {
             let mut facts = Vec::new();
             if !module.offer_status.is(catalog::labels::OfferStatus::Active) {
-                facts.push(module.offer_status.label().to_string());
+                facts.push(module.offer_status.label(catalog::Locale::De).to_string());
             }
             if module.credits.is_some() {
-                facts.push(app::format::credits(module.credits));
+                facts.push(app::format::credits(module.credits, catalog::Locale::De /* i18n: pending */));
             }
             if let Some(season) = &module.turnus_season {
                 facts.push(match &module.turnus_parity {
-                    Some(parity) => format!("{} ({})", season.label(), parity.label()),
-                    None => season.label().to_string(),
+                    Some(parity) => format!("{} ({})", season.label(catalog::Locale::De), parity.label(catalog::Locale::De)),
+                    None => season.label(catalog::Locale::De).to_string(),
                 });
             }
             match (module.teaches_german, module.teaches_english) {
@@ -525,7 +543,7 @@ pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>
                 _ => {}
             }
             if let Some(exam) = &module.exam_form {
-                facts.push(app::format::exam_short(exam));
+                facts.push(app::format::exam_short(exam, catalog::Locale::De /* i18n: pending */));
             }
             CardText { eyebrow: format!("Modul {}", module.id), headline: Headline::Title(module.title), facts, note: module.department }
         }))
@@ -541,13 +559,13 @@ pub async fn program_card(State(state): State<AppState>, Path(file): Path<String
         Ok(catalog::queries::program_by_slug(db, &slug)?.map(|program| {
             let mut facts = vec![program.degree().to_string()];
             if let Some(variant) = &program.study_variant {
-                facts.push(variant.label().to_string());
+                facts.push(variant.label(catalog::Locale::De).to_string());
             }
             facts.push(match program.po_year {
                 Some(year) => format!("Prüfungsordnung {year}"),
                 None => format!("Prüfungsordnung {}", program.po_version),
             });
-            let mut note = vec![format!("{} Module im Curriculum", app::format::count(program.curricular_modules.max(0) as u64))];
+            let mut note = vec![format!("{} Module im Curriculum", app::format::count(program.curricular_modules.max(0) as u64, catalog::Locale::De /* i18n: pending */))];
             if program.has_plan {
                 note.push("mit Regelstudienplan".to_string());
             }
@@ -578,7 +596,7 @@ pub fn bookmarks_card() -> CardText {
 pub async fn studyplan_card_png(State(state): State<AppState>, headers: HeaderMap) -> Response {
     card(&state, &headers, "s".to_string(), |db| {
         let meta = catalog::queries::meta(db)?;
-        let semester = meta.current_semester.as_deref().and_then(catalog::timetable::semester::SemesterKey::parse).map(|key| key.label());
+        let semester = meta.current_semester.as_deref().and_then(catalog::timetable::semester::SemesterKey::parse).map(|key| key.label(catalog::Locale::De));
         Ok(Some(studyplan_card(semester.as_deref())))
     })
     .await
@@ -601,9 +619,9 @@ pub fn shared_plan_text(shared: &catalog::pages::SharedPlanData) -> Option<CardT
     if shared.modules.is_empty() {
         return None;
     }
-    let mut facts = vec![app::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX))];
+    let mut facts = vec![app::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX), catalog::Locale::De /* i18n: pending */)];
     if shared.modules.iter().any(|module| module.credits.is_some()) {
-        facts.push(format!("{} LP", app::format::number(shared.credits())));
+        facts.push(format!("{} LP", app::format::number(shared.credits(), catalog::Locale::De /* i18n: pending */)));
     }
     if let Some(program) = &shared.program {
         facts.push(format!("{} ({})", program.name, program.degree()));

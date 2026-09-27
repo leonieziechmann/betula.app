@@ -253,7 +253,7 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
     });
     let ways = Memo::new(move |_| {
         abo.with(|abo| match abo {
-            Some(Abo { key, offer: Offer::Code(code), .. }) => site().map(|(origin, host)| ways(&origin, &host, code, &key.label())),
+            Some(Abo { key, offer: Offer::Code(code), .. }) => site().map(|(origin, host)| ways(&origin, &host, code, &key.label(crate::i18n::locale()))),
             _ => None,
         })
     });
@@ -670,7 +670,7 @@ mod tests {
     fn a_calendar_without_entries_says_why() {
         let data = |semester: &str| StudyplanData {
             key: key(semester),
-            label: key(semester).label(),
+            label: key(semester).label(crate::i18n::locale()),
             semester: None,
             meta: Meta { current_semester: Some("2026W".into()), data_changed_at: Some("2026-09-23T12:35:16Z".into()), ..Default::default() },
             ids: vec!["12104".into()],

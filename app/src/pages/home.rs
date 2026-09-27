@@ -186,7 +186,7 @@ pub fn HomePage() -> impl IntoView {
                         <p class="flabel label">"Datenstand"</p>
                         <dl class="kv">
                             {home.overview.current_semester.as_ref().map(|s| view! { <div><dt><Icon name="calendar-days"/>"Semester"</dt><dd>{s.label.clone()}</dd></div> })}
-                            {home.overview.meta.data_changed_at.as_deref().map(|at| view! { <div><dt><Icon name="rotate-ccw"/>"Zuletzt geändert"</dt><dd>{format::date(at)}</dd></div> })}
+                            {home.overview.meta.data_changed_at.as_deref().map(|at| view! { <div><dt><Icon name="rotate-ccw"/>"Zuletzt geändert"</dt><dd>{format::date(at, crate::i18n::locale())}</dd></div> })}
                             <div>
                                 <dt><Icon name="building-2"/>"Quelle"</dt>
                                 <dd><a href=seo::UNIVERSITY_URL rel="noopener" title="Modulbeschreibungen, Studiengangsseiten und Vorlesungsverzeichnis der BTU Cottbus-Senftenberg">"BTU"<Icon name="arrow-up-right"/></a></dd>
@@ -297,7 +297,7 @@ fn Hero(home: Option<HomeData>) -> impl IntoView {
         view! {
             <dl class="birch">
                 {rows.into_iter().map(|(label, detail, value)| {
-                    let figure = format::count(value);
+                    let figure = format::count(value, crate::i18n::locale());
                     let em = figure_em(&figure);
                     view! {
                         <div style=format!("--em:{em}")>
@@ -395,7 +395,7 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
         tab: "Katalog",
         title: "Der Katalog",
         text: match modules {
-            Some(modules) => format!("Alle {} Module, gefiltert während du tippst", format::count(modules)),
+            Some(modules) => format!("Alle {} Module, gefiltert während du tippst", format::count(modules, crate::i18n::locale())),
             None => "Alle Module, gefiltert während du tippst".to_string(),
         },
         action: "Zum Katalog",
@@ -682,7 +682,7 @@ fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
             <section class="panel linklist-panel" aria-labelledby="einstiege-titel">
                 <header class="block-head">
                     <h2 id="einstiege-titel">"Einstiege in den Katalog"</h2>
-                    <a class="ghost" href=url::CATALOG>"Alle "{format::count(home.overview.modules)}" Module"<Icon name="chevron-right"/></a>
+                    <a class="ghost" href=url::CATALOG>"Alle "{format::count(home.overview.modules, crate::i18n::locale())}" Module"<Icon name="chevron-right"/></a>
                 </header>
                 <ul class="rowlist">
                     {entries.into_iter().zip(counts).map(|(entry, count)| {
@@ -691,7 +691,7 @@ fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
                             <li><a class="rowlink" href=href rel="nofollow">
                                 <span class=format!("ico {}", entry.tint)><Icon name=entry.icon/></span>
                                 <span class="rowlink-text"><b>{entry.label}</b><small>{entry.hint}</small></span>
-                                <span class="rowlink-count num">{format::count(count)}</span>
+                                <span class="rowlink-count num">{format::count(count, crate::i18n::locale())}</span>
                                 <Icon name="chevron-right"/>
                             </a></li>
                         }
@@ -701,7 +701,7 @@ fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
             <section class="panel linklist-panel" aria-labelledby="fakultaeten-titel">
                 <header class="block-head">
                     <h2 id="fakultaeten-titel">"Studiengänge nach Fakultät"</h2>
-                    <a class="ghost" href=url::PROGRAMS>"Alle "{format::count(home.overview.programs)}" Studiengänge"<Icon name="chevron-right"/></a>
+                    <a class="ghost" href=url::PROGRAMS>"Alle "{format::count(home.overview.programs, crate::i18n::locale())}" Studiengänge"<Icon name="chevron-right"/></a>
                 </header>
                 <ul class="rowlist">
                     {home.faculties.iter().map(|(department, programs)| {

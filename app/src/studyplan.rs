@@ -494,25 +494,25 @@ fn elsewhere_text(aim: &Aim, label: fn(SemesterKey) -> String) -> Option<String>
 /// The small line of the switch beside „Merken" („für „Anwendungsfach“ · geplant: SoSe 27"):
 /// `None` for an empty plan without a hint, as on the server.
 fn hero_note(aim: &Aim) -> Option<String> {
-    let parts: Vec<String> = [fill_text(aim), elsewhere_text(aim, SemesterKey::short)].into_iter().flatten().collect();
+    let parts: Vec<String> = [fill_text(aim), elsewhere_text(aim, |key| key.short(crate::i18n::locale()))].into_iter().flatten().collect();
     (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
 /// The line under the sidebar's label: the semester a click plans into, the placeholder it plans
 /// for, and where else the module is planned.
 fn semester_line(aim: &Aim) -> String {
-    [Some(aim.target.label()), fill_text(aim), elsewhere_text(aim, SemesterKey::label)].into_iter().flatten().collect::<Vec<_>>().join(" · ")
+    [Some(aim.target.label(crate::i18n::locale())), fill_text(aim), elsewhere_text(aim, |key| key.label(crate::i18n::locale()))].into_iter().flatten().collect::<Vec<_>>().join(" · ")
 }
 
 /// What a click does, with the placeholder's whole name and the shortcut.
 fn tooltip_text(aim: &Aim, pressed: bool) -> String {
-    let semester = aim.target.label();
+    let semester = aim.target.label(crate::i18n::locale());
     let what = match (&aim.fill, pressed) {
         (_, true) => format!("Eingeplant in {semester}. Noch einmal nimmt das Modul aus dem Plan"),
         (Some((_, name)), false) => format!("In {semester} einplanen, für „{name}“"),
         (None, false) => format!("In {semester} einplanen"),
     };
-    let elsewhere = elsewhere_text(aim, SemesterKey::label).map(|text| format!(" · {text}")).unwrap_or_default();
+    let elsewhere = elsewhere_text(aim, |key| key.label(crate::i18n::locale())).map(|text| format!(" · {text}")).unwrap_or_default();
     format!("{what}{elsewhere} (P)")
 }
 
@@ -569,8 +569,8 @@ pub fn menu_semesters(current: SemesterKey, doc: &PlanDoc) -> Vec<SemesterKey> {
 /// „3. FS · SoSe 2027" with a known Studienbeginn (numbers first), else „SoSe 2027".
 fn semester_entry(semester: SemesterKey, start: Option<SemesterKey>) -> String {
     match start.and_then(|start| fachsemester(semester, start)) {
-        Some(fs) => format!("{fs}. FS · {}", semester.label()),
-        None => semester.label(),
+        Some(fs) => format!("{fs}. FS · {}", semester.label(crate::i18n::locale())),
+        None => semester.label(crate::i18n::locale()),
     }
 }
 

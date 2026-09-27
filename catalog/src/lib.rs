@@ -17,6 +17,7 @@ pub mod exam_reading;
 pub mod filter;
 pub mod fuzzy;
 pub mod graph;
+pub mod i18n;
 pub mod labels;
 pub mod pages;
 pub mod plan;
@@ -39,3 +40,4 @@ mod tests;
 
 pub use db::{Database, DbError, Value, SCHEMA_VERSION};
 pub use filter::CatalogQuery;
+pub use i18n::Locale;

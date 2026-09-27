@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::day::{from_civil, Day};
+use crate::i18n::Locale;
 use crate::labels::Season;
 
 /// The first and the last year a key may name. Keys come from URLs and from storage, so they are
@@ -51,21 +52,24 @@ impl SemesterKey {
         format!("{}{}", self.year, if self.winter { 'W' } else { 'S' })
     }
 
-    /// „WiSe 2026/27", „SoSe 2027", as Radix writes `semester.label`.
-    pub fn label(self) -> String {
+    /// „WiSe 2026/27", „SoSe 2027" (as Radix writes `semester.label`), "Winter 2026/27".
+    pub fn label(self, locale: Locale) -> String {
+        let common = &locale.texts().common;
+        let next = (self.year % 100 + 1) % 100;
         if self.winter {
-            format!("WiSe {}/{:02}", self.year, (u32::from(self.year) + 1) % 100)
+            (common.winter_semester)(self.year, next)
         } else {
-            format!("SoSe {}", self.year)
+            (common.summer_semester)(self.year)
         }
     }
 
-    /// „WiSe 26/27", „SoSe 27", where space is short.
-    pub fn short(self) -> String {
+    /// „WiSe 26/27", „SoSe 27", "WS 26/27", where space is short.
+    pub fn short(self, locale: Locale) -> String {
+        let common = &locale.texts().common;
         if self.winter {
-            format!("WiSe {:02}/{:02}", self.year % 100, (u32::from(self.year) + 1) % 100)
+            (common.winter_semester_short)(self.year % 100, (self.year % 100 + 1) % 100)
         } else {
-            format!("SoSe {:02}", self.year % 100)
+            (common.summer_semester_short)(self.year % 100)
         }
     }
 
@@ -142,15 +146,16 @@ mod tests {
             assert_eq!(SemesterKey::parse(bad), None, "{bad:?}");
         }
         assert_eq!(SemesterKey::new(1999, true), None);
-        assert_eq!(SemesterKey::new(2099, true).map(SemesterKey::label).as_deref(), Some("WiSe 2099/00"));
+        assert_eq!(SemesterKey::new(2099, true).map(|key| key.label(Locale::De)).as_deref(), Some("WiSe 2099/00"));
     }
 
     #[test]
     fn labels_as_radix_writes_them() {
-        assert_eq!(key("2026W").label(), "WiSe 2026/27");
-        assert_eq!(key("2027S").label(), "SoSe 2027");
-        assert_eq!(key("2026W").short(), "WiSe 26/27");
-        assert_eq!(key("2027S").short(), "SoSe 27");
+        assert_eq!(key("2026W").label(Locale::De), "WiSe 2026/27");
+        assert_eq!(key("2027S").label(Locale::De), "SoSe 2027");
+        assert_eq!(key("2026W").short(Locale::De), "WiSe 26/27");
+        assert_eq!(key("2027S").short(Locale::De), "SoSe 27");
+        assert_eq!((key("2026W").label(Locale::En), key("2027S").short(Locale::En)), ("Winter 2026/27".to_string(), "SS 27".to_string()));
         assert_eq!(key("2026W").season(), Season::Winter);
         assert_eq!(key("2026S").season(), Season::Summer);
     }

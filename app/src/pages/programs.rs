@@ -21,7 +21,7 @@ use catalog::rows::{Department, Program};
 use catalog::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::use_location;
+use crate::i18n::use_location;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
@@ -124,7 +124,7 @@ fn level_order(program: &Program) -> usize {
 }
 
 fn matches(program: &Program, url: &ProgramsUrl) -> bool {
-    let text = format!("{} {} {}", program.name, program.degree(), program.degree_level.label());
+    let text = format!("{} {} {}", program.name, program.degree(), program.degree_level.label(crate::i18n::locale()));
     (url.levels.is_empty() || url.levels.contains(&LevelGroup::of(&program.degree_level)))
         && (url.forms.is_empty() || FormGroup::of(program.study_variant.as_ref()).is_some_and(|form| url.forms.contains(&form)))
         && (!url.with_plan || program.has_plan)
@@ -168,14 +168,14 @@ impl Stage {
 
 /// The degree as a control says it: „B.Sc.", else „Bachelor", else „ohne Abschluss".
 fn degree_short(program: &Program) -> String {
-    program.degree_display.clone().unwrap_or_else(|| program.degree_level.label().to_string())
+    program.degree_display.clone().unwrap_or_else(|| program.degree_level.label(crate::i18n::locale()).to_string())
 }
 
 /// What tells a form of study from the plain program of its subject: „dual, Praxis", „erweitert".
 /// „Maschinenbau - dual" adds the „dual" of its name where the form does not say it already.
 fn form_label(program: &Program, subject: &str) -> Option<String> {
     let added = program.name.strip_prefix(subject).map(|rest| rest.trim_matches([' ', '-'])).filter(|rest| !rest.is_empty());
-    match (added, program.study_variant.as_ref().map(format::variant_short)) {
+    match (added, program.study_variant.as_ref().map(|variant| format::variant_short(variant, crate::i18n::locale()))) {
         (Some(added), Some(variant)) if !variant.contains(added) => Some(format!("{added}, {variant}")),
         (Some(added), None) => Some(added.to_string()),
         (_, variant) => variant,
@@ -321,7 +321,7 @@ pub fn ProgramsPage() -> impl IntoView {
                         let level = *level;
                         view! {
                             <ToggleLink
-                                label=level.label()
+                                label=level.label(crate::i18n::locale())
                                 count=*count
                                 on=Signal::derive(move || shown_url.with(|u| u.levels.contains(&level)))
                                 href=toggled(|u, index| flip(&mut u.levels, LevelGroup::ALL, LevelGroup::ALL.get(index)), index)
@@ -337,7 +337,7 @@ pub fn ProgramsPage() -> impl IntoView {
                         let form = *form;
                         view! {
                             <ToggleLink
-                                label=form.label()
+                                label=form.label(crate::i18n::locale())
                                 count=*count
                                 on=Signal::derive(move || shown_url.with(|u| u.forms.contains(&form)))
                                 href=toggled(|u, index| flip(&mut u.forms, FormGroup::ALL, FormGroup::ALL.get(index)), index)
@@ -372,7 +372,7 @@ pub fn ProgramsPage() -> impl IntoView {
                 </p>
             </nav>
             <div class="filter-actions sheet-only">
-                <a class="btn primary" href="#" data-action="sheet-close">{move || format::count(shown.with(|s| s.programs as u64))}" Studiengänge anzeigen"</a>
+                <a class="btn primary" href="#" data-action="sheet-close">{move || format::count(shown.with(|s| s.programs as u64), crate::i18n::locale())}" Studiengänge anzeigen"</a>
             </div>
         }
     };
@@ -402,7 +402,7 @@ pub fn ProgramsPage() -> impl IntoView {
                 // The same opening as the catalog's list: the number, then what it counts.
                 <header class="summary">
                     <h1>
-                        <span class="count num">{move || format::count(shown.with(|s| s.programs as u64))}</span>
+                        <span class="count num">{move || format::count(shown.with(|s| s.programs as u64), crate::i18n::locale())}</span>
                         <span class="count-label">
                             {move || shown.with(|shown| match (shown.filtered, shown.text.is_empty()) {
                                 (false, _) => "Studiengänge in ihrer aktuellen Prüfungsordnung".to_string(),
@@ -496,7 +496,7 @@ fn program_link(program: &Program, subject: &str, as_form: bool) -> impl IntoVie
         program.name,
         program.degree(),
         program.po_version,
-        program.study_variant.as_ref().map(|v| format!(" · {}", v.label())).unwrap_or_default()
+        program.study_variant.as_ref().map(|v| format!(" · {}", v.label(crate::i18n::locale()))).unwrap_or_default()
     );
     let tooltip = format!(
         "{described} · {} Module · {}",

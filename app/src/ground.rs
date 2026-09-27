@@ -9,6 +9,8 @@ use leptos::prelude::*;
 
 use crate::data::use_source;
 use crate::format;
+use crate::i18n;
+use crate::languages::Languages;
 use crate::seo;
 use crate::ui::{Icon, Wordmark};
 
@@ -27,21 +29,26 @@ pub fn Crown() -> impl IntoView {
 /// the versions of Folia and Radix (the roots: Radix brings the data) and how fresh the data is.
 #[component]
 pub fn Ground() -> impl IntoView {
+    let t = i18n::t();
     let facts = use_source().ok().and_then(|source| source.run(pages::ground).ok());
     let radix = facts.as_ref().and_then(|ground| ground.meta.radix_version.clone());
-    let changed = facts.as_ref().and_then(|ground| ground.meta.data_changed_at.as_deref().map(format::date));
-    let semester = facts.as_ref().and_then(|ground| ground.current_semester.as_ref().map(|s| s.label.clone()));
+    let changed = facts.as_ref().and_then(|ground| ground.meta.data_changed_at.as_deref().map(|date| format::date(date, t.locale)));
+    // The semester by its key, in the page's language (the snapshot's label is German).
+    let semester = facts.as_ref().and_then(|ground| ground.current_semester.as_ref().map(|s| catalog::timetable::semester::SemesterKey::parse(&s.key).map_or_else(|| s.label.clone(), |key| key.label(t.locale))));
     view! {
         <footer class="ground">
             <div class="ground-top">
                 <div>
-                    <p class="ground-name"><Wordmark small=true/><small>"Modulkatalog · inoffiziell"</small></p>
-                    <p class="ground-note">"Betula ist ein inoffizielles Projekt und gehört nicht zur BTU."</p>
+                    <p class="ground-name"><Wordmark small=true/><small>{t.common.tagline}</small></p>
+                    <p class="ground-note">{t.ground.note}</p>
                 </div>
-                <nav class="ground-legal" aria-label="Rechtliches">
-                    <a href=url::IMPRINT>"Impressum"</a>
-                    <a href=url::PRIVACY>"Datenschutz"</a>
-                </nav>
+                <div class="ground-links">
+                    <nav class="ground-legal" aria-label=t.ground.legal>
+                        <a href=t.path(url::IMPRINT)>{t.ground.imprint}</a>
+                        <a href=t.path(url::PRIVACY)>{t.ground.privacy}</a>
+                    </nav>
+                    <Languages/>
+                </div>
             </div>
             <div class="ground-foot">
                 <p>
@@ -49,9 +56,9 @@ pub fn Ground() -> impl IntoView {
                     {radix.map(|version| view! { <span>"Radix "<span class="ver">{version}</span></span> })}
                 </p>
                 <p>
-                    {changed.map(|date| view! { <span>"Daten vom "{date}</span> })}
+                    {changed.map(|date| view! { <span>{(t.ground.data_of)(&date)}</span> })}
                     {semester.map(|label| view! { <span>{label}</span> })}
-                    <a href=seo::UNIVERSITY_URL rel="noopener">"Quelle: BTU"<Icon name="arrow-up-right"/></a>
+                    <a href=seo::UNIVERSITY_URL rel="noopener">{t.ground.source}<Icon name="arrow-up-right"/></a>
                 </p>
             </div>
         </footer>

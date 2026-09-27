@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::db::Value;
+use crate::i18n::Locale;
 use crate::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
 use crate::timetable::select::FitOptions;
 use crate::timetable::semester::SemesterKey;
@@ -111,25 +112,37 @@ impl ExamPart {
     }
 
     /// What the chips of the filter say.
-    pub fn short_label(self) -> &'static str {
-        match self {
-            ExamPart::Written => "Klausur",
-            ExamPart::Oral => "Mündlich",
-            ExamPart::Paper => "Hausarbeit",
-            ExamPart::Presentation => "Vortrag",
-            ExamPart::Project => "Projekt",
-            ExamPart::Practical => "Praktisch",
+    pub fn short_label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, ExamPart::Written) => "Klausur",
+            (Locale::De, ExamPart::Oral) => "Mündlich",
+            (Locale::De, ExamPart::Paper) => "Hausarbeit",
+            (Locale::De, ExamPart::Presentation) => "Vortrag",
+            (Locale::De, ExamPart::Project) => "Projekt",
+            (Locale::De, ExamPart::Practical) => "Praktisch",
+            (Locale::En, ExamPart::Written) => "Written",
+            (Locale::En, ExamPart::Oral) => "Oral",
+            (Locale::En, ExamPart::Paper) => "Paper",
+            (Locale::En, ExamPart::Presentation) => "Presentation",
+            (Locale::En, ExamPart::Project) => "Project",
+            (Locale::En, ExamPart::Practical) => "Practical",
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            ExamPart::Written => "Klausur",
-            ExamPart::Oral => "mündliche Prüfung",
-            ExamPart::Paper => "Hausarbeit / Beleg",
-            ExamPart::Presentation => "Vortrag",
-            ExamPart::Project => "Projektarbeit",
-            ExamPart::Practical => "praktische Prüfung",
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, ExamPart::Written) => "Klausur",
+            (Locale::De, ExamPart::Oral) => "mündliche Prüfung",
+            (Locale::De, ExamPart::Paper) => "Hausarbeit / Beleg",
+            (Locale::De, ExamPart::Presentation) => "Vortrag",
+            (Locale::De, ExamPart::Project) => "Projektarbeit",
+            (Locale::De, ExamPart::Practical) => "praktische Prüfung",
+            (Locale::En, ExamPart::Written) => "written exam",
+            (Locale::En, ExamPart::Oral) => "oral exam",
+            (Locale::En, ExamPart::Paper) => "term paper / report",
+            (Locale::En, ExamPart::Presentation) => "presentation",
+            (Locale::En, ExamPart::Project) => "project work",
+            (Locale::En, ExamPart::Practical) => "practical exam",
         }
     }
 }
@@ -154,10 +167,13 @@ impl Language {
         Self::ALL.iter().copied().find(|language| language.code() == code)
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Language::German => "Deutsch",
-            Language::English => "Englisch",
+    /// The language a module is taught in, as a page in `locale` names it.
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, Language::German) => "Deutsch",
+            (Locale::De, Language::English) => "Englisch",
+            (Locale::En, Language::German) => "German",
+            (Locale::En, Language::English) => "English",
         }
     }
 

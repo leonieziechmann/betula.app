@@ -38,7 +38,7 @@ use axum::Router;
 use catalog::{Database, DbError};
 use clap::Parser;
 use leptos::prelude::*;
-use leptos_axum::{generate_route_list, LeptosRoutes};
+use leptos_axum::{generate_route_list, AxumRouteListing, LeptosRoutes};
 
 use crate::cache::HtmlCache;
 use crate::config::Config;
@@ -152,7 +152,7 @@ async fn access_log(State(state): State<AppState>, request: Request, next: Next)
 /// `router`, and what the warm-up asks for directly (`warm`), past the gate and the access log.
 pub fn pages(state: &AppState) -> Router<AppState> {
     let source = Source(Arc::new(ActiveSnapshot(state.store.clone())));
-    let routes = generate_route_list(app::App);
+    let routes = localized_routes(generate_route_list(app::App));
     let options = state.leptos.clone();
     // What every rendered page gets from its host: the data, the name of the site from outside,
     // the build its stylesheet and scripts are linked with, and the map of the programs the
@@ -191,8 +191,44 @@ pub fn pages(state: &AppState) -> Router<AppState> {
         .layer(middleware::from_fn_with_state(state.clone(), cache::html_cache))
 }
 
+/// The app's routes in every language: as they are for the default language, under its prefix for
+/// every other (`/en/catalog`; the start page is `/en`). Each page learns its language from its
+/// address (`app::i18n`).
+fn localized_routes(routes: Vec<AxumRouteListing>) -> Vec<AxumRouteListing> {
+    let mut all = Vec::with_capacity(routes.len() * catalog::Locale::ALL.len());
+    for locale in catalog::Locale::ALL.iter().copied().filter(|locale| !locale.prefix().is_empty()) {
+        for route in &routes {
+            let regenerate: Vec<leptos_router::static_routes::RegenerationFn> = Vec::new();
+            all.push(AxumRouteListing::new(locale.path(route.path()), route.mode().clone(), route.methods(), regenerate));
+        }
+    }
+    all.extend(routes);
+    all
+}
+
+/// `/de/…` is no address of the site (German, the default, has no prefix), but it is the one
+/// people guess: it leads to the plain address, with its query. `/en/` leads to `/en`, the one
+/// address of the English start page.
+async fn language_redirect(uri: axum::http::Uri) -> Response {
+    use axum::response::IntoResponse;
+    let path = uri.path();
+    let target = match path.strip_prefix("/de").filter(|rest| rest.is_empty() || rest.starts_with('/')) {
+        Some(rest) => catalog::Locale::default().path(if rest.is_empty() { "/" } else { rest }),
+        None => path.trim_end_matches('/').to_string(),
+    };
+    let target = match uri.query() {
+        Some(query) => format!("{target}?{query}"),
+        None => target,
+    };
+    axum::response::Redirect::permanent(&target).into_response()
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .route("/de", get(language_redirect))
+        .route("/de/", get(language_redirect))
+        .route("/de/{*rest}", get(language_redirect))
+        .route("/en/", get(language_redirect))
         .route("/api/db", get(api::database))
         .route("/api/status", get(api::status))
         .route("/api/map.json", get(api::program_map))

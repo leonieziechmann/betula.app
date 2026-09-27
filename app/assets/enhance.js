@@ -9,6 +9,13 @@
 // way back to the top of a page („Nach oben").
 (() => {
   const root = document.documentElement;
+  // The page's language, as its address says it (`catalog::Locale::split`): the prefix of its
+  // addresses and its words (docs/i18n.md). The first is the default, without a prefix.
+  const LANGUAGES = [
+    { prefix: "", linkCopied: "Link kopiert", copied: "Kopiert" },
+    { prefix: "/en", linkCopied: "Link copied", copied: "Copied" },
+  ];
+  const language = () => LANGUAGES.find((l) => l.prefix && (location.pathname === l.prefix || location.pathname.startsWith(l.prefix + "/"))) || LANGUAGES[0];
   const appRuns = () => window.__betulaApp === true;
   const phone = () => matchMedia("(max-width: 900px)").matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
@@ -119,7 +126,7 @@
     const row = e.target.closest?.("a.row[data-id]");
     if (!row || appRuns() || !phone() || e.defaultPrevented) return;
     e.preventDefault();
-    location.href = "/catalog/module/" + encodeURIComponent(row.dataset.id);
+    location.href = language().prefix + "/catalog/module/" + encodeURIComponent(row.dataset.id);
   }, true);
 
   // A tap beside the open sheet, on the dimmed page (the target is then the document itself).
@@ -264,7 +271,7 @@
         navigator.clipboard?.writeText(text).then(() => {
           if (!label || label.dataset.was) return;
           label.dataset.was = label.textContent;
-          label.textContent = link ? "Link kopiert" : "Kopiert";
+          label.textContent = link ? language().linkCopied : language().copied;
           setTimeout(() => { label.textContent = label.dataset.was; delete label.dataset.was; }, 1600);
         }).catch(() => {});
         break;

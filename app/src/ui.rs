@@ -1,11 +1,12 @@
 //! Small building blocks every page uses. (The full design system is phase 3; these
 //! already follow its rules: classes from the stylesheet, no inline styles.)
 
-use catalog::labels::{Code, ModuleKind, OfferStatus, KIND_UNKNOWN};
+use catalog::labels::{Code, ModuleKind, OfferStatus};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
 use crate::data::DataError;
+use crate::i18n;
 
 /// The mark of Betula: birch bark that also reads as the rows of a list. Drawn on a 32 px grid, the
 /// size it has in the rail (`.logo`), so its bars fall on whole pixels. Larger cuts: `design/logo`.
@@ -34,32 +35,30 @@ pub fn Wordmark(#[prop(optional)] small: bool) -> impl IntoView {
 /// A query failed or there is no snapshot: say so, never an empty list.
 #[component]
 pub fn ErrorState(error: DataError) -> impl IntoView {
-    let (title, hint) = if error.unavailable {
-        ("Der Katalog ist gerade nicht verfügbar", "Die Daten werden noch geladen. Bitte versuche es gleich noch einmal.")
-    } else {
-        ("Etwas ist schiefgelaufen", "Die Seite konnte nicht geladen werden. Bitte lade sie neu.")
-    };
+    let t = i18n::t();
+    let (title, hint) = if error.unavailable { (t.ui.unavailable_title, t.ui.unavailable_hint) } else { (t.ui.failed_title, t.ui.failed_hint) };
     view! {
         <Title text=title/>
         <section class="state state-error" role="alert">
             <h1>{title}</h1>
             <p>{hint}</p>
             <p class="state-detail">{error.message}</p>
-            <p><a class="button" href="">"Neu laden"</a></p>
+            <p><a class="button" href="">{t.ui.reload}</a></p>
         </section>
     }
 }
 
 #[component]
 pub fn NotFound(#[prop(into)] title: String, #[prop(into)] hint: String) -> impl IntoView {
+    let t = i18n::t();
     view! {
         <Title text=title.clone()/>
         <section class="state">
             <h1>{title}</h1>
             <p>{hint}</p>
             <p>
-                <a class="button" href=catalog::url::CATALOG>"Zum Modulkatalog"</a>" "
-                <a class="button button-quiet" href=catalog::url::PROGRAMS>"Zu den Studiengängen"</a>
+                <a class="button" href=t.path(catalog::url::CATALOG)>{t.common.to_catalog}</a>" "
+                <a class="button button-quiet" href=t.path(catalog::url::PROGRAMS)>{t.common.to_programs}</a>
             </p>
         </section>
     }
@@ -81,29 +80,31 @@ pub fn EmptyState(#[prop(into)] title: String, #[prop(into)] hint: String, #[pro
 /// „Pflicht", „Wahlpflicht" …, or „Art nicht angegeben": never a default.
 #[component]
 pub fn KindBadge(kind: Option<Code<ModuleKind>>) -> impl IntoView {
+    let t = i18n::t();
     match kind {
-        Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label().to_string()}</span> }.into_any(),
-        None => view! { <span class="kind k-none"><i></i>{KIND_UNKNOWN}</span> }.into_any(),
+        Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(t.locale).to_string()}</span> }.into_any(),
+        None => view! { <span class="kind k-none"><i></i>{t.ui.kind_unknown}</span> }.into_any(),
     }
 }
 
 /// Only what deviates from "is offered" gets a badge.
 #[component]
 pub fn OfferBadge(status: Code<OfferStatus>) -> impl IntoView {
-    (!status.is(OfferStatus::Active))
-        .then(|| view! { <span class="flag">{status.label().to_string()}</span> })
+    let t = i18n::t();
+    (!status.is(OfferStatus::Active)).then(|| view! { <span class="flag">{status.label(t.locale).to_string()}</span> })
 }
 
 /// A label with its value; shows „nicht angegeben" instead of hiding an unknown value.
 #[component]
 pub fn Fact(#[prop(into)] label: String, value: Option<String>, #[prop(default = "info")] icon: &'static str, #[prop(optional)] wide: bool) -> impl IntoView {
+    let t = i18n::t();
     let unknown = value.is_none();
     view! {
         <div class="fact" class:wide=wide>
             <span class="ico"><Icon name=icon/></span>
             <div>
                 <dt>{label}</dt>
-                <dd class:unknown=unknown>{value.unwrap_or_else(|| "nicht angegeben".to_string())}</dd>
+                <dd class:unknown=unknown>{value.unwrap_or_else(|| t.common.not_stated.to_string())}</dd>
             </div>
         </div>
     }
@@ -152,6 +153,7 @@ pub fn Frame(
     #[prop(optional, into)] aside_picked: Signal<bool>,
     children: Children,
 ) -> impl IntoView {
+    let t = i18n::t();
     let label = title.clone();
     let has_aside = aside.is_some();
     view! {
@@ -160,15 +162,15 @@ pub fn Frame(
                 <div class="panel-head">
                     <h2>{title}</h2>
                     {head.run()}
-                    {sheet.then(|| view! { <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label="Schließen"><Icon name="x"/></a> })}
+                    {sheet.then(|| view! { <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label=t.common.close><Icon name="x"/></a> })}
                 </div>
                 <div class="body scroll" data-keep-scroll="sidebar">{sidebar.run()}</div>
             </aside>
-            <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+            <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label=t.ui.resize_sidebar tabindex="0"></div>
             <div class="page" id="page-scroll">{children()}</div>
             {aside.map(|aside| move || aside_picked.get().then(|| view! {
                 // The handle is a sibling of the panel, as in the catalog: a child would be clipped.
-                <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label="Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)" tabindex="0"></div>
+                <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label=t.ui.resize_preview tabindex="0"></div>
                 {aside.run()}
             }))}
         </div>
@@ -186,7 +188,8 @@ pub fn Frame(
 /// not walk the history back into the module it has just closed.
 #[component]
 pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<String>) -> impl IntoView {
-    let location = leptos_router::hooks::use_location();
+    let t = i18n::t();
+    let location = i18n::use_location();
     let tabs = crate::tabs::Tabs::expect();
     let target = to.unwrap_or_else(|| tabs.map(|tabs| tabs.list(area)).unwrap_or_else(|| area.root().to_string()));
     let came_from_it = {
@@ -197,8 +200,8 @@ pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<S
         }
     };
     view! {
-        <a class="ghost" href=target data-action="back" data-back=came_from_it title="Zurück (Esc)">
-            <Icon name="arrow-left"/>"Zurück"<Shortcut keys="Esc"/>
+        <a class="ghost" href=t.path(&target) data-action="back" data-back=came_from_it title=t.ui.back_title>
+            <Icon name="arrow-left"/>{t.common.back}<Shortcut keys="Esc"/>
         </a>
     }
 }
@@ -294,8 +297,9 @@ pub fn Shortcut(keys: &'static str) -> impl IntoView {
 /// everybody (R9), so it is part of every page and stays out of sight until it has a way to go.
 #[component]
 pub fn ToTop() -> impl IntoView {
+    let t = i18n::t();
     view! {
-        <button class="to-top js-only" id="to-top" type="button" data-action="to-top" title="Nach oben" aria-label="Nach oben">
+        <button class="to-top js-only" id="to-top" type="button" data-action="to-top" title=t.ui.to_top aria-label=t.ui.to_top>
             <Icon name="arrow-up"/>
         </button>
     }

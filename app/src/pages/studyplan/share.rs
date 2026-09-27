@@ -186,7 +186,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
         let (text, can_take) = match offer {
             Offer::Take { names, count, new } => {
                 let question = if new == count { "In deinen Stundenplan übernehmen?".to_string() } else { format!("{} davon fehlen in deinem Stundenplan. Übernehmen?", if new == 1 { "Eins".to_string() } else { new.to_string() }) };
-                (format!("{}: {names}. {question}", crate::format::modules(i64::try_from(count).unwrap_or(i64::MAX))), true)
+                (format!("{}: {names}. {question}", crate::format::modules(i64::try_from(count).unwrap_or(i64::MAX), crate::i18n::locale())), true)
             }
             Offer::Held { names } => (format!("{names}. Alles davon steht schon in deinem Stundenplan."), false),
             Offer::Elsewhere { names } => (format!("{names}. Dein Stundenplan zeigt ein anderes Semester."), false),

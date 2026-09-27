@@ -17,7 +17,7 @@
 
 use catalog::url;
 use leptos::prelude::*;
-use leptos_router::hooks::use_location;
+use crate::i18n::use_location;
 
 use crate::nav;
 

@@ -24,7 +24,9 @@ use catalog::rows::CatalogRow;
 use catalog::url::{self, BookmarkSort, BookmarksUrl, LocalView, Season};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::{use_location, use_navigate};
+use leptos_router::hooks::use_navigate;
+
+use crate::i18n::use_location;
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
@@ -316,17 +318,17 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
     view! {
         <div class="list-head">
             <div class="count-row">
-                <span class="count num">{move || format::count(numbers.get().0)}</span>
+                <span class="count num">{move || format::count(numbers.get().0, crate::i18n::locale())}</span>
                 <span class="count-label">
                     {move || match (numbers.get().0, season) {
                         (1, None) => "gemerktes Modul".to_string(),
                         (_, None) => "gemerkte Module".to_string(),
-                        (1, Some(season)) => format!("gemerktes Modul im {}", season.label()),
-                        (_, Some(season)) => format!("gemerkte Module im {}", season.label()),
+                        (1, Some(season)) => format!("gemerktes Modul im {}", season.label(crate::i18n::locale())),
+                        (_, Some(season)) => format!("gemerkte Module im {}", season.label(crate::i18n::locale())),
                     }}
                     {move || {
                         let (marked, credits, _) = numbers.get();
-                        (marked > 0).then(|| view! { <span class="count-more num">" · "{format::number(credits)}" LP"</span> })
+                        (marked > 0).then(|| view! { <span class="count-more num">" · "{format::number(credits, crate::i18n::locale())}" LP"</span> })
                     }}
                 </span>
                 <div class="list-tools">
@@ -337,7 +339,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
             </div>
             <div class="active-filters">
                 {season.map(|season| view! {
-                    <span class="tag"><em>"Turnus"</em>" "{season.label()}<a href=all_href.clone() data-noscroll="" aria-label="Filter entfernen"><Icon name="x"/></a></span>
+                    <span class="tag"><em>"Turnus"</em>" "{season.label(crate::i18n::locale())}<a href=all_href.clone() data-noscroll="" aria-label="Filter entfernen"><Icon name="x"/></a></span>
                 })}
             </div>
         </div>
@@ -368,7 +370,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
                 </div>
             })}
             {nothing_left.then(|| {
-                let season = season.map(Season::label).unwrap_or_default();
+                let season = season.map(|season| season.label(crate::i18n::locale())).unwrap_or_default();
                 view! {
                     <div class="state">
                         <p class="state-title">"Nichts davon im "{season}</p>
@@ -441,7 +443,7 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
                 data-noscroll=""
                 aria-checked=move || if url.with(|url| url.season == season) { "true" } else { "false" }
             >
-                {label}<span class="num">{move || format::count(count())}</span>
+                {label}<span class="num">{move || format::count(count(), crate::i18n::locale())}</span>
             </a>
         }
     };
@@ -453,7 +455,7 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
                 data-noscroll=""
                 aria-current=move || url.with(|url| url.sort == sort).then_some("page")
             >
-                {sort.label()}
+                {sort.label(crate::i18n::locale())}
             </a>
         }
     };
@@ -467,7 +469,7 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
                 .iter()
                 .filter(|row| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&row.id)))
                 .map(|row| match row.credits {
-                    Some(credits) => format!("{}\t{}\t{} LP", row.id, row.title, format::number(credits)),
+                    Some(credits) => format!("{}\t{}\t{} LP", row.id, row.title, format::number(credits, crate::i18n::locale())),
                     None => format!("{}\t{}", row.id, row.title),
                 })
                 .collect();
@@ -511,12 +513,12 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
                 <dl class="side-facts">
                     <div>
                         <dt>"Gemerkt"</dt>
-                        <dd class="num">{move || match numbers.get().0 { 1 => "1 Modul".to_string(), n => format!("{} Module", format::count(n)) }}</dd>
+                        <dd class="num">{move || match numbers.get().0 { 1 => "1 Modul".to_string(), n => format!("{} Module", format::count(n, crate::i18n::locale())) }}</dd>
                     </div>
                     <div>
                         <dt>"Leistungspunkte"</dt>
                         <dd class="num">
-                            {move || format!("{} LP", format::number(numbers.get().1))}
+                            {move || format!("{} LP", format::number(numbers.get().1, crate::i18n::locale()))}
                             {move || match numbers.get().2 { 0 => None, n => Some(view! { <small>" · "{n}" ohne Angabe"</small> }) }}
                         </dd>
                     </div>

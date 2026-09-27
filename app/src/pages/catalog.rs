@@ -29,7 +29,9 @@ use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::{use_location, use_navigate};
+use leptos_router::hooks::use_navigate;
+
+use crate::i18n::use_location;
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
@@ -488,7 +490,7 @@ fn fitted(mut query: CatalogQuery, filter: &FitsFilter, result: Option<&FitResul
 
 /// „WiSe 2026/27" for `2026W`; a key that is none as it stands.
 fn semester_label(key: &str) -> String {
-    SemesterKey::parse(key).map(SemesterKey::label).unwrap_or_else(|| key.to_string())
+    SemesterKey::parse(key).map(|key| key.label(crate::i18n::locale())).unwrap_or_else(|| key.to_string())
 }
 
 /// The semester „Passt in meinen Stundenplan" checks against once it is switched on: that of the
@@ -574,7 +576,7 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
             None => {}
         }
         let kind_label = |kind: KindFilter| match kind {
-            KindFilter::Stated(kind) => kind.label().to_string(),
+            KindFilter::Stated(kind) => kind.label(crate::i18n::locale()).to_string(),
             KindFilter::Unstated => "nicht angegeben".to_string(),
         };
         for kind in scope.kinds.clone() {
@@ -626,34 +628,34 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
         push("Turnus", "nicht unregelmäßig".to_string(), &|q| q.turnus.not_irregular = false);
     }
     if let Some(parity) = q.turnus.year_parity {
-        push("Jahre", parity.label().to_string(), &|q| q.turnus.year_parity = None);
+        push("Jahre", parity.label(crate::i18n::locale()).to_string(), &|q| q.turnus.year_parity = None);
     }
     for form in q.teaching_forms.clone() {
-        push("Lehrform", form.label().to_string(), &move |q| q.teaching_forms.retain(|f| *f != form));
+        push("Lehrform", form.label(crate::i18n::locale()).to_string(), &move |q| q.teaching_forms.retain(|f| *f != form));
     }
     for form in q.teaching_forms_exclude.clone() {
-        push("Lehrform", format!("ohne {}", form.label()), &move |q| q.teaching_forms_exclude.retain(|f| *f != form));
+        push("Lehrform", format!("ohne {}", form.label(crate::i18n::locale())), &move |q| q.teaching_forms_exclude.retain(|f| *f != form));
     }
     for part in q.exam_parts.clone() {
-        push("Prüfung", part.label().to_string(), &move |q| q.exam_parts.retain(|p| *p != part));
+        push("Prüfung", part.label(crate::i18n::locale()).to_string(), &move |q| q.exam_parts.retain(|p| *p != part));
     }
     for form in q.exam_forms.clone() {
-        push("Prüfung", format::exam_short(&Code::Known(form)), &move |q| q.exam_forms.retain(|f| *f != form));
+        push("Prüfung", format::exam_short(&Code::Known(form), crate::i18n::locale()), &move |q| q.exam_forms.retain(|f| *f != form));
     }
     for part in q.exam_parts_exclude.clone() {
-        push("Prüfung", format!("ohne {}", part.label()), &move |q| q.exam_parts_exclude.retain(|p| *p != part));
+        push("Prüfung", format!("ohne {}", part.label(crate::i18n::locale())), &move |q| q.exam_parts_exclude.retain(|p| *p != part));
     }
     for language in q.languages.clone() {
-        push("Sprache", language.label().to_string(), &move |q| q.languages.retain(|l| *l != language));
+        push("Sprache", language.label(crate::i18n::locale()).to_string(), &move |q| q.languages.retain(|l| *l != language));
     }
     for language in q.languages_exclude.clone() {
-        push("Sprache", format!("nicht {}", language.label()), &move |q| q.languages_exclude.retain(|l| *l != language));
+        push("Sprache", format!("nicht {}", language.label(crate::i18n::locale())), &move |q| q.languages_exclude.retain(|l| *l != language));
     }
     if q.credits_min.is_some() || q.credits_max.is_some() {
         let label = match (q.credits_min, q.credits_max) {
-            (Some(a), Some(b)) => format!("{}–{}", format::number(a), format::number(b)),
-            (Some(a), None) => format!("ab {}", format::number(a)),
-            (None, Some(b)) => format!("bis {}", format::number(b)),
+            (Some(a), Some(b)) => format!("{}–{}", format::number(a, crate::i18n::locale()), format::number(b, crate::i18n::locale())),
+            (Some(a), None) => format!("ab {}", format::number(a, crate::i18n::locale())),
+            (None, Some(b)) => format!("bis {}", format::number(b, crate::i18n::locale())),
             (None, None) => String::new(),
         };
         push("LP", label, &|q| {
@@ -686,10 +688,10 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department])
         push("nicht bei", name, &move |q| q.lecturers_exclude.retain(|n| *n != keep));
     }
     for campus in q.campuses.clone() {
-        push("Standort", campus.label().to_string(), &move |q| q.campuses.retain(|c| *c != campus));
+        push("Standort", campus.label(crate::i18n::locale()).to_string(), &move |q| q.campuses.retain(|c| *c != campus));
     }
     for campus in q.campuses_exclude.clone() {
-        push("Standort", format!("nicht {}", campus.label()), &move |q| q.campuses_exclude.retain(|c| *c != campus));
+        push("Standort", format!("nicht {}", campus.label(crate::i18n::locale())), &move |q| q.campuses_exclude.retain(|c| *c != campus));
     }
     if q.offer.is_some() {
         push("Status", "auch nicht mehr angebotene".to_string(), &|q| q.offer = None);
@@ -840,7 +842,7 @@ fn List(
         <section class="panel list" aria-live="polite" data-pending=move || waiting().then_some("")>
             <div class="list-head">
                 <div class="count-row">
-                    <span class="count num">{format::count(total)}</span>
+                    <span class="count num">{format::count(total, crate::i18n::locale())}</span>
                     <span class="count-label">{label}</span>
                     <div class="list-tools">
                         <span class="keys" title="Mit den Pfeiltasten durch die Liste, Enter öffnet die Vorschau, M merkt das gewählte Modul"><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen "<kbd>"Enter"</kbd>" öffnen "<kbd>"M"</kbd>" merken"</span>
@@ -1310,7 +1312,7 @@ fn VirtualRows(
                     }
                 }/>
             </div>
-            {(total > per_page).then(|| view! { <p class="list-end">"Ende der Liste · "{format::count(total as u64)}" Module"</p> })}
+            {(total > per_page).then(|| view! { <p class="list-end">"Ende der Liste · "{format::count(total as u64, crate::i18n::locale())}" Module"</p> })}
         </div>
     }
 }
@@ -1341,7 +1343,7 @@ pub(crate) fn Row(
         Some(TurnusSeason::Summer) => ("sun", "Sommer".to_string()),
         Some(TurnusSeason::Both) => ("repeat", "jedes Sem.".to_string()),
         Some(TurnusSeason::Irregular) => ("shuffle", "unregelm.".to_string()),
-        None => ("minus", row.turnus_season.as_ref().map(|s| s.label().to_string()).unwrap_or_else(|| "k. A.".to_string())),
+        None => ("minus", row.turnus_season.as_ref().map(|s| s.label(crate::i18n::locale()).to_string()).unwrap_or_else(|| "k. A.".to_string())),
     };
     let events = match row.teaching_events {
         0 => "noch keine Termine".to_string(),
@@ -1393,8 +1395,8 @@ pub(crate) fn Row(
                     </small>
                 </div>
                 <span class="resp">{row.responsible.clone()}</span>
-                <span class="exam">{row.exam_form.as_ref().map(format::exam_short)}</span>
-                <span class="lp num">{row.credits.map(format::number)}<small>"LP"</small></span>
+                <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, crate::i18n::locale()))}</span>
+                <span class="lp num">{row.credits.map(|value| format::number(value, crate::i18n::locale()))}<small>"LP"</small></span>
                 <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
                 <span class="lang" class:unknown=language.is_none()>{language.unwrap_or("k. A.")}</span>
                 <span class="events" class:none=!has_events>
@@ -1458,7 +1460,7 @@ impl Facts {
 /// under the heading of its section (`pages::catalog_areas`: „Nebenfach" for Mathematik,
 /// Physik …). The full label and the path still find the area when they are typed.
 fn area_item(area: &CatalogArea) -> ComboItem {
-    ComboItem::new(area.id.to_string(), area.name().to_string(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX)), 0)
+    ComboItem::new(area.id.to_string(), area.name().to_string(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX), crate::i18n::locale()), 0)
         .also_found_by(&format!("{} {}", area.label, area.path))
         .in_group(area.section.clone().unwrap_or_default())
 }
@@ -1490,7 +1492,7 @@ impl Choices {
         // (owner decision 2026-09-20; amendments are not part of it). Where two programs would
         // read the same, and only there, the form of study tells them apart.
         let short = |p: &Program| (p.name.clone(), p.degree().to_string(), p.po_year);
-        let variant = |p: &Program| p.study_variant.as_ref().map(format::variant_short);
+        let variant = |p: &Program| p.study_variant.as_ref().map(|variant| format::variant_short(variant, crate::i18n::locale()));
         Self {
             programs: data
                 .programs
@@ -1505,7 +1507,7 @@ impl Choices {
                     ComboItem::new(p.slug.clone(), p.name.clone(), detail, i64::from(p.is_latest_po))
                 })
                 .collect(),
-            departments: data.departments.iter().map(|d| ComboItem::new(d.id.to_string(), d.label.clone(), format::modules(d.modules), 0)).collect(),
+            departments: data.departments.iter().map(|d| ComboItem::new(d.id.to_string(), d.label.clone(), format::modules(d.modules, crate::i18n::locale()), 0)).collect(),
             lecturers: data.lecturers.iter().map(|l| ComboItem::new(l.name.clone(), l.name.clone(), l.title.clone().unwrap_or_default(), 0)).collect(),
         }
     }
@@ -1744,7 +1746,7 @@ fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<O
                     aria-checked=move || if query.with(|q| is_on(q)) { "true" } else { "false" }
                 >
                     {label}
-                    {count.map(|count| view! { <span class="num">{move || count.get().map(format::count)}</span> })}
+                    {count.map(|count| view! { <span class="num">{move || count.get().map(|count| format::count(count, crate::i18n::locale()))}</span> })}
                 </a>
             }
         })
@@ -2004,7 +2006,7 @@ fn Filters(
                     <div class="flabel label">"Modulart"</div>
                     <div class="chips">
                         {[ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship]
-                            .iter().map(|k| chip(k.label(), None, kind(KindFilter::Stated(*k)))).collect_view()}
+                            .iter().map(|k| chip(k.label(crate::i18n::locale()), None, kind(KindFilter::Stated(*k)))).collect_view()}
                         {chip("Nicht angegeben", None, kind(KindFilter::Unstated))}
                     </div>
                     {area_part}
@@ -2229,20 +2231,20 @@ fn Filters(
                         <div class="flabel label">"Lehrform"</div>
                         <div class="chips">
                             {[TeachingForm::Lecture, TeachingForm::Exercise, TeachingForm::Seminar, TeachingForm::Practical, TeachingForm::Project, TeachingForm::Excursion]
-                                .iter().map(|form| chip(form.label(), None, Toggle::in_lists(*form, |q| (&q.teaching_forms, &q.teaching_forms_exclude), |q| (&mut q.teaching_forms, &mut q.teaching_forms_exclude)))).collect_view()}
+                                .iter().map(|form| chip(form.label(crate::i18n::locale()), None, Toggle::in_lists(*form, |q| (&q.teaching_forms, &q.teaching_forms_exclude), |q| (&mut q.teaching_forms, &mut q.teaching_forms_exclude)))).collect_view()}
                         </div>
                     </div>
                     <div class="fgroup">
                         <div class="flabel label">"Prüfung"</div>
                         <div class="chips">
-                            {ExamPart::ALL.iter().map(|part| chip(part.short_label(), None, Toggle::in_lists(*part, |q| (&q.exam_parts, &q.exam_parts_exclude), |q| (&mut q.exam_parts, &mut q.exam_parts_exclude)))).collect_view()}
+                            {ExamPart::ALL.iter().map(|part| chip(part.short_label(crate::i18n::locale()), None, Toggle::in_lists(*part, |q| (&q.exam_parts, &q.exam_parts_exclude), |q| (&mut q.exam_parts, &mut q.exam_parts_exclude)))).collect_view()}
                         </div>
                     </div>
                     <Credits query go/>
                     <div class="fgroup">
                         <div class="flabel label">"Sprache"</div>
                         <div class="chips">
-                            {Language::ALL.iter().map(|language| chip(language.label(), None, Toggle::in_lists(*language, |q| (&q.languages, &q.languages_exclude), |q| (&mut q.languages, &mut q.languages_exclude)))).collect_view()}
+                            {Language::ALL.iter().map(|language| chip(language.label(crate::i18n::locale()), None, Toggle::in_lists(*language, |q| (&q.languages, &q.languages_exclude), |q| (&mut q.languages, &mut q.languages_exclude)))).collect_view()}
                         </div>
                     </div>
                     <div class="fgroup">
@@ -2285,7 +2287,7 @@ fn Filters(
                         <div class="flabel label">"Standort"</div>
                         <div class="chips">
                             {[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg]
-                                .iter().map(|campus| chip(campus.label(), None, Toggle::in_lists(*campus, |q| (&q.campuses, &q.campuses_exclude), |q| (&mut q.campuses, &mut q.campuses_exclude)))).collect_view()}
+                                .iter().map(|campus| chip(campus.label(crate::i18n::locale()), None, Toggle::in_lists(*campus, |q| (&q.campuses, &q.campuses_exclude), |q| (&mut q.campuses, &mut q.campuses_exclude)))).collect_view()}
                         </div>
                         <p class="hint">"Der Standort ist nur für Module mit Raumangaben in diesem Semester bekannt."</p>
                         {move || program.get().is_none().then(|| view! {
@@ -2303,7 +2305,7 @@ fn Filters(
                 </div>
                 <div class="filter-actions">
                     <button class="btn primary apply" type="submit">"Filter anwenden"</button>
-                    <a class="btn primary show" href="#" data-action="sheet-close">{move || format::count(facts.with(|f| f.total))}" Module anzeigen"</a>
+                    <a class="btn primary show" href="#" data-action="sheet-close">{move || format::count(facts.with(|f| f.total), crate::i18n::locale())}" Module anzeigen"</a>
                 </div>
             </form>
         </aside>
@@ -2338,10 +2340,10 @@ fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoVi
     let typed = move |ev: &leptos::ev::Event| event_target_value(ev).trim().replace(',', ".").parse::<f64>().ok().filter(|n| n.is_finite() && *n >= 0.0);
     let summary = move || match (low.get(), high.get()) {
         (a, b) if a <= 0.0 && b >= CREDITS_MAX => "alle".to_string(),
-        (a, b) if b >= CREDITS_MAX => format!("ab {} LP", format::number(a)),
-        (a, b) if a <= 0.0 => format!("bis {} LP", format::number(b)),
-        (a, b) if a == b => format!("{} LP", format::number(a)),
-        (a, b) => format!("{}–{} LP", format::number(a), format::number(b)),
+        (a, b) if b >= CREDITS_MAX => format!("ab {} LP", format::number(a, crate::i18n::locale())),
+        (a, b) if a <= 0.0 => format!("bis {} LP", format::number(b, crate::i18n::locale())),
+        (a, b) if a == b => format!("{} LP", format::number(a, crate::i18n::locale())),
+        (a, b) => format!("{}–{} LP", format::number(a, crate::i18n::locale()), format::number(b, crate::i18n::locale())),
     };
 
     view! {

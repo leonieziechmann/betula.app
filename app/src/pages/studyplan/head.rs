@@ -20,7 +20,6 @@ use catalog::studyplan::PlanDoc;
 use catalog::timetable::clash::{self, Overlap, Weeks, When};
 use catalog::timetable::day::{clock, Day};
 use catalog::timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
-use catalog::timetable::kind::EventKind;
 use catalog::timetable::model::{Attendance, Basis, Event, Row, Timetable};
 use catalog::timetable::rowkey::RowKey;
 use catalog::timetable::select::TownChoice;
@@ -115,7 +114,7 @@ pub(super) fn sum_line(program: Option<&str>, modules: usize, placeholders: usiz
         parts.push(program.to_string());
     }
     if modules > 0 {
-        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX)));
+        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX), crate::i18n::locale()));
     }
     if placeholders > 0 {
         parts.push(format!("{placeholders} Platzhalter"));
@@ -187,7 +186,7 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
 
     view! {
         <div class="sp-head">
-            <h1>"Stundenplan "<span>{move || key.get().label()}</span></h1>
+            <h1>"Stundenplan "<span>{move || key.get().label(crate::i18n::locale())}</span></h1>
             <SheetToggle/>
             {move || (weekly.get() && planned.get()).then(|| view! { <AllSwitch all=ctx.all/> })}
             {move || (weekly.get() && ab.get() && !ctx.phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
@@ -197,7 +196,7 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
             (!text.is_empty()).then(|| view! { <p class="sp-sum">{text}</p> })
         }}
         {move || {
-            let label = key.get().label();
+            let label = key.get().label(crate::i18n::locale());
             match line.get() {
                 Some(HeadLine::Past) => view! {
                     <p class="note quiet"><span>{format!("{label} ist vorbei; vergangene Termine fehlen im Datenstand.")}</span></p>
@@ -466,7 +465,7 @@ impl Note {
 pub(super) fn kind_word(event: &Event) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
         Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or("Termin", EventKind::label).to_string(),
+        None => event.kinds.iter().next().map_or("Termin", |kind| kind.label(crate::i18n::locale())).to_string(),
     }
 }
 
@@ -490,7 +489,7 @@ fn campus_name(campus: &Code<Campus>) -> String {
         Some(Campus::Zentralcampus) => "Zentralcampus".to_string(),
         Some(Campus::Sachsendorf) => "Sachsendorf".to_string(),
         Some(Campus::Senftenberg) => "Senftenberg".to_string(),
-        _ => campus.label().to_string(),
+        _ => campus.label(crate::i18n::locale()).to_string(),
     }
 }
 
@@ -902,6 +901,7 @@ mod tests {
     use catalog::rows_detail::EventDate;
     use catalog::studyplan::Placeholder;
     use catalog::timetable::clash::Clash;
+    use catalog::timetable::kind::EventKind;
     use catalog::timetable::day::minutes;
     use catalog::timetable::facts::SemesterFacts;
     use catalog::timetable::kind::{kinds_of, Class};

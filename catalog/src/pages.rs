@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::db::{Database, DbError};
+use crate::i18n::Locale;
 use crate::filter::{CatalogQuery, FitsFilter, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey, TurnusFilter};
 use crate::labels::{Labelled, ModuleKind, OfferStatus};
 use crate::plan::{self, SemesterPlan};
@@ -910,7 +911,7 @@ pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program
     let (modules, missing) = catalog_rows(db, &ids)?;
     Ok(StudyplanData {
         key,
-        label: semester.as_ref().map_or_else(|| key.label(), |semester| semester.label.clone()),
+        label: semester.as_ref().map_or_else(|| key.label(Locale::De /* i18n: pending */), |semester| semester.label.clone()),
         meta: queries::meta(db)?,
         counts: queries::semester_date_counts(db, &semester_key)?,
         schedule: queries::modules_schedule(db, &ids, &semester_key)?,
@@ -1445,7 +1446,7 @@ fn option_time(event: &Event, option: usize) -> Option<(u8, u16)> {
 fn kind_word(event: &Event) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
         Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or("Termin", |kind| kind.label()).to_string(),
+        None => event.kinds.iter().next().map_or("Termin", |kind| kind.label(Locale::De /* i18n: pending */)).to_string(),
     }
 }
 
@@ -1466,8 +1467,8 @@ fn exam_text(
         WarningKind::Overlap => {
             format!("Prüfung gleichzeitig mit {name} ({} {})", warning.day.german(), clock(other.from))
         }
-        WarningKind::Tight { gap, to, .. } if mine_first => format!("{gap} min bis {} zu {name}", to.label()),
-        WarningKind::Tight { gap, to, .. } => format!("{gap} min bis {} nach {name}", to.label()),
+        WarningKind::Tight { gap, to, .. } if mine_first => format!("{gap} min bis {} zu {name}", to.label(Locale::De /* i18n: pending */)),
+        WarningKind::Tight { gap, to, .. } => format!("{gap} min bis {} nach {name}", to.label(Locale::De /* i18n: pending */)),
     };
     if let Some(avoid) = warning.avoid.filter(|_| !warning.hard) {
         let (mine, theirs) = ((mine, termine_of(termine, module_id)), (other, termine_of(termine, &other.module_id)));
@@ -1577,7 +1578,7 @@ pub fn shared_plan(db: &dyn Database, plan: &SharedPlan) -> Result<Option<Shared
         .map(|row| SharedModule { id: row.id.clone(), name: names.get(&row.id).cloned().unwrap_or_else(|| views::short_title(&row.title)), title: row.title.clone(), credits: row.credits })
         .collect();
     let semester_key = key.key();
-    let label = queries::semesters(db)?.into_iter().find(|semester| semester.key == semester_key).map_or_else(|| key.label(), |semester| semester.label);
+    let label = queries::semesters(db)?.into_iter().find(|semester| semester.key == semester_key).map_or_else(|| key.label(Locale::De /* i18n: pending */), |semester| semester.label);
     let program = match plan.program.as_deref() {
         Some(id) => queries::programs(db)?.into_iter().find(|program| program.id == id),
         None => None,

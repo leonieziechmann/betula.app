@@ -13,6 +13,8 @@ folia-app = { path = "../app", features = ["ssr"] }
 folia-catalog = { path = "../catalog", features = ["native"] }
 leptos = { version = "0.8.20", features = ["ssr"] }
 leptos_axum = "0.8"
+# The routes of every language (`main::pages`) are the app's routes under the language's prefix.
+leptos_router = "0.8"
 axum = { version = "0.8", features = ["tokio", "http1", "http2"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "fs", "time", "sync", "net", "io-util"] }
 tokio-util = { version = "0.7", features = ["io"] }

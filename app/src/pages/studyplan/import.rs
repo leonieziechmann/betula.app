@@ -96,7 +96,7 @@ pub(super) fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, semest
     let import = studyplan::import_fs(doc, &source.program.id, plan, page_plan, semester, fs);
     let mut adds = Vec::new();
     if !import.modules.is_empty() {
-        adds.push(format::modules(i64::try_from(import.modules.len()).unwrap_or(i64::MAX)));
+        adds.push(format::modules(i64::try_from(import.modules.len()).unwrap_or(i64::MAX), crate::i18n::locale()));
     }
     if !import.placeholders.is_empty() {
         adds.push(format!("{} Platzhalter", import.placeholders.len()));
@@ -118,7 +118,7 @@ pub(super) fn form_of(source: &PlanSource, doc: &PlanDoc, mine: &MineDoc, semest
 pub(super) fn imported_note(modules: usize, placeholders: usize) -> String {
     let mut parts = Vec::new();
     if modules > 0 {
-        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX)));
+        parts.push(format::modules(i64::try_from(modules).unwrap_or(i64::MAX), crate::i18n::locale()));
     }
     if placeholders > 0 {
         parts.push(format!("{placeholders} Platzhalter"));

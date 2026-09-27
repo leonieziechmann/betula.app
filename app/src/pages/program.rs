@@ -36,7 +36,9 @@ use catalog::variants::{self, plan_variants, Choice, PlanVariant};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::hooks::{use_location, use_params_map};
+use leptos_router::hooks::use_params_map;
+
+use crate::i18n::use_location;
 
 use crate::data::{use_source, PageStatus};
 use crate::format;
@@ -354,7 +356,7 @@ fn ProgramSidebar(
             <p class="flabel label">"Ansichten"</p>
             {ProgramTab::ALL.iter().map(|t| {
                 let t = *t;
-                view! { <a data-walk="tab" href=url::program_path(&p.slug, t) data-noscroll="" aria-current=move || (shown_tab.get() == t).then_some("page")>{t.label()}</a> }
+                view! { <a data-walk="tab" href=url::program_path(&p.slug, t) data-noscroll="" aria-current=move || (shown_tab.get() == t).then_some("page")>{t.label(crate::i18n::locale())}</a> }
             }).collect_view()}
         </nav>
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
@@ -419,7 +421,7 @@ fn ProgramSidebar(
                 {data.counterpart.as_ref().map(|c| view! {
                     <a class="action" href=url::program_path(&c.slug, ProgramTab::Plan)>
                         <Icon name="graduation-cap"/>
-                        <span>{format!("Passender {}", c.level.label())}<small>{c.name.clone()}" · PO "{c.po_version.clone()}</small></span>
+                        <span>{format!("Passender {}", c.level.label(crate::i18n::locale()))}<small>{c.name.clone()}" · PO "{c.po_version.clone()}</small></span>
                     </a>
                 })}
                 {data.versions.iter().map(|v| view! {
@@ -518,7 +520,7 @@ fn ProgramView(
                     let missing = p
                         .plan_status
                         .as_ref()
-                        .map(|status| status.label().to_string())
+                        .map(|status| status.label(crate::i18n::locale()).to_string())
                         .unwrap_or_else(|| "Für diesen Studiengang liegt kein geprüfter Regelstudienplan vor".to_string());
                     let validated = data.plan.as_ref().and_then(|plan| plan.validated_at.clone());
                     let source = data.plan.as_ref().and_then(plan_source);
@@ -537,7 +539,7 @@ fn ProgramView(
                                 <a class="docrow" href=d.url.clone() rel="noopener">
                                     <Icon name="file-check-2"/>
                                     <span class="docname">{d.title.clone()}</span>
-                                    <small>{d.doc_type.label().to_string()}</small>
+                                    <small>{d.doc_type.label(crate::i18n::locale()).to_string()}</small>
                                     <Icon name="arrow-up-right" class="go"/>
                                 </a>
                             </li>
@@ -715,7 +717,7 @@ fn PlanRowPanel(
     let named = entry.module_name.to_lowercase();
     let area = area.filter(|area| !named.contains(&area.trim().to_lowercase()));
     let context = [plan, area].into_iter().flatten().collect::<Vec<_>>().join(" · ");
-    let kind = entry.kind.as_ref().map(|kind| kind.label().to_string()).or_else(|| entry.kind_raw.clone());
+    let kind = entry.kind.as_ref().map(|kind| kind.label(crate::i18n::locale()).to_string()).or_else(|| entry.kind_raw.clone());
     let note_class = if one_module { "note" } else { "note quiet" };
 
     view! {
@@ -752,7 +754,7 @@ fn PlanRowPanel(
                         let path = area.path.clone();
                         view! {
                             <div class="section">
-                                <p class="label">"Vermutlich " {label.clone()}<span>{format::modules(count as i64)}</span></p>
+                                <p class="label">"Vermutlich " {label.clone()}<span>{format::modules(count as i64, crate::i18n::locale())}</span></p>
                                 {(!path.is_empty()).then(|| view! { <p class="hint">{path}</p> })}
                                 <div class="linklist">{area_module_links(&area.modules, &known, links)}</div>
                                 <a class="pre more-area" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
@@ -772,7 +774,7 @@ fn PlanRowPanel(
                                     view! {
                                         <a class="pre" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
                                             <b>{area.label.clone()}</b>
-                                            <small>{format::modules(area.modules.len() as i64)}</small>
+                                            <small>{format::modules(area.modules.len() as i64, crate::i18n::locale())}</small>
                                             <Icon name="chevron-right"/>
                                         </a>
                                     }
@@ -800,8 +802,8 @@ fn PlanRowPanel(
                         // The regulation may print a span here as well, and then that span is
                         // everything it says: „28–32 LP", not a number we picked out of it.
                         let together = printed_credits(&choice.total);
-                        let least = format::number(choice.total.min_credits);
-                        let most = format::number(choice.total.max_credits);
+                        let least = format::number(choice.total.min_credits, crate::i18n::locale());
+                        let most = format::number(choice.total.max_credits, crate::i18n::locale());
                         let label = choice.total.label.clone();
                         let span = choice_span(&choice.total);
                         let others = choice.with.len();
@@ -862,8 +864,8 @@ fn area_module_links(modules: &[AreaPlacement], known: &HashMap<String, ProgramM
                     <span class="mono">{placement.module_id.clone()}</span>
                     <b>{placement.module_title.clone()}</b>
                     <small>
-                        {kind.map(|kind| format!("{} · ", kind.label())).unwrap_or_default()}
-                        {format::credits(placement.module_credits)}
+                        {kind.map(|kind| format!("{} · ", kind.label(crate::i18n::locale()))).unwrap_or_default()}
+                        {format::credits(placement.module_credits, crate::i18n::locale())}
                     </small>
                     <Icon name="chevron-right"/>
                 </a>
@@ -947,8 +949,8 @@ fn AreaPanel(
                         .into_any()
                     }}
                     <p class="badges">
-                        <span class="badge strong num">{format::modules(count as i64)}</span>
-                        {(sum > 0.0).then(|| view! { <span class="badge num">{format::number(sum)}" LP"</span> })}
+                        <span class="badge strong num">{format::modules(count as i64, crate::i18n::locale())}</span>
+                        {(sum > 0.0).then(|| view! { <span class="badge num">{format::number(sum, crate::i18n::locale())}" LP"</span> })}
                     </p>
                 </header>
                 <div class="dbody">
@@ -962,7 +964,7 @@ fn AreaPanel(
                                 {children.into_iter().map(|(id, label, modules)| view! {
                                     <a class="pre" href=move || area_within_href(&links.get(), id) data-walk="area" data-noscroll="">
                                         <b>{label}</b>
-                                        <small>{format::modules(modules as i64)}</small>
+                                        <small>{format::modules(modules as i64, crate::i18n::locale())}</small>
                                         <Icon name="chevron-right"/>
                                     </a>
                                 }).collect_view()}
@@ -1006,7 +1008,7 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
                 <BackLink area=Area::Programs/>
                 <nav class="crumbs" aria-label="Pfad">
                     <a href=url::PROGRAMS>"Studiengänge"</a>
-                    <a href=level_link>{level.label()}</a>
+                    <a href=level_link>{level.label(crate::i18n::locale())}</a>
                 </nav>
             </div>
             <div class="prog-title">
@@ -1021,7 +1023,7 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
             <p class="prog-meta">
                 <span class="degree">{program.degree().to_string()}</span>
                 <span>"Prüfungsordnung "{program.po_version.clone()}</span>
-                {program.study_variant.as_ref().map(|v| view! { <span>{format::variant_short(v)}</span> })}
+                {program.study_variant.as_ref().map(|v| view! { <span>{format::variant_short(v, crate::i18n::locale())}</span> })}
                 {if program.is_latest_po {
                     view! { <span class="current">"aktuell"</span> }.into_any()
                 } else {
@@ -1038,8 +1040,8 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
 /// „116–126".
 fn credits_label(plan: &PlanVariant) -> String {
     match plan.credits_max - plan.credits > 0.01 {
-        true => format!("{}–{}", format::number(plan.credits), format::number(plan.credits_max)),
-        false => format::number(plan.credits),
+        true => format!("{}–{}", format::number(plan.credits, crate::i18n::locale()), format::number(plan.credits_max, crate::i18n::locale())),
+        false => format::number(plan.credits, crate::i18n::locale()),
     }
 }
 
@@ -1051,17 +1053,17 @@ fn span_of(values: impl Iterator<Item = f64>) -> Option<String> {
     let high = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     match values.is_empty() {
         true => None,
-        false if low == high => Some(format::number(low)),
-        false => Some(format!("{}–{}", format::number(low), format::number(high))),
+        false if low == high => Some(format::number(low, crate::i18n::locale())),
+        false => Some(format!("{}–{}", format::number(low, crate::i18n::locale()), format::number(high, crate::i18n::locale()))),
     }
 }
 
 /// What a row of the plan says about its credits: a number, a range, or nothing.
 fn plan_credits(entry: &PlanEntry) -> Option<String> {
     match (entry.credits, entry.min_credits, entry.max_credits) {
-        (Some(credits), _, _) => Some(format::number(credits)),
-        (None, Some(min), Some(max)) if min != max => Some(format!("{}–{}", format::number(min), format::number(max))),
-        (None, Some(value), _) | (None, None, Some(value)) => Some(format::number(value)),
+        (Some(credits), _, _) => Some(format::number(credits, crate::i18n::locale())),
+        (None, Some(min), Some(max)) if min != max => Some(format!("{}–{}", format::number(min, crate::i18n::locale()), format::number(max, crate::i18n::locale()))),
+        (None, Some(value), _) | (None, None, Some(value)) => Some(format::number(value, crate::i18n::locale())),
         _ => None,
     }
 }
@@ -1149,7 +1151,7 @@ fn PlanTab(
                 <h2>"Regelstudienplan"</h2>
                 <p>
                     "Aus der Prüfungs- und Studienordnung übernommen und geprüft"
-                    {validated.as_deref().map(|at| format!(" am {}", format::date(at)))}"."
+                    {validated.as_deref().map(|at| format!(" am {}", format::date(at, crate::i18n::locale())))}"."
                     {source.as_ref().map(|(pages, label)| view! {
                         " Dort auf "{pages.clone()}
                         {label.clone().map(|label| format!(", unter „{label}“"))}"."
@@ -1309,7 +1311,7 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
                         <td class="c-kind"></td>
                         {foot.into_iter().map(|(over, sum)| {
                             let spans = over > 1;
-                            view! { <td class="lp num" class:spans=spans colspan=over>{sum.map(format::number)}</td> }
+                            view! { <td class="lp num" class:spans=spans colspan=over>{sum.map(|value| format::number(value, crate::i18n::locale()))}</td> }
                         }).collect_view()}
                     </tr>
                 </tfoot>
@@ -1381,7 +1383,7 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
                                         <span class="gcount">{count}" Module"</span>
                                     </span>
                                 </th>
-                                <td class="c-lp num">{(sum > 0.0).then(|| format::number(sum))}</td>
+                                <td class="c-lp num">{(sum > 0.0).then(|| format::number(sum, crate::i18n::locale()))}</td>
                             </tr>
                             {entries.into_iter().map(|(row, entry)| {
                                 let row_id = entry.module_id.clone();
@@ -1540,7 +1542,7 @@ fn section_groups(entries: &[PlanEntry]) -> Vec<RowGroup> {
 /// wording stays in the title, so nothing is invented and nothing is claimed).
 fn kind_cell(kind: Option<Code<ModuleKind>>) -> AnyView {
     match kind {
-        Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label().to_string()}</span> }.into_any(),
+        Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(crate::i18n::locale()).to_string()}</span> }.into_any(),
         None => view! { <span class="unknown" title="Art nicht angegeben">"–"</span> }.into_any(),
     }
 }
@@ -1582,8 +1584,8 @@ fn module_row(row: ModuleRow, links: Memo<ProgramUrl>, open: Memo<Option<String>
                 <OfferBadge status=row.offer/>
             </th>
             <td class="c-kind">{kind_cell(row.kind)}</td>
-            <td class="c-lp num">{row.credits.map(format::number)}</td>
-            <td class="c-turnus">{row.turnus.as_ref().map(|season| format::turnus(Some(season), None))}</td>
+            <td class="c-lp num">{row.credits.map(|value| format::number(value, crate::i18n::locale()))}</td>
+            <td class="c-turnus">{row.turnus.as_ref().map(|season| format::turnus(Some(season), None, crate::i18n::locale()))}</td>
             <td class="c-sem num" class:unknown=row.semester.is_none()>
                 {row.semester.map(|n| format!("{n}.")).unwrap_or_else(|| "–".to_string())}
             </td>
@@ -1717,7 +1719,7 @@ fn AreasTab(
                                         <a class="ginner" data-walk="area" data-noscroll="" href=move || area_href(&links.get(), group.id) aria-current=move || (area.get() == Some(group.id)).then_some("true")>
                                             <span class="gname">{group.label}</span>
                                             {group.parent.map(|parent| view! { <span class="gpath">{parent}</span> })}
-                                            <span class="gcount">{count}" Module"{(sum > 0.0).then(|| format!(" · {} LP", format::number(sum)))}</span>
+                                            <span class="gcount">{count}" Module"{(sum > 0.0).then(|| format!(" · {} LP", format::number(sum, crate::i18n::locale())))}</span>
                                         </a>
                                     </th>
                                 </tr>
@@ -1765,8 +1767,8 @@ fn MyPlanTab(slug: String) -> impl IntoView {
 /// What a sum prints: a number, or the span the regulation prints in its place.
 fn printed_credits(total: &PlanTotal) -> String {
     match total.is_span() {
-        true => format!("{}–{}", format::number(total.credits), format::number(total.credits_max)),
-        false => format::number(total.credits),
+        true => format!("{}–{}", format::number(total.credits, crate::i18n::locale()), format::number(total.credits_max, crate::i18n::locale())),
+        false => format::number(total.credits, crate::i18n::locale()),
     }
 }
 

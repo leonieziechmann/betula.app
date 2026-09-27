@@ -743,6 +743,7 @@ dependencies = [
  "hmac",
  "leptos",
  "leptos_axum",
+ "leptos_router",
  "png",
  "reqwest",
  "resvg",

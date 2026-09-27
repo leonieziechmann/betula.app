@@ -24,10 +24,10 @@ use super::clash::{self, Weeks};
 use super::day::Day;
 use super::exams::ExamShape;
 use super::facts::SemesterFacts;
-use super::kind::EventKind;
 use super::model::{Event, Row, Timetable};
 use super::occur::Every;
 use super::rowkey::RowKey;
+use crate::i18n::Locale;
 use crate::search::fold;
 
 /// Days a recurring Termin's first or last week may lie from the lecture period's first or last
@@ -105,15 +105,16 @@ pub fn short_title(title: &str) -> String {
 
 /// The kinds of an event in a slot's few letters: „VL", „Ü", „VL/Ü". The week's slots and the
 /// calendar's entries begin with them.
-pub fn kind_short(event: &Event) -> String {
-    event.kinds.iter().map(EventKind::short).collect::<Vec<_>>().join("/")
+pub fn kind_short(event: &Event, locale: Locale) -> String {
+    event.kinds.iter().map(|kind| kind.short(locale)).collect::<Vec<_>>().join("/")
 }
 
-/// What QIS calls an event („Übung", „Vorlesung/Übung", „Laborausbildung"), else its kinds.
-pub fn type_text(event: &Event) -> String {
+/// What QIS calls an event („Übung", „Vorlesung/Übung", „Laborausbildung": the data's words,
+/// in every language), else its kinds in `locale`.
+pub fn type_text(event: &Event, locale: Locale) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
         Some(text) => text.to_string(),
-        None => event.kinds.iter().map(EventKind::label).collect::<Vec<_>>().join("/"),
+        None => event.kinds.iter().map(|kind| kind.label(locale)).collect::<Vec<_>>().join("/"),
     }
 }
 
