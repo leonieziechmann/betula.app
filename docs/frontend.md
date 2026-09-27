@@ -24,7 +24,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -480,6 +480,26 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
   the focus goes to the start of the page (`#content`, where „Zum Inhalt springen" leads), not to
   where the button was; Tab from the end of a page meets it before the ground. It needs
   JavaScript (R15); the classic site before the takeover has it as well.
+- **The Stundenplan on a phone** (owner, 2026-09-27: „Es gibt keine Wochenansicht beim Kalender
+  auf dem Smartphone"; `app/src/pages/studyplan/week.rs` `WeekCarousel`, `mod.rs`): „Woche" is
+  the week grid of a wide screen too, fitted to the height the screen leaves under the bar of the
+  search and over the bottom bar, and it alone takes the whole width of the screen („den ganzen
+  horizontalen Platz"; it leaves the page's margin and the panel's, 12 + 14 px, and the rest of
+  the page keeps them). Its slots say what and where they are held („zeige auch die location
+  an"), their time only where a slot is wide enough (a tablet's); the red mark of a clash stands
+  in a slot's bottom corner, where it covers no name. A slot is a link to its module; the „✓" and
+  „×" are the list's. Where the plan has Termine of A or B weeks only, the grid is a carousel of
+  „A-Woche", „B-Woche" and „A/B", as the pictures of the start page are one, with the tabs under
+  it (they take the place of the head's switch): a finger carries the weeks sideways and lets the
+  next one in, any other move scrolls the page, and the three stand in a row without going round.
+  Under the grid the list of the week's days (each Termin a row as tall as a finger, with its
+  buttons) is closed until its line „Termine als Liste (8) +" opens it („standardmäßig
+  eingeklappt"); the line counts the week shown, and the list stays open while a module opened
+  from it is the page. With nothing planned a phone shows no empty week, only „Noch keine
+  Termine" and the ways to modules, as before: the page stays shorter than the screen.
+  „Kalender" (the .ics file and the subscription) stands under the Termine, in every view: in the
+  sheet „Anpassen", among what is shown, nobody looked for it. A wider screen keeps it in the
+  sidebar.
 - **Tokens:** `app/assets/app.css` starts with the token block (colors, radii, shadows); everything
   below uses tokens only. One look, light and dark: dark follows the system, the switch in the rail
   overrides it (`data-theme` on `<html>`, remembered in `localStorage`). Accent color only for
@@ -1788,6 +1808,23 @@ history entry; „Zurücksetzen" empties it), the area picker staying open while
 shrinks (the on-screen keyboard) and counting its modules, and the virtual list with the window
 scrolling (the last rows at its end, the page keeping its height, no two rows overlapping,
 `page` following).
+
+```bash
+cd e2e && node studyplan-phone.mjs
+```
+
+drives the Stundenplan's week on a phone, with real touches as `phone.mjs` does, on any snapshot:
+it plans modules of the current semester held in A weeks, in B weeks and every week, which it
+finds in the snapshot the server serves (`/api/db`, read with the app's own sql.js). The week is
+a grid as wide as the window, three of them (A/B shown, the others out of the pointer's and the
+focus's reach) with their tabs under them and no switch in the head; each slot tall enough says
+where it is held; a swipe to the right brings the week before, carried by the finger while it
+moves, and opens nothing; two more end at the A-Woche; a short move changes nothing, a move up
+scrolls the page; the list of days is closed under a line that counts the week shown, opens with
+it and follows the tabs; a slot opens its module, and back the week is in view as it was;
+„Kalender" stands under the Termine in the views „Woche", „Termine" and „Prüfungen" and not in
+the sheet; a wide screen keeps it in the sidebar and the switch in the head; a plan without A or
+B weeks has the grid alone.
 
 ```bash
 cd e2e && node ground.mjs

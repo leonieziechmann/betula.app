@@ -15,7 +15,8 @@
 //! from it floating over the page at its right edge, as the catalog's preview does (`aside.rs`).
 //! The week is there before anything is planned (owner, 2026-09-25), with what to do in its middle.
 //! Its parts share one `PlanCtx`: the memos below, built once per page. On a phone the sidebar is
-//! a sheet, opened by „Anpassen" (`SheetToggle`), and the module beside the plan is the page.
+//! a sheet, opened by „Anpassen" (`SheetToggle`), the calendar (`export.rs`) stands under the
+//! Termine instead of in it, and the module beside the plan is the page.
 //!
 //! The memo graph keeps to R16 (docs/frontend.md): no closure reads a source together with a memo
 //! derived from it. The semester shown depends on the plan (the default semester, B.4), so it is
@@ -53,6 +54,7 @@ use leptos_router::hooks::use_location;
 
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
+use self::export::CalendarGroup;
 use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, NothingPlanned, Overlaps, SemesterHead};
 use self::modules::ModuleList;
 use self::side::PlanSidebar;
@@ -60,6 +62,7 @@ use self::week::{DatesView, WeekLoose, WeekView};
 use crate::data::{use_source, DataError, Source};
 use crate::local::{self, ModuleInPlace};
 use crate::myprogram::MyProgram;
+use crate::pages::catalog::phone_layout;
 use crate::pending::{Change, Pending};
 use crate::seo::Seo;
 use crate::skeleton::DetailSkeleton;
@@ -111,6 +114,14 @@ pub(super) struct PlanCtx {
     /// „Alle Termine": „Woche" shows every Termin of the planned modules, what the plan leaves out
     /// faint (owner, 2026-09-25). A view setting of the page, not stored.
     pub all: RwSignal<bool>,
+    /// The phone's layout is in use (`nav::is_phone`, following the window): there the week is a
+    /// carousel of its weeks over the list of its days, and the calendar stands under the Termine
+    /// instead of in the sidebar, which is a sheet there („Anpassen").
+    pub phone: RwSignal<bool>,
+    /// On a phone the list of the week's days under its grid is open (owner, 2026-09-27: closed
+    /// until asked for). A view setting of the page, not stored; it outlasts the module opened
+    /// from the list, so that closing the module finds its row.
+    pub days: RwSignal<bool>,
 }
 
 /// The semester the page shows: the one the catalog has dates for, the snapshot's current one
@@ -216,6 +227,8 @@ pub fn StudyplanPage() -> impl IntoView {
         undo: RwSignal::new(None),
         weeks: RwSignal::new(Weeks::All),
         all: RwSignal::new(false),
+        phone: phone_layout(),
+        days: RwSignal::new(false),
     };
 
     // What fills the page: the plan, or the module after „Vollbild" (on a phone as well: the
@@ -314,6 +327,10 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                     <ExamAlerts ctx/>
                     <Overlaps ctx/>
                     <div class="sp-view">{view}</div>
+                    // On a phone the calendar stands under the Termine, in every view (owner,
+                    // 2026-09-27: in „Anpassen", among what is shown, nobody finds it); with
+                    // nothing planned there is nothing to export.
+                    {move || (ctx.phone.get() && planned.get()).then(|| view! { <section class="sp-export"><CalendarGroup ctx/></section> })}
                 }
                 .into_any(),
             }}

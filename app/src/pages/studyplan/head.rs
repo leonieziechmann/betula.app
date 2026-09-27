@@ -153,9 +153,9 @@ fn head_line(data: &StudyplanData) -> Option<HeadLine> {
 
 /// The head: „Stundenplan WiSe 2026/27" (the one semester the page shows, owner's redesign of
 /// 2026-09-25), on a phone „Anpassen" at its right end, in „Woche" with modules planned „Plan ·
-/// Alle Termine" and the switch of A and B weeks where it applies, and the program and the
-/// numbers under it. Then, where it applies, the line of a past semester, or of one whose dates
-/// are not out yet.
+/// Alle Termine" and the switch of A and B weeks where it applies (on a phone the tabs of the
+/// week's carousel), and the program and the numbers under it. Then, where it applies, the line
+/// of a past semester, or of one whose dates are not out yet.
 #[component]
 pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let key = ctx.key;
@@ -179,7 +179,8 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let line = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(head_line)));
     // „A-Woche · B-Woche · A/B" at the head's right end, beside the week it switches, where the
     // plan has Termine of one kind of week (the room above the week is the week's, owner
-    // 2026-09-25: the whole week in view).
+    // 2026-09-25: the whole week in view). On a phone the week is a carousel of the three with
+    // their tabs under it (`WeekCarousel`).
     let weekly = Memo::new(move |_| ctx.url.with(|url| matches!(url.view, PlanView::Week | PlanView::Overview)));
     let ab = Memo::new(move |_| ctx.table.with(|table| table.as_ref().is_some_and(has_ab)));
     let planned = Memo::new(move |_| ctx.wanted.with(|wanted| !wanted.1.is_empty()));
@@ -189,7 +190,7 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
             <h1>"Stundenplan "<span>{move || key.get().label()}</span></h1>
             <SheetToggle/>
             {move || (weekly.get() && planned.get()).then(|| view! { <AllSwitch all=ctx.all/> })}
-            {move || (weekly.get() && ab.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
+            {move || (weekly.get() && ab.get() && !ctx.phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
         </div>
         {move || {
             let text = sum.get();

@@ -1719,11 +1719,47 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
   .sp-fold { min-height: min(calc(100cqh - 41px), 960px); }
   .sp-view, .sp-week { flex: 1 1 auto; }
   .sp-week { min-height: 340px; max-height: 800px; }
-  .week.fit { flex: 1 1 auto; grid-template-rows: auto minmax(0, 1fr); }
-  .week.fit .hours { grid-auto-rows: minmax(0, 1fr); }
-  .week.fit .col { height: auto; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px calc(200% / var(--span))); }
-  .week.fit .slot { top: calc((var(--from) - var(--first)) * 100% / var(--span)); height: calc((var(--to) - var(--from)) * 100% / var(--span) - 2px); }
 }
+.week.fit { flex: 1 1 auto; grid-template-rows: auto minmax(0, 1fr); }
+.week.fit .hours { grid-auto-rows: minmax(0, 1fr); }
+.week.fit .col { height: auto; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px calc(200% / var(--span))); }
+.week.fit .slot { top: calc((var(--from) - var(--first)) * 100% / var(--span)); height: calc((var(--to) - var(--from)) * 100% / var(--span) - 2px); }
+/* On a phone and a small screen the week is a grid as well (div.sp-carousel > div.sp-slide >
+   div.sp-week > .week.fit, owner 2026-09-27), as tall as the screen leaves it under the bar of the
+   search and over the tabs and the bar at the bottom, over the list of its days. It alone takes
+   the whole width of the screen (owner: „den ganzen horizontalen Platz", the rest of the page as
+   it is): out of the page's margin and the panel's (12px + 14px, `--bleed`), a band without the
+   frame of a box, its top and its bottom a line. Where the plan has A or B weeks the three weeks
+   are a carousel as the pictures of the start page are (`--at`, -2 … 2, week.rs `WeekCarousel`):
+   the week shown fills the band, its neighbours wait beside it out of sight, smaller and veiled,
+   and come in with the finger that carries the weeks sideways (`--drag`, without their spring
+   while it does; up and down it scrolls the page). The tabs under them (div.seg.sp-weektabs) name
+   the weeks, the mark of the one shown slides to it (--i). */
+@property --drag { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.sp-carousel { --bleed: 26px; --w: 100cqw; --side: .92; --step: calc(var(--w) * (1 + var(--side)) / 2 + 6px); position: relative; container-type: inline-size; height: clamp(340px, calc(100vh - 240px), 560px); height: clamp(340px, calc(100svh - 240px), 560px); margin: 0 calc(-1 * var(--bleed)); overflow: hidden; touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
+.sp-slide { position: absolute; top: 0; left: 50%; width: var(--w); height: 100%; display: flex; flex-direction: column; z-index: var(--z, 3); transform: translateX(calc(-50% + var(--at, 0) * var(--step) + var(--drag, 0px))) scale(var(--scale, 1)); transition: transform .5s var(--spring), opacity .3s, z-index .5s linear; }
+.sp-carousel.dragging > .sp-slide { transition: none; }
+.sp-slide > .sp-week { flex: 1 1 auto; min-height: 0; }
+.sp-slide::after { content: ""; position: absolute; inset: 0; z-index: 4; background: var(--panel); opacity: 0; pointer-events: none; transition: opacity .3s; }
+.sp-slide.is-side { --scale: var(--side); --z: 2; }
+.sp-slide.is-side::after { opacity: .45; }
+.sp-slide.is-far { --scale: var(--side); --z: 1; opacity: 0; }
+/* The width goes to the days: a narrower column of hours, closer days, and slots whose text starts
+   right after their bar (at most a fifth of a slot's width, as the base rule keeps it). */
+.sp-slide .week { grid-template-columns: 22px var(--cols, repeat(var(--days, 5), minmax(0, 1fr))); gap: 0 3px; padding: 8px 8px 10px 4px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line); }
+.sp-slide .slot { padding-left: clamp(0px, calc((var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px) / 5), 5px); padding-right: clamp(0px, calc((var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px) / 8), 3px); }
+/* A slot says where it is held, under its name (owner, 2026-09-27: „zeige auch die location an"),
+   and its time only where it is wide enough for it (a tablet's): the grid's hours say it, and the
+   list under the grid. Its height still decides, as above. */
+@container (min-height: 38.51px) { .sp-slide .slot > small.p { display: block; } }
+@container (min-width: 80px) and (min-height: 26.5px) { .sp-slide .slot > small:not(.p) { display: block; } }
+/* The red mark of a clash stands in the bottom corner, which the lines of a slot leave free: in a
+   day's narrow lane the name reaches the top corner. */
+.sp-carousel .sp-slide .slot.clash::after, .sp-carousel .sp-slide .slot-frame::after { top: auto; bottom: 3px; }
+.sp-weektabs { position: relative; width: min(100%, 380px); margin: 0 auto; }
+.sp-weekmark { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 3); border-radius: 7px; background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); transform: translateX(calc(var(--i, 0) * 100%)); transition: transform .4s var(--spring); }
+.seg.sp-weektabs button { position: relative; z-index: 1; }
+.seg.sp-weektabs button[aria-checked="true"] { background: transparent; box-shadow: none; }
 @container page (min-width: 900px) {
   .sp-body { grid-template-columns: minmax(0, 1fr) clamp(250px, 28%, 340px); grid-template-rows: auto 1fr; gap: 0 24px; }
   .sp-body > .sp-fold { grid-area: 1 / 1; }
@@ -1893,8 +1929,16 @@ i.sp-key { width: 14px; padding: 0; }
 .slot.once[class*=" t-"] { background: color-mix(in oklch, var(--tint) 7%, var(--panel)); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); }
 a.slot { cursor: pointer; transition: filter .12s; }
 a.slot:hover { filter: brightness(.96); }
-/* On a phone the week is a list of days (div.sp-daylist > section > h3.label + a …): the time, then
-   what it is; the tone as a bar on the left, a choice not made dashed, a clash red. */
+/* On a phone the week's grid has its days as a list under it, closed until its line opens it
+   (button.sp-days-toggle[aria-expanded] > span.num, owner 2026-09-27): quiet like the line of
+   overlaps, „+" while closed, „–" while open, the whole line a finger's target. */
+.sp-days-toggle { display: flex; align-items: center; gap: 5px; width: 100%; min-height: 44px; margin: -4px 0; color: var(--text-2); font-weight: 580; font-size: 13.5px; text-align: left; }
+.sp-days-toggle:hover { color: var(--text); }
+.sp-days-toggle .num { color: var(--text-3); font-weight: 500; font-variant-numeric: tabular-nums; }
+.sp-days-toggle::after { content: "+"; color: var(--text-3); font-weight: 500; }
+.sp-days-toggle[aria-expanded="true"]::after { content: "–"; }
+/* The list of days (div.sp-daylist > section > h3.label + a …): the time, then what it is; the
+   tone as a bar on the left, a choice not made dashed, a clash red. */
 .sp-daylist { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .sp-daylist section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .sp-daylist a { min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 3px 0 0 var(--tint, var(--text-3)); color: var(--text); font-size: 14px; text-decoration: none; }
@@ -2039,6 +2083,15 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .sp-sub { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 2px 0 4px 17px; padding-left: 8px; border-left: 2px solid var(--line); }
 .sp-sub .hint { margin: 4px 0 2px 10px; }
 .sidebar .note { margin-top: 6px; }
+/* On a phone „Kalender" stands under the Termine (section.sp-export > div.fgroup.actions, the
+   sidebar's group, export.rs), set off from them by a rule: its two ways as framed buttons across
+   the page, what „Abonnieren" opens under them as in the sidebar. */
+.sp-export { padding-top: 14px; border-top: 1px solid var(--line); }
+.sp-export > .fgroup.actions { gap: 6px; padding: 0; }
+.sp-export > .fgroup > .flabel { margin-bottom: 2px; }
+.sp-export > .fgroup > a.action, .sp-export > .fgroup > button.action { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.sp-export > .fgroup > button.action[aria-expanded="true"] { background: var(--panel-2); }
+.sp-export .note { margin: 0; }
 /* „.ics herunterladen" without a file: an action that does nothing looks like none. */
 .action[aria-disabled="true"], .action[aria-disabled="true"] .icon { color: var(--text-3); cursor: default; }
 .action[aria-disabled="true"]:hover { background: none; }
