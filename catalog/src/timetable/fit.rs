@@ -31,6 +31,16 @@
 //! only Termine are retakes is unknown as well („nur Wiederholungsprüfung"). A retake the plan's
 //! fixed Termine leave no room for is a conflict all the same: once the module is planned, the
 //! Studienplan names it as a hard exam overlap.
+//!
+//! The notes are written in the language `fits` is asked for (`i18n::timetable`): a module whose
+//! rows have no time to compare (`no_fixed_dates`); one with nothing to compare whose Termine with
+//! a time are all of classes the visitor left out, „Vorlesungen" off and a module of lectures, so
+//! it has fixed Termine that were only not compared (`not_compared`); one whose only exam Termine
+//! are retakes, one of them free, with no teaching to compare (`retake_only`); one whose first
+//! exam Termin overlaps one the plan holds while it has another Termin, or whose exam meets the
+//! Erstermin of a planned module that has another (`exam_clashes_with_first`), or the same for a
+//! hop between campuses that is too short, `exams::CITY_GAP` and `exams::SITE_GAP`
+//! (`exam_close_to_first`); and the share of free lectures and Übungen of a partial fit.
 
 use std::borrow::Cow;
 use std::collections::btree_map::Entry;
@@ -44,33 +54,16 @@ use super::kind::{Class, KindSet};
 use super::model::{Attendance, Event, Input, Row, Timetable};
 use super::select::{FitOptions, HiddenBy, Selection, Town, TownChoice};
 use super::semester::SemesterKey;
+use crate::i18n::timetable::Texts;
+use crate::i18n::Locale;
 use crate::rows::Semester;
 use crate::rows_detail::{DateRow, ModuleSws};
 
-/// The note of a module whose rows have no time to compare.
-pub const UNKNOWN_NOTE: &str = "keine festen Termine";
-
-/// The note of a module with nothing to compare whose Termine with a time are all of classes the
-/// visitor left out („Vorlesungen" off, a module of lectures): it has fixed Termine, they were
-/// only not compared.
-pub const UNCOMPARED_NOTE: &str = "nicht verglichen";
-
-/// The note of a module whose only exam Termine are retakes, one of them free, and that has no
-/// teaching to compare: a retake is sat after a failed first attempt, so it says nothing about
-/// taking the module.
-pub const RETAKE_NOTE: &str = "nur Wiederholungsprüfung";
-
-/// The note of a module whose first exam Termin overlaps one the plan holds, while it has another
-/// Termin, or whose exam meets the Erstermin of a planned module that has another.
-pub const EXAM_OVERLAP_NOTE: &str = "Prüfung überschneidet sich mit Erstermin";
-
-/// The same for a hop between campuses that is too short (`exams::CITY_GAP`, `exams::SITE_GAP`).
-pub const EXAM_TIGHT_NOTE: &str = "Prüfung zu knapp am Erstermin";
-
 /// The note of a module with city tracks whose course in `town` fits better than the other, in a
-/// plan that names no town: the Studienplan shows both courses until a town is chosen.
-pub fn town_note(town: Town) -> String {
-    format!("nur in {}", town.label())
+/// plan that names no town: the Studienplan shows both courses until a town is chosen („nur in
+/// Senftenberg").
+pub fn town_note(town: Town, locale: Locale) -> String {
+    (locale.texts().timetable.only_in)(town.label())
 }
 
 /// How a module fits the plan.
@@ -189,9 +182,11 @@ pub fn candidates(
     CandidateSet { key: (facts.key, options, hidden_kinds, town), modules }
 }
 
-/// The verdict on every candidate that is not planned, in the order of the set. The plan is the
-/// semester's `Timetable` with the visitor's selection; the classes compared are the set's.
-pub fn fits(plan: &Timetable, set: &CandidateSet) -> Vec<Fit> {
+/// The verdict on every candidate that is not planned, in the order of the set, its note in
+/// `locale`. The plan is the semester's `Timetable` with the visitor's selection; the classes
+/// compared are the set's.
+pub fn fits(plan: &Timetable, set: &CandidateSet, locale: Locale) -> Vec<Fit> {
+    let texts = &locale.texts().timetable;
     let options = set.key.1;
     let shown: Vec<(usize, &Event)> = plan
         .events
@@ -219,11 +214,11 @@ pub fn fits(plan: &Timetable, set: &CandidateSet) -> Vec<Fit> {
                 .courses
                 .iter()
                 .map(|course| {
-                    let (verdict, note) = judge(&candidate.module_id, course, &context, &mut choices);
+                    let (verdict, note) = judge(&candidate.module_id, course, &context, &mut choices, texts);
                     (course.town, verdict, note)
                 })
                 .collect();
-            let (verdict, note) = best_course(&judged);
+            let (verdict, note) = best_course(&judged, locale);
             Fit { module_id: candidate.module_id.clone(), verdict, note }
         })
         .collect()
@@ -233,10 +228,10 @@ pub fn fits(plan: &Timetable, set: &CandidateSet) -> Vec<Fit> {
 /// names no town, and the Studienplan shows both of them until one is chosen: when the other
 /// course clashes, or fits only partly where this one fits, the note names this one's town and a
 /// fit is a partial one.
-fn best_course(judged: &[(Option<Town>, Verdict, Option<String>)]) -> (Verdict, Option<String>) {
+fn best_course(judged: &[(Option<Town>, Verdict, Option<String>)], locale: Locale) -> (Verdict, Option<String>) {
     let best = judged.iter().min_by_key(|(_, verdict, _)| preference(*verdict));
     let Some((town, verdict, note)) = best.cloned() else {
-        return (Verdict::Unknown, Some(UNKNOWN_NOTE.to_string()));
+        return (Verdict::Unknown, Some(locale.texts().timetable.no_fixed_dates.to_string()));
     };
     let worse = |other: Verdict| {
         matches!(other, Verdict::Partly | Verdict::Clashes) && preference(other) > preference(verdict)
@@ -244,7 +239,7 @@ fn best_course(judged: &[(Option<Town>, Verdict, Option<String>)]) -> (Verdict, 
     let other_worse = verdict != Verdict::Clashes && judged.iter().any(|(_, other, _)| worse(*other));
     match town.filter(|_| other_worse) {
         Some(town) => {
-            let only = town_note(town);
+            let only = town_note(town, locale);
             let note = match note {
                 Some(note) => format!("{note} · {only}"),
                 None => only,
@@ -502,10 +497,9 @@ struct Tally {
 }
 
 impl Tally {
-    /// „Übung 1 von 3 frei" when some but not all units are free.
-    fn note(&self, label: &str) -> Option<String> {
-        (self.free_units > 0 && self.free_units < self.units)
-            .then(|| format!("{label} {} von {} frei", self.free_units, self.units))
+    /// „Übung 1 von 3 frei" (`text`) when some but not all units are free.
+    fn note(&self, text: fn(usize, usize) -> String) -> Option<String> {
+        (self.free_units > 0 && self.free_units < self.units).then(|| text(self.free_units, self.units))
     }
 }
 
@@ -532,8 +526,14 @@ enum ExamFit {
     Fails,
 }
 
-/// The verdict on one course of a candidate.
-fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Choices) -> (Verdict, Option<String>) {
+/// The verdict on one course of a candidate, its note in the language of `texts`.
+fn judge(
+    module: &str,
+    course: &Course,
+    context: &Context<'_>,
+    choices: &mut Choices,
+    texts: &'static Texts,
+) -> (Verdict, Option<String>) {
     // The plan's events that are the module's too: attended once, they never clash.
     let shared: BTreeSet<usize> = course.ids.iter().filter_map(|id| context.index.get(id.as_str()).copied()).collect();
     let (mut lectures, mut others) = (Tally::default(), Tally::default());
@@ -577,7 +577,7 @@ fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Cho
         own.extend(mine);
     }
 
-    let exam = exam_fit(course, context);
+    let exam = exam_fit(course, context, texts);
     let fails = lectures.free_events < lectures.events
         || (others.events > 0 && others.free_events == 0)
         || matches!(exam, ExamFit::Fails);
@@ -587,10 +587,10 @@ fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Cho
     if lectures.events + others.events == 0 {
         match exam {
             ExamFit::Unknown => {
-                let note = if course.uncompared { UNCOMPARED_NOTE } else { UNKNOWN_NOTE };
+                let note = if course.uncompared { texts.not_compared } else { texts.no_fixed_dates };
                 return (Verdict::Unknown, Some(note.to_string()));
             }
-            ExamFit::Retake => return (Verdict::Unknown, Some(RETAKE_NOTE.to_string())),
+            ExamFit::Retake => return (Verdict::Unknown, Some(texts.retake_only.to_string())),
             ExamFit::Free | ExamFit::Note(_) | ExamFit::Fails => {}
         }
     }
@@ -602,8 +602,10 @@ fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Cho
         ExamFit::Note(note) => Some(note.to_string()),
         ExamFit::Unknown | ExamFit::Retake | ExamFit::Free | ExamFit::Fails => None,
     };
-    let notes: Vec<String> =
-        [lectures.note("Vorlesung"), others.note("Übung"), exam_note].into_iter().flatten().collect();
+    let notes: Vec<String> = [lectures.note(texts.lectures_free), others.note(texts.exercises_free), exam_note]
+        .into_iter()
+        .flatten()
+        .collect();
     if notes.is_empty() {
         (Verdict::Fits, None)
     } else {
@@ -615,8 +617,9 @@ fn judge(module: &str, course: &Course, context: &Context<'_>, choices: &mut Cho
 /// every fixed Termin is the one taken, and when none does, the module fails. When the taken one is
 /// not the first, or it meets a planned module's Erstermin, a note names the kind of that
 /// collision. A course with retakes alone fails when every one of them collides with a fixed
-/// Termin, as the Studienplan's warning is hard then; a free one leaves it unknown.
-fn exam_fit(course: &Course, context: &Context<'_>) -> ExamFit {
+/// Termin, as the Studienplan's warning is hard then; a free one leaves it unknown. The note is in
+/// the language of `texts`.
+fn exam_fit(course: &Course, context: &Context<'_>, texts: &'static Texts) -> ExamFit {
     let collision =
         |termin: &TerminAt, against: &[TerminAt]| against.iter().find_map(|other| exams::collision(termin, other));
     let free = |termin: &TerminAt| collision(termin, &context.fixed).is_none();
@@ -632,8 +635,8 @@ fn exam_fit(course: &Course, context: &Context<'_>) -> ExamFit {
     };
     let issue = if taken == 0 { collision(first, &context.firsts) } else { collision(first, &context.fixed) };
     match issue {
-        Some(WarningKind::Overlap) => ExamFit::Note(EXAM_OVERLAP_NOTE),
-        Some(WarningKind::Tight { .. }) => ExamFit::Note(EXAM_TIGHT_NOTE),
+        Some(WarningKind::Overlap) => ExamFit::Note(texts.exam_clashes_with_first),
+        Some(WarningKind::Tight { .. }) => ExamFit::Note(texts.exam_close_to_first),
         None => ExamFit::Free,
     }
 }
@@ -656,6 +659,13 @@ mod tests {
     const NO_EXERCISES: FitOptions = FitOptions { exercises: false, ..ALL };
     const NO_EXAMS: FitOptions = FitOptions { exams: false, ..ALL };
 
+    // The notes in German, as the tests ask for them.
+    const UNKNOWN_NOTE: &str = crate::i18n::timetable::DE.no_fixed_dates;
+    const UNCOMPARED_NOTE: &str = crate::i18n::timetable::DE.not_compared;
+    const RETAKE_NOTE: &str = crate::i18n::timetable::DE.retake_only;
+    const EXAM_OVERLAP_NOTE: &str = crate::i18n::timetable::DE.exam_clashes_with_first;
+    const EXAM_TIGHT_NOTE: &str = crate::i18n::timetable::DE.exam_close_to_first;
+
     type Verdicts = Vec<(String, Verdict, Option<String>)>;
 
     /// The plan of `planned` in the semester of `rows`, as the Studienplan builds it.
@@ -674,8 +684,23 @@ mod tests {
     }
 
     /// The finder's verdicts on every module of the rows but the planned ones, for a plan of
-    /// `planned` with `selection`, in `facts`' semester.
+    /// `planned` with `selection`, in `facts`' semester, the notes in German.
     fn finder_in(
+        facts: &SemesterFacts,
+        rows: &[Fixture],
+        exams: &[DateRow],
+        sws: &[ModuleSws],
+        planned: &[&str],
+        selection: &Selection,
+        options: FitOptions,
+    ) -> Verdicts {
+        finder_speaking(Locale::De, facts, rows, exams, sws, planned, selection, options)
+    }
+
+    /// The same, the notes in `locale`.
+    #[allow(clippy::too_many_arguments)]
+    fn finder_speaking(
+        locale: Locale,
         facts: &SemesterFacts,
         rows: &[Fixture],
         exams: &[DateRow],
@@ -688,7 +713,7 @@ mod tests {
         let plan = plan_of(facts, &schedule, exams, sws, &ids(planned), selection);
         let set =
             candidates(&Candidates { schedule: &schedule, exams, sws }, facts, None, selection, plan.town, options);
-        fits(&plan, &set).into_iter().map(|fit| (fit.module_id, fit.verdict, fit.note)).collect()
+        fits(&plan, &set, locale).into_iter().map(|fit| (fit.module_id, fit.verdict, fit.note)).collect()
     }
 
     /// The same in 2026W as the data has it.
@@ -991,6 +1016,27 @@ mod tests {
             fits_("L"),
         ];
         assert_eq!(finder(&[], &exams, &["P", "R"], &Selection::default(), ALL), expected);
+        // In English: the same verdicts, the notes in English.
+        let english = finder_speaking(Locale::En, &winter(), &[], &exams, &[], &["P", "R"], &Selection::default(), ALL);
+        let notes: Vec<(&str, Option<&str>)> = english.iter().map(|(module, _, note)| (module.as_str(), note.as_deref())).collect();
+        assert_eq!(
+            notes,
+            [
+                ("A", None),
+                ("B", Some("exam clashes with a first sitting")),
+                ("C", Some("exam clashes with a first sitting")),
+                ("D", None),
+                ("E", Some("exam too close to a first sitting")),
+                ("F", None),
+                ("G", None),
+                ("H", None),
+                ("I", Some("no fixed dates")),
+                ("J", Some("retake exam only")),
+                ("K", None),
+                ("L", None),
+            ]
+        );
+        assert!(english.iter().zip(&expected).all(|(en, de)| en.1 == de.1));
         // The Studienplan with F planned beside P and R warns of a hard overlap; with J or L it
         // does not. K's free retake would avoid one too, but it is no first attempt.
         let hard = |module: &str| {
@@ -1055,6 +1101,11 @@ mod tests {
                 fits_("U"),
                 partly("V", "Übung 1 von 2 frei · nur in Senftenberg")
             ]
+        );
+        let english = finder_speaking(Locale::En, &winter(), &rows, &[], &[], &["C"], &town(TownChoice::Both), ALL);
+        assert_eq!(
+            english,
+            [partly("T", "only in Senftenberg"), fits_("U"), partly("V", "1 of 2 exercises free · only in Senftenberg")]
         );
         // For the Studienplan shows both courses then: T's Cottbus lecture meets C's.
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
@@ -1176,7 +1227,7 @@ mod tests {
         assert_eq!(set.modules.iter().map(|c| c.module_id.as_str()).collect::<Vec<_>>(), ["P", "Q"]);
         let plan = |planned: &[&str]| plan_of(&winter(), &schedule, &[], &two, &ids(planned), &selection);
         let verdicts = |planned: &[&str]| -> Vec<(String, Verdict)> {
-            fits(&plan(planned), &set).into_iter().map(|fit| (fit.module_id, fit.verdict)).collect()
+            fits(&plan(planned), &set, Locale::De).into_iter().map(|fit| (fit.module_id, fit.verdict)).collect()
         };
         assert_eq!(verdicts(&["P"]), [("Q".to_string(), Verdict::Partly)]);
         assert_eq!(verdicts(&["Q"]), [("P".to_string(), Verdict::Fits)]);
@@ -1223,7 +1274,7 @@ mod tests {
         let set = candidates(&input, &facts, row, &selection, plan.town, ALL);
         let built = started.elapsed();
         let started = Instant::now();
-        let verdicts = fits(&plan, &set);
+        let verdicts = fits(&plan, &set, Locale::De);
         let checked = started.elapsed();
         let _ = writeln!(
             std::io::stderr(),
@@ -1305,7 +1356,7 @@ mod tests {
         // Grundlagen der Rechnernetze has no dated row in 2026W.
         assert_eq!(verdict(&verdicts, "11454"), None);
         let lenient = candidates(&input, &facts, row, &selection, plan.town, NO_EXERCISES);
-        let without = fits(&plan, &lenient);
+        let without = fits(&plan, &lenient, Locale::De);
         assert_ne!(verdict(&without, "13583"), Some(Verdict::Clashes));
         assert_eq!(verdict(&without, "11103"), Some(Verdict::Clashes));
     }

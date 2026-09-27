@@ -36,9 +36,6 @@ pub struct Texts {
     /// … or „andere Termine passen" (only a change of both).
     pub other_dates_fit: &'static str,
 
-    /// „Studienplan": the name of a calendar feed whose code names no semester.
-    pub calendar_name: &'static str,
-
     // A placeholder of the Stundenplan as the catalog's note of a semester says it
     // (`studyplan::placeholder_line`).
     /// „6 LP", „≥ 6 LP", „10–24 LP": the amount is written already, with a non-breaking space.
@@ -86,7 +83,6 @@ pub const DE: Texts = Texts {
     second_sitting_fits: |day| format!("Zweittermin {day} passt"),
     other_sitting_fits: |module, day| format!("{module} am {day} passt"),
     other_dates_fit: "andere Termine passen",
-    calendar_name: "Studienplan",
     credits: |amount| format!("{amount}\u{a0}LP"),
     from_area: "aus dem Bereich",
     from_areas: "aus den Bereichen",
@@ -115,7 +111,6 @@ pub const EN: Texts = Texts {
     second_sitting_fits: |day| format!("second sitting on {day} fits"),
     other_sitting_fits: |module, day| format!("{module} on {day} fits"),
     other_dates_fit: "other dates fit",
-    calendar_name: "Study plan",
     credits: |amount| format!("{amount}\u{a0}CP"),
     from_area: "from the area",
     from_areas: "from the areas",

@@ -234,6 +234,8 @@ pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMa
     };
     let started = Instant::now();
     let key = subscription.key().map(|key| key.key()).unwrap_or_default();
+    // The feed speaks the language of its address: `/en/calendar/<code>.ics` is English.
+    let locale = catalog::Locale::split(uri.path()).0;
     // A semester's rows and a few hundred entries: made off the threads that answer requests.
     let built = tokio::task::spawn_blocking(move || {
         let mut out: Result<String, catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));

@@ -170,24 +170,62 @@ pub fn easter_sunday(year: i32) -> Day {
     from_civil(year, month, day)
 }
 
+/// A public holiday of Brandenburg (FTG Bbg), in the order of the year.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Holiday {
+    NewYear,
+    GoodFriday,
+    EasterSunday,
+    EasterMonday,
+    LabourDay,
+    AscensionDay,
+    WhitSunday,
+    WhitMonday,
+    GermanUnityDay,
+    ReformationDay,
+    ChristmasDay,
+    BoxingDay,
+}
+
+impl Holiday {
+    /// Its name in `locale`: „Reformationstag", "Reformation Day".
+    pub fn name(self, locale: Locale) -> &'static str {
+        let t = &locale.texts().timetable;
+        match self {
+            Holiday::NewYear => t.new_year,
+            Holiday::GoodFriday => t.good_friday,
+            Holiday::EasterSunday => t.easter_sunday,
+            Holiday::EasterMonday => t.easter_monday,
+            Holiday::LabourDay => t.labour_day,
+            Holiday::AscensionDay => t.ascension_day,
+            Holiday::WhitSunday => t.whit_sunday,
+            Holiday::WhitMonday => t.whit_monday,
+            Holiday::GermanUnityDay => t.german_unity_day,
+            Holiday::ReformationDay => t.reformation_day,
+            Holiday::ChristmasDay => t.christmas_day,
+            Holiday::BoxingDay => t.boxing_day,
+        }
+    }
+}
+
 /// Brandenburg (FTG Bbg): Neujahr, Karfreitag, Ostersonntag, Ostermontag, Tag der Arbeit, Christi
 /// Himmelfahrt, Pfingstsonntag, Pfingstmontag, Tag der Deutschen Einheit, Reformationstag,
-/// 1. und 2. Weihnachtstag. Law, not a guess. In date order.
-pub fn holidays(year: i32) -> Vec<(Day, &'static str)> {
+/// 1. und 2. Weihnachtstag. Law, not a guess. In date order; `Holiday::name` names them.
+pub fn holidays(year: i32) -> Vec<(Day, Holiday)> {
     let easter = easter_sunday(year);
     let mut days = vec![
-        (from_civil(year, 1, 1), "Neujahr"),
-        (easter.plus(-2), "Karfreitag"),
-        (easter, "Ostersonntag"),
-        (easter.plus(1), "Ostermontag"),
-        (from_civil(year, 5, 1), "Tag der Arbeit"),
-        (easter.plus(39), "Christi Himmelfahrt"),
-        (easter.plus(49), "Pfingstsonntag"),
-        (easter.plus(50), "Pfingstmontag"),
-        (from_civil(year, 10, 3), "Tag der Deutschen Einheit"),
-        (from_civil(year, 10, 31), "Reformationstag"),
-        (from_civil(year, 12, 25), "1. Weihnachtstag"),
-        (from_civil(year, 12, 26), "2. Weihnachtstag"),
+        (from_civil(year, 1, 1), Holiday::NewYear),
+        (easter.plus(-2), Holiday::GoodFriday),
+        (easter, Holiday::EasterSunday),
+        (easter.plus(1), Holiday::EasterMonday),
+        (from_civil(year, 5, 1), Holiday::LabourDay),
+        (easter.plus(39), Holiday::AscensionDay),
+        (easter.plus(49), Holiday::WhitSunday),
+        (easter.plus(50), Holiday::WhitMonday),
+        (from_civil(year, 10, 3), Holiday::GermanUnityDay),
+        (from_civil(year, 10, 31), Holiday::ReformationDay),
+        (from_civil(year, 12, 25), Holiday::ChristmasDay),
+        (from_civil(year, 12, 26), Holiday::BoxingDay),
     ];
     // Christi Himmelfahrt can fall on the 1st of May (it did in 2008), so sort rather than trust
     // the order above. The sort is stable: on such a day Tag der Arbeit comes first.
@@ -331,7 +369,10 @@ mod tests {
         assert_eq!(easter_sunday(2027), day(2027, 3, 28));
         assert_eq!(easter_sunday(2028), day(2028, 4, 16));
         assert_eq!(easter_sunday(2008), day(2008, 3, 23));
-        let h2027 = holidays(2027);
+        let named = |year: i32, locale: Locale| -> Vec<(Day, &str)> {
+            holidays(year).into_iter().map(|(day, holiday)| (day, holiday.name(locale))).collect()
+        };
+        let h2027 = named(2027, Locale::De);
         assert_eq!(h2027.len(), 12);
         for (date, name) in [
             (day(2027, 3, 26), "Karfreitag"),
@@ -343,10 +384,22 @@ mod tests {
             assert!(h2027.contains(&(date, name)), "{} {name}", date.iso());
         }
         assert!(h2027.windows(2).all(|w| w[0].0 < w[1].0));
+        let english = named(2027, Locale::En);
+        for (date, name) in [
+            (day(2027, 1, 1), "New Year's Day"),
+            (day(2027, 3, 26), "Good Friday"),
+            (day(2027, 5, 6), "Ascension Day"),
+            (day(2027, 5, 17), "Whit Monday"),
+            (day(2027, 10, 3), "Day of German Unity"),
+            (day(2027, 12, 26), "Boxing Day"),
+        ] {
+            assert!(english.contains(&(date, name)), "{} {name}", date.iso());
+        }
         // 2008: Christi Himmelfahrt on the 1st of May, the day of Tag der Arbeit.
-        let h2008 = holidays(2008);
+        let h2008 = named(2008, Locale::De);
         assert!(h2008.windows(2).all(|w| w[0].0 <= w[1].0));
-        assert!(h2008.contains(&(day(2008, 5, 1), "Christi Himmelfahrt")));
+        let first_of_may: Vec<&str> = h2008.iter().filter(|(date, _)| *date == day(2008, 5, 1)).map(|(_, name)| *name).collect();
+        assert_eq!(first_of_may, ["Tag der Arbeit", "Christi Himmelfahrt"]);
         // Far outside any semester, still no panic.
         let _ = holidays(i32::MAX);
         let _ = holidays(i32::MIN);

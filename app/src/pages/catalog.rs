@@ -23,7 +23,7 @@ use catalog::plan::SemesterPlan;
 use catalog::queries;
 use catalog::rows::{CatalogRow, Department, Program};
 use catalog::studyplan::PlanDoc;
-use catalog::timetable::fit::{CandidateSet, UNKNOWN_NOTE};
+use catalog::timetable::fit::CandidateSet;
 use catalog::timetable::select::Selection;
 use catalog::timetable::semester::SemesterKey;
 use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
@@ -401,7 +401,7 @@ impl FitView {
     /// 2026/27") is left out (owner, 2026-09-23: „Viel Redundanz").
     fn note_of(&self, id: &str, no_termine: bool) -> Option<(String, bool)> {
         match self.notes.get(id) {
-            Some(note) if no_termine && note.starts_with(UNKNOWN_NOTE) => None,
+            Some(note) if no_termine && note.starts_with(crate::i18n::locale().texts().timetable.no_fixed_dates) => None,
             Some(note) => Some((note.clone(), self.quiet.contains(id))),
             None => self.undated_note.clone().filter(|_| !no_termine && !self.fitting.contains(id)).map(|note| (note, true)),
         }
@@ -455,7 +455,7 @@ fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgra
     }
     // The candidates are taken out while the finder runs, so nothing is borrowed across it.
     let mut set = FIT_CACHE.with(|cache| cache.try_borrow_mut().ok().and_then(|mut cache| cache.set.take()));
-    let answer = source.run(|db| pages::fit(db, &filter, &asked.1, &asked.2, &mut set));
+    let answer = source.run(|db| pages::fit(db, &filter, &asked.1, &asked.2, &mut set, crate::i18n::locale()));
     FIT_CACHE.with(|cache| {
         if let Ok(mut cache) = cache.try_borrow_mut() {
             cache.set = set;

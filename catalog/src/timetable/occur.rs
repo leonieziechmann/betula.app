@@ -10,9 +10,10 @@
 //! day. No date is invented: a note that names a replacement only says so (`cancel`).
 
 use super::cancel;
-use super::day::{minutes, Day};
+use super::day::{minutes, Day, Holiday};
 use super::facts::SemesterFacts;
 use super::kind::fold;
+use crate::i18n::Locale;
 use crate::labels::{Code, Rhythm};
 use crate::rows_detail::{DateRow, EventDate};
 
@@ -20,8 +21,22 @@ use crate::rows_detail::{DateRow, EventDate};
 /// (147307's, 2026 to 2028) stops here instead of filling a calendar.
 pub const MAX_OCCURRENCES: usize = 400;
 
-/// Why a recurring date in a break is not held. A date skipped for a holiday names the holiday.
-pub const BREAK_NOTE: &str = "vorlesungsfrei";
+/// Why a recurring date is not held: it lies in a break, or it is a public holiday.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Skipped {
+    Break,
+    Holiday(Holiday),
+}
+
+impl Skipped {
+    /// Why, in `locale`: „vorlesungsfrei", or the holiday's name („Reformationstag").
+    pub fn text(self, locale: Locale) -> &'static str {
+        match self {
+            Skipped::Break => locale.texts().timetable.lecture_break,
+            Skipped::Holiday(holiday) => holiday.name(locale),
+        }
+    }
+}
 
 /// How often a recurring row meets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,8 +91,8 @@ pub struct Occurrences {
     pub days: Vec<Day>,
     /// Days QIS cancels, with the reason as written and the date the reason names instead.
     pub cancelled: Vec<(Day, Option<String>, Option<Day>)>,
-    /// Recurring days not held: `BREAK_NOTE` in a break, else the holiday's name.
-    pub skipped: Vec<(Day, &'static str)>,
+    /// Recurring days not held, and why: the break, or a holiday.
+    pub skipped: Vec<(Day, Skipped)>,
     /// Room notes of held days („LV findet ersatzweise im ZHG HS A statt.").
     pub notes: Vec<(Day, String)>,
     /// The range is the lecture period's, because the row has none.
@@ -166,12 +181,12 @@ pub fn occurrences(row: &DateRow, facts: &SemesterFacts) -> Occurrences {
     let notes = row.cancelled_dates.as_deref().map(cancel::parse).unwrap_or_default();
     for day in candidates {
         if skip == Skip::Recurring && facts.in_break(day) {
-            occ.skipped.push((day, BREAK_NOTE));
+            occ.skipped.push((day, Skipped::Break));
             continue;
         }
         if skip != Skip::Never {
-            if let Some(name) = facts.holiday(day) {
-                occ.skipped.push((day, name));
+            if let Some(holiday) = facts.holiday(day) {
+                occ.skipped.push((day, Skipped::Holiday(holiday)));
                 continue;
             }
         }
@@ -314,8 +329,12 @@ mod tests {
         occurrences(&row(f), facts)
     }
 
+    /// Why a date in the break is not held, in German.
+    const BREAK_NOTE: &str = crate::i18n::timetable::DE.lecture_break;
+
+    /// The skipped days and why, in German.
     fn skipped(occ: &Occurrences) -> Vec<(String, &'static str)> {
-        occ.skipped.iter().map(|(day, why)| (day.iso(), *why)).collect()
+        occ.skipped.iter().map(|(day, why)| (day.iso(), why.text(Locale::De))).collect()
     }
 
     #[test]
@@ -506,7 +525,11 @@ mod tests {
         );
         // A holiday in the break counts as the break.
         let friday = occ(Fixture { weekday: Some(5), ..WEEKLY }, &winter());
-        assert!(friday.skipped.contains(&(d("2027-01-01"), BREAK_NOTE)));
+        assert!(friday.skipped.contains(&(d("2027-01-01"), Skipped::Break)));
+        assert_eq!(skipped(&o).iter().map(|(_, why)| *why).collect::<Vec<_>>(), ["Tag der Deutschen Einheit", "Reformationstag"]);
+        let english: Vec<&str> = o.skipped.iter().map(|(_, why)| why.text(Locale::En)).collect();
+        assert_eq!(english, ["Day of German Unity", "Reformation Day"]);
+        assert_eq!(Skipped::Break.text(Locale::En), "no lectures");
         // A single date on a holiday and in the break is held (147958 on Neujahr).
         let single = Fixture {
             rhythm: Some("single"),
@@ -626,8 +649,8 @@ mod tests {
         assert!(o.days.len() + o.skipped.len() <= MAX_OCCURRENCES);
         assert!(o.days.len() > 250);
         // Its holidays past the winter are skipped like those inside it.
-        assert!(o.skipped.contains(&(d("2026-12-25"), "1. Weihnachtstag")));
-        assert!(o.skipped.contains(&(d("2027-05-06"), "Christi Himmelfahrt")));
+        assert!(skipped(&o).contains(&("2026-12-25".into(), "1. Weihnachtstag")));
+        assert!(skipped(&o).contains(&("2027-05-06".into(), "Christi Himmelfahrt")));
         assert!(o.days.iter().all(|day| !is_holiday(*day)));
         let o = occ(Fixture { range: Some(("2026-10-05", "2099-12-31")), ..WEEKLY }, &winter());
         assert_eq!(o.days.len() + o.skipped.len(), MAX_OCCURRENCES);

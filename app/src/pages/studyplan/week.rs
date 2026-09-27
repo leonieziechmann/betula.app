@@ -452,7 +452,7 @@ pub(super) fn DatesView(ctx: PlanCtx) -> impl IntoView {
     let today = ctx.today;
     let blocks = Memo::new(move |_| {
         let base = base.get();
-        ctx.table.with(|table| table.as_ref().map(|table| agenda_blocks(table, &table.agenda(), &base, today)).unwrap_or_default())
+        ctx.table.with(|table| table.as_ref().map(|table| agenda_blocks(table, &table.agenda(crate::i18n::locale()), &base, today)).unwrap_or_default())
     });
     let loose = Memo::new(move |_| {
         let base = base.get();
@@ -2174,7 +2174,7 @@ mod tests {
         let mut lecture = row("148701", 1, "Vorlesung", "weekly", 2, ("11:30", "13:00"), ("2026-10-06", "2027-01-26"));
         lecture.cancelled_dates = Some("13.10.2026: Projektwoche 19.01.2027: Raumwechsel".into());
         let table = table(&[lecture]);
-        let blocks = agenda_blocks(&table, &table.agenda(), &plain(), Some(d("2026-10-06")));
+        let blocks = agenda_blocks(&table, &table.agenda(catalog::Locale::De), &plain(), Some(d("2026-10-06")));
         let items = agenda_items(&blocks);
         let (when, first) = items.first().unwrap();
         assert_eq!((when.as_str(), first.time.as_str(), first.text.as_str()), ("Di 06.10.", "11:30–13:00", "Vorlesung · Entwicklung von Softwaresystemen"));
@@ -2205,7 +2205,7 @@ mod tests {
             exam("12107", "95", 2, "Klausur Statistik", None, ("", ""), Some("HG 0.19")),
         ];
         let table = planned(&["12104", "12107"], &[], &exams);
-        let blocks = agenda_blocks(&table, &table.agenda(), &plain(), None);
+        let blocks = agenda_blocks(&table, &table.agenda(catalog::Locale::De), &plain(), None);
         let shown: Vec<(String, &str, &str, &str, &str, bool)> = agenda_items(&blocks)
             .into_iter()
             .map(|(when, item)| (when, item.time.as_str(), item.text.as_str(), item.small.as_str(), item.class.as_str(), item.warn))
@@ -2266,7 +2266,7 @@ mod tests {
         let build = |selection: &Selection| Timetable::build(&Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[] }, selection);
 
         let open = build(&Selection::default());
-        let blocks = agenda_blocks(&open, &open.agenda(), &plain(), None);
+        let blocks = agenda_blocks(&open, &open.agenda(catalog::Locale::De), &plain(), None);
         let week = |id: &str| -> Vec<(String, String, String, String)> {
             blocks
                 .iter()
@@ -2290,7 +2290,7 @@ mod tests {
         // Today keeps its line (review 2026-09-25): its options stand as they are, and on the day
         // of the week's line nothing comes twice.
         let on = |today: &str| {
-            let blocks = agenda_blocks(&open, &open.agenda(), &plain(), Some(d(today)));
+            let blocks = agenda_blocks(&open, &open.agenda(catalog::Locale::De), &plain(), Some(d(today)));
             let days: Vec<(String, bool, Vec<String>)> = blocks
                 .into_iter()
                 .filter_map(|block| match block {
@@ -2321,7 +2321,7 @@ mod tests {
         // Chosen: that group's dates, one line each, as every other Termin.
         let chosen = open.events.iter().flat_map(|event| &event.rows).find(|row| row.date.weekday == Some(3)).and_then(|row| row.key).unwrap();
         let decided = build(&Selection { chosen_rows: [chosen].into(), ..Selection::default() });
-        let blocks = agenda_blocks(&decided, &decided.agenda(), &plain(), None);
+        let blocks = agenda_blocks(&decided, &decided.agenda(catalog::Locale::De), &plain(), None);
         let items = agenda_items(&blocks);
         assert!(items.iter().all(|(when, item)| when.starts_with("Mi") && item.time == "11:30–13:00" && !item.small.starts_with("1 von")), "{items:?}");
         assert!(items.len() > 10);

@@ -972,15 +972,15 @@ impl StudyplanData {
 
     /// The calendar of `table`, a timetable of this data, before it is written: the page asks
     /// whether it has entries at all before it offers a download. Its entries name the modules as
-    /// the week's slots do (`slot_names`).
-    pub fn calendar(&self, table: &Timetable) -> Calendar {
-        export::calendar_of(table, &self.titles(), &self.slot_names(), &self.label, &export::snapshot_stamp(&self.meta))
+    /// the week's slots do (`slot_names`). Written in `locale`.
+    pub fn calendar(&self, table: &Timetable, locale: Locale) -> Calendar {
+        export::calendar_of(table, &self.titles(), &self.slot_names(), &self.label, &export::snapshot_stamp(&self.meta), locale)
     }
 
     /// The calendar text of `table`: the feed and the download both call this, so they are
-    /// byte-identical.
-    pub fn ics(&self, table: &Timetable) -> String {
-        ics::write(&self.calendar(table))
+    /// byte-identical in one language.
+    pub fn ics(&self, table: &Timetable, locale: Locale) -> String {
+        ics::write(&self.calendar(table, locale))
     }
 
     /// The same data with one more module's rows (a module page's overlay): no new SQL for the
@@ -1155,13 +1155,15 @@ pub struct FitResult {
 
 /// The finder for the plan of `plan_ids` (the planned modules of `filter.semester`) as
 /// `selection` shows it. `cache`: the plan-independent `CandidateSet`, reused while its key
-/// matches (the app keeps it between calls), so a changed plan re-runs only `fit::fits`.
+/// matches (the app keeps it between calls), so a changed plan re-runs only `fit::fits`. The
+/// notes are in `locale`.
 pub fn fit(
     db: &dyn Database,
     filter: &FitsFilter,
     plan_ids: &[String],
     selection: &Selection,
     cache: &mut Option<CandidateSet>,
+    locale: Locale,
 ) -> Result<FitResult, DbError> {
     let mut seen = BTreeSet::new();
     let planned: Vec<String> = plan_ids.iter().filter(|id| seen.insert(id.as_str())).cloned().collect();
@@ -1199,7 +1201,7 @@ pub fn fit(
             fit::candidates(&rows, &facts, semester.as_ref(), selection, plan.town, options)
         }
     };
-    let verdicts = fit::fits(&plan, &set);
+    let verdicts = fit::fits(&plan, &set, locale);
     *cache = Some(set);
 
     let mut result = FitResult { has_data: true, ..FitResult::default() };
@@ -1530,16 +1532,17 @@ fn avoid_text(
 /// The calendar text of a subscription (the server's feed): the timetable is made anew from the
 /// snapshot for the code's semester, modules, program and hide rules, so exams QIS publishes later
 /// arrive by themselves. A semester the snapshot does not have is a calendar without entries that
-/// says so. `locale`: the language of the feed's address.
+/// says so. Written in `locale`, the language of the feed's address.
 pub fn calendar(db: &dyn Database, subscription: &Subscription, locale: Locale) -> Result<String, DbError> {
     let Some(key) = subscription.key() else {
         // A code decodes only with a semester; a subscription made by hand without one has none.
         let stamp = export::snapshot_stamp(&queries::meta(db)?);
-        return Ok(ics::write(&Calendar { name: locale.texts().plans.calendar_name.to_string(), stamp, ..Calendar::default() }));
+        let name = (locale.texts().timetable.feed_name)("");
+        return Ok(ics::write(&Calendar { name, stamp, ..Calendar::default() }));
     };
     let data = studyplan_in(db, key, &subscription.module_ids(), subscription.program.as_deref(), locale)?;
     let table = data.timetable(&subscription.selection());
-    Ok(data.ics(&table))
+    Ok(data.ics(&table, locale))
 }
 
 /// A plan handed on by a link (`timetable::share`) as its link preview and the offer to take it
@@ -1807,9 +1810,13 @@ mod studyplan_tests {
     use crate::labels::Code;
     use crate::native::NativeDatabase;
     use crate::timetable::day::Day;
-    use crate::timetable::fit::{RETAKE_NOTE, UNCOMPARED_NOTE, UNKNOWN_NOTE};
     use crate::timetable::model::tests::{ids, invariants, teaching, winter, Fixture};
     use crate::timetable::select::{FitOptions, Town};
+
+    // The finder's notes in German (`i18n::timetable`), as `fit` writes them for `Locale::De`.
+    const RETAKE_NOTE: &str = crate::i18n::timetable::DE.retake_only;
+    const UNCOMPARED_NOTE: &str = crate::i18n::timetable::DE.not_compared;
+    const UNKNOWN_NOTE: &str = crate::i18n::timetable::DE.no_fixed_dates;
 
     /// Informatik B.Sc., first semester, in plan order (the import's).
     const FS1: [&str; 4] = ["12104", "12107", "12102", "11112"];
@@ -1891,20 +1898,20 @@ mod studyplan_tests {
         let table = data.timetable(&subscription.selection());
         invariants(&table);
         assert_eq!(table.modules, ids(&FS1));
-        assert_eq!(data.ics(&table), feed, "the download is the feed");
-        assert_eq!(data.calendar(&table).entries.len(), uids.len());
+        assert_eq!(data.ics(&table, Locale::De), feed, "the download is the feed");
+        assert_eq!(data.calendar(&table, Locale::De).entries.len(), uids.len());
         // Without a program the modules go by their own abbreviations, on both sides alike.
         let own = Subscription { program: None, ..subscription.clone() };
         let plain = studyplan(&db, key, &ids(&FS1), Locale::De).unwrap();
         assert_eq!(plain.program, None);
-        assert_eq!(plain.ics(&plain.timetable(&own.selection())), calendar(&db, &own, Locale::De).unwrap(), "the download is the feed");
+        assert_eq!(plain.ics(&plain.timetable(&own.selection()), Locale::De), calendar(&db, &own, Locale::De).unwrap(), "the download is the feed");
         // A subscription made by hand without a semester: a calendar without entries.
         let nowhere = calendar(&db, &Subscription { semester: 0, ..subscription.clone() }, Locale::De).unwrap();
         well_formed(&nowhere);
         assert!(nowhere.contains("X-WR-CALNAME:Studienplan\r\n") && !nowhere.contains("BEGIN:VEVENT"));
         // The feed of an English address names itself in English, and so does the semester.
         let english = calendar(&db, &Subscription { semester: 0, ..subscription.clone() }, Locale::En).unwrap();
-        assert!(english.contains("X-WR-CALNAME:Study plan\r\n"), "{english}");
+        assert!(english.contains("X-WR-CALNAME:Timetable\r\n"), "{english}");
         let data_en = studyplan_in(&db, key, &ids(&FS1), Some(INFORMATIK), Locale::En).unwrap();
         assert_eq!((data_en.locale, data_en.label.as_str()), (Locale::En, key.label(Locale::En).as_str()));
         assert_eq!(data_en.ids, data.ids, "the same plan in every language");
@@ -2022,7 +2029,7 @@ mod studyplan_tests {
             assert_eq!(later.modules.len(), 4, "the modules are the catalog's, whatever the semester");
             let table = later.timetable(&Selection::default());
             assert_eq!(table.without_dates, ids(&FS1));
-            let feed = later.ics(&table);
+            let feed = later.ics(&table, Locale::De);
             well_formed(&feed);
             assert!(!feed.contains("BEGIN:VEVENT"));
             assert!(feed.contains("Noch keine Termine veröffentlicht"));
@@ -2039,7 +2046,7 @@ mod studyplan_tests {
         let selection = sachsendorf_hidden();
         let all = FitsFilter::all(&key.key());
         let mut cache = None;
-        let found = fit(&db, &all, &plan, &selection, &mut cache).unwrap();
+        let found = fit(&db, &all, &plan, &selection, &mut cache, Locale::De).unwrap();
 
         // What holds on any snapshot: the planned ones are left out, nothing is both listed and
         // left out, and a note belongs to a listed module, so no unknown (each has one) is left
@@ -2070,21 +2077,21 @@ mod studyplan_tests {
         if let Some(set) = kept.as_mut() {
             set.modules.clear();
         }
-        let again = fit(&db, &all, &plan, &selection, &mut kept).unwrap();
+        let again = fit(&db, &all, &plan, &selection, &mut kept, Locale::De).unwrap();
         assert!(again.fitting.is_empty() && again.notes.is_empty(), "rebuilt although the key held");
         let planned: Vec<String> = found.excluded.iter().filter(|id| FS1.contains(&id.as_str())).cloned().collect();
         assert_eq!(again.excluded, planned);
         assert!(kept.as_ref().is_some_and(|set| set.modules.is_empty()));
         // Another key builds them anew.
         let lenient = FitsFilter { exercises: false, ..all.clone() };
-        let without_exercises = fit(&db, &lenient, &plan, &selection, &mut kept).unwrap();
+        let without_exercises = fit(&db, &lenient, &plan, &selection, &mut kept, Locale::De).unwrap();
         assert!(kept.as_ref().is_some_and(|set| set.key.1 == FitOptions { exercises: false, ..all.options() }));
         assert_eq!(without_exercises.has_data, found.has_data);
         if found.has_data {
             assert!(kept.as_ref().is_some_and(|set| !set.modules.is_empty()));
         }
         // An address the semester parser refuses checks nothing.
-        let broken = fit(&db, &FitsFilter::all("2026X"), &plan, &selection, &mut None).unwrap();
+        let broken = fit(&db, &FitsFilter::all("2026X"), &plan, &selection, &mut None, Locale::De).unwrap();
         assert_eq!(broken, FitResult { excluded: ids(&["11112", "12102", "12104", "12107"]), ..FitResult::default() });
         if !is_pinned {
             return;
@@ -2117,7 +2124,7 @@ mod studyplan_tests {
         assert!(without_exercises.excluded.iter().any(|id| id == "11103"));
 
         // SoSe 2027 has no Termine yet: nothing is checked, the plan is left out.
-        let summer = fit(&db, &FitsFilter::all("2027S"), &plan, &selection, &mut cache).unwrap();
+        let summer = fit(&db, &FitsFilter::all("2027S"), &plan, &selection, &mut cache, Locale::De).unwrap();
         assert_eq!(summer, FitResult { excluded: ids(&["11112", "12102", "12104", "12107"]), ..FitResult::default() });
         assert_eq!(cache.as_ref().map(|set| set.key.0), Some(key), "a semester without data keeps the candidates");
     }
