@@ -6,10 +6,12 @@
 // page behind it standing still). There the map is drawn from what the server laid out; a pointer
 // over a dot shows its relatives in the caption, a click picks it (the outline of its faculty, the
 // others step back, the caption links to it) instead of opening it, and that link opens the
-// program without loading a page. Only the pictures that show are fetched, the sidebar follows
-// the scroll, the questions open in place, „Betula im Detail" follows them with its chapters and
-// every filter (on a phone the board's first groups, the others a tap away), the head describes
-// the page shown.
+// program without loading a page. Only the pictures that show are fetched. There is no sidebar
+// (owner, 2026-09-28): under the first panel the way in for a first visit, three steps into the
+// programs, the catalog and the Stundenplan that follow what this browser has done, with the way
+// into the search at the top and, at its foot, the jumps to the sections. The questions open in
+// place, „Betula im Detail" follows them with its chapters and every filter (on a phone the
+// board's first groups, the others a tap away), the head describes the page shown.
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { chromium } from "playwright-core";
@@ -68,6 +70,24 @@ const hero = await page.evaluate(() => {
 });
 check(hero.beside && hero.height < 340, `the first panel is not flat: ${JSON.stringify(hero)}`);
 check(hero.spread < 1.08 && hero.names === 1, `the figures are not equally wide, or their names not on one line: ${JSON.stringify(hero)}`);
+
+// No sidebar, and under the first panel the way in: three steps side by side, the first the next
+// one for a browser that has done nothing yet, each naming the item of the navigation that keeps it.
+const way = await page.evaluate(() => ({
+  sidebar: document.querySelector("#sidebar") !== null,
+  after: document.querySelector(".home-hero").nextElementSibling?.id,
+  steps: [...document.querySelectorAll(".start-step a")].map((a) => a.getAttribute("href")).join(),
+  row: new Set([...document.querySelectorAll(".start-step")].map((step) => Math.round(step.getBoundingClientRect().top))).size,
+  next: document.querySelector(".start-step.is-next a")?.getAttribute("href"),
+  done: document.querySelectorAll(".start-step.is-done").length,
+  places: [...document.querySelectorAll(".start-place")].map((place) => place.textContent).join(),
+}));
+check(!way.sidebar && way.after === "loslegen" && way.steps === "/programs,/catalog,/studyplan" && way.row === 1, `the way in is not under the first panel: ${JSON.stringify(way)}`);
+check(way.next === "/programs" && way.done === 0 && way.places === "Studium,Module,Merkliste,Stundenplan", `the way in does not start at the program: ${JSON.stringify(way)}`);
+// „Direkt suchen" goes into the search at the top, not to the catalog.
+await page.click(".start-path a[data-action=search]");
+check(await page.evaluate(() => document.activeElement?.id === "topsearch" && location.pathname === "/"), "„Direkt suchen\" does not go into the search");
+await page.evaluate(() => document.activeElement?.blur());
 
 // The carousel: the map in the middle, a neighbour on each side.
 check((await current()) === "Die Karte", `the first picture is not the map: ${await current()}`);
@@ -181,14 +201,15 @@ check(await page.evaluate(() => window.__marker === 1), "the catalog was opened 
 await page.goBack();
 await page.waitForSelector(".home .map-preview");
 
-// The sidebar follows the page; a question opens in place.
-await page.evaluate(() => document.getElementById("fragen").scrollIntoView({ block: "start" }));
-await page.waitForFunction(() => document.querySelector(".home-toc a[aria-current]")?.getAttribute("href") === "#fragen");
+// The foot of the way in jumps to the questions, without a history entry; a question opens in place.
+await page.click(".start-foot a[href='#fragen']");
+await page.waitForFunction(() => { const top = document.getElementById("fragen").getBoundingClientRect().top; return top >= 0 && top < 160; });
+check(await page.evaluate(() => location.pathname === "/" && location.hash === ""), "a jump of the way in changed the address");
 await page.click(".faq summary >> nth=1");
 check(await page.evaluate(() => document.querySelectorAll(".faq details[open]").length === 1), "a question does not open");
 check(await page.evaluate(() => document.querySelectorAll(".faq-group").length === 3), "the questions are not in three groups");
-// After the questions „Betula im Detail": its row of chapters, the chapters, every group of the
-// filter panel with its chips leading into the catalog, and the sidebar following it there too.
+// After the questions „Betula im Detail": its row of chapters, the chapters, and every group of
+// the filter panel with its chips leading into the catalog.
 const detail = await page.evaluate(() => ({
   nav: [...document.querySelectorAll("#im-detail .detail-nav a")].map((a) => a.getAttribute("href")).join(),
   chapters: [...document.querySelectorAll(".home .feature")].map((section) => "#" + section.id).join(),
@@ -199,13 +220,29 @@ const detail = await page.evaluate(() => ({
 }));
 check(detail.nav === detail.chapters && detail.chapters.split(",").length === 8 && detail.groups === 12 && detail.chips, `„Betula im Detail" is not what it was: ${JSON.stringify(detail)}`);
 check(/^\/catalog\?/.test(detail.example || "") && detail.links === "/catalog,/programs,/studyplan,/datenschutz", `„Betula im Detail" leads nowhere: ${JSON.stringify(detail)}`);
-await page.evaluate(() => document.getElementById("im-detail").scrollIntoView({ block: "start" }));
-await page.waitForFunction(() => document.querySelector(".home-toc a[aria-current]")?.getAttribute("href") === "#im-detail");
 // Its last chapter shows the catalog and a module on a phone: in the theme shown only.
 await page.evaluate(() => document.getElementById("geraete").scrollIntoView({ block: "center" }));
 await page.waitForFunction(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).every((img) => img.complete && img.naturalWidth > 0));
 check(images.every((path) => !path.includes("-dark") && (!path.includes("-phone") || path.endsWith("/module-phone.webp"))), `wrong pictures fetched: ${images}`);
 check(await page.evaluate(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).length) === 2, "„Geräte und Sprachen\" does not show one theme's pictures");
+
+// What this browser has done shows on the way in: with a program set as „Mein Studiengang" and a
+// module marked those two steps are done and name it, and the Stundenplan is the next step.
+await page.evaluate(() => {
+  localStorage.setItem("betula.myprogram.v1", "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\n");
+  localStorage.setItem("betula.bookmarks.v1", "12330\t1\n");
+});
+await page.goto(base + "/", { waitUntil: "networkidle" });
+await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
+await page.waitForFunction(() => document.querySelectorAll(".start-step.is-done").length === 2, null, { timeout: 5000 }).catch(() => failures.push("the way in does not follow what this browser has done"));
+const kept = await page.evaluate(() => ({
+  program: document.querySelector(".start-step:nth-child(1) .start-state")?.textContent,
+  href: document.querySelector(".start-step:nth-child(1) a")?.getAttribute("href"),
+  marked: document.querySelector(".start-step:nth-child(2) .start-state")?.textContent,
+  next: document.querySelector(".start-step.is-next a")?.getAttribute("href"),
+}));
+check(kept.program?.startsWith("Informatik B.Sc.") && kept.href?.startsWith("/programs/") && kept.marked === "1 Modul gemerkt" && kept.next === "/studyplan", `the way in does not show what was done: ${JSON.stringify(kept)}`);
+await page.evaluate(() => { localStorage.removeItem("betula.myprogram.v1"); localStorage.removeItem("betula.bookmarks.v1"); });
 
 // A phone: pictures upright, the tall sheet, a swipe turns them, nothing scrolls sideways. A stop
 // is remembered over a page load.

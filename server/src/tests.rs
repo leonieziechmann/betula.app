@@ -469,6 +469,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // app with its abilities, the questions, and „Betula im Detail" with every filter (2026-09-28).
     assert!(home.contains("\"@type\":\"WebApplication\"") && home.contains("\"@type\":\"FAQPage\""), "the start page's structured data");
     assert!(home.contains("id=\"im-detail\"") && home.matches("class=\"panel feature t-").count() == 8 && home.matches("class=\"bgroup").count() == 12, "the start page's „Betula im Detail\"");
+    // No sidebar (owner, 2026-09-28), and the way in for a first visit: three steps, the first the
+    // next one, since the server knows nothing of the visitor (R9).
+    assert!(!home.contains("id=\"sidebar\"") && home.contains("<div id=\"page-scroll\" class=\"page home-page\">"), "the start page has no frame");
+    assert!(home.contains("id=\"loslegen\"") && home.matches("class=\"start-step").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
     // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
     // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).

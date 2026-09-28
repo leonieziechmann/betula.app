@@ -17,9 +17,7 @@
 //! opens its page; the map opens large in a dialog (the page behind it stands still), where it is
 //! the interactive map it was, with the legend and what is shown beside it on a wide screen.
 //! Colour comes from the palette of the faculties. The questions open one at a time, in three
-//! groups: about Betula, using it, and for the first semesters. The sidebar: the sections of the
-//! page (following the scroll, `enhance.js`), the Datenstand, the versions of Folia and Radix,
-//! Impressum and Datenschutz.
+//! groups: about Betula, using it, and for the first semesters.
 //!
 //! Owner, 2026-09-28: the page is what search engines, and the assistants that answer with them,
 //! know of Betula. Asked to compare it with other tools they took the missing account for missing
@@ -31,6 +29,15 @@
 //! Betula as a web app with the same abilities (`WebApplication`), free and running without
 //! JavaScript.
 //!
+//! Owner, the same day: the sidebar made the page confusing and odd to look at („sehr verwirrend",
+//! „sorgt dafür, dass die Seite komisch aussieht"); a new visitor has to find their way, and the
+//! onboarding matters most — organically, without a pop-up. So the start page is the one page
+//! without the frame of the others (R17): no sidebar, the panels in one column across the width
+//! (up to a measure that still reads well, in the middle). Under the first panel the way in for
+//! a first visit (`start.rs`): three steps, each naming where the navigation keeps it, following
+//! what the visitor has done. Of the sidebar's parts the jumps to the sections are the foot of
+//! those steps now; the Datenstand is the ground's, at the end of every page, as before.
+//!
 //! The map (`catalog::graph`) is laid out by the web server once per snapshot, on a 4:3 sheet and
 //! a tall one for phones; this page only draws it (`data::ProgramMapHandle`). The dialog is in the
 //! server's HTML too (closed), so its dots are links that search engines follow; without
@@ -40,6 +47,7 @@
 //! names of the programs and the faculties are the BTU's, in every language (docs/i18n.md).
 
 mod detail;
+mod start;
 
 use std::sync::Arc;
 
@@ -59,7 +67,7 @@ use crate::format;
 use crate::i18n::{self, Texts};
 use crate::nav;
 use crate::seo::{self, Seo};
-use crate::ui::{ErrorState, Frame, Icon, Mark, Wordmark};
+use crate::ui::{ErrorState, Icon, Mark, Wordmark};
 
 /// A way into the catalog: a filter people come for, with the number of modules behind it. The
 /// tint colours its icon (`t-…` in app.css), after what it is about: winter cool, summer warm.
@@ -88,18 +96,6 @@ fn entries(t: &'static Texts) -> Vec<Entry> {
 
 /// Where the browser remembers that the pictures were stopped (`localStorage`, R20).
 const PAUSED_KEY: &str = "betula.showcase";
-
-/// The sections of the page, as the sidebar lists them: id, icon, name.
-fn sections(t: &'static Texts) -> [(&'static str, &'static str, &'static str); 5] {
-    let t = &t.home;
-    [
-        ("ueberblick", "house", t.overview),
-        ("einstiege", "layout-list", t.ways_in_and_faculties),
-        ("funktionen", "circle-check-big", t.abilities),
-        ("fragen", "info", t.questions),
-        ("im-detail", "leaf", t.in_detail),
-    ]
-}
 
 /// What Betula does, each with its icon: three rows of three on a wide page.
 fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability); 9] {
@@ -144,35 +140,6 @@ pub fn HomePage() -> impl IntoView {
     let plans = loaded.as_ref().ok().map(|home| (home.overview.plans, home.overview.programs));
     let example = loaded.as_ref().ok().and_then(|home| home.entry_counts.get(entries.len()).copied());
 
-    // The versions and the legal links are the ground's, at the end of every page (`ground.rs`).
-    let sidebar = {
-        let facts = loaded.clone().ok();
-        move || {
-            view! {
-                // The section the page is at is marked while it scrolls (`data-spy`, enhance.js).
-                <nav class="toc jumps home-toc" data-spy="" aria-label=t.home.on_this_page>
-                    <p class="flabel label">{t.home.on_this_page}</p>
-                    {sections(t).into_iter().enumerate().map(|(i, (id, icon, name))| view! {
-                        <a href=format!("#{id}") data-action="jump" aria-current=(i == 0).then_some("location")><Icon name=icon/>{name}</a>
-                    }).collect_view()}
-                </nav>
-                {facts.as_ref().map(|home| view! {
-                    <div class="fgroup">
-                        <p class="flabel label">{t.home.data}</p>
-                        <dl class="kv">
-                            {home.overview.current_semester.as_ref().map(|s| view! { <div><dt><Icon name="calendar-days"/>{t.home.semester}</dt><dd>{semester_name(s, t.locale)}</dd></div> })}
-                            {home.overview.meta.data_changed_at.as_deref().map(|at| view! { <div><dt><Icon name="rotate-ccw"/>{t.home.last_changed}</dt><dd>{format::date(at, t.locale)}</dd></div> })}
-                            <div>
-                                <dt><Icon name="building-2"/>{t.home.source}</dt>
-                                <dd><a href=seo::UNIVERSITY_URL rel="noopener" title=t.home.source_title>"BTU"<Icon name="arrow-up-right"/></a></dd>
-                            </div>
-                        </dl>
-                    </div>
-                })}
-            }
-        }
-    };
-
     let data = vec![
         serde_json::json!({
             "@type": "WebSite",
@@ -215,19 +182,22 @@ pub fn HomePage() -> impl IntoView {
         }),
     ];
 
+    // No frame and no sidebar (see above): the page scrolls on its own, as `#page-scroll` (the
+    // ground and „Nach oben" follow it, `enhance.js`).
     view! {
         <Title text=""/>
-        <Frame title=t.app.home sidebar><div class="page-inner home">
+        <div class="page home-page" id="page-scroll"><div class="page-inner home">
         <Seo title=t.home.seo_title description=t.home.description path=url::HOME data/>
         {match loaded {
             Err(error) => {
                 status.for_error(&error);
-                view! { <Hero home=None/><Showcase map modules=None/><ErrorState error/> }.into_any()
+                view! { <Hero home=None/><start::StartPath/><Showcase map modules=None/><ErrorState error/> }.into_any()
             }
             Ok(home) => {
                 let modules = Some(home.overview.modules);
                 view! {
                     <Hero home=Some(home.clone())/>
+                    <start::StartPath/>
                     <Showcase map modules/>
                     <Entries entries home=home.clone()/>
                 }.into_any()
@@ -271,7 +241,7 @@ pub fn HomePage() -> impl IntoView {
             }).collect_view()}
         </section>
         <detail::Details plans example/>
-        </div></Frame>
+        </div></div>
     }
 }
 

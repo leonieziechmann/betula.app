@@ -1123,7 +1123,9 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
    all panels starts 24px in, lists are rows with continuous rules, numbers are right-aligned.
    Colour is quiet and says something: the faculties' palette behind the pictures and on the
    faculties, a soft hue per way into the catalog; the accent stays with the main button. */
-.home { container: home / inline-size; }
+/* No frame (owner, 2026-09-28: the sidebar made the page confusing): the page scrolls on its own,
+   its panels in one column in the middle, no wider than still reads well. */
+.home { container: home / inline-size; width: 100%; max-width: 1280px; margin: 0 auto; }
 .home > .panel, .home-lists { scroll-margin-top: 14px; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
 .block-head h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
@@ -1158,6 +1160,62 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .birch > div + div::before { content: ""; position: absolute; top: 0; left: 0; width: 40%; height: 3px; border-radius: 0 0 2px 0; background: var(--text); }
 .birch > div:nth-child(3)::before { width: 28%; }
 .birch > div:nth-child(4)::before { width: 16%; }
+
+/* The way in for a first visit (home/start.rs): three steps, each one link, one under the other
+   on a narrow page and side by side on a wide one, joined through their marks by a line, as a
+   path. Each names where the navigation keeps it, as a chip with the rail's icon and name. The
+   next step wears the accent; a step done wears a tick, names what was done, and the line from it
+   to the next one turns green. Only words and colours follow the visitor, never a height. */
+.start-steps { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); --track: var(--line-strong); --track-done: color-mix(in srgb, var(--accent) 60%, transparent); }
+.start-step { min-width: 0; }
+.start-step > a { --start-bg: var(--panel); --mark-x: 40px; --mark-y: 34px; position: relative; height: 100%; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-content: start; gap: 4px 14px; padding: 18px 24px 20px; background: var(--start-bg); color: inherit; text-decoration: none; transition: background .1s; }
+.start-step > a:hover { --start-bg: var(--panel-2); text-decoration: none; }
+.start-step > a > * { grid-column: 2; min-width: 0; }
+/* The line through the marks: to the one before (::before) and on to the next (::after). */
+.start-step > a::before, .start-step > a::after { content: ""; position: absolute; left: calc(var(--mark-x) - 1px); width: 2px; background: var(--track); }
+.start-step > a::before { top: 0; height: var(--mark-y); }
+.start-step > a::after { top: var(--mark-y); bottom: 0; }
+.start-step:first-child > a::before, .start-step:last-child > a::after { content: none; }
+.start-step.is-done > a::after, .start-step.is-done + .start-step > a::before { background: var(--track-done); }
+.start-step .start-mark { grid-column: 1; grid-row: 1; position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 5px var(--start-bg); transition: box-shadow .1s; }
+.start-mark b { font-size: 14px; font-weight: 680; }
+.start-mark .icon { width: 17px; height: 17px; stroke-width: 2.6; }
+.start-step.is-next .start-mark { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 5px var(--start-bg); }
+.start-step.is-done .start-mark { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1.5px var(--accent-line), 0 0 0 5px var(--start-bg); }
+/* The heading on the middle of its mark, the rest under the heading. */
+.start-step h3 { grid-row: 1; min-height: 32px; display: flex; align-items: center; margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.015em; }
+.start-step p { color: var(--text-2); font-size: 13.5px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
+.start-go { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--text); font-size: 13.5px; font-weight: 620; }
+.start-go > .icon { flex: none; width: 16px; height: 16px; transition: transform .15s var(--ease); }
+.start-step > a:hover .start-go > .icon { transform: translateX(3px); }
+.start-step.is-next .start-go { color: var(--accent-ink); }
+.start-state { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.start-state > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.start-state .icon { flex: none; width: 15px; height: 15px; color: var(--accent-ink); }
+/* Where the navigation keeps the step, and its items as the rail shows them. Both are `span`s that
+   can be `.js-only`, whose `display: contents` would leave no box: hence the longer selectors. */
+.start-step .start-where { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; color: var(--text-3); font-size: 12.5px; }
+.start-where .start-place { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-weight: 580; }
+.start-step > a:hover .start-place { background: var(--panel); }
+.start-place .icon { width: 14px; height: 14px; }
+/* For those who want to read first: the ways to the sections that explain Betula. */
+.start-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; padding: 10px 16px 12px 24px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; }
+.start-foot > span { margin-right: 6px; }
+.start-foot a { display: inline-flex; align-items: center; gap: 2px; min-height: 34px; padding: 0 6px 0 10px; border-radius: var(--r-ctl); color: var(--text-2); font-weight: 580; text-decoration: none; }
+.start-foot a:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
+.start-foot .icon { width: 15px; height: 15px; color: var(--text-3); }
+/* Side by side: the mark over the heading, the line through the marks across the row, and the way
+   on and the navigation's chip of each on the same lines as the others'. */
+@container home (min-width: 900px) {
+  .start-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .start-step > a { --mark-y: 36px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto auto; align-content: stretch; gap: 6px; padding: 20px 24px 22px; }
+  .start-step > a > * { grid-column: 1; }
+  .start-step .start-mark { grid-row: 1; margin-bottom: 8px; }
+  .start-step h3 { grid-row: 2; min-height: 0; }
+  .start-step > a::before, .start-step > a::after { top: calc(var(--mark-y) - 1px); bottom: auto; width: auto; height: 2px; }
+  .start-step > a::before { left: 0; width: var(--mark-x); }
+  .start-step > a::after { left: var(--mark-x); right: 0; }
+}
 
 /* The pictures, as a carousel for pictures: the current one in front and in the middle, its
    neighbours behind it, half of each showing at its sides (their middle on its edge), going round.
@@ -1634,20 +1692,11 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
   .beam, .mock-field.typed > span::after { animation: none; }
 }
 
-/* The sidebar of the start page: the sections (the one the page is at inverted) and the
-   Datenstand as label | value rows. The versions and what is legal are the ground's. */
+/* A table of contents that follows the page (`data-spy`, the legal pages): the part the page is
+   at inverted. */
 .toc a[aria-current="location"] { background: var(--invert); color: var(--on-invert); }
-.home-toc a > .icon, .legal-toc a > .icon { width: 16px; height: 16px; color: var(--text-3); }
-.home-toc a[aria-current] > .icon, .legal-toc a[aria-current] > .icon { color: inherit; }
-.kv { display: grid; margin: 0; }
-.kv > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; padding: 0 2px 0 10px; }
-.kv dt { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-2); font-size: 13px; font-weight: 500; white-space: nowrap; }
-.kv dt .icon { width: 16px; height: 16px; color: var(--text-3); }
-.kv dt small { color: var(--text-3); font-size: 11.5px; font-weight: 450; }
-.kv dd { margin: 0; font-size: 13px; font-weight: 620; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.kv dd.quiet { color: var(--text-3); font-weight: 500; }
-.kv dd a { display: inline-flex; align-items: center; gap: 2px; color: var(--text); }
-.kv dd a .icon { width: 14px; height: 14px; color: var(--text-3); }
+.legal-toc a > .icon { width: 16px; height: 16px; color: var(--text-3); }
+.legal-toc a[aria-current] > .icon { color: inherit; }
 
 /* Impressum and Datenschutz (pages/legal.rs): one panel of text, its parts on continuous rules.
    What belongs together (which data, why, how long) stands as label | text rows, the label above
@@ -2661,6 +2710,8 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .block-head { padding: 16px 8px 12px 16px; }
   .rowlink { height: 60px; padding: 0 12px 0 16px; }
   .ability { padding-left: 16px; padding-right: 16px; }
+  .start-step > a { --mark-x: 32px; padding-left: 16px; padding-right: 16px; }
+  .start-foot { padding-left: 16px; padding-right: 8px; }
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }
   .soon-line { padding: 14px 16px 16px; }
