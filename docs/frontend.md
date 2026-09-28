@@ -878,19 +878,32 @@ alles gesprochen wird", the flow through the app and every filter. What changed:
   several devices, without JavaScript, offline and as an app, English); „Kostet Betula etwas?" and
   „Warum gibt es kein Konto? Fehlt dadurch etwas?" are two questions now, and the second one
   answers it: the account is left out, not the functions.
-- **„Betula im Detail"** after the questions (`#im-detail`, the sidebar's „Im Detail"): eight
-  chapters, a row each with the heading beside the text from a container width of 1000 px — the
-  ways from a question to a module, every filter of the catalog, the plans from the regulations
-  (with how many of the current programs have one, `Overview::plans`), the Stundenplan, no account,
-  with and without JavaScript, where the data comes from, devices and languages. The filters are a
-  list in the panel's order under the panel's own names (`catalog::Texts`, so a renamed filter is
-  renamed there too), with the order of the list at its end. Four chapters end in a way on (the
-  catalog, the programs, the Stundenplan, the privacy notice).
+- **„Betula im Detail"** after the questions (`#im-detail`, the sidebar's „Im Detail";
+  `pages/home/detail.rs`, its words in `i18n/home_detail.rs`). Its first version, eight chapters of
+  text, was „so langweilig und einfach nur eine wall of text" (owner, the same day): it had to be
+  interesting to look at for everybody without breaking Betula's look. Now a panel names the
+  chapters (links in their tints), and each chapter is a panel of its own — its name in its tint
+  over a headline, a line under it, four points — with a picture made of the app's own parts on a
+  wash of the tint, laid out by its own width (container `picture`): the four ways from a question
+  to the one module page; the filter panel as a board of its twelve groups in the panel's order,
+  look and words (`catalog::Texts`, so a renamed filter is renamed there too), its chips links into
+  the catalog, an example chosen (winter, English, no written exam: `detail::example`) with how many
+  modules the catalog has for it — on a phone the groups of a first look and the others after „Alle
+  Filter zeigen" (a checkbox, so with and without JavaScript); a regulation's PDF read into the
+  plan's matrix, with how many of the current programs have a checked plan (`Overview::plans`); a
+  week in the Stundenplan's own grid (`WeekGrid`) with a clash and the ways into a calendar; where a
+  visitor's things live, and four figures; the site with and without JavaScript; the birch from the
+  ground (Radix, its sources and how often it reads them) up the trunk (the Datenstand) into the
+  season's crown (Folia); the catalog and a module on a phone (`--device`, its frame), lazy and in
+  the theme shown. On a wide page the picture stands beside the words, every other one on the left,
+  the board across the width under them. Four chapters end in a way on (the catalog, the programs,
+  the Stundenplan, the privacy notice).
 - **The structured data** names Betula as a `WebApplication`: its abilities as `featureList`, free
   (`offers` at 0 €, `isAccessibleForFree`), `browserRequirements` saying that it runs without
   JavaScript and offline with it.
 - What a text quotes of the page — a button, a view, a filter, a way in, the values of a filter — is
-  checked against the page's own words in every language (`i18n/home.rs`, its tests).
+  checked against the page's own words in every language (`i18n/home.rs` and `i18n/home_detail.rs`,
+  their tests).
 
 The map (`catalog/src/graph.rs`): a dot per current program, a line where two curricula share
 modules (Jaccard; modules of more than 40 programs are ignored), a force layout without
@@ -1891,8 +1904,8 @@ room while the page is not at its end (the wheel over the header or the rail mov
 ground coming up at the end with the rail and the header standing, the page's end and the panel
 beside it 8 px above it, the panel cut off and not scrolled by the wheel, upwards the ground
 leaving first, a short list bringing it at once without its rows moving, the end of the whole
-virtual list going up with it, a question opened and a page opened from the ground sending it
-away, Tab bringing it up; on a phone the ground at the end of the page, and under a page shorter
+virtual list going up with it, the page leaving its end by its scrollbar and a page opened from
+the ground sending it away, Tab bringing it up; on a phone the ground at the end of the page, and under a page shorter
 than the window (the empty Stundenplan) at the window's lower edge.
 
 ```bash

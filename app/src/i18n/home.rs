@@ -1,6 +1,7 @@
-//! Texts of the start page (`pages/home.rs`), in the order of the page: what search engines read,
-//! the sidebar, the first panel, the pictures and the map, the ways into the catalog, what Betula
-//! does, the questions, and Betula in detail.
+//! Texts of the start page (`pages/home/mod.rs`), in the order of the page: what search engines
+//! read, the sidebar, the first panel, the pictures and the map, the ways into the catalog, what
+//! Betula does, and the questions. „Betula im Detail" at the end has a group of its own
+//! (`home_detail`).
 //!
 //! Everything here says what the app really does, and says it plainly (owner, 2026-09-28: the page
 //! is what search engines and the assistants built on them know of Betula; comparing it with other
@@ -23,7 +24,7 @@ pub struct Texts {
     pub on_this_page: &'static str,
     /// The sections of the page, as the sidebar lists them. „Was Betula kann" and „Fragen und
     /// Antworten" are also the headings of their sections; the last one's heading is
-    /// `details.heading`.
+    /// `home_detail::Texts::heading`.
     pub overview: &'static str,
     pub ways_in_and_faculties: &'static str,
     pub abilities: &'static str,
@@ -156,8 +157,6 @@ pub struct Texts {
     pub using_betula: Faq,
     pub for_studies: Faq,
 
-    // Betula in detail
-    pub details: Details,
 }
 
 /// A picture of the carousel: its tab, its title, and what a click on it does.
@@ -184,68 +183,6 @@ pub struct Ability {
 pub struct Faq {
     pub name: &'static str,
     pub questions: &'static [(&'static str, &'static str)],
-}
-
-/// „Betula im Detail": what the page says above, at length and in one piece — how one finds
-/// what one is looking for, every filter, the plans, the Stundenplan, and how Betula is built.
-pub struct Details {
-    pub heading: &'static str,
-    pub lead: &'static str,
-    /// From a question to the module: the ways through the app.
-    pub flow: Chapter,
-    /// Every filter of the catalog: the list stands between its two parts of text.
-    pub filters: Chapter,
-    pub filter: Filters,
-    /// The study plans read from the regulations: the number of plans stands between its two parts.
-    pub plans: Chapter,
-    /// „112 von 148 Studiengängen …": the current programs with a checked plan, and all current
-    /// programs; the numbers are written already.
-    pub plans_count: fn(&str, &str) -> String,
-    pub timetable: Chapter,
-    pub account: Chapter,
-    pub javascript: Chapter,
-    pub data: Chapter,
-    pub devices: Chapter,
-    /// The ways on at the end of a chapter.
-    pub to_catalog: &'static str,
-    pub to_programs: &'static str,
-    pub to_studyplan: &'static str,
-    pub to_privacy: &'static str,
-}
-
-/// A chapter of „Betula im Detail": its heading, and its paragraphs before and after what the
-/// page puts in its middle (the list of filters, the number of plans); most have nothing there.
-pub struct Chapter {
-    pub title: &'static str,
-    pub text: &'static [&'static str],
-    pub more: &'static [&'static str],
-}
-
-/// What each filter of the catalog does, in the order of its panel. Their names are the panel's
-/// own (`catalog::Texts`); only the order of the list has none there.
-pub struct Filters {
-    pub search: &'static str,
-    pub program: &'static str,
-    pub list: &'static str,
-    pub kind: &'static str,
-    pub area: &'static str,
-    pub plan_semester: &'static str,
-    pub confirmed: &'static str,
-    pub fits: &'static str,
-    pub offered_in: &'static str,
-    pub teaching_form: &'static str,
-    pub exam: &'static str,
-    pub credits: &'static str,
-    pub language: &'static str,
-    pub properties: &'static str,
-    pub lecturers: &'static str,
-    pub department: &'static str,
-    pub duration: &'static str,
-    pub years: &'static str,
-    pub location: &'static str,
-    pub not_offered: &'static str,
-    pub sort_name: &'static str,
-    pub sort: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -478,112 +415,6 @@ pub const DE: Texts = Texts {
         ],
     },
 
-    details: Details {
-        heading: "Betula im Detail",
-        lead: "Was Betula kann, wie du damit findest, was du suchst, und wie es gebaut ist, ausführlich und an einem Stück.",
-        flow: Chapter {
-            title: "Von der Frage zum Modul",
-            text: &[
-                "Betula ist um die Fragen gebaut, mit denen man einen Modulkatalog aufschlägt: Was steht im dritten Semester an? Welche Wahlpflichtmodule gibt es auf Englisch? Was passt noch in meine Woche? Für jede gibt es einen kurzen Weg, und alle enden bei derselben Modulseite: Inhalte und Lernziele, Prüfung, Leistungspunkte, Turnus, Voraussetzungen, die Termine als Wochenplan und die Studiengänge, in denen das Modul vorkommt, jeweils mit dem Semester laut Regelstudienplan.",
-                "Die Suche steht oben auf jeder Seite und findet Module über ihren deutschen oder englischen Titel und ihre Nummer, über alle Fakultäten. Die Startseite bietet fertige Einstiege mit der Zahl ihrer Treffer, etwa „Auf Englisch“ oder „Ohne Klausur“, dazu die Studiengänge nach Fakultät und eine Karte, die zeigt, welche Studiengänge sich Module teilen.",
-                "Vom Studiengang aus führt der Regelstudienplan zu seinen Modulen und „Wahlpflicht & Bereiche“ zu allem, was zur Wahl steht. „Im Modulkatalog“ öffnet den Katalog genau auf diesen Studiengang, einen Bereich oder eine Zeile des Plans eingegrenzt. Wählst du dort ein Fachsemester, stehen neben den Pflichtmodulen auch die Wahlpflichtmodule, die der Plan in diesem Semester verlangt.",
-                "Im Katalog öffnet ein Klick die Vorschau neben der Liste, und Liste, Filter und Scrollposition bleiben, wie sie waren. F zeigt das Modul als ganze Seite, Esc schließt es, ↑ und ↓ gehen durch die Liste, Enter öffnet, M merkt. Jeder aktive Filter steht über der Liste und lässt sich dort einzeln entfernen; findet eine Kombination nichts, schlägt die Seite vor, was du zurücknehmen kannst.",
-                "Jede Ansicht hat ihre eigene Adresse: Suche, Filter, Sortierung und das geöffnete Modul stehen im Link. Du kannst ihn teilen oder als Lesezeichen speichern, und „Zurück“ im Browser führt immer dorthin, wo du vorher warst. Start, Module, Studium, Merkliste und Stundenplan merken sich wie Tabs, wo du sie verlassen hast.",
-            ],
-            more: &[],
-        },
-        filters: Chapter {
-            title: "Alle Filter des Modulkatalogs",
-            text: &["Alle Filter lassen sich frei kombinieren. Die meisten haben drei Stufen: Ein Klick nimmt nur die Module mit dieser Eigenschaft, ein zweiter schließt sie aus, ein dritter hebt den Filter auf. Zweimal „Klausur“ heißt also „alles außer Klausur“. Ein Ausschluss entfernt nur, was die Daten ausdrücklich sagen: Ein Modul ohne Angabe bleibt in der Liste, statt stillschweigend zu verschwinden."],
-            more: &[
-                "Lehrende, Fachgebiet, Dauer, Jahre, Standort und nicht mehr angebotene Module stehen unter „Weitere Filter“. „Zurücksetzen“ nimmt alle Filter auf einmal zurück.",
-                "Auf dem Handy öffnen die Filter als Blatt von unten, das sich wegwischen lässt. Die Liste folgt erst, wenn das Blatt zu ist, und sein Knopf zeigt vorher schon, wie viele Module es werden. Ohne JavaScript sind die Filter Links und Formularfelder und funktionieren genauso.",
-                "Die Übersicht der Studiengänge filtert nach Abschluss (Bachelor, Master, Lehramt, Promotion, Sonstige), Studienform (Dual, Doppelabschluss, Teilzeit & Fern) und „Mit Regelstudienplan“; ihre Suche findet jeden Teil eines Namens, Groß- und Kleinschreibung und Umlaute egal.",
-            ],
-        },
-        filter: Filters {
-            search: "Deutscher oder englischer Titel oder Modulnummer, auch Teile davon; in der App filtert die Liste schon beim Tippen.",
-            program: "Grenzt auf einen Studiengang ein. Die Auswahl verzeiht Tippfehler und kennt Abkürzungen und Anfangsbuchstaben („infomatik bsc“), „Mein Studiengang“ steht obenan.",
-            list: "Mit Studiengang: sein Curriculum oder seine FÜS-Liste, die fachübergreifenden Module, die er anerkennt.",
-            kind: "Mit Studiengang: Pflicht, Wahlpflicht, Abschlussarbeit, Praktikum oder „Nicht angegeben“, wie Regelstudienplan, Modulbeschreibung oder Modulbaum es sagen.",
-            area: "Mit Studiengang: die Bereiche seines Modulbaums, aus denen man wählt, etwa „Praktische Informatik“ oder ein Nebenfach, jeweils mit allem darunter; von einer Zeile des Plans aus auch mehrere zugleich.",
-            plan_semester: "Mit Regelstudienplan: das Semester, in das er ein Modul legt, oder „?“ für Module ohne Semester. Ein Semester zeigt auch die Wahlpflichtmodule, die der Plan dort verlangt, und sagt, woraus sie abgeleitet sind.",
-            confirmed: "Nur Module mit veröffentlichten Terminen, also die, die sehr wahrscheinlich stattfinden; ausgeschlossen nur die ohne.",
-            fits: "Nur Module, die in die freien Zeiten deines Stundenplans passen. Du wählst, was verglichen wird: Vorlesungen, Übungen und Prüfungen. Vorlesungen müssen alle frei sein, bei Übungen genügt eine freie Gruppe, bei Prüfungen ein Termin ohne Konflikt; Module ohne Termine kommen nur mit „auch ohne Termine“ dazu.",
-            offered_in: "Winter, Sommer oder Unregelmäßig, nach dem Turnus der Modulbeschreibung.",
-            teaching_form: "Vorlesung, Übung, Seminar, Praktikum, Projekt, Exkursion.",
-            exam: "Klausur, Mündlich, Hausarbeit, Vortrag, Projekt, Praktisch; ein Modul mit mehreren Prüfungsteilen erscheint bei jedem davon.",
-            credits: "Ein Schieberegler mit zwei Griffen von 0 bis 30 Leistungspunkten, am rechten Ende ohne Obergrenze, darunter die genauen Zahlen zum Eintippen.",
-            language: "Deutsch oder Englisch.",
-            properties: "Benotet, Begrenzte Plätze, FÜS-Liste und, in der App, Gemerkt: nur deine gemerkten Module oder alle anderen.",
-            lecturers: "Eine oder mehrere Personen, die ein Modul verantworten oder lehren, mit Suche. Gesuchte (+) gelten als „eine davon“, ausgeschlossene (×) als „keine davon“.",
-            department: "Das Fachgebiet, das ein Modul anbietet, mit Suche.",
-            duration: "1 Semester oder 2 Semester.",
-            years: "Gerade oder Ungerade, für Module, die nur jedes zweite Jahr stattfinden.",
-            location: "Zentralcampus Cottbus, Cottbus-Sachsendorf oder Senftenberg, bekannt für Module mit Räumen im aktuellen Semester.",
-            not_offered: "Auch Module, die die BTU nicht mehr anbietet; im Katalog eines Studiengangs stehen sie ohnehin, soweit sein Curriculum sie nennt.",
-            sort_name: "Sortierung",
-            sort: "Nach Titel, Leistungspunkten oder Zahl der Termine, auf- und absteigend, per Klick auf den Spaltenkopf; im Studiengang in der Reihenfolge seines Plans.",
-        },
-        plans: Chapter {
-            title: "Regelstudienpläne aus den Prüfungsordnungen",
-            text: &[
-                "Welche Module in welchem Semester vorgesehen sind, steht bei der BTU nur in den Prüfungs- und Studienordnungen, als Tabellen in PDF-Dateien. Betula hat diese Ordnungen heruntergeladen und ihre Pläne maschinenlesbar gemacht. Die Semesterspalten liest ein eigener Parser aus der Geometrie der Tabellen, Zelle für Zelle, auch verbundene Zellen, Spannen wie „10–24 LP“ und Module über mehrere Semester. Ein Sprachmodell hilft nur, Modulnummern und Arten zuzuordnen; was es über Semester und Leistungspunkte sagt, wird durch die Werte der Zellen ersetzt.",
-                "Jeder Plan wird gegen die Summen geprüft, die die Ordnung selbst druckt, und mit dem Modulkatalog abgeglichen. Was nicht eindeutig ist, wird nicht geraten, sondern für eine Prüfung von Hand zurückgelegt. Beim Plan steht, wann er aus der Ordnung übernommen und geprüft wurde, und meist auch, auf welcher Seite der Ordnung er steht. Mit einem Modul des Katalogs wird eine Zeile nur verknüpft, wenn Nummer oder Titel es zweifelsfrei benennen, und hat ein Studiengang mehrere Studienrichtungen, hat jede ihren eigenen Plan.",
-            ],
-            more: &["Der Plan steht als Matrix aus Modulen und Semestern, wie die Ordnung ihn druckt, oder als Liste, mit den Summen der Ordnung. Zeilen, die kein Modul nennen, etwa „Wahlpflichtmodul aus der Informatik“, führen zu den Bereichen, die gemeint sind. „Wahlpflicht & Bereiche“ zeigt den ganzen Modulbaum des Studiengangs, und jeder Studiengang hat seine eigene Liste fachübergreifender Module (FÜS)."],
-        },
-        plans_count: |plans, programs| format!("Im jetzigen Datenstand hat Betula so für {plans} von {programs} Studiengängen in ihrer aktuellen Prüfungsordnung einen geprüften Regelstudienplan."),
-        timetable: Chapter {
-            title: "Der Stundenplan",
-            text: &[
-                "Der Stundenplan zeigt ein Semester als Woche, deine Module in einer Spalte daneben. Module kommen mit „Einplanen“ von jeder Modulseite hinein, aus der Merkliste oder als ganzes Fachsemester aus dem Regelstudienplan; Zeilen des Plans, die eine Wahl lassen, werden zu Platzhaltern, für die „Modul finden“ passende Module im Katalog sucht.",
-                "Überschneidungen zählt Betula an den Tagen, an denen sich Termine wirklich treffen: mit A- und B-Wochen, Terminen nur in einem Teil des Semesters und ausgefallenen Tagen. Gibt es für eine Übung mehrere Gruppen, ist eine Überschneidung erst dann eine, wenn keine Gruppe mehr frei ist, und Termine nimmst du direkt in der Woche mit ✓ oder lässt sie mit × weg. Bei Prüfungen warnt Betula, wenn sie sich überschneiden oder zu wenig Zeit für den Weg zwischen Cottbus und Senftenberg oder zwischen zwei Standorten in Cottbus lassen.",
-                "Mit „Passt in meinen Stundenplan“ listet der Katalog nur Module, die noch hineinpassen. Den Plan gibt es als .ics-Datei und als Kalender-Abo für Apple Kalender, Google Kalender oder Outlook, das geänderte Termine selbst nachlädt. Mehrere Pläne lassen sich unter eigenem Namen speichern, und „Link zum Teilen kopieren“ gibt einen Plan weiter: Die Vorschau im Messenger zeigt seine Module, und wer den Link öffnet, kann sie übernehmen.",
-                "„Mein Studiengang“ merkt sich deinen Studiengang mit Studienrichtung, Studienbeginn und Standort; Katalog und Stundenplan beginnen dann darin.",
-            ],
-            more: &[],
-        },
-        account: Chapter {
-            title: "Ohne Konto, und trotzdem vollständig",
-            text: &[
-                "Betula verzichtet mit Absicht auf Konten, nicht auf Funktionen. Merkliste, Stundenplan, gespeicherte Pläne, Kalender-Abos, „Mein Studiengang“ und Einstellungen wie Sprache und Farbschema funktionieren ohne Anmeldung, weil sie in deinem Browser liegen statt auf einem Server. Niemand sonst kann sie einsehen, es gibt kein Passwort, das verloren gehen kann, und kein Profil über dich.",
-                "Was sonst ein Konto erledigt, erledigen Links. „Auf anderes Gerät übertragen“ kopiert einen Link, der deine Merkliste hinter dem „#“ trägt, und diesen Teil einer Adresse schickt kein Browser an einen Server. Ein Stundenplan wandert per „Link zum Teilen kopieren“ auf ein anderes Gerät oder zu anderen Studierenden, und ein Kalender-Abo zeigt ihn überall, wo dein Kalender läuft.",
-                "Betula nutzt keine Analysedienste und keine Cookies, die dich wiedererkennen, und lädt nichts von fremden Servern: Schrift, Symbole und Skripte kommen von betula.app selbst. Der Server steht in einem Rechenzentrum in Deutschland und löscht sein Zugriffsprotokoll nach 7 Tagen.",
-            ],
-            more: &[],
-        },
-        javascript: Chapter {
-            title: "Mit und ohne JavaScript, online und offline",
-            text: &[
-                "Jede Seite von Betula kommt vom Server als vollständiges HTML. Ohne JavaScript ist Betula eine klassische Website: Der Katalog blättert in Seiten, Filter sind Links und Formularfelder, und alle Module, Studiengänge und Regelstudienpläne sind da, für Suchmaschinen und Textbrowser genauso wie für alle, die JavaScript abgeschaltet haben. Der Server baut jede Seite einmal je Datenstand und liefert sie danach aus dem Speicher.",
-                "Mit JavaScript übernimmt die App, geschrieben in Rust und als WebAssembly im Browser. Sie lädt den Katalog einmal als SQLite-Datenbank, komprimiert einige Megabyte, und beantwortet danach jede Suche und jeden Filter selbst, meist in wenigen Millisekunden: keine Ladezeiten zwischen den Seiten, eine Liste, die beim Tippen filtert, und ein Klick, der sofort sichtbar wird. Die App zeigt dieselben Seiten wie der Server, aus denselben Bausteinen, nur ohne den Umweg über das Netz.",
-                "Danach läuft Betula auch offline: Ein Service Worker hält die App bereit, der Katalog liegt in deinem Browser, und auf Handy, Tablet und Rechner lässt sich Betula wie eine App installieren. Einen neuen Datenstand lädt die App im Hintergrund und nutzt ihn ab dem nächsten Start.",
-            ],
-            more: &[],
-        },
-        data: Chapter {
-            title: "Woher die Daten kommen und wie sie geprüft werden",
-            text: &[
-                "Radix, der Teil von Betula, der die Daten sammelt, liest die öffentlichen Quellen der BTU: die Modulbeschreibungen, das Vorlesungsverzeichnis mit Terminen und Räumen und den Modulbaum jedes Studiengangs im Portal QIS, die Liste des Fachübergreifenden Studiums und die Prüfungsordnungen. Radix fragt höflich an, mit Pausen zwischen den Anfragen und das meiste nachts, und bewahrt die gelesenen Seiten auf, sodass sich ein Fehler beim Einlesen ohne neue Anfragen beheben lässt.",
-                "Aus diesen Seiten baut Radix einen Datenstand, prüft ihn auf Widersprüche und gegen die Zahlen des vorigen und veröffentlicht ihn nur, wenn alles stimmt; sonst bleibt der vorige in Betrieb. Jede Angabe kennt ihre Quelle, und wo mehrere Quellen etwas dazu sagen, entscheidet eine feste Rangfolge.",
-                "Wo die Quelle nichts sagt, steht „nicht angegeben“. Was Betula ableitet, etwa die Fakultät eines Studiengangs oder welche Bereiche eine Zeile des Plans meint, sagt es dazu. Wo die BTU selbst Unstimmiges einträgt, etwa Prüfungen um 01:00 Uhr nachts als Platzhalter für „nach Vereinbarung“, zeigt Betula „Zeit offen“ und nennt den Eintrag, wie er in QIS steht. Jede Modul- und Studiengangsseite verlinkt auf ihr Original bei der BTU.",
-            ],
-            more: &[],
-        },
-        devices: Chapter {
-            title: "Für jedes Gerät, in zwei Sprachen",
-            text: &[
-                "Am Rechner stehen Filter, Liste und Vorschau nebeneinander, und ihre Breiten lassen sich ziehen. Am Handy liegt die Navigation unten, die Filter öffnen als Blatt zum Wegwischen, und durch die Woche des Stundenplans wischt man zwischen A- und B-Woche. Hell und dunkel folgen dem System oder deiner Wahl, und jedes Tastenkürzel steht neben seinem Knopf.",
-                "Die Oberfläche spricht Deutsch und Englisch, jede Seite unter eigener Adresse; Titel und Beschreibungen der Module stehen, wie die BTU sie schreibt. Geteilte Links zeigen in Messengern eine Vorschau mit dem Titel und den wichtigsten Angaben des Moduls oder Studiengangs.",
-            ],
-            more: &[],
-        },
-        to_catalog: "Zum Modulkatalog",
-        to_programs: "Zu den Studiengängen",
-        to_studyplan: "Zum Stundenplan",
-        to_privacy: "Zur Datenschutzerklärung",
-    },
 };
 
 pub const EN: Texts = Texts {
@@ -814,121 +645,13 @@ pub const EN: Texts = Texts {
         ],
     },
 
-    details: Details {
-        heading: "Betula in detail",
-        lead: "What Betula does, how it helps you find what you are looking for, and how it is built, at length and in one piece.",
-        flow: Chapter {
-            title: "From a question to the module",
-            text: &[
-                "Betula is built around the questions people bring to a module catalogue: what is due in the third semester? Which compulsory electives are taught in English? What still fits into my week? Each has a short way, and all of them end at the same module page: contents and learning outcomes, assessment, credit points, when it is offered, prerequisites, the dates as a weekly schedule, and the degree programmes the module belongs to, each with its semester according to the standard study plan.",
-                "The search sits at the top of every page and finds modules by their German or English title and their number, across all faculties. The home page offers ready-made ways in with the number of their results, such as “In English” or “Without a written exam”, the degree programmes by faculty, and a map of which programmes share modules.",
-                "From a degree programme, the standard study plan leads to its modules and “Electives & areas” to everything there is to choose from. “In the module catalogue” opens the catalogue narrowed down to exactly this programme, an area or a row of the plan. Pick a semester there, and besides the compulsory modules you see the compulsory electives the plan asks for in that semester.",
-                "In the catalogue a click opens the preview beside the list, and the list, the filters and the scroll position stay as they were. F shows the module as a full page, Esc closes it, ↑ and ↓ move through the list, Enter opens, M saves. Every active filter stands above the list, where it can be removed on its own; when a combination finds nothing, the page suggests what to take back.",
-                "Every view has its own address: the search, the filters, the order and the open module are part of the link. You can share it or bookmark it, and the browser's Back always leads to where you were before. Home, Modules, Study, Saved and Timetable remember where you left them, like tabs.",
-            ],
-            more: &[],
-        },
-        filters: Chapter {
-            title: "Every filter of the module catalogue",
-            text: &["All filters can be combined freely. Most have three steps: one click keeps only the modules with that property, a second one leaves them out, a third one clears the filter. Two clicks on “Written” therefore mean “everything but a written exam”. Leaving something out only removes what the data states: a module without the information stays in the list instead of silently disappearing."],
-            more: &[
-                "Lecturers, chair, duration, years, location and modules no longer offered are under “More filters”. “Reset” takes back all filters at once.",
-                "On a phone the filters open as a sheet from below that you can swipe away. The list follows only once the sheet is closed, and its button already shows how many modules it will be. Without JavaScript the filters are links and form fields and work just the same.",
-                "The overview of the degree programmes filters by degree (Bachelor, Master, Teacher training, Doctorate, Other), form of study (Dual, Double degree, Part-time & distance) and “With standard study plan”; its search finds any part of a name, whatever the case and with or without umlauts.",
-            ],
-        },
-        filter: Filters {
-            search: "German or English title or module number, or part of one; in the app the list filters as you type.",
-            program: "Narrows the list down to one degree programme. The picker forgives typos and knows abbreviations and initials (“infomatik bsc”); “My programme” comes first.",
-            list: "With a programme: its curriculum or its FÜS list, the interdisciplinary modules it accepts.",
-            kind: "With a programme: compulsory, compulsory elective, thesis, internship or “Not stated”, as the standard study plan, the module description or the module tree says.",
-            area: "With a programme: the areas of its module tree that students choose from, such as “Praktische Informatik” or a minor subject, each with everything below it; from a row of the plan, several at once.",
-            plan_semester: "With a standard study plan: the semester it places a module in, or “?” for modules without one. A semester also lists the compulsory electives the plan asks for there, and says what they were derived from.",
-            confirmed: "Only modules with published dates, the ones very likely to take place; excluded, only those without.",
-            fits: "Only modules that fit into the free time of your timetable. You choose what is compared: lectures, exercises and exams. Lectures all have to be free, for exercises one free group is enough, for exams one date without a conflict; modules without dates come along only with “also without dates”.",
-            offered_in: "Winter, summer or irregularly, as the module description states.",
-            teaching_form: "Lecture, exercise, seminar, practical, project, excursion.",
-            exam: "Written, oral, paper, presentation, project, practical; a module with several parts of assessment shows up under each of them.",
-            credits: "A slider with two handles from 0 to 30 credit points, no upper limit at its right end, and the exact numbers below it to type in.",
-            language: "German or English.",
-            properties: "Graded, limited places, FÜS list and, in the app, saved: only your saved modules, or all the others.",
-            lecturers: "One or more people responsible for or teaching a module, with a search. Wanted ones (+) mean “any of them”, left-out ones (×) “none of them”.",
-            department: "The chair that offers a module, with a search.",
-            duration: "1 semester or 2 semesters.",
-            years: "Even or odd, for modules that only take place every other year.",
-            location: "Central Campus Cottbus, Cottbus-Sachsendorf or Senftenberg, known for modules with rooms in the current semester.",
-            not_offered: "Also modules BTU no longer offers; in the catalogue of a programme they are there anyway, as far as its curriculum names them.",
-            sort_name: "Order",
-            sort: "By title, credit points or number of dates, ascending or descending, with a click on the column head; within a programme in the order of its plan.",
-        },
-        plans: Chapter {
-            title: "Standard study plans from the regulations",
-            text: &[
-                "Which modules are planned for which semester is stated at BTU only in the examination and study regulations, as tables in PDF files. Betula has downloaded these regulations and made their plans machine-readable. A parser of its own reads the semester columns from the geometry of the tables, cell by cell, including merged cells, ranges such as “10–24 CP” and modules over several semesters. A language model only helps to assign module numbers and kinds; whatever it says about semesters and credit points is replaced by the values of the cells.",
-                "Every plan is checked against the totals the regulations print themselves and compared with the module catalogue. What is not clear is not guessed but set aside for a check by hand. A plan says when it was taken from the regulations and checked, and mostly on which page of them it stands. A row is linked to a module of the catalogue only where its number or title names it beyond doubt, and a programme with several study directions has a plan for each.",
-            ],
-            more: &["The plan is shown as a matrix of modules and semesters, as the regulations print it, or as a list, with the regulations' own totals. Rows that name no module, such as “Wahlpflichtmodul aus der Informatik”, lead to the areas they mean. “Electives & areas” shows the whole module tree of the programme, and every programme has its own list of interdisciplinary modules (FÜS)."],
-        },
-        plans_count: |plans, programs| format!("In the current data, Betula has a standard study plan read and checked this way for {plans} of {programs} degree programmes in their current examination regulations."),
-        timetable: Chapter {
-            title: "The timetable",
-            text: &[
-                "The timetable shows one semester as a week, with your modules in a column beside it. Modules come in with “Plan” from any module page, from your saved modules, or as a whole semester of the standard study plan; rows of the plan that leave a choice become placeholders, for which “Find a module” looks up matching modules in the catalogue.",
-                "Betula counts clashes on the days on which dates really meet: with A and B weeks, dates in only part of the semester and cancelled days. Where an exercise has several groups, a clash only counts once no group is free any more, and you take dates or leave them out right in the week, with ✓ and ×. For exams, Betula warns when they overlap or leave too little time to get between Cottbus and Senftenberg, or between two sites in Cottbus.",
-                "With “Fits my timetable” the catalogue lists only modules that still fit in. The plan comes as an .ics file and as a calendar subscription for Apple Calendar, Google Calendar or Outlook that fetches changed dates by itself. Several plans can be saved under names of their own, and “Copy link to share” passes a plan on: the preview in a messenger shows its modules, and whoever opens the link can add them to their own.",
-                "“My programme” remembers your degree programme with its study direction, start of studies and location; the catalogue and the timetable then start in it.",
-            ],
-            more: &[],
-        },
-        account: Chapter {
-            title: "No account, and nothing missing",
-            text: &[
-                "Betula leaves out accounts on purpose, not features. Saved modules, the timetable, saved plans, calendar subscriptions, “My programme” and settings such as language and colour scheme all work without signing up, because they live in your browser instead of on a server. Nobody else can see them, there is no password to lose and no profile of you.",
-                "What an account would do, links do. “Move to another device” copies a link that carries your saved modules behind the “#”, and no browser sends that part of an address to a server. A timetable moves to another device or to other students with “Copy link to share”, and a calendar subscription shows it wherever your calendar runs.",
-                "Betula uses no analytics and no cookies that recognise you, and loads nothing from other servers: fonts, icons and scripts come from betula.app itself. The server stands in a data centre in Germany and deletes its access log after 7 days.",
-            ],
-            more: &[],
-        },
-        javascript: Chapter {
-            title: "With and without JavaScript, online and offline",
-            text: &[
-                "Every page of Betula comes from the server as complete HTML. Without JavaScript Betula is a classic website: the catalogue turns pages, filters are links and form fields, and every module, degree programme and standard study plan is there, for search engines and text browsers as much as for anyone who has switched JavaScript off. The server builds every page once per data set and then delivers it from memory.",
-                "With JavaScript the app takes over, written in Rust and running as WebAssembly in the browser. It loads the catalogue once as an SQLite database, a few megabytes compressed, and from then on answers every search and every filter itself, mostly within a few milliseconds: no loading times between pages, a list that filters as you type, and a click that shows at once. The app shows the same pages as the server, built from the same parts, just without the trip through the network.",
-                "After that Betula also works offline: a service worker keeps the app ready, the catalogue is kept in your browser, and on a phone, tablet or computer Betula installs like an app. The app downloads new data in the background and uses it from the next start.",
-            ],
-            more: &[],
-        },
-        data: Chapter {
-            title: "Where the data comes from and how it is checked",
-            text: &[
-                "Radix, the part of Betula that collects the data, reads BTU's public sources: the module descriptions, the course catalogue with its dates and rooms and the module tree of every degree programme in the QIS portal, the list of interdisciplinary studies and the examination regulations. Radix asks politely, with pauses between requests and mostly at night, and keeps the pages it has read, so that a mistake in reading one can be fixed without asking again.",
-                "From these pages Radix builds a data set, checks it for contradictions and against the figures of the previous one, and publishes it only when everything adds up; otherwise the previous one stays in service. Every piece of information knows its source, and where several sources say something about it, a fixed order of precedence decides.",
-                "Where the source says nothing, the page says “not stated”. What Betula derives, such as the faculty of a programme or which areas a row of the plan means, it says so. Where BTU itself enters something odd, such as exams at 1 a.m. as placeholders for “by arrangement”, Betula shows “Time TBA” and names the entry as it stands in QIS. Every module and programme page links to its original at BTU.",
-            ],
-            more: &[],
-        },
-        devices: Chapter {
-            title: "On every device, in two languages",
-            text: &[
-                "On a computer, filters, list and preview stand side by side, and their widths can be dragged. On a phone the navigation sits at the bottom, the filters open as a sheet you swipe away, and in the timetable's week you swipe between the A and B weeks. Light and dark follow your system or your choice, and every keyboard shortcut is written next to its button.",
-                "The interface speaks German and English, every page at its own address; module titles and descriptions are shown as BTU writes them. Shared links show a preview in messengers, with the title and the key facts of the module or degree programme.",
-            ],
-            more: &[],
-        },
-        to_catalog: "To the module catalogue",
-        to_programs: "To the degree programmes",
-        to_studyplan: "To the timetable",
-        to_privacy: "To the privacy notice",
-    },
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::i18n;
-    use catalog::filter::{ExamPart, Language};
-    use catalog::labels::{Campus, Labelled, ModuleKind, TeachingForm};
-    use catalog::url::{FormGroup, LevelGroup, ProgramTab};
+    use catalog::url::ProgramTab;
     use catalog::Locale;
 
     /// Every language asks the same questions, and where an answer names a button, it names it
@@ -945,88 +668,32 @@ mod tests {
         assert_eq!(((DE.slide_of)(2, 4, "Der Katalog"), (EN.in_semester)("Winter 2026/27")), ("2 von 4: Der Katalog".to_string(), "in Winter 2026/27".to_string()));
     }
 
-    /// What the answers and „Betula im Detail" quote of the page (a button, a view, a filter, a
-    /// way in) is what the page says there, in every language: renamed there, it has to be
-    /// renamed here.
+    /// What the answers quote of the page (a button, a view, a filter, a section) is what the page
+    /// says there, in every language: renamed there, it has to be renamed here.
     #[test]
-    fn the_texts_quote_the_page_as_it_is() {
+    fn the_answers_quote_the_page_as_it_is() {
         for locale in Locale::ALL {
             let t = i18n::texts(*locale);
             let (open, close) = if *locale == Locale::De { ("„", "“") } else { ("“", "”") };
             let quoted = |label: &str| format!("{open}{label}{close}");
             let home = &t.home;
-            let answer =|question: usize, faq: &Faq| faq.questions.get(question).map(|(_, answer)| *answer).unwrap_or_default();
-            let details = &home.details;
-            let chapter = |chapter: &Chapter| [chapter.text, chapter.more].concat().join(" ");
-            let areas = ProgramTab::Areas.label(*locale);
-            let pairs: Vec<(String, String)> = vec![
-                (answer(0, &home.using_betula).to_string(), quoted(details.heading)),
-                (answer(1, &home.using_betula).to_string(), quoted(t.studyplan_head.plan)),
-                (answer(1, &home.using_betula).to_string(), quoted(t.catalog.fits)),
-                (answer(2, &home.using_betula).to_string(), quoted(t.catalog.saved_chip)),
-                (answer(3, &home.using_betula).to_string(), quoted(t.bookmarks.transfer)),
-                (answer(3, &home.using_betula).to_string(), quoted(t.studyplan_share.copy_link)),
-                (answer(0, &home.for_studies).to_string(), quoted(t.program.in_catalog)),
-                (answer(0, &home.for_studies).to_string(), quoted(t.myprogram.mine)),
-                (answer(3, &home.for_studies).to_string(), quoted(areas)),
-                (answer(3, &home.for_studies).to_string(), quoted(t.catalog.area)),
-                (answer(4, &home.for_studies).to_string(), quoted(t.catalog.confirmed)),
-                (answer(7, &home.about_betula).to_string(), quoted(t.myprogram.mine)),
-                (chapter(&details.flow), quoted(home.english.label)),
-                (chapter(&details.flow), quoted(home.no_written_exam.label)),
-                (chapter(&details.flow), quoted(areas)),
-                (chapter(&details.flow), quoted(t.program.in_catalog)),
-                (chapter(&details.filters), quoted(t.catalog.more_filters)),
-                (chapter(&details.filters), quoted(t.common.reset)),
-                (chapter(&details.filters), quoted(t.programs.with_plan)),
-                (chapter(&details.filters), quoted(ExamPart::Written.short_label(*locale))),
-                (chapter(&details.plans), quoted(areas)),
-                (chapter(&details.timetable), quoted(t.studyplan_head.plan)),
-                (chapter(&details.timetable), quoted(&t.studyplan_modules.find_module.replace('\u{a0}', " "))),
-                (chapter(&details.timetable), quoted(t.catalog.fits)),
-                (chapter(&details.timetable), quoted(t.studyplan_share.copy_link)),
-                (chapter(&details.timetable), quoted(t.myprogram.mine)),
-                (chapter(&details.account), quoted(t.bookmarks.transfer)),
-                (chapter(&details.account), quoted(t.studyplan_share.copy_link)),
-                (chapter(&details.account), quoted(t.myprogram.mine)),
-                (details.filter.program.to_string(), quoted(t.catalog.my_program)),
-                (details.filter.kind.to_string(), quoted(t.catalog.not_stated)),
-                (details.filter.fits.to_string(), quoted(t.catalog.undated)),
+            let answer = |question: usize, faq: &Faq| faq.questions.get(question).map(|(_, answer)| *answer).unwrap_or_default();
+            let pairs = [
+                (answer(0, &home.using_betula), quoted(t.home_detail.heading)),
+                (answer(1, &home.using_betula), quoted(t.studyplan_head.plan)),
+                (answer(1, &home.using_betula), quoted(t.catalog.fits)),
+                (answer(2, &home.using_betula), quoted(t.catalog.saved_chip)),
+                (answer(3, &home.using_betula), quoted(t.bookmarks.transfer)),
+                (answer(3, &home.using_betula), quoted(t.studyplan_share.copy_link)),
+                (answer(0, &home.for_studies), quoted(t.program.in_catalog)),
+                (answer(0, &home.for_studies), quoted(t.myprogram.mine)),
+                (answer(3, &home.for_studies), quoted(ProgramTab::Areas.label(*locale))),
+                (answer(3, &home.for_studies), quoted(t.catalog.area)),
+                (answer(4, &home.for_studies), quoted(t.catalog.confirmed)),
+                (answer(7, &home.about_betula), quoted(t.myprogram.mine)),
             ];
             for (text, label) in pairs {
                 assert!(text.contains(&label), "{locale:?}: {label} is not in: {text}");
-            }
-        }
-    }
-
-    /// „Betula im Detail" lists the values of each filter as the panel offers them (compared
-    /// without case: running text writes „Vorlesung" or "lecture" as the sentence needs).
-    #[test]
-    fn the_filters_are_listed_as_the_panel_offers_them() {
-        for locale in Locale::ALL {
-            let t = i18n::texts(*locale);
-            let f = &t.home.details.filter;
-            let filters = &t.home.details.filters;
-            let after = filters.more.join(" ");
-            let has = |text: &str, value: &str| text.to_lowercase().contains(&value.to_lowercase());
-            let listed: Vec<(&str, Vec<String>)> = vec![
-                (f.kind, [ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship].iter().map(|k| k.label(*locale).to_string()).collect()),
-                (f.fits, vec![t.catalog.lectures.to_string(), t.catalog.exercises.to_string(), t.catalog.exams.to_string()]),
-                (f.offered_in, vec![t.catalog.winter_chip.to_string(), t.catalog.summer_chip.to_string(), t.catalog.irregular_chip.to_string()]),
-                (f.teaching_form, [TeachingForm::Lecture, TeachingForm::Exercise, TeachingForm::Seminar, TeachingForm::Practical, TeachingForm::Project, TeachingForm::Excursion].iter().map(|form| form.label(*locale).to_string()).collect()),
-                (f.exam, ExamPart::ALL.iter().map(|part| part.short_label(*locale).to_string()).collect()),
-                (f.language, Language::ALL.iter().map(|language| language.label(*locale).to_string()).collect()),
-                (f.properties, vec![t.catalog.graded_chip.to_string(), t.catalog.limited_chip.to_string(), t.catalog.fues_list.to_string(), t.catalog.saved_chip.to_string()]),
-                (f.duration, vec![(t.catalog.semesters)(1), (t.catalog.semesters)(2)]),
-                (f.years, vec![t.catalog.even.to_string(), t.catalog.odd.to_string()]),
-                (f.location, [Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg].iter().map(|campus| campus.label(*locale).to_string()).collect()),
-                (after.as_str(), LevelGroup::ALL.iter().map(|level| level.label(*locale).to_string()).collect()),
-                (after.as_str(), FormGroup::ALL.iter().map(|form| form.label(*locale).to_string()).collect()),
-            ];
-            for (text, values) in listed {
-                for value in values {
-                    assert!(has(text, &value), "{locale:?}: {value} is not in: {text}");
-                }
             }
         }
     }

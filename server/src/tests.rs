@@ -468,7 +468,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // What search engines, and the assistants that answer with them, read of Betula itself: the
     // app with its abilities, the questions, and „Betula im Detail" with every filter (2026-09-28).
     assert!(home.contains("\"@type\":\"WebApplication\"") && home.contains("\"@type\":\"FAQPage\""), "the start page's structured data");
-    assert!(home.contains("id=\"im-detail\"") && home.matches("class=\"chapter\"").count() == 8 && home.contains("class=\"chapter-facts\""), "the start page's „Betula im Detail\"");
+    assert!(home.contains("id=\"im-detail\"") && home.matches("class=\"panel feature t-").count() == 8 && home.matches("class=\"bgroup").count() == 12, "the start page's „Betula im Detail\"");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
     // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
     // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).
