@@ -1363,6 +1363,21 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .faq details[open] summary .icon { transform: rotate(45deg); color: var(--text); }
 .faq details p { padding: 0 24px 18px; max-width: 80ch; color: var(--text-2); font-size: 14px; line-height: 1.6; text-wrap: pretty; }
 
+/* „Betula im Detail", after the questions: a chapter per row between rules, its heading over its
+   text, and beside it on a wide page; the text as wide as the legal pages' (704 px), the filters
+   as label | text rows like their facts, a way on at the end of some. */
+.in-detail { padding-bottom: 6px; }
+.chapter { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 20px 24px 22px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
+.chapter h3 { font-size: 15px; font-weight: 650; letter-spacing: -.015em; line-height: 1.4; text-wrap: balance; }
+.chapter-text { display: grid; gap: 10px; max-width: 704px; }
+.chapter-text p, .chapter-facts dd { color: var(--text-2); font-size: 14.5px; line-height: 1.6; text-wrap: pretty; }
+.chapter-facts { display: grid; margin: 2px 0 4px; }
+.chapter-facts > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 9px 0; border-top: 1px solid var(--line); }
+.chapter-facts > div:last-child { border-bottom: 1px solid var(--line); }
+.chapter-facts dt { color: var(--text); font-size: 13.5px; font-weight: 620; line-height: 1.6; }
+.chapter-facts dd { margin: 0; }
+.chapter-link { justify-self: start; margin: 0 -10px; font-size: 13.5px; color: var(--accent-ink); }
+
 /* The sidebar of the start page: the sections (the one the page is at inverted) and the
    Datenstand as label | value rows. The versions and what is legal are the ground's. */
 .toc a[aria-current="location"] { background: var(--invert); color: var(--on-invert); }
@@ -1413,9 +1428,20 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
   .legal-part { padding: 18px 16px 20px; scroll-margin-top: 76px; }
 }
 
+/* Two abilities a row, and an odd last one takes the whole row: no empty cell at the end (nine
+   are three rows of three on a wide page). */
 @container home (min-width: 720px) {
   .ability-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ability:nth-child(odd) { border-right: 1px solid var(--line); }
+  .ability:nth-child(odd):last-child { grid-column: 1 / -1; border-right: 0; }
+  .ability p { max-width: 80ch; }
+  .chapter-facts > div { grid-template-columns: 196px minmax(0, 1fr); gap: 20px; }
+  .chapter-facts dt { padding-top: 1px; }
+}
+/* From a notebook's width on a chapter's heading stands beside its text, on its first line. */
+@container home (min-width: 1000px) {
+  .chapter { grid-template-columns: minmax(200px, 280px) minmax(0, 704px); justify-content: start; gap: 10px 32px; }
+  .chapter h3 { padding-top: 1px; }
 }
 @container home (min-width: 900px) {
   .home-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1434,6 +1460,7 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 @container home (min-width: 1180px) {
   .ability-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ability:nth-child(odd) { border-right: 0; }
+  .ability:nth-child(odd):last-child { grid-column: auto; }
   .ability:not(:nth-child(3n)) { border-right: 1px solid var(--line); }
 }
 /* A wide screen: the map as large as the height allows (4:3), the head, the legend and what is
@@ -2388,6 +2415,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }
   .soon-line { padding: 14px 16px 16px; }
+  .chapter { padding: 18px 16px 20px; scroll-margin-top: 76px; }
   /* The Studienplan on a phone: the panel and its parts in finger sizes. */
   /* Long German words („Programmierpraktikum") break with a hyphen rather than past the edge. */
   .sp-body { padding: 14px 14px 18px; gap: 12px; hyphens: auto; }

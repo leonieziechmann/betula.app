@@ -16,10 +16,20 @@
 //! when) until the pause button stops it, and goes round endlessly. A click on the current picture
 //! opens its page; the map opens large in a dialog (the page behind it stands still), where it is
 //! the interactive map it was, with the legend and what is shown beside it on a wide screen.
-//! Colour comes from the palette of the faculties. The questions open one at a time, in two
-//! groups: about Betula, and for the first semesters. The sidebar: the sections of the page
-//! (following the scroll, `enhance.js`), the Datenstand, the versions of Folia and Radix,
+//! Colour comes from the palette of the faculties. The questions open one at a time, in three
+//! groups: about Betula, using it, and for the first semesters. The sidebar: the sections of the
+//! page (following the scroll, `enhance.js`), the Datenstand, the versions of Folia and Radix,
 //! Impressum and Datenschutz.
+//!
+//! Owner, 2026-09-28: the page is what search engines, and the assistants that answer with them,
+//! know of Betula. Asked to compare it with other tools they took the missing account for missing
+//! functions, and saw neither that it works without JavaScript nor that the study plans are read
+//! from the regulations. So the page says all of it plainly: nine abilities (the account, the pages
+//! without JavaScript and offline, the Stundenplan, the plans from the regulations among them),
+//! questions on exactly these points, and after the questions „Betula im Detail" — the ways to a
+//! module, every filter of the catalog as its panel names it, the plans, the Stundenplan, the
+//! account, JavaScript and the data, at length. The structured data names Betula as a web app
+//! with the same abilities (`WebApplication`), free and running without JavaScript.
 //!
 //! The map (`catalog::graph`) is laid out by the web server once per snapshot, on a 4:3 sheet and
 //! a tall one for phones; this page only draws it (`data::ProgramMapHandle`). The dialog is in the
@@ -78,20 +88,37 @@ fn entries(t: &'static Texts) -> Vec<Entry> {
 const PAUSED_KEY: &str = "betula.showcase";
 
 /// The sections of the page, as the sidebar lists them: id, icon, name.
-fn sections(t: &'static Texts) -> [(&'static str, &'static str, &'static str); 4] {
+fn sections(t: &'static Texts) -> [(&'static str, &'static str, &'static str); 5] {
     let t = &t.home;
-    [("ueberblick", "house", t.overview), ("einstiege", "layout-list", t.ways_in_and_faculties), ("funktionen", "circle-check-big", t.abilities), ("fragen", "info", t.questions)]
+    [
+        ("ueberblick", "house", t.overview),
+        ("einstiege", "layout-list", t.ways_in_and_faculties),
+        ("funktionen", "circle-check-big", t.abilities),
+        ("fragen", "info", t.questions),
+        ("im-detail", "leaf", t.in_detail),
+    ]
 }
 
-/// What Betula does, each with its icon.
-fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability); 6] {
+/// What Betula does, each with its icon: three rows of three on a wide page.
+fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability); 9] {
     let t = &t.home;
-    [("search", &t.search), ("sliders-horizontal", &t.filters), ("calendar-range", &t.study_plan), ("repeat", &t.prerequisites), ("calendar-days", &t.dates), ("shield-check", &t.gaps)]
+    [
+        ("search", &t.search),
+        ("sliders-horizontal", &t.filters),
+        ("file-check-2", &t.plans),
+        ("calendar-range", &t.timetable),
+        ("calendar-days", &t.dates),
+        ("repeat", &t.prerequisites),
+        ("shield-check", &t.account),
+        ("database", &t.offline),
+        ("eye", &t.gaps),
+    ]
 }
 
-/// Questions and answers, in two groups: about Betula, and about studying (for first semesters).
-fn questions(t: &'static Texts) -> [&'static i18n::home::Faq; 2] {
-    [&t.home.about_betula, &t.home.for_studies]
+/// Questions and answers, in three groups: about Betula, using it, and about studying (for first
+/// semesters).
+fn questions(t: &'static Texts) -> [&'static i18n::home::Faq; 3] {
+    [&t.home.about_betula, &t.home.using_betula, &t.home.for_studies]
 }
 
 /// The name of a semester in the page's language (the snapshot's `label` is German).
@@ -108,6 +135,8 @@ pub fn HomePage() -> impl IntoView {
     let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).collect();
     let loaded = source.and_then(|source| source.run(|db| pages::home(db, &queries)));
     let map = use_context::<ProgramMapHandle>().map(|handle| handle.0);
+    // „Betula im Detail" says how many of the current programs have a checked plan.
+    let plans = loaded.as_ref().ok().map(|home| (home.overview.plans, home.overview.programs));
 
     // The versions and the legal links are the ground's, at the end of every page (`ground.rs`).
     let sidebar = {
@@ -153,6 +182,22 @@ pub fn HomePage() -> impl IntoView {
                 "target": { "@type": "EntryPoint", "urlTemplate": format!("{}?q={{search_term_string}}", seo::absolute(url::CATALOG)) },
                 "query-input": "required name=search_term_string",
             },
+        }),
+        // Betula as the app it is: what it does is what the page lists as its abilities, and it is
+        // free and runs in any browser, with or without JavaScript.
+        serde_json::json!({
+            "@type": "WebApplication",
+            "@id": seo::absolute("/#app"),
+            "url": seo::absolute(url::HOME),
+            "name": seo::SITE_NAME,
+            "description": t.home.description,
+            "applicationCategory": "EducationalApplication",
+            "browserRequirements": t.home.browser_requirements,
+            "featureList": abilities(t).into_iter().map(|(_, ability)| format!("{}. {}", ability.title, ability.text)).collect::<Vec<_>>(),
+            "inLanguage": Locale::ALL.iter().map(|locale| locale.code()).collect::<Vec<_>>(),
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+            "about": { "@type": "CollegeOrUniversity", "name": seo::UNIVERSITY, "url": seo::UNIVERSITY_URL },
         }),
         serde_json::json!({
             "@type": "FAQPage",
@@ -219,6 +264,7 @@ pub fn HomePage() -> impl IntoView {
                 </div>
             }).collect_view()}
         </section>
+        <Details plans/>
         </div></Frame>
     }
 }
@@ -666,6 +712,91 @@ fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
                 </ul>
             </section>
         </div>
+    }
+}
+
+/// „Betula im Detail", after the questions: what the page says above, at length and in one piece,
+/// for those who want to know exactly (owner, 2026-09-28: „nach dem FAQ noch so eine Text
+/// section …, wo darüber alles gesprochen wird", with the flow through the app and every filter).
+/// A chapter per row, its heading beside its text on a wide page. The filters are named as the
+/// panel names them (`catalog::Texts`) and stand in its order; `plans` is (the current programs
+/// with a checked plan, all current programs), where the data could be read.
+#[component]
+fn Details(plans: Option<(u64, u64)>) -> impl IntoView {
+    let t = i18n::t();
+    let d = &t.home.details;
+    let (c, f) = (&t.catalog, &d.filter);
+    let filters = [
+        (c.tag_search.to_string(), f.search),
+        (c.program.to_string(), f.program),
+        (c.list.to_string(), f.list),
+        (c.module_kind.to_string(), f.kind),
+        (c.area.to_string(), f.area),
+        (c.plan_semesters.to_string(), f.plan_semester),
+        (format!("{}: {}", c.dates, c.confirmed), f.confirmed),
+        (format!("{}: {}", c.dates, c.fits), f.fits),
+        (c.offered_in.to_string(), f.offered_in),
+        (c.teaching_form.to_string(), f.teaching_form),
+        (c.exam.to_string(), f.exam),
+        (c.credit_points.to_string(), f.credits),
+        (c.language.to_string(), f.language),
+        (c.properties.to_string(), f.properties),
+        (c.lecturers.to_string(), f.lecturers),
+        (c.department.to_string(), f.department),
+        (c.duration.to_string(), f.duration),
+        (c.years_only.to_string(), f.years),
+        (c.location.to_string(), f.location),
+        (c.show_not_offered.to_string(), f.not_offered),
+        (f.sort_name.to_string(), f.sort),
+    ];
+    let filter_list = view! {
+        <dl class="chapter-facts">
+            {filters.into_iter().map(|(name, text)| view! { <div><dt>{name}</dt><dd>{text}</dd></div> }).collect_view()}
+        </dl>
+    };
+    let plan_count = plans.filter(|(plans, _)| *plans > 0).map(|(plans, programs)| {
+        view! { <p>{(d.plans_count)(&format::count(plans, t.locale), &format::count(programs, t.locale))}</p> }
+    });
+    view! {
+        <section class="panel in-detail" id="im-detail" aria-labelledby="im-detail-titel">
+            <header class="block-head">
+                <h2 id="im-detail-titel">{d.heading}</h2>
+                <p>{d.lead}</p>
+            </header>
+            <Chapter id="weg" chapter=&d.flow/>
+            <Chapter id="filter" chapter=&d.filters middle=filter_list.into_any() link=(d.to_catalog, url::CATALOG)/>
+            <Chapter id="regelstudienplaene" chapter=&d.plans middle=plan_count.into_any() link=(d.to_programs, url::PROGRAMS)/>
+            <Chapter id="stundenplan" chapter=&d.timetable link=(d.to_studyplan, url::STUDYPLAN)/>
+            <Chapter id="ohne-konto" chapter=&d.account link=(d.to_privacy, url::PRIVACY)/>
+            <Chapter id="javascript" chapter=&d.javascript/>
+            <Chapter id="daten" chapter=&d.data/>
+            <Chapter id="geraete" chapter=&d.devices/>
+        </section>
+    }
+}
+
+/// A chapter of „Betula im Detail": its heading, its text, what stands in the middle of it, and
+/// the way on at its end (words, and a path of the app).
+#[component]
+fn Chapter(
+    id: &'static str,
+    chapter: &'static i18n::home::Chapter,
+    #[prop(optional)] middle: Option<AnyView>,
+    #[prop(optional)] link: Option<(&'static str, &'static str)>,
+) -> impl IntoView {
+    let t = i18n::t();
+    let title_id = format!("{id}-titel");
+    let paragraphs = |texts: &'static [&'static str]| texts.iter().map(|text| view! { <p>{*text}</p> }).collect_view();
+    view! {
+        <section class="chapter" id=id aria-labelledby=format!("{id}-titel")>
+            <h3 id=title_id>{chapter.title}</h3>
+            <div class="chapter-text">
+                {paragraphs(chapter.text)}
+                {middle}
+                {paragraphs(chapter.more)}
+                {link.map(|(words, path)| view! { <a class="ghost chapter-link" href=t.path(path)>{words}<Icon name="chevron-right"/></a> })}
+            </div>
+        </section>
     }
 }
 

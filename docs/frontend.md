@@ -856,11 +856,41 @@ screenshot is lazy with `loading` written before its address (the app sets attri
 image with an address and no `loading` yet is fetched at once), so only what shows is fetched,
 never the hidden theme or the phone's pictures. Colour: washes of the faculties' palette behind the
 pictures, the ways into the catalog with a soft hue each (`--t-*`), the faculties in their map
-colours, the abilities in the accent's tint. The questions are an accordion in two groups, „Über
-Betula" and „Fürs Studium" (first semesters); the text stays in the page and in the FAQPage data.
-The sidebar: the sections (the current one follows the scroll, `nav[data-spy]` in `enhance.js`)
-and the Datenstand as label | value rows. The versions and Impressum and Datenschutz moved into the
-ground at the end of every page on 2026-09-25 („The birch" below).
+colours, the abilities in the accent's tint. The questions are an accordion in three groups, „Über
+Betula", „Betula nutzen" and „Fürs Studium" (first semesters); the text stays in the page and in the
+FAQPage data. The sidebar: the sections (the current one follows the scroll, `nav[data-spy]` in
+`enhance.js`) and the Datenstand as label | value rows. The versions and Impressum and Datenschutz
+moved into the ground at the end of every page on 2026-09-25 („The birch" below).
+
+**What the page says of Betula itself (2026-09-28).** Owner: what is known of a tool is mostly what
+its own site says, and asked to compare Betula with other tools, search engines and the assistants
+built on them marked it down unfairly — no account was read as missing functions, and neither the
+pages that work without JavaScript nor the study plans read from the regulations were noticed; so
+the page has to sell the functions and the architecture, with a text after the questions „wo darüber
+alles gesprochen wird", the flow through the app and every filter. What changed:
+- **Nine abilities** instead of six (`abilities`, three rows of three from a container width of
+  1180 px; with two a row the odd last one takes the whole row, so no cell stays empty): the plans
+  read from the regulations, the Stundenplan, no account („Kein Konto, und nichts fehlt") and
+  „Schnell, offline, auch ohne JavaScript" are abilities of their own. Two old texts said more than
+  the app does and were corrected on the way: a module's page names what the module requires, not
+  what it is required for, and the versions stand in the ground, not in the sidebar.
+- **The questions** got a group „Betula nutzen" (finding a module, the Stundenplan, marking,
+  several devices, without JavaScript, offline and as an app, English); „Kostet Betula etwas?" and
+  „Warum gibt es kein Konto? Fehlt dadurch etwas?" are two questions now, and the second one
+  answers it: the account is left out, not the functions.
+- **„Betula im Detail"** after the questions (`#im-detail`, the sidebar's „Im Detail"): eight
+  chapters, a row each with the heading beside the text from a container width of 1000 px — the
+  ways from a question to a module, every filter of the catalog, the plans from the regulations
+  (with how many of the current programs have one, `Overview::plans`), the Stundenplan, no account,
+  with and without JavaScript, where the data comes from, devices and languages. The filters are a
+  list in the panel's order under the panel's own names (`catalog::Texts`, so a renamed filter is
+  renamed there too), with the order of the list at its end. Four chapters end in a way on (the
+  catalog, the programs, the Stundenplan, the privacy notice).
+- **The structured data** names Betula as a `WebApplication`: its abilities as `featureList`, free
+  (`offers` at 0 €, `isAccessibleForFree`), `browserRequirements` saying that it runs without
+  JavaScript and offline with it.
+- What a text quotes of the page — a button, a view, a filter, a way in, the values of a filter — is
+  checked against the page's own words in every language (`i18n/home.rs`, its tests).
 
 The map (`catalog/src/graph.rs`): a dot per current program, a line where two curricula share
 modules (Jaccard; modules of more than 40 programs are ignored), a force layout without
@@ -987,8 +1017,9 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
-- **Structured data states only what the page shows:** `WebSite` with its search and `FAQPage` on
-  the landing page, `Course` and `BreadcrumbList` on a module, `EducationalOccupationalProgram`
+- **Structured data states only what the page shows:** `WebSite` with its search, `WebApplication`
+  with the abilities the page lists (2026-09-28, „The landing page" above) and `FAQPage` on the
+  landing page, `Course` and `BreadcrumbList` on a module, `EducationalOccupationalProgram`
   and `BreadcrumbList` on a program. Since 2026-09-26 it carries what search engines answer
   questions with (owner: Google's AI answers should know when a module's Termine and exams are and
   in which semester a plan places it — as much as sensible, without bloating the page):

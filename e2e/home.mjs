@@ -7,7 +7,8 @@
 // over a dot shows its relatives in the caption, a click picks it (the outline of its faculty, the
 // others step back, the caption links to it) instead of opening it, and that link opens the
 // program without loading a page. Only the pictures that show are fetched, the sidebar follows
-// the scroll, the questions open in place, the head describes the page shown.
+// the scroll, the questions open in place, „Betula im Detail" follows them with its chapters and
+// every filter, the head describes the page shown.
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { chromium } from "playwright-core";
@@ -35,6 +36,7 @@ check((html.match(/class="cslide /g) || []).length === 5, "server HTML: not four
 check((html.match(/loading="lazy"/g) || []).length === 6, "server HTML: the screenshots are not all lazy");
 check(html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: no legal links");
 check(!html.includes("Was bedeutet FÜS?") && html.includes("Wie finde ich die Module für mein Studium?"), "server HTML: the questions are the old ones");
+check(html.includes('"@type":"WebApplication"') && html.includes('id="im-detail"') && (html.match(/class="chapter"/g) || []).length === 8, "server HTML: no app in the structured data, or no „Betula im Detail\"");
 check(html.includes('<dl class="birch">') && !html.includes('class="examples"'), "server HTML: the figures are not the stack, or the example searches are still there");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
@@ -182,7 +184,17 @@ await page.evaluate(() => document.getElementById("fragen").scrollIntoView({ blo
 await page.waitForFunction(() => document.querySelector(".home-toc a[aria-current]")?.getAttribute("href") === "#fragen");
 await page.click(".faq summary >> nth=1");
 check(await page.evaluate(() => document.querySelectorAll(".faq details[open]").length === 1), "a question does not open");
-check(await page.evaluate(() => document.querySelectorAll(".faq-group").length === 2), "the questions are not in two groups");
+check(await page.evaluate(() => document.querySelectorAll(".faq-group").length === 3), "the questions are not in three groups");
+// After the questions „Betula im Detail": its chapters, every filter of the panel, and the
+// sidebar following it there too.
+const detail = await page.evaluate(() => ({
+  chapters: document.querySelectorAll("#im-detail .chapter").length,
+  filters: document.querySelectorAll("#im-detail .chapter-facts > div").length,
+  links: [...document.querySelectorAll("#im-detail .chapter-link")].map((a) => a.getAttribute("href")),
+}));
+check(detail.chapters === 8 && detail.filters === 21 && detail.links.join() === "/catalog,/programs,/studyplan,/datenschutz", `„Betula im Detail" is not what it was: ${JSON.stringify(detail)}`);
+await page.evaluate(() => document.getElementById("im-detail").scrollIntoView({ block: "start" }));
+await page.waitForFunction(() => document.querySelector(".home-toc a[aria-current]")?.getAttribute("href") === "#im-detail");
 check(images.every((path) => !path.includes("-dark") && !path.includes("-phone")), `wrong pictures fetched: ${images}`);
 
 // A phone: pictures upright, the tall sheet, a swipe turns them, nothing scrolls sideways. A stop

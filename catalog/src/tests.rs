@@ -955,6 +955,8 @@ fn page_loaders_return_everything_a_page_shows() {
 
     let overview = pages::overview(&db).unwrap();
     assert!(overview.current_semester.is_some() && overview.modules > 0 && overview.programs > 0);
+    // The start page names how many of the current programs have a checked plan.
+    assert!(overview.plans > 0 && overview.plans <= overview.programs, "{} of {}", overview.plans, overview.programs);
     let ground = pages::ground(&db).unwrap();
     assert_eq!((&ground.meta, &ground.current_semester), (&overview.meta, &overview.current_semester));
 
