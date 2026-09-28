@@ -9,13 +9,16 @@
 # --dev drops fat LTO, `opt-level = "z"` and the single codegen unit, which is what makes the
 # release bundle small and its build slow, and builds with the flags of .cargo/config.toml
 # (--cfg erase_components): editing a page and rebuilding goes from 2 min 18 s to 11 s.
-# site/pkg then holds 7.4 MB instead of 19 MB, so it is for localhost only -- never deploy it.
+# It keeps the names of the bundle's functions for the debugger (a panic's stack trace names
+# them), which the bundle that ships leaves out: they were 26 of its 30 MB and 1 of the 2.6 MB a
+# browser downloaded. So --dev is for localhost only -- never deploy it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PROFILE=wasm-release
+BINDGEN_FLAGS=(--remove-name-section --remove-producers-section)
 case "${1:-}" in
-  --dev) PROFILE=wasm-dev ;;
+  --dev) PROFILE=wasm-dev; BINDGEN_FLAGS=() ;;
   # The bundle that ships as Nix builds it: without the flags scripts/build-cache.sh writes into
   # .cargo/config.toml for the builds while working (--cfg erase_components). An empty
   # CARGO_ENCODED_RUSTFLAGS outranks every other source of flags.
@@ -42,5 +45,5 @@ fi
 [ -n "$WB" ] || { echo "wasm-bindgen 0.2.128 not found (cargo install wasm-bindgen-cli --version 0.2.128)" >&2; exit 1; }
 
 mkdir -p site/pkg
-"$WB" --target web --no-typescript --out-dir site/pkg --out-name folia_client "$TARGET_DIR/wasm32-unknown-unknown/$PROFILE/folia_client.wasm"
+"$WB" --target web --no-typescript ${BINDGEN_FLAGS[@]+"${BINDGEN_FLAGS[@]}"} --out-dir site/pkg --out-name folia_client "$TARGET_DIR/wasm32-unknown-unknown/$PROFILE/folia_client.wasm"
 ls -la site/pkg

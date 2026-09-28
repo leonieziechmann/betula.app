@@ -199,6 +199,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         stale_after: None,
         public_url: "https://catalog.example".into(),
         site_root: "no-site".into(),
+        live_assets: None,
         packages: Arc::default(),
         gate: None,
         renders: Arc::new(crate::busy::Places::new("render", 2, std::time::Duration::from_secs(3))),
@@ -498,13 +499,16 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
     // The worker knows the build too: it keeps the files under the addresses this build links.
+    // Both are served minified (`assets`), with what the server knows written in.
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
     let worker = String::from_utf8(worker).unwrap();
-    assert!(worker.contains("const VERSION = \"test\";") && !worker.contains("__BUILD__"), "{worker}");
+    assert_eq!(worker, crate::assets::text("sw.js").replace("__BUILD__", "test"));
+    assert!(!worker.contains("__BUILD__") && ["\"test\"", "'test'", "`test`"].iter().any(|build| worker.contains(build)), "{worker}");
     // The boot knows the schema its build reads, and opens no local copy of an older one.
     let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
     let boot = String::from_utf8(boot).unwrap();
-    assert!(boot.contains(&format!("const SCHEMA = Number(\"{}\");", catalog::SCHEMA_VERSION)) && !boot.contains("__SCHEMA__"), "{boot}");
+    assert_eq!(boot, crate::assets::text("boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string()));
+    assert!(!boot.contains("__SCHEMA__"), "{boot}");
     // Every answer names the build that gave it; the worker keeps only the answers of its own.
     for path in ["/", "/catalog", "/assets/app.css?v=test", app::SERVICE_WORKER, "/manifest.webmanifest"] {
         let (_, headers, _) = request(&router, path, &[]).await;
@@ -860,8 +864,9 @@ async fn calendar_services_may_fetch_feeds() {
     let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
     let robots = String::from_utf8(robots).unwrap();
     assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
+    // The worker never touches a feed (the rule it goes by, as the minified worker writes it).
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
-    assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|([a-z]{2}\\/)?(cards|calendar)\\/)/;"));
+    assert!(String::from_utf8(worker).unwrap().contains("=/^\\/(api\\/|access|sw\\.js$|([a-z]{2}\\/)?(cards|calendar)\\/)/"));
 }
 
 /// A server with more work than places (`busy`): a page that finds no place within the wait is
@@ -969,6 +974,42 @@ async fn the_warm_up_goes_on_after_a_render_that_panics() {
     assert!(log.contains("path=/b") && log.contains("a render that panics") && log.contains("rendered=2") && log.contains("failed=1"), "{log}");
 }
 
+/// While working on the site (`--live-assets`) the stylesheet, the scripts and the SVGs come from
+/// disk as they are: an edit is there with the next request, the service worker keeps nothing,
+/// and no file is read but those the server serves anyway.
+#[tokio::test(flavor = "multi_thread")]
+async fn live_assets_come_from_disk() {
+    let dir = temp_dir("live-assets");
+    std::fs::create_dir_all(dir.join("birch")).unwrap();
+    std::fs::write(dir.join("app.css"), "body { color: red; }\n").unwrap();
+    std::fs::write(dir.join("boot.js"), "const SCHEMA = __SCHEMA__;\n").unwrap();
+    std::fs::write(dir.join("birch/roots.svg"), "<svg/>").unwrap();
+    std::fs::write(dir.join("secret.txt"), "not an asset").unwrap();
+    let mut live = state(SnapshotStore::new(temp_dir("live-assets-data")).unwrap());
+    live.live_assets = Some(dir.clone());
+    let router = crate::router(live);
+
+    let (status, headers, body) = request(&router, "/assets/app.css?v=test", &[("accept-encoding", "gzip")]).await;
+    assert_eq!((status, body.as_slice()), (StatusCode::OK, &b"body { color: red; }\n"[..]), "as it is on disk");
+    assert!(headers.get(header::CONTENT_ENCODING).is_none(), "not compressed: it goes to this machine");
+    let etag = headers[header::ETAG].to_str().unwrap().to_string();
+    assert_eq!(request(&router, "/assets/app.css", &[("if-none-match", &etag)]).await.0, StatusCode::NOT_MODIFIED);
+    std::fs::write(dir.join("app.css"), "body { color: green; }\n").unwrap();
+    let (status, headers, body) = request(&router, "/assets/app.css", &[("if-none-match", &etag)]).await;
+    assert_eq!((status, body.as_slice()), (StatusCode::OK, &b"body { color: green; }\n"[..]), "an edit is there with the next request");
+    assert_ne!(headers[header::ETAG].to_str().unwrap(), etag);
+
+    let (_, _, boot) = request(&router, "/assets/boot.js", &[]).await;
+    assert_eq!(String::from_utf8(boot).unwrap(), format!("const SCHEMA = {};\n", catalog::SCHEMA_VERSION));
+    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    assert_eq!(worker, crate::api::LIVE_SERVICE_WORKER.as_bytes(), "the worker keeps nothing");
+    assert_eq!(request(&router, "/assets/birch/roots.svg", &[]).await.2, b"<svg/>");
+    // Nothing but the files of the server, and one of them missing on disk is not found.
+    for path in ["/assets/birch/..%2Fsecret.txt", "/assets/birch/secret.txt", "/assets/enhance.js"] {
+        assert_eq!(request(&router, path, &[]).await.0, StatusCode::NOT_FOUND, "{path}");
+    }
+}
+
 /// The icons of a page point into one sprite, served once, with the build of the page.
 #[tokio::test(flavor = "multi_thread")]
 async fn icons_point_into_the_sprite() {
@@ -983,7 +1024,7 @@ async fn icons_point_into_the_sprite() {
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/svg+xml"));
     assert!(sprite.contains("<symbol id=\"check\" viewBox=\"0 0 24 24\"><path d=\"M20 6 9 17l-5-5\"/></symbol>"));
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
-    assert!(String::from_utf8(worker).unwrap().contains("\"/assets/icons.svg\","), "the service worker keeps the sprite");
+    assert!(String::from_utf8(worker).unwrap().contains("/assets/icons.svg"), "the service worker keeps the sprite");
 }
 
 /// `/api/db` hands every browser the same compressed bytes from memory.

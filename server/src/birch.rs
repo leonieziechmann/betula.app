@@ -1,9 +1,9 @@
 //! The birch around the app as files (docs/frontend.md „The birch"): the masks
-//! `design/birch/birch.mjs` draws into `app/assets/birch`, embedded once. The stylesheet gets them
-//! under `/assets/birch/` (`api::birch`) and colours them by its tokens; the link-preview cards
-//! (`cards`) draw the crown into their top edge in the season's tone, with a head of their own
-//! (`<season>-card-head.svg`, not served: its clearing fits the card's wordmark, not the page's
-//! title).
+//! `design/birch/birch.mjs` draws into `app/assets/birch`, embedded once as the build minified
+//! them (`assets`). The stylesheet gets them under `/assets/birch/` (`api::birch`) and colours
+//! them by its tokens; the link-preview cards (`cards`) draw the crown into their top edge in the
+//! season's tone, with a head of their own (`<season>-card-head.svg`, not served: its clearing
+//! fits the card's wordmark, not the page's title).
 //!
 //! Every file is a mask: shape in black and nothing else (what hangs behind at half strength).
 
@@ -89,37 +89,34 @@ pub struct Crown {
 
 pub fn card_crown(season: Season) -> Crown {
     let tile = |name: &str| file(&format!("{}-{name}.svg", season.name())).unwrap_or_default();
-    let head = match season {
-        Season::Spring => include_str!("../../app/assets/birch/spring-card-head.svg"),
-        Season::Summer => include_str!("../../app/assets/birch/summer-card-head.svg"),
-        Season::Autumn => include_str!("../../app/assets/birch/autumn-card-head.svg"),
-        Season::Winter => include_str!("../../app/assets/birch/winter-card-head.svg"),
-    };
+    let own = |name: &str| crate::assets::text(&format!("birch/{}-{name}.svg", season.name()));
     Crown {
-        head,
+        head: own("card-head"),
         head_width: 300.0,
         tile: tile("crown"),
-        catkins: (season == Season::Spring).then(|| (include_str!("../../app/assets/birch/spring-card-head-ck.svg"), tile("crown-ck"))),
+        catkins: (season == Season::Spring).then(|| (own("card-head-ck"), tile("crown-ck"))),
     }
 }
 
-/// A file of the birch by its name under `/assets/birch/`.
+/// The files of the birch served under `/assets/birch/` (not the cards' heads).
+const SERVED: [&str; 12] = [
+    "spring-crown.svg",
+    "spring-crown-ck.svg",
+    "spring-crown-head.svg",
+    "spring-crown-head-ck.svg",
+    "summer-crown.svg",
+    "summer-crown-head.svg",
+    "autumn-crown.svg",
+    "autumn-crown-head.svg",
+    "winter-crown.svg",
+    "winter-crown-head.svg",
+    "roots.svg",
+    "litter.svg",
+];
+
+/// A file of the birch by its name under `/assets/birch/`, minified (`assets`).
 pub fn file(name: &str) -> Option<&'static str> {
-    Some(match name {
-        "spring-crown.svg" => include_str!("../../app/assets/birch/spring-crown.svg"),
-        "spring-crown-ck.svg" => include_str!("../../app/assets/birch/spring-crown-ck.svg"),
-        "spring-crown-head.svg" => include_str!("../../app/assets/birch/spring-crown-head.svg"),
-        "spring-crown-head-ck.svg" => include_str!("../../app/assets/birch/spring-crown-head-ck.svg"),
-        "summer-crown.svg" => include_str!("../../app/assets/birch/summer-crown.svg"),
-        "summer-crown-head.svg" => include_str!("../../app/assets/birch/summer-crown-head.svg"),
-        "autumn-crown.svg" => include_str!("../../app/assets/birch/autumn-crown.svg"),
-        "autumn-crown-head.svg" => include_str!("../../app/assets/birch/autumn-crown-head.svg"),
-        "winter-crown.svg" => include_str!("../../app/assets/birch/winter-crown.svg"),
-        "winter-crown-head.svg" => include_str!("../../app/assets/birch/winter-crown-head.svg"),
-        "roots.svg" => include_str!("../../app/assets/birch/roots.svg"),
-        "litter.svg" => include_str!("../../app/assets/birch/litter.svg"),
-        _ => return None,
-    })
+    SERVED.contains(&name).then(|| crate::assets::text(&format!("birch/{name}")))
 }
 
 #[cfg(test)]

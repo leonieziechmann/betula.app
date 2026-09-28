@@ -363,14 +363,15 @@ fn tagged_asset(state: &AppState, headers: &HeaderMap, content_type: &'static st
     if if_none_match(headers, &etag) {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
     }
-    // Fonts are compressed already.
-    let compressed = (accepts_gzip(headers) && !matches!(content_type, "font/woff2" | "image/png" | "image/webp") && body.len() > 1024)
+    // Fonts and pictures are compressed already. Whatever else gzip makes smaller goes compressed,
+    // however small: the minified manifest (869 bytes) goes as 382.
+    let compressed = (accepts_gzip(headers) && !matches!(content_type, "font/woff2" | "image/png" | "image/webp"))
         .then(|| {
             let mut cache = COMPRESSED.get_or_init(Default::default).lock().ok()?;
             Some(cache.entry(body.as_ptr() as usize).or_insert_with(|| crate::cache::gzip(body)).clone())
         })
         .flatten()
-        .filter(|bytes| !bytes.is_empty());
+        .filter(|bytes| !bytes.is_empty() && bytes.len() < body.len());
 
     let mut response = match &compressed {
         Some(bytes) => Response::new(Body::from(bytes.clone())),
@@ -389,24 +390,69 @@ fn tagged_asset(state: &AppState, headers: &HeaderMap, content_type: &'static st
     response
 }
 
+/// A file of `app/assets` the build minifies (`assets`), by its path there; while the server
+/// serves them live (`--live-assets`), the file as it is on disk right now.
+async fn minified(state: &AppState, headers: &HeaderMap, path: &str) -> Response {
+    let Some(file) = crate::assets::get(path) else { return StatusCode::NOT_FOUND.into_response() };
+    match &state.live_assets {
+        Some(dir) => live(headers, file.path, tokio::fs::read(dir.join(file.path)).await),
+        None => asset(state, headers, crate::assets::content_type(file.path), file.bytes),
+    }
+}
+
+/// A file read from disk for this request (`--live-assets`): tagged by what it holds, so that an
+/// edit is there with the next reload, and never compressed (it goes to this machine).
+fn live(headers: &HeaderMap, path: &str, file: std::io::Result<Vec<u8>>) -> Response {
+    use std::hash::{Hash, Hasher};
+    let body = match file {
+        Ok(body) => body,
+        Err(error) => {
+            tracing::warn!(component = "http", event = "assets.live_failed", path, error = %error, "cannot read the file of a live asset");
+            return StatusCode::NOT_FOUND.into_response();
+        }
+    };
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    body.hash(&mut hasher);
+    let etag = format!("\"live-{:016x}\"", hasher.finish());
+    if if_none_match(headers, &etag) {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+    }
+    let mut response = Response::new(Body::from(body));
+    let out = response.headers_mut();
+    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(crate::assets::content_type(path)));
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    if let Ok(value) = HeaderValue::from_str(&etag) {
+        out.insert(header::ETAG, value);
+    }
+    response
+}
+
+/// The service worker while the server serves `app/assets` live (`--live-assets`): it keeps
+/// nothing and listens to no request, so an edited file, or a bundle built again, is there with
+/// the next reload; and it drops what the worker of an earlier run kept.
+pub const LIVE_SERVICE_WORKER: &str = "self.addEventListener(\"install\",()=>self.skipWaiting());self.addEventListener(\"activate\",e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.map(n=>caches.delete(n)))).then(()=>self.clients.claim())));\n";
+
 /// `GET /sw.js`: the service worker, with the build of this process written into it, so that a
 /// new build installs a new worker and drops the shell the old one kept. Revalidated on every use
 /// like the other assets (browsers check a worker for updates on their own as well).
 pub async fn service_worker(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if state.live_assets.is_some() {
+        return live(&headers, "sw.js", Ok(LIVE_SERVICE_WORKER.as_bytes().to_vec()));
+    }
     static SOURCE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
     let body = SOURCE.get_or_init(|| {
-        let source = include_str!("../../app/assets/sw.js").replace("__BUILD__", &state.build_id);
+        let source = crate::assets::text("sw.js").replace("__BUILD__", &state.build_id);
         Box::leak(source.into_boxed_str()).as_bytes()
     });
     asset(&state, &headers, "text/javascript; charset=utf-8", body)
 }
 
 pub async fn stylesheet(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "text/css; charset=utf-8", include_bytes!("../../app/assets/app.css"))
+    minified(&state, &headers, "app.css").await
 }
 
 pub async fn favicon(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/svg+xml", include_bytes!("../../app/assets/favicon.svg"))
+    minified(&state, &headers, "favicon.svg").await
 }
 
 /// `GET /assets/shots/<name>.webp`: the screenshots in the start page's carousel, light and dark,
@@ -435,7 +481,7 @@ pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<Strin
 /// them). Embedded once (`birch::file`): the link-preview cards draw the same crown.
 pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
     match crate::birch::file(&file) {
-        Some(body) => asset(&state, &headers, "image/svg+xml", body.as_bytes()),
+        Some(_) => minified(&state, &headers, &format!("birch/{file}")).await,
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -746,7 +792,7 @@ pub fn localized_manifest(locale: Locale) -> String {
         fields.insert("id".to_string(), json!(home));
         fields.insert("start_url".to_string(), json!(home));
     }
-    serde_json::to_string_pretty(&manifest).unwrap_or_else(|_| file.to_string())
+    serde_json::to_string(&manifest).unwrap_or_else(|_| file.to_string())
 }
 
 pub async fn font(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -754,22 +800,23 @@ pub async fn font(State(state): State<AppState>, headers: HeaderMap) -> Response
 }
 
 pub async fn enhance_script(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/enhance.js"))
+    minified(&state, &headers, "enhance.js").await
 }
 
 /// `GET /assets/boot.js`, with the schema this build reads written into it
 /// (`catalog::SCHEMA_VERSION`): it refuses a local copy of the catalog of an older one.
 pub async fn boot_script(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let with_schema = |source: &str| source.replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string());
+    if let Some(dir) = &state.live_assets {
+        return live(&headers, "boot.js", tokio::fs::read_to_string(dir.join("boot.js")).await.map(|source| with_schema(&source).into_bytes()));
+    }
     static SOURCE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
-    let body = SOURCE.get_or_init(|| {
-        let source = include_str!("../../app/assets/boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string());
-        Box::leak(source.into_boxed_str()).as_bytes()
-    });
+    let body = SOURCE.get_or_init(|| Box::leak(with_schema(crate::assets::text("boot.js")).into_boxed_str()).as_bytes());
     asset(&state, &headers, "text/javascript; charset=utf-8", body)
 }
 
 pub async fn sql_js(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/sql-wasm.js"))
+    minified(&state, &headers, "sql-wasm.js").await
 }
 
 pub async fn sql_wasm(State(state): State<AppState>, headers: HeaderMap) -> Response {

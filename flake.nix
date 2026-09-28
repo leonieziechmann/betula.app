@@ -139,10 +139,13 @@
             cargo build -p folia-client --target wasm32-unknown-unknown --profile wasm-release --offline -j "$NIX_BUILD_CORES"
             runHook postBuild
           '';
+          # Without the names of its functions (--remove-name-section): they were 26 of the bundle's
+          # 30 MB and 1 of the 2.6 MB a browser downloads (docs/frontend.md §3).
           installPhase = ''
             runHook preInstall
             mkdir -p "$out/site/pkg"
-            wasm-bindgen --target web --no-typescript --out-dir "$out/site/pkg" --out-name folia_client \
+            wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
+              --out-dir "$out/site/pkg" --out-name folia_client \
               target/wasm32-unknown-unknown/wasm-release/folia_client.wasm
             runHook postInstall
           '';
