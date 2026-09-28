@@ -58,14 +58,19 @@ pub struct Overview {
     pub modules: u64,
     /// Programs in their current PO version.
     pub programs: u64,
+    /// Those of them whose study plan was read from their regulations and validated.
+    pub plans: u64,
 }
 
 pub fn overview(db: &dyn Database) -> Result<Overview, DbError> {
+    let programs = queries::programs(db)?;
+    let current = || programs.iter().filter(|p| p.is_latest_po);
     Ok(Overview {
         meta: queries::meta(db)?,
         current_semester: queries::semesters(db)?.into_iter().find(|s| s.is_current),
         modules: queries::catalog_count(db, &CatalogQuery::default())?,
-        programs: queries::programs(db)?.iter().filter(|p| p.is_latest_po).count() as u64,
+        programs: current().count() as u64,
+        plans: current().filter(|p| p.has_plan).count() as u64,
     })
 }
 

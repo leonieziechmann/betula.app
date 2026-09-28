@@ -7,7 +7,9 @@
 // over a dot shows its relatives in the caption, a click picks it (the outline of its faculty, the
 // others step back, the caption links to it) instead of opening it, and that link opens the
 // program without loading a page. Only the pictures that show are fetched, the sidebar follows
-// the scroll, the questions open in place, the head describes the page shown.
+// the scroll, the questions open in place, „Betula im Detail" follows them with its chapters and
+// every filter (on a phone the board's first groups, the others a tap away), the head describes
+// the page shown.
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { chromium } from "playwright-core";
@@ -26,15 +28,17 @@ const current = () => page.evaluate(() => document.querySelector(".cslide.is-cur
 const waitFor = (title) => page.waitForFunction((t) => document.querySelector(".cslide.is-current .cap-text b")?.textContent === t, title, { timeout: 5000 });
 
 // Without the app: the map is part of the server's HTML (the picture, and the dialog whose dots
-// are links), every picture is a link, the screenshots are lazy.
+// are links), every picture is a link, the screenshots are lazy (the carousel's and the two of
+// „Geräte und Sprachen", each in both themes).
 const html = await (await fetch(base + "/")).text();
 check(/<svg[^>]*class="map map-wide"/.test(html) && /<svg[^>]*class="map map-tall"/.test(html), "server HTML has no map");
 check(/<svg[^>]*class="map map-preview map-wide"/.test(html), "server HTML has no picture of the map");
 check(/<a href="\/programs\/[^"]+\/plan"[^>]*class="map-dot /.test(html), "server HTML: dots are not links to programs");
 check((html.match(/class="cslide /g) || []).length === 5, "server HTML: not four pictures and the spacer");
-check((html.match(/loading="lazy"/g) || []).length === 6, "server HTML: the screenshots are not all lazy");
+check((html.match(/loading="lazy"/g) || []).length === 10, "server HTML: the screenshots are not all lazy");
 check(html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: no legal links");
 check(!html.includes("Was bedeutet FÜS?") && html.includes("Wie finde ich die Module für mein Studium?"), "server HTML: the questions are the old ones");
+check(html.includes('"@type":"WebApplication"') && html.includes('id="im-detail"') && (html.match(/class="panel feature t-/g) || []).length === 8, "server HTML: no app in the structured data, or no „Betula im Detail\"");
 check(html.includes('<dl class="birch">') && !html.includes('class="examples"'), "server HTML: the figures are not the stack, or the example searches are still there");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
@@ -182,8 +186,26 @@ await page.evaluate(() => document.getElementById("fragen").scrollIntoView({ blo
 await page.waitForFunction(() => document.querySelector(".home-toc a[aria-current]")?.getAttribute("href") === "#fragen");
 await page.click(".faq summary >> nth=1");
 check(await page.evaluate(() => document.querySelectorAll(".faq details[open]").length === 1), "a question does not open");
-check(await page.evaluate(() => document.querySelectorAll(".faq-group").length === 2), "the questions are not in two groups");
-check(images.every((path) => !path.includes("-dark") && !path.includes("-phone")), `wrong pictures fetched: ${images}`);
+check(await page.evaluate(() => document.querySelectorAll(".faq-group").length === 3), "the questions are not in three groups");
+// After the questions „Betula im Detail": its row of chapters, the chapters, every group of the
+// filter panel with its chips leading into the catalog, and the sidebar following it there too.
+const detail = await page.evaluate(() => ({
+  nav: [...document.querySelectorAll("#im-detail .detail-nav a")].map((a) => a.getAttribute("href")).join(),
+  chapters: [...document.querySelectorAll(".home .feature")].map((section) => "#" + section.id).join(),
+  groups: document.querySelectorAll(".board .bgroup").length,
+  chips: [...document.querySelectorAll(".board a.chip")].every((a) => a.getAttribute("href").startsWith("/catalog?")),
+  example: document.querySelector(".board-foot a")?.getAttribute("href"),
+  links: [...document.querySelectorAll(".feature-link")].map((a) => a.getAttribute("href")).join(),
+}));
+check(detail.nav === detail.chapters && detail.chapters.split(",").length === 8 && detail.groups === 12 && detail.chips, `„Betula im Detail" is not what it was: ${JSON.stringify(detail)}`);
+check(/^\/catalog\?/.test(detail.example || "") && detail.links === "/catalog,/programs,/studyplan,/datenschutz", `„Betula im Detail" leads nowhere: ${JSON.stringify(detail)}`);
+await page.evaluate(() => document.getElementById("im-detail").scrollIntoView({ block: "start" }));
+await page.waitForFunction(() => document.querySelector(".home-toc a[aria-current]")?.getAttribute("href") === "#im-detail");
+// Its last chapter shows the catalog and a module on a phone: in the theme shown only.
+await page.evaluate(() => document.getElementById("geraete").scrollIntoView({ block: "center" }));
+await page.waitForFunction(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).every((img) => img.complete && img.naturalWidth > 0));
+check(images.every((path) => !path.includes("-dark") && (!path.includes("-phone") || path.endsWith("/module-phone.webp"))), `wrong pictures fetched: ${images}`);
+check(await page.evaluate(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).length) === 2, "„Geräte und Sprachen\" does not show one theme's pictures");
 
 // A phone: pictures upright, the tall sheet, a swipe turns them, nothing scrolls sideways. A stop
 // is remembered over a page load.
@@ -214,6 +236,13 @@ check(await page.evaluate(() => [...document.querySelectorAll(".show-tabs button
   return range.getBoundingClientRect().width <= b.clientWidth;
 })), "phone: a tab is cut off");
 check(await page.isVisible(".show-play"), "phone: no pause button");
+// The board of the filters: the groups of a first look, the others after „Alle Filter zeigen".
+const groups = () => page.evaluate(() => [...document.querySelectorAll(".board .bgroup")].filter((group) => group.checkVisibility()).length);
+check((await groups()) === 5, `phone: the board does not start with its first groups (${await groups()})`);
+await page.locator(".board-more").scrollIntoViewIfNeeded();
+await page.click(".board-more");
+check((await groups()) === 12 && !(await page.isVisible(".board-more")), `phone: „Alle Filter zeigen" does not show all filters (${await groups()})`);
+check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "phone: „Betula im Detail\" scrolls sideways");
 
 check(errors.length === 0, `page errors: ${errors.join(" | ")}`);
 await browser.close();

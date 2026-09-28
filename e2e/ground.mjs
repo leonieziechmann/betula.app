@@ -5,7 +5,7 @@
 // gets shorter by as much, the page's end goes up with the ground and the panel beside it is only
 // cut off (its content does not move, and the wheel over it does not scroll it), 8 px between
 // every panel and the ground. Upwards the ground leaves first, then the page scrolls. A short list
-// brings it at once; a page that leaves its end (a question opened) and a new page send it away;
+// brings it at once; a page that leaves its end (its scrollbar) and a new page send it away;
 // Tab into it brings it up. A phone scrolls the ground with the page, and under a page shorter
 // than the window the ground ends at the window's lower edge, not halfway up the screen.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node ground.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
@@ -87,14 +87,14 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await wheel(page, 900, 500, -100, 4);
   f = await at(page);
   check(f.inset === 0 && f.state === "mid" && !f.pageEnd, `after the ground the page did not scroll back: ${JSON.stringify(f)}`);
-  // A question opened at the end while the ground shows: the ground makes way for the answer.
+  // The page leaves its end while the ground shows, by its scrollbar: the ground makes way. (Until
+  // „Betula im Detail" followed them, the questions ended the page, and one opened did the same.)
   await toEnd(page);
   await wheel(page, 900, 500, 100, 5);
-  const last = await page.evaluate(() => { const q = [...document.querySelectorAll("#page-scroll details summary")].at(-1); const r = q.getBoundingClientRect(); return [r.left + 40, r.top + r.height / 2]; });
-  await page.mouse.click(last[0], last[1]);
+  await page.evaluate((PAGE) => { document.querySelector(PAGE).scrollTop -= 400; }, PAGE);
   await page.waitForTimeout(900);
   f = await at(page);
-  check(f.inset === 0 && f.state !== "in", `a question opened under the ground: the ground stayed: ${JSON.stringify(f)}`);
+  check(f.inset === 0 && f.state !== "in", `the page left its end under the ground: the ground stayed: ${JSON.stringify(f)}`);
   // Tab into the ground: it comes up. On the way from the page's end „Nach oben", which stands
   // between the page and the ground (the page is far down, so it shows) and leaves the ground down.
   await page.evaluate((PAGE) => { const el = document.querySelector(PAGE); el.scrollTop = el.scrollHeight; const all = [...el.querySelectorAll("a[href], summary")]; all.at(-1).focus(); }, PAGE);

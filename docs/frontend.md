@@ -856,11 +856,54 @@ screenshot is lazy with `loading` written before its address (the app sets attri
 image with an address and no `loading` yet is fetched at once), so only what shows is fetched,
 never the hidden theme or the phone's pictures. Colour: washes of the faculties' palette behind the
 pictures, the ways into the catalog with a soft hue each (`--t-*`), the faculties in their map
-colours, the abilities in the accent's tint. The questions are an accordion in two groups, „Über
-Betula" and „Fürs Studium" (first semesters); the text stays in the page and in the FAQPage data.
-The sidebar: the sections (the current one follows the scroll, `nav[data-spy]` in `enhance.js`)
-and the Datenstand as label | value rows. The versions and Impressum and Datenschutz moved into the
-ground at the end of every page on 2026-09-25 („The birch" below).
+colours, the abilities in the accent's tint. The questions are an accordion in three groups, „Über
+Betula", „Betula nutzen" and „Fürs Studium" (first semesters); the text stays in the page and in the
+FAQPage data. The sidebar: the sections (the current one follows the scroll, `nav[data-spy]` in
+`enhance.js`) and the Datenstand as label | value rows. The versions and Impressum and Datenschutz
+moved into the ground at the end of every page on 2026-09-25 („The birch" below).
+
+**What the page says of Betula itself (2026-09-28).** Owner: what is known of a tool is mostly what
+its own site says, and asked to compare Betula with other tools, search engines and the assistants
+built on them marked it down unfairly — no account was read as missing functions, and neither the
+pages that work without JavaScript nor the study plans read from the regulations were noticed; so
+the page has to sell the functions and the architecture, with a text after the questions „wo darüber
+alles gesprochen wird", the flow through the app and every filter. What changed:
+- **Nine abilities** instead of six (`abilities`, three rows of three from a container width of
+  1180 px; with two a row the odd last one takes the whole row, so no cell stays empty): the plans
+  read from the regulations, the Stundenplan, no account („Kein Konto, und nichts fehlt") and
+  „Schnell, offline, auch ohne JavaScript" are abilities of their own. Two old texts said more than
+  the app does and were corrected on the way: a module's page names what the module requires, not
+  what it is required for, and the versions stand in the ground, not in the sidebar.
+- **The questions** got a group „Betula nutzen" (finding a module, the Stundenplan, marking,
+  several devices, without JavaScript, offline and as an app, English); „Kostet Betula etwas?" and
+  „Warum gibt es kein Konto? Fehlt dadurch etwas?" are two questions now, and the second one
+  answers it: the account is left out, not the functions.
+- **„Betula im Detail"** after the questions (`#im-detail`, the sidebar's „Im Detail";
+  `pages/home/detail.rs`, its words in `i18n/home_detail.rs`). Its first version, eight chapters of
+  text, was „so langweilig und einfach nur eine wall of text" (owner, the same day): it had to be
+  interesting to look at for everybody without breaking Betula's look. Now a panel names the
+  chapters (links in their tints), and each chapter is a panel of its own — its name in its tint
+  over a headline, a line under it, four points — with a picture made of the app's own parts on a
+  wash of the tint, laid out by its own width (container `picture`): the four ways from a question
+  to the one module page; the filter panel as a board of its twelve groups in the panel's order,
+  look and words (`catalog::Texts`, so a renamed filter is renamed there too), its chips links into
+  the catalog, an example chosen (winter, English, no written exam: `detail::example`) with how many
+  modules the catalog has for it — on a phone the groups of a first look and the others after „Alle
+  Filter zeigen" (a checkbox, so with and without JavaScript); a regulation's PDF read into the
+  plan's matrix, with how many of the current programs have a checked plan (`Overview::plans`); a
+  week in the Stundenplan's own grid (`WeekGrid`) with a clash and the ways into a calendar; where a
+  visitor's things live, and four figures; the site with and without JavaScript; the birch from the
+  ground (Radix, its sources and how often it reads them) up the trunk (the Datenstand) into the
+  season's crown (Folia); the catalog and a module on a phone (`--device`, its frame), lazy and in
+  the theme shown. On a wide page the picture stands beside the words, every other one on the left,
+  the board across the width under them. Four chapters end in a way on (the catalog, the programs,
+  the Stundenplan, the privacy notice).
+- **The structured data** names Betula as a `WebApplication`: its abilities as `featureList`, free
+  (`offers` at 0 €, `isAccessibleForFree`), `browserRequirements` saying that it runs without
+  JavaScript and offline with it.
+- What a text quotes of the page — a button, a view, a filter, a way in, the values of a filter — is
+  checked against the page's own words in every language (`i18n/home.rs` and `i18n/home_detail.rs`,
+  their tests).
 
 The map (`catalog/src/graph.rs`): a dot per current program, a line where two curricula share
 modules (Jaccard; modules of more than 40 programs are ignored), a force layout without
@@ -987,8 +1030,9 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
-- **Structured data states only what the page shows:** `WebSite` with its search and `FAQPage` on
-  the landing page, `Course` and `BreadcrumbList` on a module, `EducationalOccupationalProgram`
+- **Structured data states only what the page shows:** `WebSite` with its search, `WebApplication`
+  with the abilities the page lists (2026-09-28, „The landing page" above) and `FAQPage` on the
+  landing page, `Course` and `BreadcrumbList` on a module, `EducationalOccupationalProgram`
   and `BreadcrumbList` on a program. Since 2026-09-26 it carries what search engines answer
   questions with (owner: Google's AI answers should know when a module's Termine and exams are and
   in which semester a plan places it — as much as sensible, without bloating the page):
@@ -1860,8 +1904,8 @@ room while the page is not at its end (the wheel over the header or the rail mov
 ground coming up at the end with the rail and the header standing, the page's end and the panel
 beside it 8 px above it, the panel cut off and not scrolled by the wheel, upwards the ground
 leaving first, a short list bringing it at once without its rows moving, the end of the whole
-virtual list going up with it, a question opened and a page opened from the ground sending it
-away, Tab bringing it up; on a phone the ground at the end of the page, and under a page shorter
+virtual list going up with it, the page leaving its end by its scrollbar and a page opened from
+the ground sending it away, Tab bringing it up; on a phone the ground at the end of the page, and under a page shorter
 than the window (the empty Stundenplan) at the window's lower edge.
 
 ```bash

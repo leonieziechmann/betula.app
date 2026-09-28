@@ -16,18 +16,30 @@
 //! when) until the pause button stops it, and goes round endlessly. A click on the current picture
 //! opens its page; the map opens large in a dialog (the page behind it stands still), where it is
 //! the interactive map it was, with the legend and what is shown beside it on a wide screen.
-//! Colour comes from the palette of the faculties. The questions open one at a time, in two
-//! groups: about Betula, and for the first semesters. The sidebar: the sections of the page
-//! (following the scroll, `enhance.js`), the Datenstand, the versions of Folia and Radix,
+//! Colour comes from the palette of the faculties. The questions open one at a time, in three
+//! groups: about Betula, using it, and for the first semesters. The sidebar: the sections of the
+//! page (following the scroll, `enhance.js`), the Datenstand, the versions of Folia and Radix,
 //! Impressum and Datenschutz.
+//!
+//! Owner, 2026-09-28: the page is what search engines, and the assistants that answer with them,
+//! know of Betula. Asked to compare it with other tools they took the missing account for missing
+//! functions, and saw neither that it works without JavaScript nor that the study plans are read
+//! from the regulations. So the page says all of it plainly: nine abilities (the account, the pages
+//! without JavaScript and offline, the Stundenplan, the plans from the regulations among them),
+//! questions on exactly these points, and after the questions „Betula im Detail" (`detail.rs`), a
+//! chapter per feature with a picture made of the app's own parts. The structured data names
+//! Betula as a web app with the same abilities (`WebApplication`), free and running without
+//! JavaScript.
 //!
 //! The map (`catalog::graph`) is laid out by the web server once per snapshot, on a 4:3 sheet and
 //! a tall one for phones; this page only draws it (`data::ProgramMapHandle`). The dialog is in the
 //! server's HTML too (closed), so its dots are links that search engines follow; without
 //! JavaScript the picture of the map leads to the program overview.
 //!
-//! The words of the page are in `i18n/home.rs`, in every language; the names of the programs
-//! and the faculties are the BTU's, in every language (docs/i18n.md).
+//! The words of the page are in `i18n/home.rs` and `i18n/home_detail.rs`, in every language; the
+//! names of the programs and the faculties are the BTU's, in every language (docs/i18n.md).
+
+mod detail;
 
 use std::sync::Arc;
 
@@ -78,20 +90,37 @@ fn entries(t: &'static Texts) -> Vec<Entry> {
 const PAUSED_KEY: &str = "betula.showcase";
 
 /// The sections of the page, as the sidebar lists them: id, icon, name.
-fn sections(t: &'static Texts) -> [(&'static str, &'static str, &'static str); 4] {
+fn sections(t: &'static Texts) -> [(&'static str, &'static str, &'static str); 5] {
     let t = &t.home;
-    [("ueberblick", "house", t.overview), ("einstiege", "layout-list", t.ways_in_and_faculties), ("funktionen", "circle-check-big", t.abilities), ("fragen", "info", t.questions)]
+    [
+        ("ueberblick", "house", t.overview),
+        ("einstiege", "layout-list", t.ways_in_and_faculties),
+        ("funktionen", "circle-check-big", t.abilities),
+        ("fragen", "info", t.questions),
+        ("im-detail", "leaf", t.in_detail),
+    ]
 }
 
-/// What Betula does, each with its icon.
-fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability); 6] {
+/// What Betula does, each with its icon: three rows of three on a wide page.
+fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability); 9] {
     let t = &t.home;
-    [("search", &t.search), ("sliders-horizontal", &t.filters), ("calendar-range", &t.study_plan), ("repeat", &t.prerequisites), ("calendar-days", &t.dates), ("shield-check", &t.gaps)]
+    [
+        ("search", &t.search),
+        ("sliders-horizontal", &t.filters),
+        ("file-check-2", &t.plans),
+        ("calendar-range", &t.timetable),
+        ("calendar-days", &t.dates),
+        ("repeat", &t.prerequisites),
+        ("shield-check", &t.account),
+        ("database", &t.offline),
+        ("eye", &t.gaps),
+    ]
 }
 
-/// Questions and answers, in two groups: about Betula, and about studying (for first semesters).
-fn questions(t: &'static Texts) -> [&'static i18n::home::Faq; 2] {
-    [&t.home.about_betula, &t.home.for_studies]
+/// Questions and answers, in three groups: about Betula, using it, and about studying (for first
+/// semesters).
+fn questions(t: &'static Texts) -> [&'static i18n::home::Faq; 3] {
+    [&t.home.about_betula, &t.home.using_betula, &t.home.for_studies]
 }
 
 /// The name of a semester in the page's language (the snapshot's `label` is German).
@@ -105,9 +134,15 @@ pub fn HomePage() -> impl IntoView {
     let source = use_source();
     let status = PageStatus::capture();
     let entries = entries(t);
-    let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).collect();
+    // The ways in, and after them the selection the filter board of „Betula im Detail" shows: its
+    // count comes with theirs, in the same loader.
+    let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).chain([detail::example()]).collect();
     let loaded = source.and_then(|source| source.run(|db| pages::home(db, &queries)));
     let map = use_context::<ProgramMapHandle>().map(|handle| handle.0);
+    // „Betula im Detail" says how many of the current programs have a checked plan, and how many
+    // modules its example finds.
+    let plans = loaded.as_ref().ok().map(|home| (home.overview.plans, home.overview.programs));
+    let example = loaded.as_ref().ok().and_then(|home| home.entry_counts.get(entries.len()).copied());
 
     // The versions and the legal links are the ground's, at the end of every page (`ground.rs`).
     let sidebar = {
@@ -153,6 +188,22 @@ pub fn HomePage() -> impl IntoView {
                 "target": { "@type": "EntryPoint", "urlTemplate": format!("{}?q={{search_term_string}}", seo::absolute(url::CATALOG)) },
                 "query-input": "required name=search_term_string",
             },
+        }),
+        // Betula as the app it is: what it does is what the page lists as its abilities, and it is
+        // free and runs in any browser, with or without JavaScript.
+        serde_json::json!({
+            "@type": "WebApplication",
+            "@id": seo::absolute("/#app"),
+            "url": seo::absolute(url::HOME),
+            "name": seo::SITE_NAME,
+            "description": t.home.description,
+            "applicationCategory": "EducationalApplication",
+            "browserRequirements": t.home.browser_requirements,
+            "featureList": abilities(t).into_iter().map(|(_, ability)| format!("{}. {}", ability.title, ability.text)).collect::<Vec<_>>(),
+            "inLanguage": Locale::ALL.iter().map(|locale| locale.code()).collect::<Vec<_>>(),
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+            "about": { "@type": "CollegeOrUniversity", "name": seo::UNIVERSITY, "url": seo::UNIVERSITY_URL },
         }),
         serde_json::json!({
             "@type": "FAQPage",
@@ -219,6 +270,7 @@ pub fn HomePage() -> impl IntoView {
                 </div>
             }).collect_view()}
         </section>
+        <detail::Details plans example/>
         </div></Frame>
     }
 }

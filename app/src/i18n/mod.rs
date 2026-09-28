@@ -23,6 +23,7 @@ pub mod common;
 pub mod format;
 pub mod ground;
 pub mod home;
+pub mod home_detail;
 pub mod legal;
 pub mod marks;
 pub mod module;
@@ -61,6 +62,7 @@ pub struct Texts {
     pub format: format::Texts,
     pub ground: ground::Texts,
     pub home: home::Texts,
+    pub home_detail: home_detail::Texts,
     pub legal: legal::Texts,
     pub marks: marks::Texts,
     pub module: module::Texts,
@@ -97,6 +99,7 @@ macro_rules! language {
             format: format::$lang,
             ground: ground::$lang,
             home: home::$lang,
+            home_detail: home_detail::$lang,
             legal: legal::$lang,
             marks: marks::$lang,
             module: module::$lang,
