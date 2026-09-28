@@ -43,6 +43,21 @@ opt-level = 3
 [profile.dev.package.crc32fast]
 opt-level = 3
 
+# Brotli at its best quality (server/build/main.rs: the assets; server/src/snapshot.rs: the
+# catalog) is a second of work optimised and a minute without: the build script and the tests run
+# it too, and its checks of every sum in dev cost four times over. Build scripts are built
+# unoptimised even in release, so both profiles say it.
+[profile.dev.package.brotli]
+opt-level = 3
+debug-assertions = false
+overflow-checks = false
+[profile.dev.package.brotli-decompressor]
+opt-level = 3
+debug-assertions = false
+overflow-checks = false
+[profile.release.package.brotli]
+opt-level = 3
+
 [profile.release]
 lto = "thin"
 

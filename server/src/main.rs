@@ -65,7 +65,7 @@ pub struct AppState {
     /// `app/assets` while working on the site (`--live-assets`): the minified files are read from
     /// there on every request, as they are (`api::minified`).
     pub live_assets: Option<std::path::PathBuf>,
-    /// The files of the browser app: name → (etag, bytes, gzip).
+    /// The files of the browser app, by name, as read once per version.
     pub packages: Packages,
     /// Closed testing: the password in front of the whole site (`access`); `None` when it is open.
     pub gate: Option<Arc<access::Gate>>,
@@ -83,8 +83,19 @@ pub struct AppState {
 /// The header that names the build of the server on every answer (`AppState::build_id`).
 pub const BUILD_HEADER: &str = "x-build";
 
-/// name → (etag, bytes, gzip)
-pub type Packages = Arc<std::sync::Mutex<std::collections::HashMap<String, (String, axum::body::Bytes, axum::body::Bytes)>>>;
+pub type Packages = Arc<std::sync::Mutex<std::collections::HashMap<String, Package>>>;
+
+/// A file of the browser app (`api::package`) as read once per version: the version (the file's
+/// and its Brotli copy's), the ETag, the bytes, gzip made here, and the Brotli copy the build
+/// wrote beside the file (empty without one).
+#[derive(Clone)]
+pub struct Package {
+    pub version: String,
+    pub etag: String,
+    pub raw: axum::body::Bytes,
+    pub gzip: axum::body::Bytes,
+    pub brotli: axum::body::Bytes,
+}
 
 impl axum::extract::FromRef<AppState> for LeptosOptions {
     fn from_ref(state: &AppState) -> Self {

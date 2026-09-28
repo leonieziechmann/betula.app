@@ -1,7 +1,8 @@
 //! The files of `app/assets` a browser gets as text — the stylesheet, the scripts, the SVGs —
 //! minified into `OUT_DIR/assets`, under the same paths, where the server embeds them from
-//! (`src/assets.rs`). Every other file there (pictures, the font, sql.js's WASM) is compressed
-//! already and embedded as it is. docs/frontend.md, „What ships".
+//! (`src/assets.rs`), each with its Brotli copy beside it (`<path>.br`, quality 11) for the
+//! browsers that take it; sql.js's WASM gets only the copy. The pictures and the font are
+//! compressed already and embedded as they are. docs/frontend.md, „What ships".
 //!
 //! - **The stylesheet** with lightningcss, for the browsers that read it as it is (no `targets`:
 //!   nothing is lowered or prefixed, only written shorter).
@@ -14,7 +15,11 @@
 //!
 //! The server writes into two scripts (`__BUILD__` into `sw.js`, `__SCHEMA__` into `boot.js`): a
 //! placeholder the minifier folded away would ship a script that no longer knows its build, so
-//! the build fails instead.
+//! the build fails instead. Their Brotli copy is the server's to make, once it has written them:
+//! here they get an empty `.br`.
+//!
+//! Compressing at quality 11 is the slow part (a second for all of it, on every processor there
+//! is): a file whose minified form is the one already in `OUT_DIR` keeps its copy.
 //!
 //! A file that does not parse fails the build too, with the minifier's message: what the server
 //! would otherwise ship is a stylesheet or a script no browser reads either.
@@ -24,7 +29,7 @@ use std::path::{Path, PathBuf};
 #[path = "svg.rs"]
 mod svg;
 
-type Error = Box<dyn std::error::Error>;
+type Error = Box<dyn std::error::Error + Send + Sync>;
 
 fn main() -> Result<(), Error> {
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").ok_or("CARGO_MANIFEST_DIR is not set")?);
@@ -35,24 +40,64 @@ fn main() -> Result<(), Error> {
 
     let mut files = Vec::new();
     collect(&assets, "", &mut files)?;
-    for path in files {
-        let source = std::fs::read_to_string(assets.join(&path)).map_err(|e| format!("app/assets/{path}: {e}"))?;
-        let minified = minify(&path, &source).map_err(|e| format!("app/assets/{path}: {e}"))?;
-        for placeholder in PLACEHOLDERS.iter().filter(|placeholder| source.contains(*placeholder)) {
-            if !minified.contains(placeholder) {
-                return Err(format!("app/assets/{path}: the minifier folded away {placeholder}, which the server writes into it; write it where no minifier can evaluate it, as a name of its own (boot.js: `const SCHEMA = __SCHEMA__;`)").into());
-            }
-        }
-        let target = out.join("assets").join(&path);
-        if let Some(dir) = target.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        std::fs::write(&target, &minified)?;
-    }
+    let out = out.join("assets");
+    std::thread::scope(|scope| {
+        let builds: Vec<_> = files.iter().map(|path| (path, scope.spawn(|| build(&assets, &out, path)))).collect();
+        builds.into_iter().try_for_each(|(path, build)| build.join().map_err(|_| format!("app/assets/{path}: the build of it panicked"))?.map_err(|e| format!("app/assets/{path}: {e}")))
+    })?;
     Ok(())
 }
 
-/// The files below `dir` a browser gets as text, as paths under `app/assets` with `/`.
+/// One file: minified if it is text, and compressed.
+fn build(assets: &Path, out: &Path, path: &str) -> Result<(), Error> {
+    let source = std::fs::read(assets.join(path))?;
+    let target = out.join(path);
+    if let Some(dir) = target.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    if path.ends_with(".wasm") {
+        // Compressed as it is; `OUT_DIR` keeps a copy to know it again.
+        return compressed(&target, &source, true);
+    }
+    let text = String::from_utf8(source)?;
+    let minified = minify(path, &text)?;
+    let written_in: Vec<&str> = PLACEHOLDERS.into_iter().filter(|placeholder| text.contains(placeholder)).collect();
+    for placeholder in &written_in {
+        if !minified.contains(placeholder) {
+            return Err(format!("the minifier folded away {placeholder}, which the server writes into it; write it where no minifier can evaluate it, as a name of its own (boot.js: `const SCHEMA = __SCHEMA__;`)").into());
+        }
+    }
+    compressed(&target, minified.as_bytes(), written_in.is_empty())
+}
+
+/// Writes `bytes` to `target` and their Brotli copy to `<target>.br` — an empty one when
+/// `compress` is false — unless both are there already from an earlier run.
+fn compressed(target: &Path, bytes: &[u8], compress: bool) -> Result<(), Error> {
+    let mut copy = target.as_os_str().to_owned();
+    copy.push(".br");
+    let copy = PathBuf::from(copy);
+    if std::fs::read(target).is_ok_and(|kept| kept == bytes) && copy.is_file() {
+        return Ok(());
+    }
+    let brotli = if compress { brotli(bytes)? } else { Vec::new() };
+    // The copy first: a file without its copy is compressed again next time.
+    let _ = std::fs::remove_file(target);
+    std::fs::write(&copy, brotli)?;
+    std::fs::write(target, bytes)?;
+    Ok(())
+}
+
+/// Brotli at its best quality, with a window as large as the file needs (browsers read up to 16 MB).
+fn brotli(bytes: &[u8]) -> Result<Vec<u8>, Error> {
+    use std::io::Write as _;
+    let window = (usize::BITS - bytes.len().leading_zeros()).clamp(10, 24);
+    let mut writer = brotli::CompressorWriter::new(Vec::with_capacity(bytes.len() / 4), 1 << 16, 11, window);
+    writer.write_all(bytes)?;
+    // Ends the stream (a flush would add a block of its own).
+    Ok(writer.into_inner())
+}
+
+/// The files below `dir` a browser gets as text, and the WASM, as paths under `app/assets` with `/`.
 fn collect(dir: &Path, prefix: &str, files: &mut Vec<String>) -> Result<(), Error> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
@@ -60,7 +105,7 @@ fn collect(dir: &Path, prefix: &str, files: &mut Vec<String>) -> Result<(), Erro
         let path = format!("{prefix}{name}");
         if entry.file_type()?.is_dir() {
             collect(&entry.path(), &format!("{path}/"), files)?;
-        } else if [".css", ".js", ".svg"].iter().any(|kind| name.ends_with(kind)) {
+        } else if [".css", ".js", ".svg", ".wasm"].iter().any(|kind| name.ends_with(kind)) {
             files.push(path);
         }
     }

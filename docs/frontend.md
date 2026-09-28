@@ -14,7 +14,7 @@
 
 ```
 Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browser
- /snapshot/catalog.db        ──/api/db (gzip, ETag)───▶ browser: local SQLite (phase 2)
+ /snapshot/catalog.db        ──/api/db (Brotli or gzip, ETag)───▶ browser: local SQLite (phase 2)
 ```
 
 | Crate | Role |
@@ -549,8 +549,9 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   more after that; the server has only the files of its own build, whatever `?v=` asks for).
   `404`/`5xx` are `no-store`. Without a snapshot everything answers `503` + `Retry-After`.
 - **The browser app (owner decision: all queries run in the browser).** `assets/boot.js` opens
-  the local copy of the snapshot (`/api/db`: 36.8 MB, 6.5 MB gzip; kept in IndexedDB with its ETag;
-  sql.js) and loads the WASM bundle (535 KB gzip) in parallel; then `client::start()` replaces the
+  the local copy of the snapshot (`/api/db`: 36.8 MB, 6.5 MB gzip; 44 MB, 4.2 MB Brotli in September
+  2026, „What ships"; kept in IndexedDB with its ETag; sql.js) and loads the WASM bundle (535 KB
+  gzip; 1.2 MB Brotli in September 2026) in parallel; then `client::start()` replaces the
   server-rendered body by the app. Not hydration: the local copy may be older than the server's
   page, so the app renders fresh with the same components. From then on links, filters and the
   search are client-side navigation on the local database (measured: takeover 1.2 s on a first
@@ -867,7 +868,8 @@ modules (Jaccard; modules of more than 40 programs are ignored), a force layout 
 randomness. **The server lays it out once, when a snapshot is opened** (`Snapshot::open`,
 event `snapshot.map_built`), for a 4:3 sheet (the carousel; 2:1 until 2026-09-21) and a tall one; nothing is laid out while a page
 renders and nothing in the browser (owner decision). Server-rendered pages get it through context
-(`data::ProgramMapHandle`), the browser app as `GET /api/map.json` (about 8 KB gzip; `boot.js`
+(`data::ProgramMapHandle`), the browser app as `GET /api/map.json` (about 8 KB gzip; 69 KB gzip,
+49 KB Brotli in September 2026; `boot.js`
 fetches it next to the database and keeps a copy in IndexedDB; `window.betulaMap`). Without a map
 the section is left out. The links are three `<path>` elements per sheet, the dots are SVG links
 with `<title>` (so the map works without JavaScript and search engines follow the dots to the
@@ -1520,38 +1522,74 @@ lists what the server embeds of it):
   Absolute coordinates would draw the same everywhere, but they are what keeps the files large:
   308 of the birch's 312 kB (gzip) instead of 183. svgo made 219 kB of them (it rewrites transforms
   into longer numbers).
-- **The manifest** is written without indentation, and whatever gzip makes smaller goes
-  compressed, however small (the minified manifest: 869 bytes, 382 over the wire).
+- **The manifest** is written without indentation, and whatever a copy makes smaller goes
+  compressed, however small (the minified manifest: 869 bytes, 382 over the wire in gzip).
 - **The browser app** without the names of its functions (`--remove-name-section`, and the
   `producers` section, in `scripts/build-client.sh` and `flake.nix`; `--dev` keeps them for the
   debugger). A panic's stack trace then names functions by number. `wasm-opt -Oz` on top was
   measured and left out: 4.3 → 4.0 MB, but 1.598 → 1.591 MB gzipped, not worth another tool in
   every build.
 
-What a first visit downloads, as the server sends it (gzip; the birch of autumn), 2026-09-28,
-rustc 1.98:
+**Brotli, made once where the bytes are made** (owner, 2026-09-28: „Ja, mach Brotli auch"). Folia
+compresses what it serves itself, so the edge passes it on as it is (its `compress` middleware
+leaves what has a `Content-Encoding`): gzip level 6 only, until then. Now a browser that takes
+Brotli (`Accept-Encoding: br`: every browser over HTTPS, Chromium on localhost too) gets it, any
+other gzip, each with the same ETag and `Vary: Accept-Encoding`:
 
-| | before | now | gzip before | gzip now |
-|---|---|---|---|---|
-| `app.css` | 206,829 | 135,935 | 49,800 | 27,456 |
-| `enhance.js` | 35,639 | 15,317 | 11,294 | 5,294 |
-| `boot.js` | 8,812 | 3,739 | 3,444 | 1,778 |
-| `sw.js` | 6,635 | 2,361 | 2,635 | 1,120 |
-| `sql-wasm.js` (sql.js, minified already) | 48,863 | 43,518 | 16,986 | 14,641 |
-| the birch of a page (crown, its head, roots, litter) | 254,098 | 209,615 | 59,738 | 37,762 |
-| `folia_client_bg.wasm` | 30,580,317 | 4,313,345 | 2,602,380 | 1,588,384 |
+- **What the build makes** — the minified stylesheet, scripts and SVGs, and sql.js's WASM — gets
+  its copy from the build (`<path>.br` in `OUT_DIR`, quality 11, `server/build/main.rs`), embedded
+  beside the file. A file whose minified form is the one there already keeps its copy: 0.16 s
+  when nothing changed, 4.4 s for all of them on four processors (the encoder is generic, so it is
+  built into the build script, which cargo builds unoptimised). The scripts the server writes into
+  (`boot.js`, `sw.js`) get theirs from the server once written, as do the manifest and the sprite:
+  quality 11 on first use, a few milliseconds each.
+- **The browser app** gets its copies from its build (`site/pkg/<file>.br`, quality 11: 9 s of
+  the release build): `brotli` in `flake.nix`; `scripts/build-client.sh` uses `brotli` or else
+  Node's zlib, and says so when there is neither. The server hands out a copy only when it is not
+  older than its file: `--dev` writes none and every build drops the old ones.
+- **The catalog** is made at runtime, so the server compresses it: once a snapshot is active, in
+  the background (`snapshot::brotli_in_background`), with the map of the programs, both at
+  quality 11, and keeps the snapshot's copy beside it for the next start. Until it is there,
+  `/api/db` is gzip. For the 44 MB of September 2026: 4.2 MB in 81 s of one processor, some 215 MB
+  of memory meanwhile — once per snapshot, for every browser that starts the app. 10 would give
+  4.4 MB in 40 s, 9 4.9 MB in 5 s (98 MB), 5 5.3 MB in 1 s. A debug build takes 5: its encoder
+  is unoptimised (generic code, built into the server), and q11 would take four minutes there.
 
-What stayed as it was: `folia_client.js` (wasm-bindgen's 62 kB, 10 kB gzipped: `build-client.sh`
-writes it, not the server's build), the pictures, the font and sql.js's WASM (compressed already),
-and the HTML of the pages (Leptos writes it without indentation).
+What a first start of the browser app downloads, as the server sends it (the birch of autumn),
+2026-09-28, rustc 1.98; „gzip before" is what went out before all of this:
+
+| | before | now | gzip before | gzip now | Brotli now |
+|---|---|---|---|---|---|
+| `app.css` | 206,829 | 135,935 | 49,800 | 27,456 | 23,152 |
+| `enhance.js` | 35,639 | 15,317 | 11,294 | 5,294 | 4,757 |
+| `boot.js` | 8,812 | 3,739 | 3,444 | 1,778 | 1,542 |
+| `sw.js` | 6,635 | 2,361 | 2,635 | 1,120 | 983 |
+| `sql-wasm.js` (sql.js, minified already) | 48,863 | 43,518 | 16,986 | 14,641 | 13,156 |
+| `sql-wasm.wasm` | 652,953 | 652,953 | 319,359 | 319,359 | 275,736 |
+| the birch of a page (crown, its head, roots, litter) | 254,098 | 209,615 | 59,738 | 37,762 | 31,389 |
+| `folia_client.js` | 62,398 | 62,398 | 10,360 | 10,360 | 8,681 |
+| `folia_client_bg.wasm` | 30,580,317 | 4,313,345 | 2,602,380 | 1,588,384 | 1,159,184 |
+| `/api/map.json` | 199,547 | 199,547 | 69,805 | 69,805 | 49,500 |
+| `/api/db` | 43,945,984 | 43,945,984 | 7,595,413 | 7,595,413 | 4,226,798 |
+| all of it | | | 10,741,214 | | 5,794,878 |
+
+The site without the catalog and the map: 3,075,996 bytes before, 1,518,580 now (−51 %); with
+them −46 %.
+
+What stayed as it was: the pictures and the font (compressed already), and the pages, which the
+page cache keeps in gzip only (the start page would be 85 instead of 105 kB in Brotli at quality
+5: a change of the cache, its memory and what it hands out, not made yet); the sitemap and the
+calendar feeds are gzip too.
 
 `folia assets` (or `bash scripts/dev.sh sizes`) lists every file as written, as served and over
-the wire, and the browser app in `<site-root>/pkg`; a bundle that still carries the names of its
-functions (a `--dev` build) is named as one not to ship.
+the wire (gzip, and the Brotli copy where the build made one), and the browser app in
+`<site-root>/pkg`; a bundle that still carries the names of its functions (a `--dev` build) is
+named as one not to ship.
 
-What it costs: the minifiers are build dependencies of the server — built once per build cache
-(35 s of a cold build on four cores), none of them in the server — and they run in 0.6 s, again
-only when a file of `app/assets` changed. oxc needs rustc 1.96 or newer (nixpkgs has 1.98).
+What it costs: the minifiers and Brotli are build dependencies of the server — built once per
+build cache (35 s of a cold build on four cores), none of the minifiers in the server — and run
+again only when a file of `app/assets` changed. Brotli is in the server too (6 s to build) for the
+catalog. oxc needs rustc 1.96 or newer (nixpkgs has 1.98).
 
 ### Working on the site: `scripts/dev.sh` (2026-09-28)
 
@@ -1810,6 +1848,8 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | WARN | `assets.live_failed` | such a file could not be read (`path`, `error`); answered 404 |
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
 | WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / served uncompressed |
+| INFO | `snapshot.brotli_made` | the Brotli copy of the active snapshot is made (`etag`, `bytes`, `ms`), in the background after it became active; `/api/db` hands it to browsers that take Brotli |
+| WARN | `snapshot.brotli_failed` | it could not be made (`error`); browsers get gzip until the next snapshot |
 | ERROR | `snapshot.rejected` | a download is not a usable catalog; the previous snapshot stays active |
 | ERROR | `snapshot.outdated` | the active snapshot is of an older schema than this build reads (`schema_version`, `needs`): pages that need the newer columns fail, browsers do not start the app on it. Served all the same; Radix has to export a new one (with `RADIX_CRAWL=off` it never does by itself) |
 | ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
@@ -1871,7 +1911,12 @@ What `cargo test` checks:
   its global and the scripts the placeholders the server writes in; the SVG minifier's own cases
   (numbers, paths of every command, transforms, a file with text, ids and quotes; a path it
   cannot read stays as it was). The live assets of `scripts/dev.sh`: from disk, an edit there with
-  the next request, 304 while unchanged, no file but the server's own.
+  the next request, 304 while unchanged, no file but the server's own. Brotli: every copy the
+  build made decodes to its file; a browser that takes Brotli gets it for every asset (the build's
+  copy, or one made at first use for what the server writes itself), one that does not gzip; the
+  browser app's `.br` beside its file, never one older than the file; `/api/db` and
+  `/api/map.json` in Brotli once their copies are made (a restart finds the snapshot's beside it),
+  gzip until then; the snapshot's copy is Brotli of the whole file.
 
 ```bash
 cargo clippy --all-targets

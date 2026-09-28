@@ -131,7 +131,7 @@
           cargoLock.lockFile = ./Cargo.lock;
 
           # nixpkgs' rustc brings the wasm32 standard library, but no rust-lld to link with.
-          nativeBuildInputs = [ wasm-bindgen-cli pkgs.lld ];
+          nativeBuildInputs = [ wasm-bindgen-cli pkgs.lld pkgs.brotli ];
           env.CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER = "lld";
 
           buildPhase = ''
@@ -140,13 +140,16 @@
             runHook postBuild
           '';
           # Without the names of its functions (--remove-name-section): they were 26 of the bundle's
-          # 30 MB and 1 of the 2.6 MB a browser downloads (docs/frontend.md §3).
+          # 30 MB and 1 of the 2.6 MB a browser downloads (docs/frontend.md §3). With its Brotli
+          # copies beside it, which the server hands to browsers that take Brotli: 1.16 MB instead of
+          # gzip's 1.6 (scripts/build-client.sh does the same).
           installPhase = ''
             runHook preInstall
             mkdir -p "$out/site/pkg"
             wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
               --out-dir "$out/site/pkg" --out-name folia_client \
               target/wasm32-unknown-unknown/wasm-release/folia_client.wasm
+            brotli -q 11 -w 24 "$out/site/pkg/folia_client_bg.wasm" "$out/site/pkg/folia_client.js"
             runHook postInstall
           '';
           doCheck = false;

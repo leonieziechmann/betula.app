@@ -170,8 +170,9 @@ services:
           # 13 filtered lists or 20 calendar feeds a second on this host before the queue grew.
           cpus: "3.0"
           # Holds the HTML cache (up to 256 MB), the card cache (up to 64 MB), the snapshot's
-          # compressed copy that /api/db hands out (7.6 MB) and the open snapshot (SQLite, about
-          # 44 MB on disk).
+          # compressed copies that /api/db hands out (7.6 MB gzip, 4.2 MB Brotli; making the Brotli
+          # one takes some 215 MB for a minute and a half after each new snapshot) and the open
+          # snapshot (SQLite, about 44 MB on disk).
           memory: 1G
           pids: 256
       labels:

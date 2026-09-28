@@ -42,11 +42,15 @@ png = "0.17"
 # `oneshot` for the warm-up of the page cache (src/warm.rs), which asks the page router directly.
 # Axum depends on it already.
 tower = { version = "0.5", features = ["util"] }
+# The catalog for browsers that take Brotli, made once per snapshot (src/snapshot.rs), and what the
+# server writes into its scripts (src/api.rs). Pure Rust; the build script uses it too.
+brotli = "9"
 
 # The minifiers of build/main.rs: they run when the server is built, none of them is in it. No
 # default features: lightningcss without its bundler and source maps, oxc's printer without
-# source maps. The oxc crates go together, one version for all.
+# source maps. The oxc crates go together, one version for all. Brotli compresses what they made.
 [build-dependencies]
+brotli = "9"
 lightningcss = { version = "1.0.0-alpha.72", default-features = false }
 oxc_allocator = "0.152"
 oxc_codegen = { version = "0.152", default-features = false }

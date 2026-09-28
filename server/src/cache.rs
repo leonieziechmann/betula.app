@@ -234,6 +234,18 @@ pub fn gzip(body: &[u8]) -> Bytes {
     }
 }
 
+/// `body` compressed with Brotli at its best quality, for the small files the server writes itself
+/// (every larger one gets its copy from the build, `build/main.rs`). The window is as large as the
+/// body needs; browsers read windows up to 16 MB.
+pub fn brotli(body: &[u8]) -> Bytes {
+    let window = (usize::BITS - body.len().leading_zeros()).clamp(10, 24);
+    let mut writer = brotli::CompressorWriter::new(Vec::with_capacity(body.len() / 4), 1 << 16, 11, window);
+    match writer.write_all(body) {
+        Ok(()) => Bytes::from(writer.into_inner()),
+        Err(_) => Bytes::new(),
+    }
+}
+
 pub fn gunzip(compressed: &[u8]) -> Option<Bytes> {
     let mut body = Vec::with_capacity(compressed.len() * 5);
     flate2::read::GzDecoder::new(compressed).read_to_end(&mut body).ok()?;

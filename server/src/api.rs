@@ -32,6 +32,21 @@ fn accepts_gzip(headers: &HeaderMap) -> bool {
         .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")))
 }
 
+/// Whether the client takes Brotli (`br`): every browser over HTTPS, Chromium on localhost too.
+fn accepts_brotli(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.split(',').any(|encoding| encoding.split(';').next().is_some_and(|name| name.trim() == "br")))
+}
+
+/// The copy of a body a client gets: Brotli where it takes that and there is one, else gzip where
+/// it takes that and there is one; `None`: the body as it is.
+fn encoded<'a>(headers: &HeaderMap, brotli: Option<&'a axum::body::Bytes>, gzip: Option<&'a axum::body::Bytes>) -> Option<(&'static str, &'a axum::body::Bytes)> {
+    let brotli = brotli.filter(|copy| !copy.is_empty() && accepts_brotli(headers)).map(|copy| ("br", copy));
+    brotli.or_else(|| gzip.filter(|copy| !copy.is_empty() && accepts_gzip(headers)).map(|copy| ("gzip", copy)))
+}
+
 /// `GET /api/db`: the active snapshot with Radix's ETag. Browsers keep it in IndexedDB
 /// and come back with `If-None-Match`, which is answered without touching the file.
 pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -43,10 +58,11 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
     }
 
     // Compressed from memory: every browser gets the same bytes, and a download holds no file and
-    // no buffer of its own. Uncompressed (hardly anybody) streamed from the file.
-    let (body, length, compressed) = match (&snapshot.gzip_bytes, accepts_gzip(&headers)) {
-        (Some(bytes), true) => (Body::from(bytes.clone()), bytes.len() as u64, true),
-        _ => {
+    // no buffer of its own; Brotli once its copy is made (`snapshot::brotli_in_background`), gzip
+    // until then. Uncompressed (hardly anybody) streamed from the file.
+    let (body, length, compressed) = match encoded(&headers, snapshot.brotli.get(), snapshot.gzip_bytes.as_ref()) {
+        Some((coding, bytes)) => (Body::from(bytes.clone()), bytes.len() as u64, Some(coding)),
+        None => {
             let file = match tokio::fs::File::open(&snapshot.path).await {
                 Ok(file) => file,
                 Err(error) => {
@@ -54,7 +70,7 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
                     return StatusCode::INTERNAL_SERVER_ERROR.into_response();
                 }
             };
-            (Body::from_stream(ReaderStream::with_capacity(file, 256 * 1024)), snapshot.bytes, false)
+            (Body::from_stream(ReaderStream::with_capacity(file, 256 * 1024)), snapshot.bytes, None)
         }
     };
 
@@ -68,19 +84,20 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
     if let Ok(value) = HeaderValue::from_str(&snapshot.etag) {
         out.insert(header::ETAG, value);
     }
-    if compressed {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    if let Some(coding) = compressed {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static(coding));
     }
     response
 }
 
-/// A body made once per snapshot, with the snapshot's ETag.
-fn per_snapshot(headers: &HeaderMap, etag: &str, content_type: &'static str, body: &(axum::body::Bytes, axum::body::Bytes)) -> Response {
+/// A body made once per snapshot, with the snapshot's ETag: (plain, gzip), and its Brotli copy
+/// where one is made.
+fn per_snapshot(headers: &HeaderMap, etag: &str, content_type: &'static str, body: &(axum::body::Bytes, axum::body::Bytes), brotli: Option<&axum::body::Bytes>) -> Response {
     if if_none_match(headers, etag) {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag.to_string())]).into_response();
     }
-    let use_gzip = accepts_gzip(headers) && !body.1.is_empty();
-    let mut response = Response::new(Body::from(if use_gzip { body.1.clone() } else { body.0.clone() }));
+    let compressed = encoded(headers, brotli, Some(&body.1));
+    let mut response = Response::new(Body::from(compressed.map_or_else(|| body.0.clone(), |(_, bytes)| bytes.clone())));
     let out = response.headers_mut();
     out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
     out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300, stale-while-revalidate=86400"));
@@ -88,8 +105,8 @@ fn per_snapshot(headers: &HeaderMap, etag: &str, content_type: &'static str, bod
     if let Ok(value) = HeaderValue::from_str(etag) {
         out.insert(header::ETAG, value);
     }
-    if use_gzip {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    if let Some((coding, _)) = compressed {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static(coding));
     }
     response
 }
@@ -101,7 +118,7 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
     };
     match &snapshot.program_map {
-        Some((_, json, compressed, etag)) => per_snapshot(&headers, etag, "application/json", &(json.clone(), compressed.clone())),
+        Some((_, json, compressed, etag)) => per_snapshot(&headers, etag, "application/json", &(json.clone(), compressed.clone()), snapshot.map_brotli.get()),
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -142,7 +159,7 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
             (etag, body)
         }
     };
-    per_snapshot(&headers, &etag, "application/xml; charset=utf-8", &body)
+    per_snapshot(&headers, &etag, "application/xml; charset=utf-8", &body, None)
 }
 
 /// The sitemap's XML: every page of `sitemap_paths`, with the time it last changed where
@@ -305,6 +322,7 @@ pub async fn status(State(state): State<AppState>) -> Response {
             "bytes": snapshot.bytes,
             "schema_version": snapshot.schema_version,
             "gzip_bytes": snapshot.gzip.as_ref().map(|(_, bytes)| *bytes),
+            "brotli_bytes": snapshot.brotli.get().map(axum::body::Bytes::len),
             "data_changed_at": snapshot.meta.data_changed_at,
             "current_semester": snapshot.meta.current_semester,
             "activated_seconds_ago": snapshot.activated_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
@@ -351,30 +369,40 @@ pub async fn health(State(state): State<AppState>) -> Response {
 /// A file embedded in the binary. Revalidated on every use (the 304 costs nothing and a new
 /// build shows up at once); compressed once per process.
 fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8]) -> Response {
-    tagged_asset(state, headers, content_type, body, "")
+    encoded_asset(state, headers, content_type, body, &[], "")
 }
 
 /// `asset` for an address whose file changes within a build (the standard picture with the
 /// season): `variant` names which one it is, in the ETag.
 fn tagged_asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8], variant: &str) -> Response {
-    static COMPRESSED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<usize, axum::body::Bytes>>> = std::sync::OnceLock::new();
+    encoded_asset(state, headers, content_type, body, &[], variant)
+}
+
+/// `tagged_asset` with the Brotli copy the build made of `body` (`build/main.rs`; `&[]` for none).
+/// Without one, a browser that takes Brotli gets a copy made here on first use, as the gzip one
+/// is: what has no copy of the build is small, the files the server writes itself.
+fn encoded_asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8], brotli: &'static [u8], variant: &str) -> Response {
+    type Copies = std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<usize, axum::body::Bytes>>>;
+    static GZIP: Copies = Copies::new();
+    static BROTLI: Copies = Copies::new();
 
     let etag = if variant.is_empty() { format!("\"{}\"", state.build_id) } else { format!("\"{}-{variant}\"", state.build_id) };
     if if_none_match(headers, &etag) {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
     }
-    // Fonts and pictures are compressed already. Whatever else gzip makes smaller goes compressed,
-    // however small: the minified manifest (869 bytes) goes as 382.
-    let compressed = (accepts_gzip(headers) && !matches!(content_type, "font/woff2" | "image/png" | "image/webp"))
-        .then(|| {
-            let mut cache = COMPRESSED.get_or_init(Default::default).lock().ok()?;
-            Some(cache.entry(body.as_ptr() as usize).or_insert_with(|| crate::cache::gzip(body)).clone())
-        })
-        .flatten()
-        .filter(|bytes| !bytes.is_empty() && bytes.len() < body.len());
+    // Fonts and pictures are compressed already. Whatever else a copy makes smaller goes
+    // compressed, however small: the minified manifest (869 bytes) goes as 382 in gzip.
+    let compressible = !matches!(content_type, "font/woff2" | "image/png" | "image/webp");
+    let once = |copies: &Copies, make: fn(&[u8]) -> axum::body::Bytes| {
+        let copy = copies.get_or_init(Default::default).lock().ok().map(|mut made| made.entry(body.as_ptr() as usize).or_insert_with(|| make(body)).clone());
+        copy.filter(|copy| !copy.is_empty() && copy.len() < body.len())
+    };
+    let brotli = (compressible && accepts_brotli(headers)).then(|| if brotli.is_empty() { once(&BROTLI, crate::cache::brotli) } else { Some(axum::body::Bytes::from_static(brotli)) }).flatten();
+    let gzip = (compressible && brotli.is_none() && accepts_gzip(headers)).then(|| once(&GZIP, crate::cache::gzip)).flatten();
+    let compressed = encoded(headers, brotli.as_ref(), gzip.as_ref());
 
-    let mut response = match &compressed {
-        Some(bytes) => Response::new(Body::from(bytes.clone())),
+    let mut response = match compressed {
+        Some((_, bytes)) => Response::new(Body::from(bytes.clone())),
         None => Response::new(Body::from(body)),
     };
     let out = response.headers_mut();
@@ -384,8 +412,8 @@ fn tagged_asset(state: &AppState, headers: &HeaderMap, content_type: &'static st
     if let Ok(value) = HeaderValue::from_str(&etag) {
         out.insert(header::ETAG, value);
     }
-    if compressed.is_some() {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    if let Some((coding, _)) = compressed {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static(coding));
     }
     response
 }
@@ -396,7 +424,7 @@ async fn minified(state: &AppState, headers: &HeaderMap, path: &str) -> Response
     let Some(file) = crate::assets::get(path) else { return StatusCode::NOT_FOUND.into_response() };
     match &state.live_assets {
         Some(dir) => live(headers, file.path, tokio::fs::read(dir.join(file.path)).await),
-        None => asset(state, headers, crate::assets::content_type(file.path), file.bytes),
+        None => encoded_asset(state, headers, crate::assets::content_type(file.path), file.bytes, file.brotli, ""),
     }
 }
 
@@ -820,11 +848,14 @@ pub async fn sql_js(State(state): State<AppState>, headers: HeaderMap) -> Respon
 }
 
 pub async fn sql_wasm(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "application/wasm", include_bytes!("../../app/assets/sql-wasm.wasm"))
+    encoded_asset(&state, &headers, "application/wasm", crate::assets::SQL_WASM, crate::assets::SQL_WASM_BROTLI, "")
 }
 
 /// `GET /pkg/<file>`: the browser app built by scripts/build-client.sh, from `<site-root>/pkg`.
-/// Compressed once per file version and kept in memory.
+/// Compressed once per file version and kept in memory. A browser that takes Brotli gets the copy
+/// the build wrote beside the file (`<file>.br`: build-client.sh, flake.nix) — if it is of this
+/// build of the file, not older than it: a build with `--dev` writes none and drops the old ones,
+/// and a copy left behind never goes out with another build's file.
 pub async fn package(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
     let content_type = match file.rsplit('.').next() {
         Some("js") => "text/javascript; charset=utf-8",
@@ -836,37 +867,47 @@ pub async fn package(State(state): State<AppState>, Path(file): Path<String>, he
     }
     let path = state.site_root.join("pkg").join(&file);
     let Ok(meta) = tokio::fs::metadata(&path).await else { return StatusCode::NOT_FOUND.into_response() };
-    let modified = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
-    let etag = format!("\"{:x}-{:x}\"", modified, meta.len());
+    let seconds = |meta: &std::fs::Metadata| meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
+    let etag = format!("\"{:x}-{:x}\"", seconds(&meta), meta.len());
     if if_none_match(&headers, &etag) {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
     }
+    let copy_path = state.site_root.join("pkg").join(format!("{file}.br"));
+    let copy = tokio::fs::metadata(&copy_path).await.ok().filter(|copy| matches!((copy.modified(), meta.modified()), (Ok(copy), Ok(file)) if copy >= file));
+    let version = match &copy {
+        Some(copy) => format!("{etag}+{:x}-{:x}", seconds(copy), copy.len()),
+        None => etag.clone(),
+    };
 
-    let cached = state.packages.lock().ok().and_then(|cache| cache.get(&file).filter(|(tag, ..)| *tag == etag).cloned());
-    let (_, raw, compressed) = match cached {
-        Some(entry) => entry,
+    let cached = state.packages.lock().ok().and_then(|cache| cache.get(&file).filter(|package| package.version == version).cloned());
+    let package = match cached {
+        Some(package) => package,
         None => {
             let Ok(raw) = tokio::fs::read(&path).await else { return StatusCode::NOT_FOUND.into_response() };
             let raw = axum::body::Bytes::from(raw);
-            let compressed = crate::cache::gzip(&raw);
-            let entry = (etag.clone(), raw, compressed);
+            let gzip = crate::cache::gzip(&raw);
+            let brotli = match copy {
+                Some(_) => tokio::fs::read(&copy_path).await.map(axum::body::Bytes::from).unwrap_or_default(),
+                None => axum::body::Bytes::new(),
+            };
+            let package = crate::Package { version, etag: etag.clone(), raw, gzip, brotli };
             if let Ok(mut cache) = state.packages.lock() {
-                cache.insert(file.clone(), entry.clone());
+                cache.insert(file.clone(), package.clone());
             }
-            entry
+            package
         }
     };
-    let use_gzip = accepts_gzip(&headers) && !compressed.is_empty();
-    let mut response = Response::new(Body::from(if use_gzip { compressed } else { raw }));
+    let compressed = encoded(&headers, Some(&package.brotli), Some(&package.gzip));
+    let mut response = Response::new(Body::from(compressed.map_or_else(|| package.raw.clone(), |(_, bytes)| bytes.clone())));
     let out = response.headers_mut();
     out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
     out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
     out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
-    if let Ok(value) = HeaderValue::from_str(&etag) {
+    if let Ok(value) = HeaderValue::from_str(&package.etag) {
         out.insert(header::ETAG, value);
     }
-    if use_gzip {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    if let Some((coding, _)) = compressed {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static(coding));
     }
     response
 }

@@ -989,7 +989,7 @@ async fn live_assets_come_from_disk() {
     live.live_assets = Some(dir.clone());
     let router = crate::router(live);
 
-    let (status, headers, body) = request(&router, "/assets/app.css?v=test", &[("accept-encoding", "gzip")]).await;
+    let (status, headers, body) = request(&router, "/assets/app.css?v=test", &[("accept-encoding", "gzip, br")]).await;
     assert_eq!((status, body.as_slice()), (StatusCode::OK, &b"body { color: red; }\n"[..]), "as it is on disk");
     assert!(headers.get(header::CONTENT_ENCODING).is_none(), "not compressed: it goes to this machine");
     let etag = headers[header::ETAG].to_str().unwrap().to_string();
@@ -1027,27 +1027,134 @@ async fn icons_point_into_the_sprite() {
     assert!(String::from_utf8(worker).unwrap().contains("/assets/icons.svg"), "the service worker keeps the sprite");
 }
 
-/// `/api/db` hands every browser the same compressed bytes from memory.
+/// `/api/db` hands every browser the same compressed bytes from memory: Brotli once its copy is
+/// made, gzip until then and for a browser that does not take Brotli.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_catalog_download_comes_from_memory() {
-    // A restart finds the compressed copy next to the snapshot, as the download left it.
+    // A restart finds the compressed copies next to the snapshot, as the download and the
+    // background left them.
     let dir = temp_dir("db-memory");
     let raw = std::fs::read(snapshot_file()).unwrap();
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("catalog-test.db"), &raw).unwrap();
     std::fs::write(dir.join("catalog-test.db.gz"), crate::cache::gzip(&raw)).unwrap();
     std::fs::write(dir.join("current.json"), r#"{"file":"catalog-test.db","etag":"\"test\""}"#).unwrap();
-    let store = SnapshotStore::new(dir).unwrap();
+    let store = SnapshotStore::new(dir.clone()).unwrap();
     assert!(store.restore());
     let router = crate::router(state(store.clone()));
     let snapshot = store.current().unwrap();
     let kept = snapshot.gzip_bytes.clone().expect("the compressed snapshot is kept in memory");
-    let (status, headers, body) = request(&router, "/api/db", &[("accept-encoding", "gzip, br")]).await;
-    assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "gzip"));
+    assert!(snapshot.brotli.get().is_none(), "no Brotli copy yet: a restore does not make one (the service loop does)");
+    let (status, headers, body) = request(&router, "/api/db", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+    assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "gzip"), "gzip while there is no Brotli copy");
     assert_eq!(body, kept.to_vec());
     let (_, headers, body) = request(&router, "/api/db", &[]).await;
     assert!(headers.get(header::CONTENT_ENCODING).is_none());
     assert_eq!(body.len() as u64, snapshot.bytes);
+
+    std::fs::write(dir.join("catalog-test.db.br"), b"the Brotli copy").unwrap();
+    let store = SnapshotStore::new(dir).unwrap();
+    assert!(store.restore());
+    let router = crate::router(state(store.clone()));
+    let (status, headers, body) = request(&router, "/api/db", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+    assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "br"));
+    assert_eq!((body.as_slice(), headers[header::CONTENT_LENGTH].to_str().unwrap()), (&b"the Brotli copy"[..], "15"));
+    let (_, headers, body) = request(&router, "/api/db", &[("accept-encoding", "gzip")]).await;
+    assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), body), ("gzip", kept.to_vec()));
+    let (_, _, status) = request(&router, "/api/status", &[]).await;
+    let status: serde_json::Value = serde_json::from_slice(&status).unwrap();
+    assert_eq!(status["snapshot"]["brotli_bytes"], 15);
+
+    // The map of the programs gets its copy with the snapshot's (here the snapshot's is there
+    // already, from the run before).
+    let (_, headers, _) = request(&router, "/api/map.json", &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING].to_str().unwrap(), "gzip");
+    crate::snapshot::make_brotli(&store.current().unwrap());
+    assert_eq!(store.current().unwrap().brotli.get().unwrap().as_ref(), b"the Brotli copy", "the snapshot's copy is not made again");
+    let (_, plain_headers, plain) = request(&router, "/api/map.json", &[]).await;
+    let (_, headers, map) = request(&router, "/api/map.json", &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), headers[header::ETAG].to_str().unwrap()), ("br", plain_headers[header::ETAG].to_str().unwrap()));
+    assert_eq!(unbrotli(&map), plain);
+}
+
+/// The snapshot's Brotli copy (`snapshot::brotli_in_background`) is Brotli of the file, written
+/// whole beside it.
+#[test]
+fn a_snapshot_is_compressed_whole() {
+    let dir = temp_dir("brotli-file");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file: Vec<u8> = (0..300_000u32).flat_map(|n| format!("row {} of the catalog\n", n % 977).into_bytes()).collect();
+    std::fs::write(dir.join("catalog-x.db"), &file).unwrap();
+    let copy = crate::snapshot::brotli_file(&dir.join("catalog-x.db"), &dir.join("catalog-x.db.br")).unwrap();
+    assert_eq!(std::fs::read(dir.join("catalog-x.db.br")).unwrap(), copy);
+    assert!(!dir.join("catalog-x.db.br.part").exists());
+    assert!(copy.len() < file.len() / 50, "{} of {}", copy.len(), file.len());
+    assert_eq!(unbrotli(&copy), file);
+}
+
+/// What a browser makes of a Brotli body.
+fn unbrotli(copy: &[u8]) -> Vec<u8> {
+    use std::io::Read;
+    let mut body = Vec::new();
+    brotli::Decompressor::new(copy, 1 << 16).read_to_end(&mut body).unwrap();
+    body
+}
+
+/// A browser that takes Brotli gets it for every asset: the copy the build made of the stylesheet,
+/// the scripts, the SVGs and sql.js's WASM, a copy made here for what the server writes itself; a
+/// browser that does not, gzip; each the same file.
+#[tokio::test(flavor = "multi_thread")]
+async fn assets_go_as_brotli_where_the_browser_takes_it() {
+    let router = crate::router(state(SnapshotStore::new(temp_dir("brotli-assets")).unwrap()));
+    for path in ["/assets/app.css?v=test", "/assets/enhance.js", "/assets/boot.js", app::SERVICE_WORKER, "/assets/sql-wasm.js", "/assets/sql-wasm.wasm", "/assets/birch/roots.svg", "/assets/favicon.svg", app::icons::SPRITE, "/manifest.webmanifest"] {
+        let (_, plain_headers, plain) = request(&router, path, &[]).await;
+        assert!(plain_headers.get(header::CONTENT_ENCODING).is_none(), "{path}");
+        let (status, headers, brotli) = request(&router, path, &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+        assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "br"), "{path}");
+        assert_eq!(headers[header::VARY].to_str().unwrap(), "Accept-Encoding", "{path}");
+        assert_eq!(unbrotli(&brotli), plain, "{path}");
+        let (_, headers, gzip) = request(&router, path, &[("accept-encoding", "gzip")]).await;
+        assert_eq!(headers[header::CONTENT_ENCODING].to_str().unwrap(), "gzip", "{path}");
+        assert!(brotli.len() < gzip.len() && gzip.len() < plain.len(), "{path}: {} < {} < {}", brotli.len(), gzip.len(), plain.len());
+    }
+    // A copy of the build, not one made here: the same bytes the build wrote.
+    let (_, _, css) = request(&router, "/assets/app.css", &[("accept-encoding", "br")]).await;
+    assert_eq!(css, crate::assets::get("app.css").unwrap().brotli);
+    // What is compressed already goes as it is.
+    let (_, headers, _) = request(&router, app::FONT, &[("accept-encoding", "br")]).await;
+    assert!(headers.get(header::CONTENT_ENCODING).is_none());
+}
+
+/// The browser app gets Brotli from the copy the build wrote beside each file (`site/pkg/*.br`),
+/// never from a copy older than its file, and gzip without one.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_browser_app_goes_as_the_brotli_copy_the_build_wrote() {
+    let site = temp_dir("brotli-pkg");
+    std::fs::create_dir_all(site.join("pkg")).unwrap();
+    let script: Vec<u8> = (0..2_000).flat_map(|n| format!("export function f{n}() {{ return {n}; }}\n").into_bytes()).collect();
+    std::fs::write(site.join("pkg/folia_client.js"), &script).unwrap();
+    let copy = crate::cache::brotli(&script);
+    std::fs::write(site.join("pkg/folia_client.js.br"), &copy).unwrap();
+    let mut app_state = state(SnapshotStore::new(temp_dir("brotli-pkg-data")).unwrap());
+    app_state.site_root = site.clone();
+    let router = crate::router(app_state);
+
+    let (status, headers, body) = request(&router, "/pkg/folia_client.js?v=test", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+    assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "br"));
+    assert_eq!(body, copy.to_vec());
+    let (_, headers, body) = request(&router, "/pkg/folia_client.js", &[("accept-encoding", "gzip")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING].to_str().unwrap(), "gzip");
+    assert_eq!(crate::cache::gunzip(&body).unwrap().to_vec(), script);
+
+    // A copy left from an earlier build: older than the file, never sent with it.
+    let stale = std::fs::File::options().write(true).open(site.join("pkg/folia_client.js.br")).unwrap();
+    stale.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(3600)).unwrap();
+    drop(stale);
+    let (_, headers, _) = request(&router, "/pkg/folia_client.js", &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING].to_str().unwrap(), "gzip");
+    std::fs::remove_file(site.join("pkg/folia_client.js.br")).unwrap();
+    let (_, headers, _) = request(&router, "/pkg/folia_client.js", &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING].to_str().unwrap(), "gzip");
 }
 
 /// The addresses a page writes into its HTML (`href`, `action`, `src`, `content` of a URL), each

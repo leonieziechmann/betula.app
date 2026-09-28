@@ -3,7 +3,8 @@
 //! GET with `If-None-Match` → 304 (nothing to do) or 200 (download to a temporary file, check
 //! that it opens and answers the queries of the landing page, compress it once for browsers,
 //! then switch). A snapshot that fails the check is rejected and the previous one stays active.
-//! When Radix is down the last good snapshot keeps being served, also across restarts.
+//! When Radix is down the last good snapshot keeps being served, also across restarts. Once a
+//! snapshot is active, its Brotli copy is made in the background (`brotli_in_background`).
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -37,6 +38,13 @@ pub struct Snapshot {
     /// bytes, instead of a file read and a buffer of its own per download — a lecture hall
     /// opening the app at once used to mean hundreds of both.
     pub gzip_bytes: Option<axum::body::Bytes>,
+    /// The same compressed with Brotli, for the browsers that take it (4.2 MB), once it is made
+    /// (`brotli_in_background`) or found beside the file after a restart.
+    pub brotli: std::sync::OnceLock<axum::body::Bytes>,
+    /// The map's JSON compressed with Brotli (`program_map`), made with the snapshot's copy.
+    pub map_brotli: std::sync::OnceLock<axum::body::Bytes>,
+    /// Whether these copies are being made.
+    compressing: std::sync::atomic::AtomicBool,
     pub meta: Meta,
     pub activated_at: SystemTime,
     /// The map of the programs on the landing page, laid out once when the snapshot is opened
@@ -97,6 +105,10 @@ impl Snapshot {
         let gzip_path = gzip_path_of(&path);
         let gzip_bytes = std::fs::read(&gzip_path).ok().map(axum::body::Bytes::from);
         let gzip = gzip_bytes.as_ref().map(|bytes| (gzip_path, bytes.len() as u64));
+        let brotli = std::sync::OnceLock::new();
+        if let Ok(copy) = std::fs::read(brotli_path_of(&path)) {
+            let _ = brotli.set(axum::body::Bytes::from(copy));
+        }
         Ok(Self {
             etag,
             path,
@@ -104,6 +116,9 @@ impl Snapshot {
             schema_version,
             gzip,
             gzip_bytes,
+            brotli,
+            map_brotli: std::sync::OnceLock::new(),
+            compressing: std::sync::atomic::AtomicBool::new(false),
             meta: overview.meta,
             activated_at: SystemTime::now(),
             program_map,
@@ -134,6 +149,77 @@ fn gzip_path_of(path: &Path) -> PathBuf {
     let mut name = path.as_os_str().to_owned();
     name.push(".gz");
     PathBuf::from(name)
+}
+
+fn brotli_path_of(path: &Path) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(".br");
+    PathBuf::from(name)
+}
+
+/// The quality of the snapshot's Brotli copy: made once per snapshot, in the background, and
+/// downloaded by every browser that starts the app, so the best there is. For the 44 MB of
+/// September 2026 (gzip: 7.6 MB): 4.2 MB in 81 s at 11, with some 215 MB of memory meanwhile;
+/// 4.4 MB in 40 s at 10, 4.9 MB in 5 s at 9, 5.3 MB in 1 s at 5. A debug build runs the encoder
+/// unoptimised (its code is generic, so it is built into this crate), three times as slow: there,
+/// on this machine, 5 is enough.
+const SNAPSHOT_BROTLI_QUALITY: i32 = if cfg!(debug_assertions) { 5 } else { 11 };
+
+/// Makes the Brotli copies of the active snapshot and of its map in the background, unless they
+/// are made or being made: after a download (`run`), and after a start (the snapshot's copy may
+/// lie beside it from the run before; the map's is made anew). `/api/db` and `/api/map.json` hand
+/// out gzip until they are there.
+pub fn brotli_in_background(store: &Arc<SnapshotStore>) {
+    let Some(snapshot) = store.current() else { return };
+    let made = snapshot.brotli.get().is_some() && (snapshot.program_map.is_none() || snapshot.map_brotli.get().is_some());
+    if made || snapshot.compressing.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    tokio::task::spawn_blocking(move || make_brotli(&snapshot));
+}
+
+/// The Brotli copies of `snapshot`: its map's (200 kB of JSON, 49 instead of gzip's 69), and its
+/// own, written beside its file (for the next start); both kept in memory.
+pub fn make_brotli(snapshot: &Snapshot) {
+    if let Some((_, json, ..)) = &snapshot.program_map {
+        if snapshot.map_brotli.get().is_none() {
+            let _ = snapshot.map_brotli.set(crate::cache::brotli(json));
+        }
+    }
+    if snapshot.brotli.get().is_some() {
+        return;
+    }
+    let started = Instant::now();
+    let target = brotli_path_of(&snapshot.path);
+    match brotli_file(&snapshot.path, &target) {
+        Ok(copy) => {
+            tracing::info!(component = "snapshot", event = "snapshot.brotli_made", etag = %snapshot.etag, bytes = copy.len(), ms = started.elapsed().as_millis() as u64, "Brotli copy of the snapshot made");
+            let _ = snapshot.brotli.set(axum::body::Bytes::from(copy));
+        }
+        Err(error) => {
+            tracing::warn!(component = "snapshot", event = "snapshot.brotli_failed", etag = %snapshot.etag, error = %error, "no Brotli copy of the snapshot: browsers get gzip");
+            let _ = std::fs::remove_file(&target);
+        }
+    }
+}
+
+/// `source` compressed with Brotli into `target` (through a temporary file beside it, so that a
+/// copy on disk is always whole), and the copy.
+pub(crate) fn brotli_file(source: &Path, target: &Path) -> std::io::Result<Vec<u8>> {
+    let file = std::fs::File::open(source)?;
+    // A window of 16 MB, the most a browser reads, and the size told ahead: read in pieces
+    // without it, the copy came out 34 kB larger.
+    let size_hint = usize::try_from(file.metadata()?.len()).unwrap_or(usize::MAX);
+    let params = brotli::enc::BrotliEncoderParams { quality: SNAPSHOT_BROTLI_QUALITY, lgwin: 24, size_hint, ..Default::default() };
+    let mut writer = brotli::CompressorWriter::with_params(Vec::new(), 1 << 16, &params);
+    std::io::copy(&mut std::io::BufReader::new(file), &mut writer)?;
+    let copy = writer.into_inner();
+    let mut partial = target.as_os_str().to_owned();
+    partial.push(".part");
+    let partial = PathBuf::from(partial);
+    std::fs::write(&partial, &copy)?;
+    std::fs::rename(&partial, target)?;
+    Ok(copy)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -231,13 +317,13 @@ impl SnapshotStore {
 
     /// Old snapshot files. One that is still open (Windows) stays until the next attempt.
     fn remove_other_files(&self, keep: &Path) {
-        let keep_gzip = gzip_path_of(keep);
+        let (keep_gzip, keep_brotli) = (gzip_path_of(keep), brotli_path_of(keep));
         let Ok(entries) = std::fs::read_dir(&self.data_dir) else { return };
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             let ours = name.starts_with("catalog-") || name.starts_with("download-");
-            if ours && path != keep && path != keep_gzip {
+            if ours && path != keep && path != keep_gzip && path != keep_brotli {
                 let _ = std::fs::remove_file(&path);
             }
         }
@@ -386,6 +472,8 @@ pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, sta
         }
     };
     tracing::info!(component = "snapshot", event = "snapshot.sync_started", url = %url, interval_s = interval.as_secs(), "watching Radix's snapshot endpoint");
+    // The snapshot of the previous run, if it has no Brotli copy yet.
+    brotli_in_background(&store);
 
     let mut failures: u32 = 0;
     loop {
@@ -400,6 +488,7 @@ pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, sta
             }
             Ok(Sync::Activated) => {
                 failures = 0;
+                brotli_in_background(&store);
                 interval
             }
             Err(error) => {

@@ -1,5 +1,6 @@
 //! The files of `app/assets` a browser gets as text — the stylesheet, the scripts, the SVGs — as
-//! the build minified them (`build/main.rs`), and what ships altogether (`folia assets`).
+//! the build minified them, with the Brotli copy it made of each (`build/main.rs`), and what ships
+//! altogether (`folia assets`).
 //!
 //! While working on them the server can read them from disk instead (`--live-assets`,
 //! `api::minified`): an edit is there with the next reload, without a build.
@@ -13,16 +14,24 @@ pub struct Asset {
     pub path: &'static str,
     /// The file minified.
     pub bytes: &'static [u8],
+    /// The same compressed with Brotli, for the browsers that take it; empty where the server
+    /// writes into the file (it compresses it then) and for what it never serves.
+    pub brotli: &'static [u8],
     /// The size of the file as it is written.
     pub source: usize,
 }
 
-/// A file of `app/assets` as the build minified it, by its path there.
+/// A file of `app/assets` as the build minified it, by its path there; `not_served` without its
+/// Brotli copy.
 macro_rules! minified {
     ($path:literal) => {
+        Asset { brotli: include_bytes!(concat!(env!("OUT_DIR"), "/assets/", $path, ".br")), ..minified!($path, not_served) }
+    };
+    ($path:literal, not_served) => {
         Asset {
             path: $path,
             bytes: include_bytes!(concat!(env!("OUT_DIR"), "/assets/", $path)),
+            brotli: &[],
             // Only the length: the file as it is written is not part of the server.
             source: include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../app/assets/", $path)).len(),
         }
@@ -52,12 +61,16 @@ pub static MINIFIED: &[Asset] = &[
     minified!("birch/roots.svg"),
     minified!("birch/litter.svg"),
     // …and the heads the cards hang their crown from (`birch::card_crown`), which are not.
-    minified!("birch/spring-card-head.svg"),
-    minified!("birch/spring-card-head-ck.svg"),
-    minified!("birch/summer-card-head.svg"),
-    minified!("birch/autumn-card-head.svg"),
-    minified!("birch/winter-card-head.svg"),
+    minified!("birch/spring-card-head.svg", not_served),
+    minified!("birch/spring-card-head-ck.svg", not_served),
+    minified!("birch/summer-card-head.svg", not_served),
+    minified!("birch/autumn-card-head.svg", not_served),
+    minified!("birch/winter-card-head.svg", not_served),
 ];
+
+/// sql.js's WASM, served as it is, and the Brotli copy the build made of it.
+pub static SQL_WASM: &[u8] = include_bytes!("../../app/assets/sql-wasm.wasm");
+pub static SQL_WASM_BROTLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/assets/sql-wasm.wasm.br"));
 
 pub fn get(path: &str) -> Option<&'static Asset> {
     MINIFIED.iter().find(|asset| asset.path == path)
@@ -78,32 +91,33 @@ pub fn content_type(path: &str) -> &'static str {
 }
 
 /// `folia assets`: what ships, file by file — as written and as served, and what goes over the
-/// wire (gzip, as the server compresses) — the minified files of the binary and the browser app
-/// in `<site-root>/pkg`.
+/// wire (gzip as the server compresses, and the Brotli copy for browsers that take it) — the
+/// files of `app/assets` in the binary and the browser app in `<site-root>/pkg`.
 pub fn report(site_root: &Path) -> std::io::Result<()> {
     let mut out = std::io::stdout().lock();
     let gzip = |bytes: &[u8]| crate::cache::gzip(bytes).len();
-    writeln!(out, "{:<34} {:>10} {:>10} {:>9}", "app/assets, minified by the build", "written", "served", "gzip")?;
-    let (mut written, mut served, mut wire) = (0, 0, 0);
-    for asset in MINIFIED {
-        let compressed = gzip(asset.bytes);
-        writeln!(out, "{:<34} {:>10} {:>10} {:>9}", asset.path, asset.source, asset.bytes.len(), compressed)?;
-        (written, served, wire) = (written + asset.source, served + asset.bytes.len(), wire + compressed);
+    // A copy the build made, or `-`: made by the server (what it writes into) or not served.
+    let brotli = |bytes: &[u8]| if bytes.is_empty() { "-".to_string() } else { bytes.len().to_string() };
+    writeln!(out, "{:<34} {:>10} {:>10} {:>9} {:>9}", "app/assets, as the build made it", "written", "served", "gzip", "br")?;
+    let rows = MINIFIED.iter().map(|asset| (asset.path, asset.source, asset.bytes, asset.brotli));
+    for (path, source, bytes, copy) in rows.chain([("sql-wasm.wasm", SQL_WASM.len(), SQL_WASM, SQL_WASM_BROTLI)]) {
+        writeln!(out, "{:<34} {:>10} {:>10} {:>9} {:>9}", path, source, bytes.len(), gzip(bytes), brotli(copy))?;
     }
-    writeln!(out, "{:<34} {:>10} {:>10} {:>9}", "", written, served, wire)?;
 
     let pkg = site_root.join("pkg");
     let mut files: Vec<_> = std::fs::read_dir(&pkg).map(|entries| entries.flatten().map(|entry| entry.path()).collect()).unwrap_or_default();
+    files.retain(|file| file.extension().is_none_or(|kind| kind != "br"));
     files.sort();
     writeln!(out)?;
     if files.is_empty() {
         writeln!(out, "no browser app in {} (scripts/build-client.sh)", pkg.display())?;
     } else {
-        writeln!(out, "{:<34} {:>10} {:>10} {:>9}", format!("{}", pkg.display()), "", "served", "gzip")?;
+        writeln!(out, "{:<34} {:>10} {:>10} {:>9} {:>9}", format!("{}", pkg.display()), "", "served", "gzip", "br")?;
         for file in files {
             let bytes = std::fs::read(&file)?;
             let name = file.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
-            writeln!(out, "{:<34} {:>10} {:>10} {:>9}", name, "", bytes.len(), gzip(&bytes))?;
+            let copy = std::fs::read(pkg.join(format!("{name}.br"))).unwrap_or_default();
+            writeln!(out, "{:<34} {:>10} {:>10} {:>9} {:>9}", name, "", bytes.len(), gzip(&bytes), brotli(&copy))?;
             if let Some(names) = custom_section(&bytes, "name") {
                 writeln!(out, "  of it {names} bytes of function names: a build with --dev, not one to ship (docs/frontend.md §3)")?;
             }
@@ -175,7 +189,10 @@ mod tests {
         let built = Path::new(env!("OUT_DIR")).join("assets");
         let mut paths = vec!["favicon.svg".to_string()];
         for entry in std::fs::read_dir(built.join("birch")).unwrap() {
-            paths.push(format!("birch/{}", entry.unwrap().file_name().to_string_lossy()));
+            let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+            if name.ends_with(".svg") {
+                paths.push(format!("birch/{name}"));
+            }
         }
         assert!(paths.len() >= 23, "the favicon and the birch: {paths:?}");
         for path in paths {
@@ -209,6 +226,29 @@ mod tests {
             css.split("/assets/birch/").skip(1).filter_map(|rest| rest.split(['"', ')']).next()).map(str::to_string).collect()
         };
         assert_eq!(masks(text("app.css")), masks(&written("app.css")));
+    }
+
+    /// Every Brotli copy the build made is the file it stands for. The scripts the server writes
+    /// into have none (the server compresses them once written), nor has what is never served.
+    #[test]
+    fn every_brotli_copy_is_its_file() {
+        use std::io::Read;
+        let unbrotli = |copy: &[u8]| {
+            let mut body = Vec::new();
+            brotli::Decompressor::new(copy, 1 << 16).read_to_end(&mut body).unwrap();
+            body
+        };
+        for asset in MINIFIED {
+            match (asset.path, asset.brotli.is_empty()) {
+                ("boot.js" | "sw.js", without) => assert!(without, "{}", asset.path),
+                (path, true) => assert!(path.contains("-card-head"), "{path} goes without its copy"),
+                (path, false) => {
+                    assert_eq!(unbrotli(asset.brotli), asset.bytes, "{path}");
+                    assert!(asset.brotli.len() < asset.bytes.len(), "{path}");
+                }
+            }
+        }
+        assert_eq!(unbrotli(SQL_WASM_BROTLI), SQL_WASM);
     }
 
     #[test]
