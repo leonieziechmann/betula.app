@@ -259,9 +259,10 @@ pub fn HomePage() -> impl IntoView {
 /// The first panel, flat: what this is and the two ways in on the left, and a birch down its
 /// right edge with the figures hanging to its left on branches of it (owner, 2026-09-28: „rechts am
 /// Rand so ein dickerer Birkenstamm und dann nach links die Stats"; before, a small birch with a
-/// crown and a ground of its own stood beside the text, and doubled the page's crown). Beside the
-/// text from a notebook's width on, under it on a narrow page, where the trunk still runs down the
-/// whole edge; the branch at the panel's side grows out of the trunk.
+/// crown and a ground of its own stood beside the text, and doubled the page's crown). The birch
+/// and its figures stand beside the text from a notebook's width on; on a phone the panel is its
+/// text alone (they took the height the way in needs there). The branch at the panel's side grows
+/// out of the trunk.
 #[component]
 fn Hero(home: Option<HomeData>) -> impl IntoView {
     let t = i18n::t();

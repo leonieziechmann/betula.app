@@ -1124,10 +1124,10 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
    Colour is quiet and says something: the faculties' palette behind the pictures and on the
    faculties, a soft hue per way into the catalog; the accent stays with the main button. */
 /* No frame (owner, 2026-09-28: the sidebar made the page confusing): the page scrolls on its own,
-   its panels in one column in the middle, no wider than still reads well, with room beside them
-   for the branches that grow out of them (`Branch`): 70 px on a 1280 px screen, 100 on 1440, up
-   to 150; none on a phone. The branches and the birch of the first panel share the tone of bark. */
-.home { --branch-room: clamp(56px, 18.75vw - 170px, 150px); --branch: color-mix(in oklch, var(--ground-text) 74%, var(--crown)); container: home / inline-size; width: 100%; max-width: min(1280px, 100% - 2 * var(--branch-room)); margin: 0 auto; }
+   its panels in one column in the middle, no wider than still reads well. The branches that grow
+   out of them (`Branch`) fill what is left beside them and are cut off by the page's edge where
+   that is little. The branches and the birch of the first panel share the tone of bark. */
+.home { --branch: color-mix(in oklch, var(--ground-text) 74%, var(--crown)); container: home / inline-size; width: 100%; max-width: 1280px; margin: 0 auto; }
 @media (min-width: 901px) { .home-page { overflow-x: hidden; } }
 .home > .panel, .home-lists { scroll-margin-top: 14px; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
@@ -1137,8 +1137,8 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 
 /* The first panel, flat: the text and the two ways in on the left, the figures on the right
    (under the text on a narrow page). */
-.home-hero { --trunk-w: 30px; display: grid; grid-template-columns: minmax(0, 1fr) var(--trunk-w); }
-.home-hero-text { grid-column: 1; grid-row: 1; min-width: 0; padding: 24px 24px 22px; }
+.home-hero { display: grid; grid-template-columns: minmax(0, 1fr); }
+.home-hero-text { min-width: 0; padding: 24px 24px 22px; }
 .eyebrow-pill { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12.5px; font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent); }
 .eyebrow-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .home-hero h1 { margin-top: 14px; font-size: clamp(26px, 2.9cqi, 34px); line-height: 1.12; font-weight: 720; letter-spacing: -.034em; text-wrap: balance; }
@@ -1159,20 +1159,22 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .intro-actions .pick-combo .combo-value.placeholder { color: var(--text); }
 /* The birch of the first panel (owner, 2026-09-28: „rechts am Rand so ein dickerer Birkenstamm und
    dann nach links die Stats"): a trunk of bark down the panel's right edge, the whole height, and
-   each figure a tag on a branch of it, the branches of two lengths. The figures stand beside the
-   text from a notebook's width on and under it below that; the trunk runs down the edge either way. */
-.hero-trunk { grid-column: 2; grid-row: 1 / span 2; position: relative; overflow: hidden; border-radius: 0 var(--r-panel) var(--r-panel) 0; background: linear-gradient(90deg, color-mix(in oklch, var(--bark-ink) 14%, var(--bark)), var(--bark) 32%, var(--bark) 62%, color-mix(in oklch, var(--bark-ink) 20%, var(--bark))); box-shadow: inset 1px 0 0 color-mix(in oklch, var(--bark-ink) 20%, transparent); }
+   each figure a tag on a branch of it, the branches of two lengths. Flat, as the mark is (the first
+   trunk, shaded at its edges, looked round: „warum ist das Ding jetzt plötzlich 3D?"), and only
+   from a notebook's width on: on a phone it took the height the way in needs, and a trunk down a
+   phone's edge looked wrong (owner, the same day), so there the first panel is its text alone. */
+.hero-trunk { display: none; position: relative; overflow: hidden; border-radius: 0 var(--r-panel) var(--r-panel) 0; background: var(--bark); box-shadow: inset 1px 0 0 var(--line-strong); }
 /* The marks of the bark, as the mark of Betula draws them (dashes from either edge or in the
    middle, and two dark chevrons where branches were): a drawing 48 × 400 as the trunk's width,
    repeated down it. */
 .hero-trunk::after { content: ""; position: absolute; inset: 0; background: var(--bark-ink); opacity: .82; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 400' width='48' height='400'%3E%3Cpath d='M0 14h14v3h-14zM34 33h14v3h-14zM16 47h12v2h-12zM0 66h20v4h-20zM30 84h18v3h-18zM0 99h8v3h-8zM20 117h16v3h-16zM38 136h10v3h-10zM0 150h17v3h-17zM27 171h21v4h-21zM12 188h10v2h-10zM0 206h11v3h-11zM33 224h15v3h-15zM0 243h22v4h-22zM22 260h14v3h-14zM36 279h12v3h-12zM0 296h15v3h-15zM26 314h22v4h-22zM0 333h9v3h-9zM17 350h15v3h-15zM31 369h17v3h-17zM0 386h19v3h-19zM8 160Q24 150 40 160Q24 155 8 160zM12 303Q27 294 42 303Q27 298 12 303z'/%3E%3C/svg%3E") center top / 100% auto repeat-y; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 400' width='48' height='400'%3E%3Cpath d='M0 14h14v3h-14zM34 33h14v3h-14zM16 47h12v2h-12zM0 66h20v4h-20zM30 84h18v3h-18zM0 99h8v3h-8zM20 117h16v3h-16zM38 136h10v3h-10zM0 150h17v3h-17zM27 171h21v4h-21zM12 188h10v2h-10zM0 206h11v3h-11zM33 224h15v3h-15zM0 243h22v4h-22zM22 260h14v3h-14zM36 279h12v3h-12zM0 296h15v3h-15zM26 314h22v4h-22zM0 333h9v3h-9zM17 350h15v3h-15zM31 369h17v3h-17zM0 386h19v3h-19zM8 160Q24 150 40 160Q24 155 8 160zM12 303Q27 294 42 303Q27 298 12 303z'/%3E%3C/svg%3E") center top / 100% auto repeat-y; }
-.tree-figures { position: relative; z-index: 1; grid-column: 1; grid-row: 2; display: grid; justify-items: end; align-content: center; gap: 8px; margin: 0; padding: 0 0 20px; }
-.tree-figures > div { --reach: 14px; position: relative; max-width: calc(100% - var(--reach)); margin-right: var(--reach); display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 0 8px; padding: 6px 12px 7px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-panel); }
-.tree-figures > div:nth-child(even) { --reach: 30px; }
+.tree-figures { display: none; position: relative; z-index: 1; justify-items: end; align-content: center; gap: 8px; margin: 0; padding: 20px 0; }
+.tree-figures > div { --reach: 22px; position: relative; max-width: calc(100% - var(--reach)); margin-right: var(--reach); display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 0 8px; padding: 6px 12px 7px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.tree-figures > div:nth-child(even) { --reach: 46px; }
 /* The branch from the trunk to the tag: thick where it leaves the trunk (and into its edge), thin
    at the tag. */
 .tree-figures > div::after { content: ""; position: absolute; top: 50%; left: 100%; width: calc(var(--reach) + 6px); height: 7px; margin-top: -3.5px; background: var(--branch); clip-path: polygon(0 42%, 100% 0, 100% 100%, 0 58%); }
-.tree-figures dd { order: -1; margin: 0; color: var(--text); font-size: 20px; font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
+.tree-figures dd { order: -1; margin: 0; color: var(--text); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
 .tree-figures dt { color: var(--text-2); font-size: 13px; font-weight: 580; }
 .tree-figures dt small { margin-left: 5px; color: var(--text-3); font-size: 12px; font-weight: 500; }
 
@@ -1241,10 +1243,12 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 /* Branches growing out of the panels into the room beside them (`Branch`; owner, 2026-09-28: „nicht
    nur so kleine twigs, sondern schon etwas dickere, ein zwei Verzweigungen und mit kleinen
    Blattkronen"): a limb that tapers and forks, ending in small crowns of leaves in the season's
-   colour, in two tones, and none in winter, as the page's crown has none. They take the room the
-   page keeps beside its panels (`--branch-room`), their foot a little over the panel's edge. */
+   colour, in two tones, and none in winter, as the page's crown has none. They are there so that
+   the room beside the panels does not look empty (owner, the same day), and they take it as far as
+   it goes: as wide as it is, at least 96 px and at most 200, their foot a little over the panel's
+   edge; where it is narrower the page's edge cuts them off. */
 .home .panel:has(> .branch) { position: relative; overflow: visible; }
-.branch { position: absolute; z-index: 1; top: var(--y); width: calc(var(--branch-room) + 6px); height: auto; aspect-ratio: 4 / 3; overflow: visible; pointer-events: none; }
+.branch { position: absolute; z-index: 1; top: var(--y); width: clamp(96px, (100vw - 1348px) / 2 + 16px, 200px); height: auto; aspect-ratio: 4 / 3; overflow: visible; pointer-events: none; }
 .branch-r { left: calc(100% - 6px); transform: translateY(-50%); }
 .branch-l { right: calc(100% - 6px); transform: translateY(-50%) scaleX(-1); }
 .branch-limb { fill: none; stroke: var(--branch); stroke-linecap: round; stroke-linejoin: round; }
@@ -1779,17 +1783,13 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 @container home (min-width: 900px) {
   .home-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-/* From a notebook's width on the figures stand beside the text, on longer branches, and the
-   trunk is thicker. */
+/* From a notebook's width on the birch with the figures stands beside the text. */
 @container home (min-width: 700px) {
-  .home-hero { --trunk-w: 46px; grid-template-columns: minmax(0, 1fr) auto var(--trunk-w); }
-  .tree-figures { grid-column: 2; grid-row: 1; padding: 20px 0; }
-  .tree-figures > div { --reach: 22px; }
-  .tree-figures > div:nth-child(even) { --reach: 46px; }
-  .tree-figures dd { font-size: 22px; }
-  .hero-trunk { grid-column: 3; grid-row: 1; }
+  .home-hero { grid-template-columns: minmax(0, 1fr) auto 46px; }
+  .tree-figures { display: grid; }
+  .hero-trunk { display: block; }
 }
-@container home (min-width: 1100px) {
+@container home (min-width: 1180px) {
   .ability-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ability:nth-child(odd) { border-right: 0; }
   .ability:nth-child(odd):last-child { grid-column: auto; }
@@ -2744,7 +2744,6 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .intro-actions .pick-combo { flex: 1 1 auto; }
   .intro-actions .pick-combo .combo-trigger { width: 100%; min-height: 50px; justify-content: center; }
   .intro-actions .pick-combo .combo-value { flex: 0 1 auto; }
-  .home { --branch-room: 0px; }
   .branch { display: none; }
   .start-foot { padding-left: 16px; padding-right: 8px; }
   .faq summary { padding-left: 16px; }

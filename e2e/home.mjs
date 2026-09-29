@@ -294,6 +294,8 @@ await page.mouse.up();
 await waitFor("Der Katalog").catch(() => failures.push("phone: a swipe does not turn the pictures"));
 check(await page.evaluate(() => location.pathname === "/"), "phone: a swipe opened a page");
 check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "phone: the page scrolls sideways");
+// A phone: the first panel is its text alone, without the birch and its figures.
+check(await page.evaluate(() => !document.querySelector(".hero-trunk").checkVisibility() && !document.querySelector(".tree-figures").checkVisibility()), "phone: the first panel shows the birch or its figures");
 // The name, not the button (its hit area reaches past it).
 check(await page.evaluate(() => [...document.querySelectorAll(".show-tabs button")].every((b) => {
   const range = document.createRange();
