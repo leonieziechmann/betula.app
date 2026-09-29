@@ -546,9 +546,11 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .chip[data-state="without"] .box, .box.without { background: var(--no); box-shadow: none; color: var(--panel); }
 .chip[data-state="without"] .box .icon:last-child, .box.without .icon { display: block; }
 /* A chip that has to stay as it is for now (the last class „Passt in meinen Stundenplan"
-   compares): no link, and nothing that looks like one. */
+   compares), or that is only a picture of one (on the start page's board): no link, and nothing
+   that looks like one. */
 .chip[aria-disabled="true"] { cursor: default; }
 .chip[aria-disabled="true"]:active { transform: none; }
+.chip[aria-disabled="true"][data-state="off"]:hover { box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); }
 /* The chips of „Passt in meinen Stundenplan": part of the server's page (R9, the same for
    everybody), kept in their place but not shown until the app runs, and gone without JavaScript
    (R15) — the pattern of .mark-toggle, so the filters below them do not move at the takeover. */
@@ -1521,7 +1523,9 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .detail-nav a:hover { background: color-mix(in oklch, var(--tint) 15%, var(--panel)); text-decoration: none; }
 .detail-nav .icon { width: 15px; height: 15px; color: var(--tint); }
 
-.feature { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 30px 24px; align-items: center; }
+/* `clip`, not the panel's `hidden`: a panel that hides its overflow is a scroll container of its
+   own, and the board's count (`.board-foot`) would stick to it instead of to the view. */
+.feature { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 30px 24px; align-items: center; overflow: clip; }
 .feature-text { min-width: 0; }
 .feature-name { display: flex; align-items: center; gap: 10px; color: var(--text-2); font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 .feature-name .ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in oklch, var(--tint) 14%, var(--panel)); color: var(--tint); }
@@ -1593,7 +1597,8 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 
 /* The filter panel laid out as a board: its groups in columns, each a small panel in the panel's
    own parts (labels, chips with their boxes, segmented rows); fields and the slider only look like
-   theirs. Chips that filter by themselves lead into the catalog. */
+   theirs. In the browser app the chips that filter by themselves, and the rows of the duration and
+   the years, switch in place (buttons); the others are a picture (`aria-disabled`). */
 .board { columns: 3 220px; column-gap: 12px; }
 .bgroup { break-inside: avoid; display: grid; gap: 8px; margin-bottom: 12px; padding: 14px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); }
 .bgroup > .flabel { margin: 0; }
@@ -1613,8 +1618,8 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .mock-hit { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 10px; border-radius: 7px; background: var(--accent-soft); color: var(--text); font-size: 13px; font-weight: 600; }
 .mock-hit .icon { width: 14px; height: 14px; color: var(--accent-ink); }
 .mock-seg { cursor: default; }
-.mock-seg > span { min-height: 28px; padding: 0 6px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--text-2); font-size: 12.5px; font-weight: 580; white-space: nowrap; }
-.mock-seg > span[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.mock-seg > span, .mock-seg > button { min-height: 28px; padding: 0 6px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--text-2); font-size: 12.5px; font-weight: 580; white-space: nowrap; }
+.mock-seg > span[aria-checked="true"], .mock-seg > button[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
 .mock-slider { position: relative; display: block; height: 22px; margin: 2px 9px 0; --from: .2; --to: .4; }
 .mock-slider::before, .mock-slider::after { content: ""; position: absolute; top: 9px; height: 4px; border-radius: 2px; }
 .mock-slider::before { left: 0; right: 0; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line); }
@@ -1623,7 +1628,15 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .mock-slider i:first-child { left: calc(var(--from) * 100%); }
 .mock-slider i:last-child { left: calc(var(--to) * 100%); }
 .mock-range { color: var(--text); font-size: 13px; font-weight: 600; }
-.board-foot { display: flex; justify-content: center; margin-top: 4px; }
+/* What is chosen, counted, and the way to it: it stays at the bottom of the view while the board is
+   in it, so the number that follows a click is in sight wherever the chip was (12 px above the
+   bottom bar on a phone, like „Nach oben"). Only its button takes the pointer: beside it the chips
+   under it stay reachable. */
+.board-foot { position: sticky; z-index: 2; bottom: 16px; display: flex; justify-content: center; margin-top: 4px; pointer-events: none; }
+.board-foot .btn { pointer-events: auto; box-shadow: inset 0 0 0 1px var(--line-strong), var(--shadow-pop); }
+@media (max-width: 900px) {
+  .board-foot { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
 /* „Alle Filter zeigen" (a checkbox and its label, the same with and without JavaScript): only where
    the board is a single column, a phone's, which shows the groups of a first look (`.key`) first. */
 .board-all, .board-more { display: none; }
@@ -1633,6 +1646,10 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
   .board-more { display: flex; margin: 0 0 12px; cursor: pointer; }
   .board-all:checked ~ .board-more { display: none; }
   .board-all:focus-visible ~ .board-more { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* A phone's count stands at the left, clear of „Nach oben" in the corner: that one reaches 54 px
+     in from the edge of the view, the picture 32 px. Its words may take two lines there. */
+  .board-foot { justify-content: flex-start; padding-right: 30px; }
+  .board-foot .btn { padding-top: 6px; padding-bottom: 6px; line-height: 1.3; text-align: left; }
 }
 .board-foot .btn { min-height: 40px; font-size: 13.5px; }
 .board-foot .icon { width: 16px; height: 16px; }
@@ -2814,6 +2831,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .board .chip { min-height: 34px; padding: 0 10px 0 8px; font-size: 13.5px; border-radius: var(--r-s); gap: 7px; }
   .board .box { width: 16px; height: 16px; border-radius: 4px; }
   .board .box .icon { width: 12px; height: 12px; }
+  .board .mock-seg > button { min-height: 34px; font-size: 13px; }
   .feature { padding: 26px 16px 18px; scroll-margin-top: 76px; }
   .feature-picture { padding: 16px; }
   .feature-picture.bare { padding: 0; }

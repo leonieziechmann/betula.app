@@ -893,12 +893,21 @@ alles gesprochen wird", the flow through the app and every filter. What changed:
   over a headline, a line under it, four points — with a picture made of the app's own parts on a
   wash of the tint, laid out by its own width (container `picture`): the four ways from a question
   to the one module page; the filter panel as a board of its twelve groups in the panel's order,
-  look and words (`catalog::Texts`, so a renamed filter is renamed there too), its chips links into
-  the catalog, an example chosen (winter, English, no written exam: `detail::example`) with how many
-  modules the catalog has for it — on a phone the groups of a first look and the others after „Alle
-  Filter zeigen" (a checkbox, so with and without JavaScript); a regulation's PDF read into the
-  plan's matrix, with how many of the current programs have a checked plan (`Overview::plans`); a
-  week in the Stundenplan's own grid (`WeekGrid`) with a clash and the ways into a calendar; where a
+  look and words (`catalog::Texts`, so a renamed filter is renamed there too), an example chosen
+  (winter, English, no written exam: `detail::example`) with how many modules the catalog has for
+  it — on a phone the groups of a first look and the others after „Alle Filter zeigen" (a checkbox,
+  so with and without JavaScript). Its chips were links into the catalog, and a click on a filter
+  left the start page (owner, 2026-09-29: „mach das so, dass die filter tatsächlich funktionieren
+  und man dann unten sieht, wie viele module das selected hat und sich die angucken kann"). Now, in
+  the browser app, every chip that filters by itself and the rows of the duration and the years
+  switch the board's own selection in place, with the catalog panel's toggles
+  (`pages::catalog::Toggle`: off, with, without); the number under the board follows
+  (`queries::catalog_count` on the local copy), stays at the bottom of the view while the board is
+  in it, and its button opens the catalog with that selection. What needs more than a click (a
+  program, the Merkliste, the Stundenplan, a name, the slider) stays a picture; without the app all
+  of it is, and no chip is a link. Then a regulation's PDF read into the plan's matrix, with how
+  many of the current programs have a checked plan (`Overview::plans`); a week in the Stundenplan's
+  own grid (`WeekGrid`) with a clash and the ways into a calendar; where a
   visitor's things live, and four figures; the site with and without JavaScript; the birch from the
   ground (Radix, its sources and how often it reads them) up the trunk (the Datenstand) into the
   season's crown (Folia); the catalog and a module on a phone (`--device`, its frame), lazy and in

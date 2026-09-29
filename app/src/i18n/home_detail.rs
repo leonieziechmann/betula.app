@@ -25,9 +25,9 @@ pub struct Texts {
     pub filters: Chapter,
     /// The three steps of a chip, under the three examples: off, with, without.
     pub steps: [&'static str; 3],
-    /// „Diese Auswahl im Katalog: 23 Module": the example the board shows chosen, with the number
-    /// the catalog has for it (written already).
-    pub example: fn(&str) -> String,
+    /// „Diese Auswahl im Katalog: 23 Module": what the board's chips choose (the example, until
+    /// they are switched), with the number the catalog has for it (and that number written).
+    pub example: fn(u64, &str) -> String,
     pub hints: Hints,
 
     // The study plans from the regulations
@@ -167,7 +167,7 @@ pub const DE: Texts = Texts {
         ],
     },
     steps: ["aus", "nur mit", "alles außer"],
-    example: |n| format!("Diese Auswahl im Katalog: {n} Module"),
+    example: |n, written| if n == 1 { "Diese Auswahl im Katalog: 1 Modul".to_string() } else { format!("Diese Auswahl im Katalog: {written} Module") },
     hints: Hints {
         search: "Titel auf Deutsch oder Englisch und Modulnummer, auch Teile davon.",
         search_example: "datenbank",
@@ -334,7 +334,7 @@ pub const EN: Texts = Texts {
         ],
     },
     steps: ["off", "only with", "all but"],
-    example: |n| format!("This selection in the catalogue: {n} modules"),
+    example: |n, written| if n == 1 { "This selection in the catalogue: 1 module".to_string() } else { format!("This selection in the catalogue: {written} modules") },
     hints: Hints {
         search: "German or English title and module number, or part of one.",
         search_example: "datenbank",
@@ -488,7 +488,8 @@ mod tests {
                 assert!(chapter.points.iter().all(|point| !point.title.is_empty() && point.text.ends_with(['.', '“', '”'])), "{}", chapter.name);
             }
         }
-        assert_eq!(((DE.example)("206"), (EN.plans_of)("115")), ("Diese Auswahl im Katalog: 206 Module".to_string(), "of 115 in their current examination regulations".to_string()));
+        assert_eq!(((DE.example)(206, "206"), (EN.plans_of)("115")), ("Diese Auswahl im Katalog: 206 Module".to_string(), "of 115 in their current examination regulations".to_string()));
+        assert_eq!(((DE.example)(1, "1"), (EN.example)(1, "1"), (EN.example)(1206, "1,206")), ("Diese Auswahl im Katalog: 1 Modul".to_string(), "This selection in the catalogue: 1 module".to_string(), "This selection in the catalogue: 1,206 modules".to_string()));
     }
 
     /// What a chapter quotes of the app (a button, a filter, a label) is what the app says there,
