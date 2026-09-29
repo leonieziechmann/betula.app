@@ -20,6 +20,9 @@
   --panel-3: #eceef1;
   --line: rgba(15, 23, 42, .08);
   --line-strong: rgba(15, 23, 42, .15);
+  /* A shaded row of a list of modules (every other one), and a row pointed at, a step above it. */
+  --row-shade: color-mix(in oklab, var(--text) 2.6%, var(--panel));
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
   --text: #10151f;
   --text-2: #4b5565;
   --text-3: #8790a0;
@@ -99,6 +102,8 @@
     --panel-3: #1e2330;
     --line: rgba(255, 255, 255, .07);
     --line-strong: rgba(255, 255, 255, .15);
+    --row-shade: color-mix(in oklab, var(--text) 3.4%, var(--panel));
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
     --text: #eceff5;
     --text-2: #a4adc0;
     --text-3: #6a748a;
@@ -144,6 +149,8 @@
   --panel-3: #1e2330;
   --line: rgba(255, 255, 255, .07);
   --line-strong: rgba(255, 255, 255, .15);
+  --row-shade: color-mix(in oklab, var(--text) 3.4%, var(--panel));
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
   --text: #eceff5;
   --text-2: #a4adc0;
   --text-3: #6a748a;
@@ -708,7 +715,12 @@ html:not(.js) .fit-chip { display: none; }
 .sem::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .row { position: relative; min-height: 54px; padding: 6px 50px 6px 15px; border-radius: var(--r-row); color: inherit; text-decoration: none; transition: background .1s; }
 .row::before { content: ""; position: absolute; left: 4px; top: 14px; bottom: 14px; width: 3px; border-radius: 3px; background: transparent; }
-.row:hover { background: var(--panel-2); text-decoration: none; }
+/* Every other row is shaded, so the eye keeps to its line across the columns (owner, 2026-09-29:
+   „alternating row color"). Which rows the list says (`.shaded`, `Row`); the row pointed at, the
+   focused one and the open one stand above the shade (the rules after this one, as specific as
+   it). On a phone the rows are cards of their own and stay plain. */
+@media (min-width: 901px) { .row-wrap:where(.shaded) > .row { background: var(--row-shade); } }
+.row:hover { background: var(--row-hover); text-decoration: none; }
 .row[aria-current="true"] { background: var(--panel-3); }
 .row[aria-current="true"]::before { background: var(--accent); }
 .row .t { min-width: 0; }
@@ -738,7 +750,7 @@ html:not(.js) .fit-chip { display: none; }
 .app .pager { display: none; }
 .app .keys { display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); font-size: 12px; margin-right: 6px; white-space: nowrap; }
 .keys kbd { padding: 2px 5px; }
-.row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--panel-2); }
+.row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--row-hover); }
 .row { scroll-margin: 44px 0 16px; }
 /* Rows that are off screen are not laid out (their last height is remembered). What the page
    costs to lay out no longer grows with the rows that are loaded: a resize stays live and an
@@ -787,7 +799,7 @@ html:not(.js) .mark-toggle { display: none; }
   .row-wrap:hover > .mark-toggle[aria-pressed="false"] { color: var(--text-3); }
   .row-wrap > .mark-toggle:hover { background: var(--line); }
   .row-wrap > .mark-toggle[aria-pressed="false"]:hover { color: var(--text); }
-  .row-wrap:hover > .row { background: var(--panel-2); }
+  .row-wrap:hover > .row { background: var(--row-hover); }
   .row-wrap:hover > .row[aria-current="true"] { background: var(--panel-3); }
 }
 /* The list of marked modules: a module whose mark was taken away stays until the page is left. */

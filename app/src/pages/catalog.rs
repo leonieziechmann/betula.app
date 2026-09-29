@@ -964,11 +964,13 @@ fn PlainRows(
         <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows">
             {head}
             {states}
-            {rows.into_iter().map(|row| {
+            // A page holds an even number of rows (`PAGE_SIZE`), so its first row is shaded as
+            // in the app's whole list.
+            {rows.into_iter().enumerate().map(|(index, row)| {
                 let (target, id) = (row.id.clone(), row.id.clone());
                 let preview = Signal::derive(move || url::module_path(&target));
                 let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
-                view! { <Row row preview current phone with_program/> }
+                view! { <Row row preview current phone with_program shaded=index % 2 == 1/> }
             }).collect_view()}
             {(pages_total > 1).then(|| view! {
                 <nav class="pager" aria-label=t.catalog.pages>
@@ -1312,7 +1314,7 @@ fn VirtualRows(
                             let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
                             let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
                             let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
-                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program/></div> }
+                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1/></div> }
                         })}
                     }
                 }/>
@@ -1341,6 +1343,9 @@ pub(crate) fn Row(
     /// The list shows its modules in place (a local view, `crate::local`): on a phone as well
     /// the row leads to `preview`, where the module is the page, not to the module's own page.
     #[prop(optional)] in_place: bool,
+    /// Every other row of the list is shaded. The list says which, from the row's place in the
+    /// whole list: the virtual list renders only the rows on screen, so the stylesheet cannot count.
+    #[prop(optional)] shaded: bool,
 ) -> impl IntoView {
     let t = i18n::t();
     let language = format::languages(row.teaches_german, row.teaches_english);
@@ -1380,7 +1385,7 @@ pub(crate) fn Row(
     });
     let fit_note = move || fit_note.and_then(|note| note.get()).map(|(text, quiet)| view! { <span class="flag fit-note" class:neutral=quiet>{text}</span> });
     view! {
-        <div class="row-wrap" class:unmarked=move || unmarked.is_some_and(|unmarked| unmarked.get())>
+        <div class="row-wrap" class:shaded=shaded class:unmarked=move || unmarked.is_some_and(|unmarked| unmarked.get())>
             <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
                 <div class="t">
                     <b>{row.title.clone()}</b>
