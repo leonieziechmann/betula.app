@@ -956,10 +956,18 @@ verwirrend" and made the page look odd; a new visitor has to find their way, and
 matters most — „organisch ohne Popup, einfach intuitiv". So:
 - **No frame.** The start page is the one page without `ui::Frame` (R17): `div.page.home-page`
   is its scroller (`#page-scroll`, which the ground, „Nach oben" and the jumps follow), and its
-  panels stand in one column in the middle, at most 1280 px wide. Of the sidebar's parts the
+  panels stand in one column in the middle, at most 1600 px wide. Of the sidebar's parts the
   jumps to the sections are the foot of the way in now; the Datenstand was the ground's already
   (date, semester, source, at the end of every page), and the answer „Wie aktuell ist der
   Katalog?" says so instead of pointing at the sidebar.
+- **As wide as still reads well** (owner, 2026-09-29: at 1280 px the column was „etwas zu
+  restriktiv … wenn man das auf großen Bildschirmen aufmacht, dann hat man links und rechts
+  wirklich noch zu viel Platz"; at 1600: „jetzt fühlt es sich sehr viel gewollter an"). Every text
+  of the page keeps its own measure (the lead, the heads, the steps, the abilities, the answers);
+  the one without, the points of a chapter of „Betula im Detail", is as wide as the chapter's
+  lead at 1600 px, which is why the column stops there. A window of 1920 px still shows a strip
+  of the wood on either side (130 px), one of 2560 px shows 450 px. The carousel's current
+  picture is 52 % of the column, up to 832 px, so its neighbours still reach the panel's edges.
 - **The way in** (`#loslegen`, `pages/home/start.rs`), right under the first panel: „So legst du
   los", three steps in the order a semester is planned — „Studiengang wählen", „Module finden und
   merken", „Stundenplan bauen" —, each a mark, its name, one line, one button and where the
@@ -1022,13 +1030,15 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   (none in winter), grass, a mushroom and a bird. It is `div.wood` (`ground::Wood`, beside the crown in the
   app's shell), fixed, beneath everything (the crown and the ground included), from the rail to the
   window's right edge and bottom; the rail stays free. Beside the start page's column it fills the
-  room of a wide window; on every page it shows wherever the panels leave a gap. Its masks (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600, whole pixels, their
+  room of a wide window; on every page it shows wherever the panels leave a gap. Its masks (`<season>-wood-back.svg`, `-front.svg`, 3400 × 1600, whole pixels, their
   path data relative and as short as it gets, `design/forest/path.mjs`; beside each a brotli copy
-  at quality 11, `.svg.br`, which `api::birch` sends to a browser that takes `br`: 51–76 KB a
+  at quality 11, `.svg.br`, which `api::birch` sends to a browser that takes `br`: 57–82 KB a
   season, only fetched where they show) are drawn by `design/forest/forest.mjs` from
-  `design/forest/wood.mjs`, the generator the comparison uses as well: the column's 1280 px in their
-  middle, 900 px of wood on either side, the trees walking outwards from the column's edges, so the
-  ones next to it are the same on every screen and a wider one only adds trees further out. Under
+  `design/forest/wood.mjs`, the generator the comparison uses as well: the column's 1600 px in their
+  middle (1280 until 2026-09-29; redrawn for the wider column from the same seeds, the trees beside
+  it only moved out with its edges), 900 px of wood on either side, the trees walking outwards from
+  the column's edges, so the ones next to it are the same on every screen and a wider one only
+  adds trees further out. Under
   the column is wood as well, with its ground (owner, 2026-09-29: „in der Mitte muss auch Content
   sein, damit da keine Lücken sind"): the panels hide it, but where they leave a gap — between two
   of them, or under a column shorter than the one beside it — the wood goes on.
@@ -1046,7 +1056,8 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   `.step` are the chips of „Betula im Detail" (the way to a module, „Klausur"), so the way in is
   `.start-path`, `.start-steps`, `.start-step`, `.start-mark`, `.start-btn` and so on.
 
-`node e2e/home.mjs` checks the page without a sidebar, the birch of the figures and the wood behind it, the
+`node e2e/home.mjs` checks the page without a sidebar, the birch of the figures and the wood behind it
+(at 1920 px the column 1600 px wide in the middle, the masks drawn and sized for it), the
 three steps and their buttons, a pick in the picker (the first step done, the others leading into
 the program, the first panel's button „Alle Studiengänge", no page load), „Direkt suchen", a jump
 of the foot, and the steps done for a browser with a program and a marked module; the server test
