@@ -251,6 +251,56 @@ func TestCyclePublishesOnlyWhenContentChanges(t *testing.T) {
 	}
 }
 
+// A new release may read the archive differently. Radix builds again at start when another
+// binary built the catalog, and publishes what the new rules make of it without asking BTU.
+func TestANewReleaseRebuildsFromTheArchiveWithoutCrawling(t *testing.T) {
+	site := newFakeBTU(t)
+	svc, _ := newTestService(t, site)
+	ctx := context.Background()
+
+	if !svc.BuiltByOtherRelease() {
+		t.Fatal("a database never built does not count as built by another release")
+	}
+	if first := svc.RunCycle(ctx); first.Result != "ok" || !first.Published {
+		t.Fatalf("first cycle = %+v", first)
+	}
+	if svc.BuiltByOtherRelease() {
+		t.Fatal("the catalog this binary built counts as built by another release")
+	}
+
+	// The release before: another binary, whose rules made other content of the same pages.
+	if _, err := svc.db.SQL().Exec(`UPDATE meta SET value = 'other' WHERE key IN ('radix_build', 'content_digest')`); err != nil {
+		t.Fatal(err)
+	}
+	if !svc.BuiltByOtherRelease() {
+		t.Fatal("a catalog another binary built is not noticed")
+	}
+	site.mu.Lock()
+	hits := maps.Clone(site.hits)
+	site.mu.Unlock()
+
+	rebuilt := svc.Rebuild(ctx)
+	if rebuilt.Result != "ok" || !rebuilt.Published {
+		t.Fatalf("rebuild = %+v", rebuilt)
+	}
+	for _, s := range rebuilt.Stages {
+		if s.Crawl != nil || s.Skipped == "outside the off-peak window" {
+			t.Errorf("the rebuild ran crawl stage %+v", s)
+		}
+	}
+	site.mu.Lock()
+	defer site.mu.Unlock()
+	if !maps.Equal(hits, site.hits) {
+		t.Errorf("the rebuild asked BTU: %v → %v", hits, site.hits)
+	}
+	if s := stage(rebuilt, "export"); s.Skipped != "" || s.Error != "" {
+		t.Errorf("export stage = %+v", s)
+	}
+	if svc.BuiltByOtherRelease() {
+		t.Error("after the rebuild the catalog still counts as built by another release")
+	}
+}
+
 // column runs a query and joins the first column of its rows with commas.
 func column(t *testing.T, db *catalogdb.DB, query string) string {
 	t.Helper()

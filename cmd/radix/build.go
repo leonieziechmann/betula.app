@@ -14,6 +14,7 @@ import (
 
 	"github.com/leonieziechmann/betula/internal/catalogbuild"
 	"github.com/leonieziechmann/betula/internal/catalogdb"
+	"github.com/leonieziechmann/betula/internal/service"
 	"github.com/leonieziechmann/betula/internal/snapshothttp"
 )
 
@@ -168,11 +169,36 @@ func runExport(ctx context.Context, args []string) {
 
 // runServeSnapshot publishes the exported snapshots over HTTP. The web server is a
 // client of this endpoint; it shares no files with Radix.
+//
+// With --db it also keeps the snapshot in step with this release: when the database was
+// built by another binary, it builds it again from the archive, validates and exports,
+// while the snapshot it has is served on (service.Rebuild). Nothing is fetched. A build or
+// validation that fails logs an ERROR and leaves the snapshot as it was.
 func runServeSnapshot(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("serve-snapshot", flag.ExitOnError)
 	dir := fs.String("dir", "snapshot", "Snapshot directory written by 'export'")
 	addr := fs.String("addr", "127.0.0.1:8090", "Listen address")
+	dbPath := fs.String("db", "", "Database to build a new snapshot from when another release built it (no network); empty: only serve")
+	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
+
+	_, closeLog := logs.setup()
+	defer closeLog()
+
+	if *dbPath != "" {
+		db := openDB(*dbPath)
+		defer db.Close()
+		cfg := service.DefaultConfig()
+		cfg.SnapshotDir = *dir
+		// Offline the catalog stays as it was exported: no event ages out, no page is removed.
+		cfg.EventRetention, cfg.ArchiveGrace = 0, 0
+		svc := service.New(db, cfg, nil)
+		if svc.BuiltByOtherRelease() {
+			rebuilt := make(chan struct{})
+			go func() { defer close(rebuilt); svc.Rebuild(ctx) }()
+			defer func() { <-rebuilt }() // before the database closes: a stop cancels the build, which rolls back
+		}
+	}
 
 	server := &http.Server{Addr: *addr, Handler: snapshothttp.Handler(*dir), ReadHeaderTimeout: 10 * time.Second}
 	go func() {

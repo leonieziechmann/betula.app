@@ -194,9 +194,12 @@ It ships the **commit** `HEAD` (uncommitted changes to what the images are built
 `bash deploy/ship.sh canary --build-only` builds the images and sends nothing anywhere.
 
 **Radix offline** (`RADIX_CRAWL=off` in the instance's file, `stacks/betula.offline.yml`): Radix
-is started as `radix serve-snapshot` instead of `radix run`. It sends nothing to the university's
-servers - no crawl, no cycle, no build - and only hands the snapshot it has to Folia, so the
-catalog stays as it was exported. `canary.env` says `off` for the time of the closed test (owner,
+is started as `radix serve-snapshot --db /data/radix.db` instead of `radix run`. It sends nothing
+to the university's servers - no crawl, no cycle - and hands the snapshot it has to Folia, so the
+data stays as it was fetched. A new release builds the catalog once more from the archived pages
+at start (no network) and exports it if its parsers and rules make something else of them; the
+old snapshot is served meanwhile and stays if that build or its validation fails (`level=ERROR`,
+`docs/operations.md` §1). `canary.env` says `off` for the time of the closed test (owner,
 2026-09-21): the crawler's User-Agent names betula.app, and while that site shows only a login
 page, requests in its name invite a block. `50-app.sh` makes sure there is a snapshot to serve (a
 seeded volume that never ran gets one from its database: `radix build`, then `radix export`, in
@@ -238,13 +241,12 @@ Only with the same `FOLIA_ACCESS_GATE` in both files and `RADIX_CRAWL=on` in at 
 anything else, and before it deploys a colour that crawls it checks that the other one's Radix
 really runs `serve-snapshot`. Both canary colours are offline. The next
 release goes to the colour that does not serve. Its volume keeps its database: for new data
-remove its stack and volume and ship it with `--seed` again; after a release with a new schema,
-build and export a new snapshot in its Radix (`docker exec <its radix container> /bin/radix build
---db /data/radix.db`, then `docker exec <its radix container> /bin/radix export --db
-/data/radix.db --out /data/snapshot`; `55-switch.sh` refuses a catalog the build cannot read).
-The build is not optional: the new binary migrates the database when it opens it, but only a
-build fills what the migration adds (schema 9: the short names), and `export` validates first
-and refuses a database that was not built again. Do not reach for `--skip-validate` here.
+remove its stack and volume and ship it with `--seed` again. A new release builds and exports a
+new snapshot from that database by itself when its Radix starts (a new schema included: the
+migration adds columns, the build fills them); wait for `export.finished` in `docker service logs
+<instance>_radix` before `55-switch.sh`, which refuses a catalog the build cannot read. By hand
+it is `docker exec <its radix container> /bin/radix build --db /data/radix.db`, then `... export
+--db /data/radix.db --out /data/snapshot`. Do not reach for `--skip-validate` here.
 
 **A colour that crawls** (the public site, owner 2026-09-27): the database goes with the crawl,
 so that nothing Radix fetched is lost and nothing is fetched twice. `<old>` crawls and serves,
