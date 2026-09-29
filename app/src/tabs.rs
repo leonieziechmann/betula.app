@@ -304,6 +304,10 @@ mod tests {
 
     #[test]
     fn the_studyplan_is_an_area_of_its_own() {
+        // The tabs' signal needs an owner, as on a page: with `ssr` Leptos keeps a signal in the
+        // arena of its owner and has none outside one.
+        let owner = Owner::new();
+        owner.set();
         assert_eq!((Area::of("/studyplan"), Area::Studyplan.root()), (Area::Studyplan, "/studyplan"));
         assert!(Area::Studyplan.shows_in_place());
         let mut memory = Memory::default();
@@ -339,6 +343,10 @@ mod tests {
 
     #[test]
     fn the_catalog_of_mein_studiengang_is_only_the_first_entry() {
+        // The tabs' signal needs an owner, as on a page: with `ssr` Leptos keeps a signal in the
+        // arena of its owner and has none outside one.
+        let owner = Owner::new();
+        owner.set();
         let mine = "/catalog?program=bachelor-informatik-2008";
         // Nothing of the catalog remembered in this session: the tab leads to the program's
         // catalog, from another area and from a module's page reached some other way.
