@@ -95,6 +95,19 @@ const wood = await page.evaluate(() => {
   };
 });
 check(wood.place && wood.masks && wood.branches === 0 && wood.woods === 1, `the wood does not stand behind the page: ${JSON.stringify(wood)}`);
+// A wide window: the column stops at 1600 px in the middle of the page (owner, 2026-09-29: as wide
+// as still reads well), a strip of the wood on either side, and the masks are drawn for that
+// column — 900 px of wood on either side of it —, sized by the stylesheet as they are drawn.
+await page.setViewportSize({ width: 1920, height: 1080 });
+const column = await page.evaluate(async () => {
+  const home = document.querySelector(".home").getBoundingClientRect(), scroller = document.getElementById("page-scroll"), box = scroller.getBoundingClientRect();
+  const season = document.documentElement.dataset.season || "summer";
+  const drawn = (await (await fetch(`/assets/birch/${season}-wood-front.svg`)).text()).match(/width="(\d+)" height="(\d+)"/);
+  const style = getComputedStyle(document.querySelector("body > .wood"), "::after");
+  return { width: home.width, left: Math.round(home.left - box.left), right: Math.round(box.left + scroller.clientWidth - home.right), drawn: drawn && `${drawn[1]}px ${drawn[2]}px`, sized: style.maskSize || style.webkitMaskSize };
+});
+check(column.width === 1600 && column.left > 100 && Math.abs(column.left - column.right) <= 1 && column.drawn === `${1600 + 2 * 900}px 1600px` && column.sized === column.drawn, `the column is not 1600 px in the middle, or the wood is not drawn for it: ${JSON.stringify(column)}`);
+await page.setViewportSize({ width: 1500, height: 1000 });
 
 // No sidebar, and under the first panel the way in: three steps side by side, each with one
 // button — the picker of the programs, the catalog, the Stundenplan —, the first the next one for a

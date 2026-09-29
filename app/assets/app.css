@@ -1180,8 +1180,11 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
    faculties, a soft hue per way into the catalog; the accent stays with the main button. */
 /* No frame (owner, 2026-09-28: the sidebar made the page confusing): the page scrolls on its own,
    its panels in one column in the middle, no wider than still reads well. What is left beside it
-   the wood behind the page fills (`.wood`). */
-.home { container: home / inline-size; width: 100%; max-width: 1280px; margin: 0 auto; }
+   the wood behind the page fills (`.wood`). 1600 px since 2026-09-29 (owner: at 1280 a large
+   screen had „links und rechts wirklich noch zu viel Platz"): every text of the page keeps its own
+   measure, and the one without, the points of a chapter of „Betula im Detail", is then as wide as
+   the chapter's lead; a screen of 1920 px still shows a strip of the wood on either side. */
+.home { container: home / inline-size; width: 100%; max-width: 1600px; margin: 0 auto; }
 @media (min-width: 901px) { .home-page { overflow-x: hidden; } }
 .home > .panel, .home-lists { scroll-margin-top: 14px; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
@@ -1305,7 +1308,7 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
    the window's right edge; the rail stays free. Beside the start page's column it fills the room a
    wide window leaves; on every page it shows wherever the panels leave a gap (between two of them,
    above the ground under a column shorter than the one beside it). Each mask
-   (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600) has the start page's column (1280 px) in
+   (`<season>-wood-back.svg`, `-front.svg`, 3400 × 1600) has the start page's column (1600 px) in
    its middle, with wood under it too, and that middle lies under the column's: the page is the
    window less the rail and the gap on its right, so its middle is 4 px left of the wood's. The
    masks stand on the window's bottom, and when the ground comes up at the end of a page they go
@@ -1321,7 +1324,7 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .wood { display: none; }
 @media (min-width: 901px) {
   .wood { display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; will-change: transform; }
-  .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3080px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3080px 1600px no-repeat; }
+  .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; }
   .wood::after { background: var(--wood-front); -webkit-mask-image: url("/assets/birch/summer-wood-front.svg"); mask-image: url("/assets/birch/summer-wood-front.svg"); }
   :root[data-season="spring"] .wood::before { -webkit-mask-image: url("/assets/birch/spring-wood-back.svg"); mask-image: url("/assets/birch/spring-wood-back.svg"); }
   :root[data-season="spring"] .wood::after { -webkit-mask-image: url("/assets/birch/spring-wood-front.svg"); mask-image: url("/assets/birch/spring-wood-front.svg"); }
@@ -1338,8 +1341,10 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .showcase { padding: 16px 0 14px; }
 /* The frame reaches past its place above and below (padding, taken back by negative margins) so
    that the shadows, the lift under the pointer and the spring of a move are not cut off; it lets
-   the pointer through to what lies under that edge (the tabs), the pictures take it. */
-.carousel { --room-t: 14px; --room-b: 44px; position: relative; container-type: inline-size; overflow: hidden; margin: calc(-1 * var(--room-t)) 0 calc(-1 * var(--room-b)); padding: var(--room-t) 0 var(--room-b); pointer-events: none; touch-action: pan-y; outline-offset: -2px; --w: min(52cqw, 680px); }
+   the pointer through to what lies under that edge (the tabs), the pictures take it. The current
+   picture is 52 % of the frame wide, so that its neighbours reach out to the panel's edges; at
+   most 832 px, 52 % of the start page's widest column (1600 px). */
+.carousel { --room-t: 14px; --room-b: 44px; position: relative; container-type: inline-size; overflow: hidden; margin: calc(-1 * var(--room-t)) 0 calc(-1 * var(--room-b)); padding: var(--room-t) 0 var(--room-b); pointer-events: none; touch-action: pan-y; outline-offset: -2px; --w: min(52cqw, 832px); }
 .cslide, .show-arrow { pointer-events: auto; }
 .cslide { position: absolute; top: var(--room-t); left: 50%; width: var(--w); display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; background: var(--panel); box-shadow: 0 0 0 1px var(--line), 0 14px 34px -24px rgba(15, 23, 42, .55); color: inherit; text-decoration: none; z-index: var(--z, 3); transform: translateX(calc(-50% + var(--at, 0) * var(--w) / 2)) scale(var(--scale, 1)); transition: transform .5s var(--spring), translate .25s var(--spring), opacity .3s, box-shadow .2s, z-index .5s linear; user-select: none; -webkit-user-drag: none; }
 /* What lies behind is veiled in the colour of the panel. */

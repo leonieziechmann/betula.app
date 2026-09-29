@@ -3,7 +3,7 @@
 // Direction E of the prototype (owner, 2026-09-29: „Option E, organisch und ohne Kronen"): a
 // Scherenschnitt in the grey of the background, a few steps darker, in two layers — thin trees
 // further back, standing a little higher, and the wood in front. Per season and layer one mask,
-// <season>-wood-back.svg and <season>-wood-front.svg, 3080 × 1600: the column of the page (1280 px) in
+// <season>-wood-back.svg and <season>-wood-front.svg, 3400 × 1600: the column of the page (1600 px) in
 // the middle, with wood under it too, and 900 px of wood on either side of it, the ground along the
 // bottom. The stylesheet puts its middle under the column's middle and its bottom on the window's,
 // and colours it (`--wood-back`, `--wood-front`); what the window does not reach is cut off. The
@@ -20,7 +20,7 @@ import { compact } from "./path.mjs";
 import { setPrecision, wood } from "./wood.mjs";
 
 const out = fileURLToPath(new URL("../../app/assets/birch/", import.meta.url));
-const SIDE = 900, COLUMN = 1280, W = 2 * SIDE + COLUMN, H = 1600, FADE = 160;
+const SIDE = 900, COLUMN = 1600, W = 2 * SIDE + COLUMN, H = 1600, FADE = 160;
 setPrecision(1);
 // Outwards from either edge of the column, and under it from its left edge to a little before its
 // right one: the panels hide that part, but where they leave a gap (between two of them, or under
