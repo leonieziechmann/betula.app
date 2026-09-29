@@ -1,6 +1,7 @@
 # Override for stacks/betula.yml: Radix offline. It sends NOTHING to the university's servers: no
-# crawl, no cycle, no build. It only hands the snapshot it has to Folia ("radix serve-snapshot"),
-# so the catalog stays as it was exported until the instance goes online again.
+# crawl, no cycle. It hands the snapshot it has to Folia ("radix serve-snapshot"), so the data stays
+# as it was fetched until the instance goes online again; only a new release builds it once more
+# from the archive, with its own rules.
 #
 # vps/50-app.sh adds this file while the instance's file says RADIX_CRAWL=off, and makes sure
 # there is a snapshot to serve (a seeded volume that has none yet gets one from its database
@@ -13,8 +14,11 @@
 
 services:
   radix:
-    # Replaces the image's "run". The snapshot directory is where "run" exports to.
-    command: ["serve-snapshot", "--addr", "0.0.0.0:8090", "--dir", "/data/snapshot"]
+    # Replaces the image's "run". The snapshot directory is where "run" exports to. With --db, a
+    # new release builds the catalog again from the archived pages at start (no network), so its
+    # parsers and rules reach the snapshot right away; the old snapshot is served meanwhile, and
+    # stays if the build or validation fails (level=ERROR in the log).
+    command: ["serve-snapshot", "--addr", "0.0.0.0:8090", "--dir", "/data/snapshot", "--db", "/data/radix.db"]
     environment:
       # This mode has no /status. The pointer answers 200 while there is a snapshot to serve.
       RADIX_HEALTH_URL: "http://127.0.0.1:8090/snapshot/current.json"

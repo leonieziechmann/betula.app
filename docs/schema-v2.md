@@ -54,7 +54,7 @@ and the `plan*` tables is derived and replaced by each build.
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
-| `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
+| `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), `radix_build` (a hash of the binary that built it: a new release builds again at start), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
 
 ### Degree labels and new programs (decision Q4)
 

@@ -318,6 +318,8 @@ func (b *builder) writeMeta() error {
 		"current_semester": current,
 		// Which Radix built this snapshot: the web app names it next to its own version.
 		"radix_version": version.Radix,
+		// Which binary built it: a new release builds again at start (service.Rebuild).
+		"radix_build": version.Build(),
 	}
 	rows, err := b.tx.Query("SELECT source, MIN(fetched_at), MAX(fetched_at), COUNT(*) FROM raw_page WHERE http_status = 200 GROUP BY source")
 	if err != nil {

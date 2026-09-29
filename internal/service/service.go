@@ -15,6 +15,7 @@ import (
 	"github.com/leonieziechmann/betula/internal/crawl"
 	"github.com/leonieziechmann/betula/internal/oplog"
 	"github.com/leonieziechmann/betula/internal/snapshothttp"
+	"github.com/leonieziechmann/betula/internal/version"
 )
 
 // Config is the behaviour of the long-running service.
@@ -145,6 +146,13 @@ func (s *Service) Run(ctx context.Context) error {
 	log.Info("service started", "event", "service.started", "interval", s.cfg.Interval.String(),
 		"offpeak_start", s.cfg.OffPeakStart, "offpeak_end", s.cfg.OffPeakEnd, "snapshot_dir", s.cfg.SnapshotDir)
 
+	// A new release may read the archived pages differently (a parser, a rule). Its first
+	// cycle would apply that only after crawling, hours at night; offline never. So it
+	// builds from the archive first and publishes what the new rules make of it.
+	if s.BuiltByOtherRelease() {
+		s.Rebuild(ctx)
+	}
+
 	for {
 		s.RunCycle(ctx)
 		if ctx.Err() != nil {
@@ -172,10 +180,37 @@ func (s *Service) Run(ctx context.Context) error {
 //
 // Log events: cycle.started, stage.finished / stage.failed (ERROR), cycle.finished
 // (ERROR when the result is "failed", WARN when "degraded"), cycle.panic (ERROR).
-func (s *Service) RunCycle(ctx context.Context) (result CycleResult) {
+func (s *Service) RunCycle(ctx context.Context) CycleResult {
+	return s.cycle(ctx, true)
+}
+
+// Rebuild is a cycle without the crawl: it derives the catalog from the archive as it is
+// and publishes it if the content changed. It sends nothing to the university.
+//
+// Log events: service.rebuild, then those of RunCycle.
+func (s *Service) Rebuild(ctx context.Context) CycleResult {
+	oplog.For("service").Info("the catalog was built by another release; building it again from the archive",
+		"event", "service.rebuild", "built_by", s.builtBy(), "this_build", version.Build())
+	return s.cycle(ctx, false)
+}
+
+// BuiltByOtherRelease says whether the canonical tables were derived by another binary than
+// this one (meta radix_build), or never. The build writes it, so a Rebuild ends it.
+func (s *Service) BuiltByOtherRelease() bool {
+	current := version.Build()
+	return current == "" || s.builtBy() != current
+}
+
+func (s *Service) builtBy() string {
+	var built string
+	_ = s.db.SQL().QueryRow("SELECT value FROM meta WHERE key = 'radix_build'").Scan(&built)
+	return built
+}
+
+func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResult) {
 	log := oplog.For("service")
 	result = CycleResult{StartedAt: s.now(), Result: "ok"}
-	log.Info("cycle started", "event", "cycle.started", "offpeak", s.inOffPeak(result.StartedAt))
+	log.Info("cycle started", "event", "cycle.started", "offpeak", s.inOffPeak(result.StartedAt), "crawl", crawlFirst)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -199,7 +234,7 @@ func (s *Service) RunCycle(ctx context.Context) (result CycleResult) {
 
 	// 1. Crawl. A failing source degrades the cycle but does not stop the others.
 	crawlStage := func(name string, bulk bool, source string, run func() (crawl.Stats, error)) {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || !crawlFirst {
 			return
 		}
 		if bulk && !s.inOffPeak(s.now()) && s.archived(source) {

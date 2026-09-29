@@ -40,6 +40,16 @@ window). A source that has no archived page yet is crawled immediately, so a fre
 fills itself without waiting for the night. Interrupting the process is always safe: every
 page is archived on its own, and the build and the plan import are single transactions.
 
+**A new release builds at start.** Every build stores which binary made it (meta `radix_build`, a
+hash of the executable). When `run` starts and another binary built the catalog, it first runs a
+cycle without the crawl stages (`service.rebuild`, then `cycle.started` with `crawl=false`): build,
+validate, and export if the content changed. A release that reads the archived pages differently
+(a parser, a normalization rule, a migration) so reaches the snapshot within minutes of the deploy
+instead of after the first crawl, and if its build or validation fails, that is in the log right
+away while the previous snapshot stays current. `serve-snapshot --db <radix.db>`, the offline mode,
+does the same in the background while it serves the snapshot it has (without retention and
+archive pruning, so that the data stays as it was fetched).
+
 A cycle ends as `ok`, `degraded` (a crawl stage had failures; published data is intact and
 only ages) or `failed` (build, validation or export failed; **the previous snapshot stays
 current**). A failed cycle never stops the service; the next cycle tries again.
@@ -266,8 +276,9 @@ program and change rows the change never touched. `--dry-run` reports the counts
 program, so a rule that loses a link is visible before it is written. Run `build` afterwards:
 `in_plan`, the kind of a membership and the plan semester are derived from the links.
 
-**After a release with a migration**, an instance that does not crawl (`RADIX_CRAWL=off`) has to
-be built by hand: `radix build`, then `radix validate` and `radix export`. The new binary migrates
+**After a release with a migration**, the new binary builds and exports at start (above), also
+offline (`RADIX_CRAWL=off`, `serve-snapshot --db`). By hand it is `radix build`, then `radix validate`
+and `radix export`. The new binary migrates
 `radix.db` when it opens it, but a migration does not rewrite the data it adds columns for; schema 9,
 for instance, leaves `room_short` NULL and the abbreviation tables empty until the next build, and
 `validate` — which `export` runs first — refuses such a database. Do not export it with
