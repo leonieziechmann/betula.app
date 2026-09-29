@@ -444,7 +444,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // the site has from outside; views of the lists are not listed; the sitemap names every page.
     let head = |html: &str| html.split("</head>").next().unwrap_or_default().to_string();
     let (_, _, body) = request(&router, "/catalog/module/11101", &[]).await;
-    let module = head(&String::from_utf8(body).unwrap());
+    let module_page = String::from_utf8(body).unwrap();
+    // The wood stands behind every page, once (`ground::Wood`), not only behind the start page.
+    assert_eq!(module_page.matches("<div class=\"wood\" aria-hidden=\"true\"></div>").count(), 1, "the module page has no wood behind it");
+    let module = head(&module_page);
     assert_eq!(module.matches("name=\"description\"").count(), 1, "{module}");
     assert!(module.contains("href=\"https://catalog.example/catalog/module/11101\" rel=\"canonical\""), "{module}");
     assert!(module.contains("application/ld+json") && module.contains("\"@type\":\"Course\"") && !module.contains("noindex"), "{module}");

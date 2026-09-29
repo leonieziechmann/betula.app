@@ -78,16 +78,18 @@ const hero = await page.evaluate(() => {
 });
 check(hero.edge && hero.tags === 4 && hero.beside && hero.reach && hero.height < 440, `the figures do not hang on a birch at the first panel's edge: ${JSON.stringify(hero)}`);
 const wood = await page.evaluate(() => {
-  const el = document.querySelector(".home-page > .wood"), box = el.getBoundingClientRect(), style = getComputedStyle(el);
+  const el = document.querySelector("body > .wood"), box = el.getBoundingClientRect(), style = getComputedStyle(el);
   const season = document.documentElement.dataset.season || "summer";
   const masks = ["::before", "::after"].map((pseudo) => getComputedStyle(el, pseudo).maskImage || getComputedStyle(el, pseudo).webkitMaskImage);
   return {
     place: style.position === "fixed" && style.zIndex === "-1" && box.left === document.querySelector(".rail").getBoundingClientRect().right && box.right === innerWidth && box.bottom === innerHeight,
     masks: masks[0].includes(`/assets/birch/${season}-wood-back.svg`) && masks[1].includes(`/assets/birch/${season}-wood-front.svg`),
     branches: document.querySelectorAll(".branch").length,
+    // One wood for the whole app, beside the crown, not one per page.
+    woods: document.querySelectorAll(".wood").length,
   };
 });
-check(wood.place && wood.masks && wood.branches === 0, `the wood does not stand behind the page: ${JSON.stringify(wood)}`);
+check(wood.place && wood.masks && wood.branches === 0 && wood.woods === 1, `the wood does not stand behind the page: ${JSON.stringify(wood)}`);
 
 // No sidebar, and under the first panel the way in: three steps side by side, each with one
 // button — the picker of the programs, the catalog, the Stundenplan —, the first the next one for a

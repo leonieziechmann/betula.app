@@ -37,7 +37,7 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::bookmarks::Bookmarks;
-use crate::ground::{Crown, Ground};
+use crate::ground::{Crown, Ground, Wood};
 use crate::i18n::use_location;
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
@@ -215,6 +215,7 @@ pub fn App() -> impl IntoView {
             <FollowTabs/>
             <a class="skip-link" href="#content">{t.app.skip_to_content}</a>
             <Crown/>
+            <Wood/>
             <Rail/>
             <div class="main">
                 <TopBar/>

@@ -1,5 +1,6 @@
 //! The birch around the app (owner, 2026-09-25; docs/frontend.md „The birch"): its crown along the
-//! top of the view, and the ground at the end of every page with the roots in it. Both are drawn
+//! top of the view, a wood of birches behind every page (owner, 2026-09-29), and the ground at the
+//! end of every page with the roots in it. Both are drawn
 //! by the stylesheet from the masks in `assets/birch` (`design/birch/birch.mjs`), in the tone of
 //! the season the script in `<head>` names; this module only places them.
 
@@ -19,6 +20,15 @@ use crate::ui::{Icon, Wordmark};
 #[component]
 pub fn Crown() -> impl IntoView {
     view! { <div class="crown" aria-hidden="true"></div> }
+}
+
+/// The wood: birches cut out of the background's grey, behind every page, standing on the window's
+/// edge or on the ground as it comes up (`enhance.js`). It fills the room beside a page narrower
+/// than the window and shows wherever the panels leave a gap. Drawing only, the same for everybody;
+/// the masks are `design/forest/forest.mjs`'s.
+#[component]
+pub fn Wood() -> impl IntoView {
+    view! { <div class="wood" aria-hidden="true"></div> }
 }
 
 /// The ground: the footer of every page, after all of its content. On the desktop it comes up from

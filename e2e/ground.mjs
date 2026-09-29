@@ -8,7 +8,7 @@
 // brings it at once; a page that leaves its end (its scrollbar) and a new page send it away;
 // Tab into it brings it up. A phone scrolls the ground with the page, and under a page shorter
 // than the window the ground ends at the window's lower edge, not halfway up the screen. The wood
-// behind the start page stands on the ground's edge as it comes up.
+// behind every page stands on the ground's edge as it comes up.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node ground.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 import { chromium } from "playwright-core";
 
@@ -32,8 +32,8 @@ const facts = (PAGE) => {
     rail: Math.round(box(document.querySelector(".rail")).top),
     topbar: Math.round(box(document.querySelector(".topbar")).top),
     groundTop: Math.round(ground.top),
-    // The foot of the wood behind the start page (none elsewhere).
-    woodBottom: document.querySelector(".wood") ? Math.round(box(document.querySelector(".wood")).bottom) : null,
+    // The foot of the wood behind the page (none on a phone).
+    woodBottom: getComputedStyle(document.querySelector(".wood")).display === "none" ? null : Math.round(box(document.querySelector(".wood")).bottom),
     // The start page has no panel beside it (owner, 2026-09-28).
     sideBottom: side ? Math.round(box(side).bottom) : null,
     sideScroll: body ? Math.round(body.scrollTop) : null,
@@ -138,6 +138,7 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await wheel(page, 900, 500, 100, 5);
   f = await at(page);
   check(f.inset === 208 && f.pageEnd && f.groundTop - f.pageBottom >= 8, `the whole list: its end did not go up with the ground: ${JSON.stringify(f)}`);
+  check(f.woodBottom === f.groundTop, `the catalog: the wood does not stand on the ground: ${JSON.stringify(f)}`);
   await context.close();
 }
 

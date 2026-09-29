@@ -39,10 +39,9 @@
 //! those steps now; the Datenstand is the ground's, at the end of every page, as before.
 //! Then: one click a step („Studiengang wählen" picks the program in place, here in the first
 //! panel too), a birch down the first panel's right edge with the figures on its branches
-//! (`Hero`), and a wood of birches behind the page, a Scherenschnitt in the grey of the background
-//! that fills the room beside the column on a wide screen (owner, 2026-09-29; the masks are
-//! `design/forest/forest.mjs`'s, the element is `.wood`). It took the place of the branches with
-//! small crowns of leaves that grew out of the panels.
+//! (`Hero`). The room beside the column on a wide screen is the wood's, which stands behind every
+//! page (`ground::Wood`, owner, 2026-09-29); it took the place of the branches with small crowns
+//! of leaves that grew out of the panels.
 //!
 //! The map (`catalog::graph`) is laid out by the web server once per snapshot, on a 4:3 sheet and
 //! a tall one for phones; this page only draws it (`data::ProgramMapHandle`). The dialog is in the
@@ -195,10 +194,11 @@ pub fn HomePage() -> impl IntoView {
     provide_context(ClosePopups(close_popups));
 
     // No frame and no sidebar (see above): the page scrolls on its own, as `#page-scroll` (the
-    // ground and „Nach oben" follow it, `enhance.js`). The wood stands still behind it.
+    // ground and „Nach oben" follow it, `enhance.js`). The wood (`ground::Wood`) stands still
+    // behind it.
     view! {
         <Title text=""/>
-        <div class="page home-page" id="page-scroll" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))><div class="wood" aria-hidden="true"></div><div class="page-inner home">
+        <div class="page home-page" id="page-scroll" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))><div class="page-inner home">
         <Seo title=t.home.seo_title description=t.home.description path=url::HOME data/>
         {match loaded {
             Err(error) => {

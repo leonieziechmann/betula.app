@@ -76,7 +76,7 @@
   /* How high the ground is on a wide screen, and how far it comes up (with the gap above it). */
   --ground-h: 200px;
   --ground-reach: calc(var(--ground-h) + var(--gap));
-  /* The wood behind the start page (`.wood`): the background's grey a few steps darker, mixed in
+  /* The wood behind every page (`.wood`): the background's grey a few steps darker, mixed in
      OKLab (in OKLCH a grey's hue is `none`, and Chromium draws the mix reddish). */
   --wood-front: color-mix(in oklab, var(--text) 8%, var(--bg));
   --wood-back: color-mix(in oklab, var(--text) 3.4%, var(--bg));
@@ -1261,21 +1261,24 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
   .start-step::after { left: var(--mark-x); right: 0; }
 }
 
-/* The wood behind the start page (owner, 2026-09-29: „so ein Scherenschnitt, der auch grau nur
-   etwas dunkler wie der Hintergrund ist und nur etwas Struktur hinzufügt"; design/forest): birches
-   cut out of the background's grey in two layers, the trees further back fainter, with the leaves
-   of the season and none in winter. It stands still behind the page, beneath everything (the crown
-   and the ground included), and fills the room beside the column where the window leaves some; the
-   rail stays free. Each mask (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600) has the
-   column's 1280 px in its middle, and that middle lies under the column's (there is wood under
-   the column too, so a gap the panels leave shows wood and ground, never a hole in them): the page is the
+/* The wood behind every page (`ground::Wood`; owner, 2026-09-29: „so ein Scherenschnitt, der auch
+   grau nur etwas dunkler wie der Hintergrund ist und nur etwas Struktur hinzufügt", then „bring den
+   Wald auf alle Seiten"; design/forest): birches cut out of the background's grey in two layers,
+   the trees further back fainter, with the leaves of the season and none in winter. It stands
+   still behind the page, beneath everything (the crown and the ground included), from the rail to
+   the window's right edge; the rail stays free. Beside the start page's column it fills the room a
+   wide window leaves; on every page it shows wherever the panels leave a gap (between two of them,
+   above the ground under a column shorter than the one beside it). Each mask
+   (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600) has the start page's column (1280 px) in
+   its middle, with wood under it too, and that middle lies under the column's: the page is the
    window less the rail and the gap on its right, so its middle is 4 px left of the wood's. The
-   masks stand on the window's bottom, and when the ground comes up at the end of the page they go
+   masks stand on the window's bottom, and when the ground comes up at the end of a page they go
    up with its edge (enhance.js), so that the birches stand on it; a window taller than they are
-   sees the trunks fade out at their top. Their trees walk outwards from the column's edges, so the ones next to it are the same
-   on every screen and a wider one only adds trees further out. */
+   sees the trunks fade out at their top. Their trees walk outwards from the column's edges, so the
+   ones next to it are the same on every screen and a wider one only adds trees further out. Not
+   on a phone, where the page scrolls with the window and the ground follows it. */
 .wood { display: none; }
-@media (min-width: 1380px) {
+@media (min-width: 901px) {
   .wood { --wood-back-mask: url("/assets/birch/summer-wood-back.svg"); --wood-front-mask: url("/assets/birch/summer-wood-front.svg"); display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; }
   :root[data-season="spring"] .wood { --wood-back-mask: url("/assets/birch/spring-wood-back.svg"); --wood-front-mask: url("/assets/birch/spring-wood-front.svg"); }
   :root[data-season="autumn"] .wood { --wood-back-mask: url("/assets/birch/autumn-wood-back.svg"); --wood-front-mask: url("/assets/birch/autumn-wood-front.svg"); }
