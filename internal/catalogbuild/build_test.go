@@ -429,11 +429,16 @@ func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 	if c := status["modules without a module page"]; c.Status != catalogdb.StatusWarn || c.Value != 2 {
 		t.Errorf("missing page check = %+v", c)
 	}
+	if c := status["modules that are each other's successor"]; c.Status != catalogdb.StatusOK {
+		t.Errorf("successor loop check = %+v", c)
+	}
 
-	// Regressions: a placeholder string, a stale materialized table, a missed baseline.
+	// Regressions: a placeholder string, a stale materialized table, a missed baseline, and a
+	// replacement read both ways (a warning: the source may state it so).
 	for _, stmt := range []string{
 		"UPDATE module SET remarks = '' WHERE id = '11101'",
 		"DELETE FROM program_module WHERE module_id = '11152'",
+		"INSERT INTO module_successor (module_id, successor_id) VALUES ('11881', '11101')",
 	} {
 		if _, err := db.SQL().Exec(stmt); err != nil {
 			t.Fatal(err)
@@ -448,11 +453,16 @@ func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 		if c.Status == catalogdb.StatusFail {
 			failed[c.Name] = true
 		}
+		status[c.Name] = c
 	}
 	for _, name := range []string{"no empty-string or '-' placeholders in text columns", "program_module matches its source view", "baseline: modules"} {
 		if !failed[name] {
 			t.Errorf("expected check %q to fail; failed = %v", name, failed)
 		}
+	}
+	if c := status["modules that are each other's successor"]; c.Status != catalogdb.StatusWarn || c.Value != 1 ||
+		len(c.Samples) != 1 || c.Samples[0] != "11101 ⇄ 11881" {
+		t.Errorf("successor loop check = %+v", c)
 	}
 }
 

@@ -131,6 +131,13 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		"SELECT degree_raw || ' / ' || program_raw || ' / ' || po_raw || '  ×' || COUNT(*) FROM module_program_ref WHERE resolve_status = 'unresolved' GROUP BY 1 ORDER BY COUNT(*) DESC")
 	v.count("FÜS list and module page sentence disagree", StatusWarn, "SELECT COUNT(*) FROM module WHERE page_states_fues IS NOT NULL AND page_states_fues <> is_fues",
 		"SELECT id || ' list=' || is_fues || ' page=' || page_states_fues FROM module WHERE page_states_fues IS NOT NULL AND page_states_fues <> is_fues ORDER BY id")
+	// A replacement is stated on both of its modules, each naming the other (docs/data-sources.md
+	// §14). Two modules that are each other's successor are a replacement read both ways: until
+	// 2026-09-29 Radix did that to 120 pairs, and marked the successor as phasing out.
+	const successorLoop = `FROM module_successor a JOIN module_successor b
+		ON b.module_id = a.successor_id AND b.successor_id = a.module_id WHERE a.module_id < a.successor_id`
+	v.count("modules that are each other's successor", StatusWarn, "SELECT COUNT(*) "+successorLoop,
+		"SELECT a.module_id || ' ⇄ ' || a.successor_id "+successorLoop+" ORDER BY 1")
 	v.count("programs without any tree module", StatusWarn, "SELECT COUNT(*) FROM program_coverage WHERE tree_modules = 0",
 		"SELECT program_id || ' ' || program_name || ' (' || degree || ', PO ' || po_version || ')' FROM program_coverage WHERE tree_modules = 0 ORDER BY 1")
 	v.count("validated plans without a program", StatusWarn, "SELECT COUNT(*) FROM plan WHERE program_id NOT IN (SELECT id FROM program)",
