@@ -41,11 +41,11 @@ check((html.match(/loading="lazy"/g) || []).length === 10, "server HTML: the scr
 check(html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: no legal links");
 check(!html.includes("Was bedeutet FÜS?") && html.includes("Wie finde ich die Module für mein Studium?"), "server HTML: the questions are the old ones");
 check(html.includes('"@type":"WebApplication"') && html.includes('id="im-detail"') && (html.match(/class="panel feature t-/g) || []).length === 8, "server HTML: no app in the structured data, or no „Betula im Detail\"");
-check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-ground"') && !html.includes('class="examples"'), "server HTML: the figures are not the birch, or the example searches are still there");
+check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-trunk"') && !html.includes('class="examples"'), "server HTML: the figures are not on the birch, or the example searches are still there");
 // „Studiengang wählen" of the first panel and of the way in: without the app a link to all programs
-// that carries both words (the stylesheet shows the ones the app will); twigs on eight panels.
+// that carries both words (the stylesheet shows the ones the app will); branches on eight panels.
 check(["home-program", "start-program"].every((id) => new RegExp(`<a id="${id}" href="/programs" class="[^"]*program-pick">`).test(html)), "server HTML: „Studiengang wählen\" does not lead to the programs");
-check((html.match(/<svg [^>]*class="twig twig-[lr]"/g) || []).length === 8, "server HTML: not eight twigs");
+check((html.match(/<svg [^>]*class="branch branch-[lr]"/g) || []).length === 8, "server HTML: not eight branches");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
@@ -59,27 +59,29 @@ check(await page.evaluate(() => document.querySelectorAll("head link[rel=canonic
 check(await page.evaluate(() => document.querySelectorAll("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
 check(await page.evaluate(() => document.querySelectorAll("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
 check(await page.evaluate(() => /^\d+\.\d+\.\d+/.test(document.querySelector(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
-// The first panel: the figures as a small birch beside the text, each a tag on a branch of its
-// trunk, the ground under them; twigs grow out of the panels into the room beside them.
+// The first panel: a birch down its right edge, the whole height, and the figures to its left,
+// beside the text, each on a branch reaching the trunk; branches grow out of the panels into the
+// room beside them, ending in crowns of leaves.
 const hero = await page.evaluate(() => {
+  const panel = document.querySelector(".home-hero").getBoundingClientRect();
   const text = document.querySelector(".home-hero-text").getBoundingClientRect();
-  const tree = document.querySelector(".hero-tree").getBoundingClientRect();
-  const trunk = document.querySelector(".hero-tree .trunk").getBoundingClientRect();
-  const ground = document.querySelector(".hero-ground").getBoundingClientRect();
+  const trunk = document.querySelector(".hero-trunk").getBoundingClientRect();
   const tags = [...document.querySelectorAll(".tree-figures > div")].map((tag) => tag.getBoundingClientRect());
   return {
-    beside: tree.left >= text.right - 1,
+    edge: Math.abs(trunk.right - panel.right) <= 1 && Math.abs(trunk.top - panel.top) <= 1 && Math.abs(trunk.bottom - panel.bottom) <= 1 && trunk.width >= 40,
     tags: tags.length,
-    onTrunk: tags.every((tag) => tag.left > trunk.right && tag.left - trunk.right <= 24 && tag.bottom <= ground.top),
-    height: Math.round(document.querySelector(".home-hero").getBoundingClientRect().height),
+    beside: tags.every((tag) => tag.left >= text.right - 1 && tag.right < trunk.left),
+    reach: tags.every((tag) => trunk.left - tag.right <= 48),
+    height: Math.round(panel.height),
   };
 });
-check(hero.beside && hero.tags === 4 && hero.onTrunk && hero.height < 440, `the figures are not a birch beside the text: ${JSON.stringify(hero)}`);
-const twigs = await page.evaluate(() => [...document.querySelectorAll(".home .twig")].map((twig) => {
-  const box = twig.getBoundingClientRect(), panel = twig.parentElement.getBoundingClientRect();
-  return twig.classList.contains("twig-r") ? box.right > panel.right + 30 : box.left < panel.left - 30;
+check(hero.edge && hero.tags === 4 && hero.beside && hero.reach && hero.height < 440, `the figures do not hang on a birch at the first panel's edge: ${JSON.stringify(hero)}`);
+const branches = await page.evaluate(() => [...document.querySelectorAll(".home .branch")].map((branch) => {
+  const box = branch.getBoundingClientRect(), panel = branch.parentElement.getBoundingClientRect();
+  const out = branch.classList.contains("branch-r") ? box.right > panel.right + 60 : box.left < panel.left - 60;
+  return out && branch.querySelectorAll(".branch-leaf").length === 42;
 }));
-check(twigs.length === 8 && twigs.every(Boolean), `the twigs do not grow out of the panels: ${twigs}`);
+check(branches.length === 8 && branches.every(Boolean), `the branches do not grow out of the panels, or have no crowns: ${branches}`);
 
 // No sidebar, and under the first panel the way in: three steps side by side, each with one
 // button — the picker of the programs, the catalog, the Stundenplan —, the first the next one for a

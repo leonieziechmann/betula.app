@@ -871,7 +871,7 @@ pages that work without JavaScript nor the study plans read from the regulations
 the page has to sell the functions and the architecture, with a text after the questions „wo darüber
 alles gesprochen wird", the flow through the app and every filter. What changed:
 - **Nine abilities** instead of six (`abilities`, three rows of three from a container width of
-  1180 px; with two a row the odd last one takes the whole row, so no cell stays empty): the plans
+  1100 px, 1180 until 2026-09-28; with two a row the odd last one takes the whole row, so no cell stays empty): the plans
   read from the regulations, the Stundenplan, no account („Kein Konto, und nichts fehlt") and
   „Schnell, offline, auch ohne JavaScript" are abilities of their own. Two old texts said more than
   the app does and were corrected on the way: a module's page names what the module requires, not
@@ -980,29 +980,37 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   gemerkt" (the Merkliste), „8 Module eingeplant". The first step not done is the next one
   (`aria-current="step"`): its mark and its button wear the accent. Only words and colours change,
   never a height, so nothing moves when the app takes over.
-- **The figures as a birch** (owner, the same day: the figures „waren voll cool", in the look of
-  „Betula im Detail"'s picture of the data, `detail::tree`): beside the text from a container
-  width of 700 px, under it below that (two tags a row), a small picture — the season's crown along
-  its top, a trunk of bark, each figure (modules, programs, faculties, the Termine of the current
-  semester) a tag on a branch of it, the number first, and the ground with its roots, the date of
-  the data and the source (`div.hero-tree`, `dl.tree-figures`, `.hero-ground`). It replaced the
-  stack of bare numbers (`dl.birch`).
-- **Twigs** (owner, the same day: „so kleine Äste immer mal wieder links und rechts", growing out
-  of the boxes): eight panels (the first panel, the way in, the faculties, what Betula does, the
-  questions, and three chapters of „Betula im Detail") have a twig growing out of their left or
-  right edge into the room beside them (`home::Twig`, inline SVG: three shapes, the stem in a tone
-  of bark, the leaves in the season's crown, none in winter). The page keeps 60 px beside its
-  panels for them (`--twig-room`) and has none on a phone.
+- **The figures on a birch** (owner, the same day: the figures „waren voll cool"; then, on a first
+  version with a small birch of its own beside the text — crown and ground — that doubled the
+  page's crown: „rechts am Rand so ein dickerer Birkenstamm und dann nach links die Stats"). A
+  trunk of bark runs down the first panel's right edge, its whole height (`.hero-trunk`, 46 px, 30
+  on a narrow page; the marks of the bark are a mask in the stylesheet, as wide as the trunk and
+  repeated down it), and the figures (modules, programs, faculties, the Termine of the current
+  semester) hang to its left as tags on branches of two lengths, each thick where it leaves the
+  trunk and thin at its tag (`dl.tree-figures`): beside the text from a container width of 700
+  px, under it below that, the trunk running down the whole edge either way. The branch at the
+  panel's side grows out of the trunk. It replaced the stack of bare numbers (`dl.birch`).
+- **Branches** (owner, the same day: „so kleine Äste immer mal wieder links und rechts", growing
+  out of the boxes; then „nicht nur so kleine twigs, sondern schon etwas dickere, ein zwei
+  Verzweigungen und mit kleinen Blattkronen"): eight panels (the first panel, the way in, the
+  faculties, what Betula does, the questions, and three chapters of „Betula im Detail") have a
+  branch growing out of their left or right edge into the room beside them (`home::Branch`,
+  inline SVG, three shapes): a limb that tapers, forks once or twice and has a side twig, and at
+  each end a small crown of fourteen leaves in two rings (`home::crown`), in the season's colour
+  and a darker tone of it, none in winter. The limbs and the branches of the figures share a tone
+  of bark (`--branch`). The page keeps room beside its panels for them (`--branch-room`: 70 px on
+  a 1280 px screen, 100 on 1440, up to 150) and has none on a phone; what Betula does stands in
+  three columns from a container width of 1100 px (was 1180), so a 1440 px screen keeps them.
 - New class names were checked against the stylesheet, the scripts and every page: `.steps` and
   `.step` are the chips of „Betula im Detail" (the way to a module, „Klausur"), so the way in is
   `.start-path`, `.start-steps`, `.start-step`, `.start-mark`, `.start-btn` and so on.
 
-`node e2e/home.mjs` checks the page without a sidebar, the birch of the figures and the twigs, the
+`node e2e/home.mjs` checks the page without a sidebar, the birch of the figures and the branches, the
 three steps and their buttons, a pick in the picker (the first step done, the others leading into
 the program, the first panel's button „Alle Studiengänge", no page load), „Direkt suchen", a jump
 of the foot, and the steps done for a browser with a program and a marked module; the server test
 that there is no sidebar, that the first step is the next one, the two links of „Studiengang
-wählen", the birch and the twigs.
+wählen", the trunk and the branches.
 
 ### The birch: crown and ground (2026-09-25)
 

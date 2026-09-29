@@ -1125,8 +1125,9 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
    faculties, a soft hue per way into the catalog; the accent stays with the main button. */
 /* No frame (owner, 2026-09-28: the sidebar made the page confusing): the page scrolls on its own,
    its panels in one column in the middle, no wider than still reads well, with room beside them
-   for the twigs that grow out of them (`Twig`; none on a phone). */
-.home { --twig-room: 60px; container: home / inline-size; width: 100%; max-width: min(1280px, 100% - 2 * var(--twig-room)); margin: 0 auto; }
+   for the branches that grow out of them (`Branch`): 70 px on a 1280 px screen, 100 on 1440, up
+   to 150; none on a phone. The branches and the birch of the first panel share the tone of bark. */
+.home { --branch-room: clamp(56px, 18.75vw - 170px, 150px); --branch: color-mix(in oklch, var(--ground-text) 74%, var(--crown)); container: home / inline-size; width: 100%; max-width: min(1280px, 100% - 2 * var(--branch-room)); margin: 0 auto; }
 @media (min-width: 901px) { .home-page { overflow-x: hidden; } }
 .home > .panel, .home-lists { scroll-margin-top: 14px; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
@@ -1136,8 +1137,8 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 
 /* The first panel, flat: the text and the two ways in on the left, the figures on the right
    (under the text on a narrow page). */
-.home-hero { display: grid; grid-template-columns: minmax(0, 1fr); }
-.home-hero-text { min-width: 0; padding: 24px 24px 22px; }
+.home-hero { --trunk-w: 30px; display: grid; grid-template-columns: minmax(0, 1fr) var(--trunk-w); }
+.home-hero-text { grid-column: 1; grid-row: 1; min-width: 0; padding: 24px 24px 22px; }
 .eyebrow-pill { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12.5px; font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent); }
 .eyebrow-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .home-hero h1 { margin-top: 14px; font-size: clamp(26px, 2.9cqi, 34px); line-height: 1.12; font-weight: 720; letter-spacing: -.034em; text-wrap: balance; }
@@ -1156,37 +1157,24 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .intro-actions .pick-combo .combo-trigger:hover { background: var(--panel-2); }
 .intro-actions .pick-combo .combo-trigger > .icon:first-child { width: 17px; height: 17px; color: var(--text); }
 .intro-actions .pick-combo .combo-value.placeholder { color: var(--text); }
-/* The figures as a small birch (owner, 2026-09-28: in the look of „Betula im Detail"'s picture of
-   the data, `detail::tree`): the season's crown along the top, a trunk of bark, each figure a tag
-   on a branch of it, and the ground with the date of the data and its source, over which the
-   trunk ends. Beside the text from a notebook's width on; under it below that, two tags a row. */
-.hero-tree { --crown-mask: url("/assets/birch/summer-crown.svg"); position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; min-width: 0; margin: 0 16px 16px; border-radius: 12px; overflow: hidden; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
-:root[data-season="spring"] .hero-tree { --crown-mask: url("/assets/birch/spring-crown.svg"); }
-:root[data-season="autumn"] .hero-tree { --crown-mask: url("/assets/birch/autumn-crown.svg"); }
-:root[data-season="winter"] .hero-tree { --crown-mask: url("/assets/birch/winter-crown.svg"); }
-.hero-tree::before { content: ""; position: absolute; z-index: 1; top: 0; left: 0; right: 0; height: 64px; background: var(--crown); -webkit-mask: var(--crown-mask) repeat-x left top; mask: var(--crown-mask) repeat-x left top; pointer-events: none; }
-.hero-tree .trunk { position: absolute; grid-column: 1; grid-row: 1 / -1; top: 18px; bottom: 0; left: 20px; width: 24px; height: auto; border-radius: 4px 4px 0 0; }
-.tree-figures { position: relative; z-index: 2; grid-column: 2; grid-row: 1; display: grid; align-content: center; gap: 10px; margin: 0; padding: 50px 14px 18px 0; }
-.tree-figures > div { position: relative; justify-self: start; max-width: 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 6px 12px 7px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-panel); }
-/* The branch from the trunk to the tag. */
-.tree-figures > div::before { content: ""; position: absolute; top: 50%; right: 100%; width: 20px; border-top: 1.5px solid var(--line-strong); }
-.tree-figures dd { order: -1; margin: 0; color: var(--text); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
+/* The birch of the first panel (owner, 2026-09-28: „rechts am Rand so ein dickerer Birkenstamm und
+   dann nach links die Stats"): a trunk of bark down the panel's right edge, the whole height, and
+   each figure a tag on a branch of it, the branches of two lengths. The figures stand beside the
+   text from a notebook's width on and under it below that; the trunk runs down the edge either way. */
+.hero-trunk { grid-column: 2; grid-row: 1 / span 2; position: relative; overflow: hidden; border-radius: 0 var(--r-panel) var(--r-panel) 0; background: linear-gradient(90deg, color-mix(in oklch, var(--bark-ink) 14%, var(--bark)), var(--bark) 32%, var(--bark) 62%, color-mix(in oklch, var(--bark-ink) 20%, var(--bark))); box-shadow: inset 1px 0 0 color-mix(in oklch, var(--bark-ink) 20%, transparent); }
+/* The marks of the bark, as the mark of Betula draws them (dashes from either edge or in the
+   middle, and two dark chevrons where branches were): a drawing 48 × 400 as the trunk's width,
+   repeated down it. */
+.hero-trunk::after { content: ""; position: absolute; inset: 0; background: var(--bark-ink); opacity: .82; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 400' width='48' height='400'%3E%3Cpath d='M0 14h14v3h-14zM34 33h14v3h-14zM16 47h12v2h-12zM0 66h20v4h-20zM30 84h18v3h-18zM0 99h8v3h-8zM20 117h16v3h-16zM38 136h10v3h-10zM0 150h17v3h-17zM27 171h21v4h-21zM12 188h10v2h-10zM0 206h11v3h-11zM33 224h15v3h-15zM0 243h22v4h-22zM22 260h14v3h-14zM36 279h12v3h-12zM0 296h15v3h-15zM26 314h22v4h-22zM0 333h9v3h-9zM17 350h15v3h-15zM31 369h17v3h-17zM0 386h19v3h-19zM8 160Q24 150 40 160Q24 155 8 160zM12 303Q27 294 42 303Q27 298 12 303z'/%3E%3C/svg%3E") center top / 100% auto repeat-y; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 400' width='48' height='400'%3E%3Cpath d='M0 14h14v3h-14zM34 33h14v3h-14zM16 47h12v2h-12zM0 66h20v4h-20zM30 84h18v3h-18zM0 99h8v3h-8zM20 117h16v3h-16zM38 136h10v3h-10zM0 150h17v3h-17zM27 171h21v4h-21zM12 188h10v2h-10zM0 206h11v3h-11zM33 224h15v3h-15zM0 243h22v4h-22zM22 260h14v3h-14zM36 279h12v3h-12zM0 296h15v3h-15zM26 314h22v4h-22zM0 333h9v3h-9zM17 350h15v3h-15zM31 369h17v3h-17zM0 386h19v3h-19zM8 160Q24 150 40 160Q24 155 8 160zM12 303Q27 294 42 303Q27 298 12 303z'/%3E%3C/svg%3E") center top / 100% auto repeat-y; }
+.tree-figures { position: relative; z-index: 1; grid-column: 1; grid-row: 2; display: grid; justify-items: end; align-content: center; gap: 8px; margin: 0; padding: 0 0 20px; }
+.tree-figures > div { --reach: 14px; position: relative; max-width: calc(100% - var(--reach)); margin-right: var(--reach); display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 0 8px; padding: 6px 12px 7px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.tree-figures > div:nth-child(even) { --reach: 30px; }
+/* The branch from the trunk to the tag: thick where it leaves the trunk (and into its edge), thin
+   at the tag. */
+.tree-figures > div::after { content: ""; position: absolute; top: 50%; left: 100%; width: calc(var(--reach) + 6px); height: 7px; margin-top: -3.5px; background: var(--branch); clip-path: polygon(0 42%, 100% 0, 100% 100%, 0 58%); }
+.tree-figures dd { order: -1; margin: 0; color: var(--text); font-size: 20px; font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
 .tree-figures dt { color: var(--text-2); font-size: 13px; font-weight: 580; }
 .tree-figures dt small { margin-left: 5px; color: var(--text-3); font-size: 12px; font-weight: 500; }
-.hero-ground { position: relative; z-index: 2; grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin: 0; padding: 16px 14px 12px; background: var(--ground); color: var(--ground-text); font-size: 12.5px; font-weight: 560; }
-.hero-ground::before { content: ""; position: absolute; z-index: -1; inset: 0; background: var(--ground-root); -webkit-mask: url("/assets/birch/roots.svg") repeat-x left top; mask: url("/assets/birch/roots.svg") repeat-x left top; pointer-events: none; }
-.hero-ground > .icon { width: 15px; height: 15px; }
-.hero-ground a { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: inherit; text-decoration: none; }
-.hero-ground a:hover { text-decoration: underline; }
-.hero-ground a .icon { width: 14px; height: 14px; }
-/* Under the text: the tags two a row, as wide as the row allows, the second of each row on the
-   branch of the first; what a figure says of its semester goes under its name. */
-@container home (max-width: 699.98px) {
-  .tree-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; padding-top: 48px; }
-  .tree-figures > div { justify-self: stretch; min-width: 0; }
-  .tree-figures > div:nth-child(even)::before { width: 12px; }
-  .tree-figures dt small { display: block; margin-left: 0; }
-}
 
 /* The way in for a first visit (home/start.rs): three steps, one under the other on a narrow page
    and side by side on a wide one, joined through their marks by a line, as a path. Each has one
@@ -1250,19 +1238,19 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
   .start-step::after { left: var(--mark-x); right: 0; }
 }
 
-/* Twigs growing out of the panels into the room beside them (`Twig`; owner, 2026-09-28: „kleine
-   Äste immer mal wieder links und rechts"): the panel lets them out, the stem in a tone of bark,
-   the leaves in the season's crown and none in winter, as the crown has none. Where the page has
-   no room beside its panels (a phone), there are none. */
-.home .panel:has(> .twig) { position: relative; overflow: visible; }
-.twig { position: absolute; z-index: 1; top: var(--y); width: 60px; height: 45px; overflow: visible; pointer-events: none; --twig: color-mix(in oklch, var(--text-3) 70%, var(--crown)); }
-.twig-r { left: calc(100% - 4px); transform: translateY(-50%); }
-.twig-l { right: calc(100% - 4px); transform: translateY(-50%) scaleX(-1); }
-.twig-stem, .twig-sprig { fill: none; stroke: var(--twig); stroke-linecap: round; }
-.twig-stem { stroke-width: 1.7; }
-.twig-sprig { stroke-width: 1.1; }
-.twig-leaf { fill: var(--crown); }
-:root[data-season="winter"] .twig-leaf { display: none; }
+/* Branches growing out of the panels into the room beside them (`Branch`; owner, 2026-09-28: „nicht
+   nur so kleine twigs, sondern schon etwas dickere, ein zwei Verzweigungen und mit kleinen
+   Blattkronen"): a limb that tapers and forks, ending in small crowns of leaves in the season's
+   colour, in two tones, and none in winter, as the page's crown has none. They take the room the
+   page keeps beside its panels (`--branch-room`), their foot a little over the panel's edge. */
+.home .panel:has(> .branch) { position: relative; overflow: visible; }
+.branch { position: absolute; z-index: 1; top: var(--y); width: calc(var(--branch-room) + 6px); height: auto; aspect-ratio: 4 / 3; overflow: visible; pointer-events: none; }
+.branch-r { left: calc(100% - 6px); transform: translateY(-50%); }
+.branch-l { right: calc(100% - 6px); transform: translateY(-50%) scaleX(-1); }
+.branch-limb { fill: none; stroke: var(--branch); stroke-linecap: round; stroke-linejoin: round; }
+.branch-leaf { fill: var(--crown); }
+.branch-leaf.dark { fill: color-mix(in oklch, var(--crown), black 16%); }
+:root[data-season="winter"] .branch-leaf { display: none; }
 
 /* The pictures, as a carousel for pictures: the current one in front and in the middle, its
    neighbours behind it, half of each showing at its sides (their middle on its edge), going round.
@@ -1791,12 +1779,17 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 @container home (min-width: 900px) {
   .home-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-/* From a notebook's width on the birch of the figures stands beside the text. */
+/* From a notebook's width on the figures stand beside the text, on longer branches, and the
+   trunk is thicker. */
 @container home (min-width: 700px) {
-  .home-hero { grid-template-columns: minmax(0, 1fr) clamp(270px, 32%, 340px); }
-  .hero-tree { margin: 14px 14px 14px 0; }
+  .home-hero { --trunk-w: 46px; grid-template-columns: minmax(0, 1fr) auto var(--trunk-w); }
+  .tree-figures { grid-column: 2; grid-row: 1; padding: 20px 0; }
+  .tree-figures > div { --reach: 22px; }
+  .tree-figures > div:nth-child(even) { --reach: 46px; }
+  .tree-figures dd { font-size: 22px; }
+  .hero-trunk { grid-column: 3; grid-row: 1; }
 }
-@container home (min-width: 1180px) {
+@container home (min-width: 1100px) {
   .ability-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ability:nth-child(odd) { border-right: 0; }
   .ability:nth-child(odd):last-child { grid-column: auto; }
@@ -2751,8 +2744,8 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .intro-actions .pick-combo { flex: 1 1 auto; }
   .intro-actions .pick-combo .combo-trigger { width: 100%; min-height: 50px; justify-content: center; }
   .intro-actions .pick-combo .combo-value { flex: 0 1 auto; }
-  .home { --twig-room: 0px; }
-  .twig { display: none; }
+  .home { --branch-room: 0px; }
+  .branch { display: none; }
   .start-foot { padding-left: 16px; padding-right: 8px; }
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }
