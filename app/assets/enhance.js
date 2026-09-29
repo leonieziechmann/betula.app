@@ -266,6 +266,16 @@
         section.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
         break;
       }
+      case "search": {
+        // Into the search at the top, as Ctrl+K and / do (the way in of the start page). Without
+        // this, or with a modifier, the link opens the catalog, where the search is too.
+        const search = document.getElementById("topsearch");
+        if (!search || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) break;
+        e.preventDefault();
+        search.focus();
+        search.select();
+        break;
+      }
       case "to-top":
         toTop(target);
         break;

@@ -310,9 +310,11 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   catalog's filter panel, with the same handle and the same remembered width, and the page next
   to it (`ui::Frame`; the catalog builds it itself, its sidebar is the filter form). Going from
   one area to another, nothing jumps. The sidebar holds what belongs to the page as a whole:
-  filters (catalog, program overview), the views of a program, the sections of a module, actions,
-  and on the landing page the state of the data. On a phone a sidebar of filters is a sheet
-  opened by the page's „Filter" button, views stay on top, everything else follows the page.
+  filters (catalog, program overview), the views of a program, the sections of a module, actions.
+  On a phone a sidebar of filters is a sheet opened by the page's „Filter" button, views stay on
+  top, everything else follows the page. **The landing page is the one exception (owner,
+  2026-09-28):** its sidebar (the sections, the Datenstand) made it confusing and odd to look at,
+  so it has no frame; its panels stand in one column in the middle (see „The landing page").
 - **The program overview** is one section per faculty, and in it a matrix: a row per subject, a
   column per cycle of study (Bachelor, Master, the rest; Lehramt counts to its cycle). 148
   programs read as about 80 rows, 72 of 98 cells hold one program, and the columns are the same
@@ -858,8 +860,8 @@ never the hidden theme or the phone's pictures. Colour: washes of the faculties'
 pictures, the ways into the catalog with a soft hue each (`--t-*`), the faculties in their map
 colours, the abilities in the accent's tint. The questions are an accordion in three groups, „Über
 Betula", „Betula nutzen" and „Fürs Studium" (first semesters); the text stays in the page and in the
-FAQPage data. The sidebar: the sections (the current one follows the scroll, `nav[data-spy]` in
-`enhance.js`) and the Datenstand as label | value rows. The versions and Impressum and Datenschutz
+FAQPage data. Until 2026-09-28 a sidebar held the sections (the current one following the
+scroll, `nav[data-spy]` in `enhance.js`) and the Datenstand as label | value rows (see below). The versions and Impressum and Datenschutz
 moved into the ground at the end of every page on 2026-09-25 („The birch" below).
 
 **What the page says of Betula itself (2026-09-28).** Owner: what is known of a tool is mostly what
@@ -878,7 +880,7 @@ alles gesprochen wird", the flow through the app and every filter. What changed:
   several devices, without JavaScript, offline and as an app, English); „Kostet Betula etwas?" and
   „Warum gibt es kein Konto? Fehlt dadurch etwas?" are two questions now, and the second one
   answers it: the account is left out, not the functions.
-- **„Betula im Detail"** after the questions (`#im-detail`, the sidebar's „Im Detail";
+- **„Betula im Detail"** after the questions (`#im-detail`;
   `pages/home/detail.rs`, its words in `i18n/home_detail.rs`). Its first version, eight chapters of
   text, was „so langweilig und einfach nur eine wall of text" (owner, the same day): it had to be
   interesting to look at for everybody without breaking Betula's look. Now a panel names the
@@ -934,6 +936,86 @@ closer than about the spacing of an even sheet; `ISLAND`), each a blurred convex
 little generously, with the name at the largest island. The app shows only the outline of the
 picked program's faculty, and the programs of the other faculties step back a little.
 `node e2e/home.mjs` covers it.
+
+**No sidebar, and a way in for a first visit (2026-09-28).** Owner: the sidebar was „sehr
+verwirrend" and made the page look odd; a new visitor has to find their way, and the onboarding
+matters most — „organisch ohne Popup, einfach intuitiv". So:
+- **No frame.** The start page is the one page without `ui::Frame` (R17): `div.page.home-page`
+  is its scroller (`#page-scroll`, which the ground, „Nach oben" and the jumps follow), and its
+  panels stand in one column in the middle, at most 1280 px wide. Of the sidebar's parts the
+  jumps to the sections are the foot of the way in now; the Datenstand was the ground's already
+  (date, semester, source, at the end of every page), and the answer „Wie aktuell ist der
+  Katalog?" says so instead of pointing at the sidebar.
+- **The way in** (`#loslegen`, `pages/home/start.rs`), right under the first panel: „So legst du
+  los", three steps in the order a semester is planned — „Studiengang wählen", „Module finden und
+  merken", „Stundenplan bauen" —, each a mark, its name, one line, one button and where the
+  navigation keeps it, joined to the others through the marks by a line (side by side from a
+  container width of 900 px, one under the other below it). „Jederzeit unter" and the rail's and
+  the bottom bar's own icon and name (`t.app`), the Merkliste and the Stundenplan only with
+  JavaScript, as the navigation has them: the navigation is learnt on the way, without a tour.
+  The head's „Direkt suchen" (with its keys) goes into the search at the top for whoever looks for
+  one module (`data-action="search"` in `enhance.js`; without JavaScript it opens the catalog).
+  Its foot: „Erst einmal verstehen, was Betula ist?" and the jumps to „Was Betula kann", the
+  questions and „Betula im Detail" (`data-action="jump"`, no history entry).
+- **One click a step** (owner, the same day, on the first version, whose steps led to the pages
+  where they are done: „Das sind hier 300 Schritte, um ans Ziel zu kommen. Ich will dass man bei
+  der Einführung immer nur so ein Click pro Step braucht", and whoever knows the site goes
+  straight on). Each step's one button does it or leads to where it is done:
+  - „Studiengang wählen" (`start::ProgramPick`, the first panel's second button as well) opens a
+    picker of all programs in place (the catalog's `Combobox`: type a few letters, Enter), and a
+    pick is „Mein Studiengang" at once; the page stays and the way in goes on. Once a program is
+    kept, and without JavaScript, the button is „Alle Studiengänge" (the program overview). The
+    server's link carries both words, and the stylesheet shows the ones the app will
+    (`html.js:not(.mine)`: „Studiengang wählen"), so they stay when the app takes over. The
+    page's scroller takes an open picker away (`ClosePopups`, as the catalog's filter panel).
+  - „Module deines Studiengangs": the catalog of that program (`MineResolved::catalog_href`),
+    „Zum Katalog" without one.
+  - „Fachsemester übernehmen": the Stundenplan with the program's Regelstudienplan ready to take
+    over (`/studyplan?import=mine`), while nothing is planned; else „Zum Stundenplan".
+- **It follows what this browser has done** (the app's alone, R9; the server's page is the one of
+  a first visit): the program set as „Mein Studiengang" (while it is in the snapshot), a module on
+  the Merkliste, a module in the Stundenplan each make their step done — a tick in the mark, the
+  line to the next step in the accent, and in place of the navigation's items what was done: the
+  program's name (leading to it, with its stored Studienrichtung, `program_href`), „5 Module
+  gemerkt" (the Merkliste), „8 Module eingeplant". The first step not done is the next one
+  (`aria-current="step"`): its mark and its button wear the accent. Only words and colours change,
+  never a height, so nothing moves when the app takes over.
+- **The figures on a birch** (owner, the same day: the figures „waren voll cool"; then, on a first
+  version with a small birch of its own beside the text — crown and ground — that doubled the
+  page's crown: „rechts am Rand so ein dickerer Birkenstamm und dann nach links die Stats"). A
+  trunk of bark runs down the first panel's right edge, its whole height (`.hero-trunk`, 46 px;
+  the marks of the bark are a mask in the stylesheet, as wide as the trunk and repeated down it),
+  and the figures (modules, programs, faculties, the Termine of the current semester) hang to its
+  left as tags on branches of two lengths, each thick where it leaves the trunk and thin at its
+  tag (`dl.tree-figures`). Flat, as the mark is: the first trunk was shaded at its edges and the
+  tags had shadows, which looked round („warum ist das Ding jetzt plötzlich 3D?"); the trunk is one
+  tone now and the tags are outlined. Only from a container width of 700 px on: on a phone the
+  trunk down the edge looked wrong and the figures took the height the way in needs, so there
+  the first panel is its text alone (the figures stay in the HTML). The branch at the panel's side
+  grows out of the trunk. It replaced the stack of bare numbers (`dl.birch`).
+- **Branches** (owner, the same day: „so kleine Äste immer mal wieder links und rechts", growing
+  out of the boxes; then „nicht nur so kleine twigs, sondern schon etwas dickere, ein zwei
+  Verzweigungen und mit kleinen Blattkronen"): eight panels (the first panel, the way in, the
+  faculties, what Betula does, the questions, and three chapters of „Betula im Detail") have a
+  branch growing out of their left or right edge into the room beside them (`home::Branch`,
+  inline SVG, three shapes): a limb that tapers, forks once or twice and has a side twig, and at
+  each end a small crown of fourteen leaves in two rings (`home::crown`), in the season's colour
+  and a darker tone of it, none in winter. The limbs and the branches of the figures share a tone
+  of bark (`--branch`). They are there so that the room beside the panels does not look empty,
+  and take it as far as it goes — as wide as it is, at least 96 px and at most 200 — without
+  taking any from the page (owner: the page as wide as before, 1280 px, and the branches „können
+  auch ruhig abgeschnitten werden"): where the room is narrower, the page's edge cuts them off.
+  None on a phone.
+- New class names were checked against the stylesheet, the scripts and every page: `.steps` and
+  `.step` are the chips of „Betula im Detail" (the way to a module, „Klausur"), so the way in is
+  `.start-path`, `.start-steps`, `.start-step`, `.start-mark`, `.start-btn` and so on.
+
+`node e2e/home.mjs` checks the page without a sidebar, the birch of the figures and the branches, the
+three steps and their buttons, a pick in the picker (the first step done, the others leading into
+the program, the first panel's button „Alle Studiengänge", no page load), „Direkt suchen", a jump
+of the foot, and the steps done for a browser with a program and a marked module; the server test
+that there is no sidebar, that the first step is the next one, the two links of „Studiengang
+wählen", the trunk and the branches.
 
 ### The birch: crown and ground (2026-09-25)
 
@@ -1245,7 +1327,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
     and the property is written when the handle is let go (`data-resize-mode`, and
     `data-resize-budget` to force it in `filters.mjs`).
 - **R17. Every page is framed** by `ui::Frame` (see „Look and interaction"). A new page starts
-  with the question what its sidebar holds, not whether it has one.
+  with the question what its sidebar holds, not whether it has one. The one exception is the
+  landing page (owner, 2026-09-28: its sidebar confused a first visit; „The landing page").
 - **R16. In one reactive closure read the source, not a memo derived from it and the source.**
   reactive_graph 0.2.14 does not mark the observer that made a memo recompute as dirty. A closure
   that reads `state` (a memo derived from `query`) and then `query` therefore misses a change of

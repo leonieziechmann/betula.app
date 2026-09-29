@@ -124,7 +124,8 @@ pub fn Prose(text: String) -> impl IntoView {
 /// as wide as the filter panel of the catalog, with the same handle and the same remembered
 /// width, and the page next to it. Going from one area to another, nothing jumps. The sidebar
 /// holds what belongs to the page as a whole: its filters, its sections, its actions.
-/// The catalog is the one page that builds this frame itself (its sidebar is the filter form).
+/// The catalog is the one page that builds this frame itself (its sidebar is the filter form); the
+/// start page is the one without it (owner, 2026-09-28: its sidebar confused a first visit).
 ///
 /// A page can put a panel on the right as well (`aside`): what belongs to what the visitor
 /// picked. It is the catalog's module preview in all but its content — as wide, with the same

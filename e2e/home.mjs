@@ -6,10 +6,12 @@
 // page behind it standing still). There the map is drawn from what the server laid out; a pointer
 // over a dot shows its relatives in the caption, a click picks it (the outline of its faculty, the
 // others step back, the caption links to it) instead of opening it, and that link opens the
-// program without loading a page. Only the pictures that show are fetched, the sidebar follows
-// the scroll, the questions open in place, „Betula im Detail" follows them with its chapters and
-// every filter (on a phone the board's first groups, the others a tap away), the head describes
-// the page shown.
+// program without loading a page. Only the pictures that show are fetched. There is no sidebar
+// (owner, 2026-09-28): under the first panel the way in for a first visit, three steps into the
+// programs, the catalog and the Stundenplan that follow what this browser has done, with the way
+// into the search at the top and, at its foot, the jumps to the sections. The questions open in
+// place, „Betula im Detail" follows them with its chapters and every filter (on a phone the
+// board's first groups, the others a tap away), the head describes the page shown.
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { chromium } from "playwright-core";
@@ -39,7 +41,11 @@ check((html.match(/loading="lazy"/g) || []).length === 10, "server HTML: the scr
 check(html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: no legal links");
 check(!html.includes("Was bedeutet FÜS?") && html.includes("Wie finde ich die Module für mein Studium?"), "server HTML: the questions are the old ones");
 check(html.includes('"@type":"WebApplication"') && html.includes('id="im-detail"') && (html.match(/class="panel feature t-/g) || []).length === 8, "server HTML: no app in the structured data, or no „Betula im Detail\"");
-check(html.includes('<dl class="birch">') && !html.includes('class="examples"'), "server HTML: the figures are not the stack, or the example searches are still there");
+check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-trunk"') && !html.includes('class="examples"'), "server HTML: the figures are not on the birch, or the example searches are still there");
+// „Studiengang wählen" of the first panel and of the way in: without the app a link to all programs
+// that carries both words (the stylesheet shows the ones the app will); branches on eight panels.
+check(["home-program", "start-program"].every((id) => new RegExp(`<a id="${id}" href="/programs" class="[^"]*program-pick">`).test(html)), "server HTML: „Studiengang wählen\" does not lead to the programs");
+check((html.match(/<svg [^>]*class="branch branch-[lr]"/g) || []).length === 8, "server HTML: not eight branches");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
@@ -53,21 +59,65 @@ check(await page.evaluate(() => document.querySelectorAll("head link[rel=canonic
 check(await page.evaluate(() => document.querySelectorAll("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
 check(await page.evaluate(() => document.querySelectorAll("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
 check(await page.evaluate(() => /^\d+\.\d+\.\d+/.test(document.querySelector(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
-// The first panel is flat: the figures stand beside the text, one under the other, and the ones
-// with several digits are about equally wide (the single digit only grows as large as three).
+// The first panel: a birch down its right edge, the whole height, and the figures to its left,
+// beside the text, each on a branch reaching the trunk; branches grow out of the panels into the
+// room beside them, ending in crowns of leaves.
 const hero = await page.evaluate(() => {
+  const panel = document.querySelector(".home-hero").getBoundingClientRect();
   const text = document.querySelector(".home-hero-text").getBoundingClientRect();
-  const side = document.querySelector(".birch").getBoundingClientRect();
-  const widths = [...document.querySelectorAll(".birch dd")].filter((dd) => dd.textContent.length > 1).map((dd) => {
-    const range = document.createRange();
-    range.selectNodeContents(dd);
-    return range.getBoundingClientRect().width;
-  });
-  const lefts = [...document.querySelectorAll(".birch dt")].map((dt) => Math.round(dt.getBoundingClientRect().left));
-  return { height: document.querySelector(".home-hero").getBoundingClientRect().height, beside: side.left >= text.right - 1, spread: Math.max(...widths) / Math.min(...widths), names: new Set(lefts).size };
+  const trunk = document.querySelector(".hero-trunk").getBoundingClientRect();
+  const tags = [...document.querySelectorAll(".tree-figures > div")].map((tag) => tag.getBoundingClientRect());
+  return {
+    edge: Math.abs(trunk.right - panel.right) <= 1 && Math.abs(trunk.top - panel.top) <= 1 && Math.abs(trunk.bottom - panel.bottom) <= 1 && trunk.width >= 40,
+    tags: tags.length,
+    beside: tags.every((tag) => tag.left >= text.right - 1 && tag.right < trunk.left),
+    reach: tags.every((tag) => trunk.left - tag.right <= 48),
+    height: Math.round(panel.height),
+  };
 });
-check(hero.beside && hero.height < 340, `the first panel is not flat: ${JSON.stringify(hero)}`);
-check(hero.spread < 1.08 && hero.names === 1, `the figures are not equally wide, or their names not on one line: ${JSON.stringify(hero)}`);
+check(hero.edge && hero.tags === 4 && hero.beside && hero.reach && hero.height < 440, `the figures do not hang on a birch at the first panel's edge: ${JSON.stringify(hero)}`);
+const branches = await page.evaluate(() => [...document.querySelectorAll(".home .branch")].map((branch) => {
+  const box = branch.getBoundingClientRect(), panel = branch.parentElement.getBoundingClientRect();
+  const out = branch.classList.contains("branch-r") ? box.right > panel.right + 60 : box.left < panel.left - 60;
+  return out && branch.querySelectorAll(".branch-leaf").length === 42;
+}));
+check(branches.length === 8 && branches.every(Boolean), `the branches do not grow out of the panels, or have no crowns: ${branches}`);
+
+// No sidebar, and under the first panel the way in: three steps side by side, each with one
+// button — the picker of the programs, the catalog, the Stundenplan —, the first the next one for a
+// browser that has done nothing yet, each naming the item of the navigation that keeps it.
+const wayIn = () => page.evaluate(() => ({
+  sidebar: document.querySelector("#sidebar") !== null,
+  after: document.querySelector(".home-hero").nextElementSibling?.id,
+  buttons: [...document.querySelectorAll(".start-act")].map((act) => (act.querySelector(".combo-trigger") ? "picker" : act.querySelector("a")?.getAttribute("href"))).join(),
+  labels: [...document.querySelectorAll(".start-act")].map((act) => act.textContent.trim()).join("|"),
+  row: new Set([...document.querySelectorAll(".start-step")].map((step) => Math.round(step.getBoundingClientRect().top))).size,
+  next: document.querySelector(".start-step.is-next h3")?.textContent,
+  done: document.querySelectorAll(".start-step.is-done").length,
+  places: [...document.querySelectorAll(".start-place")].map((place) => place.textContent).join(),
+  state: [...document.querySelectorAll(".start-state")].map((state) => state.textContent).join("|"),
+  hero: document.querySelector(".intro-actions .combo-trigger") ? "picker" : document.querySelector(".intro-actions a.btn.secondary")?.getAttribute("href"),
+}));
+const way = await wayIn();
+check(!way.sidebar && way.after === "loslegen" && way.buttons === "picker,/catalog,/studyplan" && way.row === 1, `the way in is not under the first panel: ${JSON.stringify(way)}`);
+check(way.next === "Studiengang wählen" && way.done === 0 && way.places === "Studium,Module,Merkliste,Stundenplan" && way.hero === "picker", `the way in does not start at the program: ${JSON.stringify(way)}`);
+// One click: the picker opens in place, a pick is „Mein Studiengang" and the way goes on — the
+// program's catalog, its Regelstudienplan ready in the Stundenplan —, and the first panel's button
+// leads to all programs now. Nothing loads a page, the address stays.
+await page.click("#start-program");
+await page.waitForSelector("#start-program-search");
+await page.keyboard.type("Informatik");
+await page.keyboard.press("Enter");
+await page.waitForFunction(() => document.querySelector(".start-step.is-done") !== null, null, { timeout: 5000 }).catch(() => failures.push("a pick does not do the first step"));
+const picked = await wayIn();
+check(/^Informatik B\.Sc\./.test(picked.state) && picked.next === "Module finden und merken" && picked.hero === "/programs", `the way in does not go on after a pick: ${JSON.stringify(picked)}`);
+check(/^\/programs,\/catalog\?program=bachelor-informatik-2008,\/studyplan\?import=mine$/.test(picked.buttons) && picked.labels.includes("Module deines Studiengangs") && picked.labels.includes("Fachsemester übernehmen"), `the steps after a pick do not lead into the program: ${JSON.stringify(picked)}`);
+check(await page.evaluate(() => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || "") && location.pathname === "/" && window.__marker === 1), "the pick is not „Mein Studiengang\", or it left the page");
+check(await page.evaluate(() => document.activeElement?.id === "start-program"), "the focus does not stay on the first step's button after a pick");
+// „Direkt suchen" goes into the search at the top, not to the catalog.
+await page.click(".start-path a[data-action=search]");
+check(await page.evaluate(() => document.activeElement?.id === "topsearch" && location.pathname === "/"), "„Direkt suchen\" does not go into the search");
+await page.evaluate(() => document.activeElement?.blur());
 
 // The carousel: the map in the middle, a neighbour on each side.
 check((await current()) === "Die Karte", `the first picture is not the map: ${await current()}`);
@@ -181,14 +231,15 @@ check(await page.evaluate(() => window.__marker === 1), "the catalog was opened 
 await page.goBack();
 await page.waitForSelector(".home .map-preview");
 
-// The sidebar follows the page; a question opens in place.
-await page.evaluate(() => document.getElementById("fragen").scrollIntoView({ block: "start" }));
-await page.waitForFunction(() => document.querySelector(".home-toc a[aria-current]")?.getAttribute("href") === "#fragen");
+// The foot of the way in jumps to the questions, without a history entry; a question opens in place.
+await page.click(".start-foot a[href='#fragen']");
+await page.waitForFunction(() => { const top = document.getElementById("fragen").getBoundingClientRect().top; return top >= 0 && top < 160; });
+check(await page.evaluate(() => location.pathname === "/" && location.hash === ""), "a jump of the way in changed the address");
 await page.click(".faq summary >> nth=1");
 check(await page.evaluate(() => document.querySelectorAll(".faq details[open]").length === 1), "a question does not open");
 check(await page.evaluate(() => document.querySelectorAll(".faq-group").length === 3), "the questions are not in three groups");
-// After the questions „Betula im Detail": its row of chapters, the chapters, every group of the
-// filter panel with its chips leading into the catalog, and the sidebar following it there too.
+// After the questions „Betula im Detail": its row of chapters, the chapters, and every group of
+// the filter panel with its chips leading into the catalog.
 const detail = await page.evaluate(() => ({
   nav: [...document.querySelectorAll("#im-detail .detail-nav a")].map((a) => a.getAttribute("href")).join(),
   chapters: [...document.querySelectorAll(".home .feature")].map((section) => "#" + section.id).join(),
@@ -199,13 +250,27 @@ const detail = await page.evaluate(() => ({
 }));
 check(detail.nav === detail.chapters && detail.chapters.split(",").length === 8 && detail.groups === 12 && detail.chips, `„Betula im Detail" is not what it was: ${JSON.stringify(detail)}`);
 check(/^\/catalog\?/.test(detail.example || "") && detail.links === "/catalog,/programs,/studyplan,/datenschutz", `„Betula im Detail" leads nowhere: ${JSON.stringify(detail)}`);
-await page.evaluate(() => document.getElementById("im-detail").scrollIntoView({ block: "start" }));
-await page.waitForFunction(() => document.querySelector(".home-toc a[aria-current]")?.getAttribute("href") === "#im-detail");
 // Its last chapter shows the catalog and a module on a phone: in the theme shown only.
 await page.evaluate(() => document.getElementById("geraete").scrollIntoView({ block: "center" }));
 await page.waitForFunction(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).every((img) => img.complete && img.naturalWidth > 0));
 check(images.every((path) => !path.includes("-dark") && (!path.includes("-phone") || path.endsWith("/module-phone.webp"))), `wrong pictures fetched: ${images}`);
 check(await page.evaluate(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).length) === 2, "„Geräte und Sprachen\" does not show one theme's pictures");
+
+// What this browser has done shows on the way in: with a program set as „Mein Studiengang" (the
+// pick above) and a module marked those two steps are done and name it, and the Stundenplan is
+// the next step.
+await page.evaluate(() => localStorage.setItem("betula.bookmarks.v1", "12330\t1\n"));
+await page.goto(base + "/", { waitUntil: "networkidle" });
+await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
+await page.waitForFunction(() => document.querySelectorAll(".start-step.is-done").length === 2, null, { timeout: 5000 }).catch(() => failures.push("the way in does not follow what this browser has done"));
+const kept = await page.evaluate(() => ({
+  program: document.querySelector(".start-step:nth-child(1) .start-state")?.textContent,
+  href: document.querySelector(".start-step:nth-child(1) .start-state a")?.getAttribute("href"),
+  marked: document.querySelector(".start-step:nth-child(2) .start-state")?.textContent,
+  next: document.querySelector(".start-step.is-next .start-btn")?.getAttribute("href"),
+}));
+check(kept.program?.startsWith("Informatik B.Sc.") && kept.href?.startsWith("/programs/") && kept.marked === "1 Modul gemerkt" && kept.next === "/studyplan?import=mine", `the way in does not show what was done: ${JSON.stringify(kept)}`);
+await page.evaluate(() => { localStorage.removeItem("betula.myprogram.v1"); localStorage.removeItem("betula.bookmarks.v1"); });
 
 // A phone: pictures upright, the tall sheet, a swipe turns them, nothing scrolls sideways. A stop
 // is remembered over a page load.
@@ -229,6 +294,8 @@ await page.mouse.up();
 await waitFor("Der Katalog").catch(() => failures.push("phone: a swipe does not turn the pictures"));
 check(await page.evaluate(() => location.pathname === "/"), "phone: a swipe opened a page");
 check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "phone: the page scrolls sideways");
+// A phone: the first panel is its text alone, without the birch and its figures.
+check(await page.evaluate(() => !document.querySelector(".hero-trunk").checkVisibility() && !document.querySelector(".tree-figures").checkVisibility()), "phone: the first panel shows the birch or its figures");
 // The name, not the button (its hit area reaches past it).
 check(await page.evaluate(() => [...document.querySelectorAll(".show-tabs button")].every((b) => {
   const range = document.createRange();

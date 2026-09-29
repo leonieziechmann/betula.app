@@ -1,7 +1,7 @@
 //! Texts of the start page (`pages/home/mod.rs`), in the order of the page: what search engines
-//! read, the sidebar, the first panel, the pictures and the map, the ways into the catalog, what
-//! Betula does, and the questions. „Betula im Detail" at the end has a group of its own
-//! (`home_detail`).
+//! read, the first panel, the way in for a first visit (`pages/home/start.rs`), the pictures and
+//! the map, the ways into the catalog, what Betula does, and the questions. „Betula im Detail" at
+//! the end has a group of its own (`home_detail`).
 //!
 //! Everything here says what the app really does, and says it plainly (owner, 2026-09-28: the page
 //! is what search engines and the assistants built on them know of Betula; comparing it with other
@@ -20,24 +20,6 @@ pub struct Texts {
     /// (`browserRequirements`).
     pub browser_requirements: &'static str,
 
-    // The sidebar
-    pub on_this_page: &'static str,
-    /// The sections of the page, as the sidebar lists them. „Was Betula kann" and „Fragen und
-    /// Antworten" are also the headings of their sections; the last one's heading is
-    /// `home_detail::Texts::heading`.
-    pub overview: &'static str,
-    pub ways_in_and_faculties: &'static str,
-    pub abilities: &'static str,
-    pub questions: &'static str,
-    pub in_detail: &'static str,
-    /// „Datenstand": the facts about the data, with their labels.
-    pub data: &'static str,
-    pub semester: &'static str,
-    pub last_changed: &'static str,
-    pub source: &'static str,
-    /// What the link „BTU" leads to, as its title says.
-    pub source_title: &'static str,
-
     // The first panel
     /// „Inoffiziell · für die BTU Cottbus-Senftenberg", over the heading.
     pub eyebrow: &'static str,
@@ -55,6 +37,38 @@ pub struct Texts {
     pub figure_faculties: &'static str,
     pub figure_dates: &'static str,
     pub in_semester: fn(&str) -> String,
+
+    // The way in for a first visit
+    /// „So legst du los", and the line under it.
+    pub start_heading: &'static str,
+    pub start_lead: &'static str,
+    /// The way straight into the search at the top (its title says the keys).
+    pub search_now: &'static str,
+    pub search_now_title: &'static str,
+    /// The three steps, in the order a semester is planned, each with one button. The first one's
+    /// is „Studiengang wählen" or „Alle Studiengänge" (`choose_program`, `all_programs`).
+    pub step_program: Step,
+    pub step_modules: Step,
+    pub step_timetable: Step,
+    /// The second step's button: the catalog of „Mein Studiengang", else the whole catalog.
+    pub mine_modules: &'static str,
+    pub to_catalog: &'static str,
+    /// The third step's button: the Stundenplan with the Regelstudienplan of „Mein Studiengang"
+    /// ready to take over, else the Stundenplan.
+    pub take_semester: &'static str,
+    pub to_timetable: &'static str,
+    /// What a step the visitor has done says in place of where the navigation keeps it: the
+    /// program, „5 Module gemerkt", „8 Module eingeplant".
+    pub marked: fn(usize) -> String,
+    pub planned: fn(usize) -> String,
+    /// For screen readers, before the name of a step that is done.
+    pub step_done: &'static str,
+    /// „Jederzeit unter": before the item of the navigation that keeps a step.
+    pub step_where: &'static str,
+    /// „Erst einmal verstehen, was Betula ist?", before the ways to the sections that say so.
+    pub learn_first: &'static str,
+    /// The name of the steps together, for screen readers.
+    pub steps_label: &'static str,
 
     // The pictures
     /// What the pictures are, for screen readers: „Karussell", „Bild" (`aria-roledescription`).
@@ -138,6 +152,10 @@ pub struct Texts {
     pub ungraded: Entry,
 
     // What Betula does
+    /// „Was Betula kann" and „Fragen und Antworten": the headings of their sections, and the
+    /// names of the ways to them.
+    pub abilities: &'static str,
+    pub questions: &'static str,
     pub abilities_lead: &'static str,
     pub search: Ability,
     pub filters: Ability,
@@ -166,6 +184,12 @@ pub struct Slide {
     pub action: &'static str,
 }
 
+/// A step of the way in: its name, and in a line what it does.
+pub struct Step {
+    pub title: &'static str,
+    pub text: &'static str,
+}
+
 /// A way into the catalog: its name, and what it lists.
 pub struct Entry {
     pub label: &'static str,
@@ -191,18 +215,6 @@ pub const DE: Texts = Texts {
     alternate_names: ["Betula Modulkatalog", "Modulkatalog BTU Cottbus-Senftenberg (inoffiziell)"],
     browser_requirements: "Läuft in jedem aktuellen Browser, auch ohne JavaScript. Mit JavaScript lädt die App den Katalog als SQLite-Datenbank in den Browser (WebAssembly), antwortet ohne Ladezeiten und funktioniert offline.",
 
-    on_this_page: "Auf dieser Seite",
-    overview: "Überblick",
-    ways_in_and_faculties: "Einstiege und Fakultäten",
-    abilities: "Was Betula kann",
-    questions: "Fragen und Antworten",
-    in_detail: "Im Detail",
-    data: "Datenstand",
-    semester: "Semester",
-    last_changed: "Zuletzt geändert",
-    source: "Quelle",
-    source_title: "Modulbeschreibungen, Studiengangsseiten und Vorlesungsverzeichnis der BTU Cottbus-Senftenberg",
-
     eyebrow: "Inoffiziell · für die BTU Cottbus-Senftenberg",
     title_before: "Alle Module und Studiengänge der ",
     title_after: ", an einem Ort.",
@@ -214,6 +226,33 @@ pub const DE: Texts = Texts {
     figure_faculties: "Fakultäten",
     figure_dates: "Termine",
     in_semester: |semester| format!("im {semester}"),
+
+    start_heading: "So legst du los",
+    start_lead: "Drei Schritte, jeder ein Klick. Wer nur ein bestimmtes Modul sucht, tippt Titel oder Nummer oben in die Suche.",
+    search_now: "Direkt suchen",
+    search_now_title: "Springt in die Suche oben (Strg+K oder /)",
+    step_program: Step {
+        title: "Studiengang wählen",
+        text: "Einmal als „Mein Studiengang“ gewählt, sind Katalog und Stundenplan auf ihn eingestellt.",
+    },
+    step_modules: Step {
+        title: "Module finden und merken",
+        text: "Filter für Turnus, Prüfung oder Sprache; das Lesezeichen setzt ein Modul auf deine Merkliste.",
+    },
+    step_timetable: Step {
+        title: "Stundenplan bauen",
+        text: "Ein ganzes Fachsemester übernehmen, Überschneidungen sehen, alles in den Kalender holen.",
+    },
+    mine_modules: "Module deines Studiengangs",
+    to_catalog: "Zum Katalog",
+    take_semester: "Fachsemester übernehmen",
+    to_timetable: "Zum Stundenplan",
+    marked: |n| if n == 1 { "1 Modul gemerkt".to_string() } else { format!("{n} Module gemerkt") },
+    planned: |n| if n == 1 { "1 Modul eingeplant".to_string() } else { format!("{n} Module eingeplant") },
+    step_done: "Erledigt: ",
+    step_where: "Jederzeit unter",
+    learn_first: "Erst einmal verstehen, was Betula ist?",
+    steps_label: "Die drei Schritte",
 
     carousel: "Karussell",
     slide: "Bild",
@@ -275,6 +314,8 @@ pub const DE: Texts = Texts {
     senftenberg: Entry { label: "In Senftenberg", hint: "Module am Campus Senftenberg" },
     ungraded: Entry { label: "Unbenotet", hint: "Module, die ohne Note abgeschlossen werden" },
 
+    abilities: "Was Betula kann",
+    questions: "Fragen und Antworten",
     abilities_lead: "Dieselben Daten wie bei der BTU, so aufbereitet, dass man mit ihnen planen kann.",
     search: Ability {
         title: "Ein Suchfeld für alle Module",
@@ -340,7 +381,7 @@ pub const DE: Texts = Texts {
             ),
             (
                 "Wie aktuell ist der Katalog?",
-                "Radix liest die Quellen laufend nach, in kleinen Schritten und das meiste nachts: Termine, die noch nicht feststehen, alle zwei Stunden, das Vorlesungsverzeichnis jede Nacht, Modulbeschreibungen und Studiengänge mindestens einmal im Monat. Ein neuer Datenstand erscheint, sobald sich etwas geändert und er alle Prüfungen bestanden hat; wann das zuletzt war, steht in der Seitenleiste. Kurzfristige Änderungen stehen zuerst bei der BTU, und im Zweifel gilt das Original.",
+                "Radix liest die Quellen laufend nach, in kleinen Schritten und das meiste nachts: Termine, die noch nicht feststehen, alle zwei Stunden, das Vorlesungsverzeichnis jede Nacht, Modulbeschreibungen und Studiengänge mindestens einmal im Monat. Ein neuer Datenstand erscheint, sobald sich etwas geändert und er alle Prüfungen bestanden hat; wann das zuletzt war, steht am Ende jeder Seite. Kurzfristige Änderungen stehen zuerst bei der BTU, und im Zweifel gilt das Original.",
             ),
             (
                 "Kostet Betula etwas?",
@@ -423,18 +464,6 @@ pub const EN: Texts = Texts {
     alternate_names: ["Betula module catalogue", "Module catalogue of BTU Cottbus-Senftenberg (unofficial)"],
     browser_requirements: "Runs in any current browser, also without JavaScript. With JavaScript the app loads the catalogue into the browser as an SQLite database (WebAssembly), answers without loading times and works offline.",
 
-    on_this_page: "On this page",
-    overview: "Overview",
-    ways_in_and_faculties: "Ways in and faculties",
-    abilities: "What Betula does",
-    questions: "Questions and answers",
-    in_detail: "In detail",
-    data: "Data",
-    semester: "Semester",
-    last_changed: "Last changed",
-    source: "Source",
-    source_title: "Module descriptions, degree programme pages and course catalogue of BTU Cottbus-Senftenberg",
-
     eyebrow: "Unofficial · for BTU Cottbus-Senftenberg",
     title_before: "Every module and degree programme of ",
     title_after: ", in one place.",
@@ -446,6 +475,33 @@ pub const EN: Texts = Texts {
     figure_faculties: "Faculties",
     figure_dates: "Dates",
     in_semester: |semester| format!("in {semester}"),
+
+    start_heading: "How to get started",
+    start_lead: "Three steps, one click each. Looking for one particular module? Type its title or number into the search at the top.",
+    search_now: "Search now",
+    search_now_title: "Jumps into the search at the top (Ctrl+K or /)",
+    step_program: Step {
+        title: "Choose a degree programme",
+        text: "Chosen once as “My programme”, it sets up the catalogue and your timetable.",
+    },
+    step_modules: Step {
+        title: "Find and save modules",
+        text: "Filters for semester, assessment or language; the bookmark puts a module on your saved list.",
+    },
+    step_timetable: Step {
+        title: "Build your timetable",
+        text: "Take over a whole semester of your plan, see clashes, get it all into your calendar.",
+    },
+    mine_modules: "Modules of your programme",
+    to_catalog: "To the catalogue",
+    take_semester: "Take over a semester",
+    to_timetable: "To the timetable",
+    marked: |n| if n == 1 { "1 module saved".to_string() } else { format!("{n} modules saved") },
+    planned: |n| if n == 1 { "1 module planned".to_string() } else { format!("{n} modules planned") },
+    step_done: "Done: ",
+    step_where: "Always under",
+    learn_first: "Want to understand what Betula is first?",
+    steps_label: "The three steps",
 
     carousel: "carousel",
     slide: "slide",
@@ -505,6 +561,8 @@ pub const EN: Texts = Texts {
     senftenberg: Entry { label: "In Senftenberg", hint: "Modules at the Senftenberg campus" },
     ungraded: Entry { label: "Ungraded", hint: "Modules completed without a grade" },
 
+    abilities: "What Betula does",
+    questions: "Questions and answers",
     abilities_lead: "The same data as at BTU, prepared so that you can plan with it.",
     search: Ability {
         title: "One search box for all modules",
@@ -570,7 +628,7 @@ pub const EN: Texts = Texts {
             ),
             (
                 "How up to date is the catalogue?",
-                "Radix reads the sources continuously, in small steps and mostly at night: dates that are not settled yet every two hours, the course catalogue every night, module descriptions and degree programmes at least once a month. A new data set appears as soon as something has changed and it has passed every check; when that last happened is shown in the sidebar. Short-notice changes appear at BTU first, and if in doubt, the original applies.",
+                "Radix reads the sources continuously, in small steps and mostly at night: dates that are not settled yet every two hours, the course catalogue every night, module descriptions and degree programmes at least once a month. A new data set appears as soon as something has changed and it has passed every check; when that last happened is shown at the end of every page. Short-notice changes appear at BTU first, and if in doubt, the original applies.",
             ),
             (
                 "Does Betula cost anything?",
@@ -691,10 +749,13 @@ mod tests {
                 (answer(3, &home.for_studies), quoted(t.catalog.area)),
                 (answer(4, &home.for_studies), quoted(t.catalog.confirmed)),
                 (answer(7, &home.about_betula), quoted(t.myprogram.mine)),
+                (home.step_program.text, quoted(t.myprogram.mine)),
             ];
             for (text, label) in pairs {
                 assert!(text.contains(&label), "{locale:?}: {label} is not in: {text}");
             }
+            // The first step is the button of the first panel, under the same name.
+            assert_eq!(home.step_program.title, home.choose_program, "{locale:?}");
         }
     }
 }
