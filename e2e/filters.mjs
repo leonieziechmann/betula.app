@@ -218,7 +218,9 @@ const drag = async (dx) => {
 const startWidth = await width();
 // The page follows the handle live (list and search field move with it). Only where a page cannot keep
 // up, the rest of the drag moves the panel alone and the page follows when the handle is let go; the
-// test forces that with a budget no frame can meet.
+// test forces that with a budget no frame can meet, and the live drag with one every frame meets:
+// whether a page keeps up depends on the machine (a slow one without a GPU falls back after a few
+// frames; `resize-perf.mjs` measures it), what either mode does does not.
 {
   const state = () => page.evaluate(() => ({
     panel: Math.round(document.getElementById("filters").getBoundingClientRect().width),
@@ -239,7 +241,9 @@ const startWidth = await width();
     return { during, after: await state() };
   };
   const before = await state();
+  await page.evaluate(() => { document.documentElement.dataset.resizeBudget = "100000"; });
   const live = await dragBy(60);
+  await page.evaluate(() => { delete document.documentElement.dataset.resizeBudget; });
   check(live.during.mode === "live" && Math.abs(live.during.panel - (before.panel + 60)) <= 2 && live.during.list === before.list - (live.during.panel - before.panel) && live.during.search === before.search + (live.during.panel - before.panel),
     `resize: the page does not follow the handle live: ${JSON.stringify(live.during)}, before ${JSON.stringify(before)}`);
   check(live.after.mode === null && live.after.variable === live.after.panel + "px", `resize: after letting go ${JSON.stringify(live.after)}`);
