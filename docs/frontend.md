@@ -1363,7 +1363,9 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   - A safety net for pages or machines that still cannot keep up: after three frames in a row
     over budget, the rest of that drag moves only the panel (inline width, above its neighbour)
     and the property is written when the handle is let go (`data-resize-mode`, and
-    `data-resize-budget` to force it in `filters.mjs`).
+    `data-resize-budget`, with which `filters.mjs` forces either mode: whether a page keeps up
+    depends on the machine, what the two modes do does not; headless on four cores without a GPU,
+    the catalog falls back after a few frames).
 - **R17. Every page is framed** by `ui::Frame` (see „Look and interaction"). A new page starts
   with the question what its sidebar holds, not whether it has one. The one exception is the
   landing page (owner, 2026-09-28: its sidebar confused a first visit; „The landing page").
