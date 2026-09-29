@@ -539,8 +539,9 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   What the browser app shows between a click and the page is the page's skeleton, one frame
   before the page is built („A click answers first" below), not a state the page waits in.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
-  request renders (5–100 ms) and later ones are a memory copy (2 ms), gzip included; the cache keeps
-  the compressed page only, and the pages of the sitemap are rendered into it after every new
+  request renders (5–100 ms) and later ones are a memory copy (2 ms), Brotli included; the cache
+  keeps the compressed page only (Brotli; a gzip copy beside it once a client that takes no Brotli
+  asked for it), and the pages of the sitemap are rendered into it after every new
   snapshot while the server is idle („Load“ in §3). A new snapshot starts a new generation. ETag
   per generation and build → `304` without rendering.
   Pages are `public, no-cache`: the browser asks every time and mostly hears `304` (until
@@ -1554,6 +1555,16 @@ other gzip, each with the same ETag and `Vary: Accept-Encoding`:
   of memory meanwhile — once per snapshot, for every browser that starts the app. 10 would give
   4.4 MB in 40 s, 9 4.9 MB in 5 s (98 MB), 5 5.3 MB in 1 s. A debug build takes 5: its encoder
   is unoptimised (generic code, built into the server), and q11 would take four minutes there.
+- **The pages** are made by the request that renders them, so the page cache compresses them
+  there (owner, 2026-09-28: „Ja, mach Brotli für die HTML-Seiten auch"), at quality 5
+  (`cache::PAGE_QUALITY`): the 10,594 pages of the sitemap are 64.5 MB instead of gzip's 68.7
+  (−6 %), in 6.5 s instead of 4.4 — the start page 85 instead of 105 kB, the catalog 11.2 instead
+  of 12.4, a module 7.4 instead of 7.8. Qualities 10 and 11 would save another tenth, for 20 and
+  60 times the time (the start page 0.2 and 0.8 s), too slow for a visitor waiting for the page.
+  The cache keeps the Brotli copy only; a client that takes gzip but not Brotli (some crawlers and
+  link previews) gets a copy made from it the first time, kept beside it while the page is kept.
+  Below a window of 128 kB, qualities 5 to 9 go another way through the encoder, 13 times slower
+  for the sitemap (84 s), so every page gets at least that window.
 
 What a first start of the browser app downloads, as the server sends it (the birch of autumn),
 2026-09-28, rustc 1.98; „gzip before" is what went out before all of this:
@@ -1576,10 +1587,8 @@ What a first start of the browser app downloads, as the server sends it (the bir
 The site without the catalog and the map: 3,075,996 bytes before, 1,518,580 now (−51 %); with
 them −46 %.
 
-What stayed as it was: the pictures and the font (compressed already), and the pages, which the
-page cache keeps in gzip only (the start page would be 85 instead of 105 kB in Brotli at quality
-5: a change of the cache, its memory and what it hands out, not made yet); the sitemap and the
-calendar feeds are gzip too.
+What stayed as it was: the pictures and the font (compressed already); the sitemap and the
+calendar feeds are gzip.
 
 `folia assets` (or `bash scripts/dev.sh sizes`) lists every file as written, as served and over
 the wire (gzip, and the Brotli copy where the build made one), and the browser app in
@@ -1766,7 +1775,8 @@ queue grew to 15 s). Now:
   accept loop and connections were refused before any request could be told 503.
 - **The cache keeps pages compressed only**, drops views before the pages search engines list (the sitemap's, and the further pages of the catalog), and renders
   a page once however many ask for it at the same time (`server/src/cache.rs`). 128 MiB used to hold
-  1,200 pages — not even the modules; the sitemap's 5,235 pages take 29 MiB now.
+  1,200 pages — not even the modules; the sitemap's 5,235 pages took 29 MiB then, its 10,594 of
+  September 2026 (German and English) take 62 MiB in Brotli (2026-09-28; 66 in gzip).
 - **Warm-up** (`server/src/warm.rs`): after every new snapshot and after a start, every page of the
   sitemap is rendered into the cache while the server is idle — 22 s on one processor here, about a
   minute on the server — so crawlers walking the sitemap and visitors after a deploy meet no render.
@@ -1916,7 +1926,10 @@ What `cargo test` checks:
   copy, or one made at first use for what the server writes itself), one that does not gzip; the
   browser app's `.br` beside its file, never one older than the file; `/api/db` and
   `/api/map.json` in Brotli once their copies are made (a restart finds the snapshot's beside it),
-  gzip until then; the snapshot's copy is Brotli of the whole file.
+  gzip until then; the snapshot's copy is Brotli of the whole file. A page is kept in Brotli and
+  goes as it is to a browser; a client that takes no Brotli gets gzip, made the first time and
+  kept beside it (the cache counts it), one that takes neither the page unpacked; each the same
+  page; a gzip copy made from an older snapshot's page is not kept.
 
 ```bash
 cargo clippy --all-targets

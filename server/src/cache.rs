@@ -5,14 +5,19 @@
 //! the next snapshot starts a new generation. Browsers and proxies get an ETag per generation
 //! and revalidate with a 304 that costs no rendering at all.
 //!
-//! **Kept compressed only** (2026-09-26): nearly every client asks for gzip, and compressed a
-//! page takes a fourth to a ninth of the memory (a module 27 → 6 kB with both copies before, a
-//! filtered list 146 → 17 kB, the start page 516 → 106 kB). 128 MiB held about 1,200 pages
-//! before — not even the modules of the sitemap — and now hold all 5,200 pages of the sitemap
-//! and thousands of views besides. The rare client without gzip gets the page unpacked on the
-//! way out. A full cache drops a tenth of itself at once, views (an address with a query:
-//! filters, further pages, variants) before the pages of the sitemap, least recently used
-//! first: a crawler walking through filters cannot push the site's own pages out.
+//! **Kept compressed only** (2026-09-26): compressed a page takes a fourth to a ninth of the
+//! memory (a module 27 → 6 kB with both copies before, a filtered list 146 → 17 kB, the start
+//! page 516 → 106 kB in gzip). 128 MiB held about 1,200 pages before — not even the modules of
+//! the sitemap — and now hold all its pages (10,594 in German and English, 62 MiB in Brotli) and
+//! thousands of views besides.
+//! **In Brotli** since 2026-09-28 (`PAGE_QUALITY`): every browser takes it, and it is smaller
+//! than gzip at about the same cost (the start page 85 instead of 105 kB). A client that takes gzip
+//! but not Brotli (some crawlers and link previews) gets a gzip copy, made from the Brotli one the
+//! first time one asks and kept beside it; the rare client without either gets the page unpacked
+//! on the way out. A full cache drops a tenth of itself at once, views (an
+//! address with a query: filters, further pages, variants) before the pages of the sitemap,
+//! least recently used first: a crawler walking through filters cannot push the site's own pages
+//! out.
 //!
 //! **One render per page** at a time: whoever asks for a page that is being rendered waits for
 //! that render and is answered from the cache (after a new snapshot or a restart the start page
@@ -39,6 +44,12 @@ const MAX_KEY_BYTES: usize = 2048;
 /// A full cache drops pages until it is at this share of its size, so that it does not sort its
 /// entries for every page it takes.
 const EVICT_TO_PERCENT: usize = 90;
+/// The Brotli quality a page is kept in, made by the request that renders it. Measured 2026-09-28
+/// on the 10,594 pages of the sitemap (274 MB): gzip 6 made 68.7 MB of them in 4.4 s, Brotli 5
+/// 64.5 MB in 6.5 s (−6 %; the start page 105 → 85 kB, a module 7.8 → 7.4 kB). 6 and 7 save a
+/// tenth of a percent more for 10 and 80 % more time; 10 and 11 another tenth for 20 and 60 times
+/// the time (the start page 0.2 and 0.8 s).
+const PAGE_QUALITY: u32 = 5;
 
 /// Marks a request of the warm-up (`warm`): rendered only while the server has nothing else to
 /// do, never waited for.
@@ -46,10 +57,46 @@ const EVICT_TO_PERCENT: usize = 90;
 pub struct WarmUp;
 
 struct Entry {
-    gzip: Bytes,
+    copies: Copies,
     last_used: u64,
     /// A page search engines list (`listed`), dropped only when no view is left.
     canonical: bool,
+}
+
+/// A page as the cache keeps it.
+#[derive(Clone)]
+struct Copies {
+    /// What every browser takes (`PAGE_QUALITY`).
+    brotli: Bytes,
+    /// For a client that takes gzip but not Brotli: made the first time one asks
+    /// (`HtmlCache::keep_gzip`).
+    gzip: Option<Bytes>,
+}
+
+impl Copies {
+    fn bytes(&self) -> usize {
+        self.brotli.len() + self.gzip.as_ref().map_or(0, Bytes::len)
+    }
+}
+
+/// How a client takes a page, from its `Accept-Encoding`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Coding {
+    Brotli,
+    Gzip,
+    Plain,
+}
+
+impl Coding {
+    fn of(headers: &HeaderMap) -> Coding {
+        if accepts_brotli(headers) {
+            Coding::Brotli
+        } else if accepts_gzip(headers) {
+            Coding::Gzip
+        } else {
+            Coding::Plain
+        }
+    }
 }
 
 #[derive(Default)]
@@ -94,7 +141,7 @@ impl HtmlCache {
         Self { inner: Mutex::new(Inner::default()), max_bytes, rendering: Mutex::new(HashMap::new()) }
     }
 
-    fn get(&self, generation: u64, key: &str) -> Option<Bytes> {
+    fn get(&self, generation: u64, key: &str) -> Option<Copies> {
         let mut inner = self.inner.lock().ok()?;
         if inner.generation != generation {
             return None;
@@ -103,11 +150,11 @@ impl HtmlCache {
         let tick = inner.tick;
         let entry = inner.entries.get_mut(key)?;
         entry.last_used = tick;
-        Some(entry.gzip.clone())
+        Some(entry.copies.clone())
     }
 
-    fn put(&self, generation: u64, key: String, gzip: Bytes) {
-        let size = key.len() + gzip.len();
+    fn put(&self, generation: u64, key: String, copies: Copies) {
+        let size = key.len() + copies.bytes();
         if size > self.max_bytes {
             return;
         }
@@ -121,9 +168,25 @@ impl HtmlCache {
         inner.tick += 1;
         let tick = inner.tick;
         let canonical = listed(&key);
-        if let Some(old) = inner.entries.insert(key.clone(), Entry { gzip, last_used: tick, canonical }) {
-            inner.bytes = inner.bytes.saturating_sub(key.len() + old.gzip.len());
+        if let Some(old) = inner.entries.insert(key.clone(), Entry { copies, last_used: tick, canonical }) {
+            inner.bytes = inner.bytes.saturating_sub(key.len() + old.copies.bytes());
         }
+        inner.bytes += size;
+        if inner.bytes > self.max_bytes {
+            evict(&mut inner, self.max_bytes / 100 * EVICT_TO_PERCENT);
+        }
+    }
+
+    /// Keeps the gzip copy of a cached page beside its Brotli copy, for the next client that takes
+    /// no Brotli.
+    fn keep_gzip(&self, generation: u64, key: &str, gzip: Bytes) {
+        let Ok(mut inner) = self.inner.lock() else { return };
+        if inner.generation != generation {
+            return;
+        }
+        let Some(entry) = inner.entries.get_mut(key).filter(|entry| entry.copies.gzip.is_none()) else { return };
+        let size = gzip.len();
+        entry.copies.gzip = Some(gzip);
         inner.bytes += size;
         if inner.bytes > self.max_bytes {
             evict(&mut inner, self.max_bytes / 100 * EVICT_TO_PERCENT);
@@ -157,7 +220,7 @@ fn evict(inner: &mut Inner, target: usize) {
             break;
         }
         if let Some(entry) = inner.entries.remove(&key) {
-            inner.bytes = inner.bytes.saturating_sub(key.len() + entry.gzip.len());
+            inner.bytes = inner.bytes.saturating_sub(key.len() + entry.copies.bytes());
         }
     }
 }
@@ -219,11 +282,19 @@ fn listed(key: &str) -> bool {
     }
 }
 
-fn accepts_gzip(headers: &HeaderMap) -> bool {
+pub fn accepts_gzip(headers: &HeaderMap) -> bool {
     headers
         .get(header::ACCEPT_ENCODING)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")))
+}
+
+/// Whether the client takes Brotli (`br`): every browser over HTTPS, Chromium on localhost too.
+pub fn accepts_brotli(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.split(',').any(|encoding| encoding.split(';').next().is_some_and(|name| name.trim() == "br")))
 }
 
 pub fn gzip(body: &[u8]) -> Bytes {
@@ -235,35 +306,40 @@ pub fn gzip(body: &[u8]) -> Bytes {
 }
 
 /// `body` compressed with Brotli at its best quality, for the small files the server writes itself
-/// (every larger one gets its copy from the build, `build/main.rs`). The window is as large as the
-/// body needs; browsers read windows up to 16 MB.
+/// (every larger one gets its copy from the build, `build/main.rs`).
 pub fn brotli(body: &[u8]) -> Bytes {
-    let window = (usize::BITS - body.len().leading_zeros()).clamp(10, 24);
-    let mut writer = brotli::CompressorWriter::new(Vec::with_capacity(body.len() / 4), 1 << 16, 11, window);
+    brotli_at(body, 11)
+}
+
+/// `body` compressed with Brotli at `quality`. The window is as large as the body needs, but never
+/// below 128 kB: with a smaller one qualities 5 to 9 take another way through the encoder, which
+/// made the pages of the sitemap in 84 s instead of 6.5 (one of 22 kB in 117 ms). Browsers read
+/// windows up to 16 MB.
+fn brotli_at(body: &[u8], quality: u32) -> Bytes {
+    let window = (usize::BITS - body.len().leading_zeros()).clamp(17, 24);
+    let mut writer = brotli::CompressorWriter::new(Vec::with_capacity(body.len() / 4), 1 << 16, quality, window);
     match writer.write_all(body) {
         Ok(()) => Bytes::from(writer.into_inner()),
         Err(_) => Bytes::new(),
     }
 }
 
+/// A page's Brotli copy unpacked.
+fn unbrotli(compressed: &[u8]) -> Option<Bytes> {
+    let mut body = Vec::with_capacity(compressed.len() * 6);
+    brotli::Decompressor::new(compressed, 1 << 16).read_to_end(&mut body).ok()?;
+    Some(Bytes::from(body))
+}
+
+#[cfg(test)]
 pub fn gunzip(compressed: &[u8]) -> Option<Bytes> {
     let mut body = Vec::with_capacity(compressed.len() * 5);
     flate2::read::GzDecoder::new(compressed).read_to_end(&mut body).ok()?;
     Some(Bytes::from(body))
 }
 
-/// A page as the client can take it: compressed if it asked for gzip, else unpacked (or as it
-/// came from the render, when that is at hand).
-fn page(compressed: Bytes, plain: Option<Bytes>, etag: &str, cache_state: &'static str, wants_gzip: bool) -> Response {
-    let use_gzip = wants_gzip && !compressed.is_empty();
-    let body = match (use_gzip, plain) {
-        (true, _) => compressed,
-        (false, Some(plain)) => plain,
-        (false, None) => match gunzip(&compressed) {
-            Some(plain) => plain,
-            None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        },
-    };
+/// A page with the headers of a page, in `encoding` if it is compressed.
+fn page(body: Bytes, encoding: Option<&'static str>, etag: &str, cache_state: &'static str) -> Response {
     let mut response = Response::new(Body::from(body));
     let headers = response.headers_mut();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
@@ -276,10 +352,33 @@ fn page(compressed: Bytes, plain: Option<Bytes>, etag: &str, cache_state: &'stat
     if let Ok(value) = HeaderValue::from_str(etag) {
         headers.insert(header::ETAG, value);
     }
-    if use_gzip {
-        headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    if let Some(encoding) = encoding {
+        headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static(encoding));
     }
     response
+}
+
+/// A cached page as the client takes it: its Brotli copy; its gzip copy, made from the Brotli one
+/// the first time and kept; or unpacked.
+fn cached_page(cache: &HtmlCache, generation: u64, key: &str, copies: Copies, coding: Coding) -> Option<(Bytes, Option<&'static str>)> {
+    match coding {
+        Coding::Brotli => Some((copies.brotli, Some("br"))),
+        Coding::Gzip => {
+            let copy = match copies.gzip {
+                Some(copy) => copy,
+                None => {
+                    let copy = gzip(&unbrotli(&copies.brotli)?);
+                    if copy.is_empty() {
+                        return None;
+                    }
+                    cache.keep_gzip(generation, key, copy.clone());
+                    copy
+                }
+            };
+            Some((copy, Some("gzip")))
+        }
+        Coding::Plain => Some((unbrotli(&copies.brotli)?, None)),
+    }
 }
 
 /// Middleware around the rendered routes.
@@ -299,7 +398,7 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
 
     let generation = state.store.generation();
     let etag = format!("W/\"{}.{}\"", snapshot.etag.trim_matches('"'), state.build_id);
-    let wants_gzip = accepts_gzip(request.headers());
+    let coding = Coding::of(request.headers());
     let revalidates = request
         .headers()
         .get(header::IF_NONE_MATCH)
@@ -308,15 +407,18 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
     let warm_up = request.extensions().get::<WarmUp>().is_some();
     let key = cache_key(request.uri());
     let cached = |state: &AppState| state.cache.get(generation, &key);
-    let answer_cached = |compressed: Bytes, cache_state: &'static str| {
+    let answer_cached = |copies: Copies, cache_state: &'static str| {
         if revalidates {
             return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag.clone())]).into_response();
         }
-        page(compressed, None, &etag, cache_state, wants_gzip)
+        match cached_page(&state.cache, generation, &key, copies, coding) {
+            Some((body, encoding)) => page(body, encoding, &etag, cache_state),
+            None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
     };
 
-    if let Some(compressed) = cached(&state) {
-        return answer_cached(compressed, "hit");
+    if let Some(copies) = cached(&state) {
+        return answer_cached(copies, "hit");
     }
 
     // Somebody renders this page already: wait for that render, then answer from the cache.
@@ -327,8 +429,8 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
         match state.cache.turn(&key) {
             Some(Turn::Wait(mut done)) if !warm_up => {
                 let _ = tokio::time::timeout(state.render_wait + Duration::from_secs(5), done.changed()).await;
-                if let Some(compressed) = cached(&state) {
-                    return answer_cached(compressed, "hit");
+                if let Some(copies) = cached(&state) {
+                    return answer_cached(copies, "hit");
                 }
             }
             Some(Turn::Wait(_)) => return crate::busy::busy(10, true),
@@ -360,15 +462,21 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
         return response;
     }
 
-    let compressed = gzip(&body);
-    if !compressed.is_empty() && key.len() <= MAX_KEY_BYTES && state.store.generation() == generation {
-        state.cache.put(generation, key, compressed.clone());
+    let brotli = brotli_at(&body, PAGE_QUALITY);
+    // A client that takes gzip but not Brotli: its copy from the page at hand, kept for the next.
+    let zipped = (coding == Coding::Gzip).then(|| gzip(&body)).filter(|copy| !copy.is_empty());
+    if !brotli.is_empty() && key.len() <= MAX_KEY_BYTES && state.store.generation() == generation {
+        state.cache.put(generation, key, Copies { brotli: brotli.clone(), gzip: zipped.clone() });
     }
     drop(rendering);
     if revalidates {
         return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
     }
-    page(compressed, Some(body), &etag, "miss", wants_gzip)
+    match (coding, zipped) {
+        (Coding::Brotli, _) if !brotli.is_empty() => page(brotli, Some("br"), &etag, "miss"),
+        (Coding::Gzip, Some(zipped)) => page(zipped, Some("gzip"), &etag, "miss"),
+        _ => page(body, None, &etag, "miss"),
+    }
 }
 
 #[cfg(test)]
@@ -415,7 +523,7 @@ mod tests {
     #[test]
     fn the_cache_is_bounded_and_forgets_old_generations() {
         let cache = HtmlCache::new(1000);
-        let body = |n: usize| Bytes::from(vec![b'x'; n]);
+        let body = |n: usize| Copies { brotli: Bytes::from(vec![b'x'; n]), gzip: None };
         cache.put(1, "/a".into(), body(400));
         cache.put(1, "/b".into(), body(400));
         assert!(cache.get(1, "/a").is_some());
@@ -434,7 +542,7 @@ mod tests {
     #[test]
     fn views_go_before_the_pages_of_the_sitemap() {
         let cache = HtmlCache::new(10_000);
-        let body = |n: usize| Bytes::from(vec![b'x'; n]);
+        let body = |n: usize| Copies { brotli: Bytes::from(vec![b'x'; n]), gzip: None };
         cache.put(1, "/catalog/module/1".into(), body(2000));
         cache.put(1, "/catalog/module/2".into(), body(2000));
         // A crawler walks through filters: many views, each used once, all of them newer.
@@ -465,10 +573,30 @@ mod tests {
     }
 
     #[test]
-    fn a_page_is_kept_compressed_and_unpacked_for_who_asks() {
+    fn a_page_is_kept_in_brotli_and_goes_as_the_client_takes_it() {
         let html = "<!DOCTYPE html><p>Grundlagen der Informatik</p>".repeat(50);
-        let compressed = gzip(html.as_bytes());
-        assert!(compressed.len() < html.len() / 5);
-        assert_eq!(gunzip(&compressed).as_deref(), Some(html.as_bytes()));
+        let brotli = brotli_at(html.as_bytes(), PAGE_QUALITY);
+        assert!(brotli.len() < gzip(html.as_bytes()).len());
+        let cache = HtmlCache::new(100_000);
+        cache.put(1, "/".into(), Copies { brotli: brotli.clone(), gzip: None });
+        let kept = cache.size().1;
+        let ask = |coding: Coding| cached_page(&cache, 1, "/", cache.get(1, "/").unwrap(), coding).unwrap();
+
+        // A browser gets the copy as it is kept.
+        assert_eq!(ask(Coding::Brotli), (brotli, Some("br")));
+        // A client without Brotli gets gzip, made the first time and kept for the next.
+        let (zipped, encoding) = ask(Coding::Gzip);
+        assert_eq!((gunzip(&zipped).as_deref(), encoding), (Some(html.as_bytes()), Some("gzip")));
+        assert_eq!((cache.get(1, "/").unwrap().gzip.as_ref(), cache.size().1), (Some(&zipped), kept + zipped.len()));
+        assert_eq!(ask(Coding::Gzip).0, zipped);
+        // One without either, unpacked.
+        assert_eq!(ask(Coding::Plain), (Bytes::from(html.clone()), None));
+        // A copy made from an older snapshot's page is not kept.
+        cache.put(2, "/".into(), Copies { brotli: brotli_at(html.as_bytes(), PAGE_QUALITY), gzip: None });
+        cache.keep_gzip(1, "/", zipped);
+        assert!(cache.get(2, "/").unwrap().gzip.is_none());
+
+        let coding = |accept: &str| Coding::of(&HeaderMap::from_iter([(header::ACCEPT_ENCODING, HeaderValue::from_str(accept).unwrap())]));
+        assert_eq!([coding("gzip, deflate, br, zstd"), coding("br;q=1.0, gzip;q=0.8"), coding("gzip, deflate"), coding("identity")], [Coding::Brotli, Coding::Brotli, Coding::Gzip, Coding::Plain]);
     }
 }

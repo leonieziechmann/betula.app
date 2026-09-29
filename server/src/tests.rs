@@ -437,9 +437,18 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (_, headers, _) = request(&router, "/catalog?status=all&turnus=winter&form=exercise&q=", &[]).await;
     assert_eq!(headers["x-cache"], "hit");
     assert_eq!(request(&router, "/catalog?turnus=winter&form=exercise&status=all", &[("if-none-match", &etag)]).await.0, StatusCode::NOT_MODIFIED);
-    let (_, headers, body) = request(&router, "/programs", &[("accept-encoding", "gzip, br")]).await;
-    assert_eq!(headers[header::CONTENT_ENCODING], "gzip");
-    assert_eq!(body[..2], [0x1f, 0x8b]);
+    // Kept in Brotli, which a browser gets as it is; a client that takes no Brotli gets gzip (made
+    // from it the first time, kept beside it), one that takes neither the page unpacked.
+    let (_, headers, plain) = request(&router, "/programs", &[]).await;
+    assert!(headers.get(header::CONTENT_ENCODING).is_none());
+    let (_, headers, brotli) = request(&router, "/programs", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+    assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), headers["x-cache"].to_str().unwrap()), ("br", "hit"));
+    assert_eq!(unbrotli(&brotli), plain);
+    let (_, headers, zipped) = request(&router, "/programs", &[("accept-encoding", "gzip, deflate")]).await;
+    assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), headers[header::VARY].to_str().unwrap()), ("gzip", "Accept-Encoding"));
+    assert_eq!(crate::cache::gunzip(&zipped).unwrap().to_vec(), plain);
+    assert!(brotli.len() < zipped.len(), "{} < {}", brotli.len(), zipped.len());
+    assert_eq!(request(&router, "/programs", &[("accept-encoding", "gzip")]).await.2, zipped);
 
     // What search engines read: one description and one address per page, absolute, with the name
     // the site has from outside; views of the lists are not listed; the sitemap names every page.

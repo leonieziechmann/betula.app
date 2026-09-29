@@ -61,7 +61,9 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
             if store.generation() != generation {
                 return false;
             }
-            let Ok(request) = Request::builder().uri(path.as_str()).header(header::ACCEPT, "text/html").header(header::ACCEPT_ENCODING, "gzip").extension(WarmUp).body(Body::empty()) else {
+            // Without Accept-Encoding: the page comes as it is, the render's own or the kept copy
+            // unpacked, for the dates of the sitemap below.
+            let Ok(request) = Request::builder().uri(path.as_str()).header(header::ACCEPT, "text/html").extension(WarmUp).body(Body::empty()) else {
                 break;
             };
             // Each page in a task of its own: a render that panics costs this page, not the rest
@@ -76,9 +78,8 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
                     break;
                 }
             };
-            if let (Some((body, compressed)), Some(changes), Some(since)) = (page, changes, since.as_deref()) {
-                let html = if compressed { crate::cache::gunzip(&body) } else { Some(body) };
-                if html.is_some_and(|html| changes.note(path, &html, since)) {
+            if let (Some(html), Some(changes), Some(since)) = (page, changes, since.as_deref()) {
+                if changes.note(path, &html, since) {
                     changed += 1;
                 }
             }
@@ -117,13 +118,11 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
 }
 
 /// Asks the pages for one of them and reads it to the end (the cache takes it on the way): what
-/// the cache says it did (`x-cache`), and the page when it is one (`miss` or `hit`), with whether
-/// it came compressed.
-async fn ask(pages: Router, request: Request<Body>) -> (String, Option<(Bytes, bool)>) {
+/// the cache says it did (`x-cache`), and the page when it is one (`miss` or `hit`).
+async fn ask(pages: Router, request: Request<Body>) -> (String, Option<Bytes>) {
     let Ok(response) = pages.oneshot(request).await;
     let state = response.headers().get("x-cache").and_then(|value| value.to_str().ok()).unwrap_or_default().to_string();
     let page = response.status().is_success() && matches!(state.as_str(), "miss" | "hit");
-    let compressed = response.headers().get(header::CONTENT_ENCODING).is_some_and(|value| value == "gzip");
     let body = axum::body::to_bytes(response.into_body(), 64 * 1024 * 1024).await;
-    (state, body.ok().filter(|_| page).map(|body| (body, compressed)))
+    (state, body.ok().filter(|_| page))
 }

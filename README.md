@@ -77,8 +77,8 @@ stale (`scripts/build-client.sh --dev`, seconds instead of minutes) and runs the
 `app/assets` live: an edit of the stylesheet, a script or an SVG is there with the next reload,
 without a build; `--watch` builds again and restarts when Rust code changes, and
 `bash scripts/dev.sh sizes` lists what ships. What ships is minified and compressed with Brotli
-when the server is built (`server/build/main.rs`; the catalog by the server, docs/frontend.md
-„What ships"). Folia talks to Radix only through the snapshot
+when the server is built (`server/build/main.rs`; the catalog and the pages by the server,
+docs/frontend.md „What ships"). Folia talks to Radix only through the snapshot
 endpoint. Flags, endpoints, log events and checks: `docs/frontend.md`. `cargo test --workspace`
 needs an exported snapshot (`radix export`). `scripts/build-client.sh` without `--dev` builds the
 bundle that ships.

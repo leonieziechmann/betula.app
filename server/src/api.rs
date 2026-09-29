@@ -14,6 +14,7 @@ use serde_json::json;
 use tokio_util::io::ReaderStream;
 
 use crate::birch::Season;
+use crate::cache::{accepts_brotli, accepts_gzip};
 use crate::cards::{Card, CardText, Headline};
 use crate::texts::texts;
 use crate::AppState;
@@ -23,21 +24,6 @@ fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
         .get(header::IF_NONE_MATCH)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.split(',').any(|tag| tag.trim().trim_start_matches("W/") == etag))
-}
-
-fn accepts_gzip(headers: &HeaderMap) -> bool {
-    headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")))
-}
-
-/// Whether the client takes Brotli (`br`): every browser over HTTPS, Chromium on localhost too.
-fn accepts_brotli(headers: &HeaderMap) -> bool {
-    headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| encoding.split(';').next().is_some_and(|name| name.trim() == "br")))
 }
 
 /// The copy of a body a client gets: Brotli where it takes that and there is one, else gzip where

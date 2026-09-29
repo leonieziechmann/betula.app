@@ -113,8 +113,9 @@ services:
       # Canonical links, link previews and the sitemap are written with it.
       FOLIA_PUBLIC_URL: "https://${APP_HOST:?APP_HOST is not set}"
       # Rendered pages kept in memory, compressed (server/src/cache.rs); part of the memory limit
-      # below. 256 MiB hold every page of the sitemap (about 36 MiB, rendered after each new
-      # snapshot while the server is idle: FOLIA_WARM_CACHE) and some 13,000 filtered lists.
+      # below. 256 MiB hold every page of the sitemap (10,594 in September 2026, German and
+      # English: 62 MiB in Brotli, rendered after each new snapshot while the server is idle:
+      # FOLIA_WARM_CACHE) and some 13,000 filtered lists.
       FOLIA_HTML_CACHE_MB: "256"
       # Renders and calendar feeds run one per processor of the CPU limit below, with one worker
       # thread more for everything else (FOLIA_RENDER_PLACES, FOLIA_FEED_PLACES, FOLIA_WORKERS: 0 =
