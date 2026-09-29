@@ -86,6 +86,16 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 .pv.dark[data-season="autumn"] { --crown: oklch(.44 .08 75); }
 .pv.dark[data-season="winter"] { --crown: oklch(.488 .025 45); --mix-front: 60%; --mix-mid: 40%; --mix-back: 24%; }
 .pv { --f-front: color-mix(in oklch, var(--crown) var(--mix-front), var(--bg)); --f-mid: color-mix(in oklch, var(--crown) var(--mix-mid), var(--bg)); --f-back: color-mix(in oklch, var(--crown) var(--mix-back), var(--bg)); }
+/* The grey cut (E) and the grey wood behind the white birches (C): the background's own grey, a
+   few steps darker (on dark a few steps lighter: nothing is darker than that background). */
+.pv { --g-step: 8%; --g-front: color-mix(in oklab, var(--text) var(--g-step), var(--bg)); --g-mid: color-mix(in oklab, var(--text) calc(var(--g-step) * .66), var(--bg)); --g-back: color-mix(in oklab, var(--text) calc(var(--g-step) * .42), var(--bg)); }
+.pv.dark { --g-step: 6.5%; }
+/* Crowns of the trees behind: the season's colour, quiet; in the grey cut barely a tint. */
+.pv { --crown-back: color-mix(in oklch, var(--crown) 40%, var(--bg)); --g-crown: color-mix(in oklab, var(--crown) 30%, var(--g-mid)); }
+.pv.dark { --crown-back: color-mix(in oklch, var(--crown) 55%, var(--bg)); }
+/* The white birches (C): white paper by day; at night the moon's grey, their marks dark. */
+.pv { --c-trunk: var(--bark); --c-mark: var(--bark-ink); --c-outline: var(--line-strong); --c-leaf: color-mix(in oklch, var(--crown) 85%, var(--bg)); --c-limb: var(--f-front); --moon: transparent; }
+.pv.dark { --c-trunk: oklch(.34 .014 255); --c-mark: oklch(.15 .01 260); --c-outline: transparent; --c-leaf: color-mix(in oklch, var(--crown) 70%, var(--bg)); --c-limb: oklch(.27 .012 255); --moon: oklch(.45 .012 250); }
 
 .pv-forest { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .pv-forest svg { position: absolute; left: 0; top: 0; overflow: visible; will-change: transform; }
@@ -167,12 +177,14 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 <div class="desk">
   <header class="intro">
     <h1>Birkenwald hinter der Startseite</h1>
-    <p>Ein Scherenschnitt-Wald statt der kleinen Zweige an den Panels. Er steht fest hinter der Seite, wächst vom Rand der Spalte nach außen und lässt die Leiste links frei. Hier sind vier Richtungen zum Vergleichen. Die Vorschau lässt sich scrollen.</p>
+    <p>Ein Scherenschnitt-Wald statt der kleinen Zweige an den Panels. Er steht fest hinter der Seite, wächst vom Rand der Spalte nach außen und lässt die Leiste links frei. Runde 2: C bei Nacht, jede Richtung organisch, schlicht oder blockig, Kronen für die Bäume dahinter, und der Grauschnitt als E. Die Vorschau lässt sich scrollen.</p>
   </header>
 
   <div class="controls" role="group" aria-label="Vorschau einstellen">
     <div class="ctl"><span>Richtung</span><div class="seg" id="c-variant"></div></div>
     <div class="ctl"><span>Jahreszeit</span><div class="seg" id="c-season"></div></div>
+    <div class="ctl"><span>Form</span><div class="seg" id="c-form"></div></div>
+    <div class="ctl"><span>Kronen hinten</span><div class="seg" id="c-crowns"></div></div>
     <div class="ctl"><span>Modus</span><div class="seg" id="c-mode"></div></div>
     <div class="ctl"><span>Bildschirm</span><div class="seg" id="c-width"></div></div>
     <button class="tool" id="fs" type="button">Vollbild</button>
@@ -266,8 +278,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 const VARIANTS = [
   { id: "cut", key: "A", name: "Schattenriss", text: "Ein Wald aus einem Blatt: Stämme, hängende Zweige und Blätter in einem Ton aus der Farbe der Krone. Die Rindenzeichnung ist als Schlitze ausgeschnitten, unten Gras und ein paar Pilze.", pts: ["Am ruhigsten, klar Scherenschnitt", "Farbe wandert mit der Jahreszeit"] },
   { id: "layers", key: "B", name: "Papiertiefe", text: "Drei Lagen Papier hintereinander wie in einem Schattenkasten: hinten viele dünne, blasse Stämme, vorne wenige kräftige. Jede Lage wirft einen kleinen Schatten und wandert beim Scrollen etwas anders.", pts: ["Viel Tiefe, etwas lebendiger", "Leichte Parallaxe beim Scrollen"] },
-  { id: "white", key: "C", name: "Birkenweiß", text: "Die Stämme sind weißes Papier mit schwarzer Rinde, wie der Stamm im ersten Panel, das Laub in der Farbe der Krone. Dahinter steht eine blasse Lage als Schattenriss.", pts: ["Am deutlichsten eine Birke", "Greift den Hero-Stamm auf"] },
+  { id: "white", key: "C", name: "Birkenweiß", text: "Die Stämme sind weißes Papier mit schwarzer Rinde, wie der Stamm im ersten Panel, dahinter eine graue Lage. Nachts werden die Stämme mondgrau, die Rinde bleibt dunkel, und hinter den Bäumen steht ein blasser Mond.", pts: ["Am deutlichsten eine Birke", "Dunkel: Birkenwald bei Nacht", "Schön mit „Kronen hinten“"] },
   { id: "horizon", key: "D", name: "Waldrand", text: "Nur unten ein Streifen Wald mit eigenen, luftigen Kronen, wie ein Horizont. Oben bleibt die Seite hell, der Blick geht über die Baumwipfel.", pts: ["Am zurückhaltendsten", "Braucht kaum Höhe, auch auf kleinen Laptops"] },
+  { id: "grey", key: "E", name: "Grauschnitt", text: "Ein Scherenschnitt im Grau des Hintergrunds, nur ein paar Stufen dunkler, in zwei Lagen. Er gibt der Fläche Struktur und fällt erst beim zweiten Blick als Wald auf.", pts: ["Keine eigene Farbe, nur Struktur", "Mit „Kronen hinten“ ein Hauch Jahreszeit"] },
 ];
 const SEASONS = [["spring", "Frühling"], ["summer", "Sommer"], ["autumn", "Herbst"], ["winter", "Winter"]];
 const MODES = [["light", "Hell"], ["dark", "Dunkel"]];
@@ -275,7 +288,7 @@ const WIDTHS = [[1440, "1440 × 900"], [1920, "1920 × 1080"], [2560, "2560 × 1
 const month = new Date().getMonth();
 const nowSeason = month >= 2 && month <= 4 ? "spring" : month >= 5 && month <= 7 ? "summer" : month >= 8 && month <= 10 ? "autumn" : "winter";
 const systemDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-const S = { variant: "cut", season: nowSeason, mode: systemDark() ? "dark" : "light", width: 1920 };
+const S = { variant: "white", form: "organic", crowns: "off", season: nowSeason, mode: systemDark() ? "dark" : "light", width: 1920 };
 try { const saved = JSON.parse(localStorage.getItem("betula-forest") || "null"); if (saved) Object.assign(S, saved); } catch (e) {}
 const save = () => { try { localStorage.setItem("betula-forest", JSON.stringify(S)); } catch (e) {} };
 
@@ -316,26 +329,36 @@ const mushroom = (x, y, s) => {
 };
 
 // ---------- one birch ----------
-// o: x, gy (foot), top (where the trunk ends), s (size), season, lacy (a crown of its own)
+// o: x, gy (foot), top (where the trunk ends), s (size), season, form (organic: grown; plain:
+// straight, a few straight limbs with small crowns; block: the trunk of the first panel, a bar with
+// its marks), crown (a crown of its own at the trunk's top, in the form's shape)
+const ellipse = (cx, cy, rx, ry) => `M${f(cx - rx)} ${f(cy)}a${f(rx)} ${f(ry)} 0 1 0 ${f(2 * rx)} 0a${f(rx)} ${f(ry)} 0 1 0 ${f(-2 * rx)} 0Z`;
 function birch(r, o) {
-  const s = o.s, w = s * B(r, 10, 21), lean = B(r, -.018, .018), amp = B(r, 1.5, 6) * s, fq = B(r, .5, 1.3), ph = B(r, 0, 6.28);
-  const hTot = o.gy - o.top, taper = o.lacy ? .7 : .5;
+  const s = o.s, form = o.form || "organic", block = form === "block", plain = form === "plain", organic = !block && !plain, crowned = !!o.crown;
+  const w = block ? s * (10 + 4 * Math.floor(B(r, 0, 4))) : s * B(r, 10, 21);
+  const lean = organic ? B(r, -.018, .018) : plain ? B(r, -.006, .006) : 0, amp = organic ? B(r, 1.5, 6) * s : 0, fq = B(r, .5, 1.3), ph = B(r, 0, 6.28);
+  const hTot = o.gy - o.top, taper = block ? 0 : crowned ? (plain ? .45 : .7) : plain ? .3 : .5, flare = block ? 0 : plain ? .25 : .6;
   const cx = (t) => o.x + lean * hTot * t + amp * (Math.sin(t * Math.PI * fq + ph) - Math.sin(ph));
-  const hw = (t) => w / 2 * (1 - taper * t) * (1 + .6 * Math.max(0, 1 - t * hTot / (w * 1.8)) ** 2);
+  const hw = (t) => w / 2 * (1 - taper * t) * (1 + flare * Math.max(0, 1 - t * hTot / (w * 1.8)) ** 2);
   const yAt = (t) => o.gy - hTot * t;
-  const R = [], L = [];
-  for (let i = 0; i <= 48; i++) { const t = i / 48; R.push([cx(t) + hw(t), yAt(t)]); L.push([cx(t) - hw(t), yAt(t)]); }
-  const trunk = poly([[cx(0) + hw(0), o.gy + 10], ...R, ...L.reverse(), [cx(0) - hw(0), o.gy + 10]]);
+  let trunk;
+  if (block) {
+    const x0 = o.x - w / 2, x1 = o.x + w / 2, rad = Math.min(5 * s, w / 2), t0 = o.top;
+    trunk = `M${f(x0)} ${f(o.gy + 10)}L${f(x0)} ${f(t0 + rad)}Q${f(x0)} ${f(t0)} ${f(x0 + rad)} ${f(t0)}L${f(x1 - rad)} ${f(t0)}Q${f(x1)} ${f(t0)} ${f(x1)} ${f(t0 + rad)}L${f(x1)} ${f(o.gy + 10)}Z`;
+  } else {
+    const R = [], L = [];
+    for (let i = 0; i <= 48; i++) { const t = i / 48; R.push([cx(t) + hw(t), yAt(t)]); L.push([cx(t) - hw(t), yAt(t)]); }
+    trunk = poly([[cx(0) + hw(0), o.gy + 10], ...R, ...L.reverse(), [cx(0) - hw(0), o.gy + 10]]);
+  }
   const marks = [];
-  for (let y = o.gy - 3 * s; y > o.top + 6; y -= B(r, 5, 24) * s * (y > o.gy - 40 * s ? .45 : 1)) {
+  for (let y = o.gy - 3 * s; y > o.top + 6; y -= B(r, block ? 7 : 5, block ? 22 : 24) * s * (!block && y > o.gy - 40 * s ? .45 : 1)) {
     const t = (o.gy - y) / hTot, c = cx(t), h = hw(t);
     let sw = 2 * h * B(r, .3, .78); const room = h - 1.3 * s; if (sw / 2 > room) sw = room * 2; if (sw < 2) continue;
-    const off = B(r, -(room - sw / 2), room - sw / 2), th = s * B(r, .9, 2.4) * (t * hTot < 50 * s ? 1.7 : 1), tilt = B(r, -.12, .12);
+    const off = B(r, -(room - sw / 2), room - sw / 2), th = s * B(r, block ? 1.1 : .9, block ? 2.4 : 2.4) * (!block && t * hTot < 50 * s ? 1.7 : 1), tilt = block ? 0 : B(r, -.12, .12);
     marks.push(lens(c + off, y, sw, th, tilt));
-    if (r() < .3 && sw > 5) marks.push(lens(c + off + B(r, -2, 2) * s, y + th + 1.6 * s, sw * B(r, .45, .8), th * .65, tilt));
+    if (!block && r() < .3 && sw > 5) marks.push(lens(c + off + B(r, -2, 2) * s, y + th + 1.6 * s, sw * B(r, .45, .8), th * .65, tilt));
   }
-  // limbs: rising, then hanging (the weeping birch); scars above them on the bark.
-  const limbs = [], twigs = [], leaves = [], catkins = [], perches = [];
+  const limbs = [], twigs = [], leaves = [], catkins = [], perches = [], crowns = [];
   const leafD = { spring: .45, summer: 1, autumn: .6, winter: 0 }[o.season] * (o.density ?? 1);
   const leafL = (o.season === "spring" ? 3.6 : 5.2) * s, leafW = (o.season === "spring" ? 2.3 : 3.3) * s;
   const hangTwig = (p, sx, len) => {
@@ -344,44 +367,70 @@ function birch(r, o) {
     for (let i = 1; i <= 8; i++) if (r() < leafD) { const q = pts[i], side = i % 2 ? 1 : -1; leaves.push(leaf(q[0], q[1], Math.PI / 2 + side * B(r, .35, 1.0), leafL * B(r, .8, 1.2), leafW * B(r, .8, 1.15))); }
     if (o.season === "spring" && r() < .6) catkins.push(tapered(quad(end, [end[0], end[1] + 4 * s], [end[0] + sx * s, end[1] + 9 * s], 4), 2.2 * s, 1.1 * s));
   };
-  const nb = o.lacy ? 0 : Math.round(B(r, 3, 7));
+  // limbs: organic ones rise and then hang (the weeping birch); plain ones are straight and end in
+  // a small crown; the block has none. Scars above them on the bark.
+  const nb = crowned || block ? 0 : plain ? Math.round(B(r, 2, 4)) : Math.round(B(r, 3, 7));
   let side = r() < .5 ? 1 : -1;
   for (let k = 0; k < nb; k++, side = -side) {
     const t = B(r, .14, .88), y = yAt(t), c = cx(t), h = hw(t);
     if (y < 60) continue;
     marks.push(poly([[c + side * h * .1, y - 5 * s], [c + side * h * .82, y - 1.2 * s], [c + side * h * .72, y + 2.4 * s]]));
-    const P0 = [c + side * h * .7, y], L = s * B(r, 36, 125), a = B(r, .55, 1.1);
+    const P0 = [c + side * h * .7, y];
+    if (plain) {
+      const L = s * B(r, 30, 80), a = B(r, .6, 1.05), E = [P0[0] + side * L * Math.cos(a), P0[1] - L * Math.sin(a)];
+      const pts = quad(P0, [(P0[0] + E[0]) / 2, (P0[1] + E[1]) / 2], E, 6);
+      limbs.push(tapered(pts, s * B(r, 2.2, 3.2), .9 * s));
+      if (o.birds && k === 1) perches.push([pts[3], side]);
+      if (leafD > 0) { const cr = s * B(r, 8, 15) * (o.season === "spring" ? .75 : 1); crowns.push(ellipse(E[0], E[1] - cr * .3, cr, cr * .8)); }
+      continue;
+    }
+    const L = s * B(r, 36, 125), a = B(r, .55, 1.1);
     const pts = quad(P0, [P0[0] + side * L * .45, P0[1] - L * Math.sin(a) * .85], [P0[0] + side * L, P0[1] - L * B(r, .02, .35)], 14);
     limbs.push(tapered(pts, s * B(r, 2, 3.4), .5 * s));
     if (o.birds && k === 1) perches.push([pts[8], side]);
     for (let j = 4; j <= 14; j += 2) hangTwig(pts[j], side, s * B(r, 12, 56) * (.55 + j / 14));
   }
-  // a crown of its own (the edge of the wood): a lacy cloud, limbs inside, a fringe hanging below
-  if (o.lacy) {
-    const ccx = cx(1), ccy = o.top + o.ry * .25, rx = o.rx, ry = o.ry;
-    for (let k = 0; k < 6; k++) { const side = k % 2 ? 1 : -1, t = B(r, .55, .95), p0 = [cx(t), yAt(t)], e = [ccx + side * rx * B(r, .3, .8), ccy - ry * B(r, -.1, .6)]; limbs.push(tapered(quad(p0, [p0[0] + side * rx * .15, (p0[1] + e[1]) / 2], e, 10), s * B(r, 2, 3.2), .6 * s)); }
-    const n = Math.round(rx * ry * .085 * Math.max(leafD, .0));
-    for (let i = 0; i < n; i++) {
-      const a = r() * Math.PI * 2, d = Math.sqrt(r()), x = ccx + Math.cos(a) * d * rx, y = ccy + Math.sin(a) * d * ry * (Math.sin(a) > 0 ? 1.15 : 1);
-      leaves.push(leaf(x, y, Math.PI / 2 + B(r, -1.1, 1.1), leafL * B(r, .8, 1.2), leafW));
+  if (crowned) {
+    const ccx = cx(1), rx = o.rx, ry = o.ry, ccy = o.top + ry * .25;
+    if (organic) {
+      // a lacy cloud, limbs inside, a fringe hanging below
+      for (let k = 0; k < 6; k++) { const side = k % 2 ? 1 : -1, t = B(r, .55, .95), p0 = [cx(t), yAt(t)], e = [ccx + side * rx * B(r, .3, .8), ccy - ry * B(r, -.1, .6)]; limbs.push(tapered(quad(p0, [p0[0] + side * rx * .15, (p0[1] + e[1]) / 2], e, 10), s * B(r, 2, 3.2), .6 * s)); }
+      const n = Math.round(rx * ry * .085 * leafD);
+      for (let i = 0; i < n; i++) {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()), x = ccx + Math.cos(a) * d * rx, y = ccy + Math.sin(a) * d * ry * (Math.sin(a) > 0 ? 1.15 : 1);
+        leaves.push(leaf(x, y, Math.PI / 2 + B(r, -1.1, 1.1), leafL * B(r, .8, 1.2), leafW));
+      }
+      for (let i = 0; i < 26; i++) { const a = B(r, .15, Math.PI - .15), p = [ccx + Math.cos(a) * rx * B(r, .5, 1), ccy + Math.sin(a) * ry * B(r, .5, .95)]; hangTwig(p, Math.cos(a) > 0 ? 1 : -1, s * B(r, 14, 40)); }
+      if (leafD === 0) for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()), p = [ccx + Math.cos(a) * d * rx, ccy + Math.sin(a) * d * ry]; twigs.push(line(quad([cx(.8), yAt(.8)], [(cx(.8) + p[0]) / 2, p[1] + 10], p, 6))); }
+    } else if (leafD > 0) {
+      const k = o.season === "spring" ? .8 : o.season === "autumn" ? .9 : 1, RX = rx * .8 * k, RY = ry * k;
+      if (plain) { // an oval, narrower towards its top
+        const pts = []; for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2, c = Math.cos(a); pts.push([ccx + RX * Math.sin(a) * (.72 + .28 * (1 - c) / 2), ccy - RY * c * (c > 0 ? 1.08 : 1)]); }
+        crowns.push(poly(pts));
+      } else { // a rounded bar
+        const x0 = ccx - RX * .8, x1 = ccx + RX * .8, y0 = ccy - RY, y1 = ccy + RY * .8, q = RX * .8;
+        crowns.push(`M${f(x0)} ${f(y1 - q)}L${f(x0)} ${f(y0 + q)}A${f(q)} ${f(q)} 0 0 1 ${f(x1)} ${f(y0 + q)}L${f(x1)} ${f(y1 - q)}A${f(q)} ${f(q)} 0 0 1 ${f(x0)} ${f(y1 - q)}Z`);
+      }
+    } else if (plain) {
+      for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + (i - 2) * .32, L = ry * B(r, .7, 1.1), p0 = [cx(.85), yAt(.85)]; limbs.push(tapered([p0, [p0[0] + Math.cos(a) * L * .5, p0[1] + Math.sin(a) * L * .5], [p0[0] + Math.cos(a) * L, p0[1] + Math.sin(a) * L]], 2 * s, .6 * s)); }
     }
-    for (let i = 0; i < 26; i++) { const a = B(r, .15, Math.PI - .15), p = [ccx + Math.cos(a) * rx * B(r, .5, 1), ccy + Math.sin(a) * ry * B(r, .5, .95)]; hangTwig(p, Math.cos(a) > 0 ? 1 : -1, s * B(r, 14, 40)); }
-    if (leafD === 0) for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()), p = [ccx + Math.cos(a) * d * rx, ccy + Math.sin(a) * d * ry]; twigs.push(line(quad([cx(.8), yAt(.8)], [(cx(.8) + p[0]) / 2, p[1] + 10], p, 6))); }
   }
-  return { trunk, marks, limbs, twigs, leaves, catkins, perches };
+  return { trunk, marks, limbs, twigs, leaves, catkins, perches, crowns };
 }
 
 // ---------- the wood beside the column ----------
 // Trees walk from the column's edge outwards, each side from its own seed, so the ones near the
 // column are the same at every width; a wider screen only adds trees further out.
 function wood(o) {
-  const out = { trunks: [], marks: [], limbs: [], twigs: [], leaves: [], catkins: [], ground: [], extra: [], snow: [], birds: [] };
+  const out = { trunks: [], marks: [], limbs: [], twigs: [], leaves: [], catkins: [], crowns: [], ground: [], extra: [], snow: [], birds: [] };
   for (const [edge, dir, far, seed] of o.sides) {
     const r = rng(seed * 7919 + o.layer * 104729);
     let x = edge + dir * B(r, 8, 22) * o.s, n = 0;
     while (dir < 0 ? x > far - 40 : x < far + 40) {
-      const t = birch(r, { x, gy: o.gy + B(r, -3, 3) * o.s, top: o.lacy ? o.gy - B(r, .26, .4) * o.H * o.s : -60, s: o.s * B(r, .8, 1.12), season: o.season, lacy: o.lacy, rx: B(r, 40, 75) * o.s, ry: B(r, 55, 95) * o.s, birds: o.birds && n === 1, density: o.density });
-      out.trunks.push(t.trunk); out.marks.push(...t.marks); out.limbs.push(...t.limbs); out.twigs.push(...t.twigs); out.leaves.push(...t.leaves); out.catkins.push(...t.catkins);
+      const crown = o.lacy || o.crown, gy = o.gy + B(r, -3, 3) * o.s;
+      const top = o.lacy ? o.gy - B(r, .26, .4) * o.H * o.s : o.crown ? gy - B(r, o.crownLo, o.crownHi) * o.H : -60;
+      const t = birch(r, { x, gy, top, s: o.s * B(r, .8, 1.12), season: o.season, form: o.lacy ? "organic" : o.form, crown, rx: B(r, o.crown ? 30 : 40, o.crown ? 50 : 75) * o.s, ry: B(r, o.crown ? 70 : 55, o.crown ? 120 : 95) * o.s, birds: o.birds && n === 1, density: o.density });
+      out.trunks.push(t.trunk); out.marks.push(...t.marks); out.limbs.push(...t.limbs); out.twigs.push(...t.twigs); out.leaves.push(...t.leaves); out.catkins.push(...t.catkins); out.crowns.push(...t.crowns);
       for (const [p, d] of t.perches) out.birds.push(bird(p[0], p[1], o.s * .9, d));
       x += dir * B(r, o.gapMin, o.gapMax) * o.s; n++;
     }
@@ -390,7 +439,7 @@ function wood(o) {
     g.push([x0, o.H + 4]);
     for (let gx = x0; gx < x1; gx += B(r, 1.6, 4.2) * o.s) {
       const by = o.gy + 2 * Math.sin(gx / 70 + ph) * o.s;
-      g.push([gx, by]); const h = B(r, 3, r() < .12 ? 20 : 11) * o.s; g.push([gx + B(r, -2.5, 2.5) * o.s + 1, by - h]); g.push([gx + 2 * o.s, by]);
+      g.push([gx, by]); const h = o.form === "block" && !o.lacy ? 0 : B(r, 3, r() < .12 ? 20 : 11) * o.s; g.push([gx + B(r, -2.5, 2.5) * o.s + 1, by - h]); g.push([gx + 2 * o.s, by]);
     }
     g.push([x1, o.H + 4]); out.ground.push(poly(g));
     if (o.mushrooms) for (let k = 0; k < 2; k++) { const mx = dir < 0 ? B(r, Math.max(far, edge - 260), edge - 20) : B(r, edge + 20, Math.min(far, edge + 260)); out.extra.push(mushroom(mx, o.gy + 2 * Math.sin(mx / 70 + ph) * o.s, o.s * B(r, .7, 1.1))); }
@@ -409,15 +458,16 @@ function svgLayer(W, H, clipX, parts, paint, cls) {
   if (paint.white) {
     body = `<path d="${j(parts.limbs)}" fill="${paint.limb}"/>
       <path d="${j(parts.twigs)}" fill="none" stroke="${paint.limb}" stroke-width="1" stroke-linecap="round"/>
-      <path d="${j(parts.trunks)}" fill="var(--bark)" stroke="${paint.outline}" stroke-width="1"/>
-      <path d="${j(parts.marks)}" fill="var(--bark-ink)"/>
-      <path d="${j(parts.leaves)}" fill="${paint.leaf}"/>
+      <path d="${j(parts.trunks)}" fill="var(--c-trunk)" stroke="${paint.outline}" stroke-width="1"/>
+      <path d="${j(parts.marks)}" fill="var(--c-mark)"/>
+      <path d="${j(parts.leaves)}${j(parts.crowns)}" fill="${paint.leaf}"/>
       <path d="${j(parts.catkins)}" fill="var(--crown-ck)"/>
-      <path d="${j(parts.birds)}" fill="var(--bark-ink)"/>
+      <path d="${j(parts.birds)}" fill="var(--c-mark)"/>
       ${winterGround}<path d="${j(parts.extra)}" fill="${paint.leaf}"/><path d="${j(parts.snow)}" fill="var(--snow)"/>`;
   } else {
     body = `<path d="${j(parts.trunks)}${j(parts.marks)}" fill="${paint.fill}" fill-rule="evenodd"/>
-      <path d="${j(parts.limbs)}${j(parts.leaves)}${j(parts.catkins)}${j(parts.birds)}${j(parts.extra)}" fill="${paint.fill}"/>
+      <path d="${j(parts.limbs)}${j(parts.birds)}${j(parts.extra)}" fill="${paint.fill}"/>
+      <path d="${j(parts.leaves)}${j(parts.catkins)}${j(parts.crowns)}" fill="${paint.leaf || paint.fill}"/>
       <path d="${j(parts.twigs)}" fill="none" stroke="${paint.fill}" stroke-width="${paint.twig}" stroke-linecap="round"/>
       ${winterGround}<path d="${j(parts.snow)}" fill="var(--snow)"/>`;
   }
@@ -428,23 +478,34 @@ function svgLayer(W, H, clipX, parts, paint, cls) {
 
 function forest(W, H, colL, colR) {
   const RAIL = 52;
-  const base = { W, H, season: S.season, sides: [[colL, -1, RAIL, 11], [colR, 1, W, 23]] };
+  const winter = S.season === "winter", form = S.form, crowns = S.crowns === "on";
+  const base = { W, H, season: S.season, form, sides: [[colL, -1, RAIL, 11], [colR, 1, W, 23]] };
+  // the trees behind: with a crown of their own, lower down, if asked for
+  const back = (o) => crowns ? { ...o, crown: true, crownLo: .42, crownHi: .72 } : o;
   const layers = [];
-  const winter = S.season === "winter";
   if (S.variant === "cut") {
     layers.push({ o: { ...base, layer: 0, s: 1, gy: H - 16, gapMin: 42, gapMax: 115, birds: true, mushrooms: true, fall: true }, paint: { id: "f", fill: "var(--f-front)", twig: 1, snowGround: winter }, k: 0 });
   } else if (S.variant === "layers") {
-    layers.push({ o: { ...base, layer: 1, s: .5, gy: H - 92, gapMin: 22, gapMax: 60, density: .8 }, paint: { id: "b", fill: "var(--f-back)", twig: .7 }, cls: "paper", k: .025 });
+    layers.push({ o: back({ ...base, layer: 1, s: .5, gy: H - 92, gapMin: 22, gapMax: 60, density: .8 }), paint: { id: "b", fill: "var(--f-back)", leaf: crowns ? "var(--f-mid)" : null, twig: .7 }, cls: "paper", k: .025 });
     layers.push({ o: { ...base, layer: 2, s: .72, gy: H - 50, gapMin: 34, gapMax: 90, fall: true }, paint: { id: "m", fill: "var(--f-mid)", twig: .8 }, cls: "paper", k: .05 });
     layers.push({ o: { ...base, layer: 3, s: 1, gy: H - 14, gapMin: 70, gapMax: 170, birds: true, mushrooms: true }, paint: { id: "fr", fill: "var(--f-front)", twig: 1, snowGround: winter }, cls: "paper", k: .09 });
   } else if (S.variant === "white") {
-    layers.push({ o: { ...base, layer: 4, s: .62, gy: H - 60, gapMin: 26, gapMax: 70, density: .8 }, paint: { id: "wb", fill: "var(--f-back)", twig: .7 }, k: .03 });
-    layers.push({ o: { ...base, layer: 5, s: 1, gy: H - 14, gapMin: 60, gapMax: 150, birds: true, fall: true }, paint: { id: "wf", white: true, fill: "var(--f-front)", leaf: "color-mix(in oklch, var(--crown) 85%, var(--bg))", limb: "var(--f-front)", outline: "var(--line-strong)", snowGround: winter }, k: 0 });
+    layers.push({ o: back({ ...base, layer: 4, s: .62, gy: H - 60, gapMin: 26, gapMax: 70, density: .8 }), paint: { id: "wb", fill: "var(--g-mid)", leaf: crowns ? "var(--crown-back)" : null, twig: .7 }, k: .03 });
+    layers.push({ o: { ...base, layer: 5, s: 1, gy: H - 14, gapMin: 60, gapMax: 150, birds: true, fall: true }, paint: { id: "wf", white: true, fill: "var(--g-front)", leaf: "var(--c-leaf)", limb: "var(--c-limb)", outline: "var(--c-outline)", snowGround: winter }, k: 0 });
+  } else if (S.variant === "grey") {
+    layers.push({ o: back({ ...base, layer: 8, s: .6, gy: H - 70, gapMin: 24, gapMax: 64, density: .8 }), paint: { id: "gb", fill: "var(--g-back)", leaf: crowns ? "var(--g-crown)" : null, twig: .7 }, k: .03 });
+    layers.push({ o: { ...base, layer: 9, s: 1, gy: H - 14, gapMin: 55, gapMax: 140, birds: true, mushrooms: true }, paint: { id: "gf", fill: "var(--g-front)", twig: 1 }, k: 0 });
   } else {
     layers.push({ o: { ...base, layer: 6, s: .6, gy: H - 40, gapMin: 40, gapMax: 80, lacy: true, density: .9 }, paint: { id: "hb", fill: "var(--f-back)", twig: .7 }, k: .03 });
     layers.push({ o: { ...base, layer: 7, s: .9, gy: H - 12, gapMin: 70, gapMax: 130, lacy: true, fall: true, mushrooms: true }, paint: { id: "hf", fill: "var(--f-mid)", twig: .9, snowGround: winter }, k: 0 });
   }
-  return layers.map((l) => ({ html: svgLayer(W, H, RAIL, wood(l.o), l.paint, l.cls || "flat"), k: l.k }));
+  const made = layers.map((l) => ({ html: svgLayer(W, H, RAIL, wood(l.o), l.paint, l.cls || "flat"), k: l.k }));
+  // the night of the white birches: a pale moon behind them, on the wider side
+  if (S.variant === "white" && S.mode === "dark" && W - colR > 140) {
+    const mx = colR + Math.min((W - colR) * .55, 300), my = 170;
+    made.unshift({ k: .01, html: `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><defs><radialGradient id="glow"><stop offset="0" stop-color="var(--moon)" stop-opacity=".35"/><stop offset="1" stop-color="var(--moon)" stop-opacity="0"/></radialGradient></defs><circle cx="${mx}" cy="${my}" r="130" fill="url(#glow)"/><circle cx="${mx}" cy="${my}" r="24" fill="var(--moon)"/></svg>` });
+  }
+  return made;
 }
 
 // ---------- the bark of the trunk in the first panel ----------
@@ -506,6 +567,8 @@ function seg(id, items, key, cast) {
   el.addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S[key] = cast ? cast(b.dataset.v) : b.dataset.v; sync(); syncNotes(); save(); build(); });
   sync(); return sync;
 }
+seg("c-form", [["organic", "Organisch"], ["plain", "Schlicht"], ["block", "Blockig"]], "form");
+seg("c-crowns", [["off", "Aus"], ["on", "An"]], "crowns");
 const syncVariant = seg("c-variant", VARIANTS.map((v) => [v.id, v.key + " · " + v.name]), "variant");
 seg("c-season", SEASONS, "season");
 seg("c-mode", MODES, "mode");
