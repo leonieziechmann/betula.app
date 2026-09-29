@@ -387,7 +387,7 @@ fn ProgramSidebar(
                                     shape.set(option);
                                     nav::local_set(PLAN_SHAPE_KEY, option.code());
                                 }
-                            >{option.label(t)}</button>
+                            ><span class="seg-label">{option.label(t)}</span></button>
                         }
                     }).collect_view()}
                 </div>

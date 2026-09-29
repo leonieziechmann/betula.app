@@ -1766,7 +1766,7 @@ fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<O
                     title=title
                     aria-checked=move || if query.with(|q| is_on(q)) { "true" } else { "false" }
                 >
-                    {label}
+                    <span class="seg-label">{label}</span>
                     {count.map(|count| view! { <span class="num">{move || count.get().map(|count| format::count(count, t.locale))}</span> })}
                 </a>
             }

@@ -442,7 +442,7 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
                 data-noscroll=""
                 aria-checked=move || if url.with(|url| url.season == season) { "true" } else { "false" }
             >
-                {label}<span class="num">{move || format::count(count(), t.locale)}</span>
+                <span class="seg-label">{label}</span><span class="num">{move || format::count(count(), t.locale)}</span>
             </a>
         }
     };

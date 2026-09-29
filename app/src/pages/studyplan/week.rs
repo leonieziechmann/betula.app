@@ -340,7 +340,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: M
                     .map(|(i, week)| {
                         view! {
                             <button type="button" role="radio" aria-checked=move || if current.get() == i { "true" } else { "false" } on:click=move |_| ctx.weeks.set(week)>
-                                {week_label(week, t)}
+                                <span class="seg-label">{week_label(week, t)}</span>
                             </button>
                         }
                     })
@@ -407,12 +407,12 @@ pub(super) fn WeekSwitch(weeks: RwSignal<Weeks>) -> impl IntoView {
     let choice = move |week: Weeks| {
         view! {
             <button type="button" role="radio" aria-checked=move || if weeks.get() == week { "true" } else { "false" } on:click=move |_| weeks.set(week)>
-                {week_label(week, t)}
+                <span class="seg-label">{week_label(week, t)}</span>
             </button>
         }
     };
     view! {
-        <div class="seg sp-weeks" role="radiogroup" aria-label=t.studyplan_week.week>
+        <div class="seg hug sp-weeks" role="radiogroup" aria-label=t.studyplan_week.week>
             {WEEKS.into_iter().map(choice).collect_view()}
         </div>
     }
@@ -427,12 +427,12 @@ pub(super) fn AllSwitch(all: RwSignal<bool>) -> impl IntoView {
     let choice = move |(value, label): (bool, &'static str)| {
         view! {
             <button type="button" role="radio" aria-checked=move || if all.get() == value { "true" } else { "false" } on:click=move |_| all.set(value)>
-                {label}
+                <span class="seg-label">{label}</span>
             </button>
         }
     };
     view! {
-        <div class="seg sp-all" role="radiogroup" aria-label=t.studyplan_week.sessions_switch>
+        <div class="seg hug sp-all" role="radiogroup" aria-label=t.studyplan_week.sessions_switch>
             {[(false, t.studyplan_week.plan), (true, t.studyplan_week.all_sessions)].into_iter().map(choice).collect_view()}
         </div>
     }

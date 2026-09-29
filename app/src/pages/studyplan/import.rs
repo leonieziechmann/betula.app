@@ -273,10 +273,10 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
     view! {
         <div class="fgroup sp-import" id="sp-import">
             <p class="flabel label">{s.import}</p>
-            <div class="seg" role="radiogroup" aria-label=s.source>
-                <button type="button" role="radio" aria-checked="true">{s.standard_plan}</button>
+            <div class="seg hug" role="radiogroup" aria-label=s.source>
+                <button type="button" role="radio" aria-checked="true"><span class="seg-label">{s.standard_plan}</span></button>
                 <button type="button" role="radio" aria-checked="false" aria-disabled="true" title=s.my_plan_soon>
-                    {s.my_plan}<small>{s.soon}</small>
+                    <span class="seg-label">{s.my_plan}</span><small>{s.soon}</small>
                 </button>
             </div>
             {move || match state.get() {

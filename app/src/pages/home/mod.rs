@@ -569,7 +569,7 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                     <i class="show-mark" aria-hidden="true"></i>
                     {slides.iter().enumerate().map(|(i, slide)| view! {
                         <button type="button" role="radio" aria-checked=move || (current.get() == i).to_string() on:click=move |_| show(i)>
-                            {slide.tab}
+                            <span class="seg-label">{slide.tab}</span>
                             // The time until the next picture; when it is full, the next one comes.
                             {move || (current.get() == i).then(|| view! { <i class="show-progress" on:animationend=move |_| next()></i> })}
                         </button>
