@@ -432,65 +432,98 @@
   // On a wide screen the page scrolls inside the view and the ground (`.ground`) waits below the
   // window's edge (app.css, „the birch"). The window only gets room to scroll while the page is at
   // its end (`data-ground="end"`): the wheel then goes on from the page to the window, and as far as
-  // the window scrolls, the ground comes up and the view gets shorter (`in`). A page that was at its
-  // end stays there, so its end goes up with the ground; the panels beside it are only cut off (their
-  // bodies keep their height by a negative margin), and the wood behind the page rises with
-  // the ground, so its birches stand on it. The inset goes straight onto the boxes that move,
-  // once per frame, and nothing else is written while it does not change: a property or an
-  // attribute of <html> set in every frame made the browser restyle the whole page in every frame.
-  // On the way back the ground leaves first: while it shows, the wheel upwards and the wheel over a
-  // panel beside the page belong to the window. Should the page leave its end all the same (its
-  // scrollbar, a question opened, another page), the ground goes down by itself. A phone scrolls
-  // page and ground with the window and needs none of this.
+  // the window scrolls, the ground comes up (`in`), and the wood behind the page with it, so its
+  // birches stand on it. While the window scrolls, nothing else moves and nothing is laid out: the
+  // ground slides over the panels, which are cut off 8 px above it (a clip on the view), and moving
+  // it is a transform. Only once the window has stood still for a moment is the view laid out, once,
+  // as much shorter as the ground shows (owner, 2026-09-29: the view laid out in every frame was
+  // laggy, „so dass sich die windows erst resizen, wenn man mit scrollen fertig ist"): a page that
+  // was at its end stays there, so its end shows above the ground, and the panels beside it end
+  // above the ground and scroll as far as their content goes. Going down, the ground leaves the
+  // panels as they are until the window stands still, and they grow to it then. The inset goes
+  // straight onto the boxes that move, and nothing is written that does not change: a property or
+  // an attribute of <html> set in every frame made the browser restyle the whole page in every
+  // frame. On the way back the ground leaves first: while it shows, the wheel upwards belongs to
+  // the window. Should the page leave its end all the same (its scrollbar, a question opened,
+  // another page), the ground goes down by itself. A phone scrolls page and ground with the window
+  // and needs none of this.
   const PAGE = "#content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
   const atEnd = (el) => el.scrollHeight - el.clientHeight - el.scrollTop < 2;
-  let groundIn = 0;
+  const STILL = 150; // ms the window stands still before the view is laid out for the ground
+  let shown = 0; // how far the ground is in (its shift, the wood's, the clip on the view)
+  let laid = 0; // how far the view is laid out for
   let groundFrame = 0;
+  let stillTimer = 0;
   let leaving = false;
   let changed = false; // the page changed while the ground shows: its boxes may be new ones
   const glide = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
   const groundWheel = (e) => {
     if (e.ctrlKey || e.target.closest?.(".combo-pop, dialog")) return;
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
-    if (dy >= 0 && !e.target.closest?.(".sidebar, .filters, .work > .detail")) return;
+    if (dy >= 0) return;
     e.preventDefault();
     // A mouse wheel's notch glides, as the browser's own scrolling does; a touchpad follows the finger.
     window.scrollBy({ top: dy, behavior: Math.abs(dy) >= 50 ? glide() : "instant" });
   };
-  const BESIDE = ".sidebar > .body, .filters > form, .work > .detail > .scroll";
-  const put = (el, property, value) => { if (!el) return; if (value) el.style.setProperty(property, value); else el.style.removeProperty(property); };
-  const setGround = (inset) => {
-    if (inset && !groundIn) addEventListener("wheel", groundWheel, { passive: false });
-    if (!inset && groundIn) removeEventListener("wheel", groundWheel, { passive: false });
-    groundIn = inset;
-    put(document.querySelector(".main"), "height", inset && `calc(100vh - ${inset}px)`);
-    put(document.querySelector(".ground"), "transform", inset && `translateY(calc(var(--ground-reach) - ${inset}px))`);
+  const written = new WeakMap(); // what was last put on a box, so that the same is not put again
+  const put = (el, property, value) => {
+    if (!el) return;
+    const was = written.get(el) || {};
+    if (was[property] === (value || "")) return;
+    written.set(el, { ...was, [property]: value || "" });
+    if (value) el.style.setProperty(property, value); else el.style.removeProperty(property);
+  };
+  const applyGround = () => {
+    const main = document.querySelector(".main");
+    put(main, "height", laid && `calc(100vh - ${laid}px)`);
+    // Until the view is laid out for it, the ground covers the lower end of the panels: they are
+    // cut off where they will end (outwards the clip goes far enough for their shadows).
+    put(main, "clip-path", shown > laid && `inset(-100vmax -100vmax calc(${shown - laid}px + var(--gap)) -100vmax)`);
+    put(document.querySelector(".ground"), "transform", shown && `translateY(calc(var(--ground-reach) - ${shown}px))`);
     // The wood behind the page stands on the ground: its foot goes up with the ground's edge.
-    put(document.querySelector(".wood"), "transform", inset && `translateY(${-inset}px)`);
-    for (const el of document.querySelectorAll(BESIDE)) put(el, "margin-bottom", inset && `${-inset}px`);
+    put(document.querySelector(".wood"), "transform", shown && `translateY(${-shown}px)`);
+  };
+  // The view is laid out for the ground where it is; a page at its end stays there.
+  const layGround = (page) => {
+    const stays = page && !leaving && atEnd(page); // measured before the view changes
+    applyGround();
+    if (stays && !atEnd(page)) page.scrollTop = page.scrollHeight;
+  };
+  const groundStill = () => {
+    stillTimer = 0;
+    if (laid === shown || phone()) return;
+    laid = shown;
+    layGround(document.querySelector(PAGE));
   };
   const ground = () => {
     groundFrame = 0;
     if (phone()) {
-      if (groundIn) setGround(0);
+      if (shown) removeEventListener("wheel", groundWheel, { passive: false });
+      if (shown || laid) { shown = laid = 0; applyGround(); }
       if (root.dataset.ground) delete root.dataset.ground;
       return;
     }
     const page = document.querySelector(PAGE);
     const inset = Math.max(0, Math.round(window.scrollY));
-    if (inset !== groundIn || (inset && changed)) {
-      const stays = page && !leaving && atEnd(page); // measured before the view changes
-      setGround(inset);
-      if (stays) page.scrollTop = page.scrollHeight;
+    const moved = inset !== shown;
+    if (moved) {
+      if (inset && !shown) addEventListener("wheel", groundWheel, { passive: false });
+      if (!inset && shown) removeEventListener("wheel", groundWheel, { passive: false });
+      shown = inset;
+      clearTimeout(stillTimer);
+      stillTimer = setTimeout(groundStill, STILL);
     }
+    // Moving the ground lays nothing out; a page that changed may have new boxes.
+    if (changed && (shown || laid)) layGround(page);
+    else if (moved) applyGround();
     changed = false;
     const end = !page || atEnd(page);
-    if (!groundIn || end) leaving = false;
+    if (!shown || end) leaving = false;
     else if (!leaving) {
       leaving = true;
       window.scrollTo({ top: 0, behavior: glide() });
     }
-    const state = groundIn ? "in" : end ? "end" : "mid";
+    const state = shown ? "in" : end ? "end" : "mid";
     if (root.dataset.ground !== state) root.dataset.ground = state;
   };
   const groundSoon = () => { if (!groundFrame) groundFrame = requestAnimationFrame(ground); };

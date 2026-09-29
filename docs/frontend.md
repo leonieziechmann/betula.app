@@ -1057,34 +1057,41 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   the date of the data, the semester and the source. In autumn fallen leaves lie on its edge.
 - **How it comes** („Kopfzeile bleibt, Tafeln werden kürzer", and after the first build: „der
   Content darf nur EINE Scrollbar haben", the rail must not move, the panel on the left is „nur
-  abgeschnitten verkleinert" and does not scroll): on a wide screen the page scrolls inside the view
-  as always, and its scrollbar is the only one — the window's is never shown. The ground waits below
-  the window's edge, fixed to the window. While the page is not at its end the window has no room
-  to scroll (`data-ground="mid"` on `<html>`), so the wheel over the header or the rail changes
-  nothing. At its end (`end`) the window gets room for exactly the ground and the gap above it;
-  the next turn of the wheel goes on from the page to the window, and as far as the window
-  scrolls, the ground comes up and the view gets shorter (`in`). `enhance.js` writes how far
-  straight onto the boxes that move, once per frame (the view's height, the ground's shift, the
-  bodies of the panels beside the page); the first build set a custom property on `<html>`, and
-  the browser worked out the style of the whole page again in every frame — „mega laggy": a glide
-  into the ground and back on the start page cost 391 ms of style, now 48 (plain scrolling there:
-  22), with no long frame left. The rail and the view stick to the window's top, so nothing else
-  moves. The page stays at its end, so its end goes up with the ground (a short list, which has
-  no end to reach, simply gets a shorter panel); the panels beside it keep the height of their
-  content and are cut off by their shorter box (`.sidebar > .body`, `.filters > form`,
-  `.work > .detail > .scroll` get as much as the ground shows as a negative margin), and while the ground
-  shows the wheel over them goes to the window, so they do not scroll. Upwards the ground leaves
-  first (the wheel upwards belongs to the window while it shows), then the page scrolls. A page
-  that leaves its end under the ground all the same — its scrollbar, a question opened, another
-  page — sends the ground back down; Tab into the ground brings it up. Every panel ends 8 px above
-  the ground, as above the window's edge (a framed page keeps 1 px under its last panel, not 24).
-  Without `enhance.js` the ground lies after the view in the body's second row and the window
-  scrolls to it; on a phone the ground follows the page, full width, the bottom bar floating over
-  its lower part, and the crown carries the frosted background of the bar at the top. A page
-  shorter than the window does not leave the ground floating halfway up the screen (owner,
-  2026-09-26: „mindestens unten bündig"): the body is a column at least as high as the window
-  (`100dvh`, the window with the browser's bars as they are), the view takes the room that is
-  left, and the ground ends at the window's lower edge.
+  abgeschnitten verkleinert"; since 2026-09-29 it scrolls to its end with the ground in): on a wide
+  screen the page scrolls inside the view as always, and its scrollbar is the only one — the
+  window's is never shown. The ground waits below the window's edge, fixed to the window. While the
+  page is not at its end the window has no room to scroll (`data-ground="mid"` on `<html>`), so the
+  wheel over the header or the rail changes nothing. At its end (`end`) the window gets room for
+  exactly the ground and the gap above it; the next turn of the wheel goes on from the page to the
+  window, and as far as the window scrolls, the ground comes up (`in`). The rail and the view stick
+  to the window's top, so nothing else moves. The view is laid out for the ground only once the
+  window stands still (owner, 2026-09-29: the footer coming up was laggy on the desktop, „so dass
+  sich die windows erst resizen, wenn man mit scrollen fertig ist"): while it scrolls, `enhance.js`
+  moves the ground and the wood by a transform and cuts the panels off 8 px above the ground (a
+  `clip-path` on `.main`), and 150 ms after the window's last move it gives the view its height,
+  once. Before, the view got shorter in every frame, and the page, the list and the panels beside it
+  were laid out and drawn again in every frame: a glide into the ground and back on the catalog, as
+  a touchpad does it (headless Chromium), cost 68 layouts, 214 ms of paint and 992 ms of raster, now
+  12, 60 and about 110 — the wood is a layer of its own for it (`will-change`), moved and not drawn
+  again. (The first build of all set a custom property on `<html>`, and the browser worked out the
+  style of the whole page again in every frame — „mega laggy"; the inset still goes straight onto
+  the boxes that move, and only what changes.) The page stays at its end, so once the view is laid
+  out its end shows above the ground (a short list, which has no end to reach, simply gets a shorter
+  panel); the panels beside it end above the ground as well and scroll as far as their content goes,
+  the wheel over them downwards is theirs (owner, the same day: with the ground in, the sidebar did
+  not scroll far enough to show all of it — its body kept its height by a negative margin, and the
+  wheel over it went to the window). Going down, the ground leaves the panels as they are until the
+  window stands still, and they grow to it then. Upwards the ground leaves first (the wheel upwards
+  belongs to the window while it shows), then the page scrolls. A page that leaves its end under the
+  ground all the same — its scrollbar, a question opened, another page — sends the ground back down;
+  Tab into the ground brings it up. Every panel ends 8 px above the ground, as above the window's
+  edge (a framed page keeps 1 px under its last panel, not 24). Without `enhance.js` the ground lies
+  after the view in the body's second row and the window scrolls to it; on a phone the ground
+  follows the page, full width, the bottom bar floating over its lower part, and the crown carries
+  the frosted background of the bar at the top. A page shorter than the window does not leave the
+  ground floating halfway up the screen (owner, 2026-09-26: „mindestens unten bündig"): the body is
+  a column at least as high as the window (`100dvh`, the window with the browser's bars as they
+  are), the view takes the room that is left, and the ground ends at the window's lower edge.
 
 The pieces: `app/src/ground.rs` (`Crown`, `Ground`; the ground's data is `pages::ground`, the meta
 and the current semester), „the birch" in `app/assets/app.css`, the ground's behaviour in
