@@ -11,7 +11,8 @@
 // programs, the catalog and the Stundenplan that follow what this browser has done, with the way
 // into the search at the top and, at its foot, the jumps to the sections. The questions open in
 // place, „Betula im Detail" follows them with its chapters and every filter (on a phone the
-// board's first groups, the others a tap away), the head describes the page shown.
+// board's first groups, the others a tap away): its chips switch in place, the number of modules
+// under the board follows and leads into the catalog. The head describes the page shown.
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { chromium } from "playwright-core";
@@ -47,6 +48,9 @@ check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-t
 // no branches out of the panels.
 check(["home-program", "start-program"].every((id) => new RegExp(`<a id="${id}" href="/programs" class="[^"]*program-pick">`).test(html)), "server HTML: „Studiengang wählen\" does not lead to the programs");
 check(html.includes('<div class="wood" aria-hidden="true"></div>') && !html.includes('class="branch'), "server HTML: no wood behind the page, or branches still there");
+// The board of the filters without the app: a picture, no chip a link out of the page (owner,
+// 2026-09-29); under it the way to its example.
+check(!/<a [^>]*class="chip"/.test(html) && /class="board-foot"[^>]*><a [^>]*href="\/catalog\?[^"]+"/.test(html), "server HTML: a chip of the board is a link, or the board leads nowhere");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
@@ -247,22 +251,43 @@ await page.click(".faq summary >> nth=1");
 check(await page.evaluate(() => document.querySelectorAll(".faq details[open]").length === 1), "a question does not open");
 check(await page.evaluate(() => document.querySelectorAll(".faq-group").length === 3), "the questions are not in three groups");
 // After the questions „Betula im Detail": its row of chapters, the chapters, and every group of
-// the filter panel with its chips leading into the catalog.
+// the filter panel, each chip that filters by itself a switch and none a link.
 const detail = await page.evaluate(() => ({
   nav: [...document.querySelectorAll("#im-detail .detail-nav a")].map((a) => a.getAttribute("href")).join(),
   chapters: [...document.querySelectorAll(".home .feature")].map((section) => "#" + section.id).join(),
   groups: document.querySelectorAll(".board .bgroup").length,
-  chips: [...document.querySelectorAll(".board a.chip")].every((a) => a.getAttribute("href").startsWith("/catalog?")),
+  switches: document.querySelectorAll(".board button.chip[role=checkbox]").length,
+  chipLinks: document.querySelectorAll("#filter a.chip").length,
   example: document.querySelector(".board-foot a")?.getAttribute("href"),
   links: [...document.querySelectorAll(".feature-link")].map((a) => a.getAttribute("href")).join(),
 }));
-check(detail.nav === detail.chapters && detail.chapters.split(",").length === 8 && detail.groups === 12 && detail.chips, `„Betula im Detail" is not what it was: ${JSON.stringify(detail)}`);
+check(detail.nav === detail.chapters && detail.chapters.split(",").length === 8 && detail.groups === 12 && detail.switches === 25 && detail.chipLinks === 0, `„Betula im Detail" is not what it was: ${JSON.stringify(detail)}`);
 check(/^\/catalog\?/.test(detail.example || "") && detail.links === "/catalog,/programs,/studyplan,/datenschutz", `„Betula im Detail" leads nowhere: ${JSON.stringify(detail)}`);
 // Its last chapter shows the catalog and a module on a phone: in the theme shown only.
 await page.evaluate(() => document.getElementById("geraete").scrollIntoView({ block: "center" }));
 await page.waitForFunction(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).every((img) => img.complete && img.naturalWidth > 0));
 check(images.every((path) => !path.includes("-dark") && (!path.includes("-phone") || path.endsWith("/module-phone.webp"))), `wrong pictures fetched: ${images}`);
 check(await page.evaluate(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).length) === 2, "„Geräte und Sprachen\" does not show one theme's pictures");
+
+// A chip of the board switches in place (owner, 2026-09-29: it led straight into the catalog):
+// off, with, without, as in the catalog's panel; the number under the board follows, and its
+// button opens the catalog with that selection, which counts the same.
+const foot = () => page.evaluate(() => ({ text: document.querySelector(".board-foot a")?.textContent, href: document.querySelector(".board-foot a")?.getAttribute("href") }));
+const summer = page.locator(".board button.chip", { hasText: "Sommer" });
+const example = await foot();
+await summer.click();
+const withSummer = await foot();
+await summer.click();
+const withoutSummer = { ...(await foot()), state: await summer.getAttribute("data-state") };
+check(withSummer.text !== example.text && withSummer.href.includes("summer") && withoutSummer.state === "without" && withoutSummer.href.includes("not-turnus=summer"), `a chip of the board does not switch the count: ${JSON.stringify([example, withSummer, withoutSummer])}`);
+check(await page.evaluate(() => location.pathname === "/" && window.__marker === 1), "a chip of the board left the page");
+await page.locator(".board .seg button", { hasText: "1 Semester" }).click();
+const chosen = await foot();
+check(chosen.href.includes("duration=1") && chosen.text !== withoutSummer.text, `the duration of the board does not choose: ${JSON.stringify(chosen)}`);
+await page.click(".board-foot a");
+await page.waitForFunction((href) => location.pathname + location.search === href, chosen.href, { timeout: 5000 }).catch(() => failures.push("the board's button does not open its selection in the catalog"));
+await page.waitForFunction((text) => document.querySelector(".list .count") && text.includes(`: ${document.querySelector(".list .count").textContent} `), chosen.text, { timeout: 5000 }).catch(() => failures.push(`the catalog does not count what the board counted (${chosen.text})`));
+check(await page.evaluate(() => window.__marker === 1), "the board's button loaded a page");
 
 // What this browser has done shows on the way in: with a program set as „Mein Studiengang" (the
 // pick above) and a module marked those two steps are done and name it, and the Stundenplan is

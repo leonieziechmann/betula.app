@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use catalog::filter::{CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey};
+use catalog::filter::{CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey, TurnusFilter};
 use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
 use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData, CatalogSummary, FitResult};
 use catalog::plan::SemesterPlan;
@@ -1557,23 +1557,44 @@ fn changed(query: Memo<CatalogQuery>, change: impl FnOnce(&mut CatalogQuery)) ->
 
 /// A filter value is off, wanted, or unwanted („keine Vorträge").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Tri {
+pub(crate) enum Tri {
     Off,
     With,
     Without,
+}
+
+impl Tri {
+    /// The chip's `data-state`, which the stylesheet draws.
+    pub(crate) fn code(self) -> &'static str {
+        match self {
+            Tri::Off => "off",
+            Tri::With => "with",
+            Tri::Without => "without",
+        }
+    }
+
+    /// The chip's `aria-checked`: an unwanted value is „mixed".
+    pub(crate) fn checked(self) -> &'static str {
+        match self {
+            Tri::Off => "false",
+            Tri::With => "true",
+            Tri::Without => "mixed",
+        }
+    }
 }
 
 type ReadTri = dyn Fn(&CatalogQuery) -> Tri + Send + Sync;
 type WriteTri = dyn Fn(&mut CatalogQuery, Tri) + Send + Sync;
 type Held = dyn Fn(&CatalogQuery) -> bool + Send + Sync;
 
-/// How a chip reads its state from the filter and writes it back.
+/// How a chip reads its state from the filter and writes it back. The board of the filters on the
+/// start page (`home::detail`) switches its chips with the same toggles.
 #[derive(Clone)]
-struct Toggle {
-    read: Arc<ReadTri>,
-    write: Arc<WriteTri>,
+pub(crate) struct Toggle {
+    pub(crate) read: Arc<ReadTri>,
+    pub(crate) write: Arc<WriteTri>,
     /// Off → with → without → off. Otherwise only off ↔ with.
-    excludes: bool,
+    pub(crate) excludes: bool,
     /// When the filter is such that the chip has to stay as it is (the last class the finder
     /// compares), and why: it is no link then.
     held: Option<(Arc<Held>, &'static str)>,
@@ -1614,8 +1635,24 @@ impl Toggle {
         )
     }
 
+    pub(crate) fn teaching_form(form: TeachingForm) -> Self {
+        Self::in_lists(form, |q| (&q.teaching_forms, &q.teaching_forms_exclude), |q| (&mut q.teaching_forms, &mut q.teaching_forms_exclude))
+    }
+
+    pub(crate) fn exam_part(part: ExamPart) -> Self {
+        Self::in_lists(part, |q| (&q.exam_parts, &q.exam_parts_exclude), |q| (&mut q.exam_parts, &mut q.exam_parts_exclude))
+    }
+
+    pub(crate) fn language(language: Language) -> Self {
+        Self::in_lists(language, |q| (&q.languages, &q.languages_exclude), |q| (&mut q.languages, &mut q.languages_exclude))
+    }
+
+    pub(crate) fn campus(campus: Campus) -> Self {
+        Self::in_lists(campus, |q| (&q.campuses, &q.campuses_exclude), |q| (&mut q.campuses, &mut q.campuses_exclude))
+    }
+
     /// „Only such modules" / „no such modules" on a yes-no property.
-    fn flag(get: fn(&CatalogQuery) -> Option<bool>, set: fn(&mut CatalogQuery, Option<bool>)) -> Self {
+    pub(crate) fn flag(get: fn(&CatalogQuery) -> Option<bool>, set: fn(&mut CatalogQuery, Option<bool>)) -> Self {
         Self::new(
             move |q| match get(q) {
                 Some(true) => Tri::With,
@@ -1635,7 +1672,34 @@ impl Toggle {
         )
     }
 
-    fn after(&self, state: Tri) -> Tri {
+    /// A season of the turnus (winter, summer, irregular): wanted in the first of its two fields,
+    /// unwanted in the second.
+    pub(crate) fn turnus(fields: fn(&TurnusFilter) -> (bool, bool), fields_mut: fn(&mut TurnusFilter) -> (&mut bool, &mut bool)) -> Self {
+        Self::new(
+            move |q| match fields(&q.turnus) {
+                (true, _) => Tri::With,
+                (_, true) => Tri::Without,
+                _ => Tri::Off,
+            },
+            move |q, state| {
+                let (with, without) = fields_mut(&mut q.turnus);
+                (*with, *without) = (state == Tri::With, state == Tri::Without);
+            },
+        )
+    }
+
+    /// „Auch nicht angebotene zeigen": every offer status instead of the default ones.
+    pub(crate) fn show_not_offered() -> Self {
+        Self {
+            excludes: false,
+            ..Self::new(
+                |q| if q.offer.as_ref().is_some_and(|offer| offer.contains(&OfferStatus::NotOffered)) { Tri::With } else { Tri::Off },
+                |q, state| q.offer = (state == Tri::With).then(|| OfferStatus::ALL.to_vec()),
+            )
+        }
+    }
+
+    pub(crate) fn after(&self, state: Tri) -> Tri {
         match state {
             Tri::Off => Tri::With,
             Tri::With if self.excludes => Tri::Without,
@@ -1701,16 +1765,8 @@ fn Chip(
             rel="nofollow"
             draggable="false"
             data-noscroll=""
-            data-state=move || match state.get() {
-                Tri::Off => "off",
-                Tri::With => "with",
-                Tri::Without => "without",
-            }
-            aria-checked=move || match state.get() {
-                Tri::Off => "false",
-                Tri::With => "true",
-                Tri::Without => "mixed",
-            }
+            data-state=move || state.get().code()
+            aria-checked=move || state.get().checked()
             aria-expanded=move || opens.then(|| if state.get() == Tri::With { "true" } else { "false" })
             aria-label=move || match state.get() {
                 Tri::Without => (t.catalog.excluded)(&name),
@@ -1733,22 +1789,40 @@ fn Chip(
 }
 
 /// One of a few: a row of links that fills the width, the chosen one raised.
-struct Choice {
-    label: String,
+pub(crate) struct Choice {
+    pub(crate) label: String,
     title: Option<&'static str>,
     count: Option<Signal<Option<u64>>>,
-    is_on: Arc<dyn Fn(&CatalogQuery) -> bool + Send + Sync>,
-    choose: Arc<dyn Fn(&mut CatalogQuery) + Send + Sync>,
+    pub(crate) is_on: Arc<dyn Fn(&CatalogQuery) -> bool + Send + Sync>,
+    pub(crate) choose: Arc<dyn Fn(&mut CatalogQuery) + Send + Sync>,
 }
 
 impl Choice {
-    fn new(
+    pub(crate) fn new(
         label: impl Into<String>,
         is_on: impl Fn(&CatalogQuery) -> bool + Send + Sync + 'static,
         choose: impl Fn(&mut CatalogQuery) + Send + Sync + 'static,
     ) -> Self {
         Self { label: label.into(), title: None, count: None, is_on: Arc::new(is_on), choose: Arc::new(choose) }
     }
+}
+
+/// „Dauer": any, one semester, two.
+pub(crate) fn duration_choices(t: &'static i18n::Texts) -> Vec<Choice> {
+    vec![
+        Choice::new(t.catalog.any, |q| q.duration_semesters.is_none(), |q| q.duration_semesters = None),
+        Choice::new((t.catalog.semesters)(1), |q| q.duration_semesters == Some(1), |q| q.duration_semesters = Some(1)),
+        Choice::new((t.catalog.semesters)(2), |q| q.duration_semesters == Some(2), |q| q.duration_semesters = Some(2)),
+    ]
+}
+
+/// „Nur in geraden / ungeraden Jahren": any, even, odd.
+pub(crate) fn years_choices(t: &'static i18n::Texts) -> Vec<Choice> {
+    vec![
+        Choice::new(t.catalog.any, |q| q.turnus.year_parity.is_none(), |q| q.turnus.year_parity = None),
+        Choice::new(t.catalog.even, |q| q.turnus.year_parity == Some(TurnusParity::Even), |q| q.turnus.year_parity = Some(TurnusParity::Even)),
+        Choice::new(t.catalog.odd, |q| q.turnus.year_parity == Some(TurnusParity::Odd), |q| q.turnus.year_parity = Some(TurnusParity::Odd)),
+    ]
 }
 
 fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, label: &'static str, choices: Vec<Choice>, t: &'static i18n::Texts) -> impl IntoView {
@@ -2241,38 +2315,29 @@ fn Filters(
                     <div class="fgroup">
                         <div class="flabel label">{t.catalog.offered_in}<span class="legend"><i class="box with"><Icon name="check"/></i>{t.catalog.with}<i class="box without"><Icon name="x"/></i>{t.catalog.without}</span></div>
                         <div class="chips">
-                            {chip(t.catalog.winter_chip, Some("snowflake"), Toggle::new(
-                                |q| if q.turnus.winter { Tri::With } else if q.turnus.not_winter { Tri::Without } else { Tri::Off },
-                                |q, state| (q.turnus.winter, q.turnus.not_winter) = (state == Tri::With, state == Tri::Without),
-                            ))}
-                            {chip(t.catalog.summer_chip, Some("sun"), Toggle::new(
-                                |q| if q.turnus.summer { Tri::With } else if q.turnus.not_summer { Tri::Without } else { Tri::Off },
-                                |q, state| (q.turnus.summer, q.turnus.not_summer) = (state == Tri::With, state == Tri::Without),
-                            ))}
-                            {chip(t.catalog.irregular_chip, Some("shuffle"), Toggle::new(
-                                |q| if q.turnus.irregular { Tri::With } else if q.turnus.not_irregular { Tri::Without } else { Tri::Off },
-                                |q, state| (q.turnus.irregular, q.turnus.not_irregular) = (state == Tri::With, state == Tri::Without),
-                            ))}
+                            {chip(t.catalog.winter_chip, Some("snowflake"), Toggle::turnus(|f| (f.winter, f.not_winter), |f| (&mut f.winter, &mut f.not_winter)))}
+                            {chip(t.catalog.summer_chip, Some("sun"), Toggle::turnus(|f| (f.summer, f.not_summer), |f| (&mut f.summer, &mut f.not_summer)))}
+                            {chip(t.catalog.irregular_chip, Some("shuffle"), Toggle::turnus(|f| (f.irregular, f.not_irregular), |f| (&mut f.irregular, &mut f.not_irregular)))}
                         </div>
                     </div>
                     <div class="fgroup">
                         <div class="flabel label">{t.catalog.teaching_form}</div>
                         <div class="chips">
                             {[TeachingForm::Lecture, TeachingForm::Exercise, TeachingForm::Seminar, TeachingForm::Practical, TeachingForm::Project, TeachingForm::Excursion]
-                                .iter().map(|form| chip(form.label(t.locale), None, Toggle::in_lists(*form, |q| (&q.teaching_forms, &q.teaching_forms_exclude), |q| (&mut q.teaching_forms, &mut q.teaching_forms_exclude)))).collect_view()}
+                                .iter().map(|form| chip(form.label(t.locale), None, Toggle::teaching_form(*form))).collect_view()}
                         </div>
                     </div>
                     <div class="fgroup">
                         <div class="flabel label">{t.catalog.exam}</div>
                         <div class="chips">
-                            {ExamPart::ALL.iter().map(|part| chip(part.short_label(t.locale), None, Toggle::in_lists(*part, |q| (&q.exam_parts, &q.exam_parts_exclude), |q| (&mut q.exam_parts, &mut q.exam_parts_exclude)))).collect_view()}
+                            {ExamPart::ALL.iter().map(|part| chip(part.short_label(t.locale), None, Toggle::exam_part(*part))).collect_view()}
                         </div>
                     </div>
                     <Credits query go/>
                     <div class="fgroup">
                         <div class="flabel label">{t.catalog.language}</div>
                         <div class="chips">
-                            {Language::ALL.iter().map(|language| chip(language.label(t.locale), None, Toggle::in_lists(*language, |q| (&q.languages, &q.languages_exclude), |q| (&mut q.languages, &mut q.languages_exclude)))).collect_view()}
+                            {Language::ALL.iter().map(|language| chip(language.label(t.locale), None, Toggle::language(*language))).collect_view()}
                         </div>
                     </div>
                     <div class="fgroup">
@@ -2301,32 +2366,18 @@ fn Filters(
                         <div class="flabel label">{t.catalog.department}</div>
                         {department_picker}
                         <div class="flabel label">{t.catalog.duration}</div>
-                        {segmented(query, open, fill, t.catalog.duration, vec![
-                            Choice::new(t.catalog.any, |q| q.duration_semesters.is_none(), |q| q.duration_semesters = None),
-                            Choice::new((t.catalog.semesters)(1), |q| q.duration_semesters == Some(1), |q| q.duration_semesters = Some(1)),
-                            Choice::new((t.catalog.semesters)(2), |q| q.duration_semesters == Some(2), |q| q.duration_semesters = Some(2)),
-                        ], t)}
+                        {segmented(query, open, fill, t.catalog.duration, duration_choices(t), t)}
                         <div class="flabel label">{t.catalog.years_only}</div>
-                        {segmented(query, open, fill, t.catalog.years, vec![
-                            Choice::new(t.catalog.any, |q| q.turnus.year_parity.is_none(), |q| q.turnus.year_parity = None),
-                            Choice::new(t.catalog.even, |q| q.turnus.year_parity == Some(TurnusParity::Even), |q| q.turnus.year_parity = Some(TurnusParity::Even)),
-                            Choice::new(t.catalog.odd, |q| q.turnus.year_parity == Some(TurnusParity::Odd), |q| q.turnus.year_parity = Some(TurnusParity::Odd)),
-                        ], t)}
+                        {segmented(query, open, fill, t.catalog.years, years_choices(t), t)}
                         <div class="flabel label">{t.catalog.location}</div>
                         <div class="chips">
                             {[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg]
-                                .iter().map(|campus| chip(campus.label(t.locale), None, Toggle::in_lists(*campus, |q| (&q.campuses, &q.campuses_exclude), |q| (&mut q.campuses, &mut q.campuses_exclude)))).collect_view()}
+                                .iter().map(|campus| chip(campus.label(t.locale), None, Toggle::campus(*campus))).collect_view()}
                         </div>
                         <p class="hint">{t.catalog.location_hint}</p>
                         {move || program.get().is_none().then(|| view! {
                             <div class="chips">
-                                {chip(t.catalog.show_not_offered, None, Toggle {
-                                    excludes: false,
-                                    ..Toggle::new(
-                                        |q| if q.offer.as_ref().is_some_and(|offer| offer.contains(&OfferStatus::NotOffered)) { Tri::With } else { Tri::Off },
-                                        |q, state| q.offer = (state == Tri::With).then(|| OfferStatus::ALL.to_vec()),
-                                    )
-                                })}
+                                {chip(t.catalog.show_not_offered, None, Toggle::show_not_offered())}
                             </div>
                         })}
                     </details>

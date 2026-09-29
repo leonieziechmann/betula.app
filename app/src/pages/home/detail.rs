@@ -6,8 +6,9 @@
 //! app's own parts, not a drawing of them:
 //!
 //! - the way from four questions to the one module page,
-//! - the filter panel laid out as a board, its chips in the panel's look and leading into the
-//!   catalog, with an example chosen and the number of modules the catalog has for it,
+//! - the filter panel laid out as a board, its chips in the panel's look, with an example chosen
+//!   and the number of modules the catalog has for it; in the browser app the chips switch in
+//!   place and the number follows,
 //! - a PDF of a regulation becoming the plan's matrix, and the number of programs with a plan,
 //! - a week in the Stundenplan's own grid (`week::WeekGrid`), with a clash and a choice,
 //! - where a visitor's things live, and four figures (no account, no tracker …),
@@ -19,22 +20,29 @@
 //! On a wide page the picture stands beside the words, every other chapter on the left; the board
 //! of the filters takes the whole width under them; on a narrow page everything stacks. What a
 //! picture shows that the app has words for is said in the app's words (`catalog::Texts`,
-//! `studyplan_export` …), the rest is `i18n/home_detail.rs`. Everything is the same with and without
-//! JavaScript; the only numbers are the snapshot's, and a picture without them leaves them out.
+//! `studyplan_export` …), the rest is `i18n/home_detail.rs`. Everything looks the same with and
+//! without JavaScript; the only numbers are the snapshot's, and a picture without them leaves them
+//! out.
 
 use catalog::filter::{ExamPart, Language, TurnusFilter};
-use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm};
+use catalog::labels::{Campus, Code, Labelled, ModuleKind, TeachingForm};
+use catalog::queries;
 use catalog::timetable::day::clock;
 use catalog::timetable::kind::EventKind;
 use catalog::url::{self, CatalogUrl, ProgramTab};
 use catalog::CatalogQuery;
 use leptos::prelude::*;
 
+use crate::data::use_source;
 use crate::format;
 use crate::i18n::{self, home_detail::Chapter as Words, Texts};
+use crate::pages::catalog::{duration_choices, years_choices, Choice, Toggle, Tri};
 use crate::seo;
 use crate::ui::{Icon, KindBadge, Mark};
 use crate::week::{GridSlot, WeekGrid};
+
+/// The browser app (`csr`): only there do the board's chips switch, and count what they choose.
+const APP: bool = cfg!(feature = "csr");
 
 /// The selection the filter board shows chosen: offered in winter, taught in English, without a
 /// written exam. The start page counts it with its ways in (`HomePage`).
@@ -158,18 +166,60 @@ fn catalog_link(t: &'static Texts, query: CatalogQuery) -> String {
     t.path(&CatalogUrl { query, ..Default::default() }.path())
 }
 
-/// A chip in the look of the filter panel (`.chip` with its box, `data-state` off, with or
-/// without): a link into the catalog where `query` says what it filters, else only its look.
-fn chip(t: &'static Texts, label: String, icon: Option<&'static str>, state: &'static str, query: Option<CatalogQuery>) -> AnyView {
-    let face = view! {
+/// What a chip shows: the box with its state (empty, ticked, crossed), an icon, the label.
+fn face(label: String, icon: Option<&'static str>) -> impl IntoView {
+    view! {
         <span class="box"><Icon name="check"/><Icon name="x"/></span>
         {icon.map(|name| view! { <Icon name=name/> })}
         <span class="chip-label">{label}</span>
-    };
-    match query {
-        Some(query) => view! { <a class="chip" data-state=state href=catalog_link(t, query) rel="nofollow">{face}</a> }.into_any(),
-        None => view! { <span class="chip" data-state=state aria-disabled="true">{face}</span> }.into_any(),
     }
+}
+
+/// A chip in the look of the filter panel (`.chip` with its box, `data-state` off, with or
+/// without), and nothing to click: the steps of „Klausur", the chips of the board that need more
+/// than a click (a program, the Merkliste, the Stundenplan), and every chip of the board where the
+/// app does not run.
+fn look(label: String, icon: Option<&'static str>, state: Tri) -> AnyView {
+    view! { <span class="chip" data-state=state.code() aria-disabled="true">{face(label, icon)}</span> }.into_any()
+}
+
+/// A chip of the board that filters by itself. In the browser app it switches the board's
+/// selection (`chosen`) the way its chip in the catalog's panel switches the list — off, with,
+/// without, the same toggle — and the page stays: the number under the board follows. On the
+/// server's page (without JavaScript, and until the app runs) it is its look in the example's
+/// state; a link there would leave the page as well.
+fn switch(t: &'static Texts, chosen: RwSignal<CatalogQuery>, label: String, icon: Option<&'static str>, toggle: Toggle) -> AnyView {
+    if !APP {
+        let state = chosen.with_untracked(|q| (toggle.read)(q));
+        return look(label, icon, state);
+    }
+    let read = toggle.read.clone();
+    let state = Memo::new(move |_| chosen.with(|q| read(q)));
+    let excludes = toggle.excludes;
+    let name = label.clone();
+    view! {
+        <button
+            type="button"
+            class="chip"
+            role="checkbox"
+            data-state=move || state.get().code()
+            aria-checked=move || state.get().checked()
+            aria-label=move || match state.get() {
+                Tri::Without => (t.catalog.excluded)(&name),
+                _ => name.clone(),
+            }
+            title=move || match (state.get(), excludes) {
+                (Tri::Off, true) => Some(t.catalog.chip_off),
+                (Tri::With, true) => Some(t.catalog.chip_with),
+                (Tri::Without, _) => Some(t.catalog.chip_without),
+                _ => None,
+            }
+            on:click=move |_| chosen.update(|q| (toggle.write)(q, toggle.after((toggle.read)(q))))
+        >
+            {face(label, icon)}
+        </button>
+    }
+    .into_any()
 }
 
 /// A row of choices in the look of the panel's segmented rows, the `on`-th one raised.
@@ -182,25 +232,44 @@ fn seg(items: Vec<String>, on: usize) -> AnyView {
     .into_any()
 }
 
+/// A row of choices of the filter itself (the duration, the years): in the browser app one of them
+/// is chosen in the board's selection by a click, as the panel's row chooses in the list's; else
+/// its look, the example's choice raised.
+fn choose(chosen: RwSignal<CatalogQuery>, label: &'static str, choices: Vec<Choice>) -> AnyView {
+    if !APP {
+        let on = chosen.with_untracked(|q| choices.iter().position(|choice| (choice.is_on)(q))).unwrap_or(0);
+        return seg(choices.into_iter().map(|choice| choice.label).collect(), on);
+    }
+    view! {
+        <span class="seg mock-seg" role="radiogroup" aria-label=label>
+            {choices.into_iter().map(|Choice { label, is_on, choose, .. }| view! {
+                <button type="button" role="radio" aria-checked=move || if chosen.with(|q| is_on(q)) { "true" } else { "false" } on:click=move |_| chosen.update(|q| choose(q))>
+                    <span class="seg-label">{label}</span>
+                </button>
+            }).collect_view()}
+        </span>
+    }
+    .into_any()
+}
+
 /// A field of the panel (a search, a picker), with what is typed into it or what it offers.
 fn field(icon: &'static str, text: String, typed: bool) -> AnyView {
     view! { <span class="mock-field" class:typed=typed><Icon name=icon/><span>{text}</span></span> }.into_any()
 }
 
-/// „Klausur" in its three steps: off, only with, all but — each a link to that list.
+/// „Klausur" in its three steps: off, only with, all but — a picture of them; the board under it
+/// is where they switch.
 fn steps(t: &'static Texts) -> impl IntoView {
     let d = &t.home_detail;
     let written = ExamPart::Written.short_label(t.locale).to_string();
-    let with = CatalogQuery { exam_parts: vec![ExamPart::Written], ..Default::default() };
-    let without = CatalogQuery { exam_parts_exclude: vec![ExamPart::Written], ..Default::default() };
     let [off, only, but] = d.steps;
     view! {
         <div class="tri">
-            <figure>{chip(t, written.clone(), None, "off", Some(CatalogQuery::default()))}<figcaption>{off}</figcaption></figure>
+            <figure>{look(written.clone(), None, Tri::Off)}<figcaption>{off}</figcaption></figure>
             <Icon name="arrow-right"/>
-            <figure>{chip(t, written.clone(), None, "with", Some(with))}<figcaption>{only}</figcaption></figure>
+            <figure>{look(written.clone(), None, Tri::With)}<figcaption>{only}</figcaption></figure>
             <Icon name="arrow-right"/>
-            <figure>{chip(t, written, None, "without", Some(without))}<figcaption>{but}</figcaption></figure>
+            <figure>{look(written, None, Tri::Without)}<figcaption>{but}</figcaption></figure>
         </div>
     }
 }
@@ -244,16 +313,33 @@ fn flow(t: &'static Texts) -> impl IntoView {
     }
 }
 
-/// The filter panel laid out as a board, in its order and its look: the example chosen (winter,
-/// English, no written exam), every chip that filters by itself a link into the catalog, and under
-/// it how many modules the example finds. On a phone it shows the groups a first look needs (`key`:
-/// the search, the program and the example's) and the others after „Alle Filter zeigen" — a
-/// checkbox, so that it opens with and without JavaScript alike.
+/// The filter panel laid out as a board, in its order and its look, with the example chosen
+/// (winter, English, no written exam), and under it how many modules the catalog has for what is
+/// chosen and the way there. On a phone it shows the groups a first look needs (`key`: the search,
+/// the program and the example's) and the others after „Alle Filter zeigen" — a checkbox, so that
+/// it opens with and without JavaScript alike.
+///
+/// Owner, 2026-09-29: a click on one of its filters led straight into the catalog („mach das so,
+/// dass die filter tatsächlich funktionieren und man dann unten sieht, wie viele module das
+/// selected hat und sich die angucken kann"). So in the browser app every chip that filters by
+/// itself, and the rows of the duration and the years, switch the board's selection in place, as
+/// they do in the catalog's panel; the number under the board follows (from the local copy of the
+/// catalog), and its button opens the catalog with that selection. What needs more than a click —
+/// a program and what comes with it, the Merkliste, the Stundenplan, a name typed, the slider —
+/// stays its picture. Without the app the board is a picture as a whole, its button the example's.
 fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
     let d = &t.home_detail;
     let h = &d.hints;
     let c = &t.catalog;
     let locale = t.locale;
+    let chosen = RwSignal::new(example());
+    // The server's number is the example's, which its loader counted already; the app counts what
+    // is chosen (the local catalog keeps an answer, so choosing again asks nothing).
+    let source = use_source().ok().filter(|_| APP);
+    let count = Memo::new(move |_| match &source {
+        Some(source) => chosen.with(|q| source.run(|db| queries::catalog_count(db, q))).ok(),
+        None => example_count,
+    });
     let group = |label: String, body: AnyView, hint: Option<&'static str>, key: bool| {
         view! {
             <div class="bgroup" class:key=key>
@@ -264,45 +350,31 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
         }
     };
     let chips = |items: Vec<AnyView>| view! { <span class="chips">{items}</span> }.into_any();
-    let example = example();
-    let turnus = [(c.winter_chip, "snowflake", TurnusFilter { winter: true, ..Default::default() }, "with"), (c.summer_chip, "sun", TurnusFilter { summer: true, ..Default::default() }, "off"), (c.irregular_chip, "shuffle", TurnusFilter { irregular: true, ..Default::default() }, "off")]
-        .into_iter()
-        .map(|(label, icon, turnus, state)| chip(t, label.to_string(), Some(icon), state, Some(CatalogQuery { turnus, ..Default::default() })))
-        .collect();
+    let chip = move |label: &str, icon: Option<&'static str>, toggle: Toggle| switch(t, chosen, label.to_string(), icon, toggle);
+    let turnus = vec![
+        chip(c.winter_chip, Some("snowflake"), Toggle::turnus(|f| (f.winter, f.not_winter), |f| (&mut f.winter, &mut f.not_winter))),
+        chip(c.summer_chip, Some("sun"), Toggle::turnus(|f| (f.summer, f.not_summer), |f| (&mut f.summer, &mut f.not_summer))),
+        chip(c.irregular_chip, Some("shuffle"), Toggle::turnus(|f| (f.irregular, f.not_irregular), |f| (&mut f.irregular, &mut f.not_irregular))),
+    ];
     let forms = [TeachingForm::Lecture, TeachingForm::Exercise, TeachingForm::Seminar, TeachingForm::Practical, TeachingForm::Project, TeachingForm::Excursion]
         .into_iter()
-        .map(|form| chip(t, form.label(locale).to_string(), None, "off", Some(CatalogQuery { teaching_forms: vec![form], ..Default::default() })))
+        .map(|form| chip(form.label(locale), None, Toggle::teaching_form(form)))
         .collect();
-    let exams = ExamPart::ALL
-        .iter()
-        .map(|part| match part {
-            ExamPart::Written => chip(t, part.short_label(locale).to_string(), None, "without", Some(CatalogQuery { exam_parts_exclude: vec![*part], ..Default::default() })),
-            _ => chip(t, part.short_label(locale).to_string(), None, "off", Some(CatalogQuery { exam_parts: vec![*part], ..Default::default() })),
-        })
-        .collect();
-    let languages = Language::ALL
-        .iter()
-        .map(|language| chip(t, language.label(locale).to_string(), None, if *language == Language::English { "with" } else { "off" }, Some(CatalogQuery { languages: vec![*language], ..Default::default() })))
-        .collect();
+    let exams = ExamPart::ALL.iter().map(|part| chip(part.short_label(locale), None, Toggle::exam_part(*part))).collect();
+    let languages = Language::ALL.iter().map(|language| chip(language.label(locale), None, Toggle::language(*language))).collect();
     let kinds = [ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship]
         .into_iter()
-        .map(|kind| chip(t, kind.label(locale).to_string(), None, if kind == ModuleKind::Elective { "with" } else { "off" }, None))
-        .chain([chip(t, c.not_stated.to_string(), None, "off", None)])
+        .map(|kind| look(kind.label(locale).to_string(), None, if kind == ModuleKind::Elective { Tri::With } else { Tri::Off }))
+        .chain([look(c.not_stated.to_string(), None, Tri::Off)])
         .collect();
     let properties = vec![
-        chip(t, c.graded_chip.to_string(), None, "off", Some(CatalogQuery { graded: Some(true), ..Default::default() })),
-        chip(t, c.limited_chip.to_string(), None, "off", Some(CatalogQuery { limited: Some(true), ..Default::default() })),
-        chip(t, c.fues_list.to_string(), None, "off", Some(CatalogQuery { fues: Some(true), ..Default::default() })),
-        chip(t, c.saved_chip.to_string(), Some("bookmark"), "off", None),
+        chip(c.graded_chip, None, Toggle::flag(|q| q.graded, |q, value| q.graded = value)),
+        chip(c.limited_chip, None, Toggle::flag(|q| q.limited, |q, value| q.limited = value)),
+        chip(c.fues_list, None, Toggle::flag(|q| q.fues, |q, value| q.fues = value)),
+        look(c.saved_chip.to_string(), Some("bookmark"), Tri::Off),
     ];
-    let campuses = [Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg]
-        .into_iter()
-        .map(|campus| chip(t, campus.label(locale).to_string(), None, "off", Some(CatalogQuery { campuses: vec![campus], ..Default::default() })))
-        .collect();
-    let dates = vec![
-        chip(t, c.confirmed.to_string(), Some("calendar-check-2"), "off", Some(CatalogQuery { scheduled: Some(true), ..Default::default() })),
-        chip(t, c.fits.to_string(), None, "off", None),
-    ];
+    let campuses = [Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg].into_iter().map(|campus| chip(campus.label(locale), None, Toggle::campus(campus))).collect();
+    let dates = vec![chip(c.confirmed, Some("calendar-check-2"), Toggle::flag(|q| q.scheduled, |q, value| q.scheduled = value)), look(c.fits.to_string(), None, Tri::Off)];
     let semesters = std::iter::once(c.all.to_string()).chain((1..=6).map(|n| n.to_string())).chain(["?".to_string()]).collect();
     let credits = (t.format.credits)(&format!("{}–{}", format::number(6.0, locale), format::number(12.0, locale)));
     view! {
@@ -336,21 +408,22 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
                 <p class="flabel label sub">{c.department}</p>
                 {field("building-2", c.all_departments.to_string(), false)}
                 <p class="flabel label sub">{c.duration}</p>
-                {seg(vec![c.any.to_string(), (c.semesters)(1), (c.semesters)(2)], 0)}
+                {choose(chosen, c.duration, duration_choices(t))}
                 <p class="flabel label sub">{c.years_only}</p>
-                {seg(vec![c.any.to_string(), c.even.to_string(), c.odd.to_string()], 0)}
+                {choose(chosen, c.years, years_choices(t))}
                 <p class="flabel label sub">{c.location}</p>
                 {chips(campuses)}
-                {chips(vec![chip(t, c.show_not_offered.to_string(), None, "off", Some(CatalogQuery { offer: Some(OfferStatus::ALL.to_vec()), ..Default::default() }))])}
+                {chips(vec![chip(c.show_not_offered, None, Toggle::show_not_offered())])}
             }.into_any(), Some(c.location_hint), false)}
             {group(h.sort.to_string(), seg(vec![c.col_module.to_string(), t.common.credits_unit.to_string(), c.dates.to_string()], 0), Some(h.sort_hint), false)}
         </div>
         <label class="board-more btn secondary" for="alle-filter"><Icon name="chevron-down"/>{h.all}</label>
-        {example_count.map(|n| view! {
-            <p class="board-foot">
-                <a class="btn secondary" href=catalog_link(t, example)><Icon name="sliders-horizontal"/>{(d.example)(&format::count(n, locale))}<Icon name="chevron-right"/></a>
-            </p>
-        })}
+        // What is chosen, counted, and the way to it: said again while the chips switch.
+        <p class="board-foot" aria-live="polite">
+            {move || count.get().map(|n| view! {
+                <a class="btn secondary" href=catalog_link(t, chosen.get())><Icon name="sliders-horizontal"/>{(d.example)(n, &format::count(n, locale))}<Icon name="chevron-right"/></a>
+            })}
+        </p>
     }
 }
 
