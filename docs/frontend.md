@@ -1003,13 +1003,17 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   front (`--wood-front`), with barks cut into the trunks, hanging twigs, the leaves of the season
   (none in winter), grass, a mushroom and a bird. It is `div.wood`, fixed, beneath everything (the
   crown and the ground included), from the rail to the window's right edge and bottom; the rail
-  stays free. Its masks (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600, whole pixels, 140–165 KB
-  a season gzipped, only fetched where they show) are drawn by `design/forest/forest.mjs` from
+  stays free. Its masks (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600, whole pixels, their
+  path data relative and as short as it gets, `design/forest/path.mjs`; beside each a brotli copy
+  at quality 11, `.svg.br`, which `api::birch` sends to a browser that takes `br`: 33–48 KB a
+  season, only fetched where they show) are drawn by `design/forest/forest.mjs` from
   `design/forest/wood.mjs`, the generator the comparison uses as well: the column's 1280 px empty in
   their middle, 900 px of wood on either side, the trees walking outwards from the column's edges,
   so the ones next to it are the same on every screen and a wider one only adds trees further out.
-  The stylesheet lays the masks' middle under the column's and their bottom on the window's; a
-  window taller than 1600 px sees the trunks fade out at their top. Only from a window 1380 px wide
+  The stylesheet lays the masks' middle under the column's and their bottom on the window's; when
+  the ground comes up at the end of the page, the wood goes up with its edge (`enhance.js`, the same
+  inset as the ground's), so the birches stand on it (owner, 2026-09-29: „dass der Footer die untere
+  Kante anhebt, wenn er kommt"). A window taller than 1600 px sees the trunks fade out at their top. Only from a window 1380 px wide
   on, where there is room beside the column; none on a phone. The grey is mixed in OKLab: in OKLCH
   a grey's hue is `none`, and Chromium drew the mix reddish.
 - **The first panel's trunk at night** (owner, the same day): in the dark theme the trunk and the

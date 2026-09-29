@@ -1269,8 +1269,9 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
    rail stays free. Each mask (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600) keeps the
    column's 1280 px empty in its middle, and that middle lies under the column's: the page is the
    window less the rail and the gap on its right, so its middle is 4 px left of the wood's. The
-   masks stand on the window's bottom; a window taller than they are sees the trunks fade out at
-   their top. Their trees walk outwards from the column's edges, so the ones next to it are the same
+   masks stand on the window's bottom, and when the ground comes up at the end of the page they go
+   up with its edge (enhance.js), so that the birches stand on it; a window taller than they are
+   sees the trunks fade out at their top. Their trees walk outwards from the column's edges, so the ones next to it are the same
    on every screen and a wider one only adds trees further out. */
 .wood { display: none; }
 @media (min-width: 1380px) {

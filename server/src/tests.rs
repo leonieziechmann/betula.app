@@ -545,6 +545,16 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         assert!(body.starts_with(b"<svg"), "{path}");
     }
     assert_eq!(request(&router, "/assets/birch/no-such-season.svg", &[]).await.0, StatusCode::NOT_FOUND);
+    // The wood goes out as the brotli it was drawn with to a browser that takes it, gzipped to one
+    // that takes only gzip, and plain to one that gives `br` no weight.
+    let wood = "/assets/birch/summer-wood-front.svg";
+    let (status, headers, body) = request(&router, wood, &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+    assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap(), headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "br", "image/svg+xml"));
+    assert_eq!(body, include_bytes!("../../app/assets/birch/summer-wood-front.svg.br"));
+    let (_, headers, _) = request(&router, wood, &[("accept-encoding", "gzip")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING].to_str().unwrap(), "gzip");
+    let (_, headers, body) = request(&router, wood, &[("accept-encoding", "br;q=0")]).await;
+    assert!(headers.get(header::CONTENT_ENCODING).is_none() && body.starts_with(b"<svg"));
     // A module and a program have their own picture: named in the head with the site's outside
     // address, drawn on the first request, kept after that, and answered with 304 to its ETag.
     assert!(module.contains("content=\"https://catalog.example/cards/module/11101.png\"") && !module.contains("/assets/og.png"), "{module}");
