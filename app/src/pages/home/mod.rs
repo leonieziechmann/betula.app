@@ -37,6 +37,9 @@
 //! a first visit (`start.rs`): three steps, each naming where the navigation keeps it, following
 //! what the visitor has done. Of the sidebar's parts the jumps to the sections are the foot of
 //! those steps now; the Datenstand is the ground's, at the end of every page, as before.
+//! Then: one click a step („Studiengang wählen" picks the program in place, here in the first
+//! panel too), the figures as a small birch in the look of „Betula im Detail"'s picture of the
+//! data (`Hero`), and twigs growing out of the panels at their sides (`Twig`).
 //!
 //! The map (`catalog::graph`) is laid out by the web server once per snapshot, on a 4:3 sheet and
 //! a tall one for phones; this page only draws it (`data::ProgramMapHandle`). The dialog is in the
@@ -62,6 +65,7 @@ use catalog::{CatalogQuery, Locale};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
+use crate::combobox::ClosePopups;
 use crate::data::{use_source, PageStatus, ProgramMapHandle};
 use crate::format;
 use crate::i18n::{self, Texts};
@@ -182,11 +186,16 @@ pub fn HomePage() -> impl IntoView {
         }),
     ];
 
+    // A picker's popup stands where its button was: scrolling the page takes it away, as the
+    // filter panel of the catalog does.
+    let close_popups = RwSignal::new(0u32);
+    provide_context(ClosePopups(close_popups));
+
     // No frame and no sidebar (see above): the page scrolls on its own, as `#page-scroll` (the
     // ground and „Nach oben" follow it, `enhance.js`).
     view! {
         <Title text=""/>
-        <div class="page home-page" id="page-scroll"><div class="page-inner home">
+        <div class="page home-page" id="page-scroll" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))><div class="page-inner home">
         <Seo title=t.home.seo_title description=t.home.description path=url::HOME data/>
         {match loaded {
             Err(error) => {
@@ -204,6 +213,7 @@ pub fn HomePage() -> impl IntoView {
             }
         }}
         <section class="panel abilities" id="funktionen" aria-labelledby="funktionen-titel">
+            <Twig side=Side::Left shape=0 at=58/>
             <header class="block-head">
                 <h2 id="funktionen-titel">{t.home.abilities}</h2>
                 <p>{t.home.abilities_lead}</p>
@@ -225,6 +235,7 @@ pub fn HomePage() -> impl IntoView {
         // The questions are the list; an answer opens in place. The text is in the page either way
         // (and in the FAQPage data above).
         <section class="panel questions" id="fragen" aria-labelledby="fragen-titel">
+            <Twig side=Side::Right shape=1 at=22/>
             <header class="block-head">
                 <h2 id="fragen-titel">{t.home.questions}</h2>
             </header>
@@ -246,7 +257,10 @@ pub fn HomePage() -> impl IntoView {
 }
 
 /// The first panel, flat: what this is and the two ways in on the left; the figures on the right
-/// (below the text on a narrow page), one under the other between strokes of birch bark.
+/// (below the text on a narrow page) as a small birch, drawn as „Betula im Detail" draws the data
+/// (owner, 2026-09-28: the figures „waren voll cool", in the look of that picture): the season's
+/// crown, a trunk of birch bark with each figure as a tag on a branch of it, and the ground with
+/// the date of the data and its source.
 #[component]
 fn Hero(home: Option<HomeData>) -> impl IntoView {
     let t = i18n::t();
@@ -257,19 +271,28 @@ fn Hero(home: Option<HomeData>) -> impl IntoView {
         if let Some(semester) = &home.overview.current_semester {
             rows.push((t.home.figure_dates, Some((t.home.in_semester)(&semester_name(semester, t.locale))), semester.teaching_events.max(0) as u64));
         }
+        let changed = home.overview.meta.data_changed_at.as_deref().map(|at| (t.ground.data_of)(&format::date(at, t.locale)));
         view! {
-            <dl class="birch">
-                {rows.into_iter().map(|(label, detail, value)| {
-                    let figure = format::count(value, t.locale);
-                    let em = figure_em(&figure);
-                    view! {
-                        <div style=format!("--em:{em}")>
+            <div class="hero-tree">
+                // As high as the tags beside it: `slice` cuts off what the drawing has more.
+                <svg class="trunk" viewBox="0 0 24 320" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+                    <rect width="24" height="320" rx="4"/>
+                    <path d="M0 58h9v3H0zM15 76h9v3h-9zM0 93h5v3H0zM11 110h13v3H11zM0 128h10v3H0zM17 145h7v3h-7zM0 162h7v3H0zM13 180h11v3H13zM0 197h12v3H0zM19 214h5v3h-5zM0 232h6v3H0zM12 249h12v3H12zM0 266h9v3H0zM16 284h8v3h-8zM0 301h11v3H0z"/>
+                </svg>
+                <dl class="tree-figures">
+                    {rows.into_iter().map(|(label, detail, value)| view! {
+                        <div>
                             <dt>{label}{detail.map(|detail| view! { <small>{detail}</small> })}</dt>
-                            <dd class="num">{figure}</dd>
+                            <dd class="num">{format::count(value, t.locale)}</dd>
                         </div>
-                    }
-                }).collect_view()}
-            </dl>
+                    }).collect_view()}
+                </dl>
+                <p class="hero-ground">
+                    <Icon name="sprout"/>
+                    {changed.map(|changed| view! { <span>{changed}</span> })}
+                    <a href=seo::UNIVERSITY_URL rel="noopener">{t.ground.source}<Icon name="arrow-up-right"/></a>
+                </p>
+            </div>
         }
     });
     view! {
@@ -281,21 +304,53 @@ fn Hero(home: Option<HomeData>) -> impl IntoView {
                 <p class="eyebrow-pill"><i></i>{t.home.eyebrow}</p>
                 <h1>{t.home.title_before}<span class="nowrap">"BTU Cottbus-Senftenberg"</span>{t.home.title_after}</h1>
                 <p class="lead">{t.home.lead}</p>
-                <p class="intro-actions">
+                // „Studiengang wählen" picks the program in place, or leads to all of them
+                // (`start::ProgramPick`), as the first step of the way in below does.
+                <div class="intro-actions">
                     <a class="btn primary" href=t.path(url::CATALOG)><Icon name="layout-list"/>{t.home.browse_modules}</a>
-                    <a class="btn secondary" href=t.path(url::PROGRAMS)><Icon name="graduation-cap"/>{t.home.choose_program}</a>
-                </p>
+                    <start::ProgramPick id="home-program" class="btn secondary"/>
+                </div>
             </div>
             {figures}
+            <Twig side=Side::Right shape=0 at=64/>
         </section>
     }
 }
 
-/// How wide a figure is, in units of its own size (Inter's tabular digits, the thin separator):
-/// the stylesheet sets each figure so large that all of them take about the same width.
-fn figure_em(figure: &str) -> String {
-    let em: f64 = figure.chars().map(|c| if c.is_ascii_digit() { 0.58 } else { 0.24 }).sum();
-    format!("{em:.2}")
+/// The edge of a panel a twig grows out of.
+#[derive(Clone, Copy)]
+enum Side {
+    Left,
+    Right,
+}
+
+/// The twigs: a stem, its sprigs, and where the leaves sit on them (x, y, turn in degrees), drawn
+/// growing to the right from the left edge of a 48×36 box.
+const TWIGS: [(&str, &str, [(f32, f32, f32); 4]); 3] = [
+    ("M0 22C9 21.5 15 19 22 14.5S35 8 46 7", "M15 19.3C18 22 20 25.5 21 29M30 10.4C31 7.6 33 5.2 36 3.6", [(21.0, 29.0, 70.0), (36.0, 3.6, -35.0), (40.0, 7.6, -6.0), (25.5, 12.8, 60.0)]),
+    ("M0 12C10 12.5 18 15 25 19.5S38 27 46 28", "M17 14.6C20 12 23.5 10 27.5 9", [(27.5, 9.0, -20.0), (39.5, 27.2, 8.0), (31.0, 23.4, 95.0), (10.0, 12.4, -70.0)]),
+    ("M0 18C8 18 16 16.6 24 14.2S36 10.2 44 11", "M21 15C24 17.5 26 20.5 27 24", [(38.0, 10.6, 4.0), (27.0, 24.0, 72.0), (32.0, 11.8, -78.0), (14.0, 16.9, 80.0)]),
+];
+
+/// A small twig of the birch growing out of a panel's edge into the room beside it (owner,
+/// 2026-09-28: „so kleine Äste immer mal wieder links und rechts", growing out of the boxes).
+/// Drawing only: the stem in the tone of bark, the leaves in the season's crown (none in winter,
+/// as the crown has none), one of three shapes; `at`: how far down the panel, in percent. The
+/// stylesheet keeps the room for it beside the panels and leaves it out where there is none.
+#[component]
+fn Twig(side: Side, shape: usize, at: u8) -> impl IntoView {
+    let (stem, sprigs, leaves) = TWIGS[shape % TWIGS.len()];
+    let side = match side {
+        Side::Left => "twig twig-l",
+        Side::Right => "twig twig-r",
+    };
+    view! {
+        <svg class=side style=format!("--y:{at}%") viewBox="0 0 48 36" aria-hidden="true">
+            <path class="twig-stem" d=stem/>
+            <path class="twig-sprig" d=sprigs/>
+            {leaves.map(|(x, y, turn)| view! { <g><path class="twig-leaf" d="M0 0Q3.2-3 7 0Q3.2 3 0 0Z" transform=format!("translate({x} {y}) rotate({turn})")/></g> })}
+        </svg>
+    }
 }
 
 /// What a picture of the carousel is: the map (it opens large) or a screenshot of a page (it
@@ -663,6 +718,7 @@ fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
                 </ul>
             </section>
             <section class="panel linklist-panel" aria-labelledby="fakultaeten-titel">
+                <Twig side=Side::Right shape=2 at=30/>
                 <header class="block-head">
                     <h2 id="fakultaeten-titel">{t.home.programs_by_faculty}</h2>
                     <a class="ghost" href=t.path(url::PROGRAMS)>{(t.home.all_programs_count)(&format::count(home.overview.programs, t.locale))}<Icon name="chevron-right"/></a>

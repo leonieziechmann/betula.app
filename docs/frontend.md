@@ -947,32 +947,62 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   (date, semester, source, at the end of every page), and the answer „Wie aktuell ist der
   Katalog?" says so instead of pointing at the sidebar.
 - **The way in** (`#loslegen`, `pages/home/start.rs`), right under the first panel: „So legst du
-  los", three steps in the order a semester is planned — „Studiengang wählen" (to the programs),
-  „Module finden und merken" (the catalog), „Stundenplan bauen" (the Stundenplan). Each step is
-  one link with a mark, a line of text and its way on, joined to the others through the marks by
-  a line (side by side from a container width of 900 px, one under the other below it). Each
-  names the item of the navigation that keeps it — „Jederzeit unter" and the rail's and the
-  bottom bar's own icon and name (`t.app`), the Merkliste and the Stundenplan only with
-  JavaScript, as the navigation has them — so the navigation is learnt on the way, without a
-  tour. The head's „Direkt suchen" (with its keys) goes into the search at the top for whoever
-  looks for one module (`data-action="search"` in `enhance.js`; without JavaScript it opens the
-  catalog). Its foot: „Erst einmal verstehen, was Betula ist?" and the jumps to „Was Betula
-  kann", the questions and „Betula im Detail" (`data-action="jump"`, no history entry).
+  los", three steps in the order a semester is planned — „Studiengang wählen", „Module finden und
+  merken", „Stundenplan bauen" —, each a mark, its name, one line, one button and where the
+  navigation keeps it, joined to the others through the marks by a line (side by side from a
+  container width of 900 px, one under the other below it). „Jederzeit unter" and the rail's and
+  the bottom bar's own icon and name (`t.app`), the Merkliste and the Stundenplan only with
+  JavaScript, as the navigation has them: the navigation is learnt on the way, without a tour.
+  The head's „Direkt suchen" (with its keys) goes into the search at the top for whoever looks for
+  one module (`data-action="search"` in `enhance.js`; without JavaScript it opens the catalog).
+  Its foot: „Erst einmal verstehen, was Betula ist?" and the jumps to „Was Betula kann", the
+  questions and „Betula im Detail" (`data-action="jump"`, no history entry).
+- **One click a step** (owner, the same day, on the first version, whose steps led to the pages
+  where they are done: „Das sind hier 300 Schritte, um ans Ziel zu kommen. Ich will dass man bei
+  der Einführung immer nur so ein Click pro Step braucht", and whoever knows the site goes
+  straight on). Each step's one button does it or leads to where it is done:
+  - „Studiengang wählen" (`start::ProgramPick`, the first panel's second button as well) opens a
+    picker of all programs in place (the catalog's `Combobox`: type a few letters, Enter), and a
+    pick is „Mein Studiengang" at once; the page stays and the way in goes on. Once a program is
+    kept, and without JavaScript, the button is „Alle Studiengänge" (the program overview). The
+    server's link carries both words, and the stylesheet shows the ones the app will
+    (`html.js:not(.mine)`: „Studiengang wählen"), so they stay when the app takes over. The
+    page's scroller takes an open picker away (`ClosePopups`, as the catalog's filter panel).
+  - „Module deines Studiengangs": the catalog of that program (`MineResolved::catalog_href`),
+    „Zum Katalog" without one.
+  - „Fachsemester übernehmen": the Stundenplan with the program's Regelstudienplan ready to take
+    over (`/studyplan?import=mine`), while nothing is planned; else „Zum Stundenplan".
 - **It follows what this browser has done** (the app's alone, R9; the server's page is the one of
   a first visit): the program set as „Mein Studiengang" (while it is in the snapshot), a module on
   the Merkliste, a module in the Stundenplan each make their step done — a tick in the mark, the
-  line to the next step in the accent, and in place of the way on what was done, leading there:
-  the program's name (with its stored Studienrichtung, `program_href`), „5 Module gemerkt" (the
-  Merkliste), „8 Module eingeplant". The first step not done is the next one (`aria-current=
-  "step"`): its mark and its way on wear the accent. Only words and colours change, never a
-  height, so nothing moves when the app takes over.
+  line to the next step in the accent, and in place of the navigation's items what was done: the
+  program's name (leading to it, with its stored Studienrichtung, `program_href`), „5 Module
+  gemerkt" (the Merkliste), „8 Module eingeplant". The first step not done is the next one
+  (`aria-current="step"`): its mark and its button wear the accent. Only words and colours change,
+  never a height, so nothing moves when the app takes over.
+- **The figures as a birch** (owner, the same day: the figures „waren voll cool", in the look of
+  „Betula im Detail"'s picture of the data, `detail::tree`): beside the text from a container
+  width of 700 px, under it below that (two tags a row), a small picture — the season's crown along
+  its top, a trunk of bark, each figure (modules, programs, faculties, the Termine of the current
+  semester) a tag on a branch of it, the number first, and the ground with its roots, the date of
+  the data and the source (`div.hero-tree`, `dl.tree-figures`, `.hero-ground`). It replaced the
+  stack of bare numbers (`dl.birch`).
+- **Twigs** (owner, the same day: „so kleine Äste immer mal wieder links und rechts", growing out
+  of the boxes): eight panels (the first panel, the way in, the faculties, what Betula does, the
+  questions, and three chapters of „Betula im Detail") have a twig growing out of their left or
+  right edge into the room beside them (`home::Twig`, inline SVG: three shapes, the stem in a tone
+  of bark, the leaves in the season's crown, none in winter). The page keeps 60 px beside its
+  panels for them (`--twig-room`) and has none on a phone.
 - New class names were checked against the stylesheet, the scripts and every page: `.steps` and
   `.step` are the chips of „Betula im Detail" (the way to a module, „Klausur"), so the way in is
-  `.start-path`, `.start-steps`, `.start-step`, `.start-mark` and so on.
+  `.start-path`, `.start-steps`, `.start-step`, `.start-mark`, `.start-btn` and so on.
 
-`node e2e/home.mjs` checks the page without a sidebar, the three steps and where they lead, „Direkt
-suchen", a jump of the foot, and the steps done for a browser with a program and a marked module;
-the server test that there is no sidebar and that the first step is the next one.
+`node e2e/home.mjs` checks the page without a sidebar, the birch of the figures and the twigs, the
+three steps and their buttons, a pick in the picker (the first step done, the others leading into
+the program, the first panel's button „Alle Studiengänge", no page load), „Direkt suchen", a jump
+of the foot, and the steps done for a browser with a program and a marked module; the server test
+that there is no sidebar, that the first step is the next one, the two links of „Studiengang
+wählen", the birch and the twigs.
 
 ### The birch: crown and ground (2026-09-25)
 

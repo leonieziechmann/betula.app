@@ -41,7 +41,11 @@ check((html.match(/loading="lazy"/g) || []).length === 10, "server HTML: the scr
 check(html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: no legal links");
 check(!html.includes("Was bedeutet FÜS?") && html.includes("Wie finde ich die Module für mein Studium?"), "server HTML: the questions are the old ones");
 check(html.includes('"@type":"WebApplication"') && html.includes('id="im-detail"') && (html.match(/class="panel feature t-/g) || []).length === 8, "server HTML: no app in the structured data, or no „Betula im Detail\"");
-check(html.includes('<dl class="birch">') && !html.includes('class="examples"'), "server HTML: the figures are not the stack, or the example searches are still there");
+check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-ground"') && !html.includes('class="examples"'), "server HTML: the figures are not the birch, or the example searches are still there");
+// „Studiengang wählen" of the first panel and of the way in: without the app a link to all programs
+// that carries both words (the stylesheet shows the ones the app will); twigs on eight panels.
+check(["home-program", "start-program"].every((id) => new RegExp(`<a id="${id}" href="/programs" class="[^"]*program-pick">`).test(html)), "server HTML: „Studiengang wählen\" does not lead to the programs");
+check((html.match(/<svg class="twig twig-[lr]"/g) || []).length === 8, "server HTML: not eight twigs");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
@@ -55,35 +59,59 @@ check(await page.evaluate(() => document.querySelectorAll("head link[rel=canonic
 check(await page.evaluate(() => document.querySelectorAll("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
 check(await page.evaluate(() => document.querySelectorAll("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
 check(await page.evaluate(() => /^\d+\.\d+\.\d+/.test(document.querySelector(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
-// The first panel is flat: the figures stand beside the text, one under the other, and the ones
-// with several digits are about equally wide (the single digit only grows as large as three).
+// The first panel: the figures as a small birch beside the text, each a tag on a branch of its
+// trunk, the ground under them; twigs grow out of the panels into the room beside them.
 const hero = await page.evaluate(() => {
   const text = document.querySelector(".home-hero-text").getBoundingClientRect();
-  const side = document.querySelector(".birch").getBoundingClientRect();
-  const widths = [...document.querySelectorAll(".birch dd")].filter((dd) => dd.textContent.length > 1).map((dd) => {
-    const range = document.createRange();
-    range.selectNodeContents(dd);
-    return range.getBoundingClientRect().width;
-  });
-  const lefts = [...document.querySelectorAll(".birch dt")].map((dt) => Math.round(dt.getBoundingClientRect().left));
-  return { height: document.querySelector(".home-hero").getBoundingClientRect().height, beside: side.left >= text.right - 1, spread: Math.max(...widths) / Math.min(...widths), names: new Set(lefts).size };
+  const tree = document.querySelector(".hero-tree").getBoundingClientRect();
+  const trunk = document.querySelector(".hero-tree .trunk").getBoundingClientRect();
+  const ground = document.querySelector(".hero-ground").getBoundingClientRect();
+  const tags = [...document.querySelectorAll(".tree-figures > div")].map((tag) => tag.getBoundingClientRect());
+  return {
+    beside: tree.left >= text.right - 1,
+    tags: tags.length,
+    onTrunk: tags.every((tag) => tag.left > trunk.right && tag.left - trunk.right <= 24 && tag.bottom <= ground.top),
+    height: Math.round(document.querySelector(".home-hero").getBoundingClientRect().height),
+  };
 });
-check(hero.beside && hero.height < 340, `the first panel is not flat: ${JSON.stringify(hero)}`);
-check(hero.spread < 1.08 && hero.names === 1, `the figures are not equally wide, or their names not on one line: ${JSON.stringify(hero)}`);
+check(hero.beside && hero.tags === 4 && hero.onTrunk && hero.height < 440, `the figures are not a birch beside the text: ${JSON.stringify(hero)}`);
+const twigs = await page.evaluate(() => [...document.querySelectorAll(".home .twig")].map((twig) => {
+  const box = twig.getBoundingClientRect(), panel = twig.parentElement.getBoundingClientRect();
+  return twig.classList.contains("twig-r") ? box.right > panel.right + 30 : box.left < panel.left - 30;
+}));
+check(twigs.length === 8 && twigs.every(Boolean), `the twigs do not grow out of the panels: ${twigs}`);
 
-// No sidebar, and under the first panel the way in: three steps side by side, the first the next
-// one for a browser that has done nothing yet, each naming the item of the navigation that keeps it.
-const way = await page.evaluate(() => ({
+// No sidebar, and under the first panel the way in: three steps side by side, each with one
+// button — the picker of the programs, the catalog, the Stundenplan —, the first the next one for a
+// browser that has done nothing yet, each naming the item of the navigation that keeps it.
+const wayIn = () => page.evaluate(() => ({
   sidebar: document.querySelector("#sidebar") !== null,
   after: document.querySelector(".home-hero").nextElementSibling?.id,
-  steps: [...document.querySelectorAll(".start-step a")].map((a) => a.getAttribute("href")).join(),
+  buttons: [...document.querySelectorAll(".start-act")].map((act) => (act.querySelector(".combo-trigger") ? "picker" : act.querySelector("a")?.getAttribute("href"))).join(),
+  labels: [...document.querySelectorAll(".start-act")].map((act) => act.textContent.trim()).join("|"),
   row: new Set([...document.querySelectorAll(".start-step")].map((step) => Math.round(step.getBoundingClientRect().top))).size,
-  next: document.querySelector(".start-step.is-next a")?.getAttribute("href"),
+  next: document.querySelector(".start-step.is-next h3")?.textContent,
   done: document.querySelectorAll(".start-step.is-done").length,
   places: [...document.querySelectorAll(".start-place")].map((place) => place.textContent).join(),
+  state: [...document.querySelectorAll(".start-state")].map((state) => state.textContent).join("|"),
+  hero: document.querySelector(".intro-actions .combo-trigger") ? "picker" : document.querySelector(".intro-actions a.btn.secondary")?.getAttribute("href"),
 }));
-check(!way.sidebar && way.after === "loslegen" && way.steps === "/programs,/catalog,/studyplan" && way.row === 1, `the way in is not under the first panel: ${JSON.stringify(way)}`);
-check(way.next === "/programs" && way.done === 0 && way.places === "Studium,Module,Merkliste,Stundenplan", `the way in does not start at the program: ${JSON.stringify(way)}`);
+const way = await wayIn();
+check(!way.sidebar && way.after === "loslegen" && way.buttons === "picker,/catalog,/studyplan" && way.row === 1, `the way in is not under the first panel: ${JSON.stringify(way)}`);
+check(way.next === "Studiengang wählen" && way.done === 0 && way.places === "Studium,Module,Merkliste,Stundenplan" && way.hero === "picker", `the way in does not start at the program: ${JSON.stringify(way)}`);
+// One click: the picker opens in place, a pick is „Mein Studiengang" and the way goes on — the
+// program's catalog, its Regelstudienplan ready in the Stundenplan —, and the first panel's button
+// leads to all programs now. Nothing loads a page, the address stays.
+await page.click("#start-program");
+await page.waitForSelector("#start-program-search");
+await page.keyboard.type("Informatik");
+await page.keyboard.press("Enter");
+await page.waitForFunction(() => document.querySelector(".start-step.is-done") !== null, null, { timeout: 5000 }).catch(() => failures.push("a pick does not do the first step"));
+const picked = await wayIn();
+check(/^Informatik B\.Sc\./.test(picked.state) && picked.next === "Module finden und merken" && picked.hero === "/programs", `the way in does not go on after a pick: ${JSON.stringify(picked)}`);
+check(/^\/programs,\/catalog\?program=bachelor-informatik-2008,\/studyplan\?import=mine$/.test(picked.buttons) && picked.labels.includes("Module deines Studiengangs") && picked.labels.includes("Fachsemester übernehmen"), `the steps after a pick do not lead into the program: ${JSON.stringify(picked)}`);
+check(await page.evaluate(() => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || "") && location.pathname === "/" && window.__marker === 1), "the pick is not „Mein Studiengang\", or it left the page");
+check(await page.evaluate(() => document.activeElement?.id === "start-program"), "the focus does not stay on the first step's button after a pick");
 // „Direkt suchen" goes into the search at the top, not to the catalog.
 await page.click(".start-path a[data-action=search]");
 check(await page.evaluate(() => document.activeElement?.id === "topsearch" && location.pathname === "/"), "„Direkt suchen\" does not go into the search");
@@ -226,22 +254,20 @@ await page.waitForFunction(() => [...document.querySelectorAll(".devices img")].
 check(images.every((path) => !path.includes("-dark") && (!path.includes("-phone") || path.endsWith("/module-phone.webp"))), `wrong pictures fetched: ${images}`);
 check(await page.evaluate(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).length) === 2, "„Geräte und Sprachen\" does not show one theme's pictures");
 
-// What this browser has done shows on the way in: with a program set as „Mein Studiengang" and a
-// module marked those two steps are done and name it, and the Stundenplan is the next step.
-await page.evaluate(() => {
-  localStorage.setItem("betula.myprogram.v1", "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\n");
-  localStorage.setItem("betula.bookmarks.v1", "12330\t1\n");
-});
+// What this browser has done shows on the way in: with a program set as „Mein Studiengang" (the
+// pick above) and a module marked those two steps are done and name it, and the Stundenplan is
+// the next step.
+await page.evaluate(() => localStorage.setItem("betula.bookmarks.v1", "12330\t1\n"));
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
 await page.waitForFunction(() => document.querySelectorAll(".start-step.is-done").length === 2, null, { timeout: 5000 }).catch(() => failures.push("the way in does not follow what this browser has done"));
 const kept = await page.evaluate(() => ({
   program: document.querySelector(".start-step:nth-child(1) .start-state")?.textContent,
-  href: document.querySelector(".start-step:nth-child(1) a")?.getAttribute("href"),
+  href: document.querySelector(".start-step:nth-child(1) .start-state a")?.getAttribute("href"),
   marked: document.querySelector(".start-step:nth-child(2) .start-state")?.textContent,
-  next: document.querySelector(".start-step.is-next a")?.getAttribute("href"),
+  next: document.querySelector(".start-step.is-next .start-btn")?.getAttribute("href"),
 }));
-check(kept.program?.startsWith("Informatik B.Sc.") && kept.href?.startsWith("/programs/") && kept.marked === "1 Modul gemerkt" && kept.next === "/studyplan", `the way in does not show what was done: ${JSON.stringify(kept)}`);
+check(kept.program?.startsWith("Informatik B.Sc.") && kept.href?.startsWith("/programs/") && kept.marked === "1 Modul gemerkt" && kept.next === "/studyplan?import=mine", `the way in does not show what was done: ${JSON.stringify(kept)}`);
 await page.evaluate(() => { localStorage.removeItem("betula.myprogram.v1"); localStorage.removeItem("betula.bookmarks.v1"); });
 
 // A phone: pictures upright, the tall sheet, a swipe turns them, nothing scrolls sideways. A stop

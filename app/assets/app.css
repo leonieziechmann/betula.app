@@ -1124,8 +1124,10 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
    Colour is quiet and says something: the faculties' palette behind the pictures and on the
    faculties, a soft hue per way into the catalog; the accent stays with the main button. */
 /* No frame (owner, 2026-09-28: the sidebar made the page confusing): the page scrolls on its own,
-   its panels in one column in the middle, no wider than still reads well. */
-.home { container: home / inline-size; width: 100%; max-width: 1280px; margin: 0 auto; }
+   its panels in one column in the middle, no wider than still reads well, with room beside them
+   for the twigs that grow out of them (`Twig`; none on a phone). */
+.home { --twig-room: 60px; container: home / inline-size; width: 100%; max-width: min(1280px, 100% - 2 * var(--twig-room)); margin: 0 auto; }
+@media (min-width: 901px) { .home-page { overflow-x: hidden; } }
 .home > .panel, .home-lists { scroll-margin-top: 14px; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
 .block-head h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
@@ -1144,78 +1146,120 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .intro-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .intro-actions .btn { min-height: 46px; padding: 0 18px; font-size: 14.5px; }
 .intro-actions .btn .icon { width: 17px; height: 17px; }
-/* The figures, bare, in the colours of the theme: on the panel, in its text (owner, 2026-09-22;
-   before, they stood on --bark, light in both themes like the mark, a bright block on a dark page).
-   Each is set so large that all of them are about equally wide (--em, its width in units of its
-   size, home.rs); a single digit grows no larger than three would. Quiet: a moderate weight, not
-   the text's full strength. Between them thin rules, and on each a stroke of bark from alternating
-   edges, the strokes of the mark (13, 9 and 5 of 32). On a narrow page they stand under the text,
-   the number over its name. */
-.birch { container: birch / inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--line); --fig-w: 50cqi; --rule: color-mix(in srgb, var(--text) 11%, transparent); }
-.birch > div { position: relative; min-width: 0; display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 4px; padding: 14px 12px 14px 20px; container-type: inline-size; }
-.birch > div + div { border-left: 1px solid var(--rule); }
-.birch dd { margin: 0; color: color-mix(in srgb, var(--text) 86%, var(--panel)); font-size: calc(var(--fig-w) / max(var(--em), 1.74)); font-weight: 640; line-height: .92; letter-spacing: -.035em; white-space: nowrap; }
-.birch dt { color: color-mix(in srgb, var(--text) 66%, var(--panel)); font-size: 12.5px; font-weight: 580; line-height: 1.3; }
-.birch dt small { display: block; color: color-mix(in srgb, var(--text) 46%, var(--panel)); font-size: 11.5px; font-weight: 500; }
-.birch > div + div::before { content: ""; position: absolute; top: 0; left: 0; width: 40%; height: 3px; border-radius: 0 0 2px 0; background: var(--text); }
-.birch > div:nth-child(3)::before { width: 28%; }
-.birch > div:nth-child(4)::before { width: 16%; }
+/* „Studiengang wählen" as a picker (`start::ProgramPick`): its button in the look of the button it
+   stands for. The server's link says the words the browser app will show: „Studiengang wählen"
+   where it will be a picker (JavaScript, and no program kept: `html.mine` from the head script). */
+.program-pick .if-choose { display: none; }
+html.js:not(.mine) .program-pick .if-choose { display: inline; }
+html.js:not(.mine) .program-pick .if-all { display: none; }
+.intro-actions .pick-combo .combo-trigger { width: auto; min-height: 46px; gap: 8px; padding: 0 14px 0 18px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 14.5px; font-weight: 620; }
+.intro-actions .pick-combo .combo-trigger:hover { background: var(--panel-2); }
+.intro-actions .pick-combo .combo-trigger > .icon:first-child { width: 17px; height: 17px; color: var(--text); }
+.intro-actions .pick-combo .combo-value.placeholder { color: var(--text); }
+/* The figures as a small birch (owner, 2026-09-28: in the look of „Betula im Detail"'s picture of
+   the data, `detail::tree`): the season's crown along the top, a trunk of bark, each figure a tag
+   on a branch of it, and the ground with the date of the data and its source, over which the
+   trunk ends. Beside the text from a notebook's width on; under it below that, two tags a row. */
+.hero-tree { --crown-mask: url("/assets/birch/summer-crown.svg"); position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; min-width: 0; margin: 0 16px 16px; border-radius: 12px; overflow: hidden; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+:root[data-season="spring"] .hero-tree { --crown-mask: url("/assets/birch/spring-crown.svg"); }
+:root[data-season="autumn"] .hero-tree { --crown-mask: url("/assets/birch/autumn-crown.svg"); }
+:root[data-season="winter"] .hero-tree { --crown-mask: url("/assets/birch/winter-crown.svg"); }
+.hero-tree::before { content: ""; position: absolute; z-index: 1; top: 0; left: 0; right: 0; height: 64px; background: var(--crown); -webkit-mask: var(--crown-mask) repeat-x left top; mask: var(--crown-mask) repeat-x left top; pointer-events: none; }
+.hero-tree .trunk { position: absolute; grid-column: 1; grid-row: 1 / -1; top: 18px; bottom: 0; left: 20px; width: 24px; height: auto; border-radius: 4px 4px 0 0; }
+.tree-figures { position: relative; z-index: 2; grid-column: 2; grid-row: 1; display: grid; align-content: center; gap: 10px; margin: 0; padding: 50px 14px 18px 0; }
+.tree-figures > div { position: relative; justify-self: start; max-width: 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 6px 12px 7px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-panel); }
+/* The branch from the trunk to the tag. */
+.tree-figures > div::before { content: ""; position: absolute; top: 50%; right: 100%; width: 20px; border-top: 1.5px solid var(--line-strong); }
+.tree-figures dd { order: -1; margin: 0; color: var(--text); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
+.tree-figures dt { color: var(--text-2); font-size: 13px; font-weight: 580; }
+.tree-figures dt small { margin-left: 5px; color: var(--text-3); font-size: 12px; font-weight: 500; }
+.hero-ground { position: relative; z-index: 2; grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin: 0; padding: 16px 14px 12px; background: var(--ground); color: var(--ground-text); font-size: 12.5px; font-weight: 560; }
+.hero-ground::before { content: ""; position: absolute; z-index: -1; inset: 0; background: var(--ground-root); -webkit-mask: url("/assets/birch/roots.svg") repeat-x left top; mask: url("/assets/birch/roots.svg") repeat-x left top; pointer-events: none; }
+.hero-ground > .icon { width: 15px; height: 15px; }
+.hero-ground a { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: inherit; text-decoration: none; }
+.hero-ground a:hover { text-decoration: underline; }
+.hero-ground a .icon { width: 14px; height: 14px; }
+/* Under the text: the tags two a row, the second of each row on the branch of the first. */
+@container home (max-width: 699.98px) {
+  .tree-figures { grid-template-columns: repeat(2, max-content); justify-content: start; gap: 10px 12px; padding-top: 48px; }
+  .tree-figures > div:nth-child(even)::before { width: 12px; }
+}
 
-/* The way in for a first visit (home/start.rs): three steps, each one link, one under the other
-   on a narrow page and side by side on a wide one, joined through their marks by a line, as a
-   path. Each names where the navigation keeps it, as a chip with the rail's icon and name. The
-   next step wears the accent; a step done wears a tick, names what was done, and the line from it
-   to the next one turns green. Only words and colours follow the visitor, never a height. */
+/* The way in for a first visit (home/start.rs): three steps, one under the other on a narrow page
+   and side by side on a wide one, joined through their marks by a line, as a path. Each has one
+   button (owner, 2026-09-28: one click a step) and names where the navigation keeps it, as chips
+   with the rail's icon and name. The next step's button wears the accent; a step done wears a
+   tick, the line from it to the next one turns green, and what was done stands in place of the
+   chips. Only words and colours follow the visitor, never a height. */
 .start-steps { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); --track: var(--line-strong); --track-done: color-mix(in srgb, var(--accent) 60%, transparent); }
-.start-step { min-width: 0; }
-.start-step > a { --start-bg: var(--panel); --mark-x: 40px; --mark-y: 34px; position: relative; height: 100%; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-content: start; gap: 4px 14px; padding: 18px 24px 20px; background: var(--start-bg); color: inherit; text-decoration: none; transition: background .1s; }
-.start-step > a:hover { --start-bg: var(--panel-2); text-decoration: none; }
-.start-step > a > * { grid-column: 2; min-width: 0; }
+.start-step { --mark-x: 40px; --mark-y: 34px; position: relative; min-width: 0; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-content: start; gap: 4px 14px; padding: 18px 24px 20px; }
+.start-step > * { grid-column: 2; min-width: 0; }
 /* The line through the marks: to the one before (::before) and on to the next (::after). */
-.start-step > a::before, .start-step > a::after { content: ""; position: absolute; left: calc(var(--mark-x) - 1px); width: 2px; background: var(--track); }
-.start-step > a::before { top: 0; height: var(--mark-y); }
-.start-step > a::after { top: var(--mark-y); bottom: 0; }
-.start-step:first-child > a::before, .start-step:last-child > a::after { content: none; }
-.start-step.is-done > a::after, .start-step.is-done + .start-step > a::before { background: var(--track-done); }
-.start-step .start-mark { grid-column: 1; grid-row: 1; position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 5px var(--start-bg); transition: box-shadow .1s; }
+.start-step::before, .start-step::after { content: ""; position: absolute; left: calc(var(--mark-x) - 1px); width: 2px; background: var(--track); }
+.start-step::before { top: 0; height: var(--mark-y); }
+.start-step::after { top: var(--mark-y); bottom: 0; }
+.start-step:first-child::before, .start-step:last-child::after { content: none; }
+.start-step.is-done::after, .start-step.is-done + .start-step::before { background: var(--track-done); }
+.start-step .start-mark { grid-column: 1; grid-row: 1; position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 5px var(--panel); }
 .start-mark b { font-size: 14px; font-weight: 680; }
 .start-mark .icon { width: 17px; height: 17px; stroke-width: 2.6; }
-.start-step.is-next .start-mark { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 5px var(--start-bg); }
-.start-step.is-done .start-mark { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1.5px var(--accent-line), 0 0 0 5px var(--start-bg); }
+.start-step.is-next .start-mark { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 5px var(--panel); }
+.start-step.is-done .start-mark { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1.5px var(--accent-line), 0 0 0 5px var(--panel); }
 /* The heading on the middle of its mark, the rest under the heading. */
 .start-step h3 { grid-row: 1; min-height: 32px; display: flex; align-items: center; margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.015em; }
 .start-step p { color: var(--text-2); font-size: 13.5px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
-.start-go { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--text); font-size: 13.5px; font-weight: 620; }
-.start-go > .icon { flex: none; width: 16px; height: 16px; transition: transform .15s var(--ease); }
-.start-step > a:hover .start-go > .icon { transform: translateX(3px); }
-.start-step.is-next .start-go { color: var(--accent-ink); }
-.start-state { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-.start-state > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.start-state .icon { flex: none; width: 15px; height: 15px; color: var(--accent-ink); }
-/* Where the navigation keeps the step, and its items as the rail shows them. Both are `span`s that
-   can be `.js-only`, whose `display: contents` would leave no box: hence the longer selectors. */
-.start-step .start-where { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; color: var(--text-3); font-size: 12.5px; }
+/* The step's one button (a link, or the picker of „Studiengang wählen"); the next step's in the accent. */
+.start-act { display: flex; margin-top: 10px; }
+.start-btn, .start-act .pick-combo .combo-trigger { width: auto; min-height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px 0 12px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13.5px; font-weight: 620; text-decoration: none; transition: background .12s, filter .12s; }
+.start-btn:hover, .start-act .pick-combo .combo-trigger:hover { background: var(--panel-2); text-decoration: none; }
+.start-btn .icon, .start-act .pick-combo .combo-trigger > .icon:first-child { width: 16px; height: 16px; color: var(--text-2); }
+.start-act .pick-combo .combo-value.placeholder { color: inherit; }
+.start-step.is-next .start-btn, .start-step.is-next .pick-combo .combo-trigger { background: var(--accent); box-shadow: none; color: var(--on-accent); }
+.start-step.is-next .start-btn:hover, .start-step.is-next .pick-combo .combo-trigger:hover { background: var(--accent); filter: brightness(1.08); }
+.start-step.is-next .start-btn .icon, .start-step.is-next .pick-combo .combo-trigger .icon { color: inherit; }
+/* Where the navigation keeps the step, and its items as the rail shows them; once the step is
+   done, what was done in their place, on the same line. (A `span` of the items can be `.js-only`,
+   whose `display: contents` would leave no box: hence the longer selector.) */
+.start-step .start-where { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-height: 24px; margin-top: 10px; color: var(--text-3); font-size: 12.5px; }
 .start-where .start-place { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-weight: 580; }
-.start-step > a:hover .start-place { background: var(--panel); }
 .start-place .icon { width: 14px; height: 14px; }
+.start-state a, .start-state > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; color: var(--text); font-weight: 620; text-decoration: none; }
+.start-state a:hover { text-decoration: underline; }
+.start-state a > span, .start-state > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.start-state .icon { flex: none; width: 15px; height: 15px; color: var(--accent-ink); }
+.start-state a > .icon:last-child { color: var(--text-3); }
 /* For those who want to read first: the ways to the sections that explain Betula. */
 .start-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; padding: 10px 16px 12px 24px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; }
 .start-foot > span { margin-right: 6px; }
 .start-foot a { display: inline-flex; align-items: center; gap: 2px; min-height: 34px; padding: 0 6px 0 10px; border-radius: var(--r-ctl); color: var(--text-2); font-weight: 580; text-decoration: none; }
 .start-foot a:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
 .start-foot .icon { width: 15px; height: 15px; color: var(--text-3); }
-/* Side by side: the mark over the heading, the line through the marks across the row, and the way
-   on and the navigation's chip of each on the same lines as the others'. */
+/* Side by side: the mark over the heading, the line through the marks across the row, and the
+   button and the chips of each on the same lines as the others'. */
 @container home (min-width: 900px) {
   .start-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .start-step > a { --mark-y: 36px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto auto; align-content: stretch; gap: 6px; padding: 20px 24px 22px; }
-  .start-step > a > * { grid-column: 1; }
+  .start-step { --mark-y: 36px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto auto; gap: 6px; padding: 20px 24px 22px; }
+  .start-step > * { grid-column: 1; }
   .start-step .start-mark { grid-row: 1; margin-bottom: 8px; }
   .start-step h3 { grid-row: 2; min-height: 0; }
-  .start-step > a::before, .start-step > a::after { top: calc(var(--mark-y) - 1px); bottom: auto; width: auto; height: 2px; }
-  .start-step > a::before { left: 0; width: var(--mark-x); }
-  .start-step > a::after { left: var(--mark-x); right: 0; }
+  .start-step::before, .start-step::after { top: calc(var(--mark-y) - 1px); bottom: auto; width: auto; height: 2px; }
+  .start-step::before { left: 0; width: var(--mark-x); }
+  .start-step::after { left: var(--mark-x); right: 0; }
 }
+
+/* Twigs growing out of the panels into the room beside them (`Twig`; owner, 2026-09-28: „kleine
+   Äste immer mal wieder links und rechts"): the panel lets them out, the stem in a tone of bark,
+   the leaves in the season's crown and none in winter, as the crown has none. Where the page has
+   no room beside its panels (a phone), there are none. */
+.home .panel:has(> .twig) { position: relative; overflow: visible; }
+.twig { position: absolute; z-index: 1; top: var(--y); width: 60px; height: 45px; overflow: visible; pointer-events: none; --twig: color-mix(in oklch, var(--text-3) 70%, var(--crown)); }
+.twig-r { left: calc(100% - 4px); transform: translateY(-50%); }
+.twig-l { right: calc(100% - 4px); transform: translateY(-50%) scaleX(-1); }
+.twig-stem, .twig-sprig { fill: none; stroke: var(--twig); stroke-linecap: round; }
+.twig-stem { stroke-width: 1.7; }
+.twig-sprig { stroke-width: 1.1; }
+.twig-leaf { fill: var(--crown); }
+:root[data-season="winter"] .twig-leaf { display: none; }
 
 /* The pictures, as a carousel for pictures: the current one in front and in the middle, its
    neighbours behind it, half of each showing at its sides (their middle on its edge), going round.
@@ -1744,16 +1788,10 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 @container home (min-width: 900px) {
   .home-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-/* From a notebook's width on the figures stand beside the text, one under the other: the numbers
-   in one column, right-aligned, their names beside them on the same baseline. */
+/* From a notebook's width on the birch of the figures stands beside the text. */
 @container home (min-width: 700px) {
-  .home-hero { grid-template-columns: minmax(0, 1fr) clamp(214px, 27%, 290px); }
-  .birch { --fig-w: clamp(72px, 30cqi, 86px); grid-template-columns: minmax(0, 1fr); align-content: center; padding: 6px 0; border-top: 0; border-left: 1px solid var(--line); }
-  .birch > div { container-type: normal; display: grid; grid-template-columns: var(--fig-w) minmax(0, 1fr); align-items: last baseline; gap: 12px; padding: 10px 14px 10px 12px; }
-  .birch > div + div { border-left: 0; border-top: 1px solid var(--rule); }
-  .birch dd { order: -1; text-align: right; }
-  .birch > div + div::before { top: -2px; border-radius: 0 2px 2px 0; }
-  .birch > div:nth-child(3)::before { left: auto; right: 0; border-radius: 2px 0 0 2px; }
+  .home-hero { grid-template-columns: minmax(0, 1fr) clamp(270px, 32%, 340px); }
+  .hero-tree { margin: 14px 14px 14px 0; }
 }
 @container home (min-width: 1180px) {
   .ability-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1812,9 +1850,6 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
   .cslide.is-current .stage-go { opacity: 1; transform: none; }
   .cap { height: auto; min-height: 50px; padding: 8px 12px 8px 14px; }
   .cap-text { flex-direction: column; align-items: stretch; gap: 0; }
-  .birch { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .birch > div:nth-child(3) { border-left: 0; }
-  .birch > div:nth-child(n + 3) { border-top: 1px solid var(--rule); }
   .map-dialog { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; }
   .map-dialog .map-live { height: auto; }
 }
@@ -2705,12 +2740,16 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .home-hero-text { padding: 20px 16px 18px; }
   .home-hero .lead { font-size: 15.5px; }
   .intro-actions .btn { flex: 1 1 auto; min-height: 50px; }
-  .birch > div { padding-left: 16px; }
   .faq-group { padding-left: 16px; }
   .block-head { padding: 16px 8px 12px 16px; }
   .rowlink { height: 60px; padding: 0 12px 0 16px; }
   .ability { padding-left: 16px; padding-right: 16px; }
-  .start-step > a { --mark-x: 32px; padding-left: 16px; padding-right: 16px; }
+  .start-step { --mark-x: 32px; padding-left: 16px; padding-right: 16px; }
+  .intro-actions .pick-combo { flex: 1 1 auto; }
+  .intro-actions .pick-combo .combo-trigger { width: 100%; min-height: 50px; justify-content: center; }
+  .intro-actions .pick-combo .combo-value { flex: 0 1 auto; }
+  .home { --twig-room: 0px; }
+  .twig { display: none; }
   .start-foot { padding-left: 16px; padding-right: 8px; }
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }

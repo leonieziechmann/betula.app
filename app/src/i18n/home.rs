@@ -45,12 +45,20 @@ pub struct Texts {
     /// The way straight into the search at the top (its title says the keys).
     pub search_now: &'static str,
     pub search_now_title: &'static str,
-    /// The three steps, in the order a semester is planned.
+    /// The three steps, in the order a semester is planned, each with one button. The first one's
+    /// is „Studiengang wählen" or „Alle Studiengänge" (`choose_program`, `all_programs`).
     pub step_program: Step,
     pub step_modules: Step,
     pub step_timetable: Step,
-    /// What a step the visitor has done says instead of its way on: the program, „5 Module
-    /// gemerkt", „8 Module eingeplant".
+    /// The second step's button: the catalog of „Mein Studiengang", else the whole catalog.
+    pub mine_modules: &'static str,
+    pub to_catalog: &'static str,
+    /// The third step's button: the Stundenplan with the Regelstudienplan of „Mein Studiengang"
+    /// ready to take over, else the Stundenplan.
+    pub take_semester: &'static str,
+    pub to_timetable: &'static str,
+    /// What a step the visitor has done says in place of where the navigation keeps it: the
+    /// program, „5 Module gemerkt", „8 Module eingeplant".
     pub marked: fn(usize) -> String,
     pub planned: fn(usize) -> String,
     /// For screen readers, before the name of a step that is done.
@@ -176,11 +184,10 @@ pub struct Slide {
     pub action: &'static str,
 }
 
-/// A step of the way in: its name, what it does, and the way to it.
+/// A step of the way in: its name, and in a line what it does.
 pub struct Step {
     pub title: &'static str,
     pub text: &'static str,
-    pub go: &'static str,
 }
 
 /// A way into the catalog: its name, and what it lists.
@@ -221,24 +228,25 @@ pub const DE: Texts = Texts {
     in_semester: |semester| format!("im {semester}"),
 
     start_heading: "So legst du los",
-    start_lead: "Drei Schritte vom Studiengang bis zum fertigen Stundenplan. Wer nur ein bestimmtes Modul sucht, tippt Titel oder Nummer oben in die Suche.",
+    start_lead: "Drei Schritte, jeder ein Klick. Wer nur ein bestimmtes Modul sucht, tippt Titel oder Nummer oben in die Suche.",
     search_now: "Direkt suchen",
     search_now_title: "Springt in die Suche oben (Strg+K oder /)",
     step_program: Step {
         title: "Studiengang wählen",
-        text: "Finde deinen Studiengang und sieh dir seinen Regelstudienplan an, Semester für Semester. Als „Mein Studiengang“ gesetzt, sind Katalog und Stundenplan gleich auf ihn eingestellt.",
-        go: "Zu den Studiengängen",
+        text: "Einmal als „Mein Studiengang“ gewählt, sind Katalog und Stundenplan auf ihn eingestellt.",
     },
     step_modules: Step {
         title: "Module finden und merken",
-        text: "Durchsuche den Katalog und kombiniere Filter wie Turnus, Prüfung oder Sprache. Mit dem Lesezeichen kommt ein Modul auf deine Merkliste.",
-        go: "Zum Katalog",
+        text: "Filter für Turnus, Prüfung oder Sprache; das Lesezeichen setzt ein Modul auf deine Merkliste.",
     },
     step_timetable: Step {
         title: "Stundenplan bauen",
-        text: "Plane Module ein oder übernimm ein ganzes Fachsemester. Betula zeigt deine Woche, warnt vor Überschneidungen und bringt alles in deinen Kalender.",
-        go: "Zum Stundenplan",
+        text: "Ein ganzes Fachsemester übernehmen, Überschneidungen sehen, alles in den Kalender holen.",
     },
+    mine_modules: "Module deines Studiengangs",
+    to_catalog: "Zum Katalog",
+    take_semester: "Fachsemester übernehmen",
+    to_timetable: "Zum Stundenplan",
     marked: |n| if n == 1 { "1 Modul gemerkt".to_string() } else { format!("{n} Module gemerkt") },
     planned: |n| if n == 1 { "1 Modul eingeplant".to_string() } else { format!("{n} Module eingeplant") },
     step_done: "Erledigt: ",
@@ -469,24 +477,25 @@ pub const EN: Texts = Texts {
     in_semester: |semester| format!("in {semester}"),
 
     start_heading: "How to get started",
-    start_lead: "Three steps from your degree programme to a finished timetable. Looking for one particular module? Type its title or number into the search at the top.",
+    start_lead: "Three steps, one click each. Looking for one particular module? Type its title or number into the search at the top.",
     search_now: "Search now",
     search_now_title: "Jumps into the search at the top (Ctrl+K or /)",
     step_program: Step {
         title: "Choose a degree programme",
-        text: "Find your degree programme and look at its standard study plan, semester by semester. Set it as “My programme”, and the catalogue and your timetable are set up for it straight away.",
-        go: "To the degree programmes",
+        text: "Chosen once as “My programme”, it sets up the catalogue and your timetable.",
     },
     step_modules: Step {
         title: "Find and save modules",
-        text: "Search the catalogue and combine filters such as semester, assessment or language. The bookmark puts a module on your saved list.",
-        go: "To the catalogue",
+        text: "Filters for semester, assessment or language; the bookmark puts a module on your saved list.",
     },
     step_timetable: Step {
         title: "Build your timetable",
-        text: "Add modules or take over a whole semester of your plan. Betula shows your week, warns about clashes and puts everything into your calendar.",
-        go: "To the timetable",
+        text: "Take over a whole semester of your plan, see clashes, get it all into your calendar.",
     },
+    mine_modules: "Modules of your programme",
+    to_catalog: "To the catalogue",
+    take_semester: "Take over a semester",
+    to_timetable: "To the timetable",
     marked: |n| if n == 1 { "1 module saved".to_string() } else { format!("{n} modules saved") },
     planned: |n| if n == 1 { "1 module planned".to_string() } else { format!("{n} modules planned") },
     step_done: "Done: ",
