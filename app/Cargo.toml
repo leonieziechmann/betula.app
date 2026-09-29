@@ -29,7 +29,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 # JavaScript handles (a ResizeObserver) kept until a component is cleaned up: cleanups are `Send`.
 send_wrapper = "0.6"
 # `Blob`, `BlobPropertyBag`: the Studienplan's .ics download is a Blob URL, made before the click.
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions"] }
 
 [dev-dependencies]
 # The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`), as the catalog's do.

@@ -17,7 +17,7 @@ const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANN
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 
-const PAGE = "#content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
+const PAGE = "#content > .work.flowing, #content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
 const open = async (url, { viewport = { width: 1440, height: 900 }, app = true, ...options } = {}) => {
   const context = await browser.newContext({ viewport, ...options });
   // The classic site: the bundle never comes, so the app never takes over (its failed fetch is no problem here).
@@ -72,7 +72,8 @@ const wheel = async (page, x, y, dy, times) => {
   await page.waitForTimeout(700);
   b = await button(page);
   let w = await where(page);
-  const panel = await page.evaluate(() => { const r = document.querySelector(".panel.list").getBoundingClientRect(); return { right: Math.round(r.right), bottom: Math.round(r.bottom) }; });
+  // The list runs on under the edge of its scroll area: its corner is where the area cuts it off.
+  const panel = await page.evaluate(() => { const r = document.querySelector(".panel.list").getBoundingClientRect(), area = document.querySelector("#content > .work.flowing")?.getBoundingClientRect(); return { right: Math.round(r.right), bottom: Math.round(Math.min(r.bottom, area ? area.bottom - 1 : Infinity)) }; });
   check(b.shown && b.seen, `far down the list: the button does not show: ${JSON.stringify(b)} ${JSON.stringify(w)}`);
   check(Math.abs(panel.right - b.right - 16) <= 1 && Math.abs(panel.bottom - b.bottom - 16) <= 1 && b.width === 40, `the button is not in the corner of the list: ${JSON.stringify(b)} ${JSON.stringify(panel)}`);
   check(/[?&]page=\d/.test(w.search) && w.first > 100, `far down the list: the list did not follow: ${JSON.stringify(w)}`);

@@ -315,13 +315,13 @@
       key: "betula.filters.width", prop: "--w-filters", grows: 1,
       min: () => 232, max: () => Math.max(232, Math.min(440, innerWidth * 0.42)),
       panel: () => document.getElementById("filters") || document.getElementById("sidebar"),
-      place: (handle, width) => { handle.style.left = width === null ? "" : width + "px"; },
+      place: (handle, width) => { if (width === null) handle.style.removeProperty("--at"); else handle.style.setProperty("--at", width + "px"); },
     },
     "resize-preview": {
       key: "betula.preview.width", prop: "--preview-w", grows: -1,
       min: () => 360, max: () => { const work = document.querySelector(".work"); return work ? Math.max(360, work.clientWidth - sideWidth() - 128) : 2400; },
       panel: () => document.querySelector(".work > .detail"),
-      place: (handle, width) => { handle.style.right = width === null ? "" : width - 12 + "px"; },
+      place: (handle, width) => { if (width === null) handle.style.removeProperty("--at"); else handle.style.setProperty("--at", width + "px"); },
     },
   };
   const resizerOf = (target) => {
@@ -448,7 +448,10 @@
   // the window. Should the page leave its end all the same (its scrollbar, a question opened,
   // another page), the ground goes down by itself. A phone scrolls page and ground with the window
   // and needs none of this.
-  const PAGE = "#content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
+  const PAGE = "#content > .work.flowing, #content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
+  // A page that flows has the ground as the end of its own scroll area and needs none of this
+  // (see „one scroll area" below).
+  const flowing = () => document.querySelector("#content > .work.flowing");
   const atEnd = (el) => el.scrollHeight - el.clientHeight - el.scrollTop < 2;
   const STILL = 150; // ms the window stands still before the view is laid out for the ground
   let shown = 0; // how far the ground is in (its shift, the wood's, the clip on the view)
@@ -533,7 +536,7 @@
   };
   const ground = () => {
     groundFrame = 0;
-    if (phone()) {
+    if (phone() || flowing()) {
       if (shown) removeEventListener("wheel", groundWheel, { passive: false });
       if (shown || laid) { shown = laid = 0; applyGround(); }
       if (root.dataset.ground) delete root.dataset.ground;
@@ -580,6 +583,61 @@
     window.scrollTo({ top: root.scrollHeight, behavior: glide() });
   });
   ground();
+
+  // ---- one scroll area (`.work.flowing`, the catalog; app.css „one scroll area") ----
+  // The page and the ground after it scroll natively as one; nothing here runs while it scrolls
+  // but the wood where the browser cannot tie it to the scroll itself. Once the area stands still
+  // (150 ms), the pinned panels' content ends above the ground (`--cover`: the ground covers
+  // exactly what goes, so nobody sees it) and „Nach oben" stands above it. The heads of the
+  // list's columns stay under the list's head: its height is `--list-head-h`.
+  const tiesWood = CSS.supports("animation-timeline: scroll()") && CSS.supports("timeline-scope: --page");
+  let areaTimer = 0, areaFrame = 0, woodMoved = false, headSeen = null;
+  const headWatch = new ResizeObserver(() => {
+    const area = flowing(), head = area?.querySelector(":scope > .list > .list-head");
+    if (area && head) area.style.setProperty("--list-head-h", head.offsetHeight + "px");
+  });
+  const areaSettle = () => {
+    areaTimer = 0;
+    const area = flowing();
+    const button = document.getElementById("to-top");
+    if (!area) { button?.style.removeProperty("--lift"); return; }
+    const ground = area.querySelector(":scope > .ground");
+    const cover = ground && !phone() ? Math.max(0, Math.round(area.getBoundingClientRect().bottom - 1 - (ground.getBoundingClientRect().top - 8))) : 0;
+    area.style.setProperty("--cover", cover + "px");
+    if (cover) button?.style.setProperty("--lift", cover + "px"); else button?.style.removeProperty("--lift");
+  };
+  const areaFollow = () => {
+    areaFrame = 0;
+    const area = flowing();
+    const head = area?.querySelector(":scope > .list > .list-head") ?? null;
+    if (head !== headSeen) { headWatch.disconnect(); if (head) headWatch.observe(head); headSeen = head; }
+    // A list short enough to stand whole above the ground is pinned like the filter panel: the
+    // ground slides over its empty end and its rows stay where they are, as before. A longer one
+    // flows with the page and its end comes before the ground.
+    const list = area?.querySelector(":scope > .list");
+    if (list && !phone()) {
+      const rows = list.querySelector(".rows"), last = rows?.lastElementChild;
+      const needs = last ? last.getBoundingClientRect().bottom - list.getBoundingClientRect().top + 12 : 0;
+      const short = needs <= innerHeight - 64 - 208;
+      if (list.classList.contains("short") !== short) list.classList.toggle("short", short);
+    }
+    if (tiesWood) return;
+    const wood = document.querySelector(".wood");
+    if (!wood) return;
+    if (!area || phone()) { if (woodMoved) { wood.style.removeProperty("transform"); woodMoved = false; } return; }
+    const reach = 208, rise = Math.min(reach, Math.max(0, area.scrollTop - (area.scrollHeight - area.clientHeight - reach)));
+    wood.style.transform = rise ? `translateY(${-rise}px)` : "";
+    woodMoved = true;
+  };
+  const areaSoon = () => {
+    if (!areaFrame) areaFrame = requestAnimationFrame(areaFollow);
+    clearTimeout(areaTimer);
+    areaTimer = setTimeout(areaSettle, 150);
+  };
+  document.addEventListener("scroll", (e) => { if (e.target === flowing()) areaSoon(); }, { capture: true, passive: true });
+  addEventListener("resize", areaSoon);
+  new MutationObserver(areaSoon).observe(document.body, { childList: true, subtree: true });
+  areaSoon();
 
   // ---- back to the top („Nach oben", `ui::ToTop`) ----
   // Once the page is more than a screen down, a button in its corner takes it back to its top

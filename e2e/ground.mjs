@@ -19,7 +19,7 @@ const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANN
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 
-const PAGE = "#content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
+const PAGE = "#content > .work.flowing, #content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
 const facts = (PAGE) => {
   const box = (el) => el && el.getBoundingClientRect();
   const page = document.querySelector(PAGE);
@@ -170,23 +170,29 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await context.close();
 }
 
-// ---------- the catalog: a short list and the whole list ----------
+// ---------- the catalog: one scroll area (docs/frontend.md „One scroll area") ----------
+// The page and the ground after it scroll natively as one; the window never scrolls. A short list is
+// pinned beside the pinned filters: the ground slides over their lower ends and their rows stay,
+// 8 px between the ground and what stands above it once the area stands still; the filters then
+// scroll to their end above it. The whole list flows: its end comes 8 px above the ground. The wood
+// stands on the ground in every frame.
 {
   const { context, page } = await open("/catalog?q=datenbank");
+  const listBottom = () => page.evaluate(() => Math.round(document.querySelector(".panel.list").getBoundingClientRect().bottom));
   let f = await at(page);
-  check(f.state === "end", `a short list is at its end: ${JSON.stringify(f)}`);
+  check(f.state === null && f.room === 0 && f.groundTop >= 900 && f.sideBottom === 892, `the catalog: the window has room, or the ground shows, or the filters do not end 8 px above the window's edge: ${JSON.stringify(f)}`);
+  check(await page.evaluate(() => document.querySelector(".panel.list").classList.contains("short")), "a short list is not pinned");
   const rows = await page.evaluate(() => Math.round(document.querySelector("#rows .row").getBoundingClientRect().top));
+  await watchView(page);
   await wheel(page, 900, 400, 100, 4);
   f = await at(page);
   const after = await page.evaluate(() => Math.round(document.querySelector("#rows .row").getBoundingClientRect().top));
-  check(f.inset === 208 && rows === after && f.groundTop - f.sideBottom === 8, `a short list: the ground did not come, or the rows moved: ${JSON.stringify(f)} (rows ${rows} → ${after})`);
-  // The filters beside the list, the ground in: the wheel over them scrolls them to their end, and
-  // their end shows above the ground (owner, 2026-09-29: with the ground in, the panel did not scroll
-  // far enough to see all of it).
+  check(f.state === null && f.inset === 0 && f.groundTop === 692 && rows === after && f.sideBottom === 892 && f.groundTop - f.sideBodyBottom === 8, `a short list: the ground did not come as the end of the page, or the rows moved: ${JSON.stringify(f)} (rows ${rows} → ${after})`);
+  check(f.woodOff === 0 && f.woodBottom === f.groundTop, `a short list: the wood did not stand on the ground in every frame: ${JSON.stringify(f)}`);
   check(f.sideEnd === false, `a short list: the filters are not longer than their panel, so this tells nothing: ${JSON.stringify(f)}`);
   await wheel(page, 150, 500, 100, 40);
   f = await at(page);
-  check(f.inset === 208 && f.sideEnd && f.sideBodyBottom <= f.sideBottom && f.groundTop - f.sideBottom === 8, `the ground in: the filters do not scroll to their end above it: ${JSON.stringify(f)}`);
+  check(f.groundTop === 692 && f.sideEnd && f.groundTop - f.sideBodyBottom === 8, `the ground in: the filters do not scroll to their end above it: ${JSON.stringify(f)}`);
   await page.goto(base + "/catalog", { waitUntil: "networkidle" });
   await page.waitForTimeout(600);
   await toEnd(page);
@@ -194,7 +200,8 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await toEnd(page);
   await wheel(page, 900, 500, 100, 5);
   f = await at(page);
-  check(f.inset === 208 && f.pageEnd && f.groundTop - f.pageBottom >= 8, `the whole list: its end did not go up with the ground: ${JSON.stringify(f)}`);
+  const end = await listBottom();
+  check(f.pageEnd && f.groundTop === 692 && f.groundTop - end === 8 && f.groundTop - f.sideBodyBottom === 8, `the whole list: its end is not 8 px above the ground: ${JSON.stringify(f)} (list ${end})`);
   check(f.woodBottom === f.groundTop, `the catalog: the wood does not stand on the ground: ${JSON.stringify(f)}`);
   await context.close();
 }

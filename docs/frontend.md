@@ -1115,6 +1115,38 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   ground floating halfway up the screen (owner, 2026-09-26: „mindestens unten bündig"): the body is
   a column at least as high as the window (`100dvh`, the window with the browser's bars as they
   are), the view takes the room that is left, and the ground ends at the window's lower edge.
+- **One scroll area** (owner, 2026-09-29: the two steps — first the page, then the window for the
+  ground — felt „unfassbar janky"; decided on a prototype, variant b, „vom Aussehen alles so wie
+  heute, bloß dass es sich besser anfühlt"). A page that flows (`.work.flowing`; the catalog first,
+  the other pages follow) replaces all of the above on the desktop: everything right of the rail
+  under the top bar is one scroll area with one scrollbar at the window's right edge, and the page
+  and the ground after it scroll in it natively, as one — the ground is simply the end of the page
+  (`Ground` at the end of the page's `.work`; the app's own ground stays for the phone and the pages
+  that do not flow yet). Not the window: the content would run under the top bar, and the crown
+  and the wood would have to be painted again there; the area ends under the top bar as the page
+  did, and the wheel over the top bar and the rail does nothing, as before.
+  - What stands beside the page is pinned: the filter panel and the module beside the list stand
+    still, as high as the area shows, their place running through the ground's row, so the ground
+    slides over their lower end instead of pushing them up, and brings that end's edge along — the
+    gap above it in the colour of the wood's ground (which is what shows there: the wood's lowest
+    12 px are its solid ground, `design/forest`), the ring and the round corners (`.ground-gap`,
+    `.ground-cap`). Once the area stands still (150 ms), the pinned panels' content ends above the
+    ground (`--cover`, `enhance.js`), one layout nobody sees since the ground covers exactly what
+    goes, and „Nach oben" stands above it. Shrinking them with the scroll in every frame would lag
+    behind the natively scrolled ground.
+  - The list keeps its box: its head (the number, the filters in force) stays at the top, the
+    heads of its columns under it (`--list-head-h`, measured by `enhance.js`), the note of a
+    semester between them scrolls away as before. Where the area cuts the list off at the bottom a
+    sticky edge (`.list-cap`) draws the ring and the round corners; at the real end of the list it
+    stands where the list ends and draws what the list draws there. The round corners of the head
+    let the page behind show through a mask on the area, which stands still while its content
+    scrolls. The virtual list follows the area (`nav::list_viewport`, `nav::watch_scroll`).
+    A list short enough to stand whole above the ground (a search with a few hits) is pinned like
+    the filter panel (`.short`, `enhance.js`): its rows stay where they are when the ground comes,
+    as before, and the ground slides over its empty end.
+  - The wood goes up with the ground in the same frame: a scroll-driven animation on the area's
+    timeline (`--page`, the last 208 px of the scroll); where a browser has none, `enhance.js`
+    moves it.
 
 The pieces: `app/src/ground.rs` (`Crown`, `Ground`; the ground's data is `pages::ground`, the meta
 and the current semester), „the birch" in `app/assets/app.css`, the ground's behaviour in
