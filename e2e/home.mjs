@@ -304,6 +304,26 @@ check(await page.evaluate(() => location.pathname === "/"), "phone: a swipe open
 check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "phone: the page scrolls sideways");
 // A phone: the first panel is its text alone, without the birch and its figures.
 check(await page.evaluate(() => !document.querySelector(".hero-trunk").checkVisibility() && !document.querySelector(".tree-figures").checkVisibility()), "phone: the first panel shows the birch or its figures");
+// A phone: „Studiengang wählen" opens in place and across its panel, 16 px in from its edges,
+// however far in its button stands (the way in: beside the marks, over the line through them) and
+// however long the names it lists; its button stays where it was (owner, 2026-09-29: „von ganz
+// links bis nach ganz rechts. Kein Überstand").
+for (const id of ["home-program", "start-program"]) {
+  await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: "center" }), id);
+  const button = () => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.width)}`; }, id);
+  const before = await button();
+  await page.click(`#${id}`);
+  await page.waitForSelector(`#${id}-search`);
+  const spread = await page.evaluate((id) => {
+    const panel = document.getElementById(id).closest(".panel").getBoundingClientRect();
+    const pop = document.getElementById(`${id}-search`).closest(".combo-pop").getBoundingClientRect();
+    const top = document.elementFromPoint(panel.left + 32, pop.top + 22);
+    return { left: Math.round(pop.left - panel.left), right: Math.round(panel.right - pop.right), onTop: Boolean(top?.closest(".combo-pop")), sideways: document.documentElement.scrollWidth > window.innerWidth };
+  }, id);
+  const after = await button();
+  check(spread.left === 16 && spread.right === 16 && spread.onTop && !spread.sideways && after === before, `phone: the picker ${id} does not open across its panel: ${JSON.stringify({ ...spread, before, after })}`);
+  await page.keyboard.press("Escape");
+}
 // The name, not the button (its hit area reaches past it).
 check(await page.evaluate(() => [...document.querySelectorAll(".show-tabs button")].every((b) => {
   const range = document.createRange();
@@ -318,6 +338,16 @@ await page.locator(".board-more").scrollIntoViewIfNeeded();
 await page.click(".board-more");
 check((await groups()) === 12 && !(await page.isVisible(".board-more")), `phone: „Alle Filter zeigen" does not show all filters (${await groups()})`);
 check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "phone: „Betula im Detail\" scrolls sideways");
+// The narrowest phone, in the longer words of English: the pickers' buttons take a second line
+// rather than standing out of their panel's padding.
+await page.setViewportSize({ width: 320, height: 700 });
+await page.goto(base + "/en", { waitUntil: "networkidle" });
+await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
+const room = await page.evaluate(() => ["home-program", "start-program"].map((id) => {
+  const button = document.getElementById(id);
+  return Math.round(button.closest(".panel").getBoundingClientRect().right - button.getBoundingClientRect().right);
+}));
+check(room.every((px) => px >= 16), `phone: „Choose a degree programme" stands out of its panel at 320 px: ${room}`);
 
 check(errors.length === 0, `page errors: ${errors.join(" | ")}`);
 await browser.close();

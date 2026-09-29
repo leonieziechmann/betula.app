@@ -568,7 +568,7 @@ html:not(.js) .fit-chip { display: none; }
 .people-hint b { display: inline-block; width: 14px; color: var(--text-2); font-weight: 700; }
 
 /* Pickers with a search (app/src/combobox.rs). The popup is fixed to the window, so the
-   panel does not clip it; on a phone it opens in place. */
+   panel does not clip it; on a phone it opens in place, across its panel. */
 .combo { position: relative; }
 .combo-trigger { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 12px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 600; text-align: left; transition: background .12s; }
 .combo-trigger:hover { background: var(--panel-3); }
@@ -1181,6 +1181,9 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .intro-actions .pick-combo .combo-trigger:hover { background: var(--panel-2); }
 .intro-actions .pick-combo .combo-trigger > .icon:first-child { width: 17px; height: 17px; color: var(--text); }
 .intro-actions .pick-combo .combo-value.placeholder { color: var(--text); }
+/* Its words take a second line where there is no room for them (a narrow phone, in English), as
+   those of the button it stands for do, instead of pushing it out of the panel. */
+.pick-combo .combo-value { white-space: normal; }
 /* The birch of the first panel (owner, 2026-09-28: „rechts am Rand so ein dickerer Birkenstamm und
    dann nach links die Stats"): a trunk of bark down the panel's right edge, the whole height, and
    each figure a tag on a branch of it, the branches of two lengths. Flat, as the mark is (the first
@@ -2700,7 +2703,14 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .seg a, .seg button { min-height: 40px; font-size: 14.5px; }
   .combo-trigger, .more .combo-trigger { min-height: 46px; font-size: 15px; }
   .combo-clear, .more .combo-clear { top: 9px; }
-  .combo-pop { position: static; width: auto; max-height: 46vh; margin-top: 6px; box-shadow: inset 0 0 0 1px var(--line-strong); animation: none; }
+  /* The popup of a picker opens under its button and across the panel it stands in (owner,
+     2026-09-29: „Komboboxen auf dem Handy sollen immer die volle Breite einnehmen (mit margin
+     etc) aber sie sollen halt von ganz links bis nach ganz rechts"): out past its button to
+     16 px from the panel's edges, a panel's padding on a phone, and never narrower than the
+     button (`--pl`, `--pr`: how far in the picker stands, `nav::popup_place`). The names it
+     lists never widen it: a long one pushed the popup and the picker's button out of the panel.
+     Above what it covers, the line through the marks of the way in. */
+  .combo-pop { position: relative; z-index: 1; inset: auto; width: auto; max-height: 46vh; margin: 6px min(0px, 16px - var(--pr, 16px)) 0 min(0px, 16px - var(--pl, 16px)); contain: inline-size; box-shadow: inset 0 0 0 1px var(--line-strong); animation: none; }
   .combo-option { min-height: 44px; align-items: center; font-size: 15px; }
   .combo-foot { display: none; }
   .credits { --knob: 24px; --thumb: 40px; }
@@ -2776,6 +2786,9 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .home-hero-text { padding: 20px 16px 18px; }
   .home-hero .lead { font-size: 15.5px; }
   .intro-actions .btn { flex: 1 1 auto; min-height: 50px; }
+  /* Where the two share a line, an open picker's popup runs on under the other button, which
+     keeps its height. */
+  .intro-actions { align-items: flex-start; }
   .faq-group { padding-left: 16px; }
   .block-head { padding: 16px 8px 12px 16px; }
   .rowlink { height: 60px; padding: 0 12px 0 16px; }

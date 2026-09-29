@@ -195,7 +195,8 @@ pub fn Combobox(
     // popup in the meantime, so what counts is whether the button has really moved since then.
     // On a phone the popup is not anchored but in place, so neither matters there — and there
     // the keyboard that opens for the search field changes the size of the window and scrolls
-    // the field into view, which used to close the popup the moment it opened.
+    // the field into view, which used to close the popup the moment it opened. A new size only
+    // measures again how far in its panel the picker stands, which the popup spans.
     if let Some(ClosePopups(signal)) = use_context::<ClosePopups>() {
         Effect::new(move |_| {
             signal.track();
@@ -208,6 +209,8 @@ pub fn Combobox(
         let handle = window_event_listener(leptos::ev::resize, move |_| {
             if !nav::is_phone() {
                 hide(false);
+            } else if is_open(open) {
+                place.set(nav::popup_place(id, min_width));
             }
         });
         on_cleanup(move || handle.remove());
@@ -287,7 +290,9 @@ pub fn Combobox(
 
     let popup = move || {
         open.get().then(|| {
-            let style = place.get().map(|place| place.style()).unwrap_or_default();
+            // Its own reaction: placed again, the popup is not drawn anew (its search field would
+            // lose the focus).
+            let style = move || place.get().map(|place| place.style()).unwrap_or_default();
             let entries = move || {
                 let rows = rows.get();
                 let hidden = rows.len().saturating_sub(MAX_SHOWN);
