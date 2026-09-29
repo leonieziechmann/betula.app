@@ -185,7 +185,7 @@ fn ViewGroup(ctx: PlanCtx) -> impl IntoView {
                 draggable="false"
                 aria-checked=move || if checked.get() { "true" } else { "false" }
             >
-                {view.label(t.locale)}
+                <span class="seg-label">{view.label(t.locale)}</span>
             </a>
         }
     };
@@ -287,14 +287,14 @@ fn TownGroup(ctx: PlanCtx) -> impl IntoView {
                     }
                 }
             >
-                {label}
+                <span class="seg-label">{label}</span>
             </button>
         }
     };
     view! {
         <div class="fgroup">
             <p class="flabel label">{t.studyplan_side.town}</p>
-            <div class="seg" role="radiogroup" aria-label=t.studyplan_side.town>
+            <div class="seg hug" role="radiogroup" aria-label=t.studyplan_side.town>
                 {button(Town::Cottbus.label(), TownChoice::Only(Town::Cottbus))}
                 {button(Town::Senftenberg.label(), TownChoice::Only(Town::Senftenberg))}
                 {button(t.studyplan_side.both_towns, TownChoice::Both)}

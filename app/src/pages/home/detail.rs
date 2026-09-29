@@ -176,7 +176,7 @@ fn chip(t: &'static Texts, label: String, icon: Option<&'static str>, state: &'s
 fn seg(items: Vec<String>, on: usize) -> AnyView {
     view! {
         <span class="seg mock-seg">
-            {items.into_iter().enumerate().map(|(i, item)| view! { <span aria-checked=(i == on).then_some("true")>{item}</span> }).collect_view()}
+            {items.into_iter().enumerate().map(|(i, item)| view! { <span aria-checked=(i == on).then_some("true")><span class="seg-label">{item}</span></span> }).collect_view()}
         </span>
     }
     .into_any()

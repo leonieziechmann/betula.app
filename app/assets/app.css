@@ -498,15 +498,24 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .select-wrap > .icon:last-child { position: absolute; right: 10px; top: 12px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; }
 .select-wrap.plain select { padding-left: 12px; font-weight: 520; min-height: 36px; font-size: 13px; }
 
-/* One of a few: the row fills the width, every choice the same share of it. */
+/* One of a few: the row fills the width, every choice the same share of it. Where a choice's words
+   (span.seg-label) are wider than its share they end in „…"; what follows them (a count, „bald")
+   stays whole. The label cuts, not the choice: a choice that clipped its content would clip its
+   hit area (R14) with it. */
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 3px; border-radius: var(--r-ctl); background: var(--panel-3); margin-top: 8px; }
 .flabel + .seg { margin-top: 0; }
-.seg a, .seg button { min-height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 580; font-size: 13px; color: var(--text-2); text-decoration: none; white-space: nowrap; user-select: none; }
+.seg a, .seg button { min-width: 0; padding: 0 2px; min-height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 580; font-size: 13px; color: var(--text-2); text-decoration: none; white-space: nowrap; user-select: none; }
 .seg a:hover, .seg button:hover { color: var(--text); }
 .seg a[aria-checked="true"], .seg button[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
 /* An option there is no room for now (the matrix on a narrow page): quieter, and not a target. */
 .seg button[aria-disabled="true"], .seg button[aria-disabled="true"]:hover { color: var(--text-3); cursor: default; }
-.seg a span { color: var(--text-3); font-weight: 500; margin-left: 5px; }
+.seg a .num { color: var(--text-3); font-weight: 500; margin-left: 5px; }
+.seg-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.seg-label ~ * { flex: none; }
+/* Choices as wide as their words (.hug), where they differ much in length („Standort",
+   „Importieren"): each the room it needs, what is left of the row shared. Where the row is too
+   narrow for all of them, the short ones keep theirs and the long ones share the rest, cut off. */
+.seg.hug { grid-auto-columns: minmax(0, auto); }
 
 /* Toggles: the chips of a row share its whole width; the box on the left says "switch" and
    shows the state: empty, with (ticked), without (crossed). */
@@ -556,7 +565,7 @@ html:not(.js) .fit-chip { display: none; }
 .person-name small { color: var(--text-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person[data-state="without"] .person-name b { color: var(--no); text-decoration: line-through; text-decoration-thickness: 1.5px; }
 .seg.mini { flex: none; margin: 0; padding: 2px; grid-auto-columns: 26px; }
-.seg.mini a { min-height: 26px; border-radius: 5px; --hit-y: 8px; }
+.seg.mini a { min-height: 26px; padding: 0; border-radius: 5px; --hit-y: 8px; }
 .seg.mini a:first-child { --hit-l: 7px; }
 .seg.mini a .icon { width: 14px; height: 14px; stroke-width: 2.6; }
 .seg.mini a.plus[aria-checked="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
@@ -1871,14 +1880,14 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
   .map-tall { display: block; }
   .show-arrow, .cap-go { display: none; }
   .show-bar { grid-template-columns: minmax(0, 1fr) auto; padding: 0 12px; }
-  .show-bar .show-tabs { grid-column: 1; width: auto; grid-auto-columns: auto; }
-  .show-bar .show-tabs button { padding: 0 8px; font-size: 13.5px; }
-  /* „Regelstudienplan" is the longest tab: on a small phone the four still fit side by side, and
-     on the smallest (320px) as well. */
-  @media (max-width: 400px) { .show-bar .show-tabs button { padding: 0 4px; font-size: 12.5px; } }
+  .show-bar .show-tabs { grid-column: 1; width: auto; grid-auto-columns: minmax(0, auto); }
+  .show-bar .show-tabs button { padding: 0 6px; font-size: 13.5px; }
+  /* „Regelstudienplan" („Standard study plan") is the longest tab: on a small phone the four still
+     fit side by side, and on the smallest (320px) as well. */
+  @media (max-width: 400px) { .show-bar .show-tabs button { padding: 0 3px; font-size: 12.5px; } }
   @media (max-width: 359px) {
     .show-bar { gap: 6px; }
-    .show-bar .show-tabs button { padding: 0 3px; font-size: 11px; }
+    .show-bar .show-tabs button { padding: 0 2px; font-size: 11px; }
   }
   .show-bar .show-tabs button[aria-checked="true"] { background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
   .show-mark { display: none; }
@@ -2301,7 +2310,7 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-overlaps li.hidden { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 2px 4px 2px 20px; color: var(--text-2); font-size: 13px; }
 .sp-overlaps li.hidden > span { flex: 1; min-width: 0; }
 /* „Plan · Alle Termine" and „A-Woche · B-Woche · A/B" above the week: as wide as their words. */
-.seg.sp-weeks, .seg.sp-all { justify-self: start; margin-top: 0; grid-auto-columns: auto; }
+.seg.sp-weeks, .seg.sp-all { justify-self: start; margin-top: 0; }
 .seg.sp-weeks button, .seg.sp-all button { padding: 0 12px; }
 /* A slot that overlaps another in the week shown: a red frame and a red mark at its top right. */
 .sp-body .slot.clash { box-shadow: inset 3px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
@@ -2500,8 +2509,6 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .action[aria-disabled="true"]:hover { background: none; }
 /* A button in a note („Neue Adresse kopieren", „Alle einblenden") is a button, not warning text. */
 .note .mini { color: var(--text); }
-/* „Standort": „Senftenberg" takes the room it needs, the shorter towns less. */
-.seg[aria-label="Standort"] { grid-auto-columns: auto; }
 /* „Zeigen" without a Termin to show: the line in the chips' place. */
 .sidebar .sp-none { margin-top: 0; }
 
