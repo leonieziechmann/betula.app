@@ -10,6 +10,9 @@
 // trees walk outwards from the column's edges, so the ones next to it are the same on every screen.
 // Their path data is as short as it gets (path.mjs), and each goes out as <name>.svg.br too, brotli
 // at quality 11, which the server sends to browsers that take it (`birch::brotli`).
+// The trunks fade out in the top 160 px (a window taller than the wood sees them end softly): a
+// gradient in the mask itself, not one laid over it by the stylesheet, which the browser draws anew
+// with every restyle of the page — and dragging a panel's edge restyles all of it in every frame.
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants } from "node:zlib";
@@ -17,7 +20,7 @@ import { compact } from "./path.mjs";
 import { setPrecision, wood } from "./wood.mjs";
 
 const out = fileURLToPath(new URL("../../app/assets/birch/", import.meta.url));
-const SIDE = 900, COLUMN = 1280, W = 2 * SIDE + COLUMN, H = 1600;
+const SIDE = 900, COLUMN = 1280, W = 2 * SIDE + COLUMN, H = 1600, FADE = 160;
 setPrecision(1);
 // Outwards from either edge of the column, and under it from its left edge to a little before its
 // right one: the panels hide that part, but where they leave a gap (between two of them, or under
@@ -33,10 +36,12 @@ for (const season of ["spring", "summer", "autumn", "winter"]) {
     const p = wood({ W, H, season, form: "organic", sides, ...layer });
     const j = (a) => a.join("");
     // The trunks with their marks cut out (even-odd); everything else is filled; the twigs are lines.
+    // All of it in the fade: clear at the top, whole from FADE down.
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
-      + `<path fill-rule="evenodd" d="${compact(j(p.trunks) + j(p.marks))}"/>`
-      + `<path d="${compact(j(p.limbs) + j(p.leaves) + j(p.catkins) + j(p.birds) + j(p.extra) + j(p.ground))}"/>`
-      + `<path fill="none" stroke="#000" stroke-width="${layer.s < 1 ? .7 : 1}" stroke-linecap="round" d="${compact(j(p.twigs))}"/>`
+      + `<defs><linearGradient id="f" x2="0" y2="${FADE}" gradientUnits="userSpaceOnUse"><stop stop-opacity="0"/><stop offset="1"/></linearGradient></defs>`
+      + `<path fill="url(#f)" fill-rule="evenodd" d="${compact(j(p.trunks) + j(p.marks))}"/>`
+      + `<path fill="url(#f)" d="${compact(j(p.limbs) + j(p.leaves) + j(p.catkins) + j(p.birds) + j(p.extra) + j(p.ground))}"/>`
+      + `<path fill="none" stroke="url(#f)" stroke-width="${layer.s < 1 ? .7 : 1}" stroke-linecap="round" d="${compact(j(p.twigs))}"/>`
       + `</svg>\n`;
     writeFileSync(out + `${season}-wood-${name}.svg`, svg);
     // Brotli at its best, once, here: the server hands it to browsers that take `br` as it is.

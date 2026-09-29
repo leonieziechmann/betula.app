@@ -8,7 +8,8 @@
 //! The wood behind the start page (`<season>-wood-back.svg`, `-front.svg`) is drawn by
 //! `design/forest/forest.mjs`.
 //!
-//! Every file is a mask: shape in black and nothing else (what hangs behind at half strength).
+//! Every file is a mask: shape in black and nothing else (what hangs behind at half strength);
+//! the wood's shapes fade out at its top, the fade drawn into them.
 
 /// The season the crown is drawn in, as the site follows the year (the script in `<head>`,
 /// `app::shell`): March–May spring, June–August summer, September–November autumn,

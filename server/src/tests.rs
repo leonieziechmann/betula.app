@@ -445,8 +445,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let head = |html: &str| html.split("</head>").next().unwrap_or_default().to_string();
     let (_, _, body) = request(&router, "/catalog/module/11101", &[]).await;
     let module_page = String::from_utf8(body).unwrap();
-    // The wood stands behind every page, once (`ground::Wood`), not only behind the start page.
-    assert_eq!(module_page.matches("<div class=\"wood\" aria-hidden=\"true\"></div>").count(), 1, "the module page has no wood behind it");
+    // The wood stands behind every page, once (`ground::Wood`), not only behind the start page. Its
+    // attributes in either order: Leptos writes the class after the others, whatever the view says.
+    let woods = |html: &str| ["<div class=\"wood\" aria-hidden=\"true\"></div>", "<div aria-hidden=\"true\" class=\"wood\"></div>"].iter().map(|wood| html.matches(wood).count()).sum::<usize>();
+    assert_eq!(woods(&module_page), 1, "the module page has no wood behind it");
     let module = head(&module_page);
     assert_eq!(module.matches("name=\"description\"").count(), 1, "{module}");
     assert!(module.contains("href=\"https://catalog.example/catalog/module/11101\" rel=\"canonical\""), "{module}");
@@ -478,7 +480,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // the wood behind the page, and no branches out of the panels any more.
     assert!(!home.contains("id=\"sidebar\"") && home.contains("<div id=\"page-scroll\" class=\"page home-page\""), "the start page has no frame");
     assert!(home.contains("id=\"loslegen\"") && home.matches("class=\"start-step ").count() + home.matches("class=\"start-step\"").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
-    assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.contains("class=\"hero-trunk\"") && home.contains("<div class=\"wood\" aria-hidden=\"true\"></div>") && !home.contains("class=\"branch"), "the start page's buttons, figures and wood");
+    assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.contains("class=\"hero-trunk\"") && woods(&home) == 1 && !home.contains("class=\"branch"), "the start page's buttons, figures and wood");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
     // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
     // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).

@@ -331,21 +331,24 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    (design/birch): at the left the head — the mark, and over the title a clearing where only the
    crown's edge hangs in, so the name stands free („ein natürlicher Platz für die Schrift“) — and
    from 420 px on a tile that repeats to the right edge, cut to its own box (content-box), so the
-   two never draw over each other. Spring's catkins have a colour of their own. */
-.crown { position: fixed; z-index: 0; top: 0; left: 0; right: 0; height: 64px; pointer-events: none; --crown-head: url("/assets/birch/summer-crown-head.svg"); --crown-mask: url("/assets/birch/summer-crown.svg"); }
+   two never draw over each other. Spring's catkins have a colour of their own. The masks stand in
+   the rules as they are, not handed down in custom properties: an image out of a custom property
+   is taken anew with every restyle, and the browser draws it again — dragging a panel's edge
+   restyles the whole page in every frame, and the crown was drawn again with each one. */
+.crown { position: fixed; z-index: 0; top: 0; left: 0; right: 0; height: 64px; pointer-events: none; }
 .crown::before, .crown::after {
   content: ""; position: absolute; top: 0; left: 0; right: 0; height: 64px; padding-left: 420px; background: var(--crown);
-  -webkit-mask-image: var(--crown-head), var(--crown-mask); mask-image: var(--crown-head), var(--crown-mask);
+  -webkit-mask-image: url("/assets/birch/summer-crown-head.svg"), url("/assets/birch/summer-crown.svg"); mask-image: url("/assets/birch/summer-crown-head.svg"), url("/assets/birch/summer-crown.svg");
   -webkit-mask-repeat: no-repeat, repeat-x; mask-repeat: no-repeat, repeat-x;
   -webkit-mask-position: left top; mask-position: left top;
   -webkit-mask-origin: border-box, content-box; mask-origin: border-box, content-box;
   -webkit-mask-clip: border-box, content-box; mask-clip: border-box, content-box;
 }
-.crown::after { display: none; background: var(--crown-ck); --crown-head: url("/assets/birch/spring-crown-head-ck.svg"); --crown-mask: url("/assets/birch/spring-crown-ck.svg"); }
-:root[data-season="spring"] .crown { --crown-head: url("/assets/birch/spring-crown-head.svg"); --crown-mask: url("/assets/birch/spring-crown.svg"); }
+.crown::after { display: none; background: var(--crown-ck); -webkit-mask-image: url("/assets/birch/spring-crown-head-ck.svg"), url("/assets/birch/spring-crown-ck.svg"); mask-image: url("/assets/birch/spring-crown-head-ck.svg"), url("/assets/birch/spring-crown-ck.svg"); }
+:root[data-season="spring"] .crown::before { -webkit-mask-image: url("/assets/birch/spring-crown-head.svg"), url("/assets/birch/spring-crown.svg"); mask-image: url("/assets/birch/spring-crown-head.svg"), url("/assets/birch/spring-crown.svg"); }
 :root[data-season="spring"] .crown::after { display: block; }
-:root[data-season="autumn"] .crown { --crown-head: url("/assets/birch/autumn-crown-head.svg"); --crown-mask: url("/assets/birch/autumn-crown.svg"); }
-:root[data-season="winter"] .crown { --crown-head: url("/assets/birch/winter-crown-head.svg"); --crown-mask: url("/assets/birch/winter-crown.svg"); }
+:root[data-season="autumn"] .crown::before { -webkit-mask-image: url("/assets/birch/autumn-crown-head.svg"), url("/assets/birch/autumn-crown.svg"); mask-image: url("/assets/birch/autumn-crown-head.svg"), url("/assets/birch/autumn-crown.svg"); }
+:root[data-season="winter"] .crown::before { -webkit-mask-image: url("/assets/birch/winter-crown-head.svg"), url("/assets/birch/winter-crown.svg"); mask-image: url("/assets/birch/winter-crown-head.svg"), url("/assets/birch/winter-crown.svg"); }
 
 /* The ground: the footer after all of a page, across everything right of the rail. The roots
    grow into it from its edge and fade downwards (a mask, like the crown); in autumn the fallen
@@ -394,8 +397,9 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      bottom bar floating over its lower part; under a page shorter than the window it lies at the
      window's lower edge all the same (the body's column, „phone and tablet"). */
   .crown { z-index: 20; height: var(--bar); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); }
-  /* No title in the bar, so no clearing: the tile alone, from the left edge. */
-  .crown::before, .crown::after { padding-left: 0; --crown-head: none; }
+  /* No title in the bar, so no clearing: the tile alone, from the left edge (the head's layer at
+     no size, which draws nothing, as `none` would). */
+  .crown::before, .crown::after { padding-left: 0; -webkit-mask-size: 0 0, auto; mask-size: 0 0, auto; }
   .ground { margin: 12px 0 0; min-height: 0; border-radius: 18px 18px 0 0; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
   .ground-top { flex-direction: column; gap: 14px; padding: 22px 18px 0; }
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
@@ -1294,15 +1298,22 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
    sees the trunks fade out at their top. Their trees walk outwards from the column's edges, so the
    ones next to it are the same on every screen and a wider one only adds trees further out. Not
    on a phone, where the page scrolls with the window and the ground follows it. A layer of its
-   own, so that going up with the ground moves it and does not draw its masks again. */
+   own, so that going up with the ground moves it and does not draw its masks again. Nor does
+   anything else: each mask is one image, the fade drawn into it (design/forest), and it stands in
+   the rules as it is. A gradient over it, or an image out of a custom property, is made anew with
+   every restyle, and the browser draws it again — dragging a panel's edge restyles the whole page
+   in every frame, and redrawing the wood with each one was most of what the drag cost. */
 .wood { display: none; }
 @media (min-width: 901px) {
-  .wood { --wood-back-mask: url("/assets/birch/summer-wood-back.svg"); --wood-front-mask: url("/assets/birch/summer-wood-front.svg"); display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; will-change: transform; }
-  :root[data-season="spring"] .wood { --wood-back-mask: url("/assets/birch/spring-wood-back.svg"); --wood-front-mask: url("/assets/birch/spring-wood-front.svg"); }
-  :root[data-season="autumn"] .wood { --wood-back-mask: url("/assets/birch/autumn-wood-back.svg"); --wood-front-mask: url("/assets/birch/autumn-wood-front.svg"); }
-  :root[data-season="winter"] .wood { --wood-back-mask: url("/assets/birch/winter-wood-back.svg"); --wood-front-mask: url("/assets/birch/winter-wood-front.svg"); }
-  .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: var(--wood-mask) calc(50% - 4px) 100% / 3080px 1600px no-repeat, linear-gradient(transparent, #000 160px); -webkit-mask-composite: source-in; mask: var(--wood-mask) calc(50% - 4px) 100% / 3080px 1600px no-repeat, linear-gradient(transparent, #000 160px); mask-composite: intersect; --wood-mask: var(--wood-back-mask); }
-  .wood::after { background: var(--wood-front); --wood-mask: var(--wood-front-mask); }
+  .wood { display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; will-change: transform; }
+  .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3080px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3080px 1600px no-repeat; }
+  .wood::after { background: var(--wood-front); -webkit-mask-image: url("/assets/birch/summer-wood-front.svg"); mask-image: url("/assets/birch/summer-wood-front.svg"); }
+  :root[data-season="spring"] .wood::before { -webkit-mask-image: url("/assets/birch/spring-wood-back.svg"); mask-image: url("/assets/birch/spring-wood-back.svg"); }
+  :root[data-season="spring"] .wood::after { -webkit-mask-image: url("/assets/birch/spring-wood-front.svg"); mask-image: url("/assets/birch/spring-wood-front.svg"); }
+  :root[data-season="autumn"] .wood::before { -webkit-mask-image: url("/assets/birch/autumn-wood-back.svg"); mask-image: url("/assets/birch/autumn-wood-back.svg"); }
+  :root[data-season="autumn"] .wood::after { -webkit-mask-image: url("/assets/birch/autumn-wood-front.svg"); mask-image: url("/assets/birch/autumn-wood-front.svg"); }
+  :root[data-season="winter"] .wood::before { -webkit-mask-image: url("/assets/birch/winter-wood-back.svg"); mask-image: url("/assets/birch/winter-wood-back.svg"); }
+  :root[data-season="winter"] .wood::after { -webkit-mask-image: url("/assets/birch/winter-wood-front.svg"); mask-image: url("/assets/birch/winter-wood-front.svg"); }
 }
 
 /* The pictures, as a carousel for pictures: the current one in front and in the middle, its
