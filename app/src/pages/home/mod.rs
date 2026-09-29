@@ -24,10 +24,10 @@
 //! functions, and saw neither that it works without JavaScript nor that the study plans are read
 //! from the regulations. So the page says all of it plainly: nine abilities (the account, the pages
 //! without JavaScript and offline, the Stundenplan, the plans from the regulations among them),
-//! questions on exactly these points, and after the questions „Betula im Detail" (`detail.rs`), a
-//! chapter per feature with a picture made of the app's own parts. The structured data names
-//! Betula as a web app with the same abilities (`WebApplication`), free and running without
-//! JavaScript.
+//! „Betula im Detail" (`detail.rs`), a chapter per feature with a picture made of the app's own
+//! parts, and at the end of the page questions on exactly these points (owner, 2026-09-29: the
+//! FAQ at the end). The structured data names Betula as a web app with the same abilities
+//! (`WebApplication`), free and running without JavaScript.
 //!
 //! Owner, the same day: the sidebar made the page confusing and odd to look at („sehr verwirrend",
 //! „sorgt dafür, dass die Seite komisch aussieht"); a new visitor has to find their way, and the
@@ -232,6 +232,7 @@ pub fn HomePage() -> impl IntoView {
                 <span><Icon name="circle-check-big"/>{t.home.coming}</span>
             </p>
         </section>
+        <detail::Details plans example/>
         // The questions are the list; an answer opens in place. The text is in the page either way
         // (and in the FAQPage data above).
         <section class="panel questions" id="fragen" aria-labelledby="fragen-titel">
@@ -251,7 +252,6 @@ pub fn HomePage() -> impl IntoView {
                 </div>
             }).collect_view()}
         </section>
-        <detail::Details plans example/>
         </div></div>
     }
 }

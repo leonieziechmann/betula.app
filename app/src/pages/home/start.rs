@@ -192,7 +192,7 @@ pub fn StartPath() -> impl IntoView {
             </ol>
             <p class="start-foot">
                 <span>{home.learn_first}</span>
-                {[("funktionen", home.abilities), ("fragen", home.questions), ("im-detail", t.home_detail.heading)].map(|(id, name)| view! {
+                {[("funktionen", home.abilities), ("im-detail", t.home_detail.heading), ("fragen", home.questions)].map(|(id, name)| view! {
                     <a href=format!("#{id}") data-action="jump">{name}<Icon name="chevron-right"/></a>
                 })}
             </p>

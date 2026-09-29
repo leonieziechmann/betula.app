@@ -1628,8 +1628,13 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
   .mx-sums > span:not(:first-child) { gap: 1px; font-size: 11px; }
   .mx-sums .icon { width: 10px; height: 10px; }
 }
-@container picture (min-width: 560px) {
+/* The page and the matrix stand one under the other: beside the page the matrix is too narrow
+   for its names, which then break over several lines. Only a picture wide enough for both puts
+   them side by side. */
+.planscan > .paper { justify-self: center; width: 100%; max-width: 400px; }
+@container picture (min-width: 1000px) {
   .planscan { grid-template-columns: minmax(0, 4fr) auto minmax(0, 6fr); }
+  .planscan > .paper { max-width: none; }
   .planscan-arrow .icon { transform: none; }
 }
 
