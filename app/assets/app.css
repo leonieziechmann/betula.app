@@ -373,8 +373,9 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    comes up by as much (`in`). The header stays, and nothing else moves with the window: the rail
    and the view stick to its top. While the window scrolls, the ground slides over the panels,
    which are cut off above it (a clip on the view), and once it stands still the view gets that
-   much shorter (owner, 2026-09-29: „erst resizen, wenn man mit scrollen fertig ist"): the page's
-   end shows above the ground, the panels beside it end above it. How far the ground is in,
+   much shorter (owner, 2026-09-29: „erst resizen, wenn man mit scrollen fertig ist"): the page
+   glides to its end above the ground, the panels beside it end above it. The wood goes with the
+   ground in every frame. How far the ground is in,
    enhance.js writes straight onto the boxes that move (the ground's shift and the wood's, the clip
    and, once the window stands still, the view's height); a custom property on <html> made the
    browser work out the style of the whole page again in every frame. It also has the rest (the

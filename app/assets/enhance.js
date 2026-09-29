@@ -433,13 +433,14 @@
   // window's edge (app.css, „the birch"). The window only gets room to scroll while the page is at
   // its end (`data-ground="end"`): the wheel then goes on from the page to the window, and as far as
   // the window scrolls, the ground comes up (`in`), and the wood behind the page with it, so its
-  // birches stand on it. While the window scrolls, nothing else moves and nothing is laid out: the
-  // ground slides over the panels, which are cut off 8 px above it (a clip on the view), and moving
-  // it is a transform. Only once the window has stood still for a moment is the view laid out, once,
-  // as much shorter as the ground shows (owner, 2026-09-29: the view laid out in every frame was
-  // laggy, „so dass sich die windows erst resizen, wenn man mit scrollen fertig ist"): a page that
-  // was at its end stays there, so its end shows above the ground, and the panels beside it end
-  // above the ground and scroll as far as their content goes. Going down, the ground leaves the
+  // birches stand on it: the two move together, in every frame the window moves. Nothing else moves
+  // and nothing is laid out then: the ground slides over the panels, which are cut off 8 px above it
+  // (a clip on the view), and moving it and the wood is a transform. Only once the window has stood
+  // still for a moment is the view laid out, once, as much shorter as the ground shows (owner,
+  // 2026-09-29: the view laid out in every frame was laggy, „so dass sich die windows erst resizen,
+  // wenn man mit scrollen fertig ist"): a page that was at its end glides to it again, so its end
+  // shows above the ground (the owner, the same day: the jump was to be soft), and the panels beside
+  // it end above the ground and scroll as far as their content goes. Going down, the ground leaves the
   // panels as they are until the window stands still, and they grow to it then. The inset goes
   // straight onto the boxes that move, and nothing is written that does not change: a property or
   // an attribute of <html> set in every frame made the browser restyle the whole page in every
@@ -483,17 +484,52 @@
     // The wood behind the page stands on the ground: its foot goes up with the ground's edge.
     put(document.querySelector(".wood"), "transform", shown && `translateY(${-shown}px)`);
   };
-  // The view is laid out for the ground where it is; a page at its end stays there.
-  const layGround = (page) => {
-    const stays = page && !leaving && atEnd(page); // measured before the view changes
+  // A page that was at its end glides to it again once the view got shorter, as far as it did. Where
+  // less motion is wanted it is there at once, and the wheel upwards, a touch, a click or a key puts
+  // it there at once as well: a page short of its end under the ground would send the ground away.
+  // The wheel downwards goes the same way (a touchpad's turns go on for a while after the ground is
+  // all the way in) and lets it glide.
+  let roll = null; // the page gliding to its end, and the next frame of it
+  const STOP_ROLL = ["wheel", "touchstart", "pointerdown", "keydown"];
+  const stopRoll = (finish) => {
+    if (!roll) return;
+    const { page, frame } = roll;
+    roll = null;
+    cancelAnimationFrame(frame);
+    for (const type of STOP_ROLL) removeEventListener(type, endRoll, true);
+    if (finish && page.isConnected) page.scrollTop = page.scrollHeight;
+  };
+  const endRoll = (e) => { if (!(e?.type === "wheel" && e.deltaY >= 0)) stopRoll(true); };
+  const rollToEnd = (page) => {
+    stopRoll(false);
+    if (glide() === "instant") { page.scrollTop = page.scrollHeight; return; }
+    const from = page.scrollTop;
+    const start = performance.now();
+    const step = (now) => {
+      if (!page.isConnected) { endRoll(); return; }
+      const t = Math.min(1, (now - start) / 240);
+      page.scrollTop = Math.round(from + (page.scrollHeight - page.clientHeight - from) * (1 - (1 - t) ** 3));
+      if (t < 1) roll.frame = requestAnimationFrame(step);
+      else endRoll();
+    };
+    roll = { page, frame: requestAnimationFrame(step) };
+    for (const type of STOP_ROLL) addEventListener(type, endRoll, { capture: true, passive: true });
+  };
+  // The view is laid out for the ground where it is; a page at its end stays there, gliding when the
+  // window stood still, at once when the page changed (unless it is gliding there already).
+  const layGround = (page, gliding = false) => {
+    const rolling = Boolean(page) && roll?.page === page;
+    const stays = page && !leaving && (rolling || atEnd(page)); // measured before the view changes
     applyGround();
-    if (stays && !atEnd(page)) page.scrollTop = page.scrollHeight;
+    if (!stays || atEnd(page)) return;
+    if (gliding) rollToEnd(page);
+    else if (!rolling) page.scrollTop = page.scrollHeight;
   };
   const groundStill = () => {
     stillTimer = 0;
     if (laid === shown || phone()) return;
     laid = shown;
-    layGround(document.querySelector(PAGE));
+    layGround(document.querySelector(PAGE), true);
   };
   const ground = () => {
     groundFrame = 0;
@@ -517,7 +553,7 @@
     if (changed && (shown || laid)) layGround(page);
     else if (moved) applyGround();
     changed = false;
-    const end = !page || atEnd(page);
+    const end = !page || atEnd(page) || roll?.page === page;
     if (!shown || end) leaving = false;
     else if (!leaving) {
       leaving = true;

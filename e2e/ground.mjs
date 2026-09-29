@@ -41,9 +41,13 @@ const facts = (PAGE) => {
     sideScroll: body ? Math.round(body.scrollTop) : null,
     sideEnd: body ? body.scrollHeight - body.clientHeight - body.scrollTop < 2 : null,
     sideBodyBottom: body ? Math.round(box(body).bottom) : null,
-    // Since `watchView`: how often the view changed its size, and how often while the window moved.
+    // Since `watchView`: how often the view changed its size, and how often while the window moved;
+    // in how many frames the wood did not stand on the ground; the most steps the page took to its
+    // end after the view got shorter.
     viewResized: window.__viewResized ?? null,
     viewWhileMoving: window.__viewWhileMoving ?? null,
+    woodOff: window.__woodOff ?? null,
+    glideSteps: window.__glideSteps ?? null,
     pageTop: Math.round(page.scrollTop),
     pageEnd: page.scrollHeight - page.clientHeight - page.scrollTop < 2,
     pageBottom: Math.round(box(page).bottom),
@@ -52,19 +56,38 @@ const facts = (PAGE) => {
 const at = (page) => page.evaluate(facts, PAGE);
 // The view is laid out for the ground once the window stands still, not in every frame while it
 // moves (that was laggy): every change of the view's size is counted, and those that came less
-// than 100 ms after the window last moved.
-const watchView = (page) => page.evaluate(() => {
+// than 100 ms after the window last moved. The wood goes with the ground in every frame, the view
+// or not. And once the view got shorter, a page at its end glides to it again, it does not jump.
+const watchView = (page) => page.evaluate((PAGE) => {
   window.__viewResized = 0;
   window.__viewWhileMoving = 0;
+  window.__woodOff = 0;
+  window.__glideSteps = 0;
   let movedAt = -Infinity;
   addEventListener("scroll", () => { movedAt = performance.now(); }, { passive: true });
-  let first = true; // a ResizeObserver reports the size it finds at once
-  new ResizeObserver(() => {
-    if (first) { first = false; return; }
+  let height = document.querySelector(".main").getBoundingClientRect().height;
+  let shrunkAt = -Infinity;
+  let steps = 0;
+  new ResizeObserver(([entry]) => {
+    const now = entry.borderBoxSize[0].blockSize;
+    if (Math.abs(now - height) < 0.5) return; // a ResizeObserver reports the size it finds at once
     window.__viewResized++;
     if (performance.now() - movedAt < 100) window.__viewWhileMoving++;
+    if (now < height) { shrunkAt = performance.now(); steps = 0; }
+    height = now;
   }).observe(document.querySelector(".main"));
-});
+  document.addEventListener("scroll", (e) => {
+    if (e.target !== document.querySelector(PAGE) || performance.now() - shrunkAt > 600) return;
+    window.__glideSteps = Math.max(window.__glideSteps, ++steps);
+  }, { capture: true, passive: true });
+  const tick = () => {
+    const wood = document.querySelector(".wood").getBoundingClientRect().bottom;
+    const ground = document.querySelector(".ground").getBoundingClientRect().top;
+    if (Math.abs(wood - ground) > 0.5) window.__woodOff++;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}, PAGE);
 const wheel = async (page, x, y, dy, times) => {
   await page.mouse.move(x, y);
   for (let i = 0; i < times; i++) { await page.mouse.wheel(0, dy); await page.waitForTimeout(90); }
@@ -105,6 +128,8 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   f = await at(page);
   check(f.inset === 208 && f.rail === 0 && f.topbar === 8, `the ground all the way: the rail or the header moved: ${JSON.stringify(f)}`);
   check(f.viewResized > 0 && f.viewWhileMoving === 0, `the view was laid out while the ground moved, not once the window stood still: ${JSON.stringify(f)}`);
+  check(f.woodOff === 0, `the wood did not stand on the ground in every frame while it moved: ${JSON.stringify(f)}`);
+  check(f.glideSteps >= 4, `the page jumped to its end above the ground instead of gliding there: ${JSON.stringify(f)}`);
   check(f.pageEnd && f.groundTop - f.pageBottom === 8 && f.sideBottom === null, `the ground all the way: the page's end is not 8 px above it, or a panel stands beside the page: ${JSON.stringify(f)}`);
   check(f.woodBottom === f.groundTop, `the ground all the way: the wood does not stand on it: ${JSON.stringify(f)}`);
   await wheel(page, 180, 300, 100, 3);

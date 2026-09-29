@@ -1075,8 +1075,13 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   12, 60 and about 110 — the wood is a layer of its own for it (`will-change`), moved and not drawn
   again. (The first build of all set a custom property on `<html>`, and the browser worked out the
   style of the whole page again in every frame — „mega laggy"; the inset still goes straight onto
-  the boxes that move, and only what changes.) The page stays at its end, so once the view is laid
-  out its end shows above the ground (a short list, which has no end to reach, simply gets a shorter
+  the boxes that move, and only what changes.) The wood stays on the ground's edge in every frame
+  the ground moves (owner, the same day: „dass der Wald trotzdem beim live scrollen bündig mit dem
+  Footer ist"); only the view waits. The page stays at its end: once the view is laid out it glides
+  there again, as far as the view got shorter (240 ms, easing out; the owner, the same day: the jump
+  was to be soft), so its end shows above the ground — at once where less motion is wanted, and a
+  wheel, a touch, a click or a key puts it there at once, since a page short of its end under the
+  ground would send the ground away (a short list, which has no end to reach, simply gets a shorter
   panel); the panels beside it end above the ground as well and scroll as far as their content goes,
   the wheel over them downwards is theirs (owner, the same day: with the ground in, the sidebar did
   not scroll far enough to show all of it — its body kept its height by a negative margin, and the
