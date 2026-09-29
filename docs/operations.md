@@ -96,7 +96,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | ERROR | `crawl.archive_error` | the archive database could not be read |
 | ERROR | `stage.failed` | a stage of a cycle failed (`stage`, `error`) |
 | ERROR | `build.failed` | the build was rolled back; the canonical data is unchanged |
-| ERROR | `validate.check_failed` | one failed invariant or baseline (`check`, `value`, `samples`). A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. |
+| ERROR | `validate.check_failed` | one failed invariant or baseline (`check`, `value`, `samples`). A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. A module whose successors lead back to it means a replacement was read the wrong way round (`docs/data-sources.md` §14). |
 | ERROR | `validate.finished` with `failed > 0` | no snapshot is published from this data |
 | ERROR | `export.failed` | the previous snapshot stays current |
 | ERROR | `cycle.finished` with `result=failed`, `cycle.panic` | the cycle failed / crashed (with stack) |
@@ -107,7 +107,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | WARN | `crawl.not_listed` | the event search does not show events that module pages link (`count`, `examples`); their pages stay their only source, and a page is fetched in the cycle its event drops out of the search |
 | WARN | `build.event_links_gone` | module descriptions name events BTU removed: the search does not show them, and QIS answers their page with its empty frame (`links`, module → event). The events and the links are left out; a description is read again within a month |
 | WARN | `cycle.finished` with `result=degraded` | crawl problems; published data intact |
-| WARN | `validate.check_warned` | e.g. kind conflicts between sources, programs without tree modules, events a module links that have no semester (Folia leaves their dates off the module page), modules that are each other's successor (a replacement read both ways, `docs/data-sources.md` §14) |
+| WARN | `validate.check_warned` | e.g. kind conflicts between sources, programs without tree modules, events a module links that have no semester (Folia leaves their dates off the module page) |
 | WARN | `build.unresolved_refs`, `build.tree_leaves_without_module`, `build.tree_pages_missing`, `build.unlisted_module_pages`, `build.unreachable_tree_pages`, `build.modules_without_page`, `build.plans_without_program`, `build.plan_entries_unknown_module`, `build.unpaired_departments` | source data the build could not use, with counts and examples |
 | WARN | `build.rooms_unknown_building`, `build.room_short_collisions`, `build.abbrev_overrides_unused` | short names (`docs/schema-v2.md`, „Short names"): an event room names a building the table in `internal/normalize/rooms.go` lacks (it keeps the building's full name) / two rooms would share a short form (both keep their long form) / a line of `internal/abbrev/overrides.tsv` applies to no module (a module number the catalog lacks, a program without that module, a pattern that matches nothing an earlier line does not take). Each wants a line in the table or the file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_changed` (pairs whose abbreviation moved since the last build: a new title anywhere can move forms in other programs). |
 | WARN | `http.request` with `status` 4xx/503 | |

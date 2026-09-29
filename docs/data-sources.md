@@ -813,8 +813,9 @@ The pages of those 215 modules were read again on 2026-09-29. With the old parse
 exactly the snapshot's 251 edges and its statuses. With the new one they give 728 edges instead of
 848, none in both directions and no cycle. Each of the 120 pairs and the 8 one-way edges points from
 the old module to the new one, and 96 modules that were `phase_out` are `active` again.
-`radix validate` warns on modules that are each other's successor; on that snapshot it names the
-120 pairs.
+`radix validate` fails when a module's successors lead back to it, over any number of steps, so
+no snapshot is published from such a reading and the ERROR alerts. On that snapshot it fails on
+the 201 modules; on its successors as the new parser reads them, it passes.
 
 **Checked** on 2026-09-29, first with nine requests by hand, with a browser's user agent, seconds
 apart. They were the module list of b-tu.de, the copies of 12160, 38105, 11162 and 12917, and the
