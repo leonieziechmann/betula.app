@@ -36,8 +36,6 @@ use crate::seo;
 use crate::ui::{Icon, KindBadge, Mark};
 use crate::week::{GridSlot, WeekGrid};
 
-use super::{Branch, Side};
-
 /// The selection the filter board shows chosen: offered in winter, taught in English, without a
 /// written exam. The start page counts it with its ways in (`HomePage`).
 pub fn example() -> CatalogQuery {
@@ -110,12 +108,12 @@ pub fn Details(plans: Option<(u64, u64)>, example: Option<u64>) -> impl IntoView
         </section>
         <Feature look=&FLOW words=&d.flow link=(d.to_catalog, url::CATALOG) picture=flow(t).into_any()/>
         <Feature look=&FILTERS words=&d.filters wide=true figure=steps(t).into_any() picture=board(t, example).into_any()/>
-        <Feature look=&PLANS words=&d.plans flip=true figure=plan_figure.into_any() link=(d.to_programs, url::PROGRAMS) picture=plan(t).into_any() branch=(Side::Left, 2, 72)/>
+        <Feature look=&PLANS words=&d.plans flip=true figure=plan_figure.into_any() link=(d.to_programs, url::PROGRAMS) picture=plan(t).into_any()/>
         <Feature look=&TIMETABLE words=&d.timetable link=(d.to_studyplan, url::STUDYPLAN) picture=week(t).into_any()/>
-        <Feature look=&ACCOUNT words=&d.account flip=true figure=zeros link=(d.to_privacy, url::PRIVACY) picture=places(t).into_any() branch=(Side::Right, 0, 40)/>
+        <Feature look=&ACCOUNT words=&d.account flip=true figure=zeros link=(d.to_privacy, url::PRIVACY) picture=places(t).into_any()/>
         <Feature look=&TECHNOLOGY words=&d.javascript picture=modes(t).into_any()/>
         <Feature look=&DATA words=&d.data flip=true bare=true picture=tree(t).into_any()/>
-        <Feature look=&DEVICES words=&d.devices picture=devices(t).into_any() branch=(Side::Left, 1, 30)/>
+        <Feature look=&DEVICES words=&d.devices picture=devices(t).into_any()/>
     }
 }
 
@@ -133,14 +131,11 @@ fn Feature(
     #[prop(optional)] flip: bool,
     #[prop(optional)] wide: bool,
     #[prop(optional)] bare: bool,
-    /// A branch growing out of the panel (`super::Branch`): its side, shape and height.
-    #[prop(optional)] branch: Option<(Side, usize, u8)>,
 ) -> impl IntoView {
     let t = i18n::t();
     let title = format!("{}-titel", look.id);
     view! {
         <section class=format!("panel feature {}", look.tint) class:flip=flip class:wide=wide id=look.id aria-labelledby=format!("{}-titel", look.id)>
-            {branch.map(|(side, shape, at)| view! { <Branch side shape at/> })}
             <div class="feature-text">
                 <p class="feature-name"><span class="ico"><Icon name=look.icon/></span>{words.name}</p>
                 <h3 id=title>{words.title}</h3>

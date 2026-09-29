@@ -472,10 +472,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // No sidebar (owner, 2026-09-28), and the way in for a first visit: three steps, the first the
     // next one, since the server knows nothing of the visitor (R9); „Studiengang wählen" there and
     // in the first panel a link to all programs (the picker is the app's); the figures on a birch;
-    // branches out of eight panels.
+    // the wood behind the page, and no branches out of the panels any more.
     assert!(!home.contains("id=\"sidebar\"") && home.contains("<div id=\"page-scroll\" class=\"page home-page\""), "the start page has no frame");
     assert!(home.contains("id=\"loslegen\"") && home.matches("class=\"start-step ").count() + home.matches("class=\"start-step\"").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
-    assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.contains("class=\"hero-trunk\"") && home.matches("class=\"branch branch-").count() == 8, "the start page's buttons, figures and branches");
+    assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.contains("class=\"hero-trunk\"") && home.contains("<div class=\"wood\" aria-hidden=\"true\"></div>") && !home.contains("class=\"branch"), "the start page's buttons, figures and wood");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
     // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
     // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).

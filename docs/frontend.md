@@ -993,29 +993,38 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   trunk down the edge looked wrong and the figures took the height the way in needs, so there
   the first panel is its text alone (the figures stay in the HTML). The branch at the panel's side
   grows out of the trunk. It replaced the stack of bare numbers (`dl.birch`).
-- **Branches** (owner, the same day: „so kleine Äste immer mal wieder links und rechts", growing
-  out of the boxes; then „nicht nur so kleine twigs, sondern schon etwas dickere, ein zwei
-  Verzweigungen und mit kleinen Blattkronen"): eight panels (the first panel, the way in, the
-  faculties, what Betula does, the questions, and three chapters of „Betula im Detail") have a
-  branch growing out of their left or right edge into the room beside them (`home::Branch`,
-  inline SVG, three shapes): a limb that tapers, forks once or twice and has a side twig, and at
-  each end a small crown of fourteen leaves in two rings (`home::crown`), in the season's colour
-  and a darker tone of it, none in winter. The limbs and the branches of the figures share a tone
-  of bark (`--branch`). They are there so that the room beside the panels does not look empty,
-  and take it as far as it goes — as wide as it is, at least 96 px and at most 200 — without
-  taking any from the page (owner: the page as wide as before, 1280 px, and the branches „können
-  auch ruhig abgeschnitten werden"): where the room is narrower, the page's edge cuts them off.
-  None on a phone.
+- **The wood** (owner, 2026-09-29, in place of the branches that grew out of eight panels, which
+  did not fill the room beside a wide page well: „so ein Scherenschnitt im Hintergrund, so dass man
+  quasi einen Birkenwald im Hintergrund sieht. Die Seitenleiste soll dabei frei bleiben"; of five
+  directions in `design/forest` — `node design/forest/build.mjs` writes the page that compares them
+  — „Option E, organisch und ohne Kronen"). Behind the start page stands a wood of birches cut out of
+  the background's grey, a few steps darker (a few steps lighter on dark, where nothing is darker
+  than the background): two layers, thin trees further back and fainter (`--wood-back`), the wood in
+  front (`--wood-front`), with barks cut into the trunks, hanging twigs, the leaves of the season
+  (none in winter), grass, a mushroom and a bird. It is `div.wood`, fixed, beneath everything (the
+  crown and the ground included), from the rail to the window's right edge and bottom; the rail
+  stays free. Its masks (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600, whole pixels, 140–165 KB
+  a season gzipped, only fetched where they show) are drawn by `design/forest/forest.mjs` from
+  `design/forest/wood.mjs`, the generator the comparison uses as well: the column's 1280 px empty in
+  their middle, 900 px of wood on either side, the trees walking outwards from the column's edges,
+  so the ones next to it are the same on every screen and a wider one only adds trees further out.
+  The stylesheet lays the masks' middle under the column's and their bottom on the window's; a
+  window taller than 1600 px sees the trunks fade out at their top. Only from a window 1380 px wide
+  on, where there is room beside the column; none on a phone. The grey is mixed in OKLab: in OKLCH
+  a grey's hue is `none`, and Chromium drew the mix reddish.
+- **The first panel's trunk at night** (owner, the same day): in the dark theme the trunk and the
+  branches of its figures are the moon's grey with dark marks (`--hero-bark`, `--hero-bark-ink`,
+  `--hero-limb`); white bark glared there.
 - New class names were checked against the stylesheet, the scripts and every page: `.steps` and
   `.step` are the chips of „Betula im Detail" (the way to a module, „Klausur"), so the way in is
   `.start-path`, `.start-steps`, `.start-step`, `.start-mark`, `.start-btn` and so on.
 
-`node e2e/home.mjs` checks the page without a sidebar, the birch of the figures and the branches, the
+`node e2e/home.mjs` checks the page without a sidebar, the birch of the figures and the wood behind it, the
 three steps and their buttons, a pick in the picker (the first step done, the others leading into
 the program, the first panel's button „Alle Studiengänge", no page load), „Direkt suchen", a jump
 of the foot, and the steps done for a browser with a program and a marked module; the server test
 that there is no sidebar, that the first step is the next one, the two links of „Studiengang
-wählen", the trunk and the branches.
+wählen", the trunk and the wood (and that no branch is left).
 
 ### The birch: crown and ground (2026-09-25)
 

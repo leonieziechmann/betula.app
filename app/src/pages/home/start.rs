@@ -179,7 +179,6 @@ pub fn StartPath() -> impl IntoView {
 
     view! {
         <section class="panel start-path" id="loslegen" aria-labelledby="loslegen-titel">
-            <super::Branch side=super::Side::Left shape=1 at=36/>
             <header class="block-head">
                 <h2 id="loslegen-titel">{home.start_heading}</h2>
                 <a class="ghost" href=t.path(url::CATALOG) data-action="search" title=home.search_now_title>
