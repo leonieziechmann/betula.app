@@ -1142,7 +1142,10 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .matrix-head { padding-top: 8px; padding-bottom: 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel-2); }
 .subject { align-items: start; min-height: 46px; padding-top: 7px; padding-bottom: 7px; border-bottom: 1px solid var(--line); transition: background .1s; }
 .subject:last-child { border-bottom: 0; }
-.subject:hover { background: var(--panel-2); }
+/* Every other subject is shaded, as the rows of the catalog's list (`--row-shade`). Nothing here
+   renders only what is on screen, so the stylesheet counts, the subjects of each faculty anew. */
+.subject:where(:nth-child(even of .subject)) { background: var(--row-shade); }
+.subject:hover { background: var(--row-hover); }
 /* The name stands next to the first of its programs, however many lines of them follow. */
 .subject-name { padding-top: 6px; font-weight: 620; font-size: 14.5px; line-height: 20px; letter-spacing: -.012em; text-wrap: pretty; }
 .cell { display: flex; flex-wrap: wrap; align-content: start; gap: 6px 0; min-width: 0; }
@@ -1959,7 +1962,11 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .ptable > thead th, .ptable > thead td { border-top: 0; padding-top: 2px; padding-bottom: 7px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
 .ptable th:first-child, .ptable td:first-child { padding-left: 24px; }
 .ptable th:last-child, .ptable td:last-child { padding-right: 24px; }
-.ptable tbody tr:not(.group):hover { background: var(--panel-2); }
+/* Every other module is shaded, as the rows of the catalog's list (`--row-shade`), counted anew
+   in every group and without its head (`of :not(.group)`). `:where` keeps the rule as little
+   specific as `.ptable tbody tr`, so that the row pointed at and the open one stand above it. */
+.ptable tbody tr:where(:nth-child(even of :not(.group))) { background: var(--row-shade); }
+.ptable tbody tr:not(.group):hover { background: var(--row-hover); }
 /* The row whose module stands beside the page, marked as the catalog marks its open row. */
 .ptable tbody tr.open { background: var(--panel-3); }
 .ptable tbody tr.open > :first-child { position: relative; }
