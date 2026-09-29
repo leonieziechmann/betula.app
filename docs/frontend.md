@@ -1035,7 +1035,8 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   The stylesheet lays the masks' middle under the column's and their bottom on the window's; when
   the ground comes up at the end of the page, the wood goes up with its edge (`enhance.js`, the same
   inset as the ground's), so the birches stand on it (owner, 2026-09-29: „dass der Footer die untere
-  Kante anhebt, wenn er kommt"). A window taller than 1600 px sees the trunks fade out at their top. From the desktop's layout on
+  Kante anhebt, wenn er kommt"). A window taller than 1600 px sees the trunks fade out at their top:
+  a gradient drawn into the masks, not one the stylesheet lays over them (R18). From the desktop's layout on
   (901 px); none on a phone, where the page scrolls with the window. The grey is mixed in OKLab: in OKLCH
   a grey's hue is `none`, and Chromium drew the mix reddish.
 - **The first panel's trunk at night** (owner, the same day): in the dark theme the trunk and the
@@ -1369,6 +1370,14 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   - Long lists do not lay out what is off screen: `content-visibility: auto` on the catalog's
     rows (with 350 rows loaded: 58 of 138 frames over 33 ms before, 1 after). The rows are direct
     children of the scrolling list, so this works per row; the last height is remembered.
+  - Nothing is drawn again that the width does not change. Every write restyles every element,
+    and Chromium makes a gradient in a background or a mask, and an image taken out of a custom
+    property, anew with every restyle, and then draws them again: the wood behind the page (its
+    fade was a `linear-gradient` over its masks) and the crown (its masks came in `--crown-head`,
+    `--crown-mask`) were drawn again in every frame of a drag, most of its raster work. Their masks
+    now stand in the rules as they are and the wood's fade is drawn into its masks
+    (`design/forest/forest.mjs`): the catalog's drag, headless without a GPU, rasterises 0.3 s
+    instead of 4.2 s. The ground's gradient is left, small and below the window's edge.
   - A safety net for pages or machines that still cannot keep up: after three frames in a row
     over budget, the rest of that drag moves only the panel (inline width, above its neighbour)
     and the property is written when the handle is let go (`data-resize-mode`, and
