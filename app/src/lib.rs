@@ -37,7 +37,7 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::{path, NavigateOptions, SsrMode};
 
 use crate::bookmarks::Bookmarks;
-use crate::ground::{Crown, Ground};
+use crate::ground::{Crown, Ground, Wood};
 use crate::i18n::use_location;
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
@@ -52,8 +52,8 @@ use crate::ui::Icon;
 /// The release of Folia as the owner names it (2026-09-21: Folia and Radix are both
 /// alpha-0.2.0; 2026-09-22: Folia alpha-0.2.1 with the phone's filter sheet; 2026-09-23:
 /// Folia alpha-0.2.2, Radix alpha-0.3.0; 2026-09-27, after the public release: Folia 1.0.1,
-/// Radix 0.5.0, no stage in front any more; 2026-09-29: Folia 1.0.2): this crate's version, the
-/// same as the server's.
+/// Radix 0.5.0, no stage in front any more; 2026-09-29: Folia 1.0.2, the same day 1.0.3 with the
+/// wood behind every page): this crate's version, the same as the server's.
 /// Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -215,6 +215,7 @@ pub fn App() -> impl IntoView {
             <FollowTabs/>
             <a class="skip-link" href="#content">{t.app.skip_to_content}</a>
             <Crown/>
+            <Wood/>
             <Rail/>
             <div class="main">
                 <TopBar/>

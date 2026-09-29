@@ -434,7 +434,8 @@
   // its end (`data-ground="end"`): the wheel then goes on from the page to the window, and as far as
   // the window scrolls, the ground comes up and the view gets shorter (`in`). A page that was at its
   // end stays there, so its end goes up with the ground; the panels beside it are only cut off (their
-  // bodies keep their height by a negative margin). The inset goes straight onto the boxes that move,
+  // bodies keep their height by a negative margin), and the wood behind the page rises with
+  // the ground, so its birches stand on it. The inset goes straight onto the boxes that move,
   // once per frame, and nothing else is written while it does not change: a property or an
   // attribute of <html> set in every frame made the browser restyle the whole page in every frame.
   // On the way back the ground leaves first: while it shows, the wheel upwards and the wheel over a
@@ -464,6 +465,8 @@
     groundIn = inset;
     put(document.querySelector(".main"), "height", inset && `calc(100vh - ${inset}px)`);
     put(document.querySelector(".ground"), "transform", inset && `translateY(calc(var(--ground-reach) - ${inset}px))`);
+    // The wood behind the page stands on the ground: its foot goes up with the ground's edge.
+    put(document.querySelector(".wood"), "transform", inset && `translateY(${-inset}px)`);
     for (const el of document.querySelectorAll(BESIDE)) put(el, "margin-bottom", inset && `${-inset}px`);
   };
   const ground = () => {

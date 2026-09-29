@@ -76,6 +76,14 @@
   /* How high the ground is on a wide screen, and how far it comes up (with the gap above it). */
   --ground-h: 200px;
   --ground-reach: calc(var(--ground-h) + var(--gap));
+  /* The wood behind every page (`.wood`): the background's grey a few steps darker, mixed in
+     OKLab (in OKLCH a grey's hue is `none`, and Chromium draws the mix reddish). */
+  --wood-front: color-mix(in oklab, var(--text) 8%, var(--bg));
+  --wood-back: color-mix(in oklab, var(--text) 3.4%, var(--bg));
+  /* The trunk of the first panel and the branches of its figures: white bark by day. */
+  --hero-bark: var(--bark);
+  --hero-bark-ink: var(--bark-ink);
+  --hero-limb: color-mix(in oklch, var(--ground-text) 74%, var(--crown));
 }
 :root[data-season="spring"] { --crown: oklch(.765 .094 130); --crown-ck: oklch(.79 .113 100); }
 :root[data-season="autumn"] { --crown: oklch(.765 .105 80); }
@@ -116,6 +124,13 @@
     --ground-text: oklch(.93 .006 262);
     --ground-muted: oklch(.72 .014 262);
     --ground-root: oklch(.25 .02 262);
+    /* The wood a few steps lighter than the background (nothing is darker than it); the trunk of
+       the first panel in the moon's grey, its marks dark (owner, 2026-09-29: white bark glared). */
+    --wood-front: color-mix(in oklab, var(--text) 6.5%, var(--bg));
+    --wood-back: color-mix(in oklab, var(--text) 2.7%, var(--bg));
+    --hero-bark: oklch(.34 .014 255);
+    --hero-bark-ink: oklch(.15 .01 260);
+    --hero-limb: oklch(.34 .014 255);
   }
   :root:not([data-theme="light"])[data-season="spring"] { --crown: oklch(.418 .073 134); --crown-ck: oklch(.495 .083 100); }
   :root:not([data-theme="light"])[data-season="autumn"] { --crown: oklch(.44 .08 75); }
@@ -152,6 +167,13 @@
   --ground-text: oklch(.93 .006 262);
   --ground-muted: oklch(.72 .014 262);
   --ground-root: oklch(.25 .02 262);
+  /* The wood a few steps lighter than the background (nothing is darker than it); the trunk of
+     the first panel in the moon's grey, its marks dark (owner, 2026-09-29: white bark glared). */
+  --wood-front: color-mix(in oklab, var(--text) 6.5%, var(--bg));
+  --wood-back: color-mix(in oklab, var(--text) 2.7%, var(--bg));
+  --hero-bark: oklch(.34 .014 255);
+  --hero-bark-ink: oklch(.15 .01 260);
+  --hero-limb: oklch(.34 .014 255);
 }
 :root[data-theme="dark"][data-season="spring"] { --crown: oklch(.418 .073 134); --crown-ck: oklch(.495 .083 100); }
 :root[data-theme="dark"][data-season="autumn"] { --crown: oklch(.44 .08 75); }
@@ -1124,10 +1146,9 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
    Colour is quiet and says something: the faculties' palette behind the pictures and on the
    faculties, a soft hue per way into the catalog; the accent stays with the main button. */
 /* No frame (owner, 2026-09-28: the sidebar made the page confusing): the page scrolls on its own,
-   its panels in one column in the middle, no wider than still reads well. The branches that grow
-   out of them (`Branch`) fill what is left beside them and are cut off by the page's edge where
-   that is little. The branches and the birch of the first panel share the tone of bark. */
-.home { --branch: color-mix(in oklch, var(--ground-text) 74%, var(--crown)); container: home / inline-size; width: 100%; max-width: 1280px; margin: 0 auto; }
+   its panels in one column in the middle, no wider than still reads well. What is left beside it
+   the wood behind the page fills (`.wood`). */
+.home { container: home / inline-size; width: 100%; max-width: 1280px; margin: 0 auto; }
 @media (min-width: 901px) { .home-page { overflow-x: hidden; } }
 .home > .panel, .home-lists { scroll-margin-top: 14px; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
@@ -1163,17 +1184,17 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
    trunk, shaded at its edges, looked round: „warum ist das Ding jetzt plötzlich 3D?"), and only
    from a notebook's width on: on a phone it took the height the way in needs, and a trunk down a
    phone's edge looked wrong (owner, the same day), so there the first panel is its text alone. */
-.hero-trunk { display: none; position: relative; overflow: hidden; border-radius: 0 var(--r-panel) var(--r-panel) 0; background: var(--bark); box-shadow: inset 1px 0 0 var(--line-strong); }
+.hero-trunk { display: none; position: relative; overflow: hidden; border-radius: 0 var(--r-panel) var(--r-panel) 0; background: var(--hero-bark); box-shadow: inset 1px 0 0 var(--line-strong); }
 /* The marks of the bark, as the mark of Betula draws them (dashes from either edge or in the
    middle, and two dark chevrons where branches were): a drawing 48 × 400 as the trunk's width,
    repeated down it. */
-.hero-trunk::after { content: ""; position: absolute; inset: 0; background: var(--bark-ink); opacity: .82; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 400' width='48' height='400'%3E%3Cpath d='M0 14h14v3h-14zM34 33h14v3h-14zM16 47h12v2h-12zM0 66h20v4h-20zM30 84h18v3h-18zM0 99h8v3h-8zM20 117h16v3h-16zM38 136h10v3h-10zM0 150h17v3h-17zM27 171h21v4h-21zM12 188h10v2h-10zM0 206h11v3h-11zM33 224h15v3h-15zM0 243h22v4h-22zM22 260h14v3h-14zM36 279h12v3h-12zM0 296h15v3h-15zM26 314h22v4h-22zM0 333h9v3h-9zM17 350h15v3h-15zM31 369h17v3h-17zM0 386h19v3h-19zM8 160Q24 150 40 160Q24 155 8 160zM12 303Q27 294 42 303Q27 298 12 303z'/%3E%3C/svg%3E") center top / 100% auto repeat-y; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 400' width='48' height='400'%3E%3Cpath d='M0 14h14v3h-14zM34 33h14v3h-14zM16 47h12v2h-12zM0 66h20v4h-20zM30 84h18v3h-18zM0 99h8v3h-8zM20 117h16v3h-16zM38 136h10v3h-10zM0 150h17v3h-17zM27 171h21v4h-21zM12 188h10v2h-10zM0 206h11v3h-11zM33 224h15v3h-15zM0 243h22v4h-22zM22 260h14v3h-14zM36 279h12v3h-12zM0 296h15v3h-15zM26 314h22v4h-22zM0 333h9v3h-9zM17 350h15v3h-15zM31 369h17v3h-17zM0 386h19v3h-19zM8 160Q24 150 40 160Q24 155 8 160zM12 303Q27 294 42 303Q27 298 12 303z'/%3E%3C/svg%3E") center top / 100% auto repeat-y; }
+.hero-trunk::after { content: ""; position: absolute; inset: 0; background: var(--hero-bark-ink); opacity: .82; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 400' width='48' height='400'%3E%3Cpath d='M0 14h14v3h-14zM34 33h14v3h-14zM16 47h12v2h-12zM0 66h20v4h-20zM30 84h18v3h-18zM0 99h8v3h-8zM20 117h16v3h-16zM38 136h10v3h-10zM0 150h17v3h-17zM27 171h21v4h-21zM12 188h10v2h-10zM0 206h11v3h-11zM33 224h15v3h-15zM0 243h22v4h-22zM22 260h14v3h-14zM36 279h12v3h-12zM0 296h15v3h-15zM26 314h22v4h-22zM0 333h9v3h-9zM17 350h15v3h-15zM31 369h17v3h-17zM0 386h19v3h-19zM8 160Q24 150 40 160Q24 155 8 160zM12 303Q27 294 42 303Q27 298 12 303z'/%3E%3C/svg%3E") center top / 100% auto repeat-y; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 400' width='48' height='400'%3E%3Cpath d='M0 14h14v3h-14zM34 33h14v3h-14zM16 47h12v2h-12zM0 66h20v4h-20zM30 84h18v3h-18zM0 99h8v3h-8zM20 117h16v3h-16zM38 136h10v3h-10zM0 150h17v3h-17zM27 171h21v4h-21zM12 188h10v2h-10zM0 206h11v3h-11zM33 224h15v3h-15zM0 243h22v4h-22zM22 260h14v3h-14zM36 279h12v3h-12zM0 296h15v3h-15zM26 314h22v4h-22zM0 333h9v3h-9zM17 350h15v3h-15zM31 369h17v3h-17zM0 386h19v3h-19zM8 160Q24 150 40 160Q24 155 8 160zM12 303Q27 294 42 303Q27 298 12 303z'/%3E%3C/svg%3E") center top / 100% auto repeat-y; }
 .tree-figures { display: none; position: relative; z-index: 1; justify-items: end; align-content: center; gap: 8px; margin: 0; padding: 20px 0; }
 .tree-figures > div { --reach: 22px; position: relative; max-width: calc(100% - var(--reach)); margin-right: var(--reach); display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 0 8px; padding: 6px 12px 7px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .tree-figures > div:nth-child(even) { --reach: 46px; }
 /* The branch from the trunk to the tag: thick where it leaves the trunk (and into its edge), thin
    at the tag. */
-.tree-figures > div::after { content: ""; position: absolute; top: 50%; left: 100%; width: calc(var(--reach) + 6px); height: 7px; margin-top: -3.5px; background: var(--branch); clip-path: polygon(0 42%, 100% 0, 100% 100%, 0 58%); }
+.tree-figures > div::after { content: ""; position: absolute; top: 50%; left: 100%; width: calc(var(--reach) + 6px); height: 7px; margin-top: -3.5px; background: var(--hero-limb); clip-path: polygon(0 42%, 100% 0, 100% 100%, 0 58%); }
 .tree-figures dd { order: -1; margin: 0; color: var(--text); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
 .tree-figures dt { color: var(--text-2); font-size: 13px; font-weight: 580; }
 .tree-figures dt small { margin-left: 5px; color: var(--text-3); font-size: 12px; font-weight: 500; }
@@ -1240,21 +1261,31 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
   .start-step::after { left: var(--mark-x); right: 0; }
 }
 
-/* Branches growing out of the panels into the room beside them (`Branch`; owner, 2026-09-28: „nicht
-   nur so kleine twigs, sondern schon etwas dickere, ein zwei Verzweigungen und mit kleinen
-   Blattkronen"): a limb that tapers and forks, ending in small crowns of leaves in the season's
-   colour, in two tones, and none in winter, as the page's crown has none. They are there so that
-   the room beside the panels does not look empty (owner, the same day), and they take it as far as
-   it goes: as wide as it is, at least 96 px and at most 200, their foot a little over the panel's
-   edge; where it is narrower the page's edge cuts them off. */
-.home .panel:has(> .branch) { position: relative; overflow: visible; }
-.branch { position: absolute; z-index: 1; top: var(--y); width: clamp(96px, (100vw - 1348px) / 2 + 16px, 200px); height: auto; aspect-ratio: 4 / 3; overflow: visible; pointer-events: none; }
-.branch-r { left: calc(100% - 6px); transform: translateY(-50%); }
-.branch-l { right: calc(100% - 6px); transform: translateY(-50%) scaleX(-1); }
-.branch-limb { fill: none; stroke: var(--branch); stroke-linecap: round; stroke-linejoin: round; }
-.branch-leaf { fill: var(--crown); }
-.branch-leaf.dark { fill: color-mix(in oklch, var(--crown), black 16%); }
-:root[data-season="winter"] .branch-leaf { display: none; }
+/* The wood behind every page (`ground::Wood`; owner, 2026-09-29: „so ein Scherenschnitt, der auch
+   grau nur etwas dunkler wie der Hintergrund ist und nur etwas Struktur hinzufügt", then „bring den
+   Wald auf alle Seiten"; design/forest): birches cut out of the background's grey in two layers,
+   the trees further back fainter, with the leaves of the season and none in winter. It stands
+   still behind the page, beneath everything (the crown and the ground included), from the rail to
+   the window's right edge; the rail stays free. Beside the start page's column it fills the room a
+   wide window leaves; on every page it shows wherever the panels leave a gap (between two of them,
+   above the ground under a column shorter than the one beside it). Each mask
+   (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600) has the start page's column (1280 px) in
+   its middle, with wood under it too, and that middle lies under the column's: the page is the
+   window less the rail and the gap on its right, so its middle is 4 px left of the wood's. The
+   masks stand on the window's bottom, and when the ground comes up at the end of a page they go
+   up with its edge (enhance.js), so that the birches stand on it; a window taller than they are
+   sees the trunks fade out at their top. Their trees walk outwards from the column's edges, so the
+   ones next to it are the same on every screen and a wider one only adds trees further out. Not
+   on a phone, where the page scrolls with the window and the ground follows it. */
+.wood { display: none; }
+@media (min-width: 901px) {
+  .wood { --wood-back-mask: url("/assets/birch/summer-wood-back.svg"); --wood-front-mask: url("/assets/birch/summer-wood-front.svg"); display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; }
+  :root[data-season="spring"] .wood { --wood-back-mask: url("/assets/birch/spring-wood-back.svg"); --wood-front-mask: url("/assets/birch/spring-wood-front.svg"); }
+  :root[data-season="autumn"] .wood { --wood-back-mask: url("/assets/birch/autumn-wood-back.svg"); --wood-front-mask: url("/assets/birch/autumn-wood-front.svg"); }
+  :root[data-season="winter"] .wood { --wood-back-mask: url("/assets/birch/winter-wood-back.svg"); --wood-front-mask: url("/assets/birch/winter-wood-front.svg"); }
+  .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: var(--wood-mask) calc(50% - 4px) 100% / 3080px 1600px no-repeat, linear-gradient(transparent, #000 160px); -webkit-mask-composite: source-in; mask: var(--wood-mask) calc(50% - 4px) 100% / 3080px 1600px no-repeat, linear-gradient(transparent, #000 160px); mask-composite: intersect; --wood-mask: var(--wood-back-mask); }
+  .wood::after { background: var(--wood-front); --wood-mask: var(--wood-front-mask); }
+}
 
 /* The pictures, as a carousel for pictures: the current one in front and in the middle, its
    neighbours behind it, half of each showing at its sides (their middle on its edge), going round.
@@ -2749,7 +2780,6 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .intro-actions .pick-combo { flex: 1 1 auto; }
   .intro-actions .pick-combo .combo-trigger { width: 100%; min-height: 50px; justify-content: center; }
   .intro-actions .pick-combo .combo-value { flex: 0 1 auto; }
-  .branch { display: none; }
   .start-foot { padding-left: 16px; padding-right: 8px; }
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }
@@ -2813,4 +2843,4 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
-@media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }
+@media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top, .wood { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }

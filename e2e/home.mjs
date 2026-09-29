@@ -43,9 +43,10 @@ check(!html.includes("Was bedeutet FÜS?") && html.includes("Wie finde ich die M
 check(html.includes('"@type":"WebApplication"') && html.includes('id="im-detail"') && (html.match(/class="panel feature t-/g) || []).length === 8, "server HTML: no app in the structured data, or no „Betula im Detail\"");
 check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-trunk"') && !html.includes('class="examples"'), "server HTML: the figures are not on the birch, or the example searches are still there");
 // „Studiengang wählen" of the first panel and of the way in: without the app a link to all programs
-// that carries both words (the stylesheet shows the ones the app will); branches on eight panels.
+// that carries both words (the stylesheet shows the ones the app will); the wood behind the page,
+// no branches out of the panels.
 check(["home-program", "start-program"].every((id) => new RegExp(`<a id="${id}" href="/programs" class="[^"]*program-pick">`).test(html)), "server HTML: „Studiengang wählen\" does not lead to the programs");
-check((html.match(/<svg [^>]*class="branch branch-[lr]"/g) || []).length === 8, "server HTML: not eight branches");
+check(html.includes('<div class="wood" aria-hidden="true"></div>') && !html.includes('class="branch'), "server HTML: no wood behind the page, or branches still there");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
@@ -60,8 +61,8 @@ check(await page.evaluate(() => document.querySelectorAll("link[rel=stylesheet]"
 check(await page.evaluate(() => document.querySelectorAll("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
 check(await page.evaluate(() => /^\d+\.\d+\.\d+/.test(document.querySelector(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
 // The first panel: a birch down its right edge, the whole height, and the figures to its left,
-// beside the text, each on a branch reaching the trunk; branches grow out of the panels into the
-// room beside them, ending in crowns of leaves.
+// beside the text, each on a branch reaching the trunk; behind the page the wood, from the rail to
+// the window's right edge and bottom, beneath everything, its masks those of the season.
 const hero = await page.evaluate(() => {
   const panel = document.querySelector(".home-hero").getBoundingClientRect();
   const text = document.querySelector(".home-hero-text").getBoundingClientRect();
@@ -76,12 +77,19 @@ const hero = await page.evaluate(() => {
   };
 });
 check(hero.edge && hero.tags === 4 && hero.beside && hero.reach && hero.height < 440, `the figures do not hang on a birch at the first panel's edge: ${JSON.stringify(hero)}`);
-const branches = await page.evaluate(() => [...document.querySelectorAll(".home .branch")].map((branch) => {
-  const box = branch.getBoundingClientRect(), panel = branch.parentElement.getBoundingClientRect();
-  const out = branch.classList.contains("branch-r") ? box.right > panel.right + 60 : box.left < panel.left - 60;
-  return out && branch.querySelectorAll(".branch-leaf").length === 42;
-}));
-check(branches.length === 8 && branches.every(Boolean), `the branches do not grow out of the panels, or have no crowns: ${branches}`);
+const wood = await page.evaluate(() => {
+  const el = document.querySelector("body > .wood"), box = el.getBoundingClientRect(), style = getComputedStyle(el);
+  const season = document.documentElement.dataset.season || "summer";
+  const masks = ["::before", "::after"].map((pseudo) => getComputedStyle(el, pseudo).maskImage || getComputedStyle(el, pseudo).webkitMaskImage);
+  return {
+    place: style.position === "fixed" && style.zIndex === "-1" && box.left === document.querySelector(".rail").getBoundingClientRect().right && box.right === innerWidth && box.bottom === innerHeight,
+    masks: masks[0].includes(`/assets/birch/${season}-wood-back.svg`) && masks[1].includes(`/assets/birch/${season}-wood-front.svg`),
+    branches: document.querySelectorAll(".branch").length,
+    // One wood for the whole app, beside the crown, not one per page.
+    woods: document.querySelectorAll(".wood").length,
+  };
+});
+check(wood.place && wood.masks && wood.branches === 0 && wood.woods === 1, `the wood does not stand behind the page: ${JSON.stringify(wood)}`);
 
 // No sidebar, and under the first panel the way in: three steps side by side, each with one
 // button — the picker of the programs, the catalog, the Stundenplan —, the first the next one for a

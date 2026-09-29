@@ -25,6 +25,17 @@ fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
         .is_some_and(|value| value.split(',').any(|tag| tag.trim().trim_start_matches("W/") == etag))
 }
 
+/// Whether the client takes brotli: `br` in its Accept-Encoding, unless it is given no weight.
+fn accepts_brotli(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.split(',').any(|encoding| {
+            let mut parts = encoding.split(';').map(str::trim);
+            parts.next() == Some("br") && !parts.any(|part| matches!(part.replace(' ', "").as_str(), "q=0" | "q=0.0" | "q=0.00" | "q=0.000"))
+        }))
+}
+
 fn accepts_gzip(headers: &HeaderMap) -> bool {
     headers
         .get(header::ACCEPT_ENCODING)
@@ -354,6 +365,25 @@ fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body
     tagged_asset(state, headers, content_type, body, "")
 }
 
+/// `asset` for a file compressed with brotli ahead of time, to a client that takes it: the same
+/// ETag and caching, `Content-Encoding: br`.
+fn brotli_asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, compressed: &'static [u8]) -> Response {
+    let etag = format!("\"{}\"", state.build_id);
+    if if_none_match(headers, &etag) {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+    }
+    let mut response = Response::new(Body::from(compressed));
+    let out = response.headers_mut();
+    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
+    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+    out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("br"));
+    if let Ok(value) = HeaderValue::from_str(&etag) {
+        out.insert(header::ETAG, value);
+    }
+    response
+}
+
 /// `asset` for an address whose file changes within a build (the standard picture with the
 /// season): `variant` names which one it is, in the ETag.
 fn tagged_asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8], variant: &str) -> Response {
@@ -435,7 +465,10 @@ pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<Strin
 /// them). Embedded once (`birch::file`): the link-preview cards draw the same crown.
 pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
     match crate::birch::file(&file) {
-        Some(body) => asset(&state, &headers, "image/svg+xml", body.as_bytes()),
+        Some(body) => match crate::birch::brotli(&file).filter(|_| accepts_brotli(&headers)) {
+            Some(compressed) => brotli_asset(&state, &headers, "image/svg+xml", compressed),
+            None => asset(&state, &headers, "image/svg+xml", body.as_bytes()),
+        },
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }

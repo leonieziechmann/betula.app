@@ -5,6 +5,9 @@
 //! (`<season>-card-head.svg`, not served: its clearing fits the card's wordmark, not the page's
 //! title).
 //!
+//! The wood behind the start page (`<season>-wood-back.svg`, `-front.svg`) is drawn by
+//! `design/forest/forest.mjs`.
+//!
 //! Every file is a mask: shape in black and nothing else (what hangs behind at half strength).
 
 /// The season the crown is drawn in, as the site follows the year (the script in `<head>`,
@@ -118,6 +121,31 @@ pub fn file(name: &str) -> Option<&'static str> {
         "winter-crown-head.svg" => include_str!("../../app/assets/birch/winter-crown-head.svg"),
         "roots.svg" => include_str!("../../app/assets/birch/roots.svg"),
         "litter.svg" => include_str!("../../app/assets/birch/litter.svg"),
+        "spring-wood-back.svg" => include_str!("../../app/assets/birch/spring-wood-back.svg"),
+        "spring-wood-front.svg" => include_str!("../../app/assets/birch/spring-wood-front.svg"),
+        "summer-wood-back.svg" => include_str!("../../app/assets/birch/summer-wood-back.svg"),
+        "summer-wood-front.svg" => include_str!("../../app/assets/birch/summer-wood-front.svg"),
+        "autumn-wood-back.svg" => include_str!("../../app/assets/birch/autumn-wood-back.svg"),
+        "autumn-wood-front.svg" => include_str!("../../app/assets/birch/autumn-wood-front.svg"),
+        "winter-wood-back.svg" => include_str!("../../app/assets/birch/winter-wood-back.svg"),
+        "winter-wood-front.svg" => include_str!("../../app/assets/birch/winter-wood-front.svg"),
+        _ => return None,
+    })
+}
+
+/// The masks drawn with a brotli copy beside them (`design/forest/forest.mjs`, quality 11): the
+/// wood behind the start page, the largest of them. Sent as they are to a browser that takes `br`
+/// (`api::birch`); the others are gzipped when asked for.
+pub fn brotli(name: &str) -> Option<&'static [u8]> {
+    Some(match name {
+        "spring-wood-back.svg" => include_bytes!("../../app/assets/birch/spring-wood-back.svg.br"),
+        "spring-wood-front.svg" => include_bytes!("../../app/assets/birch/spring-wood-front.svg.br"),
+        "summer-wood-back.svg" => include_bytes!("../../app/assets/birch/summer-wood-back.svg.br"),
+        "summer-wood-front.svg" => include_bytes!("../../app/assets/birch/summer-wood-front.svg.br"),
+        "autumn-wood-back.svg" => include_bytes!("../../app/assets/birch/autumn-wood-back.svg.br"),
+        "autumn-wood-front.svg" => include_bytes!("../../app/assets/birch/autumn-wood-front.svg.br"),
+        "winter-wood-back.svg" => include_bytes!("../../app/assets/birch/winter-wood-back.svg.br"),
+        "winter-wood-front.svg" => include_bytes!("../../app/assets/birch/winter-wood-front.svg.br"),
         _ => return None,
     })
 }
