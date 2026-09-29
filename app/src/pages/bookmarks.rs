@@ -376,11 +376,11 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
                     </div>
                 }
             })}
-            {rows.into_iter().map(|row| {
+            {rows.into_iter().enumerate().map(|(index, row)| {
                 let (target, id, here) = (row.id.clone(), row.id.clone(), here.clone());
                 let preview = Signal::derive(move || here.with_open(Some(&target)).path());
                 let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
-                view! { <Row row preview current phone with_program=false dim_unmarked=true in_place=true/> }
+                view! { <Row row preview current phone with_program=false dim_unmarked=true in_place=true shaded=index % 2 == 1/> }
             }).collect_view()}
             {(!missing.is_empty()).then(|| view! {
                 <div class="sem">{t.bookmarks.not_in_catalog}</div>
