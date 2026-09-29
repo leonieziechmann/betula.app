@@ -44,9 +44,10 @@ check(html.includes('"@type":"WebApplication"') && html.includes('id="im-detail"
 check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-trunk"') && !html.includes('class="examples"'), "server HTML: the figures are not on the birch, or the example searches are still there");
 // „Studiengang wählen" of the first panel and of the way in: without the app a link to all programs
 // that carries both words (the stylesheet shows the ones the app will); the wood behind the page,
-// no branches out of the panels.
+// no branches out of the panels. Its attributes in any order: the server writes the class after
+// the others (Leptos), whatever the order of the view.
 check(["home-program", "start-program"].every((id) => new RegExp(`<a id="${id}" href="/programs" class="[^"]*program-pick">`).test(html)), "server HTML: „Studiengang wählen\" does not lead to the programs");
-check(html.includes('<div class="wood" aria-hidden="true"></div>') && !html.includes('class="branch'), "server HTML: no wood behind the page, or branches still there");
+check(/<div (?=[^>]*\baria-hidden="true")[^>]*\bclass="wood"[^>]*><\/div>/.test(html) && !html.includes('class="branch'), "server HTML: no wood behind the page, or branches still there");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
