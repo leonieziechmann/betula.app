@@ -30,7 +30,7 @@ use crate::nav;
 use crate::pending::Pending;
 use crate::seo::Seo;
 use crate::tabs::{self, Tabs};
-use crate::ui::{ErrorState, Frame, Icon, ToggleLink};
+use crate::ui::{ErrorState, Frame, Icon, Plain, ToggleLink};
 
 /// The browser app (`csr`), or the server rendering the page for everybody.
 const APP: bool = cfg!(feature = "csr");
@@ -248,7 +248,7 @@ pub fn ProgramsPage() -> impl IntoView {
         Ok(all) => all,
         Err(error) => {
             status.for_error(&error);
-            return view! { <Title text=t.app.programs/><div class="page"><ErrorState error/></div> }.into_any();
+            return view! { <Title text=t.app.programs/><Plain><ErrorState error/></Plain> }.into_any();
         }
     };
     let total: usize = all.iter().map(Faculty::programs).sum();

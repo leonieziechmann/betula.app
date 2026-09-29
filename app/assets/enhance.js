@@ -429,162 +429,14 @@
   document.addEventListener("scroll", () => { if (!spyFrame) spyFrame = requestAnimationFrame(spy); }, { capture: true, passive: true });
 
   // ---- the ground: the footer after the end of a page ----
-  // On a wide screen the page scrolls inside the view and the ground (`.ground`) waits below the
-  // window's edge (app.css, „the birch"). The window only gets room to scroll while the page is at
-  // its end (`data-ground="end"`): the wheel then goes on from the page to the window, and as far as
-  // the window scrolls, the ground comes up (`in`), and the wood behind the page with it, so its
-  // birches stand on it: the two move together, in every frame the window moves. Nothing else moves
-  // and nothing is laid out then: the ground slides over the panels, which are cut off 8 px above it
-  // (a clip on the view), and moving it and the wood is a transform. Only once the window has stood
-  // still for a moment is the view laid out, once, as much shorter as the ground shows (owner,
-  // 2026-09-29: the view laid out in every frame was laggy, „so dass sich die windows erst resizen,
-  // wenn man mit scrollen fertig ist"): a page that was at its end glides to it again, so its end
-  // shows above the ground (the owner, the same day: the jump was to be soft), and the panels beside
-  // it end above the ground and scroll as far as their content goes. Going down, the ground leaves the
-  // panels as they are until the window stands still, and they grow to it then. The inset goes
-  // straight onto the boxes that move, and nothing is written that does not change: a property or
-  // an attribute of <html> set in every frame made the browser restyle the whole page in every
-  // frame. On the way back the ground leaves first: while it shows, the wheel upwards belongs to
-  // the window. Should the page leave its end all the same (its scrollbar, a question opened,
-  // another page), the ground goes down by itself. A phone scrolls page and ground with the window
-  // and needs none of this.
-  const PAGE = "#content > .work.flowing, #content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
-  // A page that flows has the ground as the end of its own scroll area and needs none of this
-  // (see „one scroll area" below).
+  // On a wide screen every page is one scroll area (`.work.flowing`, app.css „one scroll area")
+  // with the ground as its end: the browser scrolls page and ground as one (owner, 2026-09-29: the
+  // two steps before — first the page, then the window for the ground — felt „unfassbar janky").
+  // A phone scrolls page and ground with the window. What is left to do is below.
   const flowing = () => document.querySelector("#content > .work.flowing");
-  const atEnd = (el) => el.scrollHeight - el.clientHeight - el.scrollTop < 2;
-  const STILL = 150; // ms the window stands still before the view is laid out for the ground
-  let shown = 0; // how far the ground is in (its shift, the wood's, the clip on the view)
-  let laid = 0; // how far the view is laid out for
-  let groundFrame = 0;
-  let stillTimer = 0;
-  let leaving = false;
-  let changed = false; // the page changed while the ground shows: its boxes may be new ones
   const glide = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
-  const groundWheel = (e) => {
-    if (e.ctrlKey || e.target.closest?.(".combo-pop, dialog")) return;
-    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
-    if (dy >= 0) return;
-    e.preventDefault();
-    // A mouse wheel's notch glides, as the browser's own scrolling does; a touchpad follows the finger.
-    window.scrollBy({ top: dy, behavior: Math.abs(dy) >= 50 ? glide() : "instant" });
-  };
-  const written = new WeakMap(); // what was last put on a box, so that the same is not put again
-  const put = (el, property, value) => {
-    if (!el) return;
-    const was = written.get(el) || {};
-    if (was[property] === (value || "")) return;
-    written.set(el, { ...was, [property]: value || "" });
-    if (value) el.style.setProperty(property, value); else el.style.removeProperty(property);
-  };
-  const applyGround = () => {
-    const main = document.querySelector(".main");
-    put(main, "height", laid && `calc(100vh - ${laid}px)`);
-    // Until the view is laid out for it, the ground covers the lower end of the panels: they are
-    // cut off where they will end (outwards the clip goes far enough for their shadows).
-    put(main, "clip-path", shown > laid && `inset(-100vmax -100vmax calc(${shown - laid}px + var(--gap)) -100vmax)`);
-    put(document.querySelector(".ground"), "transform", shown && `translateY(calc(var(--ground-reach) - ${shown}px))`);
-    // The wood behind the page stands on the ground: its foot goes up with the ground's edge.
-    put(document.querySelector(".wood"), "transform", shown && `translateY(${-shown}px)`);
-  };
-  // A page that was at its end glides to it again once the view got shorter, as far as it did. Where
-  // less motion is wanted it is there at once, and the wheel upwards, a touch, a click or a key puts
-  // it there at once as well: a page short of its end under the ground would send the ground away.
-  // The wheel downwards goes the same way (a touchpad's turns go on for a while after the ground is
-  // all the way in) and lets it glide.
-  let roll = null; // the page gliding to its end, and the next frame of it
-  const STOP_ROLL = ["wheel", "touchstart", "pointerdown", "keydown"];
-  const stopRoll = (finish) => {
-    if (!roll) return;
-    const { page, frame } = roll;
-    roll = null;
-    cancelAnimationFrame(frame);
-    for (const type of STOP_ROLL) removeEventListener(type, endRoll, true);
-    if (finish && page.isConnected) page.scrollTop = page.scrollHeight;
-  };
-  const endRoll = (e) => { if (!(e?.type === "wheel" && e.deltaY >= 0)) stopRoll(true); };
-  const rollToEnd = (page) => {
-    stopRoll(false);
-    if (glide() === "instant") { page.scrollTop = page.scrollHeight; return; }
-    const from = page.scrollTop;
-    const start = performance.now();
-    const step = (now) => {
-      if (!page.isConnected) { endRoll(); return; }
-      const t = Math.min(1, (now - start) / 240);
-      page.scrollTop = Math.round(from + (page.scrollHeight - page.clientHeight - from) * (1 - (1 - t) ** 3));
-      if (t < 1) roll.frame = requestAnimationFrame(step);
-      else endRoll();
-    };
-    roll = { page, frame: requestAnimationFrame(step) };
-    for (const type of STOP_ROLL) addEventListener(type, endRoll, { capture: true, passive: true });
-  };
-  // The view is laid out for the ground where it is; a page at its end stays there, gliding when the
-  // window stood still, at once when the page changed (unless it is gliding there already).
-  const layGround = (page, gliding = false) => {
-    const rolling = Boolean(page) && roll?.page === page;
-    const stays = page && !leaving && (rolling || atEnd(page)); // measured before the view changes
-    applyGround();
-    if (!stays || atEnd(page)) return;
-    if (gliding) rollToEnd(page);
-    else if (!rolling) page.scrollTop = page.scrollHeight;
-  };
-  const groundStill = () => {
-    stillTimer = 0;
-    if (laid === shown || phone()) return;
-    laid = shown;
-    layGround(document.querySelector(PAGE), true);
-  };
-  const ground = () => {
-    groundFrame = 0;
-    if (phone() || flowing()) {
-      if (shown) removeEventListener("wheel", groundWheel, { passive: false });
-      if (shown || laid) { shown = laid = 0; applyGround(); }
-      if (root.dataset.ground) delete root.dataset.ground;
-      return;
-    }
-    const page = document.querySelector(PAGE);
-    const inset = Math.max(0, Math.round(window.scrollY));
-    const moved = inset !== shown;
-    if (moved) {
-      if (inset && !shown) addEventListener("wheel", groundWheel, { passive: false });
-      if (!inset && shown) removeEventListener("wheel", groundWheel, { passive: false });
-      shown = inset;
-      clearTimeout(stillTimer);
-      stillTimer = setTimeout(groundStill, STILL);
-    }
-    // Moving the ground lays nothing out; a page that changed may have new boxes.
-    if (changed && (shown || laid)) layGround(page);
-    else if (moved) applyGround();
-    changed = false;
-    const end = !page || atEnd(page) || roll?.page === page;
-    if (!shown || end) leaving = false;
-    else if (!leaving) {
-      leaving = true;
-      window.scrollTo({ top: 0, behavior: glide() });
-    }
-    const state = shown ? "in" : end ? "end" : "mid";
-    if (root.dataset.ground !== state) root.dataset.ground = state;
-  };
-  const groundSoon = () => { if (!groundFrame) groundFrame = requestAnimationFrame(ground); };
-  // The window, a page, a list: scroll events do not bubble, so they are caught on their way down.
-  document.addEventListener("scroll", groundSoon, { capture: true, passive: true });
-  addEventListener("resize", groundSoon);
-  // A page that changes under the visitor (the app's pages, a list, a question opened) may reach
-  // or leave its end without scrolling; a wheel or a key finds out at the latest.
-  new MutationObserver(() => { changed = true; groundSoon(); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open"] });
-  addEventListener("wheel", groundSoon, { passive: true });
-  addEventListener("keydown", groundSoon);
-  // The keyboard reaches the ground's links by Tab: it comes up to show them.
-  document.addEventListener("focusin", (e) => {
-    if (!root.dataset.ground || !e.target.closest?.(".ground")) return;
-    const page = document.querySelector(PAGE);
-    if (page) page.scrollTop = page.scrollHeight;
-    ground();
-    window.scrollTo({ top: root.scrollHeight, behavior: glide() });
-  });
-  ground();
 
-  // ---- one scroll area (`.work.flowing`, the catalog; app.css „one scroll area") ----
+  // ---- one scroll area (`.work.flowing`; app.css „one scroll area") ----
   // The page and the ground after it scroll natively as one; nothing here runs while it scrolls
   // but the wood where the browser cannot tie it to the scroll itself. Once the area stands still
   // (150 ms), the pinned panels' content ends above the ground (`--cover`: the ground covers
@@ -642,15 +494,14 @@
   // ---- back to the top („Nach oben", `ui::ToTop`) ----
   // Once the page is more than a screen down, a button in its corner takes it back to its top
   // (owner, 2026-09-26: after a while in the catalog's list it was hard to get back up). The page
-  // is what the ground takes for it on a wide screen, the window on a phone. The way up jumps to a
+  // is its scroll area on a wide screen, the window on a phone. The way up jumps to a
   // screen above the top and glides the rest, a frame at a time, written here: the catalog's list
   // is virtual, and the browser's own smooth scrolling over it would build every row it passes
   // and end where the list makes up for a row that turned out taller than it was taken for (the
   // list scrolls by the difference, and a script's scroll ends a smooth one). Each frame here puts
   // the page where the glide is, whatever the list did in between, so it arrives at the top. A
   // wheel, a touch, a click or a key stops it; where less motion is wanted the page is up at once.
-  // At the top the ground on a wide screen goes down by itself: the page has left its end.
-  const pageScroller = () => (phone() ? document.scrollingElement : document.querySelector(PAGE));
+  const pageScroller = () => (phone() ? document.scrollingElement : flowing());
   let topFrame = 0;
   let topPage = null; // the page and the button it was last worked out for
   let topButton = null;
@@ -674,10 +525,9 @@
   }).observe(document.body, { childList: true, subtree: true });
   showTop();
   // The button stands over the page but is no part of what scrolls: the wheel over it turns the
-  // page under it, and at the page's end goes on to the window, as over the page itself. While the
-  // ground is in, the wheel belongs to the ground (above). A phone scrolls the window anyway.
+  // page under it, as over the page itself. A phone scrolls the window anyway.
   document.addEventListener("wheel", (e) => {
-    if (e.ctrlKey || root.dataset.ground === "in" || !e.target.closest?.("#to-top")) return;
+    if (e.ctrlKey || !e.target.closest?.("#to-top")) return;
     const page = pageScroller();
     if (!page || page === document.scrollingElement) return;
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * page.clientHeight : e.deltaY;

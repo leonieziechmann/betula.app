@@ -76,9 +76,8 @@
   --ground-text: oklch(.27 .02 60);
   --ground-muted: oklch(.39 .022 62);
   --ground-root: oklch(.76 .038 80);
-  /* How high the ground is on a wide screen, and how far it comes up (with the gap above it). */
+  /* How high the ground is on a wide screen. */
   --ground-h: 200px;
-  --ground-reach: calc(var(--ground-h) + var(--gap));
   /* The wood behind every page (`.wood`): the background's grey a few steps darker, mixed in
      OKLab (in OKLCH a grey's hue is `none`, and Chromium draws the mix reddish). */
   --wood-front: color-mix(in oklab, var(--text) 8%, var(--bg));
@@ -374,7 +373,8 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 /* The ground: the footer after all of a page, across everything right of the rail. The roots
    grow into it from its edge and fade downwards (a mask, like the crown); in autumn the fallen
    leaves lie on its edge, in the gap above it. As it stands here it lies after the view, and the
-   window scrolls to it: so it is without enhance.js, and so it follows the page on a phone. */
+   window scrolls to it: so it follows the page on a phone. On a wide screen every page has its own
+   at the end of its scroll area instead („one scroll area"). */
 .ground { position: relative; z-index: 1; grid-column: 2; grid-row: 2; margin: 0 var(--gap) var(--gap) 0; min-height: var(--ground-h); border-radius: 12px; background: var(--ground); color: var(--ground-text); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ground-text) 6%, transparent); }
 .ground::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--ground-root); -webkit-mask: url("/assets/birch/roots.svg") repeat-x left top; mask: url("/assets/birch/roots.svg") repeat-x left top; pointer-events: none; }
 .ground::after { content: ""; display: none; position: absolute; left: 0; right: 0; top: -12px; height: 24px; background: var(--crown); -webkit-mask: url("/assets/birch/litter.svg") repeat-x left top; mask: url("/assets/birch/litter.svg") repeat-x left top; pointer-events: none; }
@@ -391,27 +391,6 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .ground-foot p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 .ground-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--ground-muted); }
 .ground-foot .icon { width: 13px; height: 13px; }
-/* On a wide screen the page scrolls inside the view, and its scrollbar is the only one: the
-   window's is never shown. With enhance.js (`data-ground` on <html>) the ground waits below the
-   window's edge, fixed to the window. Once the page is at its end (`end`), the window has room to
-   scroll by as far as the ground comes up; the next turn of the wheel scrolls it, and the ground
-   comes up by as much (`in`). The header stays, and nothing else moves with the window: the rail
-   and the view stick to its top. While the window scrolls, the ground slides over the panels,
-   which are cut off above it (a clip on the view), and once it stands still the view gets that
-   much shorter (owner, 2026-09-29: „erst resizen, wenn man mit scrollen fertig ist"): the page
-   glides to its end above the ground, the panels beside it end above it. The wood goes with the
-   ground in every frame. How far the ground is in,
-   enhance.js writes straight onto the boxes that move (the ground's shift and the wood's, the clip
-   and, once the window stands still, the view's height); a custom property on <html> made the
-   browser work out the style of the whole page again in every frame. It also has the rest (the
-   wheel on the way back, a page that leaves its end). */
-@media (min-width: 901px) {
-  html.js { scrollbar-width: none; }
-  :root[data-ground] .main { position: sticky; top: 0; }
-  :root[data-ground] .ground { position: fixed; left: var(--rail); right: var(--gap); bottom: var(--gap); height: var(--ground-h); margin: 0; transform: translateY(var(--ground-reach)); will-change: transform; }
-  :root[data-ground="end"] body::after, :root[data-ground="in"] body::after { content: ""; grid-column: 2; grid-row: 2; height: var(--ground-reach); }
-  :root[data-ground]:not([data-ground="in"]) .ground::after { display: none; }
-}
 @media (max-width: 900px) {
   /* On a phone the crown is the ground of the bar at the top: it carries the bar's frosted
      background, over the page and under the search. The ground follows the page, full width, the
@@ -426,9 +405,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
 }
 
-/* ---------- one scroll area (the catalog) ----------
+/* ---------- one scroll area ----------
    Owner, 2026-09-29: the two steps — first the page scrolled, then the window for the ground — felt
-   „unfassbar janky". A page that flows (`.work.flowing`, the catalog first) is ONE scroll area right
+   „unfassbar janky". Every page (`.work.flowing`: ui::Frame, ui::Plain, the catalog, the Merkliste,
+   the start page) is ONE scroll area right
    of the rail under the top bar, with one scrollbar at the window's right edge: the page and the
    ground after it scroll as one, natively, and the ground is simply the end of the page. What stands
    beside the page (the filter panel, the module beside the list) is pinned: as high as the area
@@ -452,6 +432,12 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
     display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content var(--ground-h);
     height: calc(100% + 2px); margin: -1px calc(-1 * var(--gap)) -1px 0; padding: 1px var(--gap) 1px 0;
     overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; scroll-timeline: --page block;
+  }
+  /* A page without a frame (ui::Plain, the start page) takes the whole width. */
+  .work.flowing.solo { grid-template-columns: minmax(0, 1fr); }
+  /* A list's box keeps its round corners at the top: the area lets the page behind them show. A
+     page of panels is cut straight at the top, as it was. */
+  .work.flowing:has(> .list) {
     mask-image: linear-gradient(#000 0 0), radial-gradient(circle at 10px 10px, transparent 9.6px, #000 10.4px), radial-gradient(circle at 0 10px, transparent 9.6px, #000 10.4px);
     mask-origin: border-box, border-box, content-box; mask-clip: border-box;
     mask-size: 100% 100%, 10px 10px, 10px 10px; mask-repeat: no-repeat;
@@ -462,18 +448,19 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   /* The first row is never shorter than the area shows, whatever flows in it (a pinned short list
      stands in it and the ground's row at once). */
   .work.flowing::before { content: ""; grid-row: 1; grid-column: 1; height: calc(100vh - 64px); pointer-events: none; }
-  .work.flowing > .filters, .work.flowing > .detail {
+  .work.flowing > .filters, .work.flowing > .sidebar, .work.flowing > .detail {
     position: sticky; inset: auto; top: 0; grid-row: 1 / 3; align-self: start; height: calc(100vh - 64px);
     padding-bottom: var(--cover, 0px); transition: padding-bottom .22s var(--ease);
   }
-  .work.flowing > .filters { grid-column: 1; }
+  .work.flowing > .filters, .work.flowing > .sidebar { grid-column: 1; }
   /* A list short enough to stand whole above the ground is pinned as well (enhance.js). */
   .work.flowing > .list.short { position: sticky; top: 0; grid-row: 1 / 3; align-self: start; height: calc(100vh - 64px); min-height: 0; padding-bottom: var(--cover, 0px); }
   .work.flowing > .detail { grid-column: 1 / -1; justify-self: end; }
   /* The area has a height of its own, so its first row is as tall as what it holds (`max-content`,
      not `auto`, which would only grow into room the area has left): at least as high as it shows. */
   .work.flowing > .list { grid-column: 2; grid-row: 1; min-height: calc(100vh - 64px); overflow: visible; }
-  .work.flowing > .page { grid-column: 1 / -1; grid-row: 1; height: auto; min-height: calc(100vh - 64px); }
+  .work.flowing > .page { grid-column: 1 / -1; grid-row: 1; height: auto; min-height: calc(100vh - 64px); overflow: visible; }
+  .work.flowing.framed > .page { grid-column: 2; }
   .work.flowing > .resizer { position: sticky; top: 0; grid-row: 1 / 3; grid-column: 1 / -1; align-self: start; height: calc(100vh - 64px); }
   .work.flowing > .resizer.between { justify-self: start; left: auto; margin-left: var(--at, var(--filters)); }
   .work.flowing > .resizer.preview-edge { justify-self: end; right: auto; margin-right: calc(var(--at, var(--preview)) - 12px); }
@@ -483,6 +470,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      under it (--list-head-h, enhance.js); the note of a semester between them scrolls away. */
   html.js .work.flowing > .list > .list-head { position: sticky; top: 0; z-index: 6; margin: -1px -1px 0; border: 1px solid var(--ring-b); border-bottom: 0; border-radius: calc(var(--r-panel) + 1px) calc(var(--r-panel) + 1px) 0 0; background: var(--panel); }
   html.js .work.flowing .rows > .cols { top: var(--list-head-h, 0px); }
+  html.js .work.flowing > .list > .cols { position: sticky; top: var(--list-head-h, 0px); z-index: 4; }
   html.js .work.flowing .rows-pending { top: calc(var(--list-head-h, 0px) + var(--cols)); }
   html.js .work.flowing .row { scroll-margin: calc(var(--list-head-h, 0px) + var(--cols) + 8px) 0 16px; }
   .list-cap { display: none; }
@@ -504,7 +492,8 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
       radial-gradient(circle at 0 0, transparent 8.6px, var(--r2) 9.3px, var(--r2) 9.7px, var(--e2) 10.4px) right top / 10px 10px no-repeat,
       linear-gradient(var(--rm), var(--rm)) center bottom / calc(100% - 20px) 1px no-repeat;
   }
-  .work.flowing > .ground > .cap-side { left: -1px; width: calc(var(--filters) + 2px); }
+  .work.flowing > .ground > .cap-side { display: none; left: -1px; width: calc(var(--filters) + 2px); }
+  .work.flowing:has(> .filters, > .sidebar) > .ground > .cap-side { display: block; }
   .work.flowing > .ground > .cap-preview { display: none; right: -1px; width: calc(var(--preview) + 2px); --e1: var(--panel); --r1: var(--ring-p); --rm: var(--ring-pw); --r2: var(--ring-pw); }
   .work.flowing:has(> .detail) > .ground > .cap-preview { display: block; }
   .work.flowing > .ground > .cap-list { display: none; left: calc(var(--filters) + var(--gap) - 1px); right: -1px; }
@@ -2266,10 +2255,10 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
    a `t-…` class (--tint), as on the start page and in the week grid. */
 /* One column that never grows past the page: its grid items hold lines that do not wrap. */
 .page-inner.sp { min-height: 100%; grid-template-columns: minmax(0, 1fr); }
-/* The page is the size container the fold measures itself by (cqh); like every framed page it ends
-   where the sidebar ends. A module opened from the plan floats over the page at its right edge, as
-   on every other page (owner, 2026-09-25: „nicht tiling, sondern attached"). */
-@media (min-width: 901px) { .framed > .page:has(> .page-inner.sp) { container: plan-page / size; } }
+/* The fold measures itself by what the area shows of the page (`100vh - 64px`, app.css „one scroll
+   area"), not by the page, which is as tall as its content. A module opened from the plan floats
+   over the page at its right edge, as on every other page (owner, 2026-09-25: „nicht tiling,
+   sondern attached"). */
 .sp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; padding: 16px 24px 24px; overflow: visible; overflow-wrap: break-word; }
 /* The semester in three parts (SemesterView): above the fold (div.sp-fold) the head, the red
    alerts, the quiet line and the view (div.sp-view); the planned modules (div.sp-side); under the
@@ -2291,7 +2280,7 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .sp-below { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 .sp-week { position: relative; display: flex; flex-direction: column; min-width: 0; }
 @media (min-width: 901px) {
-  .sp-fold { min-height: min(calc(100cqh - 41px), 960px); }
+  .sp-fold { min-height: min(calc(100vh - 64px - 41px), 960px); }
   .sp-view, .sp-week { flex: 1 1 auto; }
   .sp-week { min-height: 340px; max-height: 800px; }
 }

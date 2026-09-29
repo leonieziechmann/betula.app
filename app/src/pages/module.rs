@@ -44,7 +44,7 @@ use crate::myprogram::MyProgram;
 use crate::seo::{self, Seo};
 use crate::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
 use crate::tabs::{self, Area, Tabs};
-use crate::ui::{BackLink, ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
+use crate::ui::{BackLink, ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Plain, Prose, Shortcut};
 use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
 
 /// The browser app (`csr`): only there is a plan to meet.
@@ -522,11 +522,11 @@ pub fn ModulePage() -> impl IntoView {
         match source.clone().and_then(|source| source.run(|db| pages::module(db, &id))) {
             Err(error) => {
                 status.for_error(&error);
-                view! { <div class="page"><ErrorState error/></div> }.into_any()
+                view! { <Plain><ErrorState error/></Plain> }.into_any()
             }
             Ok(None) => {
                 status.set(404);
-                view! { <div class="page"><NotFound title=t.module.not_found hint=t.module.not_found_hint/></div> }.into_any()
+                view! { <Plain><NotFound title=t.module.not_found hint=t.module.not_found_hint/></Plain> }.into_any()
             }
             Ok(Some(data)) => {
                 // „Zurück" leads where the visitor came from: the program whose page had this

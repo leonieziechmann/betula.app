@@ -220,7 +220,7 @@ pub fn App() -> impl IntoView {
             <div class="main">
                 <TopBar/>
                 <main class="content" id="content" aria-busy=move || pending.busy().then_some("true")>
-                    <Routes fallback=move || view! { <div class="page"><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></div> }>
+                    <Routes fallback=move || view! { <ui::Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></ui::Plain> }>
                         <Route path=path!("/") view=HomePage ssr=SsrMode::Async/>
                         <Route path=path!("/catalog") view=CatalogPage ssr=SsrMode::Async/>
                         <Route path=path!("/catalog/module/:id") view=ModulePage ssr=SsrMode::Async/>
