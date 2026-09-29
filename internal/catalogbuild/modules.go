@@ -326,6 +326,16 @@ func (b *builder) writeModuleLinks() error {
 				return err
 			}
 		}
+		// The successor states the replacement as well, so a module whose own page does
+		// not name its successor still gets it.
+		for _, predecessor := range d.PredecessorModules {
+			if predecessor == id || !b.moduleIDs[predecessor] {
+				continue
+			}
+			if _, err := b.tx.Exec("INSERT OR IGNORE INTO module_successor (module_id, successor_id) VALUES (?, ?)", predecessor, id); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

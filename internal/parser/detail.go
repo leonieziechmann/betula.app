@@ -17,6 +17,9 @@ var (
 	creditNumberRegex = regexp.MustCompile(`([0-9]+(?:[\.,][0-9]+)?)`)
 	reModuleID        = regexp.MustCompile(`\b\d{5}\b`)
 	reNachfolge       = regexp.MustCompile(`(?i)Nachfolge(?:modul(?:e)?)?[^\d\n]{0,50}(\d{5})`)
+	// reSucceeds is where a remark names the module this one succeeds: „Nachfolgemodul zu
+	// 31423", „Nachfolgemodul für Modul 24410", „ein Nachfolgemodul des Moduls …".
+	reSucceeds = regexp.MustCompile(`(?i)Nachfolge-?\s?modul(?:e)?\s+(?:zu|zum|für|fuer|von|vom|des|der)\s`)
 )
 
 // DetailParser parses a BTU course detail page (b-tu.de/modul/<id>).
@@ -155,6 +158,28 @@ func normalizePrereqText(s string) string {
 		return "-"
 	}
 	return trimmed
+}
+
+// linkedModuleIDs reads the module numbers a row of successors or of replaced modules
+// names. Only b-tu.de/modul/<id> addresses a module by its number; a QIS link carries the
+// internal number of the description, which is five digits too and would name a module
+// that does not exist, so a QIS link counts by its text („38105 Allgemeine
+// Betriebswirtschaftslehre I").
+func linkedModuleIDs(valNode *html.Node, valText string) []string {
+	var ids []string
+	for _, l := range FindAllByTag(valNode, atom.A) {
+		href := GetAttr(l, "href")
+		if !strings.Contains(href, "/modul/") {
+			continue
+		}
+		if m := reModuleID.FindString(href); m != "" {
+			ids = appendUnique(ids, m)
+		}
+	}
+	for _, m := range reModuleID.FindAllString(valText, -1) {
+		ids = appendUnique(ids, m)
+	}
+	return ids
 }
 
 func appendUnique(slice []string, val string) []string {
@@ -320,36 +345,41 @@ func applyRow(detail *model.ModuleDetail, rawKey string, valNode *html.Node, pre
 		if containsNotOffered(lowRemarks) {
 			detail.IsNotOffered = true
 		}
-		if strings.Contains(lowRemarks, "nachfolge") {
-			detail.IsPhaseOut = true
-			matches := reNachfolge.FindAllStringSubmatch(valText, -1)
-			for _, m := range matches {
-				if len(m) >= 2 && m[1] != detail.ID {
-					detail.SuccessorModules = appendUnique(detail.SuccessorModules, m[1])
+		// „Siehe Nachfolge-Modul 11523", „stattdessen Nachfolgemodul 11787": the module has a
+		// successor. „Nachfolgemodul zu 31423": it is the successor of the module named, and
+		// does not phase out for saying so.
+		if n := strings.Count(lowRemarks, "nachfolge"); n > 0 {
+			if len(reSucceeds.FindAllStringIndex(valText, -1)) < n {
+				detail.IsPhaseOut = true
+			}
+			for _, m := range reNachfolge.FindAllStringSubmatchIndex(valText, -1) {
+				id := valText[m[2]:m[3]]
+				if id == detail.ID {
+					continue
+				}
+				if loc := reSucceeds.FindStringIndex(valText[m[0]:]); loc != nil && loc[0] == 0 {
+					detail.PredecessorModules = appendUnique(detail.PredecessorModules, id)
+				} else {
+					detail.SuccessorModules = appendUnique(detail.SuccessorModules, id)
 				}
 			}
 		}
 
 	case "nachfolgemodul":
+		// This module phases out („Auslaufmodul ab: 21.04.2017"); the row links its successors.
 		detail.IsPhaseOut = true
-		// Check links in valNode. Only b-tu.de/modul/<id> addresses a module by its
-		// number; a QIS link carries the internal number of the description, which
-		// is five digits too and would name a module that does not exist.
-		links := FindAllByTag(valNode, atom.A)
-		for _, l := range links {
-			href := GetAttr(l, "href")
-			if !strings.Contains(href, "/modul/") {
-				continue
-			}
-			if m := reModuleID.FindString(href); m != "" && m != detail.ID {
+		for _, m := range linkedModuleIDs(valNode, valText) {
+			if m != detail.ID {
 				detail.SuccessorModules = appendUnique(detail.SuccessorModules, m)
 			}
 		}
-		// Also check text
-		matches := reModuleID.FindAllString(valText, -1)
-		for _, m := range matches {
+
+	case "auslaufmodul":
+		// This module is the successor („Nachfolgemodul seit: 21.04.2017") of the modules
+		// the row links, which QIS marks in pink. It does not phase out itself.
+		for _, m := range linkedModuleIDs(valNode, valText) {
 			if m != detail.ID {
-				detail.SuccessorModules = appendUnique(detail.SuccessorModules, m)
+				detail.PredecessorModules = appendUnique(detail.PredecessorModules, m)
 			}
 		}
 
@@ -471,10 +501,14 @@ func normalizeKey(raw string) string {
 		return "currentevents"
 	case strings.Contains(k, "veranstaltungenzummodul") || strings.Contains(k, "modulecomponents") || strings.Contains(k, "coursesformodule"):
 		return "courses"
-	// QIS states a phase-out in a row of its own („Auslaufmodul: Nachfolgemodul
-	// seit: …"); the copy on b-tu.de only mentions it in the remarks.
-	case strings.Contains(k, "nachfolge") || strings.Contains(k, "auslaufmodul") || strings.Contains(k, "phaseoutmodule"):
+	// A replacement is stated on both modules, each naming the other, and the label names
+	// what the linked module is: the module that phases out links its successors under
+	// „Nachfolgemodul/e" ("Follow-up Module/s"), its successor links it under
+	// „Auslaufmodul" ("Phase-out Module"). The copy on b-tu.de carries the same rows.
+	case strings.Contains(k, "nachfolge") || strings.Contains(k, "followupmodul"):
 		return "nachfolgemodul"
+	case strings.Contains(k, "auslaufmodul") || strings.Contains(k, "phaseoutmodul"):
+		return "auslaufmodul"
 	default:
 		return ""
 	}

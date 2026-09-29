@@ -239,8 +239,8 @@ Program, degree, PO version, regulation documents.
 
 | | |
 |---|---|
-| Sources | **S2**: a „Nachfolgemodul" row where present, otherwise the regex `Nachfolge…(\d{5})` on the remarks; phase-out from „Auslaufmodul"/"phase-out" and "no longer offered" phrases in heading, number, turnus and remarks. |
-| Code path | `parser/detail.go:254-289`, `containsNotOffered`. |
+| Sources | **S2**: the rows that state a replacement, one on each of its two modules (§14): „Nachfolgemodul/e" on the module that phases out names its successors, „Auslaufmodul" on the successor names the module it replaces; otherwise the regex `Nachfolge…(\d{5})` on the remarks, where „Nachfolgemodul zu/für … <number>" names the module it succeeds. Phase-out from a „Nachfolgemodul/e" row, from „Auslaufmodul"/"phase-out" in the module number („38105 - Auslaufmodul") and the remarks, and from "no longer offered" phrases in heading, number, turnus and remarks. |
+| Code path | `applyRow` in `parser/detail.go` (keys `nachfolgemodul` and `auslaufmodul`), `containsNotOffered`; `writeModuleLinks` in `catalogbuild/modules.go`. |
 | Freshness | As S2. |
 | Conflicts | Single source. 23 modules have a successor; 1 successor ID does not exist in `modules`. All 4,868 non-NULL values are JSON arrays; the comma-list form named in the brief no longer occurs in the DB, only in consumer code. Phase-out 76 modules, 31 of them also "not offered". |
 | Authority | **S2.** Successors as rows with a foreign key (the dangling one is reported, not stored). `offer_status` enum (`active`, `phase_out`, `not_offered`) instead of two flags that are always set together in one direction. |
@@ -437,11 +437,12 @@ of the module table, so `QISModuleRefs` asks for `objLanguage=en` for the 691 En
 modules and `de` for the rest — one request per module, and `isEnglishModulePage` marks the
 English ones exactly as it did for the copy, which the build uses to sort the two titles.
 
-**What QIS says and the copy does not.** A phase-out has a row of its own in QIS
-(„Auslaufmodul: Nachfolgemodul seit: 20.01.2023" with a link to the successor); 11162
-„Wirtschaftsprüfung" was `active` with no remark in the catalog built from the copy. The
-successor is read from the link text, never from its address: a QIS link carries the internal
-`pordnr` (16532), which is five digits too and would name a module that does not exist.
+**A replacement has rows of its own.** QIS names the other module of a replacement in a row
+of its own, on both modules, and so does the copy: 11162 „Wirtschaftsprüfung" states
+„Auslaufmodul: Nachfolgemodul seit: 20.01.2023" with a link to 12917, the module it replaces
+(§14; this paragraph first read it the other way round). The other module is read from the
+link text, never from its address: a QIS link carries the internal `pordnr` (16532), which is
+five digits too and would name a module that does not exist.
 
 **The catalog follows the published semester, not the calendar.** With the winter schedule in
 (1,496 modules, 2,004 teaching events on 2026-09-21) the summer semester still had ten days to
@@ -763,3 +764,64 @@ Open, with the default the build uses until the owner decides:
 | R9 | A second room number QIS abbreviates or the rules shorten (FZ3E/2.26+27, 55 lines): write it in full (FZ3E/2.26+2.27)? | shortened |
 | R10 | Spaces inside a room's form (ZB2CD/AT Oestreich M, SFB/9.151 F2: 13 forms, 55 lines) break a narrow grid cell: no-break spaces, or a dot (AT.Oestreich)? | spaces |
 | R11 | The Lehrgebäude 4/1, 4/3, 4/4 as `LG4-1` … (no second slash)? | **decided 2026-09-25**: `LG4-1` |
+
+## 14. A replacement is stated on both modules (2026-09-29)
+
+**What was wrong.** When a module replaces another, both pages name the other module in a row of
+its own, and the label says what the *linked* module is. QIS and the copy on b-tu.de carry the
+same rows:
+
+| Page of | Label (German / English view) | Before the link | Links |
+|---|---|---|---|
+| 38105 „Allgemeine Betriebswirtschaftslehre I", module number „38105 - Auslaufmodul" | „Nachfolgemodul/e" / "Follow-up Module/s" | „Auslaufmodul ab: 21.04.2017" | its successor 12160 |
+| 12160 „Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL" | „Auslaufmodul" / "Phase-out Module" | „Nachfolgemodul seit: 21.04.2017" | the module it replaces, 38105, marked `style="background-color:lightpink;"` |
+
+Radix read „Auslaufmodul" ("Phase-out Module") as a successor row, the same as „Nachfolgemodul/e".
+So a module that replaced another was `phase_out`: Folia showed it with the badge „Auslaufmodul"
+and said it „Wird abgelöst durch" the very module it replaced. That hit 12160, a module of BWL,
+Wirtschaftsinformatik, Informatik and more, with four events in WiSe 2026/27. It also hit 11162
+„Wirtschaftsprüfung" (BWL B.Sc. PO 2024), which §10 took for the phase-out of 12917. The English
+"Follow-up Module/s" matched no label at all, so no English view named a successor. The owner
+found it on the QIS page of 12160, where the link to the old module is red.
+
+**Now.** The label decides the direction (`applyRow`, keys `nachfolgemodul` and `auslaufmodul`).
+The module that phases out gets its successors and `phase_out`. Its successor gets the modules it
+replaces (`ModuleDetail.PredecessorModules`), and its own status stays as it is. Both rows state
+one relation, so the build writes `module_successor(<replaced>, <successor>)` from either page, once.
+A module whose own page does not name its successor still gets it. The pink marking is not read,
+since the label says the same.
+
+A remark states it either way too. „Siehe Nachfolge-Modul 11523" names a successor, while
+„Nachfolgemodul zu 31423" (11364, 11365) and „Nachfolgemodul für Modul 24410" (12046) name the
+module the page's module succeeds. The word after „Nachfolgemodul" tells them apart (zu, zum, für,
+von, vom, des, der: `reSucceeds`), and such a remark no longer marks the module as phasing out.
+Left as they are: „Nachfolgemodul PStO 2010 „ABWL III"" names no number, and 11985 and 11986 phase
+out by their own number anyway. 14 remarks of the form „Das Nachfolgemodul aus der Prüfungs- und
+Studienordnung 2020 hat die Nummer 12938" name a successor the regex does not reach, because a
+year stands in between (open).
+
+**How many.** The owner's way of finding them: a replacement read both ways is a loop. The
+snapshot Folia served on 2026-09-29 (built 04:02 UTC by Radix 0.5.0) had 120 pairs of modules that
+were each other's successor, 201 modules in all. 118 came from the rows, 2 from remarks. Two
+clusters where several modules replace several (11273/11274/11642/11840/11841/23411 and
+11523/13703/22211) made 32 longer cycles out of them. Eight edges pointed from the successor to
+the module it replaces without a loop: seven from English views, where „Follow-up Module/s" was
+not read (11459 → 13574 and 37405 …), and one from a remark (12046 → 24410). Every other successor
+edge of the snapshot starts at a module that is no longer offered.
+
+The pages of those 215 modules were read again on 2026-09-29. With the old parser they give
+exactly the snapshot's 251 edges and its statuses. With the new one they give 728 edges instead of
+848, none in both directions and no cycle. Each of the 120 pairs and the 8 one-way edges points from
+the old module to the new one, and 96 modules that were `phase_out` are `active` again.
+`radix validate` fails when a module's successors lead back to it, over any number of steps, so
+no snapshot is published from such a reading and the ERROR alerts. On that snapshot it fails on
+the 201 modules; on its successors as the new parser reads them, it passes.
+
+**Checked** on 2026-09-29, first with nine requests by hand, with a browser's user agent, seconds
+apart. They were the module list of b-tu.de, the copies of 12160, 38105, 11162 and 12917, and the
+QIS descriptions of 12160 and 38105 (pordnr 14364 and 7293) in both views. Then the pages of the
+215 modules above, each at the address the snapshot names as its `source_url`, and the QIS
+descriptions of 11985 and 11986: 217 requests with Radix's user agent, one at a time, 1.5 s apart.
+The German descriptions of 12160 and 38105 are `internal/parser/testdata/qis_module_<id>.html`,
+cut to the description (`TestReplacementRows`, `TestBuildReadsAReplacementFromBothModules`,
+`TestDetailParser_RemarksNameSuccessorOrPredecessor`).

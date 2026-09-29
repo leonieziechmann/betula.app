@@ -429,6 +429,9 @@ func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 	if c := status["modules without a module page"]; c.Status != catalogdb.StatusWarn || c.Value != 2 {
 		t.Errorf("missing page check = %+v", c)
 	}
+	if c := status["a module's successors never lead back to it"]; c.Status != catalogdb.StatusOK {
+		t.Errorf("successor cycle check = %+v", c)
+	}
 
 	// Regressions: a placeholder string, a stale materialized table, a missed baseline.
 	for _, stmt := range []string{
@@ -452,6 +455,39 @@ func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 	for _, name := range []string{"no empty-string or '-' placeholders in text columns", "program_module matches its source view", "baseline: modules"} {
 		if !failed[name] {
 			t.Errorf("expected check %q to fail; failed = %v", name, failed)
+		}
+	}
+}
+
+// The successors of a module never lead back to it, however long the way (docs/data-sources.md
+// §14): two modules that name each other, as the misreading of 2026-09-29 made 120 pairs, and a
+// triangle without such a pair both fail. The fixture's 11101 names 11881 as its successor.
+func TestValidateFailsOnASuccessorCycle(t *testing.T) {
+	for name, tc := range map[string]struct {
+		edges   []string
+		samples []string
+	}{
+		"pair":     {[]string{"('11881', '11101')"}, []string{"11101 → 11881", "11881 → 11101"}},
+		"triangle": {[]string{"('11881', '11152')", "('11152', '11101')"}, []string{"11101 → 11881", "11152 → 11101", "11881 → 11152"}},
+	} {
+		db, _ := buildFixture(t)
+		for _, edge := range tc.edges {
+			if _, err := db.SQL().Exec("INSERT INTO module_successor (module_id, successor_id) VALUES " + edge); err != nil {
+				t.Fatal(err)
+			}
+		}
+		checks, err := db.Validate(context.Background(), nil)
+		if err != nil {
+			t.Fatalf("%s: Validate failed: %v", name, err)
+		}
+		var cycle catalogdb.Check
+		for _, c := range checks {
+			if c.Name == "a module's successors never lead back to it" {
+				cycle = c
+			}
+		}
+		if cycle.Status != catalogdb.StatusFail || cycle.Value != int64(len(tc.samples)) || strings.Join(cycle.Samples, "; ") != strings.Join(tc.samples, "; ") {
+			t.Errorf("%s: successor cycle check = %+v, want a failure with %q", name, cycle, tc.samples)
 		}
 	}
 }

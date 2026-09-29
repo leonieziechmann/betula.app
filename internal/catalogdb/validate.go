@@ -88,6 +88,17 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		     + (SELECT COUNT(*) FROM (SELECT * FROM module_facet EXCEPT SELECT * FROM v_module_facets_src))`, "")
 	v.count("a FÜS relation never overlaps the curriculum", StatusFail,
 		"SELECT COUNT(*) FROM program_module WHERE relation = 'fues' AND (in_tree = 1 OR in_plan = 1)", "")
+	// A replacement is stated on both of its modules, as two views of one relation in QIS
+	// (docs/data-sources.md §14), so the successors of a module never lead back to it. A cycle, of
+	// any length, is a replacement read the wrong way round. Until 2026-09-29 Radix did that to 201
+	// modules, and Folia showed them as phasing out and „abgelöst" by the modules they replaced.
+	// The samples name each module on a cycle with its successors that lead back to it.
+	const reach = `WITH RECURSIVE reach(start, node) AS (
+			SELECT module_id, successor_id FROM module_successor
+			UNION SELECT r.start, s.successor_id FROM reach r JOIN module_successor s ON s.module_id = r.node) `
+	v.count("a module's successors never lead back to it", StatusFail, reach+"SELECT COUNT(*) FROM reach WHERE start = node",
+		reach+`SELECT s.module_id || ' → ' || GROUP_CONCAT(s.successor_id, ', ') FROM module_successor s
+		 JOIN reach r ON r.start = s.successor_id AND r.node = s.module_id GROUP BY s.module_id ORDER BY 1`)
 
 	// Short names (docs/schema-v2.md, „Short names“). A migrated database that was not built
 	// again has none, and fails here: it must not be exported.

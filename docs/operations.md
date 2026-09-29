@@ -96,7 +96,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | ERROR | `crawl.archive_error` | the archive database could not be read |
 | ERROR | `stage.failed` | a stage of a cycle failed (`stage`, `error`) |
 | ERROR | `build.failed` | the build was rolled back; the canonical data is unchanged |
-| ERROR | `validate.check_failed` | one failed invariant or baseline (`check`, `value`, `samples`). A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. |
+| ERROR | `validate.check_failed` | one failed invariant or baseline (`check`, `value`, `samples`). A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. A module whose successors lead back to it means a replacement was read the wrong way round (`docs/data-sources.md` §14). |
 | ERROR | `validate.finished` with `failed > 0` | no snapshot is published from this data |
 | ERROR | `export.failed` | the previous snapshot stays current |
 | ERROR | `cycle.finished` with `result=failed`, `cycle.panic` | the cycle failed / crashed (with stack) |

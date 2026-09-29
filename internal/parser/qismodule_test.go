@@ -1,9 +1,13 @@
 package parser
 
 import (
+	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leonieziechmann/betula/internal/model"
 )
 
 // The shape of a QIS module description: rows of a label cell and a value cell,
@@ -93,25 +97,97 @@ func TestQISModuleParser(t *testing.T) {
 	}
 }
 
-// QIS states a phase-out in a row of its own and links the successor by its
-// internal number, which must not be mistaken for a module number.
-func TestQISModulePhaseOut(t *testing.T) {
-	const page = `<html><body><table>
-		<tr><td class="tabelle1_alignleft">Modulnummer:</td><td class="tabelle2inhalt">11162</td></tr>
-		<tr><td class="tabelle1_alignleft">Modultitel:</td><td class="tabelle2inhalt">Wirtschaftsprüfung</td></tr>
-		<tr><td class="tabelle1_alignleft">Auslaufmodul:</td><td class="tabelle2inhalt">Nachfolgemodul seit: 20.01.2023
-			<ul><li><a href="https://www.b-tu.de/qisserver3/rds?state=modulBeschrDetailInfo&amp;pord.pordnr=16532">
-				12917 Wirtschaftsprüfung und Rechnungslegung</a></li></ul></td></tr>
-		</table></body></html>`
-	d, err := NewQISModuleParser().Parse(strings.NewReader(page), "11162", "u")
-	if err != nil {
-		t.Fatalf("Parse: %v", err)
+// The English view of the pair below, 2026-09-29: the same rows under their own labels.
+const (
+	qisSuccessorEN = `<html><body><table>
+<tr><td class="tabelle1_alignleft" valign="top" width="20%">Module Number:</td>
+<td class="tabelle2inhalt" valign="top" width="80%" style="text-transform: uppercase;"><b>12160
+</b></td></tr>
+<TR>
+<TD class="tabelle1_alignleft" width="30%" valign="top">Phase-out Module:</TD>
+<TD class="tabelle2inhalt" width="70%">
+Follow-up Module since: 21.04.2017
+<UL>
+<li>
+<a class="regular" title="See details on 38105 Allgemeine Betriebswirtschaftslehre I" href="https://www.b-tu.de/qisserver3/rds?state=modulBeschrDetailInfo&nodeID=auswahlBaum%7Cmodul:pordnr=7293&pord.pordnr=7293" style="background-color:lightpink;">
+38105 Allgemeine Betriebswirtschaftslehre I
+</a>
+</li>
+</li>
+</UL>
+</TD>
+</TR>
+</table></body></html>`
+	qisPhaseOutEN = `<html><body><table>
+<tr><td class="tabelle1_alignleft" valign="top" width="20%">Module Number:</td>
+<td class="tabelle2inhalt" valign="top" width="80%" style="text-transform: uppercase;"><b>38105
+- Phase-out Module
+</b></td></tr>
+<TR>
+<TD class="tabelle1_alignleft" width="30%" valign="top">Follow-up Module/s:</TD>
+<TD class="tabelle2inhalt" width="70%">
+Phase-out module since: 21.04.2017
+<UL>
+<li>
+<a class="regular" title="See details on 12160 Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL" href="https://www.b-tu.de/qisserver3/rds?state=modulBeschrDetailInfo&nodeID=auswahlBaum%7Cmodul:pordnr=14364&pord.pordnr=14364">
+12160 Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL
+</a>
+</li>
+</li>
+</UL>
+</TD>
+</TR>
+</table></body></html>`
+)
+
+// A replacement is stated on both modules, each naming the other, and a row's label says
+// what the module it links is. 12160 „Allgemeine Betriebswirtschaftslehre I: Grundlagen der
+// BWL" replaces 38105 „Allgemeine Betriebswirtschaftslehre I" since 21.04.2017: 12160 links
+// 38105 under „Auslaufmodul" and marks the link in pink, 38105 („38105 - Auslaufmodul")
+// links 12160 under „Nachfolgemodul/e". testdata/qis_module_<id>.html are their German
+// descriptions as QIS served them on 2026-09-29, cut to the description; the English view
+// and the copy on b-tu.de carry the same rows. A QIS link names the other module by its
+// internal number (pordnr 7293 and 14364), which is not a module number.
+func TestReplacementRows(t *testing.T) {
+	fixture := func(id string) string {
+		t.Helper()
+		body, err := os.ReadFile("testdata/qis_module_" + id + ".html")
+		if err != nil {
+			t.Fatalf("read fixture: %v", err)
+		}
+		return string(body)
 	}
-	if !d.IsPhaseOut {
-		t.Error("a module with an Auslaufmodul row is phasing out")
+	type moduleParser interface {
+		Parse(r io.Reader, fallbackID, pageURL string) (*model.ModuleDetail, error)
 	}
-	if len(d.SuccessorModules) != 1 || d.SuccessorModules[0] != "12917" {
-		t.Errorf("successors = %v, want [12917] and not the pordnr 16532", d.SuccessorModules)
+	for _, tc := range []struct {
+		name                     string
+		parser                   moduleParser
+		id, page                 string
+		phaseOut                 bool
+		successors, predecessors []string
+	}{
+		{"successor", NewQISModuleParser(), "12160", fixture("12160"), false, nil, []string{"38105"}},
+		{"phase-out", NewQISModuleParser(), "38105", fixture("38105"), true, []string{"12160"}, nil},
+		{"successor, English view", NewQISModuleParser(), "12160", qisSuccessorEN, false, nil, []string{"38105"}},
+		{"phase-out, English view", NewQISModuleParser(), "38105", qisPhaseOutEN, true, []string{"12160"}, nil},
+		{"successor, copy", NewDetailParser(), "12160", `<div class="tx-btusysteme"><table>
+			<tr><td>Modulnummer:</td><td><b>12160</b></td></tr>
+			<tr><td>Auslaufmodul:</td><td>Nachfolgemodul seit: 21.04.2017
+				<ul><li><a title="Details ansehen zu 38105 Allgemeine Betriebswirtschaftslehre I" href="https://www.b-tu.de/qisserver3/rds?state=modulBeschrDetailInfo&amp;pord.pordnr=7293">
+					38105 Allgemeine Betriebswirtschaftslehre I</a></li></ul></td></tr>
+			</table></div>`, false, nil, []string{"38105"}},
+	} {
+		d, err := tc.parser.Parse(strings.NewReader(tc.page), tc.id, "u")
+		if err != nil {
+			t.Fatalf("%s: Parse: %v", tc.name, err)
+		}
+		if d.IsPhaseOut != tc.phaseOut {
+			t.Errorf("%s: IsPhaseOut = %v, want %v", tc.name, d.IsPhaseOut, tc.phaseOut)
+		}
+		if !slices.Equal(d.SuccessorModules, tc.successors) || !slices.Equal(d.PredecessorModules, tc.predecessors) {
+			t.Errorf("%s: successors %v, replaces %v; want %v, %v", tc.name, d.SuccessorModules, d.PredecessorModules, tc.successors, tc.predecessors)
+		}
 	}
 }
 

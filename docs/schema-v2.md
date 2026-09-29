@@ -44,7 +44,7 @@ and the `plan*` tables is derived and replaced by each build.
 | `module` | one row per module, normalized and raw columns; `description_source` says which page the fields come from | the QIS module description where QIS has one, else the copy on `b-tu.de/modul` (`docs/data-sources.md` §10); FÜS list for `is_fues` and as fallback for a module without a page (`detail_status = 'missing'`) |
 | `department` | organisational units; German and English names of one unit are paired by unit code and shared responsible persons | module page |
 | `module_person`, `module_teaching_form`, `module_text_item` | responsible persons, teaching forms with SWS/hours, literature and course lists | module page |
-| `module_prerequisite`, `module_successor` | module IDs named in the prerequisite texts / successor rows, only when the module exists | module page |
+| `module_prerequisite`, `module_successor` | module IDs named in the prerequisite texts / the rows that state a replacement, on either of its two modules (`docs/data-sources.md` §14), only when the module exists | module page |
 | `program` | one row per PO version. `id` = `<stg>-<abschl>-<pversion>` from the QIS node (`079-82-2008`), `slug` readable and unique (`bachelor-informatik-2008`), degree split into `degree_level`, `degree_type`, `study_variant` | QIS tree (the PO page's own breadcrumb, so the index pages above it are not needed) |
 | `program_document`, `program_area` | statutes and amendments; the area tree below a PO with `section` and `stated_kind` | QIS tree |
 | `module_program_ref` | every „Zuordnung zu Studiengängen" triple with `resolve_status` (`resolved`, `abroad`, `unresolved`) | module page |
