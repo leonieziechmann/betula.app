@@ -17,6 +17,9 @@ var (
 	creditNumberRegex = regexp.MustCompile(`([0-9]+(?:[\.,][0-9]+)?)`)
 	reModuleID        = regexp.MustCompile(`\b\d{5}\b`)
 	reNachfolge       = regexp.MustCompile(`(?i)Nachfolge(?:modul(?:e)?)?[^\d\n]{0,50}(\d{5})`)
+	// reSucceeds is where a remark names the module this one succeeds: „Nachfolgemodul zu
+	// 31423", „Nachfolgemodul für Modul 24410", „ein Nachfolgemodul des Moduls …".
+	reSucceeds = regexp.MustCompile(`(?i)Nachfolge-?\s?modul(?:e)?\s+(?:zu|zum|für|fuer|von|vom|des|der)\s`)
 )
 
 // DetailParser parses a BTU course detail page (b-tu.de/modul/<id>).
@@ -342,12 +345,22 @@ func applyRow(detail *model.ModuleDetail, rawKey string, valNode *html.Node, pre
 		if containsNotOffered(lowRemarks) {
 			detail.IsNotOffered = true
 		}
-		if strings.Contains(lowRemarks, "nachfolge") {
-			detail.IsPhaseOut = true
-			matches := reNachfolge.FindAllStringSubmatch(valText, -1)
-			for _, m := range matches {
-				if len(m) >= 2 && m[1] != detail.ID {
-					detail.SuccessorModules = appendUnique(detail.SuccessorModules, m[1])
+		// „Siehe Nachfolge-Modul 11523", „stattdessen Nachfolgemodul 11787": the module has a
+		// successor. „Nachfolgemodul zu 31423": it is the successor of the module named, and
+		// does not phase out for saying so.
+		if n := strings.Count(lowRemarks, "nachfolge"); n > 0 {
+			if len(reSucceeds.FindAllStringIndex(valText, -1)) < n {
+				detail.IsPhaseOut = true
+			}
+			for _, m := range reNachfolge.FindAllStringSubmatchIndex(valText, -1) {
+				id := valText[m[2]:m[3]]
+				if id == detail.ID {
+					continue
+				}
+				if loc := reSucceeds.FindStringIndex(valText[m[0]:]); loc != nil && loc[0] == 0 {
+					detail.PredecessorModules = appendUnique(detail.PredecessorModules, id)
+				} else {
+					detail.SuccessorModules = appendUnique(detail.SuccessorModules, id)
 				}
 			}
 		}

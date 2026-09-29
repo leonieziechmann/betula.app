@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -319,6 +320,42 @@ func TestDetailParser_NotOffered_Successors_Events_Titles(t *testing.T) {
 	// Current semester events should be empty due to "keine Zuordnung vorhanden" and lack of <a> tags
 	if len(detail.CurrentSemesterEvents) != 0 {
 		t.Errorf("expected 0 current semester events, got %d: %+v", len(detail.CurrentSemesterEvents), detail.CurrentSemesterEvents)
+	}
+}
+
+// A remark names a successor („Siehe Nachfolge-Modul 11523", „stattdessen Nachfolgemodul
+// 11787") or the module this one succeeds („Nachfolgemodul zu 31423", „Nachfolgemodul für
+// Modul 24410"). The remarks of b-tu.de/modul/11240, 12215, 11364 and 12046, 2026-09-29; read
+// the second way as well, 11364 and 31423 named each other as successor.
+func TestDetailParser_RemarksNameSuccessorOrPredecessor(t *testing.T) {
+	for _, tc := range []struct {
+		id, remarks              string
+		phaseOut                 bool
+		successors, predecessors []string
+	}{
+		{"11240", "B.Sc. Bauingenieurwesen PO 2011: BDGI 13\nLehrveranstaltungen (Vorlesung/ Übung) werden nur noch im SS angeboten.\nSiehe Nachfolge-Modul 11523\nBei Fragen am Fachgebiet Bauphysik und Gebäudetechnik melden.",
+			true, []string{"11523"}, nil},
+		{"12215", "Modul wird nicht im WS 17/18 angeboten, stattdessen Nachfolgemodul 11787 Theoretische Informatik besuchen.",
+			true, []string{"11787"}, nil},
+		{"11364", "Nachfolgemodul zu 31423: Technische Akustik und Strömungsakustik,\nergänzt sich mit dem Modul 11365: Technische Akustik - Schallfelder (im Wintersemester)\nKein Lehrangebot im Sommersemester 2019!",
+			false, nil, []string{"31423"}},
+		{"12046", "Nachfolgemodul für Modul 24410 \"Stadtmanagement\".",
+			false, nil, []string{"24410"}},
+	} {
+		page := `<div class="tx-btusysteme"><table>
+			<tr><td>Modulnummer:</td><td>` + tc.id + `</td></tr>
+			<tr><td>Bemerkungen:</td><td>` + tc.remarks + `</td></tr>
+			</table></div>`
+		d, err := NewDetailParser().Parse(strings.NewReader(page), tc.id, "u")
+		if err != nil {
+			t.Fatalf("%s: Parse: %v", tc.id, err)
+		}
+		if d.IsPhaseOut != tc.phaseOut {
+			t.Errorf("%s: IsPhaseOut = %v, want %v", tc.id, d.IsPhaseOut, tc.phaseOut)
+		}
+		if !slices.Equal(d.SuccessorModules, tc.successors) || !slices.Equal(d.PredecessorModules, tc.predecessors) {
+			t.Errorf("%s: successors %v, replaces %v; want %v, %v", tc.id, d.SuccessorModules, d.PredecessorModules, tc.successors, tc.predecessors)
+		}
 	}
 }
 

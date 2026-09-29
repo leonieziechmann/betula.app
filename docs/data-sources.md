@@ -239,7 +239,7 @@ Program, degree, PO version, regulation documents.
 
 | | |
 |---|---|
-| Sources | **S2**: the rows that state a replacement, one on each of its two modules (§14): „Nachfolgemodul/e" on the module that phases out names its successors, „Auslaufmodul" on the successor names the module it replaces; otherwise the regex `Nachfolge…(\d{5})` on the remarks. Phase-out from a „Nachfolgemodul/e" row, from „Auslaufmodul"/"phase-out" in the module number („38105 - Auslaufmodul") and the remarks, and from "no longer offered" phrases in heading, number, turnus and remarks. |
+| Sources | **S2**: the rows that state a replacement, one on each of its two modules (§14): „Nachfolgemodul/e" on the module that phases out names its successors, „Auslaufmodul" on the successor names the module it replaces; otherwise the regex `Nachfolge…(\d{5})` on the remarks, where „Nachfolgemodul zu/für … <number>" names the module it succeeds. Phase-out from a „Nachfolgemodul/e" row, from „Auslaufmodul"/"phase-out" in the module number („38105 - Auslaufmodul") and the remarks, and from "no longer offered" phrases in heading, number, turnus and remarks. |
 | Code path | `applyRow` in `parser/detail.go` (keys `nachfolgemodul` and `auslaufmodul`), `containsNotOffered`; `writeModuleLinks` in `catalogbuild/modules.go`. |
 | Freshness | As S2. |
 | Conflicts | Single source. 23 modules have a successor; 1 successor ID does not exist in `modules`. All 4,868 non-NULL values are JSON arrays; the comma-list form named in the brief no longer occurs in the DB, only in consumer code. Phase-out 76 modules, 31 of them also "not offered". |
@@ -791,8 +791,36 @@ one relation, so the build writes `module_successor(<replaced>, <successor>)` fr
 A module whose own page does not name its successor still gets it. The pink marking is not read,
 since the label says the same.
 
-**Checked** with nine requests made by hand on 2026-09-29, with a browser's user agent, seconds
+A remark states it either way too. „Siehe Nachfolge-Modul 11523" names a successor, while
+„Nachfolgemodul zu 31423" (11364, 11365) and „Nachfolgemodul für Modul 24410" (12046) name the
+module the page's module succeeds. The word after „Nachfolgemodul" tells them apart (zu, zum, für,
+von, vom, des, der: `reSucceeds`), and such a remark no longer marks the module as phasing out.
+Left as they are: „Nachfolgemodul PStO 2010 „ABWL III"" names no number, and 11985 and 11986 phase
+out by their own number anyway. 14 remarks of the form „Das Nachfolgemodul aus der Prüfungs- und
+Studienordnung 2020 hat die Nummer 12938" name a successor the regex does not reach, because a
+year stands in between (open).
+
+**How many.** The owner's way of finding them: a replacement read both ways is a loop. The
+snapshot Folia served on 2026-09-29 (built 04:02 UTC by Radix 0.5.0) had 120 pairs of modules that
+were each other's successor, 201 modules in all. 118 came from the rows, 2 from remarks. Two
+clusters where several modules replace several (11273/11274/11642/11840/11841/23411 and
+11523/13703/22211) made 32 longer cycles out of them. Eight edges pointed from the successor to
+the module it replaces without a loop: seven from English views, where „Follow-up Module/s" was
+not read (11459 → 13574 and 37405 …), and one from a remark (12046 → 24410). Every other successor
+edge of the snapshot starts at a module that is no longer offered.
+
+The pages of those 215 modules were read again on 2026-09-29. With the old parser they give
+exactly the snapshot's 251 edges and its statuses. With the new one they give 728 edges instead of
+848, none in both directions and no cycle. Each of the 120 pairs and the 8 one-way edges points from
+the old module to the new one, and 96 modules that were `phase_out` are `active` again.
+`radix validate` warns on modules that are each other's successor; on that snapshot it names the
+120 pairs.
+
+**Checked** on 2026-09-29, first with nine requests by hand, with a browser's user agent, seconds
 apart. They were the module list of b-tu.de, the copies of 12160, 38105, 11162 and 12917, and the
-QIS descriptions of 12160 and 38105 (pordnr 14364 and 7293) in both views. The German descriptions
-are `internal/parser/testdata/qis_module_<id>.html`, cut to the description (`TestReplacementRows`,
-`TestBuildReadsAReplacementFromBothModules`).
+QIS descriptions of 12160 and 38105 (pordnr 14364 and 7293) in both views. Then the pages of the
+215 modules above, each at the address the snapshot names as its `source_url`, and the QIS
+descriptions of 11985 and 11986: 217 requests with Radix's user agent, one at a time, 1.5 s apart.
+The German descriptions of 12160 and 38105 are `internal/parser/testdata/qis_module_<id>.html`,
+cut to the description (`TestReplacementRows`, `TestBuildReadsAReplacementFromBothModules`,
+`TestDetailParser_RemarksNameSuccessorOrPredecessor`).
