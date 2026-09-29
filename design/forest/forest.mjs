@@ -3,8 +3,8 @@
 // Direction E of the prototype (owner, 2026-09-29: „Option E, organisch und ohne Kronen"): a
 // Scherenschnitt in the grey of the background, a few steps darker, in two layers — thin trees
 // further back, standing a little higher, and the wood in front. Per season and layer one mask,
-// <season>-wood-back.svg and <season>-wood-front.svg, 3080 × 1600: the column of the page
-// (1280 px) empty in the middle, 900 px of wood on either side of it, the ground along the
+// <season>-wood-back.svg and <season>-wood-front.svg, 3080 × 1600: the column of the page (1280 px) in
+// the middle, with wood under it too, and 900 px of wood on either side of it, the ground along the
 // bottom. The stylesheet puts its middle under the column's middle and its bottom on the window's,
 // and colours it (`--wood-back`, `--wood-front`); what the window does not reach is cut off. The
 // trees walk outwards from the column's edges, so the ones next to it are the same on every screen.
@@ -19,7 +19,10 @@ import { setPrecision, wood } from "./wood.mjs";
 const out = fileURLToPath(new URL("../../app/assets/birch/", import.meta.url));
 const SIDE = 900, COLUMN = 1280, W = 2 * SIDE + COLUMN, H = 1600;
 setPrecision(1);
-const sides = [[SIDE, -1, 0, 11], [SIDE + COLUMN, 1, W, 23]];
+// Outwards from either edge of the column, and under it from its left edge to a little before its
+// right one: the panels hide that part, but where they leave a gap (between two of them, or under
+// a column shorter than the one beside it) the wood and its ground go on instead of stopping.
+const sides = [[SIDE, -1, 0, 11], [SIDE + COLUMN, 1, W, 23], [SIDE, 1, SIDE + COLUMN - 80, 37]];
 const LAYERS = {
   back: { layer: 8, s: .6, gy: H - 70, gapMin: 40, gapMax: 100, density: .15, seg: 12, markStep: 4, lean: true },
   front: { layer: 9, s: 1, gy: H - 14, gapMin: 55, gapMax: 140, density: .8, birds: true, mushrooms: true, seg: 16, markStep: 1.5, lean: true },

@@ -1005,11 +1005,14 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   crown and the ground included), from the rail to the window's right edge and bottom; the rail
   stays free. Its masks (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600, whole pixels, their
   path data relative and as short as it gets, `design/forest/path.mjs`; beside each a brotli copy
-  at quality 11, `.svg.br`, which `api::birch` sends to a browser that takes `br`: 33–48 KB a
+  at quality 11, `.svg.br`, which `api::birch` sends to a browser that takes `br`: 51–76 KB a
   season, only fetched where they show) are drawn by `design/forest/forest.mjs` from
-  `design/forest/wood.mjs`, the generator the comparison uses as well: the column's 1280 px empty in
-  their middle, 900 px of wood on either side, the trees walking outwards from the column's edges,
-  so the ones next to it are the same on every screen and a wider one only adds trees further out.
+  `design/forest/wood.mjs`, the generator the comparison uses as well: the column's 1280 px in their
+  middle, 900 px of wood on either side, the trees walking outwards from the column's edges, so the
+  ones next to it are the same on every screen and a wider one only adds trees further out. Under
+  the column is wood as well, with its ground (owner, 2026-09-29: „in der Mitte muss auch Content
+  sein, damit da keine Lücken sind"): the panels hide it, but where they leave a gap — between two
+  of them, or under a column shorter than the one beside it — the wood goes on.
   The stylesheet lays the masks' middle under the column's and their bottom on the window's; when
   the ground comes up at the end of the page, the wood goes up with its edge (`enhance.js`, the same
   inset as the ground's), so the birches stand on it (owner, 2026-09-29: „dass der Footer die untere

@@ -1266,8 +1266,9 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
    cut out of the background's grey in two layers, the trees further back fainter, with the leaves
    of the season and none in winter. It stands still behind the page, beneath everything (the crown
    and the ground included), and fills the room beside the column where the window leaves some; the
-   rail stays free. Each mask (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600) keeps the
-   column's 1280 px empty in its middle, and that middle lies under the column's: the page is the
+   rail stays free. Each mask (`<season>-wood-back.svg`, `-front.svg`, 3080 × 1600) has the
+   column's 1280 px in its middle, and that middle lies under the column's (there is wood under
+   the column too, so a gap the panels leave shows wood and ground, never a hole in them): the page is the
    window less the rail and the gap on its right, so its middle is 4 px left of the wood's. The
    masks stand on the window's bottom, and when the ground comes up at the end of the page they go
    up with its edge (enhance.js), so that the birches stand on it; a window taller than they are
