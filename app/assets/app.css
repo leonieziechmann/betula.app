@@ -371,14 +371,16 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    window's is never shown. With enhance.js (`data-ground` on <html>) the ground waits below the
    window's edge, fixed to the window. Once the page is at its end (`end`), the window has room to
    scroll by as far as the ground comes up; the next turn of the wheel scrolls it, and the ground
-   comes up by as much (`in`). The header stays, the view gets that much shorter: the page's end
-   goes up with the ground, the panels beside it are only cut off, their content standing still
-   (owner, 2026-09-25). Nothing else moves with the window: the rail and the view stick to its
-   top. How far the ground is in, enhance.js writes straight onto the boxes that move (the view's
-   height, the ground's shift, the bodies of the panels beside the page, which keep their height
-   by a negative margin); a custom property on <html> made the browser work out the style of the
-   whole page again in every frame. It also has the rest (the wheel on the way back, a page that
-   leaves its end). */
+   comes up by as much (`in`). The header stays, and nothing else moves with the window: the rail
+   and the view stick to its top. While the window scrolls, the ground slides over the panels,
+   which are cut off above it (a clip on the view), and once it stands still the view gets that
+   much shorter (owner, 2026-09-29: „erst resizen, wenn man mit scrollen fertig ist"): the page
+   glides to its end above the ground, the panels beside it end above it. The wood goes with the
+   ground in every frame. How far the ground is in,
+   enhance.js writes straight onto the boxes that move (the ground's shift and the wood's, the clip
+   and, once the window stands still, the view's height); a custom property on <html> made the
+   browser work out the style of the whole page again in every frame. It also has the rest (the
+   wheel on the way back, a page that leaves its end). */
 @media (min-width: 901px) {
   html.js { scrollbar-width: none; }
   :root[data-ground] .main { position: sticky; top: 0; }
@@ -1277,10 +1279,11 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
    up with its edge (enhance.js), so that the birches stand on it; a window taller than they are
    sees the trunks fade out at their top. Their trees walk outwards from the column's edges, so the
    ones next to it are the same on every screen and a wider one only adds trees further out. Not
-   on a phone, where the page scrolls with the window and the ground follows it. */
+   on a phone, where the page scrolls with the window and the ground follows it. A layer of its
+   own, so that going up with the ground moves it and does not draw its masks again. */
 .wood { display: none; }
 @media (min-width: 901px) {
-  .wood { --wood-back-mask: url("/assets/birch/summer-wood-back.svg"); --wood-front-mask: url("/assets/birch/summer-wood-front.svg"); display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; }
+  .wood { --wood-back-mask: url("/assets/birch/summer-wood-back.svg"); --wood-front-mask: url("/assets/birch/summer-wood-front.svg"); display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; will-change: transform; }
   :root[data-season="spring"] .wood { --wood-back-mask: url("/assets/birch/spring-wood-back.svg"); --wood-front-mask: url("/assets/birch/spring-wood-front.svg"); }
   :root[data-season="autumn"] .wood { --wood-back-mask: url("/assets/birch/autumn-wood-back.svg"); --wood-front-mask: url("/assets/birch/autumn-wood-front.svg"); }
   :root[data-season="winter"] .wood { --wood-back-mask: url("/assets/birch/winter-wood-back.svg"); --wood-front-mask: url("/assets/birch/winter-wood-front.svg"); }

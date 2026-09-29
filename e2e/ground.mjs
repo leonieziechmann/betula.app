@@ -1,10 +1,12 @@
 // The ground at the end of every page on a wide screen, under a real wheel (docs/frontend.md „The
 // birch"). The page's scrollbar is the only one: the window has none and no room to scroll while
 // the page is not at its end, so the wheel over the header or the rail changes nothing. At the
-// end the next turn of the wheel brings the ground up: the rail stays, the header stays, the view
-// gets shorter by as much, the page's end goes up with the ground and the panel beside it is only
-// cut off (its content does not move, and the wheel over it does not scroll it), 8 px between
-// every panel and the ground. Upwards the ground leaves first, then the page scrolls. A short list
+// end the next turn of the wheel brings the ground up: the rail stays, the header stays; while the
+// window scrolls the panels are only cut off above the ground, and once it stands still the view
+// gets shorter by as much, once (not in every frame: that was laggy), the page's end shows above
+// the ground and the panel beside it ends above it too, 8 px between every panel and the ground,
+// and scrolls to its own end (its content does not move when the ground comes). Upwards the ground
+// leaves first, then the page scrolls. A short list
 // brings it at once; a page that leaves its end (its scrollbar) and a new page send it away;
 // Tab into it brings it up. A phone scrolls the ground with the page, and under a page shorter
 // than the window the ground ends at the window's lower edge, not halfway up the screen. The wood
@@ -37,12 +39,55 @@ const facts = (PAGE) => {
     // The start page has no panel beside it (owner, 2026-09-28).
     sideBottom: side ? Math.round(box(side).bottom) : null,
     sideScroll: body ? Math.round(body.scrollTop) : null,
+    sideEnd: body ? body.scrollHeight - body.clientHeight - body.scrollTop < 2 : null,
+    sideBodyBottom: body ? Math.round(box(body).bottom) : null,
+    // Since `watchView`: how often the view changed its size, and how often while the window moved;
+    // in how many frames the wood did not stand on the ground; the most steps the page took to its
+    // end after the view got shorter.
+    viewResized: window.__viewResized ?? null,
+    viewWhileMoving: window.__viewWhileMoving ?? null,
+    woodOff: window.__woodOff ?? null,
+    glideSteps: window.__glideSteps ?? null,
     pageTop: Math.round(page.scrollTop),
     pageEnd: page.scrollHeight - page.clientHeight - page.scrollTop < 2,
     pageBottom: Math.round(box(page).bottom),
   };
 };
 const at = (page) => page.evaluate(facts, PAGE);
+// The view is laid out for the ground once the window stands still, not in every frame while it
+// moves (that was laggy): every change of the view's size is counted, and those that came less
+// than 100 ms after the window last moved. The wood goes with the ground in every frame, the view
+// or not. And once the view got shorter, a page at its end glides to it again, it does not jump.
+const watchView = (page) => page.evaluate((PAGE) => {
+  window.__viewResized = 0;
+  window.__viewWhileMoving = 0;
+  window.__woodOff = 0;
+  window.__glideSteps = 0;
+  let movedAt = -Infinity;
+  addEventListener("scroll", () => { movedAt = performance.now(); }, { passive: true });
+  let height = document.querySelector(".main").getBoundingClientRect().height;
+  let shrunkAt = -Infinity;
+  let steps = 0;
+  new ResizeObserver(([entry]) => {
+    const now = entry.borderBoxSize[0].blockSize;
+    if (Math.abs(now - height) < 0.5) return; // a ResizeObserver reports the size it finds at once
+    window.__viewResized++;
+    if (performance.now() - movedAt < 100) window.__viewWhileMoving++;
+    if (now < height) { shrunkAt = performance.now(); steps = 0; }
+    height = now;
+  }).observe(document.querySelector(".main"));
+  document.addEventListener("scroll", (e) => {
+    if (e.target !== document.querySelector(PAGE) || performance.now() - shrunkAt > 600) return;
+    window.__glideSteps = Math.max(window.__glideSteps, ++steps);
+  }, { capture: true, passive: true });
+  const tick = () => {
+    const wood = document.querySelector(".wood").getBoundingClientRect().bottom;
+    const ground = document.querySelector(".ground").getBoundingClientRect().top;
+    if (Math.abs(wood - ground) > 0.5) window.__woodOff++;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}, PAGE);
 const wheel = async (page, x, y, dy, times) => {
   await page.mouse.move(x, y);
   for (let i = 0; i < times; i++) { await page.mouse.wheel(0, dy); await page.waitForTimeout(90); }
@@ -73,13 +118,18 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await page.waitForTimeout(200);
   f = await at(page);
   check(f.state === "end" && f.room === 208 && f.inset === 0, `the page at its end: the window has no room for the ground: ${JSON.stringify(f)}`);
+  await watchView(page);
   await wheel(page, 900, 500, 100, 1);
   f = await at(page);
   check(f.state === "in" && f.inset > 0 && f.inset < 208, `one turn of the wheel at the end did not bring the ground part of the way: ${JSON.stringify(f)}`);
   check(f.woodBottom === f.groundTop, `the wood does not stand on the ground coming up: ${JSON.stringify(f)}`);
+  check(f.pageEnd && f.groundTop - f.pageBottom === 8, `part of the way: the view is not laid out for the ground once the window stands still: ${JSON.stringify(f)}`);
   await wheel(page, 900, 500, 100, 4);
   f = await at(page);
   check(f.inset === 208 && f.rail === 0 && f.topbar === 8, `the ground all the way: the rail or the header moved: ${JSON.stringify(f)}`);
+  check(f.viewResized > 0 && f.viewWhileMoving === 0, `the view was laid out while the ground moved, not once the window stood still: ${JSON.stringify(f)}`);
+  check(f.woodOff === 0, `the wood did not stand on the ground in every frame while it moved: ${JSON.stringify(f)}`);
+  check(f.glideSteps >= 4, `the page jumped to its end above the ground instead of gliding there: ${JSON.stringify(f)}`);
   check(f.pageEnd && f.groundTop - f.pageBottom === 8 && f.sideBottom === null, `the ground all the way: the page's end is not 8 px above it, or a panel stands beside the page: ${JSON.stringify(f)}`);
   check(f.woodBottom === f.groundTop, `the ground all the way: the wood does not stand on it: ${JSON.stringify(f)}`);
   await wheel(page, 180, 300, 100, 3);
@@ -130,6 +180,13 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   f = await at(page);
   const after = await page.evaluate(() => Math.round(document.querySelector("#rows .row").getBoundingClientRect().top));
   check(f.inset === 208 && rows === after && f.groundTop - f.sideBottom === 8, `a short list: the ground did not come, or the rows moved: ${JSON.stringify(f)} (rows ${rows} → ${after})`);
+  // The filters beside the list, the ground in: the wheel over them scrolls them to their end, and
+  // their end shows above the ground (owner, 2026-09-29: with the ground in, the panel did not scroll
+  // far enough to see all of it).
+  check(f.sideEnd === false, `a short list: the filters are not longer than their panel, so this tells nothing: ${JSON.stringify(f)}`);
+  await wheel(page, 150, 500, 100, 40);
+  f = await at(page);
+  check(f.inset === 208 && f.sideEnd && f.sideBodyBottom <= f.sideBottom && f.groundTop - f.sideBottom === 8, `the ground in: the filters do not scroll to their end above it: ${JSON.stringify(f)}`);
   await page.goto(base + "/catalog", { waitUntil: "networkidle" });
   await page.waitForTimeout(600);
   await toEnd(page);
