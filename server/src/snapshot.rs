@@ -57,10 +57,20 @@ pub struct Snapshot {
     pub pickers: Option<app::pages::catalog::PickerChoices>,
     /// The data of the program overview, the same for each of its filters (`app::pages::programs`).
     pub programs: Option<app::pages::programs::ProgramsReady>,
-    /// `/sitemap.xml` as made on first request: the round of the warm-up whose dates it names
-    /// (`lastmod::Changes::rounds`; made anew after the next), its ETag, plain and gzip.
-    pub sitemap: Mutex<Option<(u64, String, axum::body::Bytes, axum::body::Bytes)>>,
+    /// `/sitemap.xml` as made on first request (`api::sitemap`).
+    pub sitemap: Mutex<Option<Sitemap>>,
     pool: Mutex<Vec<NativeDatabase>>,
+}
+
+/// `/sitemap.xml` as made: for the round of the warm-up whose dates it names
+/// (`lastmod::Changes::rounds`; made anew after the next), with its ETag, plain, gzip and Brotli.
+#[derive(Clone)]
+pub struct Sitemap {
+    pub round: u64,
+    pub etag: String,
+    pub plain: axum::body::Bytes,
+    pub gzip: axum::body::Bytes,
+    pub brotli: axum::body::Bytes,
 }
 
 /// A strong ETag from the bytes themselves (FNV-1a, 64 bit: a fingerprint, not a secret), named by

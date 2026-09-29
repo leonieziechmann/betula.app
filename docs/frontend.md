@@ -1565,6 +1565,14 @@ other gzip, each with the same ETag and `Vary: Accept-Encoding`:
   link previews) gets a copy made from it the first time, kept beside it while the page is kept.
   Below a window of 128 kB, qualities 5 to 9 go another way through the encoder, 13 times slower
   for the sitemap (84 s), so every page gets at least that window.
+- **The sitemap and the calendar feeds** (owner, 2026-09-28: „Mach auch die Sitemap und die
+  Kalender-Feeds in Brotli"): the sitemap is made once per round of the warm-up, by the request
+  that asks for it first, and gets its Brotli copy there with its gzip one, off the threads that
+  answer requests (`api::SITEMAP_QUALITY`, 9): 132 kB in gzip, 42 kB in Brotli for its 4.2 MB —
+  Brotli's window holds the whole file, and every page stands in it twice, once per language; the
+  request that makes it waits 0.4 s. 11 would be 40 kB in 7.6 s instead of 0.23. A feed is made
+  anew on every fetch, inside its place, so it is compressed as a page is, at quality 5
+  (`cache::compressed_for`): 178 kB of a semester, 5.5 kB in gzip, 4.0 in Brotli, 2 ms.
 
 What a first start of the browser app downloads, as the server sends it (the birch of autumn),
 2026-09-28, rustc 1.98; „gzip before" is what went out before all of this:
@@ -1587,8 +1595,7 @@ What a first start of the browser app downloads, as the server sends it (the bir
 The site without the catalog and the map: 3,075,996 bytes before, 1,518,580 now (−51 %); with
 them −46 %.
 
-What stayed as it was: the pictures and the font (compressed already); the sitemap and the
-calendar feeds are gzip.
+What stayed as it was: the pictures and the font (compressed already).
 
 `folia assets` (or `bash scripts/dev.sh sizes`) lists every file as written, as served and over
 the wire (gzip, and the Brotli copy where the build made one), and the browser app in
@@ -1929,7 +1936,8 @@ What `cargo test` checks:
   gzip until then; the snapshot's copy is Brotli of the whole file. A page is kept in Brotli and
   goes as it is to a browser; a client that takes no Brotli gets gzip, made the first time and
   kept beside it (the cache counts it), one that takes neither the page unpacked; each the same
-  page; a gzip copy made from an older snapshot's page is not kept.
+  page; a gzip copy made from an older snapshot's page is not kept. The sitemap and a calendar
+  feed in Brotli and in gzip, each the same body under the same tag.
 
 ```bash
 cargo clippy --all-targets

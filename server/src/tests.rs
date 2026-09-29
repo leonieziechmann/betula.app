@@ -603,6 +603,13 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (status, headers, body) = request(&router, "/sitemap.xml", &[]).await;
     let sitemap = String::from_utf8(body).unwrap();
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/xml; charset=utf-8"));
+    // Made once with its copies: Brotli for a crawler that takes it, else gzip, the same tag.
+    let (_, packed, body) = request(&router, "/sitemap.xml", &[("accept-encoding", "gzip, deflate, br")]).await;
+    assert_eq!((packed[header::CONTENT_ENCODING].to_str().unwrap(), packed[header::ETAG].to_str().unwrap()), ("br", headers[header::ETAG].to_str().unwrap()));
+    assert_eq!(unbrotli(&body), sitemap.as_bytes());
+    let (_, zipped, zipped_body) = request(&router, "/sitemap.xml", &[("accept-encoding", "gzip")]).await;
+    assert_eq!(zipped[header::CONTENT_ENCODING].to_str().unwrap(), "gzip");
+    assert!(body.len() * 2 < zipped_body.len(), "{} against {}", body.len(), zipped_body.len());
     assert!(sitemap.contains("<loc>https://catalog.example/</loc>") && sitemap.contains("<loc>https://catalog.example/catalog/module/11101</loc>"));
     // Pages only, no filters: an address with a query is the plan of a further study direction.
     let urls: Vec<&str> = sitemap.lines().filter(|line| line.starts_with("<url>")).collect();
@@ -731,8 +738,12 @@ async fn a_studyplan_is_a_calendar_feed() {
     assert!(etag.starts_with("\"ics-"), "{etag}");
     let (status, again, body) = request(&router, &path, &[("if-none-match", &etag)]).await;
     assert_eq!((status, again[header::ETAG].to_str().unwrap(), again[header::CACHE_CONTROL].to_str().unwrap(), body.len()), (StatusCode::NOT_MODIFIED, etag.as_str(), "private, max-age=900", 0));
-    // Compressed here on request (the edge's compression does not take `text/calendar`).
-    let (status, zipped, body) = request(&router, &path, &[("accept-encoding", "gzip, br")]).await;
+    // Compressed here on request (the edge's compression does not take `text/calendar`): Brotli
+    // for a calendar that takes it, else gzip; the same tag either way.
+    let (status, packed, body) = request(&router, &path, &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!((status, packed[header::CONTENT_ENCODING].to_str().unwrap(), packed[header::ETAG].to_str().unwrap()), (StatusCode::OK, "br", etag.as_str()));
+    assert_eq!(unbrotli(&body), ics.as_bytes());
+    let (status, zipped, body) = request(&router, &path, &[("accept-encoding", "gzip")]).await;
     assert_eq!((status, zipped[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "gzip"));
     let mut unzipped = String::new();
     flate2::read::GzDecoder::new(body.as_slice()).read_to_string(&mut unzipped).unwrap();
@@ -765,8 +776,8 @@ async fn a_studyplan_is_a_calendar_feed() {
     // The log says that feeds were made, how large and how fast, and never which.
     drop(logging);
     let log = log.text();
-    // Seven feeds were made above: the 304 is made too, since its tag is the content's.
-    assert_eq!(log.matches("calendar.served").count(), 7, "{log}");
+    // Eight feeds were made above: the 304 is made too, since its tag is the content's.
+    assert_eq!(log.matches("calendar.served").count(), 8, "{log}");
     assert!(log.contains("/calendar/….ics"), "{log}");
     for code in [FIRST_SEMESTER_CODE, &FIRST_SEMESTER_CODE[1..], later.as_str()] {
         assert!(!log.contains(code), "{code} in {log}");

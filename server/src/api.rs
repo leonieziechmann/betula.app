@@ -109,6 +109,13 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
     }
 }
 
+/// The Brotli quality of the sitemap, made once per round of the warm-up by the request that asks
+/// first. Measured 2026-09-28 on the sitemap of betula.app (10,594 addresses with their dates,
+/// 4.2 MB): gzip 6 132 kB in 23 ms; Brotli 5 63 kB in 38 ms, 9 42 kB in 0.23 s, 11 40 kB in
+/// 7.6 s. Brotli's window holds the whole file (gzip's 32 kB do not), and its addresses repeat:
+/// every page stands in it in both languages.
+const SITEMAP_QUALITY: u32 = 9;
+
 /// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
 /// and every current program with its views. Filters of the lists are not pages (`app::seo`).
 /// Each page with the time it last changed where the warm-up has seen it (`lastmod`); the sitemap
@@ -118,15 +125,21 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
     };
     let round = state.changes.as_ref().map_or(0, |changes| changes.rounds());
-    let made = snapshot.sitemap.lock().ok().and_then(|made| made.clone()).filter(|(made_in, ..)| *made_in == round);
-    let (etag, body) = match made {
-        Some((_, etag, plain, compressed)) => (etag, (plain, compressed)),
+    let made = snapshot.sitemap.lock().ok().and_then(|made| made.clone()).filter(|made| made.round == round);
+    let (etag, body, brotli) = match made {
+        Some(made) => (made.etag, (made.plain, made.gzip), made.brotli),
         None => {
-            // A few hundred queries (the study directions of every program): off the threads that
-            // answer requests, as the warm-up does.
+            // A few hundred queries (the study directions of every program) and its compressed
+            // copies: off the threads that answer requests, as the warm-up does.
             let (from, changes, public_url) = (snapshot.clone(), state.changes.clone(), state.public_url.clone());
-            let xml = match tokio::task::spawn_blocking(move || sitemap_xml(&from, changes.as_deref(), &public_url)).await {
-                Ok(Ok(xml)) => xml,
+            let made = tokio::task::spawn_blocking(move || {
+                sitemap_xml(&from, changes.as_deref(), &public_url).map(|xml| {
+                    let (gzip, brotli) = (crate::cache::gzip(xml.as_bytes()), crate::cache::brotli_at(xml.as_bytes(), SITEMAP_QUALITY));
+                    (xml, gzip, brotli)
+                })
+            });
+            let (xml, gzip, brotli) = match made.await {
+                Ok(Ok(made)) => made,
                 Ok(Err(error)) => {
                     tracing::error!(component = "http", event = "sitemap.failed", error = %error, "the sitemap could not be read from the snapshot");
                     return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -137,15 +150,14 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
                 }
             };
             let etag = crate::snapshot::content_etag("sitemap", xml.as_bytes());
-            let compressed = crate::cache::gzip(xml.as_bytes());
-            let body = (axum::body::Bytes::from(xml), compressed);
+            let body = (axum::body::Bytes::from(xml), gzip);
             if let Ok(mut made) = snapshot.sitemap.lock() {
-                *made = Some((round, etag.clone(), body.0.clone(), body.1.clone()));
+                *made = Some(crate::snapshot::Sitemap { round, etag: etag.clone(), plain: body.0.clone(), gzip: body.1.clone(), brotli: brotli.clone() });
             }
-            (etag, body)
+            (etag, body, brotli)
         }
     };
-    per_snapshot(&headers, &etag, "application/xml; charset=utf-8", &body, None)
+    per_snapshot(&headers, &etag, "application/xml; charset=utf-8", &body, Some(&brotli))
 }
 
 /// The sitemap's XML: every page of `sitemap_paths`, with the time it last changed where
@@ -265,7 +277,8 @@ pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMa
 /// The answer of a feed. `private`: it is one person's plan, and a shared cache must not keep it.
 /// A quarter of an hour fresh, then revalidated against the content's ETag, which only changes
 /// with the plan or the data (the calendar never reads the clock). Compressed here, because the
-/// edge's compression does not take `text/calendar`. No search engine is to list it.
+/// edge's compression does not take `text/calendar`: Brotli for a calendar that takes it (a
+/// feed of 178 kB: 4.0 kB, gzip 5.5 kB), else gzip. No search engine is to list it.
 fn calendar_response(headers: &HeaderMap, etag: &str, ics: String, key: &str) -> Response {
     let shared = |out: &mut HeaderMap| {
         out.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, max-age=900"));
@@ -279,12 +292,8 @@ fn calendar_response(headers: &HeaderMap, etag: &str, ics: String, key: &str) ->
         shared(response.headers_mut());
         return response;
     }
-    let compressed = accepts_gzip(headers).then(|| crate::cache::gzip(ics.as_bytes())).filter(|bytes| !bytes.is_empty());
-    let gzipped = compressed.is_some();
-    let mut response = Response::new(match compressed {
-        Some(bytes) => Body::from(bytes),
-        None => Body::from(ics),
-    });
+    let (body, encoding) = crate::cache::compressed_for(headers, axum::body::Bytes::from(ics));
+    let mut response = Response::new(Body::from(body));
     let out = response.headers_mut();
     shared(out);
     out.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/calendar; charset=utf-8"));
@@ -293,8 +302,8 @@ fn calendar_response(headers: &HeaderMap, etag: &str, ics: String, key: &str) ->
     if let Ok(value) = HeaderValue::from_str(&format!("inline; filename=\"{name}\"")) {
         out.insert(header::CONTENT_DISPOSITION, value);
     }
-    if gzipped {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    if let Some(encoding) = encoding {
+        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static(encoding));
     }
     response
 }

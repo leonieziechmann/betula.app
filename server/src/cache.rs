@@ -315,12 +315,27 @@ pub fn brotli(body: &[u8]) -> Bytes {
 /// below 128 kB: with a smaller one qualities 5 to 9 take another way through the encoder, which
 /// made the pages of the sitemap in 84 s instead of 6.5 (one of 22 kB in 117 ms). Browsers read
 /// windows up to 16 MB.
-fn brotli_at(body: &[u8], quality: u32) -> Bytes {
+pub fn brotli_at(body: &[u8], quality: u32) -> Bytes {
     let window = (usize::BITS - body.len().leading_zeros()).clamp(17, 24);
     let mut writer = brotli::CompressorWriter::new(Vec::with_capacity(body.len() / 4), 1 << 16, quality, window);
     match writer.write_all(body) {
         Ok(()) => Bytes::from(writer.into_inner()),
         Err(_) => Bytes::new(),
+    }
+}
+
+/// A body made for one request only (a calendar feed), compressed as the client takes it: Brotli
+/// at the pages' quality, for the same reason (the client waits for it), else gzip, else as it is;
+/// with its `Content-Encoding`.
+pub fn compressed_for(headers: &HeaderMap, body: Bytes) -> (Bytes, Option<&'static str>) {
+    let copy = match Coding::of(headers) {
+        Coding::Brotli => (brotli_at(&body, PAGE_QUALITY), "br"),
+        Coding::Gzip => (gzip(&body), "gzip"),
+        Coding::Plain => return (body, None),
+    };
+    match copy {
+        (copy, encoding) if !copy.is_empty() => (copy, Some(encoding)),
+        _ => (body, None),
     }
 }
 
