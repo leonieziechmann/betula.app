@@ -1496,7 +1496,10 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .rowlist { border-top: 1px solid var(--line); padding-bottom: 6px; }
 .rowlist li + li { border-top: 1px solid var(--line); }
 .rowlink { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto 16px; align-items: center; gap: 12px; height: 56px; padding: 0 16px 0 24px; color: inherit; text-decoration: none; transition: background .1s; }
-.rowlink:hover { background: var(--panel-2); text-decoration: none; }
+/* Every other row is shaded, as the rows of the catalog's list; the two lists side by side keep
+   their stripes on the same lines as their rows. */
+.rowlink:where(.rowlist li:nth-child(even) > *) { background: var(--row-shade); }
+.rowlink:hover { background: var(--row-hover); text-decoration: none; }
 .rowlink .ico, .ability .ico { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
 .rowlink .ico .icon, .ability .ico .icon { width: 16px; height: 16px; }
 .rowlink .ico.code { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: var(--text); }
@@ -2060,7 +2063,9 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .doclist { padding-bottom: 6px; }
 .docrow { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 24px; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
 .doclist li:first-child .docrow { border-top: 0; }
-.docrow:hover { background: var(--panel-2); text-decoration: none; }
+/* Every other document is shaded, as the rows of the catalog's list. */
+.docrow:where(.doclist li:nth-child(even) > *) { background: var(--row-shade); }
+.docrow:hover { background: var(--row-hover); text-decoration: none; }
 .docrow > .icon { width: 16px; height: 16px; color: var(--text-3); flex: none; }
 .docname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; font-size: 13.5px; }
 .docrow small { margin-left: auto; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
@@ -2271,7 +2276,14 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .sp-list-head .lp small { margin-left: 2px; color: var(--text-3); font-weight: 500; font-size: 11px; }
 .sp-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; min-height: 50px; padding: 6px 42px 6px 12px; border-radius: var(--r-row); color: inherit; text-decoration: none; transition: background .1s; }
 .sp-row::before { content: ""; position: absolute; left: 3px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: transparent; }
-.sp-row:hover { background: var(--panel-2); text-decoration: none; }
+/* Every other module is shaded, as the rows of the catalog's list (`--row-shade`): the list's own
+   modules, and anew those in each placeholder's box, a module taken out keeping its place in the
+   count; not the dashed rows, which hold none. The shade of a row with its × lies on the row's
+   wrap, so the row pointed at and the open one lie above it; a module of the row's other semester
+   is a row of its own, shaded before the rules that stand above it. */
+.sp-row-wrap:where(:nth-child(even of .sp-row-wrap, .sp-row.other)) { border-radius: var(--r-row); background: var(--row-shade); }
+.sp-row.other:where(:nth-child(even of .sp-row-wrap, .sp-row.other)) { background: var(--row-shade); }
+.sp-row:hover { background: var(--row-hover); text-decoration: none; }
 .sp-row[aria-current="true"] { background: var(--panel-3); }
 .sp-row[aria-current="true"]::before { background: var(--accent); }
 .sp-row .t { min-width: 0; }
@@ -2327,7 +2339,8 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-marked[open] > summary::after { content: "–"; }
 .sp-marked ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin-top: 6px; }
 .sp-marked li { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 4px 0 10px; border-radius: var(--r-s); font-size: 13px; }
-.sp-marked li:hover { background: var(--panel-2); }
+.sp-marked li:where(:nth-child(even)) { background: var(--row-shade); }
+.sp-marked li:hover { background: var(--row-hover); }
 .sp-marked li .mini { margin-left: auto; }
 /* The notes of a semester: warnings (p.note, a triangle) first, then quiet lines; each a link to
    the module beside the plan. At most four, „+2 weitere" (button.mini) shows the rest in place. */
@@ -2481,6 +2494,9 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
    and first–last quieter under it. */
 .sp-rowline b { color: var(--text); font-weight: 650; }
 .sp-rowline small { color: var(--text-3); font-size: 12px; }
+/* Every other Termin of an event is shaded, as the rows of the catalog's list; the current one
+   stands above it. */
+.sp-rowline:where(:nth-child(even of .sp-rowline)) { background: var(--row-shade); }
 .sp-rowline[aria-current="true"] { background: var(--panel-3); color: var(--text); box-shadow: inset 2.5px 0 0 var(--accent); }
 .sp-rowline[data-hidden], .sp-rowline[data-hidden] b { color: var(--text-3); }
 .sp-rowline[data-hidden] > .rl { text-decoration: line-through; text-decoration-color: var(--line-strong); }
