@@ -111,7 +111,12 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   - **Pickers** (`app/src/combobox.rs`: program, area, lecturers, department) have a search that
     forgives typos and knows initials and abbreviations (`catalog::fuzzy`: „infomatik bsc"), arrow
     keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
-    opens in place — and there nothing that moves the window closes it: the on-screen keyboard
+    opens in place, under its button and across the panel the picker stands in (owner,
+    2026-09-29: „Komboboxen auf dem Handy sollen immer die volle Breite einnehmen … von ganz
+    links bis nach ganz rechts. Kein Überstand"): 16 px in from either edge of the panel, however
+    far in its button stands (the way in's, beside the marks), and never narrower than the
+    button; no name it lists widens it (a long one pushed the popup and the button out of the
+    panel). There nothing that moves the window closes it: the on-screen keyboard
     that opens for the search field shrinks the window and scrolls the field into view, which
     used to close the popup the moment it opened. The module comment of the component lists what
     keeps it predictable (it is a rewrite: the picker of the old frontend lost its mark to the
@@ -968,6 +973,9 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
     server's link carries both words, and the stylesheet shows the ones the app will
     (`html.js:not(.mine)`: „Studiengang wählen"), so they stay when the app takes over. The
     page's scroller takes an open picker away (`ClosePopups`, as the catalog's filter panel).
+    Where its button has no room for its words (a phone of 320 px, in English; the way in's at
+    360 px) they take a second line, as those of the other buttons do, instead of pushing the
+    button out of the panel.
   - „Module deines Studiengangs": the catalog of that program (`MineResolved::catalog_href`),
     „Zum Katalog" without one.
   - „Fachsemester übernehmen": the Stundenplan with the program's Regelstudienplan ready to take
