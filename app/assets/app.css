@@ -80,7 +80,8 @@
      OKLab (in OKLCH a grey's hue is `none`, and Chromium draws the mix reddish). */
   --wood-front: color-mix(in oklab, var(--text) 8%, var(--bg));
   --wood-back: color-mix(in oklab, var(--text) 3.4%, var(--bg));
-  /* The trunk of the first panel and the branches of its figures: white bark by day. */
+  /* The trunk of the first panel and the branches of its figures, and the trunk of the birch
+     further down the start page (`.trunk`): white bark by day. */
   --hero-bark: var(--bark);
   --hero-bark-ink: var(--bark-ink);
   --hero-limb: color-mix(in oklch, var(--ground-text) 74%, var(--crown));
@@ -124,8 +125,8 @@
     --ground-text: oklch(.93 .006 262);
     --ground-muted: oklch(.72 .014 262);
     --ground-root: oklch(.25 .02 262);
-    /* The wood a few steps lighter than the background (nothing is darker than it); the trunk of
-       the first panel in the moon's grey, its marks dark (owner, 2026-09-29: white bark glared). */
+    /* The wood a few steps lighter than the background (nothing is darker than it); the trunks of
+       the start page in the moon's grey, their marks dark (owner, 2026-09-29: white bark glared). */
     --wood-front: color-mix(in oklab, var(--text) 6.5%, var(--bg));
     --wood-back: color-mix(in oklab, var(--text) 2.7%, var(--bg));
     --hero-bark: oklch(.34 .014 255);
@@ -167,8 +168,8 @@
   --ground-text: oklch(.93 .006 262);
   --ground-muted: oklch(.72 .014 262);
   --ground-root: oklch(.25 .02 262);
-  /* The wood a few steps lighter than the background (nothing is darker than it); the trunk of
-     the first panel in the moon's grey, its marks dark (owner, 2026-09-29: white bark glared). */
+  /* The wood a few steps lighter than the background (nothing is darker than it); the trunks of
+     the start page in the moon's grey, their marks dark (owner, 2026-09-29: white bark glared). */
   --wood-front: color-mix(in oklab, var(--text) 6.5%, var(--bg));
   --wood-back: color-mix(in oklab, var(--text) 2.7%, var(--bg));
   --hero-bark: oklch(.34 .014 255);
@@ -1715,7 +1716,7 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 }
 
 /* The birch Betula is named after, as the site draws its frame: the season's crown on top (Folia),
-   one trunk in the bark of the mark from under it down to the ground (the Datenstand on a twig
+   one trunk in the first panel's bark from under it down to the ground (the Datenstand on a twig
    beside it), the ground with its roots (Radix) holding the sources. The crown's tile is the
    season's, as along the top of every page. The trunk is placed in its grid area (lines on both
    sides: an `auto` end of an absolute item would be the container's edge). */
@@ -1725,8 +1726,8 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 :root[data-season="winter"] .tree { --crown-mask: url("/assets/birch/winter-crown.svg"); }
 .tree::before { content: ""; grid-column: 1 / -1; grid-row: 1; align-self: start; z-index: 1; height: 64px; background: var(--crown); -webkit-mask: var(--crown-mask) repeat-x left top; mask: var(--crown-mask) repeat-x left top; pointer-events: none; }
 .trunk { position: absolute; grid-column: 1 / 2; grid-row: 1 / 4; top: 20px; left: calc(50% - 15px); width: 30px; height: calc(100% - 20px); border-radius: 5px 5px 0 0; box-shadow: 0 0 0 1px var(--line-strong); }
-.trunk rect { fill: var(--bark); }
-.trunk path { fill: var(--bark-ink); }
+.trunk rect { fill: var(--hero-bark); }
+.trunk path { fill: var(--hero-bark-ink); }
 .tree > .tree-tag { grid-column: 2; z-index: 2; margin: 0 20px 0 0; }
 .tree > .tree-tag::before { content: ""; position: absolute; top: 50%; right: 100%; width: 27px; border-top: 1.5px solid var(--line-strong); }
 .tree > .tree-tag:nth-child(2) { grid-row: 2; margin-top: 12px; }
