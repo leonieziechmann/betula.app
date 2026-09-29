@@ -1179,10 +1179,13 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .hero-ground a { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: inherit; text-decoration: none; }
 .hero-ground a:hover { text-decoration: underline; }
 .hero-ground a .icon { width: 14px; height: 14px; }
-/* Under the text: the tags two a row, the second of each row on the branch of the first. */
+/* Under the text: the tags two a row, as wide as the row allows, the second of each row on the
+   branch of the first; what a figure says of its semester goes under its name. */
 @container home (max-width: 699.98px) {
-  .tree-figures { grid-template-columns: repeat(2, max-content); justify-content: start; gap: 10px 12px; padding-top: 48px; }
+  .tree-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; padding-top: 48px; }
+  .tree-figures > div { justify-self: stretch; min-width: 0; }
   .tree-figures > div:nth-child(even)::before { width: 12px; }
+  .tree-figures dt small { display: block; margin-left: 0; }
 }
 
 /* The way in for a first visit (home/start.rs): three steps, one under the other on a narrow page

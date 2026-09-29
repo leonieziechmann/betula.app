@@ -45,7 +45,7 @@ check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-g
 // „Studiengang wählen" of the first panel and of the way in: without the app a link to all programs
 // that carries both words (the stylesheet shows the ones the app will); twigs on eight panels.
 check(["home-program", "start-program"].every((id) => new RegExp(`<a id="${id}" href="/programs" class="[^"]*program-pick">`).test(html)), "server HTML: „Studiengang wählen\" does not lead to the programs");
-check((html.match(/<svg class="twig twig-[lr]"/g) || []).length === 8, "server HTML: not eight twigs");
+check((html.match(/<svg [^>]*class="twig twig-[lr]"/g) || []).length === 8, "server HTML: not eight twigs");
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });

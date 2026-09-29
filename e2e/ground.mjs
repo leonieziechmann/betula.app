@@ -31,8 +31,9 @@ const facts = (PAGE) => {
     rail: Math.round(box(document.querySelector(".rail")).top),
     topbar: Math.round(box(document.querySelector(".topbar")).top),
     groundTop: Math.round(ground.top),
-    sideBottom: Math.round(box(side).bottom),
-    sideScroll: Math.round(body.scrollTop),
+    // The start page has no panel beside it (owner, 2026-09-28).
+    sideBottom: side ? Math.round(box(side).bottom) : null,
+    sideScroll: body ? Math.round(body.scrollTop) : null,
     pageTop: Math.round(page.scrollTop),
     pageEnd: page.scrollHeight - page.clientHeight - page.scrollTop < 2,
     pageBottom: Math.round(box(page).bottom),
@@ -56,7 +57,7 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   return { context, page };
 };
 
-// ---------- the start page: a long page ----------
+// ---------- the start page: a long page, and nothing beside it ----------
 {
   const { context, page } = await open("/");
   let f = await at(page);
@@ -69,18 +70,16 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await page.waitForTimeout(200);
   f = await at(page);
   check(f.state === "end" && f.room === 208 && f.inset === 0, `the page at its end: the window has no room for the ground: ${JSON.stringify(f)}`);
-  const sideBefore = f.sideBottom;
   await wheel(page, 900, 500, 100, 1);
   f = await at(page);
   check(f.state === "in" && f.inset > 0 && f.inset < 208, `one turn of the wheel at the end did not bring the ground part of the way: ${JSON.stringify(f)}`);
   await wheel(page, 900, 500, 100, 4);
   f = await at(page);
   check(f.inset === 208 && f.rail === 0 && f.topbar === 8, `the ground all the way: the rail or the header moved: ${JSON.stringify(f)}`);
-  check(f.pageEnd && f.groundTop - f.pageBottom === 8 && f.groundTop - f.sideBottom === 8, `the ground all the way: the page's end or the panel is not 8 px above it: ${JSON.stringify(f)}`);
-  check(sideBefore - f.sideBottom === 208 && f.sideScroll === 0, `the panel beside the page was not just cut off: ${JSON.stringify(f)} (bottom before ${sideBefore})`);
+  check(f.pageEnd && f.groundTop - f.pageBottom === 8 && f.sideBottom === null, `the ground all the way: the page's end is not 8 px above it, or a panel stands beside the page: ${JSON.stringify(f)}`);
   await wheel(page, 180, 300, 100, 3);
   const still = await at(page);
-  check(still.sideScroll === 0 && still.inset === 208, `the wheel over the cut panel scrolled something: ${JSON.stringify(still)}`);
+  check(still.pageEnd && still.inset === 208, `the wheel over the page at its end moved the page or the ground: ${JSON.stringify(still)}`);
   await wheel(page, 180, 300, -100, 1);
   f = await at(page);
   check(f.inset > 0 && f.inset < 208 && f.pageEnd, `upwards the ground did not leave first: ${JSON.stringify(f)}`);

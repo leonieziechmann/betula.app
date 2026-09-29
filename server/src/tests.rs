@@ -474,8 +474,8 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // in the first panel a link to all programs (the picker is the app's); the figures as a birch;
     // twigs out of eight panels.
     assert!(!home.contains("id=\"sidebar\"") && home.contains("<div id=\"page-scroll\" class=\"page home-page\""), "the start page has no frame");
-    assert!(home.contains("id=\"loslegen\"") && home.matches("<li class=\"start-step").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
-    assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.matches("<svg class=\"twig twig-").count() == 8, "the start page's buttons, figures and twigs");
+    assert!(home.contains("id=\"loslegen\"") && home.matches("class=\"start-step ").count() + home.matches("class=\"start-step\"").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
+    assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.matches("class=\"twig twig-").count() == 8, "the start page's buttons, figures and twigs");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
     // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
     // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).
