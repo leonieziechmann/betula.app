@@ -3,6 +3,7 @@ package catalogbuild
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 
 // qisModulePage is a module description as QIS serves it: label and value cells
 // with their own classes, and the events of the semester that runs now.
-func qisModulePage(id, title, credits, events string) string {
+func qisModulePage(id, title, credits, events string, rows ...string) string {
 	return `<html><body><table cellpadding="5">
 		<tr><td class="tabelle1_alignleft">Modulnummer:</td><td class="tabelle2inhalt">` + id + `</td></tr>
 		<tr><td class="tabelle1_alignleft">Modultitel:</td><td class="tabelle2inhalt">` + title + `</td></tr>
@@ -22,6 +23,7 @@ func qisModulePage(id, title, credits, events string) string {
 		<tr><td class="tabelle1_alignleft">Leistungspunkte:</td><td class="tabelle2inhalt">` + credits + `</td></tr>
 		<tr><td class="tabelle1_alignleft">Veranstaltungen im aktuellen Semester:</td>
 		    <td class="tabelle2inhalt"><ul>` + events + `</ul></td></tr>
+		` + strings.Join(rows, "\n") + `
 		</table></body></html>`
 }
 
@@ -85,4 +87,55 @@ func TestBuildPrefersTheQISDescription(t *testing.T) {
 	want(t, db, "SELECT detail_status FROM module WHERE id = '13500'", "ok")
 	// Both descriptions decide which events belong to the module.
 	want(t, db, "SELECT event_id FROM module_event WHERE module_id = '11101' ORDER BY event_id", "120285", "120286")
+}
+
+// qisReplacementRow is the row in which a QIS description names the other module of a
+// replacement by its internal number (parser.TestReplacementRows): „Auslaufmodul" on the
+// successor, „Nachfolgemodul/e" on the module that phases out.
+func qisReplacementRow(label, since, id, pordnr string) string {
+	return `<tr><td class="tabelle1_alignleft">` + label + `:</td><td class="tabelle2inhalt">` + since + `
+		<ul><li><a href="https://www.b-tu.de/qisserver3/rds?state=modulBeschrDetailInfo&amp;pord.pordnr=` + pordnr + `">` + id + ` Modul</a></li></ul></td></tr>`
+}
+
+// A replacement is one relation, whichever of its two modules states it: 12160 names the
+// module it replaces, 38105 its successor, and 12917 does not name its successor 11162,
+// which names 12917. The successors stay active.
+func TestBuildReadsAReplacementFromBothModules(t *testing.T) {
+	db, err := catalogdb.Open(filepath.Join(t.TempDir(), "replacement.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	put := func(source, key, body string) {
+		t.Helper()
+		if err := db.PutPage(catalogdb.RawPage{Source: source, Key: key, URL: key, HTTPStatus: 200, Body: []byte(body),
+			FetchedAt: time.Date(2026, 9, 29, 7, 0, 0, 0, time.UTC)}); err != nil {
+			t.Fatalf("PutPage failed: %v", err)
+		}
+	}
+
+	put(catalogdb.SourceQISModuleList, "rows-000000", `<table summary="Suchergebnis">
+		<tr><th>Nr.</th><th>Modultitel</th><th>Sprache</th><th>LP</th><th>FÜS</th><th>Teilnehmerbeschränkung</th></tr>
+		<tr><td>11162</td><td><a href="/rds?pord.pordnr=11908">Wirtschaftsprüfung</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12160</td><td><a href="/rds?pord.pordnr=14364">Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12917</td><td><a href="/rds?pord.pordnr=16532">Wirtschaftsprüfung und Rechnungslegung</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>38105</td><td><a href="/rds?pord.pordnr=7293">Allgemeine Betriebswirtschaftslehre I</a></td><td>Deutsch</td><td>4</td><td></td><td></td></tr>
+	</table>`)
+	put(catalogdb.SourceQISModulePage, "12160", qisModulePage("12160", "Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL", "6", "",
+		qisReplacementRow("Auslaufmodul", "Nachfolgemodul seit: 21.04.2017", "38105", "7293")))
+	put(catalogdb.SourceQISModulePage, "38105", qisModulePage("38105 - Auslaufmodul", "Allgemeine Betriebswirtschaftslehre I", "4", "",
+		qisReplacementRow("Nachfolgemodul/e", "Auslaufmodul ab: 21.04.2017", "12160", "14364")))
+	put(catalogdb.SourceQISModulePage, "11162", qisModulePage("11162", "Wirtschaftsprüfung", "6", "",
+		qisReplacementRow("Auslaufmodul", "Nachfolgemodul seit: 20.01.2023", "12917", "16532")))
+	put(catalogdb.SourceQISModulePage, "12917", qisModulePage("12917 - Auslaufmodul", "Wirtschaftsprüfung und Rechnungslegung", "6", ""))
+
+	if _, err := Build(context.Background(), db); err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	want(t, db, "SELECT id, offer_status FROM module ORDER BY id",
+		"11162|active", "12160|active", "12917|phase_out", "38105|phase_out")
+	want(t, db, "SELECT module_id, successor_id, successor_title FROM v_module_successor ORDER BY module_id",
+		"12917|11162|Wirtschaftsprüfung", "38105|12160|Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL")
 }

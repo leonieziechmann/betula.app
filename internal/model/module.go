@@ -242,7 +242,8 @@ type ModuleDetail struct {
 	IsNotOffered             bool                `json:"is_not_offered"` // Modul nicht mehr im Angebot
 	Department               string              `json:"department,omitempty"`
 	ResponsiblePersons       []ResponsiblePerson `json:"responsible_persons,omitempty"`
-	SuccessorModules         []string            `json:"successor_modules,omitempty"` // IDs of successor module(s)
+	SuccessorModules         []string            `json:"successor_modules,omitempty"`   // IDs of successor module(s)
+	PredecessorModules       []string            `json:"predecessor_modules,omitempty"` // IDs of the module(s) this one replaces
 	Language                 string              `json:"language,omitempty"`
 	Duration                 string              `json:"duration,omitempty"`
 	Turnus                   string              `json:"turnus,omitempty"` // frequency of offer
