@@ -385,7 +385,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
                 let (target, id, here) = (row.id.clone(), row.id.clone(), here.clone());
                 let preview = Signal::derive(move || here.with_open(Some(&target)).path());
                 let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
-                view! { <Row row preview current phone with_program=false dim_unmarked=true in_place=true shaded=index % 2 == 1/> }
+                view! { <Row row preview current phone with_program=false dim_unmarked=true in_place=true shaded=index % 2 == 1 swipe=true/> }
             }).collect_view()}
             {(!missing.is_empty()).then(|| view! {
                 <div class="sem">{t.bookmarks.not_in_catalog}</div>

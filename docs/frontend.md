@@ -24,7 +24,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -223,8 +223,10 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
     its shortcut, beside „Einplanen" — where the line has no room for the two side by side, they
     stand one over the other at its end and the badges wrap in the rest of it (owner,
     2026-09-26; on a phone the pair has a line of its own under the badges and fills it, half
-    each, owner 2026-09-27); and among the actions of the module
-    page's sidebar, which stays in view while the page scrolls. All of them show one state.
+    each, owner 2026-09-27); among the actions of the module
+    page's sidebar, which stays in view while the page scrolls; and on a phone by swiping the
+    module's row in the catalog or in the Merkliste to the left (below). All of them show one
+    state.
     **`M`** marks what the visitor is at: the row the keyboard is on, else the module that is
     open. A marked module is neutral and strong (filled, inverted), like a chosen chip; the
     accent stays with primary actions.
@@ -248,7 +250,9 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   - **A mark taken away on that page stays on the page,** dimmed, until the page is left: a slip
     is one click to undo, and the list does not jump under the pointer. Marking changes numbers,
     never the list: no query runs and the rows stay the same elements (each button reads the
-    marks through a memo of its own, R5).
+    marks through a memo of its own, R5). So does a row swiped to the left on a phone („Entfernen
+    · von der Merkliste", below): it stays, dimmed, and swiped to the left once more it is marked
+    again; while it is swiped its card is whole, or the ground would show through it.
   - A marked module stays on the list when it is no longer offered, and one the snapshot does not
     know (taken out of the BTU's catalog) is named under „Nicht im Modulkatalog", not dropped
     (R12). What is stored is read like anything from outside: ids that cannot be ids are
@@ -331,6 +335,39 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   left to Chromium ended in a fling of nothing, and the next tap anywhere, up to a second later,
   only stopped that fling). A mouse (a narrow window) drags the mark the same way, and what it
   lets go of is no click.
+- **A row of the catalog and of the Merkliste is swiped to mark and to plan its module** (owner,
+  2026-09-30: „Nach links wischen merken nach rechts wischen planen. Mach das so, dass dann darunter
+  freigelegt wird was die Aktion macht (also Icon und Text)", and the same day for the Merkliste:
+  „Mach das auch in der Merkliste"; `app/src/swipe.rs`, app.css): on a phone, in the browser app,
+  to the left „Merken", to the right „Einplanen" — the two switches of the module's
+  page, pressed from the list without opening the module, with the same effect (`MarkButton`,
+  `studyplan::press`). The card follows the finger and uncovers what lies under it at the side it
+  leaves: the action's icon and word, and a line of what it is done to — the semester „Einplanen"
+  plans into, aimed as the switch aims (from the module's own Termine, as on its page, and the
+  finder's semester and placeholder), „von der Merkliste". What the ground says is what the swipe
+  does, not what the module is: on a marked module the left side says „Entfernen · von der
+  Merkliste", on a planned one the right side „Entfernen · aus WiSe 2026/27"; it is read once, when
+  the finger starts. The mark's side has its icon where the row's bookmark stands. It is quiet
+  until the action is armed, a third of the card or 120 px away (or half as far and flicked, as the
+  sheet measures a flick): then it takes the colour of its side — the inverted look of a marked
+  module, the accent for the plan — and the icon springs. Let go armed, the ground says what was
+  done („Gemerkt", „Eingeplant", „Entfernt"), the card goes aside as far as that takes, holds a
+  moment and glides back, and the action follows after the next frame (R21); let go before, the
+  card glides back and nothing happens. The row stays where it is (R5: marking and planning change
+  what the module's buttons say, not the list — unless the list is filtered by them, „Gemerkt",
+  „Passt in meinen Stundenplan"; on the Merkliste a module swiped off it stays, dimmed, as with
+  its button). The card moves inside its own place: while it is swiped the row
+  clips it and draws the ring and shadow the card has at rest, so nothing changes as the swipe
+  begins and the card never reaches past the page's edge (it pushed the page 188 px wider than the
+  window). The finger is read as along the bottom bar: the first move past 10 px decides (a row is
+  something to tap, a tap may wobble), sideways it is the row's, up or down the page scrolls
+  (`touch-action: pan-y`); the moves of a swipe are the row's alone (its own `touchmove` cancels
+  them: the app is built without Leptos's delegation of events, so the listener is the row's and
+  may), and neither a swipe nor its end is a tap or a step of the history. A mouse (a narrow
+  window) drags the card the same way; a wide screen has the bookmark at the end of the row and the
+  preview beside the list, and no swipe. The rows of both lists are the same `Row` (`swipe`); the
+  Merkliste's modules the catalog does not know („Nicht im Modulkatalog") are no `Row` and keep
+  their bookmark alone.
 - **Every page has the same frame (owner decision 2026-09-20, R17):** a sidebar as wide as the
   catalog's filter panel, with the same handle and the same remembered width, and the page next
   to it (`ui::Frame`; the catalog builds it itself, its sidebar is the filter form). Going from
@@ -2164,6 +2201,24 @@ goes one tab and no further, a short slow one glides back, a short flick goes on
 the tab stays; two swipes in a row go two tabs, a tap right after a quick swipe is a tap, and a
 finger up the bar scrolls the page; before the app takes over (its bundle kept away) a swipe
 loads the tab's page.
+
+```bash
+cd e2e && node swipe.mjs
+```
+
+swipes a row of the catalog on a phone with real touches as `tabbar.mjs` does: to the left the
+card follows the finger (less the slop) inside its place, the page neither moving nor growing
+wider, and uncovers „Merken", quiet until the action is armed and then in the inverted colour;
+let go, the ground says „Gemerkt", the module is marked (its bookmark, the Merkliste's count, the
+store) and the row comes to rest with nothing of the swipe left, no step of the history and no
+page load; to the right „Einplanen" with the semester, armed in the accent, „Eingeplant", the
+Stundenplan counting the module; again each way „Entfernen · von der Merkliste" and „Entfernen ·
+aus …" take them out; a short slow pull does nothing, a short flick marks, and the bookmark tapped
+right after it is a tap; a finger up a row scrolls the page and takes no row; a tap on another row
+right after a swipe opens its module; on the Merkliste a module swiped off it stays, dimmed, its
+card whole while it is swiped again and marked again by that swipe, and one swiped to the right is
+planned; a mouse in a narrow window drags the card and marks, its drag no click; a wide screen's
+row takes no drag.
 
 ```bash
 cd e2e && node ground.mjs

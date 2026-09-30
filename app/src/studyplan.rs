@@ -15,7 +15,8 @@
 //! (R21) whatever the work then costs.
 //!
 //! „Einplanen" (`PlanButton`) plans a module from its preview and its page: into the semester
-//! `target_semester` aims at, and for the placeholder the finder was asked for (`PlanHint`).
+//! `target_semester` aims at, and for the placeholder the finder was asked for (`PlanHint`). A row
+//! of the catalog swiped to the right on a phone presses it too (`crate::swipe`, `press`).
 
 use std::collections::BTreeSet;
 
@@ -308,10 +309,7 @@ pub fn PlanButton(
             let Some(plan) = plan else { return };
             let (was, aim) = (pressed.get_untracked(), aim.get_untracked());
             said.set(Some(!was));
-            let (id, source) = (id.clone(), source.clone());
-            nav::after_paint(move || {
-                let events = if was { plan.with_untracked(|doc| only_its_events(source.as_ref(), doc, aim.target, &id)) } else { Vec::new() };
-                plan.update(|doc| toggle_in(doc, &id, &aim, was, &events, now()));
+            press(plan, source.clone(), id.clone(), aim, was, move || {
                 said.try_set(None);
             });
         }
@@ -435,7 +433,7 @@ fn SemesterSwitch(id: String, semester: SemesterKey, label: String) -> impl Into
 
 /// What a plan button aims at: from the plan, the page's hint and the module's semesters.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct Aim {
+pub(crate) struct Aim {
     /// The semester a click plans into (`target_semester`).
     target: SemesterKey,
     /// The module is planned there — for the hint's placeholder, when there is one.
@@ -444,6 +442,20 @@ struct Aim {
     fill: Option<(u32, String)>,
     /// The other semesters the plan holds the module in.
     elsewhere: Vec<SemesterKey>,
+}
+
+impl Aim {
+    /// The module is planned where a press aims: pressing takes it out.
+    pub(crate) fn pressed(&self) -> bool {
+        self.pressed
+    }
+}
+
+/// What „Einplanen" aims at for a module now, asked once and not through a memo: for what presses
+/// it without being its switch, a row swiped to the right (`crate::swipe`), which asks when the
+/// finger starts. `current` and `newest` as for `PlanButton`.
+pub(crate) fn aim_now(plan: Studyplan, id: &str, current: SemesterKey, newest: Option<SemesterKey>, turnus: Option<TurnusSeason>, hint: Option<&PlanHint>) -> Aim {
+    plan.with_untracked(|doc| aim_of(id, current, newest, turnus, hint, doc))
 }
 
 fn aim_of(id: &str, current: SemesterKey, newest: Option<SemesterKey>, turnus: Option<TurnusSeason>, hint: Option<&PlanHint>, doc: &PlanDoc) -> Aim {
@@ -518,6 +530,31 @@ fn tooltip_text(aim: &Aim, pressed: bool, t: &'static Texts) -> String {
     };
     let elsewhere = elsewhere_text(aim, |key| key.label(t.locale), t).map(|text| format!(" · {text}")).unwrap_or_default();
     format!("{what}{elsewhere} (P)")
+}
+
+/// What a row swiped to the right says (`crate::swipe`), as (word, line, word once done): the
+/// switch's „Einplanen" with the semester it plans into and the placeholder it plans for, or
+/// „Entfernen" with the semester it takes the module out of — what the swipe does, where the
+/// switch's label says what the module is.
+pub(crate) fn swipe_words(aim: &Aim, t: &'static Texts) -> (&'static str, String, &'static str) {
+    let semester = aim.target.label(t.locale);
+    if aim.pressed {
+        return (t.planner.remove, (t.planner.out_of)(&semester), t.planner.removed);
+    }
+    let line = [Some(semester), fill_text(aim, t)].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+    (t.planner.plan, line, t.planner.planned)
+}
+
+/// „Einplanen" pressed, by its switch or by a swiped row: `aim` as it was when pressed, and
+/// whether the module was planned there (`was`). The plan is written after the next frame (R21:
+/// what was pressed has answered by then), with what taking the module out takes along of the
+/// semester's own choices; `then` runs once the plan has it.
+pub(crate) fn press(plan: Studyplan, source: Option<Source>, id: String, aim: Aim, was: bool, then: impl FnOnce() + 'static) {
+    nav::after_paint(move || {
+        let events = if was { plan.with_untracked(|doc| only_its_events(source.as_ref(), doc, aim.target, &id)) } else { Vec::new() };
+        plan.update(|doc| toggle_in(doc, &id, &aim, was, &events, now()));
+        then();
+    });
 }
 
 /// What a click does to the plan, after the next frame: takes the module out of the semester it
@@ -831,6 +868,26 @@ mod tests {
         assert_eq!(hero_note(&fill, &EN).as_deref(), Some("for \u{201c}Fachübergreifendes Studium\u{201d} · planned: SS 27"));
         assert_eq!(semester_line(&elsewhere, &EN), "Winter 2026/27 · planned: Summer 2027");
         assert_eq!(tooltip_text(&fill, false, &EN), "Plan for Winter 2026/27, for \u{201c}Fachübergreifendes Studium\u{201d} · planned: Summer 2027 (P)");
+    }
+
+    #[test]
+    fn a_swiped_row_says_what_the_swipe_does() {
+        let now = key("2026W");
+        let mut doc = PlanDoc::default();
+        doc.placeholders.push(placeholder(3, "2026W", "Fachübergreifendes Studium"));
+        // Not planned: „Einplanen" into the semester the switch aims at, then „Eingeplant".
+        let plain = aim_of("12330", now, Some(now), None, None, &doc);
+        assert_eq!(swipe_words(&plain, &DE), ("Einplanen", "WiSe 2026/27".to_string(), "Eingeplant"));
+        assert_eq!(swipe_words(&plain, &EN), ("Plan", "Winter 2026/27".to_string(), "Planned"));
+        // For the finder's placeholder, which the line names as the switch's does.
+        let fill = aim_of("12330", now, Some(now), None, Some(&PlanHint { semester: None, fill: Some(3) }), &doc);
+        assert_eq!(swipe_words(&fill, &DE).1, "WiSe 2026/27 · für „Fachübergreifendes Studium“");
+        // Planned there: the swipe takes it out, and says out of which semester.
+        assert!(doc.plan(now, "12330", 1, None));
+        let planned = aim_of("12330", now, Some(now), None, None, &doc);
+        assert!(planned.pressed());
+        assert_eq!(swipe_words(&planned, &DE), ("Entfernen", "aus WiSe 2026/27".to_string(), "Entfernt"));
+        assert_eq!(swipe_words(&planned, &EN), ("Remove", "from Winter 2026/27".to_string(), "Removed"));
     }
 
     #[test]

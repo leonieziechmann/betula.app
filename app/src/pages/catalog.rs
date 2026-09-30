@@ -45,6 +45,7 @@ use crate::pending::{Change, Pending};
 use crate::seo::Seo;
 use crate::skeleton::{DetailSkeleton, RowsSkeleton};
 use crate::studyplan::{PlanHint, Studyplan};
+use crate::swipe::RowSwipe;
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 
@@ -1348,7 +1349,7 @@ fn VirtualRows(
                             let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
                             let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
                             let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
-                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1/></div> }
+                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/></div> }
                         })}
                     }
                 }/>
@@ -1380,6 +1381,9 @@ pub(crate) fn Row(
     /// Every other row of the list is shaded. The list says which, from the row's place in the
     /// whole list: the virtual list renders only the rows on screen, so the stylesheet cannot count.
     #[prop(optional)] shaded: bool,
+    /// On a phone the row is swiped to mark the module (to the left) and to plan it (to the right,
+    /// `crate::swipe`): the lists of the catalog and of the marked modules in the browser app.
+    #[prop(optional)] swipe: bool,
 ) -> impl IntoView {
     let t = i18n::t();
     let language = format::languages(row.teaches_german, row.teaches_english);
@@ -1418,38 +1422,74 @@ pub(crate) fn Row(
         Memo::new(move |_| finder.view.with(|view| view.note_of(&id, !has_events)))
     });
     let fit_note = move || fit_note.and_then(|note| note.get()).map(|(text, quiet)| view! { <span class="flag fit-note" class:neutral=quiet>{text}</span> });
-    view! {
-        <div class="row-wrap" class:shaded=shaded class:unmarked=move || unmarked.is_some_and(|unmarked| unmarked.get())>
-            <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
-                <div class="t">
-                    <b>{row.title.clone()}</b>
-                    <small>
-                        <span class="mono">{row.id.clone()}</span>
-                        {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
-                        // Inside a program the study plan's semester stands at the row (the
-                        // list is in plan order, without headings between the semesters).
-                        {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}
-                        <OfferBadge status=row.offer_status.clone()/>
-                        {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
-                        {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
-                        {fit_note}
-                        <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
-                    </small>
-                </div>
-                <span class="resp">{row.responsible.clone()}</span>
-                <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale))}</span>
-                <span class="lp num">{row.credits.map(|value| format::number(value, t.locale))}<small>{t.common.credits_unit}</small></span>
-                <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
-                <span class="lang" class:unknown=language.is_none()>{language.unwrap_or(t.catalog.row_unknown)}</span>
-                <span class="events" class:none=!has_events>
-                    {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
-                    {if has_events { events } else { t.catalog.events_none.to_string() }}
-                </span>
-            </a>
-            // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
-            // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
-            {APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> })}
-        </div>
+    let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.turnus_season.as_ref().and_then(|turnus| turnus.known()), finder.map(|finder| finder.hint), phone));
+    let unmarked = move || unmarked.is_some_and(|unmarked| unmarked.get());
+    let link = view! {
+        <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
+            <div class="t">
+                <b>{row.title.clone()}</b>
+                <small>
+                    <span class="mono">{row.id.clone()}</span>
+                    {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
+                    // Inside a program the study plan's semester stands at the row (the
+                    // list is in plan order, without headings between the semesters).
+                    {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}
+                    <OfferBadge status=row.offer_status.clone()/>
+                    {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
+                    {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
+                    {fit_note}
+                    <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
+                </small>
+            </div>
+            <span class="resp">{row.responsible.clone()}</span>
+            <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale))}</span>
+            <span class="lp num">{row.credits.map(|value| format::number(value, t.locale))}<small>{t.common.credits_unit}</small></span>
+            <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
+            <span class="lang" class:unknown=language.is_none()>{language.unwrap_or(t.catalog.row_unknown)}</span>
+            <span class="events" class:none=!has_events>
+                {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
+                {if has_events { events } else { t.catalog.events_none.to_string() }}
+            </span>
+        </a>
+    };
+    // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
+    // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
+    let mark = APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> });
+    match swipe {
+        // What lies under the card comes while the row is swiped, before the card in the order of
+        // the page, so the card covers it.
+        Some(swipe) => view! {
+            <div
+                class="row-wrap swipes"
+                class:shaded=shaded
+                class:unmarked=unmarked
+                node_ref=swipe.wrap()
+                data-swipe=move || swipe.phase_attr()
+                data-side=move || swipe.side_attr()
+                data-armed=move || swipe.armed_attr()
+                data-done=move || swipe.done_attr()
+                style=move || swipe.style()
+                on:pointerdown=move |ev| swipe.down(ev)
+                on:pointermove=move |ev| swipe.moving(ev)
+                on:pointerup=move |ev| swipe.up(ev)
+                on:pointercancel=move |ev| swipe.cancel(ev)
+                on:touchmove=move |ev| swipe.touch_move(ev)
+                on:click:capture=move |ev| swipe.click(ev)
+                on:dragstart=move |ev| swipe.drag_start(ev)
+            >
+                {swipe.ground_view()}
+                {link}
+                {mark}
+            </div>
+        }
+        .into_any(),
+        None => view! {
+            <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked>
+                {link}
+                {mark}
+            </div>
+        }
+        .into_any(),
     }
 }
 

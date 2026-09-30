@@ -26,6 +26,7 @@ pub mod pending;
 pub mod seo;
 pub mod skeleton;
 pub mod studyplan;
+pub mod swipe;
 pub mod tabs;
 pub mod ui;
 pub mod week;
