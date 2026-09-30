@@ -255,6 +255,81 @@ groups:
         annotations:
           summary: Alloy cannot deliver logs to Loki
           description: "Alloy has been retrying or dropping log batches for 10 minutes. While this lasts, the log based alerts see nothing. Check: docker service logs monitoring_loki / monitoring_alloy, disk space, Loki's ingestion limits in loki.yml."
+
+      # (1c) Canary follows master (vps/canary-agent.sh, run by betula-canary.service): a build of
+      # master that does not reach canary. Its scripts log "FATAL" when they give up (lib.sh die),
+      # the agent's own and the ones it runs (45-seed, 50-app, 55-switch). Canary then stays on the
+      # release it had; the agent tries a release three times, 10 and 20 minutes apart, so a failing
+      # build keeps this firing for about an hour. A warning: canary may be down for a while.
+      - uid: betula-canary-deploy-failed
+        title: "canary: a build of master did not reach canary"
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum(count_over_time({job=\"journal\", unit=\"betula-canary.service\"} |= `FATAL` [30m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-logs
+        panelId: 2
+        labels:
+          severity: warning
+        annotations:
+          summary: "canary: the automatic deploy of a build of master failed"
+          description: "journalctl -u betula-canary.service -n 100 says which step (the FATAL line): the download from GitHub (401: the token has expired, README.md section 12), the copy of the public site's database, the build or validation of the new release on that data (50-app.sh), or the switch (55-switch.sh). Canary keeps the release it had. What runs and what failed: bash /opt/betula/vps/canary-agent.sh status."
   - orgId: 1
     name: betula-containers
     folder: Betula alerts

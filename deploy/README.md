@@ -16,7 +16,9 @@ deploy/
     45-seed.sh            once per instance, before its first deploy: a Radix database (tar on stdin) into its volume
     50-app.sh             one instance of the application (stacks/betula.yml + stacks/<instance>.env) at a release tag
     55-switch.sh          blue-green: hand a host name to the other of its two instances (the rollback is the same)
-    90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 55
+    60-canary.sh          canary follows master: sqlite3, the timer, the GitHub token (section 12)
+    canary-agent.sh       what that timer runs: fetch a build of master, seed it with the public site's data, switch
+    90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 60
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
   stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, betula(.gemini|.offline).yml,
                           betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
@@ -216,6 +218,11 @@ loaded already - that is also the **rollback** (`docker image ls 'betula-*'` lis
 and `bash /opt/betula/vps/50-app.sh canary` applies a change of `canary.env` or `betula.yml` to the
 release that runs. Opening the site: `FOLIA_ACCESS_GATE=off` in `canary.env`, sync, `50-app.sh canary`.
 
+Since `60-canary.sh` (section 12) the canary no longer needs any of this: every build of master
+reaches it by itself, through the same scripts and the blue-green switch below, with a fresh copy of
+the public site's data. What is described here stays the way to ship to canary by hand (the timer
+off first: `sudo bash /opt/betula/vps/60-canary.sh off`) and the way to ship the public site.
+
 **Blue-green** (owner, 2026-09-23): two instance files with the same `APP_HOST` are two colours of
 one site, `canary.env` (the stack that ran first) and `canary-green.env`. Each is a stack of its
 own with volumes of its own, and each has a router for the host. Traefik sends the host to the
@@ -291,6 +298,7 @@ Swarm secrets are immutable; rotation means a new name.
 |---|---|
 | `grafana-admin-password` | created by `40-stacks.sh`. Later changes: `monitoring-secrets.sh reset-admin-password` (the secret itself stays) |
 | `grafana-smtp-*`, `grafana-ntfy-url`, tokens | `... \| ssh betula /opt/betula/stacks/monitoring-secrets.sh set <name>`. Rotate: `set <name>-v2`, point `source:` in the override at it, sync, `40-stacks.sh monitoring`, `docker secret rm <name>` |
+| GitHub token of the canary agent | not a swarm secret: a fine-grained token (section 12), stored encrypted with `60-canary.sh token`. Rotate: a new token, the same command (the old file is replaced), then revoke the old one on GitHub. It expires: 91-verify-stacks.sh warns 14 days ahead |
 | `gemini-api-key` | `... \| ssh betula docker secret create gemini-api-key-v2 -`, in `betula.gemini.yml`: `- source: gemini-api-key-v2` / `target: gemini-api-key` (and the new name under `secrets:`), sync, `50-app.sh <instance>`, remove the old one |
 | `folia-access-password` | the password testers get while `FOLIA_ACCESS_GATE` is on. Rotate like `gemini-api-key`, in `betula.yml` (`folia-access-password-v2`, `source:`/`target:`, sync, `50-app.sh <instance>`); a new password ends every tester's visit at once |
 | ssh key of `deploy` | append the new public key to `/home/deploy/.ssh/authorized_keys`, test it in a new session, then remove the old line |
@@ -342,6 +350,7 @@ section 9); `docker service logs edge_traefik` reads them from there.
 | **Reboot** | 04:30 Europe/Berlin, only when an update asks for it (kernel, libc). All containers restart; the site is away for about a minute. Interrupting Radix is safe (docs/operations.md) |
 | Reboot after a kernel panic | after 60 s |
 | Containers | swarm restarts a task that exits or turns unhealthy; after a boot everything comes back by itself |
+| Canary follows master | every two minutes a look at GitHub for a new build of master; one that is there goes to https://canary.betula.app with the public site's data (section 12). Off: `sudo bash /opt/betula/vps/60-canary.sh off` |
 | Certificates | Traefik renews 30 days before expiry; an alert fires below 14 days |
 | Image cleanup | Sunday 03:30: dangling images and old build cache only, never networks or volumes |
 | ssh bans | fail2ban: 5 failures in 10 min = 1 h, doubling up to a week; sshd penalises per source on top |
@@ -414,3 +423,143 @@ home dashboard); `40-stacks.sh` and `91-verify-stacks.sh` both say so. The conta
 Critical alerts repeat every 4 hours, warnings daily (`policies.yml`). Expected once during the first
 bring-up: "SSH login that is not the deploy key", if the last root login was less than 15 minutes
 before the monitoring stack started.
+
+## 12. Canary follows master
+
+Every push to master that changes what the images are built from reaches https://canary.betula.app
+by itself: built on GitHub, fetched by the server, seeded with the data of the public site, migrated
+by the new release, switched blue-green, and the colour that served before is removed. The public
+site is still shipped by hand (section 4); nothing here touches it but one read-only copy of its
+database per deploy.
+
+```
+push to master ─▶ GitHub Actions  .github/workflows/images.yml
+                    nix build .#radix-image .#folia-image, exactly as ship.sh (same sources, same tag)
+                    ─▶ artifact betula-images-<tag>.tar (release.json + both images), kept a week
+server  betula-canary.timer, 2 minutes after the last run ─▶ vps/canary-agent.sh poll (as deploy)
+   1  GitHub API, read-only token: a new successful run for a push to master? its artifact, sha256 checked
+   2  docker load, tag <tag> (as ship.sh)
+   3  the colour that does not serve (canary / canary-green): stack and volumes removed
+   4  the public site's radix.db (the colour whose Radix crawls) ─ host sqlite3, read-only, VACUUM INTO ─▶ copy
+   5  45-seed.sh <colour>, 50-app.sh <colour> <tag>: the new release migrates, builds and exports the
+      copy in containers without a network, then runs as the standby
+   6  /healthz 200 ─▶ 55-switch.sh <colour>; until the new colour has settled the old one stays
+   7  the colour that served before: stack and volumes removed; images of old builds go (the newest three stay)
+```
+
+A deploy takes a few minutes on the server; the build on GitHub takes longer (see "How fast, and what it costs").
+When a step fails, canary keeps the release it had and the alert "canary: a build of master did not
+reach canary" fires. A release is tried three times, 10 and 20 minutes apart; then the agent waits
+for the next build of master. A release deployed by hand stays until master is built again: the
+agent only acts on a build it has not seen.
+
+### Setting it up, once
+
+1. Merge. The workflow runs on the merge itself (it adds `.github/workflows/images.yml`) and on every
+   later push to master that touches the sources; its job summary names the release and the artifact.
+2. The token, on GitHub: Settings > Developer settings > Personal access tokens > Fine-grained tokens >
+   Generate. Resource owner `leonieziechmann`, repository access "Only select repositories":
+   `betula.app`, repository permission **Actions: Read-only** and nothing else (GitHub adds
+   "Metadata: Read-only" by itself), an expiry date (a year) and an entry in the calendar before it.
+   Straight into the password manager.
+3. `SSH_TARGET=betula bash deploy/sync.sh`, then `ssh betula sudo bash /opt/betula/vps/60-canary.sh`
+   (sqlite3, the units, `/var/lib/betula-canary`).
+4. `<password manager CLI> | ssh betula sudo bash /opt/betula/vps/60-canary.sh token`: tries the
+   token (GitHub has to accept it, it has to be allowed to download an artifact, and one that can see
+   the repository's administration is refused), stores it encrypted with the host's key
+   (`systemd-creds`, `/etc/credstore.encrypted/betula-canary-github-token`), switches the timer on.
+5. `ssh betula journalctl -fu betula-canary.service`. **The first run replaces both canary colours:**
+   the data canary had (the workstation's crawl) is gone, the public site's takes its place.
+6. `ssh betula bash /opt/betula/vps/40-stacks.sh monitoring` (the new alert rule), then
+   `ssh betula bash /opt/betula/vps/91-verify-stacks.sh app canary alerts`.
+
+### Day to day
+
+| | |
+|---|---|
+| what serves, what failed, what the next deploy copies | `bash /opt/betula/vps/canary-agent.sh status` |
+| watch a deploy | `journalctl -fu betula-canary.service` |
+| look now, not within two minutes | `sudo systemctl start betula-canary.service` (returns when it is done) |
+| fresh data for the release canary runs | `bash /opt/betula/vps/canary-agent.sh deploy` |
+| back to an older release (the images of the newest three stay) | `bash /opt/betula/vps/canary-agent.sh deploy <tag>`; it stays until master is built again |
+| ship to canary by hand, or work on it | `sudo bash /opt/betula/vps/60-canary.sh off` first (a run in progress is finished), `on` afterwards |
+| a release that failed | `journalctl -u betula-canary.service -n 100`: the FATAL line names the step. The colour it left half made stays for a look (`docker service logs`, the `docker run ... build` of 50-app.sh); the next deploy removes it |
+| a new token | step 2 and 4 above; revoke the old one on GitHub |
+
+`canary.env` and `canary-green.env` have to say `RADIX_CRAWL=off` (the agent refuses otherwise:
+with the public site's data a canary that crawls would ask the university for everything a second
+time) and the same `FOLIA_ACCESS_GATE`. `CANARY_SEED_FROM=<instance>` takes another instance's
+database for one `deploy` by hand.
+
+### Why it is safe enough
+
+- **Nothing reaches into the server.** No ssh key, no webhook and no runner at GitHub: the server
+  asks (HTTPS to api.github.com and GitHub's artifact storage), ufw and sshd stay as they are.
+- **The token can do one thing.** Read this repository's workflow runs and artifacts - public
+  anyway, since the repository is; GitHub only wants a token for the download. `60-canary.sh`
+  refuses a classic token and one that can see the repository's administration. Encrypted at rest,
+  in clear only in the service's own credentials directory, never in argv (header files, curl's
+  config on stdin); the short-lived address of the download gets no token.
+- **Only master counts.** A run of `images.yml` in this repository, started by a push to master,
+  finished with success; a pull request, another branch or a fork produces nothing the agent takes.
+  The file has to match the sha256 GitHub keeps for it and the sums in its `release.json`.
+- **The agent never updates itself.** `deploy/` reaches `/opt/betula` only through `sync.sh` from
+  the workstation. What a push to master changes is what runs *inside* canary's containers
+  (`cap_drop: ALL`, Folia read-only and not root, closed testing, Radix offline) - what shipping
+  master by hand would run as well.
+- **The public site's database is only read.** By Ubuntu's `sqlite3` with `-readonly`, as one read
+  transaction (WAL: the reader does not block the writer, Radix crawls on); no binary of a new
+  release ever opens it, so no migration can reach it. Tested with a writer committing all the
+  time: every copy was complete to one commit and passed the integrity check.
+- **The workflow** asks for `contents: read` only, uses no secret, runs on pushes to master only,
+  and its actions are pinned to commits. Its build cache (GitHub's cache of this repository) is
+  written by its own runs on master; a run reads only its branch's entries and master's, never a
+  pull request's or a fork's. Nix takes the cached paths without signatures, so a step of the job
+  that went bad could leave something in it for later builds: the job uses four actions, three of
+  them GitHub's own, all pinned. Keep it the only writer: a workflow added later that runs for pull
+  requests with `pull_request_target` would write into master's part of the cache.
+- **The repository is public** (since 2026-09-30). Everybody can read the code, the workflow's logs
+  and, logged in to GitHub, its artifacts; none of them holds a secret (the workflow has none, and
+  the history held no key or token when it went public). Everybody can fork it and open pull
+  requests, but neither starts `images.yml`, and the agent takes nothing but runs of a push to
+  master in this repository: from the outside, reading is all there is.
+- **Worth adding on GitHub:** a branch protection rule for master (pull requests, no force
+  pushes): whoever can push to master decides what canary runs. And under Settings > Actions >
+  General "Allow ... select non-... actions": actions by GitHub, and `cachix/install-nix-action@*`
+  - nothing else is used.
+
+### How fast, and what it costs
+
+- **Time**, measured 2026-09-30 on the standard runner of a public repository (4 processors,
+  16 GB). GitHub hands out faster and slower ones: the same work took 1.6 times as long on a slow
+  one, hence the ranges.
+
+  | a push that changes | the job | of it the build |
+  |---|---|---|
+  | nothing Radix or Folia are built from (the workflow, say) | 47 s | 17 s |
+  | the app, not its dependencies (the common case) | 7 to 11 min | 6½ to 10½ min |
+  | `Cargo.lock` or `flake.lock`; and the first build on master | 13 to 21 min | 12½ to 20 min |
+
+  After a change to the app everything but the workspace's own crates comes from the cache, in
+  under half a minute: what is left is compiling folia-app and folia-server, 6 to 10 minutes, with
+  the browser app (3 to 5) beside it. The web server's thin LTO is not what takes the time:
+  without it that step took 8 minutes instead of 9 (on the workstation), so it stays. A change to
+  Radix adds its build with the tests, 2 to 3 minutes. The deploy on the server adds a few
+  minutes.
+- **What makes it fast:** `flake.nix` builds the Rust dependencies apart from the workspace
+  (crane), so a change to the app leaves them as they are; the workflow keeps what builds of
+  master made and cache.nixos.org does not have in GitHub's cache ("Restore the Nix cache" in
+  `images.yml`): some 500 paths, 1.2 GB, 560 MB compressed. A build from the cache gives the same
+  images to the byte as one without it (the same sha256, measured). A new entry is only written
+  when the dependencies, the flake or the Go sources change, and only after a build that
+  succeeded; GitHub keeps 10 GB per repository and drops what has not been used for a week. The
+  first build of master after the merge starts without it: master does not see a branch's
+  entries. What would still help, a little: the web server and the browser app on two runners.
+  They share the processors only while both compile folia-app, so that is about a minute, at the
+  price of passing the browser app from one job to the other.
+- **GitHub Actions minutes:** none - a public repository's standard runners cost nothing.
+- **Artifact storage:** 57 MB per build (Radix 7, Folia 50), gone after a week; a public
+  repository pays nothing for it.
+- **This server:** per deploy one copy of the database, one build and export of the catalog (the
+  CPU of a minute or two) and the new Folia warming its cache (up to 3 processors for a moment),
+  next to the public site. The disk holds the images of the newest three builds.

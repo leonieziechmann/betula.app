@@ -5,7 +5,7 @@
 #   bash /opt/betula/vps/91-verify-stacks.sh                 # everything
 #   bash /opt/betula/vps/91-verify-stacks.sh tls headers     # only some sections
 #
-# Sections: services http tls headers ports accesslog app loki prometheus grafana alerts
+# Sections: services http tls headers ports accesslog app canary loki prometheus grafana alerts
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
 # Changes nothing. The only traffic it causes: a few requests to the site (which also put fresh
 # lines into Traefik's access log for the Loki check) and queries inside the monitoring stack.
@@ -31,7 +31,7 @@ require_ubuntu
 require_cmd docker curl openssl jq
 require_swarm_manager
 
-ALL_SECTIONS=(services http tls headers ports accesslog app loki prometheus grafana alerts)
+ALL_SECTIONS=(services http tls headers ports accesslog app canary loki prometheus grafana alerts)
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST:-${DEFAULT_GRAFANA_HOST}}"
 RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
 # Jobs that must be "up": five scraped by Prometheus (config/monitoring/prometheus.yml), two
@@ -214,6 +214,9 @@ check_standby() {
     done
   fi
 }
+
+# canary_follows_master - true while betula-canary.timer is on (vps/60-canary.sh, README.md section 12).
+canary_follows_master() { systemctl is-active --quiet betula-canary.timer 2>/dev/null; }
 
 # header_value HEADERS NAME -> value of the LAST response header NAME (case-insensitive), without CR.
 header_value() {
@@ -420,7 +423,12 @@ check_app() {
     load_instance "${name}"
     url="https://${INSTANCE_HOST}"
     if ! stack_exists "${INSTANCE_STACK}"; then
-      warning "instance ${name} (${url}) is not deployed (deploy/ship.sh ${name})"
+      # Following master, canary keeps one colour: the other one is where the next release goes.
+      if is_canary_colour "${name}" && canary_follows_master; then
+        pass "instance ${name} is not deployed: canary follows master and keeps one colour, the next release goes here (section canary)"
+      else
+        warning "instance ${name} (${url}) is not deployed (deploy/ship.sh ${name})"
+      fi
       continue
     fi
     deployed=1
@@ -506,6 +514,68 @@ check_app() {
   if [[ "${deployed}" -eq 0 ]]; then
     warning "no instance of the application is deployed (from the workstation: deploy/ship.sh canary)"
   fi
+}
+
+check_canary() {
+  section "canary follows master (vps/canary-agent.sh, started by betula-canary.timer)"
+  local unit state_dir="/var/lib/betula-canary" result started line expires colour
+  local -a colours=()
+  if [[ ! -f /etc/systemd/system/betula-canary.timer ]]; then
+    warning "not installed: canary changes only with deploy/ship.sh (sudo bash ${BETULA_ROOT}/vps/60-canary.sh, README.md section 12)"
+    return 0
+  fi
+  for unit in betula-canary.service betula-canary.timer; do
+    if cmp -s -- "/etc/systemd/system/${unit}" "${BETULA_VPS_DIR}/files/${unit}"; then pass "${unit} as shipped"; else
+      fail "/etc/systemd/system/${unit} differs from vps/files/${unit} (edited on the server, or deploy/ is newer: sudo bash ${BETULA_ROOT}/vps/60-canary.sh)"
+    fi
+  done
+  if canary_follows_master; then
+    pass "betula-canary.timer is on (next look: $(systemctl show betula-canary.timer --property=NextElapseUSecRealtime --value 2>/dev/null))"
+  else
+    warning "betula-canary.timer is off: canary does not follow master (sudo bash ${BETULA_ROOT}/vps/60-canary.sh on)"
+  fi
+  result="$(systemctl show betula-canary.service --property=Result --value 2>/dev/null || true)"
+  started="$(systemctl show betula-canary.service --property=ExecMainStartTimestamp --value 2>/dev/null || true)"
+  if [[ -z "${started}" ]]; then
+    warning "betula-canary.service has not run since the last boot"
+  elif [[ "${result}" == "success" ]]; then
+    pass "the last run of betula-canary.service (${started}) succeeded"
+  else
+    fail "the last run of betula-canary.service (${started}) ended with '${result}': journalctl -u betula-canary.service -n 80"
+  fi
+  if [[ -r "${state_dir}/deployed" ]]; then
+    pass "last deploy: $(head -n 1 "${state_dir}/deployed")"
+  else
+    warning "the agent has not deployed a release yet"
+  fi
+  # GitHub names the token's expiry in every answer; the agent keeps the last one it saw.
+  if [[ -r "${state_dir}/token-expires" ]]; then
+    line="$(head -n 1 "${state_dir}/token-expires")"
+    expires="$(date -d "${line}" +%s 2>/dev/null || true)"
+    if [[ ! "${expires}" =~ ^[0-9]+$ ]]; then
+      warning "the GitHub token expires '${line}' (not a date this script can read)"
+    elif [[ "${expires}" -le "$(date +%s)" ]]; then
+      fail "the GitHub token of the agent expired ${line}: canary no longer follows master. A new one: README.md section 12"
+    elif [[ "${expires}" -le $(($(date +%s) + 14 * 86400)) ]]; then
+      warning "the GitHub token of the agent expires ${line}, in less than 14 days: store a new one (README.md section 12)"
+    else
+      pass "the GitHub token of the agent is valid until ${line}"
+    fi
+  fi
+  if [[ -r "${state_dir}/failed" ]]; then
+    line="$(head -n 1 "${state_dir}/failed")"
+    warning "release ${line%% *} failed $(awk '{ print $2 }' <<<"${line}") time(s) so far (journalctl -u betula-canary.service); it is tried at most 3 times"
+  fi
+  for colour in "${CANARY_COLOURS[@]}"; do
+    if stack_exists "${colour}"; then
+      colours+=("${colour}")
+    fi
+  done
+  case "${#colours[@]}" in
+    1) pass "one colour of the canary is deployed: ${colours[0]}" ;;
+    0) fail "no colour of the canary is deployed: nothing serves it (sudo systemctl start betula-canary.service, or deploy/ship.sh ${CANARY_COLOURS[0]})" ;;
+    *) warning "both colours of the canary are deployed (${colours[*]}): a deploy is running, or one ended before it removed the old colour; the next deploy removes the one that does not serve" ;;
+  esac
 }
 
 check_loki() {
