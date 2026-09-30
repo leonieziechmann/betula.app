@@ -22,6 +22,9 @@ futures-util = "0.3"
 # The snapshot endpoint is plain HTTP inside the deployment's network; no TLS stack to build.
 reqwest = { version = "0.12", default-features = false, features = ["stream"] }
 flate2 = "1"
+# What goes out compressed goes out as brotli (src/encoding.rs): every browser takes it, and it is
+# a tenth to two fifths smaller than gzip.
+brotli = "8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"

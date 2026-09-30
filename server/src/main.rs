@@ -17,6 +17,7 @@ mod busy;
 mod cache;
 mod cards;
 mod config;
+mod encoding;
 mod lastmod;
 mod launch;
 mod logo;
@@ -61,7 +62,7 @@ pub struct AppState {
     pub public_url: Arc<str>,
     /// Where the built browser app lives (`<site-root>/pkg`).
     pub site_root: std::path::PathBuf,
-    /// The files of the browser app: name → (etag, bytes, gzip).
+    /// The files of the browser app as they are served, by name.
     pub packages: Packages,
     /// Closed testing: the password in front of the whole site (`access`); `None` when it is open.
     pub gate: Option<Arc<access::Gate>>,
@@ -79,8 +80,8 @@ pub struct AppState {
 /// The header that names the build of the server on every answer (`AppState::build_id`).
 pub const BUILD_HEADER: &str = "x-build";
 
-/// name → (etag, bytes, gzip)
-pub type Packages = Arc<std::sync::Mutex<std::collections::HashMap<String, (String, axum::body::Bytes, axum::body::Bytes)>>>;
+/// name → the file as it is served
+pub type Packages = Arc<std::sync::Mutex<std::collections::HashMap<String, Arc<api::Package>>>>;
 
 impl axum::extract::FromRef<AppState> for LeptosOptions {
     fn from_ref(state: &AppState) -> Self {
@@ -165,8 +166,8 @@ pub fn pages(state: &AppState) -> Router<AppState> {
             provide_context(site.clone());
             provide_context(build.clone());
             if let Some(snapshot) = store.current() {
-                if let Some((map, ..)) = snapshot.program_map.clone() {
-                    provide_context(app::data::ProgramMapHandle(map));
+                if let Some((map, ..)) = &snapshot.program_map {
+                    provide_context(app::data::ProgramMapHandle(map.clone()));
                 }
                 if let Some(pickers) = snapshot.pickers.clone() {
                     provide_context(pickers);
@@ -245,17 +246,11 @@ fn in_every_language() -> Router<AppState> {
     router
 }
 
-pub fn router(state: AppState) -> Router {
+/// The files of the site: its stylesheet, scripts, pictures and the browser app, and nothing in
+/// front of them: inside `router`, and what the warm-up of their compressed forms asks for
+/// directly (`warm::files`), past the gate and the access log.
+pub fn files() -> Router<AppState> {
     Router::new()
-        .route("/de", get(language_redirect))
-        .route("/de/", get(language_redirect))
-        .route("/de/{*rest}", get(language_redirect))
-        .route("/en/", get(language_redirect))
-        .route("/api/db", get(api::database))
-        .route("/api/status", get(api::status))
-        .route("/api/map.json", get(api::program_map))
-        .route("/healthz", get(api::health))
-        .route(api::LIVENESS, get(api::alive))
         .route(app::STYLESHEET, get(api::stylesheet))
         .route(app::icons::SPRITE, get(api::icons))
         .route(app::FAVICON, get(api::favicon))
@@ -278,6 +273,20 @@ pub fn router(state: AppState) -> Router {
         .route(app::ICON_MASKABLE_LARGE, get(api::icon_maskable_large))
         .route(app::ICON_MONOCHROME, get(api::icon_monochrome))
         .route("/assets/launch/{file}", get(api::launch_screen))
+}
+
+pub fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/de", get(language_redirect))
+        .route("/de/", get(language_redirect))
+        .route("/de/{*rest}", get(language_redirect))
+        .route("/en/", get(language_redirect))
+        .route("/api/db", get(api::database))
+        .route("/api/status", get(api::status))
+        .route("/api/map.json", get(api::program_map))
+        .route("/healthz", get(api::health))
+        .route(api::LIVENESS, get(api::alive))
+        .merge(files())
         .route("/robots.txt", get(api::robots))
         .route("/sitemap.xml", get(api::sitemap))
         .route(access::PATH, get(access::page).post(access::enter))
@@ -387,7 +396,10 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
     store.restore();
     tokio::spawn(snapshot::run(store.clone(), config.snapshot_url.clone(), config.poll_interval(), config.stale_after()));
 
-    let started_at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    // To the nanosecond: browsers keep what an address of a build names for a year without asking
+    // (`api::Keep`), so two processes of different files must never share one, not even two
+    // colours of the site that start in the same second when the host boots.
+    let started_at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     // One place per processor unless configured.
     let places = |configured: usize| if configured > 0 { configured } else { cpus };
     let render_wait = Duration::from_millis(config.render_wait_ms);
@@ -438,6 +450,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
     if config.warm_cache {
         tokio::spawn(warm::run(pages(&state).with_state(state.clone()), state.store.clone(), state.changes.clone()));
     }
+    tokio::spawn(warm::files(files().with_state(state.clone()), state.build_id.clone()));
 
     match axum::serve(listener, router(state)).with_graceful_shutdown(shutdown_signal()).await {
         Ok(()) => std::process::ExitCode::SUCCESS,

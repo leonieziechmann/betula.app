@@ -14,7 +14,7 @@
 
 ```
 Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browser
- /snapshot/catalog.db        ──/api/db (gzip, ETag)───▶ browser: local SQLite (phase 2)
+ /snapshot/catalog.db        ──/api/db (brotli, ETag)─▶ browser: local SQLite (phase 2)
 ```
 
 | Crate | Role |
@@ -546,18 +546,22 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   What the browser app shows between a click and the page is the page's skeleton, one frame
   before the page is built („A click answers first" below), not a state the page waits in.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
-  request renders (5–100 ms) and later ones are a memory copy (2 ms), gzip included; the cache keeps
-  the compressed page only, and the pages of the sitemap are rendered into it after every new
+  request renders (5–100 ms) and later ones are a memory copy (2 ms), brotli included; the cache
+  keeps the compressed page only, and the pages of the sitemap are rendered into it after every new
   snapshot while the server is idle („Load“ in §3). A new snapshot starts a new generation. ETag
   per generation and build → `304` without rendering.
   Pages are `public, no-cache`: the browser asks every time and mostly hears `304` (until
   2026-09-21 they were `max-age=300, stale-while-revalidate=86400`, so after a deploy a browser
   showed the old build's page with the new build's stylesheet for up to five minutes, and once
-  more after that; the server has only the files of its own build, whatever `?v=` asks for).
+  more after that; the server has only the files of its own build, whatever `?v=` asks for). The
+  page is what names the build of its stylesheet, scripts and bundle (`?v=<build>`), which the
+  browser keeps without asking (`immutable`, „Caching and compression" in §3): the page's `304`
+  is how a new build reaches it.
   `404`/`5xx` are `no-store`. Without a snapshot everything answers `503` + `Retry-After`.
 - **The browser app (owner decision: all queries run in the browser).** `assets/boot.js` opens
-  the local copy of the snapshot (`/api/db`: 36.8 MB, 6.5 MB gzip; kept in IndexedDB with its ETag;
-  sql.js) and loads the WASM bundle (535 KB gzip) in parallel; then `client::start()` replaces the
+  the local copy of the snapshot (`/api/db`: 44 MB, 4.4 MB in brotli, 7.6 MB in gzip, 2026-09-30;
+  kept in IndexedDB with its ETag; sql.js) and loads the WASM bundle (34 MB, 1.7 MB in brotli, 2.8 MB
+  in gzip) in parallel; then `client::start()` replaces the
   server-rendered body by the app. Not hydration: the local copy may be older than the server's
   page, so the app renders fresh with the same components. From then on links, filters and the
   search are client-side navigation on the local database (measured: takeover 1.2 s on a first
@@ -926,7 +930,7 @@ modules (Jaccard; modules of more than 40 programs are ignored), a force layout 
 randomness. **The server lays it out once, when a snapshot is opened** (`Snapshot::open`,
 event `snapshot.map_built`), for a 4:3 sheet (the carousel; 2:1 until 2026-09-21) and a tall one; nothing is laid out while a page
 renders and nothing in the browser (owner decision). Server-rendered pages get it through context
-(`data::ProgramMapHandle`), the browser app as `GET /api/map.json` (about 8 KB gzip; `boot.js`
+(`data::ProgramMapHandle`), the browser app as `GET /api/map.json` (50 KB in brotli; `boot.js`
 fetches it next to the database and keeps a copy in IndexedDB; `window.betulaMap`). Without a map
 the section is left out. The links are three `<path>` elements per sheet, the dots are SVG links
 with `<title>` (so the map works without JavaScript and search engines follow the dots to the
@@ -1328,8 +1332,8 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   and `/api/*` is never intercepted. Pages come from the network first and are kept for the way
   back (sixty of them); offline, the kept page, else the shell. Assets come from the cache first.
   The server writes its build into the worker, so a new build installs a new worker, which caches
-  the new shell and drops the old one; the worker's own file is revalidated on every use like the
-  other assets. **A page and its files always come from one build** (2026-09-21): the document
+  the new shell and drops the old one; the worker's own file is revalidated on every use, whatever
+  its address. **A page and its files always come from one build** (2026-09-21): the document
   links the stylesheet and the scripts with the build of the server that wrote it
   (`/assets/app.css?v=<build>`, `app::BuildId`, the login page of closed testing too), `boot.js`
   asks for the bundle and sql.js with the same `?v=`, and the worker keeps these files under
@@ -1347,8 +1351,18 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   until the next load tries again. The font, the icons and the manifest
   keep plain addresses: they do not change with a build. The build is the version plus the
   start time of the process, so a restart is a new build and a returning visitor loads the shell
-  once more, the bundle included. Assets stay `no-cache` with the build as ETag: the server
-  answers every `?v=` with the file it has, so such an address must not be cached as immutable.
+  once more, the bundle included; to the nanosecond (2026-09-30), since two colours of the site
+  that start in the same second when the host boots must not name their different files alike.
+  **Under the address of its own build a file is `immutable`** (2026-09-30, `api::Keep`): kept a
+  year and never asked for again, since nothing the process serves there changes while it runs
+  and a new build is a new address, which only the page names (and the page is asked for every
+  time). The server answers every `?v=` with the file it has, so under any other build's address
+  (a page of the old build after a deploy, the other colour during a switch) the file is
+  `no-cache`, and so are the addresses without a build (the font, the icons, the manifest, the
+  masks of the birch) and the worker, whatever it is asked with. Until 2026-09-30 every file was
+  `no-cache`, and every page load asked for each again. After building the app again
+  (`build-client.sh`), start the server again as well: the bundle is kept under the address of
+  its build, in the worker as in the browser's cache.
   `e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
   `/api/status` unreachable offline and simply opens the copy it has, unless that copy is of an
   older schema than the build reads: then the app does not start, the page stays the one the
@@ -1692,6 +1706,28 @@ healthcheck, which must not restart a server that still serves its last snapshot
 under any `?v=<build>` as well (the page links them so, see Offline). Every answer carries the
 header `x-build` with the build of the process (version and start time, as in `/api/status`).
 
+**Caching and compression** (2026-09-30; `server/src/encoding.rs`, `api::Keep`). Everything goes
+out in brotli to a client that takes it (every browser does over HTTPS), in gzip to one that takes
+only gzip, plain to the rest; what is made once is compressed once, at brotli's best and off the
+threads that answer requests. Measured against the gzip -6 of before: the stylesheet 63 → 51 kB,
+the bundle 2.8 → 1.7 MB, the snapshot 7.6 → 4.4 MB, the start page 118 → 95 kB.
+
+| Answer | `Cache-Control` | Coding |
+|---|---|---|
+| pages | `public, no-cache`, ETag of snapshot and build → `304` | brotli 5 as rendered, kept so in the cache; gzip made anew for a client without brotli |
+| a file under `?v=<build of this process>`: stylesheet, scripts, sprite, sql.js, bundle | `public, max-age=31536000, immutable` | brotli 11, made once per process (`encoding::Kept`); the bundle at 9 (2 s instead of 31 s) |
+| every other file: without a build or of another one, the font, the icons, the manifest, the birch, `/sw.js` | `public, no-cache`, the build as ETag → `304` | brotli 11 where it is not compressed already (woff2, PNG, WebP); the wood's masks as drawn (`.svg.br`) |
+| `/api/db` | `public, no-cache`, Radix's ETag → `304` | brotli 11 (4 MiB window), made in the background after a new snapshot (a minute and a half of one processor, about 120 MB of memory for the while) and kept beside it; gzip until then |
+| `/api/map.json`, `/sitemap.xml` | `public, max-age=300, stale-while-revalidate=86400` | brotli 11, the sitemap at 9, made on first request |
+| calendar feeds | `private, max-age=900`, ETag of the content | brotli 5 as made |
+
+A `304` says how to keep what it confirms (`Cache-Control`, `Vary`), as its `200` did. After a
+start the files every page asks for are compressed in the background (`warm::files`, 8 s of one
+processor), so the first visitor does not wait for them. Traefik's `compress` passes all of it through and compresses
+what comes plain (a 404 page, the login page) in brotli too
+(`deploy/config/traefik/dynamic/middlewares.yml`: `br` before `zstd`, since it takes the first of
+the codings a browser weighs the same).
+
 ### Closed testing: the access gate (`server/src/access.rs`, 2026-09-21)
 
 For the time in which the site is tested by invited people only (owner: the legal pages come
@@ -1834,7 +1870,7 @@ queue grew to 15 s). Now:
   services come back later. Cached pages, files and `/livez` need no place.
 - **One more worker thread than processors**: with one thread for everything, renders starved the
   accept loop and connections were refused before any request could be told 503.
-- **The cache keeps pages compressed only**, drops views before the pages search engines list (the sitemap's, and the further pages of the catalog), and renders
+- **The cache keeps pages compressed only** (in brotli since 2026-09-30), drops views before the pages search engines list (the sitemap's, and the further pages of the catalog), and renders
   a page once however many ask for it at the same time (`server/src/cache.rs`). 128 MiB used to hold
   1,200 pages — not even the modules; the sitemap's 5,235 pages take 29 MiB now.
 - **Warm-up** (`server/src/warm.rs`): after every new snapshot and after a start, every page of the
@@ -1899,6 +1935,8 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | INFO | `server.listening`, `server.shutdown` | lifecycle |
 | INFO | `snapshot.sync_started`, `snapshot.restored`, `snapshot.downloaded`, `snapshot.activated`, `snapshot.sync_recovered` | snapshot lifecycle (`etag`, `bytes`, `generation`; `schema_version` when activated) |
 | INFO | `snapshot.map_built` | the map of the programs was laid out for a snapshot (`programs`, `links`, `ms`) |
+| INFO | `snapshot.compressed` | the brotli copy of the active snapshot was made; `/api/db` sends it from now on (`etag`, `bytes`, `ms`) |
+| INFO | `files.compressed` | after a start, the files every page asks for are in brotli (`files`, `ms`) |
 | WARN | `snapshot.map_failed` | it could not be; the landing page goes without the map |
 | DEBUG | `snapshot.unchanged` | Radix answered 304 |
 | INFO | `http.request` | access log: `method`, `path`, `status`, `ms`, `cache` (`hit`/`miss`/`-`); every path under `/calendar/` is written `/calendar/….ics` and every path under `/cards/studyplan/` `/cards/studyplan/….png` (a code names somebody's plan; a shared Stundenplan's page, `?share=`, is logged without its query like every page) |
@@ -1915,7 +1953,7 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | DEBUG | `card.drawn` | a link-preview card was drawn (`key`, `bytes`, `ms`) |
 | WARN | `card.busy` | every drawing place was taken, previews got the standard picture (`count`; at most one line a minute). Often: more places or a larger `--card-cache-mb` |
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
-| WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / served uncompressed |
+| WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / its gzip or brotli copy could not be made: served in gzip or uncompressed (brotli is not tried again for that snapshot) |
 | ERROR | `snapshot.rejected` | a download is not a usable catalog; the previous snapshot stays active |
 | ERROR | `snapshot.outdated` | the active snapshot is of an older schema than this build reads (`schema_version`, `needs`): pages that need the newer columns fail, browsers do not start the app on it. Served all the same; Radix has to export a new one (with `RADIX_CRAWL=off` it never does by itself) |
 | ERROR | `snapshot.stale` | no answer from Radix for longer than the limit |
@@ -1960,9 +1998,11 @@ What `cargo test` checks:
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
   real data, the URL codec, the ranking of the pickers (`fuzzy`); `SCHEMA_VERSION` is the number
   of Radix's newest migration, and the snapshot of the tests is not older.
-- `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate; 304 →
+- `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate, brotli; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
-  404 is never cached; `/api/db` with Radix's ETag, gzip and 304; `/api/status` with the
+  404 is never cached; pages and files in brotli, gzip or plain as the client takes them, files
+  `immutable` under the build's own address and `no-cache` under any other, a `304` that says how
+  to keep; `/api/db` with Radix's ETag, brotli once made, gzip and 304; `/api/status` with the
   snapshot's schema, `boot.js` with the build's; a broken export is rejected and the old snapshot
   stays; one of an older schema is served; a new one invalidates pages; restart without Radix;
   one description and one absolute canonical address per page, `noindex` on a filtered list,

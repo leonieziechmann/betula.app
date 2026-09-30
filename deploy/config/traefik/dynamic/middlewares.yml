@@ -28,12 +28,15 @@ http:
           X-Powered-By: ""
 
     # Responses that already carry Content-Encoding pass through untouched, so an application may ship
-    # pre-compressed assets and still use this.
+    # pre-compressed assets and still use this (Folia sends its pages and files in brotli already).
+    # Of the codings a client weighs the same, Traefik takes the one highest in this list: brotli
+    # first, so that what it compresses itself goes out as brotli too, not as zstd, which browsers
+    # name as well (Chrome sends "gzip, deflate, br, zstd").
     compress:
       compress:
         encodings:
-          - zstd
           - br
+          - zstd
           - gzip
         minResponseBodyBytes: 1024
         # An allow list: text-like types only. Binary downloads (the catalog snapshot is a SQLite file of
