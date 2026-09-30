@@ -2944,6 +2944,23 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .bottomnav { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: 62px; padding: 5px; border-radius: 16px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(18px); box-shadow: var(--shadow-pop); }
   .bottomnav .nav { width: auto; font-size: 11px; font-weight: 560; gap: 0; align-content: center; }
   .bottomnav .nav .ind { height: 30px; width: 52px; }
+  /* A swipe along the bar goes to the tab beside the current one (owner, 2026-09-30; enhance.js).
+     The bar keeps a finger that moves sideways (up and down it scrolls the page, two fingers zoom),
+     and no name is selected on the way. While the finger is down (data-swipe="drag") and while the
+     mark glides on or back ("glide"), the mark is the bar's own, laid over the current tab's
+     (--mark-x/-y/-w/-h) and moved by --mark-dx, and no tab shows its own: an icon turns light as
+     far as the mark covers it (--on of its tab, 0–1), a name dark as the mark comes close (--near),
+     and a count changes over with its icon once the mark covers half of it. The glide has the
+     spring of the other marks that slide (.show-mark, .sp-weekmark), the colours go with it. Once
+     the tab is the current one its own mark takes over, in one frame without its fade ("settle"). */
+  .bottomnav { touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::before { content: ""; position: absolute; left: var(--mark-x); top: var(--mark-y); width: var(--mark-w); height: var(--mark-h); border-radius: var(--r-ctl); background: var(--invert); transform: translateX(var(--mark-dx, 0px)); pointer-events: none; }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) .nav { --lit: clamp(0, (var(--on, 0) - .5) * 100, 1); color: color-mix(in srgb, var(--text) calc(var(--near, 0) * 100%), var(--text-3)); }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) .nav .ind { background: none; color: color-mix(in srgb, var(--on-invert) calc(var(--on, 0) * 100%), var(--text-3)); transition: none; }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) .nav .nav-count { background: color-mix(in srgb, var(--on-invert) calc(var(--lit) * 100%), var(--invert)); color: color-mix(in srgb, var(--invert) calc(var(--lit) * 100%), var(--on-invert)); box-shadow: 0 0 0 calc(2px - var(--lit) * 1px) color-mix(in srgb, var(--invert) calc(var(--lit) * 100%), var(--panel)); }
+  .bottomnav[data-swipe="glide"]::before { transition: transform .32s var(--spring); }
+  .bottomnav[data-swipe="glide"] .nav, .bottomnav[data-swipe="glide"] .nav .ind { transition: color .32s var(--ease); }
+  .bottomnav[data-swipe="settle"] .nav .ind { transition: none; }
   .facts { grid-template-columns: 1fr; }
   .prog-head { padding: 10px 16px 14px; }
   .block { padding: 18px 16px; }
