@@ -497,10 +497,11 @@ deploy_release() {
   if [[ -n "${live}" ]]; then
     step "Hand https://${CANARY_HOST} to ${target}"
     bash "${BETULA_VPS_DIR}/55-switch.sh" "${target}"
-    # The priority label can restart the web server after all: the CLI hands swarm the whole
-    # spec back, normalised (mounts sorted, an empty DNSConfig), and swarm takes that for a new
-    # task template (seen with Docker 29.3). Until that update is through and the new task
-    # serves, the old colour is what Traefik falls back to, so it stays until then.
+    # The priority label restarts nothing with the server's docker (29.8.1). A CLI before 29.8.0
+    # also sorts the mounts when it hands swarm the spec back (docker/cli#7227): a new task
+    # template for swarm, so the web server restarts (seen in a test swarm with 29.3.1;
+    # 55-switch.sh). Should that happen, the old colour is what Traefik falls back to until the
+    # new task serves, so it stays until then; with nothing to wait for, this takes seconds.
     wait_for_stack "${target}"
     [[ "${#FAILED_STACKS[@]}" -eq 0 ]] || die "${target} did not settle after the switch (docker service ps --no-trunc ${target}_folia); ${live} stays, and Traefik sends the host to it while ${target} has no healthy task"
     wait_until_healthy "${target}"
