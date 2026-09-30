@@ -1,7 +1,7 @@
 # The two images of the application (flake.nix: radix-image, folia-image), built for every push
 # to master that changes what they are built from - exactly as deploy/ship.sh builds them: the
 # same sources (git archive of BUILD_PATHS), the same "path:" flake, the same release tag
-# <date>-<short hash>. The result is ONE artifact, betula-images-<tag>.tar, kept for a day:
+# <date>-<short hash>. The result is ONE artifact, betula-images-<tag>.tar, kept for a week:
 #
 #   release.json          tag, commits, run, and the sha256 of both image files
 #   radix-image.tar.gz    docker archives as "nix build" leaves them, for "docker load"
@@ -10,6 +10,10 @@
 # Nothing here reaches the server, and no secret is used. The server fetches the artifact itself
 # (deploy/vps/canary-agent.sh, deploy/README.md section 12) with a token that can only read this
 # repository's workflow runs; only runs of THIS file, started by a push to master, count there.
+#
+# The repository is public: this file, its logs and its artifacts can be read by everybody, so
+# none of them may ever hold a secret (none does: the job asks for nothing but reading the code).
+# Pull requests and forks cannot start it - only a push to master does.
 #
 # Actions are pinned to the commit of a release (the comment names it). Updating one: look the
 # tag up (git ls-remote --tags https://github.com/<owner>/<action>), read the release notes,
@@ -41,12 +45,12 @@ on:
 # Nothing by default; the job asks for what it needs.
 permissions: {}
 
-# One build at a time. A push while one runs waits, and of several that wait only the newest
-# runs (GitHub replaces the pending run of a group): every build that finishes can reach canary,
-# and a busy day costs two builds at once instead of one per push. No cancel-in-progress: on a
-# day with a merge every half hour it would cancel every build before it is done.
+# One build at a time per branch. A push while one runs waits, and of several that wait only the
+# newest runs (GitHub replaces the pending run of a group): every build that finishes can reach
+# canary. No cancel-in-progress: with a merge every quarter of an hour it would cancel every build
+# before it is done.
 concurrency:
-  group: images
+  group: images-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -54,8 +58,9 @@ jobs:
     name: radix-image and folia-image
     runs-on: ubuntu-24.04
     # A build without anything cached: Go with its tests, wasm-bindgen, the web server and the
-    # browser app (fat LTO), on the two processors of a runner for a private repository.
-    timeout-minutes: 150
+    # browser app (fat LTO), on the standard runner of a public repository (4 processors, 16 GB;
+    # its minutes cost nothing).
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
@@ -122,6 +127,7 @@ jobs:
           cp -L "${RUNNER_TEMP}/result" "${out}/radix-image.tar.gz"
           cp -L "${RUNNER_TEMP}/result-1" "${out}/folia-image.tar.gz"
           ls -l "${out}"
+          df -h / | tail -n 1
 
       - name: Smoke test
         run: |
@@ -185,7 +191,7 @@ jobs:
               echo "| betula-${image}:${TAG} | $(stat -c %s "${image}-image.tar.gz") | \`$(sha "${image}-image.tar.gz")\` |"
             done
             echo
-            echo "Artifact \`betula-images-${TAG}.tar\` (kept for a day). The server fetches it by itself (deploy/README.md section 12)."
+            echo "Artifact \`betula-images-${TAG}.tar\` (kept for a week). The server fetches it by itself (deploy/README.md section 12)."
           } >>"${GITHUB_STEP_SUMMARY}"
 
       - name: Upload
@@ -195,7 +201,7 @@ jobs:
           # to unpack, and the digest GitHub keeps is the sha256 of exactly this file.
           path: ${{ runner.temp }}/betula-images-${{ steps.release.outputs.tag }}.tar
           archive: false
-          # The server picks a build up within minutes; a day keeps the account's artifact
-          # storage small (every build is about as large as the two images).
-          retention-days: 1
+          # The server picks a build up within minutes; a week covers a server that was away and
+          # a release fetched by hand. A public repository pays nothing for the storage.
+          retention-days: 7
           if-no-files-found: error
