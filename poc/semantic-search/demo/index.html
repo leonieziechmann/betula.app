@@ -27,17 +27,17 @@
   <ol id="hits"></ol>
 </main>
 <script type="module">
-import { E5, nearest, readIndex } from "./e5.js";
+import { E5, build, nearest, readIndex } from "./e5.js";
 
 const status = document.getElementById("status"), input = document.getElementById("q"), hits = document.getElementById("hits");
 const get = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); };
 const started = performance.now();
 const [wasm, model, index, names] = await Promise.all([
-  get("e5_mini.wasm"), get("e5-de-en.bin"), get("index.bin"), fetch("index.json").then((r) => r.json()),
+  get(`e5_mini.${build}.wasm`), get("e5-de-en.bin"), get("index.bin"), fetch("index.json").then((r) => r.json()),
 ]);
 const e5 = await E5.create(wasm, new Uint8Array(model));
 const docs = readIndex(index);
-status.textContent = `Bereit: ${docs.rows} Einträge, Modell ${(model.byteLength / 1e6).toFixed(1)} MB, geladen in ${Math.round(performance.now() - started)} ms.`;
+status.textContent = `Bereit (${build}): ${docs.rows} Einträge, Modell ${(model.byteLength / 1e6).toFixed(1)} MB, geladen in ${Math.round(performance.now() - started)} ms.`;
 input.disabled = false;
 input.focus();
 

@@ -140,8 +140,10 @@ pub enum Mode {
 /// A matrix ready for one of the faster modes.
 enum Unpacked {
     F32(Vec<f32>),
-    /// Codes row by row, one scale per block of `block` codes.
-    Int8 { codes: Vec<i8>, scales: Vec<f32>, block: usize },
+    /// Codes row by row, one scale per block of `block` codes. `unsigned`: the codes are the
+    /// 4-bit codes as stored, 0…15, i.e. the weight + 8 — what relaxed SIMD's i8 × i7 dot product
+    /// needs (its second operand must not have the top bit set; see `relaxed_product`).
+    Int8 { codes: Vec<i8>, scales: Vec<f32>, block: usize, unsigned: bool },
 }
 
 /// A matrix and its bias: `y = x·Wᵀ + b` for every token of `x`.
@@ -156,6 +158,10 @@ pub(crate) struct Linear {
 pub(crate) struct Scratch {
     row: Vec<f32>,
     codes: Vec<i16>,
+    #[cfg(all(target_arch = "wasm32", target_feature = "relaxed-simd"))]
+    bytes: Vec<i8>,
+    #[cfg(all(target_arch = "wasm32", target_feature = "relaxed-simd"))]
+    sums: Vec<i32>,
     scales: Vec<f32>,
     wide: Vec<i16>,
 }
@@ -197,16 +203,20 @@ impl Linear {
                 if !uniform || step <= 0.0 {
                     return Err("int8 needs weights on uniform levels (q4)".into());
                 }
+                let unsigned = cfg!(all(target_arch = "wasm32", target_feature = "relaxed-simd"))
+                    && block % 16 == 0
+                    && rows % 4 == 0;
+                let offset = if unsigned { 0 } else { 8 };
                 let packed = bytes.get(*codes..codes + rows * cols / 2).ok_or("codes")?;
                 let mut out = Vec::with_capacity(rows * cols);
                 for byte in packed {
-                    out.push((byte & 0x0f).cast_signed() - 8);
-                    out.push((byte >> 4).cast_signed() - 8);
+                    out.push((byte & 0x0f).cast_signed() - offset);
+                    out.push((byte >> 4).cast_signed() - offset);
                 }
                 let raw = bytes.get(*scales..scales + rows * cols / block * 2).ok_or("scales")?;
                 let (halves, _) = raw.as_chunks::<2>();
                 let scales = halves.iter().map(|h| f16_to_f32(u16::from_le_bytes(*h)) * step).collect();
-                Ok(Unpacked::Int8 { codes: out, scales, block: *block })
+                Ok(Unpacked::Int8 { codes: out, scales, block: *block, unsigned })
             }
             Tensor::Q8 { block, scales, codes, .. } => {
                 let raw = bytes.get(*codes..codes + rows * cols).ok_or("codes")?;
@@ -214,7 +224,7 @@ impl Linear {
                 let raw = bytes.get(*scales..scales + rows * cols / block * 2).ok_or("scales")?;
                 let (halves, _) = raw.as_chunks::<2>();
                 let scales = halves.iter().map(|h| f16_to_f32(u16::from_le_bytes(*h))).collect();
-                Ok(Unpacked::Int8 { codes: out, scales, block: *block })
+                Ok(Unpacked::Int8 { codes: out, scales, block: *block, unsigned: false })
             }
             _ => Err("int8 needs quantised weights".into()),
         }
@@ -246,7 +256,18 @@ impl Linear {
                     }
                 }
             }
-            Some(Unpacked::Int8 { codes, scales, block }) => {
+            Some(Unpacked::Int8 { codes, scales, block, unsigned }) => {
+                #[cfg(all(target_arch = "wasm32", target_feature = "relaxed-simd"))]
+                if *unsigned {
+                    quantise(x, *block, &mut scratch.bytes, &mut scratch.scales);
+                    // 8 · Σ x of each block of each token, the part of Σ x·(w + 8) that is not Σ x·w;
+                    // a quarter of it off each of the four lanes.
+                    scratch.sums.clear();
+                    scratch.sums.extend(scratch.bytes.chunks_exact(*block).map(|b| 2 * b.iter().map(|v| i32::from(*v)).sum::<i32>()));
+                    relaxed_product(&scratch.bytes, &scratch.scales, &scratch.sums, codes, scales, &self.bias, *block, cols, y);
+                    return;
+                }
+                let _ = unsigned;
                 quantise(x, *block, &mut scratch.codes, &mut scratch.scales);
                 int8_product(&scratch.codes, &scratch.scales, codes, scales, &self.bias, *block, cols, y, &mut scratch.wide);
             }
@@ -360,16 +381,96 @@ fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) 
     out
 }
 
-/// Every block of `block` values of `x` as int8 codes (kept in i16, ready to be multiplied) and
-/// a scale (its largest magnitude / 127).
-fn quantise(x: &[f32], block: usize, codes: &mut Vec<i16>, scales: &mut Vec<f32>) {
+/// `int8_product` with relaxed SIMD's `i32x4.relaxed_dot_i8x16_i7x16_add`: sixteen i8 × i7
+/// products added into four i32 lanes by one instruction, the weights as they are (no i16).
+/// The i7 operand is deterministic only without its top bit — V8 lowers the instruction to x86's
+/// `pmaddubsw`, which reads it unsigned — so the weights are the unsigned codes w + 8 and
+/// 8 · Σ x per block (`sums`, doubled per lane) is taken off again. Chrome 114+, Firefox 120+;
+/// not in Safari, which gets the simd128 build (`demo/e5.js` picks).
+#[cfg(all(target_arch = "wasm32", target_feature = "relaxed-simd"))]
+#[allow(clippy::too_many_arguments)]
+fn relaxed_product(xq: &[i8], xs: &[f32], sums: &[i32], w: &[i8], ws: &[f32], bias: &[f32], block: usize, cols: usize, y: &mut [f32]) {
+    let rows = bias.len();
+    let per_row = cols / block;
+    let tokens = xq.len() / cols;
+    for ((group, w4), ws4) in w.chunks_exact(4 * cols).enumerate().zip(ws.chunks_exact(4 * per_row)) {
+        let first = group * 4;
+        let mut t = 0;
+        while t < tokens {
+            let pair = (t + 1 < tokens) as usize + 1;
+            let x0 = xq.get(t * cols..(t + 1) * cols).unwrap_or_default();
+            let x1 = xq.get((t + pair - 1) * cols..(t + pair) * cols).unwrap_or_default();
+            let s0 = xs.get(t * per_row..(t + 1) * per_row).unwrap_or_default();
+            let s1 = xs.get((t + pair - 1) * per_row..(t + pair) * per_row).unwrap_or_default();
+            let c0 = sums.get(t * per_row..(t + 1) * per_row).unwrap_or_default();
+            let c1 = sums.get((t + pair - 1) * per_row..(t + pair) * per_row).unwrap_or_default();
+            let results = tile_relaxed([x0, x1], [s0, s1], [c0, c1], w4, ws4, cols, block);
+            for (r, row_sums) in results.iter().enumerate() {
+                let b = bias.get(first + r).copied().unwrap_or_default();
+                for (u, sum) in row_sums.iter().enumerate().take(pair) {
+                    if let Some(v) = y.get_mut((t + u) * rows + first + r) {
+                        *v = sum + b;
+                    }
+                }
+            }
+            t += pair;
+        }
+    }
+}
+
+/// Four rows (`w`, one after the other) × two tokens, per block of `block` values.
+#[cfg(all(target_arch = "wasm32", target_feature = "relaxed-simd"))]
+#[allow(clippy::indexing_slicing, clippy::needless_range_loop)] // every index is below the lengths checked on entry
+fn tile_relaxed(x: [&[i8]; 2], xs: [&[f32]; 2], sums: [&[i32]; 2], w: &[i8], ws: &[f32], cols: usize, block: usize) -> [[f32; 2]; 4] {
+    use core::arch::wasm32::*;
+    let mut out = [[0.0f32; 2]; 4];
+    let blocks = cols / block;
+    if x.iter().any(|t| t.len() < cols) || xs.iter().any(|s| s.len() < blocks) || sums.iter().any(|s| s.len() < blocks) || w.len() < 4 * cols || ws.len() < 4 * blocks {
+        return out;
+    }
+    // SAFETY: every load reads 16 bytes at an offset + 16 ≤ the length checked above.
+    let load = |s: &[i8], at: usize| unsafe { v128_load(s.as_ptr().add(at).cast()) };
+    let mut acc = [[f32x4_splat(0.0); 2]; 4];
+    for b in 0..blocks {
+        let mut dot = [[i32x4_splat(0); 2]; 4];
+        let mut at = b * block;
+        while at < (b + 1) * block {
+            let (a0, a1) = (load(x[0], at), load(x[1], at));
+            for r in 0..4 {
+                let wv = load(w, r * cols + at);
+                dot[r][0] = i32x4_relaxed_dot_i8x16_i7x16_add(a0, wv, dot[r][0]);
+                dot[r][1] = i32x4_relaxed_dot_i8x16_i7x16_add(a1, wv, dot[r][1]);
+            }
+            at += 16;
+        }
+        let offsets = [i32x4_splat(sums[0][b]), i32x4_splat(sums[1][b])];
+        for r in 0..4 {
+            let wd = ws[r * blocks + b];
+            for u in 0..2 {
+                let exact = i32x4_sub(dot[r][u], offsets[u]);
+                acc[r][u] = f32x4_add(acc[r][u], f32x4_mul(f32x4_convert_i32x4(exact), f32x4_splat(xs[u][b] * wd)));
+            }
+        }
+    }
+    for r in 0..4 {
+        for u in 0..2 {
+            let a = acc[r][u];
+            out[r][u] = f32x4_extract_lane::<0>(a) + f32x4_extract_lane::<1>(a) + f32x4_extract_lane::<2>(a) + f32x4_extract_lane::<3>(a);
+        }
+    }
+    out
+}
+
+/// Every block of `block` values of `x` as int8 codes (as i8, or kept in i16 ready to be
+/// multiplied) and a scale (its largest magnitude / 127).
+fn quantise<T: From<i8>>(x: &[f32], block: usize, codes: &mut Vec<T>, scales: &mut Vec<f32>) {
     codes.clear();
     scales.clear();
     for b in x.chunks_exact(block) {
         let max = b.iter().fold(0.0f32, |m, v| m.max(v.abs()));
         let scale = max / 127.0;
         let inverse = if scale > 0.0 { 1.0 / scale } else { 0.0 };
-        codes.extend(b.iter().map(|v| (v * inverse).round() as i16));
+        codes.extend(b.iter().map(|v| T::from((v * inverse).round() as i8)));
         scales.push(scale);
     }
 }
@@ -421,19 +522,17 @@ pub(crate) fn gelu(x: f32) -> f32 {
     0.5 * x * (1.0 + erf(x / std::f32::consts::SQRT_2))
 }
 
-/// erf through the complementary error function of Numerical Recipes (`erfcc`, relative error
-/// below 1.2e-7 everywhere).
+/// erf as a rational function of x² on [-4, 4] (Eigen's and XLA's float erf; beyond ±4 it is
+/// ±1 to float precision): only multiplications, additions and one division, which SIMD does —
+/// `exp` would be a library call in WebAssembly, for every value of the feed-forward part.
 fn erf(x: f32) -> f32 {
-    let z = f64::from(x).abs();
-    let t = 1.0 / (1.0 + 0.5 * z);
-    let poly = -z * z - 1.265_512_23
-        + t * (1.000_023_68
-            + t * (0.374_091_96
-                + t * (0.096_784_18
-                    + t * (-0.186_288_06
-                        + t * (0.278_868_07 + t * (-1.135_203_98 + t * (1.488_515_87 + t * (-0.822_152_23 + t * 0.170_872_77))))))));
-    let erfc = t * poly.exp();
-    (if x >= 0.0 { 1.0 - erfc } else { erfc - 1.0 }) as f32
+    const ALPHA: [f32; 7] = [-2.726_142_3e-10, 2.770_681_4e-8, -2.101_024e-6, -5.692_506_6e-5, -7.349_906_3e-4, -2.954_600_1e-3, -1.609_603_3e-2];
+    const BETA: [f32; 5] = [-1.456_607_2e-5, -2.133_740_6e-4, -1.682_827e-3, -7.373_329_2e-3, -1.426_474e-2];
+    let x = x.clamp(-4.0, 4.0);
+    let x2 = x * x;
+    let p = ALPHA.iter().fold(0.0f32, |p, a| p * x2 + a) * x;
+    let q = BETA.iter().fold(0.0f32, |q, b| q * x2 + b);
+    p / q
 }
 
 pub(crate) fn softmax(x: &mut [f32]) {
@@ -454,8 +553,8 @@ mod tests {
 
     #[test]
     fn erf_matches_known_values() {
-        for (x, want) in [(0.0f32, 0.0f32), (0.5, 0.520_499_9), (1.0, 0.842_700_8), (-1.5, -0.966_105_16), (3.0, 0.999_977_9)] {
-            assert!((erf(x) - want).abs() < 2e-7, "erf({x}) = {} ≠ {want}", erf(x));
+        for (x, want) in [(0.0f32, 0.0f32), (0.5, 0.520_499_9), (1.0, 0.842_700_8), (-1.5, -0.966_105_16), (3.0, 0.999_977_9), (5.0, 1.0), (-0.1, -0.112_462_92)] {
+            assert!((erf(x) - want).abs() < 3e-7, "erf({x}) = {} ≠ {want}", erf(x));
         }
     }
 

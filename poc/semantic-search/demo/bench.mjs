@@ -11,6 +11,7 @@ const [wasmPath, modelPath, ...rest] = process.argv.slice(2);
 const option = (name) => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined);
 const checkPath = option("--check");
 const mode = option("--mode") ?? "int8";
+const RUNS = Number(option("--runs") ?? 20);
 const queries = [
   "query: Statik",
   "query: maschinelles lernen",
@@ -31,13 +32,13 @@ for (const q of queries) {
   e5.embed(q); // warm-up
   const times = [];
   let tokens = 0;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < RUNS; i++) {
     const t = performance.now();
     tokens = e5.embed(q).tokens;
     times.push(performance.now() - t);
   }
   times.sort((a, b) => a - b);
-  console.log(`${times[10].toFixed(1).padStart(6)} ms (min ${times[0].toFixed(1).padStart(5)})  ${String(tokens).padStart(3)} tokens  ${q}`);
+  console.log(`${times[Math.floor(RUNS / 2)].toFixed(1).padStart(6)} ms (min ${times[0].toFixed(1).padStart(5)})  ${String(tokens).padStart(3)} tokens  ${q}`);
 }
 
 if (checkPath) {

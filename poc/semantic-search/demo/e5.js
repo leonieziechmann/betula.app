@@ -1,6 +1,20 @@
 // The WASM model for JavaScript (browser and Node): load the packed model once, then embed
 // queries. `runtime/src/wasm.rs` has the exports this wraps.
 
+// A module with one relaxed-SIMD instruction (i32x4.relaxed_dot_i8x16_i7x16_add_s): valid where
+// the engine has relaxed SIMD (Chrome 114+, Firefox 120+), not in Safari.
+const RELAXED_PROBE = new Uint8Array([
+  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, // \0asm, version 1
+  0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7b, // type: () -> v128
+  0x03, 0x02, 0x01, 0x00, // one function of that type
+  0x0a, 0x3d, 0x01, 0x3b, 0x00, // code: one body of 59 bytes, no locals
+  ...[0, 1, 2].flatMap(() => [0xfd, 0x0c, ...new Array(16).fill(0)]), // v128.const 0, three times
+  0xfd, 0x93, 0x02, 0x0b, // i32x4.relaxed_dot_i8x16_i7x16_add_s, end
+]);
+
+/** Which build of the runtime this engine runs: "relaxed" (relaxed SIMD) or "simd" (SIMD). */
+export const build = WebAssembly.validate(RELAXED_PROBE) ? "relaxed" : "simd";
+
 export class E5 {
   /** @param {BufferSource} wasm the module's bytes, @param {Uint8Array} model the packed model,
    * @param {"expand"|"f32"|"int8"} mode how the matrices are kept (runtime/src/tensor.rs `Mode`):
