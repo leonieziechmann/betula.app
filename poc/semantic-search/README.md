@@ -4,8 +4,8 @@ Not part of the app. The question: can a browser (a phone included) embed a sear
 `intfloat/multilingual-e5-small` itself, so that modules are found by meaning („coding lernen“ →
 „Einführung in die Programmierung“), with everything it has to download under 20 MB?
 
-**Yes: 18.1 MB (16.0 MB in brotli) + a 77 kB WASM runtime, 30–80 ms a query on a laptop,
-150–470 ms with the CPU slowed down 4–6× (phones), at about the quality of the original model.**
+**Yes: 18.5 MB (16.4 MB in brotli) + a 90 kB WASM runtime, 14–55 ms a query on a laptop, at
+about the quality of the original model — measured on the real module catalog as well.**
 
 ## How
 
@@ -22,6 +22,9 @@ row for each of XLM-R's 250,002 pieces, for 100 languages.
    with a missing piece is cut into other, smaller pieces — still a meaningful input, just not
    the one the model saw in training. 32k pieces cost 1.4 MB more and gain at most half a point;
    ranking rare words higher (`--alpha 0.5`, 28k pieces for the same 99 %) gains nothing.
+   **Plus every piece the catalog's texts need** (`--text`, from `embed_catalog.py
+   --export-text`): 27,625 pieces, 0.4 MB more, and every word that stands in a module is cut
+   exactly as the original model cuts it.
 2. **4 bits per weight** (`python/common.py`, `python/gptq.py`): blocks of 32 weights share
    an fp16 scale (4.5 bits a weight). Rounding to the nearest level costs up to 2 points;
    **GPTQ** — quantising the input dimensions one after the other and moving each one's error
@@ -32,76 +35,100 @@ row for each of XLM-R's 250,002 pieces, for 100 languages.
    normaliser's character table, 128 positions, the weights.
 4. **A runtime in Rust** (`runtime/`, no dependencies, the clippy rules of the app's crates):
    the tokenizer (Viterbi over the pieces, as Hugging Face's `tokenizers` does it) and the BERT
-   encoder, expanding each 4-bit row when it is used. Native and `wasm32` with `simd128`;
-   `demo/e5.js` is the JavaScript side (no wasm-bindgen).
+   encoder. Native and `wasm32`, in two builds: `simd128`, and `simd128` + `relaxed-simd`
+   (Chrome, Edge, Firefox; `demo/e5.js` picks one by feature detection, Safari gets the first).
+   `demo/e5.js` is the JavaScript side (no wasm-bindgen). Three ways to keep the matrices
+   (`Mode`, `runtime/src/tensor.rs`):
+   - **expand**: the 4-bit rows as stored, each expanded to f32 when it is used (21.5 MiB);
+   - **f32**: expanded once at load (102 MiB) — hardly faster, WASM SIMD has no FMA and the
+     multiply-adds, not the expanding, are the work;
+   - **int8** (the default): expanded once to one byte a weight (43 MiB); each token's input
+     is quantised to int8 per block of 32, the products are integer dot products (as
+     llama.cpp does it), 4 weight rows × 2 tokens at a time so that each load is used 8 times.
+     With relaxed SIMD one instruction does 16 multiply-adds (`i32x4.relaxed_dot_i8x16_i7x16_add`);
+     its second operand must not have the top bit set (x86 reads it unsigned), so the weights
+     are kept as 0…15 and 8 × the block's input sum is subtracted afterwards.
+   The GELU uses a rational approximation of erf (Eigen's, no `exp`).
 
 | Part | Bytes |
 |---|---|
 | 12 layers (72 matrices, 21.2 M weights, GPTQ 4 bit) | 11.95 MB |
-| word embeddings (25,748 × 384, 4 bit) | 5.56 MB |
-| tokenizer (pieces, scores, character table) | 0.32 MB |
+| word embeddings (27,625 × 384, 4 bit) | 5.97 MB |
+| tokenizer (pieces, scores, character table) | 0.33 MB |
 | biases, LayerNorms (fp32), 128 positions (8 bit) | 0.30 MB |
-| **model file** | **18.12 MB** (brotli 16.04 MB) |
-| runtime `e5_mini.wasm` | 77 kB (brotli 25 kB) |
-| index of the catalog (int8, 384 B a module) | ≈ 1.9 MB for 5,000 modules |
+| **model file** | **18.55 MB** (brotli 16.42 MB) |
+| runtime `e5_mini.wasm` | 88 kB (simd) / 91 kB (relaxed) |
+| index of the catalog (int8, 384 B a module) | 1.9 MB for 4,938 modules |
 
 The documents are embedded once with the original model (`python/embed_catalog.py`: the server
 or a build step would do that); the browser embeds only the query.
 
 ## Quality
 
-Public benchmarks (the documents with the original model, the queries with each variant; MRR@10,
-SciFact nDCG@10 as in MTEB). XQuAD is the same 240 paragraphs and 1,190 questions in both
-languages, so it also measures German questions for English text and the other way round.
+Public benchmarks and the real catalog (the documents with the original model, the queries with
+each variant; MRR@10, SciFact nDCG@10 as in MTEB). XQuAD is the same 240 paragraphs and 1,190
+questions in both languages, so it also measures German questions for English text and the
+other way round. **Betula** is the catalog of https://betula.app/api/db: 1,000 modules each,
+queried by their German or English title, the corpus their contents and learning outcomes
+(titles left out; descriptions of at least 200 characters) — hard, since a title often says
+little, but the same for every variant.
 
-| Queries embedded by | XQuAD de | XQuAD en | en→de | de→en | GermanDPR | SciFact |
-|---|---|---|---|---|---|---|
-| original (250k pieces, fp32, 470 MB) | 94.9 | 96.7 | 90.6 | 90.1 | 73.3 | 68.1 |
-| 25.7k pieces, fp32 | 94.4 | 96.6 | 90.3 | 89.7 | 72.3 | 66.6 |
-| 32k pieces, fp32 | 94.5 | 96.6 | 90.4 | 90.0 | 72.8 | 67.1 |
-| 25.7k pieces, 8 bit | 94.4 | 96.6 | 90.2 | 89.8 | 72.3 | 66.6 |
-| 25.7k pieces, 4 bit, rounded | 93.5 | 96.0 | 89.7 | 89.3 | 71.6 | 64.7 |
-| **25.7k pieces, 4 bit, GPTQ (the file)** | **94.1** | **96.7** | **90.5** | **89.6** | **72.5** | **66.4** |
-| 25.7k pieces, 4 bit GPTQ, blocks of 64 (−0.7 MB) | 93.7 | 96.6 | 90.3 | 89.4 | 72.6 | 66.2 |
+| Queries embedded by | XQuAD de | XQuAD en | en→de | de→en | GermanDPR | SciFact | Betula de | Betula en |
+|---|---|---|---|---|---|---|---|---|
+| original (250k pieces, fp32, 470 MB) | 94.9 | 96.7 | 90.6 | 90.1 | 73.3 | 68.1 | 37.1 | 19.3 |
+| 25.7k pieces, fp32 | 94.4 | 96.6 | 90.3 | 89.7 | 72.3 | 66.6 | | |
+| 32k pieces, fp32 | 94.5 | 96.6 | 90.4 | 90.0 | 72.8 | 67.1 | | |
+| 25.7k pieces, 8 bit | 94.4 | 96.6 | 90.2 | 89.8 | 72.3 | 66.6 | | |
+| 25.7k pieces, 4 bit, rounded | 93.5 | 96.0 | 89.7 | 89.3 | 71.6 | 64.7 | | |
+| 25.7k pieces, 4 bit, GPTQ | 94.1 | 96.7 | 90.5 | 89.6 | 72.5 | 66.4 | | |
+| 25.7k pieces, 4 bit GPTQ, blocks of 64 (−0.7 MB) | 93.7 | 96.6 | 90.3 | 89.4 | 72.6 | 66.2 | | |
+| 27.6k (+ catalog) pieces, 4 bit GPTQ, Rust expand | 94.3 | 96.5 | 90.5 | 89.6 | 72.2 | 67.2 | 36.9 | 18.1 |
+| **27.6k (+ catalog) pieces, 4 bit GPTQ, Rust int8 (the demo)** | **94.2** | **96.5** | **90.4** | **89.5** | **72.3** | **67.1** | **36.9** | **18.0** |
 
-What is left of the loss is the trimming, and it falls on rare words: SciFact's claims are full
-of scientific terms (−1.7). For Betula that is the one part to fix: `build_vocab.py --text`
-keeps every piece the catalog's own texts need (`embed_catalog.py --export-text`), so a word
-that stands in a module is always cut as the original model cuts it. **Not measured: the real
-catalog** — reading the snapshot was not permitted in the session that built this, so the
-evaluation is public data, and the demo runs on 30 made-up modules (`python/sample_catalog.py`).
-On those, 8 of 10 test queries rank the intended module first:
+The Rust rows are the WASM runtime's arithmetic run natively (`evaluate.py --variants
+rust:expand rust:int8`); int8 activations cost nothing measurable (cosine to expand ≥ 0.9999).
+What is left of the loss is the 4 bits and the trimming, which falls on rare words: SciFact's
+claims are full of scientific terms. With the catalog's pieces kept, the Betula queries are
+tokenised exactly as by the original; what they lose (−0.2 German, −1.3 English) is the 4 bits.
 
-| Query | First hit |
+Not measured: whether it finds what students search for better than the existing text search.
+Short abbreviations and exact titles or numbers stay the job of `catalog::search` /
+`catalog::fuzzy`; the semantic one is for what a word match cannot find. Some queries on the
+real catalog (first hits):
+
+| Query | First hits |
 |---|---|
-| coding lernen | Einführung in die Programmierung |
-| wie berechne ich ob eine brücke hält | Stahlbetonbau (Technische Mechanik – Statik third) |
-| solar power | Photovoltaik und Solarthermie |
-| Hackerangriffe verhindern | IT-Sicherheit |
-| wie schreibe ich meine bachelorarbeit | Wissenschaftliches Schreiben |
-| KI | *nothing sensible*: an abbreviation of two letters carries too little |
-
-Short abbreviations and exact titles or numbers stay the job of the existing text search
-(`catalog::search`, `catalog::fuzzy`); the semantic one is for what a word match cannot find.
+| wie baue ich eine brücke | Brückenbau |
+| renewable energy | Renewable Resources Management, Erneuerbare Energien |
+| Datenbanken | Datenbanken |
+| coding lernen | Grundlagen und Verfahren zur Datencodierung, Einführung in die Programmierung |
 
 ## Speed
 
-The same file and WASM; the median of several runs; tokens including „query:“, `<s>`, `</s>`.
+The same file; median of 20 runs in Node 22 (V8, as Chrome), one core of a laptop CPU; tokens
+including „query:“, `<s>`, `</s>`.
 
-| | 7 tokens | 9 | 15 | 20 |
-|---|---|---|---|---|
-| Chromium, laptop CPU (4 cores, one used) | 32 ms | 37 ms | 53 ms | 76 ms |
-| Chromium, CPU 4× slower | 144 ms | 180 ms | 245 ms | 313 ms |
-| Chromium, CPU 6× slower | 197 ms | 233 ms | 335 ms | 466 ms |
+| Mode | 7 tokens | 9 | 13 | 23 | 25 | memory |
+|---|---|---|---|---|---|---|
+| expand | 29 ms | 34 ms | 43 ms | 68 ms | 73 ms | 21.5 MiB |
+| f32 | 22 ms | | 42 ms | 70 ms | | 102 MiB |
+| int8, SIMD (Safari) | 14 ms | 23 ms | 31 ms | 54 ms | 59 ms | 43 MiB |
+| **int8, relaxed SIMD** | **13.5 ms** | **20 ms** | **27 ms** | **39 ms** | **53 ms** | 43 MiB |
 
-Loading (fetching the file from a local server, instantiating, parsing): 0.2 s, 0.5 s and 0.7 s; the WASM memory is 21.5 MiB
-(the file plus room for one query). Searching 5,000 int8 rows takes a few milliseconds in
-plain JavaScript. The Rust output equals the Python model's: identical token ids for 617 test
-texts (umlauts, ligatures, control characters, emoji, CJK, extra white space …), cosine
-≥ 0.9999998 (`python/parity.py`, `demo/bench.mjs --check`).
+Measured earlier for expand in Chromium with the CPU slowed down 4× / 6× (a stand-in for
+phones): 144–313 ms / 197–466 ms, i.e. about 4.5–6× the laptop's time; int8 should scale the
+same way. Comparing a query with the 4,938 modules takes 4–10 ms in plain JavaScript. The Rust
+output equals the Python model's: identical token ids for 617 test texts (umlauts, ligatures,
+control characters, emoji, CJK, extra white space …), cosine ≥ 0.9999998 in expand mode
+(`python/parity.py`, `demo/bench.mjs --check`); WASM equals native.
 
-Room left if it has to be faster: the weights expanded to f32 once (85 MB of memory, no
-expanding per query), int8 activations with integer SIMD, a Web Worker so typing never waits.
+Room left: a Web Worker so typing never waits; a phone-sized benchmark on real devices.
+
+## Demo
+
+`demo/index.html` searches as you type. The same page with the real catalog was published as a
+claude.ai artifact (model and index as base64 text there, 27 MB to download, since that host
+serves no binary files).
 
 ## Run it
 
@@ -110,23 +137,34 @@ python -m venv .venv && . .venv/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r python/requirements.txt
 cd python
-python build_vocab.py --coverage 0.99 --out ../model/vocab.json            # ~1 min
-#   for Betula: python embed_catalog.py catalog.db --export-text ../model/catalog.txt
-#               and add --text ../model/catalog.txt
+curl -o ../model/catalog.db https://betula.app/api/db
+python embed_catalog.py ../model/catalog.db --export-text ../model/catalog.txt
+python build_vocab.py --coverage 0.99 --text ../model/catalog.txt --out ../model/vocab.json   # ~1 min
 python pack.py --vocab ../model/vocab.json --weights gptq-q4 --embeddings q4 --out ../model/e5-de-en.bin   # ~3 min
-python sample_catalog.py ../model/sample.db && python embed_catalog.py ../model/sample.db --out ../model   # or a real catalog.db
-python evaluate.py --vocab ../model/vocab.json --variants gptq-q4/q4       # ~20 min the first time
+python embed_catalog.py ../model/catalog.db --out ../model                  # index.bin, index.json
+#   no catalog at hand: python sample_catalog.py ../model/sample.db (30 made-up modules)
 
 cd ../runtime
 cargo test --release && cargo build --release                               # native: target/release/embed
-RUSTFLAGS="-C target-feature=+simd128" cargo build --release --lib --target wasm32-unknown-unknown
-cd ../python && python parity.py ../model/e5-de-en.bin
+CARGO_TARGET_DIR=target/simd RUSTFLAGS="-C target-feature=+simd128" \
+  cargo build --release --lib --target wasm32-unknown-unknown
+CARGO_TARGET_DIR=target/relaxed RUSTFLAGS="-C target-feature=+simd128,+relaxed-simd" \
+  cargo build --release --lib --target wasm32-unknown-unknown
+cd ../python
+python parity.py ../model/e5-de-en.bin
+python evaluate.py --vocab ../model/vocab.json --catalog ../model/catalog.db \
+  --packed ../model/e5-de-en.bin --embed ../runtime/target/release/embed \
+  --variants gptq-q4/q4 rust:int8                                           # ~20 min the first time
 
-cd .. && cp demo/index.html demo/e5.js runtime/target/wasm32-unknown-unknown/release/e5_mini.wasm model/
+cd ..
+cp demo/index.html demo/e5.js model/
+cp runtime/target/simd/wasm32-unknown-unknown/release/e5_mini.wasm model/e5_mini.simd.wasm
+cp runtime/target/relaxed/wasm32-unknown-unknown/release/e5_mini.wasm model/e5_mini.relaxed.wasm
+node demo/bench.mjs model/e5_mini.relaxed.wasm model/e5-de-en.bin --mode int8
 cd model && python -m http.server 8765                                     # http://127.0.0.1:8765
 ```
 
-`model/` holds what is built and stays out of git (18 MB of weights).
+`model/` holds what is built and stays out of git (18 MB of weights, the catalog).
 
 ## Files
 
