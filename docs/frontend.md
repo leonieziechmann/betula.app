@@ -1255,19 +1255,20 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   of the unfiltered catalog (`/catalog?page=<n>`; `page` comes after every filter, so
   `/catalog?turnus=winter&page=2` is a view) and the plan of a further study direction
   (`…/plan?variant=<n>`); not the Merkliste, the Stundenplan or „Mein Plan“, which are the
-  visitor's. Every link of the server's HTML to anything else carries `rel="nofollow"`: the
-  toggles and the orders of the lists, the tags that take a filter away, the pager of a filtered
-  list, the catalog narrowed down to a program or an area, the examples on the start page, the
-  Merkliste and the Stundenplan in the navigation, the language switch on a view
-  (`seo::nofollow` where the target decides). The pager of the unfiltered catalog and the plans
-  of the study directions are followed. `nofollow` is a hint, and a crawler keeps asking for the
-  addresses it already knows, so **robots.txt** closes the views of the lists as well, as Google
-  advises for filters: `Disallow: /catalog?`, `/programs?` and `/bookmarks?` in every language,
-  with `Allow: /catalog?page=` (the longer rule wins) and `Disallow: /catalog?page=*&` again for a
-  page with a filter or a preview behind it. The Stundenplan's query stays open (a shared plan,
-  `?share=`, is a page for link previews), and so do calendar feeds, cards and the sitemap. The
-  link previews of X, LinkedIn and Facebook read robots.txt too and fetch only what is shared, so
-  their group disallows `/api/` alone: a filtered list shared there keeps its card.
+  visitor's. Every link of the server's HTML to anything else carries `rel="nofollow"`: the toggles
+  and the orders of the lists, the tags that take a filter away, the pager of a filtered list, the
+  catalog narrowed down to a program or an area, the examples on the start page, the Merkliste and
+  the Stundenplan in the navigation, the language switch on a view, a program's other examination
+  regulations from its „Mein Plan“ (they keep the view, and lead to theirs; from the plan they are
+  followed) (`seo::nofollow` where the target decides). The pager of the unfiltered catalog and the
+  plans of the study directions are followed. `nofollow` is a hint, and a crawler keeps asking for
+  the addresses it already knows, so **robots.txt** closes the views of the lists as well, as
+  Google advises for filters: `Disallow: /catalog?`, `/programs?` and `/bookmarks?` in every
+  language, with `Allow: /catalog?page=` (the longer rule wins) and `Disallow: /catalog?page=*&`
+  again for a page with a filter or a preview behind it. The Stundenplan's query stays open (a
+  shared plan, `?share=`, is a page for link previews), and so do calendar feeds, cards and the
+  sitemap. The link previews of X, LinkedIn and Facebook read robots.txt too and fetch only what is
+  shared, so their group disallows `/api/` alone: a filtered list shared there keeps its card.
   `crawlers_are_led_to_pages_and_kept_out_of_views` (server) reads robots.txt as Google does and
   fails on any link of the site's pages that a crawler may follow to a view.
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU

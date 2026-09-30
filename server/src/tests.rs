@@ -1075,7 +1075,17 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
 
     // A program with the plans of two study directions: its second plan is a page of its own.
     let slug = listed.iter().find_map(|page| page.strip_prefix("/programs/")?.strip_suffix("/plan?variant=2")).unwrap().to_string();
-    let pages = [
+    // A program whose sidebar names its other examination regulations: from „Mein Plan“ each leads
+    // to the other one's „Mein Plan“ (ae431c9). The program above need not have any (with the
+    // snapshot of 2026-09-30 it has, which is how the links were found); where the snapshot has such
+    // a program, it is checked as well (then Bauingenieurwesen B.Sc. 2022 and 2017). The synthetic
+    // snapshot has none.
+    let versioned = {
+        let db = NativeDatabase::open(&snapshot_file()).unwrap();
+        let programs = catalog::queries::programs(&db).unwrap();
+        programs.into_iter().filter(|p| p.is_latest_po).find(|p| !catalog::queries::program_versions(&db, &p.id).unwrap().is_empty()).map(|p| p.slug)
+    };
+    let mut pages = vec![
         "/".to_string(),
         "/catalog".to_string(),
         "/catalog?page=2".to_string(),
@@ -1095,6 +1105,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
         catalog::url::IMPRINT.to_string(),
         catalog::url::PRIVACY.to_string(),
     ];
+    pages.extend(versioned.iter().flat_map(|versioned| [format!("/programs/{versioned}/plan"), format!("/programs/{versioned}/my-plan")]));
     // Every page is checked before the test fails, so that it lists all there is.
     let mut problems = Vec::new();
     let mut followed = std::collections::BTreeSet::new();
