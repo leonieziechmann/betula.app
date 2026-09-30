@@ -286,6 +286,16 @@ func TestFacetsNeedNoLike(t *testing.T) {
 		"11881|Fakultät 1 - MINT - Mathematik, Informatik|1|Prof. Dr. rer. nat. Köhler, Ekkehard|1")
 	want(t, db, `SELECT term, kind FROM v_module_search WHERE module_id = '11881' ORDER BY kind`,
 		"11881|id", "Grundlagen des Data Mining|title_de", "Foundations of Data Mining|title_en")
+	// The search compares folded names (docs/schema-v2.md, „Search“): „übung“ finds „Übung“.
+	// „Bachelor-Arbeit“ is found written either way; a module known from a list alone has only
+	// its abbreviation.
+	want(t, db, `SELECT module_id, title_de, title_en, initials, abbrevs FROM v_module_folded ORDER BY module_id`,
+		"11101|lineare algebra|lineare algebra en|la lae|lal",
+		"11152|erp|erp en|ee|erp",
+		"11881|grundlagen des data mining|foundations of data mining|gddm fdm|fdm",
+		"12999|bachelor arbeit bachelorarbeit|bachelor arbeit en bachelorarbeit|ba bae|ba",
+		"13000|∅|∅|∅|vem",
+		"14037|∅|∅|∅|nfl")
 	want(t, db, `SELECT form, sws, hours FROM v_module_teaching_form WHERE module_id = '11101' ORDER BY ord`,
 		"lecture|4|∅", "exercise|2|∅", "self_study|∅|150")
 	want(t, db, `SELECT module_id, name, role FROM v_module_lecturer WHERE module_id = '11881' ORDER BY role`,
@@ -433,10 +443,13 @@ func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 		t.Errorf("successor cycle check = %+v", c)
 	}
 
-	// Regressions: a placeholder string, a stale materialized table, a missed baseline.
+	// Regressions: a placeholder string, a stale materialized table, a missed baseline, a module
+	// the search does not know and a title that was not folded.
 	for _, stmt := range []string{
 		"UPDATE module SET remarks = '' WHERE id = '11101'",
 		"DELETE FROM program_module WHERE module_id = '11152'",
+		"DELETE FROM module_folded WHERE module_id = '12999'",
+		"UPDATE module_folded SET title_de = 'Grundlagen des Data Mining' WHERE module_id = '11881'",
 	} {
 		if _, err := db.SQL().Exec(stmt); err != nil {
 			t.Fatal(err)
@@ -452,7 +465,8 @@ func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 			failed[c.Name] = true
 		}
 	}
-	for _, name := range []string{"no empty-string or '-' placeholders in text columns", "program_module matches its source view", "baseline: modules"} {
+	for _, name := range []string{"no empty-string or '-' placeholders in text columns", "program_module matches its source view", "baseline: modules",
+		"every title of a module is folded for the search", "the search's folded columns are in lower case"} {
 		if !failed[name] {
 			t.Errorf("expected check %q to fail; failed = %v", name, failed)
 		}

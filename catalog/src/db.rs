@@ -9,8 +9,9 @@ use std::fmt;
 /// docs/schema-v2.md §1). A copy of an older schema lacks what they select (before 0008,
 /// `v_program_plan` had no `source_pages`), so the browser does not start the app on one
 /// (`app/assets/boot.js`, into which the server writes this number), and the server reports it
-/// when it serves one. A test holds it to the newest migration.
-pub const SCHEMA_VERSION: i64 = 9;
+/// when it serves one. A test holds it to the newest migration. Schema 10 folds the names of the
+/// modules for the search (`v_module_folded`).
+pub const SCHEMA_VERSION: i64 = 10;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

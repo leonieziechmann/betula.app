@@ -53,6 +53,7 @@ and the `plan*` tables is derived and replaced by each build.
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
+| `module_folded` | the names of every module as the search compares them: its titles folded, their initials, its abbreviations folded | build, from the titles and the abbreviations (section „Search“) |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), `radix_build` (a hash of the binary that built it: a new release builds again at start), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
 
@@ -84,7 +85,8 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 |---|---|---|
 | `v_module` | module | `id, title, title_de, title_en, detail_status, page_lang, credits, language_raw, teaches_german, teaches_english, duration_raw, duration_semesters, turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department_id, department, department_code, learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, source_url, fetched_at, responsible, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg, abbrev` (the module's abbreviation without a program) |
 | `v_module_facets` | module | `module_id, credits, department_id, teaches_german, teaches_english, duration_semesters, offered_winter, offered_summer, turnus_season, turnus_parity, offer_status, is_limited, participant_limit, exam_form, exam_written, exam_oral, exam_paper, exam_presentation, exam_project, exam_practical, is_graded, is_fues, has_lecture, has_exercise, has_seminar, has_practical, has_project, has_excursion, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg`. Campus flags are NULL (unknown) for a module without a room in the newest semester. |
-| `v_module_search` | module × title variant | `module_id, term, kind` (`id`, `title_de`, `title_en`): the only place that needs `LIKE` |
+| `v_module_folded` | module | `module_id, title_de, title_en, initials, abbrevs`: the names the search compares a query with, folded (section „Search“; schema 10) |
+| `v_module_search` | module × title variant | `module_id, term, kind` (`id`, `title_de`, `title_en`): the terms as the sources write them, for the readers of schema 9 and the suggestions |
 | `v_module_lecturer` | module × person | `module_id, name, title, role` (`responsible`, `instructor`) |
 | `v_module_teaching_form` | module × form | `module_id, ord, form, form_raw, workload_raw, sws, hours` |
 | `v_module_text_item` | module × item | `module_id, kind` (`literature`, `course`)`, ord, text` |
@@ -123,7 +125,7 @@ about 1 ms in SQLite.
 |---|---|
 | `get_total_count` | `SELECT COUNT(*) FROM v_module_facets WHERE …` with the same filter as the list, without `LIMIT`, so the header is exact |
 | `get_all_study_programs` | `v_program` (`slug`, `name`, `degree_display`, `po_version`, `is_latest_po`) |
-| `query_filtered_modules` | `v_module_facets f JOIN v_module m` for cards. Program filter: `JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = ? AND pm.relation = 'curricular'` (or `IN ('curricular','fues')`). Semester in program: `pm.plan_semester`. Kind: `pm.kind`. Turnus: `offered_winter`, `offered_summer`, `turnus_parity`. Teaching forms: `has_*`. Duration: `duration_semesters`. Exam: `exam_form`, `exam_*`. Graded: `is_graded`. Limitation: `is_limited`, `participant_limit`. Campus: `at_*`. Language: `teaches_*`. Department: `department_id`. Lecturer include/exclude: `EXISTS (SELECT 1 FROM v_module_lecturer …)`. Text search: `v_module_search`. |
+| `query_filtered_modules` | `v_module_facets f JOIN v_module m` for cards. Program filter: `JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = ? AND pm.relation = 'curricular'` (or `IN ('curricular','fues')`). Semester in program: `pm.plan_semester`. Kind: `pm.kind`. Turnus: `offered_winter`, `offered_summer`, `turnus_parity`. Teaching forms: `has_*`. Duration: `duration_semesters`. Exam: `exam_form`, `exam_*`. Graded: `is_graded`. Limitation: `is_limited`, `participant_limit`. Campus: `at_*`. Language: `teaches_*`. Department: `department_id`. Lecturer include/exclude: `EXISTS (SELECT 1 FROM v_module_lecturer …)`. Text search: `v_module_folded` (`catalog::search`). |
 | `extract_module_ids`, `evaluate_prerequisites` | `v_module_prerequisite` (IDs are extracted once, at build time) |
 | `get_module_detail` | `v_module` + `v_module_teaching_form`, `v_module_text_item`, `v_module_successor`, `v_module_lecturer` |
 | `get_module_events` | `v_module_schedule` (recurring) and `v_module_exam` (exams, shown separately) |
@@ -659,6 +661,32 @@ share a form and keep their long form) and `build.abbrev_overrides_unused` (a li
 file applies to no module: a module number the catalog lacks, a program without that module, a
 pattern that matches nothing an earlier line does not take); each wants a line in the table or the
 file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_changed`.
+
+### Search (2026-09-30)
+
+Folia's catalog finds modules by the words of a query in their names, folded once by every build
+(`internal/catalogbuild/search.go`, migration 0010) instead of by every reader: `module_folded`, read
+as `v_module_folded`. Until schema 9 it searched `v_module_search` with `LIKE`, which folds ASCII
+only: „übung“ missed „Übung“, „okologie“ found none of the 21 offered modules on „Ökologie“ (and
+„ökologie“ 5 of them), and the words of a query were found only as one phrase, in the order the
+title has them. Only the names of a module are folded, not the texts of its description (owner,
+2026-09-30: those are for a semantic search that is worked on apart from this).
+
+| Column | What it holds |
+|---|---|
+| `title_de`, `title_en` | `normalize.SearchText` of the title: lower case, ß → ss, the diacritics of the common Latin letters removed (`normalize.SearchFold`, what Folia's `catalog::search::fold` does to a query), the words separated by one space, and after them once more as one word each part of the title written in parts („informatik b sc bsc“ for „Informatik B.Sc.“); NULL without the title |
+| `initials` | the first letters of the words of each title, the fillers („und“, „der“, „für“ …) left out, one word per title: „ti“ for „Theoretische Informatik“, „ad“ for „Algorithmen und Datenstrukturen“; NULL where no title has two |
+| `abbrevs` | the module's abbreviations, each folded into one word („aupb“ for „AuP-b“, „amo“ for „AMÖ“): its own, every other one a program gives it, and the known short forms of words of its titles (`abbrev.KnownFormsIn`, the `knownForms` of the derivation: „bwl“ for a title with Betriebswirtschaftslehre, 33 modules on 2026-09-30); separated by one space |
+
+The folding of Radix and Folia's folding of a query must agree character for character, and so
+must the fillers the initials leave out: `internal/normalize/testdata/search.tsv` holds
+`normalize.SearchFold`, `SearchWords` and `SearchFillers` to the same cases as `catalog::search`
+(`TestSearchTerms` in Go, `search::tests::folding_is_radixs` in Rust, which reads the file from
+there). `v_module_search` stays as it was, for the readers of schema 9. `validate` fails when a module
+or one of its titles has nothing folded, which a database migrated to schema 10 but not built again
+has (it is never exported: `radix build`, then `validate` and `export`, as after 0009), or when a
+folded column holds a capital letter. `module_folded` is part of the content digest. How Folia
+matches and orders: docs/frontend.md, „The search of the catalog“.
 
 Open:
 

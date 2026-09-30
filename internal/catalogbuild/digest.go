@@ -18,7 +18,7 @@ var digestTables = []string{
 	"module_program_ref", "program_module_assertion", "program_module", "module_facet",
 	"plan", "plan_entry", "plan_scan_status", "plan_total", "plan_total_entry",
 	"semester", "event", "event_form", "event_person", "event_date", "module_event",
-	"module_abbrev", "program_module_abbrev",
+	"module_abbrev", "program_module_abbrev", "module_folded",
 }
 
 // contentDigest hashes the published content. Builds are deterministic, so equal

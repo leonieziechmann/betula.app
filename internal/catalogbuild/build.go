@@ -20,7 +20,7 @@ import (
 // derivedTables are replaced as a whole by every build, children first.
 // plan, plan_entry and plan_scan_status are a source of their own and stay.
 var derivedTables = []string{
-	"program_module_abbrev", "module_abbrev",
+	"module_folded", "program_module_abbrev", "module_abbrev",
 	"module_facet", "program_module",
 	"module_event", "event_date", "event_person", "event_form", "event", "semester",
 	"program_module_assertion", "module_program_ref",
@@ -220,6 +220,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"room short forms", b.writeRoomShorts},
 		{"materialized views", b.materialize},
 		{"abbreviations", b.writeAbbreviations}, // needs module and program_module
+		{"search", b.writeSearch},               // needs module and the abbreviations
 		{"meta", b.writeMeta},
 	}
 	for _, step := range steps {

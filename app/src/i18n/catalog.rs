@@ -41,6 +41,24 @@ pub struct Texts {
     /// What to do when a list is empty: „Nimm Filter zurück oder suche nach einem anderen Begriff."
     pub advice_filters: &'static str,
 
+    // ---- the search (`catalog::search`) ----
+    /// Above a list whose search corrected a typo: „Keine Treffer für „algoritmen“. Ergebnisse
+    /// für „Algorithmen“:"; the values are the text as typed and as searched.
+    pub search_corrected: fn(&str, &str) -> String,
+    /// Above a list of the modules with the most of the words, where no module has all of them.
+    pub search_most_words: &'static str,
+    /// Under a list: how many modules the search finds outside the other filters, „27 weitere
+    /// Treffer außerhalb deiner Filter" (after rows, `true`) or „27 Treffer …" (where the list
+    /// has none); the number is written already.
+    pub search_elsewhere: fn(u64, &str, bool) -> String,
+    /// Appended to that where some of them are no longer offered: „, 3 davon nicht mehr angeboten".
+    pub search_elsewhere_not_offered: fn(u64, &str) -> String,
+    /// Under a list without other filters, where only the offer hides modules: „3 weitere
+    /// Treffer bei nicht mehr angebotenen Modulen" (after rows, `true`).
+    pub search_not_offered: fn(u64, &str, bool) -> String,
+    /// The link after either that lists them.
+    pub search_show: &'static str,
+
     // ---- the tags of the active filters: „<group> <value>" ----
     pub tag_search: &'static str,
     pub tag_semester: &'static str,
@@ -286,6 +304,21 @@ pub const DE: Texts = Texts {
     advice_lectures: "Vorlesungen abwählen.",
     advice_filters: "Nimm Filter zurück oder suche nach einem anderen Begriff.",
 
+    search_corrected: |typed, searched| format!("Keine Treffer für „{typed}“. Ergebnisse für „{searched}“:"),
+    search_most_words: "Kein Modul enthält alle Wörter. Hier sind die mit den meisten davon:",
+    search_elsewhere: |n, count, more| match (n, more) {
+        (1, true) => format!("{count} weiterer Treffer außerhalb deiner Filter"),
+        (_, true) => format!("{count} weitere Treffer außerhalb deiner Filter"),
+        (_, false) => format!("{count} Treffer außerhalb deiner Filter"),
+    },
+    search_elsewhere_not_offered: |_, count| format!(", {count} davon nicht mehr angeboten"),
+    search_not_offered: |n, count, more| match (n, more) {
+        (1, true) => format!("{count} weiterer Treffer bei nicht mehr angebotenen Modulen"),
+        (_, true) => format!("{count} weitere Treffer bei nicht mehr angebotenen Modulen"),
+        (_, false) => format!("{count} Treffer bei nicht mehr angebotenen Modulen"),
+    },
+    search_show: "anzeigen",
+
     tag_search: "Suche",
     tag_semester: "Semester",
     tag_kind: "Art",
@@ -479,6 +512,23 @@ pub const EN: Texts = Texts {
     advice_exams: "Leave out exams.",
     advice_lectures: "Leave out lectures.",
     advice_filters: "Remove some filters or search for another term.",
+
+    search_corrected: |typed, searched| format!("No matches for \u{201c}{typed}\u{201d}. Matches for \u{201c}{searched}\u{201d}:"),
+    search_most_words: "No module has all the words. These have the most of them:",
+    search_elsewhere: |n, count, more| match (n, more) {
+        (1, true) => format!("{count} more match outside your filters"),
+        (_, true) => format!("{count} more matches outside your filters"),
+        (1, false) => format!("{count} match outside your filters"),
+        (_, false) => format!("{count} matches outside your filters"),
+    },
+    search_elsewhere_not_offered: |_, count| format!(", {count} of them no longer offered"),
+    search_not_offered: |n, count, more| match (n, more) {
+        (1, true) => format!("{count} more match among modules no longer offered"),
+        (_, true) => format!("{count} more matches among modules no longer offered"),
+        (1, false) => format!("{count} match among modules no longer offered"),
+        (_, false) => format!("{count} matches among modules no longer offered"),
+    },
+    search_show: "show",
 
     tag_search: "Search",
     tag_semester: "Semester",

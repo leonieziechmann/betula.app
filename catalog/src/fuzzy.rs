@@ -8,7 +8,7 @@
 //! umlauts and accents do not matter, and an abbreviation with dots also counts as one word
 //! („bsc" finds „B.Sc."). Among equal matches the shorter target wins.
 
-use crate::search::fold;
+use crate::search::{fold, FILLERS};
 
 const WHOLE_WORD: i64 = 1000;
 const WORD_START: i64 = 800;
@@ -19,9 +19,6 @@ const LETTERS_IN_ORDER: i64 = 200;
 /// Every word further back in the target costs this much, up to `MAX_POSITION` words.
 const PER_POSITION: i64 = 8;
 const MAX_POSITION: i64 = 10;
-
-/// Words that initials skip: „Bachelor of Science" is „bs".
-const FILLERS: &[&str] = &["of", "and", "und", "der", "die", "das", "in", "im", "fur", "the", "zur", "zum", "von", "mit"];
 
 /// A query, prepared once and then scored against many targets.
 pub struct Matcher {
@@ -138,8 +135,9 @@ fn in_order(query: &[char], word: &[char]) -> bool {
 }
 
 /// How many typos turn `query` into the start of `word`: one for four letters and more, two
-/// for eight and more. The first letter has to be right, which keeps nonsense out.
-fn typos_at_start(query: &[char], word: &[char]) -> Option<usize> {
+/// for eight and more. The first letter has to be right, which keeps nonsense out. The catalog's
+/// search corrects a word with it too (`search::resolve`).
+pub(crate) fn typos_at_start(query: &[char], word: &[char]) -> Option<usize> {
     if query.len() < 4 || query.first() != word.first() {
         return None;
     }

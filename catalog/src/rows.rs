@@ -350,3 +350,18 @@ impl FromRow for SearchTerm {
         Ok(Self { module_id: row.text("module_id")?, term: row.text("term")?, kind: row.text("kind")? })
     }
 }
+
+/// What the search of a list finds outside its filters (`queries::search_elsewhere`): modules
+/// that are offered, and modules that are no longer offered.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchElsewhere {
+    pub offered: u64,
+    pub not_offered: u64,
+}
+
+impl FromRow for SearchElsewhere {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        let count = |column: &str| row.int(column).map(|n| u64::try_from(n).unwrap_or(0));
+        Ok(Self { offered: count("offered")?, not_offered: count("not_offered")? })
+    }
+}

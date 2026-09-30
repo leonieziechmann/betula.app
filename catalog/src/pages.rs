@@ -13,12 +13,13 @@ use crate::filter::{CatalogQuery, FitsFilter, PlanSemesterFilter, ProgramRelatio
 use crate::labels::{Labelled, ModuleKind, OfferStatus};
 use crate::plan::{self, SemesterPlan};
 use crate::queries;
-use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
+use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchElsewhere, Semester};
 use crate::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleSws,
     ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramVersion,
     Successor, TextItem,
 };
+use crate::search;
 use crate::timetable::clash;
 use crate::timetable::day::{clock, Day};
 use crate::timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
@@ -501,13 +502,17 @@ pub struct CatalogData {
     /// For the name of the selected department (few rows; the long lists are `CatalogChoices`).
     pub departments: Vec<Department>,
     pub meta: Meta,
+    /// With a search text: what it finds outside the list's other filters, said under the rows.
+    pub elsewhere: Option<SearchElsewhere>,
 }
 
 /// The catalog of `url` for a page in `locale` (the credits of a semester's requirements are
 /// written in it).
 pub fn catalog(db: &dyn Database, url: &CatalogUrl, locale: Locale) -> Result<CatalogData, DbError> {
     let scope = catalog_scope(db, &url.query, locale)?;
+    let elsewhere = if scope.effective.text.trim().is_empty() { None } else { Some(queries::search_elsewhere(db, &scope.effective)?) };
     Ok(CatalogData {
+        elsewhere,
         page: queries::catalog_page(db, &scope.effective, url.offset(), PAGE_SIZE)?,
         plan_semesters: scope.plan_semesters,
         areas: scope.areas,
@@ -594,6 +599,11 @@ fn catalog_scope(db: &dyn Database, query: &CatalogQuery, locale: Locale) -> Res
     // the semester; what that means is derived here and filled into the query (R12: the page
     // says that it is derived).
     let mut query = query.clone();
+    // How the text is searched: as typed, or, where that finds nothing, with its typos corrected or
+    // for the most of its words (`search::resolve`). The list says so above its rows.
+    if query.text_resolution.is_none() && !query.text.trim().is_empty() {
+        query.text_resolution = Some(search::resolve(db, &query.text)?);
+    }
     let mut semester_plan = None;
     if let (Some(scope), Some(program)) = (query.program.as_mut(), program.as_ref()) {
         if let (Some(PlanSemesterFilter::Semester(semester)), true) = (scope.plan_semester, program.has_plan) {
