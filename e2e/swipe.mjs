@@ -1,15 +1,17 @@
-// Checks the swipe on a row of the catalog on a phone (app/src/swipe.rs; owner, 2026-09-30: „Nach
-// links wischen merken nach rechts wischen planen. Mach das so, dass dann darunter freigelegt wird
-// was die Aktion macht (also Icon und Text)"), with real touches (`Input.dispatchTouchEvent`, as
-// tabbar.mjs): the card follows the finger inside its own place (the page never grows sideways)
-// and uncovers at the side it leaves what the swipe does — „Merken" to the left, „Einplanen" with
-// its semester to the right, „Entfernen" where the module is marked or planned already — quiet
-// until the action is armed, then in the side's colour; let go armed, the ground says what was done
-// while the card holds and glides back, and the module is marked (its bookmark, the Merkliste's
-// count) or planned (the Stundenplan's count); a short slow pull glides back and does nothing, a
-// short flick does it; neither a swipe nor its end is a tap or a step of the history, and a tap
-// right after a swipe is a tap; up or down, a row scrolls the page. A mouse in a narrow window drags
-// the card the same way; the layout of a wide screen has no swipe.
+// Checks the swipe on a row of the catalog and of the Merkliste on a phone (app/src/swipe.rs;
+// owner, 2026-09-30: „Nach links wischen merken nach rechts wischen planen. Mach das so, dass dann
+// darunter freigelegt wird was die Aktion macht (also Icon und Text)", „Mach das auch in der
+// Merkliste"), with real touches (`Input.dispatchTouchEvent`, as tabbar.mjs): the card follows the
+// finger inside its own place (the page never grows sideways) and uncovers at the side it leaves
+// what the swipe does — „Merken" to the left, „Einplanen" with its semester to the right,
+// „Entfernen" where the module is marked or planned already — quiet until the action is armed, then
+// in the side's colour; let go armed, the ground says what was done while the card holds and glides
+// back, and the module is marked (its bookmark, the Merkliste's count) or planned (the
+// Stundenplan's count); a short slow pull glides back and does nothing, a short flick does it;
+// neither a swipe nor its end is a tap or a step of the history, and a tap right after a swipe is a
+// tap; up or down, a row scrolls the page. On the Merkliste a module swiped off it stays, dimmed,
+// its card whole while swiped, and is marked again by the next swipe. A mouse in a narrow window
+// drags the card the same way; the layout of a wide screen has no swipe.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node swipe.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -48,10 +50,12 @@ async function open(context, path) {
   return { page, swipe, lift: () => touch("touchEnd", []) };
 }
 
-// The row at `i` of the list as it stands: the swipe's state, where the card is against its place,
-// what the ground says and in which colour, the module's bookmark; and the page around it.
-const rowState = (i) => {
-  const wrap = document.querySelectorAll(".vrow .row-wrap")[i];
+// The row at `i` of the list (`rows`: the catalog's virtual list, else the Merkliste's) as it
+// stands: the swipe's state, where the card is against its place, what the ground says and in which
+// colour, the module's bookmark, the card dimmed (a mark taken away on the Merkliste) and how much;
+// and the page around it.
+const rowState = ({ i, rows = ".vrow .row-wrap" }) => {
+  const wrap = document.querySelectorAll(rows)[i];
   const place = wrap.getBoundingClientRect(), card = wrap.querySelector(".row").getBoundingClientRect();
   const ground = wrap.querySelector(".swipe-ground");
   const shown = ground && [...ground.querySelectorAll(".swipe-act")].find((act) => getComputedStyle(act).visibility === "visible");
@@ -67,6 +71,8 @@ const rowState = (i) => {
     said: shown ? shown.innerText.replace(/\s*\n\s*/g, " | ").trim() : null,
     ground: ground ? getComputedStyle(ground).backgroundColor : null,
     marked: wrap.querySelector(".mark-toggle")?.getAttribute("aria-pressed") === "true",
+    dimmed: wrap.classList.contains("unmarked"),
+    opacity: Number(getComputedStyle(wrap.querySelector(".row")).opacity),
     marks: count("bookmarks"),
     planned: count("studyplan"),
     wide: document.scrollingElement.scrollWidth > innerWidth,
@@ -89,7 +95,7 @@ const colours = () => {
 const context = await browser.newContext(phone);
 const { page, swipe, lift } = await open(context, "/catalog");
 await page.waitForSelector(".vrow .row-wrap.swipes", { timeout: 20000 }).catch(() => problems.push("the catalog's rows cannot be swiped"));
-const state = (i = 1) => page.evaluate(rowState, i);
+const state = (i = 1) => page.evaluate(rowState, { i });
 const colour = await page.evaluate(colours);
 // Once the card has glided back: the row at rest, nothing of the swipe left.
 const rested = async (what, i = 1) => {
@@ -130,7 +136,7 @@ check(await page.evaluate((id) => (localStorage.getItem("betula.bookmarks.v1") |
 // ---- to the right: „Einplanen" with the semester it plans into
 await swipe(box.x - 60, box.y, 80, -2, { steps: 6, hold: true });
 now = await state();
-check(now.side === "plan" && /^Einplanen \| WiSe \d{4}\/\d{2}$/.test(now.said ?? ""), `right: the ground says ${JSON.stringify(now.said)}, not „Einplanen | WiSe …" (${now.side})`);
+check(now.side === "plan" && /^Einplanen \| (WiSe \d{4}\/\d{2}|SoSe \d{4})$/.test(now.said ?? ""), `right: the ground says ${JSON.stringify(now.said)}, not „Einplanen | <semester>" (${now.side})`);
 await swipe(0, 0, 80, 0, { steps: 5, hold: true, from: true });
 await page.waitForTimeout(250);
 now = await state();
@@ -190,6 +196,57 @@ await page.waitForURL((url) => url.pathname === `/catalog/module/${other.id}`, {
 check(await page.evaluate(() => window.__marker === 1), "tap after a swipe: the page was loaded again");
 await context.close();
 
+// ---- the Merkliste: the same swipe. A module swiped off it stays on the page, dimmed, as one whose
+// bookmark takes the mark away; while it is swiped its card is whole (the ground would show through
+// it), and swiped to the left once more it is marked again; to the right it is planned
+const saved = await browser.newContext(phone);
+{
+  const { page, swipe, lift } = await open(saved, "/catalog");
+  const ids = await page.evaluate(() => [...document.querySelectorAll(".vrow .row-wrap .row")].slice(0, 2).map((row) => row.dataset.id));
+  await page.evaluate((ids) => localStorage.setItem("betula.bookmarks.v1", ids.map((id, n) => `${id}\t${1790000000 - n}\n`).join("")), ids);
+  await page.goto(base + "/bookmarks", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("Merkliste: the browser app never took over"));
+  await page.evaluate(() => { window.__marker = 1; });
+  await page.waitForSelector(".rows .row-wrap.swipes", { timeout: 20000 }).catch(() => problems.push("Merkliste: its rows cannot be swiped"));
+  const rows = ".rows .row-wrap";
+  const listed = () => page.evaluate((rows) => [...document.querySelectorAll(rows)].map((wrap) => wrap.querySelector(".row").dataset.id), rows);
+  const state = () => page.evaluate(rowState, { i: 0, rows });
+  const rested = async (what) => {
+    await page.waitForFunction((rows) => !document.querySelector(rows)?.dataset.swipe, rows, { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(250); // the dimming comes in .15 s
+    const now = await state();
+    check(!now.swipe && !now.styled && now.said === null && now.dx === 0, `Merkliste ${what}: the row is not at rest (${now.swipe}, style ${now.styled}, ground ${now.said}, card ${now.dx} px)`);
+    check(now.path === "/bookmarks" && now.loaded, `Merkliste ${what}: the page changed (${now.path}, loaded again: ${!now.loaded})`);
+    return now;
+  };
+  check(JSON.stringify(await listed()) === JSON.stringify(ids), `Merkliste: it lists ${JSON.stringify(await listed())}, not ${JSON.stringify(ids)}`);
+  const r = await page.evaluate((rows) => { const r = document.querySelector(rows).getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; }, rows);
+  // Off the list: „Entfernen · von der Merkliste", and the row stays, dimmed.
+  await swipe(r.x + 60, r.y, -170, 0, { hold: true });
+  let now = await state();
+  check(now.said === "Entfernen | von der Merkliste" && now.armed, `Merkliste off: the ground says ${JSON.stringify(now.said)} (${now.armed})`);
+  await lift();
+  now = await rested("off");
+  check(!now.marked && now.dimmed && now.opacity < 0.5 && now.marks === "1", `Merkliste off: not taken off, or not dimmed (${now.marked}, ${now.dimmed}, ${now.opacity}, count ${now.marks})`);
+  check(JSON.stringify(await listed()) === JSON.stringify(ids), `Merkliste off: the row left the list (${JSON.stringify(await listed())})`);
+  // Swiped again, the dimmed card is whole, and „Merken" marks it again.
+  await swipe(r.x + 60, r.y, -80, 0, { steps: 6, hold: true });
+  now = await state();
+  check(now.said === "Merken" && now.opacity === 1, `Merkliste on: the ground says ${JSON.stringify(now.said)}, the swiped card's opacity is ${now.opacity}`);
+  await swipe(0, 0, -90, 0, { steps: 5, hold: true, from: true });
+  await lift();
+  now = await rested("on");
+  check(now.marked && !now.dimmed && now.opacity === 1 && now.marks === "2", `Merkliste on: not marked again (${now.marked}, ${now.dimmed}, ${now.opacity}, count ${now.marks})`);
+  // To the right it is planned, as in the catalog.
+  await swipe(r.x - 60, r.y, 170, 0, { hold: true });
+  now = await state();
+  check(/^Einplanen \| (WiSe \d{4}\/\d{2}|SoSe \d{4})$/.test(now.said ?? "") && now.armed, `Merkliste plan: the ground says ${JSON.stringify(now.said)} (${now.armed})`);
+  await lift();
+  now = await rested("plan");
+  check(now.planned === "1" && now.marked, `Merkliste plan: the Stundenplan counts ${JSON.stringify(now.planned)}, the mark ${now.marked}`);
+}
+await saved.close();
+
 // ---- a mouse in a narrow window drags the card the same way; the drag is no click
 const narrow = await browser.newContext({ viewport: { width: 700, height: 900 } });
 {
@@ -201,11 +258,11 @@ const narrow = await browser.newContext({ viewport: { width: 700, height: 900 } 
   await page.mouse.move(r.x, r.y);
   await page.mouse.down();
   for (let i = 1; i <= 10; i++) { await page.mouse.move(r.x - i * 20, r.y); await page.waitForTimeout(16); }
-  const held = await page.evaluate(rowState, 1);
+  const held = await page.evaluate(rowState, { i: 1 });
   check(held.swipe === "drag" && held.said === "Merken" && held.armed, `narrow: the mouse does not drag the card (${held.swipe}, ${JSON.stringify(held.said)}, ${held.armed})`);
   await page.mouse.up();
   await page.waitForTimeout(900);
-  const after = await page.evaluate(rowState, 1);
+  const after = await page.evaluate(rowState, { i: 1 });
   check(after.marked && after.path === "/catalog" && !after.swipe, `narrow: the drag did not mark the module, or it was a click (${after.marked}, ${after.path}, ${after.swipe})`);
 }
 await narrow.close();

@@ -1366,7 +1366,7 @@ pub(crate) fn Row(
     /// whole list: the virtual list renders only the rows on screen, so the stylesheet cannot count.
     #[prop(optional)] shaded: bool,
     /// On a phone the row is swiped to mark the module (to the left) and to plan it (to the right,
-    /// `crate::swipe`): the catalog's list in the browser app.
+    /// `crate::swipe`): the lists of the catalog and of the marked modules in the browser app.
     #[prop(optional)] swipe: bool,
 ) -> impl IntoView {
     let t = i18n::t();

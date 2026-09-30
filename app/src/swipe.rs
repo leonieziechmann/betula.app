@@ -2,9 +2,11 @@
 //! rechts wischen planen. Mach das so, dass dann darunter freigelegt wird was die Aktion macht
 //! (also Icon und Text)"): to the left „Merken", to the right „Einplanen" — the two switches of
 //! the module's page (`bookmarks::MarkButton`, `studyplan::PlanButton`), pressed from the list
-//! without opening the module. The catalog's list has it, in the browser app and in the phone
-//! layout: marking and planning belong to the app (R9, R15), and a wide screen has the mark at the
-//! end of the row and the preview beside the list.
+//! without opening the module. The catalog's list has it, and the Merkliste (owner, the same day:
+//! „Mach das auch in der Merkliste"), in the browser app and in the phone layout: marking and
+//! planning belong to the app (R9, R15), and a wide screen has the mark at the end of the row and
+//! the preview beside the list. On the Merkliste a module swiped off it stays, dimmed, as one whose
+//! mark is taken away there by its button, and a swipe to the left marks it again.
 //!
 //! The card follows the finger and uncovers what lies under it, at the side it leaves: the
 //! action's icon and word, and a line of what it is done to — the semester „Einplanen" plans into,

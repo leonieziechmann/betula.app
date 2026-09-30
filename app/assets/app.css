@@ -2844,24 +2844,29 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .row .t b { font-size: 15.5px; }
   .row > .resp, .row > .exam, .row > .turnus, .row > .lang, .row > .events { display: none; }
   .narrow-only { display: inline; }
-  /* A row of the catalog's list is swiped sideways (owner, 2026-09-30: „Nach links wischen merken
-     nach rechts wischen planen … dass dann darunter freigelegt wird was die Aktion macht (also
-     Icon und Text)"; app/src/swipe.rs). The row keeps a finger that moves sideways (up and down it
-     scrolls the page, two fingers zoom). While the finger has the card (data-swipe="drag") and
-     while the card glides back ("glide"), the row is the card's place: it clips the card, which
-     moves by --swipe together with its mark, and it draws the ring and the shadow the card has at
-     rest, so nothing changes as the swipe begins, and the card never reaches past the page's edge
-     (the page would scroll sideways). Under the card lies the ground: on the left what a swipe to
-     the right does („Einplanen"), on the right what a swipe to the left does („Merken", its icon
-     where the row's bookmark stands). Only the side the card uncovers shows (data-side), its
-     words coming in as the card goes (--open, 0–1). It is quiet until the action is armed
-     (data-armed), then it takes the side's colour — the inverted look of a marked module, the
-     accent for the plan — and the icon springs. Done (data-done), it says what was done: the card
-     goes aside as far as that takes, holds a moment and glides back with the ease of the sheet. */
+  /* A row of the catalog's list, or of the Merkliste, is swiped sideways (owner, 2026-09-30:
+     „Nach links wischen merken nach rechts wischen planen … dass dann darunter freigelegt wird
+     was die Aktion macht (also Icon und Text)"; app/src/swipe.rs). The row keeps a finger that
+     moves sideways (up and down it scrolls the page, two fingers zoom). While the finger has the
+     card (data-swipe="drag", following it without a transition) and while the card glides back
+     ("glide"), the row is the card's place: it clips the card, which moves by --swipe together
+     with its mark, and it draws the ring and the shadow the card has at rest, so nothing changes
+     as the swipe begins, and the card never reaches past the page's edge (the page would scroll
+     sideways). Under the card lies the ground: on the left what a swipe to the right does
+     („Einplanen"), on the right what a swipe to the left does („Merken", its icon where the row's
+     bookmark stands). Only the side the card uncovers shows (data-side), its words coming in as
+     the card goes (--open, 0–1). It is quiet until the action is armed (data-armed), then it
+     takes the side's colour — the inverted look of a marked module, the accent for the plan — and
+     the icon springs. Done (data-done), it says what was done: the card goes aside as far as that
+     takes, holds a moment and glides back with the ease of the sheet. */
   .row-wrap.swipes { touch-action: pan-y; touch-action: pan-y pinch-zoom; }
   .row-wrap[data-swipe] { overflow: hidden; overflow: clip; border-radius: var(--r-panel); box-shadow: var(--shadow-panel); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .row-wrap[data-swipe] > .row, .row-wrap[data-swipe] > .mark-toggle { transform: translateX(var(--swipe, 0px)); }
+  .row-wrap[data-swipe="drag"] > .row { transition: none; }
   .row-wrap[data-swipe="glide"] > .row, .row-wrap[data-swipe="glide"] > .mark-toggle { transition: transform .34s var(--ease); }
+  /* A module whose mark was taken away on the Merkliste stands there dimmed (.unmarked). Swiped,
+     its card is whole at once: the ground would show through it. */
+  .row-wrap.unmarked[data-swipe] > .row { opacity: 1; }
   .swipe-ground { position: absolute; inset: 0; background: var(--panel-3); color: var(--text-2); transition: background .16s, color .16s; }
   .swipe-act { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px); opacity: clamp(0, (var(--open, 0) - .12) * 2.5, 1); }
   .swipe-act[data-act="plan"] { left: 16px; }
