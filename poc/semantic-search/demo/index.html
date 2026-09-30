@@ -27,31 +27,36 @@
   <ol id="hits"></ol>
 </main>
 <script type="module">
-import { E5, build, nearest, readIndex } from "./e5.js";
+import { build, nearest, readIndex } from "./e5.js";
+import { createEmbedder } from "./e5-gpu.js";
 
+// ?backend=wasm skips WebGPU.
 const status = document.getElementById("status"), input = document.getElementById("q"), hits = document.getElementById("hits");
 const get = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); };
 const started = performance.now();
-const [wasm, model, index, names] = await Promise.all([
-  get(`e5_mini.${build}.wasm`), get("e5-de-en.bin"), get("index.bin"), fetch("index.json").then((r) => r.json()),
-]);
-const e5 = await E5.create(wasm, new Uint8Array(model));
+const [wasm, index, names] = await Promise.all([get(`e5_mini.${build}.wasm`), get("index.bin"), fetch("index.json").then((r) => r.json())]);
+const e5 = await createEmbedder({
+  wasm, model: async () => new Uint8Array(await get("e5-de-en.bin")),
+  gpu: new URLSearchParams(location.search).get("backend") !== "wasm",
+});
 const docs = readIndex(index);
-status.textContent = `Bereit (${build}): ${docs.rows} Einträge, Modell ${(model.byteLength / 1e6).toFixed(1)} MB, geladen in ${Math.round(performance.now() - started)} ms.`;
+const backend = () => (e5.backend === "webgpu" ? "WebGPU" : `WASM ${build}${e5.reason ? ` (${e5.reason})` : ""}`);
+status.textContent = `Bereit (${backend()}): ${docs.rows} Einträge, geladen in ${Math.round(performance.now() - started)} ms.`;
 input.disabled = false;
 input.focus();
 
-let timer;
+let timer, latest = 0;
 input.addEventListener("input", () => {
   clearTimeout(timer);
-  timer = setTimeout(() => {
+  timer = setTimeout(async () => {
     const q = input.value.trim();
     if (!q) { hits.replaceChildren(); return; }
-    const t = performance.now();
-    const { vector, tokens } = e5.embed("query: " + q);
+    const t = performance.now(), mine = ++latest;
+    const { vector, tokens } = await e5.embed("query: " + q);
+    if (mine !== latest) return; // typed on meanwhile
     const embedded = performance.now() - t;
     const found = nearest(docs, vector, 10);
-    status.textContent = `${tokens} Tokens · Embedding ${embedded.toFixed(0)} ms · Suche ${(performance.now() - t - embedded).toFixed(0)} ms`;
+    status.textContent = `${backend()} · ${tokens} Tokens · Embedding ${embedded.toFixed(0)} ms · Suche ${(performance.now() - t - embedded).toFixed(0)} ms`;
     hits.replaceChildren(...found.map(([score, row]) => {
       const li = document.createElement("li");
       const s = document.createElement("span");

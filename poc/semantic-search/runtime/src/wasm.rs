@@ -11,13 +11,17 @@
 //! const tokens = embed(t, text.length, out);      // the embedding is at `out`
 //! free(t, text.length);
 //! ```
+//!
+//! For an encoder on the GPU (`demo/e5-gpu.js`) only the tokenizer is needed: `load_tokenizer`
+//! with the start of the file (up to the tensors), then `tokenize` hands out the token ids.
 
 use std::cell::RefCell;
 
-use crate::{Mode, Model};
+use crate::{tokenizer_from_bytes, Mode, Model, Tokenizer};
 
 thread_local! {
     static MODEL: RefCell<Option<Model>> = const { RefCell::new(None) };
+    static TOKENIZER: RefCell<Option<Tokenizer>> = const { RefCell::new(None) };
 }
 
 /// Room for `len` bytes, for JavaScript to write into.
@@ -80,4 +84,38 @@ pub unsafe extern "C" fn embed(text: *const u8, len: usize, out: *mut f32) -> i3
         std::slice::from_raw_parts_mut(out, embedding.len()).copy_from_slice(&embedding);
         i32::try_from(ids.len()).unwrap_or(i32::MAX)
     })
+}
+
+/// Reads the tokenizer of the packed model whose first `len` bytes (at least up to the tensors)
+/// are at `at`; the bytes stay JavaScript's to `free`. 0: loaded, 1: not a model.
+///
+/// # Safety
+/// `at` holds `len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn load_tokenizer(at: *const u8, len: usize) -> i32 {
+    match tokenizer_from_bytes(std::slice::from_raw_parts(at, len)) {
+        Ok(tokenizer) => {
+            TOKENIZER.with(|t| *t.borrow_mut() = Some(tokenizer));
+            0
+        }
+        Err(_) => 1,
+    }
+}
+
+/// Cuts the UTF-8 text at `text` into token ids (`<s>` … `</s>`), the first `room` of them into
+/// `out`. Returns how many there are (possibly more than `room`), -1 without a tokenizer (from
+/// `load_tokenizer` or `load`) or for text that is not UTF-8.
+///
+/// # Safety
+/// `text` holds `len` bytes, `out` room for `room` u32.
+#[no_mangle]
+pub unsafe extern "C" fn tokenize(text: *const u8, len: usize, out: *mut u32, room: usize) -> i32 {
+    let Ok(text) = std::str::from_utf8(std::slice::from_raw_parts(text, len)) else { return -1 };
+    let ids = TOKENIZER
+        .with(|t| t.borrow().as_ref().map(|t| t.encode(text)))
+        .or_else(|| MODEL.with(|m| m.borrow().as_ref().map(|m| m.tokenizer().encode(text))));
+    let Some(ids) = ids else { return -1 };
+    let n = ids.len().min(room);
+    std::slice::from_raw_parts_mut(out, n).copy_from_slice(ids.get(..n).unwrap_or_default());
+    i32::try_from(ids.len()).unwrap_or(i32::MAX)
 }

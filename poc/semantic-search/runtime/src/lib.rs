@@ -33,34 +33,24 @@ struct Layer {
     output_norm: Norm,
 }
 
-pub struct Model {
-    bytes: Vec<u8>,
+/// What a packed model starts with: its dimensions and the tokenizer, before the tensors.
+struct Header {
     hidden: usize,
+    layers: usize,
     heads: usize,
     intermediate: usize,
     positions: usize,
+    vocab: usize,
     tokenizer: Tokenizer,
-    words: Tensor,
-    position: Tensor,
-    norm: Norm,
-    layers: Vec<Layer>,
 }
 
-impl Model {
-    /// Takes the packed model's bytes over; its quantised weights are used where they are
-    /// (`Mode::Expand`).
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, String> {
-        Self::from_bytes_with(bytes, Mode::Expand)
-    }
-
-    /// Takes the packed model's bytes over and prepares the matrices for `mode`.
-    pub fn from_bytes_with(bytes: Vec<u8>, mode: Mode) -> Result<Self, String> {
-        let mut r = Reader::new(&bytes);
+impl Header {
+    fn read(r: &mut Reader) -> Result<Self, String> {
         if r.take(4)? != b"E5Q1" {
             return Err("not a packed e5 model (E5Q1)".into());
         }
         let hidden = r.usize()?;
-        let layer_count = r.usize()?;
+        let layers = r.usize()?;
         let heads = r.usize()?;
         let intermediate = r.usize()?;
         let positions = r.usize()?;
@@ -85,7 +75,40 @@ impl Model {
                 replace.insert(c, text.to_string());
             }
         }
-        let tokenizer = Tokenizer::new(pieces, replace);
+        Ok(Self { hidden, layers, heads, intermediate, positions, vocab, tokenizer: Tokenizer::new(pieces, replace) })
+    }
+}
+
+/// Only the tokenizer of a packed model: for an encoder that runs elsewhere (WebGPU,
+/// `demo/e5-gpu.js`). `bytes` may end where the tensors begin.
+pub fn tokenizer_from_bytes(bytes: &[u8]) -> Result<Tokenizer, String> {
+    Ok(Header::read(&mut Reader::new(bytes))?.tokenizer)
+}
+
+pub struct Model {
+    bytes: Vec<u8>,
+    hidden: usize,
+    heads: usize,
+    intermediate: usize,
+    positions: usize,
+    tokenizer: Tokenizer,
+    words: Tensor,
+    position: Tensor,
+    norm: Norm,
+    layers: Vec<Layer>,
+}
+
+impl Model {
+    /// Takes the packed model's bytes over; its quantised weights are used where they are
+    /// (`Mode::Expand`).
+    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, String> {
+        Self::from_bytes_with(bytes, Mode::Expand)
+    }
+
+    /// Takes the packed model's bytes over and prepares the matrices for `mode`.
+    pub fn from_bytes_with(bytes: Vec<u8>, mode: Mode) -> Result<Self, String> {
+        let mut r = Reader::new(&bytes);
+        let Header { hidden, layers: layer_count, heads, intermediate, positions, vocab, tokenizer } = Header::read(&mut r)?;
 
         let words = Tensor::read(&mut r)?;
         let position = Tensor::read(&mut r)?;

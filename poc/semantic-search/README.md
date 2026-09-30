@@ -4,8 +4,9 @@ Not part of the app. The question: can a browser (a phone included) embed a sear
 `intfloat/multilingual-e5-small` itself, so that modules are found by meaning („coding lernen“ →
 „Einführung in die Programmierung“), with everything it has to download under 20 MB?
 
-**Yes: 18.5 MB (16.4 MB in brotli) + a 90 kB WASM runtime, 14–55 ms a query on a laptop, at
-about the quality of the original model — measured on the real module catalog as well.**
+**Yes: 18.5 MB (16.4 MB in brotli) + a 90 kB WASM runtime, 14–55 ms a query on a laptop's CPU,
+at about the quality of the original model — measured on the real module catalog as well.
+A WebGPU encoder computes the same embeddings; its speed on real GPUs is still to be measured.**
 
 ## How
 
@@ -49,6 +50,18 @@ row for each of XLM-R's 250,002 pieces, for 100 languages.
      its second operand must not have the top bit set (x86 reads it unsigned), so the weights
      are kept as 0…15 and 8 × the block's input sum is subtracted afterwards.
    The GELU uses a rational approximation of erf (Eigen's, no `exp`).
+5. **WebGPU** (`demo/e5-gpu.js`), with the WASM runtime as the cold fallback. `createEmbedder`
+   runs once at app start: it uploads the weights as the file has them (4-bit codes and their
+   scales; the shaders expand them, 16 MB of GPU memory), creates every buffer, pipeline and bind
+   group for a fixed 64 tokens, and runs one query so the shaders are compiled. A query is then
+   the tokenizer (WASM — only the tokenizer is loaded, `load_tokenizer` / `tokenize`), two small
+   buffer writes, one command buffer of 110 dispatches (per layer: 3 projections, attention,
+   output + residual, LayerNorm, feed-forward with GELU, output + residual, LayerNorm) and the
+   read-back of 384 floats. The matrix kernel makes 16 tokens × 64 outputs a workgroup, expanding
+   each 64 × 32 block of weights into shared memory once for all 16; tiles past the query's
+   tokens return at once, so a 10-token query computes one tile row, not four. Queries longer
+   than 64 tokens are cut off (`</s>` at the end). Without WebGPU, or when the GPU fails later (device
+   lost, an error), the same `embed` goes to the WASM runtime, which only then loads the model.
 
 | Part | Bytes |
 |---|---|
@@ -57,7 +70,8 @@ row for each of XLM-R's 250,002 pieces, for 100 languages.
 | tokenizer (pieces, scores, character table) | 0.33 MB |
 | biases, LayerNorms (fp32), 128 positions (8 bit) | 0.30 MB |
 | **model file** | **18.55 MB** (brotli 16.42 MB) |
-| runtime `e5_mini.wasm` | 88 kB (simd) / 91 kB (relaxed) |
+| runtime `e5_mini.wasm` | 90 kB (simd) / 93 kB (relaxed) |
+| WebGPU encoder `e5-gpu.js` | 23 kB |
 | index of the catalog (int8, 384 B a module) | 1.9 MB for 4,938 modules |
 
 The documents are embedded once with the original model (`python/embed_catalog.py`: the server
@@ -122,6 +136,15 @@ output equals the Python model's: identical token ids for 617 test texts (umlaut
 control characters, emoji, CJK, extra white space …), cosine ≥ 0.9999998 in expand mode
 (`python/parity.py`, `demo/bench.mjs --check`); WASM equals native.
 
+**WebGPU:** the arithmetic is the WASM runtime's expand mode in f32, and the embeddings agree
+with it to float rounding (cosine ≥ 0.9999998 for queries, catalog titles and awkward input,
+`demo/gpu-check.mjs`). Its speed is **not measured**: the machine this was built on has no GPU,
+and Chromium's software WebGPU (SwiftShader, on the CPU) takes about 2 s a query, which says
+nothing about a GPU. The work is small for one (≈ 0.7 GFLOP for a query of up to 16 tokens, 16 MB of
+weights read once); what is left is the fixed cost of 110 dispatches and a read-back, typically
+a few milliseconds. To be measured on real laptops and phones, with the demo (it shows the
+backend and the time per query; `?backend=wasm` for the comparison).
+
 Room left: a Web Worker so typing never waits; a phone-sized benchmark on real devices.
 
 ## Demo
@@ -157,10 +180,11 @@ python evaluate.py --vocab ../model/vocab.json --catalog ../model/catalog.db \
   --variants gptq-q4/q4 rust:int8                                           # ~20 min the first time
 
 cd ..
-cp demo/index.html demo/e5.js model/
+cp demo/index.html demo/e5.js demo/e5-gpu.js model/
 cp runtime/target/simd/wasm32-unknown-unknown/release/e5_mini.wasm model/e5_mini.simd.wasm
 cp runtime/target/relaxed/wasm32-unknown-unknown/release/e5_mini.wasm model/e5_mini.relaxed.wasm
 node demo/bench.mjs model/e5_mini.relaxed.wasm model/e5-de-en.bin --mode int8
+node demo/gpu-check.mjs http://127.0.0.1:8765/                             # with the server below running; needs playwright-core
 cd model && python -m http.server 8765                                     # http://127.0.0.1:8765
 ```
 
@@ -178,6 +202,6 @@ cd model && python -m http.server 8765                                     # htt
 | `python/parity.py` | Rust against Python |
 | `python/embed_catalog.py`, `python/sample_catalog.py` | the index of a catalog; a made-up one |
 | `runtime/` | tokenizer and encoder in Rust, `src/bin/embed.rs` a command line, `src/wasm.rs` the exports |
-| `demo/` | `index.html` (search as you type), `e5.js`, `bench.mjs` (Node), `browser-bench.mjs` (Chromium, throttled) |
+| `demo/` | `index.html` (search as you type), `e5.js` (WASM), `e5-gpu.js` (WebGPU, falls back to WASM), `bench.mjs` (Node), `browser-bench.mjs` (Chromium, throttled), `gpu-check.mjs` (WebGPU against WASM) |
 
 The weights are derived from `intfloat/multilingual-e5-small` (MIT licence).
