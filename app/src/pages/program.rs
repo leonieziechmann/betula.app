@@ -346,7 +346,8 @@ fn ProgramSidebar(
     let jumps = (tab == ProgramTab::Areas && !areas.is_empty()).then_some(());
     view! {
         <div class="fgroup actions catalog-jump">
-            <a class="action" data-walk="catalog" href=move || catalog.with(|(href, _)| t.path(href))>
+            // The catalog narrowed down to the program is a view of it.
+            <a class="action" data-walk="catalog" href=move || catalog.with(|(href, _)| t.path(href)) rel="nofollow">
                 <Icon name="layout-list"/>
                 <span>{t.program.in_catalog}<small>{move || catalog.with(|(_, what)| what.clone())}</small></span>
                 <Icon name="chevron-right"/>
@@ -356,7 +357,8 @@ fn ProgramSidebar(
             <p class="flabel label">{t.program.views}</p>
             {ProgramTab::ALL.iter().map(|view| {
                 let view = *view;
-                view! { <a data-walk="tab" href=t.path(&url::program_path(&p.slug, view)) data-noscroll="" aria-current=move || (shown_tab.get() == view).then_some("page")>{view.label(t.locale)}</a> }
+                // „Mein Plan" is the visitor's: no page for a crawler.
+                view! { <a data-walk="tab" href=t.path(&url::program_path(&p.slug, view)) rel=(!view.indexed()).then_some("nofollow") data-noscroll="" aria-current=move || (shown_tab.get() == view).then_some("page")>{view.label(t.locale)}</a> }
             }).collect_view()}
         </nav>
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
@@ -402,6 +404,7 @@ fn ProgramSidebar(
                     view! {
                         <a
                             href=move || t.path(&area_href(&links.get(), id))
+                            rel="nofollow"
                             data-walk="area"
                             data-noscroll=""
                             class=format!("depth-{}", group.depth.clamp(1, 4))
@@ -424,8 +427,10 @@ fn ProgramSidebar(
                         <span>{(t.program.counterpart)(c.level.label(t.locale))}<small>{c.name.clone()}" · PO "{c.po_version.clone()}</small></span>
                     </a>
                 })}
+                // The same view under another examination regulation: „Mein Plan" is no page for a
+                // crawler there either.
                 {data.versions.iter().map(|v| view! {
-                    <a class="action" href=t.path(&url::program_path(&v.slug, tab))>
+                    <a class="action" href=t.path(&url::program_path(&v.slug, tab)) rel=(!tab.indexed()).then_some("nofollow")>
                         <Icon name="file-check-2"/>
                         <span>"PO "{v.po_version.clone()}{v.is_latest_po.then_some(t.program.current_po)}</span>
                     </a>
@@ -438,7 +443,7 @@ fn ProgramSidebar(
             // (`.mine-toggle`), so the actions under them do not move at the takeover (R15).
             <MineButton program_id=p.id.clone() name=program_name(&p) plans=mine_plans shown/>
             {(count > 0).then(|| view! {
-                <a class="action mine-toggle" href=import><Icon name="calendar-plus"/><span>{t.program.to_studyplan}</span></a>
+                <a class="action mine-toggle" href=import rel="nofollow"><Icon name="calendar-plus"/><span>{t.program.to_studyplan}</span></a>
             })}
             {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>{t.program.documents}</a> })}
             <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>{t.program.at_btu}</a>
@@ -994,7 +999,7 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
                 <BackLink area=Area::Programs/>
                 <nav class="crumbs" aria-label=t.program.crumbs>
                     <a href=t.path(url::PROGRAMS)>{t.app.programs}</a>
-                    <a href=t.path(&level_link)>{level.label(t.locale)}</a>
+                    <a href=t.path(&level_link) rel="nofollow">{level.label(t.locale)}</a>
                 </nav>
             </div>
             <div class="prog-title">
@@ -1702,7 +1707,7 @@ fn AreasTab(
                                 <tr class=format!("group depth-{}", group.depth.clamp(1, 4)) id=format!("area-{}", group.id) class:open=move || area.get() == Some(group.id)>
                                     <th colspan="6" scope="rowgroup">
                                         // The area itself is a link: it shows beside the page what it holds.
-                                        <a class="ginner" data-walk="area" data-noscroll="" href=move || t.path(&area_href(&links.get(), group.id)) aria-current=move || (area.get() == Some(group.id)).then_some("true")>
+                                        <a class="ginner" data-walk="area" data-noscroll="" href=move || t.path(&area_href(&links.get(), group.id)) rel="nofollow" aria-current=move || (area.get() == Some(group.id)).then_some("true")>
                                             <span class="gname">{group.label}</span>
                                             {group.parent.map(|parent| view! { <span class="gpath">{parent}</span> })}
                                             <span class="gcount">{(t.program.modules)(count)}{(sum > 0.0).then(|| format!(" · {}", (t.format.credits)(&format::number(sum, t.locale))))}</span>
@@ -1744,8 +1749,8 @@ fn MyPlanTab(slug: String) -> impl IntoView {
                 <p>{t.program.my_plan_hint}</p>
             </header>
             <div class="my-plan-links">
-                <a class="action" href=t.path(url::STUDYPLAN)><Icon name="calendar-plus"/><span>{t.program.to_timetable}</span><Icon name="chevron-right"/></a>
-                <a class="action" href=t.path(&url::program_catalog_path(&slug, None))><Icon name="layout-list"/><span>{t.program.all_modules}</span><Icon name="chevron-right"/></a>
+                <a class="action" href=t.path(url::STUDYPLAN) rel="nofollow"><Icon name="calendar-plus"/><span>{t.program.to_timetable}</span><Icon name="chevron-right"/></a>
+                <a class="action" href=t.path(&url::program_catalog_path(&slug, None)) rel="nofollow"><Icon name="layout-list"/><span>{t.program.all_modules}</span><Icon name="chevron-right"/></a>
             </div>
         </section>
     }

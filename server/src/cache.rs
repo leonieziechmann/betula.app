@@ -207,18 +207,12 @@ fn page_key(path: &str, query: &str) -> String {
 }
 
 /// Whether the page of a cache key is one search engines list (and the sitemap names), not a view
-/// of one: an address without a query, the plan of a further study direction
-/// (`/programs/<slug>/plan?variant=<n>`) and a further page of the unfiltered catalog
-/// (`/catalog?page=<n>`). Keys are canonical spellings (`cache_key`), so these stand alone.
+/// of one (`catalog::url::listed`): an address without a query, the plan of a further study
+/// direction (`/programs/<slug>/plan?variant=<n>`) and a further page of the unfiltered catalog
+/// (`/catalog?page=<n>`), but not what the visitor keeps in the browser (the Merkliste, the
+/// Stundenplan, „Mein Plan"). Keys are canonical spellings (`cache_key`), so these stand alone.
 fn listed(key: &str) -> bool {
-    let number = |value: &str| !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit());
-    let key = catalog::Locale::split(key).1;
-    match key.split_once('?') {
-        None => true,
-        Some((path, query)) if path.starts_with("/programs/") && path.ends_with("/plan") => query.strip_prefix("variant=").is_some_and(number),
-        Some((path, query)) if path == catalog::url::CATALOG => query.strip_prefix("page=").is_some_and(number),
-        Some(_) => false,
-    }
+    catalog::url::listed(catalog::Locale::split(key).1)
 }
 
 /// How browsers keep a page: they ask again every time, and the ETag makes that a 304 from
@@ -447,7 +441,7 @@ mod tests {
         for key in ["/", "/catalog/module/11101", "/programs/bachelor-elektrotechnik-2022/plan?variant=2", "/catalog?page=3", "/en", "/en/catalog?page=3", "/en/programs/x/plan?variant=2"] {
             assert!(listed(key), "{key}");
         }
-        for key in ["/en/catalog?q=analysis", "/catalog?q=analysis", "/catalog?page=2&q=analysis", "/catalog?turnus=winter&page=2", "/programs/x/areas?variant=2", "/programs/x/plan?variant=2&area=7", "/programs?level=master"] {
+        for key in ["/en/catalog?q=analysis", "/catalog?q=analysis", "/catalog?page=2&q=analysis", "/catalog?turnus=winter&page=2", "/programs/x/areas?variant=2", "/programs/x/plan?variant=2&area=7", "/programs?level=master", "/bookmarks", "/en/studyplan", "/programs/x/my-plan"] {
             assert!(!listed(key), "{key}");
         }
     }

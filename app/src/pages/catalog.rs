@@ -45,6 +45,7 @@ use crate::pending::{Change, Pending};
 use crate::seo::Seo;
 use crate::skeleton::{DetailSkeleton, RowsSkeleton};
 use crate::studyplan::{PlanHint, Studyplan};
+use crate::swipe::RowSwipe;
 use crate::tabs::{self, Tabs};
 use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
 
@@ -760,14 +761,16 @@ fn List(
             (true, true) => " ↓",
             _ => "",
         };
-        view! { <a class=class href=keep_open(next, open, t) aria-current=on.then_some("true")>{text}{arrow}</a> }
+        // Another order is a view of the list, no page to crawl.
+        let rel = crate::seo::nofollow(&next.path());
+        view! { <a class=class href=keep_open(next, open, t) rel=rel aria-current=on.then_some("true")>{text}{arrow}</a> }
     };
 
     // What the list says instead of rows.
-    let without_fits = {
+    let (without_fits, without_fits_rel) = {
         let mut next = current.with_page(1);
         next.query.fits = None;
-        t.path(&next.path())
+        (t.path(&next.path()), crate::seo::nofollow(&next.path()))
     };
     // An empty list with the finder on is the finder's doing only when the rest of the filter
     // holds modules (a search for nothing is not helped by comparing fewer classes): one count,
@@ -794,7 +797,7 @@ fn List(
                 <div class="state">
                     <p class="state-title">{t.catalog.fits_server_title}</p>
                     <p>{t.catalog.fits_server_hint}</p>
-                    <a class="btn secondary" href=without_fits.clone()>{t.catalog.without_filter}</a>
+                    <a class="btn secondary" href=without_fits.clone() rel=without_fits_rel>{t.catalog.without_filter}</a>
                 </div>
             }.into_any(),
             (true, _, true) => view! {
@@ -862,8 +865,11 @@ fn List(
                     </div>
                 </div>
                 <div class="active-filters">
-                    {move || active.get().into_iter().map(|(group, value, target)| view! {
-                        <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open, t) aria-label=t.catalog.remove_filter><Icon name="x"/></a></span>
+                    {move || active.get().into_iter().map(|(group, value, target)| {
+                        let rel = crate::seo::nofollow(&target.path());
+                        view! {
+                            <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open, t) rel=rel aria-label=t.catalog.remove_filter><Icon name="x"/></a></span>
+                        }
                     }).collect_view()}
                 </div>
                 // The finder against a semester without dates: nothing could be checked.
@@ -890,7 +896,7 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
         if let Some(scope) = target.query.program.as_mut() {
             scope.areas = vec![id];
         }
-        view! { <a href=keep_open(target, open, t) data-noscroll="">{(t.catalog.quoted)(label)}</a> }
+        view! { <a href=keep_open(target, open, t) rel="nofollow" data-noscroll="">{(t.catalog.quoted)(label)}</a> }
     };
     let links = |areas: &[CatalogArea]| {
         areas
@@ -923,7 +929,7 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
             let what = if row.single {
                 view! { {(t.catalog.plan_not_in_catalog)(row.shown_name())} }.into_any()
             } else if row.fues {
-                view! { {t.catalog.plan_fues}" "<a href=fues_list.clone() data-noscroll="">{t.catalog.fues_list}</a> }.into_any()
+                view! { {t.catalog.plan_fues}" "<a href=fues_list.clone() rel="nofollow" data-noscroll="">{t.catalog.fues_list}</a> }.into_any()
             } else if row.areas.is_empty() {
                 view! { {(t.catalog.plan_all_electives)(row.shown_name())} }.into_any()
             } else if row.named_by_areas() {
@@ -980,13 +986,24 @@ fn PlainRows(
             }).collect_view()}
             {(pages_total > 1).then(|| view! {
                 <nav class="pager" aria-label=t.catalog.pages>
-                    {(start_page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(start_page - 1), open, t)>{t.common.back}</a> })}
+                    {(start_page > 1).then(|| pager_link(current.with_page(start_page - 1), "prev", t.common.back, open, t))}
                     <span class="num">{(t.catalog.page_of)(start_page, pages_total)}</span>
-                    {(start_page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(start_page + 1), open, t)>{t.catalog.next}</a> })}
+                    {(start_page < pages_total).then(|| pager_link(current.with_page(start_page + 1), "next", t.catalog.next, open, t))}
                 </nav>
             })}
         </div>
     }
+}
+
+/// A link of the server's pager, `rel` `prev` or `next`. The pages of the unfiltered list are
+/// pages of the site, and the way a crawler reaches every module: it follows them. The pages of a
+/// filtered list are views: `nofollow`.
+fn pager_link(target: CatalogUrl, way: &'static str, text: &'static str, open: Memo<Option<String>>, t: &'static i18n::Texts) -> impl IntoView {
+    let rel = match crate::seo::nofollow(&target.path()) {
+        Some(nofollow) => format!("{way} {nofollow}"),
+        None => way.to_string(),
+    };
+    view! { <a class="btn secondary" rel=rel href=keep_open(target, open, t)>{text}</a> }
 }
 
 const ROWS_ID: &str = "rows";
@@ -1332,7 +1349,7 @@ fn VirtualRows(
                             let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
                             let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
                             let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
-                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1/></div> }
+                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/></div> }
                         })}
                     }
                 }/>
@@ -1364,6 +1381,9 @@ pub(crate) fn Row(
     /// Every other row of the list is shaded. The list says which, from the row's place in the
     /// whole list: the virtual list renders only the rows on screen, so the stylesheet cannot count.
     #[prop(optional)] shaded: bool,
+    /// On a phone the row is swiped to mark the module (to the left) and to plan it (to the right,
+    /// `crate::swipe`): the lists of the catalog and of the marked modules in the browser app.
+    #[prop(optional)] swipe: bool,
 ) -> impl IntoView {
     let t = i18n::t();
     let language = format::languages(row.teaches_german, row.teaches_english);
@@ -1402,38 +1422,74 @@ pub(crate) fn Row(
         Memo::new(move |_| finder.view.with(|view| view.note_of(&id, !has_events)))
     });
     let fit_note = move || fit_note.and_then(|note| note.get()).map(|(text, quiet)| view! { <span class="flag fit-note" class:neutral=quiet>{text}</span> });
-    view! {
-        <div class="row-wrap" class:shaded=shaded class:unmarked=move || unmarked.is_some_and(|unmarked| unmarked.get())>
-            <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
-                <div class="t">
-                    <b>{row.title.clone()}</b>
-                    <small>
-                        <span class="mono">{row.id.clone()}</span>
-                        {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
-                        // Inside a program the study plan's semester stands at the row (the
-                        // list is in plan order, without headings between the semesters).
-                        {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}
-                        <OfferBadge status=row.offer_status.clone()/>
-                        {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
-                        {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
-                        {fit_note}
-                        <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
-                    </small>
-                </div>
-                <span class="resp">{row.responsible.clone()}</span>
-                <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale))}</span>
-                <span class="lp num">{row.credits.map(|value| format::number(value, t.locale))}<small>{t.common.credits_unit}</small></span>
-                <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
-                <span class="lang" class:unknown=language.is_none()>{language.unwrap_or(t.catalog.row_unknown)}</span>
-                <span class="events" class:none=!has_events>
-                    {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
-                    {if has_events { events } else { t.catalog.events_none.to_string() }}
-                </span>
-            </a>
-            // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
-            // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
-            {APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> })}
-        </div>
+    let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.turnus_season.as_ref().and_then(|turnus| turnus.known()), finder.map(|finder| finder.hint), phone));
+    let unmarked = move || unmarked.is_some_and(|unmarked| unmarked.get());
+    let link = view! {
+        <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
+            <div class="t">
+                <b>{row.title.clone()}</b>
+                <small>
+                    <span class="mono">{row.id.clone()}</span>
+                    {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
+                    // Inside a program the study plan's semester stands at the row (the
+                    // list is in plan order, without headings between the semesters).
+                    {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}
+                    <OfferBadge status=row.offer_status.clone()/>
+                    {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
+                    {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
+                    {fit_note}
+                    <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
+                </small>
+            </div>
+            <span class="resp">{row.responsible.clone()}</span>
+            <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale))}</span>
+            <span class="lp num">{row.credits.map(|value| format::number(value, t.locale))}<small>{t.common.credits_unit}</small></span>
+            <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
+            <span class="lang" class:unknown=language.is_none()>{language.unwrap_or(t.catalog.row_unknown)}</span>
+            <span class="events" class:none=!has_events>
+                {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
+                {if has_events { events } else { t.catalog.events_none.to_string() }}
+            </span>
+        </a>
+    };
+    // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
+    // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
+    let mark = APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> });
+    match swipe {
+        // What lies under the card comes while the row is swiped, before the card in the order of
+        // the page, so the card covers it.
+        Some(swipe) => view! {
+            <div
+                class="row-wrap swipes"
+                class:shaded=shaded
+                class:unmarked=unmarked
+                node_ref=swipe.wrap()
+                data-swipe=move || swipe.phase_attr()
+                data-side=move || swipe.side_attr()
+                data-armed=move || swipe.armed_attr()
+                data-done=move || swipe.done_attr()
+                style=move || swipe.style()
+                on:pointerdown=move |ev| swipe.down(ev)
+                on:pointermove=move |ev| swipe.moving(ev)
+                on:pointerup=move |ev| swipe.up(ev)
+                on:pointercancel=move |ev| swipe.cancel(ev)
+                on:touchmove=move |ev| swipe.touch_move(ev)
+                on:click:capture=move |ev| swipe.click(ev)
+                on:dragstart=move |ev| swipe.drag_start(ev)
+            >
+                {swipe.ground_view()}
+                {link}
+                {mark}
+            </div>
+        }
+        .into_any(),
+        None => view! {
+            <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked>
+                {link}
+                {mark}
+            </div>
+        }
+        .into_any(),
     }
 }
 

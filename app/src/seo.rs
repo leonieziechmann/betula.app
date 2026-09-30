@@ -6,6 +6,12 @@
 //! - A page has one address. Filters, pages of the list and the preview of the catalog are views of
 //!   `/catalog` and are not indexed (`noindex, follow`: their links are still followed); the
 //!   preview of a module points to the module's own page.
+//! - A crawler is led to pages only: a link to what search engines do not list carries
+//!   `rel="nofollow"` — a view (a filter, an order, a page of a filtered list) or what the visitor
+//!   keeps in the browser (the Merkliste, the Stundenplan, „Mein Plan"); `url::listed` says which,
+//!   and `nofollow` below writes it where the link's target decides. The pages of the unfiltered
+//!   catalog (`/catalog?page=<n>`) are pages, so their pager is followed. robots.txt keeps
+//!   crawlers out of the views of the lists as well (`server::api::robots`).
 //! - Addresses in the tags are absolute. The host says what the site is called from outside
 //!   (`SiteUrl`, the server's `--public-url`).
 //! - A page is one page in every language: its canonical address is its own language's, and it
@@ -46,6 +52,12 @@ pub fn absolute(path: &str) -> String {
 /// `path`, a file (a picture), as an absolute address: the same in every language.
 pub fn absolute_file(path: &str) -> String {
     format!("{}{}", site_url(), path)
+}
+
+/// The `rel` of a link to `path` (a path of the app with its query, before `Texts::path` puts the
+/// language in front): `nofollow` where it leads to no page search engines list (`url::listed`).
+pub fn nofollow(path: &str) -> Option<&'static str> {
+    (!catalog::url::listed(path)).then_some("nofollow")
 }
 
 /// The pictures the server draws for link previews (`server/src/cards.rs`): 1200 × 630, the title

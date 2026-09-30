@@ -12,8 +12,8 @@
 #      than the schema its build reads. Asked directly on docker_gwbridge, past Traefik, which
 #      still sends the host to the other one.
 #   2. Its router gets a priority above every other router for the host. That is a label of the
-#      service, not of its tasks: nothing restarts. Traefik reads it the next time it looks at
-#      the swarm (every 15 s).
+#      service, not of its tasks: nothing restarts (with docker 29.8.0 or newer; raise_priority
+#      says why). Traefik reads it the next time it looks at the swarm (every 15 s).
 #   3. Requests to https://<host>/livez until Traefik's access log names this instance's router
 #      three times in a row (up to SWITCH_TIMEOUT seconds).
 # The other instance keeps running as it is: it is the rollback, and while this one has no healthy
@@ -115,13 +115,21 @@ raise_priority() {
     return 0
   fi
   before="$(running_tasks "${SERVICE}")"
-  # --detach: a label of the service changes no task, so there is nothing to wait for.
+  # --detach: a label of the service changes no task, so there is nothing to wait for, as long as
+  # the CLI changes nothing else: "service update" hands swarm the whole spec back. Before docker
+  # 29.8.0 it sorted the mounts on every call (docker/cli#7227), which moved Folia's tmpfs to the
+  # front: a new task template for swarm, so the web server restarted, and Traefik sent the host
+  # back to the other colour until it was healthy (a test swarm with 29.3.1). The switches on the
+  # server (29.8.1) changed the label and nothing else (checked 2026-09-30). What an update
+  # changed: .PreviousSpec against .Spec from the Engine API (curl -s --unix-socket
+  # /var/run/docker.sock http://localhost/services/<name>), not from "docker service inspect",
+  # which fills swarm's defaults into .Spec only (an empty DNSConfig, the rollback's Monitor).
   docker service update --detach=true --label-add "${PRIORITY_LABEL}=$((best + 1))" "${SERVICE}" >/dev/null
   log "${ROUTER}: priority ${own} -> $((best + 1)) (${others[*]}: ${best})"
   sleep 3
   after="$(running_tasks "${SERVICE}")"
   if [[ "${before}" != "${after}" ]]; then
-    warn "the tasks of ${SERVICE} changed with the label (${before}-> ${after}); swarm is not meant to restart them for it"
+    warn "the tasks of ${SERVICE} changed with the label (${before}-> ${after}): docker $(docker version --format '{{.Client.Version}}' 2>/dev/null || true) sent swarm more than the label (before 29.8.0 the CLI sorts the mounts), and swarm restarts the web server for it. Until the new task is healthy, Traefik sends https://${INSTANCE_HOST} to ${others[*]}; the next step waits for that"
   fi
 }
 
