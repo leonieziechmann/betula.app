@@ -440,29 +440,46 @@
   // The page and the ground after it scroll natively as one; nothing here runs while it scrolls
   // but the wood where the browser cannot tie it to the scroll itself. Once the area stands still
   // (150 ms), the pinned panels' content ends above the ground (`--cover`: the ground covers
-  // exactly what goes, so nobody sees it) and „Nach oben" stands above it. The heads of the
-  // list's columns stay under the list's head: its height is `--list-head-h`.
+  // exactly what goes, so nobody sees it) and „Nach oben" stands above it. As the ground goes
+  // back down their content follows it in the same frame (owner, 2026-09-30: once the ground was
+  // gone the sidebar still waited for the scroll to end): growing under the ground shows nothing
+  // that is not to be seen. The heads of the list's columns stay under the list's head: its height
+  // is `--list-head-h`. The scrollbar's width is `--bar`: it stands in the gap right of the page.
   const tiesWood = CSS.supports("animation-timeline: scroll()") && CSS.supports("timeline-scope: --page");
-  let areaTimer = 0, areaFrame = 0, woodMoved = false, headSeen = null;
-  const headWatch = new ResizeObserver(() => {
-    const area = flowing(), head = area?.querySelector(":scope > .list > .list-head");
-    if (area && head) area.style.setProperty("--list-head-h", head.offsetHeight + "px");
+  let areaTimer = 0, areaFrame = 0, woodMoved = false, headSeen = null, covered = 0;
+  const headWatch = new ResizeObserver(([entry]) => {
+    // Its height as drawn, with the fraction a scaled screen gives it: rounded, the heads of the
+    // columns stood a pixel off it and the rows showed through.
+    const area = flowing(), height = entry?.borderBoxSize?.[0]?.blockSize ?? entry?.target.getBoundingClientRect().height;
+    if (area && height) area.style.setProperty("--list-head-h", height + "px");
   });
+  // How much of the pinned panels the ground covers: from 8 px above it to their end.
+  const coverOf = (area) => {
+    const ground = area.querySelector(":scope > .ground");
+    return ground && !phone() ? Math.max(0, Math.round(area.getBoundingClientRect().bottom - 1 - (ground.getBoundingClientRect().top - 8))) : 0;
+  };
+  const putCover = (area, cover) => {
+    covered = cover;
+    area.style.setProperty("--cover", cover + "px");
+    const button = document.getElementById("to-top");
+    if (cover) button?.style.setProperty("--lift", cover + "px"); else button?.style.removeProperty("--lift");
+  };
   const areaSettle = () => {
     areaTimer = 0;
     const area = flowing();
-    const button = document.getElementById("to-top");
-    if (!area) { button?.style.removeProperty("--lift"); return; }
-    const ground = area.querySelector(":scope > .ground");
-    const cover = ground && !phone() ? Math.max(0, Math.round(area.getBoundingClientRect().bottom - 1 - (ground.getBoundingClientRect().top - 8))) : 0;
-    area.style.setProperty("--cover", cover + "px");
-    if (cover) button?.style.setProperty("--lift", cover + "px"); else button?.style.removeProperty("--lift");
+    if (!area) { covered = 0; document.getElementById("to-top")?.style.removeProperty("--lift"); return; }
+    putCover(area, coverOf(area));
   };
   const areaFollow = () => {
     areaFrame = 0;
     const area = flowing();
     const head = area?.querySelector(":scope > .list > .list-head") ?? null;
     if (head !== headSeen) { headWatch.disconnect(); if (head) headWatch.observe(head); headSeen = head; }
+    if (area) {
+      const bar = area.offsetWidth - area.clientWidth;
+      if (area.style.getPropertyValue("--bar") !== bar + "px") area.style.setProperty("--bar", bar + "px");
+      if (covered) { const cover = coverOf(area); if (cover < covered) putCover(area, cover); }
+    }
     // A list short enough to stand whole above the ground is pinned like the filter panel: the
     // ground slides over its empty end and its rows stay where they are, as before. A longer one
     // flows with the page and its end comes before the ground.

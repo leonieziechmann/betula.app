@@ -412,9 +412,11 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    of the rail under the top bar, with one scrollbar at the window's right edge: the page and the
    ground after it scroll as one, natively, and the ground is simply the end of the page. What stands
    beside the page (the filter panel, the module beside the list) is pinned: as high as the area
-   shows, its place running through the ground's row, so the ground slides over its lower end and
-   brings that end's edge along (the ring, the round corners, the gap in the wood's colour, which
-   is what shows there anyway); once the page stands still its content ends above the ground
+   shows, its place running through the ground's row, so the ground slides over its lower end; from
+   8 px above the ground down, all across, the background is the wood's front colour (a band behind
+   the ground, `::after`, and the wood's own below it), which cuts the panels off straight and shows
+   in the ground's round corners (owner, 2026-09-30: the panels' corners drawn along with the ground
+   looked off); once the page stands still its content ends above the ground
    (`--cover`, enhance.js: one layout nobody sees, the ground covers exactly what goes). The list's
    head and the heads of its columns stay at the top; where the area cuts the list off at the
    bottom, the list keeps its box (`.list-cap`), and its head's round corners let the page behind
@@ -422,15 +424,16 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    the ground in the same frame (a scroll-driven animation; enhance.js where there is none). The
    area has 1 px above and below the panels for their ring: they end where they ended before, 8 px
    above the window's edge; `100vh - 64px` is the height of a pinned panel (56 px above, 8 below). A
-   sticky `top: 0` already stands inside the area's 1 px of padding. */
-.ground-gap, .ground-cap { display: none; }
+   sticky `top: 0` already stands inside the area's 1 px of padding. The scrollbar stands in the
+   8 px right of the page (`--bar`, its width, enhance.js), not beside them (owner, 2026-09-30). */
 .work > .ground { display: none; }
 @media (min-width: 901px) {
   body { timeline-scope: --page; }
   :root:has(#content > .work.flowing) body > .ground { display: none; }
   .work.flowing {
     display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content var(--ground-h);
-    height: calc(100% + 2px); margin: -1px calc(-1 * var(--gap)) -1px 0; padding: 1px var(--gap) 1px 0;
+    --pad-r: max(0px, calc(var(--gap) - var(--bar, 0px)));
+    height: calc(100% + 2px); margin: -1px calc(-1 * var(--gap)) -1px 0; padding: 1px var(--pad-r) 1px 0;
     overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; scroll-timeline: --page block;
   }
   /* A page without a frame (ui::Plain, the start page) takes the whole width. */
@@ -450,7 +453,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .work.flowing::before { content: ""; grid-row: 1; grid-column: 1; height: calc(100vh - 64px); pointer-events: none; }
   .work.flowing > .filters, .work.flowing > .sidebar, .work.flowing > .detail {
     position: sticky; inset: auto; top: 0; grid-row: 1 / 3; align-self: start; height: calc(100vh - 64px);
-    padding-bottom: var(--cover, 0px); transition: padding-bottom .22s var(--ease);
+    padding-bottom: var(--cover, 0px);
   }
   .work.flowing > .filters, .work.flowing > .sidebar { grid-column: 1; }
   /* A list short enough to stand whole above the ground is pinned as well (enhance.js). */
@@ -466,12 +469,14 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .work.flowing > .resizer.preview-edge { justify-self: end; right: auto; margin-right: calc(var(--at, var(--preview)) - 12px); }
   .work.flowing .rows.scroll { overflow: visible; }
   .work.flowing .list[data-pending] .rows { overflow: clip; }
-  /* The list's head stays at the top, its ring as its top edge; the heads of the columns stay
-     under it (--list-head-h, enhance.js); the note of a semester between them scrolls away. */
-  html.js .work.flowing > .list > .list-head { position: sticky; top: 0; z-index: 6; margin: -1px -1px 0; border: 1px solid var(--ring-b); border-bottom: 0; border-radius: calc(var(--r-panel) + 1px) calc(var(--r-panel) + 1px) 0 0; background: var(--panel); }
-  html.js .work.flowing .rows > .cols { top: var(--list-head-h, 0px); }
-  html.js .work.flowing > .list > .cols { position: sticky; top: var(--list-head-h, 0px); z-index: 4; }
-  html.js .work.flowing .rows-pending { top: calc(var(--list-head-h, 0px) + var(--cols)); }
+  /* The list's head stays at the top, its ring as its top edge — in the area's 1 px above the
+     panels, where the other panels have theirs, so nothing shows through above it —; the heads of
+     the columns stay under it (--list-head-h, its height with the ring, enhance.js); the note of a
+     semester between them scrolls away. */
+  html.js .work.flowing > .list > .list-head { position: sticky; top: -1px; z-index: 6; margin: -1px -1px 0; border: 1px solid var(--ring-b); border-bottom: 0; border-radius: calc(var(--r-panel) + 1px) calc(var(--r-panel) + 1px) 0 0; background: var(--panel); }
+  html.js .work.flowing .rows > .cols { top: calc(var(--list-head-h, 1px) - 1px); }
+  html.js .work.flowing > .list > .cols { position: sticky; top: calc(var(--list-head-h, 1px) - 1px); z-index: 4; }
+  html.js .work.flowing .rows-pending { top: calc(var(--list-head-h, 1px) - 1px + var(--cols)); }
   html.js .work.flowing .row { scroll-margin: calc(var(--list-head-h, 0px) + var(--cols) + 8px) 0 16px; }
   .list-cap { display: none; }
   .work.flowing > .list > .list-cap {
@@ -481,23 +486,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
       radial-gradient(circle at 0 0, transparent 8.6px, var(--ring-w) 9.3px, var(--ring-w) 9.7px, var(--wood-front) 10.4px) right top / 10px 10px no-repeat,
       linear-gradient(var(--ring-w), var(--ring-w)) center bottom / calc(100% - 20px) 1px no-repeat;
   }
-  /* The ground as the end of the page, and what it brings along over the pinned panels. */
+  /* The ground as the end of the page, on a band in the wood's front colour from 8 px above it
+     and across the whole area (to the scrollbar): over the pinned panels, under the ground. */
   .work.flowing > .ground { display: block; position: relative; z-index: 20; grid-column: 1 / -1; grid-row: 2; height: var(--ground-h); min-height: 0; margin: 0; }
-  .work.flowing > .ground > .ground-gap { display: block; position: absolute; left: 0; right: 0; bottom: 100%; height: 7px; background: var(--wood-front); pointer-events: none; }
-  .work.flowing > .ground > .ground-cap {
-    --e1: var(--wood-front); --e2: var(--wood-front); --r1: var(--ring-w); --r2: var(--ring-w); --rm: var(--ring-w);
-    display: block; position: absolute; bottom: calc(100% + 7px); height: 10px; pointer-events: none;
-    background:
-      radial-gradient(circle at 10px 0, transparent 8.6px, var(--r1) 9.3px, var(--r1) 9.7px, var(--e1) 10.4px) left top / 10px 10px no-repeat,
-      radial-gradient(circle at 0 0, transparent 8.6px, var(--r2) 9.3px, var(--r2) 9.7px, var(--e2) 10.4px) right top / 10px 10px no-repeat,
-      linear-gradient(var(--rm), var(--rm)) center bottom / calc(100% - 20px) 1px no-repeat;
-  }
-  .work.flowing > .ground > .cap-side { display: none; left: -1px; width: calc(var(--filters) + 2px); }
-  .work.flowing:has(> .filters, > .sidebar) > .ground > .cap-side { display: block; }
-  .work.flowing > .ground > .cap-preview { display: none; right: -1px; width: calc(var(--preview) + 2px); --e1: var(--panel); --r1: var(--ring-p); --rm: var(--ring-pw); --r2: var(--ring-pw); }
-  .work.flowing:has(> .detail) > .ground > .cap-preview { display: block; }
-  .work.flowing > .ground > .cap-list { display: none; left: calc(var(--filters) + var(--gap) - 1px); right: -1px; }
-  .work.flowing:has(> .list.short) > .ground > .cap-list { display: block; }
+  .work.flowing::after { content: ""; position: relative; z-index: 19; grid-column: 1 / -1; grid-row: 2; margin: calc(-1 * var(--gap)) calc(-1 * var(--pad-r)) 0 0; background: var(--wood-front); pointer-events: none; }
   /* The wood stands on the ground as it comes: its last 208 px of the scroll are the ground's 200
      and the gap above it. */
   @keyframes wood-rise { to { transform: translateY(-208px); } }
@@ -1418,6 +1410,9 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .wood { display: none; }
 @media (min-width: 901px) {
   .wood { display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; will-change: transform; }
+  /* Under the wood, as it goes up with the ground, its front colour goes on down to the window's
+     edge: a shadow only draws outside the box. */
+  :root:has(#content > .work.flowing) .wood { box-shadow: 0 208px 0 var(--wood-front); }
   .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3080px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3080px 1600px no-repeat; }
   .wood::after { background: var(--wood-front); -webkit-mask-image: url("/assets/birch/summer-wood-front.svg"); mask-image: url("/assets/birch/summer-wood-front.svg"); }
   :root[data-season="spring"] .wood::before { -webkit-mask-image: url("/assets/birch/spring-wood-back.svg"); mask-image: url("/assets/birch/spring-wood-back.svg"); }
@@ -3027,5 +3022,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+/* The wood keeps its animation: it is tied to the scroll (the ground's), it moves only as the
+   visitor scrolls (owner, 2026-09-30: with less motion it stayed down behind the ground). */
+@media (prefers-reduced-motion: reduce) { *:not(.wood), *::before, *::after { animation: none !important; transition: none !important; } }
 @media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top, .wood { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }

@@ -1101,15 +1101,23 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   - What stands beside the page is pinned: the filter panel, a frame's sidebar and the module
     beside the list or the page (a frame's `aside`) stand
     still, as high as the area shows, their place running through the ground's row, so the ground
-    slides over their lower end instead of pushing them up, and brings that end's edge along — the
-    gap above it in the colour of the wood's ground (which is what shows there: the wood's lowest
-    12 px are its solid ground, `design/forest`), the ring and the round corners (`.ground-gap`,
-    `.ground-cap`). Once the area stands still (150 ms), the pinned panels' content ends above the
-    ground (`--cover`, `enhance.js`), one layout nobody sees since the ground covers exactly what
-    goes, and „Nach oben" stands above it. Shrinking them with the scroll in every frame would lag
-    behind the natively scrolled ground.
+    slides over their lower end instead of pushing them up. From 8 px above the ground down, all
+    across, the background is the wood's front colour (owner, 2026-09-30, instead of the panels'
+    ring and round corners drawn along with the ground, which looked off): a band behind the
+    ground (`.work.flowing::after`) cuts the panels off straight and shows in the ground's round
+    corners, and under the wood, as it goes up, its front colour goes on to the window's edge (a
+    shadow of `.wood`). Once the area stands still (150 ms), the pinned panels' content ends above
+    the ground (`--cover`, `enhance.js`), one layout nobody sees since the ground covers exactly
+    what goes, and „Nach oben" stands above it; as the ground goes back down their content follows
+    it in the same frame (owner, the same day: once the ground was gone the sidebar still waited
+    for the scroll to end). Shrinking them with the scroll in every frame would lag behind the
+    natively scrolled ground.
+  - The scrollbar stands in the 8 px right of the page (its width is `--bar`, `enhance.js`), not
+    beside them (owner, 2026-09-30: the gap to the scrollbar was too wide).
   - The list keeps its box: its head (the number, the filters in force) stays at the top, the
-    heads of its columns under it (`--list-head-h`, measured by `enhance.js`), the note of a
+    heads of its columns under it (`--list-head-h`, measured by `enhance.js` with its fraction),
+    the head's ring in the area's 1 px above the panels, where theirs are (owner, 2026-09-30: a
+    pixel lower, rows showed through above it), the note of a
     semester between them scrolls away as before. Where the area cuts the list off at the bottom a
     sticky edge (`.list-cap`) draws the ring and the round corners; at the real end of the list it
     stands where the list ends and draws what the list draws there. The round corners of the head
@@ -1125,7 +1133,8 @@ at the end of every page the ground with the roots. Picked on a design canvas of
     view, and then to „Nach oben".
   - The wood goes up with the ground in the same frame: a scroll-driven animation on the area's
     timeline (`--page`, the last 208 px of the scroll); where a browser has none, `enhance.js`
-    moves it.
+    moves it. Less motion keeps it (owner, 2026-09-30: it stayed down): it moves only as the
+    visitor scrolls.
 
 The pieces: `app/src/ground.rs` (`Crown`, `Ground`; the ground's data is `pages::ground`, the meta
 and the current semester), „the birch" in `app/assets/app.css`, the ground's behaviour in
