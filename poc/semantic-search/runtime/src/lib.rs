@@ -7,6 +7,8 @@
 //! embedding of a text is the mean over its tokens, scaled to length 1. E5 expects every text
 //! behind a prefix: „query: “ for what is searched for, „passage: “ for what is searched.
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
+
 mod reader;
 mod tensor;
 pub mod tokenizer;
@@ -16,7 +18,8 @@ mod wasm;
 use std::collections::HashMap;
 
 use reader::Reader;
-use tensor::{gelu, softmax, Linear, Norm, Tensor};
+use tensor::{gelu, softmax, Linear, Norm, Scratch, Tensor};
+pub use tensor::Mode;
 pub use tokenizer::Tokenizer;
 
 struct Layer {
@@ -44,8 +47,14 @@ pub struct Model {
 }
 
 impl Model {
-    /// Takes the packed model's bytes over; its quantised weights are used where they are.
+    /// Takes the packed model's bytes over; its quantised weights are used where they are
+    /// (`Mode::Expand`).
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, String> {
+        Self::from_bytes_with(bytes, Mode::Expand)
+    }
+
+    /// Takes the packed model's bytes over and prepares the matrices for `mode`.
+    pub fn from_bytes_with(bytes: Vec<u8>, mode: Mode) -> Result<Self, String> {
         let mut r = Reader::new(&bytes);
         if r.take(4)? != b"E5Q1" {
             return Err("not a packed e5 model (E5Q1)".into());
@@ -100,6 +109,11 @@ impl Model {
         if r.at() != bytes.len() {
             return Err(format!("{} bytes left over", bytes.len() - r.at()));
         }
+        for layer in &mut layers {
+            for linear in [&mut layer.query, &mut layer.key, &mut layer.value, &mut layer.output, &mut layer.intermediate, &mut layer.out] {
+                linear.unpack(&bytes, mode)?;
+            }
+        }
         Ok(Self { bytes, hidden, heads, intermediate, positions, tokenizer, words, position, norm, layers })
     }
 
@@ -129,6 +143,7 @@ impl Model {
 
         let mut x = vec![0.0f32; n * h];
         let mut row = vec![0.0f32; h];
+        let mut scratch = Scratch::default();
         for (t, (xt, id)) in x.chunks_exact_mut(h).zip(&ids).enumerate() {
             self.words.row(bytes, *id as usize, xt);
             self.position.row(bytes, t, &mut row);
@@ -146,20 +161,20 @@ impl Model {
         let mut inner = vec![0.0f32; n * self.intermediate];
         let mut out = vec![0.0f32; n * h];
         for layer in &self.layers {
-            layer.query.apply(bytes, &x, &mut q, &mut row);
-            layer.key.apply(bytes, &x, &mut k, &mut row);
-            layer.value.apply(bytes, &x, &mut v, &mut row);
+            layer.query.apply(bytes, &x, &mut q, &mut scratch);
+            layer.key.apply(bytes, &x, &mut k, &mut scratch);
+            layer.value.apply(bytes, &x, &mut v, &mut scratch);
             self.attention(&q, &k, &v, &mut context);
-            layer.output.apply(bytes, &context, &mut attended, &mut row);
+            layer.output.apply(bytes, &context, &mut attended, &mut scratch);
             for (a, b) in attended.iter_mut().zip(&x) {
                 *a += b;
             }
             layer.attention_norm.apply(&mut attended);
-            layer.intermediate.apply(bytes, &attended, &mut inner, &mut row);
+            layer.intermediate.apply(bytes, &attended, &mut inner, &mut scratch);
             for a in inner.iter_mut() {
                 *a = gelu(*a);
             }
-            layer.out.apply(bytes, &inner, &mut out, &mut row);
+            layer.out.apply(bytes, &inner, &mut out, &mut scratch);
             for (a, b) in out.iter_mut().zip(&attended) {
                 *a += b;
             }

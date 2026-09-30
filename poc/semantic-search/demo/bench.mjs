@@ -1,13 +1,16 @@
-// node bench.mjs WASM MODEL [--check embeddings.jsonl]
+// node bench.mjs WASM MODEL [--check embeddings.jsonl] [--mode expand|f32|int8]
 //
 // How long a query takes in V8's WebAssembly (the engine of Chrome, Edge and Node), from the
-// text to the unit vector, for queries of different lengths; the median of 20 runs each. With
+// text to the unit vector, for queries of different lengths; the median and the fastest of 20 runs each (the fastest is what a quiet machine does). With
 // --check, the embeddings are compared with those of the native binary (`embed MODEL < texts`).
 
 import { readFile } from "node:fs/promises";
 import { E5 } from "./e5.js";
 
-const [wasmPath, modelPath, flag, checkPath] = process.argv.slice(2);
+const [wasmPath, modelPath, ...rest] = process.argv.slice(2);
+const option = (name) => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined);
+const checkPath = option("--check");
+const mode = option("--mode") ?? "int8";
 const queries = [
   "query: Statik",
   "query: maschinelles lernen",
@@ -20,8 +23,8 @@ let started = performance.now();
 const [wasm, model] = await Promise.all([readFile(wasmPath), readFile(modelPath)]);
 const read = performance.now() - started;
 started = performance.now();
-const e5 = await E5.create(wasm, model);
-console.log(`read ${(read).toFixed(0)} ms, instantiate + load ${(performance.now() - started).toFixed(0)} ms, ` +
+const e5 = await E5.create(wasm, model, mode);
+console.log(`${mode}: read ${(read).toFixed(0)} ms, instantiate + load ${(performance.now() - started).toFixed(0)} ms, ` +
   `memory ${(e5.x.memory.buffer.byteLength / 2 ** 20).toFixed(1)} MiB`);
 
 for (const q of queries) {
@@ -34,10 +37,10 @@ for (const q of queries) {
     times.push(performance.now() - t);
   }
   times.sort((a, b) => a - b);
-  console.log(`${times[10].toFixed(1).padStart(6)} ms  ${String(tokens).padStart(3)} tokens  ${q}`);
+  console.log(`${times[10].toFixed(1).padStart(6)} ms (min ${times[0].toFixed(1).padStart(5)})  ${String(tokens).padStart(3)} tokens  ${q}`);
 }
 
-if (flag === "--check") {
+if (checkPath) {
   const lines = (await readFile(checkPath, "utf8")).trim().split("\n").map((l) => JSON.parse(l));
   const texts = (await readFile(checkPath.replace(/\.jsonl$/, ".txt"), "utf8")).split("\n").slice(0, lines.length);
   let worst = 1;

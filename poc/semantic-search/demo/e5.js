@@ -2,13 +2,15 @@
 // queries. `runtime/src/wasm.rs` has the exports this wraps.
 
 export class E5 {
-  /** @param {BufferSource} wasm the module's bytes, @param {Uint8Array} model the packed model */
-  static async create(wasm, model) {
+  /** @param {BufferSource} wasm the module's bytes, @param {Uint8Array} model the packed model,
+   * @param {"expand"|"f32"|"int8"} mode how the matrices are kept (runtime/src/tensor.rs `Mode`):
+   * int8 is fastest (21 MB more memory), expand smallest, f32 in between but 85 MB more. */
+  static async create(wasm, model, mode = "int8") {
     const { instance } = await WebAssembly.instantiate(wasm, {});
     const e5 = new E5(instance.exports);
     const at = e5.x.alloc(model.length);
     new Uint8Array(e5.x.memory.buffer, at, model.length).set(model);
-    if (e5.x.load(at, model.length) !== 0) throw new Error("not a packed e5 model");
+    if (e5.x.load(at, model.length, { expand: 0, f32: 1, int8: 2 }[mode]) !== 0) throw new Error("not a packed e5 model");
     e5.dims = e5.x.dims();
     e5.out = e5.x.alloc(4 * e5.dims);
     return e5;

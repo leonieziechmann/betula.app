@@ -9,6 +9,10 @@ would do that), the queries with each variant: what a browser would compute. Tas
 - GermanDPR (2,876 German passages, 1,025 questions).
 - SciFact (5,183 English abstracts, 300 claims), nDCG@10 as in MTEB.
 
+- With `--catalog catalog.db`, Betula's own modules: a module's title (German, or English
+  where it differs) → its contents and learning outcomes, among those of all modules, without
+  titles. Only titles that name one module and descriptions of some length count; 1,000 each.
+
 Besides the ranks: how close each variant's query embedding stays to the original's (cosine).
 
     python evaluate.py --vocab ../model/vocab.json --variants f32 q8 q4 nf4-64 --out results.json
@@ -27,6 +31,26 @@ import pandas as pd
 from common import full_tokenizer, load_torch_model, model_dir, trimmed_tokenizer, variant_model, embed
 
 HERE = Path(__file__).parent
+
+
+def catalog_tasks(db: str, per_task: int = 1000) -> dict:
+    import random
+    import sqlite3
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    rows = con.execute("SELECT title_de, title_en, contents, learning_outcomes FROM v_module ORDER BY id").fetchall()
+    corpus = [" ".join(t for t in (c, o) if t) for _, _, c, o in rows]
+    count = {}
+    for de, _, _, _ in rows:
+        count[de] = count.get(de, 0) + 1
+    tasks = {}
+    for name, pick in [("betula title de→text", lambda r: r[0]),
+                       ("betula title en→text", lambda r: r[1] if r[1] and r[1] != r[0] else None)]:
+        pairs = [(pick(r), i) for i, r in enumerate(rows)
+                 if pick(r) and count.get(r[0]) == 1 and len(corpus[i]) >= 200]
+        pairs = random.Random(0).sample(pairs, min(per_task, len(pairs)))
+        tasks[name] = {"queries": [q for q, _ in pairs], "corpus": corpus, "corpus_key": "betula",
+                       "relevant": [{i} for _, i in pairs]}
+    return tasks
 
 
 def load_tasks(data: Path) -> dict:
@@ -99,12 +123,18 @@ def main():
                     help="weights[/embeddings], e.g. q4 or q4/q4-64 (see common.quantize)")
     ap.add_argument("--data", default=str(HERE / ".cache"), help="datasets and cached document embeddings")
     ap.add_argument("--tasks", nargs="*", help="only these tasks (substring match)")
+    ap.add_argument("--catalog", help="a Betula snapshot: adds its modules as tasks")
+    ap.add_argument("--packed", help="a packed model for the variants rust:expand, rust:f32, rust:int8: the queries "
+                    "embedded by the Rust runtime itself (--embed)")
+    ap.add_argument("--embed", default=str(HERE.parent / "runtime/target/release/embed"))
     ap.add_argument("--out")
     args = ap.parse_args()
 
     mdir = model_dir(args.model)
     data = Path(args.data); data.mkdir(parents=True, exist_ok=True)
     tasks = load_tasks(data)
+    if args.catalog:
+        tasks.update(catalog_tasks(args.catalog))
     if args.tasks:
         tasks = {k: v for k, v in tasks.items() if any(t in k for t in args.tasks)}
 
@@ -133,6 +163,14 @@ def main():
     for variant in ["original"] + args.variants:
         if variant == "original":
             queries = reference
+        elif variant.startswith("rust:"):
+            import subprocess
+            queries = {}
+            for name, task in tasks.items():
+                texts = ["query: " + " ".join(q.split()) for q in task["queries"]]
+                run = subprocess.run([args.embed, args.packed, "--mode", variant[5:]], input="\n".join(texts) + "\n",
+                                     capture_output=True, text=True, check=True)
+                queries[name] = np.array([json.loads(line)["embedding"] for line in run.stdout.splitlines()], dtype=np.float32)
         else:
             weights, _, embeddings = variant.partition("/")
             model = variant_model(mdir, kept, weights, embeddings or weights)

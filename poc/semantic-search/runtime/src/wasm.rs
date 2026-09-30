@@ -1,10 +1,10 @@
 //! The model for JavaScript, without wasm-bindgen: a handful of functions over the module's
-//! memory (`demo/search.js` shows the calls).
+//! memory (`demo/e5.js` wraps them).
 //!
 //! ```js
 //! const at = alloc(bytes.length);                 // the packed model
 //! new Uint8Array(memory.buffer, at, bytes.length).set(bytes);
-//! load(at, bytes.length);                         // 0: loaded; the model keeps the buffer
+//! load(at, bytes.length, 2);                      // 0: loaded (mode 2: int8); keeps the buffer
 //! const text = new TextEncoder().encode("query: " + query.normalize("NFC"));
 //! const t = alloc(text.length), out = alloc(4 * dims());
 //! new Uint8Array(memory.buffer, t, text.length).set(text);
@@ -14,7 +14,7 @@
 
 use std::cell::RefCell;
 
-use crate::Model;
+use crate::{Mode, Model};
 
 thread_local! {
     static MODEL: RefCell<Option<Model>> = const { RefCell::new(None) };
@@ -36,14 +36,20 @@ pub unsafe extern "C" fn free(at: *mut u8, len: usize) {
     drop(Vec::from_raw_parts(at, 0, len));
 }
 
-/// Takes over the packed model at `at` (from `alloc(len)`). 0: loaded, 1: not a model.
+/// Takes over the packed model at `at` (from `alloc(len)`) and prepares it for `mode` (0: expand
+/// rows per query, 1: f32, 2: int8; `Mode`). 0: loaded, 1: not a model.
 ///
 /// # Safety
 /// `at` and `len` as `alloc` handed them out, all `len` bytes written.
 #[no_mangle]
-pub unsafe extern "C" fn load(at: *mut u8, len: usize) -> i32 {
+pub unsafe extern "C" fn load(at: *mut u8, len: usize, mode: u32) -> i32 {
     let bytes = Vec::from_raw_parts(at, len, len);
-    match Model::from_bytes(bytes) {
+    let mode = match mode {
+        1 => Mode::F32,
+        2 => Mode::Int8,
+        _ => Mode::Expand,
+    };
+    match Model::from_bytes_with(bytes, mode) {
         Ok(model) => {
             MODEL.with(|m| *m.borrow_mut() = Some(model));
             0

@@ -123,10 +123,41 @@ impl Tensor {
     }
 }
 
+/// How the matrices are multiplied (`Model::from_bytes_with`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    /// Weights stay 4-bit; a row is expanded to floats every time it is used. Least memory
+    /// (the file), slowest.
+    Expand,
+    /// Every matrix expanded to f32 once, when loading: 4 bytes a weight (85 MB more).
+    F32,
+    /// Every matrix expanded to int8 once (a byte a weight, 21 MB more); the tokens are
+    /// quantised to int8 per block as well and multiplied in integers, as llama.cpp does
+    /// (q4_0 × q8_0). Needs weights on uniform levels (`q4`, not `nf4`).
+    Int8,
+}
+
+/// A matrix ready for one of the faster modes.
+enum Unpacked {
+    F32(Vec<f32>),
+    /// Codes row by row, one scale per block of `block` codes.
+    Int8 { codes: Vec<i8>, scales: Vec<f32>, block: usize },
+}
+
 /// A matrix and its bias: `y = x·Wᵀ + b` for every token of `x`.
 pub(crate) struct Linear {
     pub(crate) weight: Tensor,
     pub(crate) bias: Vec<f32>,
+    unpacked: Option<Unpacked>,
+}
+
+/// Room the products need, kept across calls.
+#[derive(Default)]
+pub(crate) struct Scratch {
+    row: Vec<f32>,
+    codes: Vec<i16>,
+    scales: Vec<f32>,
+    wide: Vec<i16>,
 }
 
 impl Linear {
@@ -136,22 +167,210 @@ impl Linear {
             return Err(format!("expected a {rows}×{cols} matrix, found {:?}", weight.shape()));
         }
         let bias = Tensor::read(r)?.into_vector(rows)?;
-        Ok(Self { weight, bias })
+        Ok(Self { weight, bias, unpacked: None })
+    }
+
+    /// Expands the matrix for `mode`, once.
+    pub(crate) fn unpack(&mut self, bytes: &[u8], mode: Mode) -> Result<(), String> {
+        let (rows, cols) = self.weight.shape();
+        self.unpacked = match mode {
+            Mode::Expand => None,
+            Mode::F32 => {
+                let mut all = vec![0.0f32; rows * cols];
+                for (o, row) in all.chunks_exact_mut(cols).enumerate() {
+                    self.weight.row(bytes, o, row);
+                }
+                Some(Unpacked::F32(all))
+            }
+            Mode::Int8 => Some(self.int8(bytes)?),
+        };
+        Ok(())
+    }
+
+    fn int8(&self, bytes: &[u8]) -> Result<Unpacked, String> {
+        let (rows, cols) = self.weight.shape();
+        match &self.weight {
+            Tensor::Q4 { block, levels, scales, codes, .. } => {
+                // Uniform levels are k·step: the code minus 8 is the integer, step·scale the scale.
+                let step = levels.get(1).zip(levels.first()).map_or(0.0, |(b, a)| b - a);
+                let uniform = levels.iter().enumerate().all(|(k, l)| (l - (k as f32 - 8.0) * step).abs() < 1e-6);
+                if !uniform || step <= 0.0 {
+                    return Err("int8 needs weights on uniform levels (q4)".into());
+                }
+                let packed = bytes.get(*codes..codes + rows * cols / 2).ok_or("codes")?;
+                let mut out = Vec::with_capacity(rows * cols);
+                for byte in packed {
+                    out.push((byte & 0x0f).cast_signed() - 8);
+                    out.push((byte >> 4).cast_signed() - 8);
+                }
+                let raw = bytes.get(*scales..scales + rows * cols / block * 2).ok_or("scales")?;
+                let (halves, _) = raw.as_chunks::<2>();
+                let scales = halves.iter().map(|h| f16_to_f32(u16::from_le_bytes(*h)) * step).collect();
+                Ok(Unpacked::Int8 { codes: out, scales, block: *block })
+            }
+            Tensor::Q8 { block, scales, codes, .. } => {
+                let raw = bytes.get(*codes..codes + rows * cols).ok_or("codes")?;
+                let out = raw.iter().map(|c| c.cast_signed()).collect();
+                let raw = bytes.get(*scales..scales + rows * cols / block * 2).ok_or("scales")?;
+                let (halves, _) = raw.as_chunks::<2>();
+                let scales = halves.iter().map(|h| f16_to_f32(u16::from_le_bytes(*h))).collect();
+                Ok(Unpacked::Int8 { codes: out, scales, block: *block })
+            }
+            _ => Err("int8 needs quantised weights".into()),
+        }
     }
 
     /// `x` holds the tokens one after the other (each as long as a row of the matrix), `y`
-    /// receives them (each as long as a column); `row` is room for one expanded row.
-    pub(crate) fn apply(&self, bytes: &[u8], x: &[f32], y: &mut [f32], row: &mut Vec<f32>) {
+    /// receives them (each as long as a column).
+    pub(crate) fn apply(&self, bytes: &[u8], x: &[f32], y: &mut [f32], scratch: &mut Scratch) {
         let (rows, cols) = self.weight.shape();
-        row.resize(cols, 0.0);
-        for (o, b) in self.bias.iter().enumerate() {
-            self.weight.row(bytes, o, row);
-            for (xt, yt) in x.chunks_exact(cols).zip(y.chunks_exact_mut(rows)) {
-                if let Some(v) = yt.get_mut(o) {
-                    *v = dot(xt, row) + b;
+        match &self.unpacked {
+            None => {
+                let row = &mut scratch.row;
+                row.resize(cols, 0.0);
+                for (o, b) in self.bias.iter().enumerate() {
+                    self.weight.row(bytes, o, row);
+                    for (xt, yt) in x.chunks_exact(cols).zip(y.chunks_exact_mut(rows)) {
+                        if let Some(v) = yt.get_mut(o) {
+                            *v = dot(xt, row) + b;
+                        }
+                    }
+                }
+            }
+            Some(Unpacked::F32(all)) => {
+                for ((o, b), row) in self.bias.iter().enumerate().zip(all.chunks_exact(cols)) {
+                    for (xt, yt) in x.chunks_exact(cols).zip(y.chunks_exact_mut(rows)) {
+                        if let Some(v) = yt.get_mut(o) {
+                            *v = dot(xt, row) + b;
+                        }
+                    }
+                }
+            }
+            Some(Unpacked::Int8 { codes, scales, block }) => {
+                quantise(x, *block, &mut scratch.codes, &mut scratch.scales);
+                int8_product(&scratch.codes, &scratch.scales, codes, scales, &self.bias, *block, cols, y, &mut scratch.wide);
+            }
+        }
+    }
+}
+
+/// `y = x·Wᵀ + b` with int8 tokens `xq` (scales `xs`) and int8 rows `w` (scales `ws`): four rows
+/// widened to i16 at a time, then multiplied with the tokens two at a time, so that every vector
+/// loaded is used several times (`tile`).
+#[allow(clippy::too_many_arguments)]
+fn int8_product(xq: &[i16], xs: &[f32], w: &[i8], ws: &[f32], bias: &[f32], block: usize, cols: usize, y: &mut [f32], wide: &mut Vec<i16>) {
+    let rows = bias.len();
+    let per_row = cols / block;
+    let tokens = xq.len() / cols;
+    for ((group, w4), ws4) in w.chunks(4 * cols).enumerate().zip(ws.chunks(4 * per_row)) {
+        wide.clear();
+        wide.extend(w4.iter().map(|c| i16::from(*c)));
+        let first = group * 4;
+        let (wr, wsr): (Vec<&[i16]>, Vec<&[f32]>) = (wide.chunks(cols).collect(), ws4.chunks(per_row).collect());
+        let mut t = 0;
+        while t < tokens {
+            let pair = (t + 1 < tokens) as usize + 1;
+            let xt: Vec<&[i16]> = (t..t + pair).filter_map(|u| xq.get(u * cols..(u + 1) * cols)).collect();
+            let xst: Vec<&[f32]> = (t..t + pair).filter_map(|u| xs.get(u * per_row..(u + 1) * per_row)).collect();
+            let sums = tile(&xt, &xst, &wr, &wsr, block);
+            for (r, row_sums) in sums.iter().enumerate().take(wr.len()) {
+                let b = bias.get(first + r).copied().unwrap_or_default();
+                for (u, sum) in row_sums.iter().enumerate().take(pair) {
+                    if let Some(v) = y.get_mut((t + u) * rows + first + r) {
+                        *v = sum + b;
+                    }
+                }
+            }
+            t += pair;
+        }
+    }
+}
+
+/// Σ over the blocks of (Σ x·w in integers) · x's scale · w's scale, for up to 4 rows × 2 tokens.
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
+    let mut out = [[0.0f32; 2]; 4];
+    for ((o, wr), wsr) in out.iter_mut().zip(w).zip(ws) {
+        for ((cell, xt), xst) in o.iter_mut().zip(x).zip(xs) {
+            for (((xb, wb), xd), wd) in xt.chunks_exact(block).zip(wr.chunks_exact(block)).zip(*xst).zip(*wsr) {
+                let dot: i32 = xb.iter().zip(wb).map(|(a, b)| i32::from(*a) * i32::from(*b)).sum();
+                *cell += dot as f32 * xd * wd;
+            }
+        }
+    }
+    out
+}
+
+/// The same in WebAssembly SIMD. `i32x4.dot_i16x8_s` multiplies eight pairs and adds them
+/// pairwise into four i32 lanes; per block, the 4 × 2 integer sums are scaled into float lanes,
+/// which are summed across once at the end. Two tokens and four rows share every load.
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[allow(clippy::indexing_slicing)] // every index is below the lengths checked on entry
+fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
+    use core::arch::wasm32::*;
+    let mut out = [[0.0f32; 2]; 4];
+    let (Some(first), true) = (x.first(), w.len() == 4 && (x.len() == 1 || x.len() == 2)) else {
+        // Fewer than four rows (never with 384 or 1536 of them): one row at a time.
+        for ((o, wr), wsr) in out.iter_mut().zip(w).zip(ws) {
+            for ((cell, xt), xst) in o.iter_mut().zip(x).zip(xs) {
+                for (((xb, wb), xd), wd) in xt.chunks_exact(block).zip(wr.chunks_exact(block)).zip(*xst).zip(*wsr) {
+                    let dot: i32 = xb.iter().zip(wb).map(|(a, b)| i32::from(*a) * i32::from(*b)).sum();
+                    *cell += dot as f32 * xd * wd;
                 }
             }
         }
+        return out;
+    };
+    let cols = first.len();
+    let second = if x.len() == 2 { x[1] } else { x[0] };
+    let second_scales = if xs.len() == 2 { xs[1] } else { xs[0] };
+    let blocks = cols / block;
+    if w.iter().any(|r| r.len() < cols) || ws.iter().any(|r| r.len() < blocks) || second.len() < cols
+        || xs[0].len() < blocks || second_scales.len() < blocks || !block.is_multiple_of(8) {
+        return out;
+    }
+    // SAFETY: every load reads 8 i16 at an offset + 8 ≤ cols, within slices checked above.
+    let load = |s: &[i16], at: usize| unsafe { v128_load(s.as_ptr().add(at).cast()) };
+    let mut acc = [[f32x4_splat(0.0); 2]; 4];
+    for b in 0..blocks {
+        let mut dot = [[i32x4_splat(0); 2]; 4];
+        let mut at = b * block;
+        while at < (b + 1) * block {
+            let (a0, a1) = (load(first, at), load(second, at));
+            for r in 0..4 {
+                let wv = load(w[r], at);
+                dot[r][0] = i32x4_add(dot[r][0], i32x4_dot_i16x8(a0, wv));
+                dot[r][1] = i32x4_add(dot[r][1], i32x4_dot_i16x8(a1, wv));
+            }
+            at += 8;
+        }
+        let (d0, d1) = (xs[0][b], second_scales[b]);
+        for r in 0..4 {
+            let wd = ws[r][b];
+            acc[r][0] = f32x4_add(acc[r][0], f32x4_mul(f32x4_convert_i32x4(dot[r][0]), f32x4_splat(d0 * wd)));
+            acc[r][1] = f32x4_add(acc[r][1], f32x4_mul(f32x4_convert_i32x4(dot[r][1]), f32x4_splat(d1 * wd)));
+        }
+    }
+    for r in 0..4 {
+        for u in 0..2 {
+            let a = acc[r][u];
+            out[r][u] = f32x4_extract_lane::<0>(a) + f32x4_extract_lane::<1>(a) + f32x4_extract_lane::<2>(a) + f32x4_extract_lane::<3>(a);
+        }
+    }
+    out
+}
+
+/// Every block of `block` values of `x` as int8 codes (kept in i16, ready to be multiplied) and
+/// a scale (its largest magnitude / 127).
+fn quantise(x: &[f32], block: usize, codes: &mut Vec<i16>, scales: &mut Vec<f32>) {
+    codes.clear();
+    scales.clear();
+    for b in x.chunks_exact(block) {
+        let max = b.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+        let scale = max / 127.0;
+        let inverse = if scale > 0.0 { 1.0 / scale } else { 0.0 };
+        codes.extend(b.iter().map(|v| (v * inverse).round() as i16));
+        scales.push(scale);
     }
 }
 
@@ -237,6 +456,25 @@ mod tests {
     fn erf_matches_known_values() {
         for (x, want) in [(0.0f32, 0.0f32), (0.5, 0.520_499_9), (1.0, 0.842_700_8), (-1.5, -0.966_105_16), (3.0, 0.999_977_9)] {
             assert!((erf(x) - want).abs() < 2e-7, "erf({x}) = {} ≠ {want}", erf(x));
+        }
+    }
+
+    #[test]
+    fn integer_tiles() {
+        let x: Vec<i16> = (0..128).map(|i| (i * 7 % 255 - 127) as i16).collect();
+        let w: Vec<i16> = (0..256).map(|i| (i * 13 % 17 - 8) as i16).collect();
+        let (x0, x1) = x.split_at(64);
+        let rows: Vec<&[i16]> = w.chunks(64).collect();
+        let (xs, ws) = ([0.5f32, 0.25], [2.0f32, 4.0]);
+        let (xs, ws): (&[f32], &[f32]) = (&xs, &ws);
+        let sums = tile(&[x0, x1], &[xs, xs], &rows, &[ws; 4], 32);
+        let block = |a: &[i16], b: &[i16], k: usize| {
+            a.iter().zip(b).skip(32 * k).take(32).map(|(p, q)| i32::from(*p) * i32::from(*q)).sum::<i32>() as f32
+        };
+        for (r, row) in rows.iter().enumerate() {
+            for (u, xt) in [x0, x1].iter().enumerate() {
+                assert_eq!(sums[r][u], block(xt, row, 0) + block(xt, row, 1), "row {r}, token {u}");
+            }
         }
     }
 
