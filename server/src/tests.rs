@@ -489,11 +489,14 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // app with its abilities, the questions, and „Betula im Detail" with every filter (2026-09-28).
     assert!(home.contains("\"@type\":\"WebApplication\"") && home.contains("\"@type\":\"FAQPage\""), "the start page's structured data");
     assert!(home.contains("id=\"im-detail\"") && home.matches("class=\"panel feature t-").count() == 8 && home.matches("class=\"bgroup").count() == 12, "the start page's „Betula im Detail\"");
-    // No sidebar (owner, 2026-09-28), and the way in for a first visit: three steps, the first the
-    // next one, since the server knows nothing of the visitor (R9); „Studiengang wählen" there and
-    // in the first panel a link to all programs (the picker is the app's); the figures on a birch;
-    // the wood behind the page, and no branches out of the panels any more.
-    assert!(!home.contains("id=\"sidebar\"") && home.contains("<div id=\"page-scroll\" class=\"work flowing solo\"><div class=\"page home-page\">"), "the start page has no frame");
+    // No sidebar (owner, 2026-09-28): the page is one scroll area without a frame (`#page-scroll`,
+    // app.css „one scroll area"), its attributes in either order as the wood's. The way in for a
+    // first visit: three steps, the first the next one, since the server knows nothing of the
+    // visitor (R9); „Studiengang wählen" there and in the first panel a link to all programs (the
+    // picker is the app's); the figures on a birch; the wood behind the page, and no branches out
+    // of the panels any more.
+    let scroll_area = ["<div class=\"work flowing solo\" id=\"page-scroll\">", "<div id=\"page-scroll\" class=\"work flowing solo\">"].iter().map(|area| home.matches(&format!("{area}<div class=\"page home-page\">")).count()).sum::<usize>();
+    assert!(!home.contains("id=\"sidebar\"") && home.matches("id=\"page-scroll\"").count() == 1 && scroll_area == 1, "the start page has no frame");
     assert!(home.contains("id=\"loslegen\"") && home.matches("class=\"start-step ").count() + home.matches("class=\"start-step\"").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
     assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.contains("class=\"hero-trunk\"") && woods(&home) == 1 && !home.contains("class=\"branch"), "the start page's buttons, figures and wood");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
