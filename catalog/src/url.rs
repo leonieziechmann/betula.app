@@ -125,6 +125,39 @@ pub fn program_catalog_path(slug: &str, open: Option<&str>) -> String {
     CatalogUrl { query, page: 1, open: open.map(str::to_string), fill: None }.path()
 }
 
+/// Whether `address` (a path of the app with its query, without the language's prefix) is a page
+/// that search engines list, and not a view of one: a filter, an order or a search of a list, a
+/// page of a filtered list, what the app lays beside a page or fills it with. Of the addresses
+/// with a query only two are pages, each as its canonical address writes it: a further page of
+/// the unfiltered catalog (`/catalog?page=<n>`; `page` comes after every filter, so
+/// `/catalog?turnus=winter&page=2` is a view) and the plan of a further study direction
+/// (`/programs/<slug>/plan?variant=<n>`). What is the visitor's own and lives in their browser is
+/// no page for search engines either: the Merkliste, the Stundenplan and a program's „Mein Plan"
+/// (`ProgramTab::indexed`). An older examination regulation says `noindex` by its data, not by
+/// its address, and its links are followed: here it is a page.
+///
+/// A link to what is not listed carries `rel="nofollow"` (`app::seo::nofollow`), robots.txt keeps
+/// crawlers out of the views of the lists (`server::api::robots`), and the page cache lets views
+/// go first (`server::cache`).
+pub fn listed(address: &str) -> bool {
+    let number = |value: &str| !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit());
+    let address = address.split('#').next().unwrap_or_default();
+    let (path, query) = match address.split_once('?') {
+        Some((path, query)) => (path, Some(query)),
+        None => (address, None),
+    };
+    let program_tab = path.strip_prefix("/programs/").and_then(|rest| rest.split_once('/')).and_then(|(_, tab)| ProgramTab::from_segment(tab));
+    if path == BOOKMARKS || path == STUDYPLAN || program_tab.is_some_and(|tab| !tab.indexed()) {
+        return false;
+    }
+    match query {
+        None => true,
+        Some(query) if path == CATALOG => query.strip_prefix("page=").is_some_and(number),
+        Some(query) if program_tab == Some(ProgramTab::Plan) => query.strip_prefix("variant=").is_some_and(number),
+        Some(_) => false,
+    }
+}
+
 /// How many study plans of one program can be told apart in the URL. A program has one plan per
 /// study direction; the highest seen so far is eight.
 pub const MAX_PLAN_VARIANTS: usize = 20;
@@ -1599,6 +1632,48 @@ mod tests {
         assert_eq!(url.path(), "/programs?q=Informatik&level=bachelor,master&form=dual&plan=1");
         assert_eq!(ProgramsUrl::parse(url.path().split_once('?').map(|(_, query)| query).unwrap_or_default()), url);
         assert!(!ProgramsUrl::parse("plan=0&level=").is_filtered());
+    }
+
+    #[test]
+    fn search_engines_list_pages_not_views() {
+        // Every address without a query, the further pages of the unfiltered catalog and the plans
+        // of further study directions, as the app writes their links.
+        for page in [HOME, CATALOG, PROGRAMS, IMPRINT, "/catalog/module/11101", "/programs/x", "/programs/x/plan", "/programs/x/areas", "/programs#fakultaet-1"] {
+            assert!(listed(page), "{page}");
+        }
+        for n in [2, 3, 24] {
+            let (catalog, plan) = (CatalogUrl::default().with_page(n).path(), ProgramUrl::new("x", ProgramTab::Plan).with_variant(n as usize).path());
+            assert!(listed(&catalog) && listed(&plan), "{catalog} {plan}");
+        }
+        // Filters, orders and searches of the lists, the pages of a filtered list, what the app
+        // lays beside a page; and what the visitor keeps in their browser.
+        let filtered = CatalogUrl::parse("turnus=winter");
+        let views = [
+            filtered.path(),
+            filtered.with_page(2).path(),
+            CatalogUrl::parse("sort=title").path(),
+            CatalogUrl::parse("q=analysis").path(),
+            CatalogUrl::default().with_page(2).with_open(Some("11101")).path(),
+            CatalogUrl::default().with_fill(Some(3)).path(),
+            program_catalog_path("x", None),
+            ProgramsUrl { levels: vec![LevelGroup::Master], ..Default::default() }.path(),
+            ProgramUrl::new("x", ProgramTab::Plan).with_variant(2).with_open(Some("11101")).path(),
+            ProgramUrl::new("x", ProgramTab::Areas).with_area(Some(3)).path(),
+            ProgramUrl::new("x", ProgramTab::Areas).with_variant(2).path(),
+            program_path("x", ProgramTab::MyPlan),
+            BOOKMARKS.to_string(),
+            BookmarksUrl::parse("turnus=winter").path(),
+            STUDYPLAN.to_string(),
+            StudyplanUrl { import: Some("x".to_string()), ..Default::default() }.path(),
+            format!("{}{}", module_path("11101"), ModuleHint::parse("plan=2026W").query()),
+        ];
+        for view in &views {
+            assert!(!listed(view), "{view}");
+        }
+        // What a hand-written address adds makes no page of its own.
+        for address in ["/catalog?page=2&q=x", "/catalog?page=two", "/catalog?", "/?utm_source=x", "/programs/x/plan?utm_source=x", "/programs/x?variant=2"] {
+            assert!(!listed(address), "{address}");
+        }
     }
 
     #[test]

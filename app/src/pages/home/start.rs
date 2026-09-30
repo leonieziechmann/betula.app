@@ -168,7 +168,7 @@ pub fn StartPath() -> impl IntoView {
             action: {
                 let take = Memo::new(move |_| has_program.get() && planned.get() == 0);
                 view! {
-                    <a class="start-btn" href=move || t.path(if take.get() { import.as_str() } else { url::STUDYPLAN })>
+                    <a class="start-btn" href=move || t.path(if take.get() { import.as_str() } else { url::STUDYPLAN }) rel="nofollow">
                         <Icon name="calendar-range"/>{move || if take.get() { home.take_semester } else { home.to_timetable }}
                     </a>
                 }

@@ -25,6 +25,8 @@ pub fn Languages() -> impl IntoView {
     let t = i18n::t();
     let location = i18n::use_location();
     let here = Memo::new(move |_| location_of(&location.pathname.get(), &location.search.get()));
+    // The same view in another language is a view as well: no page for a crawler (`seo`).
+    let rel = move || if here.with(|here| catalog::url::listed(here)) { "alternate external" } else { "alternate external nofollow" };
     let buttons = Locale::ALL
         .iter()
         .copied()
@@ -36,7 +38,7 @@ pub fn Languages() -> impl IntoView {
                     href=move || here.with(|here| locale.path(here))
                     hreflang=locale.code()
                     lang=locale.code()
-                    rel="alternate external"
+                    rel=rel
                     data-language=locale.code()
                     title=locale.name()
                     aria-label=locale.name()

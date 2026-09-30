@@ -154,7 +154,7 @@ fn Feature(
                         <li><Icon name=icon/><div><b>{point.title}</b><p>{point.text}</p></div></li>
                     }).collect_view()}
                 </ul>
-                {link.map(|(words, path)| view! { <a class="ghost feature-link" href=t.path(path)>{words}<Icon name="chevron-right"/></a> })}
+                {link.map(|(words, path)| view! { <a class="ghost feature-link" href=t.path(path) rel=crate::seo::nofollow(path)>{words}<Icon name="chevron-right"/></a> })}
             </div>
             <div class="feature-picture" class:bare=bare>{picture}</div>
         </section>
@@ -421,7 +421,7 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
         // What is chosen, counted, and the way to it: said again while the chips switch.
         <p class="board-foot" aria-live="polite">
             {move || count.get().map(|n| view! {
-                <a class="btn secondary" href=catalog_link(t, chosen.get())><Icon name="sliders-horizontal"/>{(d.example)(n, &format::count(n, locale))}<Icon name="chevron-right"/></a>
+                <a class="btn secondary" href=catalog_link(t, chosen.get()) rel="nofollow"><Icon name="sliders-horizontal"/>{(d.example)(n, &format::count(n, locale))}<Icon name="chevron-right"/></a>
             })}
         </p>
     }
