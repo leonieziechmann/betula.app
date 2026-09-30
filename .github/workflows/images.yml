@@ -59,8 +59,9 @@ jobs:
     name: radix-image and folia-image
     runs-on: ubuntu-24.04
     # On the standard runner of a public repository (4 processors, 16 GB; its minutes cost
-    # nothing). Measured on 2026-09-30: 19 minutes without a cache (Go with its tests,
-    # wasm-bindgen, the web server, the browser app with fat LTO).
+    # nothing). Measured on 2026-09-30: 12 1/2 to 20 minutes without a cache (Go with its tests,
+    # wasm-bindgen, the Rust dependencies, the web server, the browser app with fat LTO), 7 to 11
+    # after a change to the app (deploy/README.md section 12).
     timeout-minutes: 90
     permissions:
       contents: read

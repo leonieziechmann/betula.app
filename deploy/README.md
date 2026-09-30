@@ -530,22 +530,35 @@ database for one `deploy` by hand.
 
 ### How fast, and what it costs
 
-- **Time.** On the standard runner of a public repository (4 processors, 16 GB), measured
-  2026-09-30: without any cache 19 minutes - the web server alone 17 of them (its dependencies 7,
-  the app 4, the server with its thin LTO 6), the browser app, wasm-bindgen and Radix beside it.
-  That is the first build, and one after a change to `Cargo.lock`. After a change to the app
-  (the common case) the dependencies, wasm-bindgen and Radix come from the cache, and what is left
-  is the workspace's own crates and the two LTO links. The deploy on the server adds a few
+- **Time**, measured 2026-09-30 on the standard runner of a public repository (4 processors,
+  16 GB). GitHub hands out faster and slower ones: the same work took 1.6 times as long on a slow
+  one, hence the ranges.
+
+  | a push that changes | the job | of it the build |
+  |---|---|---|
+  | nothing Radix or Folia are built from (the workflow, say) | 47 s | 17 s |
+  | the app, not its dependencies (the common case) | 7 to 11 min | 6½ to 10½ min |
+  | `Cargo.lock` or `flake.lock`; and the first build on master | 13 to 21 min | 12½ to 20 min |
+
+  After a change to the app everything but the workspace's own crates comes from the cache, in
+  under half a minute: what is left is compiling folia-app and folia-server, 6 to 10 minutes, with
+  the browser app (3 to 5) beside it. The web server's thin LTO is not what takes the time:
+  without it that step took 8 minutes instead of 9 (on the workstation), so it stays. A change to
+  Radix adds its build with the tests, 2 to 3 minutes. The deploy on the server adds a few
   minutes.
 - **What makes it fast:** `flake.nix` builds the Rust dependencies apart from the workspace
   (crane), so a change to the app leaves them as they are; the workflow keeps what builds of
   master made and cache.nixos.org does not have in GitHub's cache ("Restore the Nix cache" in
-  `images.yml`). A new cache entry is only written when the dependencies, the
-  flake or the Go sources change; GitHub keeps 10 GB per repository and drops the oldest first.
-  What would still help: splitting the web server and the browser app onto two runners (each gets
-  all four processors), at the price of passing their results between the jobs.
+  `images.yml`): some 500 paths, 1.2 GB, 560 MB compressed. A build from the cache gives the same
+  images to the byte as one without it (the same sha256, measured). A new entry is only written
+  when the dependencies, the flake or the Go sources change, and only after a build that
+  succeeded; GitHub keeps 10 GB per repository and drops what has not been used for a week. The
+  first build of master after the merge starts without it: master does not see a branch's
+  entries. What would still help, a little: the web server and the browser app on two runners.
+  They share the processors only while both compile folia-app, so that is about a minute, at the
+  price of passing the browser app from one job to the other.
 - **GitHub Actions minutes:** none - a public repository's standard runners cost nothing.
-- **Artifact storage:** about the size of both images per build, gone after a week; a public
+- **Artifact storage:** 57 MB per build (Radix 7, Folia 50), gone after a week; a public
   repository pays nothing for it.
 - **This server:** per deploy one copy of the database, one build and export of the catalog (the
   CPU of a minute or two) and the new Folia warming its cache (up to 3 processors for a moment),
