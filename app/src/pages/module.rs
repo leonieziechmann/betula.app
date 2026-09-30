@@ -591,8 +591,9 @@ pub fn ModuleFull(
 /// The snapshot's current semester, and the semester of the module's newest teaching Termine (the
 /// week's, `Schedule`): what „Einplanen" aims with (`studyplan::target_semester`). Exams do not
 /// count: a module taught in summer holds retakes in the winter too, and its only rows of a winter
-/// would plan it into a semester it is not taught in, where its turnus says the next summer.
-fn semesters_of(semesters: &[Semester], schedule: &[EventDate]) -> (Option<SemesterKey>, Option<SemesterKey>) {
+/// would plan it into a semester it is not taught in, where its turnus says the next summer. A row
+/// swiped to the right aims with the same (`crate::swipe`).
+pub(crate) fn semesters_of(semesters: &[Semester], schedule: &[EventDate]) -> (Option<SemesterKey>, Option<SemesterKey>) {
     let current = semesters.iter().find(|s| s.is_current).and_then(|s| SemesterKey::parse(&s.key));
     let newest = schedule.iter().filter_map(|d| SemesterKey::parse(&d.semester_key)).max();
     (current, newest)
