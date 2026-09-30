@@ -137,7 +137,7 @@ control characters, emoji, CJK, extra white space …), cosine ≥ 0.9999998 in 
 (`python/parity.py`, `demo/bench.mjs --check`); WASM equals native.
 
 **WebGPU:** the arithmetic is the WASM runtime's expand mode in f32, and the embeddings agree
-with it to float rounding (cosine ≥ 0.9999998 for queries, catalog titles and awkward input,
+with it to float rounding (cosine ≥ 0.9999997 for 51 queries, catalog titles and awkward input,
 `demo/gpu-check.mjs`). Its speed is **not measured**: the machine this was built on has no GPU,
 and Chromium's software WebGPU (SwiftShader, on the CPU) takes about 2 s a query, which says
 nothing about a GPU. The work is small for one (≈ 0.7 GFLOP for a query of up to 16 tokens, 16 MB of
