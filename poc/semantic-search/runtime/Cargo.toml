@@ -1,0 +1,24 @@
+[package]
+name = "e5-mini"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Proof of concept: multilingual-e5-small for German and English queries in the browser (trimmed vocabulary, 4-bit weights)"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# A proof of concept next to the app, not a member of the repository's workspace.
+[workspace]
