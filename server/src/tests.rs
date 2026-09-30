@@ -890,6 +890,161 @@ async fn calendar_services_may_fetch_feeds() {
     assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|([a-z]{2}\\/)?(cards|calendar)\\/)/;"));
 }
 
+/// Whether robots.txt lets `agent` fetch `address`, read as Google reads it (RFC 9309): the group
+/// that names the agent, else the one for everybody; of its rules that match, the longest decides,
+/// and `Allow` wins a tie; `*` is any run of characters, `$` the end of the address.
+fn robots_allow(robots: &str, agent: &str, address: &str) -> bool {
+    fn matches(pattern: &str, address: &str) -> bool {
+        let (pattern, to_end) = pattern.strip_suffix('$').map_or((pattern, false), |pattern| (pattern, true));
+        let mut parts = pattern.split('*');
+        let Some(mut rest) = parts.next().and_then(|first| address.strip_prefix(first)) else { return false };
+        let parts: Vec<&str> = parts.collect();
+        for (i, part) in parts.iter().enumerate() {
+            if to_end && i + 1 == parts.len() {
+                return rest.ends_with(part);
+            }
+            let Some(at) = rest.find(part) else { return false };
+            rest = &rest[at + part.len()..];
+        }
+        !to_end || rest.is_empty()
+    }
+    // The agents a group names and its rules (`Allow` or not, the pattern): the lines
+    // `User-agent` in a row open a group, its rules follow.
+    type Group = (Vec<String>, Vec<(bool, String)>);
+    let mut groups: Vec<Group> = Vec::new();
+    let mut naming = false;
+    for line in robots.lines() {
+        let Some((field, value)) = line.split_once(':') else { continue };
+        let (field, value) = (field.trim().to_ascii_lowercase(), value.trim().to_string());
+        match field.as_str() {
+            "user-agent" => {
+                if !naming {
+                    groups.push((Vec::new(), Vec::new()));
+                }
+                naming = true;
+                groups.last_mut().unwrap().0.push(value.to_ascii_lowercase());
+            }
+            "allow" | "disallow" => {
+                naming = false;
+                if let Some(group) = groups.last_mut().filter(|_| !value.is_empty()) {
+                    group.1.push((field == "allow", value));
+                }
+            }
+            _ => naming = false,
+        }
+    }
+    let agent = agent.to_ascii_lowercase();
+    let group = groups.iter().find(|(agents, _)| agents.contains(&agent)).or_else(|| groups.iter().find(|(agents, _)| agents.iter().any(|named| named == "*")));
+    let Some((_, rules)) = group else { return true };
+    rules.iter().filter(|(_, pattern)| matches(pattern, address)).max_by_key(|(allow, pattern)| (pattern.len(), *allow)).is_none_or(|(allow, _)| *allow)
+}
+
+/// The links of a page: where each leads (`&amp;` read back) and whether it says `nofollow`.
+fn links(html: &str) -> Vec<(String, bool)> {
+    html.split("<a ")
+        .skip(1)
+        .filter_map(|rest| {
+            let tag = rest.split('>').next().unwrap_or_default();
+            let value = |name: &str| {
+                let start = format!("{name}=\"");
+                tag.strip_prefix(&start).or_else(|| tag.split(&format!(" {start}")).nth(1)).and_then(|value| value.split('"').next())
+            };
+            let nofollow = value("rel").is_some_and(|rel| rel.split_whitespace().any(|part| part == "nofollow"));
+            value("href").map(|href| (href.replace("&amp;", "&"), nofollow))
+        })
+        .collect()
+}
+
+/// Googlebot had fetched 250,000 views of the catalog by 2026-09-30: every filter it followed had
+/// links to more. A crawler that keeps to robots.txt and follows no `nofollow` meets pages only
+/// (`catalog::url::listed`), and every one of them: every link it may follow leads to a page it
+/// may fetch, robots.txt lets it fetch every page of the sitemap and every page of the catalog
+/// (`/catalog?page=<n>`, the way to every module) and keeps it out of the views of the lists. The
+/// link previews of X, LinkedIn and Facebook fetch a filtered list somebody shares all the same.
+#[tokio::test(flavor = "multi_thread")]
+async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
+    let router = crate::router(state(store_with("crawl", &snapshot_file())));
+    let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
+    let robots = String::from_utf8(robots).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    // The reading of the rules, on Google's own examples.
+    let example = "User-agent: *\nDisallow: /*.php$\nDisallow: /fish*\nAllow: /fish/salmon\n";
+    assert!(!robots_allow(example, "Googlebot", "/index.php") && robots_allow(example, "Googlebot", "/index.php?x=1"));
+    assert!(!robots_allow(example, "Googlebot", "/fish.html") && robots_allow(example, "Googlebot", "/fish/salmon/1") && robots_allow(example, "Googlebot", "/Fish"));
+
+    for page in ["/", "/en", "/catalog", "/catalog?page=2", "/catalog?page=24", "/en/catalog?page=2", "/catalog/module/11101", "/programs", "/programs/x/plan?variant=2", "/bookmarks", "/studyplan", "/studyplan?share=x", "/calendar/x.ics", "/en/calendar/x.ics", "/cards/module/11101.png", "/sitemap.xml"] {
+        assert!(robots_allow(&robots, "Googlebot", page), "{page}: {robots}");
+    }
+    for view in ["/catalog?turnus=winter", "/catalog?turnus=winter&page=2", "/catalog?sort=title", "/catalog?q=analysis", "/catalog?page=2&open=11101", "/en/catalog?form=lecture", "/en/catalog?page=2&sort=ects", "/programs?level=master", "/en/programs?plan=1", "/bookmarks?turnus=winter", "/api/db", "/api/status"] {
+        assert!(!robots_allow(&robots, "Googlebot", view), "{view}: {robots}");
+    }
+    for agent in ["Twitterbot", "LinkedInBot", "facebookexternalhit"] {
+        assert!(robots_allow(&robots, agent, "/catalog?turnus=winter") && robots_allow(&robots, agent, "/en/programs?level=master") && !robots_allow(&robots, agent, "/api/status"), "{agent}");
+    }
+    let (_, _, sitemap) = request(&router, "/sitemap.xml", &[]).await;
+    let sitemap = String::from_utf8(sitemap).unwrap();
+    let listed: Vec<String> = sitemap.split("<loc>").skip(1).filter_map(|rest| rest.split("</loc>").next()).map(|loc| loc.replace("https://catalog.example", "").replace("&amp;", "&")).collect();
+    assert!(listed.len() > 1000);
+    for page in &listed {
+        assert!(robots_allow(&robots, "Googlebot", page), "{page} is in the sitemap");
+    }
+
+    // A program with the plans of two study directions: its second plan is a page of its own.
+    let slug = listed.iter().find_map(|page| page.strip_prefix("/programs/")?.strip_suffix("/plan?variant=2")).unwrap().to_string();
+    let pages = [
+        "/".to_string(),
+        "/catalog".to_string(),
+        "/catalog?page=2".to_string(),
+        "/catalog?turnus=winter".to_string(),
+        "/catalog?turnus=winter&page=2".to_string(),
+        format!("/catalog?program={slug}"),
+        format!("/catalog?program={slug}&semester=1"),
+        "/catalog/module/11101".to_string(),
+        "/programs".to_string(),
+        "/programs?level=master".to_string(),
+        format!("/programs/{slug}/plan"),
+        format!("/programs/{slug}/plan?variant=2"),
+        format!("/programs/{slug}/areas"),
+        format!("/programs/{slug}/my-plan"),
+        "/bookmarks".to_string(),
+        "/studyplan".to_string(),
+        catalog::url::IMPRINT.to_string(),
+        catalog::url::PRIVACY.to_string(),
+    ];
+    // Every page is checked before the test fails, so that it lists all there is.
+    let mut problems = Vec::new();
+    let mut followed = std::collections::BTreeSet::new();
+    for page in pages.iter().flat_map(|page| catalog::Locale::ALL.iter().map(move |locale| locale.path(page))) {
+        let (status, _, body) = request(&router, &page, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        for (href, nofollow) in links(&String::from_utf8(body).unwrap()) {
+            let address = href.split('#').next().unwrap_or_default();
+            if nofollow || !address.starts_with('/') || address.starts_with("//") {
+                continue;
+            }
+            if !catalog::url::listed(catalog::Locale::split(address).1) || !robots_allow(&robots, "Googlebot", address) {
+                problems.push(format!("{page} lets a crawler follow {href}"));
+            }
+            followed.insert(address.to_string());
+        }
+    }
+    problems.dedup();
+    assert!(problems.is_empty(), "{} problems:\n{}", problems.len(), problems.join("\n"));
+    // What it follows: the pages of the catalog one after the other, in both languages; the plan
+    // of each study direction; modules and programs.
+    let (second_plan, areas) = (format!("/programs/{slug}/plan?variant=2"), format!("/programs/{slug}/areas"));
+    for page in ["/catalog?page=2", "/catalog?page=3", "/en/catalog?page=2", "/en/catalog?page=3", second_plan.as_str(), areas.as_str(), "/catalog/module/11101"] {
+        assert!(followed.contains(page), "no link a crawler follows leads to {page}");
+    }
+    // The pager as a crawler reads it (e2e/crawl.mjs as well): the unfiltered list's is followed,
+    // a filtered list's is not.
+    let (_, _, body) = request(&router, "/catalog?page=2", &[]).await;
+    let second = String::from_utf8(body).unwrap();
+    assert!(second.contains("rel=\"prev\" href=\"/catalog\"") && second.contains("rel=\"next\" href=\"/catalog?page=3\""), "{second}");
+    let (_, _, body) = request(&router, "/catalog?turnus=winter", &[]).await;
+    assert!(String::from_utf8(body).unwrap().contains("rel=\"next nofollow\" href=\"/catalog?turnus=winter&amp;page=2\""));
+}
+
 /// A server with more work than places (`busy`): a page that finds no place within the wait is
 /// answered 503 with `Retry-After`, and so is a calendar feed; what needs no place — `/livez`, a
 /// cached page, a file — answers as always. (Measured before, on one processor: a queue that

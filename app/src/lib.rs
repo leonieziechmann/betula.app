@@ -277,8 +277,9 @@ fn NavItems() -> impl IntoView {
         <a class="nav" data-area="catalog" href=move || href(Area::Catalog) title=t.app.modules aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>{t.app.modules}</a>
         <a class="nav" data-area="programs" href=move || href(Area::Programs) title=t.app.programs aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/></span>{t.app.study}</a>
         // The marked modules exist in the browser app only (R15). How many there are is known
-        // there alone, so the number is never part of server HTML (R9).
-        <a class="nav js-only" data-area="bookmarks" href=move || href(Area::Bookmarks) title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
+        // there alone, so the number is never part of server HTML (R9). What the visitor keeps is
+        // no page for a crawler (`seo`), here and in the Studienplan.
+        <a class="nav js-only" data-area="bookmarks" href=move || href(Area::Bookmarks) rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
             <span class="ind">
                 <Icon name="bookmark"/>
                 {move || {
@@ -291,7 +292,7 @@ fn NavItems() -> impl IntoView {
         // The Studienplan lives in the browser app alone, like the Merkliste (R15), and so does the
         // number of its modules (R9). The number is a memo of its own: most changes of the plan
         // (a hidden Termin, a move) leave it as it is.
-        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
+        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) rel="nofollow" title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
             <span class="ind">
                 <Icon name="calendar-range"/>
                 {move || {

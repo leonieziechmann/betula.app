@@ -873,6 +873,27 @@ pub async fn robots(State(state): State<AppState>) -> Response {
     // Disallowing `/api/` also keeps a crawler that runs JavaScript (Googlebot) on the server's page:
     // without `/api/status` the browser app does not start (`app/assets/boot.js`), so it indexes the
     // page as the server wrote it and never downloads the catalog to let the app replace it.
-    let body = format!("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {}/sitemap.xml\n", state.public_url);
+    //
+    // The views of the lists are no pages (`catalog::url::listed`): every filter, order and search
+    // of the catalog, the program overview and the Merkliste, and every page of a filtered list.
+    // Their links carry `rel="nofollow"`, but that is a hint, and a crawler keeps asking for the
+    // addresses it knows: Googlebot had fetched 250,000 of them by 2026-09-30, walking the filters.
+    // So they are off limits here, as Google advises for filters. The pages of the unfiltered
+    // catalog stay open (`/catalog?page=<n>`, the way to every module): the longer rule wins, so
+    // `Allow: /catalog?page=` beats `Disallow: /catalog?`, and `Disallow: /catalog?page=*&` beats
+    // it again for a page with more behind it, a view (the canonical address writes `page` after
+    // every filter: `/catalog?turnus=winter&page=2`). Each rule stands before the one it beats,
+    // for crawlers that take the first match. The Stundenplan keeps its query open: a plan handed
+    // on by a link (`?share=`) is a page of its own for link previews, and says `noindex` itself.
+    let mut body = String::from("User-agent: *\nDisallow: /api/\n");
+    for locale in Locale::ALL {
+        let (list, overview, marked) = (locale.path(catalog::url::CATALOG), locale.path(catalog::url::PROGRAMS), locale.path(catalog::url::BOOKMARKS));
+        body.push_str(&format!("Disallow: {list}?page=*&\nAllow: {list}?page=\nDisallow: {list}?\nDisallow: {overview}?\nDisallow: {marked}?\n"));
+    }
+    // A link preview fetches the one address somebody shares, a filtered list as well, and never
+    // walks the filters: the crawlers of X, LinkedIn and Facebook read robots.txt before they draw
+    // a card (Slack's does not read it at all), so they have a group of their own.
+    body.push_str("\nUser-agent: Twitterbot\nUser-agent: LinkedInBot\nUser-agent: facebookexternalhit\nDisallow: /api/\n");
+    body.push_str(&format!("\nSitemap: {}/sitemap.xml\n", state.public_url));
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
 }

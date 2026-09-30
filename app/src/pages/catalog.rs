@@ -760,14 +760,16 @@ fn List(
             (true, true) => " ↓",
             _ => "",
         };
-        view! { <a class=class href=keep_open(next, open, t) aria-current=on.then_some("true")>{text}{arrow}</a> }
+        // Another order is a view of the list, no page to crawl.
+        let rel = crate::seo::nofollow(&next.path());
+        view! { <a class=class href=keep_open(next, open, t) rel=rel aria-current=on.then_some("true")>{text}{arrow}</a> }
     };
 
     // What the list says instead of rows.
-    let without_fits = {
+    let (without_fits, without_fits_rel) = {
         let mut next = current.with_page(1);
         next.query.fits = None;
-        t.path(&next.path())
+        (t.path(&next.path()), crate::seo::nofollow(&next.path()))
     };
     // An empty list with the finder on is the finder's doing only when the rest of the filter
     // holds modules (a search for nothing is not helped by comparing fewer classes): one count,
@@ -794,7 +796,7 @@ fn List(
                 <div class="state">
                     <p class="state-title">{t.catalog.fits_server_title}</p>
                     <p>{t.catalog.fits_server_hint}</p>
-                    <a class="btn secondary" href=without_fits.clone()>{t.catalog.without_filter}</a>
+                    <a class="btn secondary" href=without_fits.clone() rel=without_fits_rel>{t.catalog.without_filter}</a>
                 </div>
             }.into_any(),
             (true, _, true) => view! {
@@ -862,8 +864,11 @@ fn List(
                     </div>
                 </div>
                 <div class="active-filters">
-                    {move || active.get().into_iter().map(|(group, value, target)| view! {
-                        <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open, t) aria-label=t.catalog.remove_filter><Icon name="x"/></a></span>
+                    {move || active.get().into_iter().map(|(group, value, target)| {
+                        let rel = crate::seo::nofollow(&target.path());
+                        view! {
+                            <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open, t) rel=rel aria-label=t.catalog.remove_filter><Icon name="x"/></a></span>
+                        }
                     }).collect_view()}
                 </div>
                 // The finder against a semester without dates: nothing could be checked.
@@ -890,7 +895,7 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
         if let Some(scope) = target.query.program.as_mut() {
             scope.areas = vec![id];
         }
-        view! { <a href=keep_open(target, open, t) data-noscroll="">{(t.catalog.quoted)(label)}</a> }
+        view! { <a href=keep_open(target, open, t) rel="nofollow" data-noscroll="">{(t.catalog.quoted)(label)}</a> }
     };
     let links = |areas: &[CatalogArea]| {
         areas
@@ -923,7 +928,7 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
             let what = if row.single {
                 view! { {(t.catalog.plan_not_in_catalog)(row.shown_name())} }.into_any()
             } else if row.fues {
-                view! { {t.catalog.plan_fues}" "<a href=fues_list.clone() data-noscroll="">{t.catalog.fues_list}</a> }.into_any()
+                view! { {t.catalog.plan_fues}" "<a href=fues_list.clone() rel="nofollow" data-noscroll="">{t.catalog.fues_list}</a> }.into_any()
             } else if row.areas.is_empty() {
                 view! { {(t.catalog.plan_all_electives)(row.shown_name())} }.into_any()
             } else if row.named_by_areas() {
@@ -980,13 +985,24 @@ fn PlainRows(
             }).collect_view()}
             {(pages_total > 1).then(|| view! {
                 <nav class="pager" aria-label=t.catalog.pages>
-                    {(start_page > 1).then(|| view! { <a class="btn secondary" rel="prev" href=keep_open(current.with_page(start_page - 1), open, t)>{t.common.back}</a> })}
+                    {(start_page > 1).then(|| pager_link(current.with_page(start_page - 1), "prev", t.common.back, open, t))}
                     <span class="num">{(t.catalog.page_of)(start_page, pages_total)}</span>
-                    {(start_page < pages_total).then(|| view! { <a class="btn secondary" rel="next" href=keep_open(current.with_page(start_page + 1), open, t)>{t.catalog.next}</a> })}
+                    {(start_page < pages_total).then(|| pager_link(current.with_page(start_page + 1), "next", t.catalog.next, open, t))}
                 </nav>
             })}
         </div>
     }
+}
+
+/// A link of the server's pager, `rel` `prev` or `next`. The pages of the unfiltered list are
+/// pages of the site, and the way a crawler reaches every module: it follows them. The pages of a
+/// filtered list are views: `nofollow`.
+fn pager_link(target: CatalogUrl, way: &'static str, text: &'static str, open: Memo<Option<String>>, t: &'static i18n::Texts) -> impl IntoView {
+    let rel = match crate::seo::nofollow(&target.path()) {
+        Some(nofollow) => format!("{way} {nofollow}"),
+        None => way.to_string(),
+    };
+    view! { <a class="btn secondary" rel=rel href=keep_open(target, open, t)>{text}</a> }
 }
 
 const ROWS_ID: &str = "rows";

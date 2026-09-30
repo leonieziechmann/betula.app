@@ -1201,14 +1201,34 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
 - **One address per page.** Filters and the preview of the catalog, and a filtered program
   overview are views: `noindex, follow`. `/programs/<slug>` names `/programs/<slug>/plan` as its
   address. Older examination regulations are `noindex`, and so is a program's „Mein Plan“
-  (`…/my-plan`, the visitor's: `ProgramTab::indexed`). Links that only lead to views (examples,
-  entry links, toggles) carry `rel="nofollow"`.
+  (`…/my-plan`, the visitor's: `ProgramTab::indexed`).
 - **Every module and every plan is reached through pages that are listed** (2026-09-26): the pages
   of the unfiltered catalog (`/catalog?page=<n>`, with „Seite n" in the title) have addresses of
   their own and are indexed — they are the way to a module that no program's page links, and a
   search engine stops following the links of a page it is told not to list; a page past the last
   stays `noindex`. The plan of every study direction has its own address (`?variant=<n>`, see
   „Routes"). The cache counts both as pages, not as views (`cache::listed`).
+- **A crawler is led to pages, never to views** (2026-09-30: Googlebot had fetched 250,000
+  addresses, walking the filters — every filtered list links more filters, orders and pages).
+  `catalog::url::listed` says what a page is, by its address: one without a query, a further page
+  of the unfiltered catalog (`/catalog?page=<n>`; `page` comes after every filter, so
+  `/catalog?turnus=winter&page=2` is a view) and the plan of a further study direction
+  (`…/plan?variant=<n>`); not the Merkliste, the Stundenplan or „Mein Plan“, which are the
+  visitor's. Every link of the server's HTML to anything else carries `rel="nofollow"`: the
+  toggles and the orders of the lists, the tags that take a filter away, the pager of a filtered
+  list, the catalog narrowed down to a program or an area, the examples on the start page, the
+  Merkliste and the Stundenplan in the navigation, the language switch on a view
+  (`seo::nofollow` where the target decides). The pager of the unfiltered catalog and the plans
+  of the study directions are followed. `nofollow` is a hint, and a crawler keeps asking for the
+  addresses it already knows, so **robots.txt** closes the views of the lists as well, as Google
+  advises for filters: `Disallow: /catalog?`, `/programs?` and `/bookmarks?` in every language,
+  with `Allow: /catalog?page=` (the longer rule wins) and `Disallow: /catalog?page=*&` again for a
+  page with a filter or a preview behind it. The Stundenplan's query stays open (a shared plan,
+  `?share=`, is a page for link previews), and so do calendar feeds, cards and the sitemap. The
+  link previews of X, LinkedIn and Facebook read robots.txt too and fetch only what is shared, so
+  their group disallows `/api/` alone: a filtered list shared there keeps its card.
+  `crawlers_are_led_to_pages_and_kept_out_of_views` (server) reads robots.txt as Google does and
+  fails on any link of the site's pages that a crawler may follow to a view.
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
@@ -1987,7 +2007,9 @@ What `cargo test` checks:
   snapshot's schema, `boot.js` with the build's; a broken export is rejected and the old snapshot
   stays; one of an older schema is served; a new one invalidates pages; restart without Radix;
   one description and one absolute canonical address per page, `noindex` on a filtered list,
-  the sitemap, the map of the programs as laid out with the snapshot. Closed testing (needs no
+  the sitemap, robots.txt as Google reads it (every page of the sitemap and of the catalog open,
+  the views of the lists closed) and no link a crawler may follow to a view, the map of the
+  programs as laid out with the snapshot. Closed testing (needs no
   snapshot): pages lead to the login page, everything else answers 401, what stays open, the
   way back as text and never to another host, wrong and right password, the cookie and its
   `Secure` behind the proxy, forged cookies, `private` instead of `public`, the closed form
