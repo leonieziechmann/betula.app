@@ -283,6 +283,25 @@ load_instance() {
 # Host(`a.bc`), has 12) and above the placeholder's 1.
 STANDBY_PRIORITY=2
 
+# The two colours of the canary that vps/canary-agent.sh alternates between when it brings a build
+# of master there (README.md section 12): the new release goes to the one that does not serve, and
+# the one that served is removed once the new one does. Both files have to say RADIX_CRAWL=off.
+CANARY_COLOURS=(canary canary-green)
+# Where those builds come from: the workflow .github/workflows/images.yml of this repository, runs
+# for a push to master. vps/60-canary.sh checks the token against it, canary-agent.sh polls it.
+CANARY_REPO="leonieziechmann/betula.app"
+CANARY_WORKFLOW="images.yml"
+CANARY_BRANCH="master"
+
+# is_canary_colour NAME - true for the instances in CANARY_COLOURS.
+is_canary_colour() {
+  local colour
+  for colour in "${CANARY_COLOURS[@]}"; do
+    [[ "$1" == "${colour}" ]] && return 0
+  done
+  return 1
+}
+
 # app_stacks_for_host HOST -> every stack whose web server is routed for HOST, one per line. Read
 # from the router labels stacks/betula.yml sets, so it tells what is deployed, not what is planned.
 app_stacks_for_host() {

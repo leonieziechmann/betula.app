@@ -1,0 +1,20 @@
+# Installed by /opt/betula/vps/60-canary.sh as /etc/systemd/system/betula-canary.timer.
+# sudo bash /opt/betula/vps/60-canary.sh off   stops it (a run in progress is finished first),
+#                                        on    starts it again. A look that finds nothing new
+# costs two requests to GitHub's API; the agent says nothing then (systemd's start and finish
+# lines are all the journal gets).
+
+[Unit]
+Description=Betula: look for a new build of master every two minutes
+
+[Timer]
+# The first look five minutes after boot, when the swarm has settled (a timer started later looks
+# at once), then two minutes after each run has ENDED: a deploy that takes minutes is never
+# overtaken by the next look.
+OnBootSec=5min
+OnUnitInactiveSec=2min
+RandomizedDelaySec=15s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

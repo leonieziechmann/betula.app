@@ -1,0 +1,33 @@
+# Installed by /opt/betula/vps/60-canary.sh as /etc/systemd/system/betula-canary.service.
+# Started by betula-canary.timer: brings https://canary.betula.app to the newest build of master,
+# seeded with the data of the public site (vps/canary-agent.sh, README.md section 12).
+# By hand: sudo systemctl start betula-canary.service (runs now, returns when it is done);
+# what it did: journalctl -u betula-canary.service
+
+[Unit]
+Description=Betula: canary follows the newest build of master
+Documentation=file:///opt/betula/README.md
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+# The deploy user, for group docker, and for its sudo: the one read-only copy of the public site's
+# database is made by the host's sqlite3 as root (canary-agent.sh). Hence no NoNewPrivileges=.
+User=deploy
+Group=deploy
+ExecStart=/opt/betula/vps/canary-agent.sh poll
+# The GitHub token (fine-grained, this repository only, Actions: read), encrypted with this host's
+# key by 60-canary.sh. Only this service sees it in clear, as $CREDENTIALS_DIRECTORY/github-token.
+LoadCredentialEncrypted=github-token:/etc/credstore.encrypted/betula-canary-github-token
+# What it remembers (the builds it has seen, failures, the images it loaded), owned by deploy.
+StateDirectory=betula-canary
+StateDirectoryMode=0700
+UMask=0077
+# Its /tmp and /var/tmp (the download, the copy of the database) are its own and go with it.
+PrivateTmp=yes
+ProtectSystem=full
+# A deploy takes minutes (copy, build, export, switch); a hung one must not hold the next build forever.
+TimeoutStartSec=45min
+# It only orchestrates; the work happens in dockerd and in containers with limits of their own.
+Nice=10
