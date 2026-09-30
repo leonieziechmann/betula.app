@@ -58,10 +58,10 @@ jobs:
   images:
     name: radix-image and folia-image
     runs-on: ubuntu-24.04
-    # A build without anything cached: Go with its tests, wasm-bindgen, the web server and the
-    # browser app (fat LTO), on the standard runner of a public repository (4 processors, 16 GB;
-    # its minutes cost nothing).
-    timeout-minutes: 120
+    # On the standard runner of a public repository (4 processors, 16 GB; its minutes cost
+    # nothing). Measured on 2026-09-30: 19 minutes without a cache (Go with its tests,
+    # wasm-bindgen, the web server, the browser app with fat LTO).
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:
@@ -98,12 +98,37 @@ jobs:
           } >>"${GITHUB_OUTPUT}"
           echo "release ${tag}"
 
-      - name: Make room
+      # The Nix cache: what earlier builds made that cache.nixos.org does not have - the Rust
+      # dependencies (flake.nix builds them apart with crane), wasm-bindgen, Radix, the crates.
+      # A binary cache in a directory (nix copy --to file://...), kept with GitHub's own cache
+      # action. It is written by builds of master only, and only master's can be read here (a
+      # branch reads its own and master's): what it holds is taken without signatures, so nothing
+      # else must be able to put anything into it.
+      - name: Restore the Nix cache
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nix-cache
+          # A new key when what the cache holds changes: the dependencies (Cargo.lock, the
+          # manifests, go.sum), the flake, the Go sources (Radix with its tests). A change to the
+          # app alone finds its key and saves nothing; a new key starts from the newest cache.
+          key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'Cargo.lock', '**/Cargo.toml', 'go.mod', 'go.sum', 'cmd/**', 'internal/**') }}
+          restore-keys: nix-${{ runner.os }}-
+
+      - name: Prepare the Nix cache
         run: |
-          # A Rust build in the Nix sandbox needs more than the free space the runner starts with.
-          # These preinstalled toolchains are not used here.
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
-          df -h / | tail -n 1
+          set -Eeuo pipefail
+          cache="${RUNNER_TEMP}/nix-cache"
+          mkdir -p "${cache}"
+          [[ -f "${cache}/nix-cache-info" ]] || printf 'StoreDir: /nix/store\n' >"${cache}/nix-cache-info"
+          # Nix runs this after every derivation it builds (not for what it substitutes): the list
+          # of what this run made, for "Collect the Nix cache" below.
+          cat >"${RUNNER_TEMP}/post-build-hook" <<EOF
+          #!/bin/sh
+          printf '%s\n' \$OUT_PATHS >>"${RUNNER_TEMP}/nix-built"
+          EOF
+          chmod 0755 "${RUNNER_TEMP}/post-build-hook"
+          echo "restored: ${{ steps.cache.outputs.cache-matched-key || 'nothing' }} ($(du -sh "${cache}" | cut -f 1))"
 
       - name: Install Nix
         uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
@@ -111,6 +136,11 @@ jobs:
           extra_nix_config: |
             sandbox = true
             accept-flake-config = false
+            # The restored cache, before cache.nixos.org (priority 40). trusted: its paths carry no
+            # signatures (see above). fallback: a path it cannot deliver is built instead.
+            extra-substituters = file://${{ runner.temp }}/nix-cache?trusted=1&priority=10
+            fallback = true
+            post-build-hook = ${{ runner.temp }}/post-build-hook
 
       - name: Build
         env:
@@ -124,7 +154,8 @@ jobs:
           # As deploy/ship.sh: the commit, not the checkout, byte for byte (LF), built as a
           # "path:" flake. So a release is the same derivation here and on the workstation.
           git -c core.autocrlf=false -c core.eol=lf archive --format=tar HEAD -- "${paths[@]}" | tar -xf - -C "${src}"
-          nix build "path:${src}#radix-image" "path:${src}#folia-image" --out-link "${RUNNER_TEMP}/result" --print-build-logs
+          # --keep-going: what does not depend on a failure is still built, and cached.
+          nix build "path:${src}#radix-image" "path:${src}#folia-image" --out-link "${RUNNER_TEMP}/result" --print-build-logs --keep-going
           cp -L "${RUNNER_TEMP}/result" "${out}/radix-image.tar.gz"
           cp -L "${RUNNER_TEMP}/result-1" "${out}/folia-image.tar.gz"
           ls -l "${out}"
@@ -206,3 +237,43 @@ jobs:
           # a release fetched by hand. A public repository pays nothing for the storage.
           retention-days: 7
           if-no-files-found: error
+
+      - name: Collect the Nix cache
+        id: collect
+        # After the upload, so that the release never waits for it. Only when the key was not
+        # found (a change to the app alone leaves the cache as it is), and after a failed build as
+        # well: what it made until then still saves the next one time.
+        if: ${{ !cancelled() && steps.cache.outputs.cache-hit != 'true' }}
+        run: |
+          set -Eeuo pipefail
+          # One byte order for sort and comm.
+          export LC_ALL=C
+          cache="${RUNNER_TEMP}/nix-cache"
+          next="${RUNNER_TEMP}/nix-cache.next"
+          src="${RUNNER_TEMP}/src"
+          # What this build needs: every path of the closure of the two images' derivations.
+          drvs="$(nix path-info --derivation "path:${src}#radix-image" "path:${src}#folia-image")"
+          # shellcheck disable=SC2086 # one path per word
+          nix-store --query --requisites --include-outputs ${drvs} | grep -v '\.drv$' | sort -u >"${RUNNER_TEMP}/needed"
+          # Of that, what cache.nixos.org does not have: what this run built, and what it found in
+          # the restored cache. Not the two images: they are new with every release.
+          {
+            cat "${RUNNER_TEMP}/nix-built" 2>/dev/null || true
+            find "${cache}" -maxdepth 1 -name '*.narinfo' -exec sed -n 's/^StorePath: //p' {} +
+          } | sort -u >"${RUNNER_TEMP}/ours"
+          readlink -f "${RUNNER_TEMP}/result" "${RUNNER_TEMP}/result-1" >"${RUNNER_TEMP}/images" 2>/dev/null || true
+          comm -12 "${RUNNER_TEMP}/needed" "${RUNNER_TEMP}/ours" | grep -vxF -f "${RUNNER_TEMP}/images" >"${RUNNER_TEMP}/keep" || true
+          [[ -s "${RUNNER_TEMP}/keep" ]] || { echo "nothing to cache"; exit 1; }
+          rm -rf "${next}"
+          # Uncompressed: the cache action compresses the whole directory with zstd anyway.
+          nix copy --no-recursive --to "file://${next}?compression=none" --stdin <"${RUNNER_TEMP}/keep"
+          rm -rf "${cache}"
+          mv "${next}" "${cache}"
+          echo "$(wc -l <"${RUNNER_TEMP}/keep") paths, $(du -sh "${cache}" | cut -f 1)"
+
+      - name: Save the Nix cache
+        if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nix-cache
+          key: ${{ steps.cache.outputs.cache-primary-key }}
