@@ -231,7 +231,7 @@ latest_run() {
 }
 
 # run_artifact - the artifact of BUILD_RUN: sets BUILD_TAG, BUILD_ARTIFACT, BUILD_DIGEST and
-# BUILD_BYTES. Returns 1 when it has none (any more: it is kept for a day).
+# BUILD_BYTES. Returns 1 when it has none (any more: it is kept for a week).
 run_artifact() {
   local line name
   BUILD_TAG=""
@@ -542,7 +542,7 @@ poll() {
     return 0
   fi
   if ! run_artifact; then
-    log "run ${BUILD_RUN} of ${WORKFLOW} has no artifact any more (kept for a day): canary waits for the next build of master"
+    log "run ${BUILD_RUN} of ${WORKFLOW} has no artifact any more (kept for a week): canary waits for the next build of master"
     state_set last-check "$(now_utc) run ${BUILD_RUN}, no artifact"
     state_set seen-run "${BUILD_RUN}"
     rm -f -- "${STATE_DIR}/failed"

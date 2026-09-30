@@ -435,7 +435,7 @@ database per deploy.
 ```
 push to master ─▶ GitHub Actions  .github/workflows/images.yml
                     nix build .#radix-image .#folia-image, exactly as ship.sh (same sources, same tag)
-                    ─▶ artifact betula-images-<tag>.tar (release.json + both images), kept a day
+                    ─▶ artifact betula-images-<tag>.tar (release.json + both images), kept a week
 server  betula-canary.timer, 2 minutes after the last run ─▶ vps/canary-agent.sh poll (as deploy)
    1  GitHub API, read-only token: a new successful run for a push to master? its artifact, sha256 checked
    2  docker load, tag <tag> (as ship.sh)
@@ -465,8 +465,9 @@ agent only acts on a build it has not seen.
 3. `SSH_TARGET=betula bash deploy/sync.sh`, then `ssh betula sudo bash /opt/betula/vps/60-canary.sh`
    (sqlite3, the units, `/var/lib/betula-canary`).
 4. `<password manager CLI> | ssh betula sudo bash /opt/betula/vps/60-canary.sh token`: tries the
-   token (it has to read the Actions, and must not read the code), stores it encrypted with the host's
-   key (`systemd-creds`, `/etc/credstore.encrypted/betula-canary-github-token`), switches the timer on.
+   token (GitHub has to accept it, it has to be allowed to download an artifact, and one that can see
+   the repository's administration is refused), stores it encrypted with the host's key
+   (`systemd-creds`, `/etc/credstore.encrypted/betula-canary-github-token`), switches the timer on.
 5. `ssh betula journalctl -fu betula-canary.service`. **The first run replaces both canary colours:**
    the data canary had (the workstation's crawl) is gone, the public site's takes its place.
 6. `ssh betula bash /opt/betula/vps/40-stacks.sh monitoring` (the new alert rule), then
@@ -494,10 +495,11 @@ database for one `deploy` by hand.
 
 - **Nothing reaches into the server.** No ssh key, no webhook and no runner at GitHub: the server
   asks (HTTPS to api.github.com and GitHub's artifact storage), ufw and sshd stay as they are.
-- **The token can do one thing.** Read this repository's workflow runs and artifacts; `60-canary.sh`
-  refuses a classic token and one that can read the code. Encrypted at rest, in clear only in the
-  service's own credentials directory, never in argv (header files, curl's config on stdin); the
-  short-lived address of the download gets no token.
+- **The token can do one thing.** Read this repository's workflow runs and artifacts - public
+  anyway, since the repository is; GitHub only wants a token for the download. `60-canary.sh`
+  refuses a classic token and one that can see the repository's administration. Encrypted at rest,
+  in clear only in the service's own credentials directory, never in argv (header files, curl's
+  config on stdin); the short-lived address of the download gets no token.
 - **Only master counts.** A run of `images.yml` in this repository, started by a push to master,
   finished with success; a pull request, another branch or a fork produces nothing the agent takes.
   The file has to match the sha256 GitHub keeps for it and the sums in its `release.json`.
@@ -511,8 +513,15 @@ database for one `deploy` by hand.
   time: every copy was complete to one commit and passed the integrity check.
 - **The workflow** asks for `contents: read` only, uses no secret, runs on pushes to master only,
   and its actions are pinned to commits.
+- **The repository is public** (since 2026-09-30). Everybody can read the code, the workflow's logs
+  and, logged in to GitHub, its artifacts; none of them holds a secret (the workflow has none, and
+  the history held no key or token when it went public). Everybody can fork it and open pull
+  requests, but neither starts `images.yml`, and the agent takes nothing but runs of a push to
+  master in this repository: from the outside, reading is all there is.
 - **Worth adding on GitHub:** a branch protection rule for master (pull requests, no force
-  pushes). Whoever can push to master decides what canary runs.
+  pushes): whoever can push to master decides what canary runs. And under Settings > Actions >
+  General "Allow ... select non-... actions": actions by GitHub, and `cachix/install-nix-action@*`
+  - nothing else is used.
 
 ### What it costs
 
@@ -525,7 +534,8 @@ database for one `deploy` by hand.
   fewer, bundled merges; a cache of the Nix store; building the Rust dependencies as a derivation
   of their own (crane), so that a change to the app does not compile every crate again; a
   self-hosted runner - never on this server.
-- **Artifact storage:** about the size of both images per build, gone after a day.
+- **Artifact storage:** about the size of both images per build, gone after a week; a public
+  repository pays nothing for it.
 - **This server:** per deploy one copy of the database, one build and export of the catalog (the
   CPU of a minute or two) and the new Folia warming its cache (up to 3 processors for a moment),
   next to the public site. The disk holds the images of the newest three builds.

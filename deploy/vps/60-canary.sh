@@ -12,11 +12,14 @@
 # The token: a fine-grained personal access token of the repository's owner, for the repository
 # leonieziechmann/betula.app ONLY, with the one permission "Actions: Read-only" (GitHub adds
 # "Metadata: Read-only" by itself). It can list the runs of the workflow and download their
-# artifacts; it cannot read the code, push, or change anything. Before it is stored it is tried
-# against the API, and a token that can read the code is refused. It is kept encrypted with this
-# host's key (systemd-creds) in /etc/credstore.encrypted/betula-canary-github-token and reaches
-# nobody but betula-canary.service, in clear only in that service's credentials directory. It
-# travels stdin -> shell variable -> stdin of systemd-creds: never an argument, never a file in clear.
+# artifacts - public anyway, since the repository is; GitHub only wants a token for the download.
+# It cannot push or change anything. Before it is stored it is tried: GitHub has to accept it, it
+# has to be allowed to download an artifact (once there is one), and a token that can see the
+# repository's administration (its deploy keys) has more than it needs and is refused. It is kept
+# encrypted with this host's key (systemd-creds) in /etc/credstore.encrypted/betula-canary-github-token
+# and reaches nobody but betula-canary.service, in clear only in that service's credentials
+# directory. It travels stdin -> shell variable -> stdin of systemd-creds: never an argument, never
+# a file in clear.
 #
 # Installs: sqlite3 (the agent's read-only copy of the public site's database), the units
 # betula-canary.service and .timer, the state directory /var/lib/betula-canary. Idempotent; a
@@ -87,35 +90,51 @@ read_token() {
   [[ "${TOKEN}" =~ ^github_pat_[A-Za-z0-9_]{20,255}$ ]] || die "that is not a fine-grained personal access token (github_pat_...)"
 }
 
-# try_token PATH -> the HTTP status GitHub answers to GET PATH with the token (000: no answer).
+# try_token PATH [FILE] -> the HTTP status GitHub answers to GET PATH with the token (000: no
+# answer); the body goes to FILE. A redirect is not followed: its status is the answer.
 try_token() {
   local headers code
   headers="$(betula_tmpfile)"
   # A header file, not an argument: argv is visible to every user of the machine.
   printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\nUser-Agent: betula-canary-setup\n' "${TOKEN}" >"${headers}"
-  code="$(curl --proto '=https' --tlsv1.2 -sS --max-time 30 -H @"${headers}" -o /dev/null -w '%{http_code}' "${API}$1" 2>/dev/null)" || true
+  code="$(curl --proto '=https' --tlsv1.2 -sS --max-time 30 -H @"${headers}" -o "${2:-/dev/null}" -w '%{http_code}' "${API}$1" 2>/dev/null)" || true
   rm -f -- "${headers}"
   printf '%s' "${code:-000}"
 }
 
 store_token() {
   step "GitHub token"
-  local code
-  require_cmd curl systemd-creds
+  local code list artifact
+  require_cmd curl jq systemd-creds
   read_token
+  list="$(betula_tmpfile)"
+  # The runs of a public repository are public: this proves that GitHub accepts the token, not more.
   code="$(try_token "/repos/${CANARY_REPO}/actions/runs?per_page=1")"
   case "${code}" in
-    200) log "the token may read the workflow runs of ${CANARY_REPO}" ;;
+    200) log "GitHub accepts the token" ;;
     401) die "GitHub does not accept the token (401): mistyped, expired or revoked" ;;
     403 | 404) die "the token may not read the Actions of ${CANARY_REPO} (${code}): give it that repository and \"Actions: Read-only\"" ;;
     *) die "no usable answer from GitHub (${code}); nothing was stored" ;;
   esac
-  # Least privilege, checked: the agent needs the Actions, not the code.
-  code="$(try_token "/repos/${CANARY_REPO}/contents/flake.nix")"
-  if [[ "${code}" == "200" ]]; then
-    die "the token can read the code of ${CANARY_REPO} as well: it only needs \"Actions: Read-only\" (and the Metadata GitHub adds). Create one without \"Contents\"; nothing was stored"
+  # What the agent needs a token for: downloading an artifact (GitHub answers with a redirect).
+  code="$(try_token "/repos/${CANARY_REPO}/actions/artifacts?per_page=5" "${list}")"
+  artifact="$(jq -r '[.artifacts[]? | select(.expired == false)][0].id // empty' "${list}" 2>/dev/null || true)"
+  if [[ "${code}" != "200" || ! "${artifact}" =~ ^[0-9]{1,20}$ ]]; then
+    log "no artifact to try the download with yet (${code}): the first run of the agent shows whether the token may"
+  else
+    code="$(try_token "/repos/${CANARY_REPO}/actions/artifacts/${artifact}/zip")"
+    [[ "${code}" == "302" ]] ||
+      die "the token may not download the artifacts of ${CANARY_REPO} (${code} instead of a redirect): give it \"Actions: Read-only\" for that repository; nothing was stored"
+    log "it may download the artifacts"
   fi
-  log "it cannot read the code (${code}), as it should"
+  # Least privilege, checked where a public repository still has something to hide: its deploy
+  # keys need "Administration", which the agent never needs. (A token that may write but not
+  # administer cannot be told apart without writing: GitHub's page of the token lists what it grants.)
+  code="$(try_token "/repos/${CANARY_REPO}/keys?per_page=1")"
+  if [[ "${code}" == "200" ]]; then
+    die "the token can see the administration of ${CANARY_REPO} (its deploy keys): it only needs \"Actions: Read-only\". Create one with nothing else; nothing was stored"
+  fi
+  log "it cannot see the repository's administration (${code}), as it should"
   # printf is a shell builtin: the token is never an argument of a process.
   printf '%s' "${TOKEN}" | systemd-creds encrypt --name="${TOKEN_NAME}" - "${TOKEN_FILE}.new"
   chmod 0600 "${TOKEN_FILE}.new"
