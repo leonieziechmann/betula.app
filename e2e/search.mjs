@@ -15,7 +15,8 @@ const problems = [];
 const plain = await browser.newPage({ javaScriptEnabled: false });
 await plain.goto(base + "/catalog?q=algoritmen");
 const corrected = (await plain.locator(".search-line").textContent().catch(() => "")) || "";
-if (!corrected.includes("algoritmen") || !corrected.includes("Algorithmen")) problems.push(`server: the corrected typo is not said („${corrected}“)`);
+// The word a typo was taken for, written as it was typed (lower case here).
+if (!corrected.includes("algoritmen") || !corrected.includes("algorithmen")) problems.push(`server: the corrected typo is not said („${corrected}“)`);
 if (!(await plain.locator(".rows a.row").count())) problems.push("server: no module for the corrected typo");
 await plain.goto(base + "/catalog?q=python&program=bachelor-informatik-2008");
 const outside = (await plain.locator(".list-note").textContent().catch(() => "")) || "";
@@ -47,7 +48,7 @@ await step("search inside a program", () => page.fill("#topsearch", "python"),
 await step("the matches outside the filters", () => page.click(".list-note a"),
   () => location.search.includes("q=python") && !location.search.includes("program=") && document.querySelectorAll(".rows a.row").length > 0);
 await step("a typo is corrected", () => page.fill("#topsearch", "algoritmen"),
-  () => (document.querySelector(".search-line")?.textContent || "").includes("Algorithmen") && document.querySelectorAll(".rows a.row").length > 0);
+  () => (document.querySelector(".search-line")?.textContent || "").includes("algorithmen") && document.querySelectorAll(".rows a.row").length > 0);
 await step("the best match first", () => page.fill("#topsearch", "informatik"),
   () => !document.querySelector(".search-line") && /(^|\s)Informatik(\s|$)/.test(document.querySelector(".rows a.row b")?.textContent || ""));
 await step("„Modul“ orders by title", () => page.click('.cols a:has-text("Modul")'), () => location.search.includes("sort=title"));
