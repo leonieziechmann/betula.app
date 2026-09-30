@@ -248,6 +248,9 @@ jobs:
         # succeeded: an entry cannot be replaced, and one saved half full would stay half full for
         # as long as its key is in use - every build would make the missing half again.
         if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.cache.outputs.cache-hit != 'true' }}
+        # The cache only saves time: when it cannot be kept, the step is marked, and the run still
+        # succeeds - canary takes only runs that succeeded, and the images are fine.
+        continue-on-error: true
         run: |
           set -Eeuo pipefail
           # One byte order for sort and comm.
@@ -285,6 +288,7 @@ jobs:
 
       - name: Save the Nix cache
         if: ${{ !cancelled() && steps.collect.outputs.save == 'true' }}
+        continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/nix-cache
