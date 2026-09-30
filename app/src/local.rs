@@ -32,7 +32,7 @@ use crate::data::{use_source, PageStatus};
 use crate::i18n;
 use crate::pages::module::ModuleFull;
 use crate::tabs::Area;
-use crate::ui::{ErrorState, NotFound};
+use crate::ui::{ErrorState, NotFound, Plain};
 
 /// What fills the page of an area that shows its modules in place: the module it has open, where
 /// that is shown in full — after „Vollbild" (`full`), and on a phone always. `None`: the area's own
@@ -68,11 +68,11 @@ pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
     match use_source().and_then(|source| source.run(|db| pages::module(db, &id))) {
         Err(error) => {
             status.for_error(&error);
-            view! { <div class="page"><ErrorState error/></div> }.into_any()
+            view! { <Plain><ErrorState error/></Plain> }.into_any()
         }
         Ok(None) => {
             status.set(404);
-            view! { <div class="page"><NotFound title=t.module.not_found hint=t.module.not_found_hint/></div> }.into_any()
+            view! { <Plain><NotFound title=t.module.not_found hint=t.module.not_found_hint/></Plain> }.into_any()
         }
         Ok(Some(data)) => view! { <ModuleFull data back_area=area back_to=Some(back) noindex=true/> }.into_any(),
     }

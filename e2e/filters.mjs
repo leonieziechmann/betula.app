@@ -276,7 +276,7 @@ check((await width()) === startWidth && (await page.evaluate(() => localStorage.
 await step("program list", async () => { await page.click('#filters a:has-text("Zurücksetzen")'); await page.click("#pick-program"); await page.fill("#pick-program-search", "informatik b.sc"); await page.keyboard.press("Enter"); }, () => document.querySelector(".rows .plan-sem") && !document.querySelector(".rows .sem") && document.querySelector("#pick-area"));
 const semesters = await page.evaluate(() => [...document.querySelectorAll(".rows .vrow")].slice(0, 12).map((row) => row.querySelector(".plan-sem")?.textContent ?? null));
 check(semesters[0] === "1. Semester" && semesters.every((s) => s === null || /^\d+\. Semester$/.test(s)), `program list: the first rows say ${semesters.join(" | ")}`);
-await step("scroll into the second page", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = 60 * 58; }), () => /[?&]page=2\b/.test(location.search) && document.querySelector('.vrow[data-i="60"] a.row'));
+await step("scroll into the second page", () => page.evaluate(() => { document.getElementById("catalog-scroll").scrollTop = 60 * 58 + 120; }), () => /[?&]page=2\b/.test(location.search) && document.querySelector('.vrow[data-i="60"] a.row'));
 // A semester lists what the plan places there and, for the plan's requirement rows („Wahlpflicht…"),
 // the modules that can be chosen; the note above the list says so and where they come from.
 await step("semester 3", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("3")'), () => new URL(location.href).searchParams.get("semester") === "3" && document.querySelector(".plan-note"));
@@ -288,7 +288,7 @@ const semester3 = await page.evaluate(() => ({
   items: document.querySelectorAll(".plan-note li").length,
   links: document.querySelectorAll(".plan-note a").length,
   first: document.querySelector(".rows .vrow")?.dataset.i,
-  top: document.querySelector(".rows").scrollTop,
+  top: document.getElementById("catalog-scroll").scrollTop,
   search: location.search,
 }));
 check(semester3.first === "0" && semester3.top === 0 && !semester3.search.includes("page="), `semester: the list of the new filter does not start at the top (row ${semester3.first} at ${semester3.top}px, ${semester3.search})`);
@@ -296,14 +296,15 @@ check(semester3.count > semester3.placed && semester3.placed > 0, `semester: ${s
 check(/Regelstudienplan sieht im 3\. Semester/.test(semester3.note) && /abgeleitet/.test(semester3.note), `semester: the note does not say what the plan asks for (${semester3.note.slice(0, 120)})`);
 // A line a row of the plan, how much and from where, each thing once (owner, 2026-09-23).
 check(semester3.items > 0 && /≥\s6\sLP/.test(semester3.note) && !/vermutlich|Käme dem Namen|gleich gut passend/.test(semester3.note), `semester: the note is not a line a row (${semester3.note.slice(0, 200)})`);
-// The note scrolls away with the rows; the heads of the columns stay at the top.
+// The note scrolls away with the rows; the heads of the columns stay at the top, under the list's
+// head, which stays at the top of the page's scroll area.
 const scrolled = await page.evaluate(async () => {
-  const rows = document.querySelector(".rows"), note = document.querySelector(".plan-note"), head = document.querySelector(".rows > .cols");
-  rows.scrollTop = 400;
+  const area = document.getElementById("catalog-scroll"), rows = document.querySelector(".rows"), note = document.querySelector(".plan-note"), head = document.querySelector(".rows > .cols");
+  area.scrollTop = 400;
   await new Promise((resolve) => setTimeout(resolve, 50));
-  const top = rows.getBoundingClientRect().top;
+  const top = document.getElementById("rows-top").getBoundingClientRect().bottom;
   const at = { inRows: note.parentElement === rows, note: note.getBoundingClientRect().bottom - top, head: head.getBoundingClientRect().top - top, search: location.search };
-  rows.scrollTop = 0;
+  area.scrollTop = 0;
   return at;
 });
 check(scrolled.inRows && scrolled.note < 0 && Math.abs(scrolled.head) < 1 && !scrolled.search.includes("page="), `semester: the note stays or the heads of the columns go (${JSON.stringify(scrolled)})`);

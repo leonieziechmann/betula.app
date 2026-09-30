@@ -31,8 +31,9 @@ pub fn Wood() -> impl IntoView {
     view! { <div class="wood" aria-hidden="true"></div> }
 }
 
-/// The ground: the footer of every page, after all of its content. On the desktop it comes up from
-/// the window's edge once the page is at its end, and the panels get shorter for it (`enhance.js`);
+/// The ground: the footer of every page, after all of its content. On the desktop a page that flows
+/// (the catalog) has it as the end of its own scroll area; on the others it comes up from the
+/// window's edge once the page is at its end, and the panels get shorter for it (`enhance.js`);
 /// on a phone it follows the page, and ends at the window's lower edge under a page shorter than
 /// the window. It holds what belongs at the bottom of a site — who is behind it, the legal pages,
 /// the versions of Folia and Radix (the roots: Radix brings the data) and how fresh the data is.

@@ -132,6 +132,9 @@ pub fn Prose(text: String) -> impl IntoView {
 /// handle and remembered width, floating over the page docked to its right edge, and there only
 /// while something is picked (`aside_picked`). A column of its own left a 13-inch screen too
 /// little room for the page (owner, 2026-09-23).
+///
+/// On the desktop the frame is one scroll area (`#page-scroll`, app.css „one scroll area"): the
+/// page and the ground after it scroll as one; the sidebar and the panel on the right are pinned.
 #[component]
 pub fn Frame(
     /// Heading of the sidebar.
@@ -158,7 +161,9 @@ pub fn Frame(
     let label = title.clone();
     let has_aside = aside.is_some();
     view! {
-        <div class="work framed" class:sidebar-first=sidebar_first class:with-aside=has_aside class:aside-picked=move || has_aside && aside_picked.get()>
+        // One scroll area with the ground at its end (app.css „one scroll area"): the sidebar and
+        // the panel on the right are pinned beside the page.
+        <div class="work framed flowing" id="page-scroll" class:sidebar-first=sidebar_first class:with-aside=has_aside class:aside-picked=move || has_aside && aside_picked.get()>
             <aside class="panel sidebar" class:sheet=sheet id="sidebar" aria-label=label>
                 <div class="panel-head">
                     <h2>{title}</h2>
@@ -168,12 +173,26 @@ pub fn Frame(
                 <div class="body scroll" data-keep-scroll="sidebar">{sidebar.run()}</div>
             </aside>
             <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label=t.ui.resize_sidebar tabindex="0"></div>
-            <div class="page" id="page-scroll">{children()}</div>
+            <div class="page">{children()}</div>
             {aside.map(|aside| move || aside_picked.get().then(|| view! {
                 // The handle is a sibling of the panel, as in the catalog: a child would be clipped.
                 <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label=t.ui.resize_preview tabindex="0"></div>
                 {aside.run()}
             }))}
+            <crate::ground::Ground/>
+        </div>
+    }
+}
+
+/// A page without a frame (one that failed, one not found, an area picked on a phone): like a
+/// framed page one scroll area with the ground at its end (app.css „one scroll area"), the page
+/// across the whole width. The start page builds the same itself.
+#[component]
+pub fn Plain(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
+    view! {
+        <div class=format!("work flowing solo {class}") id="page-scroll">
+            <div class="page">{children()}</div>
+            <crate::ground::Ground/>
         </div>
     }
 }

@@ -4,11 +4,12 @@
 
 /// What is visible of a virtual list: the offset of the top of the visible part within the
 /// list's content (`content_id`, the element that holds the rows), and the height of the visible
-/// part. The list scrolls inside its panel on the desktop and with the window on a phone. In the
-/// panel the heads of the columns (`head_id`) stay at the top while the rows scroll under them:
-/// the visible part begins below them. `None` on the server or if the list is not there.
+/// part. On the desktop the list scrolls with the page's scroll area (`scroller_id`, app.css „one
+/// scroll area"), on a phone with the window. In the area the heads (`heads`: the list's head, then
+/// the heads of its columns) stay at the top while the rows scroll under them: the visible part
+/// begins below the last of them. `None` on the server or if the list is not there.
 #[allow(unused_variables)]
-pub fn list_viewport(rows_id: &str, head_id: &str, content_id: &str) -> Option<(f32, f32)> {
+pub fn list_viewport(scroller_id: &str, heads: &[&str], content_id: &str) -> Option<(f32, f32)> {
     #[cfg(feature = "csr")]
     {
         let window = web_sys::window()?;
@@ -18,23 +19,28 @@ pub fn list_viewport(rows_id: &str, head_id: &str, content_id: &str) -> Option<(
             let height = window.inner_height().ok()?.as_f64()? as f32;
             return Some(((-content.top() as f32).max(0.0), height));
         }
-        let rows = document.get_element_by_id(rows_id)?;
-        let head = height_of(&document, head_id);
-        let top = rows.get_bounding_client_rect().top() as f32 + head;
-        Some(((top - content.top() as f32).max(0.0), rows.client_height() as f32 - head))
+        let area = document.get_element_by_id(scroller_id)?;
+        let area_box = area.get_bounding_client_rect();
+        let under_heads = heads.last().and_then(|id| document.get_element_by_id(id)).map_or(area_box.top(), |head| head.get_bounding_client_rect().bottom());
+        let top = under_heads.max(area_box.top()) as f32;
+        let bottom = (area_box.top() + f64::from(area.client_height())) as f32;
+        Some(((top - content.top() as f32).max(0.0), (bottom - top).max(0.0)))
     }
     #[cfg(not(feature = "csr"))]
     None
 }
 
-/// How tall an element is; 0 without it (and on a phone, which shows no heads of columns).
+/// How tall the heads are together; 0 without them (and on a phone, which shows no heads).
 #[cfg(feature = "csr")]
-fn height_of(document: &web_sys::Document, id: &str) -> f32 {
+fn height_of(document: &web_sys::Document, ids: &[&str]) -> f32 {
     use wasm_bindgen::JsCast;
-    document.get_element_by_id(id).and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok()).map_or(0.0, |element| element.offset_height() as f32)
+    ids.iter()
+        .filter_map(|id| document.get_element_by_id(id).and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok()))
+        .map(|element| element.offset_height() as f32)
+        .sum()
 }
 
-/// Puts the list at its start: the panel at the top, or (a phone) the window at the top of the page.
+/// Puts the list at its start: the scroll area at the top, or (a phone) the window at the top of the page.
 #[allow(unused_variables)]
 pub fn scroll_list_to_start(rows_id: &str) {
     #[cfg(feature = "csr")]
@@ -53,19 +59,20 @@ pub fn scroll_list_to_start(rows_id: &str) {
 
 /// Scrolls the list so that `offset` (within its content) is at the top of the visible part.
 #[allow(unused_variables)]
-pub fn scroll_list_to(rows_id: &str, head_id: &str, content_id: &str, offset: f32) {
-    // In the panel, from where the content stands in it rather than from what is visible now:
-    // what stands above the rows (the note of a semester) scrolls away on the way there.
+pub fn scroll_list_to(scroller_id: &str, heads: &[&str], content_id: &str, offset: f32) {
+    // In the scroll area, from where the content stands in it rather than from what is visible
+    // now: what stands above the rows (the note of a semester) scrolls away on the way there, and
+    // the heads stand at the top once it has.
     #[cfg(feature = "csr")]
     if !is_phone() {
         let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
-        let (Some(rows), Some(content)) = (document.get_element_by_id(rows_id), document.get_element_by_id(content_id)) else { return };
-        let start = content.get_bounding_client_rect().top() - rows.get_bounding_client_rect().top() + f64::from(rows.scroll_top());
-        rows.set_scroll_top((start + f64::from(offset) - f64::from(height_of(&document, head_id))).round() as i32);
+        let (Some(area), Some(content)) = (document.get_element_by_id(scroller_id), document.get_element_by_id(content_id)) else { return };
+        let start = content.get_bounding_client_rect().top() - area.get_bounding_client_rect().top() + f64::from(area.scroll_top());
+        area.set_scroll_top((start + f64::from(offset) - f64::from(height_of(&document, heads))).round() as i32);
         return;
     }
-    if let Some((now, _)) = list_viewport(rows_id, head_id, content_id) {
-        scroll_list_by(rows_id, offset - now);
+    if let Some((now, _)) = list_viewport(scroller_id, heads, content_id) {
+        scroll_list_by(scroller_id, offset - now);
     }
 }
 
@@ -133,6 +140,42 @@ pub fn watch_size(id: &str, on_change: impl Fn() + 'static) -> Option<send_wrapp
         let observer = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()).ok()?;
         observer.observe(&element);
         Some(send_wrapper::SendWrapper::new(SizeWatch { observer, _callback: callback }))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// A `scroll` listener on one element; dropping it removes the listener. Wrapped like `SizeWatch`.
+#[cfg(feature = "csr")]
+pub struct ScrollWatch {
+    target: web_sys::EventTarget,
+    callback: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>,
+}
+
+#[cfg(feature = "csr")]
+impl Drop for ScrollWatch {
+    fn drop(&mut self) {
+        use wasm_bindgen::JsCast;
+        let _ = self.target.remove_event_listener_with_callback("scroll", self.callback.as_ref().unchecked_ref());
+    }
+}
+
+#[cfg(not(feature = "csr"))]
+pub struct ScrollWatch;
+
+/// Calls `on_scroll` whenever the element scrolls (the page's scroll area). `None` on the server or
+/// without the element.
+#[allow(unused_variables)]
+pub fn watch_scroll(id: &str, on_scroll: impl Fn() + 'static) -> Option<send_wrapper::SendWrapper<ScrollWatch>> {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let target: web_sys::EventTarget = web_sys::window()?.document()?.get_element_by_id(id)?.into();
+        let callback = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |_event| on_scroll());
+        let options = web_sys::AddEventListenerOptions::new();
+        options.set_passive(true);
+        target.add_event_listener_with_callback_and_add_event_listener_options("scroll", callback.as_ref().unchecked_ref(), &options).ok()?;
+        Some(send_wrapper::SendWrapper::new(ScrollWatch { target, callback }))
     }
     #[cfg(not(feature = "csr"))]
     None

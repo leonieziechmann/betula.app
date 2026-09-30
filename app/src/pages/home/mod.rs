@@ -193,12 +193,13 @@ pub fn HomePage() -> impl IntoView {
     let close_popups = RwSignal::new(0u32);
     provide_context(ClosePopups(close_popups));
 
-    // No frame and no sidebar (see above): the page scrolls on its own, as `#page-scroll` (the
-    // ground and „Nach oben" follow it, `enhance.js`). The wood (`ground::Wood`) stands still
+    // No frame and no sidebar (see above): as `ui::Plain`, one scroll area (`#page-scroll`) with
+    // the ground at its end (app.css „one scroll area"). The wood (`ground::Wood`) stands still
     // behind it.
     view! {
         <Title text=""/>
-        <div class="page home-page" id="page-scroll" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))><div class="page-inner home">
+        <div class="work flowing solo" id="page-scroll" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))>
+        <div class="page home-page"><div class="page-inner home">
         <Seo title=t.home.seo_title description=t.home.description path=url::HOME data/>
         {match loaded {
             Err(error) => {
@@ -254,6 +255,8 @@ pub fn HomePage() -> impl IntoView {
             }).collect_view()}
         </section>
         </div></div>
+        <crate::ground::Ground/>
+        </div>
     }
 }
 

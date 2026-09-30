@@ -76,13 +76,18 @@
   --ground-text: oklch(.27 .02 60);
   --ground-muted: oklch(.39 .022 62);
   --ground-root: oklch(.76 .038 80);
-  /* How high the ground is on a wide screen, and how far it comes up (with the gap above it). */
+  /* How high the ground is on a wide screen. */
   --ground-h: 200px;
-  --ground-reach: calc(var(--ground-h) + var(--gap));
   /* The wood behind every page (`.wood`): the background's grey a few steps darker, mixed in
      OKLab (in OKLCH a grey's hue is `none`, and Chromium draws the mix reddish). */
   --wood-front: color-mix(in oklab, var(--text) 8%, var(--bg));
   --wood-back: color-mix(in oklab, var(--text) 3.4%, var(--bg));
+  /* The ring of a panel (--line) as it looks over what lies behind it, opaque: for the edges the
+     catalog's list and the ground draw where a panel only seems to end („the one scroll area"). */
+  --ring-b: color-mix(in srgb, rgb(15 23 42) 8%, var(--bg));
+  --ring-w: color-mix(in srgb, rgb(15 23 42) 8%, var(--wood-front));
+  --ring-p: color-mix(in srgb, rgb(15 23 42) 8%, var(--panel));
+  --ring-pw: var(--ring-w);
   /* The trunk of the first panel and the branches of its figures, and the trunk of the birch
      further down the start page (`.trunk`): white bark by day. */
   --hero-bark: var(--bark);
@@ -134,6 +139,10 @@
        the start page in the moon's grey, their marks dark (owner, 2026-09-29: white bark glared). */
     --wood-front: color-mix(in oklab, var(--text) 6.5%, var(--bg));
     --wood-back: color-mix(in oklab, var(--text) 2.7%, var(--bg));
+    --ring-b: color-mix(in srgb, #fff 7%, var(--bg));
+    --ring-w: color-mix(in srgb, #fff 7%, var(--wood-front));
+    --ring-p: color-mix(in srgb, #fff 15%, var(--panel));
+    --ring-pw: color-mix(in srgb, #fff 15%, var(--wood-front));
     --hero-bark: oklch(.34 .014 255);
     --hero-bark-ink: oklch(.15 .01 260);
     --hero-limb: oklch(.34 .014 255);
@@ -179,6 +188,10 @@
      the start page in the moon's grey, their marks dark (owner, 2026-09-29: white bark glared). */
   --wood-front: color-mix(in oklab, var(--text) 6.5%, var(--bg));
   --wood-back: color-mix(in oklab, var(--text) 2.7%, var(--bg));
+  --ring-b: color-mix(in srgb, #fff 7%, var(--bg));
+  --ring-w: color-mix(in srgb, #fff 7%, var(--wood-front));
+  --ring-p: color-mix(in srgb, #fff 15%, var(--panel));
+  --ring-pw: color-mix(in srgb, #fff 15%, var(--wood-front));
   --hero-bark: oklch(.34 .014 255);
   --hero-bark-ink: oklch(.15 .01 260);
   --hero-limb: oklch(.34 .014 255);
@@ -360,7 +373,8 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 /* The ground: the footer after all of a page, across everything right of the rail. The roots
    grow into it from its edge and fade downwards (a mask, like the crown); in autumn the fallen
    leaves lie on its edge, in the gap above it. As it stands here it lies after the view, and the
-   window scrolls to it: so it is without enhance.js, and so it follows the page on a phone. */
+   window scrolls to it: so it follows the page on a phone. On a wide screen every page has its own
+   at the end of its scroll area instead („one scroll area"). */
 .ground { position: relative; z-index: 1; grid-column: 2; grid-row: 2; margin: 0 var(--gap) var(--gap) 0; min-height: var(--ground-h); border-radius: 12px; background: var(--ground); color: var(--ground-text); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ground-text) 6%, transparent); }
 .ground::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--ground-root); -webkit-mask: url("/assets/birch/roots.svg") repeat-x left top; mask: url("/assets/birch/roots.svg") repeat-x left top; pointer-events: none; }
 .ground::after { content: ""; display: none; position: absolute; left: 0; right: 0; top: -12px; height: 24px; background: var(--crown); -webkit-mask: url("/assets/birch/litter.svg") repeat-x left top; mask: url("/assets/birch/litter.svg") repeat-x left top; pointer-events: none; }
@@ -377,27 +391,6 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .ground-foot p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 .ground-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--ground-muted); }
 .ground-foot .icon { width: 13px; height: 13px; }
-/* On a wide screen the page scrolls inside the view, and its scrollbar is the only one: the
-   window's is never shown. With enhance.js (`data-ground` on <html>) the ground waits below the
-   window's edge, fixed to the window. Once the page is at its end (`end`), the window has room to
-   scroll by as far as the ground comes up; the next turn of the wheel scrolls it, and the ground
-   comes up by as much (`in`). The header stays, and nothing else moves with the window: the rail
-   and the view stick to its top. While the window scrolls, the ground slides over the panels,
-   which are cut off above it (a clip on the view), and once it stands still the view gets that
-   much shorter (owner, 2026-09-29: „erst resizen, wenn man mit scrollen fertig ist"): the page
-   glides to its end above the ground, the panels beside it end above it. The wood goes with the
-   ground in every frame. How far the ground is in,
-   enhance.js writes straight onto the boxes that move (the ground's shift and the wood's, the clip
-   and, once the window stands still, the view's height); a custom property on <html> made the
-   browser work out the style of the whole page again in every frame. It also has the rest (the
-   wheel on the way back, a page that leaves its end). */
-@media (min-width: 901px) {
-  html.js { scrollbar-width: none; }
-  :root[data-ground] .main { position: sticky; top: 0; }
-  :root[data-ground] .ground { position: fixed; left: var(--rail); right: var(--gap); bottom: var(--gap); height: var(--ground-h); margin: 0; transform: translateY(var(--ground-reach)); will-change: transform; }
-  :root[data-ground="end"] body::after, :root[data-ground="in"] body::after { content: ""; grid-column: 2; grid-row: 2; height: var(--ground-reach); }
-  :root[data-ground]:not([data-ground="in"]) .ground::after { display: none; }
-}
 @media (max-width: 900px) {
   /* On a phone the crown is the ground of the bar at the top: it carries the bar's frosted
      background, over the page and under the search. The ground follows the page, full width, the
@@ -410,6 +403,101 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .ground { margin: 12px 0 0; min-height: 0; border-radius: 18px 18px 0 0; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
   .ground-top { flex-direction: column; gap: 14px; padding: 22px 18px 0; }
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
+}
+
+/* ---------- one scroll area ----------
+   Owner, 2026-09-29: the two steps — first the page scrolled, then the window for the ground — felt
+   „unfassbar janky". Every page (`.work.flowing`: ui::Frame, ui::Plain, the catalog, the Merkliste,
+   the start page) is ONE scroll area right
+   of the rail under the top bar, with one scrollbar at the window's right edge: the page and the
+   ground after it scroll as one, natively, and the ground is simply the end of the page. What stands
+   beside the page (the filter panel, the module beside the list) is pinned: as high as the area
+   shows, its place running through the ground's row, so the ground slides over its lower end; from
+   8 px above the ground down, all across, the background is the wood's front colour (a band behind
+   the ground, `::after`, and the wood's own below it), which cuts the panels off straight and shows
+   in the ground's round corners (owner, 2026-09-30: the panels' corners drawn along with the ground
+   looked off); once the page stands still its content ends above the ground
+   (`--cover`, enhance.js: one layout nobody sees, the ground covers exactly what goes). The list's
+   head and the heads of its columns stay at the top; where the area cuts the list off at the
+   bottom, the list keeps its box (`.list-cap`), and its head's round corners let the page behind
+   show (a mask on the area, which stands still while its content scrolls). The wood goes up with
+   the ground in the same frame (a scroll-driven animation; enhance.js where there is none). The
+   area has 1 px above and below the panels for their ring: they end where they ended before, 8 px
+   above the window's edge; `100vh - 64px` is the height of a pinned panel (56 px above, 8 below). A
+   sticky `top: 0` already stands inside the area's 1 px of padding. The scrollbar stands in the
+   8 px right of the page (`--bar`, its width, enhance.js), not beside them (owner, 2026-09-30). */
+.work > .ground { display: none; }
+@media (min-width: 901px) {
+  body { timeline-scope: --page; }
+  :root:has(#content > .work.flowing) body > .ground { display: none; }
+  .work.flowing {
+    display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content var(--ground-h);
+    --pad-r: max(0px, calc(var(--gap) - var(--bar, 0px)));
+    height: calc(100% + 2px); margin: -1px calc(-1 * var(--gap)) -1px 0; padding: 1px var(--pad-r) 1px 0;
+    overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; scroll-timeline: --page block;
+  }
+  /* A page without a frame (ui::Plain, the start page) takes the whole width. */
+  .work.flowing.solo { grid-template-columns: minmax(0, 1fr); }
+  /* A list's box keeps its round corners at the top: the area lets the page behind them show. A
+     page of panels is cut straight at the top, as it was. */
+  .work.flowing:has(> .list) {
+    mask-image: linear-gradient(#000 0 0), radial-gradient(circle at 10px 10px, transparent 9.6px, #000 10.4px), radial-gradient(circle at 0 10px, transparent 9.6px, #000 10.4px);
+    mask-origin: border-box, border-box, content-box; mask-clip: border-box;
+    mask-size: 100% 100%, 10px 10px, 10px 10px; mask-repeat: no-repeat;
+    mask-position: 0 0, calc(var(--filters) + var(--gap) - 1px) 0, right -1px top -1px;
+    mask-composite: subtract, add, add;
+  }
+  .work.flowing:focus { outline: none; }
+  /* The first row is never shorter than the area shows, whatever flows in it (a pinned short list
+     stands in it and the ground's row at once). */
+  .work.flowing::before { content: ""; grid-row: 1; grid-column: 1; height: calc(100vh - 64px); pointer-events: none; }
+  .work.flowing > .filters, .work.flowing > .sidebar, .work.flowing > .detail {
+    position: sticky; inset: auto; top: 0; grid-row: 1 / 3; align-self: start; height: calc(100vh - 64px);
+    padding-bottom: var(--cover, 0px);
+  }
+  .work.flowing > .filters, .work.flowing > .sidebar { grid-column: 1; }
+  /* A list short enough to stand whole above the ground is pinned as well (enhance.js). */
+  .work.flowing > .list.short { position: sticky; top: 0; grid-row: 1 / 3; align-self: start; height: calc(100vh - 64px); min-height: 0; padding-bottom: var(--cover, 0px); }
+  .work.flowing > .detail { grid-column: 1 / -1; justify-self: end; }
+  /* The area has a height of its own, so its first row is as tall as what it holds (`max-content`,
+     not `auto`, which would only grow into room the area has left): at least as high as it shows. */
+  .work.flowing > .list { grid-column: 2; grid-row: 1; min-height: calc(100vh - 64px); overflow: visible; }
+  .work.flowing > .page { grid-column: 1 / -1; grid-row: 1; height: auto; min-height: calc(100vh - 64px); overflow: visible; }
+  .work.flowing.framed > .page { grid-column: 2; }
+  .work.flowing > .resizer { position: sticky; top: 0; grid-row: 1 / 3; grid-column: 1 / -1; align-self: start; height: calc(100vh - 64px); }
+  .work.flowing > .resizer.between { justify-self: start; left: auto; margin-left: var(--at, var(--filters)); }
+  .work.flowing > .resizer.preview-edge { justify-self: end; right: auto; margin-right: calc(var(--at, var(--preview)) - 12px); }
+  .work.flowing .rows.scroll { overflow: visible; }
+  .work.flowing .list[data-pending] .rows { overflow: clip; }
+  /* The list's head stays at the top, its ring as its top edge — in the area's 1 px above the
+     panels, where the other panels have theirs, so nothing shows through above it —; the heads of
+     the columns stay under it (--list-head-h, its height with the ring, enhance.js); the note of a
+     semester between them scrolls away. */
+  html.js .work.flowing > .list > .list-head { position: sticky; top: -1px; z-index: 6; margin: -1px -1px 0; border: 1px solid var(--ring-b); border-bottom: 0; border-radius: calc(var(--r-panel) + 1px) calc(var(--r-panel) + 1px) 0 0; background: var(--panel); }
+  html.js .work.flowing .rows > .cols { top: calc(var(--list-head-h, 1px) - 1px); }
+  html.js .work.flowing > .list > .cols { position: sticky; top: calc(var(--list-head-h, 1px) - 1px); z-index: 4; }
+  html.js .work.flowing .rows-pending { top: calc(var(--list-head-h, 1px) - 1px + var(--cols)); }
+  html.js .work.flowing .row { scroll-margin: calc(var(--list-head-h, 0px) + var(--cols) + 8px) 0 16px; }
+  .list-cap { display: none; }
+  .work.flowing > .list > .list-cap {
+    position: sticky; bottom: -1px; z-index: 5; display: block; height: 10px; margin: -9px -1px -1px; pointer-events: none;
+    background:
+      radial-gradient(circle at 10px 0, transparent 8.6px, var(--ring-w) 9.3px, var(--ring-w) 9.7px, var(--wood-front) 10.4px) left top / 10px 10px no-repeat,
+      radial-gradient(circle at 0 0, transparent 8.6px, var(--ring-w) 9.3px, var(--ring-w) 9.7px, var(--wood-front) 10.4px) right top / 10px 10px no-repeat,
+      linear-gradient(var(--ring-w), var(--ring-w)) center bottom / calc(100% - 20px) 1px no-repeat;
+  }
+  /* The ground as the end of the page, on a band in the wood's front colour from 8 px above it
+     and across the whole area (to the scrollbar): over the pinned panels, under the ground. */
+  .work.flowing > .ground { display: block; position: relative; z-index: 20; grid-column: 1 / -1; grid-row: 2; height: var(--ground-h); min-height: 0; margin: 0; }
+  .work.flowing::after { content: ""; position: relative; z-index: 19; grid-column: 1 / -1; grid-row: 2; margin: calc(-1 * var(--gap)) calc(-1 * var(--pad-r)) 0 0; background: var(--wood-front); pointer-events: none; }
+  /* The wood stands on the ground as it comes: its last 208 px of the scroll are the ground's 200
+     and the gap above it. */
+  @keyframes wood-rise { to { transform: translateY(-208px); } }
+  @supports (animation-timeline: scroll()) and (timeline-scope: --page) {
+    :root:has(#content > .work.flowing) .wood { animation: wood-rise linear both; animation-timeline: --page; animation-range: calc(100% - 208px) 100%; }
+  }
+  /* „Nach oben" stays above the ground once the page stands still (enhance.js). */
+  .to-top { translate: 0 calc(-1 * var(--lift, 0px)); }
 }
 
 /* ---------- back to the top ---------- */
@@ -475,10 +563,11 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .resizer:focus-visible { outline: 0; }
 /* Filter panel: the gap between the two boxes and the empty left margin of the list. Nothing of
    it lies over the filter panel, whose scrollbar is at that edge. */
-.resizer.between { z-index: 4; left: var(--filters); width: calc(var(--gap) + 8px); }
+/* `--at`: where the handle stands while only its panel follows a drag (enhance.js). */
+.resizer.between { z-index: 4; left: var(--at, var(--filters)); width: calc(var(--gap) + 8px); }
 .resizer.between::after { left: calc(var(--gap) / 2 - 1.5px); width: 3px; opacity: .55; }
 /* Preview: 8px of the list in front of its left edge and its own empty left margin. */
-.resizer.preview-edge { z-index: 11; right: calc(var(--preview) - 12px); width: 20px; }
+.resizer.preview-edge { z-index: 11; right: calc(var(--at, var(--preview)) - 12px); width: 20px; }
 .resizer.preview-edge::after { left: 11px; }
 .resizing, .resizing * { cursor: col-resize !important; user-select: none !important; }
 /* While a handle is dragged only its panel follows (above its neighbour); the page is laid out
@@ -1324,6 +1413,9 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .wood { display: none; }
 @media (min-width: 901px) {
   .wood { display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; will-change: transform; }
+  /* Under the wood, as it goes up with the ground, its front colour goes on down to the window's
+     edge: a shadow only draws outside the box. */
+  :root:has(#content > .work.flowing) .wood { box-shadow: 0 208px 0 var(--wood-front); }
   .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; }
   .wood::after { background: var(--wood-front); -webkit-mask-image: url("/assets/birch/summer-wood-front.svg"); mask-image: url("/assets/birch/summer-wood-front.svg"); }
   :root[data-season="spring"] .wood::before { -webkit-mask-image: url("/assets/birch/spring-wood-back.svg"); mask-image: url("/assets/birch/spring-wood-back.svg"); }
@@ -2163,10 +2255,10 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
    a `t-…` class (--tint), as on the start page and in the week grid. */
 /* One column that never grows past the page: its grid items hold lines that do not wrap. */
 .page-inner.sp { min-height: 100%; grid-template-columns: minmax(0, 1fr); }
-/* The page is the size container the fold measures itself by (cqh); like every framed page it ends
-   where the sidebar ends. A module opened from the plan floats over the page at its right edge, as
-   on every other page (owner, 2026-09-25: „nicht tiling, sondern attached"). */
-@media (min-width: 901px) { .framed > .page:has(> .page-inner.sp) { container: plan-page / size; } }
+/* The fold measures itself by what the area shows of the page (`100vh - 64px`, app.css „one scroll
+   area"), not by the page, which is as tall as its content. A module opened from the plan floats
+   over the page at its right edge, as on every other page (owner, 2026-09-25: „nicht tiling,
+   sondern attached"). */
 .sp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; padding: 16px 24px 24px; overflow: visible; overflow-wrap: break-word; }
 /* The semester in three parts (SemesterView): above the fold (div.sp-fold) the head, the red
    alerts, the quiet line and the view (div.sp-view); the planned modules (div.sp-side); under the
@@ -2188,7 +2280,7 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .sp-below { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 .sp-week { position: relative; display: flex; flex-direction: column; min-width: 0; }
 @media (min-width: 901px) {
-  .sp-fold { min-height: min(calc(100cqh - 41px), 960px); }
+  .sp-fold { min-height: min(calc(100vh - 64px - 41px), 960px); }
   .sp-view, .sp-week { flex: 1 1 auto; }
   .sp-week { min-height: 340px; max-height: 800px; }
 }
@@ -2935,5 +3027,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+/* The wood keeps its animation: it is tied to the scroll (the ground's), it moves only as the
+   visitor scrolls (owner, 2026-09-30: with less motion it stayed down behind the ground). */
+@media (prefers-reduced-motion: reduce) { *:not(.wood), *::before, *::after { animation: none !important; transition: none !important; } }
 @media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top, .wood { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }

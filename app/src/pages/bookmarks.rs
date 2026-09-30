@@ -46,6 +46,8 @@ use crate::ui::{ErrorState, Icon};
 const APP: bool = cfg!(feature = "csr");
 
 const ROWS_ID: &str = "rows";
+/// The page's one scroll area: the list and the ground after it.
+const SCROLL_ID: &str = "bookmarks-scroll";
 
 type Loaded = Result<BookmarksData, DataError>;
 
@@ -122,7 +124,8 @@ pub fn BookmarksPage() -> impl IntoView {
         }
         view! {
             <Title text=t.bookmarks.title/>
-            <div class="work framed">
+            // One scroll area with the ground at its end, as the catalog (app.css „one scroll area").
+            <div class="work framed flowing" id=SCROLL_ID data-keep-scroll="rows">
                 // A page of one visitor: the same address for everybody, nothing to list. What the
                 // server renders here is the explanation, so that is what a link preview shows.
                 <Seo
@@ -147,6 +150,7 @@ pub fn BookmarksPage() -> impl IntoView {
                             Ok(data) => view! { <List data season sort descending open=marked phone/> }.into_any(),
                         }
                     }}
+                    <i class="list-cap" aria-hidden="true"></i>
                 </section>
                 {move || {
                     match going_open.get() {
@@ -180,6 +184,7 @@ pub fn BookmarksPage() -> impl IntoView {
                         }.into_any(),
                     }
                 }}
+                <crate::ground::Ground/>
             </div>
         }
         .into_any()
@@ -351,7 +356,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
                 {sort_link(BookmarkSort::Events, t.catalog.dates, "c-events")}
             </div>
         })}
-        <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows">
+        <div class="rows scroll" id=ROWS_ID>
             {(!APP).then(|| view! {
                 <div class="state">
                     <p class="state-title">{t.bookmarks.server_title}</p>

@@ -5,7 +5,7 @@
 // no page loaded; the wheel over the button turns the list under it; a wheel stops the way up; with
 // a module beside the list the button stands left of it; a keyboard goes on from the start of the
 // page; another page starts without it and Back to the list far down brings it again; a long page
-// with the ground in (the button above it, the ground going back down); less motion: up at once.
+// with the ground at its end (the button above it, the ground going away with the page); less motion: up at once.
 // On a phone: the window, above the bottom bar, a tap; far down before the app takes over, the
 // app's button is there after it. The classic site (the app kept away) has it too; without
 // JavaScript it is not there.
@@ -17,7 +17,7 @@ const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANN
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 
-const PAGE = "#content #page-scroll, #content #rows, #content > .page, #content > .work > .page";
+const PAGE = "#content > .work.flowing";
 const open = async (url, { viewport = { width: 1440, height: 900 }, app = true, ...options } = {}) => {
   const context = await browser.newContext({ viewport, ...options });
   // The classic site: the bundle never comes, so the app never takes over (its failed fetch is no problem here).
@@ -46,7 +46,7 @@ const where = (page) => page.evaluate((PAGE) => {
   const phone = matchMedia("(max-width: 900px)").matches;
   const el = phone ? document.scrollingElement : document.querySelector(PAGE);
   const rows = [...document.querySelectorAll(".vrow")].map((row) => Number(row.dataset.i));
-  return { top: Math.round(el.scrollTop), screen: el.clientHeight, end: el.scrollHeight - el.clientHeight - el.scrollTop < 2, first: rows.length ? Math.min(...rows) : null, search: location.search, inset: Math.round(scrollY), ground: document.documentElement.dataset.ground ?? null, same: window.__marker === 1 };
+  return { top: Math.round(el.scrollTop), screen: el.clientHeight, end: el.scrollHeight - el.clientHeight - el.scrollTop < 2, first: rows.length ? Math.min(...rows) : null, search: location.search, inset: Math.round(scrollY), same: window.__marker === 1 };
 }, PAGE);
 const scrollTo = (page, fraction) => page.evaluate(([PAGE, fraction]) => {
   const phone = matchMedia("(max-width: 900px)").matches;
@@ -72,7 +72,8 @@ const wheel = async (page, x, y, dy, times) => {
   await page.waitForTimeout(700);
   b = await button(page);
   let w = await where(page);
-  const panel = await page.evaluate(() => { const r = document.querySelector(".panel.list").getBoundingClientRect(); return { right: Math.round(r.right), bottom: Math.round(r.bottom) }; });
+  // The list runs on under the edge of its scroll area: its corner is where the area cuts it off.
+  const panel = await page.evaluate(() => { const r = document.querySelector(".panel.list").getBoundingClientRect(), area = document.querySelector("#content > .work.flowing")?.getBoundingClientRect(); return { right: Math.round(r.right), bottom: Math.round(Math.min(r.bottom, area ? area.bottom - 1 : Infinity)) }; });
   check(b.shown && b.seen, `far down the list: the button does not show: ${JSON.stringify(b)} ${JSON.stringify(w)}`);
   check(Math.abs(panel.right - b.right - 16) <= 1 && Math.abs(panel.bottom - b.bottom - 16) <= 1 && b.width === 40, `the button is not in the corner of the list: ${JSON.stringify(b)} ${JSON.stringify(panel)}`);
   check(/[?&]page=\d/.test(w.search) && w.first > 100, `far down the list: the list did not follow: ${JSON.stringify(w)}`);
@@ -140,20 +141,22 @@ const wheel = async (page, x, y, dy, times) => {
   await context.close();
 }
 
-// ---------- a wide screen: a long page and the ground ----------
+// ---------- a wide screen: a long page and the ground at its end ----------
 {
   const { context, page } = await open("/");
+  const groundTop = () => page.evaluate(() => Math.round(document.querySelector("#content > .work.flowing > .ground").getBoundingClientRect().top));
   await scrollTo(page, 1);
   await page.waitForTimeout(400);
   await wheel(page, 900, 500, 100, 5);
   let w = await where(page);
   const b = await button(page);
-  const ground = await page.evaluate(() => Math.round(document.querySelector(".ground").getBoundingClientRect().top));
-  check(w.ground === "in" && w.inset === 208 && b.shown && b.seen && b.bottom <= ground - 16, `the ground in: the button is not above it: ${JSON.stringify(b)}, the ground from ${ground}, ${JSON.stringify(w)}`);
+  const ground = await groundTop();
+  check(w.end && w.inset === 0 && ground === 692 && b.shown && b.seen && b.bottom <= ground - 16, `the ground in: the button is not above it: ${JSON.stringify(b)}, the ground from ${ground}, ${JSON.stringify(w)}`);
   await page.click("#to-top");
   await page.waitForTimeout(1200);
   w = await where(page);
-  check(w.top === 0 && w.inset === 0 && w.ground === "mid" && w.same, `after „Nach oben" the page is not at its top, or the ground stayed: ${JSON.stringify(w)}`);
+  const gone = await groundTop();
+  check(w.top === 0 && w.inset === 0 && gone >= 900 && w.same, `after „Nach oben" the page is not at its top, or the ground stayed: ${JSON.stringify(w)}, the ground from ${gone}`);
   await context.close();
 }
 

@@ -120,7 +120,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   check((await tab("catalog")) === "/catalog", "tabs: on the list the own tab is not the plain list");
 
   await step("home", () => page.click('.rail a[href="/"]'), () => location.pathname === "/" && document.querySelector(".home .home-hero"));
-  check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), "home: the sidebar is not in the frame's place");
+  check((await box(page, "#sidebar")) === null, "home: a sidebar beside the start page (owner, 2026-09-28: none)");
   await context.close();
 }
 
@@ -178,7 +178,9 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
     id: document.querySelector("#preview .hero .mono").textContent.trim(),
     marked: document.querySelectorAll("table.matrix tbody tr.open").length,
     variant: location.search.includes("variant=2"),
-    floats: getComputedStyle(document.querySelector("#preview")).position === "absolute",
+    // Over the page, docked to its right edge: pinned in the page's scroll area (app.css „one
+    // scroll area"), the page as wide as before.
+    floats: ["absolute", "sticky"].includes(getComputedStyle(document.querySelector("#preview")).position) && document.querySelector("#preview").getBoundingClientRect().left < document.querySelector(".framed > .page").getBoundingClientRect().right - 100,
   }));
   check(picked.marked === 1 && picked.variant, `aside: ${picked.marked} rows are marked as open, the study direction was kept: ${picked.variant}`);
   check(picked.floats, "aside: the panel is a column of the page instead of floating over it");

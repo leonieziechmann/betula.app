@@ -100,11 +100,12 @@ check(wood.place && wood.masks && wood.branches === 0 && wood.woods === 1, `the 
 // column — 900 px of wood on either side of it —, sized by the stylesheet as they are drawn.
 await page.setViewportSize({ width: 1920, height: 1080 });
 const column = await page.evaluate(async () => {
+  // The scroll area's content: the gap right of the page (with the scrollbar in it) is its padding.
   const home = document.querySelector(".home").getBoundingClientRect(), scroller = document.getElementById("page-scroll"), box = scroller.getBoundingClientRect();
   const season = document.documentElement.dataset.season || "summer";
   const drawn = (await (await fetch(`/assets/birch/${season}-wood-front.svg`)).text()).match(/width="(\d+)" height="(\d+)"/);
   const style = getComputedStyle(document.querySelector("body > .wood"), "::after");
-  return { width: home.width, left: Math.round(home.left - box.left), right: Math.round(box.left + scroller.clientWidth - home.right), drawn: drawn && `${drawn[1]}px ${drawn[2]}px`, sized: style.maskSize || style.webkitMaskSize };
+  return { width: home.width, left: Math.round(home.left - box.left), right: Math.round(box.left + scroller.clientWidth - parseFloat(getComputedStyle(scroller).paddingRight) - home.right), drawn: drawn && `${drawn[1]}px ${drawn[2]}px`, sized: style.maskSize || style.webkitMaskSize };
 });
 check(column.width === 1600 && column.left > 100 && Math.abs(column.left - column.right) <= 1 && column.drawn === `${1600 + 2 * 900}px 1600px` && column.sized === column.drawn, `the column is not 1600 px in the middle, or the wood is not drawn for it: ${JSON.stringify(column)}`);
 await page.setViewportSize({ width: 1500, height: 1000 });

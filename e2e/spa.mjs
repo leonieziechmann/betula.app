@@ -38,9 +38,9 @@ const before = await count();
 const listWidth = () => page.evaluate(() => Math.round(document.querySelector(".panel.list").getBoundingClientRect().width));
 const previewWidth = () => page.evaluate(() => Math.round(document.querySelector(".work > .detail")?.getBoundingClientRect().width || 0));
 const widthBefore = await listWidth();
-await page.evaluate(() => { document.querySelector(".rows").scrollTop = 300; });
+await page.evaluate(() => { document.getElementById("catalog-scroll").scrollTop = 300; });
 await step("open preview", () => page.click("a.row >> nth=6"), () => location.search.includes("open=") && document.querySelector(".detail h2"));
-const kept = await page.evaluate(() => document.querySelector(".rows").scrollTop);
+const kept = await page.evaluate(() => document.getElementById("catalog-scroll").scrollTop);
 if (kept < 250) problems.push(`open preview: the list scrolled back to ${kept}`);
 if ((await listWidth()) !== widthBefore) problems.push(`open preview: the list was resized from ${widthBefore} to ${await listWidth()}`);
 for (const hint of ["F", "Esc"]) {
@@ -77,16 +77,16 @@ await step("reset the filters", () => page.click('#filters a:has-text("Zurückse
 const total = await page.evaluate(() => Number(document.querySelector(".count").textContent.replace(/\D/g, "")));
 const rowCount = () => page.evaluate(() => document.querySelectorAll(".rows a.row").length);
 const lastRendered = () => page.evaluate(() => Math.max(-1, ...[...document.querySelectorAll(".vrow")].map((row) => Number(row.dataset.i))));
-const listHeight = () => page.evaluate(() => document.querySelector(".rows").scrollHeight);
+const listHeight = () => page.evaluate(() => document.getElementById("catalog-scroll").scrollHeight);
 const heightAtStart = await listHeight();
 if ((await rowCount()) >= total || (await rowCount()) > 60) problems.push(`virtual list: ${await rowCount()} of ${total} rows are rendered`);
 if (heightAtStart < total * 40) problems.push(`virtual list: the list is ${heightAtStart}px tall for ${total} rows`);
-await step("scrolling to the end renders the last rows", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = rows.scrollHeight; }), (total) => Math.max(-1, ...[...document.querySelectorAll(".vrow")].map((row) => Number(row.dataset.i))) === total - 1, total);
+await step("scrolling to the end renders the last rows", () => page.evaluate(() => { const rows = document.getElementById("catalog-scroll"); rows.scrollTop = rows.scrollHeight; }), (total) => Math.max(-1, ...[...document.querySelectorAll(".vrow")].map((row) => Number(row.dataset.i))) === total - 1, total);
 if ((await rowCount()) > 60) problems.push(`virtual list: ${await rowCount()} rows rendered at the end of the list`);
-await step("the URL follows the position", () => page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = rows.scrollHeight; }), (last) => new RegExp(`[?&]page=${last}\\b`).test(location.search), Math.ceil(total / 50));
+await step("the URL follows the position", () => page.evaluate(() => { const rows = document.getElementById("catalog-scroll"); rows.scrollTop = rows.scrollHeight; }), (last) => new RegExp(`[?&]page=${last}\\b`).test(location.search), Math.ceil(total / 50));
 const heightAtEnd = await listHeight();
 if (Math.abs(heightAtEnd - heightAtStart) > heightAtStart * 0.05) problems.push(`virtual list: the scrollbar changed its length from ${heightAtStart}px to ${heightAtEnd}px`);
-await step("and back to the top", () => page.evaluate(() => { document.querySelector(".rows").scrollTop = 0; }), () => !/[?&]page=/.test(location.search) && document.querySelector('.vrow[data-i="0"]'));
+await step("and back to the top", () => page.evaluate(() => { document.getElementById("catalog-scroll").scrollTop = 0; }), () => !/[?&]page=/.test(location.search) && document.querySelector('.vrow[data-i="0"]'));
 const historyBefore = await page.evaluate(() => history.length);
 
 // Keyboard: click a row, two rows down with the arrow keys, Enter opens that one.

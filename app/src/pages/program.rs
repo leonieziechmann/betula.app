@@ -50,7 +50,7 @@ use crate::pending::{Change, Pending};
 use crate::seo::{self, Seo};
 use crate::skeleton::DetailSkeleton;
 use crate::tabs::Area;
-use crate::ui::{BackLink, EmptyState, ErrorState, Frame, Icon, NotFound, OfferBadge, Shortcut};
+use crate::ui::{BackLink, EmptyState, ErrorState, Frame, Icon, NotFound, OfferBadge, Plain, Shortcut};
 
 /// The browser app (`csr`), or the server rendering the page for crawlers and for browsers
 /// without JavaScript.
@@ -185,7 +185,7 @@ pub fn ProgramPage() -> impl IntoView {
     move || match (data.get(), tab.get()) {
         (Err(error), _) => {
             status.for_error(&error);
-            view! { <div class="page"><ErrorState error/></div> }.into_any()
+            view! { <Plain><ErrorState error/></Plain> }.into_any()
         }
         (Ok(Some(data)), Some(tab)) => match filling.get() {
             // The module in full, inside the program's area: „Zurück" leads to the program — with
@@ -199,11 +199,9 @@ pub fn ProgramPage() -> impl IntoView {
                 let name = format!("{} ({})", data.program.name, data.program.degree());
                 view! {
                     <Title text=format!("{name}: {} · BTU Cottbus-Senftenberg", if matches!(filling.get_untracked(), Filling::Area(_)) { t.program.area } else { t.program.plan })/>
-                    <div class="work framed picked-page">
-                        <div class="page" id="page-scroll">
-                            {picked_panel(&data, variant.get_untracked(), area.get_untracked(), req.get_untracked(), links, true, t)}
-                        </div>
-                    </div>
+                    <Plain class="picked-page">
+                        {picked_panel(&data, variant.get_untracked(), area.get_untracked(), req.get_untracked(), links, true, t)}
+                    </Plain>
                 }
                 .into_any()
             }
@@ -226,7 +224,7 @@ pub fn ProgramPage() -> impl IntoView {
         },
         _ => {
             status.set(404);
-            view! { <div class="page"><NotFound title=t.program.not_found_title hint=t.program.not_found_hint/></div> }.into_any()
+            view! { <Plain><NotFound title=t.program.not_found_title hint=t.program.not_found_hint/></Plain> }.into_any()
         }
     }
 }

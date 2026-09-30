@@ -256,7 +256,9 @@ pub fn CatalogPage() -> impl IntoView {
 
     view! {
         <Title text=title/>
-        <div class="work" class:no-detail=move || open.get().is_none()>
+        // The page's one scroll area (app.css, „one scroll area"): the filter panel and the module
+        // beside the list are pinned in it, the list and the ground after it scroll.
+        <div class="work flowing" id=SCROLL_ID data-keep-scroll="rows" class:no-detail=move || open.get().is_none()>
             // The unfiltered list is a page of the site on each of its pages, with an address of its
             // own: the pages are how a crawler reaches every module, those that no program's page
             // links included, and a page that is not listed is one whose links a search engine
@@ -325,6 +327,8 @@ pub fn CatalogPage() -> impl IntoView {
                     }.into_any(),
                 }
             }}
+            // The end of the page, in its scroll area (on a phone the app's own ground follows the page).
+            <crate::ground::Ground/>
         </div>
     }
 }
@@ -843,7 +847,7 @@ fn List(
     let waiting = move || going.is_some_and(|p| p.waits(Change::List));
     view! {
         <section class="panel list" aria-live="polite" data-pending=move || waiting().then_some("")>
-            <div class="list-head">
+            <div class="list-head" id=TOP_ID>
                 <div class="count-row">
                     <span class="count num">{format::count(total, t.locale)}</span>
                     <span class="count-label">{label}</span>
@@ -866,6 +870,8 @@ fn List(
                 {move || fit_line.and_then(|finder| finder.view.with(|view| view.line.clone())).map(|line| view! { <p class="hint fit-line">{line}</p> })}
             </div>
             {rows}
+            // The list's bottom edge where the scroll area cuts it off (app.css, „one scroll area").
+            <i class="list-cap" aria-hidden="true"></i>
         </section>
     }
 }
@@ -961,7 +967,7 @@ fn PlainRows(
 ) -> impl IntoView {
     let t = i18n::t();
     view! {
-        <div class="rows scroll" id=ROWS_ID data-keep-scroll="rows">
+        <div class="rows scroll" id=ROWS_ID>
             {head}
             {states}
             // A page holds an even number of rows (`PAGE_SIZE`), so its first row is shaded as
@@ -984,8 +990,15 @@ fn PlainRows(
 }
 
 const ROWS_ID: &str = "rows";
-/// The heads of the columns, which stay at the top of the list while its rows scroll under them.
+/// The page's one scroll area (app.css, „one scroll area"): the filter panel, the list and the
+/// ground after it scroll in it as one.
+const SCROLL_ID: &str = "catalog-scroll";
+/// The list's head (the number, the filters in force), which stays at the top of the scroll area.
+const TOP_ID: &str = "rows-top";
+/// The heads of the columns, which stay under it while the rows scroll under them.
 const HEAD_ID: &str = "rows-head";
+/// What stays at the top over the rows, from the top down.
+const HEADS: &[&str] = &[TOP_ID, HEAD_ID];
 /// The element that holds the rows of the virtual list, as tall as the whole list.
 const VLIST_ID: &str = "rows-virtual";
 /// Rows rendered beyond what is visible, above and below: room for the keyboard to move and for
@@ -1127,7 +1140,7 @@ fn VirtualRows(
         if total == 0 || !alive_follow.load(Ordering::Relaxed) {
             return;
         }
-        let Some((offset, viewport)) = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID) else { return };
+        let Some((offset, viewport)) = nav::list_viewport(SCROLL_ID, HEADS, VLIST_ID) else { return };
         let first_visible = index_at(offset);
         let last_visible = index_at(offset + viewport);
         let range = (first_visible.saturating_sub(BUFFER), (last_visible + 1 + BUFFER).min(total));
@@ -1161,7 +1174,7 @@ fn VirtualRows(
         if !alive_measure.load(Ordering::Relaxed) {
             return false;
         }
-        let Some((offset, _)) = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID) else { return false };
+        let Some((offset, _)) = nav::list_viewport(SCROLL_ID, HEADS, VLIST_ID) else { return false };
         let (guess, first_visible) = (estimate(), index_at(offset));
         // (index, what it was taken for, what it is, whether it lies above the visible part)
         let mut changes: Vec<(usize, f32, f32, bool)> = Vec::new();
@@ -1199,7 +1212,7 @@ fn VirtualRows(
         let unmeasured = heights.with_value(|heights| heights.iter().take(first_visible).filter(|height| height.is_none()).count());
         shift += unmeasured as f32 * (estimate() - guess);
         if shift.abs() >= 0.5 {
-            nav::scroll_list_by(ROWS_ID, shift);
+            nav::scroll_list_by(SCROLL_ID, shift);
         }
         layout.update(|n| *n = n.wrapping_add(1));
         true
@@ -1228,12 +1241,18 @@ fn VirtualRows(
         });
         on_cleanup(move || drop(watch));
     });
-    // On a phone the window scrolls, not the panel.
+    // On the desktop the page's scroll area scrolls, on a phone the window.
     let follow_window = follow.clone();
     Effect::new(move |_| {
         let follow = follow_window.clone();
         let handle = window_event_listener(leptos::ev::scroll, move |_| follow());
         on_cleanup(move || handle.remove());
+    });
+    let on_scroll = follow.clone();
+    Effect::new(move |_| {
+        let follow = on_scroll.clone();
+        let watch = nav::watch_scroll(SCROLL_ID, follow);
+        on_cleanup(move || drop(watch));
     });
 
     // Where the list starts: at the row the visitor comes back to (in the middle of the screen),
@@ -1249,7 +1268,7 @@ fn VirtualRows(
         // One of the same filter (the plan or the marks changed what it holds) keeps the first row
         // on screen that is still in it where it stood, so the visitor stays where they were.
         if !fresh && stay.is_none() {
-            nav::scroll_list_to_start(ROWS_ID);
+            nav::scroll_list_to_start(SCROLL_ID);
         }
         let position = |id: &str| {
             let source = start_source.clone()?;
@@ -1279,9 +1298,9 @@ fn VirtualRows(
                 return;
             }
             if let Some((index, into)) = target {
-                let viewport = nav::list_viewport(ROWS_ID, HEAD_ID, VLIST_ID).map(|(_, viewport)| viewport).unwrap_or(0.0);
+                let viewport = nav::list_viewport(SCROLL_ID, HEADS, VLIST_ID).map(|(_, viewport)| viewport).unwrap_or(0.0);
                 let offset = if center { offset_of(index) - (viewport - estimate()) / 2.0 } else { offset_of(index) + into };
-                nav::scroll_list_to(ROWS_ID, HEAD_ID, VLIST_ID, offset.max(0.0));
+                nav::scroll_list_to(SCROLL_ID, HEADS, VLIST_ID, offset.max(0.0));
             }
             follow();
         };
@@ -1293,12 +1312,11 @@ fn VirtualRows(
         }
     });
 
-    let on_scroll = follow.clone();
     let row_at = move |index: usize| loaded.with(|loaded| loaded.get(&(index / per_page + 1)).and_then(|rows| rows.get(index % per_page)).cloned());
     let base_rows = current.clone();
     let going = Pending::expect();
     view! {
-        <div class="rows scroll virtual" id=ROWS_ID data-keep-scroll="rows" on:scroll=move |_| on_scroll()>
+        <div class="rows scroll virtual" id=ROWS_ID>
             {head}
             {move || going.is_some_and(|p| p.waits(Change::List)).then(|| view! { <RowsSkeleton/> })}
             {states}
