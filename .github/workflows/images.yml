@@ -144,6 +144,7 @@ jobs:
             post-build-hook = ${{ runner.temp }}/post-build-hook
 
       - name: Build
+        id: build
         env:
           PATHS: ${{ steps.release.outputs.paths }}
         run: |
@@ -155,7 +156,8 @@ jobs:
           # As deploy/ship.sh: the commit, not the checkout, byte for byte (LF), built as a
           # "path:" flake. So a release is the same derivation here and on the workstation.
           git -c core.autocrlf=false -c core.eol=lf archive --format=tar HEAD -- "${paths[@]}" | tar -xf - -C "${src}"
-          # --keep-going: what does not depend on a failure is still built, and cached.
+          # --keep-going: what does not depend on a failure is still built, so the log names every
+          # failure, not just the first.
           nix build "path:${src}#radix-image" "path:${src}#folia-image" --out-link "${RUNNER_TEMP}/result" --print-build-logs --keep-going
           cp -L "${RUNNER_TEMP}/result" "${out}/radix-image.tar.gz"
           cp -L "${RUNNER_TEMP}/result-1" "${out}/folia-image.tar.gz"
@@ -242,9 +244,10 @@ jobs:
       - name: Collect the Nix cache
         id: collect
         # After the upload, so that the release never waits for it. Only when the key was not
-        # found (a change to the app alone leaves the cache as it is), and after a failed build as
-        # well: what it made until then still saves the next one time.
-        if: ${{ !cancelled() && steps.cache.outputs.cache-hit != 'true' }}
+        # found (a change to the app alone leaves the cache as it is), and only after a build that
+        # succeeded: an entry cannot be replaced, and one saved half full would stay half full for
+        # as long as its key is in use - every build would make the missing half again.
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.cache.outputs.cache-hit != 'true' }}
         run: |
           set -Eeuo pipefail
           # One byte order for sort and comm.
