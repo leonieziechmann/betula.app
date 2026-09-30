@@ -162,7 +162,15 @@
         folia-client = craneLib.mkCargoDerivation (clientArgs // {
           version = foliaVersion;
           cargoArtifacts = folia-client-deps;
-          nativeBuildInputs = [ wasm-bindgen-cli pkgs.lld ];
+          nativeBuildInputs = [
+            wasm-bindgen-cli
+            pkgs.lld
+            # buildPackage brings these two, mkCargoDerivation does not. The panic messages in the
+            # bundle name the store paths of the vendored crates and of the toolchain; without the
+            # hooks the image would carry the sources of every crate in Cargo.lock.
+            craneLib.removeReferencesToVendoredSourcesHook
+            craneLib.removeReferencesToRustToolchainHook
+          ];
           installPhaseCommand = ''
             mkdir -p "$out/site/pkg"
             wasm-bindgen --target web --no-typescript --out-dir "$out/site/pkg" --out-name folia_client \

@@ -252,28 +252,36 @@ jobs:
           cache="${RUNNER_TEMP}/nix-cache"
           next="${RUNNER_TEMP}/nix-cache.next"
           src="${RUNNER_TEMP}/src"
-          # What this build needs: every path of the closure of the two images' derivations.
-          drvs="$(nix path-info --derivation "path:${src}#radix-image" "path:${src}#folia-image")"
+          lists="$(mktemp -d)"
+          # What building the contents of the two images needs, every path of it. The images
+          # themselves and what dockerTools makes on the way are new with every release: they
+          # would only take room.
+          drvs="$(nix path-info --derivation "path:${src}#radix" "path:${src}#folia" "path:${src}#folia-client")"
           # shellcheck disable=SC2086 # one path per word
-          nix-store --query --requisites --include-outputs ${drvs} | grep -v '\.drv$' | sort -u >"${RUNNER_TEMP}/needed"
+          nix-store --query --requisites --include-outputs ${drvs} | sed '/\.drv$/d' | sort -u >"${lists}/needed"
           # Of that, what cache.nixos.org does not have: what this run built, and what it found in
-          # the restored cache. Not the two images: they are new with every release.
+          # the restored cache.
           {
             cat "${RUNNER_TEMP}/nix-built" 2>/dev/null || true
             find "${cache}" -maxdepth 1 -name '*.narinfo' -exec sed -n 's/^StorePath: //p' {} +
-          } | sort -u >"${RUNNER_TEMP}/ours"
-          readlink -f "${RUNNER_TEMP}/result" "${RUNNER_TEMP}/result-1" >"${RUNNER_TEMP}/images" 2>/dev/null || true
-          comm -12 "${RUNNER_TEMP}/needed" "${RUNNER_TEMP}/ours" | grep -vxF -f "${RUNNER_TEMP}/images" >"${RUNNER_TEMP}/keep" || true
-          [[ -s "${RUNNER_TEMP}/keep" ]] || { echo "nothing to cache"; exit 1; }
+          } | sort -u >"${lists}/ours"
+          comm -12 "${lists}/needed" "${lists}/ours" >"${lists}/keep"
+          if [[ ! -s "${lists}/keep" ]]; then
+            echo "nothing to cache: this run built nothing that it needs"
+            exit 0
+          fi
           rm -rf "${next}"
-          # Uncompressed: the cache action compresses the whole directory with zstd anyway.
-          nix copy --no-recursive --to "file://${next}?compression=none" --stdin <"${RUNNER_TEMP}/keep"
+          # With what they refer to: a binary cache takes a path only together with its references
+          # (glibc and a few more from cache.nixos.org). Uncompressed: the cache action compresses
+          # the whole directory with zstd anyway.
+          nix copy --to "file://${next}?compression=none" --stdin <"${lists}/keep"
           rm -rf "${cache}"
           mv "${next}" "${cache}"
-          echo "$(wc -l <"${RUNNER_TEMP}/keep") paths, $(du -sh "${cache}" | cut -f 1)"
+          echo "$(wc -l <"${lists}/keep") paths, $(du -sh "${cache}" | cut -f 1)"
+          echo "save=true" >>"${GITHUB_OUTPUT}"
 
       - name: Save the Nix cache
-        if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.collect.outputs.save == 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/nix-cache
