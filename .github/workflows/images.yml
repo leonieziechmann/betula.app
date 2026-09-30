@@ -22,7 +22,8 @@ name: images
 
 on:
   push:
-    branches: [master]
+    # TEMPORARY: this branch as well, for one real build before the merge. Removed again right after.
+    branches: [master, claude/github-canary-pipeline-gvjuew]
     # What the images are built from: BUILD_PATHS in deploy/ship.sh (the first step of the job
     # checks that every one of them is listed here), and this file. A push that changes nothing
     # of it (docs, deploy/) is no new release, as for ship.sh.
