@@ -311,6 +311,26 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   again on every change of the address, so after closing the module beside a program Esc follows
   the link out of the program instead of walking the history back into the module it has just
   closed.
+- **A swipe along the phone's bottom bar goes to the tab beside the current one** (owner,
+  2026-09-30: „wenn man nach links swiped soll ein tab nach links gehen und beim rechts swipe eine
+  tab nach rechts"; `enhance.js`, app.css): to the left one tab to the left, to the right one to
+  the right, from wherever on the bar the finger starts. What moves is the selection, not the
+  page (owner: „keine Seitenanimationen", but „eine Animation der Selection um den Prozess vom
+  Swipen visuell zu unterstützen"): a finger that moves sideways rather than up or down carries
+  the mark of the current tab with it, with the finger as far as the tab beside it and then held
+  back (a swipe is one tab, never two), and held back from the start where no tab lies that way;
+  it never leaves the bar. On its way each icon turns light as far as the mark covers it, each
+  name dark as the mark comes close, a count changes over with its icon. Let go a third of the
+  way there or further, or flicked (as the sheet measures a flick, by the events' own times), the
+  mark glides on with the spring of the other marks that slide and the tab is clicked: the page
+  follows as it follows a tap (R21, one step of the history; before the app takes over the
+  browser loads it). Otherwise the mark glides back. The moving mark is the bar's own
+  (`::before`), laid over the current tab's from the first move; the tab's own takes over once
+  its tab is the current one, in one frame and without its fade. Up and down the bar scrolls the
+  page as before (`touch-action: pan-y`); the moves of a swipe are the bar's alone (a quick one
+  left to Chromium ended in a fling of nothing, and the next tap anywhere, up to a second later,
+  only stopped that fling). A mouse (a narrow window) drags the mark the same way, and what it
+  lets go of is no click.
 - **Every page has the same frame (owner decision 2026-09-20, R17):** a sidebar as wide as the
   catalog's filter panel, with the same handle and the same remembered width, and the page next
   to it (`ui::Frame`; the catalog builds it itself, its sidebar is the filter form). Going from
@@ -527,7 +547,8 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   and the credit slider (`--from`, `--to`, `--at`), the place of a picker's popup, `ui::Hit`.
 - **`assets/enhance.js`** (progressive enhancement until the browser app takes over): the plain
   fields of the filter form apply on change, panels keep their scroll position across page loads.
-  In both modes: the shortcuts, the theme switch, the filter sheet, and the two resize handles. Page changes use
+  In both modes: the shortcuts, the theme switch, the filter sheet, the swipe along the phone's
+  bottom bar, and the two resize handles. Page changes use
   cross-document view transitions where the browser supports them. Their opt-in
   (`@view-transition`) is written inline into every head the server writes
   (`app::VIEW_TRANSITION_STYLE`), not into app.css: Chromium decides when it first shows the new
@@ -2066,6 +2087,21 @@ it and follows the tabs; a slot opens its module, and back the week is in view a
 „Kalender" stands under the Termine in the views „Woche", „Termine" and „Prüfungen" and not in
 the sheet; a wide screen keeps it in the sidebar and the switch in the head; a plan without A or
 B weeks has the grid alone.
+
+```bash
+cd e2e && node tabbar.mjs
+```
+
+drives the phone's bottom bar with real touches as `phone.mjs` does, each carrying its time so
+that a flick is a flick however slow the protocol: a swipe to the right goes one tab to the
+right and one to the left one tab to the left, from wherever on the bar it starts, as one step of
+the history and without a page load; while the finger is down the mark follows it (the bar's own,
+over the tab's and in its colour, the icons turning under it) and the page stands still, and once
+the tab is current its own mark is back and nothing of the swipe is left on the bar; a long pull
+goes one tab and no further, a short slow one glides back, a short flick goes on, at either end
+the tab stays; two swipes in a row go two tabs, a tap right after a quick swipe is a tap, and a
+finger up the bar scrolls the page; before the app takes over (its bundle kept away) a swipe
+loads the tab's page.
 
 ```bash
 cd e2e && node ground.mjs

@@ -4,9 +4,9 @@
 // across page loads. In both modes: the shortcuts (Esc closes the preview or leaves the module
 // page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search; in the app
 // M marks the module the visitor is at and P plans it into the Studienplan), the theme
-// switch, the filter sheet, the widths of the filter panel and the module preview (dragged,
-// kept in localStorage), the room the panels make for the ground at the end of a page, and the
-// way back to the top of a page („Nach oben").
+// switch, the filter sheet, the swipe along the phone's bottom bar from tab to tab, the widths of
+// the filter panel and the module preview (dragged, kept in localStorage), the room the panels
+// make for the ground at the end of a page, and the way back to the top of a page („Nach oben").
 (() => {
   const root = document.documentElement;
   // The page's language, as its address says it (`catalog::Locale::split`): the prefix of its
@@ -229,6 +229,173 @@
     sheet.addEventListener("pointerup", stop);
     sheet.addEventListener("pointercancel", stop);
   });
+
+  // ---- the bottom bar of a phone: a swipe along it goes to the tab beside the current one ----
+  // (owner, 2026-09-30: „wenn man nach links swiped soll ein tab nach links gehen und beim rechts
+  // swipe eine tab nach rechts"). A finger that moves along the bar rather than up or down carries
+  // the mark of the current tab with it: as far as the tab beside it, then less and less, and
+  // less and less from the start where no tab lies that way. Let go a third of the way there or
+  // further, or flicked, the mark glides on and that tab is clicked: the page follows as it
+  // follows a tap, without a movement of its own (owner: „keine Seitenanimationen", the selection
+  // is what moves). Otherwise the mark glides back. Up or down, the bar scrolls the page as before.
+  //
+  // The mark that moves is the bar's own (`::before`, app.css), laid over the current tab's: it
+  // stands in for that from the first move until the tab it went to is the current one, and then
+  // the tab's own takes over in the same frame. On its way each icon turns light as far as the
+  // mark covers it (`--on` of its tab), each name dark as the mark comes close (`--near`).
+  const TAB_SLOP = 8; // px a finger moves before it counts as a swipe or a scroll (the week's carousel: 8)
+  const TAB_GLIDE = 320; // ms the mark glides once the finger has gone (app.css)
+  let tabDrag = null; // the finger on the bar
+  let tabGlide = null; // the mark on its way, once the finger has gone
+  let tabSwiped = 0; // until when a click on the bar is the end of a swipe, not a tap
+  // The tabs of the bar where they stand, measured once a swipe begins: the middle of each tab's
+  // mark from the bar's left edge, and the current tab's mark (its box in the bar, its icon).
+  const tabsOf = (bar) => {
+    const tabs = [...bar.querySelectorAll(":scope > .nav")].filter((tab) => tab.offsetWidth > 0);
+    const current = tabs.findIndex((tab) => tab.getAttribute("aria-current") === "page");
+    const marks = tabs.map((tab) => tab.querySelector(".ind")?.getBoundingClientRect());
+    if (current < 0 || tabs.length < 2 || marks.some((mark) => !mark)) return null;
+    const box = bar.getBoundingClientRect(), mark = marks[current];
+    const icon = tabs[current].querySelector(".ind > .icon")?.getBoundingClientRect().width || 20;
+    return { tabs, current, mids: marks.map((m) => m.left + m.width / 2 - box.left), mark: { x: mark.left - box.left, y: mark.top - box.top, w: mark.width, h: mark.height }, icon, width: box.width };
+  };
+  const unit = (v) => Math.min(1, Math.max(0, v));
+  // The mark with its middle at `mid`, on whole device pixels as the tab's own; the icons and the
+  // names as it leaves them.
+  const putMark = (bar, g, mid) => {
+    const dot = 1 / (devicePixelRatio || 1);
+    bar.style.setProperty("--mark-dx", Math.round((mid - g.mids[g.current]) / dot) * dot + "px");
+    const step = (g.mids[g.mids.length - 1] - g.mids[0]) / (g.mids.length - 1);
+    g.tabs.forEach((tab, i) => {
+      const off = Math.abs(mid - g.mids[i]);
+      tab.style.setProperty("--on", unit((g.mark.w / 2 + g.icon / 2 - off) / g.icon).toFixed(3));
+      tab.style.setProperty("--near", unit(1 - off / step).toFixed(3));
+    });
+  };
+  // Past its room a pull takes the mark less and less far, never past `room` px.
+  const band = (over, room) => (room > 0 ? room * (1 - 1 / (1 + over / (3 * room))) : 0);
+  // Where a finger `pull` px along the bar puts the middle of the mark: with the finger as far as
+  // the tab beside the current one on that side, then held back; held back from the start where
+  // no tab lies that way. It stays inside the bar.
+  const markAt = (g, pull) => {
+    const dir = Math.sign(pull), from = g.mids[g.current], next = g.current + dir, far = Math.abs(pull);
+    const room = (i) => Math.max(0, Math.min(14, (dir < 0 ? g.mids[i] : g.width - g.mids[i]) - g.mark.w / 2 - 4));
+    if (!dir) return from;
+    if (!g.tabs[next]) return from + dir * band(far, room(g.current));
+    const step = Math.abs(g.mids[next] - from);
+    return far <= step ? from + pull : g.mids[next] + dir * band(far - step, g.tabs[next + dir] ? 14 : room(next));
+  };
+  // The finger at `x` at the time `at` (the event's): the mark follows (a finger that wobbles
+  // moves nothing), and how fast the finger goes is kept in px per ms, mostly of the last moves,
+  // as the sheet measures a flick. The events' own times: a page busy with the tab it goes to
+  // hands on several moves at once.
+  const followTab = (d, x, at) => {
+    const dx = x - d.x, pull = dx > TAB_SLOP ? dx - TAB_SLOP : dx < -TAB_SLOP ? dx + TAB_SLOP : 0;
+    if (pull === d.pull) return;
+    if (at > d.at) d.speed = 0.7 * ((pull - d.pull) / (at - d.at)) + 0.3 * d.speed;
+    d.pull = pull;
+    d.at = at;
+    putMark(d.bar, d.g, markAt(d.g, pull));
+  };
+  // The tab's own mark takes over from the bar's: in one frame, without its fade.
+  const settleTabs = (bar, tabs) => {
+    bar.dataset.swipe = "settle";
+    for (const el of [bar, ...tabs]) {
+      for (const prop of ["--mark-x", "--mark-y", "--mark-w", "--mark-h", "--mark-dx", "--on", "--near"]) el.style.removeProperty(prop);
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (bar.dataset.swipe === "settle") delete bar.dataset.swipe; }));
+  };
+  // The mark glides to the tab `to` and stays there until that tab (or one tapped meanwhile) is
+  // the current one: in the app within the frame, before it with the next page, which takes as
+  // long as it takes (a few seconds at most, then the mark gives up).
+  const glideTo = (d, to) => {
+    const { bar, g } = d, target = g.tabs[to], began = performance.now();
+    const currentTab = () => bar.querySelector(':scope > .nav[aria-current="page"]');
+    bar.dataset.swipe = "glide";
+    putMark(bar, g, g.mids[to]);
+    let timer = 0;
+    const glide = {
+      bar,
+      arrived: () => currentTab() === target,
+      finish() { clearTimeout(timer); if (tabGlide === glide) tabGlide = null; settleTabs(bar, g.tabs); },
+    };
+    const check = () => {
+      const now = currentTab();
+      if (now === target || (now && now !== g.tabs[g.current]) || !bar.isConnected || performance.now() - began > 4000) glide.finish();
+      else timer = setTimeout(check, 100);
+    };
+    tabGlide = glide;
+    timer = setTimeout(check, TAB_GLIDE);
+  };
+  // The finger goes: lifted at `x` at the time `at`, or taken by the browser (`x` null: a pinch, a
+  // scroll, a gesture of the system), which never goes to another tab.
+  const letGoTab = (x, at) => {
+    const d = tabDrag;
+    tabDrag = null;
+    if (!d?.g) return; // a tap, the link's own
+    tabSwiped = performance.now() + 400;
+    try { d.bar.releasePointerCapture(d.id); } catch {}
+    if (!d.bar.isConnected) return;
+    const { g } = d;
+    let to = g.current;
+    if (x !== null) {
+      followTab(d, x, at);
+      const way = markAt(g, d.pull) - g.mids[g.current], dir = Math.sign(way), next = g.current + dir;
+      const flicked = at - d.at < 100 && Math.sign(d.speed) === dir && Math.abs(d.speed) > 0.45;
+      if (dir && g.tabs[next] && (Math.abs(way) >= Math.abs(g.mids[next] - g.mids[g.current]) / 3 || (flicked && Math.abs(way) >= 12))) to = next;
+    }
+    glideTo(d, to);
+    // The tab's own link, clicked as a tap clicks it: the app takes it (R21, the tab is current in
+    // the next frame), before the app the browser loads its page.
+    if (to !== g.current) g.tabs[to].click();
+  };
+  document.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary) return;
+    letGoTab(null); // a finger the page never heard go
+    tabSwiped = 0; // a new touch: its click is a tap
+    const bar = e.button === 0 ? e.target.closest?.(".bottomnav") : null;
+    if (!bar) return;
+    // The mark still on its way: done once its tab is the current one, and the finger starts from
+    // there; until then (a page loading) the bar takes taps only.
+    if (tabGlide) {
+      if (tabGlide.bar === bar && bar.isConnected && !tabGlide.arrived()) return;
+      tabGlide.finish();
+    }
+    tabDrag = { bar, id: e.pointerId, x: e.clientX, y: e.clientY, at: e.timeStamp, speed: 0, pull: 0, g: null };
+  });
+  document.addEventListener("pointermove", (e) => {
+    const d = tabDrag;
+    if (!d || e.pointerId !== d.id) return;
+    if (!(e.buttons & 1)) { letGoTab(null); return; } // let go where the page did not hear it
+    if (!d.g) {
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (Math.abs(dx) < TAB_SLOP && Math.abs(dy) < TAB_SLOP) return;
+      // The first move past the slop decides: along the bar the finger has the mark, else the page.
+      d.g = Math.abs(dx) > Math.abs(dy) && d.bar.isConnected ? tabsOf(d.bar) : null;
+      if (!d.g) { tabDrag = null; return; }
+      const { x, y, w, h } = d.g.mark;
+      for (const [prop, px] of [["--mark-x", x], ["--mark-y", y], ["--mark-w", w], ["--mark-h", h]]) d.bar.style.setProperty(prop, px + "px");
+      putMark(d.bar, d.g, d.g.mids[d.g.current]);
+      d.bar.dataset.swipe = "drag";
+      try { d.bar.setPointerCapture(d.id); } catch {}
+    }
+    followTab(d, e.clientX, e.timeStamp);
+  });
+  document.addEventListener("pointerup", (e) => { if (e.pointerId === tabDrag?.id) letGoTab(e.clientX, e.timeStamp); });
+  document.addEventListener("pointercancel", (e) => { if (e.pointerId === tabDrag?.id) letGoTab(null); });
+  // The moves of a swipe are the bar's alone. Left to the browser, a quick one ends in a fling of
+  // nothing (the bar lets the browser pan up and down only), and the next tap anywhere, up to a
+  // second later, only stops that fling instead of being a tap.
+  document.addEventListener("touchmove", (e) => { if (tabDrag?.g && e.cancelable) e.preventDefault(); }, { passive: false });
+  // Whatever the browser makes of a finger that swiped, it is no tap; and a link dragged with a
+  // mouse (a narrow window on a desktop) would leave the page's hands, the browser's own drag
+  // cancels the pointer.
+  document.addEventListener("click", (e) => {
+    if (e.isTrusted && performance.now() < tabSwiped && e.target.closest?.(".bottomnav")) e.preventDefault();
+  }, true);
+  document.addEventListener("dragstart", (e) => { if (e.target.closest?.(".bottomnav")) e.preventDefault(); });
+  // A page the browser kept (Back after a page load) shows its own tab's mark again.
+  addEventListener("pageshow", (e) => { if (e.persisted) { tabDrag = null; tabGlide?.finish(); } });
 
   document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");
