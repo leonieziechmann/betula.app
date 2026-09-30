@@ -447,7 +447,7 @@ server  betula-canary.timer, 2 minutes after the last run ─▶ vps/canary-agen
    7  the colour that served before: stack and volumes removed; images of old builds go (the newest three stay)
 ```
 
-A deploy takes a few minutes on the server; the build on GitHub takes longer (see "What it costs").
+A deploy takes a few minutes on the server; the build on GitHub takes longer (see "How fast, and what it costs").
 When a step fails, canary keeps the release it had and the alert "canary: a build of master did not
 reach canary" fires. A release is tried three times, 10 and 20 minutes apart; then the agent waits
 for the next build of master. A release deployed by hand stays until master is built again: the
@@ -512,7 +512,11 @@ database for one `deploy` by hand.
   release ever opens it, so no migration can reach it. Tested with a writer committing all the
   time: every copy was complete to one commit and passed the integrity check.
 - **The workflow** asks for `contents: read` only, uses no secret, runs on pushes to master only,
-  and its actions are pinned to commits.
+  and its actions are pinned to commits. Its build cache (GitHub's cache of this repository) is
+  written by its own runs on master; a run reads only its branch's entries and master's, never a
+  pull request's or a fork's. Nix takes the cached paths without signatures, so a step of the job
+  that went bad could leave something in it for later builds: the job uses four actions, three of
+  them GitHub's own, all pinned.
 - **The repository is public** (since 2026-09-30). Everybody can read the code, the workflow's logs
   and, logged in to GitHub, its artifacts; none of them holds a secret (the workflow has none, and
   the history held no key or token when it went public). Everybody can fork it and open pull
@@ -523,17 +527,23 @@ database for one `deploy` by hand.
   General "Allow ... select non-... actions": actions by GitHub, and `cachix/install-nix-action@*`
   - nothing else is used.
 
-### What it costs
+### How fast, and what it costs
 
-- **GitHub Actions minutes.** The repository is private, so a build runs on 2 processors and counts
-  against the account's minutes (Free 2,000, Pro 3,000 a month). Without a cache a build does
-  everything: Go and its tests, wasm-bindgen, the web server, the browser app with fat LTO - an
-  estimated 30 to 45 minutes; the first runs show the real number. A push that changes no source
-  builds nothing, and of several pushes while a build runs only the newest is built next. On a day
-  with 5 to 8 merges into master that is still 150 to 350 minutes. Levers, if it is too much:
-  fewer, bundled merges; a cache of the Nix store; building the Rust dependencies as a derivation
-  of their own (crane), so that a change to the app does not compile every crate again; a
-  self-hosted runner - never on this server.
+- **Time.** On the standard runner of a public repository (4 processors, 16 GB), measured
+  2026-09-30: without any cache 19 minutes - the web server alone 17 of them (its dependencies 7,
+  the app 4, the server with its thin LTO 6), the browser app, wasm-bindgen and Radix beside it.
+  That is the first build, and one after a change to `Cargo.lock`. After a change to the app
+  (the common case) the dependencies, wasm-bindgen and Radix come from the cache, and what is left
+  is the workspace's own crates and the two LTO links. The deploy on the server adds a few
+  minutes.
+- **What makes it fast:** `flake.nix` builds the Rust dependencies apart from the workspace
+  (crane), so a change to the app leaves them as they are; the workflow keeps what builds of
+  master made and cache.nixos.org does not have in GitHub's cache ("Restore the Nix cache" in
+  `images.yml`). A new cache entry is only written when the dependencies, the
+  flake or the Go sources change; GitHub keeps 10 GB per repository and drops the oldest first.
+  What would still help: splitting the web server and the browser app onto two runners (each gets
+  all four processors), at the price of passing their results between the jobs.
+- **GitHub Actions minutes:** none - a public repository's standard runners cost nothing.
 - **Artifact storage:** about the size of both images per build, gone after a week; a public
   repository pays nothing for it.
 - **This server:** per deploy one copy of the database, one build and export of the catalog (the
