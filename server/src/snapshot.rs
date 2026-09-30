@@ -4,19 +4,26 @@
 //! that it opens and answers the queries of the landing page, compress it once for browsers,
 //! then switch). A snapshot that fails the check is rejected and the previous one stays active.
 //! When Radix is down the last good snapshot keeps being served, also across restarts.
+//!
+//! Browsers download it compressed: gzip, made before the switch (a second), and brotli, made
+//! after it in the background (`compress_active`: a minute and a half of one processor, and 4.4 MB
+//! where gzip takes 7.6). Both are kept beside the file for the next start.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use axum::body::Bytes;
 use catalog::native::NativeDatabase;
 use catalog::rows::Meta;
 use catalog::{Database, DbError};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
+
+use crate::encoding::Kept;
 
 const POINTER: &str = "current.json";
 const POOL_SIZE: usize = 8;
@@ -36,22 +43,26 @@ pub struct Snapshot {
     /// That file in memory (7.6 MB in September 2026): `/api/db` hands every browser the same
     /// bytes, instead of a file read and a buffer of its own per download — a lecture hall
     /// opening the app at once used to mean hundreds of both.
-    pub gzip_bytes: Option<axum::body::Bytes>,
+    pub gzip_bytes: Option<Bytes>,
+    /// The same file in brotli, in memory like gzip (4.4 MB): read from beside the file, or made
+    /// in the background once the snapshot is active (`compress_active`). Browsers get gzip until
+    /// it is there.
+    pub brotli: OnceLock<Bytes>,
     pub meta: Meta,
     pub activated_at: SystemTime,
     /// The map of the programs on the landing page, laid out once when the snapshot is opened
-    /// (pages and `/api/map.json` only hand it on), with its JSON (plain, gzip) and its own ETag.
-    /// The ETag is the content's, not the snapshot's: a new layout of the same catalog (a new
-    /// Folia) must not be answered with „304, unchanged" from a browser's cache.
-    pub program_map: Option<(Arc<catalog::graph::ProgramMap>, axum::body::Bytes, axum::body::Bytes, String)>,
+    /// (pages and `/api/map.json` only hand it on), with its JSON (compressed when first asked
+    /// for) and its own ETag. The ETag is the content's, not the snapshot's: a new layout of the
+    /// same catalog (a new Folia) must not be answered with „304, unchanged" from a browser's cache.
+    pub program_map: Option<(Arc<catalog::graph::ProgramMap>, Kept, String)>,
     /// What the pickers of the catalog offer (every program, department and person), made once
     /// here instead of in every render of a page of the catalog (`app::pages::catalog`).
     pub pickers: Option<app::pages::catalog::PickerChoices>,
     /// The data of the program overview, the same for each of its filters (`app::pages::programs`).
     pub programs: Option<app::pages::programs::ProgramsReady>,
     /// `/sitemap.xml` as made on first request: the round of the warm-up whose dates it names
-    /// (`lastmod::Changes::rounds`; made anew after the next), its ETag, plain and gzip.
-    pub sitemap: Mutex<Option<(u64, String, axum::body::Bytes, axum::body::Bytes)>>,
+    /// (`lastmod::Changes::rounds`; made anew after the next), its ETag, and its XML.
+    pub sitemap: Mutex<Option<(u64, String, Arc<Kept>)>>,
     pool: Mutex<Vec<NativeDatabase>>,
 }
 
@@ -76,9 +87,8 @@ impl Snapshot {
         let program_map = match catalog::pages::program_map(&db).map_err(|e| e.to_string()).and_then(|map| serde_json::to_vec(&map).map(|json| (map, json)).map_err(|e| e.to_string())) {
             Ok((map, json)) => {
                 tracing::info!(component = "snapshot", event = "snapshot.map_built", programs = map.programs.len(), links = map.links.len(), ms = started.elapsed().as_millis() as u64, "program map laid out");
-                let compressed = crate::cache::gzip(&json);
                 let etag = content_etag("map", &json);
-                Some((Arc::new(map), axum::body::Bytes::from(json), compressed, etag))
+                Some((Arc::new(map), Kept::new(Bytes::from(json)), etag))
             }
             Err(error) => {
                 tracing::warn!(component = "snapshot", event = "snapshot.map_failed", error = %error, "the program map could not be built; the landing page goes without it");
@@ -94,9 +104,13 @@ impl Snapshot {
         };
         let programs = catalog::pages::programs_overview(&db).ok().map(|data| app::pages::programs::ProgramsReady(Arc::new(data)));
         let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-        let gzip_path = gzip_path_of(&path);
-        let gzip_bytes = std::fs::read(&gzip_path).ok().map(axum::body::Bytes::from);
+        let gzip_path = beside(&path, GZIP);
+        let gzip_bytes = std::fs::read(&gzip_path).ok().map(Bytes::from);
         let gzip = gzip_bytes.as_ref().map(|bytes| (gzip_path, bytes.len() as u64));
+        let brotli = OnceLock::new();
+        if let Some(made) = std::fs::read(beside(&path, BROTLI)).ok().filter(|made| !made.is_empty()) {
+            let _ = brotli.set(Bytes::from(made));
+        }
         Ok(Self {
             etag,
             path,
@@ -104,6 +118,7 @@ impl Snapshot {
             schema_version,
             gzip,
             gzip_bytes,
+            brotli,
             meta: overview.meta,
             activated_at: SystemTime::now(),
             program_map,
@@ -130,9 +145,14 @@ impl Snapshot {
     }
 }
 
-fn gzip_path_of(path: &Path) -> PathBuf {
+/// The endings of the compressed copies beside a snapshot file.
+const GZIP: &str = ".gz";
+const BROTLI: &str = ".br";
+
+/// `path` with `ending` added: where a compressed copy of the file lies.
+fn beside(path: &Path, ending: &str) -> PathBuf {
     let mut name = path.as_os_str().to_owned();
-    name.push(".gz");
+    name.push(ending);
     PathBuf::from(name)
 }
 
@@ -231,13 +251,13 @@ impl SnapshotStore {
 
     /// Old snapshot files. One that is still open (Windows) stays until the next attempt.
     fn remove_other_files(&self, keep: &Path) {
-        let keep_gzip = gzip_path_of(keep);
+        let kept = [keep.to_path_buf(), beside(keep, GZIP), beside(keep, BROTLI)];
         let Ok(entries) = std::fs::read_dir(&self.data_dir) else { return };
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             let ours = name.starts_with("catalog-") || name.starts_with("download-");
-            if ours && path != keep && path != keep_gzip {
+            if ours && !kept.contains(&path) {
                 let _ = std::fs::remove_file(&path);
             }
         }
@@ -344,9 +364,9 @@ pub async fn sync_once(store: &Arc<SnapshotStore>, client: &reqwest::Client, url
         let _ = std::fs::remove_file(&target);
         std::fs::rename(&temporary, &target).map_err(|e| SyncError::Io(e.to_string()))?;
 
-        // Browsers download this file: 36 MB raw, under 7 MB compressed. Compress it once here
-        // instead of per request.
-        let gzip_path = gzip_path_of(&target);
+        // Browsers download this file: 44 MB raw, 7.6 MB in gzip. Compress it once here instead
+        // of per request; brotli follows once it is active (`compress_active`).
+        let gzip_path = beside(&target, GZIP);
         if let Err(error) = gzip_file(&target, &gzip_path) {
             tracing::warn!(component = "snapshot", event = "snapshot.compress_failed", error = %error, "serving the snapshot uncompressed");
             let _ = std::fs::remove_file(&gzip_path);
@@ -376,6 +396,61 @@ fn gzip_file(source: &Path, target: &Path) -> std::io::Result<()> {
     encoder.finish()?.flush()
 }
 
+/// Makes the brotli copy of the active snapshot, when it has none (`Snapshot::brotli`): off the
+/// threads that answer requests, at `quality`, into a file beside the snapshot (through a
+/// temporary one, so that a crash leaves nothing half written for the next start), and into
+/// memory. `run` makes it at brotli's best: measured 2026-09-30, 44 MB into 4.4 MB (gzip: 7.6 MB)
+/// in 87 s of one processor, with about 120 MB of memory for the while. True when the active
+/// snapshot has its copy now.
+pub async fn compress_active(store: &SnapshotStore, quality: u32) -> bool {
+    let Some(snapshot) = store.current() else { return false };
+    if snapshot.brotli.get().is_some() {
+        return true;
+    }
+    let started = Instant::now();
+    let (source, target) = (snapshot.path.clone(), beside(&snapshot.path, BROTLI));
+    let size = usize::try_from(snapshot.bytes).unwrap_or(usize::MAX);
+    let made = {
+        let target = target.clone();
+        tokio::task::spawn_blocking(move || brotli_file(&source, &target, size, quality)).await
+    };
+    let error = match made {
+        // Replaced meanwhile: its files went with the switch, and this one goes too.
+        Ok(Ok(_)) if !store.current().is_some_and(|active| Arc::ptr_eq(&active, &snapshot)) => {
+            let _ = std::fs::remove_file(&target);
+            return false;
+        }
+        Ok(Ok(bytes)) => {
+            tracing::info!(component = "snapshot", event = "snapshot.compressed", etag = %snapshot.etag, bytes = bytes.len(), ms = started.elapsed().as_millis() as u64, "the snapshot goes out in brotli");
+            let _ = snapshot.brotli.set(bytes);
+            return true;
+        }
+        Ok(Err(error)) => error.to_string(),
+        Err(error) => error.to_string(),
+    };
+    tracing::warn!(component = "snapshot", event = "snapshot.compress_failed", error = %error, "the snapshot goes out in gzip, not in brotli");
+    false
+}
+
+/// `source` in brotli at `quality`, written to `target` through a temporary file.
+fn brotli_file(source: &Path, target: &Path, size: usize, quality: u32) -> std::io::Result<Bytes> {
+    let mut compressed = Vec::with_capacity(size / 8);
+    crate::encoding::brotli_stream(&mut std::io::BufReader::new(std::fs::File::open(source)?), &mut compressed, quality, size)?;
+    let temporary = beside(target, ".tmp");
+    let written = write_synced(&temporary, &compressed).and_then(|()| std::fs::rename(&temporary, target));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+    written.map(|()| Bytes::from(compressed))
+}
+
+/// `bytes` into a new file at `path`, on the disk before this returns.
+fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut file = std::fs::File::create(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()
+}
+
 /// Polls Radix until the process ends. Failures back off up to five minutes.
 pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, stale_after: Option<Duration>) {
     let client = match reqwest::Client::builder().connect_timeout(Duration::from_secs(10)).timeout(Duration::from_secs(600)).build() {
@@ -388,6 +463,8 @@ pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, sta
     tracing::info!(component = "snapshot", event = "snapshot.sync_started", url = %url, interval_s = interval.as_secs(), "watching Radix's snapshot endpoint");
 
     let mut failures: u32 = 0;
+    // The snapshot whose brotli could not be made: not tried again and again.
+    let mut uncompressed: Option<String> = None;
     loop {
         let wait = match sync_once(&store, &client, &url).await {
             Ok(Sync::Unchanged) => {
@@ -425,6 +502,13 @@ pub async fn run(store: Arc<SnapshotStore>, url: String, interval: Duration, sta
                 }
             }
         };
+        // The brotli of the active snapshot, one that came now or was restored without it: before
+        // the next look at Radix, which it only delays.
+        if let Some(active) = store.current().filter(|active| active.brotli.get().is_none() && uncompressed.as_deref() != Some(active.etag.as_str())) {
+            if !compress_active(&store, crate::encoding::BEST).await && store.current().is_some_and(|now| Arc::ptr_eq(&now, &active)) {
+                uncompressed = Some(active.etag.clone());
+            }
+        }
         tokio::time::sleep(wait).await;
     }
 }

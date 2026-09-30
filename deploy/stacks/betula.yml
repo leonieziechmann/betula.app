@@ -170,8 +170,10 @@ services:
           # 13 filtered lists or 20 calendar feeds a second on this host before the queue grew.
           cpus: "3.0"
           # Holds the HTML cache (up to 256 MB), the card cache (up to 64 MB), the snapshot's
-          # compressed copy that /api/db hands out (7.6 MB) and the open snapshot (SQLite, about
-          # 44 MB on disk).
+          # compressed copies that /api/db hands out (7.6 MB gzip, 4.4 MB brotli; making the
+          # brotli takes about 120 MB more for a minute and a half after each new snapshot), the
+          # browser bundle (34 MB, and 1.7 MB in brotli, made in two seconds with about 100 MB
+          # after a start) and the open snapshot (SQLite, about 44 MB on disk).
           memory: 1G
           pids: 256
       labels:
@@ -185,7 +187,8 @@ services:
         # itself (the server sends X-Frame-Options DENY, the middleware makes it SAMEORIGIN).
         # rate-limit: 50 requests a second per address, bursts of 100 (the first load of the app
         # is a burst); what it turns away never reaches the login form of closed testing.
-        # compress: text types only; /api/db and the assets arrive pre-compressed and pass through.
+        # compress: text types only; the pages, /api/db and the assets arrive in brotli (gzip for
+        # a client without it) and pass through, what comes plain (a 404 page) leaves in brotli too.
         - "traefik.http.routers.${STACK_NAME}-folia.middlewares=secure-headers@file,rate-limit@file,compress@file"
         # 0 = Traefik's default (the length of the rule), which beats the placeholder's priority 1
         # on the same host. Of two colours of one site the higher one is live (55-switch.sh). A

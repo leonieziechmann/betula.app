@@ -1,9 +1,11 @@
 //! What is not a rendered page: the snapshot for browsers, status, health, static assets, and a
 //! Studienplan as a calendar feed.
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use axum::body::Body;
+use axum::body::{Body, Bytes};
 use axum::extract::{Path, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
@@ -14,7 +16,9 @@ use serde_json::json;
 use tokio_util::io::ReaderStream;
 
 use crate::birch::Season;
+use crate::cache::{not_modified, REVALIDATE};
 use crate::cards::{Card, CardText, Headline};
+use crate::encoding::{self, Coding, Kept};
 use crate::texts::texts;
 use crate::AppState;
 
@@ -25,22 +29,56 @@ fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
         .is_some_and(|value| value.split(',').any(|tag| tag.trim().trim_start_matches("W/") == etag))
 }
 
-/// Whether the client takes brotli: `br` in its Accept-Encoding, unless it is given no weight.
-fn accepts_brotli(headers: &HeaderMap) -> bool {
-    headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| {
-            let mut parts = encoding.split(';').map(str::trim);
-            parts.next() == Some("br") && !parts.any(|part| matches!(part.replace(' ', "").as_str(), "q=0" | "q=0.0" | "q=0.00" | "q=0.000"))
-        }))
+/// How long a browser keeps a file of the app before it asks for it again (`Cache-Control`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Keep {
+    /// A year, and never asked for again, not even on a reload (`immutable`): the address names
+    /// the build of this process (`?v=<build>`, `app::BuildId`), and nothing the process serves
+    /// under it changes while it runs. A new build is a new address, which the page names: the
+    /// page itself is asked for again every time (`cache::REVALIDATE`).
+    Immutable,
+    /// Asked for again on every use, and answered with a 304 while it is unchanged (the ETag is
+    /// the build): an address without a build, or with another one than this process's — the
+    /// server answers every `?v=` with the file it has, which is not that build's.
+    Revalidate,
 }
 
-fn accepts_gzip(headers: &HeaderMap) -> bool {
-    headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")))
+impl Keep {
+    /// Fresh for a year, as long as is usual: `immutable` holds while an answer is fresh (RFC 8246).
+    pub const IMMUTABLE: &'static str = "public, max-age=31536000, immutable";
+
+    /// How the file at `uri` is kept: `Immutable` under exactly the address a page of this build
+    /// links it with (`/assets/app.css?v=<build>`).
+    pub fn of(state: &AppState, uri: &Uri) -> Keep {
+        if uri.query().and_then(|query| query.strip_prefix("v=")) == Some(&*state.build_id) {
+            Keep::Immutable
+        } else {
+            Keep::Revalidate
+        }
+    }
+
+    pub fn header(self) -> &'static str {
+        match self {
+            Keep::Immutable => Keep::IMMUTABLE,
+            Keep::Revalidate => REVALIDATE,
+        }
+    }
+}
+
+/// A file as it goes out: its type, how long it may be kept, its ETag and its coding.
+fn respond(body: Bytes, coding: Coding, content_type: &'static str, cache_control: &'static str, etag: &str) -> Response {
+    let mut response = Response::new(Body::from(body));
+    let out = response.headers_mut();
+    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static(cache_control));
+    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+    if let Ok(value) = HeaderValue::from_str(etag) {
+        out.insert(header::ETAG, value);
+    }
+    if let Some(value) = coding.header() {
+        out.insert(header::CONTENT_ENCODING, value);
+    }
+    response
 }
 
 /// `GET /api/db`: the active snapshot with Radix's ETag. Browsers keep it in IndexedDB
@@ -50,14 +88,19 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
     };
     if if_none_match(&headers, &snapshot.etag) {
-        return (StatusCode::NOT_MODIFIED, [(header::ETAG, snapshot.etag.clone())]).into_response();
+        return not_modified(&snapshot.etag, REVALIDATE);
     }
 
     // Compressed from memory: every browser gets the same bytes, and a download holds no file and
-    // no buffer of its own. Uncompressed (hardly anybody) streamed from the file.
-    let (body, length, compressed) = match (&snapshot.gzip_bytes, accepts_gzip(&headers)) {
-        (Some(bytes), true) => (Body::from(bytes.clone()), bytes.len() as u64, true),
-        _ => {
+    // no buffer of its own. Brotli once it is made (in the background after a new snapshot,
+    // `snapshot::compress_active`), gzip until then and for a client without brotli.
+    // Uncompressed (hardly anybody) streamed from the file.
+    let coding = Coding::of(&headers);
+    let brotli = snapshot.brotli.get().filter(|_| coding == Coding::Brotli).map(|bytes| (bytes.clone(), Coding::Brotli));
+    let gzip = || snapshot.gzip_bytes.clone().filter(|_| Coding::Gzip.taken_by(&headers)).map(|bytes| (bytes, Coding::Gzip));
+    let (body, length, coding) = match brotli.or_else(gzip) {
+        Some((bytes, coding)) => (Body::from(bytes.clone()), bytes.len() as u64, coding),
+        None => {
             let file = match tokio::fs::File::open(&snapshot.path).await {
                 Ok(file) => file,
                 Err(error) => {
@@ -65,7 +108,7 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
                     return StatusCode::INTERNAL_SERVER_ERROR.into_response();
                 }
             };
-            (Body::from_stream(ReaderStream::with_capacity(file, 256 * 1024)), snapshot.bytes, false)
+            (Body::from_stream(ReaderStream::with_capacity(file, 256 * 1024)), snapshot.bytes, Coding::Identity)
         }
     };
 
@@ -73,36 +116,26 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
     let out = response.headers_mut();
     out.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/vnd.sqlite3"));
     // Always revalidate: the 304 is cheap and a changed snapshot is picked up at once.
-    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static(REVALIDATE));
     out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
     out.insert(header::CONTENT_LENGTH, HeaderValue::from(length));
     if let Ok(value) = HeaderValue::from_str(&snapshot.etag) {
         out.insert(header::ETAG, value);
     }
-    if compressed {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    if let Some(value) = coding.header() {
+        out.insert(header::CONTENT_ENCODING, value);
     }
     response
 }
 
-/// A body made once per snapshot, with the snapshot's ETag.
-fn per_snapshot(headers: &HeaderMap, etag: &str, content_type: &'static str, body: &(axum::body::Bytes, axum::body::Bytes)) -> Response {
+/// A body made once per snapshot, with its own ETag: fresh for five minutes.
+async fn per_snapshot(headers: &HeaderMap, etag: &str, content_type: &'static str, body: &Kept) -> Response {
+    const KEEP: &str = "public, max-age=300, stale-while-revalidate=86400";
     if if_none_match(headers, etag) {
-        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag.to_string())]).into_response();
+        return not_modified(etag, KEEP);
     }
-    let use_gzip = accepts_gzip(headers) && !body.1.is_empty();
-    let mut response = Response::new(Body::from(if use_gzip { body.1.clone() } else { body.0.clone() }));
-    let out = response.headers_mut();
-    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300, stale-while-revalidate=86400"));
-    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
-    if let Ok(value) = HeaderValue::from_str(etag) {
-        out.insert(header::ETAG, value);
-    }
-    if use_gzip {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-    }
-    response
+    let (bytes, coding) = body.get(Coding::of(headers)).await;
+    respond(bytes, coding, content_type, KEEP, etag)
 }
 
 /// `GET /api/map.json`: the map of the programs for the landing page of the browser app. Laid out
@@ -112,7 +145,7 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
     };
     match &snapshot.program_map {
-        Some((_, json, compressed, etag)) => per_snapshot(&headers, etag, "application/json", &(json.clone(), compressed.clone())),
+        Some((_, json, etag)) => per_snapshot(&headers, etag, "application/json", json).await,
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -128,7 +161,7 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
     let round = state.changes.as_ref().map_or(0, |changes| changes.rounds());
     let made = snapshot.sitemap.lock().ok().and_then(|made| made.clone()).filter(|(made_in, ..)| *made_in == round);
     let (etag, body) = match made {
-        Some((_, etag, plain, compressed)) => (etag, (plain, compressed)),
+        Some((_, etag, body)) => (etag, body),
         None => {
             // A few hundred queries (the study directions of every program): off the threads that
             // answer requests, as the warm-up does.
@@ -145,15 +178,14 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
                 }
             };
             let etag = crate::snapshot::content_etag("sitemap", xml.as_bytes());
-            let compressed = crate::cache::gzip(xml.as_bytes());
-            let body = (axum::body::Bytes::from(xml), compressed);
+            let body = Arc::new(Kept::new(Bytes::from(xml)));
             if let Ok(mut made) = snapshot.sitemap.lock() {
-                *made = Some((round, etag.clone(), body.0.clone(), body.1.clone()));
+                *made = Some((round, etag.clone(), body.clone()));
             }
             (etag, body)
         }
     };
-    per_snapshot(&headers, &etag, "application/xml; charset=utf-8", &body)
+    per_snapshot(&headers, &etag, "application/xml; charset=utf-8", &body).await
 }
 
 /// The sitemap's XML: every page of `sitemap_paths`, with the time it last changed where
@@ -272,37 +304,25 @@ pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMa
 
 /// The answer of a feed. `private`: it is one person's plan, and a shared cache must not keep it.
 /// A quarter of an hour fresh, then revalidated against the content's ETag, which only changes
-/// with the plan or the data (the calendar never reads the clock). Compressed here, because the
-/// edge's compression does not take `text/calendar`. No search engine is to list it.
+/// with the plan or the data (the calendar never reads the clock). Compressed here, as it is made
+/// (`encoding::FAST`), because the edge's compression does not take `text/calendar`. No search
+/// engine is to list it.
 fn calendar_response(headers: &HeaderMap, etag: &str, ics: String, key: &str) -> Response {
-    let shared = |out: &mut HeaderMap| {
-        out.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, max-age=900"));
-        out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
-        if let Ok(value) = HeaderValue::from_str(etag) {
-            out.insert(header::ETAG, value);
-        }
-    };
+    const KEEP: &str = "private, max-age=900";
     if if_none_match(headers, etag) {
-        let mut response = StatusCode::NOT_MODIFIED.into_response();
-        shared(response.headers_mut());
-        return response;
+        return not_modified(etag, KEEP);
     }
-    let compressed = accepts_gzip(headers).then(|| crate::cache::gzip(ics.as_bytes())).filter(|bytes| !bytes.is_empty());
-    let gzipped = compressed.is_some();
-    let mut response = Response::new(match compressed {
-        Some(bytes) => Body::from(bytes),
-        None => Body::from(ics),
+    let coding = Coding::of(headers);
+    let (body, coding) = encoding::smaller(Bytes::from(ics), coding, |ics| match coding {
+        Coding::Brotli => encoding::brotli(ics, encoding::FAST),
+        _ => encoding::gzip(ics),
     });
+    let mut response = respond(body, coding, "text/calendar; charset=utf-8", KEEP, etag);
     let out = response.headers_mut();
-    shared(out);
-    out.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/calendar; charset=utf-8"));
     out.insert(header::HeaderName::from_static("x-robots-tag"), HeaderValue::from_static("noindex, nofollow"));
     let name = if key.is_empty() { "studienplan.ics".to_string() } else { format!("studienplan-{key}.ics") };
     if let Ok(value) = HeaderValue::from_str(&format!("inline; filename=\"{name}\"")) {
         out.insert(header::CONTENT_DISPOSITION, value);
-    }
-    if gzipped {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
     }
     response
 }
@@ -316,6 +336,7 @@ pub async fn status(State(state): State<AppState>) -> Response {
             "bytes": snapshot.bytes,
             "schema_version": snapshot.schema_version,
             "gzip_bytes": snapshot.gzip.as_ref().map(|(_, bytes)| *bytes),
+            "brotli_bytes": snapshot.brotli.get().map(Bytes::len),
             "data_changed_at": snapshot.meta.data_changed_at,
             "current_semester": snapshot.meta.current_semester,
             "activated_seconds_ago": snapshot.activated_at.elapsed().map(|d| d.as_secs()).unwrap_or(0),
@@ -359,89 +380,71 @@ pub async fn health(State(state): State<AppState>) -> Response {
     }
 }
 
-/// A file embedded in the binary. Revalidated on every use (the 304 costs nothing and a new
-/// build shows up at once); compressed once per process.
-fn asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8]) -> Response {
-    tagged_asset(state, headers, content_type, body, "")
+/// Whether a file of this type is worth compressing: not what is compressed already.
+fn compressible(content_type: &str) -> bool {
+    !matches!(content_type, "font/woff2" | "image/png" | "image/webp")
 }
 
-/// `asset` for a file compressed with brotli ahead of time, to a client that takes it: the same
-/// ETag and caching, `Content-Encoding: br`.
-fn brotli_asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, compressed: &'static [u8]) -> Response {
+/// An embedded file with its compressed forms (`Kept`), one for the whole process: made when a
+/// client first asks for them, the same bytes for everybody after that. `brotli` is its form made
+/// ahead of time, where there is one (`birch::brotli`).
+fn kept(body: &'static [u8], brotli: Option<&'static [u8]>) -> Arc<Kept> {
+    /// By the address and the length of the bytes.
+    type Files = Mutex<HashMap<(usize, usize), Arc<Kept>>>;
+    static KEPT: OnceLock<Files> = OnceLock::new();
+    let make = || {
+        Arc::new(match brotli {
+            Some(brotli) => Kept::with_brotli(Bytes::from_static(body), Bytes::from_static(brotli)),
+            None => Kept::new(Bytes::from_static(body)),
+        })
+    };
+    match KEPT.get_or_init(Default::default).lock() {
+        Ok(mut kept) => kept.entry((body.as_ptr() as usize, body.len())).or_insert_with(make).clone(),
+        Err(_) => make(),
+    }
+}
+
+/// A file embedded in the binary, the same for as long as the process runs: the build is its ETag,
+/// `keep` says how long a browser keeps it, and it goes out as the client takes it — brotli at
+/// its best, made once per process off the threads that answer requests (`Kept`).
+async fn embedded(state: &AppState, headers: &HeaderMap, keep: Keep, content_type: &'static str, body: &'static [u8], brotli: Option<&'static [u8]>) -> Response {
     let etag = format!("\"{}\"", state.build_id);
     if if_none_match(headers, &etag) {
-        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+        return not_modified(&etag, keep.header());
     }
-    let mut response = Response::new(Body::from(compressed));
-    let out = response.headers_mut();
-    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
-    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
-    out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("br"));
-    if let Ok(value) = HeaderValue::from_str(&etag) {
-        out.insert(header::ETAG, value);
-    }
-    response
+    let (bytes, coding) = if compressible(content_type) { kept(body, brotli).get(Coding::of(headers)).await } else { (Bytes::from_static(body), Coding::Identity) };
+    respond(bytes, coding, content_type, keep.header(), &etag)
 }
 
-/// `asset` for an address whose file changes within a build (the standard picture with the
-/// season): `variant` names which one it is, in the ETag.
-fn tagged_asset(state: &AppState, headers: &HeaderMap, content_type: &'static str, body: &'static [u8], variant: &str) -> Response {
-    static COMPRESSED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<usize, axum::body::Bytes>>> = std::sync::OnceLock::new();
-
-    let etag = if variant.is_empty() { format!("\"{}\"", state.build_id) } else { format!("\"{}-{variant}\"", state.build_id) };
-    if if_none_match(headers, &etag) {
-        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
-    }
-    // Fonts are compressed already.
-    let compressed = (accepts_gzip(headers) && !matches!(content_type, "font/woff2" | "image/png" | "image/webp") && body.len() > 1024)
-        .then(|| {
-            let mut cache = COMPRESSED.get_or_init(Default::default).lock().ok()?;
-            Some(cache.entry(body.as_ptr() as usize).or_insert_with(|| crate::cache::gzip(body)).clone())
-        })
-        .flatten()
-        .filter(|bytes| !bytes.is_empty());
-
-    let mut response = match &compressed {
-        Some(bytes) => Response::new(Body::from(bytes.clone())),
-        None => Response::new(Body::from(body)),
-    };
-    let out = response.headers_mut();
-    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
-    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
-    if let Ok(value) = HeaderValue::from_str(&etag) {
-        out.insert(header::ETAG, value);
-    }
-    if compressed.is_some() {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-    }
-    response
+/// `embedded`, kept as its address says (`Keep::of`).
+async fn asset(state: &AppState, uri: &Uri, headers: &HeaderMap, content_type: &'static str, body: &'static [u8]) -> Response {
+    embedded(state, headers, Keep::of(state, uri), content_type, body, None).await
 }
 
 /// `GET /sw.js`: the service worker, with the build of this process written into it, so that a
 /// new build installs a new worker and drops the shell the old one kept. Revalidated on every use
-/// like the other assets (browsers check a worker for updates on their own as well).
+/// whatever its address (browsers check a worker for updates on their own as well): a worker
+/// kept for a year would keep its build's shell for a year.
 pub async fn service_worker(State(state): State<AppState>, headers: HeaderMap) -> Response {
     static SOURCE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
     let body = SOURCE.get_or_init(|| {
         let source = include_str!("../../app/assets/sw.js").replace("__BUILD__", &state.build_id);
         Box::leak(source.into_boxed_str()).as_bytes()
     });
-    asset(&state, &headers, "text/javascript; charset=utf-8", body)
+    embedded(&state, &headers, Keep::Revalidate, "text/javascript; charset=utf-8", body, None).await
 }
 
-pub async fn stylesheet(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "text/css; charset=utf-8", include_bytes!("../../app/assets/app.css"))
+pub async fn stylesheet(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "text/css; charset=utf-8", include_bytes!("../../app/assets/app.css")).await
 }
 
-pub async fn favicon(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/svg+xml", include_bytes!("../../app/assets/favicon.svg"))
+pub async fn favicon(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/svg+xml", include_bytes!("../../app/assets/favicon.svg")).await
 }
 
 /// `GET /assets/shots/<name>.webp`: the screenshots in the start page's carousel, light and dark,
 /// wide and for phones (`e2e/showcase-shots.mjs` takes them). Embedded like every other asset.
-pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
     let body: &'static [u8] = match file.as_str() {
         "catalog.webp" => include_bytes!("../../app/assets/shots/catalog.webp"),
         "catalog-dark.webp" => include_bytes!("../../app/assets/shots/catalog-dark.webp"),
@@ -457,36 +460,39 @@ pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<Strin
         "module-phone-dark.webp" => include_bytes!("../../app/assets/shots/module-phone-dark.webp"),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
-    asset(&state, &headers, "image/webp", body)
+    asset(&state, &uri, &headers, "image/webp", body).await
 }
 
 /// `GET /assets/birch/<name>.svg`: the birch around the app — the crown along the top in each
 /// season and the roots of the ground (`design/birch/birch.mjs` draws them; the stylesheet colours
-/// them). Embedded once (`birch::file`): the link-preview cards draw the same crown.
-pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+/// them). Embedded once (`birch::file`): the link-preview cards draw the same crown. The wood goes
+/// out as the brotli it was drawn with (`birch::brotli`), the others as brotli made here.
+pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
     match crate::birch::file(&file) {
-        Some(body) => match crate::birch::brotli(&file).filter(|_| accepts_brotli(&headers)) {
-            Some(compressed) => brotli_asset(&state, &headers, "image/svg+xml", compressed),
-            None => asset(&state, &headers, "image/svg+xml", body.as_bytes()),
-        },
+        Some(body) => embedded(&state, &headers, Keep::of(&state, &uri), "image/svg+xml", body.as_bytes(), crate::birch::brotli(&file)).await,
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
 /// `GET /assets/icons.svg`: the icons of the app as one sprite (`app::icons`), which every icon
 /// on a page points at.
-pub async fn icons(State(state): State<AppState>, headers: HeaderMap) -> Response {
+pub async fn icons(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     static SPRITE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
     let body = SPRITE.get_or_init(|| Box::leak(app::icons::sprite().into_boxed_str()).as_bytes());
-    asset(&state, &headers, "image/svg+xml", body)
+    asset(&state, &uri, &headers, "image/svg+xml", body).await
 }
 
 /// `GET /assets/og.png`: the site's standard picture for link previews, in the season's crown
 /// (`design/og/og.html` in four pictures), like every card the server draws; `/en/assets/og.png`
-/// the same in English.
+/// the same in English. The picture changes with the season within a build: revalidated whatever
+/// its address, with the season in its ETag.
 pub async fn og_image(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     let (season, locale) = (Season::now(), language_of(&uri));
-    tagged_asset(&state, &headers, "image/png", standard_picture(season, locale), season.name())
+    let etag = format!("\"{}-{}\"", state.build_id, season.name());
+    if if_none_match(&headers, &etag) {
+        return not_modified(&etag, REVALIDATE);
+    }
+    respond(Bytes::from_static(standard_picture(season, locale)), Coding::Identity, "image/png", REVALIDATE, &etag)
 }
 
 /// The standard picture of a season in a language.
@@ -505,54 +511,45 @@ pub fn standard_picture(season: Season, locale: Locale) -> &'static [u8] {
 
 /// The mark as pictures (`design/logo/render-icons.mjs`): `/favicon.ico` for what asks for it
 /// unprompted, the icon of iOS, and the icons the manifest names.
-pub async fn favicon_ico(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/x-icon", include_bytes!("../../app/assets/favicon.ico"))
+pub async fn favicon_ico(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/x-icon", include_bytes!("../../app/assets/favicon.ico")).await
 }
 
-pub async fn touch_icon(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/apple-touch-icon.png"))
+pub async fn touch_icon(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../app/assets/apple-touch-icon.png")).await
 }
 
-pub async fn icon_192(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-192.png"))
+pub async fn icon_192(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../app/assets/icon-192.png")).await
 }
 
-pub async fn icon_512(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-512.png"))
+pub async fn icon_512(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../app/assets/icon-512.png")).await
 }
 
-pub async fn icon_maskable(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-maskable-512.png"))
+pub async fn icon_maskable(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../app/assets/icon-maskable-512.png")).await
 }
 
-pub async fn icon_maskable_large(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-maskable-1024.png"))
+pub async fn icon_maskable_large(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../app/assets/icon-maskable-1024.png")).await
 }
 
-pub async fn icon_monochrome(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "image/png", include_bytes!("../../app/assets/icon-monochrome-512.png"))
+pub async fn icon_monochrome(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../app/assets/icon-monochrome-512.png")).await
 }
 
 /// `GET /assets/launch/<width>x<height>[-dark].png`: a launch screen of the installed app on iOS
 /// (`app::launch`), for the screens a page names; drawn on its first request and kept (`launch`).
-/// Revalidated like the other assets: it changes with the build at most.
-pub async fn launch_screen(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+/// Kept like the other assets: it changes with the build at most.
+pub async fn launch_screen(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
     let Some(picture) = app::launch::Picture::from_file(&file) else { return StatusCode::NOT_FOUND.into_response() };
-    let etag = format!("\"{}\"", state.build_id);
+    let (etag, keep) = (format!("\"{}\"", state.build_id), Keep::of(&state, &uri));
     if if_none_match(&headers, &etag) {
-        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+        return not_modified(&etag, keep.header());
     }
     match state.launch.get(picture).await {
-        Ok(png) => {
-            let mut response = Response::new(Body::from(png));
-            let out = response.headers_mut();
-            out.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
-            out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
-            if let Ok(value) = HeaderValue::from_str(&etag) {
-                out.insert(header::ETAG, value);
-            }
-            response
-        }
+        Ok(png) => respond(png, Coding::Identity, "image/png", keep.header(), &etag),
         Err(error) => {
             tracing::error!(component = "launch", event = "launch.failed", file, error = %error, "a launch screen could not be drawn");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -762,7 +759,7 @@ pub async fn manifest(State(state): State<AppState>, uri: Uri, headers: HeaderMa
     let locale = language_of(&uri);
     let manifests = MANIFESTS.get_or_init(|| Locale::ALL.iter().map(|locale| (*locale, &*Box::leak(localized_manifest(*locale).into_bytes().into_boxed_slice()))).collect());
     let body = manifests.iter().find(|(language, _)| *language == locale).map_or(&include_bytes!("../../app/assets/manifest.webmanifest")[..], |(_, body)| body);
-    asset(&state, &headers, "application/manifest+json", body)
+    asset(&state, &uri, &headers, "application/manifest+json", body).await
 }
 
 /// `app/assets/manifest.webmanifest` in a language: its name, description, language, and where the
@@ -782,36 +779,45 @@ pub fn localized_manifest(locale: Locale) -> String {
     serde_json::to_string_pretty(&manifest).unwrap_or_else(|_| file.to_string())
 }
 
-pub async fn font(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "font/woff2", include_bytes!("../../app/assets/inter-latin.woff2"))
+pub async fn font(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "font/woff2", include_bytes!("../../app/assets/inter-latin.woff2")).await
 }
 
-pub async fn enhance_script(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/enhance.js"))
+pub async fn enhance_script(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/enhance.js")).await
 }
 
 /// `GET /assets/boot.js`, with the schema this build reads written into it
 /// (`catalog::SCHEMA_VERSION`): it refuses a local copy of the catalog of an older one.
-pub async fn boot_script(State(state): State<AppState>, headers: HeaderMap) -> Response {
+pub async fn boot_script(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     static SOURCE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
     let body = SOURCE.get_or_init(|| {
         let source = include_str!("../../app/assets/boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string());
         Box::leak(source.into_boxed_str()).as_bytes()
     });
-    asset(&state, &headers, "text/javascript; charset=utf-8", body)
+    asset(&state, &uri, &headers, "text/javascript; charset=utf-8", body).await
 }
 
-pub async fn sql_js(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/sql-wasm.js"))
+pub async fn sql_js(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/sql-wasm.js")).await
 }
 
-pub async fn sql_wasm(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    asset(&state, &headers, "application/wasm", include_bytes!("../../app/assets/sql-wasm.wasm"))
+pub async fn sql_wasm(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "application/wasm", include_bytes!("../../app/assets/sql-wasm.wasm")).await
+}
+
+/// A file of the browser app as it is served: its ETag, and its bytes with their compressed
+/// forms (`Kept`; the bundle, 34 MB, is brotli 1.7 MB, made in 2 s).
+pub struct Package {
+    pub etag: String,
+    pub body: Kept,
 }
 
 /// `GET /pkg/<file>`: the browser app built by scripts/build-client.sh, from `<site-root>/pkg`.
-/// Compressed once per file version and kept in memory.
-pub async fn package(State(state): State<AppState>, Path(file): Path<String>, headers: HeaderMap) -> Response {
+/// Read and compressed once per file version and kept in memory; kept by browsers like the files
+/// embedded in the binary (`Keep`): `boot.js` asks for it with the build of its page. (After
+/// building the app again, start the server again, as its worker has it under that address too.)
+pub async fn package(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
     let content_type = match file.rsplit('.').next() {
         Some("js") => "text/javascript; charset=utf-8",
         Some("wasm") => "application/wasm",
@@ -824,37 +830,32 @@ pub async fn package(State(state): State<AppState>, Path(file): Path<String>, he
     let Ok(meta) = tokio::fs::metadata(&path).await else { return StatusCode::NOT_FOUND.into_response() };
     let modified = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
     let etag = format!("\"{:x}-{:x}\"", modified, meta.len());
+    let keep = Keep::of(&state, &uri);
     if if_none_match(&headers, &etag) {
-        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+        return not_modified(&etag, keep.header());
     }
 
-    let cached = state.packages.lock().ok().and_then(|cache| cache.get(&file).filter(|(tag, ..)| *tag == etag).cloned());
-    let (_, raw, compressed) = match cached {
-        Some(entry) => entry,
+    let current = |state: &AppState| state.packages.lock().ok().and_then(|packages| packages.get(&file).filter(|package| package.etag == etag).cloned());
+    let package = match current(&state) {
+        Some(package) => package,
         None => {
             let Ok(raw) = tokio::fs::read(&path).await else { return StatusCode::NOT_FOUND.into_response() };
-            let raw = axum::body::Bytes::from(raw);
-            let compressed = crate::cache::gzip(&raw);
-            let entry = (etag.clone(), raw, compressed);
-            if let Ok(mut cache) = state.packages.lock() {
-                cache.insert(file.clone(), entry.clone());
+            let read = Arc::new(Package { etag: etag.clone(), body: Kept::new(Bytes::from(raw)) });
+            // Whoever read it first keeps it: its compressed forms are made once.
+            match state.packages.lock() {
+                Ok(mut packages) => match packages.get(&file).filter(|package| package.etag == etag) {
+                    Some(package) => package.clone(),
+                    None => {
+                        packages.insert(file.clone(), read.clone());
+                        read
+                    }
+                },
+                Err(_) => read,
             }
-            entry
         }
     };
-    let use_gzip = accepts_gzip(&headers) && !compressed.is_empty();
-    let mut response = Response::new(Body::from(if use_gzip { compressed } else { raw }));
-    let out = response.headers_mut();
-    out.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
-    out.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
-    if let Ok(value) = HeaderValue::from_str(&etag) {
-        out.insert(header::ETAG, value);
-    }
-    if use_gzip {
-        out.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-    }
-    response
+    let (bytes, coding) = package.body.get(Coding::of(&headers)).await;
+    respond(bytes, coding, content_type, keep.header(), &etag)
 }
 
 pub async fn robots(State(state): State<AppState>) -> Response {

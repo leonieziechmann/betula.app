@@ -332,7 +332,9 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     assert_eq!(request(&router, "/catalog", &with_cookie).await.0, StatusCode::SERVICE_UNAVAILABLE, "the page itself answers (no snapshot here)");
     let (status, headers, _) = request(&router, "/assets/boot.js", &with_cookie).await;
     assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::OK, "private, no-cache"));
+    assert_eq!(request(&router, "/assets/boot.js?v=test", &with_cookie).await.1[header::CACHE_CONTROL], "private, max-age=31536000, immutable", "kept for a year, by this browser alone");
     assert_eq!(request(&router, app::STYLESHEET, &with_cookie).await.1[header::CACHE_CONTROL], "public, no-cache", "what is open anyway stays shared");
+    assert_eq!(request(&router, "/assets/app.css?v=test", &with_cookie).await.1[header::CACHE_CONTROL], crate::api::Keep::IMMUTABLE);
     let (status, headers, _) = request(&router, "/access?next=%2Fcatalog", &with_cookie).await;
     assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::SEE_OTHER, "/catalog"));
     let forged = format!("{}{}", &visit[..visit.len() - 1], if visit.ends_with('0') { '1' } else { '0' });
@@ -413,6 +415,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let active = store.current().expect("active snapshot");
     assert_eq!((active.etag.as_str(), active.bytes), ("\"aaaa1111\"", real.len() as u64));
     assert!(active.gzip.as_ref().is_some_and(|(_, bytes)| *bytes < active.bytes / 3), "the browser download is compressed once");
+    assert!(active.brotli.get().is_none(), "brotli follows once it is active");
     assert_eq!(request(&router, "/healthz", &[]).await.0, StatusCode::OK);
 
     // Nothing new: a conditional request, no download.
@@ -435,10 +438,22 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // The same filter written differently is the same page.
     let (_, headers, _) = request(&router, "/catalog?status=all&turnus=winter&form=exercise&q=", &[]).await;
     assert_eq!(headers["x-cache"], "hit");
-    assert_eq!(request(&router, "/catalog?turnus=winter&form=exercise&status=all", &[("if-none-match", &etag)]).await.0, StatusCode::NOT_MODIFIED);
-    let (_, headers, body) = request(&router, "/programs", &[("accept-encoding", "gzip, br")]).await;
-    assert_eq!(headers[header::CONTENT_ENCODING], "gzip");
-    assert_eq!(body[..2], [0x1f, 0x8b]);
+    let (status, headers, body) = request(&router, "/catalog?turnus=winter&form=exercise&status=all", &[("if-none-match", &etag)]).await;
+    let kept = |headers: &HeaderMap| (headers[header::CACHE_CONTROL].to_str().unwrap().to_string(), headers[header::VARY].to_str().unwrap().to_string());
+    assert_eq!((status, body.len()), (StatusCode::NOT_MODIFIED, 0));
+    assert_eq!(kept(&headers), ("public, no-cache".to_string(), "Accept-Encoding".to_string()), "„unchanged\" says how to keep the page, as its 200 did");
+    // In brotli to a browser, as the cache keeps it; gzipped anew for a client that takes only
+    // gzip, plain for one that takes neither.
+    let (_, headers, body) = request(&router, "/programs", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING], "br");
+    let programs = crate::encoding::unbrotli(&body).expect("brotli");
+    assert!(programs.starts_with(b"<!DOCTYPE html>"));
+    let (_, headers, body) = request(&router, "/programs", &[("accept-encoding", "gzip, deflate")]).await;
+    assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), &body[..2]), ("gzip", &[0x1f, 0x8b][..]));
+    assert_eq!(crate::encoding::gunzip(&body), Some(programs.clone()));
+    let (_, headers, body) = request(&router, "/programs", &[]).await;
+    assert!(headers.get(header::CONTENT_ENCODING).is_none());
+    assert_eq!(body, programs.to_vec());
 
     // What search engines read: one description and one address per page, absolute, with the name
     // the site has from outside; views of the lists are not listed; the sitemap names every page.
@@ -478,7 +493,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // next one, since the server knows nothing of the visitor (R9); „Studiengang wählen" there and
     // in the first panel a link to all programs (the picker is the app's); the figures on a birch;
     // the wood behind the page, and no branches out of the panels any more.
-    assert!(!home.contains("id=\"sidebar\"") && home.contains("<div id=\"page-scroll\" class=\"page home-page\""), "the start page has no frame");
+    assert!(!home.contains("id=\"sidebar\"") && home.contains("<div id=\"page-scroll\" class=\"work flowing solo\"><div class=\"page home-page\">"), "the start page has no frame");
     assert!(home.contains("id=\"loslegen\"") && home.matches("class=\"start-step ").count() + home.matches("class=\"start-step\"").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
     assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.contains("class=\"hero-trunk\"") && woods(&home) == 1 && !home.contains("class=\"branch"), "the start page's buttons, figures and wood");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
@@ -513,6 +528,50 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     for path in ["/assets/app.css?v=test", "/assets/app.css?v=an-older-build", "/assets/boot.js?v=test", "/assets/sql-wasm.wasm?v=test"] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
+    // Under exactly the address of this build a file is kept for a year and never asked for
+    // again: nothing the process serves there changes while it runs. Under any other it is asked
+    // for again every time (a 304 while it is the same), since the server answers every `?v=`
+    // with the file it has; so are the worker and the season's picture, whatever they are asked
+    // with, and the page that names the build.
+    let immutable = crate::api::Keep::IMMUTABLE;
+    let revalidate = crate::cache::REVALIDATE;
+    for (path, keep) in [
+        ("/assets/app.css?v=test", immutable),
+        ("/assets/enhance.js?v=test", immutable),
+        ("/assets/boot.js?v=test", immutable),
+        ("/assets/icons.svg?v=test", immutable),
+        ("/assets/sql-wasm.js?v=test", immutable),
+        ("/assets/sql-wasm.wasm?v=test", immutable),
+        ("/assets/app.css", revalidate),
+        ("/assets/app.css?v=an-older-build", revalidate),
+        ("/assets/app.css?v=test&v=another", revalidate),
+        ("/assets/app.css?x=1&v=test", revalidate),
+        ("/assets/inter-latin.woff2", revalidate),
+        ("/manifest.webmanifest", revalidate),
+        ("/sw.js", revalidate),
+        ("/sw.js?v=test", revalidate),
+        ("/assets/og.png?v=test", revalidate),
+        ("/", revalidate),
+    ] {
+        let (status, headers, _) = request(&router, path, &[]).await;
+        assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::OK, keep), "{path}");
+        let etag = headers[header::ETAG].to_str().unwrap().to_string();
+        let (status, headers, _) = request(&router, path, &[("if-none-match", &etag)]).await;
+        assert_eq!((status, kept(&headers)), (StatusCode::NOT_MODIFIED, (keep.to_string(), "Accept-Encoding".to_string())), "{path}");
+    }
+    // Every file of the app goes out in brotli to a browser, made once at its best: the same bytes
+    // for everybody.
+    let (_, headers, css) = request(&router, "/assets/app.css?v=test", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING], "br");
+    assert_eq!(crate::encoding::unbrotli(&css).as_deref(), Some(&include_bytes!("../../app/assets/app.css")[..]));
+    assert_eq!(request(&router, "/assets/app.css", &[("accept-encoding", "br")]).await.2, css, "made once");
+    assert!(css.len() < include_bytes!("../../app/assets/app.css").len() / 4);
+    let (_, headers, wasm) = request(&router, "/assets/sql-wasm.wasm?v=test", &[("accept-encoding", "br")]).await;
+    assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), headers[header::CONTENT_TYPE].to_str().unwrap()), ("br", "application/wasm"));
+    assert_eq!(crate::encoding::unbrotli(&wasm).as_deref(), Some(&include_bytes!("../../app/assets/sql-wasm.wasm")[..]));
+    // What is compressed already goes out as it is.
+    let (_, headers, font) = request(&router, app::FONT, &[("accept-encoding", "br")]).await;
+    assert!(headers.get(header::CONTENT_ENCODING).is_none() && font == include_bytes!("../../app/assets/inter-latin.woff2"));
     // The worker knows the build too: it keeps the files under the addresses this build links.
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
     let worker = String::from_utf8(worker).unwrap();
@@ -560,6 +619,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(headers[header::CONTENT_ENCODING].to_str().unwrap(), "gzip");
     let (_, headers, body) = request(&router, wood, &[("accept-encoding", "br;q=0")]).await;
     assert!(headers.get(header::CONTENT_ENCODING).is_none() && body.starts_with(b"<svg"));
+    // The other masks in the brotli the server makes of them.
+    let (_, headers, body) = request(&router, "/assets/birch/summer-crown.svg", &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING], "br");
+    assert_eq!(crate::encoding::unbrotli(&body).as_deref(), crate::birch::file("summer-crown.svg").map(str::as_bytes));
     // A module and a program have their own picture: named in the head with the site's outside
     // address, drawn on the first request, kept after that, and answered with 304 to its ETag.
     assert!(module.contains("content=\"https://catalog.example/cards/module/11101.png\"") && !module.contains("/assets/og.png"), "{module}");
@@ -655,7 +718,21 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(body.len() as u64, active.gzip.as_ref().unwrap().1);
     let (status, _, body) = request(&router, "/api/db", &[]).await;
     assert_eq!((status, body.len()), (StatusCode::OK, real.len()));
-    assert_eq!(request(&router, "/api/db", &[("if-none-match", "\"aaaa1111\"")]).await.0, StatusCode::NOT_MODIFIED);
+    let (status, headers, _) = request(&router, "/api/db", &[("if-none-match", "\"aaaa1111\"")]).await;
+    assert_eq!((status, kept(&headers)), (StatusCode::NOT_MODIFIED, ("public, no-cache".to_string(), "Accept-Encoding".to_string())));
+    // Brotli once it is made, in the background after the switch (here at a quicker quality than
+    // the server's own): beside the file for the next start, and in memory. Gzip until then.
+    assert_eq!(request(&router, "/api/db", &[("accept-encoding", "gzip, deflate, br, zstd")]).await.1[header::CONTENT_ENCODING], "gzip");
+    assert!(crate::snapshot::compress_active(&store, crate::encoding::FAST).await);
+    let (status, headers, body) = request(&router, "/api/db", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
+    assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "br"));
+    assert_eq!(headers[header::CONTENT_LENGTH].to_str().unwrap(), body.len().to_string());
+    assert!(body.len() < active.gzip.as_ref().unwrap().1 as usize, "smaller than gzip");
+    assert_eq!(crate::encoding::unbrotli(&body).as_deref(), Some(real.as_slice()));
+    let mut beside = active.path.clone().into_os_string();
+    beside.push(".br");
+    assert_eq!(std::fs::read(&beside).unwrap(), body);
+    assert!(crate::snapshot::compress_active(&store, crate::encoding::FAST).await, "made once");
     let (_, _, status_body) = request(&router, "/api/status", &[]).await;
     let status_json: serde_json::Value = serde_json::from_slice(&status_body).unwrap();
     assert_eq!(status_json["snapshot"]["etag"], "\"aaaa1111\"");
@@ -744,8 +821,12 @@ async fn a_studyplan_is_a_calendar_feed() {
     assert!(etag.starts_with("\"ics-"), "{etag}");
     let (status, again, body) = request(&router, &path, &[("if-none-match", &etag)]).await;
     assert_eq!((status, again[header::ETAG].to_str().unwrap(), again[header::CACHE_CONTROL].to_str().unwrap(), body.len()), (StatusCode::NOT_MODIFIED, etag.as_str(), "private, max-age=900", 0));
-    // Compressed here on request (the edge's compression does not take `text/calendar`).
-    let (status, zipped, body) = request(&router, &path, &[("accept-encoding", "gzip, br")]).await;
+    // Compressed here on request (the edge's compression does not take `text/calendar`): in
+    // brotli to whoever takes it, else in gzip.
+    let (status, compressed, body) = request(&router, &path, &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!((status, compressed[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "br"));
+    assert_eq!(crate::encoding::unbrotli(&body).as_deref(), Some(ics.as_bytes()));
+    let (status, zipped, body) = request(&router, &path, &[("accept-encoding", "gzip")]).await;
     assert_eq!((status, zipped[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "gzip"));
     let mut unzipped = String::new();
     flate2::read::GzDecoder::new(body.as_slice()).read_to_string(&mut unzipped).unwrap();
@@ -778,8 +859,8 @@ async fn a_studyplan_is_a_calendar_feed() {
     // The log says that feeds were made, how large and how fast, and never which.
     drop(logging);
     let log = log.text();
-    // Seven feeds were made above: the 304 is made too, since its tag is the content's.
-    assert_eq!(log.matches("calendar.served").count(), 7, "{log}");
+    // Eight feeds were made above: the 304 is made too, since its tag is the content's.
+    assert_eq!(log.matches("calendar.served").count(), 8, "{log}");
     assert!(log.contains("/calendar/….ics"), "{log}");
     for code in [FIRST_SEMESTER_CODE, &FIRST_SEMESTER_CODE[1..], later.as_str()] {
         assert!(!log.contains(code), "{code} in {log}");
@@ -1015,24 +1096,36 @@ async fn icons_point_into_the_sprite() {
 /// `/api/db` hands every browser the same compressed bytes from memory.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_catalog_download_comes_from_memory() {
-    // A restart finds the compressed copy next to the snapshot, as the download left it.
+    // A restart finds the compressed copies next to the snapshot, as the download and
+    // `snapshot::compress_active` left them.
     let dir = temp_dir("db-memory");
     let raw = std::fs::read(snapshot_file()).unwrap();
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("catalog-test.db"), &raw).unwrap();
-    std::fs::write(dir.join("catalog-test.db.gz"), crate::cache::gzip(&raw)).unwrap();
+    std::fs::write(dir.join("catalog-test.db.gz"), crate::encoding::gzip(&raw)).unwrap();
+    std::fs::write(dir.join("catalog-test.db.br"), crate::encoding::brotli(&raw, 1)).unwrap();
     std::fs::write(dir.join("current.json"), r#"{"file":"catalog-test.db","etag":"\"test\""}"#).unwrap();
     let store = SnapshotStore::new(dir).unwrap();
     assert!(store.restore());
     let router = crate::router(state(store.clone()));
     let snapshot = store.current().unwrap();
     let kept = snapshot.gzip_bytes.clone().expect("the compressed snapshot is kept in memory");
+    let brotli = snapshot.brotli.get().cloned().expect("its brotli too");
     let (status, headers, body) = request(&router, "/api/db", &[("accept-encoding", "gzip, br")]).await;
+    assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "br"));
+    assert_eq!(body, brotli.to_vec());
+    let (status, headers, body) = request(&router, "/api/db", &[("accept-encoding", "gzip")]).await;
     assert_eq!((status, headers[header::CONTENT_ENCODING].to_str().unwrap()), (StatusCode::OK, "gzip"));
     assert_eq!(body, kept.to_vec());
     let (_, headers, body) = request(&router, "/api/db", &[]).await;
     assert!(headers.get(header::CONTENT_ENCODING).is_none());
     assert_eq!(body.len() as u64, snapshot.bytes);
+    // A client that takes brotli but not gzip, before the brotli is made: the file as it is.
+    let bare = store_with("db-bare", &snapshot_file());
+    let router = crate::router(state(bare.clone()));
+    let (_, headers, body) = request(&router, "/api/db", &[("accept-encoding", "br")]).await;
+    assert!(headers.get(header::CONTENT_ENCODING).is_none());
+    assert_eq!(body.len() as u64, bare.current().unwrap().bytes);
 }
 
 /// The addresses a page writes into its HTML (`href`, `action`, `src`, `content` of a URL), each

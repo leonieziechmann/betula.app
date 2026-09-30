@@ -7,6 +7,9 @@
 //! cache. A newer snapshot starts it over; `--warm-cache off` leaves it out.
 //!
 //! On its way it notes what each page says, for the dates of the sitemap (`lastmod`).
+//!
+//! And after a start, the files every page asks for are compressed before the first visitor asks
+//! for them (`files`).
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -61,7 +64,8 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
             if store.generation() != generation {
                 return false;
             }
-            let Ok(request) = Request::builder().uri(path.as_str()).header(header::ACCEPT, "text/html").header(header::ACCEPT_ENCODING, "gzip").extension(WarmUp).body(Body::empty()) else {
+            // Without an `Accept-Encoding`: the page as it was rendered, which `changes` reads.
+            let Ok(request) = Request::builder().uri(path.as_str()).header(header::ACCEPT, "text/html").extension(WarmUp).body(Body::empty()) else {
                 break;
             };
             // Each page in a task of its own: a render that panics costs this page, not the rest
@@ -76,9 +80,8 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
                     break;
                 }
             };
-            if let (Some((body, compressed)), Some(changes), Some(since)) = (page, changes, since.as_deref()) {
-                let html = if compressed { crate::cache::gunzip(&body) } else { Some(body) };
-                if html.is_some_and(|html| changes.note(path, &html, since)) {
+            if let (Some(html), Some(changes), Some(since)) = (page, changes, since.as_deref()) {
+                if changes.note(path, &html, since) {
                     changed += 1;
                 }
             }
@@ -117,13 +120,31 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
 }
 
 /// Asks the pages for one of them and reads it to the end (the cache takes it on the way): what
-/// the cache says it did (`x-cache`), and the page when it is one (`miss` or `hit`), with whether
-/// it came compressed.
-async fn ask(pages: Router, request: Request<Body>) -> (String, Option<(Bytes, bool)>) {
+/// the cache says it did (`x-cache`), and the page when it is one (`miss` or `hit`).
+async fn ask(pages: Router, request: Request<Body>) -> (String, Option<Bytes>) {
     let Ok(response) = pages.oneshot(request).await;
     let state = response.headers().get("x-cache").and_then(|value| value.to_str().ok()).unwrap_or_default().to_string();
-    let page = response.status().is_success() && matches!(state.as_str(), "miss" | "hit");
-    let compressed = response.headers().get(header::CONTENT_ENCODING).is_some_and(|value| value == "gzip");
+    let page = response.status().is_success() && matches!(state.as_str(), "miss" | "hit") && !response.headers().contains_key(header::CONTENT_ENCODING);
     let body = axum::body::to_bytes(response.into_body(), 64 * 1024 * 1024).await;
-    (state, body.ok().filter(|_| page).map(|body| (body, compressed)))
+    (state, body.ok().filter(|_| page))
+}
+
+/// The files every page asks for, in brotli before the first visitor asks for them: made once per
+/// process (`encoding::Kept`), and the larger ones take a while at brotli's best — the stylesheet
+/// 0.4 s, sql.js's WASM 1.1 s, the bundle 2 s — which the first request after a start would wait
+/// for. One after the other, in the background; what a visitor asks for meanwhile is made for
+/// them, once. With the build in the address, as a page links them: so it is the address the
+/// browsers keep.
+pub async fn files(router: Router, build: Arc<str>) {
+    let started = Instant::now();
+    let stylesheet = include_str!("../../app/assets/app.css");
+    let masks: std::collections::BTreeSet<&str> = stylesheet.split("url(\"").skip(1).filter_map(|rest| rest.split('"').next()).filter(|url| url.starts_with("/assets/birch/")).collect();
+    let built = [app::STYLESHEET, app::icons::SPRITE, app::ENHANCE_SCRIPT, app::BOOT_SCRIPT, "/assets/sql-wasm.js", "/assets/sql-wasm.wasm", "/pkg/folia_client.js", "/pkg/folia_client_bg.wasm"];
+    let paths: Vec<String> = built.iter().map(|path| format!("{path}?v={build}")).chain(masks.iter().map(|path| path.to_string())).collect();
+    for path in &paths {
+        let Ok(request) = Request::builder().uri(path.as_str()).header(header::ACCEPT_ENCODING, "br").body(Body::empty()) else { continue };
+        let Ok(response) = router.clone().oneshot(request).await;
+        drop(response);
+    }
+    tracing::info!(component = "http", event = "files.compressed", files = paths.len(), ms = started.elapsed().as_millis() as u64, "the files of the site are ready in brotli");
 }

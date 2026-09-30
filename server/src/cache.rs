@@ -5,14 +5,16 @@
 //! the next snapshot starts a new generation. Browsers and proxies get an ETag per generation
 //! and revalidate with a 304 that costs no rendering at all.
 //!
-//! **Kept compressed only** (2026-09-26): nearly every client asks for gzip, and compressed a
-//! page takes a fourth to a ninth of the memory (a module 27 → 6 kB with both copies before, a
-//! filtered list 146 → 17 kB, the start page 516 → 106 kB). 128 MiB held about 1,200 pages
-//! before — not even the modules of the sitemap — and now hold all 5,200 pages of the sitemap
-//! and thousands of views besides. The rare client without gzip gets the page unpacked on the
-//! way out. A full cache drops a tenth of itself at once, views (an address with a query:
-//! filters, further pages, variants) before the pages of the sitemap, least recently used
-//! first: a crawler walking through filters cannot push the site's own pages out.
+//! **Kept compressed only** (2026-09-26), as brotli since 2026-09-30 (`encoding::FAST`: as fast
+//! as gzip -6 was, and a twentieth to a fifth smaller, the start page 118 → 95 kB): every browser
+//! takes it, and compressed a page takes a fourth to a ninth of the memory (a module 27 → 6 kB
+//! with both copies before, a filtered list 146 → 17 kB, the start page 516 → 106 kB in gzip).
+//! 128 MiB held about 1,200 pages before — not even the modules of the sitemap — and now hold all
+//! 5,200 pages of the sitemap and thousands of views besides. A client without brotli gets the
+//! page unpacked on the way out, gzipped again if it takes gzip. A full cache drops a tenth of
+//! itself at once, views (an address with a query: filters, further pages, variants) before the
+//! pages of the sitemap, least recently used first: a crawler walking through filters cannot
+//! push the site's own pages out.
 //!
 //! **One render per page** at a time: whoever asks for a page that is being rendered waits for
 //! that render and is answered from the cache (after a new snapshot or a restart the start page
@@ -20,18 +22,18 @@
 //! places (`busy::Places`): without one within the wait, the page is answered 503.
 
 use std::collections::HashMap;
-use std::io::{Read, Write};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use axum::body::{Body, Bytes};
 use axum::extract::{Request, State};
-use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode, Uri};
+use axum::http::{header, HeaderValue, Method, StatusCode, Uri};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use catalog::url::CatalogUrl;
 use tokio::sync::watch;
 
+use crate::encoding::{self, Coding};
 use crate::AppState;
 
 const MAX_PAGE_BYTES: usize = 16 * 1024 * 1024;
@@ -46,7 +48,7 @@ const EVICT_TO_PERCENT: usize = 90;
 pub struct WarmUp;
 
 struct Entry {
-    gzip: Bytes,
+    brotli: Bytes,
     last_used: u64,
     /// A page search engines list (`listed`), dropped only when no view is left.
     canonical: bool,
@@ -103,11 +105,11 @@ impl HtmlCache {
         let tick = inner.tick;
         let entry = inner.entries.get_mut(key)?;
         entry.last_used = tick;
-        Some(entry.gzip.clone())
+        Some(entry.brotli.clone())
     }
 
-    fn put(&self, generation: u64, key: String, gzip: Bytes) {
-        let size = key.len() + gzip.len();
+    fn put(&self, generation: u64, key: String, brotli: Bytes) {
+        let size = key.len() + brotli.len();
         if size > self.max_bytes {
             return;
         }
@@ -121,8 +123,8 @@ impl HtmlCache {
         inner.tick += 1;
         let tick = inner.tick;
         let canonical = listed(&key);
-        if let Some(old) = inner.entries.insert(key.clone(), Entry { gzip, last_used: tick, canonical }) {
-            inner.bytes = inner.bytes.saturating_sub(key.len() + old.gzip.len());
+        if let Some(old) = inner.entries.insert(key.clone(), Entry { brotli, last_used: tick, canonical }) {
+            inner.bytes = inner.bytes.saturating_sub(key.len() + old.brotli.len());
         }
         inner.bytes += size;
         if inner.bytes > self.max_bytes {
@@ -157,7 +159,7 @@ fn evict(inner: &mut Inner, target: usize) {
             break;
         }
         if let Some(entry) = inner.entries.remove(&key) {
-            inner.bytes = inner.bytes.saturating_sub(key.len() + entry.gzip.len());
+            inner.bytes = inner.bytes.saturating_sub(key.len() + entry.brotli.len());
         }
     }
 }
@@ -219,53 +221,51 @@ fn listed(key: &str) -> bool {
     }
 }
 
-fn accepts_gzip(headers: &HeaderMap) -> bool {
-    headers
-        .get(header::ACCEPT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|encoding| encoding.trim().starts_with("gzip")))
-}
+/// How browsers keep a page: they ask again every time, and the ETag makes that a 304 from
+/// memory. The page is what names the build of its stylesheet and scripts, which they keep
+/// without asking (`api::Keep`), so a new build reaches them through the page alone; a page of the
+/// old build kept after a deploy would ask for files the server no longer has.
+pub const REVALIDATE: &str = "public, no-cache";
 
-pub fn gzip(body: &[u8]) -> Bytes {
-    let mut encoder = flate2::write::GzEncoder::new(Vec::with_capacity(body.len() / 4), flate2::Compression::new(6));
-    match encoder.write_all(body).and_then(|_| encoder.finish()) {
-        Ok(compressed) => Bytes::from(compressed),
-        Err(_) => Bytes::new(),
+/// „Unchanged": with what a 200 would have said about keeping it (RFC 9110 §15.4.5).
+pub fn not_modified(etag: &str, cache_control: &'static str) -> Response {
+    let mut response = StatusCode::NOT_MODIFIED.into_response();
+    let headers = response.headers_mut();
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(cache_control));
+    headers.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+    if let Ok(value) = HeaderValue::from_str(etag) {
+        headers.insert(header::ETAG, value);
     }
+    response
 }
 
-pub fn gunzip(compressed: &[u8]) -> Option<Bytes> {
-    let mut body = Vec::with_capacity(compressed.len() * 5);
-    flate2::read::GzDecoder::new(compressed).read_to_end(&mut body).ok()?;
-    Some(Bytes::from(body))
-}
-
-/// A page as the client can take it: compressed if it asked for gzip, else unpacked (or as it
-/// came from the render, when that is at hand).
-fn page(compressed: Bytes, plain: Option<Bytes>, etag: &str, cache_state: &'static str, wants_gzip: bool) -> Response {
-    let use_gzip = wants_gzip && !compressed.is_empty();
-    let body = match (use_gzip, plain) {
-        (true, _) => compressed,
-        (false, Some(plain)) => plain,
-        (false, None) => match gunzip(&compressed) {
-            Some(plain) => plain,
-            None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        },
+/// A page as the client takes it (`Coding`): as kept, in brotli; gzipped anew for a client that
+/// takes only gzip; unpacked for one that takes neither (or as it came from the render, when that
+/// is at hand).
+fn page(compressed: Bytes, plain: Option<Bytes>, etag: &str, cache_state: &'static str, coding: Coding) -> Response {
+    let (body, coding) = match (coding, plain) {
+        (Coding::Brotli, _) if !compressed.is_empty() => (compressed, Coding::Brotli),
+        (coding, plain) => {
+            let Some(plain) = plain.or_else(|| encoding::unbrotli(&compressed)) else {
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            };
+            match coding {
+                Coding::Gzip => encoding::smaller(plain, Coding::Gzip, encoding::gzip),
+                _ => (plain, Coding::Identity),
+            }
+        }
     };
     let mut response = Response::new(Body::from(body));
     let headers = response.headers_mut();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
-    // Asked again every time (the ETag makes it a 304 from memory): a page names the build of its
-    // stylesheet and scripts, and a page of the old build kept by the browser after a deploy would
-    // meet the files of the new one, which the server serves under every build's address.
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, no-cache"));
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(REVALIDATE));
     headers.insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
     headers.insert("x-cache", HeaderValue::from_static(cache_state));
     if let Ok(value) = HeaderValue::from_str(etag) {
         headers.insert(header::ETAG, value);
     }
-    if use_gzip {
-        headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+    if let Some(value) = coding.header() {
+        headers.insert(header::CONTENT_ENCODING, value);
     }
     response
 }
@@ -287,7 +287,7 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
 
     let generation = state.store.generation();
     let etag = format!("W/\"{}.{}\"", snapshot.etag.trim_matches('"'), state.build_id);
-    let wants_gzip = accepts_gzip(request.headers());
+    let coding = Coding::of(request.headers());
     let revalidates = request
         .headers()
         .get(header::IF_NONE_MATCH)
@@ -298,9 +298,9 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
     let cached = |state: &AppState| state.cache.get(generation, &key);
     let answer_cached = |compressed: Bytes, cache_state: &'static str| {
         if revalidates {
-            return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag.clone())]).into_response();
+            return not_modified(&etag, REVALIDATE);
         }
-        page(compressed, None, &etag, cache_state, wants_gzip)
+        page(compressed, None, &etag, cache_state, coding)
     };
 
     if let Some(compressed) = cached(&state) {
@@ -348,15 +348,15 @@ pub async fn html_cache(State(state): State<AppState>, request: Request, next: N
         return response;
     }
 
-    let compressed = gzip(&body);
+    let compressed = encoding::brotli(&body, encoding::FAST);
     if !compressed.is_empty() && key.len() <= MAX_KEY_BYTES && state.store.generation() == generation {
         state.cache.put(generation, key, compressed.clone());
     }
     drop(rendering);
     if revalidates {
-        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+        return not_modified(&etag, REVALIDATE);
     }
-    page(compressed, Some(body), &etag, "miss", wants_gzip)
+    page(compressed, Some(body), &etag, "miss", coding)
 }
 
 #[cfg(test)]
@@ -453,10 +453,26 @@ mod tests {
     }
 
     #[test]
-    fn a_page_is_kept_compressed_and_unpacked_for_who_asks() {
-        let html = "<!DOCTYPE html><p>Grundlagen der Informatik</p>".repeat(50);
-        let compressed = gzip(html.as_bytes());
+    fn a_page_is_kept_compressed_and_goes_out_as_the_client_takes_it() {
+        let html = Bytes::from("<!DOCTYPE html><p>Grundlagen der Informatik</p>".repeat(50));
+        let compressed = encoding::brotli(&html, encoding::FAST);
         assert!(compressed.len() < html.len() / 5);
-        assert_eq!(gunzip(&compressed).as_deref(), Some(html.as_bytes()));
+        let sent = |response: Response| {
+            let coding = response.headers().get(header::CONTENT_ENCODING).map(|value| value.to_str().unwrap().to_string());
+            let cache_control = response.headers()[header::CACHE_CONTROL].to_str().unwrap().to_string();
+            (coding, cache_control)
+        };
+        // As kept to a browser; gzipped anew or unpacked for a client without brotli.
+        let brotli = page(compressed.clone(), None, "W/\"x\"", "hit", Coding::Brotli);
+        assert_eq!(sent(brotli), (Some("br".to_string()), REVALIDATE.to_string()));
+        let gzipped = page(compressed.clone(), None, "W/\"x\"", "hit", Coding::Gzip);
+        assert_eq!(sent(gzipped), (Some("gzip".to_string()), REVALIDATE.to_string()));
+        let plain = page(compressed.clone(), None, "W/\"x\"", "hit", Coding::Identity);
+        assert_eq!(sent(plain), (None, REVALIDATE.to_string()));
+        assert_eq!(encoding::unbrotli(&compressed), Some(html));
+        // „Unchanged" says how to keep the page, as its 200 did.
+        let unchanged = not_modified("W/\"x\"", REVALIDATE);
+        assert_eq!((unchanged.status(), unchanged.headers()[header::VARY].to_str().unwrap()), (StatusCode::NOT_MODIFIED, "Accept-Encoding"));
+        assert_eq!(sent(unchanged), (None, REVALIDATE.to_string()));
     }
 }

@@ -42,6 +42,12 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.crc32fast]
 opt-level = 3
+# The same for brotli (server/src/encoding.rs): every page is compressed with it as it is rendered,
+# and every file of the app at brotli's best, which takes 0.4 s for the stylesheet optimised.
+[profile.dev.package.brotli]
+opt-level = 3
+[profile.dev.package.brotli-decompressor]
+opt-level = 3
 
 [profile.release]
 lto = "thin"
