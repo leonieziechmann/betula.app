@@ -516,7 +516,8 @@ database for one `deploy` by hand.
   written by its own runs on master; a run reads only its branch's entries and master's, never a
   pull request's or a fork's. Nix takes the cached paths without signatures, so a step of the job
   that went bad could leave something in it for later builds: the job uses four actions, three of
-  them GitHub's own, all pinned.
+  them GitHub's own, all pinned. Keep it the only writer: a workflow added later that runs for pull
+  requests with `pull_request_target` would write into master's part of the cache.
 - **The repository is public** (since 2026-09-30). Everybody can read the code, the workflow's logs
   and, logged in to GitHub, its artifacts; none of them holds a secret (the workflow has none, and
   the history held no key or token when it went public). Everybody can fork it and open pull
