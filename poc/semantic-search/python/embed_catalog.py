@@ -21,14 +21,17 @@ import numpy as np
 from common import embed, full_tokenizer, load_torch_model, model_dir
 
 
-def module_texts(db: Path) -> list[tuple[str, str, str]]:
+def module_texts(db: Path) -> list[tuple[str, str, str, str]]:
+    """(id, title, the passage that is embedded, the start of the contents for a hit list)"""
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     rows = con.execute("SELECT id, title, title_de, title_en, contents, learning_outcomes FROM v_module ORDER BY id")
     out = []
     for mid, title, de, en, contents, outcomes in rows:
         titles = [t for t in dict.fromkeys([de or title, en]) if t]
         body = " ".join(t for t in [contents, outcomes] if t)
-        out.append((str(mid), title or de or en or "", " / ".join(titles) + ". " + body))
+        about = " ".join((contents or outcomes or "").split())
+        out.append((str(mid), title or de or en or "", " / ".join(titles) + ". " + body,
+                    about[:280] + ("…" if len(about) > 280 else "")))
     return out
 
 
@@ -42,18 +45,18 @@ def main():
 
     modules = module_texts(Path(args.db))
     if args.export_text:
-        Path(args.export_text).write_text("\n".join(" ".join(t.split()) for _, _, t in modules))
+        Path(args.export_text).write_text("\n".join(" ".join(t.split()) for _, _, t, _ in modules))
         print(f"{len(modules)} texts → {args.export_text}")
         return
     mdir = model_dir(args.model)
-    vectors = embed(load_torch_model(mdir), full_tokenizer(mdir), ["passage: " + t for _, _, t in modules])
+    vectors = embed(load_torch_model(mdir), full_tokenizer(mdir), ["passage: " + t for _, _, t, _ in modules])
     scales = np.abs(vectors).max(1) / 127
     codes = np.round(vectors / scales[:, None]).astype(np.int8)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.bin").write_bytes(b"E5I1" + struct.pack("<II", *codes.shape)
                                     + scales.astype("<f4").tobytes() + codes.tobytes())
-    (out / "index.json").write_text(json.dumps([{"id": m, "title": t} for m, t, _ in modules], ensure_ascii=False))
+    (out / "index.json").write_text(json.dumps([{"id": m, "title": t, "about": a} for m, t, _, a in modules], ensure_ascii=False))
     print(f"{len(modules)} modules → {out}/index.bin ({(out / 'index.bin').stat().st_size / 1e6:.1f} MB)")
 
 
