@@ -453,6 +453,25 @@ reach canary" fires. A release is tried three times, 10 and 20 minutes apart; th
 for the next build of master. A release deployed by hand stays until master is built again: the
 agent only acts on a build it has not seen.
 
+### Branches: develop gathers, master goes to canary
+
+Since 2026-10-01 a finished branch is merged into `develop`, not into master (owner: canary should
+not deploy ten times an hour). A push to `develop` starts nothing: `images.yml` builds on pushes to
+master only, and the agent takes nothing else. When the features gathered there are to reach
+canary, `develop` goes into master in one merge: one build, one deploy.
+
+```bash
+# a finished branch, "Merge branch '<branch>' into develop: <what it brings>"; nothing is built
+git switch develop && git merge --no-ff <branch> && git push origin develop
+# a release to canary, "Merge branch 'develop' into master: <the features it brings>"
+git switch master && git merge --no-ff develop && git push origin master
+```
+
+Master takes nothing but `develop`, so `develop` always holds all of master and nothing has to be
+merged back. On GitHub `develop` should be the default branch (Settings > General > Default
+branch): new branches, pull requests and sessions of Claude Code then start from it. `CLAUDE.md`
+says the same for Claude.
+
 ### Setting it up, once
 
 1. Merge. The workflow runs on the merge itself (it adds `.github/workflows/images.yml`) and on every
