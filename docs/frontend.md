@@ -1700,7 +1700,7 @@ checkout's:
 ```bash
 git config core.hooksPath scripts/hooks   # once per clone: git does not carry it along
 bash scripts/build-cache.sh setup         # in the main checkout, and after `rustup update`
-bash scripts/build-cache.sh prime         # in the main checkout, after a merge into master
+bash scripts/build-cache.sh prime         # in the main checkout, after a merge into develop
 bash scripts/build-cache.sh gc            # drop the caches of worktrees that are gone
 ```
 
