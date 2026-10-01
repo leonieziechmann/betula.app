@@ -14,8 +14,6 @@ native = ["dep:rusqlite"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-# The module texts are Markdown (`text`): the parser alone, without its HTML writer and its binary.
-pulldown-cmark = { version = "0.13", default-features = false }
 # The code of a calendar subscription (`timetable::subscription`). Serde only, so the browser's
 # WASM build takes it as it is.
 folia-pack = { path = "../pack" }

@@ -4,15 +4,17 @@
 //! them: paragraphs, lists, strong and emphasized text, line breaks (`blocks`), and into one line
 //! of plain text for what describes a page to others (`plain`).
 //!
-//! Nothing else of Markdown reaches a page. A heading is a strong paragraph, a quote its
-//! paragraphs, code and HTML their text, a link and an image their words: the texts come from the
-//! university's pages, and a page of Betula sets text, never markup taken from elsewhere.
+//! The reader reads the CommonMark Radix writes, by CommonMark's rules: paragraphs apart by a
+//! blank line; lists („-", „*", „+"; „1.", „1)"), nested by how far their lines are indented;
+//! `**strong**` and `*emphasized*` text; a backslash (or two spaces) at the end of a line for a
+//! line break, and a backslash before punctuation for the character itself. Radix escapes everything else CommonMark would
+//! read as markup, so where a text holds it anyway it is text as it stands — a „#", a „<b>", a
+//! „[link](…)": the texts come from the university's pages, and a page of Betula sets text, never
+//! markup taken from elsewhere.
 //!
 //! A list whose items all begin with a label („(1)", „a)", „IV.", „3.1.") is one CommonMark can
 //! only write as bullets (it numbers with digits alone); its labels are its markers
 //! (`ListKind::Labels`).
-
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 /// A block of a text: a paragraph or a list.
 #[derive(Clone, Debug, PartialEq)]
@@ -55,9 +57,9 @@ pub enum Inline {
 
 /// The blocks of a text.
 pub fn blocks(markdown: &str) -> Vec<Block> {
-    let mut reader = Reader { containers: vec![Vec::new()], ..Reader::default() };
-    for event in Parser::new_ext(markdown, Options::empty()) {
-        reader.event(event);
+    let mut reader = Reader::default();
+    for line in markdown.lines() {
+        reader.line(Line::new(line));
     }
     reader.finish()
 }
@@ -99,173 +101,336 @@ fn plain_inlines(inlines: &[Inline]) -> String {
         .collect()
 }
 
-/// How the inlines of an open span end up in the one around it.
-#[derive(Clone, Copy, PartialEq)]
-enum Span {
-    /// A paragraph; `true` where the parser opened none (the items of a tight list).
-    Paragraph(bool),
-    Heading,
-    Strong,
-    Emphasis,
-    /// A link, an image, struck text …: only its words count.
-    Words,
+/// A line of a text: the column its text begins at, and the text.
+#[derive(Clone, Copy)]
+struct Line<'a> {
+    indent: usize,
+    text: &'a str,
 }
 
-/// Builds the blocks from the parser's events: the blocks of the text and of each open item (the
-/// text's first), the open lists, the open spans of the paragraph at hand.
+impl<'a> Line<'a> {
+    fn new(line: &'a str) -> Self {
+        // A tab indents to the next multiple of four columns.
+        let indent = line.chars().take_while(|c| matches!(c, ' ' | '\t')).fold(0, |column, c| if c == '\t' { column + 4 - column % 4 } else { column + 1 });
+        Line { indent, text: line.trim_start_matches([' ', '\t']) }
+    }
+
+    fn blank(&self) -> bool {
+        self.text.trim_end_matches([' ', '\t']).is_empty()
+    }
+}
+
+/// Reads a text line by line, as CommonMark does: the items a line is in are those it is indented
+/// to, each with the list it is an item of; a blank line ends a paragraph, not an item.
 #[derive(Default)]
-struct Reader {
-    containers: Vec<Vec<Block>>,
-    lists: Vec<(Option<u64>, Vec<Item>)>,
-    spans: Vec<(Span, Vec<Inline>)>,
-    /// Inside a code block: its lines are kept.
-    code: bool,
+struct Reader<'a> {
+    /// The text's blocks so far.
+    blocks: Vec<Block>,
+    /// The items open, the outermost first.
+    items: Vec<Open>,
+    /// The lines of the paragraph at hand, in the innermost item.
+    paragraph: Vec<&'a str>,
 }
 
-impl Reader {
-    fn event(&mut self, event: Event<'_>) {
-        match event {
-            Event::Start(tag) => self.start(tag),
-            Event::End(tag) => self.end(tag),
-            Event::Text(text) if self.code => {
-                for (n, line) in text.split('\n').enumerate() {
-                    if n > 0 {
-                        self.inline(Inline::Break);
-                    }
-                    self.text(line);
-                }
-            }
-            Event::Text(text) | Event::Code(text) | Event::Html(text) | Event::InlineHtml(text) | Event::InlineMath(text) | Event::DisplayMath(text) => {
-                self.text(&text);
-            }
-            Event::FootnoteReference(label) => self.text(&label),
-            Event::SoftBreak => self.text(" "),
-            Event::HardBreak => self.inline(Inline::Break),
-            Event::Rule | Event::TaskListMarker(_) => self.close_paragraph(),
-        }
-    }
+/// An item open, and its list so far.
+struct Open {
+    /// The list's bullet, or the character after its numbers.
+    kind: char,
+    start: Option<u64>,
+    /// The column the item's text begins at.
+    column: usize,
+    /// Whether the item is empty for good: no line goes into it, though its list may go on.
+    ended: bool,
+    /// The list's items before this one.
+    items: Vec<Item>,
+    blocks: Vec<Block>,
+}
 
-    fn start(&mut self, tag: Tag<'_>) {
-        match tag {
-            Tag::Paragraph | Tag::HtmlBlock => self.open(Span::Paragraph(false)),
-            Tag::CodeBlock(_) => {
-                self.open(Span::Paragraph(false));
-                self.code = true;
+impl<'a> Reader<'a> {
+    fn line(&mut self, line: Line<'a>) {
+        if line.blank() {
+            self.end_paragraph();
+            // An item may begin with one blank line, not two: one still empty is.
+            if let Some(open) = self.items.last_mut().filter(|open| open.blocks.is_empty()) {
+                open.ended = true;
             }
-            Tag::Heading { .. } => self.open(Span::Heading),
-            Tag::List(start) => {
-                self.close_paragraph();
-                self.lists.push((start, Vec::new()));
-            }
-            Tag::Item => {
-                self.close_paragraph();
-                self.containers.push(Vec::new());
-            }
-            Tag::Strong => self.open_inline(Span::Strong),
-            Tag::Emphasis => self.open_inline(Span::Emphasis),
-            Tag::Link { .. } | Tag::Image { .. } | Tag::Strikethrough | Tag::Superscript | Tag::Subscript => self.open_inline(Span::Words),
-            // A quote, a table, a definition …: their paragraphs stand where they are.
-            _ => self.close_paragraph(),
-        }
-    }
-
-    fn end(&mut self, tag: TagEnd) {
-        match tag {
-            TagEnd::Paragraph | TagEnd::HtmlBlock | TagEnd::Heading(_) => self.close_paragraph(),
-            TagEnd::CodeBlock => {
-                self.code = false;
-                self.close_paragraph();
-            }
-            TagEnd::List(_) => {
-                self.close_paragraph();
-                if let Some((start, items)) = self.lists.pop() {
-                    let list = labelled(start, items);
-                    self.block(Block::List(list));
-                }
-            }
-            TagEnd::Item => {
-                self.close_paragraph();
-                let blocks = self.containers.pop().unwrap_or_default();
-                if let Some((_, items)) = self.lists.last_mut() {
-                    items.push(Item { label: None, blocks });
-                }
-            }
-            TagEnd::Strong | TagEnd::Emphasis | TagEnd::Link | TagEnd::Image | TagEnd::Strikethrough | TagEnd::Superscript | TagEnd::Subscript => {
-                self.close_inline()
-            }
-            _ => {}
-        }
-    }
-
-    /// Opens a paragraph's span; one already open (a heading in an item's text) is closed first.
-    fn open(&mut self, span: Span) {
-        self.close_paragraph();
-        self.spans.push((span, Vec::new()));
-    }
-
-    /// Opens a span inside a paragraph, and the paragraph where none is open (a tight item).
-    fn open_inline(&mut self, span: Span) {
-        if self.spans.is_empty() {
-            self.spans.push((Span::Paragraph(true), Vec::new()));
-        }
-        self.spans.push((span, Vec::new()));
-    }
-
-    fn close_inline(&mut self) {
-        if !matches!(self.spans.last(), Some((Span::Strong | Span::Emphasis | Span::Words, _))) {
             return;
         }
-        if let Some((span, inner)) = self.spans.pop() {
-            match span {
-                Span::Strong => self.inline(Inline::Strong(inner)),
-                Span::Emphasis => self.inline(Inline::Emphasis(inner)),
-                _ => inner.into_iter().for_each(|inline| self.inline(inline)),
+        let inside = self.items.iter().take_while(|item| !item.ended && line.indent >= item.column).count();
+        let base = inside.checked_sub(1).and_then(|n| self.items.get(n)).map_or(0, |item| item.column);
+        let marker = Marker::of(line, base);
+        // A line goes on with the paragraph at hand unless it begins a list that may interrupt
+        // it; one indented less than the paragraph's item (CommonMark's lazy continuation line)
+        // unless it begins an item at all.
+        let goes_on = if inside == self.items.len() { !marker.is_some_and(|marker| marker.interrupts()) } else { marker.is_none() };
+        if !self.paragraph.is_empty() && goes_on {
+            self.paragraph.push(line.text);
+            return;
+        }
+        self.end_paragraph();
+        let Some(marker) = marker else {
+            self.end_items(inside);
+            self.paragraph.push(line.text);
+            return;
+        };
+        self.end_items(inside + 1);
+        match self.items.get_mut(inside) {
+            Some(open) if open.kind == marker.kind => {
+                let blocks = std::mem::take(&mut open.blocks);
+                open.items.push(Item { label: None, blocks });
+                open.column = marker.column;
+                open.ended = false;
+            }
+            _ => {
+                self.end_items(inside);
+                self.items.push(Open { kind: marker.kind, start: marker.number, column: marker.column, ended: false, items: Vec::new(), blocks: Vec::new() });
+            }
+        }
+        if !marker.rest.blank() {
+            self.line(marker.rest);
+        }
+    }
+
+    /// The blocks of the innermost item, or the text's.
+    fn container(&mut self) -> &mut Vec<Block> {
+        match self.items.last_mut() {
+            Some(open) => &mut open.blocks,
+            None => &mut self.blocks,
+        }
+    }
+
+    fn end_paragraph(&mut self) {
+        let lines = std::mem::take(&mut self.paragraph);
+        let inlines = inlines(&lines);
+        if !inlines.is_empty() {
+            self.container().push(Block::Paragraph(inlines));
+        }
+    }
+
+    /// Ends the items open from the `depth`-th on, and their lists with them.
+    fn end_items(&mut self, depth: usize) {
+        while self.items.len() > depth {
+            if let Some(open) = self.items.pop() {
+                let mut items = open.items;
+                items.push(Item { label: None, blocks: open.blocks });
+                let list = labelled(open.start, items);
+                self.container().push(Block::List(list));
             }
         }
     }
 
-    fn text(&mut self, text: &str) {
-        if !text.is_empty() {
-            self.inline(Inline::Text(text.to_string()));
-        }
-    }
-
-    fn inline(&mut self, inline: Inline) {
-        if self.spans.is_empty() {
-            self.spans.push((Span::Paragraph(true), Vec::new()));
-        }
-        if let Some((_, inlines)) = self.spans.last_mut() {
-            match (inlines.last_mut(), inline) {
-                (Some(Inline::Text(before)), Inline::Text(text)) => before.push_str(&text),
-                (_, inline) => inlines.push(inline),
-            }
-        }
-    }
-
-    /// Closes the paragraph at hand with all spans still open in it.
-    fn close_paragraph(&mut self) {
-        while matches!(self.spans.last(), Some((Span::Strong | Span::Emphasis | Span::Words, _))) {
-            self.close_inline();
-        }
-        if let Some((span, inlines)) = self.spans.pop() {
-            let inlines = trim(inlines);
-            if inlines.is_empty() {
-                return;
-            }
-            self.block(Block::Paragraph(if span == Span::Heading { vec![Inline::Strong(inlines)] } else { inlines }));
-        }
-    }
-
-    fn block(&mut self, block: Block) {
-        if let Some(blocks) = self.containers.last_mut() {
-            blocks.push(block);
-        }
-    }
-
-    /// The text's blocks. The parser ends every list and item it begins, so nothing is open here.
     fn finish(mut self) -> Vec<Block> {
-        self.close_paragraph();
-        self.containers.into_iter().flatten().collect()
+        self.end_paragraph();
+        self.end_items(0);
+        self.blocks
+    }
+}
+
+/// How a line begins an item of a list.
+#[derive(Clone, Copy)]
+struct Marker<'a> {
+    /// The bullet, or the character after the number.
+    kind: char,
+    number: Option<u64>,
+    /// The column the item's text begins at: its further lines are indented to it.
+    column: usize,
+    /// The rest of the line, the item's first.
+    rest: Line<'a>,
+}
+
+impl<'a> Marker<'a> {
+    /// The marker a line begins with, indented less than four columns beyond `base`: „-", „*" or
+    /// „+", or up to nine digits and „." or „)", followed by a space or the end of the line.
+    fn of(line: Line<'a>, base: usize) -> Option<Self> {
+        if !(base..base + 4).contains(&line.indent) {
+            return None;
+        }
+        let digits = line.text.bytes().take_while(u8::is_ascii_digit).count();
+        let (number, rest) = line.text.split_at_checked(digits)?;
+        let mut chars = rest.chars();
+        let kind = chars.next()?;
+        let number = match digits {
+            0 if matches!(kind, '-' | '*' | '+') => None,
+            1..=9 if matches!(kind, '.' | ')') => Some(number.parse().ok()?),
+            _ => return None,
+        };
+        let after = chars.as_str();
+        let text = after.trim_start_matches([' ', '\t']);
+        if text.len() == after.len() && !text.is_empty() {
+            return None;
+        }
+        let start = line.indent + digits + 1;
+        let spaces = after.chars().take_while(|c| matches!(c, ' ' | '\t')).fold(start, |column, c| if c == '\t' { column + 4 - column % 4 } else { column + 1 }) - start;
+        // The text begins after the spaces; after none, or more than four, one column after the
+        // marker, and the rest is indented in the item.
+        let column = if text.is_empty() || spaces > 4 { start + 1 } else { start + spaces };
+        Some(Marker { kind, number, column, rest: Line { indent: start + spaces, text } })
+    }
+
+    /// Whether the item may interrupt a paragraph: a bullet or the number 1, with text.
+    fn interrupts(&self) -> bool {
+        !self.rest.blank() && self.number.is_none_or(|number| number == 1)
+    }
+}
+
+/// A paragraph's text before its runs of „*" are matched.
+enum Token {
+    Text(String),
+    Break,
+    /// A run of „*": how long it is, how many of it are left, whether it can open and close.
+    Run { length: usize, left: usize, open: bool, close: bool },
+    Strong(Vec<Token>),
+    Emphasis(Vec<Token>),
+}
+
+/// The inlines of a paragraph's lines. A backslash at the end of a line breaks it, and so do two
+/// spaces, which go with any other white space there; else the line goes on after a space. A
+/// backslash before punctuation is the character itself.
+fn inlines(lines: &[&str]) -> Vec<Inline> {
+    let mut tokens = Vec::new();
+    for (n, line) in lines.iter().enumerate() {
+        let last = n + 1 == lines.len();
+        let mut chars = line.chars().peekable();
+        // The character before the one at hand; a line's start counts as white space.
+        let mut before = '\n';
+        let mut broken = false;
+        while let Some(c) = chars.next() {
+            match c {
+                '\\' => match chars.next_if(char::is_ascii_punctuation) {
+                    Some(escaped) => {
+                        push_char(&mut tokens, escaped);
+                        before = escaped;
+                        continue;
+                    }
+                    None if chars.peek().is_none() && !last => broken = true,
+                    None => push_char(&mut tokens, '\\'),
+                },
+                '*' => {
+                    let mut length = 1;
+                    while chars.next_if_eq(&'*').is_some() {
+                        length += 1;
+                    }
+                    let after = chars.peek().copied().unwrap_or('\n');
+                    tokens.push(Token::Run { length, left: length, open: left_flanking(before, after), close: right_flanking(before, after) });
+                }
+                c => push_char(&mut tokens, c),
+            }
+            before = c;
+        }
+        let mut spaces = 0;
+        if let Some(Token::Text(text)) = tokens.last_mut().filter(|_| !broken) {
+            spaces = text.len() - text.trim_end_matches(' ').len();
+            text.truncate(text.trim_end_matches([' ', '\t']).len());
+            if text.is_empty() {
+                tokens.pop();
+            }
+        }
+        if !last {
+            if broken || spaces >= 2 {
+                tokens.push(Token::Break);
+            } else {
+                push_char(&mut tokens, ' ');
+            }
+        }
+    }
+    trim(into_inlines(emphasize(tokens)))
+}
+
+fn push_char(tokens: &mut Vec<Token>, c: char) {
+    match tokens.last_mut() {
+        Some(Token::Text(text)) => text.push(c),
+        _ => tokens.push(Token::Text(c.to_string())),
+    }
+}
+
+/// CommonMark's emphasis: every run of „*" that can close, from the first on, is matched with the
+/// nearest run before it that can open — two of each where both have two left (strong), one
+/// else (emphasized) —, and what stands between them goes inside. A run that can both open and
+/// close matches none whose length makes a multiple of three with its own, unless both are.
+/// What is left of a run is text.
+fn emphasize(mut tokens: Vec<Token>) -> Vec<Token> {
+    let mut at = 0;
+    while let Some(token) = tokens.get(at) {
+        let &Token::Run { length, left, open, close: true } = token else {
+            at += 1;
+            continue;
+        };
+        let opener = (0..at).rev().find_map(|before| match tokens.get(before) {
+            Some(&Token::Run { length: opener_length, left: opener_left, open: true, close: opener_close })
+                if !((opener_close || open) && (opener_length + length) % 3 == 0 && !(opener_length % 3 == 0 && length % 3 == 0)) =>
+            {
+                Some((before, opener_left))
+            }
+            _ => None,
+        });
+        let Some((opener, opener_left)) = opener else {
+            at += 1;
+            continue;
+        };
+        let used = if opener_left >= 2 && left >= 2 { 2 } else { 1 };
+        let inner: Vec<Token> = tokens.drain(opener + 1..at).collect();
+        tokens.insert(opener + 1, if used == 2 { Token::Strong(inner) } else { Token::Emphasis(inner) });
+        // The opener, what it opens, the closer; a run used up goes, one that is not closes again.
+        at = opener + 2;
+        for run in [at, opener] {
+            if let Some(Token::Run { left, .. }) = tokens.get_mut(run) {
+                *left -= used;
+                if *left == 0 {
+                    tokens.remove(run);
+                    at -= usize::from(run == opener);
+                }
+            }
+        }
+    }
+    tokens
+}
+
+/// The inlines of matched tokens: what is left of a run is its „*", texts side by side are one.
+fn into_inlines(tokens: Vec<Token>) -> Vec<Inline> {
+    let mut inlines: Vec<Inline> = Vec::new();
+    for token in tokens {
+        let inline = match token {
+            Token::Text(text) => Inline::Text(text),
+            Token::Run { left, .. } => Inline::Text("*".repeat(left)),
+            Token::Break => Inline::Break,
+            Token::Strong(inner) => Inline::Strong(into_inlines(inner)),
+            Token::Emphasis(inner) => Inline::Emphasis(into_inlines(inner)),
+        };
+        match (inlines.last_mut(), inline) {
+            (Some(Inline::Text(before)), Inline::Text(text)) => before.push_str(&text),
+            (_, inline) => inlines.push(inline),
+        }
+    }
+    inlines
+}
+
+/// A run of „*" that can open: no white space after it, and no punctuation unless there is
+/// white space or punctuation before it.
+fn left_flanking(before: char, after: char) -> bool {
+    !space(after) && (!punctuation(after) || space(before) || punctuation(before))
+}
+
+/// A run of „*" that can close: the same, the other way round.
+fn right_flanking(before: char, after: char) -> bool {
+    !space(before) && (!punctuation(before) || space(after) || punctuation(after))
+}
+
+/// White space as CommonMark counts it: Unicode's spaces (Zs), tab, line feed, form feed and
+/// carriage return.
+fn space(c: char) -> bool {
+    matches!(u32::from(c), 0x09 | 0x0A | 0x0C | 0x0D | 0x20 | 0xA0 | 0x1680 | 0x2000..=0x200A | 0x202F | 0x205F | 0x3000)
+}
+
+/// Punctuation as CommonMark counts it: Unicode's punctuation and symbols. Beyond ASCII it is
+/// taken as what is no letter, digit, white space or control character, nor one of the marks,
+/// format and private characters a text in Latin script carries: combining accents, the soft
+/// hyphen, zero-width characters, variation selectors, a symbol font's characters. That is
+/// Unicode's categories but for the marks of other scripts and a few letters in circles („Ⓐ").
+fn punctuation(c: char) -> bool {
+    match u32::from(c) {
+        0..=0x7F => c.is_ascii_punctuation(),
+        0xAD | 0x300..=0x36F | 0x200B..=0x200F | 0x2028..=0x202E | 0x2060..=0x206F | 0x20D0..=0x20FF | 0xFE00..=0xFE0F | 0xFEFF | 0xE000..=0xF8FF => false,
+        _ => !(c.is_alphanumeric() || c.is_control() || space(c)),
     }
 }
 
@@ -287,7 +452,7 @@ fn trim(mut inlines: Vec<Inline>) -> Vec<Inline> {
     inlines
 }
 
-/// The list a parsed list is: a bullet list whose items all begin with a label of one kind is a
+/// The list a read list is: a bullet list whose items all begin with a label of one kind is a
 /// list of labels (Radix writes „- (a) Absorption"), the label taken off the item's text.
 fn labelled(start: Option<u64>, mut items: Vec<Item>) -> List {
     if let Some(start) = start {
@@ -389,6 +554,10 @@ mod tests {
         Item { label: label.map(str::to_string), blocks }
     }
 
+    fn bullets(items: &[&str]) -> Block {
+        Block::List(List { kind: ListKind::Bullets, items: items.iter().map(|it| item(None, vec![paragraph(vec![text(it)])])).collect() })
+    }
+
     #[test]
     fn paragraphs_and_line_breaks() {
         assert_eq!(
@@ -398,6 +567,8 @@ mod tests {
                 paragraph(vec![Inline::Strong(vec![text("Lecture:")]), Inline::Break, text("The lecture deals with "), Inline::Emphasis(vec![text("chemicals")]), text(".")]),
             ]
         );
+        // A backslash at the end of a paragraph is one, and so is one before what is no punctuation.
+        assert_eq!(blocks("C:\\Daten\\\n\nEnde\\"), vec![paragraph(vec![text("C:\\Daten\\")]), paragraph(vec![text("Ende\\")])]);
     }
 
     #[test]
@@ -408,19 +579,62 @@ mod tests {
             vec![Block::List(List {
                 kind: ListKind::Numbers(1),
                 items: vec![
-                    item(
-                        None,
-                        vec![
-                            paragraph(vec![text("Drei Präsentationen (45%):")]),
-                            Block::List(List { kind: ListKind::Bullets, items: vec![item(None, vec![paragraph(vec![text("Themen")])]), item(None, vec![paragraph(vec![text("Fortschritt")])])] }),
-                            paragraph(vec![text("(jeweils 5 Punkte)")]),
-                        ]
-                    ),
+                    item(None, vec![paragraph(vec![text("Drei Präsentationen (45%):")]), bullets(&["Themen", "Fortschritt"]), paragraph(vec![text("(jeweils 5 Punkte)")])]),
                     item(None, vec![paragraph(vec![text("Seminararbeit")])]),
                 ],
             })]
         );
         assert_eq!(blocks("3. drei\n4. vier").first().map(|b| matches!(b, Block::List(List { kind: ListKind::Numbers(3), .. }))), Some(true));
+        // Radix writes the items of a list one under the other, its lines indented to the item's
+        // text: „10. " takes four columns.
+        assert_eq!(
+            blocks("9. neun\n10. zehn,\n    weiter"),
+            vec![Block::List(List { kind: ListKind::Numbers(9), items: vec![item(None, vec![paragraph(vec![text("neun")])]), item(None, vec![paragraph(vec![text("zehn, weiter")])])] })]
+        );
+    }
+
+    #[test]
+    fn a_list_goes_on_with_markers_of_its_kind() {
+        // Two lists in a row take different markers (Radix alternates them), a blank line between
+        // items keeps the list, and an item indented less than its sister's text is her sister.
+        assert_eq!(blocks("- a\n- b\n\n* c"), vec![bullets(&["a", "b"]), bullets(&["c"])]);
+        assert_eq!(blocks("1. a\n\n2. b\n1) c").len(), 2);
+        assert_eq!(blocks("- a\n\n- b\n - c"), vec![bullets(&["a", "b", "c"])]);
+        assert_eq!(blocks("- a\n  - b"), vec![Block::List(List { kind: ListKind::Bullets, items: vec![item(None, vec![paragraph(vec![text("a")]), bullets(&["b"])])] })]);
+        // A line that only goes on with an item's text is the item's, after a blank line it is not.
+        assert_eq!(blocks("- a\nweiter\n\nAbsatz"), vec![bullets(&["a weiter"]), paragraph(vec![text("Absatz")])]);
+        // A list may interrupt a paragraph with a bullet or the number 1 only.
+        assert_eq!(blocks("Text\n2. zwei"), vec![paragraph(vec![text("Text 2. zwei")])]);
+        assert_eq!(blocks("Text:\n- eins"), vec![paragraph(vec![text("Text:")]), bullets(&["eins"])]);
+        assert_eq!(blocks("-Strich und 1.Wort"), vec![paragraph(vec![text("-Strich und 1.Wort")])]);
+    }
+
+    #[test]
+    fn strong_and_emphasized_text_by_the_rules_of_commonmark() {
+        let strong = |s: &str| Inline::Strong(vec![text(s)]);
+        let emphasis = |s: &str| Inline::Emphasis(vec![text(s)]);
+        assert_eq!(blocks("**Voraussetzung:** keine"), vec![paragraph(vec![strong("Voraussetzung:"), text(" keine")])]);
+        assert_eq!(blocks("Teil**zwei**er"), vec![paragraph(vec![text("Teil"), strong("zwei"), text("er")])]);
+        assert_eq!(blocks("„**Zitat**“ und *(Klammer)*."), vec![paragraph(vec![text("„"), strong("Zitat"), text("“ und "), emphasis("(Klammer)"), text(".")])]);
+        assert_eq!(blocks("*a **b** c*"), vec![paragraph(vec![Inline::Emphasis(vec![text("a "), strong("b"), text(" c")])])]);
+        assert_eq!(blocks("*foo**bar**baz*"), vec![paragraph(vec![Inline::Emphasis(vec![text("foo"), strong("bar"), text("baz")])])]);
+        assert_eq!(blocks("***a***"), vec![paragraph(vec![Inline::Emphasis(vec![strong("a")])])]);
+        // What closes nothing, or opens nothing, is text.
+        assert_eq!(blocks("**a*"), vec![paragraph(vec![text("*"), emphasis("a")])]);
+        assert_eq!(blocks("2 * 3 ** 4 und a*b"), vec![paragraph(vec![text("2 * 3 ** 4 und a*b")])]);
+        assert_eq!(blocks("** a**"), vec![paragraph(vec![text("** a**")])]);
+    }
+
+    #[test]
+    fn punctuation_is_what_unicode_counts_as_punctuation_and_symbols() {
+        for c in ['.', '„', '“', '–', '…', '§', '°', '€', '©', '→', '✓', '•'] {
+            assert!(punctuation(c), "{c}");
+        }
+        // Letters and digits are none, and nor are a decomposed „ü"'s accent, the soft hyphen, a
+        // zero-width space, an emoji's variation selector and a bullet of Word's symbol font.
+        for c in ['a', 'ä', 'ß', '7', '²', '½', 'Ⅳ'].into_iter().chain([0x308, 0xAD, 0x200B, 0xFE0F, 0xF0B7].into_iter().filter_map(char::from_u32)) {
+            assert!(!punctuation(c), "{c:?}");
+        }
     }
 
     #[test]
@@ -447,19 +661,21 @@ mod tests {
     #[test]
     fn nothing_but_text_reaches_a_page() {
         assert_eq!(
-            blocks("# Titel\n\n<script>alert(1)</script>\n\nEin [Link](https://example.org) und `Code` und <b>HTML</b>.\n\n> Zitat"),
+            blocks("# Titel\n\n<script>alert(1)</script>\n\nEin [Link](https://example.org) und `Code` und <b>HTML</b> &amp; mehr.\n\n> Zitat\n\n    eingerückt"),
             vec![
-                paragraph(vec![Inline::Strong(vec![text("Titel")])]),
+                paragraph(vec![text("# Titel")]),
                 paragraph(vec![text("<script>alert(1)</script>")]),
-                paragraph(vec![text("Ein Link und Code und <b>HTML</b>.")]),
-                paragraph(vec![text("Zitat")]),
+                paragraph(vec![text("Ein [Link](https://example.org) und `Code` und <b>HTML</b> &amp; mehr.")]),
+                paragraph(vec![text("> Zitat")]),
+                paragraph(vec![text("eingerückt")]),
             ]
         );
     }
 
     #[test]
     fn escapes_are_text() {
-        assert_eq!(blocks("1\\. Semester: Grundlagen\\*innen \\- \\_x\\_"), vec![paragraph(vec![text("1. Semester: Grundlagen*innen - _x_")])]);
+        assert_eq!(blocks("1\\. Semester: Grundlagen\\*innen \\- \\_x\\_ \\&amp; \\<b> \\\\"), vec![paragraph(vec![text("1. Semester: Grundlagen*innen - _x_ &amp; <b> \\")])]);
+        assert_eq!(blocks("\\**kein Fett**"), vec![paragraph(vec![text("*"), Inline::Emphasis(vec![text("kein Fett")]), text("*")])]);
     }
 
     #[test]

@@ -218,8 +218,11 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   words, the line breaks the text keeps. The text is justified (Blocksatz) and hyphenated by the
   rules of its own language — the `lang` of the module's page (`v_module.page_lang`), so a German
   text on the English page breaks as German — never into syllables of fewer than three letters;
-  a column narrower than 20 em is set ragged. Nothing but text reaches the page: a heading is a
-  strong paragraph, a link its words, HTML its source. The page's description and its structured
+  a column narrower than 20 em is set ragged. Nothing but text reaches the page: `catalog::text`
+  reads the CommonMark Radix writes — paragraphs, lists, strong and emphasized text, line breaks,
+  escapes — by CommonMark's rules and nothing else, so a „#", a „<b>" or a „[link](…)" a text holds
+  anyway stands as it is. The reader is the catalog's own: pulldown-cmark made the browser's app
+  60 KB larger (brotli), the reader and the views 10 KB. The page's description and its structured
   data take the text as one line (`text::plain`, the items of a list apart by „·").
 - **„Merken" (owner decision 2026-09-20: in the browser app only, and no data of a visitor on
   the server; `app/src/bookmarks.rs`, `app/src/pages/bookmarks.rs`).** A visitor marks modules to
