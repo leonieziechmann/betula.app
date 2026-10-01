@@ -283,15 +283,19 @@ func applyRow(detail *model.ModuleDetail, rawKey string, valNode *html.Node, pre
 
 	case "learningoutcomes":
 		detail.LearningOutcomes = valText
+		detail.Markdown.LearningOutcomes = Markdown(valNode)
 
 	case "contents":
 		detail.Contents = valText
+		detail.Markdown.Contents = Markdown(valNode)
 
 	case "prerequisitesrecommended":
 		detail.PrerequisitesRecommended = normalizePrereqText(valText)
+		detail.Markdown.PrerequisitesRecommended = Markdown(valNode)
 
 	case "prerequisitesmandatory":
 		detail.PrerequisitesMandatory = normalizePrereqText(valText)
+		detail.Markdown.PrerequisitesMandatory = Markdown(valNode)
 
 	case "teachingforms":
 		items := ExtractListItems(valNode)
@@ -320,6 +324,7 @@ func applyRow(detail *model.ModuleDetail, rawKey string, valNode *html.Node, pre
 
 	case "examdetails":
 		detail.ExamDetails = valText
+		detail.Markdown.ExamDetails = Markdown(valNode)
 
 	case "grading":
 		detail.Grading = valSingle
@@ -338,6 +343,7 @@ func applyRow(detail *model.ModuleDetail, rawKey string, valNode *html.Node, pre
 
 	case "remarks":
 		detail.Remarks = valText
+		detail.Markdown.Remarks = Markdown(valNode)
 		lowRemarks := strings.ToLower(valText)
 		if strings.Contains(lowRemarks, "auslaufmodul") || strings.Contains(lowRemarks, "phase-out module") || containsNotOffered(lowRemarks) {
 			detail.IsPhaseOut = true

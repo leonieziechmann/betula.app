@@ -280,9 +280,10 @@ program, so a rule that loses a link is visible before it is written. Run `build
 offline (`RADIX_CRAWL=off`, `serve-snapshot --db`). By hand it is `radix build`, then `radix validate`
 and `radix export`. The new binary migrates
 `radix.db` when it opens it, but a migration does not rewrite the data it adds columns for; schema 9,
-for instance, leaves `room_short` NULL and the abbreviation tables empty until the next build, and
-`validate` — which `export` runs first — refuses such a database. Do not export it with
-`--skip-validate`: Folia would get a catalog without short names. `deploy/vps/50-app.sh` does the
+for instance, leaves `room_short` NULL and the abbreviation tables empty until the next build, schema
+10 the module texts in their plain form instead of Markdown (docs/schema-v2.md §3, „Module texts"),
+and `validate` — which `export` runs first — refuses such a database. Do not export it with
+`--skip-validate`: Folia would get a catalog without short names, or texts it sets as one paragraph. `deploy/vps/50-app.sh` does the
 build itself when it makes the first snapshot of a seeded volume; for a running instance it is
 `docker exec <radix container> /bin/radix build --db /data/radix.db`, then `… export --db
 /data/radix.db --out /data/snapshot` (`deploy/README.md`, blue-green). An older binary refuses a

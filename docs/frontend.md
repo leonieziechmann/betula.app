@@ -210,6 +210,22 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   The sidebar jumps to the sections of the page (without history entries, so Esc still leaves the
   page) and holds the actions: „Merken", copy the link, the original at the BTU, and the place
   where the semester plan will live.
+- **A module's texts are set as text, not as lines** (owner, 2026-10-01: „support für Blocksatz",
+  „Paragraphen sollen als solche erkennbar sein. Listen sollen erkannt werden und dem entsprechend
+  formatiert werden"). Learning outcomes, contents, assessment, remarks and the prerequisites in
+  the page's words are Markdown since schema 10 (docs/schema-v2.md §3, „Module texts"), read by
+  `catalog::text` and set by `ui::Prose`: paragraphs apart by a gap, lists with their markers in
+  the margin (a list labelled „(1)", „a)", „IV." with its labels there), strong and emphasized
+  words, the line breaks the text keeps. The text is justified (Blocksatz) and hyphenated by the
+  rules of its own language — the `lang` of the module's page (`v_module.page_lang`), so a German
+  text on the English page breaks as German — never into syllables of fewer than three letters;
+  a column too narrow for it is set ragged (Blocksatz, under „Look and interaction"). Nothing but
+  text reaches the page: `catalog::text` reads the CommonMark Radix writes — paragraphs, lists,
+  strong and emphasized text, line breaks, escapes — by CommonMark's rules and nothing else, so a
+  „#", a „<b>" or a „[link](…)" a text holds anyway stands as it is. The reader is the catalog's
+  own: pulldown-cmark made the browser's app 60 KB larger (brotli), the reader and the views
+  10 KB. The page's description and its structured data take the text as one line
+  (`text::plain`, the items of a list apart by „·").
 - **„Merken" (owner decision 2026-09-20: in the browser app only, and no data of a visitor on
   the server; `app/src/bookmarks.rs`, `app/src/pages/bookmarks.rs`).** A visitor marks modules to
   come back to. The marks live in this browser's `localStorage` (`betula.bookmarks.v1`, a line
@@ -595,6 +611,16 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   Font: Inter (variable, latin subset, OFL), self-hosted. Icons: Lucide (ISC), inlined through
   `app/src/icons.rs`. The only `style` attributes carry data as custom properties: the week grid
   and the credit slider (`--from`, `--to`, `--at`), the place of a picker's popup, `ui::Hit`.
+- **Blocksatz** (owner, 2026-10-01: „support für Blocksatz", „Ja mach mal Blocksatz überall ab wo es
+  sinnvoll ist/gut aussieht"): running text that is read through — a module's texts, the parts of
+  the Impressum and the Datenschutz, the answers to the questions on the start page — is justified
+  and hyphenated by the rules of its language (`<html lang>`; a module's text carries its own),
+  never into syllables of fewer than three letters or words of fewer than six. What is read at a
+  glance stays ragged: headings, leads, hints, notes, labels, and the cells of a grid — the
+  abilities on the start page were tried and their lists of long nouns, some 45 characters a
+  line, stood apart by wide gaps. A column narrower than 23 em of its text (some 42 characters a
+  line: a phone narrower than 390 px; at 40 the gaps showed) is set ragged, the items of a list
+  below 32 em; each text asks its own container (`prose`, `part`, `faq` in `app.css`).
 - **`assets/enhance.js`** (progressive enhancement until the browser app takes over): the plain
   fields of the filter form apply on change, panels keep their scroll position across page loads.
   In both modes: the shortcuts, the theme switch, the filter sheet, the swipe along the phone's

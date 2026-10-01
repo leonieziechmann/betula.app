@@ -233,11 +233,13 @@ func (b *builder) writeModules() error {
 			null(d.Credits), null(d.Language), flagIf(d.Language != "", german), flagIf(d.Language != "", english), null(d.Duration), null(semesters),
 			null(d.Turnus), null(season), null(parity), status,
 			null(d.Limitation), flagIf(limKnown, limited), null(limit),
-			null(d.ExamType), null(normalize.ExamForm(d.ExamType)), null(examDetails),
+			null(d.ExamType), null(normalize.ExamForm(d.ExamType)), markdownOf(null(examDetails), d.Markdown.ExamDetails),
 			kinds[0], kinds[1], kinds[2], kinds[3], kinds[4], kinds[5],
 			null(d.Grading), flagIf(gradedKnown, graded), boolInt(isFUES), boolInt(d.CrossDisciplinary),
-			freeText(d.LearningOutcomes), freeText(d.Contents),
-			freeText(d.PrerequisitesRecommended), freeText(d.PrerequisitesMandatory), freeText(d.Remarks),
+			markdownOf(freeText(d.LearningOutcomes), d.Markdown.LearningOutcomes), markdownOf(freeText(d.Contents), d.Markdown.Contents),
+			markdownOf(freeText(d.PrerequisitesRecommended), d.Markdown.PrerequisitesRecommended),
+			markdownOf(freeText(d.PrerequisitesMandatory), d.Markdown.PrerequisitesMandatory),
+			markdownOf(freeText(d.Remarks), d.Markdown.Remarks),
 			page.url, page.fetchedAt.UTC().Format(time.RFC3339), page.descriptionSource())
 		if err != nil {
 			return err
@@ -355,6 +357,15 @@ func freeText(s string) any {
 		return nil
 	}
 	return s
+}
+
+// markdownOf is what the catalog keeps of a free text: its Markdown (parser.Markdown), NULL where
+// the plain text — which every fact is read from — says nothing.
+func markdownOf(plain any, markdown string) any {
+	if plain == nil {
+		return nil
+	}
+	return null(strings.TrimSpace(markdown))
 }
 
 func firstNonEmpty(values ...string) string {
