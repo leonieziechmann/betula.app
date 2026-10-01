@@ -76,7 +76,7 @@ row for each of XLM-R's 250,002 pieces, for 100 languages.
 | **model file** | **18.55 MB** (brotli 16.42 MB) |
 | runtime `e5_mini.wasm` | 90 kB (simd) / 93 kB (relaxed) |
 | WebGPU encoder `e5-gpu.js` | 23 kB |
-| index of the catalog (int8, 384 B a module) | 1.9 MB for 4,938 modules |
+| index of the catalog (4 bit, 192 B a module, E5I3) | 1.0 MB for 4,938 modules |
 
 The documents are embedded once with the original model (`python/embed_catalog.py`: the server
 or a build step would do that); the browser embeds only the query.

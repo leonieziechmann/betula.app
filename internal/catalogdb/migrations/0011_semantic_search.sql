@@ -1,6 +1,6 @@
 -- The semantic search (Folia's crate semantic/): one vector per module, which a reader's
--- query is compared with. Radix computes them (internal/semantic, the e5 model of the
--- search), so a snapshot carries the vectors and nothing else of it.
+-- query is compared with. Radix computes them (its semantic stage, internal/service, with the
+-- crate as WebAssembly, internal/embed), so a snapshot carries the vectors and nothing else of it.
 --
 -- module_summary      what Gemini wrote about a module's text: a German and an English
 --                     summary and search terms. Embedded with the module's text, it finds the
@@ -29,7 +29,7 @@ CREATE TABLE module_summary (
 
 CREATE TABLE passage_embedding (
 	passage_hash TEXT PRIMARY KEY,               -- semantic.PassageHash of the passage
-	model        TEXT NOT NULL,                  -- semantic.Encoder.ID: a hash of the model file
+	model        TEXT NOT NULL,                  -- the encoder's ID (internal/embed): a hash of the model file
 	scale        REAL NOT NULL CHECK (scale > 0),
 	vector       BLOB NOT NULL,                  -- packed as published (below)
 	created_at   TEXT NOT NULL

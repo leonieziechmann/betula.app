@@ -10,8 +10,9 @@ import (
 )
 
 // A module gets the vector of its passage of this build: with the summary of its text when
-// there is one, and none when the semantic stage has not computed that passage yet. The vectors
-// are content: a new one changes the digest, so the next export carries it.
+// there is one, else that of the text alone until the passage with the summary has one, and
+// none when the semantic stage has computed neither. The vectors are content: a new one changes
+// the digest, so the next export carries it.
 func TestModuleVectorsFollowTheirPassage(t *testing.T) {
 	db, report := buildFixture(t)
 	if report.ModuleVectors != 0 {
@@ -50,15 +51,17 @@ func TestModuleVectorsFollowTheirPassage(t *testing.T) {
 	}
 	want(t, db, "SELECT module_id, scale, hex(vector) FROM v_module_vector", "11881|0.5|91A8")
 
-	// A summary makes another passage, whose vector is not computed yet: no vector.
+	// A summary makes another passage, whose vector is not computed yet: the module keeps the one
+	// of its text alone, and the snapshot does not change.
 	summary := catalogdb.ModuleSummary{TextHash: text.Hash(), SummaryDE: "Daten auswerten.", SummaryEN: "Analysing data.",
 		Keywords: []string{"data mining"}, Model: "gemini-test", CreatedAt: time.Now()}
 	if err := db.SaveModuleSummaries([]catalogdb.ModuleSummary{summary}); err != nil {
 		t.Fatal(err)
 	}
-	if r := rebuild(); r.ModuleVectors != 0 {
-		t.Errorf("%d vectors for a passage without one", r.ModuleVectors)
+	if r := rebuild(); r.ModuleVectors != 1 || r.ContentChanged {
+		t.Errorf("a summary without its vector: %d vectors, content changed %v; want 1, false", r.ModuleVectors, r.ContentChanged)
 	}
+	want(t, db, "SELECT module_id, scale, hex(vector) FROM v_module_vector", "11881|0.5|91A8")
 	withSummary := semantic.PassageHash(semantic.Passage(text, &semantic.Summary{DE: summary.SummaryDE, EN: summary.SummaryEN, Keywords: summary.Keywords}))
 	if err := db.SavePassageEmbeddings("model-a", []catalogdb.PassageEmbedding{{PassageHash: withSummary, Scale: 0.25, Vector: []byte{0xc7, 0x8e}}}); err != nil {
 		t.Fatal(err)

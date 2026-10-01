@@ -28,6 +28,7 @@ var commands = [][]command{
 	{
 		{"run", "Service: crawl politely, build, validate, export, serve /snapshot, /healthz, /status [--once]", runService},
 		{"healthcheck", "Exit 0 if a running service reports healthy (for container health checks)", runHealthcheck},
+		{"embed-worker", "Internal: an encoder of the semantic search in a process of its own, which run starts", runEmbedWorker},
 	},
 	{
 		{"crawl-modules", "Archive the module catalog list, the FÜS list and all module pages", runCrawlModules},

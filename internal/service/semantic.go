@@ -51,10 +51,12 @@ type semanticStats struct {
 	SummaryError                              error
 }
 
-// semanticStage runs the stage after the build: the summaries of the module texts Gemini has
-// not summarised yet, then the vectors of the passages that have none. What it computes is
-// published by the next build (catalogbuild, „module vectors“). A failure degrades the cycle;
-// the snapshot keeps the vectors it has.
+// semanticStage runs the stage at the end of a cycle: the summaries of the module texts Gemini
+// has not summarised yet, then the vectors of the passages that have none. What it computes is
+// published by the next build (catalogbuild, „module vectors“). A failure of the vectors (the
+// database, the encoder) degrades the cycle; one of Gemini, which is optional, is a WARN and
+// shows in the stage's error, and the vectors go on without the summaries it did not write.
+// The snapshot keeps the vectors it has.
 //
 // Log events: semantic.finished, semantic.summaries_failed (WARN), semantic.gemini_daily_limit,
 // stage.failed (ERROR).
@@ -71,15 +73,15 @@ func (s *Service) semanticStage(ctx context.Context, result *CycleResult) {
 	}
 	stats, err := runSemantic(ctx, s.db, cfg, start.Add(cfg.Budget), s.now, s.summaryFailed)
 	stage := StageResult{Name: "semantic", DurationMS: s.now().Sub(start).Milliseconds()}
-	if err == nil {
-		err = stats.SummaryError
-	}
-	if err != nil && ctx.Err() == nil {
+	switch {
+	case err != nil && ctx.Err() == nil:
 		stage.Error = err.Error()
 		if result.Result == "ok" {
 			result.Result = "degraded"
 		}
 		log.Error("semantic stage failed", "event", "stage.failed", "stage", "semantic", oplog.Err(err))
+	case stats.SummaryError != nil:
+		stage.Error = stats.SummaryError.Error() // logged by summarize, as a WARN
 	}
 	result.Stages = append(result.Stages, stage)
 	log.Info("semantic stage finished", "event", "semantic.finished", "duration_ms", stage.DurationMS,

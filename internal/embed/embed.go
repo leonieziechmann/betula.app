@@ -42,7 +42,8 @@ type instance struct {
 }
 
 // Load reads the packed model at path and starts workers instances of the module with it. Each
-// takes about 60 MB of memory (the model as int8 weights) and a second to start.
+// takes about 80 MB of the process's memory once loaded, more while it loads, and a second to
+// start. Radix runs one in each embed-worker process (Processes), none in its own.
 func Load(ctx context.Context, path string, workers int) (*Encoder, error) {
 	model, err := os.ReadFile(path)
 	if err != nil {

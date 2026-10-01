@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
+	"os"
+	"os/exec"
 	"runtime"
 	"time"
 
@@ -28,8 +31,9 @@ func addSemanticFlags(fs *flag.FlagSet) semanticFlags {
 	return semanticFlags{
 		model: fs.String("embed-model", envOr("RADIX_EMBED_MODEL", ""),
 			"The packed e5 model of the semantic search's vectors (e5-de-en-server.bin, semantic/README.md); empty: no vectors (env RADIX_EMBED_MODEL)"),
-		workers: fs.Int("embed-workers", envInt("RADIX_EMBED_WORKERS", max(1, runtime.NumCPU()-1)),
-			"Passages embedded at the same time, each by an instance of the model of about 60 MB (env RADIX_EMBED_WORKERS)"),
+		// GOMAXPROCS follows the container's CPU limit (at least 2), NumCPU the host's.
+		workers: fs.Int("embed-workers", envInt("RADIX_EMBED_WORKERS", max(1, runtime.GOMAXPROCS(0)-1)),
+			"Passages embedded at the same time, each by a process of its own holding the model, about 150 MB (env RADIX_EMBED_WORKERS)"),
 		budget: fs.Duration("semantic-budget", envDuration("RADIX_SEMANTIC_BUDGET", 20*time.Minute),
 			"Time a cycle may spend on summaries and vectors; the rest follows in the next cycles (env RADIX_SEMANTIC_BUDGET)"),
 		summaryModel: fs.String("summary-model", envOr("GEMINI_SUMMARY_MODEL", gemini.DefaultModel),
@@ -54,7 +58,15 @@ func (f semanticFlags) setup(ctx context.Context) (service.Semantic, func(), err
 		return service.Semantic{}, func() {}, nil
 	}
 	start := time.Now()
-	encoder, err := embed.Load(ctx, *f.model, *f.workers)
+	self, err := os.Executable()
+	if err != nil {
+		return service.Semantic{}, nil, err
+	}
+	// The encoders run in processes of their own: the WebAssembly's long calls, which Go cannot
+	// preempt, would otherwise stall this process's HTTP server for seconds (embed.Processes).
+	encoder, err := embed.StartProcesses(*f.model, *f.workers, func() *exec.Cmd {
+		return exec.Command(self, "embed-worker", *f.model)
+	})
 	if err != nil {
 		return service.Semantic{}, nil, err
 	}
@@ -71,11 +83,24 @@ func (f semanticFlags) setup(ctx context.Context) (service.Semantic, func(), err
 		log.Warn("no Gemini API key; the vectors are computed from the modules' texts without summaries",
 			"event", "semantic.gemini_disabled", "how_to", secrets.HowTo(secrets.GeminiAPIKey))
 	default:
-		_ = encoder.Close(ctx)
+		encoder.Close()
 		return service.Semantic{}, nil, err
 	}
 	log.Info("semantic search enabled", "event", "semantic.enabled", "model", *f.model, "model_id", encoder.ID(),
 		"workers", *f.workers, "budget", f.budget.String(), "summaries", cfg.Summarizer != nil, "summary_model", *f.summaryModel,
 		"key_source", string(source), "load_ms", time.Since(start).Milliseconds())
-	return cfg, func() { _ = encoder.Close(context.Background()) }, nil
+	return cfg, encoder.Close, nil
+}
+
+// runEmbedWorker is a process of embed.Processes: the passages on stdin, their vectors on
+// stdout (embed.Serve). Its log goes to stderr, which is Radix's.
+func runEmbedWorker(ctx context.Context, args []string) {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: radix embed-worker MODEL (started by radix run)")
+		os.Exit(2)
+	}
+	if err := embed.Serve(ctx, args[0], os.Stdin, os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, "embed-worker:", err)
+		os.Exit(1)
+	}
 }

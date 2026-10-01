@@ -106,13 +106,18 @@ impl Index {
         if !dims.is_multiple_of(2) {
             return Err(format!("{dims} values a vector: not two a byte"));
         }
-        let mut ids = Vec::with_capacity(rows);
+        let mut ids = Vec::with_capacity(rows.min(bytes.len() / 2)); // an id takes two bytes at least
         for _ in 0..rows {
             let len = usize::from(u16::from_le_bytes(r.take(2)?.try_into().map_err(|_| "an id's length")?));
             ids.push(std::str::from_utf8(r.take(len)?).map_err(|e| e.to_string())?.to_string());
         }
         let scales = r.f32s(rows)?;
-        let mut index = Self { dims, ids: Vec::with_capacity(rows), scales: Vec::with_capacity(rows), codes: Vec::with_capacity(rows * dims) };
+        // What the header promises, against what the file holds, before anything is reserved.
+        let packed = rows.checked_mul(dims / 2).ok_or("an index beyond the address space")?;
+        if bytes.len() - r.at() != packed {
+            return Err(format!("{} bytes of vectors, {packed} expected", bytes.len() - r.at()));
+        }
+        let mut index = Self { dims, ids: Vec::with_capacity(rows), scales: Vec::with_capacity(rows), codes: Vec::with_capacity(packed * 2) };
         for (id, scale) in ids.into_iter().zip(scales) {
             index.push_codes(id, scale, r.take(dims / 2)?)?;
         }
@@ -276,6 +281,15 @@ mod tests {
     #[test]
     fn rejects_what_is_not_an_index() {
         assert!(Index::from_bytes(b"E5I1\0\0\0\0").is_err());
+        // A header that promises more than the file holds is an error, not an allocation.
+        let mut huge = b"E5I3".to_vec();
+        huge.extend_from_slice(&0u32.to_le_bytes());
+        huge.extend_from_slice(&u32::MAX.wrapping_sub(1).to_le_bytes());
+        assert!(Index::from_bytes(&huge).is_ok_and(|i| i.is_empty()), "no rows: nothing to reserve");
+        let mut short = Index::new(4);
+        short.push("a", &[0.5, 0.5, 0.5, 0.5]).unwrap();
+        let bytes = short.to_bytes().unwrap();
+        assert!(Index::from_bytes(&bytes[..bytes.len() - 1]).is_err());
         let mut bytes = Index::new(2).to_bytes().unwrap();
         bytes.push(0);
         assert!(Index::from_bytes(&bytes).is_err());

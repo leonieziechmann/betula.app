@@ -349,14 +349,17 @@ func (v *validator) samples(query string) []string {
 	return result
 }
 
-// emptyStrings checks every TEXT column of the canonical tables: unknown is NULL.
+// emptyStrings checks every TEXT column of the tables a snapshot carries: unknown is NULL.
+// Radix's own tables (snapshotDropTables: the archive, Gemini's summaries) are not checked: what
+// a model wrote is not the catalog's, and a summary of „-“ must not stop the exports.
 func (v *validator) emptyStrings() {
 	if v.err != nil {
 		return
 	}
+	internal := "'" + strings.Join(snapshotDropTables, "', '") + "'"
 	rows, err := v.db.QueryContext(v.ctx, `
 		SELECT m.name, p.name FROM sqlite_master m JOIN pragma_table_info(m.name) p
-		WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%' AND m.name <> 'raw_page' AND UPPER(p.type) = 'TEXT'
+		WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%' AND m.name NOT IN (`+internal+`) AND UPPER(p.type) = 'TEXT'
 		ORDER BY 1, 2`)
 	if err != nil {
 		v.err = err

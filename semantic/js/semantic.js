@@ -4,7 +4,7 @@
 //
 //   import { Semantic, indexFromVectors } from "/pkg/semantic.js";
 //   // The modules' vectors are in the snapshot (v_module_vector, computed by Radix):
-//   const rows = db.exec("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id")[0].values;
+//   const rows = db.exec("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id")[0]?.values ?? [];
 //   const semantic = new Semantic({ model: "/pkg/e5-de-en.bin", index: indexFromVectors(rows) });
 //   await semantic.ready;                       // {rows, build, ms}: loaded (a second or two)
 //   const found = await semantic.search("coding lernen", 20);
@@ -87,13 +87,15 @@ function where(index) {
  * `SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id` as sql.js returns them
  * (the vector a Uint8Array, packed as Radix published it: the crate reads it). The same bytes as
  * `semantic::Index::push_codes` of the same rows makes, so the browser and the server search the
- * same index.
+ * same index. Without rows (a snapshot whose vectors Radix has not computed yet) the index is empty
+ * and every search finds nothing, as on the server.
  * @param {Array<[string, number, Uint8Array]>} rows
+ * @param {number} dims the values of a vector, for an index without rows
  */
-export function indexFromVectors(rows) {
+export function indexFromVectors(rows, dims = 384) {
   const encoder = new TextEncoder();
   const ids = rows.map(([id]) => encoder.encode(String(id)));
-  const bytes = rows.length ? rows[0][2].length : 0; // two values a byte
+  const bytes = rows.length ? rows[0][2].length : dims / 2; // two values a byte
   const size = 12 + ids.reduce((n, id) => n + 2 + id.length, 0) + rows.length * (4 + bytes);
   const out = new Uint8Array(size);
   const view = new DataView(out.buffer);

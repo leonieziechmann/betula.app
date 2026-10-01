@@ -7,9 +7,11 @@ import (
 
 // writeModuleVectors gives each module the vector of its passage of this build, if the
 // semantic stage has computed it (passage_embedding): the passage of the module's text with
-// the summary of that text, when Gemini wrote one (module_summary). A module whose passage
-// has no vector yet gets no row; the stage after this build computes it, and the next build
-// publishes it.
+// the summary of that text, when Gemini wrote one (module_summary). Until that passage has a
+// vector, the module keeps the one of its text alone, if it has one: a summary that arrives
+// before the stage has embedded it must not take a published vector away. A module with
+// neither gets no row; the stage after this build computes it, and the next build publishes
+// it.
 func (b *builder) writeModuleVectors() error {
 	summaries, err := catalogdb.ReadModuleSummaries(b.tx)
 	if err != nil {
@@ -37,18 +39,21 @@ func (b *builder) writeModuleVectors() error {
 		return err
 	}
 
+	// The passage with the summary first, else the text alone.
 	insert, err := b.tx.Prepare(`INSERT INTO module_vector (module_id, scale, vector)
-		SELECT ?, scale, vector FROM passage_embedding WHERE passage_hash = ?`)
+		SELECT ?1, scale, vector FROM passage_embedding WHERE passage_hash IN (?2, ?3)
+		ORDER BY passage_hash = ?2 DESC LIMIT 1`)
 	if err != nil {
 		return err
 	}
 	defer insert.Close()
 	for _, m := range modules {
-		var summary *semantic.Summary
+		alone := semantic.PassageHash(semantic.Passage(m.text, nil))
+		best := alone
 		if s, ok := summaries[m.text.Hash()]; ok {
-			summary = &semantic.Summary{DE: s.SummaryDE, EN: s.SummaryEN, Keywords: s.Keywords}
+			best = semantic.PassageHash(semantic.Passage(m.text, &semantic.Summary{DE: s.SummaryDE, EN: s.SummaryEN, Keywords: s.Keywords}))
 		}
-		res, err := insert.Exec(m.id, semantic.PassageHash(semantic.Passage(m.text, summary)))
+		res, err := insert.Exec(m.id, best, alone)
 		if err != nil {
 			return err
 		}

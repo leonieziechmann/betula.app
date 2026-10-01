@@ -86,20 +86,22 @@ data (`poc/semantic-search/data`, written by Claude):
 
 What counts is the queries the exact search does not answer (fewer than 3 modules by the
 catalog's LIKE and by every word in the titles): 82 % of the open queries, 95 % of the known-item
-ones. On those, measured as deployed — the packed 4-bit query model, Radix's int8 vectors, the
-search of this crate (`target/release/embed --search`, the browser's bits):
+ones. On those, measured as deployed — the packed 4-bit query model, Radix's vectors, the search
+of this crate (`target/release/embed --search`, the browser's bits):
 
 | | relevant of the first 10 | the module in the first 10 |
 |---|---|---|
 | before (original model, the description alone) | 56.9 % | 61.8 % |
 | fine-tuned query model | 70.7 % | 76.3 % |
 | summaries in the passage | 63.9 % | 76.7 % |
-| **fine-tuned query model + summaries (this crate, Radix)** | **72.6 %** | **81.7 %** |
+| both, the vectors in 8 bits | 72.6 % | 81.7 % |
+| **both, the vectors in 4 bits (this crate, Radix)** | **70.2 %** | **80.8 %** |
 
-The situation queries, the hardest: 27.7 % → 51.0 % in the first 10. For all queries,
-including those the exact search answers: 62.1 % → 76.7 % relevant (the realistic ones), 60.8 % →
-74.7 % (the personas'). Of the judgments' holes (modules nobody graded, counted as not relevant),
-1–5 % of the first 10; the numbers are a little low for it, the „before“ ones most.
+The vectors are 4 bits a value (`index.rs`): half of the 2 MB 8 bits take in the snapshot, for
+2.4 points relevant and 0.9 found. The situation queries, the hardest: 27.7 % → 48.2 % in the
+first 10. For all queries, including those the exact search answers: 62.1 % → 74.7 % relevant
+(the realistic ones), 60.8 % → 71.6 % (the personas'). Of the judgments' holes (modules nobody
+graded, counted as not relevant), 1–5 % of the first 10; the numbers are a little low for it.
 
 The same in Python with the original model in f32 (the variants below were measured so): 58.5 %,
 71.8 %, 65.5 %, 73.4 % relevant; 62.8 %, 76.0 %, 77.1 %, 82.1 % found. Packing and int8 cost about
@@ -115,10 +117,11 @@ Tried and left out:
   hubs: the first 10 of 200 queries hold 1,506 different modules, none wrong more than four times;
 - the description in chunks of 60 words, the best chunk counting: 61.1 % relevant, 64.7 % found
   (Python; +2–3 points), superseded by the summaries;
-- 4-bit vectors instead of 8-bit (half of the 2 MB): −2.6 points relevant, −1 found; 3 bits −8.
+- 3-bit vectors: 5.9 points relevant below 4 bits (Python).
 
-The vectors make the snapshot larger: 7.5 → 9.3 MB with gzip -9 (int8 values hardly compress).
-That is the index itself, which the browser would otherwise download on its own.
+The vectors make the snapshot larger: 7.5 → 8.3 MB with gzip -9 (packed values hardly
+compress; with 8 bits it would be 9.3 MB). That is the index itself, which the browser would
+otherwise download on its own.
 
 The fine-tuning (`poc/semantic-search/python/finetune.py`): 21,245 queries of 4,330 modules (five
 a module text, written by Claude from the description, three German and two English, keywords to
@@ -163,7 +166,7 @@ again with every change of `semantic/src`). A page:
 ```js
 import { Semantic, indexFromVectors } from "/pkg/semantic.js";
 // The vectors are in the local copy of the snapshot: no extra download.
-const rows = db.exec("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id")[0].values;
+const rows = db.exec("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id")[0]?.values ?? [];
 const semantic = new Semantic({ model: "/pkg/e5-de-en.bin", index: indexFromVectors(rows) });
 await semantic.ready;                        // model and index loaded in the worker
 const found = await semantic.search("coding lernen", 20);
@@ -209,8 +212,12 @@ dedicated worker lives as long as the page and keeps the model loaded between qu
 - `cargo test -p folia-semantic`: `tiles_are_the_definition_to_the_bit` checks the build's SIMD
   kernel against the definition (`tile_scalar`) bit for bit.
 - Radix's vectors: `RADIX_TEST_EMBED_MODEL=e5-de-en-server.bin go test ./internal/embed` compares
-  `semantic.wasm` in wazero with the native `embed MODEL --passages` (17 passages: long ones, emoji,
-  CJK): identical. In `Mode::Int8` the passages' vectors have a cosine of 0.9999 (median; ≥ 0.9998)
-  with the original model's in f32, as close as `Mode::F32` (0.99994) and 1.4 times faster. Radix
-  embeds a 512-token passage in 5 s on one processor (wazero; natively 1.7 s): the catalog once in
-  about 1.5 hours of three processors, then what changed.
+  `semantic.wasm` in wazero, in Radix's process and in worker processes, with the native
+  `embed MODEL --passages` (17 passages: long ones, emoji, CJK): identical. In `Mode::Int8` the
+  passages' vectors have a cosine of 0.9999 (median; ≥ 0.9998) with the original model's in f32,
+  as close as `Mode::F32` (0.99994) and 1.4 times faster. Radix embeds a 512-token passage in 5 s
+  on one processor (wazero; natively 1.7 s): the catalog once in about 6 processor-hours (the
+  passages average 1.5 s natively), then what changed. The encoder runs in processes of its own
+  (`radix embed-worker`, about 170 MB each): wazero's machine code cannot be preempted, and in
+  Radix's process every garbage collection would wait for a passage — measured, its HTTP server
+  answered one request in 40 s; with worker processes 757, the slowest in 11 ms.

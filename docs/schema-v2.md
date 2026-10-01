@@ -702,9 +702,9 @@ file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_cha
 
 ### Semantic search (2026-10-01)
 
-Folia finds modules by meaning (crate `semantic/`, `semantic/README.md`): a query typed in the
-browser is embedded there, by an e5 model fine-tuned on students' queries, and compared with one
-vector per module. Radix computes those vectors, so a snapshot carries them and nothing else of the
+Folia's semantic search (crate `semantic/`, `semantic/README.md`; not in the app's UI yet, see
+its „Not done yet“) finds modules by meaning: a query typed in the browser is embedded there, by
+an e5 model fine-tuned on students' queries, and compared with one vector per module. Radix computes those vectors, so a snapshot carries them and nothing else of the
 search: schema 10, `v_module_vector`, 192 bytes a module, about 1 MB for the catalog (4-bit values:
 half the size of 8-bit ones for 2.6 points of the first 10, `semantic/README.md`).
 
@@ -724,24 +724,31 @@ arithmetic, defined to the bit on every build, then packed to 4 bits by the crat
 CLI). The model is the server's (`e5-de-en-server.bin`: 8 bit, 512 positions; 35 MB, not in the
 repository); `RADIX_EMBED_MODEL` names it, and without it the stage does not run.
 
-The **semantic stage** runs at the end of each cycle, after the export, within a time budget
-(`RADIX_SEMANTIC_BUDGET`, 20 minutes): first the summaries of module texts that have none (paced
-for the free tier: 10 requests a minute, 900 a day, `RADIX_GEMINI_RPM`/`RPD`; a used-up day ends
-the summaries until the next), then the vectors of passages that have none under the model
-(`RADIX_EMBED_WORKERS` instances, about 60 MB each; 1–5 s a passage). The next build looks every
-module's passage up in `passage_embedding` and writes `module_vector`; the digest covers it, so new
-vectors make a new snapshot. A module whose text changed gets its new vector one cycle later. Both
-caches are keyed by hashes, not modules: equal texts share a summary and a vector, a module that
-comes back costs nothing, and a new model replaces the vectors of the old one (`passage_embedding.model`).
-The first run of a model computes every passage: about 1.5 hours of three processors, spread over
-the budgets of a few cycles; after that a cycle computes what changed, seconds.
+The **semantic stage** runs at the end of every cycle that did not fail, after the export, within
+a time budget (`RADIX_SEMANTIC_BUDGET`, 20 minutes): first the summaries of module texts that have
+none (paced for what the free tier is thought to allow — Google does not publish it: 10 requests a
+minute, 900 a day, `RADIX_GEMINI_RPM`/`RPD`; a used-up day ends the summaries until the next; a text
+Gemini answered badly is asked again a day later), then the vectors of passages that have none
+under the model, in worker processes (`radix embed-worker`, `RADIX_EMBED_WORKERS`, by default one
+less than the processors the container may use; about 170 MB each; 1–5 s a passage). Processes,
+because wazero's machine code cannot be preempted: in Radix's own process each garbage collection
+would wait for a passage and stall its HTTP server for seconds. The next build looks every module's
+passage up in `passage_embedding` and writes `module_vector` — the passage with the summary, else
+the text alone until that one has a vector — and the digest covers it, so new vectors make a new
+snapshot. A module whose text changed gets its new vector one cycle later. Both caches are keyed by
+hashes, not modules: equal texts share a summary and a vector, a module that comes back costs
+nothing, and a new model replaces the vectors of the old one (`passage_embedding.model`). The first
+run of a model computes every passage: about 6 processor-hours, on the stack's one CPU about 19
+budgets of 20 minutes, one a cycle: most of a day; after that a cycle computes what changed, seconds.
 
 `validate` fails when the vectors have different lengths, and counts the modules without one
-(info). Log events: `semantic.enabled` / `semantic.disabled`, `semantic.gemini_disabled` (WARN, no
-key), `semantic.finished` (counts), `semantic.gemini_daily_limit`, `semantic.summaries_failed`
-(WARN); a failing stage degrades the cycle. Measured on the catalog (`semantic/README.md`,
-„Quality“): of the first 10 modules for 349 realistic queries, 64 % were relevant with the old index
-and query model, 78 % with the fine-tuned query model and passages with summaries.
+(info); it does not check the caches' text, which is Gemini's, not the catalog's. Log events:
+`semantic.enabled` / `semantic.disabled`, `semantic.gemini_disabled` (WARN, no key),
+`semantic.finished` (counts), `semantic.gemini_daily_limit`, `semantic.summaries_failed` (WARN);
+a failure of the vectors degrades the cycle, one of Gemini does not. Measured on the catalog
+(`semantic/README.md`, „Quality“): of the first 10 modules for the queries the exact search leaves
+with fewer than 3, 56.9 % were relevant with the old index and query model, 70.2 % with the
+fine-tuned query model and the 4-bit vectors of passages with summaries.
 
 The migration adds the three tables and the view, and the build's `module_vector` changes the
 content digest: the first build after the release publishes a snapshot (still without vectors
@@ -750,14 +757,14 @@ export.
 
 Open:
 
-- **Schema 9 in Folia.** `catalog::SCHEMA_VERSION` (`catalog/src/db.rs`) is still 8: this lane changes
-  no Folia code, so `catalog::tests::the_queries_are_written_for_the_newest_schema` fails while
-  migration 0009 is in the tree. The merge must carry the Folia side with it: raise the constant to 9
-  (browsers then refuse an older snapshot, so every instance needs `radix build`, then `export`,
-  before the web build that reads 9 goes live), and pin `STUDYPLAN_DIGEST` (`catalog/src/tests.rs`,
-  `server/src/tests.rs`) to a schema-9 export in `snapshot/`: the digest covers `module_abbrev` and
-  `program_module_abbrev`, so no schema-9 snapshot matches the pinned 4b65e821… and the pinned checks
-  are skipped until then.
+- **Schema 10 in Folia's tests.** `catalog::SCHEMA_VERSION` is 10 (browsers refuse an older snapshot,
+  so every instance needs `radix build`, then `export`, before the web build that reads 10 goes
+  live). Pin `STUDYPLAN_DIGEST` (`catalog/src/tests.rs`, `server/src/tests.rs`) to a schema-10
+  export in `snapshot/`: the digest covers `module_vector`, so the pinned checks are skipped until
+  then. The catalog's tests pass against the snapshot of 2026-09-30 migrated to 10 with Radix's
+  vectors.
+- **The semantic search in the app**, serving the browser's model, and `RADIX_EMBED_MODEL` in the
+  stack (`semantic/README.md`, „Not done yet“).
 - **Web server (Rust) and frontend.** Both still read the v1 layout and do not work against a
   snapshot. The server becomes an HTTP client of the service: poll `/snapshot/catalog.db` with
   `If-None-Match`, keep the file, serve it as `/api/db` with the same ETag, and answer SSR pages

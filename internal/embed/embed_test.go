@@ -7,11 +7,37 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 )
+
+// The test binary is also the worker process of the tests (EMBED_TEST_WORKER: the model).
+func TestMain(m *testing.M) {
+	if model := os.Getenv("EMBED_TEST_WORKER"); model != "" {
+		if err := Serve(context.Background(), model, os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+func workerCommand(model string) func() *exec.Cmd {
+	return func() *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=^$")
+		cmd.Env = append(os.Environ(), "EMBED_TEST_WORKER="+model)
+		return cmd
+	}
+}
+
+type passageEncoder interface {
+	Dims() int
+	EmbedPassage(ctx context.Context, passage string) (float32, []byte, error)
+}
 
 // The module is the crate's: it compiles and has the encoder's exports.
 func TestTheModuleHasTheEncoder(t *testing.T) {
@@ -29,8 +55,9 @@ func TestTheModuleHasTheEncoder(t *testing.T) {
 }
 
 // The vectors are the bits the crate computes natively (`embed MODEL --passages`, the golden
-// file), whichever instance computes them and however many at once. The model is not in the
-// repository: RADIX_TEST_EMBED_MODEL names the server's (semantic/README.md).
+// file), whichever instance computes them and however many at once, in this process and in
+// worker processes. The model is not in the repository: RADIX_TEST_EMBED_MODEL names the
+// server's (semantic/README.md).
 func TestTheVectorsAreTheCratesBits(t *testing.T) {
 	path := os.Getenv("RADIX_TEST_EMBED_MODEL")
 	if path == "" {
@@ -45,7 +72,34 @@ func TestTheVectorsAreTheCratesBits(t *testing.T) {
 	if e.Dims() != 384 || len(e.ID()) != 16 {
 		t.Errorf("dims %d, id %q", e.Dims(), e.ID())
 	}
+	t.Run("in this process", func(t *testing.T) { sameAsTheCrate(t, e) })
 
+	p, err := StartProcesses(path, 2, workerCommand(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if p.ID() != e.ID() || p.Dims() != e.Dims() {
+		t.Errorf("processes: id %q dims %d, want %q %d", p.ID(), p.Dims(), e.ID(), e.Dims())
+	}
+	t.Run("in worker processes", func(t *testing.T) { sameAsTheCrate(t, p) })
+
+	// A worker that died is started again: the call that finds it dead fails, the next works.
+	w := <-p.workers
+	_ = w.cmd.Process.Kill()
+	p.workers <- w
+	for range 2 {
+		if _, _, err = p.EmbedPassage(ctx, "Statik."); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		t.Errorf("after a worker died: %v", err)
+	}
+}
+
+func sameAsTheCrate(t *testing.T, e passageEncoder) {
+	ctx := context.Background()
 	passages := lines(t, "testdata/passages.txt")
 	golden := lines(t, "testdata/passages.golden")
 	if len(passages) != len(golden) {
@@ -78,6 +132,18 @@ func TestTheVectorsAreTheCratesBits(t *testing.T) {
 		if got[i] != golden[i] {
 			t.Errorf("passage %d (%.40q…) differs from the crate's bits", i+1, passages[i])
 		}
+	}
+}
+
+// A worker process that cannot load the model says why, and nothing starts.
+func TestAWorkerWithoutAModel(t *testing.T) {
+	model := filepath.Join(t.TempDir(), "model.bin")
+	if err := os.WriteFile(model, []byte("not a model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := StartProcesses(model, 1, workerCommand(model))
+	if err == nil || !strings.Contains(err.Error(), "not a packed model") {
+		t.Errorf("StartProcesses(not a model) = %v, want the worker's „not a packed model“", err)
 	}
 }
 

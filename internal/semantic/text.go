@@ -3,8 +3,8 @@
 // terms, and its description.
 //
 // The texts are composed here, once, for the stage that writes summaries and vectors
-// (Stage) and for the build that looks the vectors up (catalogbuild), so the two always
-// mean the same passage by the same hash.
+// (internal/service, semantic.go) and for the build that looks the vectors up (catalogbuild),
+// so the two always mean the same passage by the same hash.
 package semantic
 
 import (
