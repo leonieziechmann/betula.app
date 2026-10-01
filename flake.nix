@@ -171,9 +171,13 @@
             craneLib.removeReferencesToVendoredSourcesHook
             craneLib.removeReferencesToRustToolchainHook
           ];
+          # Without the names of its functions and its producers (--remove-name-section,
+          # --remove-producers-section), as scripts/build-client.sh builds it: the names were 29 of
+          # the bundle's 33.8 MB (docs/frontend.md §3).
           installPhaseCommand = ''
             mkdir -p "$out/site/pkg"
-            wasm-bindgen --target web --no-typescript --out-dir "$out/site/pkg" --out-name folia_client \
+            wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
+              --out-dir "$out/site/pkg" --out-name folia_client \
               target/wasm32-unknown-unknown/wasm-release/folia_client.wasm
           '';
           # The bundle is the output, not cargo's target directory.

@@ -120,6 +120,11 @@ Why this order, and what can go wrong:
   The same recipe reaches Prometheus (9090) or Radix's `/status` (8090).
 - Dashboards and alert rules are files (`config/monitoring/grafana/`); the UI refuses to save them.
   Edit, export JSON, commit, sync, `40-stacks.sh monitoring`.
+- The dashboard "Visitors" reads stored numbers only: Loki's ruler counts them from Traefik's access
+  log every 5 minutes (the 7-day numbers and the calendar subscriptions once an hour) with the rules
+  in `config/monitoring/loki-rules`, and writes them to Prometheus, which keeps them like every
+  metric (15 days, `config/monitoring/prometheus.yml`). Its charts begin with the first count; there
+  is no history from before.
 
 ## 3. Changing something later
 
@@ -371,7 +376,9 @@ at `https://betula.app/`.
 
 Folia's own log keeps paths (no addresses) 30 days in Loki, except `/calendar/…`, which it writes as
 `/calendar/….ics`. Traefik logs full paths with the client address, 7 days in Loki and 7 days in the
-host journal; a subscribed calendar appears there on every poll (Google about daily). Alloy ships the
+host journal; a subscribed calendar appears there on every poll (Google about daily). What Loki's
+ruler counts from these lines for the dashboard "Visitors" (`config/monitoring/loki-rules`) reaches
+Prometheus as numbers only, without addresses, user agents or calendar codes. Alloy ships the
 journal without the lines of containers (`loki.relabel "journal"`), or Traefik's would be kept 30
 days as `{job="journal"}`. Not in Docker's local log files, which only rotate by size: Traefik's
 stopped containers from before the journald driver still have such files, and `40-stacks.sh edge`
@@ -453,6 +460,24 @@ reach canary" fires. A release is tried three times, 10 and 20 minutes apart; th
 for the next build of master. A release deployed by hand stays until master is built again: the
 agent only acts on a build it has not seen.
 
+### Branches: develop gathers, master goes to canary
+
+Since 2026-10-01 a finished branch is merged into `develop`, not into master (owner: canary should
+not deploy ten times an hour). A push to `develop` starts nothing: `images.yml` builds on pushes to
+master only, and the agent takes nothing else. When the features gathered there are to reach
+canary, `develop` goes into master in one merge: one build, one deploy.
+
+```bash
+# a finished branch, "Merge branch '<branch>' into develop: <what it brings>"; nothing is built
+git switch develop && git merge --no-ff <branch> && git push origin develop
+# a release to canary, "Merge branch 'develop' into master: <the features it brings>"
+git switch master && git merge --no-ff develop && git push origin master
+```
+
+Master takes nothing but `develop`, so `develop` always holds all of master and nothing has to be
+merged back. `develop` is GitHub's default branch (since 2026-10-01): new branches, pull requests
+and sessions of Claude Code start from it. `CLAUDE.md` says the same for Claude.
+
 ### Setting it up, once
 
 1. Merge. The workflow runs on the merge itself (it adds `.github/workflows/images.yml`) and on every
@@ -513,11 +538,13 @@ database for one `deploy` by hand.
   time: every copy was complete to one commit and passed the integrity check.
 - **The workflow** asks for `contents: read` only, uses no secret, runs on pushes to master only,
   and its actions are pinned to commits. Its build cache (GitHub's cache of this repository) is
-  written by its own runs on master; a run reads only its branch's entries and master's, never a
-  pull request's or a fork's. Nix takes the cached paths without signatures, so a step of the job
-  that went bad could leave something in it for later builds: the job uses four actions, three of
-  them GitHub's own, all pinned. Keep it the only writer: a workflow added later that runs for pull
-  requests with `pull_request_target` would write into master's part of the cache.
+  written by its own runs on master; a run reads only its own branch's entries and those of the
+  default branch, `develop`, where nothing writes; never a pull request's or a fork's. Nix takes
+  the cached paths without signatures, so a step of the job that went bad could leave something in
+  it for later builds: the job uses four actions, three of them GitHub's own, all pinned. Keep it
+  the only writer: a workflow added later that saves a cache on `develop` (on its pushes, on a
+  schedule, which runs on the default branch, or for pull requests into it with
+  `pull_request_target`) would write into what every build of master reads.
 - **The repository is public** (since 2026-09-30). Everybody can read the code, the workflow's logs
   and, logged in to GitHub, its artifacts; none of them holds a secret (the workflow has none, and
   the history held no key or token when it went public). Everybody can fork it and open pull

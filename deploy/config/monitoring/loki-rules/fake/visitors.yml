@@ -1,0 +1,116 @@
+# Recording rules of Loki's ruler: what the dashboard "Visitors" shows, counted from Traefik's
+# access log and stored in Prometheus (ruler.remote_write in loki.yml). The dashboard never reads
+# the access log itself. Every number is a count; no address, user agent or calendar code
+# leaves Loki, whose copy of the access log is gone after 7 days (loki.yml, retention_stream).
+#
+# The directory "fake" is the tenant: Loki runs with auth_enabled: false, and that tenant is
+# called "fake". The ruler reads this directory every minute (ruler.poll_interval), so a change
+# here takes effect without a restart of Loki.
+#
+# Every rule counts a window that is longer than the interval of its group, so that a count missed
+# while Loki restarts leaves no hole: the dashboard takes the latest count of the last 10 minutes
+# (the 7-day ones: of the last 3 hours). It reads the hourly windows once per hour (step 1h), which
+# counts every app start once.
+#
+# A visitor is a browser that started the app: boot.js asks /api/status with cache: no-store on
+# every start, returning visits too. A browser is its address + user agent. Left out: crawlers by
+# user agent (Google's renderer sends a Nexus 5X agent without "bot") and by Google's addresses.
+groups:
+  - name: visitors-5m
+    interval: 5m
+    rules:
+      # Visitors of the last hour, by device and browser (sum = all visitors).
+      - record: betula:visitors:1h
+        expr: |
+          count by (device, browser) (sum by (device, browser, host, ua) (count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"`
+            | json host="ClientHost", ua=`["request_User-Agent"]`
+            | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*`
+            | ua!=`` | host!~`(66\.249|74\.125|192\.178)\..*`
+            | label_format
+                device=`{{ if or (contains "iPad" .ua) (and (contains "Android" .ua) (not (contains "Mobile" .ua))) }}Tablet{{ else if or (contains "Mobile" .ua) (contains "iPhone" .ua) }}Phone{{ else }}Desktop{{ end }}`,
+                browser=`{{ if or (contains "Firefox/" .ua) (contains "FxiOS/" .ua) }}Firefox{{ else if or (contains "Edg/" .ua) (contains "EdgA/" .ua) (contains "EdgiOS/" .ua) }}Edge{{ else if or (contains "OPR/" .ua) (contains "OPiOS/" .ua) }}Opera{{ else if contains "SamsungBrowser/" .ua }}Samsung Internet{{ else if or (contains "Chrome/" .ua) (contains "CriOS/" .ua) }}Chrome{{ else if contains "Safari/" .ua }}Safari{{ else }}other{{ end }}`
+            | keep host, ua, device, browser
+            [1h])))
+
+      # The same for the last 24 hours.
+      - record: betula:visitors:24h
+        expr: |
+          count by (device, browser) (sum by (device, browser, host, ua) (count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"`
+            | json host="ClientHost", ua=`["request_User-Agent"]`
+            | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*`
+            | ua!=`` | host!~`(66\.249|74\.125|192\.178)\..*`
+            | label_format
+                device=`{{ if or (contains "iPad" .ua) (and (contains "Android" .ua) (not (contains "Mobile" .ua))) }}Tablet{{ else if or (contains "Mobile" .ua) (contains "iPhone" .ua) }}Phone{{ else }}Desktop{{ end }}`,
+                browser=`{{ if or (contains "Firefox/" .ua) (contains "FxiOS/" .ua) }}Firefox{{ else if or (contains "Edg/" .ua) (contains "EdgA/" .ua) (contains "EdgiOS/" .ua) }}Edge{{ else if or (contains "OPR/" .ua) (contains "OPiOS/" .ua) }}Opera{{ else if contains "SamsungBrowser/" .ua }}Samsung Internet{{ else if or (contains "Chrome/" .ua) (contains "CriOS/" .ua) }}Chrome{{ else if contains "Safari/" .ua }}Safari{{ else }}other{{ end }}`
+            | keep host, ua, device, browser
+            [24h])))
+
+      # App starts of the last hour, returning visits included.
+      - record: betula:app_starts:1h
+        expr: |
+          sum(count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"`
+            | json host="ClientHost", ua=`["request_User-Agent"]`
+            | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*`
+            | ua!=`` | host!~`(66\.249|74\.125|192\.178)\..*`
+            | drop host, ua
+            [1h]))
+
+      # Every request to betula.app of the last hour: who = Google, other crawlers or everything
+      # else (people, scanners, tools); crawler = the crawler's name from its user agent (the word
+      # with bot/crawl/spider), empty for everything else.
+      - record: betula:requests:1h
+        expr: |
+          sum by (who, crawler) (count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"`
+            | regexp `"request_User-Agent":"[^"]*?(?P<crawler>[A-Za-z0-9._-]*(?i:bot|crawl|spider)[A-Za-z0-9._-]*)`
+            | json host="ClientHost", ua=`["request_User-Agent"]`
+            | label_format crawler=`{{ if contains "Nexus 5X Build/MMB29P" .ua }}{{ if contains "Googlebot" .ua }}Googlebot{{ else }}Google renderer{{ end }}{{ else }}{{ .crawler }}{{ end }}`
+            | label_format who=`{{ if or (contains "Google" .crawler) (hasPrefix "66.249." .host) }}Google{{ else if .crawler }}other crawlers{{ else }}everything else{{ end }}`
+            | keep who, crawler
+            [1h]))
+
+  - name: visitors-1h
+    interval: 1h
+    rules:
+      # Visitors of the last 7 days (as long as Loki keeps the access log), by device and browser.
+      - record: betula:visitors:7d
+        expr: |
+          count by (device, browser) (sum by (device, browser, host, ua) (count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"`
+            | json host="ClientHost", ua=`["request_User-Agent"]`
+            | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*`
+            | ua!=`` | host!~`(66\.249|74\.125|192\.178)\..*`
+            | label_format
+                device=`{{ if or (contains "iPad" .ua) (and (contains "Android" .ua) (not (contains "Mobile" .ua))) }}Tablet{{ else if or (contains "Mobile" .ua) (contains "iPhone" .ua) }}Phone{{ else }}Desktop{{ end }}`,
+                browser=`{{ if or (contains "Firefox/" .ua) (contains "FxiOS/" .ua) }}Firefox{{ else if or (contains "Edg/" .ua) (contains "EdgA/" .ua) (contains "EdgiOS/" .ua) }}Edge{{ else if or (contains "OPR/" .ua) (contains "OPiOS/" .ua) }}Opera{{ else if contains "SamsungBrowser/" .ua }}Samsung Internet{{ else if or (contains "Chrome/" .ua) (contains "CriOS/" .ua) }}Chrome{{ else if contains "Safari/" .ua }}Safari{{ else }}other{{ end }}`
+            | keep host, ua, device, browser
+            [7d])))
+
+      # Active calendar subscriptions: feed addresses (/calendar/<code>.ics) that a calendar
+      # fetched at least twice in 7 days (not a single look at the address) and still within the
+      # last 48 hours (not removed). The feeds ask for a refresh every 12 hours (catalog's ics.rs);
+      # Google keeps its own pace, up to about a day. Counted per address, not per client: Google
+      # fetches one subscription from many addresses. The .ics download is made in the browser and
+      # never reaches the server.
+      - record: betula:calendar_subscriptions:active
+        expr: |
+          count(
+            (sum by (feed) (count_over_time(
+              {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `/calendar/`
+              | json path="RequestPath", status="DownstreamStatus", ua=`["request_User-Agent"]`
+              | path=~`(/en)?/calendar/[^/?]+\.ics(\?.*)?` | status=~`2..|304` | ua!~`(?i).*(bot|crawl|spider).*`
+              | label_format feed=`{{ regexReplaceAll "\\?.*$" .path "" }}`
+              | keep feed
+              [7d])) >= 2)
+            and
+            sum by (feed) (count_over_time(
+              {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `/calendar/`
+              | json path="RequestPath", status="DownstreamStatus", ua=`["request_User-Agent"]`
+              | path=~`(/en)?/calendar/[^/?]+\.ics(\?.*)?` | status=~`2..|304` | ua!~`(?i).*(bot|crawl|spider).*`
+              | label_format feed=`{{ regexReplaceAll "\\?.*$" .path "" }}`
+              | keep feed
+              [48h]))
+          )

@@ -103,8 +103,8 @@ jobs:
       # A binary cache in a directory (nix copy --to file://...), kept with GitHub's own cache
       # action. What it holds is taken without signatures, so nothing but this workflow may put
       # anything into it: only its runs write it, it runs for pushes to master only, and GitHub
-      # lets a run read the caches of its own branch and of master, never a pull request's or a
-      # fork's.
+      # lets a run read the caches of its own branch and of the default branch (develop, where
+      # no workflow writes), never a pull request's or a fork's.
       - name: Restore the Nix cache
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

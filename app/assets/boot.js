@@ -14,7 +14,9 @@ const BUILD = new URL(import.meta.url).search;
 // The schema of the catalog the queries of this build are written for: a snapshot's `PRAGMA
 // user_version`, the number of Radix's last migration (`catalog::SCHEMA_VERSION`, which the server
 // writes in here). A copy of an older schema lacks columns they select, so it is never opened.
-const SCHEMA = Number("__SCHEMA__");
+// A name and not a string: a minifier folds `Number("…")` into NaN before the server can write
+// the number in (server/build/main.rs).
+const SCHEMA = __SCHEMA__;
 
 // What this script says, in the page's language as its address says it (`catalog::Locale::split`;
 // docs/i18n.md). The first is the default, without a prefix. (Offline the service worker may

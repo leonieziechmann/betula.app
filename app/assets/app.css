@@ -1143,8 +1143,51 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
 /* The note at the right end gives way before the name does. */
 .pre small { flex: 0 1 auto; min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 12px; }
 .pre > .icon { color: var(--text-3); width: 16px; height: 16px; }
-.prose { color: var(--text-2); font-size: 14px; line-height: 1.6; white-space: pre-line; max-width: 72ch; }
-.prose + .prose { margin-top: 10px; }
+/* A module's texts (ui::Prose: Markdown, catalog::text). Owner, 2026-10-01: „support für Blocksatz",
+   „Paragraphen sollen als solche erkennbar sein", „Listen sollen erkannt werden und dementsprechend
+   formatiert werden". Paragraphs stand apart by a gap, a list a little closer to the line that leads
+   to it; the markers of a list hang in the margin, so the items' text keeps one edge, and a list of
+   labels („(1)", „a)", „IV.") sets them where the markers stand, as wide as the widest (w2 … w6).
+   The text is set in Blocksatz (below); the element carries the `lang` of the module's page, so a
+   German text on the English page breaks as German. A heading (a paragraph all strong) is neither
+   justified nor hyphenated. */
+.prose { container: prose / inline-size; color: var(--text-2); font-size: 14px; line-height: 1.6; max-width: 72ch; overflow-wrap: break-word; }
+.prose > * + * { margin-top: .75em; }
+.prose > p + :is(ul, ol) { margin-top: .4em; }
+/* Blocksatz (owner, 2026-10-01: „support für Blocksatz", „Ja mach mal Blocksatz überall ab wo es
+   sinnvoll ist/gut aussieht"): running text — paragraphs of several lines that are read through —
+   is justified: a module's texts, the parts of the legal pages and the answers to the questions.
+   It is hyphenated by the rules of its language, never into syllables of fewer than three letters
+   or words of fewer than six, and a paragraph avoids a last line of a lone word (an item of a list
+   does not: its first line would stand apart for it). Headings, leads, hints, notes, labels and
+   the cells of a grid (the abilities on the start page: their nouns stood apart by wide gaps) stay
+   ragged: a few lines, read at a glance. So does a column too narrow for even gaps, each by a
+   query at its container: a paragraph in one narrower than 23 em of its text (some 42 characters
+   a line; at 40 the gaps of a phone of 360 px showed), the items of a list, narrower for their
+   indent and with fewer words, in one narrower than 32 em. */
+:is(.prose, .legal-part) :is(p, li), .legal-facts dd, .faq details p { text-align: justify; hyphens: auto; -webkit-hyphens: auto; hyphenate-limit-chars: 6 3 3; }
+.prose p { text-wrap: pretty; }
+.prose :is(ul, ol) { margin: 0; padding-left: 1.4em; }
+.prose ul { list-style: disc; }
+.prose ul ul { list-style: circle; }
+.prose ol { list-style: decimal; }
+.prose li + li, .prose li > :is(ul, ol) { margin-top: .3em; }
+.prose li > p + p, .prose li > :is(ul, ol) + p { margin-top: .5em; }
+.prose li::marker { color: var(--text-3); }
+.prose ol > li::marker { font-variant-numeric: tabular-nums; }
+.prose ol.labels { --label: 3ch; list-style: none; padding-left: calc(var(--label) + .7em); }
+.prose ol.labels.w2 { --label: 2ch; } .prose ol.labels.w4 { --label: 4ch; }
+.prose ol.labels.w5 { --label: 5ch; } .prose ol.labels.w6 { --label: 6ch; }
+.prose ol.labels > li { position: relative; }
+.prose .li-label { position: absolute; right: 100%; margin-right: .5em; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.prose strong { color: var(--text); font-weight: 620; }
+.prose p.head { text-align: start; hyphens: manual; -webkit-hyphens: manual; }
+@container prose (width < 32em) {
+  .prose li { text-align: start; }
+}
+@container prose (width < 23em) {
+  .prose p { text-align: start; }
+}
 details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560; font-size: 13px; min-height: 36px; display: inline-flex; align-items: center; }
 .plain th, .plain td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
 .plain th { color: var(--text-3); font-weight: 600; font-size: 12px; }
@@ -1627,7 +1670,7 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 
 /* Questions and answers, in groups: the questions are the list, an answer opens in place. */
 .questions { padding-bottom: 6px; }
-.faq { border-top: 1px solid var(--line); }
+.faq { container: faq / inline-size; border-top: 1px solid var(--line); }
 .faq-group { padding: 16px 24px 8px; }
 .faq details { border-top: 1px solid var(--line); }
 .faq summary { list-style: none; display: flex; align-items: center; gap: 16px; min-height: 54px; padding: 0 16px 0 24px; cursor: pointer; font-weight: 620; font-size: 14.5px; letter-spacing: -.01em; transition: background .1s; }
@@ -1636,6 +1679,11 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .faq summary .icon { margin-left: auto; width: 18px; height: 18px; color: var(--text-3); transition: transform .2s var(--ease); }
 .faq details[open] summary .icon { transform: rotate(45deg); color: var(--text); }
 .faq details p { padding: 0 24px 18px; max-width: 80ch; color: var(--text-2); font-size: 14px; line-height: 1.6; text-wrap: pretty; }
+/* Blocksatz (at `.prose`) where the answer has room for it: 23 em of text and, on a phone, the
+   answer's padding of 16 px on either side. */
+@container faq (width < 25.3em) {
+  .faq details p { text-align: start; }
+}
 
 /* ---------- „Betula im Detail" (pages/home/detail.rs; owner, 2026-09-28) ---------- */
 /* After the questions: a panel that names the chapters, then a panel per chapter. A chapter is its
@@ -1940,12 +1988,13 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .legal-head h1 { font-size: 26px; line-height: 1.15; font-weight: 720; letter-spacing: -.03em; }
 .legal-head p { margin-top: 8px; color: var(--text-2); font-size: 15px; line-height: 1.55; max-width: 72ch; text-wrap: pretty; }
 .legal-head .legal-stand { margin-top: 4px; color: var(--text-3); font-size: 13px; }
-.legal-part { padding: 20px 24px 22px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
+.legal-part { container: part / inline-size; padding: 20px 24px 22px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
 .legal-part h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
 /* One measure for the text, the label | text rows included, so the parts share their right edge. */
 .legal-part > * { max-width: 704px; }
 .legal-part > * + *, .legal-facts dd > * + * { margin-top: 10px; }
-.legal-part p, .legal-part li, .legal-facts dd { color: var(--text-2); font-size: 14.5px; line-height: 1.6; text-wrap: pretty; }
+.legal-part p, .legal-part li, .legal-facts dd { color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
+.legal-part p, .legal-facts dd { text-wrap: pretty; }
 .legal-part ul { display: grid; gap: 3px; }
 .legal-part li { position: relative; padding-left: 18px; }
 .legal-part li::before { content: ""; position: absolute; left: 5px; top: .7em; width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
@@ -1959,6 +2008,14 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 @container legal (min-width: 720px) {
   .legal-facts > div { grid-template-columns: 140px minmax(0, 1fr); gap: 20px; }
   .legal-facts dt { padding-top: 1px; }
+}
+/* Blocksatz (at `.prose`) where the part has room for it: 23 em of its text (14.5 px) are 23.8 em
+   of the part (14 px). */
+@container part (width < 32em) {
+  .legal-part li { text-align: start; }
+}
+@container part (width < 23.8em) {
+  .legal-part p, .legal-facts dd { text-align: start; }
 }
 /* On a phone the text starts 16px in, as on every other page, and a part a link jumps to
    (/datenschutz#kalender) stops below the sticky search bar. */
@@ -2980,23 +3037,37 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .bottomnav { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: 62px; padding: 5px; border-radius: 16px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(18px); box-shadow: var(--shadow-pop); }
   .bottomnav .nav { width: auto; font-size: 11px; font-weight: 560; gap: 0; align-content: center; }
   .bottomnav .nav .ind { height: 30px; width: 52px; }
-  /* A swipe along the bar goes to the tab beside the current one (owner, 2026-09-30; enhance.js).
-     The bar keeps a finger that moves sideways (up and down it scrolls the page, two fingers zoom),
-     and no name is selected on the way. While the finger is down (data-swipe="drag") and while the
-     mark glides on or back ("glide"), the mark is the bar's own, laid over the current tab's
-     (--mark-x/-y/-w/-h) and moved by --mark-dx, and no tab shows its own: an icon turns light as
-     far as the mark covers it (--on of its tab, 0–1), a name dark as the mark comes close (--near),
-     and a count changes over with its icon once the mark covers half of it. The glide has the
-     spring of the other marks that slide (.show-mark, .sp-weekmark), the colours go with it. Once
-     the tab is the current one its own mark takes over, in one frame without its fade ("settle"). */
+  /* A swipe along the bar goes to the tab beside the current one (owner, 2026-09-30, the other way
+     round the next day; enhance.js). The bar keeps a finger that moves sideways (up and down it
+     scrolls the page, two fingers zoom), and no name is selected on the way. While the finger is
+     down (data-swipe="drag") and while all finds its place again ("glide"), the tabs move as one row
+     by their transforms, each on a layer of its own, inside the bar, which clips the row and fades it
+     out at its two ends. The current tab's mark stays where it is as the bar's lens (made by
+     enhance.js): the mark's colour with a copy of the row inside (.bottomnav-copy) that moves as the
+     row does, light, so that what is under the lens is light and the rest dark, cut at its edge, a
+     count with its icon. No tab shows its own mark meanwhile, and a name turns dark as the lens comes
+     close (--near of its tab, 0–1). Once the tab is the current one its own mark takes over, in one
+     frame without its fade ("settle"). */
   .bottomnav { touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; }
-  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::before { content: ""; position: absolute; left: var(--mark-x); top: var(--mark-y); width: var(--mark-w); height: var(--mark-h); border-radius: var(--r-ctl); background: var(--invert); transform: translateX(var(--mark-dx, 0px)); pointer-events: none; }
-  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) .nav { --lit: clamp(0, (var(--on, 0) - .5) * 100, 1); color: color-mix(in srgb, var(--text) calc(var(--near, 0) * 100%), var(--text-3)); }
-  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) .nav .ind { background: none; color: color-mix(in srgb, var(--on-invert) calc(var(--on, 0) * 100%), var(--text-3)); transition: none; }
-  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) .nav .nav-count { background: color-mix(in srgb, var(--on-invert) calc(var(--lit) * 100%), var(--invert)); color: color-mix(in srgb, var(--invert) calc(var(--lit) * 100%), var(--on-invert)); box-shadow: 0 0 0 calc(2px - var(--lit) * 1px) color-mix(in srgb, var(--invert) calc(var(--lit) * 100%), var(--panel)); }
-  .bottomnav[data-swipe="glide"]::before { transition: transform .32s var(--spring); }
-  .bottomnav[data-swipe="glide"] .nav, .bottomnav[data-swipe="glide"] .nav .ind { transition: color .32s var(--ease); }
-  .bottomnav[data-swipe="settle"] .nav .ind { transition: none; }
+  .bottomnav > .nav { will-change: transform; }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) { overflow: hidden; overflow: clip; }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::before, .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; width: 8px; pointer-events: none; }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::before { left: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--panel) 90%, transparent), transparent); }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::after { right: 0; background: linear-gradient(270deg, color-mix(in srgb, var(--panel) 90%, transparent), transparent); }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) > .nav { color: color-mix(in srgb, var(--text) calc(var(--near, 0) * 100%), var(--text-3)); }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) > .nav .ind { background: none; color: var(--text-3); transition: none; }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) > .nav .nav-count { background: var(--invert); color: var(--on-invert); box-shadow: 0 0 0 2px var(--panel); }
+  .bottomnav[data-swipe="settle"] > .nav .ind { transition: none; }
+  /* The lens stands at the bar's left edge and is moved where it belongs by its transform, as is the
+     copy inside it, so that neither a swipe nor a glide lays anything out again. A count pokes out
+     of its mark at the top: the lens lets it, and cuts all else. */
+  .bottomnav-lens { position: absolute; z-index: 2; left: 0; top: var(--lens-y); width: var(--lens-w); height: var(--lens-h); border-radius: var(--r-ctl); background: var(--invert); overflow: hidden; visibility: hidden; pointer-events: none; will-change: transform; }
+  @supports (clip-path: inset(-3px 0 0 0 round 9px)) { .bottomnav-lens { overflow: visible; clip-path: inset(-3px 0 0 0 round var(--r-ctl)); } }
+  .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) > .bottomnav-lens { visibility: visible; }
+  .bottomnav-copy { position: absolute; left: 0; top: var(--copy-y); width: var(--copy-w); height: var(--copy-h); display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; will-change: transform; }
+  .bottomnav-copy > .nav { color: transparent; }
+  .bottomnav-copy > .nav .ind { background: none; color: var(--on-invert); transition: none; }
+  .bottomnav .bottomnav-copy .nav-count { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 1px var(--invert); }
   .facts { grid-template-columns: 1fr; }
   .prog-head { padding: 10px 16px 14px; }
   .block { padding: 18px 16px; }

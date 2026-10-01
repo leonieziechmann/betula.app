@@ -48,9 +48,11 @@ impl Keep {
     pub const IMMUTABLE: &'static str = "public, max-age=31536000, immutable";
 
     /// How the file at `uri` is kept: `Immutable` under exactly the address a page of this build
-    /// links it with (`/assets/app.css?v=<build>`).
+    /// links it with (`/assets/app.css?v=<build>`). Never while the server serves `app/assets`
+    /// live (`--live-assets`): an edited file, or a browser app built again, is a new file under
+    /// the same address.
     pub fn of(state: &AppState, uri: &Uri) -> Keep {
-        if uri.query().and_then(|query| query.strip_prefix("v=")) == Some(&*state.build_id) {
+        if state.live_assets.is_none() && uri.query().and_then(|query| query.strip_prefix("v=")) == Some(&*state.build_id) {
             Keep::Immutable
         } else {
             Keep::Revalidate
@@ -421,25 +423,64 @@ async fn asset(state: &AppState, uri: &Uri, headers: &HeaderMap, content_type: &
     embedded(state, headers, Keep::of(state, uri), content_type, body, None).await
 }
 
+/// A file of `app/assets` the build minifies (`assets`), by its path there; while the server
+/// serves them live (`--live-assets`), the file as it is on disk right now.
+async fn minified(state: &AppState, uri: &Uri, headers: &HeaderMap, path: &str) -> Response {
+    let Some(file) = crate::assets::get(path) else { return StatusCode::NOT_FOUND.into_response() };
+    match &state.live_assets {
+        Some(dir) => live(headers, file.path, tokio::fs::read(dir.join(file.path)).await),
+        None => asset(state, uri, headers, crate::assets::content_type(file.path), file.bytes).await,
+    }
+}
+
+/// A file read from disk for this request (`--live-assets`): tagged by what it holds and asked
+/// for again on every use, so that an edit is there with the next reload, and never compressed
+/// (it goes to this machine).
+fn live(headers: &HeaderMap, path: &str, file: std::io::Result<Vec<u8>>) -> Response {
+    use std::hash::{Hash, Hasher};
+    let body = match file {
+        Ok(body) => body,
+        Err(error) => {
+            tracing::warn!(component = "http", event = "assets.live_failed", path, error = %error, "cannot read the file of a live asset");
+            return StatusCode::NOT_FOUND.into_response();
+        }
+    };
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    body.hash(&mut hasher);
+    let etag = format!("\"live-{:016x}\"", hasher.finish());
+    if if_none_match(headers, &etag) {
+        return not_modified(&etag, REVALIDATE);
+    }
+    respond(Bytes::from(body), Coding::Identity, crate::assets::content_type(path), REVALIDATE, &etag)
+}
+
+/// The service worker while the server serves `app/assets` live (`--live-assets`): it keeps
+/// nothing and listens to no request, so an edited file, or a browser app built again, is there
+/// with the next reload; and it drops what the worker of an earlier run kept.
+pub const LIVE_SERVICE_WORKER: &str = "self.addEventListener(\"install\",()=>self.skipWaiting());self.addEventListener(\"activate\",e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.map(n=>caches.delete(n)))).then(()=>self.clients.claim())));\n";
+
 /// `GET /sw.js`: the service worker, with the build of this process written into it, so that a
 /// new build installs a new worker and drops the shell the old one kept. Revalidated on every use
 /// whatever its address (browsers check a worker for updates on their own as well): a worker
 /// kept for a year would keep its build's shell for a year.
 pub async fn service_worker(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if state.live_assets.is_some() {
+        return live(&headers, "sw.js", Ok(LIVE_SERVICE_WORKER.as_bytes().to_vec()));
+    }
     static SOURCE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
     let body = SOURCE.get_or_init(|| {
-        let source = include_str!("../../app/assets/sw.js").replace("__BUILD__", &state.build_id);
+        let source = crate::assets::text("sw.js").replace("__BUILD__", &state.build_id);
         Box::leak(source.into_boxed_str()).as_bytes()
     });
     embedded(&state, &headers, Keep::Revalidate, "text/javascript; charset=utf-8", body, None).await
 }
 
 pub async fn stylesheet(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    asset(&state, &uri, &headers, "text/css; charset=utf-8", include_bytes!("../../app/assets/app.css")).await
+    minified(&state, &uri, &headers, "app.css").await
 }
 
 pub async fn favicon(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    asset(&state, &uri, &headers, "image/svg+xml", include_bytes!("../../app/assets/favicon.svg")).await
+    minified(&state, &uri, &headers, "favicon.svg").await
 }
 
 /// `GET /assets/shots/<name>.webp`: the screenshots in the start page's carousel, light and dark,
@@ -465,12 +506,15 @@ pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<Strin
 
 /// `GET /assets/birch/<name>.svg`: the birch around the app — the crown along the top in each
 /// season and the roots of the ground (`design/birch/birch.mjs` draws them; the stylesheet colours
-/// them). Embedded once (`birch::file`): the link-preview cards draw the same crown. The wood goes
-/// out as the brotli it was drawn with (`birch::brotli`), the others as brotli made here.
+/// them). Embedded once (`birch::file`), minified by the build: the link-preview cards draw the
+/// same crown. The wood goes out as it was drawn, with the brotli it was drawn with
+/// (`birch::brotli`), the others as brotli made here. Read from disk while the server serves
+/// `app/assets` live (`--live-assets`).
 pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
-    match crate::birch::file(&file) {
-        Some(body) => embedded(&state, &headers, Keep::of(&state, &uri), "image/svg+xml", body.as_bytes(), crate::birch::brotli(&file)).await,
-        None => StatusCode::NOT_FOUND.into_response(),
+    let Some(body) = crate::birch::file(&file) else { return StatusCode::NOT_FOUND.into_response() };
+    match &state.live_assets {
+        Some(dir) => live(&headers, &file, tokio::fs::read(dir.join("birch").join(&file)).await),
+        None => embedded(&state, &headers, Keep::of(&state, &uri), "image/svg+xml", body.as_bytes(), crate::birch::brotli(&file)).await,
     }
 }
 
@@ -776,7 +820,7 @@ pub fn localized_manifest(locale: Locale) -> String {
         fields.insert("id".to_string(), json!(home));
         fields.insert("start_url".to_string(), json!(home));
     }
-    serde_json::to_string_pretty(&manifest).unwrap_or_else(|_| file.to_string())
+    serde_json::to_string(&manifest).unwrap_or_else(|_| file.to_string())
 }
 
 pub async fn font(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
@@ -784,22 +828,23 @@ pub async fn font(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -
 }
 
 pub async fn enhance_script(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    asset(&state, &uri, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/enhance.js")).await
+    minified(&state, &uri, &headers, "enhance.js").await
 }
 
 /// `GET /assets/boot.js`, with the schema this build reads written into it
 /// (`catalog::SCHEMA_VERSION`): it refuses a local copy of the catalog of an older one.
 pub async fn boot_script(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    let with_schema = |source: &str| source.replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string());
+    if let Some(dir) = &state.live_assets {
+        return live(&headers, "boot.js", tokio::fs::read_to_string(dir.join("boot.js")).await.map(|source| with_schema(&source).into_bytes()));
+    }
     static SOURCE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
-    let body = SOURCE.get_or_init(|| {
-        let source = include_str!("../../app/assets/boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string());
-        Box::leak(source.into_boxed_str()).as_bytes()
-    });
+    let body = SOURCE.get_or_init(|| Box::leak(with_schema(crate::assets::text("boot.js")).into_boxed_str()).as_bytes());
     asset(&state, &uri, &headers, "text/javascript; charset=utf-8", body).await
 }
 
 pub async fn sql_js(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    asset(&state, &uri, &headers, "text/javascript; charset=utf-8", include_bytes!("../../app/assets/sql-wasm.js")).await
+    minified(&state, &uri, &headers, "sql-wasm.js").await
 }
 
 pub async fn sql_wasm(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
