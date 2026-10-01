@@ -341,6 +341,40 @@ impl FromRow for Prerequisite {
     }
 }
 
+/// `v_module_vector`: a module's vector for the semantic search (crate `semantic`), computed by
+/// Radix: `codes` × `scale`, of unit length up to rounding.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ModuleVector {
+    pub module_id: String,
+    pub scale: f32,
+    pub codes: Vec<i8>,
+}
+
+impl FromRow for ModuleVector {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        // The database seam carries no BLOBs; the query hands the vector over as hex.
+        let hex = row.text("vector")?;
+        let digit = |b: u8| match b {
+            b'0'..=b'9' => Some(b - b'0'),
+            b'A'..=b'F' => Some(b - b'A' + 10),
+            b'a'..=b'f' => Some(b - b'a' + 10),
+            _ => None,
+        };
+        let codes = hex
+            .as_bytes()
+            .chunks(2)
+            .map(|pair| match pair {
+                [hi, lo] => Some((digit(*hi)? << 4 | digit(*lo)?).cast_signed()),
+                _ => None,
+            })
+            .collect::<Option<Vec<i8>>>()
+            .ok_or_else(|| row.error("vector", "not hex"))?;
+        #[allow(clippy::cast_possible_truncation)] // stored as REAL from an f32
+        let scale = row.real("scale")? as f32;
+        Ok(Self { module_id: row.text("module_id")?, scale, codes })
+    }
+}
+
 /// `v_module_search`: one searchable term of a module.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SearchTerm {

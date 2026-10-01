@@ -100,6 +100,13 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		reach+`SELECT s.module_id || ' → ' || GROUP_CONCAT(s.successor_id, ', ') FROM module_successor s
 		 JOIN reach r ON r.start = s.successor_id AND r.node = s.module_id GROUP BY s.module_id ORDER BY 1`)
 
+	// The semantic search (docs/schema-v2.md, „Semantic search“): vectors of one model have one
+	// length; a module without one is not found by meaning until the semantic stage has made it.
+	v.count("the module vectors have one length", StatusFail,
+		"SELECT MAX(0, COUNT(DISTINCT length(vector)) - 1) FROM module_vector", "")
+	v.count("modules without a vector for the semantic search", StatusInfo,
+		"SELECT COUNT(*) FROM module WHERE id NOT IN (SELECT module_id FROM module_vector)", "")
+
 	// Short names (docs/schema-v2.md, „Short names“). A migrated database that was not built
 	// again has none, and fails here: it must not be exported.
 	v.count("every event date with a room has a short form", StatusFail,

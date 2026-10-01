@@ -54,6 +54,21 @@ impl Index {
         Ok(())
     }
 
+    /// Adds a document whose embedding is int8 already: a module's vector as Radix publishes it
+    /// (`v_module_vector`, `catalog::queries::module_vectors`), `codes` × `scale`.
+    pub fn push_codes(&mut self, id: impl Into<String>, scale: f32, codes: &[i8]) -> Result<(), String> {
+        if codes.len() != self.dims {
+            return Err(format!("a vector of {} values for an index of {}", codes.len(), self.dims));
+        }
+        if !(scale.is_finite() && scale > 0.0) {
+            return Err(format!("a vector with the scale {scale}"));
+        }
+        self.codes.extend_from_slice(codes);
+        self.scales.push(scale);
+        self.ids.push(id.into());
+        Ok(())
+    }
+
     /// Embeds every `(id, text)` with `model` (as a passage, `Model::embed_passage`) on
     /// `threads` threads (at least one) and keeps the documents in the order given.
     #[cfg(not(target_arch = "wasm32"))]
@@ -189,6 +204,19 @@ mod tests {
         assert_eq!(index.search(&query, 10)[2].id, "a", "ties in the order of the rows");
         assert!(index.search(&[1.0], 3).is_empty());
         assert_eq!(index.id(3), Some("Ökologie"));
+    }
+
+    #[test]
+    fn takes_published_vectors_as_they_are() {
+        let mut built = Index::new(3);
+        built.push("a", &unit(&[0.6, -0.8, 0.0])).unwrap();
+        let mut published = Index::new(3);
+        published.push_codes("a", 0.8 / 127.0, &[95, -127, 0]).unwrap();
+        assert_eq!(built.to_bytes().unwrap(), published.to_bytes().unwrap());
+        assert!(published.push_codes("b", 1.0, &[1, 2]).is_err());
+        assert!(published.push_codes("b", 0.0, &[1, 2, 3]).is_err());
+        assert!(published.push_codes("b", f32::NAN, &[1, 2, 3]).is_err());
+        assert_eq!(published.len(), 1);
     }
 
     #[test]

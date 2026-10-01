@@ -18,9 +18,10 @@ import (
 )
 
 // derivedTables are replaced as a whole by every build, children first.
-// plan, plan_entry and plan_scan_status are a source of their own and stay.
+// plan, plan_entry and plan_scan_status are a source of their own and stay, and so do the
+// caches of the semantic search, module_summary and passage_embedding.
 var derivedTables = []string{
-	"program_module_abbrev", "module_abbrev",
+	"module_vector", "program_module_abbrev", "module_abbrev",
 	"module_facet", "program_module",
 	"module_event", "event_date", "event_person", "event_form", "event", "semester",
 	"program_module_assertion", "module_program_ref",
@@ -74,6 +75,9 @@ type Report struct {
 	AbbrevTwins           int            // pairs with -b, -c … after an identical title in the program
 	AbbrevChanged         int            // pairs whose abbreviation differs from the previous build's
 
+	// ModuleVectors counts the modules with a vector for the semantic search (module_vector).
+	ModuleVectors int
+
 	// Unused lists archived pages that are not part of the current dataset: module pages
 	// of modules that left the lists, tree pages the root no longer reaches. source → keys.
 	Unused map[string][]string
@@ -121,7 +125,7 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		"modules", report.Modules, "programs", report.Programs, "events", report.Events, "events_from_list", report.EventsFromList,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
-		"content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
+		"module_vectors", report.ModuleVectors, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil
 }
 
@@ -220,6 +224,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"room short forms", b.writeRoomShorts},
 		{"materialized views", b.materialize},
 		{"abbreviations", b.writeAbbreviations}, // needs module and program_module
+		{"module vectors", b.writeModuleVectors},
 		{"meta", b.writeMeta},
 	}
 	for _, step := range steps {
