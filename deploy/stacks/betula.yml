@@ -63,8 +63,9 @@ services:
       RADIX_HEALTH_URL: "http://127.0.0.1:8090/status"
     # The Gemini key ("scan-curriculum", and the semantic search's summaries) comes with the
     # override betula.gemini.yml, which 50-app.sh adds while the secret gemini-api-key exists.
-    # The semantic search's vectors need RADIX_EMBED_MODEL, the path of e5-de-en-server.bin in the
-    # volume (docs/operations.md); without it the stage is skipped.
+    # The semantic search's models come with the override betula.models.yml, which 50-app.sh adds
+    # while the model store holds those of models.lock (README.md section 13); without them the
+    # semantic stage is skipped.
     volumes:
       # Working database, snapshots and the statutes directory. Worth a backup (README.md).
       - radix-data:/data
@@ -115,9 +116,8 @@ services:
     image: "${FOLIA_IMAGE:?FOLIA_IMAGE is not set}"
     environment:
       FOLIA_LOG_LEVEL: info
-      # The semantic search in the browser needs FOLIA_SEMANTIC_MODEL, the path of the browser's
-      # model e5-de-en.bin (15 MB, semantic/README.md) in the volume, e.g. /data/e5-de-en.bin;
-      # without it the app simply has no semantic search (docs/operations.md).
+      # The browser's model of the semantic search comes with betula.models.yml as well; without
+      # it the app simply has no semantic search.
       # Canonical links, link previews and the sitemap are written with it.
       FOLIA_PUBLIC_URL: "https://${APP_HOST:?APP_HOST is not set}"
       # Rendered pages kept in memory, compressed (server/src/cache.rs); part of the memory limit

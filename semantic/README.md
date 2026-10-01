@@ -223,11 +223,21 @@ Everything is in place and loaded; no component uses it yet.
   what they answer), and in Rust `app::data::Semantic` in the context of the browser app
   (`SemanticSearch::ready`, `SemanticSearch::search` → `SemanticHit`s), none on the server.
 
+## In a deploy
+
+The two models are not in git (35 + 15 MB). `deploy/models.lock` pins them by their sha256, as a
+pair; the server keeps them in its model store, `/var/lib/betula/models`, one file per model named
+by its sha256, shared by every instance and every release and mounted read-only into Radix and
+Folia (`deploy/README.md` section 13). `deploy/ship-models.sh` uploads what the store lacks, from
+`models/` in the repository's root; `deploy/ship.sh` runs it before every deploy, and
+`vps/50-app.sh` gives the instance the models only when both are in the store, intact (else it
+runs without the semantic search). The browser offers the search only when the snapshot's vectors
+are of the passage model its query model was made for (`meta.semantic_model`,
+`FOLIA_SEMANTIC_PASSAGE_MODEL`; `docs/schema-v2.md`, „Semantic search“).
+
 ## Not done yet
 
 - the search in the app's UI (`app/`): the semantic hits when the exact search finds few;
-- where the two model files come from in a deploy (35 + 15 MB, not in git: a release artifact,
-  or built in the deploy), and `RADIX_EMBED_MODEL` and `FOLIA_SEMANTIC_MODEL` in the stack;
 - a schema-11 snapshot for Folia's tests (`catalog::tests` and the pinned digests);
 - Unicode composition (NFC): neither side composes „e“ + U+0301 into „é“ (a query typed so is
   cut differently from one with „é“, on both sides alike). Keyboards and the catalog write the

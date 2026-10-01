@@ -1,0 +1,17 @@
+# The models of the semantic search that every instance runs (semantic/README.md says how they
+# are made). Too large for git (50 MB together); what git keeps is their content's sha256, and the
+# server keeps the files under it in its model store, /var/lib/betula/models (README.md section 13).
+#
+#   passage  Radix's model: the vectors of the modules' passages (RADIX_EMBED_MODEL)
+#   query    the browser's model: the vectors of what a visitor types (FOLIA_SEMANTIC_MODEL)
+#
+# The two are a pair: a query is only comparable with passages of the model it was made for, so
+# both change together, in one commit. Then: SSH_TARGET=betula bash deploy/ship-models.sh, which
+# uploads what the server does not have (from models/ in the repository's root, MODELS_DIR), and
+# the next deploy of an instance runs them. A new passage model makes Radix compute every vector
+# again (about 6 processor-hours over a day); meanwhile the browser offers the semantic search
+# only with a snapshot whose vectors are of the passage model its query model was made for.
+#
+# role     sha256                                                            bytes      file
+passage  0539da78bb98e8bbae1aaa106cbbd058d649a5edefe6210e5d39db720e8ff39e  34619685  e5-de-en-server.bin
+query    55c089fea10b1e663fee76fc0104f508844633b075202cc2169c97f18cf3cc80  14983809  e5-de-en.bin

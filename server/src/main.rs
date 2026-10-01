@@ -423,9 +423,11 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
     let render_wait = Duration::from_millis(config.render_wait_ms);
     // Optional: without its model the app simply has no semantic search, so a model that cannot
     // be read is an error in the log, not a site that does not start.
-    let semantic = config.semantic_model.as_deref().and_then(|path| match semantic::Model::load(path) {
+    // An empty value is no value: the stack file hands over an empty one without models.
+    let passage = config.semantic_passage_model.as_deref().filter(|id| !id.is_empty());
+    let semantic = config.semantic_model.as_deref().filter(|path| !path.as_os_str().is_empty()).and_then(|path| match semantic::Model::load(path, passage) {
         Ok(model) => {
-            tracing::info!(component = "server", event = "semantic.model", path = %path.display(), served_at = %model.path, "the browser's model of the semantic search is served");
+            tracing::info!(component = "server", event = "semantic.model", path = %path.display(), served_at = %model.path, passage_model = model.passage.as_deref().unwrap_or("any"), "the browser's model of the semantic search is served");
             Some(Arc::new(model))
         }
         Err(error) => {

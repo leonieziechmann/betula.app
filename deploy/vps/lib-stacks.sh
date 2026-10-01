@@ -421,3 +421,87 @@ resolves_here() {
   RESOLVE_DETAIL="${name} -> ${addrs//$'\n'/ }"
   return 0
 }
+
+# ---------------------------------------------------------------- the models of the semantic search
+
+# The model store (README.md section 13): one file per model, named by the sha256 of its content,
+# written once and never changed, shared by every instance and every release, and mounted
+# read-only into Radix and Folia (stacks/betula.models.yml). Which two models run is
+# models.lock's to say, as git keeps it; a deploy whose models are not here, intact, runs without
+# the semantic search instead of failing.
+MODEL_STORE="${MODEL_STORE:-/var/lib/betula/models}"
+MODEL_LOCK="${MODEL_LOCK:-${BETULA_ROOT}/models.lock}"
+MODELS_FILE="${STACKS_DIR}/betula.models.yml"
+# Set by read_model_lock: the sha256 and size of each model of the pair, and its file name on the
+# workstation. Set by models_ready: why the store is not ready.
+MODEL_PASSAGE="" MODEL_PASSAGE_BYTES="" MODEL_PASSAGE_NAME=""
+MODEL_QUERY="" MODEL_QUERY_BYTES="" MODEL_QUERY_NAME=""
+MODELS_DETAIL=""
+
+# read_model_lock [FILE] - reads models.lock into MODEL_*; dies on anything but one passage and
+# one query model, each "<role> <sha256> <bytes> <file>".
+read_model_lock() {
+  local file="${1:-${MODEL_LOCK}}" line role sum bytes name extra n=0
+  MODEL_PASSAGE="" MODEL_PASSAGE_BYTES="" MODEL_PASSAGE_NAME=""
+  MODEL_QUERY="" MODEL_QUERY_BYTES="" MODEL_QUERY_NAME=""
+  [[ -f "${file}" ]] || die "${file} does not exist (run deploy/sync.sh)"
+  assert_lf "${file}"
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    n=$((n + 1))
+    [[ "${line}" =~ ^[[:space:]]*(#|$) ]] && continue
+    role="" sum="" bytes="" name="" extra=""
+    read -r role sum bytes name extra <<<"${line}"
+    [[ "${sum}" =~ ^[0-9a-f]{64}$ && "${bytes}" =~ ^[1-9][0-9]{0,11}$ && "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ && -z "${extra}" ]] ||
+      die "${file}:${n}: '${line}' is not '<role> <sha256, 64 hex digits> <bytes> <file>'"
+    case "${role}" in
+      passage)
+        [[ -z "${MODEL_PASSAGE}" ]] || die "${file}:${n}: a second passage model"
+        MODEL_PASSAGE="${sum}" MODEL_PASSAGE_BYTES="${bytes}" MODEL_PASSAGE_NAME="${name}"
+        ;;
+      query)
+        [[ -z "${MODEL_QUERY}" ]] || die "${file}:${n}: a second query model"
+        MODEL_QUERY="${sum}" MODEL_QUERY_BYTES="${bytes}" MODEL_QUERY_NAME="${name}"
+        ;;
+      *) die "${file}:${n}: '${role}' is no role (passage: Radix's model, query: the browser's)" ;;
+    esac
+  done <"${file}"
+  [[ -n "${MODEL_PASSAGE}" && -n "${MODEL_QUERY}" ]] ||
+    die "${file} has to name both models of the pair, a passage and a query model: one is only comparable with the other"
+}
+
+# model_intact SHA256 BYTES - true when the store holds the file with exactly this content.
+model_intact() {
+  local file="${MODEL_STORE}/$1" size sum
+  [[ -f "${file}" && -r "${file}" ]] || return 1
+  size="$(stat -c %s "${file}")"
+  [[ "${size}" == "$2" ]] || return 1
+  sum="$(sha256sum "${file}")"
+  [[ "${sum%% *}" == "$1" ]]
+}
+
+# models_ready - true when the store holds both models of read_model_lock, intact (their content
+# is hashed again: 50 MB, a fraction of a second). Otherwise MODELS_DETAIL says what is missing.
+models_ready() {
+  local -a missing=()
+  MODELS_DETAIL=""
+  if [[ ! -d "${MODEL_STORE}" ]]; then
+    MODELS_DETAIL="there is no model store ${MODEL_STORE} (sudo bash ${BETULA_ROOT}/vps/10-base.sh makes it, README.md section 13)"
+    return 1
+  fi
+  model_intact "${MODEL_PASSAGE}" "${MODEL_PASSAGE_BYTES}" || missing+=("passage ${MODEL_PASSAGE_NAME} (${MODEL_PASSAGE:0:16})")
+  model_intact "${MODEL_QUERY}" "${MODEL_QUERY_BYTES}" || missing+=("query ${MODEL_QUERY_NAME} (${MODEL_QUERY:0:16})")
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    MODELS_DETAIL="the model store lacks, or holds damaged: $(printf '%s, ' "${missing[@]}" | sed 's/, $//') (from the workstation: SSH_TARGET=betula bash deploy/ship-models.sh)"
+    return 1
+  fi
+  return 0
+}
+
+# model_ids_in_use -> the sha256 of every model a service of this swarm is given (its
+# RADIX_EMBED_MODEL or FOLIA_SEMANTIC_MODEL names /models/<sha256>), one per line.
+model_ids_in_use() {
+  local svc
+  docker service ls --format '{{.Name}}' 2>/dev/null | while IFS= read -r svc; do
+    docker service inspect "${svc}" --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null || true
+  done | sed -n -E 's#^(RADIX_EMBED_MODEL|FOLIA_SEMANTIC_MODEL)=/models/([0-9a-f]{64})$#\2#p' | sort -u
+}

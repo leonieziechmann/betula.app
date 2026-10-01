@@ -74,7 +74,7 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--event-retention` | `RADIX_EVENT_RETENTION` | `720h` (0 keeps everything) |
 | `--archive-grace` | `RADIX_ARCHIVE_GRACE` | `168h` (0 keeps unused pages) |
 | `--stale-after` | `RADIX_STALE_AFTER` | `26h` |
-| `--embed-model` | `RADIX_EMBED_MODEL` | none: no vectors for the semantic search. The server's model, `e5-de-en-server.bin` (35 MB, `semantic/README.md` says how it is made) |
+| `--embed-model` | `RADIX_EMBED_MODEL` | none: no vectors for the semantic search. The server's model, `e5-de-en-server.bin` (35 MB, `semantic/README.md` says how it is made); in a deploy `vps/50-app.sh` sets it to the passage model of `deploy/models.lock` in the model store (`deploy/README.md` section 13). A file named by a sha256 that is not its content's is refused |
 | `--embed-workers`, `--semantic-budget` | `RADIX_EMBED_WORKERS`, `RADIX_SEMANTIC_BUDGET` | one less than the processors the container may use (`GOMAXPROCS`, at least 1): worker processes of about 170 MB each (260 MB while loading); `20m` |
 | `--summary-model`, `--gemini-rpm`, `--gemini-rpd` | `GEMINI_SUMMARY_MODEL`, `RADIX_GEMINI_RPM`, `RADIX_GEMINI_RPD` | `gemini-3.5-flash-lite`, `10`, `900` (a guess at the free tier's limits, which Google does not publish: set the project's figures from AI Studio; the day begins at midnight Pacific time, as Google's does) |
 | `--log-format`, `--log-level`, `--log-file` | `RADIX_LOG_FORMAT`, `RADIX_LOG_LEVEL`, `RADIX_LOG_FILE` | `json` for `run` (else `text`), `info`, none |

@@ -271,6 +271,10 @@ type builder struct {
 	programByID   map[string]*program
 
 	previousAbbrevs map[[2]string]string // (program, module) → the abbreviation of the build before
+
+	// The passage models of the module vectors (writeModuleVectors), comma-separated when the
+	// vectors are of more than one: the snapshot's meta semantic_model.
+	semanticModel string
 }
 
 // materialize evaluates the two expensive *_src views once per build. The public
@@ -325,6 +329,11 @@ func (b *builder) writeMeta() error {
 		"radix_version": version.Radix,
 		// Which binary built it: a new release builds again at start (service.Rebuild).
 		"radix_build": version.Build(),
+	}
+	if b.semanticModel != "" {
+		// What the browser compares with the passage model its query model was made for: a
+		// query is only comparable with passages of that model (docs/schema-v2.md, „Semantic search").
+		meta["semantic_model"] = b.semanticModel
 	}
 	rows, err := b.tx.Query("SELECT source, MIN(fetched_at), MAX(fetched_at), COUNT(*) FROM raw_page WHERE http_status = 200 GROUP BY source")
 	if err != nil {

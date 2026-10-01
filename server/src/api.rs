@@ -345,6 +345,7 @@ pub async fn status(State(state): State<AppState>) -> Response {
         })
     });
     let semantic_model = state.semantic.as_ref().map(|model| model.path.as_str());
+    let semantic_passage_model = state.semantic.as_ref().and_then(|model| model.passage.as_deref());
     let body = json!({
         "snapshot": snapshot,
         "radix_last_contact_seconds_ago": state.store.seconds_since_contact(),
@@ -352,6 +353,7 @@ pub async fn status(State(state): State<AppState>) -> Response {
         "uptime_seconds": state.store.uptime().as_secs(),
         "build": state.build_id.as_ref(),
         "semantic_model": semantic_model,
+        "semantic_passage_model": semantic_passage_model,
     });
     ([(header::CACHE_CONTROL, "no-store")], Json(body)).into_response()
 }
@@ -836,9 +838,9 @@ pub async fn enhance_script(State(state): State<AppState>, uri: Uri, headers: He
 /// `GET /assets/boot.js`, with the schema this build reads written into it
 /// (`catalog::SCHEMA_VERSION`): it refuses a local copy of the catalog of an older one.
 pub async fn boot_script(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    // And the address of the semantic search's model, or `null` without one: fixed while the
+    // And the semantic search's model, `{url, passage}`, or `null` without one: fixed while the
     // process runs, as is the build the script is kept under.
-    let model = serde_json::to_string(&state.semantic.as_ref().map(|model| model.path.as_str())).unwrap_or_else(|_| "null".into());
+    let model = state.semantic.as_ref().map(|model| json!({ "url": model.path, "passage": model.passage })).unwrap_or(serde_json::Value::Null).to_string();
     let with_schema = |source: &str| source.replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string()).replace("__SEMANTIC_MODEL__", &model);
     if let Some(dir) = &state.live_assets {
         return live(&headers, "boot.js", tokio::fs::read_to_string(dir.join("boot.js")).await.map(|source| with_schema(&source).into_bytes()));

@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -50,6 +52,9 @@ func Load(ctx context.Context, path string, workers int) (*Encoder, error) {
 		return nil, err
 	}
 	sum := sha256.Sum256(model)
+	if err := checkName(path, sum); err != nil {
+		return nil, err
+	}
 	e := &Encoder{id: hex.EncodeToString(sum[:8]), instances: make(chan *instance, max(1, workers))}
 	e.runtime = wazero.NewRuntime(ctx)
 	compiled, err := e.runtime.CompileModule(ctx, module)
@@ -103,6 +108,19 @@ func start(ctx context.Context, rt wazero.Runtime, compiled wazero.CompiledModul
 
 // ID identifies the model: a vector is only comparable with vectors of the same model.
 func (e *Encoder) ID() string { return e.id }
+
+// checkName refuses a model whose file is named by a sha256 (the server's model store,
+// deploy/models.lock) that is not the one of its content: a damaged file is never loaded.
+func checkName(path string, sum [32]byte) error {
+	name := filepath.Base(path)
+	if len(name) != 64 || strings.Trim(name, "0123456789abcdef") != "" {
+		return nil
+	}
+	if got := hex.EncodeToString(sum[:]); got != name {
+		return fmt.Errorf("%s: the content's sha256 is %s, not the one its name says: a damaged file", path, got)
+	}
+	return nil
+}
 
 // Dims is the number of values of a vector; it takes Dims/2 bytes.
 func (e *Encoder) Dims() int { return e.dims }

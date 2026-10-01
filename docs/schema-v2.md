@@ -58,7 +58,7 @@ is derived and replaced by each build.
 | `module_summary`, `passage_embedding` | caches of the semantic search, kept across builds and never published: what Gemini wrote about a module's text (German and English summary, search terms; keyed by `semantic.Text.Hash`), and the vector of a passage under a model (keyed by `semantic.PassageHash`) | the semantic stage (section 6, „Semantic search“) |
 | `module_vector` | each module's vector for the semantic search: values of 4 bits, packed, × `scale` | build, from `passage_embedding` |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
-| `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), `radix_build` (a hash of the binary that built it: a new release builds again at start), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
+| `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), `radix_build` (a hash of the binary that built it: a new release builds again at start), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at`; `semantic_model`, the passage model of the module vectors (Radix's id of it, comma-separated if more than one; absent without vectors) | build |
 
 ### Degree labels and new programs (decision Q4)
 
@@ -722,7 +722,17 @@ WebAssembly runtime in pure Go: one implementation of the model for Radix, the w
 browser, and the vectors Radix publishes are the bits the crate computes natively (in its int8
 arithmetic, defined to the bit on every build, then packed to 4 bits by the crate too; `internal/embed`'s test compares them with the native
 CLI). The model is the server's (`e5-de-en-server.bin`: 8 bit, 512 positions; 35 MB, not in the
-repository); `RADIX_EMBED_MODEL` names it, and without it the stage does not run.
+repository); `RADIX_EMBED_MODEL` names it, and without it the stage does not run. In a deploy both
+models come from the server's model store, pinned by their sha256 in `deploy/models.lock`
+(`deploy/README.md` section 13); a model file named by a sha256 that is not its content's is refused.
+
+**The pair.** A query is only comparable with passages of the model its query model was made for.
+So the build writes the passage model of the vectors into the snapshot's `meta.semantic_model`
+(Radix's id: the first 16 hex digits of the model file's sha256), Folia names the passage model of
+the query model it serves (`FOLIA_SEMANTIC_PASSAGE_MODEL`, from the same lock), and the browser
+offers the semantic search only when the two agree: not on a local copy of the catalog older than a
+new passage model, nor while Radix is still computing that model's vectors. It does not even
+download the query model then.
 
 The **semantic stage** runs at the end of every cycle that did not fail, after the export, within
 a time budget (`RADIX_SEMANTIC_BUDGET`, 20 minutes): first the summaries of module texts that have
@@ -763,8 +773,8 @@ Open:
   export in `snapshot/`: the digest covers `module_vector`, so the pinned checks are skipped until
   then. The catalog's tests pass against the snapshot of 2026-09-30 migrated to 11 with Radix's
   vectors.
-- **The semantic search in the app's UI** (served and loaded, not used yet), and
-  `RADIX_EMBED_MODEL` and `FOLIA_SEMANTIC_MODEL` in the stack (`semantic/README.md`, „Not done yet“).
+- **The semantic search in the app's UI** (served and loaded, not used yet; `semantic/README.md`,
+  „Not done yet“).
 - **Web server (Rust) and frontend.** Both still read the v1 layout and do not work against a
   snapshot. The server becomes an HTTP client of the service: poll `/snapshot/catalog.db` with
   `If-None-Match`, keep the file, serve it as `/api/db` with the same ETag, and answer SSR pages

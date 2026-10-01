@@ -3,6 +3,7 @@ package embed
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -164,4 +165,32 @@ func lines(t *testing.T, path string) []string {
 		t.Fatal(err)
 	}
 	return out
+}
+
+// A model named by a sha256, as in the server's model store, is loaded only when that is the
+// sha256 of its content; any other name is not checked.
+func TestAModelNamedByItsHashIsChecked(t *testing.T) {
+	content := []byte("E5Q1 not really a model")
+	sum := sha256.Sum256(content)
+	right := hex.EncodeToString(sum[:])
+	if err := checkName(filepath.Join("models", right), sum); err != nil {
+		t.Errorf("its own sha256: %v", err)
+	}
+	if err := checkName("e5-de-en-server.bin", sum); err != nil {
+		t.Errorf("a name that is no sha256: %v", err)
+	}
+	wrong := strings.Repeat("0", 64)
+	if err := checkName(filepath.Join("models", wrong), sum); err == nil {
+		t.Error("another sha256 than its content's: accepted")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, wrong), content, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := StartProcesses(filepath.Join(dir, wrong), 1, nil); err == nil || !strings.Contains(err.Error(), "damaged") {
+		t.Errorf("StartProcesses with a damaged model: %v", err)
+	}
+	if _, err := Load(context.Background(), filepath.Join(dir, wrong), 1); err == nil || !strings.Contains(err.Error(), "damaged") {
+		t.Errorf("Load with a damaged model: %v", err)
+	}
 }

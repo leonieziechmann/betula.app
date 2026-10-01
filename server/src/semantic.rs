@@ -23,21 +23,49 @@ pub struct Model {
     pub path: String,
     pub etag: String,
     pub body: Kept,
+    /// Radix's id of the passage model this query model was made for (`--semantic-passage-model`),
+    /// when it is known: the browser compares it with the snapshot's `semantic_model`.
+    pub passage: Option<String>,
+}
+
+fn invalid(message: String) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, message)
 }
 
 impl Model {
     /// Reads the packed model at `path` (`FOLIA_SEMANTIC_MODEL`); a file that is not one
-    /// (`E5Q1`, semantic/src/lib.rs) is refused.
-    pub fn load(path: &Path) -> std::io::Result<Model> {
+    /// (`E5Q1`, semantic/src/lib.rs) is refused, and so is one named by a sha256 (the server's
+    /// model store, deploy/models.lock) that is not the one of its content: a damaged file.
+    /// `passage` is Radix's id of the passage model it belongs to: 16 hex digits.
+    pub fn load(path: &Path, passage: Option<&str>) -> std::io::Result<Model> {
+        if let Some(passage) = passage {
+            if passage.len() != 16 || !passage.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+                return Err(invalid(format!("the passage model '{passage}' is not Radix's id of a model (16 hex digits)")));
+            }
+        }
         let bytes = std::fs::read(path)?;
         if !bytes.starts_with(b"E5Q1") {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "not a packed model of the semantic search (E5Q1)"));
+            return Err(invalid("not a packed model of the semantic search (E5Q1)".into()));
         }
-        Ok(Model::of(Bytes::from(bytes)))
+        let sum = hex(&Sha256::digest(&bytes));
+        let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+        if name.len() == 64 && name.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) && sum != name {
+            return Err(invalid(format!("the content's sha256 is {sum}, not the one its name says: a damaged file")));
+        }
+        Ok(Model { passage: passage.map(str::to_string), ..Model::with_sum(Bytes::from(bytes), &sum) })
     }
 
     pub fn of(bytes: Bytes) -> Model {
-        let hash: String = Sha256::digest(&bytes).iter().take(8).map(|b| format!("{b:02x}")).collect();
-        Model { path: format!("{PREFIX}e5-de-en-{hash}.bin"), etag: format!("\"{hash}\""), body: Kept::new(bytes) }
+        let sum = hex(&Sha256::digest(&bytes));
+        Model::with_sum(bytes, &sum)
     }
+
+    fn with_sum(bytes: Bytes, sum: &str) -> Model {
+        let hash = sum.get(..16).unwrap_or(sum);
+        Model { path: format!("{PREFIX}e5-de-en-{hash}.bin"), etag: format!("\"{hash}\""), body: Kept::new(bytes), passage: None }
+    }
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

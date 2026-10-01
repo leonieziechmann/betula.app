@@ -75,6 +75,12 @@ pub struct Config {
     #[arg(long, env = "FOLIA_SEMANTIC_MODEL")]
     pub semantic_model: Option<PathBuf>,
 
+    /// The passage model the semantic search's model was made for: Radix's id of it (the first 16
+    /// hex digits of its sha256). The browser offers the search only on a snapshot whose vectors
+    /// are of that model (its meta `semantic_model`); without it, on any.
+    #[arg(long, env = "FOLIA_SEMANTIC_PASSAGE_MODEL")]
+    pub semantic_passage_model: Option<String>,
+
     /// While working on the site: serve the stylesheet, the scripts and the SVGs from this
     /// directory (`app/assets`) as they are on disk, instead of the minified copies built into the
     /// server, and keep nothing as immutable. An edit is there with the next reload; the service

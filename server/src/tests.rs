@@ -247,14 +247,28 @@ async fn the_semantic_model_is_served_under_its_hash() {
     assert_eq!(serde_json::from_slice::<serde_json::Value>(&status).unwrap()["semantic_model"], serde_json::Value::Null);
     assert_eq!(request(&without, "/models/e5-de-en-0000000000000000.bin", &[]).await.0, StatusCode::NOT_FOUND);
 
-    assert!(crate::semantic::Model::load(&temp_dir("semantic-missing").join("model.bin")).is_err());
-    let not_a_model = temp_dir("semantic-not-a-model");
-    std::fs::create_dir_all(&not_a_model).unwrap();
-    std::fs::write(not_a_model.join("model.bin"), b"PK\x03\x04").unwrap();
-    assert!(crate::semantic::Model::load(&not_a_model.join("model.bin")).is_err(), "not E5Q1");
+    use crate::semantic::Model;
+    assert!(Model::load(&temp_dir("semantic-missing").join("model.bin"), None).is_err());
+    let store = temp_dir("semantic-store");
+    std::fs::create_dir_all(&store).unwrap();
+    std::fs::write(store.join("model.bin"), b"PK\x03\x04").unwrap();
+    assert!(Model::load(&store.join("model.bin"), None).is_err(), "not E5Q1");
 
     let bytes: Vec<u8> = b"E5Q1".iter().copied().chain((0..200_000u32).map(|i| (i % 7) as u8)).collect();
-    let model = crate::semantic::Model::of(bytes.clone().into());
+    // In the model store a file is named by its content's sha256: a damaged one is refused.
+    use sha2::Digest;
+    let sum: String = sha2::Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+    std::fs::write(store.join(&sum), &bytes).unwrap();
+    std::fs::write(store.join("0".repeat(64)), &bytes).unwrap();
+    let passage = Some("0539da78bb98e8bb");
+    let loaded = Model::load(&store.join(&sum), passage).unwrap();
+    assert_eq!((loaded.passage.as_deref(), loaded.path.clone()), (passage, format!("/models/e5-de-en-{}.bin", &sum[..16])));
+    let damaged = Model::load(&store.join("0".repeat(64)), passage).err().unwrap().to_string();
+    assert!(damaged.contains("damaged"), "{damaged}");
+    for wrong in ["0539DA78BB98E8BB", "0539da78", "not-a-model-id!!"] {
+        assert!(Model::load(&store.join(&sum), Some(wrong)).is_err(), "{wrong}");
+    }
+    let model = loaded;
     let path = model.path.clone();
     assert!(path.starts_with("/models/e5-de-en-") && path.ends_with(".bin") && path.len() == "/models/e5-de-en-.bin".len() + 16, "{path}");
     let mut with = state(SnapshotStore::new(temp_dir("semantic-model")).unwrap());
@@ -276,10 +290,12 @@ async fn the_semantic_model_is_served_under_its_hash() {
     }
 
     let (_, _, status) = request(&router, "/api/status", &[]).await;
-    assert_eq!(serde_json::from_slice::<serde_json::Value>(&status).unwrap()["semantic_model"], serde_json::json!(path));
+    let status = serde_json::from_slice::<serde_json::Value>(&status).unwrap();
+    assert_eq!((&status["semantic_model"], &status["semantic_passage_model"]), (&serde_json::json!(path), &serde_json::json!("0539da78bb98e8bb")));
     let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
     let boot = String::from_utf8(boot).unwrap();
-    assert!(boot.contains(&format!("\"{path}\"")) && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
+    let written = serde_json::json!({ "url": path, "passage": "0539da78bb98e8bb" }).to_string();
+    assert!(boot.contains(&written) && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

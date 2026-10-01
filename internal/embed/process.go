@@ -116,6 +116,9 @@ func StartProcesses(path string, n int, command func() *exec.Cmd) (*Processes, e
 		return nil, err
 	}
 	sum := sha256.Sum256(model)
+	if err := checkName(path, sum); err != nil {
+		return nil, err
+	}
 	p := &Processes{id: hex.EncodeToString(sum[:8]), command: command, workers: make(chan *worker, max(1, n))}
 	for range cap(p.workers) {
 		w, dims := p.start()

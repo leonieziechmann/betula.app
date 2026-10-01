@@ -17,8 +17,9 @@ const BUILD = new URL(import.meta.url).search;
 // A name and not a string: a minifier folds `Number("…")` into NaN before the server can write
 // the number in (server/build/main.rs).
 const SCHEMA = __SCHEMA__;
-// The address of the semantic search's model (`/models/e5-de-en-<hash>.bin`, server/src/semantic.rs),
-// or null when the server has none: then the app has no semantic search. A name, as SCHEMA.
+// The semantic search's model (server/src/semantic.rs), or null when the server has none: then the
+// app has no semantic search. `url`: its address (`/models/e5-de-en-<hash>.bin`); `passage`: Radix's
+// id of the passage model it was made for, or null when the server does not know it. A name, as SCHEMA.
 const SEMANTIC_MODEL = __SEMANTIC_MODEL__;
 
 // What this script says, in the page's language as its address says it (`catalog::Locale::split`;
@@ -203,7 +204,8 @@ async function loadProgramMap() {
 // `window.betulaSemantic`, for the app:
 //   ready             a promise: {rows, build, ms} once the search can answer; null when this
 //                     browser has none (no model on the server, no vectors in the catalog yet,
-//                     data saving, a device with little memory, or loading failed)
+//                     vectors of another passage model than the query model was made for, data
+//                     saving, a device with little memory, or loading failed)
 //   search(query, k)  a promise: {hits: [{id, score}], ms}, best first; null when a newer query
 //                     took its place, or when there is no semantic search
 function startSemantic() {
@@ -225,11 +227,20 @@ function startSemantic() {
     return null;
   });
   async function load() {
+    // A query is only comparable with passages of the model it was made for. The local copy of the
+    // catalog may be older than the server's model (it is replaced at the next start), or Radix may
+    // still be computing the vectors of a new passage model: then no search, rather than a wrong one.
+    const made = window.betulaDb.query("SELECT value FROM meta WHERE key = 'semantic_model'", []).rows;
+    const vectorsOf = made.length ? made[0][0] : null;
+    if (SEMANTIC_MODEL.passage && vectorsOf !== SEMANTIC_MODEL.passage) {
+      console.info(`[semantic] the catalog's vectors are of the passage model ${vectorsOf}, the query model is for ${SEMANTIC_MODEL.passage}`);
+      return null;
+    }
     const { Semantic, indexFromVectors } = await import("/pkg/semantic.js" + BUILD);
     const rows = window.betulaDb.query("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id", []).rows;
     // Radix has not computed the vectors of this snapshot yet: nothing to find, nothing to load.
     if (!rows.length) return null;
-    semantic = new Semantic({ model: SEMANTIC_MODEL, index: indexFromVectors(rows) });
+    semantic = new Semantic({ model: SEMANTIC_MODEL.url, index: indexFromVectors(rows) });
     return semantic.ready;
   }
   window.betulaSemantic = {

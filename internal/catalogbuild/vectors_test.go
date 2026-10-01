@@ -50,6 +50,9 @@ func TestModuleVectorsFollowTheirPassage(t *testing.T) {
 		t.Errorf("a computed vector: %d vectors, content changed %v; want 1, true", r.ModuleVectors, r.ContentChanged)
 	}
 	want(t, db, "SELECT module_id, scale, hex(vector) FROM v_module_vector", "11881|0.5|91A8")
+	// The snapshot names the model of its vectors: the browser offers the semantic search only
+	// with the query model made for it.
+	want(t, db, "SELECT value FROM meta WHERE key = 'semantic_model'", "model-a")
 
 	// A summary makes another passage, whose vector is not computed yet: the module keeps the one
 	// of its text alone, and the snapshot does not change.
@@ -77,4 +80,10 @@ func TestModuleVectorsFollowTheirPassage(t *testing.T) {
 		t.Errorf("after the model changed: %d vectors, content changed %v; want 0, true", r.ModuleVectors, r.ContentChanged)
 	}
 	want(t, db, "SELECT COUNT(*) FROM module_summary", "1")
+	want(t, db, "SELECT COUNT(*) FROM meta WHERE key = 'semantic_model'", "0")
+	if err := db.SavePassageEmbeddings("model-b", []catalogdb.PassageEmbedding{{PassageHash: plain, Scale: 0.5, Vector: []byte{0x91, 0xa8}}}); err != nil {
+		t.Fatal(err)
+	}
+	rebuild()
+	want(t, db, "SELECT value FROM meta WHERE key = 'semantic_model'", "model-b")
 }
