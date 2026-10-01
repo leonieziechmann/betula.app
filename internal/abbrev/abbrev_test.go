@@ -858,3 +858,21 @@ func TestTheBetterTwinKeepsThePlainForm(t *testing.T) {
 		t.Errorf("twins of an override line → %+v", got)
 	}
 }
+
+// The search finds a module by the known short form of a word of its title (docs/schema-v2.md,
+// „Search“), whole or as a part of a compound, and by nothing else.
+func TestKnownFormsIn(t *testing.T) {
+	cases := map[string][]string{
+		"Allgemeine Betriebswirtschaftslehre II":           {"BWL"},
+		"Einführung in die Volkswirtschaftslehre":          {"VWL"},
+		"Softwaresysteme und Hardwareentwurf":              {"HW", "SW"},
+		"Betriebswirtschaftslehre für Software-Ingenieure": {"BWL", "SW"},
+		"Theoretische Informatik":                          {},
+		"Wirtschaftsinformatik":                            {},
+	}
+	for title, want := range cases {
+		if got := KnownFormsIn(title); !reflect.DeepEqual(got, want) {
+			t.Errorf("KnownFormsIn(%q) = %v, want %v", title, got, want)
+		}
+	}
+}

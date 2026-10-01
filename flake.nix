@@ -38,7 +38,7 @@
           subPackages = [ "cmd/radix" ];
 
           # Update after changing go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy the hash Nix prints.
-          vendorHash = "sha256-b33lF4UjPtoTE0qbJ8mOmjEdxsLwUJqv3d7GjluATiA=";
+          vendorHash = "sha256-tFFT73vB3oTjpQaybpzq3I+alljd2zaXod+L7whFK7A=";
 
           # modernc.org/sqlite is pure Go: a static binary without libc.
           env.CGO_ENABLED = "0";
@@ -91,7 +91,7 @@
               rel = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
               top = builtins.head (pkgs.lib.splitString "/" rel);
             in
-            builtins.elem top [ "Cargo.toml" "Cargo.lock" "app" "catalog" "client" "pack" "server" ];
+            builtins.elem top [ "Cargo.toml" "Cargo.lock" "app" "catalog" "client" "pack" "semantic" "server" ];
         };
 
         cargoLock = builtins.fromTOML (builtins.readFile ./Cargo.lock);
@@ -184,11 +184,39 @@
           doInstallCargoArtifacts = false;
         });
 
+        # The Web Worker of the semantic search, as scripts/build-semantic.sh builds it into
+        # site/pkg: the crate semantic/ twice (WASM SIMD, and relaxed SIMD for the browsers that
+        # have it), and its two scripts. Nothing to build ahead: the crate has no dependencies.
+        folia-semantic = craneLib.mkCargoDerivation (rustCommon // {
+          pname = "betula-folia-semantic";
+          version = foliaVersion;
+          cargoArtifacts = null;
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER = "lld";
+          nativeBuildInputs = [ pkgs.lld ];
+          buildPhaseCargoCommand = ''
+            for build in simd relaxed; do
+              features="+simd128"
+              [ "$build" = relaxed ] && features="+simd128,+relaxed-simd"
+              CARGO_ENCODED_RUSTFLAGS="-Ctarget-feature=$features" cargo rustc --locked -p folia-semantic --lib --features worker \
+                --crate-type cdylib --target wasm32-unknown-unknown --profile wasm-release --target-dir "target/semantic-$build"
+            done
+          '';
+          installPhaseCommand = ''
+            mkdir -p "$out/site/pkg"
+            for build in simd relaxed; do
+              cp "target/semantic-$build/wasm32-unknown-unknown/wasm-release/semantic.wasm" "$out/site/pkg/semantic.$build.wasm"
+            done
+            cp semantic/js/worker.js "$out/site/pkg/semantic-worker.js"
+            cp semantic/js/semantic.js "$out/site/pkg/semantic.js"
+          '';
+          doInstallCargoArtifacts = false;
+        });
+
         folia-image = pkgs.dockerTools.buildLayeredImage {
           name = "betula-folia";
           tag = "latest";
           # /bin/folia and /site/pkg. No CA certificates: Folia only speaks plain HTTP, to Radix.
-          contents = [ folia folia-client ];
+          contents = [ folia folia-client folia-semantic ];
           # /data holds the downloaded snapshots. It belongs to the user the server runs as, and a
           # fresh named volume mounted there takes that owner over.
           fakeRootCommands = ''
@@ -224,7 +252,7 @@
       in
       {
         packages = {
-          inherit radix radix-image folia folia-client folia-image;
+          inherit radix radix-image folia folia-client folia-semantic folia-image;
           default = radix;
         };
 

@@ -358,6 +358,10 @@ fn TopBar() -> impl IntoView {
                 let mut next = if path == url::CATALOG { url::CatalogUrl::parse(&search) } else { Default::default() };
                 next.query.text = text.clone();
                 next.page = 1;
+                // What is typed is searched for the best matches first: an order chosen before
+                // gives way to relevance (owner, 2026-09-30), and a column orders the matches again.
+                next.query.sort = catalog::filter::SortKey::Default;
+                next.query.descending = false;
                 next.path()
             };
             if let Some(going) = going {

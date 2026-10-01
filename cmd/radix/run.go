@@ -69,6 +69,7 @@ func runService(ctx context.Context, args []string) {
 	archiveGrace := fs.Duration("archive-grace", envDuration("RADIX_ARCHIVE_GRACE", def.ArchiveGrace), "Remove archived pages nothing leads to any more this long after their fetch, 0 keeps them (env RADIX_ARCHIVE_GRACE)")
 	staleAfter := fs.Duration("stale-after", envDuration("RADIX_STALE_AFTER", def.StaleAfter), "Report unhealthy without a successful cycle for this long (env RADIX_STALE_AFTER)")
 	once := fs.Bool("once", false, "Run a single cycle and exit (exit code 1 if it failed)")
+	semanticOpts := addSemanticFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 
@@ -113,6 +114,14 @@ func runService(ctx context.Context, args []string) {
 		}
 		cfg.OffPeakStart, cfg.OffPeakEnd = s, e
 	}
+
+	semantic, closeSemantic, err := semanticOpts.setup(ctx)
+	if err != nil {
+		slog.Error("cannot start the semantic search's encoder", "component", "cli", "event", "cli.failed", oplog.Err(err))
+		os.Exit(2)
+	}
+	defer closeSemantic()
+	cfg.Semantic = semantic
 
 	db := openDB(*dbPath)
 	defer db.Close()

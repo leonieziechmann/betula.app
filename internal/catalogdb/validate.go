@@ -100,6 +100,13 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		reach+`SELECT s.module_id || ' → ' || GROUP_CONCAT(s.successor_id, ', ') FROM module_successor s
 		 JOIN reach r ON r.start = s.successor_id AND r.node = s.module_id GROUP BY s.module_id ORDER BY 1`)
 
+	// The semantic search (docs/schema-v2.md, „Semantic search“): vectors of one model have one
+	// length; a module without one is not found by meaning until the semantic stage has made it.
+	v.count("the module vectors have one length", StatusFail,
+		"SELECT MAX(0, COUNT(DISTINCT length(vector)) - 1) FROM module_vector", "")
+	v.count("modules without a vector for the semantic search", StatusInfo,
+		"SELECT COUNT(*) FROM module WHERE id NOT IN (SELECT module_id FROM module_vector)", "")
+
 	// Short names (docs/schema-v2.md, „Short names“). A migrated database that was not built
 	// again has none, and fails here: it must not be exported.
 	v.count("every event date with a room has a short form", StatusFail,
@@ -139,6 +146,17 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		"SELECT COUNT(*) FROM program_module_abbrev WHERE choice > 1 OR is_twin = 1", "")
 	v.count("room short forms longer than 12 characters", StatusInfo,
 		"SELECT COUNT(DISTINCT room) FROM event_date WHERE LENGTH(room_short) > 12", "")
+
+	// Search (docs/schema-v2.md, „Search“). A migrated database that was not built again has
+	// nothing folded, and fails here: it must not be exported.
+	const unfolded = `FROM module m LEFT JOIN module_folded s ON s.module_id = m.id
+		WHERE s.module_id IS NULL OR (m.title_de IS NOT NULL AND s.title_de IS NULL) OR (m.title_en IS NOT NULL AND s.title_en IS NULL)`
+	v.count("every title of a module is folded for the search", StatusFail,
+		"SELECT COUNT(*) "+unfolded, "SELECT m.id || ' ' || m.title "+unfolded+" ORDER BY m.id")
+	// SQLite's LOWER folds ASCII alone, which is enough to see a column that was not folded.
+	v.count("the search's folded columns are in lower case", StatusFail, `
+		SELECT COUNT(*) FROM module_folded WHERE title_de <> LOWER(title_de) OR title_en <> LOWER(title_en)
+		 OR initials <> LOWER(initials) OR abbrevs <> LOWER(abbrevs)`, "")
 
 	v.count("modules without a module page", StatusWarn, "SELECT COUNT(*) FROM module WHERE detail_status = 'missing'",
 		"SELECT id || ' ' || title FROM module WHERE detail_status = 'missing' ORDER BY id")
@@ -342,14 +360,17 @@ func (v *validator) samples(query string) []string {
 	return result
 }
 
-// emptyStrings checks every TEXT column of the canonical tables: unknown is NULL.
+// emptyStrings checks every TEXT column of the tables a snapshot carries: unknown is NULL.
+// Radix's own tables (snapshotDropTables: the archive, Gemini's summaries) are not checked: what
+// a model wrote is not the catalog's, and a summary of „-“ must not stop the exports.
 func (v *validator) emptyStrings() {
 	if v.err != nil {
 		return
 	}
+	internal := "'" + strings.Join(snapshotDropTables, "', '") + "'"
 	rows, err := v.db.QueryContext(v.ctx, `
 		SELECT m.name, p.name FROM sqlite_master m JOIN pragma_table_info(m.name) p
-		WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%' AND m.name <> 'raw_page' AND UPPER(p.type) = 'TEXT'
+		WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%' AND m.name NOT IN (`+internal+`) AND UPPER(p.type) = 'TEXT'
 		ORDER BY 1, 2`)
 	if err != nil {
 		v.err = err

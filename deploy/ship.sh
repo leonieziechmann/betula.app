@@ -13,7 +13,8 @@
 #   2. nix build .#radix-image .#folia-image (flake.nix). A release whose images are on the server
 #      already is not built again.
 #   3. Each image goes through ssh into "docker load" and gets the release tag there. No registry.
-#   4. deploy/sync.sh, so that the stack files and scripts on the server belong to this release.
+#   4. deploy/sync.sh, so that the stack files and scripts on the server belong to this release;
+#      then deploy/ship-models.sh, which uploads the models of models.lock the server lacks.
 #   5. Only on the first deploy of an instance, which has to say one of the two:
 #      --seed     this machine's Radix database (SEED_DB) goes into the instance's volume first
 #                 (vps/45-seed.sh), so the server does not crawl again what was crawled here.
@@ -44,7 +45,7 @@ SCRIPT="$(basename "$0")"
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${DEPLOY_DIR}/.." && pwd)"
 # What the two images are built from (flake.nix). A change anywhere else is not a new release.
-BUILD_PATHS=(flake.nix flake.lock Cargo.toml Cargo.lock go.mod go.sum app catalog client pack server cmd internal)
+BUILD_PATHS=(flake.nix flake.lock Cargo.toml Cargo.lock go.mod go.sum app catalog client pack semantic server cmd internal)
 IMAGES=(radix folia)
 
 log() { printf '[%s] %s\n' "${SCRIPT}" "$*"; }
@@ -270,6 +271,12 @@ fi
 
 log "syncing deploy/ (stack files and scripts of this release)"
 SSH_TARGET="${SSH_TARGET}" SSH_OPTS="${SSH_OPTS:-}" bash "${DEPLOY_DIR}/sync.sh"
+
+# The models of the semantic search (models.lock), when the server's store lacks them. Not a
+# reason to stop: without them 50-app.sh deploys the instance without the semantic search, and says so.
+if ! SHIP_MODELS_SYNC=0 SSH_TARGET="${SSH_TARGET}" SSH_OPTS="${SSH_OPTS:-}" bash "${DEPLOY_DIR}/ship-models.sh"; then
+  log "WARNING: the models of models.lock are not on the server (above: why); ${INSTANCE} runs without the semantic search until deploy/ship-models.sh has brought them and it is deployed again"
+fi
 
 # ---------------------------------------------------------------- the first deploy: data
 

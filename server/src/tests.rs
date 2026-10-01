@@ -201,6 +201,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         site_root: "no-site".into(),
         live_assets: None,
         packages: Arc::default(),
+        semantic: None,
         gate: None,
         renders: Arc::new(crate::busy::Places::new("render", 2, std::time::Duration::from_secs(3))),
         render_wait: std::time::Duration::from_secs(3),
@@ -236,6 +237,67 @@ async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str)
 /// The launch screens of iOS (`app::launch`): the head script of every page names those of its
 /// screen, and the server draws each one it can name, as large as its screen, and answers it again
 /// with 304 to its ETag; no other name is there. Needs no snapshot.
+/// The semantic search's model (`semantic`): served under the address its content names, kept
+/// for good, named to the browser by `boot.js` and `/api/status`; nothing under another name, and
+/// nothing at all, and `null` in both, without a model.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_semantic_model_is_served_under_its_hash() {
+    let without = crate::router(state(SnapshotStore::new(temp_dir("semantic-none")).unwrap()));
+    let (_, _, status) = request(&without, "/api/status", &[]).await;
+    assert_eq!(serde_json::from_slice::<serde_json::Value>(&status).unwrap()["semantic_model"], serde_json::Value::Null);
+    assert_eq!(request(&without, "/models/e5-de-en-0000000000000000.bin", &[]).await.0, StatusCode::NOT_FOUND);
+
+    use crate::semantic::Model;
+    assert!(Model::load(&temp_dir("semantic-missing").join("model.bin"), None).is_err());
+    let store = temp_dir("semantic-store");
+    std::fs::create_dir_all(&store).unwrap();
+    std::fs::write(store.join("model.bin"), b"PK\x03\x04").unwrap();
+    assert!(Model::load(&store.join("model.bin"), None).is_err(), "not E5Q1");
+
+    let bytes: Vec<u8> = b"E5Q1".iter().copied().chain((0..200_000u32).map(|i| (i % 7) as u8)).collect();
+    // In the model store a file is named by its content's sha256: a damaged one is refused.
+    use sha2::Digest;
+    let sum: String = sha2::Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+    std::fs::write(store.join(&sum), &bytes).unwrap();
+    std::fs::write(store.join("0".repeat(64)), &bytes).unwrap();
+    let passage = Some("0539da78bb98e8bb");
+    let loaded = Model::load(&store.join(&sum), passage).unwrap();
+    assert_eq!((loaded.passage.as_deref(), loaded.path.clone()), (passage, format!("/models/e5-de-en-{}.bin", &sum[..16])));
+    let damaged = Model::load(&store.join("0".repeat(64)), passage).err().unwrap().to_string();
+    assert!(damaged.contains("damaged"), "{damaged}");
+    for wrong in ["0539DA78BB98E8BB", "0539da78", "not-a-model-id!!"] {
+        assert!(Model::load(&store.join(&sum), Some(wrong)).is_err(), "{wrong}");
+    }
+    let model = loaded;
+    let path = model.path.clone();
+    assert!(path.starts_with("/models/e5-de-en-") && path.ends_with(".bin") && path.len() == "/models/e5-de-en-.bin".len() + 16, "{path}");
+    let mut with = state(SnapshotStore::new(temp_dir("semantic-model")).unwrap());
+    with.semantic = Some(Arc::new(model));
+    let router = crate::router(with);
+
+    let (status, headers, body) = request(&router, &path, &[]).await;
+    assert_eq!((status, body.len()), (StatusCode::OK, bytes.len()));
+    assert!(body == bytes);
+    assert_eq!(headers[header::CACHE_CONTROL], crate::api::Keep::IMMUTABLE, "its address names its content");
+    assert_eq!(headers[header::CONTENT_TYPE], "application/octet-stream");
+    let etag = headers[header::ETAG].to_str().unwrap().to_string();
+    assert_eq!(request(&router, &path, &[("if-none-match", &etag)]).await.0, StatusCode::NOT_MODIFIED);
+    let (_, headers, brotli) = request(&router, &path, &[("accept-encoding", "br")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING], "br");
+    assert_eq!(crate::encoding::unbrotli(&brotli).as_deref(), Some(&bytes[..]));
+    for other in ["/models/e5-de-en-0000000000000000.bin", "/models/model.bin", "/models/"] {
+        assert_eq!(request(&router, other, &[]).await.0, StatusCode::NOT_FOUND, "{other}");
+    }
+
+    let (_, _, status) = request(&router, "/api/status", &[]).await;
+    let status = serde_json::from_slice::<serde_json::Value>(&status).unwrap();
+    assert_eq!((&status["semantic_model"], &status["semantic_passage_model"]), (&serde_json::json!(path), &serde_json::json!("0539da78bb98e8bb")));
+    let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
+    let boot = String::from_utf8(boot).unwrap();
+    let written = serde_json::json!({ "url": path, "passage": "0539da78bb98e8bb" }).to_string();
+    assert!(boot.contains(&written) && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn the_launch_screens_of_ios_are_drawn_as_large_as_their_screen() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("launch")).unwrap()));
@@ -610,8 +672,8 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // The boot knows the schema its build reads, and opens no local copy of an older one.
     let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
     let boot = String::from_utf8(boot).unwrap();
-    assert_eq!(boot, crate::assets::text("boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string()));
-    assert!(!boot.contains("__SCHEMA__"), "{boot}");
+    assert_eq!(boot, crate::assets::text("boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string()).replace("__SEMANTIC_MODEL__", "null"));
+    assert!(!boot.contains("__SCHEMA__") && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
     // Every answer names the build that gave it; the worker keeps only the answers of its own.
     for path in ["/", "/catalog", "/assets/app.css?v=test", app::SERVICE_WORKER, "/manifest.webmanifest"] {
         let (_, headers, _) = request(&router, path, &[]).await;

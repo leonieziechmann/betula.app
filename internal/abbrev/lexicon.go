@@ -2,6 +2,7 @@ package abbrev
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -63,6 +64,28 @@ var genericLead = set("grundlagen", "grundzüge", "einführung", "allgemeine", "
 var knownForms = map[string]string{
 	"betriebswirtschaftslehre": "BWL", "volkswirtschaftslehre": "VWL",
 	"software": "SW", "hardware": "HW",
+}
+
+// KnownFormsIn returns the known short forms of the words of title that are a word they stand
+// for or a compound of it, sorted: BWL for „Allgemeine Betriebswirtschaftslehre“, SW for
+// „Softwaresysteme“. The search finds such a module by its short form as well (docs/schema-v2.md,
+// „Search“).
+func KnownFormsIn(title string) []string {
+	seen := map[string]bool{}
+	for _, w := range vocabularyWord.FindAllString(title, -1) {
+		w = strings.ToLower(w)
+		for long, short := range knownForms {
+			if strings.Contains(w, long) {
+				seen[short] = true
+			}
+		}
+	}
+	forms := make([]string, 0, len(seen))
+	for form := range seen {
+		forms = append(forms, form)
+	}
+	sort.Strings(forms)
+	return forms
 }
 
 // curatedHeads are compound parts the title vocabulary lacks as standalone words.

@@ -760,8 +760,9 @@ html:not(.js) .fit-chip { display: none; }
 .count-label { color: var(--text-2); font-weight: 520; }
 .list-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
 .active-filters { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px 0 8px; min-height: 8px; }
-/* „Passt in meinen Stundenplan" against a semester without dates: nothing could be checked. */
-.list-head > .fit-line { margin: 0 0 8px; }
+/* „Passt in meinen Stundenplan" against a semester without dates: nothing could be checked. And
+   what the search did with a text that found nothing as typed (a typo corrected, the most words). */
+.list-head > .fit-line, .list-head > .search-line { margin: 0 0 8px; }
 .tag { min-height: 26px; padding: 0 4px 0 10px; border-radius: 7px; display: inline-flex; align-items: center; gap: 4px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; font-weight: 560; color: var(--text); }
 /* With a semester chosen: what the plan asks for in it besides the modules it places there, a
    line a row. */
@@ -836,6 +837,14 @@ html:not(.js) .fit-chip { display: none; }
 .load-more, .list-end, .keys { display: none; }
 .app .load-more { display: flex; width: calc(100% - 16px); margin: 10px 8px; }
 .app .list-end { display: block; text-align: center; color: var(--text-3); font-size: 12.5px; padding: 16px 0 6px; }
+/* Under the list, with and without the app: what the search finds outside the other filters. */
+.list-note { text-align: center; color: var(--text-3); font-size: 12.5px; padding: 12px 8px 6px; }
+.list-note a { font-weight: 560; }
+/* „Ähnliche Module" under the results (`SimilarModules`): headed as the Merkliste's modules that are
+   not in the catalog (`.sem`), but not sticky, which would put it under the heads of the columns,
+   and so without the shade that covers rows scrolling under it. */
+.similar { margin-top: 6px; }
+.similar > .sem { position: static; padding-top: 14px; background: none; }
 .app .pager { display: none; }
 .app .keys { display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); font-size: 12px; margin-right: 6px; white-space: nowrap; }
 .keys kbd { padding: 2px 5px; }

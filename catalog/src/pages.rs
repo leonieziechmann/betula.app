@@ -13,12 +13,13 @@ use crate::filter::{CatalogQuery, FitsFilter, PlanSemesterFilter, ProgramRelatio
 use crate::labels::{Labelled, ModuleKind, OfferStatus};
 use crate::plan::{self, SemesterPlan};
 use crate::queries;
-use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, Semester};
+use crate::rows::{CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchElsewhere, Semester};
 use crate::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleSws,
     ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramVersion,
     Successor, TextItem,
 };
+use crate::search;
 use crate::timetable::clash;
 use crate::timetable::day::{clock, Day};
 use crate::timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
@@ -501,13 +502,17 @@ pub struct CatalogData {
     /// For the name of the selected department (few rows; the long lists are `CatalogChoices`).
     pub departments: Vec<Department>,
     pub meta: Meta,
+    /// With a search text: what it finds outside the list's other filters, said under the rows.
+    pub elsewhere: Option<SearchElsewhere>,
 }
 
 /// The catalog of `url` for a page in `locale` (the credits of a semester's requirements are
 /// written in it).
 pub fn catalog(db: &dyn Database, url: &CatalogUrl, locale: Locale) -> Result<CatalogData, DbError> {
     let scope = catalog_scope(db, &url.query, locale)?;
+    let elsewhere = if scope.effective.text.trim().is_empty() { None } else { Some(queries::search_elsewhere(db, &scope.effective)?) };
     Ok(CatalogData {
+        elsewhere,
         page: queries::catalog_page(db, &scope.effective, url.offset(), PAGE_SIZE)?,
         plan_semesters: scope.plan_semesters,
         areas: scope.areas,
@@ -561,6 +566,50 @@ pub fn catalog_summary(db: &dyn Database, query: &CatalogQuery) -> Result<Catalo
     })
 }
 
+/// How many of the modules closest to a search text the semantic search hands over for „Ähnliche
+/// Module" (`similar`): the closest tenth of the catalog, of which a filter keeps its share.
+pub const SIMILAR_CANDIDATES: usize = 500;
+/// How many „Ähnliche Module" stand under the results at most (owner, 2026-10-01).
+pub const SIMILAR_SHOWN: usize = 10;
+/// From how many letters or digits on a search has „Ähnliche Module" (owner, 2026-10-01).
+pub const SIMILAR_FROM: usize = 3;
+
+/// Whether a search for `text` has „Ähnliche Module" under its results.
+pub fn searches_similar(text: &str) -> bool {
+    text.chars().filter(|c| c.is_alphanumeric()).count() >= SIMILAR_FROM
+}
+
+/// What the semantic search is asked for the „Ähnliche Module" of `query` (the one the page ran):
+/// its text as the list searched it, typos corrected („algoritmen" is „Algorithmen", which the
+/// list says). `None` for a search that has none (`searches_similar`).
+pub fn similar_text(query: &CatalogQuery) -> Option<String> {
+    let text = query.text.trim();
+    if !searches_similar(text) {
+        return None;
+    }
+    Some(match &query.text_resolution {
+        Some(resolution) if !resolution.corrected.is_empty() => resolution.searched_text(text),
+        _ => text.to_string(),
+    })
+}
+
+/// „Ähnliche Module" under the results of a search (owner, 2026-10-01: with every search, the
+/// filters applying, at most 10): of the modules the semantic search finds closest to the text of
+/// `query` (`hits`, the closest first), those the rest of its filter holds and the search itself
+/// does not find (they are results already), the closest first, at most `limit`. `query` is the
+/// one the page ran (`CatalogData::effective`); its text is resolved as the list's where it is not.
+pub fn similar(db: &dyn Database, query: &CatalogQuery, hits: &[String], limit: usize) -> Result<Vec<CatalogRow>, DbError> {
+    if !searches_similar(&query.text) || hits.is_empty() || limit == 0 {
+        return Ok(Vec::new());
+    }
+    let mut query = query.clone();
+    if query.text_resolution.is_none() {
+        query.text_resolution = Some(search::resolve(db, &query.text)?);
+    }
+    let mut rows: BTreeMap<String, CatalogRow> = queries::similar_rows(db, &query, hits)?.into_iter().map(|row| (row.id.clone(), row)).collect();
+    Ok(hits.iter().filter_map(|id| rows.remove(id)).take(limit).collect())
+}
+
 /// What a filter means before a row of the list is read (`catalog` and `catalog_summary`).
 struct CatalogScope {
     program: Option<Program>,
@@ -594,6 +643,11 @@ fn catalog_scope(db: &dyn Database, query: &CatalogQuery, locale: Locale) -> Res
     // the semester; what that means is derived here and filled into the query (R12: the page
     // says that it is derived).
     let mut query = query.clone();
+    // How the text is searched: as typed, or, where that finds nothing, with its typos corrected or
+    // for the most of its words (`search::resolve`). The list says so above its rows.
+    if query.text_resolution.is_none() && !query.text.trim().is_empty() {
+        query.text_resolution = Some(search::resolve(db, &query.text)?);
+    }
     let mut semester_plan = None;
     if let (Some(scope), Some(program)) = (query.program.as_mut(), program.as_ref()) {
         if let (Some(PlanSemesterFilter::Semester(semester)), true) = (scope.plan_semester, program.has_plan) {

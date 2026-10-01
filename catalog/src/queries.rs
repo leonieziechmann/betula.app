@@ -1,7 +1,8 @@
 //! Every SQL statement of the web tier, one function per query.
 //!
 //! Rules (docs/frontend-rewrite.md §4): read only `v_*` views and `program_coverage`;
-//! filter and sort on view columns; `LIKE` only against `v_module_search`; every list
+//! filter and sort on view columns; free text only against `v_module_folded` (the search,
+//! `search::Plan`) and, for the suggestions, `v_module_search`; every list
 //! comes with an exact total. `tests::every_query_runs_against_the_snapshot` fails for
 //! a `pub fn` in this file that the tests never ran. The Studienplan's lists of module ids
 //! go in as one parameter read by `json_each(?)`: a function over the parameter, which reads
@@ -12,9 +13,11 @@ use std::collections::BTreeSet;
 use crate::db::{fetch, fetch_count, fetch_optional, Database, DbError, Value};
 use crate::filter::{like_pattern, CatalogQuery, ProgramRelation};
 use crate::rows::{
-    CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchTerm,
+    CatalogPage, CatalogRow, Department, Meta, Module, ModuleVector, Prerequisite, Program, ProgramModule, SearchElsewhere,
+    SearchTerm,
     Semester,
 };
+use crate::search::{Plan as SearchPlan, Resolution};
 use crate::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleAbbrev, ModuleSws,
     ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry, ProgramDepartmentCount, ProgramLink,
@@ -183,11 +186,6 @@ pub fn catalog_page(
     let total = catalog_count(db, query)?;
 
     let sql = query.to_sql();
-    let program_columns = if query.program.is_some() {
-        "pm.kind AS kind, pm.plan_semester AS plan_semester, pm.area AS area"
-    } else {
-        "NULL AS kind, NULL AS plan_semester, NULL AS area"
-    };
     let mut params = sql.params.clone();
     params.push(Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX)));
     params.push(Value::Integer(i64::try_from(offset).unwrap_or(i64::MAX)));
@@ -196,10 +194,8 @@ pub fn catalog_page(
         db,
         "catalog_page",
         &format!(
-            "SELECT f.module_id, m.title, m.title_de, m.title_en, f.credits, f.turnus_season, f.turnus_parity, \
-             f.offer_status, f.teaches_german, f.teaches_english, f.is_fues, f.is_limited, m.department, \
-             f.teaching_events, f.exam_form, m.responsible, {program_columns} \
-             FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{}{} LIMIT ? OFFSET ?",
+            "SELECT {} FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{}{} LIMIT ? OFFSET ?",
+            catalog_columns(query),
             sql.joins,
             sql.where_clause(),
             query.order_by()
@@ -207,6 +203,21 @@ pub fn catalog_page(
         &params,
     )?;
     Ok(CatalogPage { total, offset, rows })
+}
+
+/// The columns of a `CatalogRow`; with a program, the module's kind, semester and area in it
+/// (`pm`, which `CatalogQuery::to_sql` joins).
+fn catalog_columns(query: &CatalogQuery) -> String {
+    let program_columns = if query.program.is_some() {
+        "pm.kind AS kind, pm.plan_semester AS plan_semester, pm.area AS area"
+    } else {
+        "NULL AS kind, NULL AS plan_semester, NULL AS area"
+    };
+    format!(
+        "f.module_id, m.title, m.title_de, m.title_en, f.credits, f.turnus_season, f.turnus_parity, \
+         f.offer_status, f.teaches_german, f.teaches_english, f.is_fues, f.is_limited, m.department, \
+         f.teaching_events, f.exam_form, m.responsible, {program_columns}"
+    )
 }
 
 /// Where a module stands in the list a query orders (0-based), or `None` if it is not in it: the
@@ -271,6 +282,107 @@ pub fn search_suggestions(db: &dyn Database, text: &str, limit: u64) -> Result<V
          GROUP BY module_id ORDER BY MIN(CASE kind WHEN 'id' THEN 0 ELSE 1 END), term COLLATE NOCASE LIMIT ?",
         &[Value::from(like_pattern(text)), Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX))],
     )
+}
+
+/// How many modules the search of `text` finds, as `resolution` has it searched, whatever the
+/// filters: the whole catalog, offered or not (`search::resolve`).
+pub fn search_count(db: &dyn Database, text: &str, resolution: Option<&Resolution>) -> Result<u64, DbError> {
+    let Some(plan) = SearchPlan::new(text, resolution) else { return Ok(0) };
+    let Some((table, params)) = plan.table() else { return Ok(0) };
+    fetch_count(db, "search_count", &format!("SELECT COUNT(*) FROM {table} sr WHERE {}", plan.condition("sr")), &params)
+}
+
+/// Which of the words of `text` some module has, in the order the search takes them
+/// (`search::resolve`): a word no module has is one to correct.
+pub fn search_words_found(db: &dyn Database, text: &str) -> Result<Vec<bool>, DbError> {
+    // Every module that has one of the words, as for the most words.
+    let any = Resolution { corrected: Vec::new(), most_words: true };
+    let Some(plan) = SearchPlan::new(text, Some(&any)) else { return Ok(Vec::new()) };
+    let Some((table, params)) = plan.table() else { return Ok(Vec::new()) };
+    let columns: Vec<String> = (0..plan.len()).map(|i| format!("MAX(w{i} > 0)")).collect();
+    let rows = db.query("search_words_found", &format!("SELECT {} FROM {table}", columns.join(", ")), &params)?;
+    let found = |value: &Value| matches!(value, Value::Integer(n) if *n > 0);
+    Ok(rows.rows.first().map(|row| row.iter().map(found).collect()).unwrap_or_default())
+}
+
+/// The German and the English title of a module.
+pub type Titles = (Option<String>, Option<String>);
+
+/// The titles of every module: the words a typo is corrected to (`search::resolve`).
+pub fn search_titles(db: &dyn Database) -> Result<Vec<Titles>, DbError> {
+    let rows = db.query("search_titles", "SELECT title_de, title_en FROM v_module ORDER BY id", &[])?;
+    let text = |value: Option<&Value>| match value {
+        Some(Value::Text(text)) => Some(text.clone()),
+        _ => None,
+    };
+    Ok(rows.rows.iter().map(|row| (text(row.first()), text(row.get(1)))).collect())
+}
+
+/// What the search of `query` finds outside the rest of its filters: the modules the text finds
+/// (as the query's resolution has it searched) that the list does not hold, offered and no longer
+/// offered. Nothing without a search.
+pub fn search_elsewhere(db: &dyn Database, query: &CatalogQuery) -> Result<SearchElsewhere, DbError> {
+    let Some(plan) = SearchPlan::new(&query.text, query.text_resolution.as_ref()) else { return Ok(SearchElsewhere::default()) };
+    let Some((table, mut params)) = plan.table() else { return Ok(SearchElsewhere::default()) };
+    let listed = query.to_sql();
+    params.extend(listed.params.iter().cloned());
+    Ok(fetch_optional(
+        db,
+        "search_elsewhere",
+        &format!(
+            "SELECT IFNULL(SUM(f.offer_status IN ('active', 'phase_out')), 0) AS offered, \
+             IFNULL(SUM(f.offer_status = 'not_offered'), 0) AS not_offered \
+             FROM v_module_facets f JOIN {table} sr ON sr.module_id = f.module_id WHERE {} AND f.module_id NOT IN \
+             (SELECT f.module_id FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{})",
+            plan.condition("sr"),
+            listed.joins,
+            listed.where_clause()
+        ),
+        &params,
+    )?
+    .unwrap_or_default())
+}
+
+/// The modules of `ids` that the filter of `query` holds apart from its search text and that its
+/// search does not find (those are in the list already): what the semantic search adds to the
+/// results, „Ähnliche Module" (`pages::similar`), in the order of their ids. Nothing without a
+/// search.
+pub fn similar_rows(db: &dyn Database, query: &CatalogQuery, ids: &[String]) -> Result<Vec<CatalogRow>, DbError> {
+    let Some(plan) = SearchPlan::new(&query.text, query.text_resolution.as_ref()) else { return Ok(Vec::new()) };
+    // Within what the list is restricted to besides („Gemerkt").
+    let ids: Vec<String> = match &query.only_ids {
+        Some(only) => {
+            let only: BTreeSet<&str> = only.iter().map(String::as_str).collect();
+            ids.iter().filter(|id| only.contains(id.as_str())).cloned().collect()
+        }
+        None => ids.to_vec(),
+    };
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let besides = CatalogQuery { text: String::new(), text_resolution: None, only_ids: Some(ids), ..query.clone() };
+    let mut sql = besides.to_sql();
+    if let Some((table, params)) = plan.table() {
+        sql.conditions.push(format!("f.module_id NOT IN (SELECT sr.module_id FROM {table} sr WHERE {})", plan.condition("sr")));
+        sql.params.extend(params);
+    }
+    fetch(
+        db,
+        "similar_rows",
+        &format!(
+            "SELECT {} FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{} ORDER BY f.module_id",
+            catalog_columns(query),
+            sql.joins,
+            sql.where_clause()
+        ),
+        &sql.params,
+    )
+}
+
+/// The vectors of the semantic search, one per module that has one (`v_module_vector`), in id
+/// order: what `semantic::Index` is built from.
+pub fn module_vectors(db: &dyn Database) -> Result<Vec<ModuleVector>, DbError> {
+    fetch(db, "module_vectors", "SELECT module_id, scale, hex(vector) AS vector FROM v_module_vector ORDER BY module_id", &[])
 }
 
 /// Everyone who teaches or is responsible for a module, for the lecturer filter.

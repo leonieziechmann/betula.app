@@ -682,6 +682,16 @@ prepare_directories() {
   log "/opt/betula and ${BETULA_ETC_DIR} exist"
 }
 
+# After create_deploy_user: the store belongs to that user.
+prepare_model_store() {
+  step "Model store"
+  # The models of the semantic search (vps/models.sh, README.md section 13): written by deploy,
+  # read by every instance through a read-only mount.
+  install -d -m 0755 -o root -g root /var/lib/betula
+  install -d -m 0755 -o "${DEPLOY_USER}" -g "${DEPLOY_USER}" /var/lib/betula/models
+  log "/var/lib/betula/models exists"
+}
+
 report() {
   step "Done"
   log "next: from your workstation run  ssh ${DEPLOY_USER}@<host> sudo -n true  (or your ssh alias for ${DEPLOY_USER})"
@@ -708,6 +718,7 @@ configure_needrestart
 configure_time
 prepare_directories
 create_deploy_user
+prepare_model_store
 disable_unused_accounts
 configure_firewall
 configure_fail2ban
