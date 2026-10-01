@@ -3,6 +3,8 @@ name = "folia-server"
 version = "1.0.3"
 edition = "2021"
 description = "Folia, the web server of Betula: fetches snapshots from Radix, renders the app, serves the snapshot to browsers"
+# Minifies the stylesheet, the scripts and the SVGs of app/assets, which the server embeds.
+build = "build/main.rs"
 
 [[bin]]
 name = "folia"
@@ -43,6 +45,19 @@ png = "0.17"
 # `oneshot` for the warm-up of the page cache (src/warm.rs), which asks the page router directly.
 # Axum depends on it already.
 tower = { version = "0.5", features = ["util"] }
+
+# The minifiers of build/main.rs: they run when the server is built, none of them is in it. No
+# default features: lightningcss without its bundler and source maps, oxc's printer without
+# source maps. The oxc crates go together, one version for all.
+[build-dependencies]
+lightningcss = { version = "1.0.0-alpha.72", default-features = false }
+oxc_allocator = "0.152"
+oxc_codegen = { version = "0.152", default-features = false }
+# The syntax the minified scripts may use (`SYNTAX` in build/main.rs).
+oxc_compat = "0.152"
+oxc_minifier = "0.152"
+oxc_parser = "0.152"
+oxc_span = "0.152"
 
 [lints.clippy]
 unwrap_used = "deny"
