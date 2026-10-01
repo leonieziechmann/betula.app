@@ -37,9 +37,9 @@ pub struct SemanticHit {
 pub type Later<T> = std::pin::Pin<Box<dyn std::future::Future<Output = T>>>;
 
 /// The semantic search (semantic/README.md): the modules whose descriptions mean what a query
-/// says, for when the exact search finds few. Only the browser app has it (`client`, the model in
-/// a Web Worker that `boot.js` loads once the app runs); on the server, and in a browser that has
-/// none, there is no `Semantic` in the context.
+/// says, the catalog's „Ähnliche Module" under the results of a search. Only the browser app has
+/// it (`client`, the model in a Web Worker that `boot.js` loads once the app runs); on the server,
+/// and in a browser that has none, there is no `Semantic` in the context.
 pub trait SemanticSearch: Send + Sync {
     /// Whether the search can answer: false for good when this browser has none (no model on the
     /// server, no vectors in the catalog yet, data saving, little memory). Resolves once loading

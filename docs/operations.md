@@ -312,7 +312,7 @@ and `radix export`. The new binary migrates
 `radix.db` when it opens it, but a migration does not rewrite the data it adds columns for; schema 9,
 for instance, leaves `room_short` NULL and the abbreviation tables empty until the next build, schema
 10 the module texts in their plain form instead of Markdown (docs/schema-v2.md §3, „Module texts"),
-and `validate` — which `export` runs first — refuses such a database. Do not export it with
+12 the folded names the search compares a query with (`module_folded`), and `validate` — which `export` runs first — refuses such a database. Do not export it with
 `--skip-validate`: Folia would get a catalog without short names, or texts it sets as one paragraph. `deploy/vps/50-app.sh` does the
 build itself when it makes the first snapshot of a seeded volume; for a running instance it is
 `docker exec <radix container> /bin/radix build --db /data/radix.db`, then `… export --db

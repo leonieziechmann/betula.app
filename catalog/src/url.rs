@@ -989,6 +989,8 @@ impl CatalogUrl {
 
         let query = CatalogQuery {
             text: first("q").unwrap_or_default(),
+            // Derived by the page, never read from a URL.
+            text_resolution: None,
             program,
             lecturers_include: names("lecturer"),
             lecturers_exclude: names("not-lecturer"),
@@ -1334,6 +1336,7 @@ mod tests {
         let url = CatalogUrl {
             query: CatalogQuery {
                 text: "Lineare Algebra & Ökologie".into(),
+                text_resolution: None,
                 program: Some(ProgramScope {
                     program_slug: "bachelor-informatik-2008".into(),
                     relation: ProgramRelation::Fues,

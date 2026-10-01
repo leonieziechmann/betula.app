@@ -199,7 +199,11 @@ dedicated worker lives as long as the page and keeps the model loaded between qu
 
 ## In the app
 
-Everything is in place and loaded; no component uses it yet.
+The catalog shows what it finds under the results of a search, as „Ähnliche Module“
+(`app::pages::catalog::SimilarModules`, `catalog::pages::similar`; docs/frontend.md, „The search of
+the catalog“): with every search of three letters or digits, the 500 modules closest to its text,
+of which those the filters hold and the search itself does not find, at most 10, the closest
+first, as rows of the list. Nothing waits for it: the rows come once the search answers.
 
 - **Folia** serves the model given by `FOLIA_SEMANTIC_MODEL` (`server/src/semantic.rs`) at
   `/models/e5-de-en-<the first 16 hex digits of its SHA-256>.bin`, kept for good (`immutable`):
@@ -237,7 +241,6 @@ are of the passage model its query model was made for (`meta.semantic_model`,
 
 ## Not done yet
 
-- the search in the app's UI (`app/`): the semantic hits when the exact search finds few;
 - a schema-11 snapshot for Folia's tests (`catalog::tests` and the pinned digests);
 - Unicode composition (NFC): neither side composes „e“ + U+0301 into „é“ (a query typed so is
   cut differently from one with „é“, on both sides alike). Keyboards and the catalog write the

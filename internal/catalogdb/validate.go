@@ -147,6 +147,17 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 	v.count("room short forms longer than 12 characters", StatusInfo,
 		"SELECT COUNT(DISTINCT room) FROM event_date WHERE LENGTH(room_short) > 12", "")
 
+	// Search (docs/schema-v2.md, „Search“). A migrated database that was not built again has
+	// nothing folded, and fails here: it must not be exported.
+	const unfolded = `FROM module m LEFT JOIN module_folded s ON s.module_id = m.id
+		WHERE s.module_id IS NULL OR (m.title_de IS NOT NULL AND s.title_de IS NULL) OR (m.title_en IS NOT NULL AND s.title_en IS NULL)`
+	v.count("every title of a module is folded for the search", StatusFail,
+		"SELECT COUNT(*) "+unfolded, "SELECT m.id || ' ' || m.title "+unfolded+" ORDER BY m.id")
+	// SQLite's LOWER folds ASCII alone, which is enough to see a column that was not folded.
+	v.count("the search's folded columns are in lower case", StatusFail, `
+		SELECT COUNT(*) FROM module_folded WHERE title_de <> LOWER(title_de) OR title_en <> LOWER(title_en)
+		 OR initials <> LOWER(initials) OR abbrevs <> LOWER(abbrevs)`, "")
+
 	v.count("modules without a module page", StatusWarn, "SELECT COUNT(*) FROM module WHERE detail_status = 'missing'",
 		"SELECT id || ' ' || title FROM module WHERE detail_status = 'missing' ORDER BY id")
 	// Folia shows a module's dates by semester and leaves out one without. An event QIS has

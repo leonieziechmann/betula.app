@@ -36,7 +36,7 @@ use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
-use crate::data::{use_source, DataError, PageStatus, Source};
+use crate::data::{use_source, DataError, PageStatus, Semantic, Source};
 use crate::format;
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::nav;
@@ -553,6 +553,99 @@ fn keep_open(target: CatalogUrl, open: Memo<Option<String>>, t: &'static i18n::T
     move || t.path(&target.with_open(open.get().as_deref()).path())
 }
 
+/// What the search did with its text where the text as typed found no module (`catalog::search`):
+/// the typo it corrected, or that no module has all the words. Nothing otherwise.
+fn search_line(query: &CatalogQuery, t: &'static i18n::Texts) -> Option<String> {
+    let resolution = query.text_resolution.as_ref()?;
+    let text = query.text.trim();
+    let mut lines = Vec::new();
+    if !resolution.corrected.is_empty() {
+        lines.push((t.catalog.search_corrected)(text, &resolution.searched_text(text)));
+    }
+    if resolution.most_words {
+        lines.push(t.catalog.search_most_words.to_string());
+    }
+    (!lines.is_empty()).then(|| lines.join(" "))
+}
+
+/// Under the list: how many modules the search finds outside its other filters, with a link to the
+/// catalog with the search alone, no longer offered modules included where some are among them
+/// (owner, 2026-09-30: „Filter gelten + Hinweis"). Nothing without a search, or where the list
+/// holds everything it finds.
+fn elsewhere_note(data: &CatalogData, listed: u64, open: Memo<Option<String>>, t: &'static i18n::Texts) -> Option<impl IntoView> {
+    let elsewhere = data.elsewhere?;
+    let found = elsewhere.offered + elsewhere.not_offered;
+    if found == 0 {
+        return None;
+    }
+    let (more, count) = (listed > 0, |n: u64| format::count(n, t.locale));
+    let text = if elsewhere.offered == 0 {
+        (t.catalog.search_not_offered)(found, &count(found), more)
+    } else if elsewhere.not_offered == 0 {
+        (t.catalog.search_elsewhere)(found, &count(found), more)
+    } else {
+        format!(
+            "{}{}",
+            (t.catalog.search_elsewhere)(found, &count(found), more),
+            (t.catalog.search_elsewhere_not_offered)(elsewhere.not_offered, &count(elsewhere.not_offered))
+        )
+    };
+    let query = CatalogQuery {
+        text: data.effective.text.clone(),
+        offer: (elsewhere.not_offered > 0).then(|| OfferStatus::ALL.to_vec()),
+        ..CatalogQuery::default()
+    };
+    let target = CatalogUrl { query, ..CatalogUrl::default() };
+    let rel = crate::seo::nofollow(&target.path());
+    Some(view! { <p class="list-note">{text}" · "<a href=keep_open(target, open, t) rel=rel>{t.catalog.search_show}</a></p> })
+}
+
+/// Under the results of a search: „Ähnliche Module", the modules whose descriptions mean what the
+/// text says (the semantic search, semantic/README.md) and that the filters hold, without the
+/// results, the closest first (`pages::similar`; owner, 2026-10-01: with every search, the filters
+/// applying, at most 10, rows as the list's: marking, the preview and the keyboard work as there).
+/// Only the browser app has the semantic search (`data::Semantic`), and it answers once its model
+/// is loaded: until then, and where it adds nothing, nothing stands here.
+#[component]
+fn SimilarModules(
+    current: CatalogUrl,
+    /// The query the page ran (`CatalogData::effective`).
+    query: CatalogQuery,
+    page: Memo<u64>,
+    marked: Memo<Option<String>>,
+    phone: RwSignal<bool>,
+    with_program: bool,
+) -> impl IntoView {
+    let t = i18n::t();
+    let (Some(semantic), Ok(source), Some(text)) = (use_context::<Semantic>(), use_source(), pages::similar_text(&query)) else { return ().into_any() };
+    let found = LocalResource::new(move || {
+        let (semantic, source, query, text) = (semantic.clone(), source.clone(), query.clone(), text.clone());
+        async move {
+            // Nothing where a newer search took this one's place: its list has its own.
+            let hits = semantic.0.search(&text, pages::SIMILAR_CANDIDATES).await.unwrap_or_default();
+            let ids: Vec<String> = hits.into_iter().map(|hit| hit.module_id).collect();
+            source.run(|db| pages::similar(db, &query, &ids, pages::SIMILAR_SHOWN)).unwrap_or_default()
+        }
+    });
+    view! {
+        {move || found.get().filter(|rows| !rows.is_empty()).map(|rows| {
+            let base = current.clone();
+            view! {
+                <section class="similar">
+                    <h2 class="sem">{t.catalog.similar}</h2>
+                    {rows.into_iter().enumerate().map(|(index, row)| {
+                        let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
+                        let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
+                        let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
+                        view! { <Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/> }
+                    }).collect_view()}
+                </section>
+            }
+        })}
+    }
+    .into_any()
+}
+
 /// The active filters as removable tags: (group, value, the list without it), in the language of
 /// `t`. `areas` and `departments` name what the URL has as a number.
 fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department], t: &'static i18n::Texts) -> Vec<(String, String, CatalogUrl)> {
@@ -751,6 +844,9 @@ fn List(
     let active_count = move || active.with(Vec::len);
     let fit_line = use_context::<Finder>();
 
+    // While searching, the list is ordered by relevance, and „Modul" orders it by title instead
+    // of by the study plan (owner, 2026-09-30).
+    let searching = !q.text.trim().is_empty();
     let sort_link = |key: SortKey, text: &'static str, class: &'static str| {
         let on = current.query.sort == key;
         let mut next = current.with_page(1);
@@ -827,7 +923,7 @@ fn List(
     let head = view! {
         {plan_note(data.semester_plan.as_ref(), &current, open, t)}
         <div class="cols label" id=HEAD_ID>
-            {sort_link(if with_program { SortKey::Default } else { SortKey::Title }, t.catalog.col_module, "")}
+            {sort_link(if with_program && !searching { SortKey::Default } else { SortKey::Title }, t.catalog.col_module, "")}
             <span class="c-resp">{t.catalog.col_responsible}</span>
             <span class="c-exam">{t.catalog.exam}</span>
             {sort_link(SortKey::Credits, t.common.credits_unit, "c-lp")}
@@ -838,12 +934,20 @@ fn List(
     }
     .into_any();
 
+    // Under the rows: what the search finds outside the other filters, and the modules the
+    // semantic search adds to the results.
+    let foot = view! {
+        {elsewhere_note(&data, total, open, t)}
+        {APP.then(|| view! { <SimilarModules current=current.clone() query=data.effective.clone() page marked phone with_program/> })}
+    }
+    .into_any();
+
     // The browser app renders only what is on screen of the whole list; the server renders the
     // page the URL names, with pager links (no JavaScript, search engines).
     let rows = if APP {
-        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal fresh stay top_row head states/> }.into_any()
+        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal fresh stay top_row head states foot/> }.into_any()
     } else {
-        view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program head states/> }.into_any()
+        view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program head states foot/> }.into_any()
     };
 
     // Another filter on its way: the rows it replaces stand as a skeleton (`pending`).
@@ -874,6 +978,7 @@ fn List(
                 </div>
                 // The finder against a semester without dates: nothing could be checked.
                 {move || fit_line.and_then(|finder| finder.view.with(|view| view.line.clone())).map(|line| view! { <p class="hint fit-line">{line}</p> })}
+                {search_line(&data.effective, t).map(|line| view! { <p class="hint search-line">{line}</p> })}
             </div>
             {rows}
             // The list's bottom edge where the scroll area cuts it off (app.css, „one scroll area").
@@ -970,6 +1075,8 @@ fn PlainRows(
     /// What stands above the rows and scrolls with them (`List`).
     head: AnyView,
     states: AnyView,
+    /// What stands under the rows (`elsewhere_note`, `SimilarModules`).
+    foot: AnyView,
 ) -> impl IntoView {
     let t = i18n::t();
     view! {
@@ -991,6 +1098,7 @@ fn PlainRows(
                     {(start_page < pages_total).then(|| pager_link(current.with_page(start_page + 1), "next", t.catalog.next, open, t))}
                 </nav>
             })}
+            {foot}
         </div>
     }
 }
@@ -1070,6 +1178,8 @@ fn VirtualRows(
     /// What stands above the rows and scrolls with them (`List`).
     head: AnyView,
     states: AnyView,
+    /// What stands under the rows (`elsewhere_note`, `SimilarModules`).
+    foot: AnyView,
 ) -> impl IntoView {
     let t = i18n::t();
     let total = usize::try_from(total).unwrap_or(0);
@@ -1355,6 +1465,7 @@ fn VirtualRows(
                 }/>
             </div>
             {(total > per_page).then(|| view! { <p class="list-end">{(t.catalog.list_end)(&format::count(total as u64, t.locale))}</p> })}
+            {foot}
         </div>
     }
 }

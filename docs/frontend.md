@@ -24,7 +24,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -557,7 +557,8 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   (owner, 2026-09-20): the matrix as a centred block in a wide empty panel — „liest sich zwar
   leichter, sieht trotzdem komisch aus"; the width wants content, not air.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
-  In the browser app it filters while typing (history entry replaced, not added).
+  In the browser app it filters while typing (history entry replaced, not added). How it finds and
+  orders modules: „The search of the catalog“ below.
 - **„Nach oben" (owner, 2026-09-26: „wenn man im Modulkatalog ne weile gescrolled hat, … richtig
   schwierig wieder nach oben zu kommen"; `ui::ToTop`, `enhance.js`):** one round button for every
   page, in the corner of what scrolls. On a wide screen that is the page — what the ground takes
@@ -813,6 +814,67 @@ Asked by the owner and not done, measured:
   is 70 ms of a laptop, 280 ms of a phone), and a tap that comes during it waits for it.
 
 `node e2e/snappy.mjs` checks all of it (§4).
+
+### The search of the catalog (`catalog/src/search.rs`, 2026-09-30)
+
+Owner: the search should improve, first with the names of the modules („erstmal eine neue Zeile in
+der db wo keine Sonderzeichen etc drin sind“), typos forgiven; a semantic search („Ähnliche
+Module“) is worked on apart from this, so only the names are searched, not the texts of a
+description. The list stays the list it was („ich mag das UI da und würde das ungerne tauschen“).
+
+- **What is searched:** the words of the query in the names Radix folds (`v_module_folded`,
+  docs/schema-v2.md „Search“): the module number, the German and the English title, the initials of
+  a title and the abbreviations — the module's own, those programs give it („AuP“), and the known
+  short forms of words of the titles („BWL“). Case, umlauts, ß and accents do not matter („okologie“
+  finds „Ökologie“: 21 offered modules, where `LIKE` found none); every word has to be found, in any
+  order („lernen maschinelles“); fillers („für“, „und“, „der“ …) do not count; `%` or `_` are no
+  patterns but marks between words. Not the names of the lecturers (the filter „Lehrende“ is there
+  for them), not the descriptions.
+- **How a word is found, best first** (the module's score is the sum over the words): as the module
+  number, as an abbreviation, as a whole word of a title (its first word a little more), as the start
+  of a module number („118“ finds the numbers that start with it, not 21185), as the start of a word,
+  as the initials of words that follow each other („ti“, Theoretische Informatik; „ki“ finds
+  „Künstliche Intelligenz“), and from four letters on inside a word („netz“ in „Stromnetze“, while
+  „ki“ no longer finds „Schlüsselqualifikationen“). A number of one or two digits and a Roman numeral
+  up to ten are whole words, the one the same as the other („Analysis 1“ finds „Analysis I“; 411 of
+  the offered titles number their parts with Roman numerals).
+- **The order:** while there is a search, the list is ordered by relevance — the most words found,
+  then the score, then the title — also inside a program. A column orders the matches instead,
+  „Modul“ by title (not by the study plan while searching); typing in the top bar goes back to
+  relevance (`app::TopBar`), and without a search the list has its order as before.
+- **What the words as typed do not find** (`search::resolve`, run by `pages::catalog_scope`, so
+  that the page and the filter panel agree): where no module has all of them, the words no title
+  knows are corrected to the word of a title they are within one typo of (two from eight letters on,
+  the first letter right, the rules of the pickers' `fuzzy::typos_at_start`; of several, the one
+  most modules have): „algoritmen“ is „Algorithmen“, „wirtschaftsinfromatik“
+  „Wirtschaftsinformatik“. The head of the list says so: „Keine Treffer für „algoritmen“. Ergebnisse
+  für „Algorithmen“:“. Where that finds nothing either, a query of two words or more lists the
+  modules with the most of them, and says „Kein Modul enthält alle Wörter. Hier sind die mit den
+  meisten davon:“. Whatever the filters: the whole catalog decides whether the words find something.
+  The resolution is part of the effective query (`CatalogQuery::text_resolution`), never of a URL.
+- **Outside the filters** (owner: the filters apply, with a note): under the rows, what the search
+  finds that the other filters leave out, „27 weitere Treffer außerhalb deiner Filter, 3 davon
+  nicht mehr angeboten · anzeigen“; the link is the catalog with the search alone (and the modules
+  no longer offered, where some are among them). Without filters it is only those no longer offered.
+  With JavaScript and without it alike (`pages::CatalogData::elsewhere`).
+- **Speed:** the search is SQL on the snapshot like every filter (`search::Plan::table`, joined as
+  `sr`). Only modules whose names contain a form of every word are scored at all: in the sql.js of
+  the app on a laptop a query takes 2 to 8 ms (without that filter 11 to 72 ms, which a phone would
+  have felt while typing).
+- **„Ähnliche Module“** (2026-10-01; owner: „Unterteilung in Ergebnisse und Ähnliche Module“, the
+  semantic search from develop, semantic/README.md): under the rows, after the note on the filters,
+  the modules whose descriptions mean what the search says, as rows of the list under the heading
+  „Ähnliche Module“ — marking, the preview, swiping and the arrow keys work as on the list's rows
+  (they are `a.row`s in `.rows`, after the list). With every search of three letters or digits and
+  more (`pages::searches_similar`); the filters apply as to the results; the results themselves are
+  left out; at most 10, the closest first (`pages::similar`, `queries::similar_rows`). The semantic
+  search is asked for the text as the list searched it, a typo corrected (`pages::similar_text`),
+  and hands over the 500 modules closest to it, a tenth of the catalog, of which the filters keep
+  their share: inside a program its modules among them, rather than any module of the program. Only
+  the browser app has the semantic search, and only once its model is loaded (`data::Semantic`,
+  `window.betulaSemantic`; none without a model on the server, without vectors in the snapshot, with
+  data saving): until then, and on the server's page, nothing stands there, and the rows come when
+  it answers (`SimilarModules`, a `LocalResource`), under the results, so nothing above them moves.
 
 ### From the program's page into the catalog (2026-09-21)
 
@@ -2280,8 +2342,11 @@ What `cargo test` checks:
   are refused without a panic, and without more work than their length allows.
 - `catalog`: every filter against direct SQL (exclusions included), exact totals and paging, the
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
-  real data, the URL codec, the ranking of the pickers (`fuzzy`); `SCHEMA_VERSION` is the number
-  of Radix's newest migration, and the snapshot of the tests is not older.
+  real data, the URL codec, the ranking of the pickers (`fuzzy`), the search (folded as Radix
+  folds, from `internal/normalize/testdata/search.tsv`; words in any order, numbers and numerals,
+  the order by relevance, typos, the most words, what it finds outside the filters);
+  `SCHEMA_VERSION` is the number of Radix's newest migration, and the snapshot of the tests is not
+  older.
 - `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate, brotli; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
   404 is never cached; pages and files in brotli, gzip or plain as the client takes them, files
@@ -2321,6 +2386,21 @@ its scroll position), filters, closes with Esc, opens the full page, goes back, 
 virtual list (as long as the whole list from the start, a slice rendered, the last rows there at
 its end, `page` following, the length unchanged), searches programs, and fails on any page load
 after the takeover or any console error.
+
+```bash
+cd e2e && node search.mjs
+```
+
+searches modules („The search of the catalog“): without JavaScript, the server's page says a
+corrected typo above the list and the matches outside the filters under it; in the browser app, a
+search inside Informatik B.Sc. says what it finds outside the program and its link leads there; with
+a stand-in for the semantic search (`window.betulaSemantic`; the repository has no model) „Ähnliche
+Module“ stand under the results without the result and the module no longer offered, one of them
+opens beside the list, and the arrow keys go on from the list's last row into them; a typo is
+corrected and said (and the semantic search is asked for the corrected word), the best match comes
+first, „Modul“ orders the matches by title, and typing orders them by relevance again. Last, a
+search the address carries: its list asks before `boot.js` offers the semantic search and still gets
+its „Ähnliche Module“.
 
 ```bash
 cd e2e && node filters.mjs

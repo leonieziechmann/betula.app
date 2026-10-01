@@ -2,13 +2,14 @@
 //!
 //! `CatalogQuery` is what a catalog URL encodes and the only thing that triggers a
 //! catalog query. It filters on the facet columns of the views, never on free text
-//! (the one exception is the search against `v_module_search`).
+//! (the one exception is the search, `search::Plan` against `v_module_folded`).
 
 use serde::{Deserialize, Serialize};
 
 use crate::db::Value;
 use crate::i18n::Locale;
 use crate::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
+use crate::search::{Plan, Resolution};
 use crate::timetable::select::FitOptions;
 use crate::timetable::semester::SemesterKey;
 
@@ -282,8 +283,14 @@ pub enum SortKey {
 /// The filter state of the catalog. `Default` is "no filter".
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct CatalogQuery {
-    /// Search text: matches module ids and German or English titles.
+    /// Search text: its words are found in the numbers, titles, initials and abbreviations of
+    /// the modules (`search`).
     pub text: String,
+    /// Derived from `text` by the page (`pages::catalog`, `search::resolve`), never part of a
+    /// URL: how the text was searched where the text as typed found nothing (its typos corrected,
+    /// or the modules with the most of its words). `None` searches the text as typed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_resolution: Option<Resolution>,
     pub program: Option<ProgramScope>,
     /// At least one of these teaches or is responsible for the module (owner decision
     /// 2026-09-20: „Meer oder Köhler", not „Meer und Köhler").
@@ -432,11 +439,32 @@ impl CatalogQuery {
             + self.lecturers_exclude.len()
     }
 
+    /// The plan of the search text, as its resolution has it searched; `None` without a text.
+    fn search_plan(&self) -> Option<Plan> {
+        Plan::new(&self.text, self.text_resolution.as_ref())
+    }
+
+    /// Whether the list is ordered by how well the modules match the search text: while there
+    /// is one and no column was chosen to order by (owner, 2026-09-30).
+    pub fn by_relevance(&self) -> bool {
+        self.sort == SortKey::Default && self.search_plan().is_some_and(|plan| plan.len() > 0)
+    }
+
     /// The joins, conditions and parameters that select the matching modules.
     pub fn to_sql(&self) -> Sql {
         let mut joins = String::new();
         let mut conditions: Vec<String> = Vec::new();
         let mut params: Vec<Value> = Vec::new();
+
+        // The matches of the search first: its parameters precede those of every other join.
+        let plan = self.search_plan();
+        if let Some((table, table_params)) = plan.as_ref().and_then(Plan::table) {
+            joins.push_str(&format!(" JOIN {table} sr ON sr.module_id = f.module_id"));
+            params.extend(table_params);
+        }
+        if let Some(plan) = &plan {
+            conditions.push(plan.condition("sr"));
+        }
 
         if let Some(scope) = &self.program {
             joins.push_str(
@@ -506,15 +534,6 @@ impl CatalogQuery {
                     params.extend([Value::Integer(*area), Value::Integer(*area), Value::Integer(*area)]);
                 }
             }
-        }
-
-        let text = self.text.trim();
-        if !text.is_empty() {
-            conditions.push(
-                "EXISTS (SELECT 1 FROM v_module_search s WHERE s.module_id = f.module_id AND s.term LIKE ? ESCAPE '\\')"
-                    .to_string(),
-            );
-            params.push(Value::from(like_pattern(text)));
         }
 
         if !self.lecturers_include.is_empty() {
@@ -682,8 +701,12 @@ impl CatalogQuery {
         format!(" ORDER BY {}", self.order_terms())
     }
 
-    /// The terms of that order, for a window (`ROW_NUMBER() OVER (ORDER BY …)`) as well.
+    /// The terms of that order, for a window (`ROW_NUMBER() OVER (ORDER BY …)`) as well. While
+    /// searching, the best matches first: the most words found, then how well, then by title.
     pub fn order_terms(&self) -> String {
+        if self.by_relevance() {
+            return "sr.matched DESC, sr.score DESC, m.title COLLATE NOCASE, f.module_id".to_string();
+        }
         let direction = if self.descending { "DESC" } else { "ASC" };
         match self.sort {
             SortKey::Default if self.program.is_some() => {

@@ -21,7 +21,7 @@ import (
 // plan, plan_entry and plan_scan_status are a source of their own and stay, and so do the
 // caches of the semantic search, module_summary and passage_embedding.
 var derivedTables = []string{
-	"module_vector", "program_module_abbrev", "module_abbrev",
+	"module_folded", "module_vector", "program_module_abbrev", "module_abbrev",
 	"module_facet", "program_module",
 	"module_event", "event_date", "event_person", "event_form", "event", "semester",
 	"program_module_assertion", "module_program_ref",
@@ -224,6 +224,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"room short forms", b.writeRoomShorts},
 		{"materialized views", b.materialize},
 		{"abbreviations", b.writeAbbreviations}, // needs module and program_module
+		{"search", b.writeSearch},               // needs module and the abbreviations
 		{"module vectors", b.writeModuleVectors},
 		{"meta", b.writeMeta},
 	}

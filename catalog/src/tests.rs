@@ -172,6 +172,17 @@ fn every_query_runs_against_the_snapshot() {
     assert_eq!(queries::module(&db, "00000").unwrap(), None);
     queries::module_prerequisites(&db, &module.id).unwrap();
     assert!(!queries::search_suggestions(&db, "Algebra", 10).unwrap().is_empty());
+    // The search, where a text finds nothing as typed (`search::resolve`), and under a filtered list.
+    assert!(queries::search_count(&db, "Algebra", None).unwrap() > 0);
+    assert_eq!(queries::search_words_found(&db, "algebra xqzvw").unwrap(), vec![true, false]);
+    assert!(queries::search_titles(&db).unwrap().len() as u64 >= queries::catalog_count(&db, &everything()).unwrap());
+    let elsewhere = queries::search_elsewhere(&db, &CatalogQuery { text: "Algebra".into(), ..Default::default() }).unwrap();
+    assert_eq!(elsewhere.offered, 0, "the catalog's default lists every offered module");
+    // „Ähnliche Module": of modules the filter holds, those the text does not find.
+    let ids: Vec<String> = page.rows.iter().map(|row| row.id.clone()).collect();
+    let algebra = CatalogQuery { text: "Algebra".into(), ..everything() };
+    let found = queries::catalog_count(&db, &CatalogQuery { only_ids: Some(ids.clone()), ..algebra.clone() }).unwrap();
+    assert_eq!(queries::similar_rows(&db, &algebra, &ids).unwrap().len() as u64 + found, ids.len() as u64);
 
     // The satellites, each for a module or program that really has the data.
     let pick = |sql: &str| column(&db.inner, sql).pop().unwrap_or_else(|| panic!("no row for: {sql}"));
@@ -582,9 +593,10 @@ fn catalog_filters_match_direct_sql() {
             format!("SELECT COUNT(*) FROM {pm} AND pm.relation = 'curricular' WHERE pm.kind IS NULL OR pm.kind != 'compulsory'"),
         ),
         (
-            "search text",
+            "search text: a word of seven letters, in a title, inside a word or as an abbreviation",
             CatalogQuery { text: "Algebra".into(), ..everything() },
-            "SELECT COUNT(DISTINCT module_id) FROM v_module_search WHERE term LIKE '%Algebra%'".into(),
+            "SELECT COUNT(*) FROM v_module_folded WHERE instr(title_de, 'algebra') > 0 OR instr(title_en, 'algebra') > 0 \
+             OR instr(' ' || abbrevs || ' ', ' algebra ') > 0 OR instr(initials, 'algebra') > 0".into(),
         ),
         (
             "mandatory prerequisites met with nothing passed",
@@ -779,19 +791,15 @@ fn the_marked_modules_page() {
     assert_eq!(pages::bookmarks(&db, &["1 OR 1=1".to_string()], BookmarkSort::Title, false).unwrap(), BookmarksData::default());
 }
 
+/// The search takes words, never patterns: a wildcard of `LIKE` alone finds nothing, and next to
+/// a word it parts words like any other mark.
 #[test]
-fn search_text_is_literal() {
+fn search_text_is_words() {
     let db = open();
-    let all = queries::catalog_count(&db, &everything()).unwrap();
+    let count = |text: &str| queries::catalog_count(&db, &CatalogQuery { text: text.into(), ..everything() }).unwrap();
     for wildcard in ["%", "_", "\\"] {
-        let query = CatalogQuery { text: wildcard.into(), ..everything() };
-        let literal = scalar(
-            &db,
-            &format!("SELECT COUNT(DISTINCT module_id) FROM v_module_search WHERE instr(term, '{wildcard}') > 0"),
-        ) as u64;
-        let found = queries::catalog_count(&db, &query).unwrap();
-        assert_eq!(found, literal, "search for {wildcard:?} must match the character itself");
-        assert!(found < all);
+        assert_eq!(count(wildcard), 0, "{wildcard:?} alone finds nothing");
+        assert_eq!(count(&format!("Algebra{wildcard}")), count("Algebra"), "{wildcard:?} next to a word");
     }
 }
 
@@ -940,6 +948,10 @@ fn the_summary_of_a_filter_is_what_its_page_says() {
         format!("program={INFORMATIK_BSC}&semester=1"),
         format!("program={INFORMATIK_BSC}&semester=none&turnus=summer"),
         "program=no-such-program".to_string(),
+        "q=informatik".to_string(),
+        format!("q=python&program={INFORMATIK_BSC}"),
+        "q=algoritmen".to_string(),
+        "q=algorithmen+xqzvw".to_string(),
     ];
     for search in searches {
         let url = CatalogUrl::parse(&search);
@@ -1160,4 +1172,189 @@ fn exam_readings_never_state_what_the_source_does_not() {
     } else {
         eprintln!("note: 11103 no longer carries the 2015 placeholder; its reading is not asserted");
     }
+}
+
+/// The search of the catalog (`search`, docs/frontend.md „Search“), against the snapshot: it
+/// finds words in any order, folded, in the names of the modules.
+#[test]
+fn the_search_folds_and_takes_words_in_any_order() {
+    let db = open();
+    let count = |text: &str| queries::catalog_count(&db, &CatalogQuery { text: text.into(), ..everything() }).unwrap();
+    // LIKE found none of the modules on „Ökologie“ for „okologie“, and 5 of 16 for „ökologie“.
+    assert!(count("okologie") > 0);
+    for same in ["Ökologie", "ÖKOLOGIE", "ökologie"] {
+        assert_eq!(count(same), count("okologie"), "{same}");
+    }
+    assert_eq!(count("strasse"), count("Straße"));
+    assert!(count("Maschinelles Lernen") > 0);
+    assert_eq!(count("lernen maschinelles"), count("Maschinelles Lernen"));
+    assert_eq!(count("Mathematik für Ingenieure"), count("mathematik ingenieure"), "fillers do not count");
+    assert!(count("Analysis I") > 0);
+    assert_eq!(count("Analysis 1"), count("Analysis I"), "a number is its Roman numeral");
+    // „ki“ is too short to be found inside a word („Schlüsselqualifikationen“, „Kinetik“ is the start of one).
+    let ki = scalar(
+        &db,
+        "SELECT COUNT(*) FROM v_module_folded WHERE instr(' ' || title_de, ' ki') > 0 OR instr(' ' || title_en, ' ki') > 0 \
+         OR instr(' ' || abbrevs || ' ', ' ki ') > 0 OR instr(initials, 'ki') > 0",
+    ) as u64;
+    assert_eq!(count("KI"), ki);
+    // The known short form of a word of a title (internal/abbrev: BWL) finds every title with the
+    // word; three letters are found as a word, the start of one, an abbreviation or initials.
+    let bwl = scalar(
+        &db,
+        "SELECT COUNT(*) FROM v_module_folded WHERE instr(' ' || title_de, ' bwl') > 0 OR instr(' ' || title_en, ' bwl') > 0 \
+         OR instr(' ' || abbrevs || ' ', ' bwl ') > 0 OR instr(initials, 'bwl') > 0",
+    ) as u64;
+    let titled = scalar(&db, "SELECT COUNT(*) FROM v_module_folded WHERE instr(title_de, 'betriebswirtschaftslehre') > 0") as u64;
+    assert!(titled > 0 && bwl >= titled);
+    assert_eq!(count("BWL"), bwl);
+    let with_word = CatalogQuery { text: "BWL".into(), only_ids: Some(column(&db, "SELECT module_id FROM v_module_folded WHERE instr(title_de, 'betriebswirtschaftslehre') > 0")), ..everything() };
+    assert_eq!(queries::catalog_count(&db, &with_word).unwrap(), titled);
+}
+
+/// The best match comes first while nothing else is chosen to order by: the module of the number,
+/// the one of the abbreviation, then whole words before words that only contain the query.
+#[test]
+fn the_search_orders_by_relevance() {
+    let db = open();
+    let listed = |query: CatalogQuery| queries::catalog_page(&db, &query, 0, 400).unwrap().rows;
+    let search = |text: &str| CatalogQuery { text: text.into(), ..everything() };
+
+    let id = column(&db, "SELECT module_id FROM v_module_folded ORDER BY module_id LIMIT 1 OFFSET 100").remove(0);
+    assert_eq!(listed(search(&id)).first().map(|row| row.id.clone()), Some(id.clone()), "a module by its number");
+    let prefix: String = id.chars().take(3).collect();
+    assert!(listed(search(&prefix)).iter().all(|row| row.id.starts_with(&prefix)), "a number from its start");
+
+    let abbrev = column(&db, &format!("SELECT abbrev FROM v_module WHERE id = '{id}'")).remove(0);
+    let first = listed(search(&abbrev)).first().map(|row| row.id.clone()).unwrap();
+    let folded = crate::search::words(&abbrev).concat();
+    assert!(
+        scalar(&db, &format!("SELECT COUNT(*) FROM v_module_folded WHERE module_id = '{first}' AND instr(' ' || abbrevs || ' ', ' {folded} ') > 0")) == 1,
+        "{abbrev}: the first module has the abbreviation"
+    );
+
+    // „informatik“: every title with the word comes before every title that has it inside a word.
+    let whole = |row_id: &str| {
+        scalar(
+            &db,
+            &format!("SELECT COUNT(*) FROM v_module_folded WHERE module_id = '{row_id}' AND (instr(' ' || title_de || ' ', ' informatik ') > 0 OR instr(' ' || title_en || ' ', ' informatik ') > 0)"),
+        ) == 1
+    };
+    let order: Vec<bool> = listed(search("informatik")).iter().map(|row| whole(&row.id)).collect();
+    assert!(order.contains(&true) && order.contains(&false), "{order:?}");
+    assert!(order.windows(2).all(|pair| pair[0] || !pair[1]), "whole words first: {order:?}");
+
+    // A column chosen to order by orders the matches.
+    let by_title = listed(CatalogQuery { sort: SortKey::Title, ..search("informatik") });
+    assert!(by_title.windows(2).all(|pair| pair[0].title.to_lowercase() <= pair[1].title.to_lowercase()), "by title");
+    assert!(CatalogQuery { text: "informatik".into(), ..Default::default() }.by_relevance());
+    assert!(!CatalogQuery { text: "informatik".into(), sort: SortKey::Credits, ..Default::default() }.by_relevance());
+    assert!(!CatalogQuery { text: "%".into(), ..Default::default() }.by_relevance());
+    assert!(!CatalogQuery::default().by_relevance());
+}
+
+/// Where the words as typed find nothing, the page searches for the word of a title a typo stands
+/// for, and else for the most of the words; the page and the filter panel agree.
+#[test]
+fn the_search_corrects_typos_and_falls_back_to_the_most_words() {
+    use crate::pages;
+    use crate::search::{Correction, Resolution};
+    use crate::url::CatalogUrl;
+
+    let db = open();
+    let page = |search: &str| pages::catalog(&db, &CatalogUrl::parse(search), crate::Locale::De).unwrap();
+    let count = |text: &str| queries::catalog_count(&db, &CatalogQuery { text: text.into(), ..Default::default() }).unwrap();
+
+    let typo = page("q=algoritmen");
+    assert_eq!(
+        typo.effective.text_resolution,
+        Some(Resolution { corrected: vec![Correction { typed: "algoritmen".into(), word: "algorithmen".into(), shown: "Algorithmen".into() }], most_words: false })
+    );
+    assert_eq!(typo.page.total, count("algorithmen"));
+    assert!(typo.page.total > 0);
+
+    // A word no title knows, next to one that finds modules: the modules with that one.
+    let most = page("q=algorithmen+xqzvw");
+    assert_eq!(most.effective.text_resolution, Some(Resolution { corrected: vec![], most_words: true }));
+    assert_eq!(most.page.total, count("algorithmen"));
+
+    // As typed where that finds something, and a text that finds nothing stays as it is.
+    assert_eq!(page("q=algorithmen").effective.text_resolution, Some(Resolution::default()));
+    let nothing = page("q=xqzvw");
+    assert_eq!((nothing.effective.text_resolution, nothing.page.total), (Some(Resolution::default()), 0));
+    assert_eq!(page("").effective.text_resolution, None);
+}
+
+/// Under the list: what the search finds outside its filters, offered and no longer offered.
+/// „Ähnliche Module" (`pages::similar`, owner, 2026-10-01): of the semantic search's hits, in
+/// their order, those the filters hold besides the text, without the results, as the list's rows.
+#[test]
+fn the_similar_modules_are_the_hits_the_filters_hold_besides_the_results() {
+    use crate::pages;
+    use crate::rows::CatalogRow;
+    use crate::url::CatalogUrl;
+
+    let db = open();
+    let ids = |rows: Vec<CatalogRow>| rows.into_iter().map(|row| row.id).collect::<Vec<_>>();
+    let found: BTreeSet<String> = ids(queries::catalog_page(&db, &CatalogQuery { text: "python".into(), ..everything() }, 0, 10_000).unwrap().rows).into_iter().collect();
+    let besides = |status: &str| -> Vec<String> {
+        column(&db, &format!("SELECT module_id FROM v_module_facets WHERE offer_status = '{status}' ORDER BY module_id"))
+            .into_iter()
+            .filter(|id| !found.contains(id))
+            .collect()
+    };
+    let (offered, not_offered) = (besides("active"), besides("not_offered"));
+    let data = pages::catalog(&db, &CatalogUrl::parse("q=python"), crate::Locale::De).unwrap();
+    let query = data.effective.clone();
+    let result = data.page.rows.first().expect("python finds a module").id.clone();
+    let hits = vec![offered[0].clone(), result.clone(), not_offered[0].clone(), offered[1].clone(), offered[2].clone()];
+
+    // The catalog lists offered modules: those of the hits, in their order, without the result.
+    assert_eq!(ids(pages::similar(&db, &query, &hits, 10).unwrap()), [&offered[..3]].concat());
+    assert_eq!(ids(pages::similar(&db, &query, &hits, 2).unwrap()), [&offered[..2]].concat());
+    // Every module: the one no longer offered as well.
+    let all = CatalogQuery { offer: Some(OfferStatus::ALL.to_vec()), ..query.clone() };
+    assert_eq!(ids(pages::similar(&db, &all, &hits, 10).unwrap()), [offered[0].clone(), not_offered[0].clone(), offered[1].clone(), offered[2].clone()]);
+    // „Gemerkt": the marked ones among them.
+    let marked = CatalogQuery { marked: Some(true), only_ids: Some(vec![offered[1].clone(), result.clone()]), ..query.clone() };
+    assert_eq!(ids(pages::similar(&db, &marked, &hits, 10).unwrap()), [offered[1].clone()]);
+    // The address's query, whose text is not resolved yet, has the same.
+    assert_eq!(ids(pages::similar(&db, &CatalogUrl::parse("q=python").query, &hits, 10).unwrap()), [&offered[..3]].concat());
+    // No search, or one of fewer than three letters or digits: nothing.
+    assert!(pages::similar(&db, &CatalogQuery::default(), &hits, 10).unwrap().is_empty());
+    assert!(pages::similar(&db, &CatalogQuery { text: "py".into(), ..Default::default() }, &hits, 10).unwrap().is_empty());
+    assert!(!pages::searches_similar("C++") && pages::searches_similar("BWL") && pages::searches_similar(" ki 2 "));
+    // The semantic search is asked for the text as the list searched it.
+    let text = |address: &str| pages::similar_text(&pages::catalog(&db, &CatalogUrl::parse(address), crate::Locale::De).unwrap().effective);
+    assert_eq!(text("q=python"), Some("python".to_string()));
+    assert_eq!(text("q=algoritmen%20graphen"), Some("algorithmen graphen".to_string()));
+    assert_eq!(text("q=py"), None);
+
+    // Inside a program: its modules alone, each the row its list has.
+    let program = pages::catalog(&db, &CatalogUrl::parse(&format!("q=python&program={INFORMATIK_BSC}")), crate::Locale::De).unwrap();
+    let curriculum = queries::catalog_page(&db, &CatalogQuery { text: String::new(), text_resolution: None, ..program.effective.clone() }, 0, 10_000).unwrap().rows;
+    let inside: Vec<CatalogRow> = curriculum.iter().filter(|row| !found.contains(&row.id)).take(2).cloned().collect();
+    let outside = offered.iter().find(|id| !curriculum.iter().any(|row| &row.id == *id)).expect("a module outside the program");
+    let hits = vec![outside.clone(), inside[1].id.clone(), inside[0].id.clone()];
+    assert_eq!(pages::similar(&db, &program.effective, &hits, 10).unwrap(), [inside[1].clone(), inside[0].clone()]);
+}
+
+#[test]
+fn the_search_says_what_it_finds_outside_the_filters() {
+    use crate::pages;
+    use crate::url::CatalogUrl;
+
+    let db = open();
+    let data = pages::catalog(&db, &CatalogUrl::parse(&format!("q=python&program={INFORMATIK_BSC}")), crate::Locale::De).unwrap();
+    let elsewhere = data.elsewhere.unwrap();
+    let anywhere = queries::search_count(&db, "python", None).unwrap();
+    assert_eq!(elsewhere.offered + elsewhere.not_offered + data.page.total, anywhere);
+    let offered = queries::catalog_count(&db, &CatalogQuery { text: "python".into(), ..Default::default() }).unwrap();
+    assert!(elsewhere.offered > 0 && elsewhere.offered <= offered);
+
+    // The catalog without filters lists every offered module the text finds; the rest is not offered.
+    let plain = pages::catalog(&db, &CatalogUrl::parse("q=python"), crate::Locale::De).unwrap();
+    assert_eq!(plain.elsewhere.unwrap().offered, 0);
+    assert_eq!(plain.elsewhere.unwrap().not_offered + plain.page.total, anywhere);
+    assert_eq!(pages::catalog(&db, &CatalogUrl::parse(""), crate::Locale::De).unwrap().elsewhere, None);
 }
