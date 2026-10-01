@@ -13,6 +13,7 @@
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node schema.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // The server must serve a snapshot of the build's schema.
 import { chromium } from "playwright-core";
+import { readFileSync } from "node:fs";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 // A study plan, as in the report; the synthetic snapshot has this one too.
@@ -21,9 +22,10 @@ const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// What the server has, and the schema the build reads.
+// What the server has, and the schema the build reads: `catalog::SCHEMA_VERSION` of this checkout,
+// which the server writes into boot.js (minified there, under a name of the minifier's).
 const server = (await (await fetch(base + "/api/status")).json()).snapshot;
-const schema = Number(/const SCHEMA = Number\("(\d+)"\)/.exec(await (await fetch(base + "/assets/boot.js")).text())?.[1]);
+const schema = Number(/pub const SCHEMA_VERSION: i64 = (\d+);/.exec(readFileSync(new URL("../catalog/src/db.rs", import.meta.url), "utf8"))?.[1]);
 if (!(schema > 0) || !(server?.schema_version >= schema)) {
   console.log(JSON.stringify({ problems: [`boot.js reads schema ${schema}, the server's snapshot is of schema ${server?.schema_version}: this check needs a server whose snapshot the app can open`] }, null, 2));
   process.exit(1);

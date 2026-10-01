@@ -1624,6 +1624,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 ./radix.exe serve-snapshot --addr 127.0.0.1:8090
 ```
 
+(Without a crawl of your own: the catalog of betula.app, from `https://betula.app/api/db`, §4.)
+
 ```bash
 bash scripts/dev.sh --watch
 ```
@@ -1853,6 +1855,12 @@ file goes (brotli 11, made once per process, `encoding::Kept`): no compression i
 
 - **The stylesheet** with lightningcss, written shorter and nothing else: no `targets`, so nothing
   is lowered or prefixed. It writes `rgba(…)` as `#rrggbbaa` and so rounds an alpha to 1/255.
+  One thing it gets wrong is put right after it (`TimelineApart` in `server/build/main.rs`): it
+  folds `animation: wood-rise linear both; animation-timeline: --page` into
+  `animation:linear both wood-rise --page`, since its data has Chrome read a timeline in the
+  shorthand from version 115. Chrome 141 does not and drops the whole declaration, and the wood of a
+  page stopped moving with its scroll (`e2e/ground.mjs` found it). So the timeline goes back into
+  an `animation-timeline` of its own after the shorthand, and `assets::tests` keeps it there.
 - **The scripts** with oxc: comments and whitespace out, names shortened, constants folded, and
   in no newer syntax than the scripts are written in (ES2020: `?.` and `??` in `enhance.js`; left
   to itself oxc wrote `a ||= b`, ES2021, into a script every browser loads). A classic script's
@@ -1882,7 +1890,7 @@ What a first visit downloads besides the page itself, as the server sends it to 
 
 | | develop | now | brotli develop | brotli now |
 |---|---|---|---|---|
-| `app.css` | 267,814 | 172,752 | 52,281 | 28,606 |
+| `app.css` | 267,814 | 172,771 | 52,281 | 28,600 |
 | `enhance.js` | 46,474 | 19,446 | 12,883 | 6,105 |
 | `boot.js` | 8,812 | 3,739 | 2,912 | 1,542 |
 | `sw.js` | 6,643 | 2,369 | 2,253 | 992 |
@@ -1891,7 +1899,7 @@ What a first visit downloads besides the page itself, as the server sends it to 
 | the birch of a page (crown, its head, roots, litter) | 254,098 | 209,615 | 47,557 | 31,389 |
 | the wood of the start page (as drawn, unchanged) | 365,102 | 365,102 | 72,802 | 72,802 |
 | `folia_client_bg.wasm` | 33,757,019 | 4,732,748 | 1,740,869 | 1,431,872 |
-| all of it, with what stayed as it was | 35,536,473 | 6,330,653 | 2,283,390 | 1,923,228 |
+| all of it, with what stayed as it was | 35,536,473 | 6,330,672 | 2,283,390 | 1,923,222 |
 
 What stayed as it was: `folia_client.js` (wasm-bindgen's 64 kB, 9 kB in brotli:
 `build-client.sh` writes it, not the server's build), the sprite (`app::icons` writes it), the
@@ -2184,6 +2192,24 @@ cargo test
 ```
 
 needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one.
+**The real catalog** is the one betula.app serves (owner, 2026-10-01): `/api/db` is the snapshot
+Radix exported, byte for byte (44 MB; `--compressed` takes it in brotli or gzip).
+
+```bash
+curl --compressed -o snapshot/catalog.db https://betula.app/api/db
+FOLIA_TEST_SNAPSHOT=snapshot/catalog.db cargo test -p folia-server
+```
+
+To serve it to a local Folia as well (§3), give it the name and the pointer `radix export` writes
+(`snapshot/` is git-ignored), then `radix serve-snapshot` publishes it:
+
+```bash
+cd snapshot && hash=$(sha256sum catalog.db | cut -c1-32) && mv catalog.db "catalog-${hash:0:16}.db" &&
+  printf '{"file":"catalog-%s.db","etag":"\\"%s\\"","bytes":%s,"exported_at":"%s"}\n' "${hash:0:16}" "$hash" \
+    "$(stat -c%s "catalog-${hash:0:16}.db")" "$(date -u +%FT%TZ)" > current.json
+```
+
+Then `cargo test` finds it without `FOLIA_TEST_SNAPSHOT`.
 Without a crawl, a synthetic one serves for development and for the browser checks below
 (`internal/catalogbuild/folia_fixture_test.go`: 1,200 modules with varied facets, 115 programs
 with trees, areas and degree labels, Informatik B.Sc. and Elektrotechnik B.Sc. with validated

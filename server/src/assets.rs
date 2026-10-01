@@ -209,6 +209,14 @@ mod tests {
         // `tests.rs` ask for each of them).
         assert_eq!(masks(text("app.css")), masks(&written("app.css")));
         assert!(masks(text("app.css")).len() >= 12, "{:?}", masks(text("app.css")));
+        // A scroll animation keeps its timeline apart from the shorthand, where Chrome reads it
+        // (`TimelineApart` in build/main.rs): the wood moves with the page's scroll.
+        assert!(text("app.css").contains("wood-rise;animation-timeline:--page;"), "{}", text("app.css").split("wood-rise").nth(2).unwrap_or_default());
+        for declaration in text("app.css").split(['{', ';']).filter_map(|part| part.strip_prefix("animation:")) {
+            let value = declaration.split('}').next().unwrap_or_default();
+            let timeline = value.split([' ', ',']).any(|word| word.starts_with("--") || word.starts_with("scroll(") || word.starts_with("view("));
+            assert!(!timeline, "a timeline in the shorthand: {value}");
+        }
     }
 
     /// The masks a stylesheet names, as `warm::files` reads them.

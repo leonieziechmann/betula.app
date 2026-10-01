@@ -79,10 +79,48 @@ fn minify(path: &str, source: &str) -> Result<String, Error> {
 
 fn stylesheet(source: &str) -> Result<String, Error> {
     use lightningcss::stylesheet::{MinifyOptions, ParserOptions, PrinterOptions, StyleSheet};
+    use lightningcss::visitor::Visit;
     let mut sheet = StyleSheet::parse(source, ParserOptions::default()).map_err(|e| e.to_string())?;
     sheet.minify(MinifyOptions::default()).map_err(|e| e.to_string())?;
+    let Ok(()) = sheet.visit(&mut TimelineApart);
     let printed = sheet.to_css(PrinterOptions { minify: true, ..PrinterOptions::default() }).map_err(|e| e.to_string())?;
     Ok(printed.code)
+}
+
+/// Takes an animation's timeline out of the `animation` shorthand again, into an
+/// `animation-timeline` after it. lightningcss folds `animation: wood-rise linear both;
+/// animation-timeline: --page` into `animation:linear both wood-rise --page`, as its data says
+/// Chrome reads that since 115; Chrome 141 does not, and drops the whole declaration (the wood of
+/// a page stopped moving with its scroll, e2e/ground.mjs). The spec has the shorthand only reset
+/// the timeline, never set it.
+struct TimelineApart;
+
+impl<'i> lightningcss::visitor::Visitor<'i> for TimelineApart {
+    type Error = std::convert::Infallible;
+
+    fn visit_types(&self) -> lightningcss::visitor::VisitTypes {
+        lightningcss::visitor::VisitTypes::PROPERTIES
+    }
+
+    fn visit_declaration_block(&mut self, block: &mut lightningcss::declaration::DeclarationBlock<'i>) -> Result<(), Self::Error> {
+        use lightningcss::properties::animation::AnimationTimeline;
+        use lightningcss::properties::Property;
+        for declarations in [&mut block.declarations, &mut block.important_declarations] {
+            let mut apart = Vec::with_capacity(declarations.len());
+            for property in declarations.drain(..) {
+                match property {
+                    Property::Animation(mut animations, prefix) if animations.iter().any(|animation| animation.timeline != AnimationTimeline::Auto) => {
+                        let timelines = animations.iter_mut().map(|animation| std::mem::replace(&mut animation.timeline, AnimationTimeline::Auto)).collect();
+                        apart.push(Property::Animation(animations, prefix));
+                        apart.push(Property::AnimationTimeline(timelines));
+                    }
+                    property => apart.push(property),
+                }
+            }
+            *declarations = apart;
+        }
+        Ok(())
+    }
 }
 
 fn script(source: &str) -> Result<String, Error> {

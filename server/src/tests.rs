@@ -592,9 +592,9 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // for everybody.
     let (_, headers, css) = request(&router, "/assets/app.css?v=test", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
     assert_eq!(headers[header::CONTENT_ENCODING], "br");
-    assert_eq!(crate::encoding::unbrotli(&css).as_deref(), Some(&include_bytes!("../../app/assets/app.css")[..]));
+    assert_eq!(crate::encoding::unbrotli(&css).as_deref(), Some(crate::assets::text("app.css").as_bytes()), "minified by the build");
     assert_eq!(request(&router, "/assets/app.css", &[("accept-encoding", "br")]).await.2, css, "made once");
-    assert!(css.len() < include_bytes!("../../app/assets/app.css").len() / 4);
+    assert!(css.len() < crate::assets::text("app.css").len() / 4);
     let (_, headers, wasm) = request(&router, "/assets/sql-wasm.wasm?v=test", &[("accept-encoding", "br")]).await;
     assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), headers[header::CONTENT_TYPE].to_str().unwrap()), ("br", "application/wasm"));
     assert_eq!(crate::encoding::unbrotli(&wasm).as_deref(), Some(&include_bytes!("../../app/assets/sql-wasm.wasm")[..]));

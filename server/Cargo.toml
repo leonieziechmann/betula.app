@@ -50,7 +50,8 @@ tower = { version = "0.5", features = ["util"] }
 # default features: lightningcss without its bundler and source maps, oxc's printer without
 # source maps. The oxc crates go together, one version for all.
 [build-dependencies]
-lightningcss = { version = "1.0.0-alpha.72", default-features = false }
+# Its visitor puts a scroll animation's timeline back where Chrome reads it (`TimelineApart`).
+lightningcss = { version = "1.0.0-alpha.72", default-features = false, features = ["visitor"] }
 oxc_allocator = "0.152"
 oxc_codegen = { version = "0.152", default-features = false }
 # The syntax the minified scripts may use (`SYNTAX` in build/main.rs).
