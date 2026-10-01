@@ -339,9 +339,9 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   where it is and as fast as it went (a flick carries it on a few px first), the lens from a
   standstill (a glide on one fixed curve, which turned the row round at full speed, felt „ein wenig
   klunky"). The glide is Web Animations of keyframes computed from the spring, which the
-  compositor runs while the tab's page is built (the click comes after its first frame), and a
-  finger that catches it takes the row and the lens where they are, so two quick swipes go two
-  tabs (before the app, while the next page loads, the bar takes taps only). The tab's own mark
+  compositor runs while the tab's page is built, and a finger that catches it takes the row and
+  the lens where they are, so two quick swipes go two tabs (before the app, while the next page
+  loads, the bar takes taps only). The tab's own mark
   takes over once its tab is the current one, in one frame and without its fade. Up and down the
   bar scrolls the page as before (`touch-action: pan-y`); the moves of a swipe are the bar's alone
   (a quick one left to Chromium ended in a fling of nothing, and the next tap anywhere, up to a

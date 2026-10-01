@@ -374,7 +374,6 @@
     const s = tabSwipe;
     if (!s) return;
     tabSwipe = null;
-    s.click?.();
     if (s.glide) stopGlide(s.glide);
     const { bar } = s;
     bar.dataset.swipe = "settle";
@@ -388,21 +387,18 @@
     requestAnimationFrame(() => requestAnimationFrame(() => { if (bar.dataset.swipe === "settle") delete bar.dataset.swipe; }));
   };
   // The finger takes the bar: at rest, or on its way back where the row and the lens stand just
-  // then (the tab it went to clicked now if it was not yet, and the current one). `null` where the
-  // bar has nothing to swipe.
+  // then (the tab it went to being the current one). `null` where the bar has nothing to swipe.
   const takeTabs = (bar) => {
     let s = tabSwipe, caught = null;
-    if (s?.glide && s.bar === bar) {
-      caught = catchTabs(s);
-      s.click?.();
-    } else {
+    if (s?.glide && s.bar === bar) caught = catchTabs(s);
+    else {
       settleTabs();
       s = null;
     }
     const g = tabsOf(bar);
     if (!g) { settleTabs(); return null; }
     if (s && g.tabs.includes(s.target)) g.current = g.tabs.indexOf(s.target);
-    const next = { bar, g, ...lensOf(g), T: 0, X: 0, glide: null, target: g.tabs[g.current], click: null };
+    const next = { bar, g, ...lensOf(g), T: 0, X: 0, glide: null, target: g.tabs[g.current] };
     tabSwipe = next;
     bar.dataset.swipe = "drag";
     putTabs(next, caught ? caught.T : 0, caught ? caught.X : g.lefts[g.current]);
@@ -441,12 +437,13 @@
   };
   // Let go: the row springs back to its place from where it is and as fast as it went, the lens to
   // the tab `to` from a standstill, and the copy with both; keyframes every TAB_DT for the
-  // compositor, the names follow frame by frame. The tab's own link is clicked after the glide's
-  // first frame, as a tap clicks it (the app takes it: R21, the tab is current in the next frame;
-  // before the app the browser loads its page), so that building the page cannot hold that frame
-  // back. Once the glide is over and that tab the current one (before the app with the next page,
-  // which takes as long as it takes: a few seconds at most, then the lens gives up), the tab's own
-  // mark takes over.
+  // compositor, the names follow frame by frame. The tab's own link is clicked as the glide begins,
+  // as a tap clicks it: the app takes it (R21: the tab is current at once, its page comes a frame
+  // later, `Pending`), before the app the browser loads its page. Not a frame later: a tap right
+  // after the swipe, on the tab it left, would then reach the app while the router is still there,
+  // change nothing, and be undone by the swipe's page. Once the glide is over and that tab the
+  // current one (before the app with the next page, which takes as long as it takes: a few seconds
+  // at most, then the lens gives up), the tab's own mark takes over.
   const glideTabs = (s, to, v) => {
     const { g } = s, calm = matchMedia("(prefers-reduced-motion: reduce)").matches, spring = calm ? TAB_CALM : TAB_SPRING;
     const Ts = springTo(s.T, calm ? 0 : v * 1000, 0, spring), Xs = springTo(s.X, 0, g.lefts[to], spring);
@@ -458,11 +455,7 @@
     s.target = g.tabs[to];
     const anims = [...g.tabs.map((tab) => tab.animate(row, timing)), s.lens.animate(frames(x), timing), s.copy.animate(frames(t.map((value, k) => g.row.x + value - x[k])), timing)];
     const glide = s.glide = { Ts, Xs, anims, began: performance.now(), frame: 0, timer: 0 };
-    if (to !== g.current) {
-      let frame = 0, timer = 0;
-      s.click = () => { s.click = null; cancelAnimationFrame(frame); clearTimeout(timer); s.target.click(); };
-      frame = requestAnimationFrame(() => { timer = setTimeout(() => s.click?.(), 0); });
-    }
+    if (to !== g.current) s.target.click();
     // At rest once that tab is the current one, or another (tapped meanwhile), or the bar is gone.
     const over = () => {
       if (tabSwipe !== s || s.glide !== glide) return;

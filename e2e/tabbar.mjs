@@ -173,32 +173,33 @@ for (const area of AREAS.slice(2)) {
 }
 await swipe(middle, y, -120, 0);
 now = await settled("end right", "studyplan");
-for (const area of AREAS.slice(0, 4).reverse()) {
-  await swipe(middle, y, 110, 0);
-  now = await settled(`back to ${area}`, area);
-}
 
 // ---- a finger catches the glide: the lens stays where it is just then, between the two tabs, and
-// the swipe goes on from there; two swipes in a row go two tabs on; a tap right after a quick swipe
-// is a tap (of the tab under the finger: the row moves, and a short swipe keeps Start there)
-await swipe(middle, y, -60, 0, { steps: 4 });
-await swipe(middle, y, -14, 0, { steps: 3, hold: true });
+// the swipe goes on from there, two tabs on (from the Stundenplan to the Merkliste, both empty in
+// a new browser: nothing keeps the page from hearing the finger while the lens is on its way)
+const [, , , fourth, fifth] = now.mids;
+await swipe(middle, y, 60, 0, { steps: 4 });
+await swipe(middle, y, 14, 0, { steps: 3, hold: true });
 held = await state();
 check(held.swipe === "drag" && held.anims === 0, `catch: the finger did not take the gliding bar (${held.swipe}, ${held.anims} animations)`);
-check(held.current === "catalog", `catch: the tab the first swipe went to is not current (${held.current})`);
-check(held.lens && held.lens.mid > first + 2 && held.lens.mid < second - 1, `catch: the lens jumped (${held.lens?.mid}, between ${first} and ${second})`);
+check(held.current === "bookmarks", `catch: the tab the first swipe went to is not current (${held.current})`);
+check(held.lens && held.lens.mid < fifth - 2 && held.lens.mid > fourth + 1, `catch: the lens jumped (${held.lens?.mid}, between ${fourth} and ${fifth})`);
 check(held.off <= 0.5, `catch: the copy in the lens does not lie over the row (${held.off} px off)`);
-await swipe(0, 0, -60, 0, { steps: 4, from: true });
+await swipe(0, 0, 60, 0, { steps: 4, from: true });
 now = await settled("caught", "programs");
-await swipe(middle, y, 110, 0, { steps: 4 });
-await swipe(middle, y, 110, 0, { steps: 4 });
-now = await settled("two swipes", "home");
-await swipe(middle, y, -30, 0, { steps: 3, ms: 8 });
+
+// ---- a tap right after a quick swipe is a tap (of the tab under the finger: the row moves, and a
+// short swipe keeps Start there); two swipes in a row, the second while the first glides, go two
+// tabs on
+await swipe(middle, y, 30, 0, { steps: 3, ms: 8 });
 await page.touchscreen.tap(first, y);
 now = await settled("a tap after a swipe", "home");
+await swipe(middle, y, -110, 0, { steps: 4 });
+await swipe(middle, y, -110, 0, { steps: 4 });
+now = await settled("two swipes", "programs");
 
 // ---- up the bar scrolls the page, the tab stays
-await swipe(middle, y, -110, 0);
+await swipe(middle, y, 110, 0);
 now = await settled("to the catalog", "catalog");
 const top = await page.evaluate(() => scrollY);
 await swipe(middle, y + 20, 4, -300, { steps: 12 });
