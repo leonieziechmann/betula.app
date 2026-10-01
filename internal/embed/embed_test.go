@@ -55,21 +55,22 @@ func TestTheVectorsAreTheCratesBits(t *testing.T) {
 	var wg sync.WaitGroup
 	for i, p := range passages {
 		wg.Go(func() {
-			scale, codes, err := e.EmbedPassage(ctx, p)
+			scale, packed, err := e.EmbedPassage(ctx, p)
 			if err != nil {
 				t.Errorf("passage %d: %v", i+1, err)
 				return
 			}
-			raw := make([]byte, len(codes))
+			// Two values of -7..7 a byte, as nibbles v + 8: of unit length, up to 4 bits' rounding.
 			var norm float64
-			for j, c := range codes {
-				raw[j] = byte(c)
-				norm += float64(c) * float64(c) * float64(scale) * float64(scale)
+			for _, b := range packed {
+				for _, v := range []int{int(b&0x0f) - 8, int(b>>4) - 8} {
+					norm += float64(v*v) * float64(scale) * float64(scale)
+				}
 			}
-			if math.Abs(math.Sqrt(norm)-1) > 0.01 {
-				t.Errorf("passage %d: length %.4f, want 1", i+1, math.Sqrt(norm))
+			if len(packed) != e.Dims()/2 || math.Abs(math.Sqrt(norm)-1) > 0.1 {
+				t.Errorf("passage %d: %d bytes, length %.4f, want %d and about 1", i+1, len(packed), math.Sqrt(norm), e.Dims()/2)
 			}
-			got[i] = fmt.Sprintf("%08x\t%s", math.Float32bits(scale), hex.EncodeToString(raw))
+			got[i] = fmt.Sprintf("%08x\t%s", math.Float32bits(scale), hex.EncodeToString(packed))
 		})
 	}
 	wg.Wait()

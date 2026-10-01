@@ -1,29 +1,37 @@
-//! What a query is compared with: one embedding per document (a module), each kept as 384 int8
-//! values and a scale, with the document's id — 0.4 kB a module, 1.9 MB for the catalog.
+//! What a query is compared with: one embedding per document (a module), each kept as 384
+//! values of 4 bits and a scale, with the document's id — 0.2 kB a module, 1 MB for the catalog.
 //!
-//! The server builds it (`Index::build`, from the module texts, `crate::module_text`) and hands
-//! it to browsers as a file (`to_bytes`); both search it the same way (`search`).
+//! Radix computes the modules' vectors so (`quantize`, this crate as WASM) and publishes them in
+//! the snapshot (`v_module_vector`); the server and the browser make an index of them
+//! (`push_codes`, or the file `to_bytes` writes) and search it the same way (`search`).
+//!
+//! A vector is packed (`quantize`): a value v of -7..7 is the nibble v + 8, two to a byte, the
+//! first in the low nibble; the vector is the values × the scale. 4 bits rather than 8 halve the
+//! vectors in the snapshot for 2.6 points of the first 10 (semantic/README.md, „Quality“).
 //!
 //! File layout (little endian):
 //!
 //! ```text
-//! b"E5I2", u32 rows, u32 dims
+//! b"E5I3", u32 rows, u32 dims
 //! rows × (u16 length, UTF-8 id)
 //! rows × f32 scale
-//! rows × dims × i8
+//! rows × dims / 2 bytes, the packed values
 //! ```
 
 use crate::reader::Reader;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::Model;
 
-const MAGIC: &[u8; 4] = b"E5I2";
+const MAGIC: &[u8; 4] = b"E5I3";
+
+/// The largest value of a packed vector: 4 bits, symmetric around 0.
+const LEVELS: f32 = 7.0;
 
 pub struct Index {
     dims: usize,
     ids: Vec<String>,
     scales: Vec<f32>,
-    codes: Vec<i8>,
+    codes: Vec<i8>, // unpacked: a byte a value, for the dot products
 }
 
 /// A document a query found: its id, its row in the index, and the cosine of the two
@@ -36,33 +44,34 @@ pub struct Hit<'a> {
 }
 
 impl Index {
-    /// An empty index for embeddings of `dims` values.
+    /// An empty index for embeddings of `dims` values (an even number: two a byte).
     pub fn new(dims: usize) -> Self {
         Self { dims, ids: Vec::new(), scales: Vec::new(), codes: Vec::new() }
     }
 
-    /// Adds a document: its embedding as int8 with one scale (`quantize`).
+    /// Adds a document: its embedding packed (`quantize`), as Radix publishes it.
     pub fn push(&mut self, id: impl Into<String>, embedding: &[f32]) -> Result<(), String> {
         if embedding.len() != self.dims {
             return Err(format!("an embedding of {} values for an index of {}", embedding.len(), self.dims));
         }
-        let (scale, codes) = quantize(embedding);
-        self.codes.extend(codes);
-        self.scales.push(scale);
-        self.ids.push(id.into());
-        Ok(())
+        let (scale, packed) = quantize(embedding);
+        self.push_codes(id, scale, &packed)
     }
 
-    /// Adds a document whose embedding is int8 already: a module's vector as Radix publishes it
-    /// (`v_module_vector`, `catalog::queries::module_vectors`), `codes` × `scale`.
-    pub fn push_codes(&mut self, id: impl Into<String>, scale: f32, codes: &[i8]) -> Result<(), String> {
-        if codes.len() != self.dims {
-            return Err(format!("a vector of {} values for an index of {}", codes.len(), self.dims));
+    /// Adds a document whose vector is packed already: a module's as Radix publishes it
+    /// (`v_module_vector`, `catalog::queries::module_vectors`), `packed` and its `scale`.
+    pub fn push_codes(&mut self, id: impl Into<String>, scale: f32, packed: &[u8]) -> Result<(), String> {
+        if packed.len() * 2 != self.dims {
+            return Err(format!("a vector of {} bytes for an index of {} values", packed.len(), self.dims));
         }
         if !(scale.is_finite() && scale > 0.0) {
-            return Err(format!("a vector with the scale {scale}"));
+            // Without the number: formatting a float would pull its code into the WASM module.
+            return Err("a vector whose scale is not a positive number".into());
         }
-        self.codes.extend_from_slice(codes);
+        if packed.iter().any(|b| b & 0x0f == 0 || b >> 4 == 0) {
+            return Err("a packed value of -8, which quantize never writes".into());
+        }
+        self.codes.extend(unpack(packed));
         self.scales.push(scale);
         self.ids.push(id.into());
         Ok(())
@@ -90,25 +99,31 @@ impl Index {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         let mut r = Reader::new(bytes);
         if r.take(4)? != MAGIC {
-            return Err("not an index (E5I2)".into());
+            return Err("not an index (E5I3)".into());
         }
         let rows = r.usize()?;
         let dims = r.usize()?;
+        if !dims.is_multiple_of(2) {
+            return Err(format!("{dims} values a vector: not two a byte"));
+        }
         let mut ids = Vec::with_capacity(rows);
         for _ in 0..rows {
             let len = usize::from(u16::from_le_bytes(r.take(2)?.try_into().map_err(|_| "an id's length")?));
             ids.push(std::str::from_utf8(r.take(len)?).map_err(|e| e.to_string())?.to_string());
         }
         let scales = r.f32s(rows)?;
-        let codes = r.take(rows.checked_mul(dims).ok_or("an index beyond the address space")?)?.iter().map(|c| c.cast_signed()).collect();
+        let mut index = Self { dims, ids: Vec::with_capacity(rows), scales: Vec::with_capacity(rows), codes: Vec::with_capacity(rows * dims) };
+        for (id, scale) in ids.into_iter().zip(scales) {
+            index.push_codes(id, scale, r.take(dims / 2)?)?;
+        }
         if r.at() != bytes.len() {
             return Err(format!("{} bytes left over", bytes.len() - r.at()));
         }
-        Ok(Self { dims, ids, scales, codes })
+        Ok(index)
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
-        let mut out = Vec::with_capacity(12 + self.ids.iter().map(|id| 2 + id.len()).sum::<usize>() + 4 * self.scales.len() + self.codes.len());
+        let mut out = Vec::with_capacity(12 + self.ids.iter().map(|id| 2 + id.len()).sum::<usize>() + 4 * self.scales.len() + self.codes.len() / 2);
         out.extend_from_slice(MAGIC);
         out.extend_from_slice(&u32::try_from(self.len()).map_err(|_| "too many documents")?.to_le_bytes());
         out.extend_from_slice(&u32::try_from(self.dims).map_err(|_| "too many dimensions")?.to_le_bytes());
@@ -119,7 +134,7 @@ impl Index {
         for scale in &self.scales {
             out.extend_from_slice(&scale.to_le_bytes());
         }
-        out.extend(self.codes.iter().map(|c| c.cast_unsigned()));
+        out.extend(pack(&self.codes));
         Ok(out)
     }
 
@@ -162,14 +177,31 @@ impl Index {
     }
 }
 
-/// An embedding as an index keeps it: int8 codes and one scale, the largest value ±127 (1 for
-/// an embedding of zeros). Radix publishes the modules' vectors so (`v_module_vector`, computed
-/// by this crate as WASM).
-#[allow(clippy::cast_possible_truncation)] // rounded and clamped to ±127 first
-pub fn quantize(embedding: &[f32]) -> (f32, Vec<i8>) {
+/// An embedding as the index keeps it and Radix publishes it (`v_module_vector`, computed by
+/// this crate as WASM): values of -7..7 and one scale, the largest value ±7 (scale 1 for an
+/// embedding of zeros), packed two to a byte (the module's documentation). An embedding of an
+/// odd number of values gets a 0 at the end.
+#[allow(clippy::cast_possible_truncation)] // rounded and clamped to ±7 first
+pub fn quantize(embedding: &[f32]) -> (f32, Vec<u8>) {
     let largest = embedding.iter().fold(0.0f32, |m, v| m.max(v.abs()));
-    let scale = if largest > 0.0 { largest / 127.0 } else { 1.0 };
-    (scale, embedding.iter().map(|v| (v / scale).round().clamp(-127.0, 127.0) as i8).collect())
+    let scale = if largest > 0.0 { largest / LEVELS } else { 1.0 };
+    let codes: Vec<i8> = embedding.iter().map(|v| (v / scale).round().clamp(-LEVELS, LEVELS) as i8).collect();
+    (scale, pack(&codes))
+}
+
+/// Values of -7..7, two to a byte: the nibble v + 8, the first in the low nibble.
+fn pack(codes: &[i8]) -> Vec<u8> {
+    codes
+        .chunks(2)
+        .map(|pair| {
+            let nibble = |v: Option<&i8>| (v.copied().unwrap_or(0) + 8).cast_unsigned() & 0x0f;
+            nibble(pair.first()) | nibble(pair.get(1)) << 4
+        })
+        .collect()
+}
+
+fn unpack(packed: &[u8]) -> impl Iterator<Item = i8> + '_ {
+    packed.iter().flat_map(|b| [(b & 0x0f).cast_signed() - 8, (b >> 4).cast_signed() - 8])
 }
 
 /// Σ codes · query, on eight lanes (which the compiler vectorises).
@@ -196,19 +228,19 @@ mod tests {
 
     #[test]
     fn finds_the_closest_and_survives_the_file() {
-        let mut index = Index::new(9);
-        index.push("a", &unit(&[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])).unwrap();
-        index.push("b", &unit(&[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2])).unwrap();
-        index.push("c", &unit(&[0.7, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])).unwrap();
-        index.push("Ökologie", &[0.0; 9]).unwrap();
+        let mut index = Index::new(10);
+        index.push("a", &unit(&[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])).unwrap();
+        index.push("b", &unit(&[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2, 0.0])).unwrap();
+        index.push("c", &unit(&[0.7, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])).unwrap();
+        index.push("Ökologie", &[0.0; 10]).unwrap();
         assert!(index.push("short", &[1.0]).is_err());
 
         let index = Index::from_bytes(&index.to_bytes().unwrap()).unwrap();
         assert_eq!(index.len(), 4);
-        let query = unit(&[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let query = unit(&[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         let hits = index.search(&query, 2);
         assert_eq!(hits.iter().map(|h| h.id).collect::<Vec<_>>(), ["b", "c"]);
-        assert!((hits[0].score - 1.0 / 1.02f32.sqrt()).abs() < 0.01, "{hits:?}");
+        assert!((hits[0].score - 1.0 / 1.04f32.sqrt()).abs() < 0.001, "{hits:?}");
         assert_eq!(index.search(&query, 10).len(), 4);
         assert_eq!(index.search(&query, 10)[2].id, "a", "ties in the order of the rows");
         assert!(index.search(&[1.0], 3).is_empty());
@@ -216,15 +248,28 @@ mod tests {
     }
 
     #[test]
+    fn packs_two_values_to_a_byte() {
+        // 0.6 / (0.8 / 7) = 5.25 → 5, nibble 13; -0.8 → -7, nibble 1; 0 → nibble 8.
+        let (scale, packed) = quantize(&unit(&[0.6, -0.8, 0.0, 0.0]));
+        assert_eq!((scale, packed.as_slice()), (0.8 / 7.0, [0x1d, 0x88].as_slice()));
+        assert_eq!(unpack(&packed).collect::<Vec<_>>(), [5, -7, 0, 0]);
+        // 0.6 · 7 = 4.2 → 4 and 0.3 · 7 = 2.1 → 2: nibbles 12 and 10; -1 → -7, then the 0 an odd one gets.
+        assert_eq!(quantize(&[0.6, 0.3, -1.0]).1, [0xac, 0x81]);
+        assert_eq!(quantize(&[0.0; 4]), (1.0, vec![0x88, 0x88]));
+    }
+
+    #[test]
     fn takes_published_vectors_as_they_are() {
-        let mut built = Index::new(3);
-        built.push("a", &unit(&[0.6, -0.8, 0.0])).unwrap();
-        let mut published = Index::new(3);
-        published.push_codes("a", 0.8 / 127.0, &[95, -127, 0]).unwrap();
+        let mut built = Index::new(4);
+        built.push("a", &unit(&[0.6, -0.8, 0.0, 0.0])).unwrap();
+        let mut published = Index::new(4);
+        published.push_codes("a", 0.8 / 7.0, &[0x1d, 0x88]).unwrap();
         assert_eq!(built.to_bytes().unwrap(), published.to_bytes().unwrap());
-        assert!(published.push_codes("b", 1.0, &[1, 2]).is_err());
-        assert!(published.push_codes("b", 0.0, &[1, 2, 3]).is_err());
-        assert!(published.push_codes("b", f32::NAN, &[1, 2, 3]).is_err());
+        assert!(published.push_codes("b", 1.0, &[0x88]).is_err(), "too short");
+        assert!(published.push_codes("b", 1.0, &[0x80, 0x88]).is_err(), "-8 is never written");
+        assert!(published.push_codes("b", 0.0, &[0x88, 0x88]).is_err());
+        assert!(published.push_codes("b", f32::NAN, &[0x88, 0x88]).is_err());
+        assert!(Index::new(3).push_codes("b", 1.0, &[0x88, 0x88]).is_err(), "an odd number of values");
         assert_eq!(published.len(), 1);
     }
 

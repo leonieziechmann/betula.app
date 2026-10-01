@@ -32,7 +32,7 @@ func TestModuleVectorsFollowTheirPassage(t *testing.T) {
 	}
 	text := semantic.Text{TitleDE: m.TitleDE, TitleEN: m.TitleEN, Contents: m.Contents, Outcomes: m.Outcomes}
 	plain := semantic.PassageHash(semantic.Passage(text, nil))
-	if err := db.SavePassageEmbeddings("model-a", []catalogdb.PassageEmbedding{{PassageHash: plain, Scale: 0.5, Vector: []int8{1, -2, 3}}}); err != nil {
+	if err := db.SavePassageEmbeddings("model-a", []catalogdb.PassageEmbedding{{PassageHash: plain, Scale: 0.5, Vector: []byte{0x91, 0xa8}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -48,7 +48,7 @@ func TestModuleVectorsFollowTheirPassage(t *testing.T) {
 	if r.ModuleVectors != 1 || !r.ContentChanged {
 		t.Errorf("a computed vector: %d vectors, content changed %v; want 1, true", r.ModuleVectors, r.ContentChanged)
 	}
-	want(t, db, "SELECT module_id, scale, hex(vector) FROM v_module_vector", "11881|0.5|01FE03")
+	want(t, db, "SELECT module_id, scale, hex(vector) FROM v_module_vector", "11881|0.5|91A8")
 
 	// A summary makes another passage, whose vector is not computed yet: no vector.
 	summary := catalogdb.ModuleSummary{TextHash: text.Hash(), SummaryDE: "Daten auswerten.", SummaryEN: "Analysing data.",
@@ -60,11 +60,11 @@ func TestModuleVectorsFollowTheirPassage(t *testing.T) {
 		t.Errorf("%d vectors for a passage without one", r.ModuleVectors)
 	}
 	withSummary := semantic.PassageHash(semantic.Passage(text, &semantic.Summary{DE: summary.SummaryDE, EN: summary.SummaryEN, Keywords: summary.Keywords}))
-	if err := db.SavePassageEmbeddings("model-a", []catalogdb.PassageEmbedding{{PassageHash: withSummary, Scale: 0.25, Vector: []int8{4, 5, 6}}}); err != nil {
+	if err := db.SavePassageEmbeddings("model-a", []catalogdb.PassageEmbedding{{PassageHash: withSummary, Scale: 0.25, Vector: []byte{0xc7, 0x8e}}}); err != nil {
 		t.Fatal(err)
 	}
 	rebuild()
-	want(t, db, "SELECT module_id, scale, hex(vector) FROM v_module_vector", "11881|0.25|040506")
+	want(t, db, "SELECT module_id, scale, hex(vector) FROM v_module_vector", "11881|0.25|C78E")
 
 	// The caches stay through builds, and the next model's vectors replace the old ones.
 	if dropped, err := db.DropPassageEmbeddingsExcept("model-b"); err != nil || dropped != 2 {

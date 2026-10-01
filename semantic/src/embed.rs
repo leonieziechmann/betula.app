@@ -3,9 +3,9 @@
 //! the Python model. With `--bench N` every text is embedded N times and only the times are printed.
 //!
 //! `embed MODEL.bin --passages`: one passage per line (a module's, without „passage: “), one line
-//! per passage with its vector as Radix publishes it — the bits of the scale, then the int8 codes
-//! in hex — computed in `Mode::Int8` as the WASM module does in Radix (`internal/embed`, whose
-//! test compares).
+//! per passage with its vector as Radix publishes it — the bits of the scale, then the packed
+//! values in hex (`semantic::quantize`) — computed in `Mode::Int8` as the WASM module does in Radix
+//! (`internal/embed`, whose test compares).
 //!
 //! `embed MODEL.bin --search INDEX.bin [--k N]`: one query per line, one line per query with what
 //! `semantic::Search` makes of it — a hash of the embedding's bits, then the hits with the bits of
@@ -38,8 +38,8 @@ fn main() -> Result<(), String> {
         let stdout = std::io::stdout();
         let mut out = stdout.lock();
         for line in std::io::stdin().lock().lines() {
-            let (scale, codes) = semantic::quantize(&model.embed_passage(&line.map_err(|e| e.to_string())?));
-            let hex: String = codes.iter().map(|c| format!("{:02x}", c.cast_unsigned())).collect();
+            let (scale, packed) = semantic::quantize(&model.embed_passage(&line.map_err(|e| e.to_string())?));
+            let hex: String = packed.iter().map(|b| format!("{b:02x}")).collect();
             writeln!(out, "{:08x}\t{hex}", scale.to_bits()).map_err(|e| e.to_string())?;
         }
         return Ok(());

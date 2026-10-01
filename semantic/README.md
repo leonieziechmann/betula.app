@@ -31,8 +31,8 @@ as WASM in `Mode::Int8`, and its vectors are the bits the crate computes nativel
 ```
 Radix (each cycle, after the export; docs/schema-v2.md, „Semantic search“):
   module text ──Gemini──▶ summary (DE, EN, search terms; Radix-internal, never published)
-  titles + summary + description ──semantic.wasm in wazero (Model::embed_passage, quantize)──▶ int8 vector
-  next build ──▶ v_module_vector in the snapshot (schema 10; 4,938 vectors, about 2 MB)
+  titles + summary + description ──semantic.wasm in wazero (Model::embed_passage, quantize)──▶ 4-bit vector
+  next build ──▶ v_module_vector in the snapshot (schema 10; 4,938 vectors, about 1 MB)
 
 Folia: snapshot ──▶ semantic::Index (Index::push_codes; js/semantic.js indexFromVectors)
   browser: Web Worker ── Search { the fine-tuned query model, index }.search(query, k) ──▶ [{id, score}]
@@ -50,7 +50,7 @@ alone (`module_text`).
 |---|---|---|---|---|
 | browser model | fine-tuned for queries (`finetune.py`), 4-bit GPTQ, embeddings 4 bit | 128 | 18.5 MB (16.4 brotli) | queries, in the Web Worker and on the server |
 | server model | the original, 8 bit | 512 | 34.6 MB | the modules' passages, in Radix (`RADIX_EMBED_MODEL`) |
-| vectors | int8, 384 values + scale a module | — | about 2 MB for 4,938 modules | what a query is compared with, in the snapshot |
+| vectors | 384 values of 4 bits + scale a module, 192 bytes | — | about 1 MB for 4,938 modules | what a query is compared with, in the snapshot |
 
 The query side is fine-tuned, the passage side is not: the modules' vectors stay the original
 model's, so the passages need no training data, and the browser's model learns where students'
@@ -61,7 +61,7 @@ same vocabulary.
 cd poc/semantic-search/python     # setup: poc/semantic-search/README.md, "Run it"
 python embed_catalog.py catalog.db --export-text ../model/catalog.txt
 python build_vocab.py --coverage 0.99 --text ../model/catalog.txt --out ../model/vocab.json
-python finetune.py catalog.db ../model/ft                                                                                   # query side, 10 min
+python finetune.py catalog.db ../model/ft                                                                                   # query side, 15 min
 python pack.py --model ../model/ft --vocab ../model/vocab.json --weights gptq-q4 --embeddings q4 --out ../model/e5-de-en.bin  # browser
 python pack.py --vocab ../model/vocab.json --weights q8 --embeddings q8 --positions 512 --out ../model/e5-de-en-server.bin    # Radix
 ```
@@ -124,7 +124,7 @@ The fine-tuning (`poc/semantic-search/python/finetune.py`): 21,245 queries of 4,
 a module text, written by Claude from the description, three German and two English, keywords to
 sentences), the
 600 modules of the known-item set left out, so its numbers are for modules the model never saw;
-the softmax over all modules of the catalog, two epochs, 10 minutes on four cores. A model trained
+the softmax over all modules of the catalog, two epochs, 15 minutes on four cores. A model trained
 on the passages without summaries finds them as well with summaries (and the other way round), so
 it does not depend on Gemini.
 
@@ -139,7 +139,7 @@ real queries of students are the better test.
 // The index of the semantic search, from the snapshot's vectors (computed by Radix).
 let mut index = semantic::Index::new(384);
 for v in catalog::queries::module_vectors(&db)? {
-    index.push_codes(v.module_id, v.scale, &v.codes)?;
+    index.push_codes(v.module_id, v.scale, &v.vector)?;   // packed, as Radix published it
 }
 let search = semantic::Search::new(std::fs::read(browser_model)?, &index.to_bytes()?)?;
 let hits = search.search("coding lernen", 20);   // the browser's hits, to the bit

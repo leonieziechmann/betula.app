@@ -4,7 +4,7 @@ the server's model, e5-de-en-server.bin). Every module of a snapshot is a candid
 softmax; the modules of the evaluation sample are left out entirely, so that evaluate_search.py
 measures on modules the model never saw.
 
-    python finetune.py catalog.db ../model/ft --model <e5-small dir>   # 2 epochs, 10 min on 4 cores
+    python finetune.py catalog.db ../model/ft --model <e5-small dir>   # 2 epochs, 15 min on 4 cores
     python pack.py --model ../model/ft --vocab ../model/vocab.json --weights gptq-q4 --embeddings q4 --out ../model/e5-de-en.bin
 
 The training queries (../data/train-queries.jsonl.gz) are what students would type to find a
@@ -150,7 +150,7 @@ def main():
             loss.backward()
             opt.step()
             sched.step()
-            total += float(loss)
+            total += loss.item()
         print(f"epoch {epoch + 1}: loss {total / ((len(pairs) + args.batch - 1) // args.batch):.3f}, {time.time() - t:.0f} s")
 
     out = Path(args.out)

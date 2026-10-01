@@ -5,7 +5,8 @@
 
 Each module is one passage: its title (German and, where it differs, English), its contents and
 its learning outcomes (`v_module`, docs/schema-v2.md), cut off at 512 tokens. The index holds one
-int8 row per module with its scale and the module's id (`semantic::Index`, `demo/e5.js` reads it).
+row of 4-bit values per module with its scale and the module's id (`semantic::Index`, `demo/e5.js`
+reads it). The deployed vectors are Radix's (docs/schema-v2.md, „Semantic search“).
 """
 
 from __future__ import annotations
@@ -50,14 +51,16 @@ def main():
         return
     mdir = model_dir(args.model)
     vectors = embed(load_torch_model(mdir), full_tokenizer(mdir), ["passage: " + t for _, _, t, _ in modules])
-    scales = np.abs(vectors).max(1) / 127
-    codes = np.round(vectors / scales[:, None]).astype(np.int8)
+    # semantic::quantize: values of -7..7, the nibble value + 8, two a byte (the first low).
+    scales = (np.abs(vectors).max(1) / 7).astype(np.float32)
+    codes = np.clip(np.round(vectors / scales[:, None]), -7, 7).astype(np.int16) + 8
+    packed = (codes[:, 0::2] | codes[:, 1::2] << 4).astype(np.uint8)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     # The layout of semantic/src/index.rs: the ids, then the scales and the rows.
     ids = b"".join(struct.pack("<H", len(m.encode())) + m.encode() for m, _, _, _ in modules)
-    (out / "index.bin").write_bytes(b"E5I2" + struct.pack("<II", *codes.shape) + ids
-                                    + scales.astype("<f4").tobytes() + codes.tobytes())
+    (out / "index.bin").write_bytes(b"E5I3" + struct.pack("<II", *vectors.shape) + ids
+                                    + scales.astype("<f4").tobytes() + packed.tobytes())
     (out / "index.json").write_text(json.dumps([{"id": m, "title": t, "about": a} for m, t, _, a in modules], ensure_ascii=False))
     print(f"{len(modules)} modules → {out}/index.bin ({(out / 'index.bin').stat().st_size / 1e6:.1f} MB)")
 

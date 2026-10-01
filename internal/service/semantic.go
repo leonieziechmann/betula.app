@@ -32,11 +32,11 @@ type Semantic struct {
 	Workers int // passages embedded at the same time: the encoder's instances
 }
 
-// Encoder computes the vector of a passage as the index keeps it, int8 codes and their scale:
-// embed.Encoder, the crate semantic/ as WebAssembly.
+// Encoder computes the vector of a passage as the snapshot publishes it, packed values and
+// their scale: embed.Encoder, the crate semantic/ as WebAssembly.
 type Encoder interface {
 	ID() string // the model; vectors of another model are dropped
-	EmbedPassage(ctx context.Context, passage string) (scale float32, codes []int8, err error)
+	EmbedPassage(ctx context.Context, passage string) (scale float32, packed []byte, err error)
 }
 
 // Summarizer writes the summaries of module texts: gemini.Client.
@@ -241,14 +241,14 @@ func embedPassages(ctx context.Context, db *catalogdb.DB, cfg Semantic, texts []
 		go func() {
 			defer wg.Done()
 			for p := range jobs {
-				scale, codes, err := cfg.Encoder.EmbedPassage(ctx, p.text)
+				scale, packed, err := cfg.Encoder.EmbedPassage(ctx, p.text)
 				if err != nil {
 					errMu.Lock()
 					embedErr = errors.Join(embedErr, fmt.Errorf("passage %s: %w", p.hash[:12], err))
 					errMu.Unlock()
 					continue
 				}
-				done <- catalogdb.PassageEmbedding{PassageHash: p.hash, Scale: scale, Vector: codes}
+				done <- catalogdb.PassageEmbedding{PassageHash: p.hash, Scale: scale, Vector: packed}
 			}
 		}()
 	}

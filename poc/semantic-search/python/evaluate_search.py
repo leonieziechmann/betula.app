@@ -1,6 +1,7 @@
 """How well the semantic search finds modules, measured on the deployed pipeline: the browser's
 packed model, searched by the crate itself (target/release/embed --search, the bits the browser
-computes), against the index of a snapshot's vectors (v_module_vector, schema 10) or an index file.
+computes), against the index of a snapshot's vectors (v_module_vector, schema 10) or an index file
+(E5I3).
 
     python evaluate_search.py MODEL.bin catalog.db              # the snapshot's v_module_vector
     python evaluate_search.py MODEL.bin catalog.db --index index.bin
@@ -50,14 +51,13 @@ EMBED = Path(__file__).resolve().parents[3] / "target" / "release" / "embed"
 
 
 def index_from_snapshot(db: Path) -> bytes:
-    """E5I2 (semantic/src/index.rs) from v_module_vector."""
+    """E5I3 (semantic/src/index.rs) from v_module_vector: the packed vectors as they are."""
     import sqlite3
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     rows = con.execute("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id").fetchall()
     if not rows:
         raise SystemExit(f"{db}: no vectors (v_module_vector is empty)")
-    dims = len(rows[0][2])
-    out = b"E5I2" + struct.pack("<II", len(rows), dims)
+    out = b"E5I3" + struct.pack("<II", len(rows), 2 * len(rows[0][2]))
     out += b"".join(struct.pack("<H", len(i.encode())) + i.encode() for i, _, _ in rows)
     out += b"".join(struct.pack("<f", s) for _, s, _ in rows)
     out += b"".join(v for _, _, v in rows)
@@ -68,7 +68,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("model", help="the browser's packed model")
     ap.add_argument("snapshot", help="a catalog snapshot: the modules' texts, and the vectors unless --index")
-    ap.add_argument("--index", help="an index file (E5I2) instead of the snapshot's vectors")
+    ap.add_argument("--index", help="an index file (E5I3) instead of the snapshot's vectors")
     args = ap.parse_args()
 
     import sqlite3

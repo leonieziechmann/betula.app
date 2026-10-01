@@ -22,16 +22,12 @@ type fakeEncoder struct {
 
 func (f *fakeEncoder) ID() string { return f.id }
 
-func (f *fakeEncoder) EmbedPassage(_ context.Context, passage string) (float32, []int8, error) {
+func (f *fakeEncoder) EmbedPassage(_ context.Context, passage string) (float32, []byte, error) {
 	f.mu.Lock()
 	f.embeds = append(f.embeds, passage)
 	f.mu.Unlock()
 	sum := sha256.Sum256([]byte(passage))
-	codes := make([]int8, 8)
-	for i := range codes {
-		codes[i] = int8(sum[i] % 127)
-	}
-	return 0.125, codes, nil
+	return 0.125, sum[:4], nil
 }
 
 // fakeSummarizer answers every module, until the day's requests are used up.
@@ -147,7 +143,7 @@ func TestTheSemanticStageWithTheModel(t *testing.T) {
 		t.Fatalf("the second cycle published nothing: %+v", r)
 	}
 	modules := column(t, svc.db, "SELECT COUNT(*) FROM module")
-	if got := column(t, svc.db, "SELECT COUNT(*) || ' ' || MIN(length(vector)) || ' ' || MAX(length(vector)) FROM v_module_vector"); got != modules+" 384 384" {
-		t.Errorf("vectors: %q, want %s of 384 values", got, modules)
+	if got := column(t, svc.db, "SELECT COUNT(*) || ' ' || MIN(length(vector)) || ' ' || MAX(length(vector)) FROM v_module_vector"); got != modules+" 192 192" {
+		t.Errorf("vectors: %q, want %s of 384 values in 192 bytes", got, modules)
 	}
 }

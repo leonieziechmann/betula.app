@@ -246,22 +246,22 @@ pub unsafe extern "C" fn load_encoder(at: *mut u8, len: usize) -> i32 {
 }
 
 /// The vector of a module's passage (`Model::embed_passage`: „passage: “ added, cut off at the
-/// model's positions) as the index keeps it (`quantize`): the dims int8 codes at `codes` and
-/// their scale at `scale`. Returns the tokens of the passage before the cut, -1 without
+/// model's positions) as Radix publishes it (`quantize`): dims / 2 bytes of packed values at
+/// `packed`, their scale at `scale`. Returns the tokens of the passage before the cut, -1 without
 /// `load_encoder` or for text that is not UTF-8.
 ///
 /// # Safety
-/// `text` holds `len` bytes, `codes` room for the dims codes, `scale` for one f32.
+/// `text` holds `len` bytes, `packed` room for dims / 2 bytes, `scale` for one f32.
 #[no_mangle]
-pub unsafe extern "C" fn embed_passage(text: *const u8, len: usize, codes: *mut i8, scale: *mut f32) -> i32 {
+pub unsafe extern "C" fn embed_passage(text: *const u8, len: usize, packed: *mut u8, scale: *mut f32) -> i32 {
     let Ok(text) = std::str::from_utf8(std::slice::from_raw_parts(text, len)) else { return -1 };
     ENCODER.with(|e| {
         let encoder = e.borrow();
         let Some(model) = encoder.as_ref() else { return -1 };
         // `embed_passage`, with the tokens counted on the way.
         let ids = model.tokenizer().encode(&format!("passage: {text}"));
-        let (s, c) = crate::quantize(&model.embed_ids(&ids));
-        std::slice::from_raw_parts_mut(codes, c.len()).copy_from_slice(&c);
+        let (s, p) = crate::quantize(&model.embed_ids(&ids));
+        std::slice::from_raw_parts_mut(packed, p.len()).copy_from_slice(&p);
         *scale = s;
         i32::try_from(ids.len()).unwrap_or(i32::MAX)
     })

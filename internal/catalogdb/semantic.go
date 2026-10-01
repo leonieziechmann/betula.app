@@ -111,11 +111,12 @@ func (db *DB) SaveModuleSummaries(summaries []ModuleSummary) error {
 }
 
 // PassageEmbedding is a row of passage_embedding: the vector of the passage with this hash,
-// as int8 codes and their scale.
+// packed as the snapshot publishes it (semantic::quantize: values of 4 bits, two a byte) and
+// its scale.
 type PassageEmbedding struct {
 	PassageHash string
 	Scale       float32
-	Vector      []int8
+	Vector      []byte
 }
 
 // PassageEmbeddingHashes lists the passages that have a vector under model.
@@ -152,7 +153,7 @@ func (db *DB) SavePassageEmbeddings(model string, embeddings []PassageEmbedding)
 			INSERT INTO passage_embedding (passage_hash, model, scale, vector, created_at) VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(passage_hash) DO UPDATE SET
 				model = excluded.model, scale = excluded.scale, vector = excluded.vector, created_at = excluded.created_at`,
-			e.PassageHash, model, float64(e.Scale), int8Bytes(e.Vector), now); err != nil {
+			e.PassageHash, model, float64(e.Scale), e.Vector, now); err != nil {
 			return err
 		}
 	}
@@ -168,12 +169,4 @@ func (db *DB) DropPassageEmbeddingsExcept(model string) (int, error) {
 	}
 	n, err := res.RowsAffected()
 	return int(n), err
-}
-
-func int8Bytes(v []int8) []byte {
-	out := make([]byte, len(v))
-	for i, c := range v {
-		out[i] = byte(c)
-	}
-	return out
 }

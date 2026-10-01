@@ -63,16 +63,22 @@ export function nearest(index, query, k = 10) {
   return order.map((r) => [scores[r], r]);
 }
 
-/** Parses an index file (semantic/src/index.rs): "E5I2", u32 rows, u32 dims, rows × (u16 length,
- * id), rows × f32 scales, rows × dims int8. The ids are skipped: a row is a module of index.json. */
+/** Parses an index file (semantic/src/index.rs): "E5I3", u32 rows, u32 dims, rows × (u16 length,
+ * id), rows × f32 scales, rows × dims / 2 bytes of 4-bit values (nibble = value + 8, the first in
+ * the low nibble). The ids are skipped: a row is a module of index.json. */
 export function readIndex(buffer) {
   const view = new DataView(buffer);
   const magic = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
-  if (magic !== "E5I2") throw new Error("not an index");
+  if (magic !== "E5I3") throw new Error("not an index");
   const rows = view.getUint32(4, true), dims = view.getUint32(8, true);
   let at = 12;
   for (let r = 0; r < rows; r++) at += 2 + view.getUint16(at, true);
   const scales = new Float32Array(buffer.slice(at, at + 4 * rows));
-  const codes = new Int8Array(buffer, at + 4 * rows, rows * dims);
+  const packed = new Uint8Array(buffer, at + 4 * rows, rows * dims / 2);
+  const codes = new Int8Array(rows * dims);
+  for (let i = 0; i < packed.length; i++) {
+    codes[2 * i] = (packed[i] & 15) - 8;
+    codes[2 * i + 1] = (packed[i] >> 4) - 8;
+  }
   return { rows, dims, scales, codes };
 }

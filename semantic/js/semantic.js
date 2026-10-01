@@ -83,22 +83,23 @@ function where(index) {
 }
 
 /**
- * The index of the semantic search (semantic/src/index.rs, „E5I2“) from the rows of
+ * The index of the semantic search (semantic/src/index.rs, „E5I3“) from the rows of
  * `SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id` as sql.js returns them
- * (the vector a Uint8Array of int8 values). The same bytes as `semantic::Index::push_codes` of the
- * same rows makes, so the browser and the server search the same index.
+ * (the vector a Uint8Array, packed as Radix published it: the crate reads it). The same bytes as
+ * `semantic::Index::push_codes` of the same rows makes, so the browser and the server search the
+ * same index.
  * @param {Array<[string, number, Uint8Array]>} rows
  */
 export function indexFromVectors(rows) {
   const encoder = new TextEncoder();
   const ids = rows.map(([id]) => encoder.encode(String(id)));
-  const dims = rows.length ? rows[0][2].length : 0;
-  const size = 12 + ids.reduce((n, id) => n + 2 + id.length, 0) + rows.length * (4 + dims);
+  const bytes = rows.length ? rows[0][2].length : 0; // two values a byte
+  const size = 12 + ids.reduce((n, id) => n + 2 + id.length, 0) + rows.length * (4 + bytes);
   const out = new Uint8Array(size);
   const view = new DataView(out.buffer);
-  out.set([0x45, 0x35, 0x49, 0x32]); // "E5I2"
+  out.set([0x45, 0x35, 0x49, 0x33]); // "E5I3"
   view.setUint32(4, rows.length, true);
-  view.setUint32(8, dims, true);
+  view.setUint32(8, 2 * bytes, true);
   let at = 12;
   for (const id of ids) {
     view.setUint16(at, id.length, true);
@@ -111,9 +112,9 @@ export function indexFromVectors(rows) {
     at += 4;
   }
   for (const [id, , vector] of rows) {
-    if (vector.length !== dims) throw new Error(`the vector of ${id} has ${vector.length} values, not ${dims}`);
+    if (vector.length !== bytes) throw new Error(`the vector of ${id} has ${vector.length} bytes, not ${bytes}`);
     out.set(vector, at);
-    at += dims;
+    at += bytes;
   }
   return out;
 }

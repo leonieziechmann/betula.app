@@ -31,7 +31,7 @@ CREATE TABLE passage_embedding (
 	passage_hash TEXT PRIMARY KEY,               -- semantic.PassageHash of the passage
 	model        TEXT NOT NULL,                  -- semantic.Encoder.ID: a hash of the model file
 	scale        REAL NOT NULL CHECK (scale > 0),
-	vector       BLOB NOT NULL,                  -- int8 values, value = code × scale
+	vector       BLOB NOT NULL,                  -- packed as published (below)
 	created_at   TEXT NOT NULL
 ) WITHOUT ROWID;
 
@@ -41,8 +41,10 @@ CREATE TABLE module_vector (
 	vector      BLOB NOT NULL
 ) WITHOUT ROWID;
 
--- The contract for Folia: a module's vector is `vector` (dims int8 values, the dims of the
--- model, 384 for e5-small) times `scale`, unit length up to rounding. Modules without a vector
--- yet have no row.
+-- The contract for Folia: a module's vector is the model's dims values (384 for e5-small) of 4
+-- bits, two to a byte in `vector`: a value v of -7..7 is the nibble v + 8, the first value in
+-- the low nibble; the vector is the values times `scale`, of unit length up to their rounding
+-- (semantic::quantize, which also reads them: semantic::Index::push_codes). 4 bits rather than 8
+-- halve the snapshot's vectors to about 1 MB. Modules without a vector yet have no row.
 CREATE VIEW v_module_vector AS
 SELECT module_id, scale, vector FROM module_vector;

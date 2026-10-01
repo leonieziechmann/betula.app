@@ -223,12 +223,14 @@ fn every_query_runs_against_the_snapshot() {
     assert!(curriculum.len() > 1000 && curriculum.iter().all(|(program, module)| !program.is_empty() && !module.is_empty()));
     let ids = queries::module_ids(&db).unwrap();
     assert!(ids.len() >= page.total as usize && ids.contains(&module.id));
-    // The semantic search's vectors, as Radix computed them: of one length, of unit length up to
-    // rounding, of modules the catalog has. A snapshot of a Radix without a model has none.
+    // The semantic search's vectors, as Radix computed them: 384 values of 4 bits (two a byte, the
+    // nibble value + 8), of unit length up to their rounding, of modules the catalog has. A
+    // snapshot of a Radix without a model has none.
     let vectors = queries::module_vectors(&db).unwrap();
     for v in &vectors {
-        let length = v.codes.iter().map(|&c| (f32::from(c) * v.scale).powi(2)).sum::<f32>().sqrt();
-        assert!(v.codes.len() == 384 && (length - 1.0).abs() < 0.01 && ids.contains(&v.module_id), "{} {length}", v.module_id);
+        let values = v.vector.iter().flat_map(|b| [i16::from(b & 0x0f) - 8, i16::from(b >> 4) - 8]);
+        let length = values.map(|c| (f32::from(c) * v.scale).powi(2)).sum::<f32>().sqrt();
+        assert!(v.vector.len() == 192 && (length - 1.0).abs() < 0.1 && ids.contains(&v.module_id), "{} {length}", v.module_id);
     }
 
     the_studyplan_queries(&db, meta.current_semester.as_deref().expect("a current semester"));

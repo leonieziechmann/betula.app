@@ -38,7 +38,7 @@ type Encoder struct {
 type instance struct {
 	mod                api.Module
 	alloc, free, embed api.Function
-	codes, scale       uint32 // the results' room in the module's memory
+	packed, scale      uint32 // the results' room in the module's memory
 }
 
 // Load reads the packed model at path and starts workers instances of the module with it. Each
@@ -91,7 +91,7 @@ func start(ctx context.Context, rt wazero.Runtime, compiled wazero.CompiledModul
 	if dims <= 0 {
 		return nil, 0, errors.New("not a packed model")
 	}
-	if inst.codes, err = inst.allocate(ctx, dims); err != nil {
+	if inst.packed, err = inst.allocate(ctx, dims/2); err != nil {
 		return nil, 0, err
 	}
 	if inst.scale, err = inst.allocate(ctx, 4); err != nil {
@@ -103,12 +103,12 @@ func start(ctx context.Context, rt wazero.Runtime, compiled wazero.CompiledModul
 // ID identifies the model: a vector is only comparable with vectors of the same model.
 func (e *Encoder) ID() string { return e.id }
 
-// Dims is the length of a vector.
+// Dims is the number of values of a vector; it takes Dims/2 bytes.
 func (e *Encoder) Dims() int { return e.dims }
 
-// EmbedPassage computes the vector of a module's passage (semantic.Passage) as the index keeps
-// it: int8 codes and their scale (semantic::quantize, value = code × scale).
-func (e *Encoder) EmbedPassage(ctx context.Context, passage string) (float32, []int8, error) {
+// EmbedPassage computes the vector of a module's passage (semantic.Passage) as the snapshot
+// publishes it (semantic::quantize): its values of 4 bits, two to a byte, and their scale.
+func (e *Encoder) EmbedPassage(ctx context.Context, passage string) (float32, []byte, error) {
 	var inst *instance
 	select {
 	case inst = <-e.instances:
@@ -121,7 +121,7 @@ func (e *Encoder) EmbedPassage(ctx context.Context, passage string) (float32, []
 	if err != nil {
 		return 0, nil, err
 	}
-	res, err := inst.embed.Call(ctx, uint64(at), uint64(len(passage)), uint64(inst.codes), uint64(inst.scale))
+	res, err := inst.embed.Call(ctx, uint64(at), uint64(len(passage)), uint64(inst.packed), uint64(inst.scale))
 	if _, ferr := inst.free.Call(ctx, uint64(at), uint64(len(passage))); err == nil {
 		err = ferr
 	}
@@ -131,16 +131,13 @@ func (e *Encoder) EmbedPassage(ctx context.Context, passage string) (float32, []
 	if int32(res[0]) < 0 {
 		return 0, nil, errors.New("the passage is not UTF-8")
 	}
-	raw, ok := inst.mod.Memory().Read(inst.codes, uint32(e.dims))
+	raw, ok := inst.mod.Memory().Read(inst.packed, uint32(e.dims/2))
 	bits, ok2 := inst.mod.Memory().ReadUint32Le(inst.scale)
 	if !ok || !ok2 {
 		return 0, nil, errors.New("the vector lies outside the module's memory")
 	}
-	codes := make([]int8, e.dims)
-	for i, b := range raw {
-		codes[i] = int8(b)
-	}
-	return math.Float32frombits(bits), codes, nil
+	// Read returns a view of the module's memory: the next call overwrites it.
+	return math.Float32frombits(bits), append([]byte(nil), raw...), nil
 }
 
 // Close stops the instances.

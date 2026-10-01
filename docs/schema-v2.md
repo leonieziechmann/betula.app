@@ -56,7 +56,7 @@ is derived and replaced by each build.
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `module_summary`, `passage_embedding` | caches of the semantic search, kept across builds and never published: what Gemini wrote about a module's text (German and English summary, search terms; keyed by `semantic.Text.Hash`), and the vector of a passage under a model (keyed by `semantic.PassageHash`) | the semantic stage (section 6, „Semantic search“) |
-| `module_vector` | each module's vector for the semantic search: int8 codes × `scale` | build, from `passage_embedding` |
+| `module_vector` | each module's vector for the semantic search: values of 4 bits, packed, × `scale` | build, from `passage_embedding` |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), `radix_build` (a hash of the binary that built it: a new release builds again at start), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
 
@@ -88,7 +88,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 |---|---|---|
 | `v_module` | module | `id, title, title_de, title_en, detail_status, page_lang, credits, language_raw, teaches_german, teaches_english, duration_raw, duration_semesters, turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department_id, department, department_code, learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, source_url, fetched_at, responsible, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg, abbrev` (the module's abbreviation without a program) |
 | `v_module_facets` | module | `module_id, credits, department_id, teaches_german, teaches_english, duration_semesters, offered_winter, offered_summer, turnus_season, turnus_parity, offer_status, is_limited, participant_limit, exam_form, exam_written, exam_oral, exam_paper, exam_presentation, exam_project, exam_practical, is_graded, is_fues, has_lecture, has_exercise, has_seminar, has_practical, has_project, has_excursion, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg`. Campus flags are NULL (unknown) for a module without a room in the newest semester. |
-| `v_module_vector` | module that has a vector | `module_id, scale, vector` (a BLOB of the model's dims int8 values; the vector is value × `scale`, of unit length up to rounding). Modules whose vector is not computed yet have no row. Folia builds the index of its semantic search from it (crate `semantic`). |
+| `v_module_vector` | module that has a vector | `module_id, scale, vector`: the model's dims values (384) of 4 bits, two to a byte (a value v of -7..7 is the nibble v + 8, the first value in the low nibble); the vector is value × `scale`, of unit length up to rounding. Modules whose vector is not computed yet have no row. Folia builds the index of its semantic search from it as it is (`semantic::Index::push_codes`, which unpacks; `semantic::quantize` packs). |
 | `v_module_search` | module × title variant | `module_id, term, kind` (`id`, `title_de`, `title_en`): the only place that needs `LIKE` |
 | `v_module_lecturer` | module × person | `module_id, name, title, role` (`responsible`, `instructor`) |
 | `v_module_teaching_form` | module × form | `module_id, ord, form, form_raw, workload_raw, sws, hours` |
@@ -705,7 +705,8 @@ file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_cha
 Folia finds modules by meaning (crate `semantic/`, `semantic/README.md`): a query typed in the
 browser is embedded there, by an e5 model fine-tuned on students' queries, and compared with one
 vector per module. Radix computes those vectors, so a snapshot carries them and nothing else of the
-search: schema 10, `v_module_vector`, about 2 MB for the catalog.
+search: schema 10, `v_module_vector`, 192 bytes a module, about 1 MB for the catalog (4-bit values:
+half the size of 8-bit ones for 2.6 points of the first 10, `semantic/README.md`).
 
 A module's vector is that of its **passage** (`internal/semantic`, `Passage`): its titles, then a
 German and an English summary of it and search terms, then its contents and learning outcomes.
@@ -719,7 +720,7 @@ The vectors are computed by the crate `semantic/` itself, compiled to WebAssembl
 (`internal/embed/semantic.wasm`, the build the browser's search worker runs too) and run in wazero, a
 WebAssembly runtime in pure Go: one implementation of the model for Radix, the web server and the
 browser, and the vectors Radix publishes are the bits the crate computes natively (in its int8
-arithmetic, defined to the bit on every build; `internal/embed`'s test compares them with the native
+arithmetic, defined to the bit on every build, then packed to 4 bits by the crate too; `internal/embed`'s test compares them with the native
 CLI). The model is the server's (`e5-de-en-server.bin`: 8 bit, 512 positions; 35 MB, not in the
 repository); `RADIX_EMBED_MODEL` names it, and without it the stage does not run.
 

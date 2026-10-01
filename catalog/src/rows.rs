@@ -341,13 +341,14 @@ impl FromRow for Prerequisite {
     }
 }
 
-/// `v_module_vector`: a module's vector for the semantic search (crate `semantic`), computed by
-/// Radix: `codes` × `scale`, of unit length up to rounding.
+/// `v_module_vector`: a module's vector for the semantic search, computed by Radix and packed as
+/// the crate `semantic` packs it (`semantic::quantize`: values of 4 bits, two to a byte), which
+/// takes it as it is (`semantic::Index::push_codes`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModuleVector {
     pub module_id: String,
     pub scale: f32,
-    pub codes: Vec<i8>,
+    pub vector: Vec<u8>,
 }
 
 impl FromRow for ModuleVector {
@@ -360,18 +361,18 @@ impl FromRow for ModuleVector {
             b'a'..=b'f' => Some(b - b'a' + 10),
             _ => None,
         };
-        let codes = hex
+        let vector = hex
             .as_bytes()
             .chunks(2)
             .map(|pair| match pair {
-                [hi, lo] => Some((digit(*hi)? << 4 | digit(*lo)?).cast_signed()),
+                [hi, lo] => Some(digit(*hi)? << 4 | digit(*lo)?),
                 _ => None,
             })
-            .collect::<Option<Vec<i8>>>()
+            .collect::<Option<Vec<u8>>>()
             .ok_or_else(|| row.error("vector", "not hex"))?;
         #[allow(clippy::cast_possible_truncation)] // stored as REAL from an f32
         let scale = row.real("scale")? as f32;
-        Ok(Self { module_id: row.text("module_id")?, scale, codes })
+        Ok(Self { module_id: row.text("module_id")?, scale, vector })
     }
 }
 
