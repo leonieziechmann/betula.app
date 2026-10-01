@@ -27,9 +27,9 @@ let x = null; // the module's exports
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 
 /** The bytes at a URL, or the bytes themselves (an index the page built: `indexFromVectors`). */
-async function bytes(url) {
+async function bytes(url, init) {
   if (url instanceof Uint8Array) return url;
-  const response = await fetch(url);
+  const response = await fetch(url, init);
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   return new Uint8Array(await response.arrayBuffer());
 }
@@ -52,7 +52,12 @@ async function loadIndex(url) {
 
 const handlers = {
   async init({ model, index }) {
-    const [wasm, modelBytes] = await Promise.all([bytes(new URL(`semantic.${BUILD}.wasm`, self.location.href)), bytes(model)]);
+    // The WASM of this worker's build (its `?v=<build>`); the model, 15 MB, after what the page
+    // needs (`priority`, where the browser has it).
+    const [wasm, modelBytes] = await Promise.all([
+      bytes(new URL(`semantic.${BUILD}.wasm${self.location.search}`, self.location.href)),
+      bytes(model, { priority: "low" }),
+    ]);
     const indexBytes = await bytes(index);
     x = (await WebAssembly.instantiate(wasm, {})).instance.exports;
     // The model stays in the module's memory (18.5 MB, and 21 MB of int8 weights made from it).

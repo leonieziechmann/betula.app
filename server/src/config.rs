@@ -70,6 +70,11 @@ pub struct Config {
     #[arg(long, env = "FOLIA_SITE_ROOT", default_value = "site")]
     pub site_root: PathBuf,
 
+    /// The browser's model of the semantic search (`e5-de-en.bin`, semantic/README.md), served
+    /// under `/models/` with its hash in the address. Without it the app has no semantic search.
+    #[arg(long, env = "FOLIA_SEMANTIC_MODEL")]
+    pub semantic_model: Option<PathBuf>,
+
     /// While working on the site: serve the stylesheet, the scripts and the SVGs from this
     /// directory (`app/assets`) as they are on disk, instead of the minified copies built into the
     /// server, and keep nothing as immutable. An edit is there with the next reload; the service

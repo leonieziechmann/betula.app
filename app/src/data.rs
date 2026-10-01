@@ -25,6 +25,34 @@ pub struct Source(pub Arc<dyn CatalogSource>);
 #[derive(Clone)]
 pub struct ProgramMapHandle(pub Arc<catalog::graph::ProgramMap>);
 
+/// One module the semantic search found: its id and how close its description is to the query
+/// (the cosine of their vectors, higher is closer; semantic/README.md).
+#[derive(Clone, Debug, PartialEq)]
+pub struct SemanticHit {
+    pub module_id: String,
+    pub score: f32,
+}
+
+/// What a search answers later: the semantic search runs in a Web Worker.
+pub type Later<T> = std::pin::Pin<Box<dyn std::future::Future<Output = T>>>;
+
+/// The semantic search (semantic/README.md): the modules whose descriptions mean what a query
+/// says, for when the exact search finds few. Only the browser app has it (`client`, the model in
+/// a Web Worker that `boot.js` loads once the app runs); on the server, and in a browser that has
+/// none, there is no `Semantic` in the context.
+pub trait SemanticSearch: Send + Sync {
+    /// Whether the search can answer: false for good when this browser has none (no model on the
+    /// server, no vectors in the catalog yet, data saving, little memory). Resolves once loading
+    /// has ended either way; until then a search waits.
+    fn ready(&self) -> Later<bool>;
+    /// The `k` modules closest to `query`, best first. `None` when a newer query took its place
+    /// before this one ran (typing fast never piles up work), or when there is no search.
+    fn search(&self, query: &str, k: usize) -> Later<Option<Vec<SemanticHit>>>;
+}
+
+#[derive(Clone)]
+pub struct Semantic(pub Arc<dyn SemanticSearch>);
+
 /// What a page shows instead of data. Serializable, because the server hands the
 /// outcome of its queries to the browser for hydration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

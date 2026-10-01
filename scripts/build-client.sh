@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the browser app into site/pkg (served by Folia under /pkg).
+# Builds the browser app into site/pkg (served by Folia under /pkg), and the Web Worker of the
+# semantic search next to it (scripts/build-semantic.sh).
 # Needs the wasm32-unknown-unknown target and wasm-bindgen-cli 0.2.128 (on PATH, in
 # $WASM_BINDGEN, or the copy Trunk keeps in its cache).
 #
@@ -46,4 +47,7 @@ fi
 
 mkdir -p site/pkg
 "$WB" --target web --no-typescript ${BINDGEN_FLAGS[@]+"${BINDGEN_FLAGS[@]}"} --out-dir site/pkg --out-name folia_client "$TARGET_DIR/wasm32-unknown-unknown/$PROFILE/folia_client.wasm"
+
+# The semantic search's worker: release builds only, for both (it has no dev build of its own).
+bash scripts/build-semantic.sh >/dev/null
 ls -la site/pkg

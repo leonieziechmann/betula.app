@@ -22,6 +22,7 @@ mod encoding;
 mod lastmod;
 mod launch;
 mod logo;
+mod semantic;
 mod snapshot;
 mod texts;
 #[cfg(test)]
@@ -68,6 +69,8 @@ pub struct AppState {
     pub live_assets: Option<std::path::PathBuf>,
     /// The files of the browser app as they are served, by name.
     pub packages: Packages,
+    /// The browser's model of the semantic search (`--semantic-model`); `None` without one.
+    pub semantic: Option<Arc<semantic::Model>>,
     /// Closed testing: the password in front of the whole site (`access`); `None` when it is open.
     pub gate: Option<Arc<access::Gate>>,
     /// Where pages that are not in the cache are rendered, and how long a page waits for a place
@@ -267,6 +270,7 @@ pub fn files() -> Router<AppState> {
         .route("/assets/sql-wasm.js", get(api::sql_js))
         .route("/assets/sql-wasm.wasm", get(api::sql_wasm))
         .route("/pkg/{file}", get(api::package))
+        .route("/models/{file}", get(api::semantic_model))
         .route(app::FAVICON_ICO, get(api::favicon_ico))
         .route(app::TOUCH_ICON, get(api::touch_icon))
         // iOS asks for this name too before it reads the page.
@@ -417,6 +421,18 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
     // One place per processor unless configured.
     let places = |configured: usize| if configured > 0 { configured } else { cpus };
     let render_wait = Duration::from_millis(config.render_wait_ms);
+    // Optional: without its model the app simply has no semantic search, so a model that cannot
+    // be read is an error in the log, not a site that does not start.
+    let semantic = config.semantic_model.as_deref().and_then(|path| match semantic::Model::load(path) {
+        Ok(model) => {
+            tracing::info!(component = "server", event = "semantic.model", path = %path.display(), served_at = %model.path, "the browser's model of the semantic search is served");
+            Some(Arc::new(model))
+        }
+        Err(error) => {
+            tracing::error!(component = "server", event = "semantic.model_unreadable", path = %path.display(), error = %error, "the browser's model of the semantic search cannot be read; the app runs without the semantic search");
+            None
+        }
+    });
     let state = AppState {
         store,
         cache: Arc::new(HtmlCache::new(config.html_cache_mb * 1024 * 1024)),
@@ -428,6 +444,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         site_root: config.site_root.clone(),
         live_assets: config.live_assets.clone(),
         packages: Arc::default(),
+        semantic,
         gate,
         renders: Arc::new(busy::Places::new("render", places(config.render_places), render_wait)),
         render_wait,
@@ -473,7 +490,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
     if config.warm_cache {
         tokio::spawn(warm::run(pages(&state).with_state(state.clone()), state.store.clone(), state.changes.clone()));
     }
-    tokio::spawn(warm::files(files().with_state(state.clone()), state.build_id.clone()));
+    tokio::spawn(warm::files(files().with_state(state.clone()), state.build_id.clone(), state.semantic.as_ref().map(|model| model.path.clone())));
 
     match axum::serve(listener, router(state)).with_graceful_shutdown(shutdown_signal()).await {
         Ok(()) => std::process::ExitCode::SUCCESS,

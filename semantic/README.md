@@ -172,13 +172,14 @@ vectors are Radix's.
 `semantic.relaxed.wasm` (relaxed SIMD, Chrome/Edge/Firefox; the worker picks one by feature
 test), `semantic-worker.js` and `semantic.js` — and Radix's copy of the SIMD build,
 `internal/embed/semantic.wasm`, committed, so that Radix builds with Go alone (build and commit it
-again with every change of `semantic/src`). A page:
+again with every change of `semantic/src`). (`scripts/build-client.sh` runs it, and Nix builds the same as `.#folia-semantic`, part of the
+image.) The API of a page:
 
 ```js
 import { Semantic, indexFromVectors } from "/pkg/semantic.js";
 // The vectors are in the local copy of the snapshot: no extra download.
 const rows = db.exec("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id")[0]?.values ?? [];
-const semantic = new Semantic({ model: "/pkg/e5-de-en.bin", index: indexFromVectors(rows) });
+const semantic = new Semantic({ model: "/models/e5-de-en-<hash>.bin", index: indexFromVectors(rows) });
 await semantic.ready;                        // model and index loaded in the worker
 const found = await semantic.search("coding lernen", 20);
 if (found) for (const { id, score } of found.hits) { /* id: the module's id */ }
@@ -196,12 +197,37 @@ the model (Cache Storage, so the search works offline like the rest of the app,
 seconds (Chrome: 30), and each start would load the model again (0.25–0.3 s here, more on a phone, and 47 MiB). A
 dedicated worker lives as long as the page and keeps the model loaded between queries.
 
+## In the app
+
+Everything is in place and loaded; no component uses it yet.
+
+- **Folia** serves the model given by `FOLIA_SEMANTIC_MODEL` (`server/src/semantic.rs`) at
+  `/models/e5-de-en-<the first 16 hex digits of its SHA-256>.bin`, kept for good (`immutable`):
+  the address changes with the model, not with a build. It is read at the start and kept in
+  memory with its brotli form (13.6 MB, made in 1.8 s by the warm-up, `warm::files`, which also
+  compresses the worker's files). The server writes the address into `boot.js`
+  (`SEMANTIC_MODEL`, `null` without a model) and names it in `/api/status` (`semantic_model`).
+- **`boot.js`** starts the search only after `app.start()`, and then in `requestIdleCallback`
+  (or 1.5 s later): it imports `/pkg/semantic.js?v=<build>`, reads the vectors from the local
+  catalog, builds the index (1 MB; 20–35 ms of the main thread on a laptop) and hands it to the
+  worker, which fetches its WASM (with the build's `?v=`) and the model (`priority: "low"`). Not
+  at all without a model, without vectors in the snapshot, with data saving on
+  (`navigator.connection.saveData`), or on a device with less than 2 GB (`navigator.deviceMemory`).
+  Measured in Chromium against the real snapshot: the app runs at 2.3 s, the search is ready
+  0.7 s later (the model from the network), 0.16 s on a second visit; under 4× CPU throttling
+  the main thread's long tasks after the app's start are the same with and without it.
+- **`sw.js`** keeps the model in a cache of its own (`betula-models`), which no build drops: a
+  deploy does not download it again, a new model replaces the old one. The worker's other files
+  are kept with the shell of their build, as the bundle is.
+- **For the app's code:** `window.betulaSemantic` (`ready`, `search(query, k)`; `boot.js` says
+  what they answer), and in Rust `app::data::Semantic` in the context of the browser app
+  (`SemanticSearch::ready`, `SemanticSearch::search` → `SemanticHit`s), none on the server.
+
 ## Not done yet
 
 - the search in the app's UI (`app/`): the semantic hits when the exact search finds few;
-- serving the browser's model (`/pkg/e5-de-en.bin` above is a placeholder) and `sw.js` keeping it;
-  where the two model files come from in a deploy (35 + 15 MB, not in git: a release artifact,
-  or built in the deploy), and `RADIX_EMBED_MODEL` in the stack;
+- where the two model files come from in a deploy (35 + 15 MB, not in git: a release artifact,
+  or built in the deploy), and `RADIX_EMBED_MODEL` and `FOLIA_SEMANTIC_MODEL` in the stack;
 - a schema-11 snapshot for Folia's tests (`catalog::tests` and the pinned digests);
 - Unicode composition (NFC): neither side composes „e“ + U+0301 into „é“ (a query typed so is
   cut differently from one with „é“, on both sides alike). Keyboards and the catalog write the

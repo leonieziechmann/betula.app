@@ -13,8 +13,9 @@
 export class Semantic {
   /** @param {{model: string, index: string | Uint8Array, worker?: string | URL}} urls the packed
    * model, the index (a URL, or its bytes: `indexFromVectors`), and the worker script (beside this
-   * file unless given) */
-  constructor({ model, index, worker = new URL("semantic-worker.js", import.meta.url) }) {
+   * file unless given, asked for with this file's query: the build it came with, `?v=<build>`,
+   * which the worker passes on to its WASM) */
+  constructor({ model, index, worker = new URL("semantic-worker.js" + new URL(import.meta.url).search, import.meta.url) }) {
     this.worker = new Worker(worker);
     this.next = 0;
     this.pending = new Map();

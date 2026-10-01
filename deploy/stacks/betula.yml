@@ -112,6 +112,9 @@ services:
     image: "${FOLIA_IMAGE:?FOLIA_IMAGE is not set}"
     environment:
       FOLIA_LOG_LEVEL: info
+      # The semantic search in the browser needs FOLIA_SEMANTIC_MODEL, the path of the browser's
+      # model e5-de-en.bin (15 MB, semantic/README.md) in the volume, e.g. /data/e5-de-en.bin;
+      # without it the app simply has no semantic search (docs/operations.md).
       # Canonical links, link previews and the sitemap are written with it.
       FOLIA_PUBLIC_URL: "https://${APP_HOST:?APP_HOST is not set}"
       # Rendered pages kept in memory, compressed (server/src/cache.rs); part of the memory limit

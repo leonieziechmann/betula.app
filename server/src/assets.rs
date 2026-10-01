@@ -204,7 +204,7 @@ mod tests {
         // sql.js is a classic script: the global it defines is what boot.js calls.
         assert!(text("sql-wasm.js").contains("initSqlJs"), "{}", text("sql-wasm.js").get(..400).unwrap_or_default());
         // What the server writes in when it serves them (`api`) is still there to be written.
-        assert!(text("boot.js").contains("__SCHEMA__") && text("sw.js").contains("__BUILD__"));
+        assert!(text("boot.js").contains("__SCHEMA__") && text("boot.js").contains("__SEMANTIC_MODEL__") && text("sw.js").contains("__BUILD__"));
         // The stylesheet names every mask of the birch as the written one does (`warm::files` and
         // `tests.rs` ask for each of them).
         assert_eq!(masks(text("app.css")), masks(&written("app.css")));

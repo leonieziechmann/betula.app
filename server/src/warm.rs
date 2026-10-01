@@ -140,12 +140,19 @@ pub fn masks(stylesheet: &str) -> impl Iterator<Item = &str> {
 /// 0.4 s, sql.js's WASM 1.1 s, the bundle 2 s — which the first request after a start would wait
 /// for. One after the other, in the background; what a visitor asks for meanwhile is made for
 /// them, once. With the build in the address, as a page links them: so it is the address the
-/// browsers keep.
-pub async fn files(router: Router, build: Arc<str>) {
+/// browsers keep. Last the files of the semantic search, which a page loads once the app runs, and
+/// its model (`model`, 15 MB, 1.8 s), whose address names its content and not the build.
+pub async fn files(router: Router, build: Arc<str>, model: Option<String>) {
     let started = Instant::now();
     let masks: std::collections::BTreeSet<&str> = masks(crate::assets::text("app.css")).collect();
     let built = [app::STYLESHEET, app::icons::SPRITE, app::ENHANCE_SCRIPT, app::BOOT_SCRIPT, "/assets/sql-wasm.js", "/assets/sql-wasm.wasm", "/pkg/folia_client.js", "/pkg/folia_client_bg.wasm"];
-    let paths: Vec<String> = built.iter().map(|path| format!("{path}?v={build}")).chain(masks.iter().map(|path| path.to_string())).collect();
+    let semantic = ["/pkg/semantic.js", "/pkg/semantic-worker.js", "/pkg/semantic.simd.wasm", "/pkg/semantic.relaxed.wasm"];
+    let paths: Vec<String> = built
+        .iter()
+        .map(|path| format!("{path}?v={build}"))
+        .chain(masks.iter().map(|path| path.to_string()))
+        .chain(model.iter().flat_map(|model| semantic.iter().map(|path| format!("{path}?v={build}")).chain([model.clone()])))
+        .collect();
     for path in &paths {
         let Ok(request) = Request::builder().uri(path.as_str()).header(header::ACCEPT_ENCODING, "br").body(Body::empty()) else { continue };
         let Ok(response) = router.clone().oneshot(request).await;

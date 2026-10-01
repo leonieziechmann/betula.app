@@ -763,8 +763,8 @@ Open:
   export in `snapshot/`: the digest covers `module_vector`, so the pinned checks are skipped until
   then. The catalog's tests pass against the snapshot of 2026-09-30 migrated to 11 with Radix's
   vectors.
-- **The semantic search in the app**, serving the browser's model, and `RADIX_EMBED_MODEL` in the
-  stack (`semantic/README.md`, „Not done yet“).
+- **The semantic search in the app's UI** (served and loaded, not used yet), and
+  `RADIX_EMBED_MODEL` and `FOLIA_SEMANTIC_MODEL` in the stack (`semantic/README.md`, „Not done yet“).
 - **Web server (Rust) and frontend.** Both still read the v1 layout and do not work against a
   snapshot. The server becomes an HTTP client of the service: poll `/snapshot/catalog.db` with
   `If-None-Match`, keep the file, serve it as `/api/db` with the same ETag, and answer SSR pages
