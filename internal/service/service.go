@@ -181,8 +181,9 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-// RunCycle runs one cycle: crawl what is due, apply retention, build, compute the vectors of
-// the semantic search that are missing, and if the content changed validate and export.
+// RunCycle runs one cycle: crawl what is due, apply retention, build, and if the content changed
+// validate and export; then, unless the cycle failed, compute the semantic search's missing
+// vectors (semantic.go), which the next build publishes.
 //
 // Log events: cycle.started, stage.finished / stage.failed (ERROR), cycle.finished
 // (ERROR when the result is "failed", WARN when "degraded"), cycle.panic (ERROR).
