@@ -86,19 +86,24 @@ data (`poc/semantic-search/data`, written by Claude):
 
 What counts is the queries the exact search does not answer (fewer than 3 modules by the
 catalog's LIKE and by every word in the titles): 82 % of the open queries, 95 % of the known-item
-ones. On those:
+ones. On those, measured as deployed — the packed 4-bit query model, Radix's int8 vectors, the
+search of this crate (`target/release/embed --search`, the browser's bits):
 
 | | relevant of the first 10 | the module in the first 10 |
 |---|---|---|
-| before (original model, the description alone) | 58.5 % | 62.8 % |
-| the description in chunks of 60 words, the best counts | 61.1 % | 64.7 % |
-| fine-tuned query model | 71.8 % | 76.0 % |
-| summaries in the passage | 65.5 % | 77.1 % |
-| **fine-tuned query model + summaries (this crate, Radix)** | **73.4 %** | **82.1 %** |
+| before (original model, the description alone) | 56.9 % | 61.8 % |
+| fine-tuned query model | 70.7 % | 76.3 % |
+| summaries in the passage | 63.9 % | 76.7 % |
+| **fine-tuned query model + summaries (this crate, Radix)** | **72.6 %** | **81.7 %** |
 
-(Python, the original model in f32. The deployed pipeline, packed models and int8 vectors, is
-given under „Checks“.) The situation queries, the hardest: 29 % → 52 % in the first 10. For all
-queries, including those the exact search answers: 63 % → 77 % relevant.
+The situation queries, the hardest: 27.7 % → 51.0 % in the first 10. For all queries,
+including those the exact search answers: 62.1 % → 76.7 % relevant (the realistic ones), 60.8 % →
+74.7 % (the personas'). Of the judgments' holes (modules nobody graded, counted as not relevant),
+1–5 % of the first 10; the numbers are a little low for it, the „before“ ones most.
+
+The same in Python with the original model in f32 (the variants below were measured so): 58.5 %,
+71.8 %, 65.5 %, 73.4 % relevant; 62.8 %, 76.0 %, 77.1 %, 82.1 % found. Packing and int8 cost about
+a point.
 
 Tried and left out:
 - a second vector per module (the summary alone, the higher of the two counts): +1 point, the
@@ -108,7 +113,12 @@ Tried and left out:
 - lowering modules that are near every query („hubs“, by their mean similarity to their 10
   nearest training queries): worse (−3 points, with 11 % of its hits not judged). Few modules are
   hubs: the first 10 of 200 queries hold 1,506 different modules, none wrong more than four times;
-- the description in chunks: +2–3 points, superseded by the summaries.
+- the description in chunks of 60 words, the best chunk counting: 61.1 % relevant, 64.7 % found
+  (Python; +2–3 points), superseded by the summaries;
+- 4-bit vectors instead of 8-bit (half of the 2 MB): −2.6 points relevant, −1 found; 3 bits −8.
+
+The vectors make the snapshot larger: 7.5 → 9.3 MB with gzip -9 (int8 values hardly compress).
+That is the index itself, which the browser would otherwise download on its own.
 
 The fine-tuning (`poc/semantic-search/python/finetune.py`): 21,245 queries of 4,330 modules (five
 a module text, written by Claude from the description, three German and two English, keywords to
