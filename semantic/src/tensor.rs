@@ -325,9 +325,78 @@ fn tile_scalar(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: 
     out
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+#[cfg(not(any(all(target_arch = "wasm32", target_feature = "simd128"), target_arch = "x86_64")))]
 fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
     tile_scalar(x, xs, w, ws, block)
+}
+
+/// `tile_scalar` with SSE2 (every x86_64, so the server), bit for bit like the WASM `tile`:
+/// `pmaddwd` is `i32x4.dot_i16x8_s`, the lanes of four rows are added up exactly, then scaled
+/// and added to the rows' floats in one vector.
+#[cfg(target_arch = "x86_64")]
+fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
+    // SAFETY: SSE2 is part of every x86_64.
+    unsafe { tile_sse2(x, xs, w, ws, block) }
+}
+
+/// [Σa, Σb, Σc, Σd] of four vectors of i32, exactly.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "sse2")]
+fn lane_sums_sse2(a: std::arch::x86_64::__m128i, b: std::arch::x86_64::__m128i, c: std::arch::x86_64::__m128i, d: std::arch::x86_64::__m128i) -> std::arch::x86_64::__m128i {
+    use std::arch::x86_64::*;
+    let ab = _mm_add_epi32(_mm_unpacklo_epi32(a, b), _mm_unpackhi_epi32(a, b)); // a0+a2 b0+b2 a1+a3 b1+b3
+    let cd = _mm_add_epi32(_mm_unpacklo_epi32(c, d), _mm_unpackhi_epi32(c, d));
+    _mm_add_epi32(_mm_unpacklo_epi64(ab, cd), _mm_unpackhi_epi64(ab, cd))
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "sse2")]
+#[allow(clippy::indexing_slicing)] // every index is below the lengths checked on entry
+fn tile_sse2(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
+    use std::arch::x86_64::*;
+    let (Some(first), true) = (x.first(), w.len() == 4 && (x.len() == 1 || x.len() == 2)) else {
+        return tile_scalar(x, xs, w, ws, block);
+    };
+    let cols = first.len();
+    let second = if x.len() == 2 { x[1] } else { x[0] };
+    let second_scales = if xs.len() == 2 { xs[1] } else { xs[0] };
+    let blocks = cols / block;
+    if w.iter().any(|r| r.len() < cols) || ws.iter().any(|r| r.len() < blocks) || second.len() < cols
+        || xs[0].len() < blocks || second_scales.len() < blocks || !block.is_multiple_of(8) {
+        return tile_scalar(x, xs, w, ws, block);
+    }
+    // SAFETY: every load reads 8 i16 at an offset + 8 ≤ cols, within slices checked above.
+    let load = |s: &[i16], at: usize| unsafe { _mm_loadu_si128(s.as_ptr().add(at).cast()) };
+    let mut acc = [_mm_setzero_ps(); 2];
+    for b in 0..blocks {
+        let mut dot = [[_mm_setzero_si128(); 4]; 2];
+        let mut at = b * block;
+        while at < (b + 1) * block {
+            let (a0, a1) = (load(first, at), load(second, at));
+            for r in 0..4 {
+                let wv = load(w[r], at);
+                dot[0][r] = _mm_add_epi32(dot[0][r], _mm_madd_epi16(a0, wv));
+                dot[1][r] = _mm_add_epi32(dot[1][r], _mm_madd_epi16(a1, wv));
+            }
+            at += 8;
+        }
+        let wd = _mm_setr_ps(ws[0][b], ws[1][b], ws[2][b], ws[3][b]);
+        for (u, d) in [xs[0][b], second_scales[b]].into_iter().enumerate() {
+            let [d0, d1, d2, d3] = dot[u];
+            let sums = _mm_cvtepi32_ps(lane_sums_sse2(d0, d1, d2, d3));
+            acc[u] = _mm_add_ps(acc[u], _mm_mul_ps(sums, _mm_mul_ps(_mm_set1_ps(d), wd)));
+        }
+    }
+    let mut out = [[0.0f32; 2]; 4];
+    for (u, a) in acc.iter().enumerate() {
+        let mut lanes = [0.0f32; 4];
+        // SAFETY: four floats into an array of four.
+        unsafe { _mm_storeu_ps(lanes.as_mut_ptr(), *a) };
+        for (r, lane) in lanes.into_iter().enumerate() {
+            out[r][u] = lane;
+        }
+    }
+    out
 }
 
 /// The four lanes of each of `a`…`d` added up, exactly (integers): [Σa, Σb, Σc, Σd].
@@ -615,6 +684,35 @@ mod tests {
         for (r, row) in rows.iter().enumerate() {
             for (u, xt) in [x0, x1].iter().enumerate() {
                 assert_eq!(sums[r][u], block(xt, row, 0) + block(xt, row, 1), "row {r}, token {u}");
+            }
+        }
+    }
+
+    /// The build's `tile` (SSE2 on x86_64, WASM SIMD in the browser) is `tile_scalar` to the bit.
+    #[test]
+    fn tiles_are_the_definition_to_the_bit() {
+        let mut seed = 12_345u32;
+        let mut next = move || {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            seed >> 8
+        };
+        for _ in 0..200 {
+            let x: Vec<i16> = (0..2 * 384).map(|_| (next() % 255) as i16 - 127).collect();
+            let w: Vec<i16> = (0..4 * 384).map(|_| (next() % 16) as i16 - 8).collect();
+            let xs: Vec<f32> = (0..2 * 12).map(|_| next() as f32 * 1.3e-9).collect();
+            let ws: Vec<f32> = (0..4 * 12).map(|_| next() as f32 * 2.9e-10).collect();
+            let (x0, x1) = x.split_at(384);
+            let rows: Vec<&[i16]> = w.chunks(384).collect();
+            let row_scales: Vec<&[f32]> = ws.chunks(12).collect();
+            let token_scales: Vec<&[f32]> = xs.chunks(12).collect();
+            for tokens in [&[x0, x1][..], &[x0][..]] {
+                let fast = tile(tokens, &token_scales[..tokens.len()], &rows, &row_scales, 32);
+                let exact = tile_scalar(tokens, &token_scales[..tokens.len()], &rows, &row_scales, 32);
+                for (fast_row, exact_row) in fast.iter().zip(&exact) {
+                    for (f, e) in fast_row.iter().zip(exact_row).take(tokens.len()) {
+                        assert_eq!(f.to_bits(), e.to_bits(), "{f} ≠ {e}");
+                    }
+                }
             }
         }
     }

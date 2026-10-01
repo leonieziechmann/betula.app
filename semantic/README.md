@@ -76,8 +76,11 @@ browser's model: another model or `Model` in another mode embeds them differentl
 `examples/index.rs` does this for a snapshot file:
 `cargo run -p folia-semantic --release --example index -- e5-de-en-server.bin catalog.db index.bin`.
 
-**Cost:** a module's text runs to 512 tokens, about 1.2 s of one processor (f32 mode; int8 is
-slower natively, it is built for WASM SIMD): **INDEX_TIME** for the catalog on 4 threads.
+**Cost:** a module's text runs to 512 tokens, about 1.2–1.4 s of one processor (f32 mode):
+**29 minutes for the 4,938 modules on 4 threads** (the 4 processors of a cloud container, partly busy with other
+work at the time). **Quality:** the index the server builds so is the original model's: cosine
+to the embeddings of `intfloat/multilingual-e5-small` itself (fp32, Hugging Face) 0.9999 in the
+median, ≥ 0.984 for every module; each module's 10 nearest modules are 98.4 % the same.
 That is a background job per snapshot, like the brotli copy of the snapshot (`server/src/snapshot.rs`). Most modules do not change from one
 snapshot to the next, so keeping each module's embedding under a hash of its text would leave a
 few seconds per snapshot (not built yet). `Mode::F32` holds the server model as floats: 102 MB.
@@ -97,7 +100,7 @@ if (found) for (const { id, score } of found.hits) { /* id: the module's id */ }
 ```
 
 Everything happens in the worker: loading (18.5 MB, then 21 MB of int8 weights made from it),
-the query (15–55 ms on a laptop, the main thread untouched: its longest pause during searches
+the query (15–55 ms in Chromium on the container this was built in, the main thread untouched: its longest pause during searches
 was 9 ms in the test below), the search over the index (a few ms). Typing fast does not pile up
 work: while a query runs only the newest waits, the ones it replaced resolve to `null`. The
 worker's memory is 47 MiB (the WASM memory with model, int8 weights and index).
@@ -105,7 +108,7 @@ worker's memory is 47 MiB (the WASM memory with model, int8 weights and index).
 **Why a Web Worker, not the service worker:** the service worker is the right place to *keep*
 the model and the index (Cache Storage, so the search works offline like the rest of the app,
 `app/assets/sw.js`), not to *compute*: a browser stops an idle service worker after some
-seconds (Chrome: 30), and each start would load the model again (0.25 s on a laptop, more on a phone, and 47 MiB). A
+seconds (Chrome: 30), and each start would load the model again (0.25–0.3 s here, more on a phone, and 47 MiB). A
 dedicated worker lives as long as the page and keeps the model loaded between queries.
 
 ## Not done yet
