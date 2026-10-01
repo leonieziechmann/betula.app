@@ -566,6 +566,50 @@ pub fn catalog_summary(db: &dyn Database, query: &CatalogQuery) -> Result<Catalo
     })
 }
 
+/// How many of the modules closest to a search text the semantic search hands over for „Ähnliche
+/// Module" (`similar`): the closest tenth of the catalog, of which a filter keeps its share.
+pub const SIMILAR_CANDIDATES: usize = 500;
+/// How many „Ähnliche Module" stand under the results at most (owner, 2026-10-01).
+pub const SIMILAR_SHOWN: usize = 10;
+/// From how many letters or digits on a search has „Ähnliche Module" (owner, 2026-10-01).
+pub const SIMILAR_FROM: usize = 3;
+
+/// Whether a search for `text` has „Ähnliche Module" under its results.
+pub fn searches_similar(text: &str) -> bool {
+    text.chars().filter(|c| c.is_alphanumeric()).count() >= SIMILAR_FROM
+}
+
+/// What the semantic search is asked for the „Ähnliche Module" of `query` (the one the page ran):
+/// its text as the list searched it, typos corrected („algoritmen" is „Algorithmen", which the
+/// list says). `None` for a search that has none (`searches_similar`).
+pub fn similar_text(query: &CatalogQuery) -> Option<String> {
+    let text = query.text.trim();
+    if !searches_similar(text) {
+        return None;
+    }
+    Some(match &query.text_resolution {
+        Some(resolution) if !resolution.corrected.is_empty() => resolution.searched_text(text),
+        _ => text.to_string(),
+    })
+}
+
+/// „Ähnliche Module" under the results of a search (owner, 2026-10-01: with every search, the
+/// filters applying, at most 10): of the modules the semantic search finds closest to the text of
+/// `query` (`hits`, the closest first), those the rest of its filter holds and the search itself
+/// does not find (they are results already), the closest first, at most `limit`. `query` is the
+/// one the page ran (`CatalogData::effective`); its text is resolved as the list's where it is not.
+pub fn similar(db: &dyn Database, query: &CatalogQuery, hits: &[String], limit: usize) -> Result<Vec<CatalogRow>, DbError> {
+    if !searches_similar(&query.text) || hits.is_empty() || limit == 0 {
+        return Ok(Vec::new());
+    }
+    let mut query = query.clone();
+    if query.text_resolution.is_none() {
+        query.text_resolution = Some(search::resolve(db, &query.text)?);
+    }
+    let mut rows: BTreeMap<String, CatalogRow> = queries::similar_rows(db, &query, hits)?.into_iter().map(|row| (row.id.clone(), row)).collect();
+    Ok(hits.iter().filter_map(|id| rows.remove(id)).take(limit).collect())
+}
+
 /// What a filter means before a row of the list is read (`catalog` and `catalog_summary`).
 struct CatalogScope {
     program: Option<Program>,

@@ -269,7 +269,8 @@ pub fn start() {
     let build = build_of_page(&document);
     leptos::mount::mount_to_body(move || {
         provide_context(Source(Arc::new(LocalSource)));
-        // Loaded by `boot.js` once the app runs; nothing waits for it, and no component uses it yet.
+        // Loaded by `boot.js` once the app runs; nothing waits for it. The catalog's „Ähnliche Module"
+        // ask it (`app::pages::catalog`).
         provide_context(app::data::Semantic(Arc::new(BrowserSemantic)));
         // The icons point into the sprite of this build (`app::icons`), as the server's page did.
         if let Some(build) = build.clone() {

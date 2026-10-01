@@ -840,6 +840,11 @@ html:not(.js) .fit-chip { display: none; }
 /* Under the list, with and without the app: what the search finds outside the other filters. */
 .list-note { text-align: center; color: var(--text-3); font-size: 12.5px; padding: 12px 8px 6px; }
 .list-note a { font-weight: 560; }
+/* „Ähnliche Module" under the results (`SimilarModules`): headed as the Merkliste's modules that are
+   not in the catalog (`.sem`), but not sticky, which would put it under the heads of the columns,
+   and so without the shade that covers rows scrolling under it. */
+.similar { margin-top: 6px; }
+.similar > .sem { position: static; padding-top: 14px; background: none; }
 .app .pager { display: none; }
 .app .keys { display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); font-size: 12px; margin-right: 6px; white-space: nowrap; }
 .keys kbd { padding: 2px 5px; }

@@ -24,7 +24,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -861,6 +861,20 @@ description. The list stays the list it was („ich mag das UI da und würde das
   `sr`). Only modules whose names contain a form of every word are scored at all: in the sql.js of
   the app on a laptop a query takes 2 to 8 ms (without that filter 11 to 72 ms, which a phone would
   have felt while typing).
+- **„Ähnliche Module“** (2026-10-01; owner: „Unterteilung in Ergebnisse und Ähnliche Module“, the
+  semantic search from develop, semantic/README.md): under the rows, after the note on the filters,
+  the modules whose descriptions mean what the search says, as rows of the list under the heading
+  „Ähnliche Module“ — marking, the preview, swiping and the arrow keys work as on the list's rows
+  (they are `a.row`s in `.rows`, after the list). With every search of three letters or digits and
+  more (`pages::searches_similar`); the filters apply as to the results; the results themselves are
+  left out; at most 10, the closest first (`pages::similar`, `queries::similar_rows`). The semantic
+  search is asked for the text as the list searched it, a typo corrected (`pages::similar_text`),
+  and hands over the 500 modules closest to it, a tenth of the catalog, of which the filters keep
+  their share: inside a program its modules among them, rather than any module of the program. Only
+  the browser app has the semantic search, and only once its model is loaded (`data::Semantic`,
+  `window.betulaSemantic`; none without a model on the server, without vectors in the snapshot, with
+  data saving): until then, and on the server's page, nothing stands there, and the rows come when
+  it answers (`SimilarModules`, a `LocalResource`), under the results, so nothing above them moves.
 
 ### From the program's page into the catalog (2026-09-21)
 
@@ -2379,9 +2393,14 @@ cd e2e && node search.mjs
 
 searches modules („The search of the catalog“): without JavaScript, the server's page says a
 corrected typo above the list and the matches outside the filters under it; in the browser app, a
-search inside Informatik B.Sc. says what it finds outside the program and its link leads there, a
-typo is corrected and said, the best match comes first, „Modul“ orders the matches by title, and
-typing orders them by relevance again.
+search inside Informatik B.Sc. says what it finds outside the program and its link leads there; with
+a stand-in for the semantic search (`window.betulaSemantic`; the repository has no model) „Ähnliche
+Module“ stand under the results without the result and the module no longer offered, one of them
+opens beside the list, and the arrow keys go on from the list's last row into them; a typo is
+corrected and said (and the semantic search is asked for the corrected word), the best match comes
+first, „Modul“ orders the matches by title, and typing orders them by relevance again. Last, a
+search the address carries: its list asks before `boot.js` offers the semantic search and still gets
+its „Ähnliche Module“.
 
 ```bash
 cd e2e && node filters.mjs

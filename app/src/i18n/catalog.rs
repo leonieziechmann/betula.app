@@ -58,6 +58,8 @@ pub struct Texts {
     pub search_not_offered: fn(u64, &str, bool) -> String,
     /// The link after either that lists them.
     pub search_show: &'static str,
+    /// The heading of the modules the semantic search adds under the results.
+    pub similar: &'static str,
 
     // ---- the tags of the active filters: „<group> <value>" ----
     pub tag_search: &'static str,
@@ -318,6 +320,7 @@ pub const DE: Texts = Texts {
         (_, false) => format!("{count} Treffer bei nicht mehr angebotenen Modulen"),
     },
     search_show: "anzeigen",
+    similar: "Ähnliche Module",
 
     tag_search: "Suche",
     tag_semester: "Semester",
@@ -529,6 +532,7 @@ pub const EN: Texts = Texts {
         (_, false) => format!("{count} matches among modules no longer offered"),
     },
     search_show: "show",
+    similar: "Similar modules",
 
     tag_search: "Search",
     tag_semester: "Semester",

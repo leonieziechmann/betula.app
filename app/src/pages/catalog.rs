@@ -36,7 +36,7 @@ use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
-use crate::data::{use_source, DataError, PageStatus, Source};
+use crate::data::{use_source, DataError, PageStatus, Semantic, Source};
 use crate::format;
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::nav;
@@ -600,6 +600,52 @@ fn elsewhere_note(data: &CatalogData, listed: u64, open: Memo<Option<String>>, t
     Some(view! { <p class="list-note">{text}" · "<a href=keep_open(target, open, t) rel=rel>{t.catalog.search_show}</a></p> })
 }
 
+/// Under the results of a search: „Ähnliche Module", the modules whose descriptions mean what the
+/// text says (the semantic search, semantic/README.md) and that the filters hold, without the
+/// results, the closest first (`pages::similar`; owner, 2026-10-01: with every search, the filters
+/// applying, at most 10, rows as the list's: marking, the preview and the keyboard work as there).
+/// Only the browser app has the semantic search (`data::Semantic`), and it answers once its model
+/// is loaded: until then, and where it adds nothing, nothing stands here.
+#[component]
+fn SimilarModules(
+    current: CatalogUrl,
+    /// The query the page ran (`CatalogData::effective`).
+    query: CatalogQuery,
+    page: Memo<u64>,
+    marked: Memo<Option<String>>,
+    phone: RwSignal<bool>,
+    with_program: bool,
+) -> impl IntoView {
+    let t = i18n::t();
+    let (Some(semantic), Ok(source), Some(text)) = (use_context::<Semantic>(), use_source(), pages::similar_text(&query)) else { return ().into_any() };
+    let found = LocalResource::new(move || {
+        let (semantic, source, query, text) = (semantic.clone(), source.clone(), query.clone(), text.clone());
+        async move {
+            // Nothing where a newer search took this one's place: its list has its own.
+            let hits = semantic.0.search(&text, pages::SIMILAR_CANDIDATES).await.unwrap_or_default();
+            let ids: Vec<String> = hits.into_iter().map(|hit| hit.module_id).collect();
+            source.run(|db| pages::similar(db, &query, &ids, pages::SIMILAR_SHOWN)).unwrap_or_default()
+        }
+    });
+    view! {
+        {move || found.get().filter(|rows| !rows.is_empty()).map(|rows| {
+            let base = current.clone();
+            view! {
+                <section class="similar">
+                    <h2 class="sem">{t.catalog.similar}</h2>
+                    {rows.into_iter().enumerate().map(|(index, row)| {
+                        let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
+                        let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
+                        let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
+                        view! { <Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/> }
+                    }).collect_view()}
+                </section>
+            }
+        })}
+    }
+    .into_any()
+}
+
 /// The active filters as removable tags: (group, value, the list without it), in the language of
 /// `t`. `areas` and `departments` name what the URL has as a number.
 fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department], t: &'static i18n::Texts) -> Vec<(String, String, CatalogUrl)> {
@@ -888,7 +934,13 @@ fn List(
     }
     .into_any();
 
-    let foot = elsewhere_note(&data, total, open, t).into_any();
+    // Under the rows: what the search finds outside the other filters, and the modules the
+    // semantic search adds to the results.
+    let foot = view! {
+        {elsewhere_note(&data, total, open, t)}
+        {APP.then(|| view! { <SimilarModules current=current.clone() query=data.effective.clone() page marked phone with_program/> })}
+    }
+    .into_any();
 
     // The browser app renders only what is on screen of the whole list; the server renders the
     // page the URL names, with pager links (no JavaScript, search engines).
@@ -1023,7 +1075,7 @@ fn PlainRows(
     /// What stands above the rows and scrolls with them (`List`).
     head: AnyView,
     states: AnyView,
-    /// What stands under the rows (`elsewhere_note`).
+    /// What stands under the rows (`elsewhere_note`, `SimilarModules`).
     foot: AnyView,
 ) -> impl IntoView {
     let t = i18n::t();
@@ -1126,7 +1178,7 @@ fn VirtualRows(
     /// What stands above the rows and scrolls with them (`List`).
     head: AnyView,
     states: AnyView,
-    /// What stands under the rows (`elsewhere_note`).
+    /// What stands under the rows (`elsewhere_note`, `SimilarModules`).
     foot: AnyView,
 ) -> impl IntoView {
     let t = i18n::t();

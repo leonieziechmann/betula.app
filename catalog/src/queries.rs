@@ -186,11 +186,6 @@ pub fn catalog_page(
     let total = catalog_count(db, query)?;
 
     let sql = query.to_sql();
-    let program_columns = if query.program.is_some() {
-        "pm.kind AS kind, pm.plan_semester AS plan_semester, pm.area AS area"
-    } else {
-        "NULL AS kind, NULL AS plan_semester, NULL AS area"
-    };
     let mut params = sql.params.clone();
     params.push(Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX)));
     params.push(Value::Integer(i64::try_from(offset).unwrap_or(i64::MAX)));
@@ -199,10 +194,8 @@ pub fn catalog_page(
         db,
         "catalog_page",
         &format!(
-            "SELECT f.module_id, m.title, m.title_de, m.title_en, f.credits, f.turnus_season, f.turnus_parity, \
-             f.offer_status, f.teaches_german, f.teaches_english, f.is_fues, f.is_limited, m.department, \
-             f.teaching_events, f.exam_form, m.responsible, {program_columns} \
-             FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{}{} LIMIT ? OFFSET ?",
+            "SELECT {} FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{}{} LIMIT ? OFFSET ?",
+            catalog_columns(query),
             sql.joins,
             sql.where_clause(),
             query.order_by()
@@ -210,6 +203,21 @@ pub fn catalog_page(
         &params,
     )?;
     Ok(CatalogPage { total, offset, rows })
+}
+
+/// The columns of a `CatalogRow`; with a program, the module's kind, semester and area in it
+/// (`pm`, which `CatalogQuery::to_sql` joins).
+fn catalog_columns(query: &CatalogQuery) -> String {
+    let program_columns = if query.program.is_some() {
+        "pm.kind AS kind, pm.plan_semester AS plan_semester, pm.area AS area"
+    } else {
+        "NULL AS kind, NULL AS plan_semester, NULL AS area"
+    };
+    format!(
+        "f.module_id, m.title, m.title_de, m.title_en, f.credits, f.turnus_season, f.turnus_parity, \
+         f.offer_status, f.teaches_german, f.teaches_english, f.is_fues, f.is_limited, m.department, \
+         f.teaching_events, f.exam_form, m.responsible, {program_columns}"
+    )
 }
 
 /// Where a module stands in the list a query orders (0-based), or `None` if it is not in it: the
@@ -333,6 +341,42 @@ pub fn search_elsewhere(db: &dyn Database, query: &CatalogQuery) -> Result<Searc
         &params,
     )?
     .unwrap_or_default())
+}
+
+/// The modules of `ids` that the filter of `query` holds apart from its search text and that its
+/// search does not find (those are in the list already): what the semantic search adds to the
+/// results, „Ähnliche Module" (`pages::similar`), in the order of their ids. Nothing without a
+/// search.
+pub fn similar_rows(db: &dyn Database, query: &CatalogQuery, ids: &[String]) -> Result<Vec<CatalogRow>, DbError> {
+    let Some(plan) = SearchPlan::new(&query.text, query.text_resolution.as_ref()) else { return Ok(Vec::new()) };
+    // Within what the list is restricted to besides („Gemerkt").
+    let ids: Vec<String> = match &query.only_ids {
+        Some(only) => {
+            let only: BTreeSet<&str> = only.iter().map(String::as_str).collect();
+            ids.iter().filter(|id| only.contains(id.as_str())).cloned().collect()
+        }
+        None => ids.to_vec(),
+    };
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let besides = CatalogQuery { text: String::new(), text_resolution: None, only_ids: Some(ids), ..query.clone() };
+    let mut sql = besides.to_sql();
+    if let Some((table, params)) = plan.table() {
+        sql.conditions.push(format!("f.module_id NOT IN (SELECT sr.module_id FROM {table} sr WHERE {})", plan.condition("sr")));
+        sql.params.extend(params);
+    }
+    fetch(
+        db,
+        "similar_rows",
+        &format!(
+            "SELECT {} FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{} ORDER BY f.module_id",
+            catalog_columns(query),
+            sql.joins,
+            sql.where_clause()
+        ),
+        &sql.params,
+    )
 }
 
 /// The vectors of the semantic search, one per module that has one (`v_module_vector`), in id

@@ -178,6 +178,11 @@ fn every_query_runs_against_the_snapshot() {
     assert!(queries::search_titles(&db).unwrap().len() as u64 >= queries::catalog_count(&db, &everything()).unwrap());
     let elsewhere = queries::search_elsewhere(&db, &CatalogQuery { text: "Algebra".into(), ..Default::default() }).unwrap();
     assert_eq!(elsewhere.offered, 0, "the catalog's default lists every offered module");
+    // „Ähnliche Module": of modules the filter holds, those the text does not find.
+    let ids: Vec<String> = page.rows.iter().map(|row| row.id.clone()).collect();
+    let algebra = CatalogQuery { text: "Algebra".into(), ..everything() };
+    let found = queries::catalog_count(&db, &CatalogQuery { only_ids: Some(ids.clone()), ..algebra.clone() }).unwrap();
+    assert_eq!(queries::similar_rows(&db, &algebra, &ids).unwrap().len() as u64 + found, ids.len() as u64);
 
     // The satellites, each for a module or program that really has the data.
     let pick = |sql: &str| column(&db.inner, sql).pop().unwrap_or_else(|| panic!("no row for: {sql}"));
@@ -1281,6 +1286,59 @@ fn the_search_corrects_typos_and_falls_back_to_the_most_words() {
 }
 
 /// Under the list: what the search finds outside its filters, offered and no longer offered.
+/// „Ähnliche Module" (`pages::similar`, owner, 2026-10-01): of the semantic search's hits, in
+/// their order, those the filters hold besides the text, without the results, as the list's rows.
+#[test]
+fn the_similar_modules_are_the_hits_the_filters_hold_besides_the_results() {
+    use crate::pages;
+    use crate::rows::CatalogRow;
+    use crate::url::CatalogUrl;
+
+    let db = open();
+    let ids = |rows: Vec<CatalogRow>| rows.into_iter().map(|row| row.id).collect::<Vec<_>>();
+    let found: BTreeSet<String> = ids(queries::catalog_page(&db, &CatalogQuery { text: "python".into(), ..everything() }, 0, 10_000).unwrap().rows).into_iter().collect();
+    let besides = |status: &str| -> Vec<String> {
+        column(&db, &format!("SELECT module_id FROM v_module_facets WHERE offer_status = '{status}' ORDER BY module_id"))
+            .into_iter()
+            .filter(|id| !found.contains(id))
+            .collect()
+    };
+    let (offered, not_offered) = (besides("active"), besides("not_offered"));
+    let data = pages::catalog(&db, &CatalogUrl::parse("q=python"), crate::Locale::De).unwrap();
+    let query = data.effective.clone();
+    let result = data.page.rows.first().expect("python finds a module").id.clone();
+    let hits = vec![offered[0].clone(), result.clone(), not_offered[0].clone(), offered[1].clone(), offered[2].clone()];
+
+    // The catalog lists offered modules: those of the hits, in their order, without the result.
+    assert_eq!(ids(pages::similar(&db, &query, &hits, 10).unwrap()), [&offered[..3]].concat());
+    assert_eq!(ids(pages::similar(&db, &query, &hits, 2).unwrap()), [&offered[..2]].concat());
+    // Every module: the one no longer offered as well.
+    let all = CatalogQuery { offer: Some(OfferStatus::ALL.to_vec()), ..query.clone() };
+    assert_eq!(ids(pages::similar(&db, &all, &hits, 10).unwrap()), [offered[0].clone(), not_offered[0].clone(), offered[1].clone(), offered[2].clone()]);
+    // „Gemerkt": the marked ones among them.
+    let marked = CatalogQuery { marked: Some(true), only_ids: Some(vec![offered[1].clone(), result.clone()]), ..query.clone() };
+    assert_eq!(ids(pages::similar(&db, &marked, &hits, 10).unwrap()), [offered[1].clone()]);
+    // The address's query, whose text is not resolved yet, has the same.
+    assert_eq!(ids(pages::similar(&db, &CatalogUrl::parse("q=python").query, &hits, 10).unwrap()), [&offered[..3]].concat());
+    // No search, or one of fewer than three letters or digits: nothing.
+    assert!(pages::similar(&db, &CatalogQuery::default(), &hits, 10).unwrap().is_empty());
+    assert!(pages::similar(&db, &CatalogQuery { text: "py".into(), ..Default::default() }, &hits, 10).unwrap().is_empty());
+    assert!(!pages::searches_similar("C++") && pages::searches_similar("BWL") && pages::searches_similar(" ki 2 "));
+    // The semantic search is asked for the text as the list searched it.
+    let text = |address: &str| pages::similar_text(&pages::catalog(&db, &CatalogUrl::parse(address), crate::Locale::De).unwrap().effective);
+    assert_eq!(text("q=python"), Some("python".to_string()));
+    assert_eq!(text("q=algoritmen%20graphen"), Some("algorithmen graphen".to_string()));
+    assert_eq!(text("q=py"), None);
+
+    // Inside a program: its modules alone, each the row its list has.
+    let program = pages::catalog(&db, &CatalogUrl::parse(&format!("q=python&program={INFORMATIK_BSC}")), crate::Locale::De).unwrap();
+    let curriculum = queries::catalog_page(&db, &CatalogQuery { text: String::new(), text_resolution: None, ..program.effective.clone() }, 0, 10_000).unwrap().rows;
+    let inside: Vec<CatalogRow> = curriculum.iter().filter(|row| !found.contains(&row.id)).take(2).cloned().collect();
+    let outside = offered.iter().find(|id| !curriculum.iter().any(|row| &row.id == *id)).expect("a module outside the program");
+    let hits = vec![outside.clone(), inside[1].id.clone(), inside[0].id.clone()];
+    assert_eq!(pages::similar(&db, &program.effective, &hits, 10).unwrap(), [inside[1].clone(), inside[0].clone()]);
+}
+
 #[test]
 fn the_search_says_what_it_finds_outside_the_filters() {
     use crate::pages;
