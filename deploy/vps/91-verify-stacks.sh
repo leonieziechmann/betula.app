@@ -415,9 +415,42 @@ check_accesslog() {
   if [[ "${kept}" -eq 0 ]]; then pass "no Traefik container keeps log files of its own"; fi
 }
 
+# service_env SERVICE NAME -> the value the service is given for the variable NAME (nothing without).
+service_env() {
+  docker service inspect "$1" --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null |
+    sed -n "s#^$2=##p" || true
+}
+
+# check_models INSTANCE - the semantic search: does the instance run the models of models.lock?
+# MODELS_STORE_READY is models_ready's verdict, asked once for all instances.
+check_models() {
+  local name=$1 radix folia
+  radix="$(service_env "${INSTANCE_STACK}_radix" RADIX_EMBED_MODEL)"
+  folia="$(service_env "${INSTANCE_STACK}_folia" FOLIA_SEMANTIC_MODEL)"
+  if [[ -z "${radix}${folia}" ]]; then
+    if [[ "${MODELS_STORE_READY}" == "yes" ]]; then
+      warning "${name}: runs without the semantic search, though the model store holds the models of models.lock (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+    else
+      warning "${name}: runs without the semantic search: ${MODELS_DETAIL}"
+    fi
+  elif [[ "${radix}" == "/models/${MODEL_PASSAGE}" && "${folia}" == "/models/${MODEL_QUERY}" ]]; then
+    pass "${name}: runs the models of models.lock (passage ${MODEL_PASSAGE:0:16}, query ${MODEL_QUERY:0:16})"
+  else
+    warning "${name}: runs other models than models.lock names (Radix ${radix##*/}, Folia ${folia##*/}); its next deploy brings the lock's (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+  fi
+}
+
 check_app() {
-  section "application (every instance in stacks/*.env: router, release, crawling, certificate, alive, closed testing)"
+  section "application (every instance in stacks/*.env: router, release, crawling, models, certificate, alive, closed testing)"
   local name url rule radix_tag folia_tag radix_args code out body path live deployed=0
+  MODELS_STORE_READY="no"
+  read_model_lock
+  if models_ready; then
+    MODELS_STORE_READY="yes"
+    pass "the model store holds the models of models.lock, intact (bash ${BETULA_ROOT}/vps/models.sh status)"
+  else
+    warning "${MODELS_DETAIL}"
+  fi
   while IFS= read -r name; do
     [[ -n "${name}" ]] || continue
     load_instance "${name}"
@@ -460,6 +493,8 @@ check_app() {
     else
       fail "${name}: ${name}.env says RADIX_CRAWL=on, but Radix runs the command \"${radix_args}\" (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
     fi
+
+    check_models "${name}"
 
     # Blue-green: of two instances with one host, the public URL only reaches the live one.
     live="$(app_stack_for_host "${INSTANCE_HOST}")"

@@ -204,7 +204,22 @@ deploy_app() {
     log "secret ${GEMINI_SECRET} exists: adding ${GEMINI_FILE##*/}"
     files+=("${GEMINI_FILE}")
   else
-    log "${GEMINI_FILE##*/} is left out (no secret ${GEMINI_SECRET}): everything runs but \"radix scan-curriculum\""
+    log "${GEMINI_FILE##*/} is left out (no secret ${GEMINI_SECRET}): everything runs but \"radix scan-curriculum\" and the summaries of the semantic search"
+  fi
+  # The semantic search: only with both models of models.lock in the store, intact. Without them
+  # the instance runs as it would otherwise, and says so.
+  unset RADIX_EMBED_MODEL FOLIA_SEMANTIC_MODEL FOLIA_SEMANTIC_PASSAGE_MODEL
+  read_model_lock
+  if models_ready; then
+    log "the models of models.lock are in ${MODEL_STORE}: adding ${MODELS_FILE##*/} (passage ${MODEL_PASSAGE:0:16}, query ${MODEL_QUERY:0:16})"
+    files+=("${MODELS_FILE}")
+    RADIX_EMBED_MODEL="/models/${MODEL_PASSAGE}"
+    FOLIA_SEMANTIC_MODEL="/models/${MODEL_QUERY}"
+    # Radix's id of a model: the first 16 hex digits of its sha256 (internal/embed).
+    FOLIA_SEMANTIC_PASSAGE_MODEL="${MODEL_PASSAGE:0:16}"
+    export RADIX_EMBED_MODEL FOLIA_SEMANTIC_MODEL FOLIA_SEMANTIC_PASSAGE_MODEL
+  else
+    warn "${MODELS_FILE##*/} is left out: ${MODELS_DETAIL}. ${INSTANCE_STACK} runs without the semantic search"
   fi
   if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
     # Last, so that its command and its health URL win over the files before it.
@@ -238,6 +253,18 @@ deploy_app() {
   else
     [[ -z "${args}" ]] || die "RADIX_CRAWL=on, but ${INSTANCE_STACK}_radix was given the command \"${args}\" instead of the run of the image"
   fi
+  # And that the models reached both services when they are in the store, and nothing else.
+  local env want
+  for svc in radix folia; do
+    env="$(docker service inspect "${INSTANCE_STACK}_${svc}" --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+    want=""
+    if [[ -n "${RADIX_EMBED_MODEL:-}" ]]; then
+      want="${RADIX_EMBED_MODEL}"
+      [[ "${svc}" == folia ]] && want="${FOLIA_SEMANTIC_MODEL}"
+    fi
+    [[ "$(sed -n -E 's#^(RADIX_EMBED_MODEL|FOLIA_SEMANTIC_MODEL)=(.*)$#\2#p' <<<"${env}")" == "${want}" ]] ||
+      die "service ${INSTANCE_STACK}_${svc} was not given the model ${want:-(none)}: look at ${MODELS_FILE}"
+  done
   wait_for_stack "${INSTANCE_STACK}"
 }
 

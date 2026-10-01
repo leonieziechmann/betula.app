@@ -17,8 +17,10 @@ import (
 	"github.com/leonieziechmann/betula/internal/oplog"
 )
 
-// snapshotDropTables exist for Radix only and are not shipped to readers.
-var snapshotDropTables = []string{"raw_page"}
+// snapshotDropTables exist for Radix only and are not shipped to readers: the archive, and
+// the caches of the semantic search, whose summaries are Gemini's text, not the university's
+// (readers get module_vector).
+var snapshotDropTables = []string{"raw_page", "module_summary", "passage_embedding"}
 
 const (
 	// SnapshotPointer names the current snapshot of a snapshot directory.

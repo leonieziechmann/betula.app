@@ -876,6 +876,7 @@ dependencies = [
  "leptos",
  "serde_json",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -885,6 +886,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "folia-semantic"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
 ]
 
 [[package]]

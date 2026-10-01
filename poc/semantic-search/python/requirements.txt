@@ -1,0 +1,11 @@
+# torch (CPU) separately: pip install torch --index-url https://download.pytorch.org/whl/cpu
+transformers
+tokenizers
+sentencepiece
+safetensors
+huggingface_hub
+numpy
+pandas
+pyarrow
+wordfreq
+brotli

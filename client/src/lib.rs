@@ -188,6 +188,48 @@ fn program_map() -> Option<app::data::ProgramMapHandle> {
     serde_json::from_str(&text).ok().map(|map| app::data::ProgramMapHandle(Arc::new(map)))
 }
 
+/// The semantic search as `boot.js` loads it (`window.betulaSemantic`): asked anew on every call,
+/// so it holds no JavaScript object of its own.
+struct BrowserSemantic;
+
+impl BrowserSemantic {
+    /// `window.betulaSemantic[method](...args)`, awaited; `None` when there is no such thing.
+    async fn call(method: &str, args: &[JsValue]) -> Option<JsValue> {
+        let semantic = js_sys::Reflect::get(&web_sys::window()?.into(), &"betulaSemantic".into()).ok().filter(|v| v.is_object())?;
+        let promise = match method {
+            "ready" => js_sys::Reflect::get(&semantic, &"ready".into()).ok()?,
+            _ => {
+                let function: js_sys::Function = js_sys::Reflect::get(&semantic, &method.into()).ok()?.dyn_into().ok()?;
+                function.apply(&semantic, &args.iter().collect::<js_sys::Array>()).ok()?
+            }
+        };
+        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&promise)).await.ok().filter(|answer| !answer.is_null() && !answer.is_undefined())
+    }
+}
+
+impl app::data::SemanticSearch for BrowserSemantic {
+    fn ready(&self) -> app::data::Later<bool> {
+        Box::pin(async { BrowserSemantic::call("ready", &[]).await.is_some() })
+    }
+
+    fn search(&self, query: &str, k: usize) -> app::data::Later<Option<Vec<app::data::SemanticHit>>> {
+        let args = [JsValue::from_str(query), JsValue::from_f64(k as f64)];
+        Box::pin(async move {
+            let answer = BrowserSemantic::call("search", &args).await?;
+            let hits = js_sys::Reflect::get(&answer, &"hits".into()).ok()?;
+            let hits = js_sys::Array::from(&hits)
+                .iter()
+                .filter_map(|hit| {
+                    let module_id = js_sys::Reflect::get(&hit, &"id".into()).ok()?.as_string()?;
+                    let score = js_sys::Reflect::get(&hit, &"score".into()).ok()?.as_f64()? as f32;
+                    Some(app::data::SemanticHit { module_id, score })
+                })
+                .collect();
+            Some(hits)
+        })
+    }
+}
+
 /// The build the server wrote the page with: the `?v=` of its stylesheet (`app::BuildId`), which
 /// stays in the head when the app takes the body over.
 fn build_of_page(document: &web_sys::Document) -> Option<String> {
@@ -227,6 +269,8 @@ pub fn start() {
     let build = build_of_page(&document);
     leptos::mount::mount_to_body(move || {
         provide_context(Source(Arc::new(LocalSource)));
+        // Loaded by `boot.js` once the app runs; nothing waits for it, and no component uses it yet.
+        provide_context(app::data::Semantic(Arc::new(BrowserSemantic)));
         // The icons point into the sprite of this build (`app::icons`), as the server's page did.
         if let Some(build) = build.clone() {
             provide_context(app::BuildId(build.into()));

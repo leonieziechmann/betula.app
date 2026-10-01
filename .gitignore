@@ -56,3 +56,6 @@ node_modules/
 
 # Machine-local cargo settings (scripts/build-cache.sh)
 /.cargo/config.toml
+
+# The models of the semantic search (deploy/models.lock, deploy/ship-models.sh)
+/models/

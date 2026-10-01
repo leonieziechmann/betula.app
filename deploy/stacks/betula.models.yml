@@ -1,0 +1,32 @@
+# Optional override for stacks/betula.yml: the models of the semantic search (README.md section 13).
+#
+# vps/50-app.sh adds this file when the model store holds both models of models.lock, intact, and
+# hands over where they are: RADIX_EMBED_MODEL (the passage model: Radix computes the modules'
+# vectors with it), FOLIA_SEMANTIC_MODEL (the query model: Folia serves it to the browsers) and
+# FOLIA_SEMANTIC_PASSAGE_MODEL (the id of the passage model the query model belongs to: the
+# browser compares it with the snapshot's, docs/schema-v2.md, „Semantic search"). Without this
+# file both run without the semantic search; nothing else changes.
+#
+# The store is a directory of the host, /var/lib/betula/models (vps/10-base.sh makes it), shared by
+# every instance and every release and mounted read-only: a file in it is named by the sha256 of
+# its content and never changes (vps/models.sh).
+
+services:
+  radix:
+    environment:
+      RADIX_EMBED_MODEL: "${RADIX_EMBED_MODEL:?RADIX_EMBED_MODEL is not set}"
+    volumes:
+      - type: bind
+        source: /var/lib/betula/models
+        target: /models
+        read_only: true
+
+  folia:
+    environment:
+      FOLIA_SEMANTIC_MODEL: "${FOLIA_SEMANTIC_MODEL:?FOLIA_SEMANTIC_MODEL is not set}"
+      FOLIA_SEMANTIC_PASSAGE_MODEL: "${FOLIA_SEMANTIC_PASSAGE_MODEL:?FOLIA_SEMANTIC_PASSAGE_MODEL is not set}"
+    volumes:
+      - type: bind
+        source: /var/lib/betula/models
+        target: /models
+        read_only: true

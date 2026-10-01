@@ -8,6 +8,8 @@ is edited there. No password, token or key is ever part of these files.
 deploy/
   sync.sh                 workstation -> /opt/betula (tar over ssh; refuses CR line endings)
   ship.sh                 workstation: build the images of a commit, load them on the server, deploy an instance
+  ship-models.sh          workstation: the models of models.lock into the server's model store (section 13)
+  models.lock             the two models of the semantic search, pinned by sha256 (section 13)
   vps/                    host scripts, run on the server, in the order of their numbers
     10-base.sh            upgrade, user deploy, ufw, fail2ban, unattended-upgrades, journald, sysctl, swap
     20-ssh-lockdown.sh    key-only ssh for deploy, root login off (with automatic rollback until --confirm)
@@ -18,9 +20,10 @@ deploy/
     55-switch.sh          blue-green: hand a host name to the other of its two instances (the rollback is the same)
     60-canary.sh          canary follows master: sqlite3, the timer, the GitHub token (section 12)
     canary-agent.sh       what that timer runs: fetch a build of master, seed it with the public site's data, switch
+    models.sh             the model store: status, missing, receive (what ship-models.sh sends), prune
     90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 60
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
-  stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, betula(.gemini|.offline).yml,
+  stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, betula(.gemini|.offline|.models).yml,
                           betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/
 ```
@@ -596,3 +599,64 @@ database for one `deploy` by hand.
 - **This server:** per deploy one copy of the database, one build and export of the catalog (the
   CPU of a minute or two) and the new Folia warming its cache (up to 3 processors for a moment),
   next to the public site. The disk holds the images of the newest three builds.
+
+## 13. The models of the semantic search
+
+The semantic search needs two model files that are too large for git and the images: Radix's
+passage model (`e5-de-en-server.bin`, 35 MB, the modules' vectors) and the browser's query model
+(`e5-de-en.bin`, 15 MB, what a visitor types; `semantic/README.md` says how both are made). They
+reach the services through the server's **model store**, not through a registry, a CDN or the images:
+
+```
+models.lock (git)          passage <sha256> <bytes> e5-de-en-server.bin
+                           query   <sha256> <bytes> e5-de-en.bin
+workstation models/  ──ship-models.sh: only what the store lacks, checked on both sides──▶
+/var/lib/betula/models/<sha256>       one file per model, written once, never changed
+  ├─ read-only into every instance's Radix   RADIX_EMBED_MODEL=/models/<passage sha256>
+  └─ read-only into every instance's Folia   FOLIA_SEMANTIC_MODEL=/models/<query sha256>
+        └─▶ browsers: /models/e5-de-en-<hash>.bin, immutable, brotli, kept by the service worker
+```
+
+- **Stable.** A file's name is its content's sha256: it is checked when it arrives (size and hash,
+  before one atomic rename gives it its name), at every deploy (`50-app.sh` hashes both again), and
+  by Radix and Folia when they load it (a damaged file is refused). Nothing in the store is ever
+  overwritten, so a rollback to an older release, or a colour that has not been deployed again,
+  still finds its models. Without its models, or with a broken store, an instance runs without the
+  semantic search and says so (WARN in `50-app.sh` and `91-verify-stacks.sh`); it never fails to
+  start for them: the store is mounted by an override, `stacks/betula.models.yml`, which `50-app.sh`
+  adds only when both models are there, intact.
+- **Scales.** One copy per host for every instance, colour and release (canary's colours are
+  replaced with their volumes on every build of master; the store stays). The images stay as they
+  were (canary's artifact on GitHub does not grow); a deploy uploads nothing when the store has
+  the models. Each browser downloads the query model once per model, not once per deploy: its
+  address names its content, `immutable`, and the service worker keeps it in a cache no build drops.
+- **The pair.** A query is only comparable with passages of the model it was made for, so the lock
+  names both, and they change together. The browser checks it once more against the snapshot
+  (`docs/schema-v2.md`, „Semantic search"): while Radix computes the vectors of a new passage
+  model (about a day), the semantic search simply is not offered.
+
+Once per server (a fresh one gets it from `vps/10-base.sh`):
+
+```bash
+ssh betula sudo install -d -m 0755 -o deploy -g deploy /var/lib/betula/models
+```
+
+New models: build them, put them into `models/` in the repository's root (git ignores it), write
+their sha256 and size into `deploy/models.lock` (`sha256sum models/*`, `stat -c %s models/*`) and
+commit. Then
+
+```bash
+SSH_TARGET=betula bash deploy/ship-models.sh        # syncs deploy/, uploads what the store lacks
+ssh betula bash /opt/betula/vps/50-app.sh <instance> # each instance, or with its next release
+```
+
+`deploy/ship.sh` runs `ship-models.sh` before every deploy (a failure there is a WARNING, the
+deploy goes on without the semantic search); canary's agent deploys with whatever the store holds
+of the lock, so after a change of the lock, `ship-models.sh` first. On the server:
+
+| | |
+|---|---|
+| the lock, the store, which service runs which model | `bash /opt/betula/vps/models.sh status` |
+| remove models neither the lock nor a service names | `bash /opt/betula/vps/models.sh prune` |
+| what an instance runs | `bash /opt/betula/vps/91-verify-stacks.sh app` |
+

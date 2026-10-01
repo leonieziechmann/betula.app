@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 use crate::db::{fetch, fetch_count, fetch_optional, Database, DbError, Value};
 use crate::filter::{like_pattern, CatalogQuery, ProgramRelation};
 use crate::rows::{
-    CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchTerm,
+    CatalogPage, CatalogRow, Department, Meta, Module, ModuleVector, Prerequisite, Program, ProgramModule, SearchTerm,
     Semester,
 };
 use crate::rows_detail::{
@@ -271,6 +271,12 @@ pub fn search_suggestions(db: &dyn Database, text: &str, limit: u64) -> Result<V
          GROUP BY module_id ORDER BY MIN(CASE kind WHEN 'id' THEN 0 ELSE 1 END), term COLLATE NOCASE LIMIT ?",
         &[Value::from(like_pattern(text)), Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX))],
     )
+}
+
+/// The vectors of the semantic search, one per module that has one (`v_module_vector`), in id
+/// order: what `semantic::Index` is built from.
+pub fn module_vectors(db: &dyn Database) -> Result<Vec<ModuleVector>, DbError> {
+    fetch(db, "module_vectors", "SELECT module_id, scale, hex(vector) AS vector FROM v_module_vector ORDER BY module_id", &[])
 }
 
 /// Everyone who teaches or is responsible for a module, for the lecturer filter.

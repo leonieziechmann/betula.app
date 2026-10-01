@@ -6,8 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -76,6 +78,8 @@ type Client struct {
 	model        string
 	baseURL      string
 	httpClient   *http.Client
+	limiter      *Limiter
+	sleep        func(context.Context, time.Duration) error // the pause between attempts without a limiter; nil: sleepContext
 }
 
 // NewClient creates a new Gemini client.
@@ -103,6 +107,17 @@ func (c *Client) SetModel(model string) {
 	c.model = model
 }
 
+// SetLimiter paces every request of this client by l, which may be shared with
+// other clients of the same API key. With a limiter, a 429 is read for the delay
+// it asks for and for an exhausted daily quota, and a request that may have
+// reached the API is never sent again on the client's own account (see generate).
+// Without one (nil, the default) the client sends as soon as it is asked and
+// retries a 429 after a fixed pause, as it always has. SummarizeModules needs a
+// limiter. Set it before the client is used.
+func (c *Client) SetLimiter(l *Limiter) {
+	c.limiter = l
+}
+
 type geminiPart struct {
 	Text       string            `json:"text,omitempty"`
 	InlineData *geminiInlineData `json:"inlineData,omitempty"`
@@ -127,6 +142,7 @@ type geminiGenConfig struct {
 	ResponseMimeType string          `json:"responseMimeType,omitempty"`
 	ResponseSchema   json.RawMessage `json:"responseSchema,omitempty"`
 	Temperature      float64         `json:"temperature"`
+	MaxOutputTokens  int             `json:"maxOutputTokens,omitempty"` // zero: the model's own limit
 }
 
 type geminiCandidate struct {
@@ -259,86 +275,10 @@ JSON gemäß Schema. Quellzellen und Tabellen:
 		},
 	}
 
-	bodyBytes, err := json.Marshal(reqPayload)
+	jsonText, err := c.generate(ctx, reqPayload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, err
 	}
-
-	url := fmt.Sprintf("%s/%s:generateContent", c.baseURL, c.model)
-
-	// Retry up to 3 times for transient 503 / 429 responses
-	var respBody []byte
-	var lastErr error
-
-	for attempt := 1; attempt <= 3; attempt++ {
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create http request: %w", err)
-		}
-		httpReq.Header.Set("Content-Type", "application/json")
-		httpReq.Header.Set("x-goog-api-key", c.apiKey)
-
-		resp, err := c.httpClient.Do(httpReq)
-		if err != nil {
-			lastErr = fmt.Errorf("gemini api request failed: %w", err)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(time.Duration(attempt) * 2 * time.Second):
-			}
-			continue
-		}
-
-		respBody, err = io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			lastErr = fmt.Errorf("failed to read response: %w", err)
-			continue
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			lastErr = nil
-			break
-		}
-
-		if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests {
-			lastErr = fmt.Errorf("gemini api temporary error %d: %s", resp.StatusCode, strings.ReplaceAll(string(respBody), c.apiKey, "[REDACTED]"))
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(time.Duration(attempt) * 3 * time.Second):
-			}
-			continue
-		}
-
-		return nil, fmt.Errorf("gemini api returned status %d: %s", resp.StatusCode, strings.ReplaceAll(string(respBody), c.apiKey, "[REDACTED]"))
-	}
-
-	if lastErr != nil {
-		return nil, lastErr
-	}
-
-	var geminiResp geminiResponse
-	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
-		return nil, fmt.Errorf("failed to parse gemini response: %w", err)
-	}
-
-	if geminiResp.Error != nil {
-		return nil, fmt.Errorf("gemini api error %d (%s): %s", geminiResp.Error.Code, geminiResp.Error.Status, geminiResp.Error.Message)
-	}
-
-	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("gemini returned no content candidates")
-	}
-
-	if geminiResp.Candidates[0].FinishReason != "STOP" {
-		return nil, fmt.Errorf("incomplete Gemini response: %s", geminiResp.Candidates[0].FinishReason)
-	}
-	var jsonParts strings.Builder
-	for _, p := range geminiResp.Candidates[0].Content.Parts {
-		jsonParts.WriteString(p.Text)
-	}
-	jsonText := jsonParts.String()
 
 	var result CurriculumExtractionResult
 	if err := json.Unmarshal([]byte(jsonText), &result); err != nil {
@@ -351,6 +291,170 @@ JSON gemäß Schema. Quellzellen und Tabellen:
 	result.SourceSHA256 = fmt.Sprintf("%x", sha256.Sum256(pdfBytes))
 
 	return &result, nil
+}
+
+// maxAttempts is how often generate sends a request the API could not serve right now.
+const maxAttempts = 3
+
+// generate sends one generateContent request and returns the text of its answer.
+// It sends the API key in the x-goog-api-key header only and keeps it out of every
+// error. A transient answer (503, 429) is retried up to maxAttempts times, and only
+// an answer the model finished (finish reason STOP) is accepted: a truncated JSON
+// document must never pass for a short one. An answer without one is an
+// *answerError.
+//
+// With a limiter, every attempt waits for its turn first, and a 429 pauses the
+// limiter for the delay the API asks for, so that no other request goes out before
+// then either. A 429 for an exhausted daily quota ends the request with
+// ErrDailyLimit: retrying could only fail again until the quota resets. And with a
+// limiter, a request whose answer did not arrive (a timeout, a broken connection,
+// a body cut off) is not sent again unless it never left: the API counts a request
+// it received whether or not its answer arrives. Without a limiter, those are
+// retried as they always were.
+func (c *Client) generate(ctx context.Context, payload geminiRequest) (string, error) {
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/%s:generateContent", c.baseURL, c.model)
+
+	var respBody []byte
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(ctx); err != nil {
+				return "", err
+			}
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return "", fmt.Errorf("failed to create http request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("x-goog-api-key", c.apiKey)
+
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = fmt.Errorf("gemini api request failed: %w", err)
+			if c.limiter != nil && !neverSent(err) {
+				return "", lastErr
+			}
+			if err := c.backOff(ctx, attempt, time.Duration(attempt)*2*time.Second); err != nil {
+				return "", err
+			}
+			continue
+		}
+
+		respBody, err = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("failed to read response: %w", err)
+			if c.limiter != nil {
+				return "", lastErr
+			}
+			continue
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			lastErr = nil
+			break
+		}
+
+		if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusTooManyRequests {
+			lastErr = fmt.Errorf("gemini api temporary error %d: %s", resp.StatusCode, c.redact(respBody))
+			delay := time.Duration(attempt) * 3 * time.Second
+			if resp.StatusCode == http.StatusTooManyRequests && c.limiter != nil {
+				quota := readQuotaError(resp.Header, respBody, c.limiter.now())
+				if quota.daily {
+					c.limiter.dailyQuotaUsed()
+					return "", fmt.Errorf("%w (gemini api 429: %s)", ErrDailyLimit, c.redact([]byte(quota.message)))
+				}
+				if quota.retryDelay > maxRetryDelay {
+					// The limiter refuses every request until then rather than wait (see Limiter.Wait).
+					c.limiter.holdOff(quota.retryDelay)
+					return "", fmt.Errorf("gemini api asks to wait %s, longer than a request waits: %w", quota.retryDelay, lastErr)
+				}
+				if quota.retryDelay > 0 {
+					delay = quota.retryDelay
+				}
+				// The limiter holds every request back, this one's next attempt included.
+				c.limiter.holdOff(delay)
+				continue
+			}
+			if err := c.backOff(ctx, attempt, delay); err != nil {
+				return "", err
+			}
+			continue
+		}
+
+		return "", fmt.Errorf("gemini api returned status %d: %s", resp.StatusCode, c.redact(respBody))
+	}
+
+	if lastErr != nil {
+		return "", lastErr
+	}
+
+	var geminiResp geminiResponse
+	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
+		return "", fmt.Errorf("failed to parse gemini response: %w", err)
+	}
+
+	if geminiResp.Error != nil {
+		return "", fmt.Errorf("gemini api error %d (%s): %s", geminiResp.Error.Code, geminiResp.Error.Status, c.redact([]byte(geminiResp.Error.Message)))
+	}
+
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return "", &answerError{"gemini returned no content candidates"}
+	}
+
+	if geminiResp.Candidates[0].FinishReason != "STOP" {
+		return "", &answerError{"incomplete Gemini response: " + geminiResp.Candidates[0].FinishReason}
+	}
+	var jsonParts strings.Builder
+	for _, p := range geminiResp.Candidates[0].Content.Parts {
+		jsonParts.WriteString(p.Text)
+	}
+	return jsonParts.String(), nil
+}
+
+// answerError is an answer the API delivered whose model gave no usable text: no
+// candidate (a blocked prompt) or one it did not finish (MAX_TOKENS, SAFETY, …).
+// Asking again for the same can only fail the same way.
+type answerError struct{ msg string }
+
+func (e *answerError) Error() string { return e.msg }
+
+// neverSent tells the error of a request that cannot have reached the API: its
+// connection was never made.
+func neverSent(err error) bool {
+	var op *net.OpError
+	return errors.As(err, &op) && op.Op == "dial"
+}
+
+// backOff waits d before the next attempt, on the limiter's clock when there is
+// one. After the last attempt there is nothing to wait for, only a cancelled
+// context to report.
+func (c *Client) backOff(ctx context.Context, attempt int, d time.Duration) error {
+	if attempt >= maxAttempts {
+		return ctx.Err()
+	}
+	if c.limiter != nil {
+		return c.limiter.sleep(ctx, d)
+	}
+	if c.sleep != nil {
+		return c.sleep(ctx, d)
+	}
+	return sleepContext(ctx, d)
+}
+
+// redact removes the API key from text that goes into an error.
+func (c *Client) redact(body []byte) string {
+	if c.apiKey == "" {
+		return string(body)
+	}
+	return strings.ReplaceAll(string(body), c.apiKey, "[REDACTED]")
 }
 
 // BalanceCurriculumSemesters is retained for compatibility. Credit totals cannot

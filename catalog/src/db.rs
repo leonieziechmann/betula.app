@@ -10,8 +10,9 @@ use std::fmt;
 /// `v_program_plan` had no `source_pages`) or says it in another form (before 0010 the module
 /// texts were lines of plain text, not Markdown: `text`), so the browser does not start the app
 /// on one (`app/assets/boot.js`, into which the server writes this number), and the server
-/// reports it when it serves one. A test holds it to the newest migration.
-pub const SCHEMA_VERSION: i64 = 10;
+/// reports it when it serves one. A test holds it to the newest migration. 11: the modules'
+/// vectors of the semantic search (`v_module_vector`).
+pub const SCHEMA_VERSION: i64 = 11;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]
@@ -107,7 +108,7 @@ impl Row<'_> {
             .ok_or_else(|| self.error(column, "no such column in the result"))
     }
 
-    fn error(&self, column: &str, message: &str) -> DbError {
+    pub(crate) fn error(&self, column: &str, message: &str) -> DbError {
         DbError::Decode { query: self.query, column: column.to_string(), message: message.to_string() }
     }
 

@@ -537,7 +537,8 @@ func TestExportWritesTrimmedSnapshotWithContentETag(t *testing.T) {
 	}
 	defer snap.Close()
 	var rawTables, journal, modules, fkViolations = 0, "", 0, 0
-	_ = snap.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE name = 'raw_page'").Scan(&rawTables)
+	// Neither the archive nor the semantic search's caches (Gemini's summaries) are published.
+	_ = snap.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('raw_page', 'module_summary', 'passage_embedding')").Scan(&rawTables)
 	_ = snap.QueryRow("PRAGMA journal_mode").Scan(&journal)
 	_ = snap.QueryRow("SELECT COUNT(*) FROM v_program_module WHERE program_id = '079-82-2008'").Scan(&modules)
 	_ = snap.QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&fkViolations)

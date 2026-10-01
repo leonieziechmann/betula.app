@@ -12,7 +12,8 @@
 //!   `boot.js`) is read as a module.
 //! - **The SVGs** by `svg.rs`: the same drawing, number for number, written shorter.
 //!
-//! The server writes into two scripts (`__BUILD__` into `sw.js`, `__SCHEMA__` into `boot.js`): a
+//! The server writes into two scripts (`__BUILD__` into `sw.js`, `__SCHEMA__` and
+//! `__SEMANTIC_MODEL__` into `boot.js`): a
 //! placeholder the minifier folded away would ship a script that no longer knows its build, so
 //! the build fails instead.
 //!
@@ -153,5 +154,5 @@ fn script(source: &str) -> Result<String, Error> {
 const SYNTAX: &str = "es2020";
 
 /// What the server writes into its scripts when it serves them (`src/api.rs`: the build into the
-/// service worker, the schema into `boot.js`).
-const PLACEHOLDERS: [&str; 2] = ["__BUILD__", "__SCHEMA__"];
+/// service worker, the schema and the semantic search's model into `boot.js`).
+const PLACEHOLDERS: [&str; 3] = ["__BUILD__", "__SCHEMA__", "__SEMANTIC_MODEL__"];

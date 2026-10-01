@@ -17,6 +17,10 @@ const BUILD = new URL(import.meta.url).search;
 // A name and not a string: a minifier folds `Number("…")` into NaN before the server can write
 // the number in (server/build/main.rs).
 const SCHEMA = __SCHEMA__;
+// The semantic search's model (server/src/semantic.rs), or null when the server has none: then the
+// app has no semantic search. `url`: its address (`/models/e5-de-en-<hash>.bin`); `passage`: Radix's
+// id of the passage model it was made for, or null when the server does not know it. A name, as SCHEMA.
+const SEMANTIC_MODEL = __SEMANTIC_MODEL__;
 
 // What this script says, in the page's language as its address says it (`catalog::Locale::split`;
 // docs/i18n.md). The first is the default, without a prefix. (Offline the service worker may
@@ -191,6 +195,64 @@ async function loadProgramMap() {
   return idbGet("map").catch(() => null);
 }
 
+// The semantic search (semantic/README.md): the model (15 MB) runs in a Web Worker of its own,
+// with the index built from the modules' vectors in the local catalog (`v_module_vector`, Radix's).
+// It is loaded only once the app runs and the browser is idle, so it never holds up the page, the
+// catalog or the app; the model comes with a low priority and is kept by the service worker apart
+// from the shell of a build, so it is downloaded once per model, not once per deploy.
+//
+// `window.betulaSemantic`, for the app:
+//   ready             a promise: {rows, build, ms} once the search can answer; null when this
+//                     browser has none (no model on the server, no vectors in the catalog yet,
+//                     vectors of another passage model than the query model was made for, data
+//                     saving, a device with little memory, or loading failed)
+//   search(query, k)  a promise: {hits: [{id, score}], ms}, best first; null when a newer query
+//                     took its place, or when there is no semantic search
+function startSemantic() {
+  const none = () => {
+    window.betulaSemantic = { ready: Promise.resolve(null), search: async () => null };
+    return null;
+  };
+  const connection = navigator.connection;
+  if (!SEMANTIC_MODEL || !("Worker" in window) || (connection && connection.saveData) || (navigator.deviceMemory && navigator.deviceMemory < 2)) return none();
+  let semantic = null;
+  const ready = new Promise((resolve) => {
+    const start = () => resolve(load());
+    if ("requestIdleCallback" in window) requestIdleCallback(start, { timeout: 5000 });
+    else setTimeout(start, 1500);
+  }).catch((error) => {
+    console.info("[semantic] not loaded:", error);
+    if (semantic) semantic.terminate();
+    semantic = null;
+    return null;
+  });
+  async function load() {
+    // A query is only comparable with passages of the model it was made for. The local copy of the
+    // catalog may be older than the server's model (it is replaced at the next start), or Radix may
+    // still be computing the vectors of a new passage model: then no search, rather than a wrong one.
+    const made = window.betulaDb.query("SELECT value FROM meta WHERE key = 'semantic_model'", []).rows;
+    const vectorsOf = made.length ? made[0][0] : null;
+    if (SEMANTIC_MODEL.passage && vectorsOf !== SEMANTIC_MODEL.passage) {
+      console.info(`[semantic] the catalog's vectors are of the passage model ${vectorsOf}, the query model is for ${SEMANTIC_MODEL.passage}`);
+      return null;
+    }
+    const { Semantic, indexFromVectors } = await import("/pkg/semantic.js" + BUILD);
+    const rows = window.betulaDb.query("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id", []).rows;
+    // Radix has not computed the vectors of this snapshot yet: nothing to find, nothing to load.
+    if (!rows.length) return null;
+    semantic = new Semantic({ model: SEMANTIC_MODEL.url, index: indexFromVectors(rows) });
+    return semantic.ready;
+  }
+  window.betulaSemantic = {
+    ready,
+    async search(query, k) {
+      if (!(await ready) || !semantic) return null;
+      return semantic.search(query, k);
+    },
+  };
+  return ready;
+}
+
 try {
   const [app, , programMap] = await Promise.all([
     import("/pkg/folia_client.js" + BUILD).then(async (module) => { await module.default("/pkg/folia_client_bg.wasm" + BUILD); return module; }),
@@ -203,6 +265,7 @@ try {
   app.start();
   // Once the app runs there is nothing to say: it simply works.
   status("");
+  startSemantic();
 } catch (error) {
   // Not fatal: the site stays a classic website. The pill says nothing, unless the visitor needs
   // to know why (`notice`).
