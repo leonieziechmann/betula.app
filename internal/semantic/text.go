@@ -10,6 +10,7 @@ package semantic
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"regexp"
 	"strings"
 )
 
@@ -52,7 +53,7 @@ func (t Text) Titles() string {
 
 // Passage is the text a module's vector is computed from (as an e5 passage, without the
 // „passage: “ the encoder adds): the titles, then the summary in both languages and the
-// search terms when there is a summary, then the description. The summary comes before the
+// search terms when there is a summary, then the description in plain words (Plain). The summary comes before the
 // description because the model reads 512 tokens at most, and a long description would cut it
 // off. Measured on the catalog (semantic/README.md, „Quality“), this passage finds a module by
 // what students type better than the description alone.
@@ -75,12 +76,12 @@ func Passage(t Text, s *Summary) string {
 		b.WriteString(strings.Join(keywords, ", "))
 		b.WriteString(". ")
 	}
-	body := c.Contents
-	if c.Outcomes != "" {
+	body := Plain(t.Contents)
+	if outcomes := Plain(t.Outcomes); outcomes != "" {
 		if body != "" {
 			body += " "
 		}
-		body += c.Outcomes
+		body += outcomes
 	}
 	b.WriteString(body)
 	return b.String()
@@ -98,4 +99,46 @@ func hash(s string) string {
 
 func collapse(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// Plain is a module text (Markdown since schema 10, internal/parser.Markdown) as the words it
+// says, for a passage and for Gemini: without the markers of its lists („- ", „1. "), the stars
+// of strong and emphasized text, the backslash of a line break and those that escape a
+// character; the labels of a list („(1)", „a)") stay, they are words of the text. One line.
+func Plain(markdown string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(markdown, "\n") {
+		line = strings.TrimSpace(line)
+		line = strings.TrimSuffix(line, "\\") // a line break
+		line = listMarker.ReplaceAllString(line, "")
+		b.WriteString(unescape(line))
+		b.WriteByte(' ')
+	}
+	return collapse(b.String())
+}
+
+// listMarker is the marker of an item of a list, as Radix writes it: a bullet or a number.
+var listMarker = regexp.MustCompile(`^(?:[-*+]|\d{1,9}[.)])\s+`)
+
+// unescape drops the stars of strong and emphasized text and keeps a character a backslash
+// escapes as it is.
+func unescape(line string) string {
+	var b strings.Builder
+	escaped := false
+	for _, r := range line {
+		switch {
+		case escaped:
+			b.WriteRune(r)
+			escaped = false
+		case r == '\\':
+			escaped = true
+		case r == '*':
+		default:
+			b.WriteRune(r)
+		}
+	}
+	if escaped {
+		b.WriteByte('\\')
+	}
+	return b.String()
 }

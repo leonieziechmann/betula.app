@@ -705,7 +705,7 @@ file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_cha
 Folia's semantic search (crate `semantic/`, `semantic/README.md`; not in the app's UI yet, see
 its „Not done yet“) finds modules by meaning: a query typed in the browser is embedded there, by
 an e5 model fine-tuned on students' queries, and compared with one vector per module. Radix computes those vectors, so a snapshot carries them and nothing else of the
-search: schema 10, `v_module_vector`, 192 bytes a module, about 1 MB for the catalog (4-bit values:
+search: schema 11, `v_module_vector`, 192 bytes a module, about 1 MB for the catalog (4-bit values:
 half the size of 8-bit ones for 2.6 points of the first 10, `semantic/README.md`).
 
 A module's vector is that of its **passage** (`internal/semantic`, `Passage`): its titles, then a
@@ -752,16 +752,16 @@ fine-tuned query model (12,000 pieces) and the 4-bit vectors of passages with su
 
 The migration adds the three tables and the view, and the build's `module_vector` changes the
 content digest: the first build after the release publishes a snapshot (still without vectors
-until the stage has computed them), and the pinned digests of Folia's tests need a schema-10
+until the stage has computed them), and the pinned digests of Folia's tests need a schema-11
 export.
 
 Open:
 
-- **Schema 10 in Folia's tests.** `catalog::SCHEMA_VERSION` is 10 (browsers refuse an older snapshot,
-  so every instance needs `radix build`, then `export`, before the web build that reads 10 goes
-  live). Pin `STUDYPLAN_DIGEST` (`catalog/src/tests.rs`, `server/src/tests.rs`) to a schema-10
+- **Schema 11 in Folia's tests.** `catalog::SCHEMA_VERSION` is 11 (browsers refuse an older snapshot,
+  so every instance needs `radix build`, then `export`, before the web build that reads 11 goes
+  live). Pin `STUDYPLAN_DIGEST` (`catalog/src/tests.rs`, `server/src/tests.rs`) to a schema-11
   export in `snapshot/`: the digest covers `module_vector`, so the pinned checks are skipped until
-  then. The catalog's tests pass against the snapshot of 2026-09-30 migrated to 10 with Radix's
+  then. The catalog's tests pass against the snapshot of 2026-09-30 migrated to 11 with Radix's
   vectors.
 - **The semantic search in the app**, serving the browser's model, and `RADIX_EMBED_MODEL` in the
   stack (`semantic/README.md`, „Not done yet“).

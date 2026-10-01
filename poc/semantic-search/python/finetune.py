@@ -53,11 +53,34 @@ def text_hash(title_de, title_en, contents, outcomes) -> str:
     return hashlib.sha256(s.encode()).hexdigest()
 
 
+_LIST_MARKER = re.compile(r"^(?:[-*+]|\d{1,9}[.)])\s+")
+
+
+def plain(markdown: str | None) -> str:
+    """semantic.Plain: a module text (Markdown since schema 10) as its words."""
+    out = []
+    for line in (markdown or "").split("\n"):
+        line = _LIST_MARKER.sub("", line.strip().removesuffix("\\"))
+        text, escaped = [], False
+        for ch in line:
+            if escaped:
+                text.append(ch)
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch != "*":
+                text.append(ch)
+        if escaped:
+            text.append("\\")
+        out.append("".join(text))
+    return collapse(" ".join(out))
+
+
 def passage(title_de, title_en, contents, outcomes) -> str:
-    """semantic.Passage without a summary (= semantic::module_text of the crate)."""
+    """semantic.Passage without a summary."""
     de, en = collapse(title_de), collapse(title_en)
     titles = en if not de else (de if not en or en == de else f"{de} / {en}")
-    c, o = collapse(contents), collapse(outcomes)
+    c, o = plain(contents), plain(outcomes)
     return titles + ". " + (c + " " + o if c and o else c or o)
 
 

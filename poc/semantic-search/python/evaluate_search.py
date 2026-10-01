@@ -1,6 +1,6 @@
 """How well the semantic search finds modules, measured on the deployed pipeline: the browser's
 packed model, searched by the crate itself (target/release/embed --search, the bits the browser
-computes), against the index of a snapshot's vectors (v_module_vector, schema 10) or an index file
+computes), against the index of a snapshot's vectors (v_module_vector, schema 11) or an index file
 (E5I3).
 
     python evaluate_search.py MODEL.bin catalog.db              # the snapshot's v_module_vector

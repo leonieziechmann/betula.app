@@ -32,7 +32,7 @@ as WASM in `Mode::Int8`, and its vectors are the bits the crate computes nativel
 Radix (each cycle, after the export; docs/schema-v2.md, „Semantic search“):
   module text ──Gemini──▶ summary (DE, EN, search terms; Radix-internal, never published)
   titles + summary + description ──semantic.wasm in wazero (Model::embed_passage, quantize)──▶ 4-bit vector
-  next build ──▶ v_module_vector in the snapshot (schema 10; 4,938 vectors, about 1 MB)
+  next build ──▶ v_module_vector in the snapshot (schema 11; 4,938 vectors, about 1 MB)
 
 Folia: snapshot ──▶ semantic::Index (Index::push_codes; js/semantic.js indexFromVectors)
   browser: Web Worker ── Search { the fine-tuned query model, index }.search(query, k) ──▶ [{id, score}]
@@ -202,7 +202,7 @@ dedicated worker lives as long as the page and keeps the model loaded between qu
 - serving the browser's model (`/pkg/e5-de-en.bin` above is a placeholder) and `sw.js` keeping it;
   where the two model files come from in a deploy (35 + 15 MB, not in git: a release artifact,
   or built in the deploy), and `RADIX_EMBED_MODEL` in the stack;
-- a schema-10 snapshot for Folia's tests (`catalog::tests` and the pinned digests);
+- a schema-11 snapshot for Folia's tests (`catalog::tests` and the pinned digests);
 - Unicode composition (NFC): neither side composes „e“ + U+0301 into „é“ (a query typed so is
   cut differently from one with „é“, on both sides alike). Keyboards and the catalog write the
   composed form; composing would have to happen in Rust, for both.

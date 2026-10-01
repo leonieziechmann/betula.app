@@ -41,3 +41,22 @@ func TestHashes(t *testing.T) {
 		t.Error("hashes are not sha256 of their own domain")
 	}
 }
+
+// The Markdown Radix writes of a module text (internal/parser/markdown_test.go) as plain words.
+func TestPlain(t *testing.T) {
+	for _, c := range []struct{ markdown, want string }{
+		{"Die Studierenden sollen\n\n- sichere Kenntnisse erwerben\n- Gleichungssysteme lösen können",
+			"Die Studierenden sollen sichere Kenntnisse erwerben Gleichungssysteme lösen können"},
+		{"**Modulabschlussprüfung:**\n\n- Klausur, 90 min. **ODER**\n- mündliche Prüfung, 30 min.",
+			"Modulabschlussprüfung: Klausur, 90 min. ODER mündliche Prüfung, 30 min."},
+		{"1. Drei Präsentationen (45%):\n   1. Präsentation (33%), 15 min\n2. Seminararbeit\\\n   (80% Umsetzung)",
+			"Drei Präsentationen (45%): Präsentation (33%), 15 min Seminararbeit (80% Umsetzung)"},
+		{"- (1) Wissen und Verstehen\n  - Bestimmungsgründe zu *identifizieren*,", "(1) Wissen und Verstehen Bestimmungsgründe zu identifizieren,"},
+		{`Ein \*Stern\*, ein \# und C\+\+.`, "Ein *Stern*, ein # und C++."},
+		{"", ""},
+	} {
+		if got := Plain(c.markdown); got != c.want {
+			t.Errorf("Plain(%q)\n got %q\nwant %q", c.markdown, got, c.want)
+		}
+	}
+}

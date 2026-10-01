@@ -150,7 +150,7 @@ func summarize(ctx context.Context, db *catalogdb.DB, cfg Semantic, texts []sema
 		request := make([]gemini.ModuleText, n)
 		for i, t := range missing[:n] {
 			request[i] = gemini.ModuleText{Key: t.hash, TitleDE: t.text.TitleDE, TitleEN: t.text.TitleEN,
-				Department: t.department, Contents: t.text.Contents, Outcomes: t.text.Outcomes}
+				Department: t.department, Contents: semantic.Plain(t.text.Contents), Outcomes: semantic.Plain(t.text.Outcomes)}
 		}
 		answers, err := cfg.Summarizer.SummarizeModules(ctx, request)
 		if len(answers) > 0 {
