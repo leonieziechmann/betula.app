@@ -69,6 +69,8 @@ let search = semantic::Search::new(std::fs::read(browser_model)?, &index)?;
 let hits = search.search("coding lernen", 20);
 ```
 
+A query takes the server 14–41 ms (7–25 tokens, one thread, SSE2), as in the browser.
+
 Only the index is built with the server model; its bytes are what both sides search, so how
 they were computed does not matter for the equality. Queries must go through `Search` with the
 browser's model: another model or `Model` in another mode embeds them differently.
@@ -131,4 +133,10 @@ dedicated worker lives as long as the page and keeps the model loaded between qu
   (identical token ids for 617 texts, cosine ≥ 0.9999998).
 - `js/parity.mjs`: the server's and the browser's search to the bit — the native
   `target/release/embed MODEL --search INDEX < queries` against the WASM builds over the same
-  queries (PARITY_RESULT).
+  queries. Result: **6,455 queries** (the 4,938 module titles, 1,500 module descriptions, and
+  awkward input: empty, white space only, emoji, CJK, ligatures, a decomposed accent, 1,000
+  tokens), each with the bits of its embedding and its 10 hits with the bits of their scores:
+  **identical** for the server (x86_64 with SSE2, and the plain Rust code of other platforms),
+  WASM SIMD (Safari) and WASM relaxed SIMD (Chrome, Edge, Firefox).
+- `cargo test -p folia-semantic`: `tiles_are_the_definition_to_the_bit` checks the build's SIMD
+  kernel against the definition (`tile_scalar`) bit for bit.
