@@ -1,6 +1,8 @@
 package catalogbuild
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 )
 
@@ -9,6 +11,12 @@ import (
 // runs out. Only a changed digest is exported, so the digest has to see it.
 func TestTheDigestSeesTheCurrentSemester(t *testing.T) {
 	db, _ := buildFixture(t)
+	// The fixture's semester is the calendar's (currentSemesterKey), so it moves to the
+	// one after it: a fixed '2026W' was no move from 2026-10-01 on.
+	var current string
+	if err := db.SQL().QueryRow("SELECT value FROM meta WHERE key = 'current_semester'").Scan(&current); err != nil {
+		t.Fatalf("current semester: %v", err)
+	}
 
 	digest := func() string {
 		t.Helper()
@@ -25,12 +33,29 @@ func TestTheDigestSeesTheCurrentSemester(t *testing.T) {
 	}
 
 	before := digest()
-	if _, err := db.SQL().Exec("UPDATE meta SET value = '2026W' WHERE key = 'current_semester'"); err != nil {
+	if _, err := db.SQL().Exec("UPDATE meta SET value = ? WHERE key = 'current_semester'", nextSemester(t, current)); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 	if after := digest(); after == before {
 		t.Error("the digest is the same after the semester moved; no snapshot would be published")
 	}
+}
+
+// nextSemester is the semester after key: "2026S" → "2026W", "2026W" → "2027S".
+func nextSemester(t *testing.T, key string) string {
+	t.Helper()
+	if len(key) == 5 {
+		year, err := strconv.Atoi(key[:4])
+		switch {
+		case err != nil:
+		case key[4] == 'S':
+			return fmt.Sprintf("%dW", year)
+		case key[4] == 'W':
+			return fmt.Sprintf("%dS", year+1)
+		}
+	}
+	t.Fatalf("no semester key: %q", key)
+	return ""
 }
 
 // Short names are content: a new abbreviation or room short form must reach the browsers.
