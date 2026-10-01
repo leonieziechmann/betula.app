@@ -14,8 +14,9 @@ datasources:
     jsonData:
       httpMethod: POST
       timeInterval: 30s   # = scrape interval, so $__rate_interval never gets too short
-      # All rules are Grafana-managed (alerting/rules.yml). Otherwise the Alerting pages also ask
-      # this data source for rules it does not have and show errors (Loki runs no ruler).
+      # All alert rules are Grafana-managed (alerting/rules.yml). Otherwise the Alerting pages also
+      # ask this data source for rules it does not have and show errors. (Loki's ruler only records
+      # the visitor numbers, from files: config/monitoring/loki-rules.)
       manageAlerts: false
 
   - name: Loki

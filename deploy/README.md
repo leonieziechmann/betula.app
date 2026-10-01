@@ -120,6 +120,11 @@ Why this order, and what can go wrong:
   The same recipe reaches Prometheus (9090) or Radix's `/status` (8090).
 - Dashboards and alert rules are files (`config/monitoring/grafana/`); the UI refuses to save them.
   Edit, export JSON, commit, sync, `40-stacks.sh monitoring`.
+- The dashboard "Visitors" reads stored numbers only: Loki's ruler counts them from Traefik's access
+  log every 5 minutes (the 7-day numbers and the calendar subscriptions once an hour) with the rules
+  in `config/monitoring/loki-rules`, and writes them to Prometheus, which keeps them like every
+  metric (15 days, `config/monitoring/prometheus.yml`). Its charts begin with the first count; there
+  is no history from before.
 
 ## 3. Changing something later
 
@@ -371,7 +376,9 @@ at `https://betula.app/`.
 
 Folia's own log keeps paths (no addresses) 30 days in Loki, except `/calendar/…`, which it writes as
 `/calendar/….ics`. Traefik logs full paths with the client address, 7 days in Loki and 7 days in the
-host journal; a subscribed calendar appears there on every poll (Google about daily). Alloy ships the
+host journal; a subscribed calendar appears there on every poll (Google about daily). What Loki's
+ruler counts from these lines for the dashboard "Visitors" (`config/monitoring/loki-rules`) reaches
+Prometheus as numbers only, without addresses, user agents or calendar codes. Alloy ships the
 journal without the lines of containers (`loki.relabel "journal"`), or Traefik's would be kept 30
 days as `{job="journal"}`. Not in Docker's local log files, which only rotate by size: Traefik's
 stopped containers from before the journald driver still have such files, and `40-stacks.sh edge`
