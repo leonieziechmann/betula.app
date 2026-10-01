@@ -1,14 +1,17 @@
-// Checks the swipe along the phone's bottom bar (enhance.js; owner, 2026-09-30: „wenn man nach
-// links swiped soll ein tab nach links gehen und beim rechts swipe eine tab nach rechts"), with
-// real touches (`Input.dispatchTouchEvent`, as phone.mjs): a swipe to the right goes one tab to the
-// right, one to the left one tab to the left, from wherever on the bar it starts, each one step of
-// the history and no page load; the mark of the current tab follows the finger on the way (the
-// bar's own, over the tab's, in the same colour) while the page stands still, and the tab's own
-// mark takes over once the tab is current; a long pull goes one tab and no further, a short slow
-// one glides back, a short flick goes on; at either end nothing lies further and the tab stays;
-// two swipes in a row go two tabs, a tap right after a quick swipe is a tap; up or down, the bar
-// scrolls the page. Then the site before the app takes over: a swipe loads the tab's page, as a
-// tap would.
+// Checks the swipe along the phone's bottom bar (enhance.js; owner, 2026-09-30, the other way round
+// the next day: „die ganze Leiste zu bewegen und den selector stehen zu lassen und erst wenn man los
+// lässt geht das dann wieder zur original Location zurück"), with real touches
+// (`Input.dispatchTouchEvent`, as phone.mjs): a swipe to the left goes one tab to the right, one to
+// the right one tab to the left, from wherever on the bar it starts, each one step of the history
+// and no page load; on the way the row of tabs follows the finger inside the bar and the mark of the
+// current tab stays where it is (the bar's lens, over the tab's, in the same colour, with a copy of
+// the row inside that lies over the row) while the page stands still; let go, the row and the lens
+// glide as Web Animations, and the tab's own mark takes over once the tab is current; a long pull
+// goes one tab and no further, a short slow one glides back, a short flick goes on; at either end
+// nothing lies further and the tab stays; a finger catches the glide where it is and goes on from
+// there, so two swipes in a row go two tabs; a tap right after a quick swipe is a tap; up or down,
+// the bar scrolls the page. Then the site before the app takes over: a swipe loads the tab's page,
+// as a tap would.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node tabbar.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -46,26 +49,34 @@ async function open(context, path) {
   return { page, swipe, lift: () => touch("touchEnd", []) };
 }
 
-// The bar as it stands: the current tab, where the tabs' marks are, the bar's own mark.
+// The bar as it stands: the current tab, where the tabs' marks are and how far the row has moved,
+// the bar's lens and the copy of the row in it.
 const barState = () => {
   const bar = document.querySelector(".bottomnav");
   const tabs = [...bar.querySelectorAll(":scope > .nav")];
   const current = tabs.find((tab) => tab.getAttribute("aria-current") === "page");
-  const own = getComputedStyle(bar, "::before");
+  const lens = bar.querySelector(":scope > .bottomnav-lens");
+  const copies = lens ? [...lens.querySelectorAll(".bottomnav-copy > .nav")] : [];
+  const middle = (el) => { const r = el.getBoundingClientRect(); return r.left + r.width / 2; };
   const ind = current && getComputedStyle(current.querySelector(".ind"));
   const box = bar.getBoundingClientRect();
   return {
     current: current?.dataset.area ?? null,
     swipe: bar.dataset.swipe ?? null,
     styled: [bar, ...tabs].some((el) => el.getAttribute("style")),
-    mids: tabs.map((tab) => { const r = tab.querySelector(".ind").getBoundingClientRect(); return Math.round(r.left + r.width / 2); }),
+    mids: tabs.map((tab) => Math.round(middle(tab.querySelector(".ind")))),
+    // How far each tab stands from its place (the row moves as one).
+    row: tabs.map((tab) => Math.round(new DOMMatrix(getComputedStyle(tab).transform).m41 * 10) / 10),
     bar: { top: Math.round(box.top), bottom: Math.round(box.bottom), mid: Math.round(box.top + box.height / 2) },
-    // The bar's mark shows while it moves (where it stands in the window); the tab's own the rest
-    // of the time.
-    mark: own.content === "none" ? null : { dx: new DOMMatrix(own.transform).m41, left: box.left + parseFloat(own.left), width: parseFloat(own.width), color: own.backgroundColor },
+    // The lens shows while the bar is not at rest (where its middle stands in the window); the tab's
+    // own mark the rest of the time.
+    lens: lens && getComputedStyle(lens).visibility === "visible" ? { mid: middle(lens), color: getComputedStyle(lens).backgroundColor } : null,
+    copies: copies.length,
+    // How far a copy in the lens lies from its tab below at most (0: the copy lies over the row).
+    off: copies.length === tabs.length ? Math.max(...copies.map((copy, i) => Math.abs(middle(copy.querySelector(".ind")) - middle(tabs[i].querySelector(".ind"))))) : copies.length ? Infinity : 0,
     own: ind ? ind.backgroundColor : null,
-    on: tabs.map((tab) => Number(tab.style.getPropertyValue("--on") || 0)),
     near: tabs.map((tab) => Number(tab.style.getPropertyValue("--near") || 0)),
+    anims: document.getAnimations().filter((anim) => anim.effect?.target && bar.contains(anim.effect.target)).length,
     left: [bar, ...tabs].filter((el) => el.getAttribute("style")).map((el) => `${el.dataset.area || "bar"}: "${el.getAttribute("style")}"`),
     path: location.pathname,
     history: history.length,
@@ -80,7 +91,7 @@ const { page, swipe, lift } = await open(context, "/");
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
 await page.evaluate(() => { window.__marker = 1; });
 const state = () => page.evaluate(barState);
-// Once the mark has glided and the tab's own has taken over: the current tab then.
+// Once the row and the lens have glided and the tab's own mark has taken over: the current tab then.
 const settled = async (what, area) => {
   await page.waitForFunction((area) => {
     const bar = document.querySelector(".bottomnav");
@@ -88,89 +99,106 @@ const settled = async (what, area) => {
   }, area, { timeout: 8000 }).catch(() => {});
   const now = await state();
   check(now.current === area, `${what}: the current tab is ${now.current}, not ${area}`);
-  check(!now.swipe && !now.mark, `${what}: the bar's mark is still there (${now.swipe})`);
-  check(!now.styled, `${what}: the bar or a tab kept a style of the swipe (${now.left.join(", ")})`);
+  check(!now.swipe && !now.lens && !now.copies && !now.anims, `${what}: the lens is still there (${now.swipe}, ${now.copies} copies, ${now.anims} animations)`);
+  check(!now.styled && now.row.every((dx) => dx === 0), `${what}: the bar or a tab kept a style of the swipe (${now.left.join(", ")}; ${now.row})`);
   check(now.loaded, `${what}: the page was loaded again`);
   return now;
 };
 
 let now = await settled("start", "home");
-const [first, , middle] = now.mids;
+const [first, second, middle] = now.mids;
 const y = now.bar.mid;
-const step = now.mids[1] - now.mids[0];
+const step = second - first;
 check(step > 50, `the tabs stand ${step} px apart`);
 
-// ---- the mark follows the finger, and only the mark moves: the page stands still
+// ---- the row follows the finger inside the bar, the mark stays, and the page stands still
 const colour = now.own;
-await swipe(middle, y, 18, 3, { steps: 3, hold: true });
+await swipe(middle, y, -18, 3, { steps: 3, hold: true });
 let held = await state();
 check(held.swipe === "drag", `hold: the bar is not taken by the finger (${held.swipe})`);
-check(held.mark && Math.abs(held.mark.dx - 10) <= 1, `hold: the mark is ${held.mark?.dx} px along, not 10 (18 less the slop)`);
-check(held.mark && Math.abs(held.mark.left + held.mark.width / 2 - first) <= 1, `hold: the mark does not start over the current tab (${held.mark?.left} + ${held.mark?.width / 2}, the tab at ${first})`);
-check(held.mark?.color === colour, `hold: the moving mark is ${held.mark?.color}, the tab's own ${colour}`);
+check(held.row.every((dx) => Math.abs(dx + 10) <= 1), `hold: the row is ${held.row} px along, not -10 (18 less the slop)`);
+check(held.lens && Math.abs(held.lens.mid - first) <= 1, `hold: the lens does not stay over the current tab's mark (${held.lens?.mid}, the mark at ${first})`);
+check(held.lens?.color === colour, `hold: the lens is ${held.lens?.color}, the tab's own mark ${colour}`);
 check(held.own === "rgba(0, 0, 0, 0)", `hold: the current tab shows its own mark as well (${held.own})`);
-check(held.on[0] === 1 && held.on[1] === 0 && held.near[0] > held.near[1], `hold: the icons and names turn at the wrong time (${held.on} / ${held.near})`);
+check(held.copies === held.mids.length && held.off <= 0.5, `hold: the copy in the lens does not lie over the row (${held.copies} copies, ${held.off} px off)`);
+check(held.near[0] < 1 && held.near[0] > held.near[1] && held.near[1] > 0, `hold: the names turn at the wrong time (${held.near})`);
 check(held.content === now.content && held.path === "/", `hold: the page moved (${now.content} → ${held.content}, ${held.path})`);
-// One tab along: the mark over the next tab, its icon light and its name dark.
-await swipe(0, 0, step - 10, 0, { steps: 6, hold: true, from: true });
+// One tab along: the tab on the right under the lens, its name dark.
+await swipe(0, 0, -(step - 10), 0, { steps: 6, hold: true, from: true });
 held = await state();
-check(held.mark && Math.abs(held.mark.dx - step) <= 1, `hold: a tab along, the mark is ${held.mark?.dx} px along, not ${step}`);
-check(held.on[0] === 0 && held.on[1] === 1 && held.near[1] === 1, `hold: a tab along, the icons and names are ${held.on} / ${held.near}`);
+check(held.row.every((dx) => Math.abs(dx + step) <= 1), `hold: a tab along, the row is ${held.row[0]} px along, not ${-step}`);
+check(held.lens && Math.abs(held.mids[1] - held.lens.mid) <= 1 && held.near[1] === 1 && held.near[0] === 0, `hold: a tab along, the next tab is not under the lens (${held.mids[1]}, the lens at ${held.lens?.mid}; ${held.near})`);
+check(held.off <= 0.5, `hold: a tab along, the copy in the lens does not lie over the row (${held.off} px off)`);
 // Far past the next tab: held back, never two tabs.
-await swipe(0, 0, 150, 0, { steps: 8, hold: true, from: true });
+await swipe(0, 0, -150, 0, { steps: 8, hold: true, from: true });
 held = await state();
-check(held.mark && held.mark.dx > step && held.mark.dx < step + 15, `pull: the mark went ${held.mark?.dx} px, past the next tab by more than its room`);
+check(held.row[0] < -step && held.row[0] > -step - 15, `pull: the row went ${held.row[0]} px, past the next tab by more than its room`);
+check(held.lens && Math.abs(held.lens.mid - first) <= 1, `pull: the lens moved (${held.lens?.mid}, the mark at ${first})`);
 check(held.content === now.content && held.path === "/", `pull: the page moved (${now.content} → ${held.content}, ${held.path})`);
 await lift();
-now = await settled("swipe right", "catalog");
-check(now.path.startsWith("/catalog"), `swipe right: the page is ${now.path}`);
-check(now.own === colour, `swipe right: the tab's own mark is ${now.own}, not ${colour}`);
+await page.waitForTimeout(40);
+held = await state();
+check(held.swipe === "glide" && held.anims === held.mids.length + 2, `let go: the row and the lens do not glide (${held.swipe}, ${held.anims} animations)`);
+check(held.off <= 0.75, `let go: on the way the copy in the lens does not lie over the row (${held.off} px off)`);
+now = await settled("swipe left", "catalog");
+check(now.path.startsWith("/catalog"), `swipe left: the page is ${now.path}`);
+check(now.own === colour, `swipe left: the tab's own mark is ${now.own}, not ${colour}`);
 
 // ---- one tab to the left, from anywhere on the bar; a step of the history, as a tap is
 const length = now.history;
-await swipe(now.mids[4], y, -110, 2);
-now = await settled("swipe left", "home");
-check(now.path === "/", `swipe left: the page is ${now.path}`);
-check(now.history === length + 1, `swipe left: the history grew by ${now.history - length}`);
+await swipe(now.mids[4], y, 110, 2);
+now = await settled("swipe right", "home");
+check(now.path === "/", `swipe right: the page is ${now.path}`);
+check(now.history === length + 1, `swipe right: the history grew by ${now.history - length}`);
 
-// ---- at the left end nothing lies further: held back, and the tab stays
-await swipe(middle, y, -120, 0, { hold: true });
+// ---- at the left end nothing lies further: the row is held back, and the tab stays
+await swipe(middle, y, 120, 0, { hold: true });
 held = await state();
-check(held.mark && held.mark.dx < 0 && held.mark.dx > -15, `end: the mark went ${held.mark?.dx} px where no tab is`);
-check(held.mark && held.mark.left + held.mark.dx >= 0, "end: the mark left the bar");
+check(held.row[0] > 0 && held.row[0] < 15, `end: the row went ${held.row[0]} px where no tab is`);
+check(held.lens && Math.abs(held.lens.mid - first) <= 1, `end: the lens moved (${held.lens?.mid}, the mark at ${first})`);
 await lift();
 now = await settled("end left", "home");
 
 // ---- a short slow pull glides back, a short flick goes on
-await swipe(middle, y, 26, 0, { steps: 10, ms: 50 });
+await swipe(middle, y, -26, 0, { steps: 10, ms: 50 });
 now = await settled("slow pull", "home");
-await swipe(middle, y, 30, 0, { steps: 3, ms: 8 });
+await swipe(middle, y, -30, 0, { steps: 3, ms: 8 });
 now = await settled("flick", "catalog");
 
 // ---- along the whole bar, and at the right end no further
 for (const area of AREAS.slice(2)) {
-  await swipe(middle, y, 110, 0);
+  await swipe(middle, y, -110, 0);
   now = await settled(`to ${area}`, area);
   check(now.path.startsWith("/" + area), `to ${area}: the page is ${now.path}`);
 }
-await swipe(middle, y, 120, 0);
+await swipe(middle, y, -120, 0);
 now = await settled("end right", "studyplan");
 for (const area of AREAS.slice(0, 4).reverse()) {
-  await swipe(middle, y, -110, 0);
+  await swipe(middle, y, 110, 0);
   now = await settled(`back to ${area}`, area);
 }
 
-// ---- two swipes in a row, the second while the mark still glides, go two tabs on; a tap right
-// after a swipe is a tap
+// ---- a finger catches the glide: the lens stays where it is just then, between the two tabs, and
+// the swipe goes on from there; two swipes in a row go two tabs on; a tap right after a quick swipe
+// is a tap (of the tab under the finger: the row moves, and a short swipe keeps Start there)
+await swipe(middle, y, -60, 0, { steps: 4 });
+await swipe(middle, y, -14, 0, { steps: 3, hold: true });
+held = await state();
+check(held.swipe === "drag" && held.anims === 0, `catch: the finger did not take the gliding bar (${held.swipe}, ${held.anims} animations)`);
+check(held.current === "catalog", `catch: the tab the first swipe went to is not current (${held.current})`);
+check(held.lens && held.lens.mid > first + 2 && held.lens.mid < second - 1, `catch: the lens jumped (${held.lens?.mid}, between ${first} and ${second})`);
+check(held.off <= 0.5, `catch: the copy in the lens does not lie over the row (${held.off} px off)`);
+await swipe(0, 0, -60, 0, { steps: 4, from: true });
+now = await settled("caught", "programs");
 await swipe(middle, y, 110, 0, { steps: 4 });
 await swipe(middle, y, 110, 0, { steps: 4 });
-now = await settled("two swipes", "programs");
-await swipe(middle, y, -110, 0, { steps: 4 });
+now = await settled("two swipes", "home");
+await swipe(middle, y, -30, 0, { steps: 3, ms: 8 });
 await page.touchscreen.tap(first, y);
 now = await settled("a tap after a swipe", "home");
 
 // ---- up the bar scrolls the page, the tab stays
-await swipe(middle, y, 110, 0);
+await swipe(middle, y, -110, 0);
 now = await settled("to the catalog", "catalog");
 const top = await page.evaluate(() => scrollY);
 await swipe(middle, y + 20, 4, -300, { steps: 12 });
@@ -187,7 +215,7 @@ await classic.route("**/pkg/folia_client.js*", (route) => route.fulfill({ conten
   await page.waitForLoadState("load");
   const before = await page.evaluate(barState);
   check(before.current === "programs", `classic: the current tab is ${before.current}`);
-  await swipe(before.mids[2], before.bar.mid, -110, 0);
+  await swipe(before.mids[2], before.bar.mid, 110, 0);
   await page.waitForURL((url) => url.pathname.startsWith("/catalog"), { timeout: 8000 }).catch(() => problems.push(`classic: the swipe did not load the catalog (${page.url()})`));
   await page.waitForLoadState("load");
   const after = await page.evaluate(barState);

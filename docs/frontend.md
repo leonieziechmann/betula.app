@@ -316,25 +316,37 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   the link out of the program instead of walking the history back into the module it has just
   closed.
 - **A swipe along the phone's bottom bar goes to the tab beside the current one** (owner,
-  2026-09-30: „wenn man nach links swiped soll ein tab nach links gehen und beim rechts swipe eine
-  tab nach rechts"; `enhance.js`, app.css): to the left one tab to the left, to the right one to
-  the right, from wherever on the bar the finger starts. What moves is the selection, not the
-  page (owner: „keine Seitenanimationen", but „eine Animation der Selection um den Prozess vom
-  Swipen visuell zu unterstützen"): a finger that moves sideways rather than up or down carries
-  the mark of the current tab with it, with the finger as far as the tab beside it and then held
-  back (a swipe is one tab, never two), and held back from the start where no tab lies that way;
-  it never leaves the bar. On its way each icon turns light as far as the mark covers it, each
-  name dark as the mark comes close, a count changes over with its icon. Let go a third of the
-  way there or further, or flicked (as the sheet measures a flick, by the events' own times), the
-  mark glides on with the spring of the other marks that slide and the tab is clicked: the page
-  follows as it follows a tap (R21, one step of the history; before the app takes over the
-  browser loads it). Otherwise the mark glides back. The moving mark is the bar's own
-  (`::before`), laid over the current tab's from the first move; the tab's own takes over once
-  its tab is the current one, in one frame and without its fade. Up and down the bar scrolls the
-  page as before (`touch-action: pan-y`); the moves of a swipe are the bar's alone (a quick one
-  left to Chromium ended in a fling of nothing, and the next tap anywhere, up to a second later,
-  only stopped that fling). A mouse (a narrow window) drags the mark the same way, and what it
-  lets go of is no click.
+  2026-09-30, and the other way round the next day, the first direction being „invertiert zu dem,
+  was man intuitiv erwartet": „die ganze Leiste zu bewegen und den selector stehen zu lassen und
+  erst wenn man los lässt geht das dann wieder zur original Location zurück"; of the prototype's
+  ways „nur tabs + ein Element", `design/tabbar/swipe.html`; `enhance.js`, app.css): to the left
+  one tab to the right, to the right one to the left, from wherever on the bar the finger starts.
+  What moves is the bar's row of tabs, not the page (owner: „keine Seitenanimationen", but „eine
+  Animation der Selection um den Prozess vom Swipen visuell zu unterstützen"): a finger that moves
+  sideways rather than up or down takes the row with it inside the bar, which stays, clips the row
+  and fades it out at its two ends, while the mark of the current tab stays where it is; so a
+  finger to the left brings the tab on the right under the mark, with the finger as far as that
+  tab and then held back (a swipe is one tab, never two), and held back from the start where no
+  tab lies that way. The mark that stays is the bar's lens (`.bottomnav-lens`, made by enhance.js on
+  the bar's first swipe), laid over the current tab's mark from the first move: the mark's colour
+  with a copy of the row inside that moves as the row does, light, so what is under the lens is
+  light and the rest dark, cut at its edge, a count with its icon; each name turns dark as the lens
+  comes close. Let go a third of the way there or further, or flicked (as the sheet measures a
+  flick, by the events' own times), and the tab is clicked: the page follows as it follows a tap
+  (R21, one step of the history; before the app takes over the browser loads it); otherwise
+  nothing happens. Either way the row springs back to its place and the lens to the tab that is
+  current, on one damped spring with the small swing of the other marks that slide: the row from
+  where it is and as fast as it went (a flick carries it on a few px first), the lens from a
+  standstill (a glide on one fixed curve, which turned the row round at full speed, felt „ein wenig
+  klunky"). The glide is Web Animations of keyframes computed from the spring, which the
+  compositor runs while the tab's page is built (the click comes after its first frame), and a
+  finger that catches it takes the row and the lens where they are, so two quick swipes go two
+  tabs (before the app, while the next page loads, the bar takes taps only). The tab's own mark
+  takes over once its tab is the current one, in one frame and without its fade. Up and down the
+  bar scrolls the page as before (`touch-action: pan-y`); the moves of a swipe are the bar's alone
+  (a quick one left to Chromium ended in a fling of nothing, and the next tap anywhere, up to a
+  second later, only stopped that fling). A mouse (a narrow window) drags the row the same way, and
+  what it lets go of is no click; a tap while the row glides taps the tab under the finger.
 - **A row of the catalog and of the Merkliste is swiped to mark and to plan its module** (owner,
   2026-09-30: „Nach links wischen merken nach rechts wischen planen. Mach das so, dass dann darunter
   freigelegt wird was die Aktion macht (also Icon und Text)", and the same day for the Merkliste:
@@ -592,7 +604,8 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   page, from the style sheets applied by then, and the stylesheet (revalidated on every load) often
   arrives after the parser has reached `<body>`. The page then came without the fade and with
   "ViewTransition opt-in disabled" in the console (`e2e/gate.mjs` checks it with a slow stylesheet).
-- `design/prototype.html` is the clickable design prototype the direction was agreed on;
+- `design/prototype.html` is the clickable design prototype the direction was agreed on, and
+  `design/tabbar/swipe.html` the one of the swipe along the bottom bar;
   `node e2e/shot.mjs <url> <out.png> [w] [h] [--dark]` takes review screenshots.
 
 ### Data flow
@@ -2193,15 +2206,17 @@ cd e2e && node tabbar.mjs
 ```
 
 drives the phone's bottom bar with real touches as `phone.mjs` does, each carrying its time so
-that a flick is a flick however slow the protocol: a swipe to the right goes one tab to the
-right and one to the left one tab to the left, from wherever on the bar it starts, as one step of
-the history and without a page load; while the finger is down the mark follows it (the bar's own,
-over the tab's and in its colour, the icons turning under it) and the page stands still, and once
-the tab is current its own mark is back and nothing of the swipe is left on the bar; a long pull
-goes one tab and no further, a short slow one glides back, a short flick goes on, at either end
-the tab stays; two swipes in a row go two tabs, a tap right after a quick swipe is a tap, and a
-finger up the bar scrolls the page; before the app takes over (its bundle kept away) a swipe
-loads the tab's page.
+that a flick is a flick however slow the protocol: a swipe to the left goes one tab to the right
+and one to the right one tab to the left, from wherever on the bar it starts, as one step of the
+history and without a page load; while the finger is down the row of tabs follows it and the mark
+stays (the bar's lens, over the tab's and in its colour, with a copy of the row inside that lies
+over the row) and the page stands still; let go, the row and the lens glide as Web Animations,
+and once the tab is current its own mark is back and nothing of the swipe is left on the bar; a
+long pull goes one tab and no further, a short slow one glides back, a short flick goes on, at
+either end the tab stays; a finger catches the glide with the lens where it is and goes on from
+there, two swipes in a row go two tabs, a tap right after a quick swipe is a tap, and a finger up
+the bar scrolls the page; before the app takes over (its bundle kept away) a swipe loads the tab's
+page.
 
 ```bash
 cd e2e && node swipe.mjs
