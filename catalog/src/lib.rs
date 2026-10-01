@@ -26,6 +26,7 @@ pub mod rows;
 pub mod rows_detail;
 pub mod search;
 pub mod studyplan;
+pub mod text;
 pub mod timetable;
 pub mod url;
 pub mod variants;

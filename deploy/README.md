@@ -8,6 +8,8 @@ is edited there. No password, token or key is ever part of these files.
 deploy/
   sync.sh                 workstation -> /opt/betula (tar over ssh; refuses CR line endings)
   ship.sh                 workstation: build the images of a commit, load them on the server, deploy an instance
+  ship-models.sh          workstation: the models of models.lock into the server's model store (section 13)
+  models.lock             the two models of the semantic search, pinned by sha256 (section 13)
   vps/                    host scripts, run on the server, in the order of their numbers
     10-base.sh            upgrade, user deploy, ufw, fail2ban, unattended-upgrades, journald, sysctl, swap
     20-ssh-lockdown.sh    key-only ssh for deploy, root login off (with automatic rollback until --confirm)
@@ -16,9 +18,12 @@ deploy/
     45-seed.sh            once per instance, before its first deploy: a Radix database (tar on stdin) into its volume
     50-app.sh             one instance of the application (stacks/betula.yml + stacks/<instance>.env) at a release tag
     55-switch.sh          blue-green: hand a host name to the other of its two instances (the rollback is the same)
-    90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 55
+    60-canary.sh          canary follows master: sqlite3, the timer, the GitHub token (section 12)
+    canary-agent.sh       what that timer runs: fetch a build of master, seed it with the public site's data, switch
+    models.sh             the model store: status, missing, receive (what ship-models.sh sends), prune
+    90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 60
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
-  stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, betula(.gemini|.offline).yml,
+  stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, betula(.gemini|.offline|.models).yml,
                           betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/
 ```
@@ -118,6 +123,17 @@ Why this order, and what can go wrong:
   The same recipe reaches Prometheus (9090) or Radix's `/status` (8090).
 - Dashboards and alert rules are files (`config/monitoring/grafana/`); the UI refuses to save them.
   Edit, export JSON, commit, sync, `40-stacks.sh monitoring`.
+- The dashboard "Radix" shows what the collector does, from its `GET /metrics` (Prometheus job `radix`):
+  requests to b-tu.de and QIS by endpoint and status, pages that changed, the archive per endpoint
+  (newest and oldest fetch), cycles and stages, builds and snapshots, warnings and errors by event.
+  Every instance's Radix is on the `monitoring` overlay (`stacks/betula.yml`); a new instance file
+  needs its `tasks.<stack>_radix` line in `config/monitoring/prometheus.yml`. An image from before
+  `/metrics` answers 404 there, so the rule "Monitoring target is down" fires until a current one runs.
+- The dashboard "Visitors" reads stored numbers only: Loki's ruler counts them from Traefik's access
+  log every 5 minutes (the 7-day numbers and the calendar subscriptions once an hour) with the rules
+  in `config/monitoring/loki-rules`, and writes them to Prometheus, which keeps them like every
+  metric (15 days, `config/monitoring/prometheus.yml`). Its charts begin with the first count; there
+  is no history from before.
 
 ## 3. Changing something later
 
@@ -216,6 +232,11 @@ loaded already - that is also the **rollback** (`docker image ls 'betula-*'` lis
 and `bash /opt/betula/vps/50-app.sh canary` applies a change of `canary.env` or `betula.yml` to the
 release that runs. Opening the site: `FOLIA_ACCESS_GATE=off` in `canary.env`, sync, `50-app.sh canary`.
 
+Since `60-canary.sh` (section 12) the canary no longer needs any of this: every build of master
+reaches it by itself, through the same scripts and the blue-green switch below, with a fresh copy of
+the public site's data. What is described here stays the way to ship to canary by hand (the timer
+off first: `sudo bash /opt/betula/vps/60-canary.sh off`) and the way to ship the public site.
+
 **Blue-green** (owner, 2026-09-23): two instance files with the same `APP_HOST` are two colours of
 one site, `canary.env` (the stack that ran first) and `canary-green.env`. Each is a stack of its
 own with volumes of its own, and each has a router for the host. Traefik sends the host to the
@@ -291,6 +312,7 @@ Swarm secrets are immutable; rotation means a new name.
 |---|---|
 | `grafana-admin-password` | created by `40-stacks.sh`. Later changes: `monitoring-secrets.sh reset-admin-password` (the secret itself stays) |
 | `grafana-smtp-*`, `grafana-ntfy-url`, tokens | `... \| ssh betula /opt/betula/stacks/monitoring-secrets.sh set <name>`. Rotate: `set <name>-v2`, point `source:` in the override at it, sync, `40-stacks.sh monitoring`, `docker secret rm <name>` |
+| GitHub token of the canary agent | not a swarm secret: a fine-grained token (section 12), stored encrypted with `60-canary.sh token`. Rotate: a new token, the same command (the old file is replaced), then revoke the old one on GitHub. It expires: 91-verify-stacks.sh warns 14 days ahead |
 | `gemini-api-key` | `... \| ssh betula docker secret create gemini-api-key-v2 -`, in `betula.gemini.yml`: `- source: gemini-api-key-v2` / `target: gemini-api-key` (and the new name under `secrets:`), sync, `50-app.sh <instance>`, remove the old one |
 | `folia-access-password` | the password testers get while `FOLIA_ACCESS_GATE` is on. Rotate like `gemini-api-key`, in `betula.yml` (`folia-access-password-v2`, `source:`/`target:`, sync, `50-app.sh <instance>`); a new password ends every tester's visit at once |
 | ssh key of `deploy` | append the new public key to `/home/deploy/.ssh/authorized_keys`, test it in a new session, then remove the old line |
@@ -342,6 +364,7 @@ section 9); `docker service logs edge_traefik` reads them from there.
 | **Reboot** | 04:30 Europe/Berlin, only when an update asks for it (kernel, libc). All containers restart; the site is away for about a minute. Interrupting Radix is safe (docs/operations.md) |
 | Reboot after a kernel panic | after 60 s |
 | Containers | swarm restarts a task that exits or turns unhealthy; after a boot everything comes back by itself |
+| Canary follows master | every two minutes a look at GitHub for a new build of master; one that is there goes to https://canary.betula.app with the public site's data (section 12). Off: `sudo bash /opt/betula/vps/60-canary.sh off` |
 | Certificates | Traefik renews 30 days before expiry; an alert fires below 14 days |
 | Image cleanup | Sunday 03:30: dangling images and old build cache only, never networks or volumes |
 | ssh bans | fail2ban: 5 failures in 10 min = 1 h, doubling up to a week; sshd penalises per source on top |
@@ -362,7 +385,9 @@ at `https://betula.app/`.
 
 Folia's own log keeps paths (no addresses) 30 days in Loki, except `/calendar/…`, which it writes as
 `/calendar/….ics`. Traefik logs full paths with the client address, 7 days in Loki and 7 days in the
-host journal; a subscribed calendar appears there on every poll (Google about daily). Alloy ships the
+host journal; a subscribed calendar appears there on every poll (Google about daily). What Loki's
+ruler counts from these lines for the dashboard "Visitors" (`config/monitoring/loki-rules`) reaches
+Prometheus as numbers only, without addresses, user agents or calendar codes. Alloy ships the
 journal without the lines of containers (`loki.relabel "journal"`), or Traefik's would be kept 30
 days as `{job="journal"}`. Not in Docker's local log files, which only rotate by size: Traefik's
 stopped containers from before the journald driver still have such files, and `40-stacks.sh edge`
@@ -414,3 +439,224 @@ home dashboard); `40-stacks.sh` and `91-verify-stacks.sh` both say so. The conta
 Critical alerts repeat every 4 hours, warnings daily (`policies.yml`). Expected once during the first
 bring-up: "SSH login that is not the deploy key", if the last root login was less than 15 minutes
 before the monitoring stack started.
+
+## 12. Canary follows master
+
+Every push to master that changes what the images are built from reaches https://canary.betula.app
+by itself: built on GitHub, fetched by the server, seeded with the data of the public site, migrated
+by the new release, switched blue-green, and the colour that served before is removed. The public
+site is still shipped by hand (section 4); nothing here touches it but one read-only copy of its
+database per deploy.
+
+```
+push to master ─▶ GitHub Actions  .github/workflows/images.yml
+                    nix build .#radix-image .#folia-image, exactly as ship.sh (same sources, same tag)
+                    ─▶ artifact betula-images-<tag>.tar (release.json + both images), kept a week
+server  betula-canary.timer, 2 minutes after the last run ─▶ vps/canary-agent.sh poll (as deploy)
+   1  GitHub API, read-only token: a new successful run for a push to master? its artifact, sha256 checked
+   2  docker load, tag <tag> (as ship.sh)
+   3  the colour that does not serve (canary / canary-green): stack and volumes removed
+   4  the public site's radix.db (the colour whose Radix crawls) ─ host sqlite3, read-only, VACUUM INTO ─▶ copy
+   5  45-seed.sh <colour>, 50-app.sh <colour> <tag>: the new release migrates, builds and exports the
+      copy in containers without a network, then runs as the standby
+   6  /healthz 200 ─▶ 55-switch.sh <colour>; until the new colour has settled the old one stays
+   7  the colour that served before: stack and volumes removed; images of old builds go (the newest three stay)
+```
+
+A deploy takes a few minutes on the server; the build on GitHub takes longer (see "How fast, and what it costs").
+When a step fails, canary keeps the release it had and the alert "canary: a build of master did not
+reach canary" fires. A release is tried three times, 10 and 20 minutes apart; then the agent waits
+for the next build of master. A release deployed by hand stays until master is built again: the
+agent only acts on a build it has not seen.
+
+### Branches: develop gathers, master goes to canary
+
+Since 2026-10-01 a finished branch is merged into `develop`, not into master (owner: canary should
+not deploy ten times an hour). A push to `develop` starts nothing: `images.yml` builds on pushes to
+master only, and the agent takes nothing else. When the features gathered there are to reach
+canary, `develop` goes into master in one merge: one build, one deploy.
+
+```bash
+# a finished branch, "Merge branch '<branch>' into develop: <what it brings>"; nothing is built
+git switch develop && git merge --no-ff <branch> && git push origin develop
+# a release to canary, "Merge branch 'develop' into master: <the features it brings>"
+git switch master && git merge --no-ff develop && git push origin master
+```
+
+Master takes nothing but `develop`, so `develop` always holds all of master and nothing has to be
+merged back. `develop` is GitHub's default branch (since 2026-10-01): new branches, pull requests
+and sessions of Claude Code start from it. `CLAUDE.md` says the same for Claude.
+
+### Setting it up, once
+
+1. Merge. The workflow runs on the merge itself (it adds `.github/workflows/images.yml`) and on every
+   later push to master that touches the sources; its job summary names the release and the artifact.
+2. The token, on GitHub: Settings > Developer settings > Personal access tokens > Fine-grained tokens >
+   Generate. Resource owner `leonieziechmann`, repository access "Only select repositories":
+   `betula.app`, repository permission **Actions: Read-only** and nothing else (GitHub adds
+   "Metadata: Read-only" by itself), an expiry date (a year) and an entry in the calendar before it.
+   Straight into the password manager.
+3. `SSH_TARGET=betula bash deploy/sync.sh`, then `ssh betula sudo bash /opt/betula/vps/60-canary.sh`
+   (sqlite3, the units, `/var/lib/betula-canary`).
+4. `<password manager CLI> | ssh betula sudo bash /opt/betula/vps/60-canary.sh token`: tries the
+   token (GitHub has to accept it, it has to be allowed to download an artifact, and one that can see
+   the repository's administration is refused), stores it encrypted with the host's key
+   (`systemd-creds`, `/etc/credstore.encrypted/betula-canary-github-token`), switches the timer on.
+5. `ssh betula journalctl -fu betula-canary.service`. **The first run replaces both canary colours:**
+   the data canary had (the workstation's crawl) is gone, the public site's takes its place.
+6. `ssh betula bash /opt/betula/vps/40-stacks.sh monitoring` (the new alert rule), then
+   `ssh betula bash /opt/betula/vps/91-verify-stacks.sh app canary alerts`.
+
+### Day to day
+
+| | |
+|---|---|
+| what serves, what failed, what the next deploy copies | `bash /opt/betula/vps/canary-agent.sh status` |
+| watch a deploy | `journalctl -fu betula-canary.service` |
+| look now, not within two minutes | `sudo systemctl start betula-canary.service` (returns when it is done) |
+| fresh data for the release canary runs | `bash /opt/betula/vps/canary-agent.sh deploy` |
+| back to an older release (the images of the newest three stay) | `bash /opt/betula/vps/canary-agent.sh deploy <tag>`; it stays until master is built again |
+| ship to canary by hand, or work on it | `sudo bash /opt/betula/vps/60-canary.sh off` first (a run in progress is finished), `on` afterwards |
+| a release that failed | `journalctl -u betula-canary.service -n 100`: the FATAL line names the step. The colour it left half made stays for a look (`docker service logs`, the `docker run ... build` of 50-app.sh); the next deploy removes it |
+| a new token | step 2 and 4 above; revoke the old one on GitHub |
+
+`canary.env` and `canary-green.env` have to say `RADIX_CRAWL=off` (the agent refuses otherwise:
+with the public site's data a canary that crawls would ask the university for everything a second
+time) and the same `FOLIA_ACCESS_GATE`. `CANARY_SEED_FROM=<instance>` takes another instance's
+database for one `deploy` by hand.
+
+### Why it is safe enough
+
+- **Nothing reaches into the server.** No ssh key, no webhook and no runner at GitHub: the server
+  asks (HTTPS to api.github.com and GitHub's artifact storage), ufw and sshd stay as they are.
+- **The token can do one thing.** Read this repository's workflow runs and artifacts - public
+  anyway, since the repository is; GitHub only wants a token for the download. `60-canary.sh`
+  refuses a classic token and one that can see the repository's administration. Encrypted at rest,
+  in clear only in the service's own credentials directory, never in argv (header files, curl's
+  config on stdin); the short-lived address of the download gets no token.
+- **Only master counts.** A run of `images.yml` in this repository, started by a push to master,
+  finished with success; a pull request, another branch or a fork produces nothing the agent takes.
+  The file has to match the sha256 GitHub keeps for it and the sums in its `release.json`.
+- **The agent never updates itself.** `deploy/` reaches `/opt/betula` only through `sync.sh` from
+  the workstation. What a push to master changes is what runs *inside* canary's containers
+  (`cap_drop: ALL`, Folia read-only and not root, closed testing, Radix offline) - what shipping
+  master by hand would run as well.
+- **The public site's database is only read.** By Ubuntu's `sqlite3` with `-readonly`, as one read
+  transaction (WAL: the reader does not block the writer, Radix crawls on); no binary of a new
+  release ever opens it, so no migration can reach it. Tested with a writer committing all the
+  time: every copy was complete to one commit and passed the integrity check.
+- **The workflow** asks for `contents: read` only, uses no secret, runs on pushes to master only,
+  and its actions are pinned to commits. Its build cache (GitHub's cache of this repository) is
+  written by its own runs on master; a run reads only its own branch's entries and those of the
+  default branch, `develop`, where nothing writes; never a pull request's or a fork's. Nix takes
+  the cached paths without signatures, so a step of the job that went bad could leave something in
+  it for later builds: the job uses four actions, three of them GitHub's own, all pinned. Keep it
+  the only writer: a workflow added later that saves a cache on `develop` (on its pushes, on a
+  schedule, which runs on the default branch, or for pull requests into it with
+  `pull_request_target`) would write into what every build of master reads.
+- **The repository is public** (since 2026-09-30). Everybody can read the code, the workflow's logs
+  and, logged in to GitHub, its artifacts; none of them holds a secret (the workflow has none, and
+  the history held no key or token when it went public). Everybody can fork it and open pull
+  requests, but neither starts `images.yml`, and the agent takes nothing but runs of a push to
+  master in this repository: from the outside, reading is all there is.
+- **Worth adding on GitHub:** a branch protection rule for master (pull requests, no force
+  pushes): whoever can push to master decides what canary runs. And under Settings > Actions >
+  General "Allow ... select non-... actions": actions by GitHub, and `cachix/install-nix-action@*`
+  - nothing else is used.
+
+### How fast, and what it costs
+
+- **Time**, measured 2026-09-30 on the standard runner of a public repository (4 processors,
+  16 GB). GitHub hands out faster and slower ones: the same work took 1.6 times as long on a slow
+  one, hence the ranges.
+
+  | a push that changes | the job | of it the build |
+  |---|---|---|
+  | nothing Radix or Folia are built from (the workflow, say) | 47 s | 17 s |
+  | the app, not its dependencies (the common case) | 7 to 11 min | 6½ to 10½ min |
+  | `Cargo.lock` or `flake.lock`; and the first build on master | 13 to 21 min | 12½ to 20 min |
+
+  After a change to the app everything but the workspace's own crates comes from the cache, in
+  under half a minute: what is left is compiling folia-app and folia-server, 6 to 10 minutes, with
+  the browser app (3 to 5) beside it. The web server's thin LTO is not what takes the time:
+  without it that step took 8 minutes instead of 9 (on the workstation), so it stays. A change to
+  Radix adds its build with the tests, 2 to 3 minutes. The deploy on the server adds a few
+  minutes.
+- **What makes it fast:** `flake.nix` builds the Rust dependencies apart from the workspace
+  (crane), so a change to the app leaves them as they are; the workflow keeps what builds of
+  master made and cache.nixos.org does not have in GitHub's cache ("Restore the Nix cache" in
+  `images.yml`): some 500 paths, 1.2 GB, 560 MB compressed. A build from the cache gives the same
+  images to the byte as one without it (the same sha256, measured). A new entry is only written
+  when the dependencies, the flake or the Go sources change, and only after a build that
+  succeeded; GitHub keeps 10 GB per repository and drops what has not been used for a week. The
+  first build of master after the merge starts without it: master does not see a branch's
+  entries. What would still help, a little: the web server and the browser app on two runners.
+  They share the processors only while both compile folia-app, so that is about a minute, at the
+  price of passing the browser app from one job to the other.
+- **GitHub Actions minutes:** none - a public repository's standard runners cost nothing.
+- **Artifact storage:** 57 MB per build (Radix 7, Folia 50), gone after a week; a public
+  repository pays nothing for it.
+- **This server:** per deploy one copy of the database, one build and export of the catalog (the
+  CPU of a minute or two) and the new Folia warming its cache (up to 3 processors for a moment),
+  next to the public site. The disk holds the images of the newest three builds.
+
+## 13. The models of the semantic search
+
+The semantic search needs two model files that are too large for git and the images: Radix's
+passage model (`e5-de-en-server.bin`, 35 MB, the modules' vectors) and the browser's query model
+(`e5-de-en.bin`, 15 MB, what a visitor types; `semantic/README.md` says how both are made). They
+reach the services through the server's **model store**, not through a registry, a CDN or the images:
+
+```
+models.lock (git)          passage <sha256> <bytes> e5-de-en-server.bin
+                           query   <sha256> <bytes> e5-de-en.bin
+workstation models/  ──ship-models.sh: only what the store lacks, checked on both sides──▶
+/var/lib/betula/models/<sha256>       one file per model, written once, never changed
+  ├─ read-only into every instance's Radix   RADIX_EMBED_MODEL=/models/<passage sha256>
+  └─ read-only into every instance's Folia   FOLIA_SEMANTIC_MODEL=/models/<query sha256>
+        └─▶ browsers: /models/e5-de-en-<hash>.bin, immutable, brotli, kept by the service worker
+```
+
+- **Stable.** A file's name is its content's sha256: it is checked when it arrives (size and hash,
+  before one atomic rename gives it its name), at every deploy (`50-app.sh` hashes both again), and
+  by Radix and Folia when they load it (a damaged file is refused). Nothing in the store is ever
+  overwritten, so a rollback to an older release, or a colour that has not been deployed again,
+  still finds its models. Without its models, or with a broken store, an instance runs without the
+  semantic search and says so (WARN in `50-app.sh` and `91-verify-stacks.sh`); it never fails to
+  start for them: the store is mounted by an override, `stacks/betula.models.yml`, which `50-app.sh`
+  adds only when both models are there, intact.
+- **Scales.** One copy per host for every instance, colour and release (canary's colours are
+  replaced with their volumes on every build of master; the store stays). The images stay as they
+  were (canary's artifact on GitHub does not grow); a deploy uploads nothing when the store has
+  the models. Each browser downloads the query model once per model, not once per deploy: its
+  address names its content, `immutable`, and the service worker keeps it in a cache no build drops.
+- **The pair.** A query is only comparable with passages of the model it was made for, so the lock
+  names both, and they change together. The browser checks it once more against the snapshot
+  (`docs/schema-v2.md`, „Semantic search"): while Radix computes the vectors of a new passage
+  model (about a day), the semantic search simply is not offered.
+
+Once per server (a fresh one gets it from `vps/10-base.sh`):
+
+```bash
+ssh betula sudo install -d -m 0755 -o deploy -g deploy /var/lib/betula/models
+```
+
+New models: build them, put them into `models/` in the repository's root (git ignores it), write
+their sha256 and size into `deploy/models.lock` (`sha256sum models/*`, `stat -c %s models/*`) and
+commit. Then
+
+```bash
+SSH_TARGET=betula bash deploy/ship-models.sh        # syncs deploy/, uploads what the store lacks
+ssh betula bash /opt/betula/vps/50-app.sh <instance> # each instance, or with its next release
+```
+
+`deploy/ship.sh` runs `ship-models.sh` before every deploy (a failure there is a WARNING, the
+deploy goes on without the semantic search); canary's agent deploys with whatever the store holds
+of the lock, so after a change of the lock, `ship-models.sh` first. On the server:
+
+| | |
+|---|---|
+| the lock, the store, which service runs which model | `bash /opt/betula/vps/models.sh status` |
+| remove models neither the lock nor a service names | `bash /opt/betula/vps/models.sh prune` |
+| what an instance runs | `bash /opt/betula/vps/91-verify-stacks.sh app` |
+

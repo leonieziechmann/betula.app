@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Semantische Suche · PoC</title>
+<style>
+  :root { --bg: #fff; --fg: #1d211f; --muted: #66706a; --line: #dde3df; --accent: oklch(.53 .07 149); }
+  @media (prefers-color-scheme: dark) { :root { --bg: #151816; --fg: #e6ebe8; --muted: #9aa49e; --line: #2c322e; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px; }
+  input { width: 100%; box-sizing: border-box; padding: 12px 14px; font: inherit; color: inherit; background: transparent;
+          border: 1px solid var(--line); border-radius: 9px; }
+  input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  #status { color: var(--muted); font-size: 14px; margin: 8px 0 16px; min-height: 1.4em; }
+  ol { list-style: none; padding: 0; margin: 0; }
+  li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  li span { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.5em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Semantische Suche</h1>
+  <p>multilingual-e5-small, auf Deutsch und Englisch getrimmt, 4 Bit, im Browser. Suche nach Bedeutung, nicht nach Wörtern: „coding lernen“ findet „Einführung in die Programmierung“.</p>
+  <input id="q" type="search" placeholder="Wonach suchst du?" autocomplete="off" disabled>
+  <div id="status">Lade Modell …</div>
+  <ol id="hits"></ol>
+</main>
+<script type="module">
+import { build, nearest, readIndex } from "./e5.js";
+import { createEmbedder } from "./e5-gpu.js";
+
+// ?backend=wasm skips WebGPU.
+const status = document.getElementById("status"), input = document.getElementById("q"), hits = document.getElementById("hits");
+const get = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); };
+const started = performance.now();
+const [wasm, index, names] = await Promise.all([get(`e5_mini.${build}.wasm`), get("index.bin"), fetch("index.json").then((r) => r.json())]);
+const e5 = await createEmbedder({
+  wasm, model: async () => new Uint8Array(await get("e5-de-en.bin")),
+  gpu: new URLSearchParams(location.search).get("backend") !== "wasm",
+});
+const docs = readIndex(index);
+const backend = () => (e5.backend === "webgpu" ? "WebGPU" : `WASM ${build}${e5.reason ? ` (${e5.reason})` : ""}`);
+status.textContent = `Bereit (${backend()}): ${docs.rows} Einträge, geladen in ${Math.round(performance.now() - started)} ms.`;
+input.disabled = false;
+input.focus();
+
+let timer, latest = 0;
+input.addEventListener("input", () => {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    const q = input.value.trim();
+    if (!q) { hits.replaceChildren(); return; }
+    const t = performance.now(), mine = ++latest;
+    const { vector, tokens } = await e5.embed("query: " + q);
+    if (mine !== latest) return; // typed on meanwhile
+    const embedded = performance.now() - t;
+    const found = nearest(docs, vector, 10);
+    status.textContent = `${backend()} · ${tokens} Tokens · Embedding ${embedded.toFixed(0)} ms · Suche ${(performance.now() - t - embedded).toFixed(0)} ms`;
+    hits.replaceChildren(...found.map(([score, row]) => {
+      const li = document.createElement("li");
+      const s = document.createElement("span");
+      s.textContent = score.toFixed(3);
+      li.append(s, names[row].title);
+      return li;
+    }));
+  }, 120);
+});
+</script>
+</body>
+</html>

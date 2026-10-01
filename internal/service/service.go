@@ -13,6 +13,7 @@ import (
 	"github.com/leonieziechmann/betula/internal/catalogbuild"
 	"github.com/leonieziechmann/betula/internal/catalogdb"
 	"github.com/leonieziechmann/betula/internal/crawl"
+	"github.com/leonieziechmann/betula/internal/metrics"
 	"github.com/leonieziechmann/betula/internal/oplog"
 	"github.com/leonieziechmann/betula/internal/snapshothttp"
 	"github.com/leonieziechmann/betula/internal/version"
@@ -52,6 +53,10 @@ type Config struct {
 	ArchiveGrace   time.Duration        // remove archived pages nothing leads to any more, this long after their fetch; 0 keeps them
 	Baselines      []catalogdb.Baseline // count baselines for validate
 	StaleAfter     time.Duration        // health: unhealthy without a successful cycle for this long
+
+	// Semantic computes the vectors of Folia's semantic search (semantic.go); without an
+	// encoder it does not run.
+	Semantic Semantic
 }
 
 // DefaultConfig is a polite setup for the BTU servers, which asks QIS for what changes as
@@ -132,6 +137,9 @@ type Service struct {
 	lastSuccessAt time.Time
 	failedInARow  int
 	nextCycleAt   time.Time
+
+	summaryFailed map[string]time.Time // text hash → when Gemini last failed to summarise it (semantic.go)
+	archive       archiveCache         // for GET /metrics
 }
 
 // New creates a service. recorder may be nil.
@@ -162,6 +170,7 @@ func (s *Service) Run(ctx context.Context) error {
 
 		s.mu.Lock()
 		s.nextCycleAt = s.now().Add(s.cfg.Interval)
+		nextCycleAt.Set(float64(s.nextCycleAt.Unix()))
 		s.mu.Unlock()
 
 		timer := time.NewTimer(s.cfg.Interval)
@@ -175,8 +184,9 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-// RunCycle runs one cycle: crawl what is due, apply retention, build, and if the
-// content changed validate and export.
+// RunCycle runs one cycle: crawl what is due, apply retention, build, and if the content changed
+// validate and export; then, unless the cycle failed, compute the semantic search's missing
+// vectors (semantic.go), which the next build publishes.
 //
 // Log events: cycle.started, stage.finished / stage.failed (ERROR), cycle.finished
 // (ERROR when the result is "failed", WARN when "degraded"), cycle.panic (ERROR).
@@ -210,6 +220,8 @@ func (s *Service) builtBy() string {
 func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResult) {
 	log := oplog.For("service")
 	result = CycleResult{StartedAt: s.now(), Result: "ok"}
+	cycleRunning.Set(1)
+	cycleCrawls.Set(metrics.Bool(crawlFirst))
 	log.Info("cycle started", "event", "cycle.started", "offpeak", s.inOffPeak(result.StartedAt), "crawl", crawlFirst)
 
 	defer func() {
@@ -301,6 +313,7 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 			removed, err := s.db.PruneEvents(s.now(), s.cfg.EventRetention)
 			if err == nil && removed > 0 {
 				oplog.For("retention").Info("events pruned", "event", "retention.pruned", "removed", removed)
+				prunedTotal.Add(float64(removed), "events")
 			}
 			return err
 		})
@@ -310,16 +323,27 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 	if !step("build", func() (err error) { report, err = catalogbuild.Build(ctx, s.db); return err }) {
 		return result
 	}
+	countBuild(report)
 
 	if s.cfg.ArchiveGrace > 0 {
 		step("archive", func() error {
 			removed, err := s.db.PruneArchive(report.Unused, s.now().Add(-s.cfg.ArchiveGrace))
 			if err == nil && removed > 0 {
 				oplog.For("retention").Info("archive pruned", "event", "retention.archive_pruned", "removed", removed)
+				prunedTotal.Add(float64(removed), "archive_pages")
 			}
 			return err
 		})
 	}
+
+	// Last, after the snapshot of this build is out: the vectors of the semantic search for the
+	// module texts this build brought, which the next build publishes. A defer, so it also runs
+	// when there is nothing to export; before the deferred logging of the cycle above.
+	defer func() {
+		if ctx.Err() == nil && result.Result != "failed" {
+			s.semanticStage(ctx, &result)
+		}
+	}()
 
 	_, pointerErr := catalogdb.ReadSnapshotPointer(s.cfg.SnapshotDir)
 	if !report.ContentChanged && pointerErr == nil {
@@ -356,6 +380,8 @@ func (s *Service) record(r CycleResult) {
 	case "failed":
 		s.failedInARow++
 	}
+	countCycle(r, s.lastSuccessAt, s.failedInARow)
+	s.archive.invalidate() // the cycle changed the archive
 }
 
 func (s *Service) inOffPeak(t time.Time) bool {
@@ -434,12 +460,15 @@ func (s *Service) Status() Status {
 
 // Handler serves the snapshot endpoints plus:
 //
+//	GET /metrics  the counters and gauges in the Prometheus text format (docs/operations.md)
 //	GET /healthz  200 {"status":"ok"} or 503 {"status":"unhealthy","problems":[…]}; for
 //	              container health checks and uptime monitors
 //	GET /status   the full Status as JSON, including the most recent warnings and errors
 func (s *Service) Handler() http.Handler {
+	active.Store(s)
 	mux := http.NewServeMux()
 	mux.Handle("/snapshot/", snapshothttp.Handler(s.cfg.SnapshotDir))
+	mux.Handle("GET /metrics", metrics.Default.Handler())
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		st := s.Status()

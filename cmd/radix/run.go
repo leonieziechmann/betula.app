@@ -13,8 +13,10 @@ import (
 	"time"
 	_ "time/tzdata" // off-peak hours are local time; do not depend on the host having zoneinfo
 
+	"github.com/leonieziechmann/betula/internal/metrics"
 	"github.com/leonieziechmann/betula/internal/oplog"
 	"github.com/leonieziechmann/betula/internal/service"
+	"github.com/leonieziechmann/betula/internal/version"
 )
 
 // envOr returns the environment variable name, or fallback when it is unset.
@@ -67,6 +69,7 @@ func runService(ctx context.Context, args []string) {
 	archiveGrace := fs.Duration("archive-grace", envDuration("RADIX_ARCHIVE_GRACE", def.ArchiveGrace), "Remove archived pages nothing leads to any more this long after their fetch, 0 keeps them (env RADIX_ARCHIVE_GRACE)")
 	staleAfter := fs.Duration("stale-after", envDuration("RADIX_STALE_AFTER", def.StaleAfter), "Report unhealthy without a successful cycle for this long (env RADIX_STALE_AFTER)")
 	once := fs.Bool("once", false, "Run a single cycle and exit (exit code 1 if it failed)")
+	semanticOpts := addSemanticFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 
@@ -112,9 +115,18 @@ func runService(ctx context.Context, args []string) {
 		cfg.OffPeakStart, cfg.OffPeakEnd = s, e
 	}
 
+	semantic, closeSemantic, err := semanticOpts.setup(ctx)
+	if err != nil {
+		slog.Error("cannot start the semantic search's encoder", "component", "cli", "event", "cli.failed", oplog.Err(err))
+		os.Exit(2)
+	}
+	defer closeSemantic()
+	cfg.Semantic = semantic
+
 	db := openDB(*dbPath)
 	defer db.Close()
 	svc := service.New(db, cfg, recorder)
+	declareBuildInfo("run")
 
 	if *once {
 		if result := svc.RunCycle(ctx); result.Result == "failed" {
@@ -135,6 +147,20 @@ func runService(ctx context.Context, args []string) {
 	}()
 
 	_ = svc.Run(ctx)
+}
+
+// declareBuildInfo names the running binary and its mode in GET /metrics.
+func declareBuildInfo(mode string) {
+	build := version.Build()
+	if len(build) > 12 {
+		build = build[:12]
+	}
+	started := float64(time.Now().Unix())
+	metrics.Default.NewGaugeFunc("radix_build_info",
+		"Always 1: the binary that runs (the start of its hash, as meta radix_build) and its mode, run or serve-snapshot.",
+		[]string{"build", "mode"}, func(emit func(float64, ...string)) { emit(1, build, mode) })
+	metrics.Default.NewGaugeFunc("radix_start_time_seconds",
+		"When the process started (Unix time).", nil, func(emit func(float64, ...string)) { emit(started) })
 }
 
 // runHealthcheck asks a running service for its health. It exists so that a container

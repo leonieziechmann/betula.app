@@ -4,6 +4,7 @@ go 1.27.0
 
 require (
 	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0
+	github.com/tetratelabs/wazero v1.12.0
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/net v0.59.0
 	golang.org/x/term v0.46.0

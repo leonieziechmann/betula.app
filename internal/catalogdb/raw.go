@@ -231,3 +231,43 @@ func (db *DB) FetchTimes(source string) (map[string]time.Time, error) {
 	}
 	return result, rows.Err()
 }
+
+// ArchiveStat sums up the archived pages of one source.
+type ArchiveStat struct {
+	Source          string
+	Pages, NotFound int       // all pages; of them the ones the server answered with 404
+	FetchedSince    int       // fetched at or after the time ArchiveStats was given
+	ChangedSince    int       // whose body changed at or after it (or that are new since)
+	Oldest, Newest  time.Time // the oldest and the newest fetch
+}
+
+// ArchiveStats sums up the archive per source, without reading a body: for monitoring.
+func (db *DB) ArchiveStats(since time.Time) ([]ArchiveStat, error) {
+	at := since.UTC().Format(time.RFC3339)
+	rows, err := db.sql.Query(`
+		SELECT source, COUNT(*), SUM(http_status = 404), SUM(fetched_at >= ?), SUM(changed_at >= ?),
+			MIN(fetched_at), MAX(fetched_at)
+		FROM raw_page GROUP BY source ORDER BY source
+	`, at, at)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []ArchiveStat
+	for rows.Next() {
+		var st ArchiveStat
+		var oldest, newest string
+		if err := rows.Scan(&st.Source, &st.Pages, &st.NotFound, &st.FetchedSince, &st.ChangedSince, &oldest, &newest); err != nil {
+			return nil, err
+		}
+		if st.Oldest, err = time.Parse(time.RFC3339, oldest); err != nil {
+			return nil, fmt.Errorf("raw pages of %s: invalid fetched_at: %w", st.Source, err)
+		}
+		if st.Newest, err = time.Parse(time.RFC3339, newest); err != nil {
+			return nil, fmt.Errorf("raw pages of %s: invalid fetched_at: %w", st.Source, err)
+		}
+		result = append(result, st)
+	}
+	return result, rows.Err()
+}

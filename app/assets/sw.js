@@ -21,9 +21,14 @@
 //
 // Pages: the network first, and what it answered kept for the way back; offline the kept page,
 // else the cached shell. Assets: the cache first, the network for what is not there yet.
+//
+// The semantic search's model (`/models/e5-de-en-<hash>.bin`, 15 MB; `boot.js` loads it once the
+// app runs) is kept apart from the shell, in a cache no build drops: its address names its
+// content, so a new build keeps it, and only a new model replaces it.
 const VERSION = "__BUILD__";
 const SHELL = "betula-shell-" + VERSION;
 const PAGES = "betula-pages-" + VERSION;
+const MODELS = "betula-models";
 const KEPT_PAGES = 60;
 // How a page of this build asks for the files that change with a build.
 const TAG = new URL("?v=" + VERSION, self.location.href).search;
@@ -75,7 +80,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((names) => Promise.all(names.filter((name) => name !== SHELL && name !== PAGES).map((name) => caches.delete(name))))
+      .then((names) => Promise.all(names.filter((name) => name !== SHELL && name !== PAGES && name !== MODELS).map((name) => caches.delete(name))))
       .then(() => self.clients.claim()),
   );
 });
@@ -88,6 +93,8 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(page(request));
+  } else if (url.pathname.startsWith("/models/")) {
+    event.respondWith(model(event));
   } else if (ASSET.test(url.pathname)) {
     event.respondWith(asset(request));
   }
@@ -131,6 +138,25 @@ async function asset(request) {
   if (ours(response) && (search === "" || search === TAG)) {
     const cache = await caches.open(SHELL);
     await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+// The model of the semantic search: as kept, else the network's answer, kept in the worker's time
+// (the page gets it as it arrives) in place of the model kept before.
+async function model(event) {
+  const { request } = event;
+  const cache = await caches.open(MODELS);
+  const kept = await cache.match(request);
+  if (kept) return kept;
+  const response = await fetch(request);
+  if (response.ok) {
+    const copy = response.clone(); // before the page reads the response
+    event.waitUntil((async () => {
+      const before = await cache.keys();
+      await cache.put(request, copy);
+      await Promise.all(before.filter((key) => key.url !== request.url).map((key) => cache.delete(key)));
+    })().catch(() => {}));
   }
   return response;
 }

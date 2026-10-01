@@ -157,6 +157,9 @@ services:
     volumes:
       - loki-data:/loki
       - /opt/betula/config/monitoring/loki.yml:/etc/loki/loki.yml:ro
+      # The recording rules of the ruler (dashboard "Visitors"). A directory: the ruler reads it
+      # every minute and sees a changed file without a restart.
+      - /opt/betula/config/monitoring/loki-rules:/etc/loki/rules:ro
     networks:
       default: {}
     labels:
@@ -193,7 +196,7 @@ services:
       - /opt/betula/config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     networks:
       default: {}
-      monitoring: {}   # the only member of this stack on the shared overlay: it scrapes edge_traefik:8082
+      monitoring: {}   # the only member of this stack on the shared overlay: it scrapes edge_traefik:8082 and <stack>_radix:8090
     labels:
       app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
     cap_drop: [ALL]

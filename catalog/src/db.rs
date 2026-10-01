@@ -7,11 +7,13 @@ use std::fmt;
 /// The schema of the snapshot the queries of this crate are written for: its `PRAGMA
 /// user_version`, the number of the last migration of Radix (`internal/catalogdb/migrations`,
 /// docs/schema-v2.md §1). A copy of an older schema lacks what they select (before 0008,
-/// `v_program_plan` had no `source_pages`), so the browser does not start the app on one
-/// (`app/assets/boot.js`, into which the server writes this number), and the server reports it
-/// when it serves one. A test holds it to the newest migration. Schema 10 folds the names of the
-/// modules for the search (`v_module_folded`).
-pub const SCHEMA_VERSION: i64 = 10;
+/// `v_program_plan` had no `source_pages`) or says it in another form (before 0010 the module
+/// texts were lines of plain text, not Markdown: `text`), so the browser does not start the app
+/// on one (`app/assets/boot.js`, into which the server writes this number), and the server
+/// reports it when it serves one. A test holds it to the newest migration. 11: the modules'
+/// vectors of the semantic search (`v_module_vector`). 12: the names of the modules folded for the
+/// search of the catalog (`v_module_folded`).
+pub const SCHEMA_VERSION: i64 = 12;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]
@@ -107,7 +109,7 @@ impl Row<'_> {
             .ok_or_else(|| self.error(column, "no such column in the result"))
     }
 
-    fn error(&self, column: &str, message: &str) -> DbError {
+    pub(crate) fn error(&self, column: &str, message: &str) -> DbError {
         DbError::Decode { query: self.query, column: column.to_string(), message: message.to_string() }
     }
 

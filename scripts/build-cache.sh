@@ -2,7 +2,7 @@
 # One build cache per worktree, forked from the main checkout's.
 #
 #     bash scripts/build-cache.sh setup    in the main checkout, and again after `rustup update`
-#     bash scripts/build-cache.sh prime    in the main checkout, after a merge into master
+#     bash scripts/build-cache.sh prime    in the main checkout, after a merge into develop
 #     bash scripts/build-cache.sh gc       drop the caches of worktrees that are gone
 #
 # The main checkout builds into <main>/target/base. `setup` in a worktree copies that cache to
@@ -113,8 +113,8 @@ fork() {
       -cf - . | tar -C "$cache" -xf -
   # cargo decides what is stale by modification time. A file here that differs from base but
   # is older than base's artefacts -- edited before base was last built -- would count as
-  # built, and the worktree would run master's code. Newer than anything in the copy, every
-  # workspace source is compiled again, as it would be on a fresh worktree anyway.
+  # built, and the worktree would run the main checkout's code. Newer than anything in the
+  # copy, every workspace source is compiled again, as it would be on a fresh worktree anyway.
   git ls-files -z -- app catalog client pack server | xargs -0 touch
 }
 

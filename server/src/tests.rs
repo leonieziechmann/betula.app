@@ -199,7 +199,9 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         stale_after: None,
         public_url: "https://catalog.example".into(),
         site_root: "no-site".into(),
+        live_assets: None,
         packages: Arc::default(),
+        semantic: None,
         gate: None,
         renders: Arc::new(crate::busy::Places::new("render", 2, std::time::Duration::from_secs(3))),
         render_wait: std::time::Duration::from_secs(3),
@@ -235,6 +237,67 @@ async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str)
 /// The launch screens of iOS (`app::launch`): the head script of every page names those of its
 /// screen, and the server draws each one it can name, as large as its screen, and answers it again
 /// with 304 to its ETag; no other name is there. Needs no snapshot.
+/// The semantic search's model (`semantic`): served under the address its content names, kept
+/// for good, named to the browser by `boot.js` and `/api/status`; nothing under another name, and
+/// nothing at all, and `null` in both, without a model.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_semantic_model_is_served_under_its_hash() {
+    let without = crate::router(state(SnapshotStore::new(temp_dir("semantic-none")).unwrap()));
+    let (_, _, status) = request(&without, "/api/status", &[]).await;
+    assert_eq!(serde_json::from_slice::<serde_json::Value>(&status).unwrap()["semantic_model"], serde_json::Value::Null);
+    assert_eq!(request(&without, "/models/e5-de-en-0000000000000000.bin", &[]).await.0, StatusCode::NOT_FOUND);
+
+    use crate::semantic::Model;
+    assert!(Model::load(&temp_dir("semantic-missing").join("model.bin"), None).is_err());
+    let store = temp_dir("semantic-store");
+    std::fs::create_dir_all(&store).unwrap();
+    std::fs::write(store.join("model.bin"), b"PK\x03\x04").unwrap();
+    assert!(Model::load(&store.join("model.bin"), None).is_err(), "not E5Q1");
+
+    let bytes: Vec<u8> = b"E5Q1".iter().copied().chain((0..200_000u32).map(|i| (i % 7) as u8)).collect();
+    // In the model store a file is named by its content's sha256: a damaged one is refused.
+    use sha2::Digest;
+    let sum: String = sha2::Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+    std::fs::write(store.join(&sum), &bytes).unwrap();
+    std::fs::write(store.join("0".repeat(64)), &bytes).unwrap();
+    let passage = Some("0539da78bb98e8bb");
+    let loaded = Model::load(&store.join(&sum), passage).unwrap();
+    assert_eq!((loaded.passage.as_deref(), loaded.path.clone()), (passage, format!("/models/e5-de-en-{}.bin", &sum[..16])));
+    let damaged = Model::load(&store.join("0".repeat(64)), passage).err().unwrap().to_string();
+    assert!(damaged.contains("damaged"), "{damaged}");
+    for wrong in ["0539DA78BB98E8BB", "0539da78", "not-a-model-id!!"] {
+        assert!(Model::load(&store.join(&sum), Some(wrong)).is_err(), "{wrong}");
+    }
+    let model = loaded;
+    let path = model.path.clone();
+    assert!(path.starts_with("/models/e5-de-en-") && path.ends_with(".bin") && path.len() == "/models/e5-de-en-.bin".len() + 16, "{path}");
+    let mut with = state(SnapshotStore::new(temp_dir("semantic-model")).unwrap());
+    with.semantic = Some(Arc::new(model));
+    let router = crate::router(with);
+
+    let (status, headers, body) = request(&router, &path, &[]).await;
+    assert_eq!((status, body.len()), (StatusCode::OK, bytes.len()));
+    assert!(body == bytes);
+    assert_eq!(headers[header::CACHE_CONTROL], crate::api::Keep::IMMUTABLE, "its address names its content");
+    assert_eq!(headers[header::CONTENT_TYPE], "application/octet-stream");
+    let etag = headers[header::ETAG].to_str().unwrap().to_string();
+    assert_eq!(request(&router, &path, &[("if-none-match", &etag)]).await.0, StatusCode::NOT_MODIFIED);
+    let (_, headers, brotli) = request(&router, &path, &[("accept-encoding", "br")]).await;
+    assert_eq!(headers[header::CONTENT_ENCODING], "br");
+    assert_eq!(crate::encoding::unbrotli(&brotli).as_deref(), Some(&bytes[..]));
+    for other in ["/models/e5-de-en-0000000000000000.bin", "/models/model.bin", "/models/"] {
+        assert_eq!(request(&router, other, &[]).await.0, StatusCode::NOT_FOUND, "{other}");
+    }
+
+    let (_, _, status) = request(&router, "/api/status", &[]).await;
+    let status = serde_json::from_slice::<serde_json::Value>(&status).unwrap();
+    assert_eq!((&status["semantic_model"], &status["semantic_passage_model"]), (&serde_json::json!(path), &serde_json::json!("0539da78bb98e8bb")));
+    let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
+    let boot = String::from_utf8(boot).unwrap();
+    let written = serde_json::json!({ "url": path, "passage": "0539da78bb98e8bb" }).to_string();
+    assert!(boot.contains(&written) && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn the_launch_screens_of_ios_are_drawn_as_large_as_their_screen() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("launch")).unwrap()));
@@ -489,11 +552,14 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // app with its abilities, the questions, and „Betula im Detail" with every filter (2026-09-28).
     assert!(home.contains("\"@type\":\"WebApplication\"") && home.contains("\"@type\":\"FAQPage\""), "the start page's structured data");
     assert!(home.contains("id=\"im-detail\"") && home.matches("class=\"panel feature t-").count() == 8 && home.matches("class=\"bgroup").count() == 12, "the start page's „Betula im Detail\"");
-    // No sidebar (owner, 2026-09-28), and the way in for a first visit: three steps, the first the
-    // next one, since the server knows nothing of the visitor (R9); „Studiengang wählen" there and
-    // in the first panel a link to all programs (the picker is the app's); the figures on a birch;
-    // the wood behind the page, and no branches out of the panels any more.
-    assert!(!home.contains("id=\"sidebar\"") && home.contains("<div id=\"page-scroll\" class=\"work flowing solo\"><div class=\"page home-page\">"), "the start page has no frame");
+    // No sidebar (owner, 2026-09-28): the page is one scroll area without a frame (`#page-scroll`,
+    // app.css „one scroll area"), its attributes in either order as the wood's. The way in for a
+    // first visit: three steps, the first the next one, since the server knows nothing of the
+    // visitor (R9); „Studiengang wählen" there and in the first panel a link to all programs (the
+    // picker is the app's); the figures on a birch; the wood behind the page, and no branches out
+    // of the panels any more.
+    let scroll_area = ["<div class=\"work flowing solo\" id=\"page-scroll\">", "<div id=\"page-scroll\" class=\"work flowing solo\">"].iter().map(|area| home.matches(&format!("{area}<div class=\"page home-page\">")).count()).sum::<usize>();
+    assert!(!home.contains("id=\"sidebar\"") && home.matches("id=\"page-scroll\"").count() == 1 && scroll_area == 1, "the start page has no frame");
     assert!(home.contains("id=\"loslegen\"") && home.matches("class=\"start-step ").count() + home.matches("class=\"start-step\"").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
     assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.contains("class=\"hero-trunk\"") && woods(&home) == 1 && !home.contains("class=\"branch"), "the start page's buttons, figures and wood");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
@@ -516,6 +582,31 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     for link in ["rel=\"manifest\"", "rel=\"apple-touch-icon\"", "href=\"/favicon.ico\"", "name=\"theme-color\"", "rel=\"stylesheet\"", "rel=\"preload\""] {
         assert_eq!(head(&home).matches(link).count(), 1, "{link}");
     }
+    // What Google Search shows beside a result: of the pictures the start page links as `icon` or
+    // `apple-touch-icon`, the largest it can read (no SVG). That has to be the icon of the app,
+    // square and larger than 48 px (`app::ICON_192`); the mark (`/favicon.ico`) is 48 at most.
+    let mut largest = (0, String::new());
+    for link in head(&home).split("<link ").skip(1).filter_map(|tag| tag.split('>').next()) {
+        if !(link.contains("rel=\"icon\"") || link.contains("rel=\"apple-touch-icon\"")) || link.contains("image/svg+xml") {
+            continue;
+        }
+        let href = link.split("href=\"").nth(1).and_then(|rest| rest.split('"').next()).unwrap();
+        let (status, _, picture) = request(&router, href, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{href}");
+        let (width, height) = if picture.starts_with(b"\x89PNG") {
+            (u32::from_be_bytes(picture[16..20].try_into().unwrap()), u32::from_be_bytes(picture[20..24].try_into().unwrap()))
+        } else {
+            // An ICO: its widest entry (a width of 0 means 256).
+            let side = |byte: u8| if byte == 0 { 256 } else { u32::from(byte) };
+            let entries = usize::from(u16::from_le_bytes([picture[4], picture[5]]));
+            (0..entries).map(|entry| (side(picture[6 + 16 * entry]), side(picture[7 + 16 * entry]))).max().unwrap()
+        };
+        assert_eq!(width, height, "{href} is square");
+        if width > largest.0 {
+            largest = (width, href.to_string());
+        }
+    }
+    assert_eq!(largest, (192, app::ICON_192.to_string()), "{}", head(&home));
     // The fade between pages is opted into in the head itself: from the stylesheet alone the
     // browser may learn of it too late (`app::VIEW_TRANSITION_STYLE`).
     assert_eq!(head(&home).matches(&format!("<style>{}</style>", app::VIEW_TRANSITION_STYLE)).count(), 1, "{home}");
@@ -563,9 +654,9 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // for everybody.
     let (_, headers, css) = request(&router, "/assets/app.css?v=test", &[("accept-encoding", "gzip, deflate, br, zstd")]).await;
     assert_eq!(headers[header::CONTENT_ENCODING], "br");
-    assert_eq!(crate::encoding::unbrotli(&css).as_deref(), Some(&include_bytes!("../../app/assets/app.css")[..]));
+    assert_eq!(crate::encoding::unbrotli(&css).as_deref(), Some(crate::assets::text("app.css").as_bytes()), "minified by the build");
     assert_eq!(request(&router, "/assets/app.css", &[("accept-encoding", "br")]).await.2, css, "made once");
-    assert!(css.len() < include_bytes!("../../app/assets/app.css").len() / 4);
+    assert!(css.len() < crate::assets::text("app.css").len() / 4);
     let (_, headers, wasm) = request(&router, "/assets/sql-wasm.wasm?v=test", &[("accept-encoding", "br")]).await;
     assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), headers[header::CONTENT_TYPE].to_str().unwrap()), ("br", "application/wasm"));
     assert_eq!(crate::encoding::unbrotli(&wasm).as_deref(), Some(&include_bytes!("../../app/assets/sql-wasm.wasm")[..]));
@@ -573,13 +664,16 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (_, headers, font) = request(&router, app::FONT, &[("accept-encoding", "br")]).await;
     assert!(headers.get(header::CONTENT_ENCODING).is_none() && font == include_bytes!("../../app/assets/inter-latin.woff2"));
     // The worker knows the build too: it keeps the files under the addresses this build links.
+    // Both are served minified (`assets`), with what the server knows written in.
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
     let worker = String::from_utf8(worker).unwrap();
-    assert!(worker.contains("const VERSION = \"test\";") && !worker.contains("__BUILD__"), "{worker}");
+    assert_eq!(worker, crate::assets::text("sw.js").replace("__BUILD__", "test"));
+    assert!(!worker.contains("__BUILD__") && ["\"test\"", "'test'", "`test`"].iter().any(|build| worker.contains(build)), "{worker}");
     // The boot knows the schema its build reads, and opens no local copy of an older one.
     let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
     let boot = String::from_utf8(boot).unwrap();
-    assert!(boot.contains(&format!("const SCHEMA = Number(\"{}\");", catalog::SCHEMA_VERSION)) && !boot.contains("__SCHEMA__"), "{boot}");
+    assert_eq!(boot, crate::assets::text("boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string()).replace("__SEMANTIC_MODEL__", "null"));
+    assert!(!boot.contains("__SCHEMA__") && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
     // Every answer names the build that gave it; the worker keeps only the answers of its own.
     for path in ["/", "/catalog", "/assets/app.css?v=test", app::SERVICE_WORKER, "/manifest.webmanifest"] {
         let (_, headers, _) = request(&router, path, &[]).await;
@@ -600,8 +694,9 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     }
     // The birch: every mask the stylesheet names is served (a name it misses would leave a hole
     // in the crown or the ground without any error).
-    let stylesheet = include_str!("../../app/assets/app.css");
-    let masks: std::collections::BTreeSet<&str> = stylesheet.split("url(\"").skip(1).filter_map(|rest| rest.split('"').next()).filter(|url| url.starts_with("/assets/birch/")).collect();
+    let (_, _, stylesheet) = request(&router, "/assets/app.css?v=test", &[]).await;
+    let stylesheet = String::from_utf8(stylesheet).unwrap();
+    let masks: std::collections::BTreeSet<&str> = crate::warm::masks(&stylesheet).collect();
     assert!(masks.len() >= 12, "{masks:?}");
     for path in masks {
         let (status, headers, body) = request(&router, path, &[]).await;
@@ -968,7 +1063,8 @@ async fn calendar_services_may_fetch_feeds() {
     let robots = String::from_utf8(robots).unwrap();
     assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
-    assert!(String::from_utf8(worker).unwrap().contains("const NEVER = /^\\/(api\\/|access|sw\\.js$|([a-z]{2}\\/)?(cards|calendar)\\/)/;"));
+    // The rule it goes by, as the minified worker writes it.
+    assert!(String::from_utf8(worker).unwrap().contains("=/^\\/(api\\/|access|sw\\.js$|([a-z]{2}\\/)?(cards|calendar)\\/)/"));
 }
 
 /// Whether robots.txt lets `agent` fetch `address`, read as Google reads it (RFC 9309): the group
@@ -1072,7 +1168,17 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
 
     // A program with the plans of two study directions: its second plan is a page of its own.
     let slug = listed.iter().find_map(|page| page.strip_prefix("/programs/")?.strip_suffix("/plan?variant=2")).unwrap().to_string();
-    let pages = [
+    // A program whose sidebar names its other examination regulations: from „Mein Plan“ each leads
+    // to the other one's „Mein Plan“ (ae431c9). The program above need not have any (with the
+    // snapshot of 2026-09-30 it has, which is how the links were found); where the snapshot has such
+    // a program, it is checked as well (then Bauingenieurwesen B.Sc. 2022 and 2017). The synthetic
+    // snapshot has none.
+    let versioned = {
+        let db = NativeDatabase::open(&snapshot_file()).unwrap();
+        let programs = catalog::queries::programs(&db).unwrap();
+        programs.into_iter().filter(|p| p.is_latest_po).find(|p| !catalog::queries::program_versions(&db, &p.id).unwrap().is_empty()).map(|p| p.slug)
+    };
+    let mut pages = vec![
         "/".to_string(),
         "/catalog".to_string(),
         "/catalog?page=2".to_string(),
@@ -1092,6 +1198,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
         catalog::url::IMPRINT.to_string(),
         catalog::url::PRIVACY.to_string(),
     ];
+    pages.extend(versioned.iter().flat_map(|versioned| [format!("/programs/{versioned}/plan"), format!("/programs/{versioned}/my-plan")]));
     // Every page is checked before the test fails, so that it lists all there is.
     let mut problems = Vec::new();
     let mut followed = std::collections::BTreeSet::new();
@@ -1231,6 +1338,48 @@ async fn the_warm_up_goes_on_after_a_render_that_panics() {
     assert!(log.contains("path=/b") && log.contains("a render that panics") && log.contains("rendered=2") && log.contains("failed=1"), "{log}");
 }
 
+/// While working on the site (`--live-assets`) the stylesheet, the scripts and the SVGs come from
+/// disk as they are: an edit is there with the next request, even under the address of the build
+/// that a page links, the service worker keeps nothing, and no file is read but those the server
+/// serves anyway.
+#[tokio::test(flavor = "multi_thread")]
+async fn live_assets_come_from_disk() {
+    let dir = temp_dir("live-assets");
+    std::fs::create_dir_all(dir.join("birch")).unwrap();
+    std::fs::write(dir.join("app.css"), "body { color: red; }\n").unwrap();
+    std::fs::write(dir.join("boot.js"), "const SCHEMA = __SCHEMA__;\n").unwrap();
+    std::fs::write(dir.join("birch/roots.svg"), "<svg/>").unwrap();
+    std::fs::write(dir.join("secret.txt"), "not an asset").unwrap();
+    let mut live = state(SnapshotStore::new(temp_dir("live-assets-data")).unwrap());
+    live.live_assets = Some(dir.clone());
+    let router = crate::router(live);
+
+    let (status, headers, body) = request(&router, "/assets/app.css?v=test", &[("accept-encoding", "br, gzip")]).await;
+    assert_eq!((status, body.as_slice()), (StatusCode::OK, &b"body { color: red; }\n"[..]), "as it is on disk");
+    assert!(headers.get(header::CONTENT_ENCODING).is_none(), "not compressed: it goes to this machine");
+    assert_eq!(headers[header::CACHE_CONTROL], crate::cache::REVALIDATE, "not immutable under the build's address");
+    let etag = headers[header::ETAG].to_str().unwrap().to_string();
+    assert_eq!(request(&router, "/assets/app.css?v=test", &[("if-none-match", &etag)]).await.0, StatusCode::NOT_MODIFIED);
+    std::fs::write(dir.join("app.css"), "body { color: green; }\n").unwrap();
+    let (status, headers, body) = request(&router, "/assets/app.css?v=test", &[("if-none-match", &etag)]).await;
+    assert_eq!((status, body.as_slice()), (StatusCode::OK, &b"body { color: green; }\n"[..]), "an edit is there with the next request");
+    assert_ne!(headers[header::ETAG].to_str().unwrap(), etag);
+    // What is not read from disk is not kept as immutable either: the browser app is built again
+    // under the same address.
+    let (_, headers, _) = request(&router, &format!("{}?v=test", app::FONT), &[]).await;
+    assert_eq!(headers[header::CACHE_CONTROL], crate::cache::REVALIDATE);
+
+    let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
+    assert_eq!(String::from_utf8(boot).unwrap(), format!("const SCHEMA = {};\n", catalog::SCHEMA_VERSION));
+    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    assert_eq!(worker, crate::api::LIVE_SERVICE_WORKER.as_bytes(), "the worker keeps nothing");
+    assert_eq!(request(&router, "/assets/birch/roots.svg", &[]).await.2, b"<svg/>");
+    // Nothing but the files of the server, and one of them missing on disk is not found.
+    for path in ["/assets/birch/..%2Fsecret.txt", "/assets/birch/secret.txt", "/assets/enhance.js"] {
+        assert_eq!(request(&router, path, &[]).await.0, StatusCode::NOT_FOUND, "{path}");
+    }
+}
+
 /// The icons of a page point into one sprite, served once, with the build of the page.
 #[tokio::test(flavor = "multi_thread")]
 async fn icons_point_into_the_sprite() {
@@ -1245,7 +1394,7 @@ async fn icons_point_into_the_sprite() {
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/svg+xml"));
     assert!(sprite.contains("<symbol id=\"check\" viewBox=\"0 0 24 24\"><path d=\"M20 6 9 17l-5-5\"/></symbol>"));
     let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
-    assert!(String::from_utf8(worker).unwrap().contains("\"/assets/icons.svg\","), "the service worker keeps the sprite");
+    assert!(String::from_utf8(worker).unwrap().contains("/assets/icons.svg"), "the service worker keeps the sprite");
 }
 
 /// `/api/db` hands every browser the same compressed bytes from memory.

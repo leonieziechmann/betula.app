@@ -1,7 +1,7 @@
 {
   "uid": "betula-visitors",
   "title": "Visitors",
-  "description": "How many people use betula.app, estimated from Traefik's access log (7 days). Provisioned from deploy/config/monitoring/grafana/dashboards - edit there.",
+  "description": "How many people use betula.app. Loki's ruler counts them from Traefik's access log (config/monitoring/loki-rules) and stores the numbers in Prometheus; this dashboard only reads those. Provisioned from deploy/config/monitoring/grafana/dashboards - edit there.",
   "tags": [
     "betula"
   ],
@@ -19,7 +19,6 @@
   },
   "timepicker": {
     "refresh_intervals": [
-      "1m",
       "5m",
       "15m",
       "1h"
@@ -77,15 +76,15 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Visitors",
-      "description": "Browsers (address + user agent) that started the app in the selected range.",
+      "title": "Visitors, last 24 h",
+      "description": "Browsers (address + user agent) that started the app in the 24 hours before the end of the range.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
+        "w": 6,
         "x": 0,
         "y": 1
       },
@@ -93,13 +92,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count(sum by (host, ua) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` |= `/api/status` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | path=`/api/status` | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*` | ua!=`` | host!~`(66\\.249|74\\.125|192\\.178)\\..*` [$__range])))",
-          "legendFormat": "__auto",
-          "queryType": "instant",
+          "expr": "sum(last_over_time(betula:visitors:24h[15m]))",
+          "legendFormat": "visitors",
           "instant": true,
           "range": false
         }
@@ -134,29 +132,28 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Visitors, last 24 h",
-      "description": "Browsers that started the app in the 24 hours up to now, whatever the range.",
+      "title": "Visitors, last 7 days",
+      "description": "Browsers that started the app in the 7 days before the end of the range. Counted once an hour.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 5,
+        "w": 6,
+        "x": 6,
         "y": 1
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count(sum by (host, ua) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` |= `/api/status` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | path=`/api/status` | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*` | ua!=`` | host!~`(66\\.249|74\\.125|192\\.178)\\..*` [24h])))",
-          "legendFormat": "__auto",
-          "queryType": "instant",
+          "expr": "sum(last_over_time(betula:visitors:7d[3h]))",
+          "legendFormat": "visitors",
           "instant": true,
           "range": false
         }
@@ -192,28 +189,27 @@
       "id": 4,
       "type": "stat",
       "title": "App starts",
-      "description": "Every visit, returning ones too (one /api/status each).",
+      "description": "Every start of the app in the range, returning visits too.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 10,
+        "w": 6,
+        "x": 12,
         "y": 1
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` |= `/api/status` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | path=`/api/status` | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*` | ua!=`` | host!~`(66\\.249|74\\.125|192\\.178)\\..*` [$__range]))",
-          "legendFormat": "__auto",
-          "queryType": "instant",
+          "expr": "sum(sum_over_time(last_over_time(betula:app_starts:1h[10m])[$__range:1h]))",
+          "legendFormat": "app starts",
           "instant": true,
           "range": false
         }
@@ -248,29 +244,28 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Calendar subscribers",
-      "description": "Clients (address + user agent) that fetched a calendar feed (/calendar/<code>.ics) in the range - calendar apps poll it, so each subscription shows up.",
+      "title": "Active calendar subscriptions",
+      "description": "Feed addresses a calendar fetched at least twice in 7 days and also in the last 48 hours. Counted once an hour.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 15,
+        "w": 6,
+        "x": 18,
         "y": 1
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count(sum by (host, ua) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` |= `calendar/` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | path=~`(/en)?/calendar/.*` | status=~`2..|304` [$__range])))",
-          "legendFormat": "__auto",
-          "queryType": "instant",
+          "expr": "last_over_time(betula:calendar_subscriptions:active[3h])",
+          "legendFormat": "subscriptions",
           "instant": true,
           "range": false
         }
@@ -303,38 +298,17 @@
       }
     },
     {
-      "id": 6,
-      "type": "text",
-      "title": "How this is counted",
-      "description": "",
-      "gridPos": {
-        "h": 12,
-        "w": 4,
-        "x": 20,
-        "y": 1
-      },
-      "targets": [],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "A **visitor** is one browser that started the app: `boot.js` asks `/api/status` (with `cache: no-store`) on every visit, returning ones too. Crawlers mostly fetch HTML only; the ones that run the app (Google's renderer) are filtered by user agent and by Google's address ranges. A browser is counted by address + user agent, never shown.\n\n- **Too high:** a phone that changes its address counts again; the owner's own devices and tests are in it.\n- **Too low:** several people behind one address with the same browser count once (a flat, a university network). BTU eduroam blocks the name.\n- **Window:** Traefik's access log stays 7 days in Loki (`loki.yml`, privacy notice). Longer ranges show nothing more."
-      }
-    },
-    {
       "id": 7,
       "type": "timeseries",
       "title": "Visitors, rolling 24 h",
       "description": "At each point: browsers that started the app in the 24 hours before it.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 8,
-        "w": 10,
+        "w": 12,
         "x": 0,
         "y": 5
       },
@@ -342,13 +316,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count(sum by (host, ua) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` |= `/api/status` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | path=`/api/status` | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*` | ua!=`` | host!~`(66\\.249|74\\.125|192\\.178)\\..*` [1d])))",
+          "expr": "sum(betula:visitors:24h)",
           "legendFormat": "visitors in the last 24 h",
-          "queryType": "range",
           "instant": false,
           "range": true
         }
@@ -366,7 +339,7 @@
             "lineWidth": 2,
             "fillOpacity": 20,
             "barAlignment": -1,
-            "lineInterpolation": "stepAfter",
+            "lineInterpolation": "linear",
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -390,35 +363,33 @@
           "sort": "desc"
         }
       },
-      "interval": "1h",
-      "maxDataPoints": 200
+      "interval": "5m"
     },
     {
       "id": 8,
       "type": "timeseries",
       "title": "Visitors per hour",
-      "description": "Browsers that started the app in each hour. Shows when people use Betula.",
+      "description": "Browsers that started the app in each hour.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 8,
-        "w": 10,
-        "x": 10,
+        "w": 12,
+        "x": 12,
         "y": 5
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count(sum by (host, ua) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` |= `/api/status` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | path=`/api/status` | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*` | ua!=`` | host!~`(66\\.249|74\\.125|192\\.178)\\..*` [1h])))",
+          "expr": "sum(last_over_time(betula:visitors:1h[10m]))",
           "legendFormat": "visitors",
-          "queryType": "range",
           "instant": false,
           "range": true
         }
@@ -461,7 +432,7 @@
         }
       },
       "interval": "1h",
-      "maxDataPoints": 200
+      "maxDataPoints": 1000
     },
     {
       "id": 9,
@@ -479,15 +450,15 @@
     {
       "id": 10,
       "type": "piechart",
-      "title": "Device",
-      "description": "Visitors in the range by user agent: Phone (Mobile/iPhone/Android), Tablet (iPad), Desktop.",
+      "title": "Device, last 7 days",
+      "description": "Phone (iPhone, Android with Mobile), Tablet (iPad, Android without Mobile), Desktop. iPads that ask for the desktop site count as Desktop.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
+        "w": 12,
         "x": 0,
         "y": 14
       },
@@ -495,13 +466,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count by (device) (sum by (device, host, ua) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` |= `/api/status` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | path=`/api/status` | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*` | ua!=`` | host!~`(66\\.249|74\\.125|192\\.178)\\..*` | label_format device=`{{ if or (contains \"Mobile\" .ua) (contains \"iPhone\" .ua) (contains \"Android\" .ua) }}Phone{{ else if contains \"iPad\" .ua }}Tablet{{ else }}Desktop{{ end }}` [$__range])))",
+          "expr": "sort_desc(sum by (device) (last_over_time(betula:visitors:7d[3h])))",
           "legendFormat": "{{device}}",
-          "queryType": "instant",
           "instant": true,
           "range": false
         }
@@ -525,6 +495,7 @@
           "values": false
         },
         "pieType": "donut",
+        "sort": "desc",
         "legend": {
           "displayMode": "table",
           "placement": "right",
@@ -544,29 +515,28 @@
     {
       "id": 11,
       "type": "piechart",
-      "title": "Browser",
-      "description": "Visitors in the range by browser, read from the user agent.",
+      "title": "Browser, last 7 days",
+      "description": "Read from the user agent.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
-        "x": 6,
+        "w": 12,
+        "x": 12,
         "y": 14
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count by (browser) (sum by (browser, host, ua) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` |= `/api/status` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | path=`/api/status` | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*` | ua!=`` | host!~`(66\\.249|74\\.125|192\\.178)\\..*` | label_format browser=`{{ if contains \"Firefox\" .ua }}Firefox{{ else if contains \"Edg/\" .ua }}Edge{{ else if contains \"OPR/\" .ua }}Opera{{ else if contains \"SamsungBrowser\" .ua }}Samsung{{ else if contains \"Chrome\" .ua }}Chrome{{ else if contains \"CriOS\" .ua }}Chrome{{ else if contains \"Safari\" .ua }}Safari{{ else }}other{{ end }}` [$__range])))",
+          "expr": "sort_desc(sum by (browser) (last_over_time(betula:visitors:7d[3h])))",
           "legendFormat": "{{browser}}",
-          "queryType": "instant",
           "instant": true,
           "range": false
         }
@@ -590,6 +560,7 @@
           "values": false
         },
         "pieType": "donut",
+        "sort": "desc",
         "legend": {
           "displayMode": "table",
           "placement": "right",
@@ -604,67 +575,6 @@
           "sort": "none"
         },
         "displayLabels": []
-      }
-    },
-    {
-      "id": 12,
-      "type": "bargauge",
-      "title": "Pages people load",
-      "description": "Successful requests without crawlers, by the first part of the path (/en is folded in); assets, API, cards and feeds left out. Counts page loads, not visitors: the app itself navigates without asking the server for most pages.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 14
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "editorMode": "code",
-          "expr": "topk(12, sum by (page) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` != `Googlebot` != `Nexus 5X Build/MMB29P` !~ `\"RequestPath\":\"/(pkg|assets|cards)/` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*` | ua!=`` | host!~`(66\\.249|74\\.125|192\\.178)\\..*` | status=~`2..|304` | path!~`/(pkg|assets|api|sw\\.js|favicon|apple-touch|manifest|cards|robots|sitemap|livez|healthz|calendar|en/calendar).*` | label_format page=`{{ regexReplaceAll \"^(/en)?(/[a-z]*)?.*\" .path \"${2}\" }}` | page!=`` [$__range])))",
-          "legendFormat": "{{page}}",
-          "queryType": "instant",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "min": 0,
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "blue"
-          },
-          "noValue": "0"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "left",
-        "sizing": "auto",
-        "minVizHeight": 16,
-        "maxVizHeight": 24
       }
     },
     {
@@ -684,13 +594,13 @@
       "id": 14,
       "type": "timeseries",
       "title": "Requests: Google, other crawlers, everything else",
-      "description": "All requests to betula.app. \"Everything else\" is people plus scanners and tools without a crawler user agent.",
+      "description": "All requests to betula.app per hour. \"Everything else\" is people plus scanners and tools without a crawler user agent.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 14,
         "x": 0,
         "y": 23
@@ -699,13 +609,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (who) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | label_format who=`{{ $u := lower .ua }}{{ if or (contains \"googlebot\" $u) (contains \"nexus 5x build/mmb29p\" $u) (hasPrefix \"66.249.\" .host) }}Google{{ else if or (contains \"bot\" $u) (contains \"crawl\" $u) (contains \"spider\" $u) }}other crawlers{{ else }}everything else{{ end }}` [$__auto]))",
+          "expr": "sum by (who) (last_over_time(betula:requests:1h[10m]))",
           "legendFormat": "{{who}}",
-          "queryType": "range",
           "instant": false,
           "range": true
         }
@@ -748,19 +657,19 @@
         }
       },
       "interval": "1h",
-      "maxDataPoints": 200
+      "maxDataPoints": 1000
     },
     {
       "id": 15,
       "type": "bargauge",
       "title": "Crawlers by name",
-      "description": "Requests in the range by crawler (bot/crawler/spider in the user agent; Google's renderer sends a Nexus 5X agent without the word).",
+      "description": "Requests in the range by crawler: the word with bot/crawl/spider in its user agent. Google's renderer sends a Nexus 5X agent without that word.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 10,
         "x": 14,
         "y": 23
@@ -769,13 +678,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "topk(10, sum by (crawler) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"betula.app\"` | json host=\"ClientHost\", ua=\"[\\\"request_User-Agent\\\"]\", path=\"RequestPath\", status=\"DownstreamStatus\" | ua=~`(?i).*(bot|crawl|spider|Nexus 5X Build/MMB29P).*` | label_format crawler=`{{ if contains \"Nexus 5X Build/MMB29P\" .ua }}{{ if contains \"Googlebot\" .ua }}Googlebot{{ else }}Google renderer{{ end }}{{ else }}{{ regexReplaceAll \"(?i)^.*?([a-z0-9._-]*(bot|crawler|spider)[a-z0-9._-]*).*$\" .ua \"${1}\" }}{{ end }}` [$__range])))",
+          "expr": "sort_desc(topk(10, sum by (crawler) (sum_over_time(last_over_time(betula:requests:1h{crawler!=\"\"}[10m])[$__range:1h]))))",
           "legendFormat": "{{crawler}}",
-          "queryType": "instant",
           "instant": true,
           "range": false
         }

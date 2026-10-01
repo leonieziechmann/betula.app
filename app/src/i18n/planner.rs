@@ -28,6 +28,13 @@ pub struct Texts {
     pub semester_of_study: fn(u8, &str) -> String,
     /// … and the mark at the end of a semester the module is planned in.
     pub planned_mark: &'static str,
+    /// What a row swiped to the right uncovers on a module planned where it aims (`swipe.rs`):
+    /// „Entfernen" …
+    pub remove: &'static str,
+    /// … with the line under it, the semester it takes the module out of (the value) …
+    pub out_of: fn(&str) -> String,
+    /// … and „Entfernt" once it is done (a module planned by the swipe says `planned`).
+    pub removed: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -42,6 +49,9 @@ pub const DE: Texts = Texts {
     semesters_of: |title| format!("{title}: Semester"),
     semester_of_study: |n, semester| format!("{n}. FS · {semester}"),
     planned_mark: "geplant",
+    remove: "Entfernen",
+    out_of: |semester| format!("aus {semester}"),
+    removed: "Entfernt",
 };
 
 pub const EN: Texts = Texts {
@@ -56,4 +66,7 @@ pub const EN: Texts = Texts {
     semesters_of: |title| format!("{title}: semesters"),
     semester_of_study: |n, semester| format!("{} sem. · {semester}", super::format::ordinal(i64::from(n))),
     planned_mark: "planned",
+    remove: "Remove",
+    out_of: |semester| format!("from {semester}"),
+    removed: "Removed",
 };

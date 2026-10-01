@@ -40,7 +40,25 @@ scrape_configs:
     static_configs:
       - targets: ["monitoring_alloy:12345"]
 
-  # App metrics later: attach the radix service to the "monitoring" overlay and add e.g.
-  # - job_name: radix
-  #   static_configs:
-  #     - targets: ["betula_radix:8090"]
+  # Radix, the collector, of every instance (stacks/betula.yml puts it on the "monitoring"
+  # overlay): GET /metrics, for the dashboard "Radix". Found by DNS, not listed: tasks.<service>
+  # names the running task, and the name of an instance that does not run does not resolve, so
+  # it is no target at all instead of a target that is down (rule "Monitoring target is down").
+  # A new instance file (stacks/<instance>.env) needs its line here.
+  - job_name: radix
+    dns_sd_configs:
+      - names:
+          - tasks.betula_radix
+          - tasks.betula-green_radix
+          - tasks.canary_radix
+          - tasks.canary-green_radix
+        type: A
+        port: 8090
+        refresh_interval: 30s
+    relabel_configs:
+      # stack="betula-green", and the same as instance: the address changes with every task.
+      - source_labels: [__meta_dns_name]
+        regex: "tasks\\.(.+)_radix"
+        target_label: stack
+      - source_labels: [stack]
+        target_label: instance

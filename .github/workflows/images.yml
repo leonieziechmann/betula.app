@@ -1,0 +1,295 @@
+# The two images of the application (flake.nix: radix-image, folia-image), built for every push
+# to master that changes what they are built from - exactly as deploy/ship.sh builds them: the
+# same sources (git archive of BUILD_PATHS), the same "path:" flake, the same release tag
+# <date>-<short hash>. The result is ONE artifact, betula-images-<tag>.tar, kept for a week:
+#
+#   release.json          tag, commits, run, and the sha256 of both image files
+#   radix-image.tar.gz    docker archives as "nix build" leaves them, for "docker load"
+#   folia-image.tar.gz
+#
+# Nothing here reaches the server, and no secret is used. The server fetches the artifact itself
+# (deploy/vps/canary-agent.sh, deploy/README.md section 12) with a token that can only read this
+# repository's workflow runs; only runs of THIS file, started by a push to master, count there.
+#
+# The repository is public: this file, its logs and its artifacts can be read by everybody, so
+# none of them may ever hold a secret (none does: the job asks for nothing but reading the code).
+# Pull requests and forks cannot start it - only a push to master does.
+#
+# Actions are pinned to the commit of a release (the comment names it). Updating one: look the
+# tag up (git ls-remote --tags https://github.com/<owner>/<action>), read the release notes,
+# replace the hash and the comment.
+name: images
+
+on:
+  push:
+    branches: [master]
+    # What the images are built from: BUILD_PATHS in deploy/ship.sh (the first step of the job
+    # checks that every one of them is listed here), and this file. A push that changes nothing
+    # of it (docs, deploy/) is no new release, as for ship.sh.
+    paths:
+      - .github/workflows/images.yml
+      - flake.nix
+      - flake.lock
+      - Cargo.toml
+      - Cargo.lock
+      - go.mod
+      - go.sum
+      - app/**
+      - catalog/**
+      - client/**
+      - pack/**
+      - server/**
+      - cmd/**
+      - internal/**
+
+# Nothing by default; the job asks for what it needs.
+permissions: {}
+
+# One build at a time per branch. A push while one runs waits, and of several that wait only the
+# newest runs (GitHub replaces the pending run of a group): every build that finishes can reach
+# canary. No cancel-in-progress: with a merge every quarter of an hour it would cancel every build
+# before it is done.
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  images:
+    name: radix-image and folia-image
+    runs-on: ubuntu-24.04
+    # On the standard runner of a public repository (4 processors, 16 GB; its minutes cost
+    # nothing). Measured on 2026-09-30: 12 1/2 to 20 minutes without a cache (Go with its tests,
+    # wasm-bindgen, the Rust dependencies, the web server, the browser app with fat LTO), 7 to 11
+    # after a change to the app (deploy/README.md section 12).
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The release tag names the last commit that changed the sources: that needs the history.
+          fetch-depth: 0
+          # Nothing after this step talks to GitHub with the token.
+          persist-credentials: false
+
+      - name: Release tag
+        id: release
+        run: |
+          set -Eeuo pipefail
+          # The list and the tag of deploy/ship.sh, read from there, so the two cannot drift.
+          line="$(grep -E '^BUILD_PATHS=\(.*\)$' deploy/ship.sh)"
+          read -r -a paths <<<"$(sed -E 's/^BUILD_PATHS=\((.*)\)$/\1/' <<<"${line}")"
+          [[ "${#paths[@]}" -gt 0 ]] || { echo "::error::no BUILD_PATHS in deploy/ship.sh"; exit 1; }
+          for path in "${paths[@]}"; do
+            grep -qxF -e "      - ${path}" -e "      - ${path}/**" .github/workflows/images.yml ||
+              { echo "::error::${path} is in BUILD_PATHS (deploy/ship.sh) but not under on.push.paths of this workflow"; exit 1; }
+          done
+          commit="$(git log -1 --format=%h --abbrev=7 HEAD -- "${paths[@]}")"
+          # The date in the commit's own time zone ("format:", not "format-local:"): the same on
+          # the workstation and here.
+          day="$(git log -1 --format=%cd --date=format:%Y-%m-%d HEAD -- "${paths[@]}")"
+          tag="${day}-${commit}"
+          [[ "${tag}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]{7,40}$ ]] || { echo "::error::'${tag}' is not a release tag"; exit 1; }
+          {
+            echo "tag=${tag}"
+            echo "build_commit=$(git log -1 --format=%H HEAD -- "${paths[@]}")"
+            echo "paths=${paths[*]}"
+          } >>"${GITHUB_OUTPUT}"
+          echo "release ${tag}"
+
+      # The Nix cache: what earlier builds made that cache.nixos.org does not have - the Rust
+      # dependencies (flake.nix builds them apart with crane), wasm-bindgen, Radix, the crates.
+      # A binary cache in a directory (nix copy --to file://...), kept with GitHub's own cache
+      # action. What it holds is taken without signatures, so nothing but this workflow may put
+      # anything into it: only its runs write it, it runs for pushes to master only, and GitHub
+      # lets a run read the caches of its own branch and of the default branch (develop, where
+      # no workflow writes), never a pull request's or a fork's.
+      - name: Restore the Nix cache
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nix-cache
+          # A new key when what the cache holds changes: the dependencies (Cargo.lock, the
+          # manifests, go.sum), the flake, the Go sources (Radix with its tests). A change to the
+          # app alone finds its key and saves nothing; a new key starts from the newest cache.
+          key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'Cargo.lock', '**/Cargo.toml', 'go.mod', 'go.sum', 'cmd/**', 'internal/**') }}
+          restore-keys: nix-${{ runner.os }}-
+
+      - name: Prepare the Nix cache
+        run: |
+          set -Eeuo pipefail
+          cache="${RUNNER_TEMP}/nix-cache"
+          mkdir -p "${cache}"
+          [[ -f "${cache}/nix-cache-info" ]] || printf 'StoreDir: /nix/store\n' >"${cache}/nix-cache-info"
+          # Nix runs this after every derivation it builds (not for what it substitutes): the list
+          # of what this run made, for "Collect the Nix cache" below.
+          cat >"${RUNNER_TEMP}/post-build-hook" <<EOF
+          #!/bin/sh
+          printf '%s\n' \$OUT_PATHS >>"${RUNNER_TEMP}/nix-built"
+          EOF
+          chmod 0755 "${RUNNER_TEMP}/post-build-hook"
+          echo "restored: ${{ steps.cache.outputs.cache-matched-key || 'nothing' }} ($(du -sh "${cache}" | cut -f 1))"
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          extra_nix_config: |
+            sandbox = true
+            accept-flake-config = false
+            # The restored cache, before cache.nixos.org (priority 40). trusted: its paths carry no
+            # signatures (see above). fallback: a path it cannot deliver is built instead.
+            extra-substituters = file://${{ runner.temp }}/nix-cache?trusted=1&priority=10
+            fallback = true
+            post-build-hook = ${{ runner.temp }}/post-build-hook
+
+      - name: Build
+        id: build
+        env:
+          PATHS: ${{ steps.release.outputs.paths }}
+        run: |
+          set -Eeuo pipefail
+          read -r -a paths <<<"${PATHS}"
+          src="${RUNNER_TEMP}/src"
+          out="${RUNNER_TEMP}/images"
+          mkdir -p "${src}" "${out}"
+          # As deploy/ship.sh: the commit, not the checkout, byte for byte (LF), built as a
+          # "path:" flake. So a release is the same derivation here and on the workstation.
+          git -c core.autocrlf=false -c core.eol=lf archive --format=tar HEAD -- "${paths[@]}" | tar -xf - -C "${src}"
+          # --keep-going: what does not depend on a failure is still built, so the log names every
+          # failure, not just the first.
+          nix build "path:${src}#radix-image" "path:${src}#folia-image" --out-link "${RUNNER_TEMP}/result" --print-build-logs --keep-going
+          cp -L "${RUNNER_TEMP}/result" "${out}/radix-image.tar.gz"
+          cp -L "${RUNNER_TEMP}/result-1" "${out}/folia-image.tar.gz"
+          ls -l "${out}"
+          df -h / | tail -n 1
+
+      - name: Smoke test
+        run: |
+          set -Eeuo pipefail
+          out="${RUNNER_TEMP}/images"
+          for image in radix folia; do
+            loaded="$(docker load -i "${out}/${image}-image.tar.gz")"
+            echo "${loaded}"
+            # The name deploy/ship.sh and the server expect; they give it the release tag.
+            grep -qxF "Loaded image: betula-${image}:latest" <<<"${loaded}" ||
+              { echo "::error::${image}-image.tar.gz does not hold betula-${image}:latest"; exit 1; }
+          done
+          docker run --rm --network none --cap-drop ALL betula-radix:latest help >/dev/null
+          # The web server starts without a snapshot (/livez 200, /healthz 503) and has no shell:
+          # its own healthcheck asks /livez from inside, as the stack's health check does.
+          cid="$(docker run -d --network none --cap-drop ALL --read-only --tmpfs /tmp -e FOLIA_ACCESS_GATE=off betula-folia:latest)"
+          alive=0
+          for _ in $(seq 1 60); do
+            if docker exec "${cid}" /bin/folia healthcheck; then
+              alive=1
+              break
+            fi
+            sleep 1
+          done
+          docker logs --tail 20 "${cid}" 2>&1
+          docker rm -f "${cid}" >/dev/null
+          [[ "${alive}" == "1" ]] || { echo "::error::the web server did not answer /livez within a minute"; exit 1; }
+
+      - name: Pack
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          BUILD_COMMIT: ${{ steps.release.outputs.build_commit }}
+        run: |
+          set -Eeuo pipefail
+          cd "${RUNNER_TEMP}/images"
+          sha() { sha256sum "$1" | cut -d ' ' -f 1; }
+          jq -n \
+            --arg tag "${TAG}" \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg build_commit "${BUILD_COMMIT}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg radix "$(sha radix-image.tar.gz)" \
+            --arg folia "$(sha folia-image.tar.gz)" \
+            '{tag: $tag, repository: $repository, commit: $commit, build_commit: $build_commit,
+              run_id: ($run_id | tonumber), run_attempt: ($run_attempt | tonumber),
+              images: {radix: {file: "radix-image.tar.gz", sha256: $radix},
+                       folia: {file: "folia-image.tar.gz", sha256: $folia}}}' >release.json
+          cat release.json
+          # Uncompressed: the image files are gzip already. Owner and modes fixed, so the file
+          # says nothing about this runner.
+          tar --owner=0 --group=0 --numeric-owner --mode=0644 -cf "${RUNNER_TEMP}/betula-images-${TAG}.tar" \
+            release.json radix-image.tar.gz folia-image.tar.gz
+          {
+            echo "### Release ${TAG}"
+            echo
+            echo "| image | bytes | sha256 |"
+            echo "|---|---|---|"
+            for image in radix folia; do
+              echo "| betula-${image}:${TAG} | $(stat -c %s "${image}-image.tar.gz") | \`$(sha "${image}-image.tar.gz")\` |"
+            done
+            echo
+            echo "Artifact \`betula-images-${TAG}.tar\` (kept for a week). The server fetches it by itself (deploy/README.md section 12)."
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          # archive: false uploads the file as it is, under its own name: no zip for the server
+          # to unpack, and the digest GitHub keeps is the sha256 of exactly this file.
+          path: ${{ runner.temp }}/betula-images-${{ steps.release.outputs.tag }}.tar
+          archive: false
+          # The server picks a build up within minutes; a week covers a server that was away and
+          # a release fetched by hand. A public repository pays nothing for the storage.
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Collect the Nix cache
+        id: collect
+        # After the upload, so that the release never waits for it. Only when the key was not
+        # found (a change to the app alone leaves the cache as it is), and only after a build that
+        # succeeded: an entry cannot be replaced, and one saved half full would stay half full for
+        # as long as its key is in use - every build would make the missing half again.
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.cache.outputs.cache-hit != 'true' }}
+        # The cache only saves time: when it cannot be kept, the step is marked, and the run still
+        # succeeds - canary takes only runs that succeeded, and the images are fine.
+        continue-on-error: true
+        run: |
+          set -Eeuo pipefail
+          # One byte order for sort and comm.
+          export LC_ALL=C
+          cache="${RUNNER_TEMP}/nix-cache"
+          next="${RUNNER_TEMP}/nix-cache.next"
+          src="${RUNNER_TEMP}/src"
+          lists="$(mktemp -d)"
+          # What building the contents of the two images needs, every path of it. The images
+          # themselves and what dockerTools makes on the way are new with every release: they
+          # would only take room.
+          drvs="$(nix path-info --derivation "path:${src}#radix" "path:${src}#folia" "path:${src}#folia-client")"
+          # shellcheck disable=SC2086 # one path per word
+          nix-store --query --requisites --include-outputs ${drvs} | sed '/\.drv$/d' | sort -u >"${lists}/needed"
+          # Of that, what cache.nixos.org does not have: what this run built, and what it found in
+          # the restored cache.
+          {
+            cat "${RUNNER_TEMP}/nix-built" 2>/dev/null || true
+            find "${cache}" -maxdepth 1 -name '*.narinfo' -exec sed -n 's/^StorePath: //p' {} +
+          } | sort -u >"${lists}/ours"
+          comm -12 "${lists}/needed" "${lists}/ours" >"${lists}/keep"
+          if [[ ! -s "${lists}/keep" ]]; then
+            echo "nothing to cache: this run built nothing that it needs"
+            exit 0
+          fi
+          rm -rf "${next}"
+          # With what they refer to: a binary cache takes a path only together with its references
+          # (glibc and a few more from cache.nixos.org). Uncompressed: the cache action compresses
+          # the whole directory with zstd anyway.
+          nix copy --to "file://${next}?compression=none" --stdin <"${lists}/keep"
+          rm -rf "${cache}"
+          mv "${next}" "${cache}"
+          echo "$(wc -l <"${lists}/keep") paths, $(du -sh "${cache}" | cut -f 1)"
+          echo "save=true" >>"${GITHUB_OUTPUT}"
+
+      - name: Save the Nix cache
+        if: ${{ !cancelled() && steps.collect.outputs.save == 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nix-cache
+          key: ${{ steps.cache.outputs.cache-primary-key }}

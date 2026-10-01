@@ -2,7 +2,8 @@
 -- by every build instead of by every reader. SQLite's LIKE folds ASCII only: „übung“ missed
 -- „Übung“, „okologie“ found none of the 21 modules on „Ökologie“, and the words of a title were
 -- found only as one phrase, in the order the title has them. Only the names of a module are
--- folded, not the texts of its description (owner, 2026-09-30).
+-- folded, not the texts of its description (owner, 2026-09-30): those are what the semantic
+-- search compares a query with (0011).
 --
 -- module_folded   one row per module
 --   title_de, title_en   normalize.SearchText of the title: lower case, ß → ss, without the
@@ -18,7 +19,7 @@
 --                        words of its titles (internal/abbrev: „bwl“ for Betriebswirtschaftslehre);
 --                        separated by one space
 --
--- v_module_search stays as it was for the readers of schema 9. Existing data is not rewritten:
+-- v_module_search stays as it was for the readers of older schemas. Existing data is not rewritten:
 -- until the next build module_folded is empty, and validate fails, so a migrated but unbuilt
 -- database is never exported.
 

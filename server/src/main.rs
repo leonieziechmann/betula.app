@@ -12,6 +12,7 @@
 
 mod access;
 mod api;
+mod assets;
 mod birch;
 mod busy;
 mod cache;
@@ -21,6 +22,7 @@ mod encoding;
 mod lastmod;
 mod launch;
 mod logo;
+mod semantic;
 mod snapshot;
 mod texts;
 #[cfg(test)]
@@ -62,8 +64,13 @@ pub struct AppState {
     pub public_url: Arc<str>,
     /// Where the built browser app lives (`<site-root>/pkg`).
     pub site_root: std::path::PathBuf,
+    /// `app/assets` while working on the site (`--live-assets`): the minified files are read from
+    /// there on every request, as they are (`api::minified`), and nothing is kept as immutable.
+    pub live_assets: Option<std::path::PathBuf>,
     /// The files of the browser app as they are served, by name.
     pub packages: Packages,
+    /// The browser's model of the semantic search (`--semantic-model`); `None` without one.
+    pub semantic: Option<Arc<semantic::Model>>,
     /// Closed testing: the password in front of the whole site (`access`); `None` when it is open.
     pub gate: Option<Arc<access::Gate>>,
     /// Where pages that are not in the cache are rendered, and how long a page waits for a place
@@ -263,6 +270,7 @@ pub fn files() -> Router<AppState> {
         .route("/assets/sql-wasm.js", get(api::sql_js))
         .route("/assets/sql-wasm.wasm", get(api::sql_wasm))
         .route("/pkg/{file}", get(api::package))
+        .route("/models/{file}", get(api::semantic_model))
         .route(app::FAVICON_ICO, get(api::favicon_ico))
         .route(app::TOUCH_ICON, get(api::touch_icon))
         // iOS asks for this name too before it reads the page.
@@ -368,8 +376,18 @@ fn main() -> std::process::ExitCode {
 }
 
 async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::ExitCode {
-    if let Some(config::Command::Healthcheck) = config.command {
-        return healthcheck(config.addr).await;
+    match config.command {
+        Some(config::Command::Healthcheck) => return healthcheck(config.addr).await,
+        Some(config::Command::Assets) => {
+            return match assets::report(&config.site_root) {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("folia assets: {error}");
+                    std::process::ExitCode::FAILURE
+                }
+            };
+        }
+        None => {}
     }
     init_logging(&config);
 
@@ -403,6 +421,20 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
     // One place per processor unless configured.
     let places = |configured: usize| if configured > 0 { configured } else { cpus };
     let render_wait = Duration::from_millis(config.render_wait_ms);
+    // Optional: without its model the app simply has no semantic search, so a model that cannot
+    // be read is an error in the log, not a site that does not start.
+    // An empty value is no value: the stack file hands over an empty one without models.
+    let passage = config.semantic_passage_model.as_deref().filter(|id| !id.is_empty());
+    let semantic = config.semantic_model.as_deref().filter(|path| !path.as_os_str().is_empty()).and_then(|path| match semantic::Model::load(path, passage) {
+        Ok(model) => {
+            tracing::info!(component = "server", event = "semantic.model", path = %path.display(), served_at = %model.path, passage_model = model.passage.as_deref().unwrap_or("any"), "the browser's model of the semantic search is served");
+            Some(Arc::new(model))
+        }
+        Err(error) => {
+            tracing::error!(component = "server", event = "semantic.model_unreadable", path = %path.display(), error = %error, "the browser's model of the semantic search cannot be read; the app runs without the semantic search");
+            None
+        }
+    });
     let state = AppState {
         store,
         cache: Arc::new(HtmlCache::new(config.html_cache_mb * 1024 * 1024)),
@@ -412,7 +444,9 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         stale_after: config.stale_after(),
         public_url: config.public_url.trim_end_matches('/').into(),
         site_root: config.site_root.clone(),
+        live_assets: config.live_assets.clone(),
         packages: Arc::default(),
+        semantic,
         gate,
         renders: Arc::new(busy::Places::new("render", places(config.render_places), render_wait)),
         render_wait,
@@ -425,6 +459,14 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
             .site_addr(config.addr)
             .build(),
     };
+
+    if let Some(dir) = &state.live_assets {
+        if !dir.join("app.css").is_file() {
+            tracing::error!(component = "server", event = "server.start_failed", live_assets = %dir.display(), "--live-assets names no copy of app/assets (there is no app.css in it)");
+            return std::process::ExitCode::FAILURE;
+        }
+        tracing::warn!(component = "server", event = "server.live_assets", dir = %dir.display(), "the stylesheet, the scripts and the SVGs come from disk as they are, nothing is kept as immutable, and the service worker keeps nothing: for working on the site, never in production");
+    }
 
     let listener = match tokio::net::TcpListener::bind(config.addr).await {
         Ok(listener) => listener,
@@ -450,7 +492,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
     if config.warm_cache {
         tokio::spawn(warm::run(pages(&state).with_state(state.clone()), state.store.clone(), state.changes.clone()));
     }
-    tokio::spawn(warm::files(files().with_state(state.clone()), state.build_id.clone()));
+    tokio::spawn(warm::files(files().with_state(state.clone()), state.build_id.clone(), state.semantic.as_ref().map(|model| model.path.clone())));
 
     match axum::serve(listener, router(state)).with_graceful_shutdown(shutdown_signal()).await {
         Ok(()) => std::process::ExitCode::SUCCESS,

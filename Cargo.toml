@@ -4,11 +4,12 @@ members = [
     "catalog",
     "client",
     "pack",
+    "semantic",
     "server",
 ]
 # `client` is the WASM build of the app (feature csr); building it together with the server
 # (feature ssr) would unify both into one leptos. Build it with scripts/build-client.sh.
-default-members = ["app", "catalog", "pack", "server"]
+default-members = ["app", "catalog", "pack", "semantic", "server"]
 resolver = "2"
 
 # Leptos view types make full debug info enormous (a 1.8 GB server binary).
@@ -49,6 +50,11 @@ opt-level = 3
 [profile.dev.package.brotli-decompressor]
 opt-level = 3
 
+# The encoder of the semantic search (semantic/) is arithmetic in loops: unoptimised, embedding
+# the catalog's modules takes the dev server hours instead of minutes.
+[profile.dev.package.folia-semantic]
+opt-level = 3
+
 [profile.release]
 lto = "thin"
 
@@ -70,3 +76,8 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
+
+# The Web Worker of the semantic search (scripts/build-semantic.sh) is built with wasm-release too,
+# but it is arithmetic, not UI: optimised for speed rather than size.
+[profile.wasm-release.package.folia-semantic]
+opt-level = 3

@@ -25,7 +25,7 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
-// AccessLog logs every request (event http.request). Health checks and 304
+// AccessLog logs every request (event http.request). Health checks, scrapes and 304
 // answers are DEBUG, because they arrive every few seconds and say nothing new;
 // a 5xx answer is an ERROR, any other 4xx/503 a WARN.
 func AccessLog(next http.Handler) http.Handler {
@@ -40,7 +40,7 @@ func AccessLog(next http.Handler) http.Handler {
 			level = slog.LevelWarn
 		case sw.status >= 500:
 			level = slog.LevelError
-		case sw.status == http.StatusNotModified || r.URL.Path == "/healthz":
+		case sw.status == http.StatusNotModified || r.URL.Path == "/healthz" || r.URL.Path == "/metrics":
 			level = slog.LevelDebug
 		}
 		oplog.For("http").Log(r.Context(), level, "request", "event", "http.request", "method", r.Method, "path", r.URL.Path,

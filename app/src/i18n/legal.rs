@@ -272,7 +272,7 @@ pub const DE: Texts = Texts {
             "„Mein Studiengang“ mit Studienrichtung, Studienbeginn und Standort,",
             "Einstellungen, etwa die Sprache (beim ersten Besuch die deines Browsers), hell oder dunkel, die Breite der Seitenleisten und was „Passt in meinen Stundenplan“ vergleicht,",
             "für die laufende Sitzung, wo du in jedem Bereich zuletzt warst und wie weit du gescrollt hast,",
-            "eine Kopie des Katalogs, die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert.",
+            "eine Kopie des Katalogs, das Sprachmodell der Suche (sie läuft ganz in deinem Browser), die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert.",
         ],
         texts: &[
             "Das alles liegt nur auf deinem Gerät; ich kann es nicht einsehen, und ein Konto gibt es nicht. Ein anderes Gerät hat seine eigenen Daten. Der Link, mit dem du deine Merkliste auf ein anderes Gerät bringst, trägt sie hinter dem „#“, und diesen Teil einer Adresse sendet kein Browser an einen Server.",
@@ -425,7 +425,7 @@ pub const EN: Texts = Texts {
             "“My programme” with study track, start of studies and location,",
             "settings, such as the language (on your first visit, your browser's), light or dark, the width of the sidebars and what “Fits my timetable” compares,",
             "for the current browser session, where you last were in each area and how far you had scrolled,",
-            "a copy of the catalogue, the app's files and up to 60 recently visited pages, so that Betula starts quickly and also works offline.",
+            "a copy of the catalogue, the language model of the search (it runs entirely in your browser), the app's files and up to 60 recently visited pages, so that Betula starts quickly and also works offline.",
         ],
         texts: &[
             "All of this is kept only on your device; I cannot see it, and there are no accounts. Another device has its own data. The link that takes your saved modules to another device carries them after the “#”, and no browser sends that part of an address to a server.",

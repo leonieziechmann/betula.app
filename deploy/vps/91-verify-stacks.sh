@@ -5,7 +5,7 @@
 #   bash /opt/betula/vps/91-verify-stacks.sh                 # everything
 #   bash /opt/betula/vps/91-verify-stacks.sh tls headers     # only some sections
 #
-# Sections: services http tls headers ports accesslog app loki prometheus grafana alerts
+# Sections: services http tls headers ports accesslog app canary loki prometheus grafana alerts
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
 # Changes nothing. The only traffic it causes: a few requests to the site (which also put fresh
 # lines into Traefik's access log for the Loki check) and queries inside the monitoring stack.
@@ -31,7 +31,7 @@ require_ubuntu
 require_cmd docker curl openssl jq
 require_swarm_manager
 
-ALL_SECTIONS=(services http tls headers ports accesslog app loki prometheus grafana alerts)
+ALL_SECTIONS=(services http tls headers ports accesslog app canary loki prometheus grafana alerts)
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST:-${DEFAULT_GRAFANA_HOST}}"
 RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
 # Jobs that must be "up": five scraped by Prometheus (config/monitoring/prometheus.yml), two
@@ -214,6 +214,9 @@ check_standby() {
     done
   fi
 }
+
+# canary_follows_master - true while betula-canary.timer is on (vps/60-canary.sh, README.md section 12).
+canary_follows_master() { systemctl is-active --quiet betula-canary.timer 2>/dev/null; }
 
 # header_value HEADERS NAME -> value of the LAST response header NAME (case-insensitive), without CR.
 header_value() {
@@ -412,15 +415,53 @@ check_accesslog() {
   if [[ "${kept}" -eq 0 ]]; then pass "no Traefik container keeps log files of its own"; fi
 }
 
+# service_env SERVICE NAME -> the value the service is given for the variable NAME (nothing without).
+service_env() {
+  docker service inspect "$1" --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null |
+    sed -n "s#^$2=##p" || true
+}
+
+# check_models INSTANCE - the semantic search: does the instance run the models of models.lock?
+# MODELS_STORE_READY is models_ready's verdict, asked once for all instances.
+check_models() {
+  local name=$1 radix folia
+  radix="$(service_env "${INSTANCE_STACK}_radix" RADIX_EMBED_MODEL)"
+  folia="$(service_env "${INSTANCE_STACK}_folia" FOLIA_SEMANTIC_MODEL)"
+  if [[ -z "${radix}${folia}" ]]; then
+    if [[ "${MODELS_STORE_READY}" == "yes" ]]; then
+      warning "${name}: runs without the semantic search, though the model store holds the models of models.lock (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+    else
+      warning "${name}: runs without the semantic search: ${MODELS_DETAIL}"
+    fi
+  elif [[ "${radix}" == "/models/${MODEL_PASSAGE}" && "${folia}" == "/models/${MODEL_QUERY}" ]]; then
+    pass "${name}: runs the models of models.lock (passage ${MODEL_PASSAGE:0:16}, query ${MODEL_QUERY:0:16})"
+  else
+    warning "${name}: runs other models than models.lock names (Radix ${radix##*/}, Folia ${folia##*/}); its next deploy brings the lock's (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+  fi
+}
+
 check_app() {
-  section "application (every instance in stacks/*.env: router, release, crawling, certificate, alive, closed testing)"
+  section "application (every instance in stacks/*.env: router, release, crawling, models, certificate, alive, closed testing)"
   local name url rule radix_tag folia_tag radix_args code out body path live deployed=0
+  MODELS_STORE_READY="no"
+  read_model_lock
+  if models_ready; then
+    MODELS_STORE_READY="yes"
+    pass "the model store holds the models of models.lock, intact (bash ${BETULA_ROOT}/vps/models.sh status)"
+  else
+    warning "${MODELS_DETAIL}"
+  fi
   while IFS= read -r name; do
     [[ -n "${name}" ]] || continue
     load_instance "${name}"
     url="https://${INSTANCE_HOST}"
     if ! stack_exists "${INSTANCE_STACK}"; then
-      warning "instance ${name} (${url}) is not deployed (deploy/ship.sh ${name})"
+      # Following master, canary keeps one colour: the other one is where the next release goes.
+      if is_canary_colour "${name}" && canary_follows_master; then
+        pass "instance ${name} is not deployed: canary follows master and keeps one colour, the next release goes here (section canary)"
+      else
+        warning "instance ${name} (${url}) is not deployed (deploy/ship.sh ${name})"
+      fi
       continue
     fi
     deployed=1
@@ -452,6 +493,8 @@ check_app() {
     else
       fail "${name}: ${name}.env says RADIX_CRAWL=on, but Radix runs the command \"${radix_args}\" (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
     fi
+
+    check_models "${name}"
 
     # Blue-green: of two instances with one host, the public URL only reaches the live one.
     live="$(app_stack_for_host "${INSTANCE_HOST}")"
@@ -508,9 +551,71 @@ check_app() {
   fi
 }
 
+check_canary() {
+  section "canary follows master (vps/canary-agent.sh, started by betula-canary.timer)"
+  local unit state_dir="/var/lib/betula-canary" result started line expires colour
+  local -a colours=()
+  if [[ ! -f /etc/systemd/system/betula-canary.timer ]]; then
+    warning "not installed: canary changes only with deploy/ship.sh (sudo bash ${BETULA_ROOT}/vps/60-canary.sh, README.md section 12)"
+    return 0
+  fi
+  for unit in betula-canary.service betula-canary.timer; do
+    if cmp -s -- "/etc/systemd/system/${unit}" "${BETULA_VPS_DIR}/files/${unit}"; then pass "${unit} as shipped"; else
+      fail "/etc/systemd/system/${unit} differs from vps/files/${unit} (edited on the server, or deploy/ is newer: sudo bash ${BETULA_ROOT}/vps/60-canary.sh)"
+    fi
+  done
+  if canary_follows_master; then
+    pass "betula-canary.timer is on (next look: $(systemctl show betula-canary.timer --property=NextElapseUSecRealtime --value 2>/dev/null))"
+  else
+    warning "betula-canary.timer is off: canary does not follow master (sudo bash ${BETULA_ROOT}/vps/60-canary.sh on)"
+  fi
+  result="$(systemctl show betula-canary.service --property=Result --value 2>/dev/null || true)"
+  started="$(systemctl show betula-canary.service --property=ExecMainStartTimestamp --value 2>/dev/null || true)"
+  if [[ -z "${started}" ]]; then
+    warning "betula-canary.service has not run since the last boot"
+  elif [[ "${result}" == "success" ]]; then
+    pass "the last run of betula-canary.service (${started}) succeeded"
+  else
+    fail "the last run of betula-canary.service (${started}) ended with '${result}': journalctl -u betula-canary.service -n 80"
+  fi
+  if [[ -r "${state_dir}/deployed" ]]; then
+    pass "last deploy: $(head -n 1 "${state_dir}/deployed")"
+  else
+    warning "the agent has not deployed a release yet"
+  fi
+  # GitHub names the token's expiry in every answer; the agent keeps the last one it saw.
+  if [[ -r "${state_dir}/token-expires" ]]; then
+    line="$(head -n 1 "${state_dir}/token-expires")"
+    expires="$(date -d "${line}" +%s 2>/dev/null || true)"
+    if [[ ! "${expires}" =~ ^[0-9]+$ ]]; then
+      warning "the GitHub token expires '${line}' (not a date this script can read)"
+    elif [[ "${expires}" -le "$(date +%s)" ]]; then
+      fail "the GitHub token of the agent expired ${line}: canary no longer follows master. A new one: README.md section 12"
+    elif [[ "${expires}" -le $(($(date +%s) + 14 * 86400)) ]]; then
+      warning "the GitHub token of the agent expires ${line}, in less than 14 days: store a new one (README.md section 12)"
+    else
+      pass "the GitHub token of the agent is valid until ${line}"
+    fi
+  fi
+  if [[ -r "${state_dir}/failed" ]]; then
+    line="$(head -n 1 "${state_dir}/failed")"
+    warning "release ${line%% *} failed $(awk '{ print $2 }' <<<"${line}") time(s) so far (journalctl -u betula-canary.service); it is tried at most 3 times"
+  fi
+  for colour in "${CANARY_COLOURS[@]}"; do
+    if stack_exists "${colour}"; then
+      colours+=("${colour}")
+    fi
+  done
+  case "${#colours[@]}" in
+    1) pass "one colour of the canary is deployed: ${colours[0]}" ;;
+    0) fail "no colour of the canary is deployed: nothing serves it (sudo systemctl start betula-canary.service, or deploy/ship.sh ${CANARY_COLOURS[0]})" ;;
+    *) warning "both colours of the canary are deployed (${colours[*]}): a deploy is running, or one ended before it removed the old colour; the next deploy removes the one that does not serve" ;;
+  esac
+}
+
 check_loki() {
-  section "Loki (ready, and fed by Alloy with the contract's labels)"
-  local body value i
+  section "Loki (ready, fed by Alloy with the contract's labels, ruler storing the visitor numbers)"
+  local body value i want have failing
   if ! find_prometheus; then
     fail "no running monitoring_prometheus container to query from (docker service ps monitoring_prometheus)"
     return 0
@@ -550,6 +655,27 @@ check_loki() {
   else
     fail "${value} access log lines under {job=\"journal\"} in the last 15 minutes, kept 30 days there: loki.relabel \"journal\" in config/monitoring/alloy/config.alloy (40-stacks.sh monitoring)"
   fi
+  # The ruler counts the visitors (config/monitoring/loki-rules) and writes the numbers to
+  # Prometheus; the dashboard "Visitors" reads nothing else.
+  want="$(find "${CONFIG_DIR}/monitoring/loki-rules" -name '*.yml' -exec grep -hcE '^[[:space:]]+- record: ' {} + 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')"
+  body="$(mon_get "http://monitoring_loki:3100/prometheus/api/v1/rules" || true)"
+  have="$(jq -r '[.data.groups[].rules[]] | length' <<<"${body}" 2>/dev/null || true)"
+  failing="$(jq -r '[.data.groups[].rules[] | select(.health == "err") | "\(.name): \(.lastError)"] | join("; ")' <<<"${body}" 2>/dev/null || true)"
+  if [[ ! "${have}" =~ ^[0-9]+$ ]]; then
+    fail "Loki's ruler does not answer /prometheus/api/v1/rules (docker service logs monitoring_loki)"
+  elif [[ "${have}" -lt "${want}" ]]; then
+    fail "Loki's ruler knows ${have} recording rules, config/monitoring/loki-rules defines ${want} (mounted at /etc/loki/rules? docker service logs monitoring_loki 2>&1 | grep -i rule)"
+  elif [[ -n "${failing}" ]]; then
+    fail "recording rules fail: ${failing}"
+  else
+    pass "Loki's ruler has ${have} recording rules, none failing"
+  fi
+  value="$(prom_value 'count({__name__=~"betula:.+"})' || true)"
+  if [[ "${value}" =~ ^[0-9]+$ && "${value}" -gt 0 ]]; then
+    pass "the visitor numbers reach Prometheus (${value} series betula:*)"
+  else
+    warning "no betula:* series in Prometheus: the ruler counts every 5 minutes after Loki started; if this stays, docker service logs monitoring_loki 2>&1 | grep -i -e rule -e remote"
+  fi
 }
 
 check_prometheus() {
@@ -571,6 +697,18 @@ check_prometheus() {
       traefik:*) fail "up{job=\"traefik\"} is ${value:-unknown}: Prometheus cannot scrape edge_traefik:8082 over the monitoring overlay" ;;
       integrations/*:absent) fail "up{job=\"${job}\"} is absent: Alloy does not push host/container metrics (docker service logs monitoring_alloy)" ;;
       *) fail "up{job=\"${job}\"} is ${value:-unknown}" ;;
+    esac
+  done
+  # Radix of every instance that runs (job radix, found by DNS: tasks.<stack>_radix; dashboard
+  # "Radix"). An instance without a line in prometheus.yml is not scraped at all.
+  local stack
+  for stack in $(instance_names); do
+    [[ "$(service_state "${stack}_radix")" == ok* ]] || continue
+    value="$(jq -r --arg stack "${stack}" '[.data.result[] | select(.metric.job == "radix" and .metric.stack == $stack) | .value[1]] | if length == 0 then "absent" else (map(tonumber) | min | tostring) end' <<<"${body}" 2>/dev/null || true)"
+    case "${value}" in
+      1) pass "up{job=\"radix\", stack=\"${stack}\"} = 1" ;;
+      absent) fail "${stack}_radix runs but Prometheus does not scrape it: is tasks.${stack}_radix in config/monitoring/prometheus.yml, and is the service on the monitoring overlay (stacks/betula.yml)?" ;;
+      *) fail "up{job=\"radix\", stack=\"${stack}\"} is ${value:-unknown}: an image from before GET /metrics answers 404 (ship a current one)" ;;
     esac
   done
   # The alert rules and dashboards select on these labels; cAdvisor has to see Docker for them.

@@ -26,6 +26,7 @@ pub mod pending;
 pub mod seo;
 pub mod skeleton;
 pub mod studyplan;
+pub mod swipe;
 pub mod tabs;
 pub mod ui;
 pub mod week;
@@ -69,6 +70,12 @@ pub const FAVICON: &str = "/assets/favicon.svg";
 /// wallpaper. The site keeps its mark; the leaf stands whole in whatever shape a launcher cuts.
 pub const FAVICON_ICO: &str = "/favicon.ico";
 pub const TOUCH_ICON: &str = "/apple-touch-icon.png";
+/// Also the picture Google Search shows beside the site's results (owner, 2026-10-01: the icon of
+/// the app there). Google takes one per host from the start page's `icon` and `apple-touch-icon`
+/// links, reads no SVG and asks for a square larger than 48 px; how it chooses among several it
+/// does not document (as far as can be seen, the largest it reads). Linked as an `icon` of 192 px,
+/// this one is the largest of either kind. The tab keeps the mark: Chromium and Firefox take the
+/// SVG whatever else is linked (Chromium does not even fetch this one).
 pub const ICON_192: &str = "/assets/icon-192.png";
 pub const ICON_512: &str = "/assets/icon-512.png";
 pub const ICON_MASKABLE: &str = "/assets/icon-maskable-512.png";
@@ -162,6 +169,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <meta name="theme-color" content=THEME_LIGHT/>
                 <link rel="icon" href=FAVICON_ICO sizes="32x32"/>
                 <link rel="icon" type="image/svg+xml" href=FAVICON/>
+                // The icon of the app for Google Search; tabs keep the mark (`ICON_192`).
+                <link rel="icon" type="image/png" sizes="192x192" href=ICON_192/>
                 <link rel="apple-touch-icon" href=TOUCH_ICON/>
                 // The app a home screen installs from this page: this language's (`/en/…`).
                 <link rel="manifest" href=t.path(MANIFEST)/>

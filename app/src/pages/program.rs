@@ -427,8 +427,10 @@ fn ProgramSidebar(
                         <span>{(t.program.counterpart)(c.level.label(t.locale))}<small>{c.name.clone()}" · PO "{c.po_version.clone()}</small></span>
                     </a>
                 })}
+                // The same view under another examination regulation: „Mein Plan" is no page for a
+                // crawler there either.
                 {data.versions.iter().map(|v| view! {
-                    <a class="action" href=t.path(&url::program_path(&v.slug, tab))>
+                    <a class="action" href=t.path(&url::program_path(&v.slug, tab)) rel=(!tab.indexed()).then_some("nofollow")>
                         <Icon name="file-check-2"/>
                         <span>"PO "{v.po_version.clone()}{v.is_latest_po.then_some(t.program.current_po)}</span>
                     </a>

@@ -21,7 +21,7 @@
 //!   without addresses, 30 days (`access_log` in `server/src/main.rs`);
 //! - „Speicher im Browser": R20 (docs/frontend.md) and the stores (`bookmarks`, `studyplan`,
 //!   `myprogram`, `tabs`, what the finder compares in `pages/catalog`, `assets/enhance.js`,
-//!   `assets/boot.js`, `assets/sw.js`);
+//!   `assets/boot.js`, `assets/sw.js`; the semantic search's model, `server/src/semantic.rs`);
 //! - „Kalender-Abo": `catalog::timetable::subscription` (what a code carries), `server/src/api.rs`,
 //!   the ways to subscribe in `pages/studyplan/export.rs`;
 //! - „Stundenplan teilen": `catalog::timetable::share` (what a code carries), the page's tags and

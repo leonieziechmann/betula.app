@@ -24,7 +24,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -70,8 +70,9 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   green of the birch leaf and carries the mark's four bars as the marks of bark, entering from its
   edges as they enter the square: close enough to the mark that it is recognised, and whole in any
   shape a launcher cuts and in one colour for Android's themed icons. It is the icon of the home
-  screen only (the manifest's icons, `apple-touch-icon.png`, the splash screens); the site keeps
-  the mark in the tab, the rail and the link previews („ich mag das aktuelle Icon eigentlich sehr").
+  screen (the manifest's icons, `apple-touch-icon.png`, the splash screens) and, since 2026-10-01,
+  of the site's results in Google Search (owner: the app icon there); the site keeps the mark in
+  the tab, the rail and the link previews („ich mag das aktuelle Icon eigentlich sehr").
   `design/logo/app-icon.mjs`, described in `logo.html`.
 - **Layout:** a thin icon rail (52 px), a top bar with the search, and the whole remaining screen
   for content, with 8 px gaps and 9 px corners. The catalog is three panels side by side: filters,
@@ -209,6 +210,22 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   The sidebar jumps to the sections of the page (without history entries, so Esc still leaves the
   page) and holds the actions: „Merken", copy the link, the original at the BTU, and the place
   where the semester plan will live.
+- **A module's texts are set as text, not as lines** (owner, 2026-10-01: „support für Blocksatz",
+  „Paragraphen sollen als solche erkennbar sein. Listen sollen erkannt werden und dem entsprechend
+  formatiert werden"). Learning outcomes, contents, assessment, remarks and the prerequisites in
+  the page's words are Markdown since schema 10 (docs/schema-v2.md §3, „Module texts"), read by
+  `catalog::text` and set by `ui::Prose`: paragraphs apart by a gap, lists with their markers in
+  the margin (a list labelled „(1)", „a)", „IV." with its labels there), strong and emphasized
+  words, the line breaks the text keeps. The text is justified (Blocksatz) and hyphenated by the
+  rules of its own language — the `lang` of the module's page (`v_module.page_lang`), so a German
+  text on the English page breaks as German — never into syllables of fewer than three letters;
+  a column too narrow for it is set ragged (Blocksatz, under „Look and interaction"). Nothing but
+  text reaches the page: `catalog::text` reads the CommonMark Radix writes — paragraphs, lists,
+  strong and emphasized text, line breaks, escapes — by CommonMark's rules and nothing else, so a
+  „#", a „<b>" or a „[link](…)" a text holds anyway stands as it is. The reader is the catalog's
+  own: pulldown-cmark made the browser's app 60 KB larger (brotli), the reader and the views
+  10 KB. The page's description and its structured data take the text as one line
+  (`text::plain`, the items of a list apart by „·").
 - **„Merken" (owner decision 2026-09-20: in the browser app only, and no data of a visitor on
   the server; `app/src/bookmarks.rs`, `app/src/pages/bookmarks.rs`).** A visitor marks modules to
   come back to. The marks live in this browser's `localStorage` (`betula.bookmarks.v1`, a line
@@ -223,8 +240,10 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
     its shortcut, beside „Einplanen" — where the line has no room for the two side by side, they
     stand one over the other at its end and the badges wrap in the rest of it (owner,
     2026-09-26; on a phone the pair has a line of its own under the badges and fills it, half
-    each, owner 2026-09-27); and among the actions of the module
-    page's sidebar, which stays in view while the page scrolls. All of them show one state.
+    each, owner 2026-09-27); among the actions of the module
+    page's sidebar, which stays in view while the page scrolls; and on a phone by swiping the
+    module's row in the catalog or in the Merkliste to the left (below). All of them show one
+    state.
     **`M`** marks what the visitor is at: the row the keyboard is on, else the module that is
     open. A marked module is neutral and strong (filled, inverted), like a chosen chip; the
     accent stays with primary actions.
@@ -248,7 +267,9 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   - **A mark taken away on that page stays on the page,** dimmed, until the page is left: a slip
     is one click to undo, and the list does not jump under the pointer. Marking changes numbers,
     never the list: no query runs and the rows stay the same elements (each button reads the
-    marks through a memo of its own, R5).
+    marks through a memo of its own, R5). So does a row swiped to the left on a phone („Entfernen
+    · von der Merkliste", below): it stays, dimmed, and swiped to the left once more it is marked
+    again; while it is swiped its card is whole, or the ground would show through it.
   - A marked module stays on the list when it is no longer offered, and one the snapshot does not
     know (taken out of the BTU's catalog) is named under „Nicht im Modulkatalog", not dropped
     (R12). What is stored is read like anything from outside: ids that cannot be ids are
@@ -312,25 +333,70 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   the link out of the program instead of walking the history back into the module it has just
   closed.
 - **A swipe along the phone's bottom bar goes to the tab beside the current one** (owner,
-  2026-09-30: „wenn man nach links swiped soll ein tab nach links gehen und beim rechts swipe eine
-  tab nach rechts"; `enhance.js`, app.css): to the left one tab to the left, to the right one to
-  the right, from wherever on the bar the finger starts. What moves is the selection, not the
-  page (owner: „keine Seitenanimationen", but „eine Animation der Selection um den Prozess vom
-  Swipen visuell zu unterstützen"): a finger that moves sideways rather than up or down carries
-  the mark of the current tab with it, with the finger as far as the tab beside it and then held
-  back (a swipe is one tab, never two), and held back from the start where no tab lies that way;
-  it never leaves the bar. On its way each icon turns light as far as the mark covers it, each
-  name dark as the mark comes close, a count changes over with its icon. Let go a third of the
-  way there or further, or flicked (as the sheet measures a flick, by the events' own times), the
-  mark glides on with the spring of the other marks that slide and the tab is clicked: the page
-  follows as it follows a tap (R21, one step of the history; before the app takes over the
-  browser loads it). Otherwise the mark glides back. The moving mark is the bar's own
-  (`::before`), laid over the current tab's from the first move; the tab's own takes over once
-  its tab is the current one, in one frame and without its fade. Up and down the bar scrolls the
-  page as before (`touch-action: pan-y`); the moves of a swipe are the bar's alone (a quick one
-  left to Chromium ended in a fling of nothing, and the next tap anywhere, up to a second later,
-  only stopped that fling). A mouse (a narrow window) drags the mark the same way, and what it
-  lets go of is no click.
+  2026-09-30, and the other way round the next day, the first direction being „invertiert zu dem,
+  was man intuitiv erwartet": „die ganze Leiste zu bewegen und den selector stehen zu lassen und
+  erst wenn man los lässt geht das dann wieder zur original Location zurück"; of the prototype's
+  ways „nur tabs + ein Element", `design/tabbar/swipe.html`; `enhance.js`, app.css): to the left
+  one tab to the right, to the right one to the left, from wherever on the bar the finger starts.
+  What moves is the bar's row of tabs, not the page (owner: „keine Seitenanimationen", but „eine
+  Animation der Selection um den Prozess vom Swipen visuell zu unterstützen"): a finger that moves
+  sideways rather than up or down takes the row with it inside the bar, which stays, clips the row
+  and fades it out at its two ends, while the mark of the current tab stays where it is; so a
+  finger to the left brings the tab on the right under the mark, with the finger as far as that
+  tab and then held back (a swipe is one tab, never two), and held back from the start where no
+  tab lies that way. The mark that stays is the bar's lens (`.bottomnav-lens`, made by enhance.js on
+  the bar's first swipe), laid over the current tab's mark from the first move: the mark's colour
+  with a copy of the row inside that moves as the row does, light, so what is under the lens is
+  light and the rest dark, cut at its edge, a count with its icon; each name turns dark as the lens
+  comes close. Let go a third of the way there or further, or flicked (as the sheet measures a
+  flick, by the events' own times), and the tab is clicked: the page follows as it follows a tap
+  (R21, one step of the history; before the app takes over the browser loads it); otherwise
+  nothing happens. Either way the row springs back to its place and the lens to the tab that is
+  current, on one damped spring with the small swing of the other marks that slide: the row from
+  where it is and as fast as it went (a flick carries it on a few px first), the lens from a
+  standstill (a glide on one fixed curve, which turned the row round at full speed, felt „ein wenig
+  klunky"). The glide is Web Animations of keyframes computed from the spring, which the
+  compositor runs while the tab's page is built, and a finger that catches it takes the row and
+  the lens where they are, so two quick swipes go two tabs (before the app, while the next page
+  loads, the bar takes taps only). The tab's own mark
+  takes over once its tab is the current one, in one frame and without its fade. Up and down the
+  bar scrolls the page as before (`touch-action: pan-y`); the moves of a swipe are the bar's alone
+  (a quick one left to Chromium ended in a fling of nothing, and the next tap anywhere, up to a
+  second later, only stopped that fling). A mouse (a narrow window) drags the row the same way, and
+  what it lets go of is no click; a tap while the row glides taps the tab under the finger.
+- **A row of the catalog and of the Merkliste is swiped to mark and to plan its module** (owner,
+  2026-09-30: „Nach links wischen merken nach rechts wischen planen. Mach das so, dass dann darunter
+  freigelegt wird was die Aktion macht (also Icon und Text)", and the same day for the Merkliste:
+  „Mach das auch in der Merkliste"; `app/src/swipe.rs`, app.css): on a phone, in the browser app,
+  to the left „Merken", to the right „Einplanen" — the two switches of the module's
+  page, pressed from the list without opening the module, with the same effect (`MarkButton`,
+  `studyplan::press`). The card follows the finger and uncovers what lies under it at the side it
+  leaves: the action's icon and word, and a line of what it is done to — the semester „Einplanen"
+  plans into, aimed as the switch aims (from the module's own Termine, as on its page, and the
+  finder's semester and placeholder), „von der Merkliste". What the ground says is what the swipe
+  does, not what the module is: on a marked module the left side says „Entfernen · von der
+  Merkliste", on a planned one the right side „Entfernen · aus WiSe 2026/27"; it is read once, when
+  the finger starts. The mark's side has its icon where the row's bookmark stands. It is quiet
+  until the action is armed, a third of the card or 120 px away (or half as far and flicked, as the
+  sheet measures a flick): then it takes the colour of its side — the inverted look of a marked
+  module, the accent for the plan — and the icon springs. Let go armed, the ground says what was
+  done („Gemerkt", „Eingeplant", „Entfernt"), the card goes aside as far as that takes, holds a
+  moment and glides back, and the action follows after the next frame (R21); let go before, the
+  card glides back and nothing happens. The row stays where it is (R5: marking and planning change
+  what the module's buttons say, not the list — unless the list is filtered by them, „Gemerkt",
+  „Passt in meinen Stundenplan"; on the Merkliste a module swiped off it stays, dimmed, as with
+  its button). The card moves inside its own place: while it is swiped the row
+  clips it and draws the ring and shadow the card has at rest, so nothing changes as the swipe
+  begins and the card never reaches past the page's edge (it pushed the page 188 px wider than the
+  window). The finger is read as along the bottom bar: the first move past 10 px decides (a row is
+  something to tap, a tap may wobble), sideways it is the row's, up or down the page scrolls
+  (`touch-action: pan-y`); the moves of a swipe are the row's alone (its own `touchmove` cancels
+  them: the app is built without Leptos's delegation of events, so the listener is the row's and
+  may), and neither a swipe nor its end is a tap or a step of the history. A mouse (a narrow
+  window) drags the card the same way; a wide screen has the bookmark at the end of the row and the
+  preview beside the list, and no swipe. The rows of both lists are the same `Row` (`swipe`); the
+  Merkliste's modules the catalog does not know („Nicht im Modulkatalog") are no `Row` and keep
+  their bookmark alone.
 - **Every page has the same frame (owner decision 2026-09-20, R17):** a sidebar as wide as the
   catalog's filter panel, with the same handle and the same remembered width, and the page next
   to it (`ui::Frame`; the catalog builds it itself, its sidebar is the filter form). Going from
@@ -546,6 +612,16 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   Font: Inter (variable, latin subset, OFL), self-hosted. Icons: Lucide (ISC), inlined through
   `app/src/icons.rs`. The only `style` attributes carry data as custom properties: the week grid
   and the credit slider (`--from`, `--to`, `--at`), the place of a picker's popup, `ui::Hit`.
+- **Blocksatz** (owner, 2026-10-01: „support für Blocksatz", „Ja mach mal Blocksatz überall ab wo es
+  sinnvoll ist/gut aussieht"): running text that is read through — a module's texts, the parts of
+  the Impressum and the Datenschutz, the answers to the questions on the start page — is justified
+  and hyphenated by the rules of its language (`<html lang>`; a module's text carries its own),
+  never into syllables of fewer than three letters or words of fewer than six. What is read at a
+  glance stays ragged: headings, leads, hints, notes, labels, and the cells of a grid — the
+  abilities on the start page were tried and their lists of long nouns, some 45 characters a
+  line, stood apart by wide gaps. A column narrower than 23 em of its text (some 42 characters a
+  line: a phone narrower than 390 px; at 40 the gaps showed) is set ragged, the items of a list
+  below 32 em; each text asks its own container (`prose`, `part`, `faq` in `app.css`).
 - **`assets/enhance.js`** (progressive enhancement until the browser app takes over): the plain
   fields of the filter form apply on change, panels keep their scroll position across page loads.
   In both modes: the shortcuts, the theme switch, the filter sheet, the swipe along the phone's
@@ -556,7 +632,8 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   page, from the style sheets applied by then, and the stylesheet (revalidated on every load) often
   arrives after the parser has reached `<body>`. The page then came without the fade and with
   "ViewTransition opt-in disabled" in the console (`e2e/gate.mjs` checks it with a slow stylesheet).
-- `design/prototype.html` is the clickable design prototype the direction was agreed on;
+- `design/prototype.html` is the clickable design prototype the direction was agreed on, and
+  `design/tabbar/swipe.html` the one of the swipe along the bottom bar;
   `node e2e/shot.mjs <url> <out.png> [w] [h] [--dark]` takes review screenshots.
 
 ### Data flow
@@ -1266,19 +1343,20 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   of the unfiltered catalog (`/catalog?page=<n>`; `page` comes after every filter, so
   `/catalog?turnus=winter&page=2` is a view) and the plan of a further study direction
   (`…/plan?variant=<n>`); not the Merkliste, the Stundenplan or „Mein Plan“, which are the
-  visitor's. Every link of the server's HTML to anything else carries `rel="nofollow"`: the
-  toggles and the orders of the lists, the tags that take a filter away, the pager of a filtered
-  list, the catalog narrowed down to a program or an area, the examples on the start page, the
-  Merkliste and the Stundenplan in the navigation, the language switch on a view
-  (`seo::nofollow` where the target decides). The pager of the unfiltered catalog and the plans
-  of the study directions are followed. `nofollow` is a hint, and a crawler keeps asking for the
-  addresses it already knows, so **robots.txt** closes the views of the lists as well, as Google
-  advises for filters: `Disallow: /catalog?`, `/programs?` and `/bookmarks?` in every language,
-  with `Allow: /catalog?page=` (the longer rule wins) and `Disallow: /catalog?page=*&` again for a
-  page with a filter or a preview behind it. The Stundenplan's query stays open (a shared plan,
-  `?share=`, is a page for link previews), and so do calendar feeds, cards and the sitemap. The
-  link previews of X, LinkedIn and Facebook read robots.txt too and fetch only what is shared, so
-  their group disallows `/api/` alone: a filtered list shared there keeps its card.
+  visitor's. Every link of the server's HTML to anything else carries `rel="nofollow"`: the toggles
+  and the orders of the lists, the tags that take a filter away, the pager of a filtered list, the
+  catalog narrowed down to a program or an area, the examples on the start page, the Merkliste and
+  the Stundenplan in the navigation, the language switch on a view, a program's other examination
+  regulations from its „Mein Plan“ (they keep the view, and lead to theirs; from the plan they are
+  followed) (`seo::nofollow` where the target decides). The pager of the unfiltered catalog and the
+  plans of the study directions are followed. `nofollow` is a hint, and a crawler keeps asking for
+  the addresses it already knows, so **robots.txt** closes the views of the lists as well, as
+  Google advises for filters: `Disallow: /catalog?`, `/programs?` and `/bookmarks?` in every
+  language, with `Allow: /catalog?page=` (the longer rule wins) and `Disallow: /catalog?page=*&`
+  again for a page with a filter or a preview behind it. The Stundenplan's query stays open (a
+  shared plan, `?share=`, is a page for link previews), and so do calendar feeds, cards and the
+  sitemap. The link previews of X, LinkedIn and Facebook read robots.txt too and fetch only what is
+  shared, so their group disallows `/api/` alone: a filtered list shared there keeps its card.
   `crawlers_are_led_to_pages_and_kept_out_of_views` (server) reads robots.txt as Google does and
   fails on any link of the site's pages that a crawler may follow to a view.
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
@@ -1391,6 +1469,24 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   pictures are made from the mark's grids and from `design/logo/app-icon.mjs` by
   `node design/logo/render-icons.mjs`. The manifest makes the site installable; the service
   worker makes it start without a network.
+  - **Google Search** (2026-10-01) shows one picture per host beside the results, taken from the
+    links of the start page (`icon`, `apple-touch-icon`). It reads no SVG (BMP, GIF, ICO, PNG,
+    JPEG, PPM, TIFF; square, larger than 48 px recommended) and does not document how it chooses
+    among several; as far as can be seen, the largest. So the start page links the icon of the
+    app once more, as an `icon` of 192 px (`app::ICON_192`, square and a multiple of 48): larger
+    than the mark's ICO (48 px at most) and than `apple-touch-icon.png` (180), it is the largest
+    of either kind of link (`server/src/tests.rs` checks that). The tab keeps the mark: Chromium
+    takes the SVG and does not even fetch the PNG (tried at 1×, 2× and 3×), and Firefox takes the
+    SVG whatever else is linked (`selectIcons` in its `FaviconLoader.sys.mjs`).
+  - **Why Google showed none** (2026-10-01): until 2026-09-27 `betula.app` was the placeholder
+    (`deploy/stacks/placeholder.yml`): `noindex, nofollow`, no icon linked, `/favicon.ico` a 204
+    without content. Google takes the icon anew only when it processes the start page again,
+    which takes days to weeks; four days after the opening its favicon service had the leaf for
+    `/en` and `/en/catalog` (first seen after the opening) and nothing for `/`. After a deploy that
+    changes the icon: Search Console, URL Inspection of `https://betula.app/`, „Request indexing".
+    What Google's favicon service has for an address:
+    `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://betula.app/&size=64`
+    (a 404 means none).
   - **Android** (2026-09-26) cuts the maskable icon into the launcher's shape and shows its middle
     87 % (Chromium pads the web's safe circle of 80 % onto Android's, 66 of 108 dp; the mask shows
     72): the leaf is drawn smaller by that much and sits in the middle, so a circle, a squircle
@@ -1420,6 +1516,9 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   the manifest — and nothing of the data: the catalog is in IndexedDB, where `boot.js` keeps it,
   and `/api/*` is never intercepted. Pages come from the network first and are kept for the way
   back (sixty of them); offline, the kept page, else the shell. Assets come from the cache first.
+  The semantic search's model (`/models/e5-de-en-<hash>.bin`, 15 MB; `semantic/README.md`, „In
+  the app") is kept apart, in `betula-models`, which no build drops: its address names its
+  content, so a deploy does not download it again, and a new model replaces the old one.
   The server writes its build into the worker, so a new build installs a new worker, which caches
   the new shell and drops the old one; the worker's own file is revalidated on every use, whatever
   its address. **A page and its files always come from one build** (2026-09-21): the document
@@ -1451,7 +1550,9 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   masks of the birch) and the worker, whatever it is asked with. Until 2026-09-30 every file was
   `no-cache`, and every page load asked for each again. After building the app again
   (`build-client.sh`), start the server again as well: the bundle is kept under the address of
-  its build, in the worker as in the browser's cache.
+  its build, in the worker as in the browser's cache. Not so under `scripts/dev.sh`
+  (`--live-assets`): there nothing is immutable and the worker keeps nothing („Working on the
+  site").
   `e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
   `/api/status` unreachable offline and simply opens the copy it has, unless that copy is of an
   older schema than the build reads: then the app does not start, the page stays the one the
@@ -1613,6 +1714,15 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 ./radix.exe serve-snapshot --addr 127.0.0.1:8090
 ```
 
+(Without a crawl of your own: the catalog of betula.app, from `https://betula.app/api/db`, §4.)
+
+```bash
+bash scripts/dev.sh --watch
+```
+
+The second command is the two below, and builds them again as the code changes („Working on the
+site"):
+
 ```bash
 bash scripts/build-client.sh --dev
 ```
@@ -1621,11 +1731,12 @@ bash scripts/build-client.sh --dev
 cargo run -p folia-server
 ```
 
-The first command builds the browser app into `site/pkg` (needs the `wasm32-unknown-unknown`
+The first of them builds the browser app into `site/pkg` (needs the `wasm32-unknown-unknown`
 target and `wasm-bindgen` 0.2.128, which Trunk keeps in its cache); without it the site simply
 stays server-rendered. `--dev` builds it with the `wasm-dev` profile and the flags of
-`.cargo/config.toml` (`--cfg erase_components`, see „Build times"); leave it off to build the
-bundle that ships, as Nix builds it. Which one you want is a question of minutes:
+`.cargo/config.toml` (`--cfg erase_components`, see „Build times"), and keeps the names of its
+functions for the debugger; leave it off to build the bundle that ships, as Nix builds it,
+without them. Which one you want is a question of minutes:
 
 | | profile | edit a page, build again | `site/pkg` | gzipped |
 |---|---|---|---|---|
@@ -1635,6 +1746,9 @@ bundle that ships, as Nix builds it. Which one you want is a question of minutes
 `wasm-release` owes those two minutes to fat LTO, `opt-level = "z"` and its single codegen unit,
 and all of it buys the megabyte that people who load the site once do not have to fetch. On
 localhost the difference arrives over the loopback; never deploy a bundle built with `--dev`.
+(Since 2026-10-01 the bundle that ships leaves the names of its functions out: as Nix built it
+from develop that day, 33.8 MB with them, 29.0 MB of them names, and 4.7 MB without; 1.74 and
+1.43 MB in brotli, „What ships".)
 
 ### Build times
 
@@ -1691,7 +1805,7 @@ checkout's:
 ```bash
 git config core.hooksPath scripts/hooks   # once per clone: git does not carry it along
 bash scripts/build-cache.sh setup         # in the main checkout, and after `rustup update`
-bash scripts/build-cache.sh prime         # in the main checkout, after a merge into master
+bash scripts/build-cache.sh prime         # in the main checkout, after a merge into develop
 bash scripts/build-cache.sh gc            # drop the caches of worktrees that are gone
 ```
 
@@ -1772,6 +1886,9 @@ keeps serving the last good one when Radix is away, also after a restart.
 | `--render-wait-ms` | `FOLIA_RENDER_WAIT_MS` | `3000` | how long a page waits for a place before it is answered 503 with `Retry-After` |
 | `--feed-places` | `FOLIA_FEED_PLACES` | `0` | calendar feeds made at once (0: one per processor); a feed waits at most 10 s |
 | `--site-root` | `FOLIA_SITE_ROOT` | `site` | browser bundle (`pkg/`), from phase 2 |
+| `--semantic-model` | `FOLIA_SEMANTIC_MODEL` | (none) | the browser's model of the semantic search (`e5-de-en.bin`, 15 MB, `semantic/README.md`), served as `/models/e5-de-en-<hash>.bin` and named in `/api/status` (`semantic_model`) and `boot.js`; without it, or when it cannot be read (`semantic.model_unreadable`, ERROR), the app has no semantic search and everything else runs. A file named by a sha256 (the model store, `deploy/models.lock`) has to have that content |
+| `--semantic-passage-model` | `FOLIA_SEMANTIC_PASSAGE_MODEL` | (none) | Radix's id of the passage model the query model was made for (16 hex digits); the browser offers the semantic search only on a snapshot whose `meta.semantic_model` is that one. Without it, on any. `vps/50-app.sh` sets both from `deploy/models.lock` |
+| `--live-assets` | `FOLIA_LIVE_ASSETS` | (none) | while working on the site: the stylesheet, the scripts and the SVGs from this directory (`app/assets`) as they are, not minified; nothing kept as immutable, and a service worker that keeps nothing („Working on the site"); never in production |
 | `--card-cache-mb` | `FOLIA_CARD_CACHE_MB` | `64` | finished link-preview cards kept in memory |
 | `--public-url` | `FOLIA_PUBLIC_URL` | `https://betula.app` | the site's address from outside: canonical links, link previews, sitemap |
 | `--access-gate` | `FOLIA_ACCESS_GATE` | `off` | closed testing: the whole site asks for one shared password (see below) |
@@ -1779,7 +1896,9 @@ keeps serving the last good one when Radix is away, also after a restart.
 
 `folia healthcheck` is not the server but its probe (like `radix healthcheck`): it asks the server
 that listens on `FOLIA_ADDR` for `/livez` and exits with 0 when it answers. The container image
-uses it as `HEALTHCHECK`, because an image built with Nix has no curl or wget.
+uses it as `HEALTHCHECK`, because an image built with Nix has no curl or wget. `folia assets`
+lists what ships („What ships"); like every command it takes the server's flags before it
+(`folia --site-root site assets`).
 
 Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /api/map.json` (the map of the
 programs, with the snapshot's ETag), `GET /healthz` (200 while a snapshot is served and Radix was
@@ -1816,6 +1935,110 @@ processor), so the first visitor does not wait for them. Traefik's `compress` pa
 what comes plain (a 404 page, the login page) in brotli too
 (`deploy/config/traefik/dynamic/middlewares.yml`: `br` before `zstd`, since it takes the first of
 the codings a browser weighs the same).
+
+### What ships (2026-10-01)
+
+Owner, 2026-09-28: „Aktuell wird da echt noch viel unnötiger code geshiped." Until then the server
+embedded `app/assets` as it is written — its comments, its indentation — and the browser app kept
+the names of its functions. Now whatever a browser gets as text is minified when the server is
+built (`server/build/main.rs`, which cargo runs before it compiles the server;
+`server/src/assets.rs` lists what the server embeds of it). The minified bytes go the way every
+file goes (brotli 11, made once per process, `encoding::Kept`): no compression in the build.
+
+- **The stylesheet** with lightningcss, written shorter and nothing else: no `targets`, so nothing
+  is lowered or prefixed. It writes `rgba(…)` as `#rrggbbaa` and so rounds an alpha to 1/255.
+  One thing it gets wrong is put right after it (`TimelineApart` in `server/build/main.rs`): it
+  folds `animation: wood-rise linear both; animation-timeline: --page` into
+  `animation:linear both wood-rise --page`, since its data has Chrome read a timeline in the
+  shorthand from version 115. Chrome 141 does not and drops the whole declaration, and the wood of a
+  page stopped moving with its scroll (`e2e/ground.mjs` found it). So the timeline goes back into
+  an `animation-timeline` of its own after the shorthand, and `assets::tests` keeps it there.
+- **The scripts** with oxc: comments and whitespace out, names shortened, constants folded, and
+  in no newer syntax than the scripts are written in (ES2020: `?.` and `??` in `enhance.js`; left
+  to itself oxc wrote `a ||= b`, ES2021, into a script every browser loads). A classic script's
+  top-level names are globals that other scripts call (sql.js's `initSqlJs`, which `boot.js`
+  calls), so a script is read as one and they stay; only what a module alone can be
+  (`import.meta`, a top-level `await`: `boot.js`) is read as a module. What the server writes in
+  when it serves them (`__BUILD__`, `__SCHEMA__`) must still be there: the build fails when the
+  minifier folded one away. `Number("__SCHEMA__")` was folded into `NaN` before the server could
+  write the number in, which is why `boot.js` writes `const SCHEMA = __SCHEMA__;`.
+- **The SVGs** by `server/build/svg.rs`: the same numbers, written shorter — no leading zero, a
+  segment of a path relative to where it starts when that is shorter, `h`/`v` for a line along an
+  axis, a repeated command without its letter, between numbers only the separators the grammar
+  needs. Quotes, ids and colours stay as they are: the cards find them as text (`cards::mask`).
+  resvg draws every file the same to the pixel (`assets::tests`). Chromium adds relative
+  coordinates in single precision, so an edge pixel may come out a level or a few of 255 lighter
+  or darker. **The wood** behind the start page is not minified: `design/forest/forest.mjs` draws
+  it as short as it gets and compresses it itself (`.svg.br`), and what `svg.rs` made of it was a
+  few per cent shorter but compressed 1 to 2 % larger (autumn's back 38,911 → 39,638 bytes).
+- **The manifest** is written without indentation.
+- **The browser app** without the names of its functions (`--remove-name-section`, and the
+  `producers` section, in `scripts/build-client.sh` and `flake.nix`; `--dev` keeps them for the
+  debugger). A panic's stack trace then names functions by number. `wasm-opt -Oz` on top was
+  measured on 2026-09-28 and left out (−0.4 % compressed, not worth another tool in every build).
+
+What a first visit downloads besides the page itself, as the server sends it to a browser
+(brotli, 2026-10-01, both builds by Nix, `#folia` and `#folia-client`; the birch of autumn):
+
+| | develop | now | brotli develop | brotli now |
+|---|---|---|---|---|
+| `app.css` | 267,814 | 172,771 | 52,281 | 28,600 |
+| `enhance.js` | 46,474 | 19,446 | 12,883 | 6,105 |
+| `boot.js` | 8,812 | 3,739 | 2,912 | 1,542 |
+| `sw.js` | 6,643 | 2,369 | 2,253 | 992 |
+| `sql-wasm.js` (sql.js, minified already) | 48,863 | 43,518 | 15,038 | 13,156 |
+| `manifest.webmanifest` | 1,143 | 869 | 360 | 335 |
+| the birch of a page (crown, its head, roots, litter) | 254,098 | 209,615 | 47,557 | 31,389 |
+| the wood of the start page (as drawn, unchanged) | 365,102 | 365,102 | 72,802 | 72,802 |
+| `folia_client_bg.wasm` | 33,757,019 | 4,732,748 | 1,740,869 | 1,431,872 |
+| all of it, with what stayed as it was | 35,536,473 | 6,330,672 | 2,283,390 | 1,923,222 |
+
+What stayed as it was: `folia_client.js` (wasm-bindgen's 64 kB, 9 kB in brotli:
+`build-client.sh` writes it, not the server's build), the sprite (`app::icons` writes it), the
+pictures, the font and sql.js's WASM (compressed already), and the HTML of the pages (Leptos
+writes it without indentation). A first visit thus fetches 16 % less, the stylesheet and the
+scripts about half.
+
+`folia assets` (or `bash scripts/dev.sh sizes`) lists every file as written and as served, each
+also in brotli, and the browser app in `<site-root>/pkg`; a bundle that still carries the names of
+its functions (a `--dev` build) is named as one not to ship.
+
+What it costs: the minifiers are build dependencies of the server — built once per build cache,
+none of them in the server — and they run again only when a file of `app/assets` changed. oxc
+needs rustc 1.96 or newer (nixpkgs has 1.98).
+
+### Working on the site: `scripts/dev.sh` (2026-10-01)
+
+```bash
+bash scripts/dev.sh                 # build what is stale, serve on http://127.0.0.1:8080
+bash scripts/dev.sh --watch         # and build again and restart when Rust code changes
+bash scripts/dev.sh -- --addr …     # the server's own flags after `--`
+bash scripts/dev.sh sizes           # what ships (folia assets)
+```
+
+It builds the browser app when anything of its code is newer than the bundle (`build-client.sh
+--dev`), builds the server, and runs it with `--live-assets app/assets`: the stylesheet, the
+scripts and the SVGs come from disk on every request, as they are written — no build and no
+restart for them, an edit is there with the next reload. Each answer is tagged by what the file
+holds, so an unchanged file is still a 304. Nothing is kept as immutable there, not even under
+`?v=<build>` (`api::Keep::of`): an edited file, or a bundle built again, is a new file under the
+same address. The service worker of such a server keeps nothing and listens to no request (and
+drops what the worker of an earlier run kept), so a reload never gets an old file from it. Only
+the files the server serves anyway are read (a path is looked up in `assets::MINIFIED` or
+`birch::file`, never joined as it comes), and none is compressed: they go to this machine.
+
+`--watch` looks at the Rust code once a second (`find -newer`, which Git Bash has as well): a
+change in `client/` builds the browser app, one in `server/` the server, one in `app/`, `catalog/`
+or `pack/` both, and the server is restarted. The browser app is built while the old server still
+answers; the server is stopped before it is built, because Windows does not let a build overwrite
+a running `folia.exe`. What does not build is said, and the next change is waited for. An edit of
+`server/` answers with the new build in 12 s here (four cores, without the flags of
+`scripts/build-cache.sh`). The page cache is not warmed (`FOLIA_WARM_CACHE=off`): the warm-up
+renders all 5,000 pages after every start, and here every restart is one.
+
+What is tested while working on it is not what ships: the stylesheet and the scripts minified,
+offline with the real service worker. For that, `cargo run -p folia-server` as before, and the
+bundle without `--dev`.
 
 ### Closed testing: the access gate (`server/src/access.rs`, 2026-09-21)
 
@@ -2040,6 +2263,8 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | INFO | `access.granted` | the access password was entered |
 | WARN | `access.denied` | a wrong access password (`failures` in this minute, `closed` when the form closed; at most ten lines a minute) |
 | DEBUG | `card.drawn` | a link-preview card was drawn (`key`, `bytes`, `ms`) |
+| WARN | `server.live_assets` | the server reads the stylesheet, the scripts and the SVGs from disk (`--live-assets`, `dir`): for working on the site, never in production |
+| WARN | `assets.live_failed` | under `--live-assets`, a file the server serves is not on disk (`path`, `error`): answered 404 |
 | WARN | `card.busy` | every drawing place was taken, previews got the standard picture (`count`; at most one line a minute). Often: more places or a larger `--card-cache-mb` |
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
 | WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / its gzip or brotli copy could not be made: served in gzip or uncompressed (brotli is not tried again for that snapshot) |
@@ -2059,6 +2284,24 @@ cargo test
 ```
 
 needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one.
+**The real catalog** is the one betula.app serves (owner, 2026-10-01): `/api/db` is the snapshot
+Radix exported, byte for byte (44 MB; `--compressed` takes it in brotli or gzip).
+
+```bash
+curl --compressed -o snapshot/catalog.db https://betula.app/api/db
+FOLIA_TEST_SNAPSHOT=snapshot/catalog.db cargo test -p folia-server
+```
+
+To serve it to a local Folia as well (§3), give it the name and the pointer `radix export` writes
+(`snapshot/` is git-ignored), then `radix serve-snapshot` publishes it:
+
+```bash
+cd snapshot && hash=$(sha256sum catalog.db | cut -c1-32) && mv catalog.db "catalog-${hash:0:16}.db" &&
+  printf '{"file":"catalog-%s.db","etag":"\\"%s\\"","bytes":%s,"exported_at":"%s"}\n' "${hash:0:16}" "$hash" \
+    "$(stat -c%s "catalog-${hash:0:16}.db")" "$(date -u +%FT%TZ)" > current.json
+```
+
+Then `cargo test` finds it without `FOLIA_TEST_SNAPSHOT`.
 Without a crawl, a synthetic one serves for development and for the browser checks below
 (`internal/catalogbuild/folia_fixture_test.go`: 1,200 modules with varied facets, 115 programs
 with trees, areas and degree labels, Informatik B.Sc. and Elektrotechnik B.Sc. with validated
@@ -2216,15 +2459,35 @@ cd e2e && node tabbar.mjs
 ```
 
 drives the phone's bottom bar with real touches as `phone.mjs` does, each carrying its time so
-that a flick is a flick however slow the protocol: a swipe to the right goes one tab to the
-right and one to the left one tab to the left, from wherever on the bar it starts, as one step of
-the history and without a page load; while the finger is down the mark follows it (the bar's own,
-over the tab's and in its colour, the icons turning under it) and the page stands still, and once
-the tab is current its own mark is back and nothing of the swipe is left on the bar; a long pull
-goes one tab and no further, a short slow one glides back, a short flick goes on, at either end
-the tab stays; two swipes in a row go two tabs, a tap right after a quick swipe is a tap, and a
-finger up the bar scrolls the page; before the app takes over (its bundle kept away) a swipe
-loads the tab's page.
+that a flick is a flick however slow the protocol: a swipe to the left goes one tab to the right
+and one to the right one tab to the left, from wherever on the bar it starts, as one step of the
+history and without a page load; while the finger is down the row of tabs follows it and the mark
+stays (the bar's lens, over the tab's and in its colour, with a copy of the row inside that lies
+over the row) and the page stands still; let go, the row and the lens glide as Web Animations,
+and once the tab is current its own mark is back and nothing of the swipe is left on the bar; a
+long pull goes one tab and no further, a short slow one glides back, a short flick goes on, at
+either end the tab stays; a finger catches the glide with the lens where it is and goes on from
+there, two swipes in a row go two tabs, a tap right after a quick swipe is a tap, and a finger up
+the bar scrolls the page; before the app takes over (its bundle kept away) a swipe loads the tab's
+page.
+
+```bash
+cd e2e && node swipe.mjs
+```
+
+swipes a row of the catalog on a phone with real touches as `tabbar.mjs` does: to the left the
+card follows the finger (less the slop) inside its place, the page neither moving nor growing
+wider, and uncovers „Merken", quiet until the action is armed and then in the inverted colour;
+let go, the ground says „Gemerkt", the module is marked (its bookmark, the Merkliste's count, the
+store) and the row comes to rest with nothing of the swipe left, no step of the history and no
+page load; to the right „Einplanen" with the semester, armed in the accent, „Eingeplant", the
+Stundenplan counting the module; again each way „Entfernen · von der Merkliste" and „Entfernen ·
+aus …" take them out; a short slow pull does nothing, a short flick marks, and the bookmark tapped
+right after it is a tap; a finger up a row scrolls the page and takes no row; a tap on another row
+right after a swipe opens its module; on the Merkliste a module swiped off it stays, dimmed, its
+card whole while it is swiped again and marked again by that swipe, and one swiped to the right is
+planned; a mouse in a narrow window drags the card and marks, its drag no click; a wide screen's
+row takes no drag.
 
 ```bash
 cd e2e && node ground.mjs

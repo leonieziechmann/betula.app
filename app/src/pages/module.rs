@@ -97,7 +97,7 @@ fn derive(data: &ModuleData, t: &'static Texts) -> Derived {
             .contents
             .clone()
             .or_else(|| m.learning_outcomes.clone())
-            .map(|text| seo::excerpt(&(t.module.description)(&m.title, &m.id, &credits, &text), 300))
+            .map(|text| seo::excerpt(&(t.module.description)(&m.title, &m.id, &credits, &catalog::text::plain(&text)), 300))
             .unwrap_or_else(|| (t.module.description_bare)(&m.title, &m.id, &credits)),
     }
 }
@@ -151,7 +151,7 @@ fn structured(data: &ModuleData, t: &'static Texts) -> Vec<serde_json::Value> {
     let languages: Vec<&str> = [(m.teaches_german, "de"), (m.teaches_english, "en")].iter().filter(|(taught, _)| *taught == Some(true)).map(|(_, code)| *code).collect();
     if let Some(course) = course.as_object_mut() {
         if let Some(text) = m.contents.as_ref().or(m.learning_outcomes.as_ref()) {
-            course.insert("description".into(), seo::excerpt(text, 500).into());
+            course.insert("description".into(), seo::excerpt(&catalog::text::plain(text), 500).into());
         }
         if let Some(credits) = m.credits {
             course.insert("numberOfCredits".into(), serde_json::json!({ "@type": "QuantitativeValue", "value": credits, "unitText": "ECTS" }));
@@ -591,8 +591,9 @@ pub fn ModuleFull(
 /// The snapshot's current semester, and the semester of the module's newest teaching Termine (the
 /// week's, `Schedule`): what „Einplanen" aims with (`studyplan::target_semester`). Exams do not
 /// count: a module taught in summer holds retakes in the winter too, and its only rows of a winter
-/// would plan it into a semester it is not taught in, where its turnus says the next summer.
-fn semesters_of(semesters: &[Semester], schedule: &[EventDate]) -> (Option<SemesterKey>, Option<SemesterKey>) {
+/// would plan it into a semester it is not taught in, where its turnus says the next summer. A row
+/// swiped to the right aims with the same (`crate::swipe`).
+pub(crate) fn semesters_of(semesters: &[Semester], schedule: &[EventDate]) -> (Option<SemesterKey>, Option<SemesterKey>) {
     let current = semesters.iter().find(|s| s.is_current).and_then(|s| SemesterKey::parse(&s.key));
     let newest = schedule.iter().filter_map(|d| SemesterKey::parse(&d.semester_key)).max();
     (current, newest)
@@ -691,6 +692,11 @@ fn Main(data: ModuleData) -> impl IntoView {
     let derived = derive(&data, t);
     let has_prerequisites = m.prerequisites_mandatory.is_some() || m.prerequisites_recommended.is_some() || !data.prerequisites.is_empty();
     let literature = derived.literature.clone();
+    // The texts are in the language of the module's page, whatever the language of Betula's.
+    let lang = {
+        let lang = m.page_lang.clone();
+        move || lang.clone()
+    };
     let prerequisite_links = |linked: Vec<Prerequisite>, kind: &'static str| {
         linked
             .into_iter()
@@ -713,13 +719,13 @@ fn Main(data: ModuleData) -> impl IntoView {
                     {prerequisite_links(derived.mandatory.clone(), words.mandatory)}
                     {prerequisite_links(derived.recommended.clone(), words.recommended)}
                 </div>
-                {m.prerequisites_mandatory.clone().map(|text| view! { <details class="more"><summary>{words.mandatory_verbatim}</summary><Prose text/></details> })}
-                {m.prerequisites_recommended.clone().map(|text| view! { <details class="more"><summary>{words.recommended_verbatim}</summary><Prose text/></details> })}
+                {m.prerequisites_mandatory.clone().map(|text| view! { <details class="more"><summary>{words.mandatory_verbatim}</summary><Prose text lang=lang()/></details> })}
+                {m.prerequisites_recommended.clone().map(|text| view! { <details class="more"><summary>{words.recommended_verbatim}</summary><Prose text lang=lang()/></details> })}
             </div>
         })}
-        {m.contents.clone().map(|text| view! { <div class="section" id="inhalte"><h3 class="label">{words.contents}</h3><Prose text/></div> })}
-        {m.learning_outcomes.clone().map(|text| view! { <div class="section" id="lernziele"><h3 class="label">{words.learning_outcomes}</h3><Prose text/></div> })}
-        {m.exam_details.clone().map(|text| view! { <div class="section" id="pruefungsleistung"><h3 class="label">{words.assessment}</h3><Prose text/></div> })}
+        {m.contents.clone().map(|text| view! { <div class="section" id="inhalte"><h3 class="label">{words.contents}</h3><Prose text lang=lang()/></div> })}
+        {m.learning_outcomes.clone().map(|text| view! { <div class="section" id="lernziele"><h3 class="label">{words.learning_outcomes}</h3><Prose text lang=lang()/></div> })}
+        {m.exam_details.clone().map(|text| view! { <div class="section" id="pruefungsleistung"><h3 class="label">{words.assessment}</h3><Prose text lang=lang()/></div> })}
         {(!literature.is_empty()).then(|| view! {
             <div class="section" id="literatur">
                 <details class="more"><summary>{(words.literature_count)(literature.len())}</summary>
@@ -727,7 +733,7 @@ fn Main(data: ModuleData) -> impl IntoView {
                 </details>
             </div>
         })}
-        {m.remarks.clone().map(|text| view! { <div class="section" id="bemerkungen"><h3 class="label">{words.remarks}</h3><Prose text/></div> })}
+        {m.remarks.clone().map(|text| view! { <div class="section" id="bemerkungen"><h3 class="label">{words.remarks}</h3><Prose text lang=lang()/></div> })}
     }
 }
 
@@ -1494,6 +1500,7 @@ mod tests {
             is_graded: None,
             is_fues: false,
             department: None,
+            page_lang: Some("de".into()),
             learning_outcomes: None,
             contents: Some("Folgen und Reihen, Stetigkeit, Differentialrechnung.".into()),
             prerequisites_recommended: None,

@@ -18,9 +18,10 @@ import (
 )
 
 // derivedTables are replaced as a whole by every build, children first.
-// plan, plan_entry and plan_scan_status are a source of their own and stay.
+// plan, plan_entry and plan_scan_status are a source of their own and stay, and so do the
+// caches of the semantic search, module_summary and passage_embedding.
 var derivedTables = []string{
-	"module_folded", "program_module_abbrev", "module_abbrev",
+	"module_folded", "module_vector", "program_module_abbrev", "module_abbrev",
 	"module_facet", "program_module",
 	"module_event", "event_date", "event_person", "event_form", "event", "semester",
 	"program_module_assertion", "module_program_ref",
@@ -74,6 +75,9 @@ type Report struct {
 	AbbrevTwins           int            // pairs with -b, -c … after an identical title in the program
 	AbbrevChanged         int            // pairs whose abbreviation differs from the previous build's
 
+	// ModuleVectors counts the modules with a vector for the semantic search (module_vector).
+	ModuleVectors int
+
 	// Unused lists archived pages that are not part of the current dataset: module pages
 	// of modules that left the lists, tree pages the root no longer reaches. source → keys.
 	Unused map[string][]string
@@ -121,7 +125,7 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		"modules", report.Modules, "programs", report.Programs, "events", report.Events, "events_from_list", report.EventsFromList,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
-		"content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
+		"module_vectors", report.ModuleVectors, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil
 }
 
@@ -221,6 +225,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"materialized views", b.materialize},
 		{"abbreviations", b.writeAbbreviations}, // needs module and program_module
 		{"search", b.writeSearch},               // needs module and the abbreviations
+		{"module vectors", b.writeModuleVectors},
 		{"meta", b.writeMeta},
 	}
 	for _, step := range steps {
@@ -267,6 +272,10 @@ type builder struct {
 	programByID   map[string]*program
 
 	previousAbbrevs map[[2]string]string // (program, module) → the abbreviation of the build before
+
+	// The passage models of the module vectors (writeModuleVectors), comma-separated when the
+	// vectors are of more than one: the snapshot's meta semantic_model.
+	semanticModel string
 }
 
 // materialize evaluates the two expensive *_src views once per build. The public
@@ -321,6 +330,11 @@ func (b *builder) writeMeta() error {
 		"radix_version": version.Radix,
 		// Which binary built it: a new release builds again at start (service.Rebuild).
 		"radix_build": version.Build(),
+	}
+	if b.semanticModel != "" {
+		// What the browser compares with the passage model its query model was made for: a
+		// query is only comparable with passages of that model (docs/schema-v2.md, „Semantic search").
+		meta["semantic_model"] = b.semanticModel
 	}
 	rows, err := b.tx.Query("SELECT source, MIN(fetched_at), MAX(fetched_at), COUNT(*) FROM raw_page WHERE http_status = 200 GROUP BY source")
 	if err != nil {

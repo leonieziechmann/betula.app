@@ -26,6 +26,7 @@ One cycle, every `--interval` (30 min):
 | `archive` | every cycle | removes archived pages nothing leads to any more, `--archive-grace` (7 d) after their fetch: among them the page and the search entry of an event BTU removed, once no module description names it and so nothing fetches them |
 | `validate` | when the content changed | invariants and count baselines; a failure blocks the export |
 | `export` | when the content changed and validation passed | new `snapshot/catalog-<hash>.db`, `current.json` replaced atomically |
+| `semantic` | every cycle that did not fail, last (after the export), with `--embed-model` | the semantic search's vectors (`docs/schema-v2.md`, „Semantic search“), within `--semantic-budget` (20 min): Gemini's summaries of module texts that have none, then the vectors of passages that have none, computed by the crate `semantic/` as WebAssembly in worker processes (`radix embed-worker`). The next build publishes them. The first run of a model takes about 6 processor-hours (on one CPU about 19 budgets, one a cycle: most of a day); then seconds. Skipped without a model; a failure of the vectors degrades the cycle, one of Gemini does not |
 
 The weekly and monthly rhythms are spread: every page has a day of its own in its period,
 derived from its key (`crawl.Due`), and is read once that day has come at least half a period
@@ -73,6 +74,9 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--event-retention` | `RADIX_EVENT_RETENTION` | `720h` (0 keeps everything) |
 | `--archive-grace` | `RADIX_ARCHIVE_GRACE` | `168h` (0 keeps unused pages) |
 | `--stale-after` | `RADIX_STALE_AFTER` | `26h` |
+| `--embed-model` | `RADIX_EMBED_MODEL` | none: no vectors for the semantic search. The server's model, `e5-de-en-server.bin` (35 MB, `semantic/README.md` says how it is made); in a deploy `vps/50-app.sh` sets it to the passage model of `deploy/models.lock` in the model store (`deploy/README.md` section 13). A file named by a sha256 that is not its content's is refused |
+| `--embed-workers`, `--semantic-budget` | `RADIX_EMBED_WORKERS`, `RADIX_SEMANTIC_BUDGET` | one less than the processors the container may use (`GOMAXPROCS`, at least 1): worker processes of about 170 MB each (260 MB while loading); `20m` |
+| `--summary-model`, `--gemini-rpm`, `--gemini-rpd` | `GEMINI_SUMMARY_MODEL`, `RADIX_GEMINI_RPM`, `RADIX_GEMINI_RPD` | `gemini-3.5-flash-lite`, `10`, `900` (a guess at the free tier's limits, which Google does not publish: set the project's figures from AI Studio; the day begins at midnight Pacific time, as Google's does) |
 | `--log-format`, `--log-level`, `--log-file` | `RADIX_LOG_FORMAT`, `RADIX_LOG_LEVEL`, `RADIX_LOG_FILE` | `json` for `run` (else `text`), `info`, none |
 
 ### HTTP endpoints
@@ -83,9 +87,32 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `GET /snapshot/current.json` | `{"file","etag","bytes","exported_at"}` |
 | `GET /healthz` | `200 {"status":"ok"}` or `503 {"status":"unhealthy","problems":[…]}` |
 | `GET /status` | everything: last cycle with every stage, last success, failed cycles in a row, next cycle, snapshot, error/warning counters and the 20 most recent warnings and errors |
+| `GET /metrics` | counters and gauges in the Prometheus text format (below, „Metrics"); `serve-snapshot` answers it too, with the snapshot part |
 
 Unhealthy means: no snapshot to serve, or the last two cycles failed, or no successful cycle
 for `--stale-after`.
+
+### Metrics
+
+`GET /metrics` is what the Grafana dashboard „Radix" shows (`deploy/config/monitoring/grafana/dashboards/betula-radix.json`;
+Prometheus job `radix`, which finds every instance's Radix as `tasks.<stack>_radix` on the
+`monitoring` overlay). The counters start at zero with the process; the `radix_archive_*` gauges
+are read from the archive (at most once a minute) and so survive a restart. `source` is a source
+of the archive: `module_catalog` and `module_page` are b-tu.de, `qis_module_list`, `qis_fues_list`,
+`qis_module_page`, `qis_tree`, `qis_event_entry` (the event search) and `qis_event` are QIS.
+
+| Metric | What it says |
+|---|---|
+| `radix_crawl_requests_total{source,code}` | requests sent to the university, retries included; `code` is the status, `error` without an answer |
+| `radix_crawl_request_duration_seconds{source}`, `radix_crawl_response_bytes_total{source}` | time to the end of the body (histogram), bytes received |
+| `radix_crawl_pages_total{source,outcome}` | pages fetched: `changed` (new or another body), `unchanged`, `not_found`, `failed` (given up); the event search counts each event it lists |
+| `radix_archive_pages{source,status}`, `radix_archive_fetched_24h{source}`, `radix_archive_changed_24h{source}`, `radix_archive_{oldest,newest}_fetch_timestamp_seconds{source}` | the archive: pages (`ok`, `not_found`), fetched and changed in the last 24 h, oldest and newest fetch |
+| `radix_cycles_total{result}`, `radix_cycle_running`, `radix_last_cycle_duration_seconds`, `radix_last_cycle_timestamp_seconds`, `radix_last_success_timestamp_seconds`, `radix_failed_cycles_in_a_row`, `radix_next_cycle_timestamp_seconds` | the cycles, as in `/status` |
+| `radix_stage_runs_total{stage,outcome}`, `radix_stage_duration_seconds{stage}` | stages: `ok`, `failed`, `skipped`; how long the last run took |
+| `radix_builds_total{content}`, `radix_snapshots_published_total`, `radix_catalog_items{kind}`, `radix_module_rows_changed_total`, `radix_pruned_total{what}` | builds with `changed` / `unchanged` content, exports, what the last build holds, rows of the QIS module table that changed, retention |
+| `radix_snapshot_requests_total{file,code}`, `radix_snapshot_exported_timestamp_seconds`, `radix_snapshot_bytes` | the web server's polls (`304`) and downloads (`200`); the snapshot offered |
+| `radix_log_problems_total{level,event}` | log records at WARN and ERROR by event (the table below) |
+| `radix_healthy`, `radix_offpeak`, `radix_build_info{build,mode}`, `radix_start_time_seconds` | `/healthz` as 1 or 0, inside the off-peak window, the binary and its mode (`run`, `serve-snapshot`) |
 
 ## 2. Logging
 
@@ -123,6 +150,8 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | WARN | `http.request` with `status` 4xx/503 | |
 | ERROR | `scan.failed`, `scan.extraction_failed`, `scan.save_failed`, `statutes.download_failed` | study plan scan: cannot run / a document could not be read / a plan could not be stored (the previous plan is unchanged) / a PDF could not be downloaded |
 | WARN | `scan.rejected`, `scan.gemini_disabled`, `statutes.blocked` | a plan failed validation and was not stored / no API key, deterministic reader only / a PDF is behind bot protection |
+| WARN | `semantic.gemini_disabled`, `semantic.summaries_failed` | no API key: the semantic search's vectors are computed from the modules' texts without summaries / Gemini left modules out (asked again a day later) or failed (asked again in the next cycle; the cycle is not degraded for it) |
+| INFO | `semantic.enabled`, `semantic.disabled`, `semantic.finished`, `semantic.gemini_daily_limit` | the semantic stage: its setup; what a cycle computed (`summaries_written`, `summaries_missing`, `vectors_written`, `vectors_missing`); the day's Gemini requests are used up, the rest follows the next day. `build.finished` counts `module_vectors` |
 | INFO | `crawl.list_chunks_dropped` | the QIS module table got shorter; chunks behind its end were removed |
 | INFO | `crawl.pages_due` | why event pages are fetched: `never_fetched`, `changed_in_list` (other dates, or the event no longer shown), `past_age` (their day in their period has come), and how many the event search vouches for. `build.finished` counts the events whose dates come from the search (`events_from_list`) |
 | INFO | `crawl.modules_due`, `crawl.module_rows_changed` | why QIS module descriptions are fetched: `never_fetched`, `changed` (row in the module table, or another semester in QIS), `unsettled`, `past_age`, and the semester QIS calls current; which rows of the module table changed |
@@ -150,8 +179,9 @@ Any of these works; they can be combined.
 
 ## 3. Secrets
 
-The only credential is the Gemini API key (`gemini-api-key`), and only `scan-curriculum` needs
-it. It is never read from a command line flag or a configuration file, and it is redacted from
+The only credential is the Gemini API key (`gemini-api-key`). `scan-curriculum` needs it, and
+`run` uses it for the summaries of the semantic search when it has one (without, the vectors are
+computed from the modules' texts alone). It is never read from a command line flag or a configuration file, and it is redacted from
 errors and audit files. `internal/secrets` looks for it in this order; the first source that is
 configured wins, and a configured but unreadable source is an error (no silent fallback):
 
@@ -281,9 +311,9 @@ offline (`RADIX_CRAWL=off`, `serve-snapshot --db`). By hand it is `radix build`,
 and `radix export`. The new binary migrates
 `radix.db` when it opens it, but a migration does not rewrite the data it adds columns for; schema 9,
 for instance, leaves `room_short` NULL and the abbreviation tables empty until the next build, schema
-10 the folded names the search compares a query with (`module_folded`), and
-`validate` — which `export` runs first — refuses such a database. Do not export it with
-`--skip-validate`: Folia would get a catalog without short names. `deploy/vps/50-app.sh` does the
+10 the module texts in their plain form instead of Markdown (docs/schema-v2.md §3, „Module texts"),
+12 the folded names the search compares a query with (`module_folded`), and `validate` — which `export` runs first — refuses such a database. Do not export it with
+`--skip-validate`: Folia would get a catalog without short names, or texts it sets as one paragraph. `deploy/vps/50-app.sh` does the
 build itself when it makes the first snapshot of a seeded volume; for a running instance it is
 `docker exec <radix container> /bin/radix build --db /data/radix.db`, then `… export --db
 /data/radix.db --out /data/snapshot` (`deploy/README.md`, blue-green). An older binary refuses a

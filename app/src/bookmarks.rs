@@ -120,6 +120,11 @@ impl Bookmarks {
         self.0.with(|marks| marks.contains(id))
     }
 
+    /// The same without subscribing: for a handler that asks once (a swiped row, `crate::swipe`).
+    pub fn is_marked_untracked(self, id: &str) -> bool {
+        self.0.with_untracked(|marks| marks.contains(id))
+    }
+
     pub fn toggle(self, id: &str) -> bool {
         let mut marked = false;
         self.0.update(|marks| marked = marks.toggle(id, now()));

@@ -261,6 +261,10 @@ pub struct Module {
     pub is_graded: Option<bool>,
     pub is_fues: bool,
     pub department: Option<String>,
+    /// The language of the module's page and so of its texts („de", „en"): the BTU serves a
+    /// module's page in the language it is taught in.
+    pub page_lang: Option<String>,
+    /// The free texts are Markdown (`crate::text`).
     pub learning_outcomes: Option<String>,
     pub contents: Option<String>,
     pub prerequisites_recommended: Option<String>,
@@ -300,6 +304,7 @@ impl FromRow for Module {
             is_graded: row.opt_flag("is_graded")?,
             is_fues: row.flag("is_fues")?,
             department: row.opt_text("department")?,
+            page_lang: row.opt_text("page_lang")?,
             learning_outcomes: row.opt_text("learning_outcomes")?,
             contents: row.opt_text("contents")?,
             prerequisites_recommended: row.opt_text("prerequisites_recommended")?,
@@ -333,6 +338,41 @@ impl FromRow for Prerequisite {
             required_title: row.opt_text("required_title")?,
             required_offer_status: Code::parse_opt(row.opt_text("required_offer_status")?),
         })
+    }
+}
+
+/// `v_module_vector`: a module's vector for the semantic search, computed by Radix and packed as
+/// the crate `semantic` packs it (`semantic::quantize`: values of 4 bits, two to a byte), which
+/// takes it as it is (`semantic::Index::push_codes`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ModuleVector {
+    pub module_id: String,
+    pub scale: f32,
+    pub vector: Vec<u8>,
+}
+
+impl FromRow for ModuleVector {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        // The database seam carries no BLOBs; the query hands the vector over as hex.
+        let hex = row.text("vector")?;
+        let digit = |b: u8| match b {
+            b'0'..=b'9' => Some(b - b'0'),
+            b'A'..=b'F' => Some(b - b'A' + 10),
+            b'a'..=b'f' => Some(b - b'a' + 10),
+            _ => None,
+        };
+        let vector = hex
+            .as_bytes()
+            .chunks(2)
+            .map(|pair| match pair {
+                [hi, lo] => Some(digit(*hi)? << 4 | digit(*lo)?),
+                _ => None,
+            })
+            .collect::<Option<Vec<u8>>>()
+            .ok_or_else(|| row.error("vector", "not hex"))?;
+        #[allow(clippy::cast_possible_truncation)] // stored as REAL from an f32
+        let scale = row.real("scale")? as f32;
+        Ok(Self { module_id: row.text("module_id")?, scale, vector })
     }
 }
 

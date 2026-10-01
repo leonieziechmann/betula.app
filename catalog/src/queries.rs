@@ -13,7 +13,8 @@ use std::collections::BTreeSet;
 use crate::db::{fetch, fetch_count, fetch_optional, Database, DbError, Value};
 use crate::filter::{like_pattern, CatalogQuery, ProgramRelation};
 use crate::rows::{
-    CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchElsewhere, SearchTerm,
+    CatalogPage, CatalogRow, Department, Meta, Module, ModuleVector, Prerequisite, Program, ProgramModule, SearchElsewhere,
+    SearchTerm,
     Semester,
 };
 use crate::search::{Plan as SearchPlan, Resolution};
@@ -241,7 +242,7 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<Module>, DbError> {
         "SELECT id, title, title_de, title_en, credits, language_raw, teaches_german, teaches_english, \
          duration_raw, duration_semesters, \
          turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, \
-         exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department, \
+         exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department, page_lang, \
          learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, \
          source_url, fetched_at, at_zentralcampus, at_sachsendorf, at_senftenberg \
          FROM v_module WHERE id = ?",
@@ -332,6 +333,12 @@ pub fn search_elsewhere(db: &dyn Database, query: &CatalogQuery) -> Result<Searc
         &params,
     )?
     .unwrap_or_default())
+}
+
+/// The vectors of the semantic search, one per module that has one (`v_module_vector`), in id
+/// order: what `semantic::Index` is built from.
+pub fn module_vectors(db: &dyn Database) -> Result<Vec<ModuleVector>, DbError> {
+    fetch(db, "module_vectors", "SELECT module_id, scale, hex(vector) AS vector FROM v_module_vector ORDER BY module_id", &[])
 }
 
 /// Everyone who teaches or is responsible for a module, for the lecturer filter.

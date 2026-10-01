@@ -70,6 +70,24 @@ pub struct Config {
     #[arg(long, env = "FOLIA_SITE_ROOT", default_value = "site")]
     pub site_root: PathBuf,
 
+    /// The browser's model of the semantic search (`e5-de-en.bin`, semantic/README.md), served
+    /// under `/models/` with its hash in the address. Without it the app has no semantic search.
+    #[arg(long, env = "FOLIA_SEMANTIC_MODEL")]
+    pub semantic_model: Option<PathBuf>,
+
+    /// The passage model the semantic search's model was made for: Radix's id of it (the first 16
+    /// hex digits of its sha256). The browser offers the search only on a snapshot whose vectors
+    /// are of that model (its meta `semantic_model`); without it, on any.
+    #[arg(long, env = "FOLIA_SEMANTIC_PASSAGE_MODEL")]
+    pub semantic_passage_model: Option<String>,
+
+    /// While working on the site: serve the stylesheet, the scripts and the SVGs from this
+    /// directory (`app/assets`) as they are on disk, instead of the minified copies built into the
+    /// server, and keep nothing as immutable. An edit is there with the next reload; the service
+    /// worker keeps nothing meanwhile. Never in production (scripts/dev.sh sets it).
+    #[arg(long, env = "FOLIA_LIVE_ASSETS")]
+    pub live_assets: Option<PathBuf>,
+
     /// The address of the site as the world sees it: canonical links, link previews and the
     /// sitemap are written with it.
     #[arg(long, env = "FOLIA_PUBLIC_URL", default_value = app::seo::DEFAULT_SITE_URL)]
@@ -96,6 +114,9 @@ pub enum Command {
     /// listens on `FOLIA_ADDR` for `/livez` and exits with 0 when it answers. An image built with
     /// Nix has no curl or wget to do that.
     Healthcheck,
+    /// What ships: the stylesheet, the scripts and the SVGs as written and as the build minified
+    /// them, and the browser app in `<site-root>/pkg`, each also in brotli as the server sends it.
+    Assets,
 }
 
 impl Config {
