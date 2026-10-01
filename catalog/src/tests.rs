@@ -223,6 +223,13 @@ fn every_query_runs_against_the_snapshot() {
     assert!(curriculum.len() > 1000 && curriculum.iter().all(|(program, module)| !program.is_empty() && !module.is_empty()));
     let ids = queries::module_ids(&db).unwrap();
     assert!(ids.len() >= page.total as usize && ids.contains(&module.id));
+    // The semantic search's vectors, as Radix computed them: of one length, of unit length up to
+    // rounding, of modules the catalog has. A snapshot of a Radix without a model has none.
+    let vectors = queries::module_vectors(&db).unwrap();
+    for v in &vectors {
+        let length = v.codes.iter().map(|&c| (f32::from(c) * v.scale).powi(2)).sum::<f32>().sqrt();
+        assert!(v.codes.len() == 384 && (length - 1.0).abs() < 0.01 && ids.contains(&v.module_id), "{} {length}", v.module_id);
+    }
 
     the_studyplan_queries(&db, meta.current_semester.as_deref().expect("a current semester"));
 
