@@ -1143,8 +1143,44 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
 /* The note at the right end gives way before the name does. */
 .pre small { flex: 0 1 auto; min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 12px; }
 .pre > .icon { color: var(--text-3); width: 16px; height: 16px; }
-.prose { color: var(--text-2); font-size: 14px; line-height: 1.6; white-space: pre-line; max-width: 72ch; }
-.prose + .prose { margin-top: 10px; }
+/* A module's texts (ui::Prose: Markdown, catalog::text). Owner, 2026-10-01: „support für Blocksatz",
+   „Paragraphen sollen als solche erkennbar sein", „Listen sollen erkannt werden und dementsprechend
+   formatiert werden". Paragraphs stand apart by a gap, a list a little closer to the line that leads
+   to it; the markers of a list hang in the margin, so the items' text keeps one edge, and a list of
+   labels („(1)", „a)", „IV.") sets them where the markers stand, as wide as the widest (w2 … w6).
+   The text is justified and hyphenated by the rules of its own language (the element carries
+   `lang`: a German text on the English page breaks as German), never into syllables of fewer than
+   three letters or words of fewer than six, and a paragraph avoids a last line of a lone word (an
+   item of a list does not: its first line would stand apart for it). A heading (a paragraph all
+   strong) is neither justified nor hyphenated. In a column narrower than 32 em (a phone, the
+   narrow preview) the items of a list are set ragged, their few words to a line would stand
+   apart; in one narrower than 20 em everything is. */
+.prose { container: prose / inline-size; color: var(--text-2); font-size: 14px; line-height: 1.6; max-width: 72ch; overflow-wrap: break-word; }
+.prose > * + * { margin-top: .75em; }
+.prose > p + :is(ul, ol) { margin-top: .4em; }
+.prose p, .prose li { text-align: justify; hyphens: auto; -webkit-hyphens: auto; hyphenate-limit-chars: 6 3 3; }
+.prose p { text-wrap: pretty; }
+.prose :is(ul, ol) { margin: 0; padding-left: 1.4em; }
+.prose ul { list-style: disc; }
+.prose ul ul { list-style: circle; }
+.prose ol { list-style: decimal; }
+.prose li + li, .prose li > :is(ul, ol) { margin-top: .3em; }
+.prose li > p + p, .prose li > :is(ul, ol) + p { margin-top: .5em; }
+.prose li::marker { color: var(--text-3); }
+.prose ol > li::marker { font-variant-numeric: tabular-nums; }
+.prose ol.labels { --label: 3ch; list-style: none; padding-left: calc(var(--label) + .7em); }
+.prose ol.labels.w2 { --label: 2ch; } .prose ol.labels.w4 { --label: 4ch; }
+.prose ol.labels.w5 { --label: 5ch; } .prose ol.labels.w6 { --label: 6ch; }
+.prose ol.labels > li { position: relative; }
+.prose .li-label { position: absolute; right: 100%; margin-right: .5em; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.prose strong { color: var(--text); font-weight: 620; }
+.prose p.head { text-align: start; hyphens: manual; -webkit-hyphens: manual; }
+@container prose (width < 32em) {
+  .prose li { text-align: start; }
+}
+@container prose (width < 20em) {
+  .prose p { text-align: start; }
+}
 details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560; font-size: 13px; min-height: 36px; display: inline-flex; align-items: center; }
 .plain th, .plain td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
 .plain th { color: var(--text-3); font-weight: 600; font-size: 12px; }

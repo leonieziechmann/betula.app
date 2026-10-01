@@ -41,7 +41,7 @@ and the `plan*` tables is derived and replaced by each build.
 | Table | Content | Source |
 |---|---|---|
 | `raw_page` | latest body of every fetched page | all (not in the snapshot) |
-| `module` | one row per module, normalized and raw columns; `description_source` says which page the fields come from | the QIS module description where QIS has one, else the copy on `b-tu.de/modul` (`docs/data-sources.md` §10); FÜS list for `is_fues` and as fallback for a module without a page (`detail_status = 'missing'`) |
+| `module` | one row per module, normalized and raw columns, the free texts as Markdown (section 3, „Module texts"); `description_source` says which page the fields come from | the QIS module description where QIS has one, else the copy on `b-tu.de/modul` (`docs/data-sources.md` §10); FÜS list for `is_fues` and as fallback for a module without a page (`detail_status = 'missing'`) |
 | `department` | organisational units; German and English names of one unit are paired by unit code and shared responsible persons | module page |
 | `module_person`, `module_teaching_form`, `module_text_item` | responsible persons, teaching forms with SWS/hours, literature and course lists | module page |
 | `module_prerequisite`, `module_successor` | module IDs named in the prerequisite texts / the rows that state a replacement, on either of its two modules (`docs/data-sources.md` §14), only when the module exists | module page |
@@ -105,6 +105,41 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_semester` | semester | `key, season, year, label, starts_on, ends_on, is_current, teaching_events, exam_events`. `is_current` follows `meta.current_semester`: the calendar decides (April–September summer, October–March winter), but a semester whose schedule is already published wins over it — a semester counts as published once 100 modules have a dated teaching event in it, so that the few events BTU releases early cannot move the catalog. |
 | `program_coverage` | program | `program_id, program_name, degree, po_version, tree_modules, page_modules, plan_entries, plan_entries_linked, modules_without_kind, plan_status` |
 | `v_meta` | key | `key, value` |
+
+### Module texts (2026-10-01)
+
+`learning_outcomes`, `contents`, `exam_details`, `remarks`, `prerequisites_recommended` and
+`prerequisites_mandatory` of `v_module` are CommonMark (owner, 2026-10-01: „Mach das mal so, dass in
+der Datenbank markdown liegt"). Until migration 0010 they were lines of plain text with „• " before
+each item of a list and no blank line anywhere, so a paragraph could not be told from a line break.
+`internal/parser/markdown.go` writes them from the cell of the module's page:
+
+- What the page marks up is taken as it is. `<p>` and blank lines (`<br><br>`, a line of `&nbsp;`)
+  end paragraphs; `<ul>` and `<ol>` are lists („- ", „1. "), several `<ul>` in a row one list;
+  `<b>`, `<strong>` and underlining are `**strong**`, `<i>` and `<em>` `*emphasis*`; a `<br>` is a
+  hard line break (a `\` at the end of the line).
+- What the page only types is read from its lines. Lines that begin with a bullet („-", „•", „·" …;
+  „o", „*", „+", „>" only where a text has two of them) are a list, and so are numbers in sequence
+  from the start („1." „2.", „a)" „b)", „(1)" „(2)", „I." „II.", „3.1." „3.2."); a number that starts
+  no sequence stays text („1. Semester"). CommonMark numbers with digits only, so a list labelled
+  otherwise is a bullet list whose items begin with their label („- (a) Absorption"), and Folia
+  shows the labels as its markers (`catalog::text`). A list after a numbered item, or after an item
+  that ends with a colon, belongs to it; what stands between two numbered items belongs to the
+  first; a line after the last item of a list follows the list, unless it goes on with the item's
+  sentence or the items before it have more than their first line too; a line that ends with a
+  colon after a list is a heading of what follows („Teil 2:").
+- A line the source broke inside a sentence (mostly a copy from a PDF: it ends with „und", a comma
+  or an article, or a line of 60 characters goes on in lower case) is joined to the one before (a
+  soft break); a new sentence after a line of 80 characters or more begins a paragraph; every
+  other line break of the page is kept.
+- What CommonMark would read as markup is escaped (`\*`, `1\.`, `\<b>` …): any CommonMark renderer
+  shows the text as the page does. No HTML, link or image is written.
+
+The facts read from these texts — the kinds of the exam (`exam_written` …), the programs a remark
+names, the module numbers of the prerequisites, the successors — are read from the plain text, as
+before; a text that only says „keine", „None" or „-" is NULL. `v_module_text_item` (literature,
+courses) stays plain text, an item per row. `validate` fails while a text has a line that begins
+with „•", the plain form: a database migrated to schema 10 but not built again is never exported.
 
 `semester_key` and `semester_label` of `v_module_schedule` and `v_module_exam` are NULL for an event
 whose semester Radix cannot read. `validate` warns when a module links one, and Folia leaves its

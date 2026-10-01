@@ -2,6 +2,7 @@
 //! already follow its rules: classes from the stylesheet, no inline styles.)
 
 use catalog::labels::{Code, ModuleKind, OfferStatus};
+use catalog::text::{self, Block, Inline, Item, List, ListKind};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
@@ -110,14 +111,72 @@ pub fn Fact(#[prop(into)] label: String, value: Option<String>, #[prop(default =
     }
 }
 
-/// Free text from a module page: paragraphs on blank lines, line breaks kept.
+/// A free text of a module, which is Markdown (`catalog::text`): its paragraphs and lists, its
+/// strong and emphasized words and the line breaks it keeps, set in Blocksatz (app.css „prose").
+/// `lang` is the language the text is written in, which need not be the page's: a German text on
+/// the English page is hyphenated by the German rules and read out in German.
 #[component]
-pub fn Prose(text: String) -> impl IntoView {
-    text.split("\n\n")
-        .map(str::trim)
-        .filter(|paragraph| !paragraph.is_empty())
-        .map(|paragraph| view! { <p class="prose">{paragraph.to_string()}</p> })
+pub fn Prose(text: String, #[prop(optional_no_strip)] lang: Option<String>) -> impl IntoView {
+    view! { <div class="prose" lang=lang>{blocks_view(text::blocks(&text))}</div> }
+}
+
+fn blocks_view(blocks: Vec<Block>) -> AnyView {
+    blocks.into_iter().map(block_view).collect_view().into_any()
+}
+
+/// A paragraph that is all strong is a heading the page sets so („**Modulabschlussprüfung:**"): it
+/// is not justified, nor hyphenated.
+fn block_view(block: Block) -> AnyView {
+    match block {
+        Block::Paragraph(inlines) => {
+            let head = inlines.iter().any(|inline| matches!(inline, Inline::Strong(_)))
+                && inlines.iter().all(|inline| matches!(inline, Inline::Strong(_)) || matches!(inline, Inline::Text(text) if text.trim().is_empty()));
+            match head {
+                true => view! { <p class="head">{inlines_view(inlines)}</p> }.into_any(),
+                false => view! { <p>{inlines_view(inlines)}</p> }.into_any(),
+            }
+        }
+        Block::List(list) => list_view(list),
+    }
+}
+
+/// A list of labels („(1)", „a)", „IV.") sets them where the markers stand, as wide as the widest
+/// (`w2` … `w6`, in characters).
+fn list_view(list: List) -> AnyView {
+    let width = list.items.iter().filter_map(|item| item.label.as_ref()).map(|label| label.chars().count()).max().unwrap_or(0);
+    let items = list.items.into_iter().map(item_view).collect_view();
+    match list.kind {
+        ListKind::Bullets => view! { <ul>{items}</ul> }.into_any(),
+        ListKind::Numbers(start) => view! { <ol start=(start != 1).then(|| start.to_string())>{items}</ol> }.into_any(),
+        ListKind::Labels => view! { <ol class=format!("labels w{}", width.clamp(2, 6))>{items}</ol> }.into_any(),
+    }
+}
+
+/// An item of one paragraph sets it without <p>, as a list of lines is set; one of more sets each.
+fn item_view(item: Item) -> AnyView {
+    let paragraphs = item.blocks.iter().filter(|block| matches!(block, Block::Paragraph(_))).count();
+    let content = item
+        .blocks
+        .into_iter()
+        .map(|block| match block {
+            Block::Paragraph(inlines) if paragraphs == 1 => inlines_view(inlines),
+            block => block_view(block),
+        })
+        .collect_view();
+    view! { <li>{item.label.map(|label| view! { <span class="li-label">{label}</span> })}{content}</li> }.into_any()
+}
+
+fn inlines_view(inlines: Vec<Inline>) -> AnyView {
+    inlines
+        .into_iter()
+        .map(|inline| match inline {
+            Inline::Text(text) => text.into_any(),
+            Inline::Strong(inner) => view! { <strong>{inlines_view(inner)}</strong> }.into_any(),
+            Inline::Emphasis(inner) => view! { <em>{inlines_view(inner)}</em> }.into_any(),
+            Inline::Break => view! { <br/> }.into_any(),
+        })
         .collect_view()
+        .into_any()
 }
 
 /// The frame of a page (owner decision 2026-09-20: a basic element of the layout, R17): a sidebar
@@ -333,4 +392,35 @@ pub fn Icon(name: &'static str, #[prop(optional)] class: &'static str) -> impl I
     let markup = crate::icons::markup(name).map(|_| format!("<use href=\"{}#{name}\"/>", crate::asset(crate::icons::SPRITE))).unwrap_or_default();
     let class = if class.is_empty() { "icon".to_string() } else { format!("icon {class}") };
     view! { <svg class=class viewBox="0 0 24 24" aria-hidden="true" inner_html=markup></svg> }
+}
+
+// Rendering to HTML needs the server's build (`ssr`), as in `cargo test -p folia-app -p folia-server`.
+#[cfg(all(test, feature = "ssr"))]
+mod tests {
+    use super::*;
+
+    fn prose(markdown: &str, lang: Option<&str>) -> String {
+        view! { <Prose text=markdown.to_string() lang=lang.map(str::to_string)/> }.to_html().replace("<!>", "")
+    }
+
+    /// A module's text is set as text: paragraphs, lists of the three kinds, a heading of its own, a
+    /// line break, the language it is written in — and nothing of the page's markup but its words.
+    #[test]
+    fn a_text_is_set_as_paragraphs_and_lists() {
+        let html = prose(
+            "**Modulabschlussprüfung:**\n\n- Klausur, 90 min. **ODER**\n- mündliche Prüfung\n\n3. drei\n4. vier\n\n- (a) Absorption\\\n  Licht\n- (b) Elektronen\n\n<b>roh</b> und *betont*",
+            Some("de"),
+        );
+        assert!(html.starts_with(r#"<div lang="de" class="prose">"#), "{html}");
+        for part in [
+            r#"<p class="head"><strong>Modulabschlussprüfung:</strong></p>"#,
+            "<ul><li>Klausur, 90 min. <strong>ODER</strong></li><li>mündliche Prüfung</li></ul>",
+            r#"<ol start="3"><li>drei</li><li>vier</li></ol>"#,
+            r#"<ol class="labels w3"><li><span class="li-label">(a)</span>Absorption<br>Licht</li><li><span class="li-label">(b)</span>Elektronen</li></ol>"#,
+            "<p>&lt;b&gt;roh&lt;/b&gt; und <em>betont</em></p>",
+        ] {
+            assert!(html.contains(part), "{part}\nin {html}");
+        }
+        assert!(prose("Text", None).starts_with(r#"<div class="prose">"#));
+    }
 }

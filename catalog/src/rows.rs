@@ -261,6 +261,10 @@ pub struct Module {
     pub is_graded: Option<bool>,
     pub is_fues: bool,
     pub department: Option<String>,
+    /// The language of the module's page and so of its texts („de", „en"): the BTU serves a
+    /// module's page in the language it is taught in.
+    pub page_lang: Option<String>,
+    /// The free texts are Markdown (`crate::text`).
     pub learning_outcomes: Option<String>,
     pub contents: Option<String>,
     pub prerequisites_recommended: Option<String>,
@@ -300,6 +304,7 @@ impl FromRow for Module {
             is_graded: row.opt_flag("is_graded")?,
             is_fues: row.flag("is_fues")?,
             department: row.opt_text("department")?,
+            page_lang: row.opt_text("page_lang")?,
             learning_outcomes: row.opt_text("learning_outcomes")?,
             contents: row.opt_text("contents")?,
             prerequisites_recommended: row.opt_text("prerequisites_recommended")?,
