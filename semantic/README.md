@@ -8,8 +8,8 @@ numbers and abbreviations stay the answer for those, and leave most queries stud
 fewer than three modules (measured below).
 
 The model is `intfloat/multilingual-e5-small` (MIT), made small in `poc/semantic-search/`: the
-vocabulary cut from 250,002 pieces to the 27,625 German, English and the catalog's texts need,
-the weights quantised. The browser's model is in addition fine-tuned on the queries students type
+vocabulary cut from 250,002 pieces to the 27,625 German, English and the catalog's texts need
+(12,000 for the browser's model, which reads queries only), the weights quantised. The browser's model is in addition fine-tuned on the queries students type
 (below). `poc/semantic-search/` has the measurements and the scripts; this crate is what came of
 them. WebGPU was tried there too and was no faster than WASM on a phone, so the browser runs WASM.
 
@@ -48,21 +48,25 @@ alone (`module_text`).
 
 | | file | positions | size | used for |
 |---|---|---|---|---|
-| browser model | fine-tuned for queries (`finetune.py`), 4-bit GPTQ, embeddings 4 bit | 128 | 18.5 MB (16.4 brotli) | queries, in the Web Worker and on the server |
+| browser model | fine-tuned for queries (`finetune.py`), 12,000 pieces, 4-bit GPTQ, embeddings 4 bit | 128 | 15.0 MB (13.4 brotli) | queries, in the Web Worker and on the server |
 | server model | the original, 8 bit | 512 | 34.6 MB | the modules' passages, in Radix (`RADIX_EMBED_MODEL`) |
 | vectors | 384 values of 4 bits + scale a module, 192 bytes | — | about 1 MB for 4,938 modules | what a query is compared with, in the snapshot |
 
 The query side is fine-tuned, the passage side is not: the modules' vectors stay the original
 model's, so the passages need no training data, and the browser's model learns where students'
-queries belong among them. Both models come out of `poc/semantic-search/python/pack.py` with the
-same vocabulary.
+queries belong among them. Both models come out of `poc/semantic-search/python/pack.py`; the
+browser's with a vocabulary of its own, the pieces the queries and the modules' titles need
+(`query_text.py`; a piece both vocabularies keep is the same piece, so the two models still read
+text alike).
 
 ```bash
 cd poc/semantic-search/python     # setup: poc/semantic-search/README.md, "Run it"
 python embed_catalog.py catalog.db --export-text ../model/catalog.txt
 python build_vocab.py --coverage 0.99 --text ../model/catalog.txt --out ../model/vocab.json
 python finetune.py catalog.db ../model/ft                                                                                   # query side, 15 min
-python pack.py --model ../model/ft --vocab ../model/vocab.json --weights gptq-q4 --embeddings q4 --out ../model/e5-de-en.bin  # browser
+python query_text.py catalog.db ../model/query-text.txt
+python build_vocab.py --size 12000 --text ../model/query-text.txt --out ../model/vocab-query.json
+python pack.py --model ../model/ft --vocab ../model/vocab-query.json --weights gptq-q4 --embeddings q4 --out ../model/e5-de-en.bin  # browser
 python pack.py --vocab ../model/vocab.json --weights q8 --embeddings q8 --positions 512 --out ../model/e5-de-en-server.bin    # Radix
 ```
 
@@ -95,11 +99,13 @@ of this crate (`target/release/embed --search`, the browser's bits):
 | fine-tuned query model | 70.7 % | 76.3 % |
 | summaries in the passage | 63.9 % | 76.7 % |
 | both, the vectors in 8 bits | 72.6 % | 81.7 % |
-| **both, the vectors in 4 bits (this crate, Radix)** | **70.2 %** | **80.8 %** |
+| both, the vectors in 4 bits | 70.2 % | 80.8 % |
+| **both, 4-bit vectors, the query model's vocabulary 12,000 (this crate, Radix)** | **69.2 %** | **80.1 %** |
 
 The vectors are 4 bits a value (`index.rs`): half of the 2 MB 8 bits take in the snapshot, for
-2.4 points relevant and 0.9 found. The situation queries, the hardest: 27.7 % → 48.2 % in the
-first 10. For all queries, including those the exact search answers: 62.1 % → 74.7 % relevant
+2.4 points relevant and 0.9 found. The browser's model keeps 12,000 pieces instead of 27,625:
+3.1 MB less to download (13.4 instead of 16.5 MB with brotli; the file 15.0 instead of 18.5) for
+1.0 point relevant and 0.7 found. The situation queries, the hardest: 27.7 % → 45.7 % in the first 10. For all queries, including those the exact search answers: 62.1 % → 74.7 % relevant
 (the realistic ones), 60.8 % → 71.6 % (the personas'). Of the judgments' holes (modules nobody
 graded, counted as not relevant), 1–5 % of the first 10; the numbers are a little low for it.
 
@@ -117,7 +123,12 @@ Tried and left out:
   hubs: the first 10 of 200 queries hold 1,506 different modules, none wrong more than four times;
 - the description in chunks of 60 words, the best chunk counting: 61.1 % relevant, 64.7 % found
   (Python; +2–3 points), superseded by the summaries;
-- 3-bit vectors: 5.9 points relevant below 4 bits (Python).
+- 3-bit vectors: 5.9 points relevant below 4 bits (Python);
+- a smaller vocabulary of the query model by word frequency alone, without the pieces of the
+  queries and titles: 20,000 pieces 79.7 % found, 14,000 78.3 %, 10,000 75.3 %, 6,000 67.2 %
+  (80.8 % with 27,625; 80.0 % with 14,000 and 80.1 % with 12,000 that keep the queries' and
+  titles' pieces). The queries' pieces are those of Claude's training queries, which wrote the
+  test queries too; the open queries, written without the catalog, lose 1 point all the same.
 
 The vectors make the snapshot larger: 7.5 → 8.3 MB with gzip -9 (packed values hardly
 compress; with 8 bits it would be 9.3 MB). That is the index itself, which the browser would
@@ -173,7 +184,7 @@ const found = await semantic.search("coding lernen", 20);
 if (found) for (const { id, score } of found.hits) { /* id: the module's id */ }
 ```
 
-Everything happens in the worker: loading (18.5 MB, then 21 MB of int8 weights made from it),
+Everything happens in the worker: loading (15.0 MB, then the int8 weights made from it; 21 MB with the larger vocabulary),
 the query (15–55 ms in Chromium on the container this was built in, the main thread untouched: its longest pause during searches
 was 9 ms in the test below), the search over the index (a few ms). Typing fast does not pile up
 work: while a query runs only the newest waits, the ones it replaced resolve to `null`. The
@@ -189,7 +200,7 @@ dedicated worker lives as long as the page and keeps the model loaded between qu
 
 - the search in the app's UI (`app/`): the semantic hits when the exact search finds few;
 - serving the browser's model (`/pkg/e5-de-en.bin` above is a placeholder) and `sw.js` keeping it;
-  where the two model files come from in a deploy (35 + 18.5 MB, not in git: a release artifact,
+  where the two model files come from in a deploy (35 + 15 MB, not in git: a release artifact,
   or built in the deploy), and `RADIX_EMBED_MODEL` in the stack;
 - a schema-10 snapshot for Folia's tests (`catalog::tests` and the pinned digests);
 - Unicode composition (NFC): neither side composes „e“ + U+0301 into „é“ (a query typed so is

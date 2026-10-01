@@ -747,8 +747,8 @@ budgets of 20 minutes, one a cycle: most of a day; after that a cycle computes w
 `semantic.finished` (counts), `semantic.gemini_daily_limit`, `semantic.summaries_failed` (WARN);
 a failure of the vectors degrades the cycle, one of Gemini does not. Measured on the catalog
 (`semantic/README.md`, „Quality“): of the first 10 modules for the queries the exact search leaves
-with fewer than 3, 56.9 % were relevant with the old index and query model, 70.2 % with the
-fine-tuned query model and the 4-bit vectors of passages with summaries.
+with fewer than 3, 56.9 % were relevant with the old index and query model, 69.2 % with the
+fine-tuned query model (12,000 pieces) and the 4-bit vectors of passages with summaries.
 
 The migration adds the three tables and the view, and the build's `module_vector` changes the
 content digest: the first build after the release publishes a snapshot (still without vectors
