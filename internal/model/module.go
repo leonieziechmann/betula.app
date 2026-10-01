@@ -267,4 +267,19 @@ type ModuleDetail struct {
 	IsFUES                   bool                `json:"is_fues"`
 	RawURL                   string              `json:"raw_url"`
 	LastScrapedAt            time.Time           `json:"last_scraped_at"`
+	// Markdown holds the free texts above as the catalog keeps them; the plain ones stay what
+	// facts are read from (the exam's kinds, the programs a remark names, the prerequisites).
+	Markdown ModuleTexts `json:"markdown"`
+}
+
+// ModuleTexts are the free texts of a module description as CommonMark (parser.Markdown):
+// paragraphs, lists, strong and emphasized text, as the page sets them (docs/schema-v2.md §3,
+// „Module texts").
+type ModuleTexts struct {
+	LearningOutcomes         string `json:"learning_outcomes,omitempty"`
+	Contents                 string `json:"contents,omitempty"`
+	PrerequisitesRecommended string `json:"prerequisites_recommended,omitempty"`
+	PrerequisitesMandatory   string `json:"prerequisites_mandatory,omitempty"`
+	ExamDetails              string `json:"exam_details,omitempty"`
+	Remarks                  string `json:"remarks,omitempty"`
 }

@@ -121,6 +121,17 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		`SELECT program_id || ' ' || GROUP_CONCAT(abbrev) || ': ' || GROUP_CONCAT(module_id) FROM program_module_abbrev
 		 GROUP BY program_id, `+abbrevKey+` HAVING COUNT(*) > 1`)
 	v.blockedAbbreviations()
+	// The free texts are Markdown (migration 0010, docs/schema-v2.md §3): a list item is „- " or
+	// „1. ", never the „• " that began a line of the plain texts before. A migrated database that
+	// was not built again still has those, and fails here: it must not be exported.
+	const plainLine = `SELECT id FROM module WHERE ` +
+		`substr(learning_outcomes, 1, 1) = '•' OR instr(learning_outcomes, char(10) || '•') > 0 OR ` +
+		`substr(contents, 1, 1) = '•' OR instr(contents, char(10) || '•') > 0 OR ` +
+		`substr(exam_details, 1, 1) = '•' OR instr(exam_details, char(10) || '•') > 0 OR ` +
+		`substr(remarks, 1, 1) = '•' OR instr(remarks, char(10) || '•') > 0 OR ` +
+		`substr(prerequisites_recommended, 1, 1) = '•' OR instr(prerequisites_recommended, char(10) || '•') > 0 OR ` +
+		`substr(prerequisites_mandatory, 1, 1) = '•' OR instr(prerequisites_mandatory, char(10) || '•') > 0`
+	v.count("module texts are Markdown", StatusFail, "SELECT COUNT(*) FROM ("+plainLine+")", plainLine+" ORDER BY id")
 	v.count("abbreviations are 2 to 10 characters without spaces", StatusFail, `
 		SELECT (SELECT COUNT(*) FROM module_abbrev WHERE LENGTH(abbrev) NOT BETWEEN 2 AND 10 OR abbrev LIKE '% %')
 		     + (SELECT COUNT(*) FROM program_module_abbrev WHERE LENGTH(abbrev) NOT BETWEEN 2 AND 10 OR abbrev LIKE '% %')`, "")

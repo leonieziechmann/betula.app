@@ -1,0 +1,13 @@
+-- The free texts of a module description are Markdown (CommonMark; owner, 2026-10-01: „Mach das
+-- mal so, dass in der Datenbank markdown liegt"): module.learning_outcomes, contents, exam_details,
+-- remarks, prerequisites_recommended and prerequisites_mandatory hold what parser.Markdown writes
+-- from the page — paragraphs apart by a blank line, lists as „- " and „1. ", strong and
+-- emphasized text — no longer the lines of plain text with „• " before every item of a list
+-- (docs/schema-v2.md §3, „Module texts"). The facts read from these texts (the exam's kinds, the
+-- programs a remark names, the prerequisites) are still read from the plain text.
+--
+-- No column changes; the number is the contract. Folia reads the texts as Markdown from schema 10
+-- on, and a browser never opens a copy of an older schema (catalog::SCHEMA_VERSION).
+--
+-- Existing data is not rewritten: until the next build the texts are the plain ones, and validate
+-- fails („module texts are Markdown"), so a migrated but unbuilt database is never exported.

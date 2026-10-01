@@ -138,6 +138,8 @@ func buildFixture(t *testing.T) (*catalogdb.DB, *Report) {
 
 	put(catalogdb.SourceModulePage, "11101", modulePageDE("11101", "Lineare Algebra", `
 		<tr><td>Zuordnung zu Studiengängen:</td><td><ul><li>Bachelor (universitär) / Informatik / PO 2008 - 2. SÄ 2024</li></ul></td></tr>
+		<tr><td>Lernziele:</td><td>Die Studierenden sollen<br />
+			<ul><li>lineare Gleichungssysteme lösen können</li><li>Fertigkeiten in den <b>grundlegenden</b> Beweistechniken ausbilden</li></ul></td></tr>
 		<tr><td>Bemerkungen:</td><td>Nachfolgemodul: 11881</td></tr>`))
 	put(catalogdb.SourceModulePage, "11881", englishModulePage)
 	put(catalogdb.SourceModulePage, "11152", modulePageDE("11152", "ERP", `
@@ -408,6 +410,19 @@ func TestBuildIsRepeatableAndKeepsPlans(t *testing.T) {
 	}
 }
 
+// The free texts are kept as Markdown (docs/schema-v2.md §3, „Module texts"), and the facts are
+// still read from the plain text: the list of the page is a list, the exam's kinds are those of
+// „Klausur", the remark still names the successor, the prerequisite still links.
+func TestModuleTextsAreMarkdown(t *testing.T) {
+	db, _ := buildFixture(t)
+	want(t, db, `SELECT learning_outcomes, exam_details, exam_written, remarks, prerequisites_recommended FROM module WHERE id = '11101'`,
+		"Die Studierenden sollen\n\n- lineare Gleichungssysteme lösen können\n- Fertigkeiten in den **grundlegenden** Beweistechniken ausbilden"+
+			"|Klausur, 90 min.|1|Nachfolgemodul: 11881|Modul 11881 und 99999")
+	want(t, db, `SELECT module_id, successor_id FROM module_successor WHERE module_id = '11101'`, "11101|11881")
+	// The remark of 11881 begins with a bullet the page types: an item of a list now.
+	want(t, db, `SELECT substr(remarks, 1, 19) FROM module WHERE id = '11881'`, "- Study programme I")
+}
+
 func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 	db, _ := buildFixture(t)
 	ctx := context.Background()
@@ -433,10 +448,12 @@ func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 		t.Errorf("successor cycle check = %+v", c)
 	}
 
-	// Regressions: a placeholder string, a stale materialized table, a missed baseline.
+	// Regressions: a placeholder string, a stale materialized table, a missed baseline, a text in
+	// the plain form of before the Markdown (migration 0010).
 	for _, stmt := range []string{
 		"UPDATE module SET remarks = '' WHERE id = '11101'",
 		"DELETE FROM program_module WHERE module_id = '11152'",
+		"UPDATE module SET contents = 'Inhalte:' || char(10) || '• Vektorräume' || char(10) || '• Matrizen' WHERE id = '11881'",
 	} {
 		if _, err := db.SQL().Exec(stmt); err != nil {
 			t.Fatal(err)
@@ -452,7 +469,8 @@ func TestValidatePassesOnCleanBuildAndCatchesRegressions(t *testing.T) {
 			failed[c.Name] = true
 		}
 	}
-	for _, name := range []string{"no empty-string or '-' placeholders in text columns", "program_module matches its source view", "baseline: modules"} {
+	for _, name := range []string{"no empty-string or '-' placeholders in text columns", "program_module matches its source view", "baseline: modules",
+		"module texts are Markdown"} {
 		if !failed[name] {
 			t.Errorf("expected check %q to fail; failed = %v", name, failed)
 		}
