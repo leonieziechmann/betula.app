@@ -70,9 +70,12 @@ services:
       - radix-data:/data
     networks:
       # Folia reaches http://radix:8090/snapshot/catalog.db. Not "internal": Radix has to reach
-      # the university's servers. (The monitoring overlay joins when Radix gets a /metrics
-      # endpoint; see the commented job in config/monitoring/prometheus.yml.)
+      # the university's servers.
       default: {}
+      # Prometheus scrapes http://<stack>_radix:8090/metrics over this overlay (job radix in
+      # config/monitoring/prometheus.yml; dashboard "Radix"). Every instance's Radix is
+      # "radix" here too, so nothing on this network may ask for the bare name: Folia stays off it.
+      monitoring: {}
     # No ports: nothing but Traefik publishes anything. /status for a human:
     #   ssh -L 8090:<address of the container on docker_gwbridge>:8090 betula   (same recipe as for Grafana, README.md)
     cap_drop: [ALL]
@@ -206,6 +209,8 @@ networks:
   default:
     driver: overlay
   edge:
+    external: true
+  monitoring:
     external: true
 
 volumes:

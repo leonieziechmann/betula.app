@@ -13,6 +13,7 @@ import (
 	"github.com/leonieziechmann/betula/internal/catalogbuild"
 	"github.com/leonieziechmann/betula/internal/catalogdb"
 	"github.com/leonieziechmann/betula/internal/crawl"
+	"github.com/leonieziechmann/betula/internal/metrics"
 	"github.com/leonieziechmann/betula/internal/oplog"
 	"github.com/leonieziechmann/betula/internal/snapshothttp"
 	"github.com/leonieziechmann/betula/internal/version"
@@ -138,6 +139,7 @@ type Service struct {
 	nextCycleAt   time.Time
 
 	summaryFailed map[string]time.Time // text hash → when Gemini last failed to summarise it (semantic.go)
+	archive       archiveCache         // for GET /metrics
 }
 
 // New creates a service. recorder may be nil.
@@ -168,6 +170,7 @@ func (s *Service) Run(ctx context.Context) error {
 
 		s.mu.Lock()
 		s.nextCycleAt = s.now().Add(s.cfg.Interval)
+		nextCycleAt.Set(float64(s.nextCycleAt.Unix()))
 		s.mu.Unlock()
 
 		timer := time.NewTimer(s.cfg.Interval)
@@ -217,6 +220,8 @@ func (s *Service) builtBy() string {
 func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResult) {
 	log := oplog.For("service")
 	result = CycleResult{StartedAt: s.now(), Result: "ok"}
+	cycleRunning.Set(1)
+	cycleCrawls.Set(metrics.Bool(crawlFirst))
 	log.Info("cycle started", "event", "cycle.started", "offpeak", s.inOffPeak(result.StartedAt), "crawl", crawlFirst)
 
 	defer func() {
@@ -308,6 +313,7 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 			removed, err := s.db.PruneEvents(s.now(), s.cfg.EventRetention)
 			if err == nil && removed > 0 {
 				oplog.For("retention").Info("events pruned", "event", "retention.pruned", "removed", removed)
+				prunedTotal.Add(float64(removed), "events")
 			}
 			return err
 		})
@@ -317,12 +323,14 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 	if !step("build", func() (err error) { report, err = catalogbuild.Build(ctx, s.db); return err }) {
 		return result
 	}
+	countBuild(report)
 
 	if s.cfg.ArchiveGrace > 0 {
 		step("archive", func() error {
 			removed, err := s.db.PruneArchive(report.Unused, s.now().Add(-s.cfg.ArchiveGrace))
 			if err == nil && removed > 0 {
 				oplog.For("retention").Info("archive pruned", "event", "retention.archive_pruned", "removed", removed)
+				prunedTotal.Add(float64(removed), "archive_pages")
 			}
 			return err
 		})
@@ -372,6 +380,8 @@ func (s *Service) record(r CycleResult) {
 	case "failed":
 		s.failedInARow++
 	}
+	countCycle(r, s.lastSuccessAt, s.failedInARow)
+	s.archive.invalidate() // the cycle changed the archive
 }
 
 func (s *Service) inOffPeak(t time.Time) bool {
@@ -450,12 +460,15 @@ func (s *Service) Status() Status {
 
 // Handler serves the snapshot endpoints plus:
 //
+//	GET /metrics  the counters and gauges in the Prometheus text format (docs/operations.md)
 //	GET /healthz  200 {"status":"ok"} or 503 {"status":"unhealthy","problems":[…]}; for
 //	              container health checks and uptime monitors
 //	GET /status   the full Status as JSON, including the most recent warnings and errors
 func (s *Service) Handler() http.Handler {
+	active.Store(s)
 	mux := http.NewServeMux()
 	mux.Handle("/snapshot/", snapshothttp.Handler(s.cfg.SnapshotDir))
+	mux.Handle("GET /metrics", metrics.Default.Handler())
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		st := s.Status()

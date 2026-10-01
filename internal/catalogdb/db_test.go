@@ -109,3 +109,39 @@ func TestGetPageNotFoundAndBodylessPage(t *testing.T) {
 		t.Fatalf("bodyless page = %+v (err %v)", p, err)
 	}
 }
+
+func TestArchiveStats(t *testing.T) {
+	db := openTestDB(t)
+	day := time.Date(2026, 9, 30, 10, 0, 0, 0, time.UTC)
+	put := func(source, key string, at time.Time, status int, body string) {
+		t.Helper()
+		if err := db.PutPage(RawPage{Source: source, Key: key, URL: "u", FetchedAt: at, HTTPStatus: status, Body: []byte(body)}); err != nil {
+			t.Fatalf("PutPage failed: %v", err)
+		}
+	}
+	put(SourceModulePage, "1", day.Add(-72*time.Hour), 200, "a")
+	put(SourceModulePage, "1", day.Add(-time.Hour), 200, "a") // fetched again, unchanged
+	put(SourceModulePage, "2", day.Add(-48*time.Hour), 200, "b")
+	put(SourceModulePage, "2", day.Add(-2*time.Hour), 200, "c") // changed
+	put(SourceModulePage, "3", day.Add(-96*time.Hour), 404, "")
+	put(SourceQISEvent, "9", day.Add(-time.Minute), 200, "e") // new
+
+	stats, err := db.ArchiveStats(day.Add(-24 * time.Hour))
+	if err != nil {
+		t.Fatalf("ArchiveStats failed: %v", err)
+	}
+	want := []ArchiveStat{
+		{Source: SourceModulePage, Pages: 3, NotFound: 1, FetchedSince: 2, ChangedSince: 1, Oldest: day.Add(-96 * time.Hour), Newest: day.Add(-time.Hour)},
+		{Source: SourceQISEvent, Pages: 1, FetchedSince: 1, ChangedSince: 1, Oldest: day.Add(-time.Minute), Newest: day.Add(-time.Minute)},
+	}
+	if len(stats) != len(want) {
+		t.Fatalf("ArchiveStats = %+v, want %+v", stats, want)
+	}
+	for i := range want {
+		g, w := stats[i], want[i]
+		if g.Source != w.Source || g.Pages != w.Pages || g.NotFound != w.NotFound || g.FetchedSince != w.FetchedSince ||
+			g.ChangedSince != w.ChangedSince || !g.Oldest.Equal(w.Oldest) || !g.Newest.Equal(w.Newest) {
+			t.Errorf("ArchiveStats[%d] = %+v, want %+v", i, g, w)
+		}
+	}
+}

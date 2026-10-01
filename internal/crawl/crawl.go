@@ -158,11 +158,14 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 				case err != nil:
 					log.Error("giving up on page", "event", "crawl.job_failed", "key", job.Key, "url", job.URL,
 						"attempts", maxAttempts, oplog.Err(err))
+					CountPage(job.Source, "failed")
 					record(func(s *Stats) { s.Failed++ }, true, err)
 				case status == http.StatusNotFound:
 					log.Warn("page not found", "event", "crawl.not_found", "key", job.Key, "url", job.URL)
+					CountPage(job.Source, "not_found")
 					record(func(s *Stats) { s.NotFound++ }, false, nil)
 				default:
+					CountPage(job.Source, changedOutcome(changed))
 					record(func(s *Stats) {
 						s.Fetched++
 						if changed {
@@ -220,7 +223,11 @@ func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logge
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		begin := time.Now()
 		status, body, err := fetch(ctx, job.URL, opt)
-		if took := time.Since(begin); took > slowResponse {
+		took := time.Since(begin)
+		if ctx.Err() == nil {
+			countRequest(job.Source, status, err, took, len(body))
+		}
+		if took > slowResponse {
 			log.Warn("slow response", "event", "crawl.slow", "key", job.Key, "duration_ms", took.Milliseconds(), "status", status)
 		}
 

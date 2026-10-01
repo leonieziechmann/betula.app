@@ -168,6 +168,7 @@ func CrawlQISModuleList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pac
 	}
 	if len(ids) > 0 {
 		sort.Strings(ids)
+		moduleRowsChanged.Add(float64(len(ids)))
 		oplog.For("crawl").Info("module rows changed; their descriptions are fetched again", "event", "crawl.module_rows_changed",
 			"source", catalogdb.SourceQISModuleList, "count", len(ids), "examples", firstIDs(ids, 5))
 	}

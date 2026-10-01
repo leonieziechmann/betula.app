@@ -162,8 +162,11 @@ preflight() {
   [[ "${CONVERGE_TIMEOUT}" =~ ^[0-9]{1,5}$ ]] || die "CONVERGE_TIMEOUT='${CONVERGE_TIMEOUT}' is not a number of seconds"
   require_cmd docker ip
   require_swarm_manager
-  facts="$(docker network inspect edge --format '{{.Driver}} {{.Scope}} {{.Attachable}}' 2>/dev/null || true)"
-  [[ "${facts}" == "overlay swarm true" ]] || die "overlay network edge is missing or not attachable (run vps/30-docker.sh)"
+  local net
+  for net in edge monitoring; do
+    facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}}' 2>/dev/null || true)"
+    [[ "${facts}" == "overlay swarm true" ]] || die "overlay network ${net} is missing or not attachable (run vps/30-docker.sh)"
+  done
   stack_exists edge || die "stack edge is not deployed: nothing would route to the application (run vps/40-stacks.sh)"
 
   log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, release ${TAG}"
