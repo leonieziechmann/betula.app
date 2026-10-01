@@ -1,5 +1,5 @@
 // The WASM model for JavaScript (browser and Node): load the packed model once, then embed
-// queries. `runtime/src/wasm.rs` has the exports this wraps.
+// queries. `semantic/src/wasm.rs` (feature `worker`) has the exports this wraps.
 
 // A module with one relaxed-SIMD instruction (i32x4.relaxed_dot_i8x16_i7x16_add_s): valid where
 // the engine has relaxed SIMD (Chrome 114+, Firefox 120+), not in Safari.
@@ -17,7 +17,7 @@ export const build = WebAssembly.validate(RELAXED_PROBE) ? "relaxed" : "simd";
 
 export class E5 {
   /** @param {BufferSource} wasm the module's bytes, @param {Uint8Array} model the packed model,
-   * @param {"expand"|"f32"|"int8"} mode how the matrices are kept (runtime/src/tensor.rs `Mode`):
+   * @param {"expand"|"f32"|"int8"} mode how the matrices are kept (semantic/src/tensor.rs `Mode`):
    * int8 is fastest (21 MB more memory), expand smallest, f32 in between but 85 MB more. */
   static async create(wasm, model, mode = "int8") {
     const { instance } = await WebAssembly.instantiate(wasm, {});
@@ -63,13 +63,16 @@ export function nearest(index, query, k = 10) {
   return order.map((r) => [scores[r], r]);
 }
 
-/** Parses an index file: "E5I1", u32 rows, u32 dims, rows × f32 scales, rows × dims int8. */
+/** Parses an index file (semantic/src/index.rs): "E5I2", u32 rows, u32 dims, rows × (u16 length,
+ * id), rows × f32 scales, rows × dims int8. The ids are skipped: a row is a module of index.json. */
 export function readIndex(buffer) {
   const view = new DataView(buffer);
   const magic = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
-  if (magic !== "E5I1") throw new Error("not an index");
+  if (magic !== "E5I2") throw new Error("not an index");
   const rows = view.getUint32(4, true), dims = view.getUint32(8, true);
-  const scales = new Float32Array(buffer.slice(12, 12 + 4 * rows));
-  const codes = new Int8Array(buffer, 12 + 4 * rows, rows * dims);
+  let at = 12;
+  for (let r = 0; r < rows; r++) at += 2 + view.getUint16(at, true);
+  const scales = new Float32Array(buffer.slice(at, at + 4 * rows));
+  const codes = new Int8Array(buffer, at + 4 * rows, rows * dims);
   return { rows, dims, scales, codes };
 }

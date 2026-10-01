@@ -10,8 +10,9 @@
 //!    (Viterbi); a character no piece covers is `<unk>`, several in a row are one;
 //! 4. `<s>` before, `</s>` after.
 //!
-//! What the table cannot do is compose: „e“ followed by U+0301 stays two characters. A browser
-//! does that with `text.normalize("NFC")` before handing the text over.
+//! What the table cannot do is compose: „e“ followed by U+0301 stays two characters (keyboards
+//! and the catalog write „é“ as one). Nothing composes it on the way either — not the browser's
+//! `normalize`, which the server would not do — so that a query gives the same tokens on both.
 
 use std::collections::HashMap;
 

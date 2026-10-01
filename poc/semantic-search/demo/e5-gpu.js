@@ -8,7 +8,7 @@
 // floats. Without WebGPU, or once the GPU fails (device lost, an error), the same calls go to
 // the WASM runtime (`e5.js`), which is only loaded then.
 //
-// The arithmetic is that of `runtime/` in expand mode (f32, the same GELU), so the embeddings
+// The arithmetic is that of the crate `semantic/` in expand mode (f32, the same GELU), so the embeddings
 // agree with it to float rounding (`demo/gpu-check.mjs`).
 
 import { E5 } from "./e5.js";
@@ -204,7 +204,7 @@ var<workgroup> xs: array<f32, 512>;     // [16 tokens][32]
 var<workgroup> ws: array<vec4f, 512>;   // [32][16 × 4 outputs]
 var<workgroup> table: array<f32, 16>;
 
-fn erf(x0: f32) -> f32 {  // runtime/src/tensor.rs erf: Eigen's rational approximation
+fn erf(x0: f32) -> f32 {  // semantic/src/tensor.rs erf: Eigen's rational approximation
   let x = clamp(x0, -4.0, 4.0);
   let x2 = x * x;
   var p = -2.7261423e-10;

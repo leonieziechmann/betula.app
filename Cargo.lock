@@ -888,6 +888,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "folia-semantic"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+]
+
+[[package]]
 name = "folia-server"
 version = "1.0.3"
 dependencies = [

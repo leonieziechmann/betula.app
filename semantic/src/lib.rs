@@ -1,24 +1,46 @@
-//! multilingual-e5-small for German and English, small enough for a browser: the tokenizer and
-//! the encoder of the packed model `python/pack.py` writes (the vocabulary trimmed to the pieces
-//! German and English need, the weights in 4 bits). No dependencies; native and wasm32.
+//! Semantic search for Betula: modules found by what they are about, not by the words of their
+//! title („coding lernen“ → „Einführung in die Programmierung“), in German and English.
+//!
+//! The model is multilingual-e5-small, packed by `poc/semantic-search/python/pack.py`: the
+//! vocabulary trimmed to the pieces German and English (and the catalog's texts) need, the
+//! weights quantised. No dependencies; the same code runs
+//!
+//! - **on the server**, natively: it embeds every module once per snapshot (`Index::build`,
+//!   with a q8 model of 512 positions, close to the original) and can answer a search itself;
+//! - **in the browser**, as WASM in a Web Worker (feature `worker`, `src/wasm.rs`, `js/`): the
+//!   4-bit model (18.5 MB) embeds the query, the index the server built is searched there.
+//!
+//! ```no_run
+//! # fn main() -> Result<(), String> {
+//! let model = semantic::Model::from_bytes_with(std::fs::read("e5-de-en.bin").map_err(|e| e.to_string())?, semantic::Mode::Int8)?;
+//! let index = semantic::Index::from_bytes(&std::fs::read("index.bin").map_err(|e| e.to_string())?)?;
+//! for hit in index.search(&model.embed_query("coding lernen"), 10) {
+//!     println!("{:.3} {}", hit.score, hit.id);
+//! }
+//! # Ok(())
+//! # }
+//! ```
 //!
 //! The encoder is BERT: token + position embedding, LayerNorm, then 12 times self-attention
 //! (12 heads) and a feed-forward part (GELU), each added to its input and normalised; the
 //! embedding of a text is the mean over its tokens, scaled to length 1. E5 expects every text
-//! behind a prefix: „query: “ for what is searched for, „passage: “ for what is searched.
+//! behind a prefix: „query: “ for what is searched for, „passage: “ for what is searched
+//! (`embed_query`, `embed_passage`).
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
+pub mod index;
 mod reader;
 mod tensor;
 pub mod tokenizer;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "worker"))]
 mod wasm;
 
 use std::collections::HashMap;
 
 use reader::Reader;
 use tensor::{gelu, softmax, Linear, Norm, Scratch, Tensor};
+pub use index::{Hit, Index};
 pub use tensor::Mode;
 pub use tokenizer::Tokenizer;
 
@@ -83,6 +105,63 @@ impl Header {
 /// `demo/e5-gpu.js`). `bytes` may end where the tensors begin.
 pub fn tokenizer_from_bytes(bytes: &[u8]) -> Result<Tokenizer, String> {
     Ok(Header::read(&mut Reader::new(bytes))?.tokenizer)
+}
+
+/// A search as the server and the browser run it: the browser's model (4 bit) in `Mode::Int8`
+/// and an index. For the same model file, index file, query and `k` it gives the same hits with
+/// the same scores, to the bit, natively on the server and in every WASM build of the worker
+/// (SIMD, relaxed SIMD): the arithmetic is defined bit for bit (`tensor::tile_scalar`,
+/// `tensor::exp`), and nothing on the way depends on the platform. `Model` in another mode, or
+/// another model file, embeds differently.
+pub struct Search {
+    model: Model,
+    index: Index,
+}
+
+impl Search {
+    pub fn new(model: Vec<u8>, index: &[u8]) -> Result<Self, String> {
+        let model = Model::from_bytes_with(model, Mode::Int8)?;
+        let index = Index::from_bytes(index)?;
+        if index.dims() != model.dims() {
+            return Err(format!("an index of {} dimensions for a model of {}", index.dims(), model.dims()));
+        }
+        Ok(Self { model, index })
+    }
+
+    /// Another index (a new snapshot) for the same model.
+    pub fn set_index(&mut self, index: &[u8]) -> Result<(), String> {
+        let index = Index::from_bytes(index)?;
+        if index.dims() != self.model.dims() {
+            return Err(format!("an index of {} dimensions for a model of {}", index.dims(), self.model.dims()));
+        }
+        self.index = index;
+        Ok(())
+    }
+
+    /// The `k` documents closest to `query` (what someone typed, without „query: “), best first.
+    pub fn search(&self, query: &str, k: usize) -> Vec<Hit<'_>> {
+        self.index.search(&self.model.embed_query(query), k)
+    }
+
+    pub fn model(&self) -> &Model {
+        &self.model
+    }
+
+    pub fn index(&self) -> &Index {
+        &self.index
+    }
+}
+
+/// The text a module is embedded as: its title (German, and English where it differs), then
+/// its contents and learning outcomes — `poc/semantic-search/python/embed_catalog.py` does the
+/// same for the evaluation. Its title alone says too little; the description is what a query
+/// about a subject finds.
+pub fn module_text(title_de: &str, title_en: Option<&str>, contents: Option<&str>, outcomes: Option<&str>) -> String {
+    let de = title_de.trim();
+    let en = title_en.map(str::trim).filter(|en| *en != de);
+    let titles: Vec<&str> = [Some(de), en].into_iter().flatten().filter(|t| !t.is_empty()).collect();
+    let body: Vec<&str> = [contents, outcomes].into_iter().flatten().map(str::trim).filter(|t| !t.is_empty()).collect();
+    format!("{}. {}", titles.join(" / "), body.join(" "))
 }
 
 pub struct Model {
@@ -151,6 +230,22 @@ impl Model {
     /// The embedding of `text`, prefix included („query: …“).
     pub fn embed(&self, text: &str) -> Vec<f32> {
         self.embed_ids(&self.tokenizer.encode(text))
+    }
+
+    /// The embedding of what someone searches for.
+    pub fn embed_query(&self, query: &str) -> Vec<f32> {
+        self.embed(&format!("query: {query}"))
+    }
+
+    /// The embedding of a document that is searched (`module_text`). Beyond the model's
+    /// positions (512 for the server's model, 128 for the browser's) the text is cut off.
+    pub fn embed_passage(&self, text: &str) -> Vec<f32> {
+        self.embed(&format!("passage: {text}"))
+    }
+
+    /// The most tokens a text is embedded with.
+    pub fn positions(&self) -> usize {
+        self.positions
     }
 
     /// The embedding of tokens as `Tokenizer::encode` gives them; beyond the positions the file
@@ -244,5 +339,39 @@ impl Model {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn module_texts() {
+        assert_eq!(module_text("Statik", Some("Statics"), Some(" Kräfte "), Some("Lösen")), "Statik / Statics. Kräfte Lösen");
+        assert_eq!(module_text("Statik", Some("Statik"), None, Some("")), "Statik. ");
+        assert_eq!(module_text("", Some("Statics"), Some("Forces"), None), "Statics. Forces");
+    }
+
+    /// With a packed model at `SEMANTIC_TEST_MODEL` (the repository has none: 18.5 MB, built by
+    /// poc/semantic-search/python/pack.py): the model loads in every mode and the three agree.
+    #[test]
+    fn the_modes_agree() {
+        let Ok(path) = std::env::var("SEMANTIC_TEST_MODEL") else {
+            eprintln!("SEMANTIC_TEST_MODEL not set: the model is not tested");
+            return;
+        };
+        let bytes = std::fs::read(&path).unwrap();
+        let expand = Model::from_bytes_with(bytes.clone(), Mode::Expand).unwrap();
+        let reference = expand.embed_query("Einführung in die Programmierung");
+        assert!((reference.iter().map(|v| v * v).sum::<f32>() - 1.0).abs() < 1e-4);
+        for mode in [Mode::F32, Mode::Int8] {
+            let other = Model::from_bytes_with(bytes.clone(), mode).unwrap().embed_query("Einführung in die Programmierung");
+            let cosine: f32 = reference.iter().zip(&other).map(|(a, b)| a * b).sum();
+            assert!(cosine > 0.999, "{mode:?}: cosine {cosine}");
+        }
+        let near: f32 = reference.iter().zip(expand.embed_query("coding lernen")).map(|(a, b)| a * b).sum();
+        let far: f32 = reference.iter().zip(expand.embed_query("Brückenbau")).map(|(a, b)| a * b).sum();
+        assert!(near > far, "{near} ≤ {far}");
     }
 }

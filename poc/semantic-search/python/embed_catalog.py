@@ -5,7 +5,7 @@
 
 Each module is one passage: its title (German and, where it differs, English), its contents and
 its learning outcomes (`v_module`, docs/schema-v2.md), cut off at 512 tokens. The index holds one
-int8 row per module with its scale (`demo/e5.js` reads it): 384 bytes a module.
+int8 row per module with its scale and the module's id (`semantic::Index`, `demo/e5.js` reads it).
 """
 
 from __future__ import annotations
@@ -54,7 +54,9 @@ def main():
     codes = np.round(vectors / scales[:, None]).astype(np.int8)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "index.bin").write_bytes(b"E5I1" + struct.pack("<II", *codes.shape)
+    # The layout of semantic/src/index.rs: the ids, then the scales and the rows.
+    ids = b"".join(struct.pack("<H", len(m.encode())) + m.encode() for m, _, _, _ in modules)
+    (out / "index.bin").write_bytes(b"E5I2" + struct.pack("<II", *codes.shape) + ids
                                     + scales.astype("<f4").tobytes() + codes.tobytes())
     (out / "index.json").write_text(json.dumps([{"id": m, "title": t, "about": a} for m, t, _, a in modules], ensure_ascii=False))
     print(f"{len(modules)} modules → {out}/index.bin ({(out / 'index.bin').stat().st_size / 1e6:.1f} MB)")

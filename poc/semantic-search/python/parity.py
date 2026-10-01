@@ -1,11 +1,11 @@
 """Does the Rust runtime compute what the model in the file says?
 
 Reads the packed file in Python, puts its dequantised weights into the PyTorch BERT, builds the
-Hugging Face tokenizer over its pieces, and compares both with `runtime`'s `embed` binary on
+Hugging Face tokenizer over its pieces, and compares both with the `embed` binary of the crate `semantic/` on
 German and English questions and on a list of awkward inputs: the ids must be the same, the
 embeddings the same up to float rounding.
 
-    python parity.py ../model/e5-de-en.bin --embed ../runtime/target/release/embed
+    python parity.py ../model/e5-de-en.bin --embed ../../../target/release/embed
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("packed")
     ap.add_argument("--model")
-    ap.add_argument("--embed", default=str(Path(__file__).parent.parent / "runtime/target/release/embed"))
+    ap.add_argument("--embed", default=str(Path(__file__).resolve().parents[3] / "target/release/embed"))
     ap.add_argument("--questions", type=int, default=300, help="XQuAD questions per language")
     args = ap.parse_args()
 

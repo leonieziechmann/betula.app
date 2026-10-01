@@ -1,4 +1,4 @@
-"""Write the trimmed, quantised model into one file the runtime (`../runtime`) reads.
+"""Write the trimmed, quantised model into one file the runtime (the crate `semantic/` of the repository) reads.
 
     python pack.py --vocab ../model/vocab.json --weights gptq-q4 --embeddings q4 --out ../model/e5-de-en.bin
 

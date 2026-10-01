@@ -1,6 +1,10 @@
 # Semantic search on the client — proof of concept
 
-Not part of the app. The question: can a browser (a phone included) embed a search query with
+Not part of the app — what came of it is: the Rust runtime is now the workspace crate
+`semantic/` (`folia-semantic`, used by the server and, as WASM in a Web Worker, by the browser;
+semantic/README.md). WebGPU (below) was as fast as WASM on a phone and stays an experiment here.
+
+The question: can a browser (a phone included) embed a search query with
 `intfloat/multilingual-e5-small` itself, so that modules are found by meaning („coding lernen“ →
 „Einführung in die Programmierung“), with everything it has to download under 20 MB?
 
@@ -34,12 +38,12 @@ row for each of XLM-R's 250,002 pieces, for 100 languages.
    end up as good as 8. The format and the runtime stay the same.
 3. **One file** (`python/pack.py`, layout in its docstring): pieces and scores, the
    normaliser's character table, 128 positions, the weights.
-4. **A runtime in Rust** (`runtime/`, no dependencies, the clippy rules of the app's crates):
+4. **A runtime in Rust** (now the crate `semantic/` of the workspace, no dependencies, the clippy rules of the app's crates):
    the tokenizer (Viterbi over the pieces, as Hugging Face's `tokenizers` does it) and the BERT
    encoder. Native and `wasm32`, in two builds: `simd128`, and `simd128` + `relaxed-simd`
    (Chrome, Edge, Firefox; `demo/e5.js` picks one by feature detection, Safari gets the first).
    `demo/e5.js` is the JavaScript side (no wasm-bindgen). Three ways to keep the matrices
-   (`Mode`, `runtime/src/tensor.rs`):
+   (`Mode`, `semantic/src/tensor.rs`):
    - **expand**: the 4-bit rows as stored, each expanded to f32 when it is used (21.5 MiB);
    - **f32**: expanded once at load (102 MiB) — hardly faster, WASM SIMD has no FMA and the
      multiply-adds, not the expanding, are the work;
@@ -167,22 +171,16 @@ python pack.py --vocab ../model/vocab.json --weights gptq-q4 --embeddings q4 --o
 python embed_catalog.py ../model/catalog.db --out ../model                  # index.bin, index.json
 #   no catalog at hand: python sample_catalog.py ../model/sample.db (30 made-up modules)
 
-cd ../runtime
-cargo test --release && cargo build --release                               # native: target/release/embed
-CARGO_TARGET_DIR=target/simd RUSTFLAGS="-C target-feature=+simd128" \
-  cargo build --release --lib --target wasm32-unknown-unknown
-CARGO_TARGET_DIR=target/relaxed RUSTFLAGS="-C target-feature=+simd128,+relaxed-simd" \
-  cargo build --release --lib --target wasm32-unknown-unknown
-cd ../python
+(cd ../../.. && cargo test -p folia-semantic && cargo build --release -p folia-semantic \
+  && scripts/build-semantic.sh)                                             # native target/release/embed; site/pkg/semantic.*.wasm
 python parity.py ../model/e5-de-en.bin
 python evaluate.py --vocab ../model/vocab.json --catalog ../model/catalog.db \
-  --packed ../model/e5-de-en.bin --embed ../runtime/target/release/embed \
-  --variants gptq-q4/q4 rust:int8                                           # ~20 min the first time
+  --packed ../model/e5-de-en.bin --variants gptq-q4/q4 rust:int8           # ~20 min the first time
 
 cd ..
 cp demo/index.html demo/e5.js demo/e5-gpu.js model/
-cp runtime/target/simd/wasm32-unknown-unknown/release/e5_mini.wasm model/e5_mini.simd.wasm
-cp runtime/target/relaxed/wasm32-unknown-unknown/release/e5_mini.wasm model/e5_mini.relaxed.wasm
+cp ../../site/pkg/semantic.simd.wasm model/e5_mini.simd.wasm
+cp ../../site/pkg/semantic.relaxed.wasm model/e5_mini.relaxed.wasm
 node demo/bench.mjs model/e5_mini.relaxed.wasm model/e5-de-en.bin --mode int8
 node demo/gpu-check.mjs http://127.0.0.1:8765/                             # with the server below running; needs playwright-core
 cd model && python -m http.server 8765                                     # http://127.0.0.1:8765
@@ -201,7 +199,7 @@ cd model && python -m http.server 8765                                     # htt
 | `python/evaluate.py` | the table above |
 | `python/parity.py` | Rust against Python |
 | `python/embed_catalog.py`, `python/sample_catalog.py` | the index of a catalog; a made-up one |
-| `runtime/` | tokenizer and encoder in Rust, `src/bin/embed.rs` a command line, `src/wasm.rs` the exports |
+| `../../semantic/` | tokenizer and encoder in Rust — since the PoC, the workspace crate `folia-semantic`: `src/bin/embed.rs` a command line, `src/wasm.rs` the exports |
 | `demo/` | `index.html` (search as you type), `e5.js` (WASM), `e5-gpu.js` (WebGPU, falls back to WASM), `bench.mjs` (Node), `browser-bench.mjs` (Chromium, throttled), `gpu-check.mjs` (WebGPU against WASM) |
 
 The weights are derived from `intfloat/multilingual-e5-small` (MIT licence).

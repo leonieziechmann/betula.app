@@ -307,40 +307,50 @@ fn int8_product(xq: &[i16], xs: &[f32], w: &[i8], ws: &[f32], bias: &[f32], bloc
     }
 }
 
-/// Σ over the blocks of (Σ x·w in integers) · x's scale · w's scale, for up to 4 rows × 2 tokens.
-#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
-fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
+/// Σ over the blocks of (Σ x·w in integers) · (x's scale · w's scale), for up to 4 rows × 2
+/// tokens: the definition every build computes bit for bit (`tile_scalar`). The integer sum of
+/// a block is exact however it is added up (and below 2²⁴, so exact as a float too); the floats
+/// are then added block after block. That is what makes the server (native) and every browser
+/// (WASM SIMD, relaxed SIMD) find the same modules with the same scores for the same query.
+fn tile_scalar(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
     let mut out = [[0.0f32; 2]; 4];
     for ((o, wr), wsr) in out.iter_mut().zip(w).zip(ws) {
         for ((cell, xt), xst) in o.iter_mut().zip(x).zip(xs) {
             for (((xb, wb), xd), wd) in xt.chunks_exact(block).zip(wr.chunks_exact(block)).zip(*xst).zip(*wsr) {
                 let dot: i32 = xb.iter().zip(wb).map(|(a, b)| i32::from(*a) * i32::from(*b)).sum();
-                *cell += dot as f32 * xd * wd;
+                *cell += dot as f32 * (xd * wd);
             }
         }
     }
     out
 }
 
-/// The same in WebAssembly SIMD. `i32x4.dot_i16x8_s` multiplies eight pairs and adds them
-/// pairwise into four i32 lanes; per block, the 4 × 2 integer sums are scaled into float lanes,
-/// which are summed across once at the end. Two tokens and four rows share every load.
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
+    tile_scalar(x, xs, w, ws, block)
+}
+
+/// The four lanes of each of `a`…`d` added up, exactly (integers): [Σa, Σb, Σc, Σd].
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+fn lane_sums(a: core::arch::wasm32::v128, b: core::arch::wasm32::v128, c: core::arch::wasm32::v128, d: core::arch::wasm32::v128) -> core::arch::wasm32::v128 {
+    use core::arch::wasm32::*;
+    let ab = i32x4_add(i32x4_shuffle::<0, 4, 1, 5>(a, b), i32x4_shuffle::<2, 6, 3, 7>(a, b)); // a0+a2 b0+b2 a1+a3 b1+b3
+    let cd = i32x4_add(i32x4_shuffle::<0, 4, 1, 5>(c, d), i32x4_shuffle::<2, 6, 3, 7>(c, d));
+    i32x4_add(i32x4_shuffle::<0, 1, 4, 5>(ab, cd), i32x4_shuffle::<2, 3, 6, 7>(ab, cd))
+}
+
+/// `tile_scalar` in WebAssembly SIMD, bit for bit. `i32x4.dot_i16x8_s` multiplies eight pairs
+/// and adds them pairwise into four i32 lanes; per block, the lanes of the four rows are added up
+/// exactly (`lane_sums`), and the four sums scaled and added to the rows' floats in one vector.
+/// Two tokens and four rows share every load.
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 #[allow(clippy::indexing_slicing)] // every index is below the lengths checked on entry
 fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) -> [[f32; 2]; 4] {
     use core::arch::wasm32::*;
     let mut out = [[0.0f32; 2]; 4];
     let (Some(first), true) = (x.first(), w.len() == 4 && (x.len() == 1 || x.len() == 2)) else {
-        // Fewer than four rows (never with 384 or 1536 of them): one row at a time.
-        for ((o, wr), wsr) in out.iter_mut().zip(w).zip(ws) {
-            for ((cell, xt), xst) in o.iter_mut().zip(x).zip(xs) {
-                for (((xb, wb), xd), wd) in xt.chunks_exact(block).zip(wr.chunks_exact(block)).zip(*xst).zip(*wsr) {
-                    let dot: i32 = xb.iter().zip(wb).map(|(a, b)| i32::from(*a) * i32::from(*b)).sum();
-                    *cell += dot as f32 * xd * wd;
-                }
-            }
-        }
-        return out;
+        // Fewer than four rows (never with 384 or 1536 of them).
+        return tile_scalar(x, xs, w, ws, block);
     };
     let cols = first.len();
     let second = if x.len() == 2 { x[1] } else { x[0] };
@@ -352,30 +362,31 @@ fn tile(x: &[&[i16]], xs: &[&[f32]], w: &[&[i16]], ws: &[&[f32]], block: usize) 
     }
     // SAFETY: every load reads 8 i16 at an offset + 8 ≤ cols, within slices checked above.
     let load = |s: &[i16], at: usize| unsafe { v128_load(s.as_ptr().add(at).cast()) };
-    let mut acc = [[f32x4_splat(0.0); 2]; 4];
+    // acc[u]: token u, lane r: row r.
+    let mut acc = [f32x4_splat(0.0); 2];
     for b in 0..blocks {
-        let mut dot = [[i32x4_splat(0); 2]; 4];
+        let mut dot = [[i32x4_splat(0); 4]; 2];
         let mut at = b * block;
         while at < (b + 1) * block {
             let (a0, a1) = (load(first, at), load(second, at));
             for r in 0..4 {
                 let wv = load(w[r], at);
-                dot[r][0] = i32x4_add(dot[r][0], i32x4_dot_i16x8(a0, wv));
-                dot[r][1] = i32x4_add(dot[r][1], i32x4_dot_i16x8(a1, wv));
+                dot[0][r] = i32x4_add(dot[0][r], i32x4_dot_i16x8(a0, wv));
+                dot[1][r] = i32x4_add(dot[1][r], i32x4_dot_i16x8(a1, wv));
             }
             at += 8;
         }
-        let (d0, d1) = (xs[0][b], second_scales[b]);
-        for r in 0..4 {
-            let wd = ws[r][b];
-            acc[r][0] = f32x4_add(acc[r][0], f32x4_mul(f32x4_convert_i32x4(dot[r][0]), f32x4_splat(d0 * wd)));
-            acc[r][1] = f32x4_add(acc[r][1], f32x4_mul(f32x4_convert_i32x4(dot[r][1]), f32x4_splat(d1 * wd)));
+        let wd = f32x4(ws[0][b], ws[1][b], ws[2][b], ws[3][b]);
+        for (u, d) in [xs[0][b], second_scales[b]].into_iter().enumerate() {
+            let [d0, d1, d2, d3] = dot[u];
+            let sums = f32x4_convert_i32x4(lane_sums(d0, d1, d2, d3));
+            acc[u] = f32x4_add(acc[u], f32x4_mul(sums, f32x4_mul(f32x4_splat(d), wd)));
         }
     }
-    for r in 0..4 {
-        for u in 0..2 {
-            let a = acc[r][u];
-            out[r][u] = f32x4_extract_lane::<0>(a) + f32x4_extract_lane::<1>(a) + f32x4_extract_lane::<2>(a) + f32x4_extract_lane::<3>(a);
+    for (u, a) in acc.iter().enumerate() {
+        let lanes = [f32x4_extract_lane::<0>(*a), f32x4_extract_lane::<1>(*a), f32x4_extract_lane::<2>(*a), f32x4_extract_lane::<3>(*a)];
+        for (r, lane) in lanes.into_iter().enumerate() {
+            out[r][u] = lane;
         }
     }
     out
@@ -430,32 +441,33 @@ fn tile_relaxed(x: [&[i8]; 2], xs: [&[f32]; 2], sums: [&[i32]; 2], w: &[i8], ws:
     }
     // SAFETY: every load reads 16 bytes at an offset + 16 ≤ the length checked above.
     let load = |s: &[i8], at: usize| unsafe { v128_load(s.as_ptr().add(at).cast()) };
-    let mut acc = [[f32x4_splat(0.0); 2]; 4];
+    // acc[u]: token u, lane r: row r — as in the simd128 `tile`, so both equal `tile_scalar`.
+    let mut acc = [f32x4_splat(0.0); 2];
     for b in 0..blocks {
-        let mut dot = [[i32x4_splat(0); 2]; 4];
+        let mut dot = [[i32x4_splat(0); 4]; 2];
         let mut at = b * block;
         while at < (b + 1) * block {
             let (a0, a1) = (load(x[0], at), load(x[1], at));
             for r in 0..4 {
                 let wv = load(w, r * cols + at);
-                dot[r][0] = i32x4_relaxed_dot_i8x16_i7x16_add(a0, wv, dot[r][0]);
-                dot[r][1] = i32x4_relaxed_dot_i8x16_i7x16_add(a1, wv, dot[r][1]);
+                dot[0][r] = i32x4_relaxed_dot_i8x16_i7x16_add(a0, wv, dot[0][r]);
+                dot[1][r] = i32x4_relaxed_dot_i8x16_i7x16_add(a1, wv, dot[1][r]);
             }
             at += 16;
         }
-        let offsets = [i32x4_splat(sums[0][b]), i32x4_splat(sums[1][b])];
-        for r in 0..4 {
-            let wd = ws[r * blocks + b];
-            for u in 0..2 {
-                let exact = i32x4_sub(dot[r][u], offsets[u]);
-                acc[r][u] = f32x4_add(acc[r][u], f32x4_mul(f32x4_convert_i32x4(exact), f32x4_splat(xs[u][b] * wd)));
-            }
+        let wd = f32x4(ws[b], ws[blocks + b], ws[2 * blocks + b], ws[3 * blocks + b]);
+        for u in 0..2 {
+            // Σ x·(w + 8) − 8·Σ x = Σ x·w, in integers: exact.
+            let offset = i32x4_splat(sums[u][b]);
+            let [d0, d1, d2, d3] = dot[u].map(|d| i32x4_sub(d, offset));
+            let exact = f32x4_convert_i32x4(lane_sums(d0, d1, d2, d3));
+            acc[u] = f32x4_add(acc[u], f32x4_mul(exact, f32x4_mul(f32x4_splat(xs[u][b]), wd)));
         }
     }
-    for r in 0..4 {
-        for u in 0..2 {
-            let a = acc[r][u];
-            out[r][u] = f32x4_extract_lane::<0>(a) + f32x4_extract_lane::<1>(a) + f32x4_extract_lane::<2>(a) + f32x4_extract_lane::<3>(a);
+    for (u, a) in acc.iter().enumerate() {
+        let lanes = [f32x4_extract_lane::<0>(*a), f32x4_extract_lane::<1>(*a), f32x4_extract_lane::<2>(*a), f32x4_extract_lane::<3>(*a)];
+        for (r, lane) in lanes.into_iter().enumerate() {
+            out[r][u] = lane;
         }
     }
     out
@@ -535,11 +547,30 @@ fn erf(x: f32) -> f32 {
     p / q
 }
 
+/// eˣ for x ≤ 0 from additions and multiplications only, the same on every platform: `f32::exp`
+/// is the platform's libm natively and Rust's own in WebAssembly, which can differ in the last
+/// bit — and the server and the browser must compute the same embeddings to the bit.
+/// x = n·ln 2 + r with |r| ≤ ln 2 / 2, eʳ by its Taylor series to r⁷ (relative error < 1e-7),
+/// 2ⁿ from the exponent bits.
+pub(crate) fn exp(x: f32) -> f32 {
+    const LN2_HI: f32 = f32::from_bits(0x3f31_7200); // ln 2 to 16 bits (0.693145751953125): n · LN2_HI is exact
+    const LN2_LO: f32 = 1.428_606_8e-6;
+    if x < -87.0 {
+        return 0.0;
+    }
+    let x = x.min(0.0);
+    let n = (x * std::f32::consts::LOG2_E).round();
+    let r = (x - n * LN2_HI) - n * LN2_LO;
+    let p = 1.0 + r * (1.0 + r * (0.5 + r * (1.0 / 6.0 + r * (1.0 / 24.0 + r * (1.0 / 120.0 + r * (1.0 / 720.0 + r * (1.0 / 5040.0)))))));
+    // n ∈ [-126, 0] here: a normal power of two.
+    p * f32::from_bits(((n as i32 + 127) as u32) << 23)
+}
+
 pub(crate) fn softmax(x: &mut [f32]) {
     let max = x.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     let mut sum = 0.0;
     for v in x.iter_mut() {
-        *v = (*v - max).exp();
+        *v = exp(*v - max);
         sum += *v;
     }
     for v in x.iter_mut() {
@@ -550,6 +581,17 @@ pub(crate) fn softmax(x: &mut [f32]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exp_is_close_to_libm() {
+        for i in 0..=20_000 {
+            let x = -(i as f32) * 0.0045;
+            let (ours, libm) = (exp(x), x.exp());
+            assert!((ours - libm).abs() <= 2e-7 * libm + 1e-37, "exp({x}) = {ours} ≠ {libm}");
+        }
+        assert_eq!(exp(0.0), 1.0);
+        assert_eq!(exp(-100.0), 0.0);
+    }
 
     #[test]
     fn erf_matches_known_values() {

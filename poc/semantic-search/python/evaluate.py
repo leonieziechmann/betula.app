@@ -126,7 +126,7 @@ def main():
     ap.add_argument("--catalog", help="a Betula snapshot: adds its modules as tasks")
     ap.add_argument("--packed", help="a packed model for the variants rust:expand, rust:f32, rust:int8: the queries "
                     "embedded by the Rust runtime itself (--embed)")
-    ap.add_argument("--embed", default=str(HERE.parent / "runtime/target/release/embed"))
+    ap.add_argument("--embed", default=str(HERE.parents[2] / "target/release/embed"))
     ap.add_argument("--out")
     args = ap.parse_args()
 
