@@ -468,9 +468,8 @@ git switch master && git merge --no-ff develop && git push origin master
 ```
 
 Master takes nothing but `develop`, so `develop` always holds all of master and nothing has to be
-merged back. On GitHub `develop` should be the default branch (Settings > General > Default
-branch): new branches, pull requests and sessions of Claude Code then start from it. `CLAUDE.md`
-says the same for Claude.
+merged back. `develop` is GitHub's default branch (since 2026-10-01): new branches, pull requests
+and sessions of Claude Code start from it. `CLAUDE.md` says the same for Claude.
 
 ### Setting it up, once
 
@@ -532,11 +531,13 @@ database for one `deploy` by hand.
   time: every copy was complete to one commit and passed the integrity check.
 - **The workflow** asks for `contents: read` only, uses no secret, runs on pushes to master only,
   and its actions are pinned to commits. Its build cache (GitHub's cache of this repository) is
-  written by its own runs on master; a run reads only its branch's entries and master's, never a
-  pull request's or a fork's. Nix takes the cached paths without signatures, so a step of the job
-  that went bad could leave something in it for later builds: the job uses four actions, three of
-  them GitHub's own, all pinned. Keep it the only writer: a workflow added later that runs for pull
-  requests with `pull_request_target` would write into master's part of the cache.
+  written by its own runs on master; a run reads only its own branch's entries and those of the
+  default branch, `develop`, where nothing writes; never a pull request's or a fork's. Nix takes
+  the cached paths without signatures, so a step of the job that went bad could leave something in
+  it for later builds: the job uses four actions, three of them GitHub's own, all pinned. Keep it
+  the only writer: a workflow added later that saves a cache on `develop` (on its pushes, on a
+  schedule, which runs on the default branch, or for pull requests into it with
+  `pull_request_target`) would write into what every build of master reads.
 - **The repository is public** (since 2026-09-30). Everybody can read the code, the workflow's logs
   and, logged in to GitHub, its artifacts; none of them holds a secret (the workflow has none, and
   the history held no key or token when it went public). Everybody can fork it and open pull
