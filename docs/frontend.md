@@ -209,6 +209,18 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   The sidebar jumps to the sections of the page (without history entries, so Esc still leaves the
   page) and holds the actions: „Merken", copy the link, the original at the BTU, and the place
   where the semester plan will live.
+- **A module's texts are set as text, not as lines** (owner, 2026-10-01: „support für Blocksatz",
+  „Paragraphen sollen als solche erkennbar sein. Listen sollen erkannt werden und dem entsprechend
+  formatiert werden"). Learning outcomes, contents, assessment, remarks and the prerequisites in
+  the page's words are Markdown since schema 10 (docs/schema-v2.md §3, „Module texts"), read by
+  `catalog::text` and set by `ui::Prose`: paragraphs apart by a gap, lists with their markers in
+  the margin (a list labelled „(1)", „a)", „IV." with its labels there), strong and emphasized
+  words, the line breaks the text keeps. The text is justified (Blocksatz) and hyphenated by the
+  rules of its own language — the `lang` of the module's page (`v_module.page_lang`), so a German
+  text on the English page breaks as German — never into syllables of fewer than three letters;
+  a column narrower than 20 em is set ragged. Nothing but text reaches the page: a heading is a
+  strong paragraph, a link its words, HTML its source. The page's description and its structured
+  data take the text as one line (`text::plain`, the items of a list apart by „·").
 - **„Merken" (owner decision 2026-09-20: in the browser app only, and no data of a visitor on
   the server; `app/src/bookmarks.rs`, `app/src/pages/bookmarks.rs`).** A visitor marks modules to
   come back to. The marks live in this browser's `localStorage` (`betula.bookmarks.v1`, a line
