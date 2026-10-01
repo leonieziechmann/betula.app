@@ -2,15 +2,18 @@
 // face. Typing fast never piles up work: while a query runs, only the newest one waits, and the
 // ones it replaced resolve to null.
 //
-//   import { Semantic } from "/pkg/semantic.js";
-//   const semantic = new Semantic({ model: "/api/semantic/model", index: "/api/semantic/index" });
+//   import { Semantic, indexFromVectors } from "/pkg/semantic.js";
+//   // The modules' vectors are in the snapshot (v_module_vector, computed by Radix):
+//   const rows = db.exec("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id")[0].values;
+//   const semantic = new Semantic({ model: "/pkg/e5-de-en.bin", index: indexFromVectors(rows) });
 //   await semantic.ready;                       // {rows, build, ms}: loaded (a second or two)
 //   const found = await semantic.search("coding lernen", 20);
 //   if (found) for (const { id, score } of found.hits) …   // null: a newer query took its place
 
 export class Semantic {
-  /** @param {{model: string, index: string, worker?: string | URL}} urls the packed model, the
-   * index, and the worker script (beside this file unless given) */
+  /** @param {{model: string, index: string | Uint8Array, worker?: string | URL}} urls the packed
+   * model, the index (a URL, or its bytes: `indexFromVectors`), and the worker script (beside this
+   * file unless given) */
   constructor({ model, index, worker = new URL("semantic-worker.js", import.meta.url) }) {
     this.worker = new Worker(worker);
     this.next = 0;
@@ -27,7 +30,7 @@ export class Semantic {
       for (const { reject } of this.pending.values()) reject(new Error(event.message || "the search worker failed"));
       this.pending.clear();
     };
-    this.ready = this.#ask({ type: "init", model: String(new URL(model, location.href)), index: String(new URL(index, location.href)) });
+    this.ready = this.#ask({ type: "init", model: String(new URL(model, location.href)), index: where(index) });
   }
 
   /** The `k` modules closest to `query`, best first: {hits: [{id, score}], ms}; null when a newer
@@ -40,9 +43,9 @@ export class Semantic {
     });
   }
 
-  /** Loads another index (a new snapshot) into the worker. */
+  /** Loads another index (a new snapshot) into the worker: a URL or bytes. */
   setIndex(index) {
-    return this.#ask({ type: "index", index: String(new URL(index, location.href)) });
+    return this.#ask({ type: "index", index: where(index) });
   }
 
   terminate() {
@@ -72,4 +75,45 @@ export class Semantic {
       this.worker.postMessage({ ...message, id });
     });
   }
+}
+
+/** An index (bytes) as an absolute URL, so the worker resolves it as the page does. */
+function where(index) {
+  return index instanceof Uint8Array ? index : String(new URL(index, location.href));
+}
+
+/**
+ * The index of the semantic search (semantic/src/index.rs, „E5I2“) from the rows of
+ * `SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id` as sql.js returns them
+ * (the vector a Uint8Array of int8 values). The same bytes as `semantic::Index::push_codes` of the
+ * same rows makes, so the browser and the server search the same index.
+ * @param {Array<[string, number, Uint8Array]>} rows
+ */
+export function indexFromVectors(rows) {
+  const encoder = new TextEncoder();
+  const ids = rows.map(([id]) => encoder.encode(String(id)));
+  const dims = rows.length ? rows[0][2].length : 0;
+  const size = 12 + ids.reduce((n, id) => n + 2 + id.length, 0) + rows.length * (4 + dims);
+  const out = new Uint8Array(size);
+  const view = new DataView(out.buffer);
+  out.set([0x45, 0x35, 0x49, 0x32]); // "E5I2"
+  view.setUint32(4, rows.length, true);
+  view.setUint32(8, dims, true);
+  let at = 12;
+  for (const id of ids) {
+    view.setUint16(at, id.length, true);
+    out.set(id, at + 2);
+    at += 2 + id.length;
+  }
+  // The scale as the f32 Radix stored (REAL in SQLite holds it exactly).
+  for (const [, scale] of rows) {
+    view.setFloat32(at, scale, true);
+    at += 4;
+  }
+  for (const [id, , vector] of rows) {
+    if (vector.length !== dims) throw new Error(`the vector of ${id} has ${vector.length} values, not ${dims}`);
+    out.set(vector, at);
+    at += dims;
+  }
+  return out;
 }

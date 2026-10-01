@@ -4,8 +4,8 @@
 // the two builds of the WASM (semantic/src/wasm.rs), into site/pkg.
 //
 // Messages (each answer carries the `id` of its request):
-//   {id, type: "init", model, index}   URLs of the packed model and the index → {rows, ms}
-//   {id, type: "index", index}         another index (a new snapshot) → {rows, ms}
+//   {id, type: "init", model, index}   URL of the packed model; the index's URL or bytes → {rows, ms}
+//   {id, type: "index", index}         another index (a new snapshot), URL or bytes → {rows, ms}
 //   {id, type: "search", query, k}     → {hits: [{id, score}], ms}
 //   any failure                        → {error}
 //
@@ -26,7 +26,9 @@ const BUILD = WebAssembly.validate(RELAXED_PROBE) ? "relaxed" : "simd";
 let x = null; // the module's exports
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 
+/** The bytes at a URL, or the bytes themselves (an index the page built: `indexFromVectors`). */
 async function bytes(url) {
+  if (url instanceof Uint8Array) return url;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   return new Uint8Array(await response.arrayBuffer());
@@ -44,7 +46,7 @@ async function loadIndex(url) {
   const at = put(index);
   const rows = x.load_index(at, index.length);
   x.free(at, index.length);
-  if (rows < 0) throw new Error(`${url}: not an index`);
+  if (rows < 0) throw new Error("not an index");
   return rows;
 }
 
@@ -57,7 +59,7 @@ const handlers = {
     const at = put(indexBytes);
     const rows = x.load_search(put(modelBytes), modelBytes.length, at, indexBytes.length);
     x.free(at, indexBytes.length);
-    if (rows < 0) throw new Error(`${model}, ${index}: not a packed model and its index`);
+    if (rows < 0) throw new Error(`${model}: not a packed model, or the index is none`);
     return { rows, build: BUILD };
   },
 

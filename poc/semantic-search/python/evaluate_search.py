@@ -16,11 +16,17 @@ Two sets of queries (../data, written by a language model, Claude):
   relevant, 1 partly, 2 a good answer; a module nobody judged counts as 0 and is reported as a hole).
   Measured: the share of relevant modules in the first 10 (P@10), the good ones (good@10), nDCG@10.
 Modules with the same text count once in a result list.
+
+The semantic search is there for what the exact search does not answer: the catalog's text filter
+(LIKE over number and titles, v_module_search) and a search for every word in the titles leave
+most queries with fewer than 3 modules. Every measure is also given for those queries alone
+(„exact < 3“), which are the ones the semantic search has to answer.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import struct
 import subprocess
 import tempfile
@@ -30,6 +36,15 @@ from pathlib import Path
 import numpy as np
 
 from finetune import DATA, collapse, read_jsonl, text_hash
+
+_FOLD = str.maketrans({"ä": "a", "à": "a", "á": "a", "â": "a", "ã": "a", "å": "a", "ö": "o", "ò": "o", "ó": "o", "ô": "o",
+                       "õ": "o", "ø": "o", "ü": "u", "ù": "u", "ú": "u", "û": "u", "è": "e", "é": "e", "ê": "e", "ë": "e",
+                       "ì": "i", "í": "i", "î": "i", "ï": "i", "ç": "c", "ñ": "n"})
+
+
+def fold(text: str) -> str:
+    """catalog::search::fold: lower case, ß → ss, umlauts and accents removed."""
+    return text.lower().replace("ß", "ss").translate(_FOLD)
 
 EMBED = Path(__file__).resolve().parents[3] / "target" / "release" / "embed"
 
@@ -58,6 +73,17 @@ def main():
 
     import sqlite3
     con = sqlite3.connect(f"file:{args.snapshot}?mode=ro", uri=True)
+    targets = [fold(" ".join(r)) for r in con.execute(
+        "SELECT id || ' ' || COALESCE(title_de, title) || ' ' || COALESCE(title_en, '') || ' ' || COALESCE(abbrev, '') FROM v_module")]
+
+    def exact_misses(query: str) -> bool:
+        """The exact search finds fewer than 3 modules: the catalog's LIKE, and every word in the titles."""
+        q = query.strip()
+        pattern = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        like = con.execute("SELECT COUNT(DISTINCT module_id) FROM v_module_search WHERE term LIKE ? ESCAPE '\\'", (pattern,)).fetchone()[0]
+        words = [w for w in re.split(r"[^0-9a-z]+", fold(q)) if w]
+        return like < 3 and sum(all(w in t for w in words) for t in targets) < 3
+
     hash_of, group_of = {}, {}
     for mid, de, en, c, o in con.execute("SELECT id, COALESCE(title_de, title), COALESCE(title_en, ''), COALESCE(contents, ''), "
                                          "COALESCE(learning_outcomes, '') FROM v_module"):
@@ -90,7 +116,7 @@ def main():
         stats = defaultdict(lambda: [0, 0.0, 0, 0])
         for r, hits in zip(known, search([r["query"] for r in known])):
             rank = next((i + 1 for i, h in enumerate(hits) if h == r["text_hash"] or group_of[h] == group_of[r["text_hash"]]), 0)
-            for name in (r["kind"], "all"):
+            for name in (r["kind"], "all") + (("all, exact < 3",) if exact_misses(r["query"]) else ()):
                 s = stats[name]
                 s[0] += 1
                 s[1] += 1 / rank if rank else 0
@@ -107,6 +133,8 @@ def main():
         for r in read_jsonl(DATA / "eval-open.jsonl.gz"):
             if r["query"] in judged:
                 sets["a, b (realistic)" if r["set"] in "ab" else "c, d, e (personas)"].append(r["query"])
+                if exact_misses(r["query"]):
+                    sets["all, exact < 3"].append(r["query"])
         print("open queries")
         for name, queries in sorted(sets.items()):
             ndcg, p10, good, holes = [], [], [], 0

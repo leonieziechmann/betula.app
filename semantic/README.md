@@ -2,100 +2,159 @@
 
 Finds modules by what they are about, not by the words of their title: „coding lernen“ →
 „Einführung in die Programmierung“, „wie baue ich eine brücke“ → „Brückenbau“, „renewable
-energy“ → „Erneuerbare Energien“. German and English, also across the two.
+energy“ → „Erneuerbare Energien“. German and English, also across the two. It is there for what
+the exact search does not answer: the catalog's text filter and a fuzzy search over titles,
+numbers and abbreviations stay the answer for those, and leave most queries students type with
+fewer than three modules (measured below).
 
 The model is `intfloat/multilingual-e5-small` (MIT), made small in `poc/semantic-search/`: the
 vocabulary cut from 250,002 pieces to the 27,625 German, English and the catalog's texts need,
-the weights quantised. That directory has the measurements (quality against the original on
-public benchmarks and on the catalog, speed, size); this crate is what came of it. WebGPU was
-tried there too and was no faster than WASM on a phone, so the browser runs WASM.
+the weights quantised. The browser's model is in addition fine-tuned on the queries students type
+(below). `poc/semantic-search/` has the measurements and the scripts; this crate is what came of
+them. WebGPU was tried there too and was no faster than WASM on a phone, so the browser runs WASM.
 
-No dependencies. The same code runs on the server and, as WASM in a Web Worker, in the browser.
+No dependencies. The same code runs on the web server, as WASM in a Web Worker in the browser,
+and as WASM in Radix (in wazero), which computes the modules' vectors with it.
 
 **The server and the browser give the same results for the same input, to the bit:** the same
-hits in the same order with the same scores, for the same query, `k`, model file and index file.
+hits in the same order with the same scores, for the same query, `k`, model file and vectors.
 `semantic::Search` is that search on both sides (the browser's 4-bit model in `Mode::Int8`).
 Its arithmetic is defined bit for bit and computed so by every build: integer sums where they
 are exact whatever the order, floats added in one fixed order (`tensor::tile_scalar`, which
 the SIMD and relaxed-SIMD kernels reproduce), an `exp` of its own instead of the platform's,
 and no Unicode normalising on one side only (the worker hands the query over as typed).
-`js/parity.mjs` checks it (below).
+`js/parity.mjs` checks it (below). The same holds for the modules' vectors: Radix runs this crate
+as WASM in `Mode::Int8`, and its vectors are the bits the crate computes natively.
 
 ## How the parts fit
 
 ```
-snapshot ──► server: Index::build(model_server, module_text(…) for each module)  ──► index.bin
-                     (once per snapshot, in the background)                          1.9 MB
+Radix (each cycle, after the export; docs/schema-v2.md, „Semantic search“):
+  module text ──Gemini──▶ summary (DE, EN, search terms; Radix-internal, never published)
+  titles + summary + description ──semantic.wasm in wazero (Model::embed_passage, quantize)──▶ int8 vector
+  next build ──▶ v_module_vector in the snapshot (schema 10; 4,938 vectors, about 2 MB)
 
-browser: Web Worker ── Search { model_browser, index }.search(query, k) ──► [{id, score}]
-         (js/worker.js, semantic.*.wasm; the page talks to it through js/semantic.js)
-server:  the same Search, natively (for pages rendered on the server, an API) ──► the same hits
+Folia: snapshot ──▶ semantic::Index (Index::push_codes; js/semantic.js indexFromVectors)
+  browser: Web Worker ── Search { the fine-tuned query model, index }.search(query, k) ──▶ [{id, score}]
+  server:  the same Search, natively ──▶ the same hits
 ```
 
 E5 embeds what is searched for and what is searched differently: `embed_query` and
-`embed_passage` add the prefixes it was trained with. Documents are embedded once, on the server;
-a browser embeds only the query.
+`embed_passage` add the prefixes it was trained with. A module's passage (Radix,
+`internal/semantic.Passage`) is its titles, then Gemini's German and English summary of it and
+search terms, then its contents and learning outcomes: students search with other words than a
+description uses, and the summary brings theirs in. Without a Gemini key it is the module's text
+alone (`module_text`).
 
 | | file | positions | size | used for |
 |---|---|---|---|---|
-| browser model | 4-bit GPTQ, embeddings 4 bit | 128 | 18.5 MB (16.4 brotli) | queries, in the Web Worker |
-| server model | 8 bit | 512 | 34.6 MB | the modules' texts (several hundred tokens), only for building the index |
-| index | int8, 384 values + scale + id a module | — | 1.9 MB for 4,938 modules | what a query is compared with |
+| browser model | fine-tuned for queries (`finetune.py`), 4-bit GPTQ, embeddings 4 bit | 128 | 18.5 MB (16.4 brotli) | queries, in the Web Worker and on the server |
+| server model | the original, 8 bit | 512 | 34.6 MB | the modules' passages, in Radix (`RADIX_EMBED_MODEL`) |
+| vectors | int8, 384 values + scale a module | — | about 2 MB for 4,938 modules | what a query is compared with, in the snapshot |
 
-Both models come out of `poc/semantic-search/python/pack.py` with the same vocabulary, so a
-browser's queries and the server's documents are embedded by the same model up to rounding.
+The query side is fine-tuned, the passage side is not: the modules' vectors stay the original
+model's, so the passages need no training data, and the browser's model learns where students'
+queries belong among them. Both models come out of `poc/semantic-search/python/pack.py` with the
+same vocabulary.
 
 ```bash
 cd poc/semantic-search/python     # setup: poc/semantic-search/README.md, "Run it"
 python embed_catalog.py catalog.db --export-text ../model/catalog.txt
 python build_vocab.py --coverage 0.99 --text ../model/catalog.txt --out ../model/vocab.json
-python pack.py --vocab ../model/vocab.json --weights gptq-q4 --embeddings q4 --out ../model/e5-de-en.bin                  # browser
-python pack.py --vocab ../model/vocab.json --weights q8 --embeddings q8 --positions 512 --out ../model/e5-de-en-server.bin  # server
+python finetune.py catalog.db ../model/ft                                                                                   # query side, 10 min
+python pack.py --model ../model/ft --vocab ../model/vocab.json --weights gptq-q4 --embeddings q4 --out ../model/e5-de-en.bin  # browser
+python pack.py --vocab ../model/vocab.json --weights q8 --embeddings q8 --positions 512 --out ../model/e5-de-en-server.bin    # Radix
 ```
 
 The vocabulary keeps every piece the catalog's texts of that day need; a module added later is
 still cut into pieces the model knows, just not always into the original's.
 
+## Quality
+
+Measured on the catalog of 2026-09-30 with `poc/semantic-search/python/evaluate_search.py` and its
+data (`poc/semantic-search/data`, written by Claude):
+
+- **open queries**: 344 queries students would type, written without seeing the catalog (200
+  realistic ones; 144 by personas: international students in English, first-semester and
+  undecided ones, advanced and part-time students), with the modules the variants found graded
+  0 (not relevant), 1 (partly), 2 (a good answer): 11,316 judgments. Measured: the share of
+  relevant modules among the first 10.
+- **known-item**: for 600 sampled modules, 5 queries each for exactly what the module offers
+  (keywords; German and English paraphrases without the title's words; a goal; a situation
+  without any term of the subject: „mein quadrocopter wackelt ständig …“). Measured: is the module
+  among the first 10.
+
+What counts is the queries the exact search does not answer (fewer than 3 modules by the
+catalog's LIKE and by every word in the titles): 82 % of the open queries, 95 % of the known-item
+ones. On those:
+
+| | relevant of the first 10 | the module in the first 10 |
+|---|---|---|
+| before (original model, the description alone) | 58.5 % | 62.8 % |
+| the description in chunks of 60 words, the best counts | 61.1 % | 64.7 % |
+| fine-tuned query model | 71.8 % | 76.0 % |
+| summaries in the passage | 65.5 % | 77.1 % |
+| **fine-tuned query model + summaries (this crate, Radix)** | **73.4 %** | **82.1 %** |
+
+(Python, the original model in f32. The deployed pipeline, packed models and int8 vectors, is
+given under „Checks“.) The situation queries, the hardest: 29 % → 52 % in the first 10. For all
+queries, including those the exact search answers: 63 % → 77 % relevant.
+
+Tried and left out:
+- a second vector per module (the summary alone, the higher of the two counts): +1 point, the
+  vectors twice the size;
+- adding a word match of titles and abbreviations to the score: +0.6 points at best — the exact
+  search does that better; of the summaries' search terms +1.5, but those stay in Radix;
+- lowering modules that are near every query („hubs“, by their mean similarity to their 10
+  nearest training queries): worse (−3 points, with 11 % of its hits not judged). Few modules are
+  hubs: the first 10 of 200 queries hold 1,506 different modules, none wrong more than four times;
+- the description in chunks: +2–3 points, superseded by the summaries.
+
+The fine-tuning (`poc/semantic-search/python/finetune.py`): 21,245 queries of 4,330 modules (five
+a module text, written by Claude from the description, three German and two English, keywords to
+sentences), the
+600 modules of the known-item set left out, so its numbers are for modules the model never saw;
+the softmax over all modules of the catalog, two epochs, 10 minutes on four cores. A model trained
+on the passages without summaries finds them as well with summaries (and the other way round), so
+it does not depend on Gemini.
+
+Not measured: Gemini's summaries. Those above are Claude's, written with the prompt
+`internal/gemini` sends; `gemini-3.5-flash-lite` may write them differently. The queries and the
+judgments are a language model's too: two independent judgings of 736 pairs agree in 96 %, but
+real queries of students are the better test.
+
 ## On the server
 
 ```rust
-// Once per snapshot, in the background: the index, with the server model.
-let model = semantic::Model::from_bytes_with(std::fs::read(server_model)?, semantic::Mode::F32)?;
-let documents: Vec<(String, String)> = modules.map(|m| (m.id, semantic::module_text(&m.title_de, m.title_en.as_deref(), m.contents.as_deref(), m.learning_outcomes.as_deref()))).collect();
-let index = semantic::Index::build(&model, &documents, threads)?.to_bytes()?;   // served to browsers as it is
-
-// Searching: the browser's model and these index bytes, as the worker does.
-let search = semantic::Search::new(std::fs::read(browser_model)?, &index)?;
-let hits = search.search("coding lernen", 20);
+// The index of the semantic search, from the snapshot's vectors (computed by Radix).
+let mut index = semantic::Index::new(384);
+for v in catalog::queries::module_vectors(&db)? {
+    index.push_codes(v.module_id, v.scale, &v.codes)?;
+}
+let search = semantic::Search::new(std::fs::read(browser_model)?, &index.to_bytes()?)?;
+let hits = search.search("coding lernen", 20);   // the browser's hits, to the bit
 ```
 
-A query takes the server 14–41 ms (7–25 tokens, one thread, SSE2), as in the browser.
+A query takes the server 14–41 ms (7–25 tokens, one thread, SSE2), as in the browser. Queries
+must go through `Search` with the browser's model: another model or `Model` in another mode
+embeds them differently.
 
-Only the index is built with the server model; its bytes are what both sides search, so how
-they were computed does not matter for the equality. Queries must go through `Search` with the
-browser's model: another model or `Model` in another mode embeds them differently.
-
-`examples/index.rs` does this for a snapshot file:
-`cargo run -p folia-semantic --release --example index -- e5-de-en-server.bin catalog.db index.bin`.
-
-**Cost:** a module's text runs to 512 tokens, about 1.2–1.4 s of one processor (f32 mode):
-**29 minutes for the 4,938 modules on 4 threads** (the 4 processors of a cloud container, partly busy with other
-work at the time). **Quality:** the index the server builds so is the original model's: cosine
-to the embeddings of `intfloat/multilingual-e5-small` itself (fp32, Hugging Face) 0.9999 in the
-median, ≥ 0.984 for every module; each module's 10 nearest modules are 98.4 % the same.
-That is a background job per snapshot, like the brotli copy of the snapshot (`server/src/snapshot.rs`). Most modules do not change from one
-snapshot to the next, so keeping each module's embedding under a hash of its text would leave a
-few seconds per snapshot (not built yet). `Mode::F32` holds the server model as floats: 102 MB.
+`Index::build` (and `examples/index.rs`) embeds passages natively, for experiments; the deployed
+vectors are Radix's.
 
 ## In the browser
 
 `scripts/build-semantic.sh` builds the Web Worker into `site/pkg/`: `semantic.simd.wasm` and
 `semantic.relaxed.wasm` (relaxed SIMD, Chrome/Edge/Firefox; the worker picks one by feature
-test), `semantic-worker.js` and `semantic.js`. A page:
+test), `semantic-worker.js` and `semantic.js` — and Radix's copy of the SIMD build,
+`internal/embed/semantic.wasm`, committed, so that Radix builds with Go alone (build and commit it
+again with every change of `semantic/src`). A page:
 
 ```js
-import { Semantic } from "/pkg/semantic.js";
-const semantic = new Semantic({ model: "/api/semantic/model", index: "/api/semantic/index" });
+import { Semantic, indexFromVectors } from "/pkg/semantic.js";
+// The vectors are in the local copy of the snapshot: no extra download.
+const rows = db.exec("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id")[0].values;
+const semantic = new Semantic({ model: "/pkg/e5-de-en.bin", index: indexFromVectors(rows) });
 await semantic.ready;                        // model and index loaded in the worker
 const found = await semantic.search("coding lernen", 20);
 if (found) for (const { id, score } of found.hits) { /* id: the module's id */ }
@@ -108,19 +167,18 @@ work: while a query runs only the newest waits, the ones it replaced resolve to 
 worker's memory is 47 MiB (the WASM memory with model, int8 weights and index).
 
 **Why a Web Worker, not the service worker:** the service worker is the right place to *keep*
-the model and the index (Cache Storage, so the search works offline like the rest of the app,
+the model (Cache Storage, so the search works offline like the rest of the app,
 `app/assets/sw.js`), not to *compute*: a browser stops an idle service worker after some
 seconds (Chrome: 30), and each start would load the model again (0.25–0.3 s here, more on a phone, and 47 MiB). A
 dedicated worker lives as long as the page and keeps the model loaded between queries.
 
 ## Not done yet
 
-- the server's routes for the model and the index (`/api/semantic/…`, names above are
-  placeholders), building the index when a snapshot activates, and where the model files come
-  from (35 + 18.5 MB: not in git; a release artifact, or built in the deploy);
-- the search in the app's UI (`app/`), next to the existing text search, which stays the
-  answer for titles, numbers and abbreviations;
-- `sw.js` keeping model and index;
+- the search in the app's UI (`app/`): the semantic hits when the exact search finds few;
+- serving the browser's model (`/pkg/e5-de-en.bin` above is a placeholder) and `sw.js` keeping it;
+  where the two model files come from in a deploy (35 + 18.5 MB, not in git: a release artifact,
+  or built in the deploy), and `RADIX_EMBED_MODEL` in the stack;
+- a schema-10 snapshot for Folia's tests (`catalog::tests` and the pinned digests);
 - Unicode composition (NFC): neither side composes „e“ + U+0301 into „é“ (a query typed so is
   cut differently from one with „é“, on both sides alike). Keyboards and the catalog write the
   composed form; composing would have to happen in Rust, for both.
@@ -140,3 +198,9 @@ dedicated worker lives as long as the page and keeps the model loaded between qu
   WASM SIMD (Safari) and WASM relaxed SIMD (Chrome, Edge, Firefox).
 - `cargo test -p folia-semantic`: `tiles_are_the_definition_to_the_bit` checks the build's SIMD
   kernel against the definition (`tile_scalar`) bit for bit.
+- Radix's vectors: `RADIX_TEST_EMBED_MODEL=e5-de-en-server.bin go test ./internal/embed` compares
+  `semantic.wasm` in wazero with the native `embed MODEL --passages` (17 passages: long ones, emoji,
+  CJK): identical. In `Mode::Int8` the passages' vectors have a cosine of 0.9999 (median; ≥ 0.9998)
+  with the original model's in f32, as close as `Mode::F32` (0.99994) and 1.4 times faster. Radix
+  embeds a 512-token passage in 5 s on one processor (wazero; natively 1.7 s): the catalog once in
+  about 1.5 hours of three processors, then what changed.
