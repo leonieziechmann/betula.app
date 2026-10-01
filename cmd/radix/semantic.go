@@ -33,7 +33,7 @@ func addSemanticFlags(fs *flag.FlagSet) semanticFlags {
 			"The packed e5 model of the semantic search's vectors (e5-de-en-server.bin, semantic/README.md); empty: no vectors (env RADIX_EMBED_MODEL)"),
 		// GOMAXPROCS follows the container's CPU limit (at least 2), NumCPU the host's.
 		workers: fs.Int("embed-workers", envInt("RADIX_EMBED_WORKERS", max(1, runtime.GOMAXPROCS(0)-1)),
-			"Passages embedded at the same time, each by a process of its own holding the model, about 150 MB (env RADIX_EMBED_WORKERS)"),
+			"Passages embedded at the same time, each by a process of its own holding the model, about 170 MB (env RADIX_EMBED_WORKERS)"),
 		budget: fs.Duration("semantic-budget", envDuration("RADIX_SEMANTIC_BUDGET", 20*time.Minute),
 			"Time a cycle may spend on summaries and vectors; the rest follows in the next cycles (env RADIX_SEMANTIC_BUDGET)"),
 		summaryModel: fs.String("summary-model", envOr("GEMINI_SUMMARY_MODEL", gemini.DefaultModel),

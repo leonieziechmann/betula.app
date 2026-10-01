@@ -108,7 +108,7 @@ type worker struct {
 }
 
 // StartProcesses starts n workers, each a process command makes: one that runs Serve with the
-// model at path, such as `radix embed-worker <path>`. Each holds the model, about 150 MB of
+// model at path, such as `radix embed-worker <path>`. Each holds the model, about 170 MB of
 // memory.
 func StartProcesses(path string, n int, command func() *exec.Cmd) (*Processes, error) {
 	model, err := os.ReadFile(path)
