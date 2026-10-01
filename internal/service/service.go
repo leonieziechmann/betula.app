@@ -52,6 +52,10 @@ type Config struct {
 	ArchiveGrace   time.Duration        // remove archived pages nothing leads to any more, this long after their fetch; 0 keeps them
 	Baselines      []catalogdb.Baseline // count baselines for validate
 	StaleAfter     time.Duration        // health: unhealthy without a successful cycle for this long
+
+	// Semantic computes the vectors of Folia's semantic search (semantic.go); without an
+	// encoder it does not run.
+	Semantic Semantic
 }
 
 // DefaultConfig is a polite setup for the BTU servers, which asks QIS for what changes as
@@ -132,6 +136,8 @@ type Service struct {
 	lastSuccessAt time.Time
 	failedInARow  int
 	nextCycleAt   time.Time
+
+	summaryFailed map[string]time.Time // text hash → when Gemini last failed to summarise it (semantic.go)
 }
 
 // New creates a service. recorder may be nil.
@@ -175,8 +181,8 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-// RunCycle runs one cycle: crawl what is due, apply retention, build, and if the
-// content changed validate and export.
+// RunCycle runs one cycle: crawl what is due, apply retention, build, compute the vectors of
+// the semantic search that are missing, and if the content changed validate and export.
 //
 // Log events: cycle.started, stage.finished / stage.failed (ERROR), cycle.finished
 // (ERROR when the result is "failed", WARN when "degraded"), cycle.panic (ERROR).
@@ -320,6 +326,15 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 			return err
 		})
 	}
+
+	// Last, after the snapshot of this build is out: the vectors of the semantic search for the
+	// module texts this build brought, which the next build publishes. A defer, so it also runs
+	// when there is nothing to export; before the deferred logging of the cycle above.
+	defer func() {
+		if ctx.Err() == nil && result.Result != "failed" {
+			s.semanticStage(ctx, &result)
+		}
+	}()
 
 	_, pointerErr := catalogdb.ReadSnapshotPointer(s.cfg.SnapshotDir)
 	if !report.ContentChanged && pointerErr == nil {

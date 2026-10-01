@@ -2,6 +2,11 @@
 //! line per text on stdout with its ids and its embedding — what `python/parity.py` compares with
 //! the Python model. With `--bench N` every text is embedded N times and only the times are printed.
 //!
+//! `embed MODEL.bin --passages`: one passage per line (a module's, without „passage: “), one line
+//! per passage with its vector as Radix publishes it — the bits of the scale, then the int8 codes
+//! in hex — computed in `Mode::Int8` as the WASM module does in Radix (`internal/embed`, whose
+//! test compares).
+//!
 //! `embed MODEL.bin --search INDEX.bin [--k N]`: one query per line, one line per query with what
 //! `semantic::Search` makes of it — a hash of the embedding's bits, then the hits with the bits of
 //! their scores — the line `js/parity.mjs` writes for the browser's builds and compares.
@@ -28,6 +33,17 @@ fn main() -> Result<(), String> {
         Some("int8") => semantic::Mode::Int8,
         Some(other) => return Err(format!("--mode {other}: expand, f32 or int8")),
     };
+    if args.iter().any(|a| a == "--passages") {
+        let model = semantic::Model::from_bytes_with(std::fs::read(path).map_err(|e| format!("{path}: {e}"))?, semantic::Mode::Int8)?;
+        let stdout = std::io::stdout();
+        let mut out = stdout.lock();
+        for line in std::io::stdin().lock().lines() {
+            let (scale, codes) = semantic::quantize(&model.embed_passage(&line.map_err(|e| e.to_string())?));
+            let hex: String = codes.iter().map(|c| format!("{:02x}", c.cast_unsigned())).collect();
+            writeln!(out, "{:08x}\t{hex}", scale.to_bits()).map_err(|e| e.to_string())?;
+        }
+        return Ok(());
+    }
     if let Some(index) = option("--search") {
         let k: usize = option("--k").map_or(Ok(10), |k| k.parse().map_err(|e| format!("--k: {e}")))?;
         let index = std::fs::read(index).map_err(|e| format!("{index}: {e}"))?;

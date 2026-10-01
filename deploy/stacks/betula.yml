@@ -61,8 +61,10 @@ services:
       # crawl, and no restart repairs a build that fails. What /healthz knows reaches a human
       # through the log instead (level=ERROR, rule "betula: ERROR in the logs").
       RADIX_HEALTH_URL: "http://127.0.0.1:8090/status"
-    # The Gemini key (only "scan-curriculum" needs it) comes with the override betula.gemini.yml,
-    # which 50-app.sh adds while the secret gemini-api-key exists.
+    # The Gemini key ("scan-curriculum", and the semantic search's summaries) comes with the
+    # override betula.gemini.yml, which 50-app.sh adds while the secret gemini-api-key exists.
+    # The semantic search's vectors need RADIX_EMBED_MODEL, the path of e5-de-en-server.bin in the
+    # volume (docs/operations.md); without it the stage is skipped.
     volumes:
       # Working database, snapshots and the statutes directory. Worth a backup (README.md).
       - radix-data:/data

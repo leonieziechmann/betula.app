@@ -9,6 +9,7 @@
 crawl-qis-modules, crawl-modules, crawl-tree, crawl-events ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
       (network)                 (archive)   (no network, deterministic)       (gate)      snapshot/     ETag / 304
 scan-curriculum ──▶ plan, plan_entry, plan_total  (validated PDF plans, a source of their own)
+semantic stage (after export) ──▶ module_summary, passage_embedding ──next build──▶ module_vector  (section 6, „Semantic search“)
 ```
 
 | Step | Command | Package | Notes |
@@ -35,8 +36,9 @@ snapshot logs `snapshot.outdated` (docs/frontend.md, data flow).
 ## 2. Tables
 
 Conventions: NULL means unknown (no `0`, `''`, `'-'`); every filterable attribute is an enum
-(CHECK) or a 0/1 flag with the source text next to it as `*_raw`; everything except `raw_page`
-and the `plan*` tables is derived and replaced by each build.
+(CHECK) or a 0/1 flag with the source text next to it as `*_raw`; everything except `raw_page`,
+the `plan*` tables and the caches of the semantic search (`module_summary`, `passage_embedding`)
+is derived and replaced by each build.
 
 | Table | Content | Source |
 |---|---|---|
@@ -53,6 +55,8 @@ and the `plan*` tables is derived and replaced by each build.
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
+| `module_summary`, `passage_embedding` | caches of the semantic search, kept across builds and never published: what Gemini wrote about a module's text (German and English summary, search terms; keyed by `semantic.Text.Hash`), and the vector of a passage under a model (keyed by `semantic.PassageHash`) | the semantic stage (section 6, „Semantic search“) |
+| `module_vector` | each module's vector for the semantic search: int8 codes × `scale` | build, from `passage_embedding` |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `internal/version`), `radix_build` (a hash of the binary that built it: a new release builds again at start), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at` | build |
 
@@ -84,6 +88,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 |---|---|---|
 | `v_module` | module | `id, title, title_de, title_en, detail_status, page_lang, credits, language_raw, teaches_german, teaches_english, duration_raw, duration_semesters, turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department_id, department, department_code, learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, source_url, fetched_at, responsible, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg, abbrev` (the module's abbreviation without a program) |
 | `v_module_facets` | module | `module_id, credits, department_id, teaches_german, teaches_english, duration_semesters, offered_winter, offered_summer, turnus_season, turnus_parity, offer_status, is_limited, participant_limit, exam_form, exam_written, exam_oral, exam_paper, exam_presentation, exam_project, exam_practical, is_graded, is_fues, has_lecture, has_exercise, has_seminar, has_practical, has_project, has_excursion, teaching_events, at_zentralcampus, at_sachsendorf, at_senftenberg`. Campus flags are NULL (unknown) for a module without a room in the newest semester. |
+| `v_module_vector` | module that has a vector | `module_id, scale, vector` (a BLOB of the model's dims int8 values; the vector is value × `scale`, of unit length up to rounding). Modules whose vector is not computed yet have no row. Folia builds the index of its semantic search from it (crate `semantic`). |
 | `v_module_search` | module × title variant | `module_id, term, kind` (`id`, `title_de`, `title_en`): the only place that needs `LIKE` |
 | `v_module_lecturer` | module × person | `module_id, name, title, role` (`responsible`, `instructor`) |
 | `v_module_teaching_form` | module × form | `module_id, ord, form, form_raw, workload_raw, sws, hours` |
@@ -694,6 +699,53 @@ share a form and keep their long form) and `build.abbrev_overrides_unused` (a li
 file applies to no module: a module number the catalog lacks, a program without that module, a
 pattern that matches nothing an earlier line does not take); each wants a line in the table or the
 file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_changed`.
+
+### Semantic search (2026-10-01)
+
+Folia finds modules by meaning (crate `semantic/`, `semantic/README.md`): a query typed in the
+browser is embedded there, by an e5 model fine-tuned on students' queries, and compared with one
+vector per module. Radix computes those vectors, so a snapshot carries them and nothing else of the
+search: schema 10, `v_module_vector`, about 2 MB for the catalog.
+
+A module's vector is that of its **passage** (`internal/semantic`, `Passage`): its titles, then a
+German and an English summary of it and search terms, then its contents and learning outcomes.
+Gemini writes the summary (`gemini.SummarizeModules`, `gemini-3.5-flash-lite`, 20 modules a
+request): students search with other words than a module's description uses, and a summary in
+both languages with the usual terms finds the module by them. The summaries are not the
+university's text, so they stay in Radix: `module_summary` is dropped from the snapshot like
+`raw_page`. Without a Gemini API key the passage is the module's text alone.
+
+The vectors are computed by the crate `semantic/` itself, compiled to WebAssembly
+(`internal/embed/semantic.wasm`, the build the browser's search worker runs too) and run in wazero, a
+WebAssembly runtime in pure Go: one implementation of the model for Radix, the web server and the
+browser, and the vectors Radix publishes are the bits the crate computes natively (in its int8
+arithmetic, defined to the bit on every build; `internal/embed`'s test compares them with the native
+CLI). The model is the server's (`e5-de-en-server.bin`: 8 bit, 512 positions; 35 MB, not in the
+repository); `RADIX_EMBED_MODEL` names it, and without it the stage does not run.
+
+The **semantic stage** runs at the end of each cycle, after the export, within a time budget
+(`RADIX_SEMANTIC_BUDGET`, 20 minutes): first the summaries of module texts that have none (paced
+for the free tier: 10 requests a minute, 900 a day, `RADIX_GEMINI_RPM`/`RPD`; a used-up day ends
+the summaries until the next), then the vectors of passages that have none under the model
+(`RADIX_EMBED_WORKERS` instances, about 60 MB each; 1–5 s a passage). The next build looks every
+module's passage up in `passage_embedding` and writes `module_vector`; the digest covers it, so new
+vectors make a new snapshot. A module whose text changed gets its new vector one cycle later. Both
+caches are keyed by hashes, not modules: equal texts share a summary and a vector, a module that
+comes back costs nothing, and a new model replaces the vectors of the old one (`passage_embedding.model`).
+The first run of a model computes every passage: about 1.5 hours of three processors, spread over
+the budgets of a few cycles; after that a cycle computes what changed, seconds.
+
+`validate` fails when the vectors have different lengths, and counts the modules without one
+(info). Log events: `semantic.enabled` / `semantic.disabled`, `semantic.gemini_disabled` (WARN, no
+key), `semantic.finished` (counts), `semantic.gemini_daily_limit`, `semantic.summaries_failed`
+(WARN); a failing stage degrades the cycle. Measured on the catalog (`semantic/README.md`,
+„Quality“): of the first 10 modules for 349 realistic queries, 64 % were relevant with the old index
+and query model, 78 % with the fine-tuned query model and passages with summaries.
+
+The migration adds the three tables and the view, and the build's `module_vector` changes the
+content digest: the first build after the release publishes a snapshot (still without vectors
+until the stage has computed them), and the pinned digests of Folia's tests need a schema-10
+export.
 
 Open:
 

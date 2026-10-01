@@ -41,14 +41,13 @@ impl Index {
         Self { dims, ids: Vec::new(), scales: Vec::new(), codes: Vec::new() }
     }
 
-    /// Adds a document: its embedding as int8 with one scale (the largest value is ±127).
+    /// Adds a document: its embedding as int8 with one scale (`quantize`).
     pub fn push(&mut self, id: impl Into<String>, embedding: &[f32]) -> Result<(), String> {
         if embedding.len() != self.dims {
             return Err(format!("an embedding of {} values for an index of {}", embedding.len(), self.dims));
         }
-        let largest = embedding.iter().fold(0.0f32, |m, v| m.max(v.abs()));
-        let scale = if largest > 0.0 { largest / 127.0 } else { 1.0 };
-        self.codes.extend(embedding.iter().map(|v| (v / scale).round().clamp(-127.0, 127.0) as i8));
+        let (scale, codes) = quantize(embedding);
+        self.codes.extend(codes);
         self.scales.push(scale);
         self.ids.push(id.into());
         Ok(())
@@ -161,6 +160,16 @@ impl Index {
         scored.sort_unstable_by(best_first);
         scored.into_iter().filter_map(|(score, row)| Some(Hit { id: self.id(row)?, row, score })).collect()
     }
+}
+
+/// An embedding as an index keeps it: int8 codes and one scale, the largest value ±127 (1 for
+/// an embedding of zeros). Radix publishes the modules' vectors so (`v_module_vector`, computed
+/// by this crate as WASM).
+#[allow(clippy::cast_possible_truncation)] // rounded and clamped to ±127 first
+pub fn quantize(embedding: &[f32]) -> (f32, Vec<i8>) {
+    let largest = embedding.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    let scale = if largest > 0.0 { largest / 127.0 } else { 1.0 };
+    (scale, embedding.iter().map(|v| (v / scale).round().clamp(-127.0, 127.0) as i8).collect())
 }
 
 /// Σ codes · query, on eight lanes (which the compiler vectorises).

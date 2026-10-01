@@ -20,6 +20,9 @@
 //!
 //! For an encoder elsewhere (the WebGPU experiment of poc/semantic-search) only the tokenizer is
 //! needed: `load_tokenizer` with the start of the file, then `tokenize`.
+//!
+//! Radix runs the same module (in wazero, `internal/embed`) to compute the modules' vectors:
+//! `load_encoder` with the server's model, then `embed_passage` for each module's passage.
 
 use std::cell::RefCell;
 
@@ -29,6 +32,7 @@ thread_local! {
     static MODEL: RefCell<Option<Model>> = const { RefCell::new(None) };
     static TOKENIZER: RefCell<Option<Tokenizer>> = const { RefCell::new(None) };
     static SEARCH: RefCell<Option<Search>> = const { RefCell::new(None) };
+    static ENCODER: RefCell<Option<Model>> = const { RefCell::new(None) };
 }
 
 /// Room for `len` bytes, for JavaScript to write into.
@@ -218,5 +222,47 @@ pub unsafe extern "C" fn embed_query(text: *const u8, len: usize, out: *mut f32)
         let embedding = search.model().embed_query(text);
         std::slice::from_raw_parts_mut(out, embedding.len()).copy_from_slice(&embedding);
         0
+    })
+}
+
+/// Radix's encoder (`internal/embed`, which runs this module in wazero): takes over the packed
+/// model at `at` (from `alloc(len)`; the server's, 8 bit and 512 positions) for passages, in
+/// `Mode::Int8` — the arithmetic every build computes alike, so the vectors Radix publishes are
+/// the bits this crate computes natively. Returns the dims, -1 if the bytes are not a model.
+///
+/// # Safety
+/// `at` and `len` as `alloc` handed them out, all `len` bytes written.
+#[no_mangle]
+pub unsafe extern "C" fn load_encoder(at: *mut u8, len: usize) -> i32 {
+    let bytes = Vec::from_raw_parts(at, len, len);
+    match Model::from_bytes_with(bytes, Mode::Int8) {
+        Ok(model) => {
+            let dims = i32::try_from(model.dims()).unwrap_or(-1);
+            ENCODER.with(|e| *e.borrow_mut() = Some(model));
+            dims
+        }
+        Err(_) => -1,
+    }
+}
+
+/// The vector of a module's passage (`Model::embed_passage`: „passage: “ added, cut off at the
+/// model's positions) as the index keeps it (`quantize`): the dims int8 codes at `codes` and
+/// their scale at `scale`. Returns the tokens of the passage before the cut, -1 without
+/// `load_encoder` or for text that is not UTF-8.
+///
+/// # Safety
+/// `text` holds `len` bytes, `codes` room for the dims codes, `scale` for one f32.
+#[no_mangle]
+pub unsafe extern "C" fn embed_passage(text: *const u8, len: usize, codes: *mut i8, scale: *mut f32) -> i32 {
+    let Ok(text) = std::str::from_utf8(std::slice::from_raw_parts(text, len)) else { return -1 };
+    ENCODER.with(|e| {
+        let encoder = e.borrow();
+        let Some(model) = encoder.as_ref() else { return -1 };
+        // `embed_passage`, with the tokens counted on the way.
+        let ids = model.tokenizer().encode(&format!("passage: {text}"));
+        let (s, c) = crate::quantize(&model.embed_ids(&ids));
+        std::slice::from_raw_parts_mut(codes, c.len()).copy_from_slice(&c);
+        *scale = s;
+        i32::try_from(ids.len()).unwrap_or(i32::MAX)
     })
 }

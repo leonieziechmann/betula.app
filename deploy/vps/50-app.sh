@@ -201,7 +201,7 @@ deploy_app() {
     log "secret ${GEMINI_SECRET} exists: adding ${GEMINI_FILE##*/}"
     files+=("${GEMINI_FILE}")
   else
-    log "${GEMINI_FILE##*/} is left out (no secret ${GEMINI_SECRET}): everything runs but \"radix scan-curriculum\""
+    log "${GEMINI_FILE##*/} is left out (no secret ${GEMINI_SECRET}): everything runs but \"radix scan-curriculum\" and the summaries of the semantic search"
   fi
   if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
     # Last, so that its command and its health URL win over the files before it.

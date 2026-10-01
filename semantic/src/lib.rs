@@ -40,7 +40,7 @@ use std::collections::HashMap;
 
 use reader::Reader;
 use tensor::{gelu, softmax, Linear, Norm, Scratch, Tensor};
-pub use index::{Hit, Index};
+pub use index::{quantize, Hit, Index};
 pub use tensor::Mode;
 pub use tokenizer::Tokenizer;
 
