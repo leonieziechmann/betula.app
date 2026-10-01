@@ -276,9 +276,12 @@ func CrawlEventList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Ev
 				return stats, fmt.Errorf("failed to archive the entry of event %s: %w", e.ID, err)
 			}
 			stats.Fetched++
+			outcome := "unchanged"
 			if changed {
 				stats.Changed++
+				outcome = "changed"
 			}
+			crawl.CountPage(catalogdb.SourceQISEventEntry, outcome)
 		}
 		for _, id := range batch {
 			if shown[id] {
@@ -289,6 +292,7 @@ func CrawlEventList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Ev
 				return stats, fmt.Errorf("failed to archive the entry of event %s: %w", id, err)
 			}
 			stats.NotFound++
+			crawl.CountPage(catalogdb.SourceQISEventEntry, "not_found")
 			notListed = append(notListed, id)
 		}
 	}

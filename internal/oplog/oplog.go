@@ -21,7 +21,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/leonieziechmann/betula/internal/metrics"
 )
+
+// problemsTotal counts what the Recorder sees, for GET /metrics: one series per level and
+// event name, which are a fixed vocabulary (docs/operations.md, "Logging").
+var problemsTotal = metrics.Default.NewCounter("radix_log_problems_total",
+	"Log records at WARN and ERROR, by level and event.", "level", "event")
 
 // Options configure the process-wide logger.
 type Options struct {
@@ -148,6 +155,8 @@ func (r *Recorder) Handle(ctx context.Context, rec slog.Record) error {
 			p.Attrs[a.Key] = a.Value.String()
 			return true
 		})
+
+		problemsTotal.Inc(p.Level, p.Attrs["event"])
 
 		s := r.state
 		s.mu.Lock()
