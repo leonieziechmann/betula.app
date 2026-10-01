@@ -1473,7 +1473,9 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   masks of the birch) and the worker, whatever it is asked with. Until 2026-09-30 every file was
   `no-cache`, and every page load asked for each again. After building the app again
   (`build-client.sh`), start the server again as well: the bundle is kept under the address of
-  its build, in the worker as in the browser's cache.
+  its build, in the worker as in the browser's cache. Not so under `scripts/dev.sh`
+  (`--live-assets`): there nothing is immutable and the worker keeps nothing („Working on the
+  site").
   `e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
   `/api/status` unreachable offline and simply opens the copy it has, unless that copy is of an
   older schema than the build reads: then the app does not start, the page stays the one the
@@ -1635,6 +1637,15 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 ./radix.exe serve-snapshot --addr 127.0.0.1:8090
 ```
 
+(Without a crawl of your own: the catalog of betula.app, from `https://betula.app/api/db`, §4.)
+
+```bash
+bash scripts/dev.sh --watch
+```
+
+The second command is the two below, and builds them again as the code changes („Working on the
+site"):
+
 ```bash
 bash scripts/build-client.sh --dev
 ```
@@ -1643,11 +1654,12 @@ bash scripts/build-client.sh --dev
 cargo run -p folia-server
 ```
 
-The first command builds the browser app into `site/pkg` (needs the `wasm32-unknown-unknown`
+The first of them builds the browser app into `site/pkg` (needs the `wasm32-unknown-unknown`
 target and `wasm-bindgen` 0.2.128, which Trunk keeps in its cache); without it the site simply
 stays server-rendered. `--dev` builds it with the `wasm-dev` profile and the flags of
-`.cargo/config.toml` (`--cfg erase_components`, see „Build times"); leave it off to build the
-bundle that ships, as Nix builds it. Which one you want is a question of minutes:
+`.cargo/config.toml` (`--cfg erase_components`, see „Build times"), and keeps the names of its
+functions for the debugger; leave it off to build the bundle that ships, as Nix builds it,
+without them. Which one you want is a question of minutes:
 
 | | profile | edit a page, build again | `site/pkg` | gzipped |
 |---|---|---|---|---|
@@ -1657,6 +1669,9 @@ bundle that ships, as Nix builds it. Which one you want is a question of minutes
 `wasm-release` owes those two minutes to fat LTO, `opt-level = "z"` and its single codegen unit,
 and all of it buys the megabyte that people who load the site once do not have to fetch. On
 localhost the difference arrives over the loopback; never deploy a bundle built with `--dev`.
+(Since 2026-10-01 the bundle that ships leaves the names of its functions out: as Nix built it
+from develop that day, 33.8 MB with them, 29.0 MB of them names, and 4.7 MB without; 1.74 and
+1.43 MB in brotli, „What ships".)
 
 ### Build times
 
@@ -1794,6 +1809,7 @@ keeps serving the last good one when Radix is away, also after a restart.
 | `--render-wait-ms` | `FOLIA_RENDER_WAIT_MS` | `3000` | how long a page waits for a place before it is answered 503 with `Retry-After` |
 | `--feed-places` | `FOLIA_FEED_PLACES` | `0` | calendar feeds made at once (0: one per processor); a feed waits at most 10 s |
 | `--site-root` | `FOLIA_SITE_ROOT` | `site` | browser bundle (`pkg/`), from phase 2 |
+| `--live-assets` | `FOLIA_LIVE_ASSETS` | (none) | while working on the site: the stylesheet, the scripts and the SVGs from this directory (`app/assets`) as they are, not minified; nothing kept as immutable, and a service worker that keeps nothing („Working on the site"); never in production |
 | `--card-cache-mb` | `FOLIA_CARD_CACHE_MB` | `64` | finished link-preview cards kept in memory |
 | `--public-url` | `FOLIA_PUBLIC_URL` | `https://betula.app` | the site's address from outside: canonical links, link previews, sitemap |
 | `--access-gate` | `FOLIA_ACCESS_GATE` | `off` | closed testing: the whole site asks for one shared password (see below) |
@@ -1801,7 +1817,9 @@ keeps serving the last good one when Radix is away, also after a restart.
 
 `folia healthcheck` is not the server but its probe (like `radix healthcheck`): it asks the server
 that listens on `FOLIA_ADDR` for `/livez` and exits with 0 when it answers. The container image
-uses it as `HEALTHCHECK`, because an image built with Nix has no curl or wget.
+uses it as `HEALTHCHECK`, because an image built with Nix has no curl or wget. `folia assets`
+lists what ships („What ships"); like every command it takes the server's flags before it
+(`folia --site-root site assets`).
 
 Endpoints besides the pages: `GET /api/db`, `GET /api/status`, `GET /api/map.json` (the map of the
 programs, with the snapshot's ETag), `GET /healthz` (200 while a snapshot is served and Radix was
@@ -1838,6 +1856,110 @@ processor), so the first visitor does not wait for them. Traefik's `compress` pa
 what comes plain (a 404 page, the login page) in brotli too
 (`deploy/config/traefik/dynamic/middlewares.yml`: `br` before `zstd`, since it takes the first of
 the codings a browser weighs the same).
+
+### What ships (2026-10-01)
+
+Owner, 2026-09-28: „Aktuell wird da echt noch viel unnötiger code geshiped." Until then the server
+embedded `app/assets` as it is written — its comments, its indentation — and the browser app kept
+the names of its functions. Now whatever a browser gets as text is minified when the server is
+built (`server/build/main.rs`, which cargo runs before it compiles the server;
+`server/src/assets.rs` lists what the server embeds of it). The minified bytes go the way every
+file goes (brotli 11, made once per process, `encoding::Kept`): no compression in the build.
+
+- **The stylesheet** with lightningcss, written shorter and nothing else: no `targets`, so nothing
+  is lowered or prefixed. It writes `rgba(…)` as `#rrggbbaa` and so rounds an alpha to 1/255.
+  One thing it gets wrong is put right after it (`TimelineApart` in `server/build/main.rs`): it
+  folds `animation: wood-rise linear both; animation-timeline: --page` into
+  `animation:linear both wood-rise --page`, since its data has Chrome read a timeline in the
+  shorthand from version 115. Chrome 141 does not and drops the whole declaration, and the wood of a
+  page stopped moving with its scroll (`e2e/ground.mjs` found it). So the timeline goes back into
+  an `animation-timeline` of its own after the shorthand, and `assets::tests` keeps it there.
+- **The scripts** with oxc: comments and whitespace out, names shortened, constants folded, and
+  in no newer syntax than the scripts are written in (ES2020: `?.` and `??` in `enhance.js`; left
+  to itself oxc wrote `a ||= b`, ES2021, into a script every browser loads). A classic script's
+  top-level names are globals that other scripts call (sql.js's `initSqlJs`, which `boot.js`
+  calls), so a script is read as one and they stay; only what a module alone can be
+  (`import.meta`, a top-level `await`: `boot.js`) is read as a module. What the server writes in
+  when it serves them (`__BUILD__`, `__SCHEMA__`) must still be there: the build fails when the
+  minifier folded one away. `Number("__SCHEMA__")` was folded into `NaN` before the server could
+  write the number in, which is why `boot.js` writes `const SCHEMA = __SCHEMA__;`.
+- **The SVGs** by `server/build/svg.rs`: the same numbers, written shorter — no leading zero, a
+  segment of a path relative to where it starts when that is shorter, `h`/`v` for a line along an
+  axis, a repeated command without its letter, between numbers only the separators the grammar
+  needs. Quotes, ids and colours stay as they are: the cards find them as text (`cards::mask`).
+  resvg draws every file the same to the pixel (`assets::tests`). Chromium adds relative
+  coordinates in single precision, so an edge pixel may come out a level or a few of 255 lighter
+  or darker. **The wood** behind the start page is not minified: `design/forest/forest.mjs` draws
+  it as short as it gets and compresses it itself (`.svg.br`), and what `svg.rs` made of it was a
+  few per cent shorter but compressed 1 to 2 % larger (autumn's back 38,911 → 39,638 bytes).
+- **The manifest** is written without indentation.
+- **The browser app** without the names of its functions (`--remove-name-section`, and the
+  `producers` section, in `scripts/build-client.sh` and `flake.nix`; `--dev` keeps them for the
+  debugger). A panic's stack trace then names functions by number. `wasm-opt -Oz` on top was
+  measured on 2026-09-28 and left out (−0.4 % compressed, not worth another tool in every build).
+
+What a first visit downloads besides the page itself, as the server sends it to a browser
+(brotli, 2026-10-01, both builds by Nix, `#folia` and `#folia-client`; the birch of autumn):
+
+| | develop | now | brotli develop | brotli now |
+|---|---|---|---|---|
+| `app.css` | 267,814 | 172,771 | 52,281 | 28,600 |
+| `enhance.js` | 46,474 | 19,446 | 12,883 | 6,105 |
+| `boot.js` | 8,812 | 3,739 | 2,912 | 1,542 |
+| `sw.js` | 6,643 | 2,369 | 2,253 | 992 |
+| `sql-wasm.js` (sql.js, minified already) | 48,863 | 43,518 | 15,038 | 13,156 |
+| `manifest.webmanifest` | 1,143 | 869 | 360 | 335 |
+| the birch of a page (crown, its head, roots, litter) | 254,098 | 209,615 | 47,557 | 31,389 |
+| the wood of the start page (as drawn, unchanged) | 365,102 | 365,102 | 72,802 | 72,802 |
+| `folia_client_bg.wasm` | 33,757,019 | 4,732,748 | 1,740,869 | 1,431,872 |
+| all of it, with what stayed as it was | 35,536,473 | 6,330,672 | 2,283,390 | 1,923,222 |
+
+What stayed as it was: `folia_client.js` (wasm-bindgen's 64 kB, 9 kB in brotli:
+`build-client.sh` writes it, not the server's build), the sprite (`app::icons` writes it), the
+pictures, the font and sql.js's WASM (compressed already), and the HTML of the pages (Leptos
+writes it without indentation). A first visit thus fetches 16 % less, the stylesheet and the
+scripts about half.
+
+`folia assets` (or `bash scripts/dev.sh sizes`) lists every file as written and as served, each
+also in brotli, and the browser app in `<site-root>/pkg`; a bundle that still carries the names of
+its functions (a `--dev` build) is named as one not to ship.
+
+What it costs: the minifiers are build dependencies of the server — built once per build cache,
+none of them in the server — and they run again only when a file of `app/assets` changed. oxc
+needs rustc 1.96 or newer (nixpkgs has 1.98).
+
+### Working on the site: `scripts/dev.sh` (2026-10-01)
+
+```bash
+bash scripts/dev.sh                 # build what is stale, serve on http://127.0.0.1:8080
+bash scripts/dev.sh --watch         # and build again and restart when Rust code changes
+bash scripts/dev.sh -- --addr …     # the server's own flags after `--`
+bash scripts/dev.sh sizes           # what ships (folia assets)
+```
+
+It builds the browser app when anything of its code is newer than the bundle (`build-client.sh
+--dev`), builds the server, and runs it with `--live-assets app/assets`: the stylesheet, the
+scripts and the SVGs come from disk on every request, as they are written — no build and no
+restart for them, an edit is there with the next reload. Each answer is tagged by what the file
+holds, so an unchanged file is still a 304. Nothing is kept as immutable there, not even under
+`?v=<build>` (`api::Keep::of`): an edited file, or a bundle built again, is a new file under the
+same address. The service worker of such a server keeps nothing and listens to no request (and
+drops what the worker of an earlier run kept), so a reload never gets an old file from it. Only
+the files the server serves anyway are read (a path is looked up in `assets::MINIFIED` or
+`birch::file`, never joined as it comes), and none is compressed: they go to this machine.
+
+`--watch` looks at the Rust code once a second (`find -newer`, which Git Bash has as well): a
+change in `client/` builds the browser app, one in `server/` the server, one in `app/`, `catalog/`
+or `pack/` both, and the server is restarted. The browser app is built while the old server still
+answers; the server is stopped before it is built, because Windows does not let a build overwrite
+a running `folia.exe`. What does not build is said, and the next change is waited for. An edit of
+`server/` answers with the new build in 12 s here (four cores, without the flags of
+`scripts/build-cache.sh`). The page cache is not warmed (`FOLIA_WARM_CACHE=off`): the warm-up
+renders all 5,000 pages after every start, and here every restart is one.
+
+What is tested while working on it is not what ships: the stylesheet and the scripts minified,
+offline with the real service worker. For that, `cargo run -p folia-server` as before, and the
+bundle without `--dev`.
 
 ### Closed testing: the access gate (`server/src/access.rs`, 2026-09-21)
 
@@ -2062,6 +2184,8 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | INFO | `access.granted` | the access password was entered |
 | WARN | `access.denied` | a wrong access password (`failures` in this minute, `closed` when the form closed; at most ten lines a minute) |
 | DEBUG | `card.drawn` | a link-preview card was drawn (`key`, `bytes`, `ms`) |
+| WARN | `server.live_assets` | the server reads the stylesheet, the scripts and the SVGs from disk (`--live-assets`, `dir`): for working on the site, never in production |
+| WARN | `assets.live_failed` | under `--live-assets`, a file the server serves is not on disk (`path`, `error`): answered 404 |
 | WARN | `card.busy` | every drawing place was taken, previews got the standard picture (`count`; at most one line a minute). Often: more places or a larger `--card-cache-mb` |
 | WARN | `snapshot.fetch_failed` | Radix unreachable or not ready; retried with backoff; the last snapshot stays active |
 | WARN | `snapshot.restore_failed`, `snapshot.compress_failed` | stored snapshot unusable / its gzip or brotli copy could not be made: served in gzip or uncompressed (brotli is not tried again for that snapshot) |
@@ -2081,6 +2205,24 @@ cargo test
 ```
 
 needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one.
+**The real catalog** is the one betula.app serves (owner, 2026-10-01): `/api/db` is the snapshot
+Radix exported, byte for byte (44 MB; `--compressed` takes it in brotli or gzip).
+
+```bash
+curl --compressed -o snapshot/catalog.db https://betula.app/api/db
+FOLIA_TEST_SNAPSHOT=snapshot/catalog.db cargo test -p folia-server
+```
+
+To serve it to a local Folia as well (§3), give it the name and the pointer `radix export` writes
+(`snapshot/` is git-ignored), then `radix serve-snapshot` publishes it:
+
+```bash
+cd snapshot && hash=$(sha256sum catalog.db | cut -c1-32) && mv catalog.db "catalog-${hash:0:16}.db" &&
+  printf '{"file":"catalog-%s.db","etag":"\\"%s\\"","bytes":%s,"exported_at":"%s"}\n' "${hash:0:16}" "$hash" \
+    "$(stat -c%s "catalog-${hash:0:16}.db")" "$(date -u +%FT%TZ)" > current.json
+```
+
+Then `cargo test` finds it without `FOLIA_TEST_SNAPSHOT`.
 Without a crawl, a synthetic one serves for development and for the browser checks below
 (`internal/catalogbuild/folia_fixture_test.go`: 1,200 modules with varied facets, 115 programs
 with trees, areas and degree labels, Informatik B.Sc. and Elektrotechnik B.Sc. with validated

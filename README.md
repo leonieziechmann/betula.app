@@ -69,13 +69,20 @@ go test ./...                          # network-free, no API key needed
 ```bash
 git config core.hooksPath scripts/hooks   # once per clone: new worktrees set themselves up
 bash scripts/build-cache.sh setup         # once in the main checkout: its build cache and flags
-bash scripts/build-client.sh --dev        # the browser app, built in seconds instead of minutes
-cargo run -p folia-server
+bash scripts/dev.sh --watch               # the browser app and the server, built again on every change
 ```
 
-Then open http://127.0.0.1:8080. Folia talks to Radix only through the snapshot
+Then open http://127.0.0.1:8080. `scripts/dev.sh` builds the browser app for localhost when it is
+stale (`scripts/build-client.sh --dev`, seconds instead of minutes) and runs the server with
+`app/assets` live: an edit of the stylesheet, a script or an SVG is there with the next reload,
+without a build; `--watch` builds again and restarts when Rust code changes, and
+`bash scripts/dev.sh sizes` lists what ships. What ships is minified when the server is built
+(`server/build/main.rs`). Folia talks to Radix only through the snapshot
 endpoint. Flags, endpoints, log events and checks: `docs/frontend.md`. `cargo test --workspace`
-needs an exported snapshot (`radix export`). Leave `--dev` off to build the bundle that ships.
+needs an exported snapshot (`radix export`), or the one betula.app serves: `curl --compressed -o
+snapshot/catalog.db https://betula.app/api/db`, then `FOLIA_TEST_SNAPSHOT=snapshot/catalog.db`
+(`docs/frontend.md` §4 also names it for `serve-snapshot`). `scripts/build-client.sh` without `--dev` builds the
+bundle that ships.
 A new worktree forks the main checkout's build cache as `git worktree add` creates it, so only
 the workspace's own crates compile; what that costs and how the caches are kept and dropped:
 `docs/frontend.md` §3.
