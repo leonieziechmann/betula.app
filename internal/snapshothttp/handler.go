@@ -31,9 +31,10 @@ const (
 // Both answer 503 until the first export. Responses are never cached without
 // revalidation, so a poll always sees the newest export.
 func Handler(dir string) http.Handler {
+	served.Store(&dir)
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET "+PointerPath, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET "+PointerPath, counted(func(w http.ResponseWriter, r *http.Request) {
 		snap, ok := current(w, dir)
 		if !ok {
 			return
@@ -42,9 +43,9 @@ func Handler(dir string) http.Handler {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("ETag", snap.ETag)
 		_ = json.NewEncoder(w).Encode(snap)
-	})
+	}))
 
-	mux.HandleFunc("GET "+DatabasePath, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET "+DatabasePath, counted(func(w http.ResponseWriter, r *http.Request) {
 		snap, ok := current(w, dir)
 		if !ok {
 			return
@@ -62,7 +63,7 @@ func Handler(dir string) http.Handler {
 		w.Header().Set("ETag", snap.ETag)
 		// ServeContent answers If-None-Match with 304 from the ETag header set above.
 		http.ServeContent(w, r, "", exportedAt, f)
-	})
+	}))
 
 	return mux
 }

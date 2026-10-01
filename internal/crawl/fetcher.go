@@ -64,7 +64,7 @@ func (f *Fetcher) Get(ctx context.Context, job Job) ([]byte, error) {
 
 	status, changed, err := fetchAndArchive(ctx, f.db, job, f.opt, log)
 	defer sleep(ctx, jitter(f.opt.Delay))
-	if err := f.record(ctx, job, status, changed, err, log); err != nil {
+	if err := f.record(ctx, job, status, changed, true, err, log); err != nil {
 		return nil, err
 	}
 	page, err := f.db.GetPage(job.Source, job.Key)
@@ -81,7 +81,7 @@ func (f *Fetcher) Download(ctx context.Context, job Job) ([]byte, error) {
 	log := oplog.For("crawl").With("source", job.Source)
 	status, body, err := fetchWithRetries(ctx, job, f.opt, log)
 	defer sleep(ctx, jitter(f.opt.Delay))
-	if err := f.record(ctx, job, status, false, err, log); err != nil {
+	if err := f.record(ctx, job, status, false, false, err, log); err != nil {
 		return nil, err
 	}
 	return body, nil
@@ -89,11 +89,14 @@ func (f *Fetcher) Download(ctx context.Context, job Job) ([]byte, error) {
 
 // record counts the outcome of a request and turns it into the error Get and Download
 // return: ErrNotFound, ErrServerUnhealthy after too many failures in a row, or the failure.
-func (f *Fetcher) record(ctx context.Context, job Job, status int, changed bool, err error, log *slog.Logger) error {
+// archived says whether the answer is a page of the archive (Get), whose outcome counts
+// as a page; the pieces of a Download are counted by its caller (CountPage).
+func (f *Fetcher) record(ctx context.Context, job Job, status int, changed, archived bool, err error, log *slog.Logger) error {
 	switch {
 	case err != nil && ctx.Err() != nil:
 		return ctx.Err()
 	case err != nil:
+		CountPage(job.Source, "failed")
 		f.stats.Failed++
 		f.consecutive++
 		log.Error("giving up on page", "event", "crawl.job_failed", "key", job.Key, "url", job.URL, "attempts", maxAttempts, oplog.Err(err))
@@ -105,11 +108,17 @@ func (f *Fetcher) record(ctx context.Context, job Job, status int, changed bool,
 	case status == http.StatusNotFound:
 		f.consecutive = 0
 		f.stats.NotFound++
+		if archived {
+			CountPage(job.Source, "not_found")
+		}
 		log.Warn("page not found", "event", "crawl.not_found", "key", job.Key, "url", job.URL)
 		return ErrNotFound
 	}
 	f.consecutive = 0
 	f.stats.Fetched++
+	if archived {
+		CountPage(job.Source, changedOutcome(changed))
+	}
 	if changed {
 		f.stats.Changed++
 	}

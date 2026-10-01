@@ -664,6 +664,18 @@ check_prometheus() {
       *) fail "up{job=\"${job}\"} is ${value:-unknown}" ;;
     esac
   done
+  # Radix of every instance that runs (job radix, found by DNS: tasks.<stack>_radix; dashboard
+  # "Radix"). An instance without a line in prometheus.yml is not scraped at all.
+  local stack
+  for stack in $(instance_names); do
+    [[ "$(service_state "${stack}_radix")" == ok* ]] || continue
+    value="$(jq -r --arg stack "${stack}" '[.data.result[] | select(.metric.job == "radix" and .metric.stack == $stack) | .value[1]] | if length == 0 then "absent" else (map(tonumber) | min | tostring) end' <<<"${body}" 2>/dev/null || true)"
+    case "${value}" in
+      1) pass "up{job=\"radix\", stack=\"${stack}\"} = 1" ;;
+      absent) fail "${stack}_radix runs but Prometheus does not scrape it: is tasks.${stack}_radix in config/monitoring/prometheus.yml, and is the service on the monitoring overlay (stacks/betula.yml)?" ;;
+      *) fail "up{job=\"radix\", stack=\"${stack}\"} is ${value:-unknown}: an image from before GET /metrics answers 404 (ship a current one)" ;;
+    esac
+  done
   # The alert rules and dashboards select on these labels; cAdvisor has to see Docker for them.
   value="$(prom_value 'count(container_last_seen{service="edge_traefik", stack="edge"})' || true)"
   if [[ "${value}" =~ ^[0-9]+$ && "${value}" -gt 0 ]]; then

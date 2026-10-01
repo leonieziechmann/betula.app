@@ -83,9 +83,32 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `GET /snapshot/current.json` | `{"file","etag","bytes","exported_at"}` |
 | `GET /healthz` | `200 {"status":"ok"}` or `503 {"status":"unhealthy","problems":[…]}` |
 | `GET /status` | everything: last cycle with every stage, last success, failed cycles in a row, next cycle, snapshot, error/warning counters and the 20 most recent warnings and errors |
+| `GET /metrics` | counters and gauges in the Prometheus text format (below, „Metrics"); `serve-snapshot` answers it too, with the snapshot part |
 
 Unhealthy means: no snapshot to serve, or the last two cycles failed, or no successful cycle
 for `--stale-after`.
+
+### Metrics
+
+`GET /metrics` is what the Grafana dashboard „Radix" shows (`deploy/config/monitoring/grafana/dashboards/betula-radix.json`;
+Prometheus job `radix`, which finds every instance's Radix as `tasks.<stack>_radix` on the
+`monitoring` overlay). The counters start at zero with the process; the `radix_archive_*` gauges
+are read from the archive (at most once a minute) and so survive a restart. `source` is a source
+of the archive: `module_catalog` and `module_page` are b-tu.de, `qis_module_list`, `qis_fues_list`,
+`qis_module_page`, `qis_tree`, `qis_event_entry` (the event search) and `qis_event` are QIS.
+
+| Metric | What it says |
+|---|---|
+| `radix_crawl_requests_total{source,code}` | requests sent to the university, retries included; `code` is the status, `error` without an answer |
+| `radix_crawl_request_duration_seconds{source}`, `radix_crawl_response_bytes_total{source}` | time to the end of the body (histogram), bytes received |
+| `radix_crawl_pages_total{source,outcome}` | pages fetched: `changed` (new or another body), `unchanged`, `not_found`, `failed` (given up); the event search counts each event it lists |
+| `radix_archive_pages{source,status}`, `radix_archive_fetched_24h{source}`, `radix_archive_changed_24h{source}`, `radix_archive_{oldest,newest}_fetch_timestamp_seconds{source}` | the archive: pages (`ok`, `not_found`), fetched and changed in the last 24 h, oldest and newest fetch |
+| `radix_cycles_total{result}`, `radix_cycle_running`, `radix_last_cycle_duration_seconds`, `radix_last_cycle_timestamp_seconds`, `radix_last_success_timestamp_seconds`, `radix_failed_cycles_in_a_row`, `radix_next_cycle_timestamp_seconds` | the cycles, as in `/status` |
+| `radix_stage_runs_total{stage,outcome}`, `radix_stage_duration_seconds{stage}` | stages: `ok`, `failed`, `skipped`; how long the last run took |
+| `radix_builds_total{content}`, `radix_snapshots_published_total`, `radix_catalog_items{kind}`, `radix_module_rows_changed_total`, `radix_pruned_total{what}` | builds with `changed` / `unchanged` content, exports, what the last build holds, rows of the QIS module table that changed, retention |
+| `radix_snapshot_requests_total{file,code}`, `radix_snapshot_exported_timestamp_seconds`, `radix_snapshot_bytes` | the web server's polls (`304`) and downloads (`200`); the snapshot offered |
+| `radix_log_problems_total{level,event}` | log records at WARN and ERROR by event (the table below) |
+| `radix_healthy`, `radix_offpeak`, `radix_build_info{build,mode}`, `radix_start_time_seconds` | `/healthz` as 1 or 0, inside the off-peak window, the binary and its mode (`run`, `serve-snapshot`) |
 
 ## 2. Logging
 

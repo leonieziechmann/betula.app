@@ -120,6 +120,12 @@ Why this order, and what can go wrong:
   The same recipe reaches Prometheus (9090) or Radix's `/status` (8090).
 - Dashboards and alert rules are files (`config/monitoring/grafana/`); the UI refuses to save them.
   Edit, export JSON, commit, sync, `40-stacks.sh monitoring`.
+- The dashboard "Radix" shows what the collector does, from its `GET /metrics` (Prometheus job `radix`):
+  requests to b-tu.de and QIS by endpoint and status, pages that changed, the archive per endpoint
+  (newest and oldest fetch), cycles and stages, builds and snapshots, warnings and errors by event.
+  Every instance's Radix is on the `monitoring` overlay (`stacks/betula.yml`); a new instance file
+  needs its `tasks.<stack>_radix` line in `config/monitoring/prometheus.yml`. An image from before
+  `/metrics` answers 404 there, so the rule "Monitoring target is down" fires until a current one runs.
 - The dashboard "Visitors" reads stored numbers only: Loki's ruler counts them from Traefik's access
   log every 5 minutes (the 7-day numbers and the calendar subscriptions once an hour) with the rules
   in `config/monitoring/loki-rules`, and writes them to Prometheus, which keeps them like every
