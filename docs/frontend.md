@@ -70,8 +70,9 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   green of the birch leaf and carries the mark's four bars as the marks of bark, entering from its
   edges as they enter the square: close enough to the mark that it is recognised, and whole in any
   shape a launcher cuts and in one colour for Android's themed icons. It is the icon of the home
-  screen only (the manifest's icons, `apple-touch-icon.png`, the splash screens); the site keeps
-  the mark in the tab, the rail and the link previews („ich mag das aktuelle Icon eigentlich sehr").
+  screen (the manifest's icons, `apple-touch-icon.png`, the splash screens) and, since 2026-10-01,
+  of the site's results in Google Search (owner: the app icon there); the site keeps the mark in
+  the tab, the rail and the link previews („ich mag das aktuelle Icon eigentlich sehr").
   `design/logo/app-icon.mjs`, described in `logo.html`.
 - **Layout:** a thin icon rail (52 px), a top bar with the search, and the whole remaining screen
   for content, with 8 px gaps and 9 px corners. The catalog is three panels side by side: filters,
@@ -1381,6 +1382,24 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   pictures are made from the mark's grids and from `design/logo/app-icon.mjs` by
   `node design/logo/render-icons.mjs`. The manifest makes the site installable; the service
   worker makes it start without a network.
+  - **Google Search** (2026-10-01) shows one picture per host beside the results, taken from the
+    links of the start page (`icon`, `apple-touch-icon`). It reads no SVG (BMP, GIF, ICO, PNG,
+    JPEG, PPM, TIFF; square, larger than 48 px recommended) and does not document how it chooses
+    among several; as far as can be seen, the largest. So the start page links the icon of the
+    app once more, as an `icon` of 192 px (`app::ICON_192`, square and a multiple of 48): larger
+    than the mark's ICO (48 px at most) and than `apple-touch-icon.png` (180), it is the largest
+    of either kind of link (`server/src/tests.rs` checks that). The tab keeps the mark: Chromium
+    takes the SVG and does not even fetch the PNG (tried at 1×, 2× and 3×), and Firefox takes the
+    SVG whatever else is linked (`selectIcons` in its `FaviconLoader.sys.mjs`).
+  - **Why Google showed none** (2026-10-01): until 2026-09-27 `betula.app` was the placeholder
+    (`deploy/stacks/placeholder.yml`): `noindex, nofollow`, no icon linked, `/favicon.ico` a 204
+    without content. Google takes the icon anew only when it processes the start page again,
+    which takes days to weeks; four days after the opening its favicon service had the leaf for
+    `/en` and `/en/catalog` (first seen after the opening) and nothing for `/`. After a deploy that
+    changes the icon: Search Console, URL Inspection of `https://betula.app/`, „Request indexing".
+    What Google's favicon service has for an address:
+    `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://betula.app/&size=64`
+    (a 404 means none).
   - **Android** (2026-09-26) cuts the maskable icon into the launcher's shape and shows its middle
     87 % (Chromium pads the web's safe circle of 80 % onto Android's, 66 of 108 dp; the mask shows
     72): the leaf is drawn smaller by that much and sits in the middle, so a circle, a squircle
