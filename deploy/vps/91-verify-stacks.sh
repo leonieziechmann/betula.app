@@ -579,8 +579,8 @@ check_canary() {
 }
 
 check_loki() {
-  section "Loki (ready, and fed by Alloy with the contract's labels)"
-  local body value i
+  section "Loki (ready, fed by Alloy with the contract's labels, ruler storing the visitor numbers)"
+  local body value i want have failing
   if ! find_prometheus; then
     fail "no running monitoring_prometheus container to query from (docker service ps monitoring_prometheus)"
     return 0
@@ -619,6 +619,27 @@ check_loki() {
     pass "no access log lines under {job=\"journal\"} (Alloy drops the journal's copy of container lines)"
   else
     fail "${value} access log lines under {job=\"journal\"} in the last 15 minutes, kept 30 days there: loki.relabel \"journal\" in config/monitoring/alloy/config.alloy (40-stacks.sh monitoring)"
+  fi
+  # The ruler counts the visitors (config/monitoring/loki-rules) and writes the numbers to
+  # Prometheus; the dashboard "Visitors" reads nothing else.
+  want="$(find "${CONFIG_DIR}/monitoring/loki-rules" -name '*.yml' -exec grep -hcE '^[[:space:]]+- record: ' {} + 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')"
+  body="$(mon_get "http://monitoring_loki:3100/prometheus/api/v1/rules" || true)"
+  have="$(jq -r '[.data.groups[].rules[]] | length' <<<"${body}" 2>/dev/null || true)"
+  failing="$(jq -r '[.data.groups[].rules[] | select(.health == "err") | "\(.name): \(.lastError)"] | join("; ")' <<<"${body}" 2>/dev/null || true)"
+  if [[ ! "${have}" =~ ^[0-9]+$ ]]; then
+    fail "Loki's ruler does not answer /prometheus/api/v1/rules (docker service logs monitoring_loki)"
+  elif [[ "${have}" -lt "${want}" ]]; then
+    fail "Loki's ruler knows ${have} recording rules, config/monitoring/loki-rules defines ${want} (mounted at /etc/loki/rules? docker service logs monitoring_loki 2>&1 | grep -i rule)"
+  elif [[ -n "${failing}" ]]; then
+    fail "recording rules fail: ${failing}"
+  else
+    pass "Loki's ruler has ${have} recording rules, none failing"
+  fi
+  value="$(prom_value 'count({__name__=~"betula:.+"})' || true)"
+  if [[ "${value}" =~ ^[0-9]+$ && "${value}" -gt 0 ]]; then
+    pass "the visitor numbers reach Prometheus (${value} series betula:*)"
+  else
+    warning "no betula:* series in Prometheus: the ruler counts every 5 minutes after Loki started; if this stays, docker service logs monitoring_loki 2>&1 | grep -i -e rule -e remote"
   fi
 }
 

@@ -1,4 +1,5 @@
-# Loki 3.7 - single binary, everything on the local volume /loki.
+# Loki 3.7 - single binary, everything on the local volume /loki, except the recording rules
+# (config/monitoring/loki-rules, mounted read-only at /etc/loki/rules).
 # Key names checked against docs/sources/shared/configuration.md of v3.7.8.
 # Apply changes with:  docker service update --force monitoring_loki
 
@@ -21,7 +22,8 @@ common:
   storage:
     filesystem:
       chunks_directory: /loki/chunks
-      rules_directory: /loki/rules
+      # Where the ruler reads its rules: <directory>/<tenant>/*.yml. See "ruler" below.
+      rules_directory: /etc/loki/rules
 
 schema_config:
   configs:
@@ -56,7 +58,8 @@ limits_config:
   # (vps/files/journald-betula.conf), and the period the privacy notice of betula.app names
   # ("Zugriffsprotokoll" in app/src/i18n/legal.rs, in every language): change them together.
   # The 30 days are meant for application and host logs. Traefik's own messages share the
-  # stream and go with it; a failing renewal is covered by the certificate alert.
+  # stream and go with it; a failing renewal is covered by the certificate alert. What the
+  # ruler counts from the stream (see "ruler") are numbers only, without addresses.
   # (Minimum period per stream is 24h; the selector takes label matchers only.)
   retention_stream:
     - selector: '{service="edge_traefik"}'
@@ -90,6 +93,22 @@ limits_config:
 
 querier:
   max_concurrent: 4
+
+# The ruler counts the visitors of betula.app from Traefik's access log every 5 minutes and every
+# hour (config/monitoring/loki-rules) and writes the numbers to Prometheus, which keeps them like
+# every metric (prometheus.yml). The dashboard "Visitors" only reads those; nothing in Grafana
+# reads the access log for it. The rules run in this process, one query after the other. Tried
+# with Loki 3.7.8 on a generated week of access log as large as this server's (2026-10-01; the old
+# dashboard's queries took as long there as here, 2-10 s each): a 7-day rule takes about 6 s and
+# Loki stays inside GOMEMLIMIT, where one load of the old dashboard took 48 s and timed out.
+ruler:
+  wal:
+    dir: /loki/ruler-wal   # the default "ruler-wal" is relative to the working directory, not the volume
+  remote_write:
+    enabled: true
+    clients:
+      prometheus:
+        url: http://monitoring_prometheus:9090/api/v1/write   # --web.enable-remote-write-receiver
 
 # Small embedded caches: the defaults (100 MB each) do not fit the memory budget.
 query_range:
