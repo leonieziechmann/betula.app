@@ -519,6 +519,31 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     for link in ["rel=\"manifest\"", "rel=\"apple-touch-icon\"", "href=\"/favicon.ico\"", "name=\"theme-color\"", "rel=\"stylesheet\"", "rel=\"preload\""] {
         assert_eq!(head(&home).matches(link).count(), 1, "{link}");
     }
+    // What Google Search shows beside a result: of the pictures the start page links as `icon` or
+    // `apple-touch-icon`, the largest it can read (no SVG). That has to be the icon of the app,
+    // square and larger than 48 px (`app::ICON_192`); the mark (`/favicon.ico`) is 48 at most.
+    let mut largest = (0, String::new());
+    for link in head(&home).split("<link ").skip(1).filter_map(|tag| tag.split('>').next()) {
+        if !(link.contains("rel=\"icon\"") || link.contains("rel=\"apple-touch-icon\"")) || link.contains("image/svg+xml") {
+            continue;
+        }
+        let href = link.split("href=\"").nth(1).and_then(|rest| rest.split('"').next()).unwrap();
+        let (status, _, picture) = request(&router, href, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{href}");
+        let (width, height) = if picture.starts_with(b"\x89PNG") {
+            (u32::from_be_bytes(picture[16..20].try_into().unwrap()), u32::from_be_bytes(picture[20..24].try_into().unwrap()))
+        } else {
+            // An ICO: its widest entry (a width of 0 means 256).
+            let side = |byte: u8| if byte == 0 { 256 } else { u32::from(byte) };
+            let entries = usize::from(u16::from_le_bytes([picture[4], picture[5]]));
+            (0..entries).map(|entry| (side(picture[6 + 16 * entry]), side(picture[7 + 16 * entry]))).max().unwrap()
+        };
+        assert_eq!(width, height, "{href} is square");
+        if width > largest.0 {
+            largest = (width, href.to_string());
+        }
+    }
+    assert_eq!(largest, (192, app::ICON_192.to_string()), "{}", head(&home));
     // The fade between pages is opted into in the head itself: from the stylesheet alone the
     // browser may learn of it too late (`app::VIEW_TRANSITION_STYLE`).
     assert_eq!(head(&home).matches(&format!("<style>{}</style>", app::VIEW_TRANSITION_STYLE)).count(), 1, "{home}");
