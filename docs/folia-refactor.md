@@ -1,7 +1,8 @@
 # Folia, restructured: a concept for the web tier's next architecture
 
-> Draft for discussion, 2026-10-02. Nothing here is decided: §12 lists what the owner answers
-> first, and several parts depend on those answers. Verified against `develop` at `b74d3fb`.
+> Draft, 2026-10-02; the owner's answers of the same day are in §0.1 and worked in. What is
+> still open is in §12; a minimal version (§11, phase 0) tests the plan before it is final.
+> Verified against `develop` at `b74d3fb`.
 > Companion documents: `docs/frontend.md` (Folia as it is: architecture, rules R1–R23, checks),
 > `docs/frontend-rewrite.md` and `docs/frontend-phase0.md` (the rewrite of 2026-09-19 and its
 > decisions).
@@ -20,6 +21,19 @@ Owner, 2026-10-02:
   eigene crate sein … crates für das design … Alles so dass jedes system möglichst abgeschlossen
   ist."
 
+### 0.1 The owner's answers (2026-10-02)
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | Routes without JavaScript | the start page, the catalog with the module pages, the legal pages („Impressum und Datenschutz muss auch so gehen") |
+| 2 | Program pages | they stay for Google („die Studiengangsseiten sollen weiter für google existieren"): the program overview and every program's page are site pages too |
+| 3 | How much the site can do | as little as possible, the design consistent with the app („mach die komplette ssr seite minimal in ihrer Funktionalität nur das Design soll konsistent sein") |
+| 4 | A first visit to an app route | loading is fine, but the first paint as fast as possible and the rest of the app loaded after it |
+| 5 | What „die Sidebar mit der Navigation" meant | the icon rail, the header, the footer and the background: what every page has; the content, sidebars included, changes from page to page |
+| 6 | Pace | first a minimal version to find the problems while development goes on; once the plan is final, Folia's development pauses until the restructuring is done |
+| — | The repository | „komplett unordentlich": it is ordered and structured as part of this (§7.9) |
+| — | Names | every crate of Folia is `folia-<crate>` |
+
 In one sentence: Folia becomes **a small public site** (a few server-rendered pages for search
 engines, link previews and visitors without JavaScript) **plus a browser app** whose main thread
 only draws, whose data and computations run in workers, whose frame is built once, and whose
@@ -27,15 +41,19 @@ systems are crates with their own API, state, texts and styles.
 
 The proposal in five lines:
 
-1. **Site and app** (§4): the server renders `/`, the catalog, the module pages and the legal
-   pages; every other route is the app, in a document whose head the server still writes.
-2. **One shell** (§5): header, navigation, sidebar, content, the panel beside it and the footer
-   are mounted once; pages fill regions, and the shell shows each route's skeleton.
+1. **Site and app** (§4): the server renders the start page, the catalog, the module pages, the
+   programs and the legal pages, with as little function as possible; the Merkliste and the
+   Stundenplan are the app alone, in a document whose head the server still writes.
+2. **One shell** (§5): the icon rail, the header, the footer and the background are mounted once;
+   a page brings its content, sidebars included, built from the design system's frame.
 3. **Workers** (§6): a data worker holds the snapshot and runs every query, loader and
    computation; the semantic search keeps its worker; the service worker stays a cache.
 4. **Crates** (§7): 34 crates in layers; features never use features; a test checks it.
-5. **Steps** (§11): eight phases, each merged into `develop` with the site working; the second
-   renderer goes early (phase 2), because that deletes the most.
+5. **Steps** (§11): a minimal version first, beside the running development; then, with Folia's
+   development paused, the repository put in order and the phases, each merged into `develop`
+   with the site working.
+6. **First paint first** (§6.7): the site's HTML or the app document paints at once, the app's
+   code and the catalog follow in stages.
 
 ## 1. Where Folia stands
 
@@ -104,12 +122,14 @@ answering in the next frame (R21); the start without a network; the two language
 
 - **G1** Two kinds of routes: the **public site** (server-rendered, complete without JavaScript)
   and the **app** (JavaScript only).
-- **G2** **One shell**: header, navigation, sidebar, content, the panel beside it and the footer are
-  built once and filled by the pages.
+- **G2** **One shell**: the icon rail, the header, the footer and the background are built once;
+  the pages change inside it.
 - **G3** The **main thread draws** and takes input; queries and computations run in **workers**;
   data reaches the UI asynchronously, and every wait has a defined look.
 - **G4** **Every system is a crate** with its own public API, state, texts, styles and tests; the
   dependencies between crates are rules, and a test checks them.
+- **G6** **The first paint comes first**; the app's functions load after it.
+- **G7** **An ordered repository**: Radix and Folia apart, every crate `folia-<crate>`.
 - **G5** Nothing the owner approved gets lost on the way: the look and the interactions, the
   addresses, R12, R20, R21, the start without a network, both languages; the checks move along.
 
@@ -126,9 +146,9 @@ answering in the next frame (R21); the start without a network; the two language
 ```
 Radix ──/snapshot/catalog.db──▶ folia-server
                                  ├─ site pages, rendered and cached per snapshot (folia-site):
-                                 │    /   /catalog   /catalog/module/<id>   /impressum   /datenschutz
-                                 ├─ the app document for every other route: a head written per
-                                 │    route (title, description, card), the shell's static frame
+                                 │    / /catalog /catalog/module/<id> /programs… /impressum …
+                                 ├─ the app document for the Merkliste and the Stundenplan: a head
+                                 │    written per route (title, description, card), the shell
                                  └─ /api/db  /api/status  cards  calendar feeds  files  sitemap
                                                   │
 ┌─ a browser tab ─────────────────────────────────▼────────────────────────────────────────────────┐
@@ -145,126 +165,118 @@ Radix ──/snapshot/catalog.db──▶ folia-server
 
 ## 4. Routes: the public site and the app
 
-### 4.1 Which route is what (proposal)
+### 4.1 Which route is what
 
-| Route | Today | New | Why |
-|---|---|---|---|
-| `/` | server-rendered, the app takes over | **site** | the entrance for search engines and first visits |
-| `/catalog?…` | server-rendered with the whole filter panel as links and forms | **site**: the paged list and the search; how many filters without JavaScript is question 3 | the way to every module for crawlers |
-| `/catalog/module/<id>` | server-rendered | **site** | what people search for |
-| `/impressum`, `/datenschutz` | server-rendered | **site** (static text) | § 5 DDG: reachable at all times; costs nothing |
-| `/programs`, `/programs/<slug>/…` | server-rendered, indexed | **app** with a written head — or a site page, question 2 | today in the sitemap and in the index |
-| `/bookmarks`, `/studyplan` | server-rendered explanation, `noindex` | **app** with a written head | the visitor's data lives in the browser |
-| `/studyplan?share=<code>` | its own page: tags and card name the plan's modules | **app** with a written head that names them | a link preview runs no JavaScript |
-| `/en/…` | every route | the same split | |
-| cards, calendar feeds, `/api/*`, files | server | unchanged | |
-| `/sitemap.xml`, `robots.txt` | every page of the site | the site's pages (and the programs, if question 2 keeps them) | |
+| Route | Today | New |
+|---|---|---|
+| `/` | server-rendered, the app takes over | **site** |
+| `/catalog?…` | server-rendered with the whole filter panel as links and forms | **site**, minimal: the list paged through (`?page=<n>`) and each row a link to its module; no filter panel (owner, question 3) |
+| `/catalog/module/<id>` | server-rendered | **site** |
+| `/programs`, `/programs/<slug>/plan\|areas`, `?variant=<n>` | server-rendered, indexed | **site**, minimal: the overview as a list by faculty, a program's plan as a list (as phones and crawlers get it today), its areas with their modules as links; no filters, no switches |
+| `/programs/<slug>/my-plan` | server-rendered, `noindex` | **app** (the visitor's) |
+| `/impressum`, `/datenschutz` | server-rendered | **site** (static text; owner, question 1) |
+| `/bookmarks`, `/studyplan` | server-rendered explanation, `noindex` | **app** with a written head |
+| `/studyplan?share=<code>` | its own page: tags and card name the plan's modules | **app** with a written head that names them (a link preview runs no JavaScript) |
+| `/en/…` | every route | the same split |
+| cards, calendar feeds, `/api/*`, files | server | unchanged |
+| `/sitemap.xml`, `robots.txt` | the site's pages | the same, without the views of the lists |
+
+**The site is minimal on purpose.** It is for search engines, link previews and a first paint;
+everything a person does there — filtering, the preview beside the list, marking, planning — is
+the app's, once it has taken over. Its pages use the app's markup and stylesheet for what they show,
+so the design is the same and the takeover moves nothing.
+
+**What Google sees is the site.** Googlebot runs JavaScript, but the app does not start for it:
+`robots.txt` keeps crawlers out of `/api/` on purpose, and the app needs the catalog (4.4 MB) before
+it can show anything. So everything that should be found stays a site page — which, with the
+programs, it does.
 
 ### 4.2 How the server answers
 
 1. **A site page:** complete HTML, cached per snapshot and build as today, rendered by
-   `folia-site` from the same view crates the app uses for these routes (§7.5). The app takes the
-   page over once it runs — a fresh render, not hydration, as today.
-2. **The app document**, for every other route: the head written per route by plain code in the
-   server (title, description, canonical address, `noindex`, the Open Graph tags with the card;
-   for a shared Stundenplan the plan's modules), no component rendered; the body is the shell's
-   static frame (rail, header, footer, an empty content area with the route's skeleton), the boot
-   script, and a `<noscript>` that says the view needs JavaScript and links the site. It depends
-   on the address and the snapshot only, so it is cached like a page; the cards it names are drawn
-   as today.
+   `folia-site` from the same view crates the app uses for these routes (§7.5).
+2. **The app document**, for the Merkliste, the Stundenplan and „Mein Plan": the head written per
+   route by plain code in the server (title, description, canonical address, `noindex`, the Open
+   Graph tags with the card; for a shared Stundenplan the plan's modules); the body is the shell
+   (rail, header, footer, background) with the route's skeleton, the boot script, and a
+   `<noscript>` that says the view needs JavaScript. It depends on the address and the snapshot
+   only, so it is cached like a page.
 3. Everything else as today: files, `/api/*`, cards, calendar feeds, the gate.
 
 ### 4.3 What goes away with it
 
-- For the app's routes: their server rendering, their place in the HTML cache and the warm-up,
-  `JsOnly`/R15, R9 and R22, and every second form of a control (the program overview's links and
-  forms, the program page's lists for crawlers, the Merkliste's and the Stundenplan's
-  explanations).
-- `enhance.js` as the classic site's helper: what the site still needs stays small; the app's
-  behaviours move into the crates that own them (§9).
-- The checks of these routes without JavaScript (`bookmarks`, `programs`, `studyplan`, parts of
-  `filters`, `module`, `search`, `top`); `crawl.mjs` walks only the site.
+- Every second form of a control: the filter panel as links and GET forms, the pickers' `<select>`,
+  the program overview's filter links, the program page's switches; `JsOnly`/R15 in the app's code.
+- The server rendering of the Merkliste, the Stundenplan and „Mein Plan" (and their place in the
+  cache and the warm-up); R9 and R22 outside the site's crates.
+- `enhance.js` as the classic site's helper: the site needs almost nothing; the app's behaviours
+  move into the crates that own them (§9).
+- The checks that drive the site's filters without JavaScript (`filters`, parts of `bookmarks`,
+  `programs`, `studyplan`, `module`, `search`, `top`); `crawl.mjs` walks the site as before.
 
 ### 4.4 What gets worse, said plainly
 
-- **Search engines** lose the program pages (the plan of every study direction with its
-  `EducationalOccupationalProgram` data), unless they stay site pages (question 2). A crawler that
-  runs JavaScript does not help: `robots.txt` keeps it out of `/api/`, on purpose, so the app never
-  starts for it and it sees the app document's empty frame.
-- **A first visit to an app route** — a shared program or Stundenplan link — shows the shell and
-  the catalog's download (4.4 MB) before any content; today the server's page is there at once
-  (question 5).
-- Visitors without JavaScript get only the site.
+- Visitors without JavaScript can read everything, but no longer filter the catalog or the
+  programs.
+- A first visit to an app route (a shared Stundenplan) shows the shell and the catalog's download
+  (4.4 MB, with its progress) before its content; accepted by the owner (question 4), with the
+  first paint kept fast (§6.7).
 
 ## 5. The shell
 
-### 5.1 Regions
+### 5.1 What it is
+
+The shell is what every page has (owner, question 5): **the icon rail** (the bottom bar on a
+phone), **the header**, **the footer** (the ground: Impressum, Datenschutz, Datenstand, the roots)
+and **the background** (the birch: crown, wood). Everything between them is the page's: its
+sidebar, its content, the panel beside it.
 
 ```
 ┌──────┬─────────────────────────────────────────────────────────────────┐
-│      │ header: where the visitor is, the search, the page's actions,   │
-│      │         the status of the data                                  │
-│ nav  ├─────────────┬────────────────────────────────────┬──────────────┤
-│ rail │ sidebar     │ main: the route's content          │ aside: what  │
-│      │ (filters,   │                                    │ was picked   │
-│      │  sections,  │                                    │ (a module,   │
-│      │  actions)   │                                    │  an area …)  │
-│      ├─────────────┴────────────────────────────────────┴──────────────┤
-│      │ footer: the ground (Impressum, Datenschutz, Datenstand, roots)  │
+│      │ header: where the visitor is, the search, the data's status     │
+│ icon ├─────────────────────────────────────────────────────────────────┤
+│ rail │                                                                 │
+│      │ the page: whatever the route shows — for most pages the         │
+│      │ design system's frame (sidebar · content · panel beside it)     │
+│      │                                                                 │
+│      ├─────────────────────────────────────────────────────────────────┤
+│      │ footer: the ground                                              │
 └──────┴─────────────────────────────────────────────────────────────────┘
- overlay layer: sheets, dialogs, notes, the search's suggestions
- phone: nav = the bottom bar · sidebar = a sheet (filters) or part of the page · aside = the page
+ background: the birch (crown, wood) · overlays: sheets, dialogs, notes, the search's suggestions
+ phone: the icon rail is the bottom bar
 ```
 
-### 5.2 How a page fills it
+### 5.2 How it works
 
-- The shell is mounted once, as the parent route of every page (`<ParentRoute>` with an
-  `<Outlet/>` for `main`), and never rebuilt by a navigation: its elements, their scroll
-  positions, the resize handles and the widths stay.
-- A route declares its layout in the route table: which regions it uses, the skeleton of each,
-  its area (the tab it belongs to) and where the header's search goes. The shell lays the regions
-  out in the frame after the click (R21) and shows the skeleton wherever the page's content is not
-  there yet. Today `pending.rs` and `skeleton.rs` do this by hand for every kind of page, and a new
-  page means seven edits (§1); here it is one entry in the route table.
-- A page puts content into a region with a component that stays part of the page's own tree and
-  is mounted into the region's element (a portal):
-
-  ```rust
-  view! {
-      <Region slot=Slot::Sidebar title=t.filters><Filters url/></Region>
-      <Region slot=Slot::Aside open=picked><ModuleView id/></Region>
-      <Await shape=Shape::List data=list let:page><List page/></Await>   // main
-  }
-  ```
-
-  The region's content belongs to the page: it goes when the page goes, so nothing of a page is
-  read after the page was disposed (R2, the crash of `docs/frontend-rewrite.md` §3A), while the
-  region's element stays where it is.
-- The site renders the same frame statically (§7.5): the first paint of a site page is the app's,
-  and the takeover moves nothing, as today.
-- *Considered:* a route that returns its regions as values (`PageRegions { sidebar, main, aside }`)
-  for the shell to render. Easier to type, but the content would belong to the shell, which brings
-  back the disposed-signal problem. The spike of phase 0 settles it.
+- **Mounted once**, as the parent route of every page (`<ParentRoute>` with an `<Outlet/>` for the
+  page). A navigation changes the page and nothing of the shell: the rail, the header, the footer
+  and the background stay the same elements. Today the footer is rendered by every page again
+  (twice per page, with its query), and the header's whole content by every change of area.
+- **The route table says what the shell needs to know about a page:** its area (the rail's tab it
+  belongs to, with the tabs' memory of `tabs.rs`), where the header's search goes, the page's title
+  and its skeleton. One entry per route, instead of the seven edits a new page needs today (§1).
+- **The skeleton is the shell's:** in the frame after a click (R21) the shell puts the route's
+  skeleton where the page will be, if the page's data takes longer than the threshold (§6.4).
+  Today `pending.rs` and `skeleton.rs` do this by hand for every kind of page.
+- **The page's frame is a component, not a rule.** Sidebar, content and the panel beside it are
+  `folia-design`'s `Frame` (with the resize handles, the remembered widths, the sheet on a phone,
+  the panel that is the page on a phone): written once, used by every page that wants it. The
+  hand copies in the catalog, the Merkliste and the start page, the six copies of the resize
+  handle and the three ids of the scroll area go (§1). „Nothing jumps" between pages comes from
+  using the same component.
+- **The local views** (`local.rs`: a module beside a list, „Vollbild" in place, on a phone the
+  module as the page, „Zurück" to where it was picked) are what the frame's panel does; a page
+  only says where „Vollbild" leads.
+- **The site renders the shell statically** (§7.5): the first paint of a site page is the app's.
 
 ### 5.3 What the shell owns
 
-The navigation (rail and bottom bar with their counts, the tabs' memory: `tabs.rs`), the header
-(title, the search field and where it searches, the status of the data — today a pill that
-`boot.js` keeps alive with a `MutationObserver`), the resize handles and the remembered widths,
-the phone's sheet and its gestures, the swipe along the bottom bar, Esc and „Zurück" (R10, R19),
-„Nach oben", the skip link, the landmarks (`header`, `nav`, `main`, `aside`, `footer`, once
-each), the theme and the language switch, an error boundary per region, the pending state, and
-the birch (crown, wood, ground) as its background. Most of that is spread today
-over `App`, `ui::Frame`, `tabs.rs`, `nav.rs`, `pending.rs`, `skeleton.rs` and `enhance.js`.
-
-Two mechanisms become the regions' own behaviour instead of something each feature wires up:
-
-- **The local views** (`local.rs`: a module shown beside a list, „Vollbild" in place, on a phone
-  the module as the page, „Zurück" to where it was picked) are what the aside region does; the
-  catalog, a program, the Merkliste and the Stundenplan only say where „Vollbild" leads. Today an
-  area needs five parts for it (`docs/frontend.md`, „Local views").
-- **Where the header's search goes** is part of the route's declaration (modules everywhere, the
-  programs on their overview), not a `match` over the areas in the top bar.
+The rail and the bottom bar with their counts, the tabs' memory, the header (title, the search
+field, the status of the data — today a pill that `boot.js` keeps alive with a
+`MutationObserver`), the footer, the background, Esc and „Zurück" (R10, R19), „Nach oben", the
+skip link, the landmarks (`header`, `nav`, `main`, `footer`), the theme and the language switch, an
+error boundary around the page, and the pending state. Spread today over `App`, `ui::Frame`,
+`tabs.rs`, `nav.rs`, `pending.rs`, `skeleton.rs`, `ground.rs` and `enhance.js`.
 
 ## 6. Asynchrony: threads and workers
 
@@ -301,7 +313,7 @@ that exists.
   progress as events to the UI), the schema check (`user_version`), keeping it, opening it, the
   update in the background; one download for all tabs (Web Locks), the other tabs told
   (BroadcastChannel). Possible on top: switching to a new snapshot between two navigations, with a
-  note, instead of at the next start (question 7).
+  note, instead of at the next start (§12, question 1).
 - **What it takes off the main thread** — the costly places, as the code has them:
   - the finder („Passt in meinen Stundenplan"): `fit::candidates` builds a whole timetable for
     every module with dates in the semester (some 1,200 in a winter semester, from about a
@@ -396,6 +408,29 @@ an open tab; Chromium only, so not part of the plan.)
 - Until the snapshot lives in the Origin Private File System, every tab holds a copy in memory, as
   today.
 
+### 6.7 First paint first, the rest in stages
+
+Owner (question 4): loading is fine, but the first paint as fast as possible, and the rest of the
+app loaded after it.
+
+| Stage | What | Comes from |
+|---|---|---|
+| 1. first paint | the page as HTML: a site page complete, an app route the shell with its skeleton; the stylesheet, the font; the head scripts set theme, widths, language | the server's HTML cache (or the service worker offline); nothing waits for a script |
+| 2. the shell runs | a small UI bundle: the shell, the router, the design system, `DataClient`; the rail and the header work, a site page stays as it is | `/pkg/…`, kept `immutable` per build |
+| 3. data | the data worker starts in parallel with stage 2, opens the kept snapshot or downloads it (progress in the header) | the worker's own bundle, `/api/db` |
+| 4. the page | the feature of the current route, loaded when it is first needed; the app takes the page over once its data is there | a bundle per feature (lazy routes), to be proved in the spike |
+| 5. later | the other features in idle time; the semantic search's model last, as today | idle time, low priority |
+
+- **Code splitting is the open part.** Leptos 0.8 has lazy routes that split the WASM bundle per
+  route; whether they work in this build (no `cargo-leptos`; `wasm-bindgen` by
+  `scripts/build-client.sh` and Nix) is a question for the minimal version. Without them, stage 4
+  is one UI bundle loaded after stage 1, as today (1.43 MB in brotli), and the worker's bundle
+  beside it.
+- Stage 1 never waits for WASM: today's rule (until the takeover the site is a plain website)
+  stays, and holds for the app document too.
+- Measured in the minimal version: time to the first paint, to a working rail, to the page with its
+  data, for a first visit and a returning one, on a phone's CPU.
+
 ## 7. Crates
 
 ### 7.1 Principles
@@ -474,8 +509,8 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 
 | Crate | From today | Holds | Kind |
 |---|---|---|---|
-| `folia-design` | the primitives of `ui.rs`, `icons.rs`, `combobox.rs`, the slider, the gesture of `swipe.rs`, the DOM half of `nav`, the tokens and the base of `app.css`, parts of `enhance.js` | tokens, base styles, components (button, switch, segmented row, chip, badge, tabs, sheet, picker, slider, skeleton, empty state, panel head, prose, icon and sprite), behaviours (resize handle, sheet, swipe, carousel) | iso |
-| `folia-shell` | the chrome of `App`, `ui::{Frame, Plain, BackLink, ToTop}`, `tabs`, `local`, `pending`, `skeleton`, `ground`, `languages`, `launch`, the layout half of `nav`, parts of `enhance.js` | the shell of §5 | iso (its static frame) |
+| `folia-design` | the primitives of `ui.rs` with `ui::{Frame, Plain}`, `icons.rs`, `combobox.rs`, the slider, the gesture of `swipe.rs`, the DOM half of `nav`, the tokens and the base of `app.css`, parts of `enhance.js` | tokens, base styles, the page's frame (sidebar, content, the panel beside it, their handles), components (button, switch, segmented row, chip, badge, tabs, sheet, picker, slider, skeleton, empty state, panel head, prose, icon and sprite), behaviours (resize handle, sheet, swipe, carousel) | iso |
+| `folia-shell` | the chrome of `App` (rail, header, bottom bar, crown, wood), `ui::{BackLink, ToTop}`, `tabs`, `pending`, `skeleton`, `ground`, `languages`, `launch`, the layout half of `nav`, parts of `enhance.js` | the shell of §5: rail, header, footer, background | iso (rendered statically by the site) |
 | `folia-stores` | the stores of `bookmarks`, `studyplan`, `myprogram`; the view settings in `localStorage` (`betula.finder`, `betula.plan.shape` …) | what the visitor keeps: one store type for all of them (load, check, save, follow the other tabs), undo and the question before throwing away | web |
 | `folia-widgets` | the view of a module (`pages::module`), the row of a list, `week.rs`, the switches „Merken" and „Einplanen" | what several features show | iso |
 
@@ -486,7 +521,7 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 | `folia-home` | `pages::home` | iso |
 | `folia-catalog` | `pages::catalog` (the name is free once today's `folia-catalog` is split up in phase 1) | the list iso, the rest web |
 | `folia-module` | `pages::module` | iso |
-| `folia-programs` | `pages::{programs, program}` | web (iso if they stay site pages, question 2) |
+| `folia-programs` | `pages::{programs, program}` | the overview and the plan iso (site pages), „Mein Plan" and the rest web |
 | `folia-bookmarks` | `pages::bookmarks` | web |
 | `folia-planner` | `pages::studyplan::*` (9,800 lines, the largest feature) | web |
 | `folia-legal` | `pages::legal` | iso |
@@ -502,7 +537,7 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 | `folia-assets` | `server/build` | one stylesheet from the crates' styles, the sprite, minifying (a build dependency of the server, as today) |
 | `folia-server` | exists | HTTP, snapshot client, cache, `/api/*`, calendar feeds, gate |
 
-That is 34 crates, and one of test support (§7.4). Fewer and larger is possible (question 10);
+That is 34 crates, and one of test support (§7.4). Fewer and larger is possible (§12, question 3);
 the layers and their rule matter more than the number.
 
 **What the server must stop reaching into.** Today it uses page internals of the app:
@@ -549,10 +584,11 @@ repeats `timetable::subscription::CALENDAR_PREFIX` and goes.
 
 - An iso crate builds without `web` as markup over data (what the site renders) and with `web`
   adds its behaviour. Today's `ssr`/`csr` split of one crate of 32,600 lines becomes a feature of
-  a handful of small ones: `folia-design`, `folia-shell` (the static frame), `folia-widgets`, and
-  the site's features (`home`, the catalog's list, `module`, `legal`).
-- `folia-site` composes them: the shell's static frame with the page's sidebar and main, the same
-  markup the app makes, so the takeover moves nothing.
+  a handful of small ones: `folia-design`, `folia-shell`, `folia-widgets`, and the site's parts of
+  the features (`home`, the catalog's list, `module`, the programs' overview and plan, `legal`).
+  Those parts show and link; they have no behaviour of their own, since the site is minimal.
+- `folia-site` composes them: the shell with the page in it, the same markup the app makes, so the
+  design is the same and the takeover moves nothing.
 - The site does not need the app's route table, its stores, `DataClient` or any feature beyond its
   own routes; the server no longer compiles the app.
 
@@ -601,22 +637,47 @@ well); the design system is a stable bottom layer once it is built, not the `ui.
 edits; and the bundle splits into two (UI, worker), each with less in it. Measured in phase 0 on
 a skeleton of the layout before anything is moved; `erase_components` stays.
 
-### 7.9 Where the crates live
+### 7.9 The repository, in order
+
+Owner: „Aktuell ist das repo komplett unordentlich das muss unbedingt geordnet und strukturiert
+werden." Today Radix's Go (`cmd/`, `internal/`, `go.mod`) and Folia's Rust (`app/`, `catalog/`,
+`client/`, `pack/`, `semantic/`, `server/`, `Cargo.toml`) stand side by side at the top, with
+Folia's assets in `app/assets`, its scripts in `scripts/`, its checks in `e2e/` (and a Go load test
+inside them), its design sources in `design/`, research in `poc/`, and nine documents for both in
+`docs/`. Proposed:
 
 ```
-folia/
-  base/       pack  locale  text  model  calendar
-  domain/     search  routes  query  timetable  plans  map  pages  semantic
-  data/       sqlite  protocol  worker  data
-  ui/         design  shell  stores  widgets
-  features/   home  catalog  module  programs  bookmarks  planner  legal
-  app/        app  client
-  server/     site  cards  assets  server
+README.md  CLAUDE.md  flake.nix  flake.lock  .github/  .env.example
+radix/                  the collector (Go): go.mod, cmd/radix, internal/…
+folia/                  the web tier (Rust)
+  Cargo.toml  Cargo.lock    the workspace
+  crates/<crate>/           every crate, flat: folia/crates/routes is the crate folia-routes
+  layers.toml               the layers of §7.2, which the dependency test reads (R24)
+  e2e/                      the browser checks; e2e/load, the load test
+  design/                   design sources (birch, forest, logo, cards, og, prototypes)
+  scripts/                  build-client.sh, dev.sh, build-cache.sh, hooks
+deploy/                 unchanged: stacks, VPS scripts, models.lock (both parts)
+docs/
+  radix/                operations.md, schema-v2.md, data-sources.md, backend-data-overhaul.md
+  folia/                frontend.md (rewritten in the last phase), i18n.md, this concept
+  history/              frontend-rewrite.md, frontend-phase0.md: decided and done
+research/               today's poc/ (the semantic search's measurements and scripts)
 ```
 
-Today the crates stand at the top of the repository beside Radix's Go code. The scripts,
-`flake.nix` (its list of source directories), `deploy/ship.sh` (it reads `app/src/pages/legal.rs`)
-and the build cache follow the move.
+**Names** (owner): every crate is `folia-<crate>` — `folia-routes`, `folia-search`,
+`folia-shell` … — and so is its library (`folia_routes`, not `routes` or `catalog` as the
+`[lib] name` of today's crates sets it). Its directory is `folia/crates/<crate>`. The binary stays
+`folia`.
+
+**What moves with it:** the Go module path (`github.com/leonieziechmann/betula` →
+`…/betula/radix`, every import of `internal/…`), `flake.nix` (its list of source directories, the
+`cargoLock`, the Go build), `.github/workflows/images.yml` (`BUILD_PATHS`), `deploy/ship.sh` (it
+reads `app/src/pages/legal.rs`), `scripts/build-cache.sh` and the hooks (target directories),
+`scripts/dev.sh`, the include paths of the server (`../app/assets`), the semantic search's test
+that reads `internal/normalize/testdata/search.tsv`, and every path in the documents. A move of
+everything at once collides with every branch in flight, which is why it happens when Folia's
+development pauses (§11), as the first step, in commits of moves alone (`git mv`, so the history
+follows).
 
 ## 8. State, and the ways between systems
 
@@ -642,7 +703,7 @@ Today's pages reach into each other in a handful of places; each has a home one 
 | `pages::module::{ModulePanel, ModuleFull}`, `semesters_of` | catalog, Merkliste, program, `local.rs`, `swipe.rs` | `folia-widgets` (the view of a module) |
 | `pages::catalog::{Row, ListKeys}` | Merkliste | `folia-widgets` (a list of modules and its keys) |
 | `pages::catalog::{Choice, Toggle, Tri}`, `duration_choices`, `years_choices` | start page | `folia-design` (the switches), `folia-routes` (what a filter can say) |
-| `pages::catalog::phone_layout` | program, Stundenplan, Merkliste | `folia-shell` (which layout is on) |
+| `pages::catalog::phone_layout` | program, Stundenplan, Merkliste | `folia-design` (the frame knows which layout is on) |
 | `pages::catalog::finder_on` (the finder's last choice, from `localStorage`) | the Stundenplan's head and module list | `folia-stores` (a view setting) |
 
 And the shared modules lean on pages and on the chrome: `pending` → `local` → `pages::module`,
@@ -673,7 +734,7 @@ them), it may stay a small script owned by its crate; what touches the app's sta
 | R11 all SQL in `queries.rs` | stays: the SQL is in `folia-query`, and the search's own statements in `folia-search` (§7.4) |
 | R15 what needs JavaScript is hidden without it | the site only |
 | R16 read the source, not a memo of it | stays while the framework behaves so |
-| R17 every page is framed | becomes the shell's structure |
+| R17 every page is framed | becomes structure: the shell around every page, the design system's frame in it |
 | R19 the areas are tabs | stays, in the shell |
 | R21 a click answers in the next frame | stays, through the shell and transitions |
 | R22 nothing thread-bound in a server render | the site's crates only |
@@ -691,60 +752,72 @@ New:
 
 ## 11. Steps
 
-Every step is merged into `develop` as usual (CLAUDE.md), the site and the checks work after each
-one, and canary gets it when the owner asks for a release. Sizes are relative.
+The owner's order (question 6): first a **minimal version** that finds the problems, while the
+development of Folia goes on; then the plan is made final, Folia's development pauses, and the
+restructuring is done to the end.
+
+### 11.1 The minimal version (phase 0)
+
+A thin slice through every new part, on a branch of its own beside `develop` (it is merged
+nowhere; what it teaches goes into this document). It holds just enough to meet each risk once:
+
+| Part | What it does | The question it answers |
+|---|---|---|
+| crates | `folia-model`, `folia-routes`, `folia-query` (a few loaders), `folia-protocol`, `folia-worker`, `folia-data`, `folia-design` (the frame, a few components), `folia-shell`, one feature, `folia-site`, under `folia/crates/` with their `folia-<crate>` names | do the layers hold, what does an edit cost to build, how large are the two bundles |
+| data worker | opens the snapshot and answers the catalog's list and a module's page; sql.js in the worker first, then rusqlite on `sqlite-wasm-rs` with the Origin Private File System | the time of a request with its messages, on a phone; memory; two tabs; the Nix build |
+| shell | rail, header, footer and background mounted once; the catalog's list and the module page inside it, through the design system's frame | no remount on navigation, disposal of what a page made, the skeleton after the threshold |
+| loading in stages | the app document and a site page painting before any WASM, the shell's bundle, the worker, the feature's bundle loaded on demand | does code splitting work without `cargo-leptos`; the times of §6.7 |
+| site | the catalog's list and a module page rendered by `folia-site` from the same view crates | is the design the app's to the pixel; does the takeover move nothing |
+| styles | the frame's and one feature's styles collected by `folia-assets` | the per-crate stylesheet and its test |
+
+Done when each question has a measured answer in §6–§7, and the plan is changed where an answer
+says so.
+
+### 11.2 The restructuring (Folia's development paused)
+
+Every step is merged into `develop` as usual (CLAUDE.md), the site and the checks work after each,
+and canary gets it when the owner asks for a release. Sizes are relative.
 
 | Phase | What | Size |
 |---|---|---|
-| 0 | **Spikes and answers.** (a) SQLite in a worker: sql.js moved vs rusqlite on `sqlite-wasm-rs` with the Origin Private File System; the catalog page's data including the messages, on a phone; memory; two tabs; the Nix build. (b) The shell with regions under Leptos 0.8: portals and disposal, transitions with the threshold, skeletons per route, the takeover without a flash. (c) Styles and texts per crate through `folia-assets`. (d) Compile times and bundle sizes of the crate layout on a skeleton. Plus the answers of §12. | M |
-| 1 | **The domain out of `catalog`** into its crates (§7.3, §7.4): the three cycles broken, then moves; no behaviour changed, the tests go along. | M |
-| 2 | **Site and app.** `folia-site` renders the public routes; the other routes get the app document (its frame is today's `App` with an empty page until the shell of phase 3 exists); their server rendering and their second forms go; sitemap, robots.txt, warm-up and the checks follow. | M |
-| 3 | **Design system and shell.** `folia-design`, `folia-shell` with its regions; pages fill regions instead of building `ui::Frame`; the per-crate styles and texts. | L |
-| 4 | **The asynchronous seam.** `DataClient` with its async API, first on the main thread's sql.js; the pages move to resources one by one; `pending.rs` shrinks to what the shell keeps. | L |
-| 5 | **The data worker.** `folia-protocol`, `folia-worker`; `DataClient` switched to it; the snapshot out of `boot.js`; sql.js into the worker or replaced; the semantic search behind it. | L |
-| 6 | **Features as crates;** `folia-app` becomes the composition root; the dependency test (R24) on. | M |
-| 7 | **Rules and documents:** `docs/frontend.md` rewritten for the new structure, the checks consolidated, measured again (`snappy.mjs`, `folia assets`, `e2e/load`). | S |
+| 1 | **The repository in order** (§7.9): `radix/`, `folia/`, `docs/`, `research/`; moves alone, then the paths that follow them; the crates take their `folia-<crate>` names. | M |
+| 2 | **The domain out of `catalog`** into its crates (§7.3, §7.4): the three cycles broken, then moves; no behaviour changed, the tests go along. | M |
+| 3 | **Site and app.** `folia-site` renders the site (§4.1), minimal; the Merkliste and the Stundenplan get the app document; the second forms of every control go; sitemap, robots.txt, warm-up and the checks follow. | M |
+| 4 | **Design system and shell.** `folia-design` with the frame, `folia-shell` with rail, header, footer and background mounted once; the per-crate styles and texts. | L |
+| 5 | **The asynchronous seam.** `DataClient` with its async API, first on the main thread's sql.js; the pages move to resources one by one; `pending.rs` shrinks to what the shell keeps. | L |
+| 6 | **The data worker and the stages of loading.** `folia-protocol`, `folia-worker`; `DataClient` switched to it; the snapshot out of `boot.js`; the semantic search behind it; the bundles split as the minimal version found. | L |
+| 7 | **Features as crates;** `folia-app` becomes the composition root; the dependency test (R24) on. | M |
+| 8 | **Rules and documents:** `docs/folia/frontend.md` rewritten for the new structure, the checks consolidated, measured again (`snappy.mjs`, `folia assets`, `e2e/load`). | S |
 
-Phases 3, 4 and 6 can go page by page together: a page moves into its crate, fills the shell's
-regions and reads its data asynchronously in one round. Phase 2 comes early on purpose: it deletes
-the most code, and everything after it needs to work in one renderer only.
+Phases 4, 5 and 7 can go page by page together: a page moves into its crate, uses the frame and
+reads its data asynchronously in one round. Phase 3 comes early: it deletes the most code, and
+everything after it needs to work in one renderer only.
 
 The checks in `e2e/` are the safety net of every phase: they describe what the owner approved,
-interaction by interaction, and a phase that cannot keep them green is cut smaller. Phase 2 removes
-the checks of the app's routes without JavaScript; new ones come with the worker: a first visit on
-an app route, a worker that dies and is started again, two tabs and one download, the start
-offline with the snapshot kept by the worker.
+interaction by interaction, and a phase that cannot keep them green is cut smaller. Phase 3 removes
+the checks of the site's filters without JavaScript; new ones come with the worker: a first visit on
+an app route, a worker that dies and is started again, two tabs and one download, the start offline
+with the snapshot kept by the worker, the stages of §6.7.
 
 What counts as done:
 
 - `snappy.mjs` as today (the first frame within 80 ms, 200 ms with the CPU four times slower), and
   no main-thread task over 50 ms from a query or a computation during the checks.
+- The first paint of every route before any WASM has run; the times of §6.7 stated.
 - The UI bundle no larger than today's 1.43 MB in brotli; the worker's measured and stated.
 - Memory of a phone's tab with the app stated, before and after the Origin Private File System.
 - An edit in one feature crate rebuilds the browser app in less time than today's 11 s
   (`build-client.sh --dev`).
 - The dependency test (R24) green; every crate with its own tests.
 
-## 12. Questions for the owner
+## 12. Still open
 
-1. **Which routes without JavaScript?** „Die Startseite und den Modulkatalog + pages" read here as
-   `/`, `/catalog` and the module pages `/catalog/module/<id>`. And the legal pages as site pages
-   too (recommended: § 5 DDG, and they cost nothing)?
-2. **The program pages:** may they leave the index (app only), or stay site pages as a third
-   public route? Today the sitemap lists every current program with its plan, its areas and the
-   plan of every further study direction, and a search for a program of the BTU can find them.
-3. **The catalog without JavaScript:** every filter as today (links and forms), or the list, the
-   search and the pages only? The second keeps far less of the filter panel in two forms.
-4. **Link previews of the app's routes** (a program, the Merkliste, a shared Stundenplan): keep
-   their titles and cards through the head the server writes (recommended), or drop them?
-5. **A first visit to an app route** (a shared program or Stundenplan link): the shell and the
-   catalog's download (4.4 MB, with its progress) until the content is there — acceptable?
-6. **The frame:** „die Sidebar mit der Navigation" — is that the rail (the main navigation), the
-   page's sidebar (filters, sections, actions), or should the two become one column? Is the footer
-   the ground? Does the look stay as it is, and only the structure changes?
-7. **A new snapshot during a visit:** switch to it between two navigations, with a note, or at the
+Answered on 2026-10-02 (§0.1): the routes without JavaScript, the program pages, the site's
+functions, a first visit, what the shell is, the pace, the names.
+
+1. **A new snapshot during a visit:** switch to it between two navigations, with a note, or at the
    next start, as today?
-8. **Leptos** stays (assumed here)?
-9. **Pace:** the phases one after another on `develop` — with feature work paused meanwhile, or
-   alongside it?
-10. **Granularity:** 34 crates as in §7.3, or fewer and larger?
+2. **Leptos** stays (assumed here)?
+3. **Granularity:** 34 crates as in §7.3, or fewer and larger?
+4. **The repository** (§7.9): Radix into `radix/` with its Go module path changed, and the
+   documents split into `docs/radix`, `docs/folia`, `docs/history` — as proposed?
