@@ -303,16 +303,17 @@ that exists.
 
 ### 6.2 The data worker
 
-- **SQLite in the worker, in two steps.** First sql.js moved into the worker as it is: no new
-  toolchain, the whole catalog in the worker's memory instead of the page's. Then (spike in phase
-  0): rusqlite on `sqlite-wasm-rs`, the same implementation of `Database` the server has, without
-  a JavaScript bridge, and with the snapshot in the Origin Private File System (its `sahpool`
-  file system, which only a dedicated worker can use — another reason for the worker), from which
-  SQLite reads pages instead of holding the whole file in memory. To settle there: rusqlite reaches
-  `wasm32-unknown-unknown` only in releases newer than the 0.32 pinned today; `sqlite-wasm-rs`
-  compiles SQLite from C, so the C toolchain for `wasm32` that `docs/frontend.md` names as the
-  obstacle has to exist in `build-client.sh` and in Nix; and several tabs on one file (a sync
-  access handle locks its file).
+- **SQLite in the worker, in two steps** (both tried in the minimal version, §11.1). First sql.js
+  moved into the worker as it is: no new toolchain, the whole catalog in the worker's memory
+  instead of the page's. Then rusqlite on `sqlite-wasm-rs`, the same implementation of `Database`
+  the server has, without a JavaScript bridge, **in SQLite's memory file system**: on the real
+  catalog 2 to 4 times faster than sql.js. Not on OPFS (the `sahpool` file system): a page not yet
+  in SQLite's cache is read through a sync access handle, so a query that scans the module texts
+  took 1.4 s instead of 19 ms, and a second tab cannot open the pool at all. The file itself is kept
+  in Cache Storage, which every tab's worker reads. What step 2 needs: rusqlite 0.40 (the server's
+  0.32 moves with it — one SQLite per workspace), and clang for `wasm32` in `build-client.sh` and
+  in Nix (`sqlite-wasm-rs` compiles SQLite from C; the container's clang 18 did); the worker's
+  bundle grows by SQLite, some 230 kB in brotli more than sql.js's.
 - **The snapshot moves out of `boot.js` into the worker:** `/api/status`, the download (streamed,
   progress as events to the UI), the schema check (`user_version`), keeping it, opening it, the
   update in the background; one download for all tabs (Web Locks), the other tabs told
@@ -435,11 +436,13 @@ app loaded after it.
 | 4. the page | the feature of the current route, loaded when it is first needed; the app takes the page over once its data is there | a bundle per feature (lazy routes), to be proved in the spike |
 | 5. later | the other features in idle time; the semantic search's model last, as today | idle time, low priority |
 
-- **Code splitting is the open part.** Leptos 0.8 has lazy routes that split the WASM bundle per
-  route; whether they work in this build (no `cargo-leptos`; `wasm-bindgen` by
-  `scripts/build-client.sh` and Nix) is a question for the minimal version. Without them, stage 4
-  is one UI bundle loaded after stage 1, as today (1.43 MB in brotli), and the worker's bundle
-  beside it.
+- **Code splitting works without `cargo-leptos`** (minimal version, §11.1): a `#[lazy]` function per
+  route, the UI bundle built as a binary with LTO, relocations and its symbols, split by Leptos's
+  own splitter (`wasm_split_cli_support`, what `cargo-leptos` runs), then `wasm-bindgen
+  --keep-lld-exports` on the main part. The split's loader imports the main module by its plain
+  name, so the build goes into the file names (`/pkg/<build>/…`) instead of `?v=<build>`: two
+  addresses of one module would be two instances of the bundle. Dioxus's `wasm-split-cli` does not
+  read Leptos's names.
 - Stage 1 never waits for WASM: today's rule (until the takeover the site is a plain website)
   stays, and holds for the app document too.
 - Measured in the minimal version: time to the first paint, to a working rail, to the page with its
@@ -759,6 +762,9 @@ New:
 - **R26 Every asynchronous region has its skeleton,** shown only after the threshold.
 - **R27 A crate owns its styles, texts and icons** (§7.6).
 - **R28 UI, worker and service worker of one build** only; the protocol checks it at the handshake.
+- **R29 What crosses a boundary comes back as it went.** Nothing that goes to or from the worker
+  skips a field (`skip_serializing_if`); a test sends every answer through the format. And a future
+  writes into a page only through `use_ask`, which writes with `try_`: the page may be gone.
 
 ## 11. Steps
 
@@ -782,6 +788,49 @@ nowhere; what it teaches goes into this document). It holds just enough to meet 
 
 Done when each question has a measured answer in §6–§7, and the plan is changed where an answer
 says so.
+
+### 11.1.1 What it found (2026-10-02)
+
+Branch `spike/folia-next`, `folia/` (how to run it: `folia/README.md`). Measured in headless
+Chromium on the container's four cores, against the catalog of betula.app (44 MB), the server and
+the browser on one machine (the download is the loopback's, not a network's). Release bundles
+unless a line says otherwise.
+
+| Question | Answer |
+|---|---|
+| Does the shell stay? | yes: rail, header, footer and background are the same elements after navigating to a module, back, and to another page of the list (the check marks them and looks again) |
+| Does the takeover move anything? | no: the site's module page and the app's render of it are the same pixels; the app takes over only once the worker has answered for the page |
+| First paint | 100–270 ms on every route, before any WASM ran; on an app route (`/bookmarks`) the shell paints from the app document at 70–100 ms |
+| Ready (the app has taken over) | first visit 840–950 ms (the catalog downloaded and opened in the worker meanwhile), returning 360–450 ms (the snapshot from Cache Storage) |
+| A request across the threads | the catalog's list: 18–35 ms in the worker, 19–36 ms in all; a module: 11–13 ms, 16–17 ms in all; postcard: 12.9 kB for 50 rows, 5.1 kB for a module |
+| A click to the page | module 76–89 ms, the next page of the list 77 ms (debug UI bundle); with the CPU four times slower 207–212 ms. No skeleton came up in any of it: every answer came within the 50 ms threshold |
+| New data at once | the page on screen shows the new snapshot in place 1.4 s after it was announced (download and opening of 44 MB included), no skeleton, the list stays |
+| Sizes (brotli) | UI bundle 157 kB (Leptos, router, shell, two views; split: 140 kB + 23 kB for the module page), worker 84 kB + sql.js 291 kB; with rusqlite instead of sql.js the worker's SQLite is 504 kB, unoptimised for size |
+| Builds | first build of the UI bundle 84 s, of the worker 32 s (`wasm-dev`), both in release 107 s; an edit in the catalog's crate or in the shell: 1.2 s to a new UI bundle (a small app — indicative, not today's 11 s compared) |
+| Layers | the test reads `cargo metadata --no-deps` against `folia/layers.toml` and fails on a feature using a feature (tried) |
+| SQLite in Rust | builds and runs; in memory 2–4× faster than sql.js; on OPFS slow and one tab only (§6.2) |
+| Splitting | works without `cargo-leptos`; file names must carry the build (§6.7) |
+
+What broke on the way, and what the plan takes from it:
+
+- **A format that does not describe itself breaks on `skip_serializing_if`.** `CatalogQuery`
+  skipped `text_resolution` when empty, so postcard could not read back a `CatalogData`. The field
+  is now always written (the minimal version's one change to `catalog/`), and `folia-pages` tests
+  that every answer survives the trip. Rule R29.
+- **A future outlives its page.** A request's answer arrived after the page that asked had gone
+  (another route) and wrote into its disposed signals: the crash of `docs/frontend-rewrite.md` §3A,
+  now through `async`. `use_ask` writes only with `try_`; nothing else in a page writes from a
+  future. Rule R29.
+- **What the worker says before the app listens is lost.** The worker starts with the page (stage
+  3) and announces its snapshot before the UI bundle is there; `boot.js` keeps those messages for
+  the app.
+- **Leptos's executor starts with the mount**: what runs before it (asking for the first page's
+  data) uses the browser's.
+- **The footer is part of each page's scroll area today** (`app.css`, „one scroll area"); as the
+  shell's, the scroll area is the shell's too. The minimal version lets `main` scroll; the real
+  layout is a task of phase 4.
+- Not tried: the semantic search behind the worker, the service worker, two tabs sharing one
+  download, a phone (only its CPU, throttled), Nix.
 
 ### 11.2 The restructuring (Folia's development paused)
 
