@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/leonieziechmann/betula/internal/catalogbuild"
 	"github.com/leonieziechmann/betula/internal/catalogdb"
 	"github.com/leonieziechmann/betula/internal/metrics"
+	"github.com/leonieziechmann/betula/internal/oplog"
 	"github.com/leonieziechmann/betula/internal/service"
 	"github.com/leonieziechmann/betula/internal/snapshothttp"
 )
@@ -179,7 +181,8 @@ func runServeSnapshot(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("serve-snapshot", flag.ExitOnError)
 	dir := fs.String("dir", "snapshot", "Snapshot directory written by 'export'")
 	addr := fs.String("addr", "127.0.0.1:8090", "Listen address")
-	dbPath := fs.String("db", "", "Database to build a new snapshot from when another release built it (no network); empty: only serve")
+	dbPath := fs.String("db", "", "Database to build a new snapshot from when another release built it, and to compute the semantic search's vectors in, with --embed-model (no network); empty: only serve")
+	semanticOpts := addEncoderFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 
@@ -193,12 +196,19 @@ func runServeSnapshot(ctx context.Context, args []string) {
 		cfg.SnapshotDir = *dir
 		// Offline the catalog stays as it was exported: no event ages out, no page is removed.
 		cfg.EventRetention, cfg.ArchiveGrace = 0, 0
-		svc := service.New(db, cfg, nil)
-		if svc.BuiltByOtherRelease() {
-			rebuilt := make(chan struct{})
-			go func() { defer close(rebuilt); svc.Rebuild(ctx) }()
-			defer func() { <-rebuilt }() // before the database closes: a stop cancels the build, which rolls back
+		semantic, closeSemantic, err := semanticOpts.setup(ctx)
+		if err != nil {
+			slog.Error("cannot start the semantic search's encoder", "component", "cli", "event", "cli.failed", oplog.Err(err))
+			os.Exit(2)
 		}
+		defer closeSemantic()
+		cfg.Semantic = semantic
+		svc := service.New(db, cfg, nil)
+		offline := make(chan struct{})
+		go func() { defer close(offline); svc.RunOffline(ctx) }()
+		// Before the encoder and the database close: a stop cancels the build, which rolls back,
+		// and the vectors, which are stored as they come.
+		defer func() { <-offline }()
 	}
 
 	declareBuildInfo("serve-snapshot")
