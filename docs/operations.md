@@ -49,7 +49,12 @@ validate, and export if the content changed. A release that reads the archived p
 instead of after the first crawl, and if its build or validation fails, that is in the log right
 away while the previous snapshot stays current. `serve-snapshot --db <radix.db>`, the offline mode,
 does the same in the background while it serves the snapshot it has (without retention and
-archive pruning, so that the data stays as it was fetched).
+archive pruning, so that the data stays as it was fetched). With an embedding model
+(`RADIX_EMBED_MODEL`) it then computes the vectors of the semantic search as `run` does, but with
+the encoder alone: it asks Gemini nothing and embeds the summaries its database has. A budget at a
+time (`RADIX_SEMANTIC_BUDGET`), each part published by a cycle without the crawl, until no passage
+is missing; a start that finds every vector there builds nothing (docs/schema-v2.md, „Semantic
+search").
 
 A cycle ends as `ok`, `degraded` (a crawl stage had failures; published data is intact and
 only ages) or `failed` (build, validation or export failed; **the previous snapshot stays

@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"crypto/sha256"
+	"maps"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/leonieziechmann/betula/internal/catalogdb"
 	"github.com/leonieziechmann/betula/internal/embed"
 	"github.com/leonieziechmann/betula/internal/gemini"
 )
@@ -115,6 +117,54 @@ func TestTheSemanticStageFillsTheVectorsOfTheNextSnapshot(t *testing.T) {
 }
 
 // Without an encoder the stage does not run; the cycle is not worse for it.
+// An offline Radix (serve-snapshot --db) computes the vectors itself, with the encoder alone: a
+// budget at a time, each part published by a cycle without the crawl, until none is missing. It
+// asks neither the university nor Gemini, and a second start computes and builds nothing.
+func TestAnOfflineRadixComputesTheVectorsWithoutSendingAnything(t *testing.T) {
+	site := newFakeBTU(t)
+	svc, cfg := newTestService(t, site)
+	ctx := context.Background()
+
+	// The database an offline Radix is seeded with: built and published, without vectors.
+	if first := svc.RunCycle(ctx); first.Result != "ok" || !first.Published {
+		t.Fatalf("first cycle = %+v", first)
+	}
+	modules := column(t, svc.db, "SELECT COUNT(*) FROM module")
+	seeded, _ := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir)
+	site.mu.Lock()
+	hits := maps.Clone(site.hits)
+	site.mu.Unlock()
+
+	// One passage a budget: the clock moves on whenever it is read.
+	clock := time.Date(2026, 10, 2, 3, 0, 0, 0, time.Local)
+	svc.now = func() time.Time { clock = clock.Add(40 * time.Second); return clock }
+	encoder := &fakeEncoder{id: "model-a"}
+	summarizer := &fakeSummarizer{limit: 100}
+	svc.cfg.Semantic = Semantic{Encoder: encoder, Summarizer: summarizer, Batch: 1, Budget: time.Minute, Workers: 1}
+	svc.RunOffline(ctx)
+
+	if got := column(t, svc.db, "SELECT COUNT(*) FROM module_vector"); got != modules || len(encoder.embeds) < 2 {
+		t.Errorf("%s vectors for %s modules, %d passages embedded", got, modules, len(encoder.embeds))
+	}
+	if published, _ := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir); published == nil || seeded == nil || published.ETag == seeded.ETag {
+		t.Errorf("the vectors were not published: %+v → %+v", seeded, published)
+	}
+	if summarizer.requests != 0 {
+		t.Errorf("Gemini was asked %d times", summarizer.requests)
+	}
+	site.mu.Lock()
+	if !maps.Equal(hits, site.hits) {
+		t.Errorf("the university was asked: %v → %v", hits, site.hits)
+	}
+	site.mu.Unlock()
+
+	embedded, cycles := len(encoder.embeds), svc.cycles
+	svc.RunOffline(ctx)
+	if len(encoder.embeds) != embedded || svc.cycles != cycles {
+		t.Errorf("a second start embedded %d passages and ran %d cycles", len(encoder.embeds)-embedded, svc.cycles-cycles)
+	}
+}
+
 func TestTheSemanticStageNeedsAModel(t *testing.T) {
 	svc, _ := newTestService(t, newFakeBTU(t))
 	r := svc.RunCycle(context.Background())

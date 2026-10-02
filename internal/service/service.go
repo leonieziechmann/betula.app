@@ -139,6 +139,7 @@ type Service struct {
 	nextCycleAt   time.Time
 
 	summaryFailed map[string]time.Time // text hash → when Gemini last failed to summarise it (semantic.go)
+	semanticLast  semanticStats        // what the semantic stage did last (RunOffline)
 	archive       archiveCache         // for GET /metrics
 }
 
@@ -202,6 +203,30 @@ func (s *Service) Rebuild(ctx context.Context) CycleResult {
 	oplog.For("service").Info("the catalog was built by another release; building it again from the archive",
 		"event", "service.rebuild", "built_by", s.builtBy(), "this_build", version.Build())
 	return s.cycle(ctx, false)
+}
+
+// RunOffline is what an offline Radix does besides serving its snapshot (serve-snapshot --db),
+// and it sends nothing out: neither to the university nor to Gemini. A catalog another release
+// built is built again from the archive (Rebuild). With an embedding model, the semantic stage
+// then computes the vectors of the passages that have none (the modules' texts, with the
+// summaries the database brought from the instance that crawls), a budget at a time, and a
+// cycle without the crawl publishes each part, until a stage finds nothing left to compute.
+//
+// Log events: those of Rebuild and RunCycle, semantic.finished.
+func (s *Service) RunOffline(ctx context.Context) {
+	s.cfg.Semantic.Summarizer = nil
+	if s.BuiltByOtherRelease() {
+		s.Rebuild(ctx) // which ends with the semantic stage, as every cycle does
+	} else if s.cfg.Semantic.Encoder != nil {
+		s.semanticStage(ctx, &CycleResult{Result: "ok"})
+	}
+	// What a stage computed, the next build publishes; that cycle's stage computes more.
+	for s.cfg.Semantic.Encoder != nil && ctx.Err() == nil && s.semanticLast.VectorsWritten > 0 {
+		s.semanticLast = semanticStats{}
+		if s.cycle(ctx, false).Result == "failed" {
+			return
+		}
+	}
 }
 
 // BuiltByOtherRelease says whether the canonical tables were derived by another binary than

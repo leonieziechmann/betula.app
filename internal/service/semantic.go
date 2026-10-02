@@ -72,6 +72,7 @@ func (s *Service) semanticStage(ctx context.Context, result *CycleResult) {
 		s.summaryFailed = map[string]time.Time{}
 	}
 	stats, err := runSemantic(ctx, s.db, cfg, start.Add(cfg.Budget), s.now, s.summaryFailed)
+	s.semanticLast = stats
 	stage := StageResult{Name: "semantic", DurationMS: s.now().Sub(start).Milliseconds()}
 	switch {
 	case err != nil && ctx.Err() == nil:

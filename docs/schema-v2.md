@@ -779,6 +779,11 @@ hashes, not modules: equal texts share a summary and a vector, a module that com
 nothing, and a new model replaces the vectors of the old one (`passage_embedding.model`). The first
 run of a model computes every passage: about 6 processor-hours, on the stack's one CPU about 19
 budgets of 20 minutes, one a cycle: most of a day; after that a cycle computes what changed, seconds.
+An offline Radix (`serve-snapshot --db`, `RADIX_CRAWL=off`, `service.RunOffline`) runs the stage
+too, with the encoder alone — nothing goes out, Gemini included, so its passages carry the
+summaries its database brought from the instance that crawls, or none — and without waiting for a
+cycle: one budget after the other, each followed by a cycle without the crawl that publishes it,
+until no passage is missing (on the stack's one CPU a few hours for a database without vectors).
 
 `validate` fails when the vectors have different lengths, and counts the modules without one
 (info); it does not check the caches' text, which is Gemini's, not the catalog's. Log events:

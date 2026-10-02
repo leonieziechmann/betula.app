@@ -39,7 +39,7 @@ var commands = [][]command{
 		{"build", "Derive the canonical tables from the raw page archive (no network)", runBuild},
 		{"validate", "Check invariants, source conflicts and count baselines; exit 1 on failures", runValidate},
 		{"export", "Write the read-optimized snapshot", runExport},
-		{"serve-snapshot", "Publish exported snapshots over HTTP without running the service", runServeSnapshot},
+		{"serve-snapshot", "Publish exported snapshots over HTTP without crawling; --db: build them again and compute the vectors (no network)", runServeSnapshot},
 	},
 	{
 		{"download-statutes", "Download the regulation PDFs of the programs (OPUS)", runDownloadStatutes},

@@ -237,7 +237,8 @@ Folia (`deploy/README.md` section 13). `deploy/ship-models.sh` uploads what the 
 `vps/50-app.sh` gives the instance the models only when both are in the store, intact (else it
 runs without the semantic search). The browser offers the search only when the snapshot's vectors
 are of the passage model its query model was made for (`meta.semantic_model`,
-`FOLIA_SEMANTIC_PASSAGE_MODEL`; `docs/schema-v2.md`, „Semantic search“).
+`FOLIA_SEMANTIC_PASSAGE_MODEL`; `docs/schema-v2.md`, „Semantic search“). An offline Radix
+(`RADIX_CRAWL=off`, canary) computes the vectors too, with the encoder alone and without Gemini.
 
 ## Not done yet
 
