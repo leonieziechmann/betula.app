@@ -17,7 +17,8 @@
   ];
   const language = () => LANGUAGES.find((l) => l.prefix && (location.pathname === l.prefix || location.pathname.startsWith(l.prefix + "/"))) || LANGUAGES[0];
   const appRuns = () => window.__betulaApp === true;
-  const phone = () => matchMedia("(max-width: 900px)").matches;
+  const narrow = matchMedia("(max-width: 900px)");
+  const phone = () => narrow.matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
   // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
@@ -129,6 +130,54 @@
   document.addEventListener("submit", (e) => {
     if (appRuns() && e.target.matches("form[data-live-search]")) e.preventDefault();
   });
+
+  // ---- a link followed while the app is starting ----
+  // The app takes the page over a few seconds after it loads (boot.js: the catalog, the bundle,
+  // sql.js; three on a phone). A link followed meanwhile loaded the next page: on a phone a blank
+  // screen, and the whole start again, the catalog read anew, so a tab tapped right after opening
+  // the app froze it for seconds. Now the app is waited for: a tab is current at once, and the app
+  // goes where the link leads as soon as it runs (`betulaStarted`, called by boot.js). Where it
+  // does not start (an error, or nothing for 6 s), the page loads as before. A link with a key
+  // held, into another window, another language or out of the app is left alone, as is a place on
+  // this page.
+  const starting = () => window.__betulaStarting === true && !appRuns();
+  let waiting = null; // { href, tab, timer }: the link followed last while the app was starting
+  const follow = (started) => {
+    const link = waiting;
+    waiting = null;
+    if (!link) return;
+    clearTimeout(link.timer);
+    if (!started || !appRuns()) { location.assign(link.href); return; }
+    // The app's own tab (it knows where the visitor left its area), else the address.
+    const tab = link.tab && document.querySelector(`.bottomnav > .nav[data-area="${link.tab}"]`);
+    if (tab) { tab.click(); return; }
+    const a = Object.assign(document.createElement("a"), { href: link.href, hidden: true });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  };
+  window.betulaStarted = (started) => follow(started);
+  document.addEventListener("click", (e) => {
+    if (!starting() || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const link = e.target.closest?.("a[href]");
+    if (!link || link.target || link.hasAttribute("download") || link.dataset.action || link.dataset.language || /\bexternal\b/.test(link.rel)) return;
+    const url = new URL(link.href, location.href);
+    const path = url.pathname.slice(language().prefix.length) || "/";
+    if (url.origin !== location.origin || !url.pathname.startsWith(language().prefix) || /^\/(api|assets|pkg|access|cards|calendar|models)(\/|$)|\.[a-z0-9]{2,5}$/i.test(path)) return;
+    if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
+    e.preventDefault();
+    // A module's row on a phone is its page (as below, and as the app does).
+    const row = link.matches("a.row[data-id]") && phone() ? link : null;
+    const href = row ? language().prefix + "/catalog/module/" + encodeURIComponent(row.dataset.id) : url.href;
+    const tab = link.matches(".bottomnav > .nav, .rail .nav") ? link.dataset.area : null;
+    if (tab) {
+      for (const nav of document.querySelectorAll(".bottomnav > .nav, .rail .nav")) {
+        if (nav.dataset.area === tab) nav.setAttribute("aria-current", "page"); else nav.removeAttribute("aria-current");
+      }
+    }
+    clearTimeout(waiting?.timer);
+    waiting = { href, tab, timer: setTimeout(() => follow(appRuns()), 6000) };
+  }, true);
 
   // Classic mode on a phone: a module is its own page, never a preview (the app does this by
   // itself, and also knows which row to show when the visitor comes back).
@@ -578,6 +627,12 @@
         const section = document.getElementById(target.getAttribute("href").slice(1));
         if (!section) break;
         e.preventDefault();
+        // The panels drawn only near the screen (app.css, `content-visibility`) are drawn for the
+        // way there: with only their guessed heights the glide ended off the section.
+        root.classList.add("jumping");
+        const done = () => root.classList.remove("jumping");
+        addEventListener("scrollend", done, { once: true });
+        setTimeout(done, 2000);
         section.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
         break;
       }
@@ -760,8 +815,13 @@
   // gone the sidebar still waited for the scroll to end): growing under the ground shows nothing
   // that is not to be seen. The heads of the list's columns stay under the list's head: its height
   // is `--list-head-h`. The scrollbar's width is `--bar`: it stands in the gap right of the page.
+  // A phone scrolls the window, and none of this applies there (app.css has all of it for wide
+  // screens only): it measured every page as it was built, a layout in each of its frames, and gave
+  // each new page `--bar` and `--cover`, which restyled the whole page once more; a quarter of what
+  // a tab switch cost a phone. `--bar` there is the top bar's height, too, and `0px` on the page took
+  // it from the skeleton of the rows (app.css, `.rows-pending`).
   const tiesWood = CSS.supports("animation-timeline: scroll()") && CSS.supports("timeline-scope: --page");
-  let areaTimer = 0, areaFrame = 0, woodMoved = false, headSeen = null, covered = 0;
+  let areaTimer = 0, areaFrame = 0, woodMoved = false, headSeen = null, covered = 0, coveredArea = null, areaOn = false;
   const headWatch = new ResizeObserver(([entry]) => {
     // Its height as drawn, with the fraction a scaled screen gives it: rounded, the heads of the
     // columns stood a pixel off it and the rows showed through.
@@ -773,20 +833,41 @@
     const ground = area.querySelector(":scope > .ground");
     return ground && !phone() ? Math.max(0, Math.round(area.getBoundingClientRect().bottom - 1 - (ground.getBoundingClientRect().top - 8))) : 0;
   };
+  // Written only when it changes: a custom property on the page restyles all of it.
   const putCover = (area, cover) => {
+    if (area === coveredArea && cover === covered) return;
     covered = cover;
+    coveredArea = area;
     area.style.setProperty("--cover", cover + "px");
     const button = document.getElementById("to-top");
     if (cover) button?.style.setProperty("--lift", cover + "px"); else button?.style.removeProperty("--lift");
   };
   const areaSettle = () => {
     areaTimer = 0;
+    if (phone()) return;
     const area = flowing();
-    if (!area) { covered = 0; document.getElementById("to-top")?.style.removeProperty("--lift"); return; }
+    if (!area) { covered = 0; coveredArea = null; document.getElementById("to-top")?.style.removeProperty("--lift"); return; }
     putCover(area, coverOf(area));
+  };
+  // The window became a phone's (a narrow window, a turned tablet): what the area was given goes.
+  const areaOff = () => {
+    areaOn = false;
+    cancelAnimationFrame(areaFrame);
+    clearTimeout(areaTimer);
+    areaFrame = areaTimer = 0;
+    headWatch.disconnect();
+    headSeen = null;
+    const area = flowing();
+    for (const prop of ["--bar", "--cover", "--list-head-h"]) area?.style.removeProperty(prop);
+    area?.querySelector(":scope > .list.short")?.classList.remove("short");
+    document.getElementById("to-top")?.style.removeProperty("--lift");
+    covered = 0;
+    coveredArea = null;
+    if (woodMoved) { document.querySelector(".wood")?.style.removeProperty("transform"); woodMoved = false; }
   };
   const areaFollow = () => {
     areaFrame = 0;
+    if (phone()) return;
     const area = flowing();
     const head = area?.querySelector(":scope > .list > .list-head") ?? null;
     if (head !== headSeen) { headWatch.disconnect(); if (head) headWatch.observe(head); headSeen = head; }
@@ -799,7 +880,7 @@
     // ground slides over its empty end and its rows stay where they are, as before. A longer one
     // flows with the page and its end comes before the ground.
     const list = area?.querySelector(":scope > .list");
-    if (list && !phone()) {
+    if (list) {
       const rows = list.querySelector(".rows"), last = rows?.lastElementChild;
       const needs = last ? last.getBoundingClientRect().bottom - list.getBoundingClientRect().top + 12 : 0;
       const short = needs <= innerHeight - 64 - 208;
@@ -808,17 +889,19 @@
     if (tiesWood) return;
     const wood = document.querySelector(".wood");
     if (!wood) return;
-    if (!area || phone()) { if (woodMoved) { wood.style.removeProperty("transform"); woodMoved = false; } return; }
+    if (!area) { if (woodMoved) { wood.style.removeProperty("transform"); woodMoved = false; } return; }
     const reach = 208, rise = Math.min(reach, Math.max(0, area.scrollTop - (area.scrollHeight - area.clientHeight - reach)));
     wood.style.transform = rise ? `translateY(${-rise}px)` : "";
     woodMoved = true;
   };
   const areaSoon = () => {
+    if (phone()) { if (areaOn) areaOff(); return; }
+    areaOn = true;
     if (!areaFrame) areaFrame = requestAnimationFrame(areaFollow);
     clearTimeout(areaTimer);
     areaTimer = setTimeout(areaSettle, 150);
   };
-  document.addEventListener("scroll", (e) => { if (e.target === flowing()) areaSoon(); }, { capture: true, passive: true });
+  document.addEventListener("scroll", (e) => { if (!phone() && e.target === flowing()) areaSoon(); }, { capture: true, passive: true });
   addEventListener("resize", areaSoon);
   new MutationObserver(areaSoon).observe(document.body, { childList: true, subtree: true });
   areaSoon();
@@ -848,14 +931,22 @@
   const showTopSoon = () => { if (!topFrame) topFrame = requestAnimationFrame(showTop); };
   document.addEventListener("scroll", showTopSoon, { capture: true, passive: true });
   addEventListener("resize", showTopSoon);
-  // The app's pages replace each other without a scroll, and the app takes the page over with a
-  // button of its own: another page or another button is looked at once it is there. Nothing
-  // else that changes (rows coming and going, the skeleton in the frame after a click) makes the
-  // page say where it is, which would lay it out ahead of time.
+  // The app's pages replace each other, and the app takes the page over with a button of its own.
+  // Another page or another button starts at the page's top, where the button is hidden; a page
+  // that comes back further down is scrolled there, and that scroll shows it. Asked where it is
+  // right away, a page being built was laid out ahead of time, in each of its frames (at the
+  // start of the app, the whole page twice); nothing else that changes (rows coming and going, the
+  // skeleton in the frame after a click) makes the page say where it is either.
   new MutationObserver(() => {
-    if (!topFrame && (pageScroller() !== topPage || document.getElementById("to-top") !== topButton)) showTopSoon();
+    const page = pageScroller(), button = document.getElementById("to-top");
+    if (page === topPage && button === topButton) return;
+    topPage = page;
+    topButton = button;
+    if (button?.hasAttribute("data-shown") && !topFrame) button.removeAttribute("data-shown");
   }).observe(document.body, { childList: true, subtree: true });
-  showTop();
+  // A page that loads further down (a reload) or comes back from the browser's memory.
+  addEventListener("load", showTopSoon);
+  addEventListener("pageshow", (e) => { if (e.persisted) showTopSoon(); });
   // The button stands over the page but is no part of what scrolls: the wheel over it turns the
   // page under it, as over the page itself. A phone scrolls the window anyway.
   document.addEventListener("wheel", (e) => {

@@ -86,7 +86,25 @@ async function idbPut(key, value) {
     tx.onerror = () => reject(tx.error);
   });
 }
+async function idbDelete(key) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
 
+// The catalog as it came, as a Blob, kept under `catalog`. IndexedDB keeps a Blob as a file of
+// its own and hands it back without reading it, and reading it (`arrayBuffer`) happens away from
+// the page. As bytes (an ArrayBuffer of 45 MB under `current`, until 2026-10-02) every start
+// copied them into the page in one piece, half a second of a phone's main thread, and every
+// update twice more. A copy under the old name is taken over once, and then deleted: a build of
+// before, which reads only that name (a release rolled back), fetches the catalog anew rather
+// than failing on a Blob.
+const KEPT = "catalog";
+const KEPT_BEFORE = "current";
 async function download(total) {
   const response = await fetch("/api/db");
   if (!response.ok) throw new Error("GET /api/db: HTTP " + response.status);
@@ -100,17 +118,21 @@ async function download(total) {
     received += value.length;
     if (total) status(T.loadingShare(Math.min(99, Math.round((received / total) * 100))));
   }
-  const bytes = new Uint8Array(received);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  return bytes;
+  return new Blob(chunks);
 }
 
 // The schema of a copy of the catalog, from the header of the SQLite file, without opening it
-// (`user_version`: four bytes at offset 60, big-endian). 0 for what is not a SQLite file.
-function schemaOf(bytes) {
+// (`user_version`: four bytes at offset 60, big-endian). 0 for what is not a SQLite file, and for
+// a copy the browser can no longer read (its file gone): either is replaced as an older one is.
+async function schemaOf(blob) {
+  let bytes;
+  try {
+    bytes = new Uint8Array(await blob.slice(0, 100).arrayBuffer());
+  } catch {
+    return 0;
+  }
   if (bytes.length < 100 || new TextDecoder().decode(bytes.subarray(0, 15)) !== "SQLite format 3") return 0;
-  return new DataView(bytes.buffer, bytes.byteOffset, 100).getInt32(60);
+  return new DataView(bytes.buffer, 0, 100).getInt32(60);
 }
 
 function loadScript(src) {
@@ -135,8 +157,18 @@ async function openDatabase() {
   // (Radix has not exported the new schema yet); without another, the site stays a classic website.
   const serverFits = server && server.schema_version >= SCHEMA;
 
-  let current = await idbGet("current"); // { etag, bytes }
-  if (current && schemaOf(current.bytes) < SCHEMA) {
+  let current = await idbGet(KEPT); // { etag, blob }
+  if (!current) {
+    const before = await idbGet(KEPT_BEFORE).catch(() => null); // { etag, bytes }
+    if (before?.bytes) {
+      current = { etag: before.etag, blob: new Blob([before.bytes]) };
+      idbPut(KEPT, current).then(() => idbDelete(KEPT_BEFORE)).catch(() => {});
+    }
+  } else {
+    // What a build of before kept meanwhile (a release rolled back and forth again).
+    idbDelete(KEPT_BEFORE).catch(() => {});
+  }
+  if (current && (await schemaOf(current.blob)) < SCHEMA) {
     // Replaced before the app starts, as on a first visit. Offline there is nothing to replace
     // it with: the app does not start, and the page stays the one the service worker kept.
     if (!server) {
@@ -150,19 +182,23 @@ async function openDatabase() {
     if (!server) throw new Error("no local copy of the catalog and the server is not reachable");
     if (!serverFits) throw new Error(`the server's catalog is of schema ${server.schema_version}, this build reads ${SCHEMA}`);
     status(T.loading);
-    current = { etag: server.etag, bytes: await download(server.bytes) };
-    await idbPut("current", current);
+    current = { etag: server.etag, blob: await download(server.bytes) };
+    await idbPut(KEPT, current);
+    idbDelete(KEPT_BEFORE).catch(() => {});
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   } else if (serverFits && server.etag !== current.etag) {
     // Work with the copy we have; fetch the new one in the background for the next start.
     download(0)
-      .then((bytes) => idbPut("current", { etag: server.etag, bytes }))
+      .then((blob) => idbPut(KEPT, { etag: server.etag, blob }))
       .catch((error) => console.warn("[catalog] update failed", error));
   }
 
-  await loadScript("/assets/sql-wasm.js" + BUILD);
+  const [bytes] = await Promise.all([
+    current.blob.arrayBuffer(),
+    loadScript("/assets/sql-wasm.js" + BUILD),
+  ]);
   const SQL = await window.initSqlJs({ locateFile: (file) => "/assets/" + file + BUILD });
-  const db = new SQL.Database(current.bytes);
+  const db = new SQL.Database(new Uint8Array(bytes));
   window.betulaDb = {
     etag: current.etag,
     query(sql, params) {
@@ -197,15 +233,20 @@ async function loadProgramMap() {
 
 // The semantic search (semantic/README.md): the model (15 MB) runs in a Web Worker of its own,
 // with the index built from the modules' vectors in the local catalog (`v_module_vector`, Radix's).
-// It is loaded only once the app runs and the browser is idle, so it never holds up the page, the
-// catalog or the app; the model comes with a low priority and is kept by the service worker apart
-// from the shell of a build, so it is downloaded once per model, not once per deploy.
+// It is loaded when it is first wanted: as a search field takes the focus (in the browser's idle
+// time, so that it is there by the time the words are), or when a search asks it. Loaded at every
+// start once the browser was idle (until 2026-10-02), it took a phone's main thread at a moment
+// nobody could see coming, and the model's 15 MB on every start, from those who never search too.
+// With a mouse it is still loaded once the browser is idle. The model comes with a low priority
+// and is kept by the service worker apart from the shell of a build, so it is downloaded once per
+// model, not once per deploy.
 //
 // `window.betulaSemantic`, for the app:
 //   ready             a promise: {rows, build, ms} once the search can answer; null when this
 //                     browser has none (no model on the server, no vectors in the catalog yet,
 //                     vectors of another passage model than the query model was made for, data
-//                     saving, a device with little memory, or loading failed)
+//                     saving, a device with little memory, or loading failed). Asking for it
+//                     starts the loading.
 //   search(query, k)  a promise: {hits: [{id, score}], ms}, best first; null when a newer query
 //                     took its place, or when there is no semantic search
 function startSemantic() {
@@ -216,16 +257,20 @@ function startSemantic() {
   const connection = navigator.connection;
   if (!SEMANTIC_MODEL || !("Worker" in window) || (connection && connection.saveData) || (navigator.deviceMemory && navigator.deviceMemory < 2)) return none();
   let semantic = null;
-  const ready = new Promise((resolve) => {
-    const start = () => resolve(load());
-    if ("requestIdleCallback" in window) requestIdleCallback(start, { timeout: 5000 });
-    else setTimeout(start, 1500);
-  }).catch((error) => {
+  let ready = null;
+  const begin = () => (ready ??= load().catch((error) => {
     console.info("[semantic] not loaded:", error);
     if (semantic) semantic.terminate();
     semantic = null;
     return null;
-  });
+  }));
+  const soon = () => {
+    if (ready) return;
+    if ("requestIdleCallback" in window) requestIdleCallback(begin, { timeout: 3000 });
+    else setTimeout(begin, 500);
+  };
+  document.addEventListener("focusin", (e) => { if (e.target.matches?.('input[type="search"], form[data-live-search] input')) soon(); });
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches) soon();
   async function load() {
     // A query is only comparable with passages of the model it was made for. The local copy of the
     // catalog may be older than the server's model (it is replaced at the next start), or Radix may
@@ -244,15 +289,18 @@ function startSemantic() {
     return semantic.ready;
   }
   window.betulaSemantic = {
-    ready,
+    get ready() {
+      return begin();
+    },
     async search(query, k) {
-      if (!(await ready) || !semantic) return null;
+      if (!(await begin()) || !semantic) return null;
       return semantic.search(query, k);
     },
   };
-  return ready;
 }
 
+// The app is on its way: a link followed meanwhile waits for it (enhance.js, `betulaStarted`).
+window.__betulaStarting = true;
 try {
   const [app, , programMap] = await Promise.all([
     import("/pkg/folia_client.js" + BUILD).then(async (module) => { await module.default("/pkg/folia_client_bg.wasm" + BUILD); return module; }),
@@ -263,12 +311,17 @@ try {
   window.__betulaApp = true;
   document.documentElement.classList.add("app");
   app.start();
+  window.__betulaStarting = false;
   // Once the app runs there is nothing to say: it simply works.
   status("");
   startSemantic();
+  // Where a link followed meanwhile leads, now within the app (once what it set off has run).
+  setTimeout(() => window.betulaStarted?.(true), 0);
 } catch (error) {
+  window.__betulaStarting = false;
   // Not fatal: the site stays a classic website. The pill says nothing, unless the visitor needs
-  // to know why (`notice`).
+  // to know why (`notice`). A link followed meanwhile loads its page.
   console.info("[catalog] browser app not started:", error);
   status(error.notice || "");
+  window.betulaStarted?.(false);
 }
