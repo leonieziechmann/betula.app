@@ -344,9 +344,16 @@ pub fn search_elsewhere(db: &dyn Database, query: &CatalogQuery) -> Result<Searc
 }
 
 /// The modules of `ids` that the filter of `query` holds apart from its search text and that its
-/// search does not find (those are in the list already): what the semantic search adds to the
-/// results, „Ähnliche Module" (`pages::similar`), in the order of their ids. Nothing without a
-/// search.
+/// search does not find (those are in the list already), nor one titled as a module the list
+/// holds: what the semantic search adds to the results, „Ähnliche Module" (`pages::similar`), in
+/// the order of their ids. Nothing without a search.
+///
+/// A title the list holds is a module found already (owner, 2026-10-02: „Was in der direkten Suche
+/// gefunden wird, soll nicht mehr bei den ähnlichen Modulen gezeigt werden"): 210 titles of the
+/// offered modules are borne by several numbers — a module per program, an old and a new number —
+/// with the same text, so the same vector. A search for one of them by its number or by an
+/// abbreviation of its own („14851", „AGAB") finds that one alone, and the others would be the
+/// closest of all the semantic search finds: the module found, a second time, under the results.
 pub fn similar_rows(db: &dyn Database, query: &CatalogQuery, ids: &[String]) -> Result<Vec<CatalogRow>, DbError> {
     let Some(plan) = SearchPlan::new(&query.text, query.text_resolution.as_ref()) else { return Ok(Vec::new()) };
     // Within what the list is restricted to besides („Gemerkt").
@@ -366,6 +373,11 @@ pub fn similar_rows(db: &dyn Database, query: &CatalogQuery, ids: &[String]) -> 
         sql.conditions.push(format!("f.module_id NOT IN (SELECT sr.module_id FROM {table} sr WHERE {})", plan.condition("sr")));
         sql.params.extend(params);
     }
+    // The titles of the list's own rows (its search and its filters, as `catalog_page` reads them).
+    let mut listed = query.to_sql();
+    listed.conditions.push("m.title IS NOT NULL".to_string());
+    sql.conditions.push(format!("m.title NOT IN (SELECT m.title FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{})", listed.joins, listed.where_clause()));
+    sql.params.extend(listed.params);
     fetch(
         db,
         "similar_rows",

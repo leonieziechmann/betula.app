@@ -875,6 +875,16 @@ description. The list stays the list it was („ich mag das UI da und würde das
   `window.betulaSemantic`; none without a model on the server, without vectors in the snapshot, with
   data saving): until then, and on the server's page, nothing stands there, and the rows come when
   it answers (`SimilarModules`, a `LocalResource`), under the results, so nothing above them moves.
+  **What the search finds is not among them, not even under another number** (2026-10-02; owner:
+  „Was in der direkten Suche gefunden wird, soll nicht mehr bei den ähnlichen Modulen gezeigt
+  werden"): a module that bears the title of one of the list's rows is left out too, and a title
+  stands there once, the closest of its modules (`queries::similar_rows`, `pages::similar`). 210
+  titles of the offered modules are borne by several numbers (a module per program, an old and a
+  new number; on 2026-10-02) with the same text and so the same vector: a search for one of them by
+  its number or by an abbreviation of its own („14851", „AGAB") found that one, and the closest of
+  all „Ähnliche Module" was the same module under its other number. By id the results were never
+  among them (`similar_rows` leaves out what the search finds), while typing neither: the rows of a
+  list and its „Ähnliche Module" are of the same text.
 
 ### From the program's page into the catalog (2026-09-21)
 
