@@ -89,8 +89,9 @@ func (f *fakeBTU) serve(w http.ResponseWriter, r *http.Request) {
 			<tr><td>Modulnummer:</td><td>%s</td></tr>
 			<tr><td>Leistungspunkte:</td><td>%s</td></tr>
 			<tr><td>Angebotsturnus:</td><td>jedes Wintersemester</td></tr>
+			<tr><td>Inhalte:</td><td><ul><li>Grundlagen von Modul %s</li><li>Anwendungen</li></ul></td></tr>
 			<tr><td>Zuordnung zu Studiengängen:</td><td><ul><li>Bachelor (universitär) / Informatik / PO 2008 - 2. SÄ 2024</li></ul></td></tr>
-			%s</table></div>`, id, id, id, credits, events)
+			%s</table></div>`, id, id, id, credits, id, events)
 	case r.URL.Path == "/qis-table":
 		// The module table of QIS: the same two modules, with the internal number
 		// that addresses their description.
@@ -116,9 +117,10 @@ func (f *fakeBTU) serve(w http.ResponseWriter, r *http.Request) {
 			<tr><td class="tabelle1_alignleft">Modultitel:</td><td class="tabelle2inhalt">Modul %s</td></tr>
 			<tr><td class="tabelle1_alignleft">Leistungspunkte:</td><td class="tabelle2inhalt">%s</td></tr>
 			<tr><td class="tabelle1_alignleft">Angebotsturnus:</td><td class="tabelle2inhalt">jedes Wintersemester</td></tr>
+			<tr><td class="tabelle1_alignleft">Inhalte:</td><td class="tabelle2inhalt"><ul><li>Grundlagen von Modul %s</li><li>Anwendungen</li></ul></td></tr>
 			<tr><td class="tabelle1_alignleft">Zuordnung zu Studiengängen:</td><td class="tabelle2inhalt"><ul>
 				<li>Bachelor (universitär) / Informatik / PO 2008 - 2. SÄ 2024</li></ul></td></tr>
-			%s</table>`, id, id, credits, events)
+			%s</table>`, id, id, credits, id, events)
 	case r.URL.Path == "/search":
 		// The event search: the entry of every event asked for, stating what its page states.
 		var entries strings.Builder
