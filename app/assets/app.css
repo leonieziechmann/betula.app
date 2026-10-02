@@ -866,6 +866,53 @@ html:not(.js) .fit-chip { display: none; }
 .vlist { position: relative; height: var(--h, 0px); }
 .vlist > .vrow { position: absolute; left: 0; right: 0; top: var(--top, 0px); }
 .rows.virtual .row-wrap { content-visibility: visible; contain-intrinsic-size: none; }
+/* Above and below the rendered rows the virtual list holds skeleton rows (`.vfill`, as tall as a
+   row is taken to be: --rh, the average of the measured ones): a fast scroll runs ahead of the
+   list in the compositor's frames, and shows rows that are being filled in instead of an empty
+   panel. Past the skeleton rows (`.vfill-rest`) the bars of a row repeat in the background, for
+   a jump of the scrollbar. Shaded as the rows they stand for (`odd`: the first of them is). */
+/* Never the browser's scroll anchor: the fill above grows and shrinks with the place in the list,
+   its rows with its bottom, and an anchor among them would scroll the list by as much. */
+.vlist > .vfill { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; overflow: hidden; overflow: clip; pointer-events: none; overflow-anchor: none; }
+.vfill.above { top: 0; justify-content: flex-end; }
+.vfill.below { bottom: 0; }
+.vfill > .sk-row, .vfill-row > .sk-row { flex: none; min-height: 0; height: var(--rh, 58px); }
+
+/* The bars of `.sk-row`, a tile as tall as a row: the title (14 px) and under it the number
+   (10 px), around the middle; repeated from the skeleton rows outwards. */
+.vfill-rest {
+  --sk-mid: 50%; --sk-x: 15px;
+  flex: 1 0 0; min-height: 0;
+  background:
+    linear-gradient(transparent calc(var(--sk-mid) - 16px), var(--sk) 0 calc(var(--sk-mid) - 2px), transparent 0) var(--sk-x) 0 / min(34%, 280px) var(--rh, 58px) repeat-y,
+    linear-gradient(transparent calc(var(--sk-mid) + 6px), var(--sk) 0 calc(var(--sk-mid) + 16px), transparent 0) var(--sk-x) 0 / min(14%, 110px) var(--rh, 58px) repeat-y;
+}
+.vfill.above > .vfill-rest { background-position-y: 100%; }
+@media (min-width: 901px) {
+  .vfill:not(.odd) > .sk-row:nth-child(even of .sk-row), .vfill.odd > .sk-row:nth-child(odd of .sk-row), .vfill-row.odd > .sk-row { background: var(--row-shade); }
+  /* The shade of every other row goes on past the skeleton rows: a tile of two rows, from the
+     skeleton rows outwards (the tiles above end where they begin). There are an even number of
+     them, so either way the row of the tile's first half is shaded as the fill's first row. */
+  .vfill > .vfill-rest { --sk-shade: linear-gradient(transparent 50%, var(--row-shade) 0); }
+  .vfill.odd > .vfill-rest { --sk-shade: linear-gradient(var(--row-shade) 50%, transparent 0); }
+  .vfill-rest { background-color: transparent; background-image: linear-gradient(transparent calc(50% - 16px), var(--sk) 0 calc(50% - 2px), transparent 0), linear-gradient(transparent calc(50% + 6px), var(--sk) 0 calc(50% + 16px), transparent 0), var(--sk-shade); background-size: min(34%, 280px) var(--rh, 58px), min(14%, 110px) var(--rh, 58px), 100% calc(2 * var(--rh, 58px)); background-position-x: 15px, 15px, 0; }
+}
+/* The plain lists (the Merkliste, the server's page) lay out only the rows near the screen (above):
+   a row the browser skips paints nothing but its own background. So that is where the bars of a
+   skeleton row are, and a laid-out row covers them with the panel's colour: a fast scroll that
+   comes to rows before the browser has laid them out shows skeleton rows, not an empty panel. A
+   dimmed row (`.unmarked`) and one without a module (`.missing`) let what is under them through,
+   so they have none. */
+.rows:not(.virtual) .row-wrap:where(:not(.unmarked, :has(> .row.missing))) {
+  --sk-x: 15px;
+  border-radius: var(--r-row);
+  /* From the middle: the title 16 px above it to 2 px above, the number 6 to 16 px below. */
+  background:
+    linear-gradient(var(--sk), var(--sk)) var(--sk-x) calc(50% - 9px) / min(34%, 280px) 14px no-repeat,
+    linear-gradient(var(--sk), var(--sk)) var(--sk-x) calc(50% + 11px) / min(14%, 110px) 10px no-repeat;
+}
+@media (min-width: 901px) { .rows:not(.virtual) .row-wrap.shaded:where(:not(.unmarked, :has(> .row.missing))) { background-color: var(--row-shade); } }
+:where(.rows:not(.virtual) .row-wrap:not(.unmarked, :has(> .row.missing))) > .row { background-color: var(--panel); }
 .plan-sem { white-space: nowrap; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 0 6px; color: var(--text-3); font-size: 13px; }
 .state { max-width: 520px; margin: 56px auto; padding: 0 20px; text-align: center; }
@@ -1516,7 +1563,32 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .wash-module .stage { background: radial-gradient(100% 90% at 0% 0%, color-mix(in oklch, var(--fac-2) 20%, transparent), transparent 70%), radial-gradient(90% 90% at 100% 100%, color-mix(in oklch, var(--fac-5) 20%, transparent), transparent 70%), var(--panel-2); }
 /* A screenshot lies on the wash like a window, cut off at the right and at the bottom. The one of
    the theme that is not shown stays hidden, and a hidden lazy picture is never loaded. */
-.stage-shot img { position: absolute; left: 7%; top: 8%; width: 104%; height: auto; border-radius: 8px 0 0 0; box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -18px rgba(15, 23, 42, .45); background: var(--bg); }
+.stage-shot img { position: absolute; left: 7%; top: 8%; width: 104%; height: auto; border-radius: 8px 0 0 0; box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -18px rgba(15, 23, 42, .45); background: var(--shot-sk); }
+/* Until a screenshot has come (they are lazy), its place shows the frame of the app it shows: the
+   bar of the search on top, the panel of the sidebar and the page's, a few bars in them. The
+   picture covers it. */
+:root {
+  --shot-sk:
+    linear-gradient(var(--sk), var(--sk)) 50% 3.5% / 32% 4% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 4% 16% / 13% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 4% 24% / 16% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 33% 17% / 30% 3.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 32% 30% / 46% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 32% 40% / 40% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 32% 50% / 46% 2.5% no-repeat,
+    linear-gradient(var(--panel), var(--panel)) 2% 75% / 21% 88% no-repeat,
+    linear-gradient(var(--panel), var(--panel)) 97% 75% / 73% 88% no-repeat,
+    var(--bg);
+  --shot-sk-phone:
+    linear-gradient(var(--sk), var(--sk)) 50% 3.5% / 70% 4% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 12% 15% / 22% 3% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 15% 24% / 66% 3.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 12% 52% / 40% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 15% 60% / 70% 2.5% no-repeat,
+    linear-gradient(var(--panel), var(--panel)) 50% 14% / 92% 26% no-repeat,
+    linear-gradient(var(--panel), var(--panel)) 50% 92% / 92% 56% no-repeat,
+    var(--bg);
+}
 .shot-dark { display: none; }
 :root[data-theme="dark"] .shot-light { display: none; }
 :root[data-theme="dark"] .shot-dark { display: inline; }
@@ -1966,7 +2038,8 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .devices { position: relative; padding: 6px 17% 26px 0; }
 .screen { margin: 0; }
 /* No `display` here: .shot-light and .shot-dark decide which theme's picture shows. */
-.screen img { width: 100%; height: auto; vertical-align: top; }
+.screen img { width: 100%; height: auto; vertical-align: top; background: var(--shot-sk); }
+.screen.phone img { background: var(--shot-sk-phone); }
 .screen.desktop img { border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -18px rgba(15, 23, 42, .45); }
 .screen.phone { position: absolute; right: 0; bottom: 0; width: 31%; padding: 5px; border-radius: 20px; background: var(--device); box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -14px rgba(15, 23, 42, .55); }
 .screen.phone img { border-radius: 15px; }
@@ -2093,7 +2166,7 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 @media (max-width: 600px) {
   .carousel { --w: 66cqw; }
   .stage { aspect-ratio: 3 / 4; }
-  .stage-shot img { left: 8%; top: 6%; width: 96%; border-radius: 12px 12px 0 0; }
+  .stage-shot img { left: 8%; top: 6%; width: 96%; border-radius: 12px 12px 0 0; background: var(--shot-sk-phone); }
   .map-wide { display: none; }
   .map-tall { display: block; }
   .show-arrow, .cap-go { display: none; }
@@ -2612,6 +2685,18 @@ a.slot:hover { filter: brightness(.96); }
    about 450 items a semester). */
 .agenda { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .agenda-week { content-visibility: auto; contain-intrinsic-size: auto 240px; scroll-margin-top: 12px; }
+/* A week the browser skips (`data-skipped`, enhance.js) shows a skeleton of itself in its own
+   background, the one thing it paints then: the bar of its heading, and under it its days as they
+   are laid out (.agenda-day), a day of two items a tile: its line on top, the day on the left,
+   what happens on the right. */
+.agenda-week[data-skipped] {
+  --day: 52px;
+  background:
+    linear-gradient(var(--sk), var(--sk)) 0 4px / 150px 10px no-repeat,
+    repeating-linear-gradient(var(--line) 0 1px, transparent 0 var(--day)) 0 21px / 100% calc(100% - 21px) no-repeat,
+    repeating-linear-gradient(transparent 0 9px, var(--sk) 0 19px, transparent 0 var(--day)) 0 21px / 48px calc(100% - 21px) no-repeat,
+    repeating-linear-gradient(transparent 0 9px, var(--sk) 0 19px, transparent 0 31px, var(--sk) 0 41px, transparent 0 var(--day)) 88px 21px / min(52%, 360px) calc(100% - 21px) no-repeat;
+}
 .agenda-week > h3 { margin-bottom: 4px; color: var(--text-2); font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .agenda-week > h3 small { color: var(--text-3); font-weight: 500; font-size: 12px; }
 .agenda-day { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 2px 12px; padding: 6px 0; border-top: 1px solid var(--line); }
@@ -2906,6 +2991,18 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   /* The virtual list places its rows itself; the gap between the cards is part of every row. */
   .rows.virtual { display: block; }
   .vlist > .vrow { padding-bottom: 8px; }
+  /* The skeleton rows are cards as well, with the gap of a row under each (--rh counts it). */
+  .vfill > .sk-row, .vfill-row > .sk-row { height: calc(var(--rh, 96px) - 8px); margin-bottom: 8px; }
+  .vfill-rest {
+    --sk-mid: calc(50% - 4px); --sk-x: 18px;
+    background:
+      linear-gradient(transparent calc(var(--sk-mid) - 16px), var(--sk) 0 calc(var(--sk-mid) - 2px), transparent 0) var(--sk-x) 0 / min(56%, 280px) var(--rh, 96px) repeat-y,
+      linear-gradient(transparent calc(var(--sk-mid) + 6px), var(--sk) 0 calc(var(--sk-mid) + 16px), transparent 0) var(--sk-x) 0 / min(26%, 110px) var(--rh, 96px) repeat-y,
+      linear-gradient(transparent calc(var(--sk-mid) - 5px), var(--sk) 0 calc(var(--sk-mid) + 5px), transparent 0) right 52px top 0 / 36px var(--rh, 96px) repeat-y,
+      linear-gradient(var(--panel) calc(100% - 8px), transparent 0) 0 0 / 100% var(--rh, 96px) repeat-y;
+  }
+  .vfill.above > .vfill-rest { background-position: var(--sk-x) 100%, var(--sk-x) 100%, right 52px bottom 0, 0 100%; }
+  .rows:not(.virtual) .row-wrap:where(:not(.unmarked, :has(> .row.missing))) { --sk-x: 18px; border-radius: var(--r-panel); background-color: var(--panel); }
   /* The note stands in line with the cards, as far above them in either list. */
   .plan-note { margin: 0 0 10px; }
   .rows.scroll:not(.virtual) > .plan-note { margin-bottom: 2px; }

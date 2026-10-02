@@ -43,7 +43,7 @@ use crate::nav;
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending};
 use crate::seo::Seo;
-use crate::skeleton::{DetailSkeleton, RowsSkeleton};
+use crate::skeleton::{self, DetailSkeleton, RowsSkeleton};
 use crate::studyplan::{PlanHint, Studyplan};
 use crate::swipe::RowSwipe;
 use crate::tabs::{self, Tabs};
@@ -1135,6 +1135,10 @@ const KEEP_PAGES: usize = 4;
 /// What a row is taken to be as tall as until it has been measured (the stylesheet's rows).
 const ROW_DESKTOP: f32 = 58.0;
 const ROW_PHONE: f32 = 88.0;
+/// Skeleton rows above and below the rendered ones (`skeleton::rows`): what a fast scroll shows
+/// in the frames before the rows of the new place are rendered, instead of an empty list.
+/// Farther out the fills repeat the bars of a row in their background (app.css, `.vfill-rest`).
+const FILL_ROWS: usize = 24;
 
 /// Where the visitor is in the list: the place of the row at the top of the screen, and the
 /// modules on screen from the top down (where their page is loaded), each with how far the list
@@ -1447,22 +1451,39 @@ fn VirtualRows(
             {head}
             {move || going.is_some_and(|p| p.waits(Change::List)).then(|| view! { <RowsSkeleton/> })}
             {states}
-            <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--h:{:.0}px", offset_of(total)) }>
+            <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--h:{:.0}px;--rh:{:.0}px", offset_of(total), estimate()) }>
                 <For each=move || { let (first, end) = window.get(); first..end } key=|index| *index children=move |index: usize| {
                     let base = base_rows.clone();
                     let top = move || {
                         layout.track();
                         format!("--top:{:.0}px", offset_of(index))
                     };
+                    // A row whose page could not be loaded stands there as a skeleton, which is
+                    // not measured (no `data-i`): it keeps the place the row is taken to have.
                     view! {
-                        {move || row_at(index).map(|row| {
-                            let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
-                            let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
-                            let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
-                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/></div> }
-                        })}
+                        {move || match row_at(index) {
+                            Some(row) => {
+                                let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
+                                let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
+                                let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
+                                view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/></div> }.into_any()
+                            }
+                            None => view! { <div class="vrow vfill-row" class:odd=index % 2 == 1 style=top aria-hidden="true">{skeleton::rows(1)}</div> }.into_any(),
+                        }}
                     }
                 }/>
+                // What lies above and below the rendered rows, as skeleton rows: a fast scroll
+                // passes the rendered rows in the compositor's frames before the list follows it.
+                // After the rows in the order of the page, so that the first `.row` of the list is
+                // a module's; static, only their places change.
+                <div class="vfill above" class:odd=move || window.get().0 % 2 == 1 style=move || { layout.track(); format!("height:{:.0}px", offset_of(window.get().0)) } aria-hidden="true">
+                    <div class="vfill-rest"></div>
+                    {skeleton::rows(FILL_ROWS)}
+                </div>
+                <div class="vfill below" class:odd=move || window.get().1 % 2 == 1 style=move || { layout.track(); format!("top:{:.0}px", offset_of(window.get().1)) } aria-hidden="true">
+                    {skeleton::rows(FILL_ROWS)}
+                    <div class="vfill-rest"></div>
+                </div>
             </div>
             {(total > per_page).then(|| view! { <p class="list-end">{(t.catalog.list_end)(&format::count(total as u64, t.locale))}</p> })}
             {foot}
