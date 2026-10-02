@@ -1,0 +1,12 @@
+<!DOCTYPE html><meta charset="utf-8"><title>probe</title>
+<script type="module">
+const worker = new Worker("./worker.js", { type: "module" });
+const sql = [
+  "SELECT COUNT(*) FROM v_module_program_link",
+  "SELECT * FROM v_module ORDER BY title LIMIT 50",
+  "SELECT * FROM v_module_facets",
+  "SELECT * FROM v_module_schedule",
+];
+window.result = new Promise((resolve) => { worker.onmessage = ({ data }) => resolve(data); });
+worker.postMessage({ sql });
+</script>

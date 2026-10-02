@@ -129,6 +129,7 @@ async fn main() -> Result<(), String> {
         .route("/assets/icons.svg", get(|| async { text("image/svg+xml", folia_design::icons::sprite()) }))
         .nest_service("/pkg", ServeDir::new("site/pkg"))
         .nest_service("/pkg-split", ServeDir::new("site/split"))
+        .nest_service("/probe", ServeDir::new("probes/sqlite-opfs"))
         .nest_service("/assets", ServeDir::new("../app/assets"))
         .with_state(state);
     let addr: SocketAddr = addr.parse().map_err(|e| format!("{addr}: {e}"))?;
