@@ -6,7 +6,11 @@
 
 use std::sync::Arc;
 
-use catalog::{Database, DbError};
+use catalog::filter::CatalogQuery;
+use catalog::pages::CatalogData;
+use catalog::rows::CatalogRow;
+use catalog::url::CatalogUrl;
+use catalog::{Database, DbError, Locale};
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -52,6 +56,29 @@ pub trait SemanticSearch: Send + Sync {
 
 #[derive(Clone)]
 pub struct Semantic(pub Arc<dyn SemanticSearch>);
+
+/// The catalog's search beside the page's thread (owner, 2026-10-02: typing a search lagged, „die
+/// Suche muss auf jeden Fall asynchron"): in the browser app a Web Worker with a copy of the local
+/// catalog of its own, which runs the same loaders of `catalog::pages` as the page does (`client`,
+/// `boot.js`: `window.betulaSearch`). The list of a search the visitor types is worked out there
+/// before the address changes (`Pending::prepare_with`), and so is the list's „Ähnliche Module".
+/// None on the server; in the browser it answers once it is loaded, and until then, or where it
+/// failed, the page asks its `Source` as it always did.
+pub trait CatalogWorker: Send + Sync {
+    /// Whether it answers now: it is loaded once the app runs and the browser is idle, and is
+    /// none for good where it failed or the device has little memory.
+    fn ready(&self) -> bool;
+    /// `pages::catalog` of `url` (its query as the list runs it, marks and what fits the plan filled
+    /// in) in `locale`. `None` where it gave no answer: a newer question of the same kind took its
+    /// place before this one ran, or the worker failed.
+    fn catalog(&self, url: &CatalogUrl, locale: Locale) -> Later<Option<Result<CatalogData, DataError>>>;
+    /// `pages::similar` of `query` and the semantic search's `hits`, at most `limit`; `None` as for
+    /// `catalog`.
+    fn similar(&self, query: &CatalogQuery, hits: &[String], limit: usize) -> Later<Option<Result<Vec<CatalogRow>, DataError>>>;
+}
+
+#[derive(Clone)]
+pub struct Worker(pub Arc<dyn CatalogWorker>);
 
 /// What a page shows instead of data. Serializable, because the server hands the
 /// outcome of its queries to the browser for hydration.

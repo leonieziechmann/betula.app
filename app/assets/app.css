@@ -862,10 +862,77 @@ html:not(.js) .fit-chip { display: none; }
 .rows .row-wrap { content-visibility: auto; contain-intrinsic-size: auto 58px; }
 /* The virtual list of the browser app (`VirtualRows`): an element as tall as the whole list, so
    the scrollbar has the list's length from the start, and inside it only the rows that are on
-   screen, each at its offset. They are measured, so they need no reserved size. */
-.vlist { position: relative; height: var(--h, 0px); }
-.vlist > .vrow { position: absolute; left: 0; right: 0; top: var(--top, 0px); }
+   screen, each at its offset. They are measured, so they need no reserved size. The height and
+   the offsets are inherited by nothing: they change as the rows are measured, and a value every
+   row inherited would have every row of the list styled again each time (a phone's tenth of a
+   second at every pause of the typing of a search). */
+@property --list-h { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --top { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.vlist { position: relative; height: var(--list-h); }
+.vlist > .vrow { position: absolute; left: 0; right: 0; top: var(--top); }
 .rows.virtual .row-wrap { content-visibility: visible; contain-intrinsic-size: none; }
+/* Above and below the rendered rows the virtual list holds skeleton rows (`.vfill`, each as tall
+   as a row is taken to be: --rh, the average of the measured ones, set on each fill and inherited
+   by it alone): a fast scroll runs ahead of the list in the compositor's frames, and shows rows
+   that are being filled in instead of an empty panel, as far as the scrollbar can jump. Shaded as
+   the rows they stand for (`odd`: the first of them is). */
+/* Never the browser's scroll anchor: the fill above grows and shrinks with the place in the list,
+   its rows with its bottom, and an anchor among them would scroll the list by as much. */
+.vlist > .vfill { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; overflow: hidden; overflow: clip; pointer-events: none; overflow-anchor: none; }
+.vfill.above { top: 0; justify-content: flex-end; }
+.vfill.below { bottom: 0; }
+
+/* A fill is one row of the list's columns, as tall as the fill (`skeleton::fill`; so is a row
+   whose page is not loaded yet, `.vfill-row`): `.row` gives it the grid of the rows, with the
+   columns a narrower list leaves out, and each column paints its bar again every row, a tile as
+   tall as a row (24 skeleton rows of sixteen elements a side, until 2026-10-02, were built anew
+   with every list: half the elements of the page). The bars as `skeleton::rows` has them, around
+   the middle of a row (`--sk-off` moves it): the title (14 px, of three lengths in turn) and under
+   it the number (10 px), and one bar a column (10 px). The tiles of the fill above end where its
+   rows do, at its bottom. */
+:is(.vfill, .vfill-row) > .sk-cols { --sk-off: 0px; min-height: 0; padding-block: 0; align-items: stretch; border-radius: 0; transition: none; }
+.vfill > .sk-cols { flex: 1 0 0; }
+.vfill-row > .sk-cols { height: var(--rh, 58px); }
+:is(.vfill, .vfill-row) > .sk-cols > * { padding: 0; border-radius: 0; justify-self: stretch; background-color: transparent; background-repeat: repeat-y; background-position: 0 0; }
+:is(.vfill, .vfill-row) > .sk-cols > .t {
+  background-image:
+    linear-gradient(transparent calc(var(--rh, 58px) * .5 + var(--sk-off) - 16px), var(--sk) 0 calc(var(--rh, 58px) * .5 + var(--sk-off) - 2px), transparent 0),
+    linear-gradient(transparent calc(var(--rh, 58px) * 1.5 + var(--sk-off) - 16px), var(--sk) 0 calc(var(--rh, 58px) * 1.5 + var(--sk-off) - 2px), transparent 0),
+    linear-gradient(transparent calc(var(--rh, 58px) * 2.5 + var(--sk-off) - 16px), var(--sk) 0 calc(var(--rh, 58px) * 2.5 + var(--sk-off) - 2px), transparent 0),
+    linear-gradient(transparent calc(50% + var(--sk-off) + 6px), var(--sk) 0 calc(50% + var(--sk-off) + 16px), transparent 0);
+  background-size: 74% calc(var(--rh, 58px) * 3), 92% calc(var(--rh, 58px) * 3), 56% calc(var(--rh, 58px) * 3), 24% var(--rh, 58px);
+}
+:is(.vfill, .vfill-row) > .sk-cols > :not(.t) { background-image: linear-gradient(transparent calc(50% + var(--sk-off) - 5px), var(--sk) 0 calc(50% + var(--sk-off) + 5px), transparent 0); }
+:is(.vfill, .vfill-row) > .sk-cols > :is(.resp, .events) { background-size: 56% var(--rh, 58px); }
+:is(.vfill, .vfill-row) > .sk-cols > :is(.exam, .turnus) { background-size: 38% var(--rh, 58px); }
+:is(.vfill, .vfill-row) > .sk-cols > :is(.lp, .lang) { min-width: 36px; background-size: 36px var(--rh, 58px); }
+:is(.vfill, .vfill-row) > .sk-cols > .lp { background-position: 100% 0; }
+.vfill.above > .sk-cols, .vfill.above > .sk-cols > * { background-position-y: 100%; }
+/* The cards of a phone's fill: on a wide screen there are none (`skeleton::cards`). */
+.vfill > .sk-card { display: none; }
+@media (min-width: 901px) {
+  /* The shade of every other row: a tile of two rows from the rendered ones outwards (the tiles
+     above end where they begin), the row of its first half shaded as the fill's first row. */
+  .vfill > .sk-cols { background-image: linear-gradient(transparent 50%, var(--row-shade) 0); background-size: 100% calc(2 * var(--rh, 58px)); background-repeat: repeat-y; }
+  .vfill.odd > .sk-cols { background-image: linear-gradient(var(--row-shade) 50%, transparent 0); }
+  .vfill-row.odd > .sk-cols { border-radius: var(--r-row); background: var(--row-shade); }
+}
+/* The plain lists (the Merkliste, the server's page) lay out only the rows near the screen (above):
+   a row the browser skips paints nothing but its own background. So that is where the bars of a
+   skeleton row are, and a laid-out row covers them with the panel's colour: a fast scroll that
+   comes to rows before the browser has laid them out shows skeleton rows, not an empty panel. A
+   dimmed row (`.unmarked`) and one without a module (`.missing`) let what is under them through,
+   so they have none. */
+.rows:not(.virtual) .row-wrap:where(:not(.unmarked, :has(> .row.missing))) {
+  --sk-x: 15px;
+  border-radius: var(--r-row);
+  /* From the middle: the title 16 px above it to 2 px above, the number 6 to 16 px below. */
+  background:
+    linear-gradient(var(--sk), var(--sk)) var(--sk-x) calc(50% - 9px) / min(34%, 280px) 14px no-repeat,
+    linear-gradient(var(--sk), var(--sk)) var(--sk-x) calc(50% + 11px) / min(14%, 110px) 10px no-repeat;
+}
+@media (min-width: 901px) { .rows:not(.virtual) .row-wrap.shaded:where(:not(.unmarked, :has(> .row.missing))) { background-color: var(--row-shade); } }
+:where(.rows:not(.virtual) .row-wrap:not(.unmarked, :has(> .row.missing))) > .row { background-color: var(--panel); }
 .plan-sem { white-space: nowrap; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 0 6px; color: var(--text-3); font-size: 13px; }
 .state { max-width: 520px; margin: 56px auto; padding: 0 20px; text-align: center; }
@@ -1334,6 +1401,16 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .home { container: home / inline-size; width: 100%; max-width: 1600px; margin: 0 auto; }
 @media (min-width: 901px) { .home-page { overflow-x: hidden; } }
 .home > .panel, .home-lists { scroll-margin-top: 14px; }
+/* A long page draws only what is near the screen: a panel far off it is neither styled nor laid
+   out until it comes close, and then keeps the height it was drawn with (`auto`). The start page
+   is 17 screens of a phone, the program overview 10; built whole, each cost a phone the better
+   part of a second at every visit, and the start page at every start of the app, which opens on
+   it. A panel cuts its content at its edge anyway (`.panel`), so the paint containment this
+   brings changes nothing. Only its height is a guess: a width of its own (`contain-intrinsic-size`
+   with one value sets both) widened the page past a phone's screen, which then showed it smaller. */
+.home > .panel, .faculty.panel { content-visibility: auto; contain-intrinsic-block-size: auto 1200px; }
+/* A jump to a section of the page draws them all on its way (enhance.js, `jump`). */
+.jumping .home > .panel, .jumping .faculty.panel { content-visibility: visible; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
 .block-head h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
 .block-head p { grid-column: 1 / -1; color: var(--text-2); max-width: 86ch; text-wrap: pretty; }
@@ -1516,7 +1593,32 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .wash-module .stage { background: radial-gradient(100% 90% at 0% 0%, color-mix(in oklch, var(--fac-2) 20%, transparent), transparent 70%), radial-gradient(90% 90% at 100% 100%, color-mix(in oklch, var(--fac-5) 20%, transparent), transparent 70%), var(--panel-2); }
 /* A screenshot lies on the wash like a window, cut off at the right and at the bottom. The one of
    the theme that is not shown stays hidden, and a hidden lazy picture is never loaded. */
-.stage-shot img { position: absolute; left: 7%; top: 8%; width: 104%; height: auto; border-radius: 8px 0 0 0; box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -18px rgba(15, 23, 42, .45); background: var(--bg); }
+.stage-shot img { position: absolute; left: 7%; top: 8%; width: 104%; height: auto; border-radius: 8px 0 0 0; box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -18px rgba(15, 23, 42, .45); background: var(--shot-sk); }
+/* Until a screenshot has come (they are lazy), its place shows the frame of the app it shows: the
+   bar of the search on top, the panel of the sidebar and the page's, a few bars in them. The
+   picture covers it. */
+:root {
+  --shot-sk:
+    linear-gradient(var(--sk), var(--sk)) 50% 3.5% / 32% 4% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 4% 16% / 13% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 4% 24% / 16% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 33% 17% / 30% 3.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 32% 30% / 46% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 32% 40% / 40% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 32% 50% / 46% 2.5% no-repeat,
+    linear-gradient(var(--panel), var(--panel)) 2% 75% / 21% 88% no-repeat,
+    linear-gradient(var(--panel), var(--panel)) 97% 75% / 73% 88% no-repeat,
+    var(--bg);
+  --shot-sk-phone:
+    linear-gradient(var(--sk), var(--sk)) 50% 3.5% / 70% 4% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 12% 15% / 22% 3% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 15% 24% / 66% 3.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 12% 52% / 40% 2.5% no-repeat,
+    linear-gradient(var(--sk), var(--sk)) 15% 60% / 70% 2.5% no-repeat,
+    linear-gradient(var(--panel), var(--panel)) 50% 14% / 92% 26% no-repeat,
+    linear-gradient(var(--panel), var(--panel)) 50% 92% / 92% 56% no-repeat,
+    var(--bg);
+}
 .shot-dark { display: none; }
 :root[data-theme="dark"] .shot-light { display: none; }
 :root[data-theme="dark"] .shot-dark { display: inline; }
@@ -1966,7 +2068,8 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .devices { position: relative; padding: 6px 17% 26px 0; }
 .screen { margin: 0; }
 /* No `display` here: .shot-light and .shot-dark decide which theme's picture shows. */
-.screen img { width: 100%; height: auto; vertical-align: top; }
+.screen img { width: 100%; height: auto; vertical-align: top; background: var(--shot-sk); }
+.screen.phone img { background: var(--shot-sk-phone); }
 .screen.desktop img { border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -18px rgba(15, 23, 42, .45); }
 .screen.phone { position: absolute; right: 0; bottom: 0; width: 31%; padding: 5px; border-radius: 20px; background: var(--device); box-shadow: 0 0 0 1px var(--line-strong), 0 18px 40px -14px rgba(15, 23, 42, .55); }
 .screen.phone img { border-radius: 15px; }
@@ -2093,7 +2196,7 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 @media (max-width: 600px) {
   .carousel { --w: 66cqw; }
   .stage { aspect-ratio: 3 / 4; }
-  .stage-shot img { left: 8%; top: 6%; width: 96%; border-radius: 12px 12px 0 0; }
+  .stage-shot img { left: 8%; top: 6%; width: 96%; border-radius: 12px 12px 0 0; background: var(--shot-sk-phone); }
   .map-wide { display: none; }
   .map-tall { display: block; }
   .show-arrow, .cap-go { display: none; }
@@ -2612,6 +2715,18 @@ a.slot:hover { filter: brightness(.96); }
    about 450 items a semester). */
 .agenda { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .agenda-week { content-visibility: auto; contain-intrinsic-size: auto 240px; scroll-margin-top: 12px; }
+/* A week the browser skips (`data-skipped`, enhance.js) shows a skeleton of itself in its own
+   background, the one thing it paints then: the bar of its heading, and under it its days as they
+   are laid out (.agenda-day), a day of two items a tile: its line on top, the day on the left,
+   what happens on the right. */
+.agenda-week[data-skipped] {
+  --day: 52px;
+  background:
+    linear-gradient(var(--sk), var(--sk)) 0 4px / 150px 10px no-repeat,
+    repeating-linear-gradient(var(--line) 0 1px, transparent 0 var(--day)) 0 21px / 100% calc(100% - 21px) no-repeat,
+    repeating-linear-gradient(transparent 0 9px, var(--sk) 0 19px, transparent 0 var(--day)) 0 21px / 48px calc(100% - 21px) no-repeat,
+    repeating-linear-gradient(transparent 0 9px, var(--sk) 0 19px, transparent 0 31px, var(--sk) 0 41px, transparent 0 var(--day)) 88px 21px / min(52%, 360px) calc(100% - 21px) no-repeat;
+}
 .agenda-week > h3 { margin-bottom: 4px; color: var(--text-2); font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .agenda-week > h3 small { color: var(--text-3); font-weight: 500; font-size: 12px; }
 .agenda-day { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 2px 12px; padding: 6px 0; border-top: 1px solid var(--line); }
@@ -2906,6 +3021,25 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   /* The virtual list places its rows itself; the gap between the cards is part of every row. */
   .rows.virtual { display: block; }
   .vlist > .vrow { padding-bottom: 8px; }
+  /* The skeleton rows are cards as well, with the gap of a row under each (--rh counts it), their
+     middle 4 px above the tile's. The 24 next to the rendered rows are cards of their own, one
+     element each with its bars in its background, as `skeleton::rows` lays them out (the title's
+     column: the card less its padding, the gap and the credits); past them the fill's row draws
+     a card a tile, flat. */
+  :is(.vfill, .vfill-row) > .sk-cols { --sk-off: -4px; }
+  .vfill > .sk-cols { box-shadow: none; background: linear-gradient(var(--panel) calc(100% - 8px), transparent 0) 0 0 / 100% var(--rh, 96px) repeat-y; }
+  .vfill-row > .sk-cols { height: calc(var(--rh, 96px) - 8px); margin-bottom: 8px; border-radius: var(--r-panel); }
+  .vfill > .sk-card {
+    --sk-t: calc(100% - 122px);
+    display: block; flex: none; height: calc(var(--rh, 96px) - 8px); margin-bottom: 8px; border-radius: var(--r-panel); background-color: var(--panel); box-shadow: var(--shadow-panel);
+    background-image: linear-gradient(var(--sk), var(--sk)), linear-gradient(var(--sk), var(--sk)), linear-gradient(var(--sk), var(--sk));
+    background-repeat: no-repeat;
+    background-size: calc(var(--sk-t) * .74) 14px, calc(var(--sk-t) * .24) 10px, 36px 10px;
+    background-position: 18px calc(50% - 9px), 18px calc(50% + 11px), right 52px center;
+  }
+  .vfill > .sk-card:nth-child(3n + 2) { background-size: calc(var(--sk-t) * .92) 14px, calc(var(--sk-t) * .24) 10px, 36px 10px; }
+  .vfill > .sk-card:nth-child(3n) { background-size: calc(var(--sk-t) * .56) 14px, calc(var(--sk-t) * .24) 10px, 36px 10px; }
+  .rows:not(.virtual) .row-wrap:where(:not(.unmarked, :has(> .row.missing))) { --sk-x: 18px; border-radius: var(--r-panel); background-color: var(--panel); }
   /* The note stands in line with the cards, as far above them in either list. */
   .plan-note { margin: 0 0 10px; }
   .rows.scroll:not(.virtual) > .plan-note { margin-bottom: 2px; }
@@ -2961,6 +3095,12 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
      tap beside it, on the page it dims. */
   .filters .panel-head, .sidebar.sheet .panel-head { touch-action: none; cursor: grab; }
   .filters.dragging, .sidebar.sheet.dragging { transition: none; }
+  /* Closed, a sheet's content is neither styled nor laid out (the catalog's filters are a third
+     of its page): it is drawn as the sheet opens, and stays until it has slid down again. Meanwhile
+     it keeps the height it had (at first its highest): with none, the sheet that waits below the
+     screen (105 % of its height) stood on its bottom edge. */
+  .filters:not(.open, :target), .sidebar.sheet:not(.open, :target) { content-visibility: hidden; contain-intrinsic-block-size: auto 84vh; }
+  .filters:not(.dragging), .sidebar.sheet:not(.dragging) { transition: transform .3s var(--ease), content-visibility .3s allow-discrete; }
   html.sheet-open::after { content: ""; position: fixed; inset: 0; z-index: 39; background: rgba(15, 23, 42, .34); }
   /* Open, a sheet holds the page behind it still: the page does not scroll (a touch on it moves
      nothing, enhance.js), and the sheet's list keeps its scroll to itself at either end. */

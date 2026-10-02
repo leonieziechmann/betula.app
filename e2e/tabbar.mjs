@@ -14,8 +14,11 @@
 // (owner, 2026-10-02: „Probleme, wenn man schnell swiped über den rand hinaus"); a tap right after
 // a quick swipe is a tap; the hover a finger leaves on the tab it tapped lights nothing once a swipe
 // has gone on to another tab (owner: „wird das davor angeklickt noch hervorgehoben"), while a mouse
-// still lights the tab it points at; up or down, the bar scrolls the page. Then the site before the
-// app takes over: a swipe loads the tab's page, as a tap would.
+// still lights the tab it points at; up or down, the bar scrolls the page. Then the site while the
+// app is starting (owner, 2026-10-02: on a phone „friert das häufig ein", a tab tapped right after
+// opening loaded the next page and started it all again): a tab tapped and a swipe are current at
+// once, the page stays, and the app shows the last one's page once it runs; where the app does not
+// start, a swipe loads the tab's page, as a tap would.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node tabbar.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -289,16 +292,39 @@ await desk.route("**/pkg/folia_client.js*", (route) => route.fulfill({ contentTy
 }
 await desk.close();
 
-// ---- before the app takes over (its bundle never comes): the swipe loads the tab's page
+// ---- while the app is starting (its bundle comes 3 s late): a tab tapped and a swipe wait for it,
+// each current at once, and the app shows the last one's page; nothing loads the page again
+const starting = await browser.newContext({ ...phone, serviceWorkers: "block" });
+await starting.route("**/pkg/folia_client_bg.wasm*", async (route) => { await new Promise((resolve) => setTimeout(resolve, 3000)); await route.continue(); });
+{
+  const { page, swipe } = await open(starting, "/programs");
+  await page.evaluate(() => { window.__marker = 1; });
+  const before = await page.evaluate(barState);
+  check(await page.evaluate(() => window.__betulaApp !== true), "starting: the app was there before its bundle");
+  await page.touchscreen.tap(before.mids[3], before.bar.mid);
+  let now = await page.evaluate(barState);
+  check(now.current === "bookmarks" && now.loaded, `starting: the tab tapped is not current at once (${now.current}, the page kept: ${now.loaded})`);
+  await swipe(before.mids[2], before.bar.mid, -110, 0);
+  await page.waitForFunction(() => document.querySelector('.bottomnav > .nav[aria-current="page"]')?.dataset.area === "studyplan", null, { timeout: 2000 }).catch(() => {});
+  now = await page.evaluate(barState);
+  check(now.current === "studyplan" && now.loaded, `starting: the tab swiped to is not current (${now.current}, the page kept: ${now.loaded})`);
+  await page.waitForFunction(() => window.__betulaApp === true && location.pathname === "/studyplan" && !document.querySelector("#content[aria-busy]"), null, { timeout: 30000 }).catch(() => problems.push(`starting: the app did not show the Stundenplan (${page.url()})`));
+  now = await page.evaluate(barState);
+  check(now.current === "studyplan" && now.loaded, `starting: the app went to ${now.path} with ${now.current} current (the page kept: ${now.loaded})`);
+}
+await starting.close();
+
+// ---- where the app does not start (its bundle fails): the swipe loads the tab's page, at once
 const classic = await browser.newContext({ ...phone, serviceWorkers: "block" });
-await classic.route("**/pkg/folia_client.js*", (route) => route.fulfill({ contentType: "text/javascript", body: "export default () => new Promise(() => {});" }));
+await classic.route("**/pkg/folia_client.js*", (route) => route.fulfill({ contentType: "text/javascript", body: "export default () => Promise.reject(new Error('no app'));" }));
 {
   const { page, swipe } = await open(classic, "/programs");
   await page.waitForLoadState("load");
+  await page.waitForFunction(() => window.__betulaStarting === false, null, { timeout: 30000 }).catch(() => problems.push("classic: the start of the app did not end"));
   const before = await page.evaluate(barState);
   check(before.current === "programs", `classic: the current tab is ${before.current}`);
   await swipe(before.mids[2], before.bar.mid, 110, 0);
-  await page.waitForURL((url) => url.pathname.startsWith("/catalog"), { timeout: 8000 }).catch(() => problems.push(`classic: the swipe did not load the catalog (${page.url()})`));
+  await page.waitForURL((url) => url.pathname.startsWith("/catalog"), { timeout: 4000 }).catch(() => problems.push(`classic: the swipe did not load the catalog (${page.url()})`));
   await page.waitForLoadState("load");
   const after = await page.evaluate(barState);
   check(after.current === "catalog" && !after.swipe, `classic: the catalog's page has ${after.current} current (${after.swipe})`);

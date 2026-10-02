@@ -13,6 +13,7 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -36,14 +37,14 @@ use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
-use crate::data::{use_source, DataError, PageStatus, Semantic, Source};
+use crate::data::{use_source, DataError, Later, PageStatus, Semantic, Source, Worker};
 use crate::format;
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::nav;
 use crate::pages::module::ModulePanel;
-use crate::pending::{Change, Pending};
+use crate::pending::{Change, Pending, Prepare};
 use crate::seo::Seo;
-use crate::skeleton::{DetailSkeleton, RowsSkeleton};
+use crate::skeleton::{self, DetailSkeleton, RowsSkeleton};
 use crate::studyplan::{PlanHint, Studyplan};
 use crate::swipe::RowSwipe;
 use crate::tabs::{self, Tabs};
@@ -100,6 +101,9 @@ pub fn CatalogPage() -> impl IntoView {
     let status = PageStatus::capture();
     let phone = phone_layout();
 
+    // The list of a search being typed, worked out by the catalog's worker before the address
+    // changes (`prepare` below): `list` finds it here and asks the local catalog nothing.
+    let prepared: StoredValue<Option<(CatalogUrl, Result<CatalogData, DataError>)>> = StoredValue::new(None);
     let list_source = source.clone();
     let list = Memo::new(move |_| {
         // Start at the page the URL names at this moment; later page changes are scrolling. The
@@ -108,8 +112,40 @@ pub fn CatalogPage() -> impl IntoView {
         // link named another placeholder than the address would plan into the wrong one.
         let query = asked.get()?;
         let current = CatalogUrl { query, page: page.get_untracked(), open: None, fill: fill.get() };
+        if let Some(data) = prepared.try_with_value(|kept| kept.as_ref().filter(|(of, _)| *of == current).map(|(_, data)| data.clone())).flatten() {
+            return data.map(|data| (current, data));
+        }
         list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current, crate::i18n::locale()))).map(|data| (current, data))
     });
+    // While the catalog is up, the search of the top bar has the list of what is typed worked out
+    // by the catalog's worker before it goes there (owner, 2026-10-02: typing lagged, a phone
+    // spent half a second of its thread on every pause): `Pending::go_quietly` waits for it, and
+    // the page then only builds the rows. The list of an address is the list `list` asks for: its
+    // query with what fits the plan and the marks filled in, the page and the placeholder it names.
+    // Without the worker (not loaded yet, failed, the server) the step goes on at once, as before.
+    if let (true, Some(going), Some(worker)) = (APP, Pending::expect(), use_context::<Worker>()) {
+        let prepare_source = source.clone().ok();
+        let prepare: Prepare = Rc::new(move |to: &str| -> Option<Later<()>> {
+            let (path, search) = to.split('#').next().unwrap_or(to).split_once('?').unwrap_or((to, ""));
+            if path != url::CATALOG || !worker.0.ready() {
+                return None;
+            }
+            let target = CatalogUrl::parse(search);
+            let fitted = untrack(|| with_fits(target.query, plan, mine, prepare_source.as_ref(), t));
+            if fitted.failed.is_some() {
+                return None;
+            }
+            let current = CatalogUrl { query: untrack(|| with_marks(fitted.query, bookmarks)), page: target.page, open: None, fill: target.fill };
+            let (worker, locale) = (worker.clone(), crate::i18n::locale());
+            Some(Box::pin(async move {
+                if let Some(answer) = worker.0.catalog(&current, locale).await {
+                    prepared.try_set_value(Some((current, answer)));
+                }
+            }))
+        });
+        let number = going.prepare_with(prepare);
+        on_cleanup(move || going.prepared_by(number));
+    }
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
     let failed = Memo::new(move |_| list.with(|list| list.as_ref().err().cloned()));
     let facts = Memo::new(move |_| list.with(|list| list.as_ref().map(|(_, data)| Facts::of(data)).unwrap_or_default()));
@@ -298,7 +334,16 @@ pub fn CatalogPage() -> impl IntoView {
                         let filter = addressed(&current.query);
                         let same = last_filter.try_update_value(|last| last.replace(filter.clone()) == Some(filter)).unwrap_or(false);
                         let stay = (same && !fresh).then(|| top_row.get_value()).flatten();
-                        view! { <List current data open marked page phone reveal fresh stay top_row/> }
+                        // A list that replaces another starts at the top: the panel is the element the
+                        // list before scrolled, and where that stood would be taken for this list's
+                        // page. Scrolled now, while the list before is laid out still: once the new one
+                        // is there, setting the position would lay all of it out in this task, and the
+                        // frame would lay it out again (a phone's tenth of a second, at every pause of
+                        // the typing of a search). One of the same filter keeps its place (`stay`).
+                        if !fresh && stay.is_none() {
+                            nav::scroll_list_to_start(SCROLL_ID);
+                        }
+                        view! { <List current data open marked page phone reveal stay top_row/> }
                     })}
                 }.into_any(),
             }}
@@ -605,7 +650,9 @@ fn elsewhere_note(data: &CatalogData, listed: u64, open: Memo<Option<String>>, t
 /// results, the closest first (`pages::similar`; owner, 2026-10-01: with every search, the filters
 /// applying, at most 10, rows as the list's: marking, the preview and the keyboard work as there).
 /// Only the browser app has the semantic search (`data::Semantic`), and it answers once its model
-/// is loaded: until then, and where it adds nothing, nothing stands here.
+/// is loaded: until then, and where it adds nothing, nothing stands here. Which of its modules
+/// stand here the catalog's worker works out where it answers (`data::Worker`), beside the page's
+/// thread like the list of the search; the local catalog of the page otherwise.
 #[component]
 fn SimilarModules(
     current: CatalogUrl,
@@ -618,17 +665,29 @@ fn SimilarModules(
 ) -> impl IntoView {
     let t = i18n::t();
     let (Some(semantic), Ok(source), Some(text)) = (use_context::<Semantic>(), use_source(), pages::similar_text(&query)) else { return ().into_any() };
+    let worker = use_context::<Worker>();
     let found = LocalResource::new(move || {
-        let (semantic, source, query, text) = (semantic.clone(), source.clone(), query.clone(), text.clone());
+        let (semantic, source, worker, query, text) = (semantic.clone(), source.clone(), worker.clone(), query.clone(), text.clone());
         async move {
             // Nothing where a newer search took this one's place: its list has its own.
             let hits = semantic.0.search(&text, pages::SIMILAR_CANDIDATES).await.unwrap_or_default();
             let ids: Vec<String> = hits.into_iter().map(|hit| hit.module_id).collect();
-            source.run(|db| pages::similar(db, &query, &ids, pages::SIMILAR_SHOWN)).unwrap_or_default()
+            if ids.is_empty() {
+                return Vec::new();
+            }
+            match worker.filter(|worker| worker.0.ready()) {
+                // `None`: a newer list asked since, which has its own.
+                Some(worker) => worker.0.similar(&query, &ids, pages::SIMILAR_SHOWN).await.and_then(Result::ok).unwrap_or_default(),
+                None => source.run(|db| pages::similar(db, &query, &ids, pages::SIMILAR_SHOWN)).unwrap_or_default(),
+            }
         }
     });
+    // Built once the visitor stops typing (`Pending::typing`): they come a moment after the list, and
+    // built while the next keys come, they would hold them up. Once there, they stay.
+    let going = Pending::expect();
+    let due = Memo::new(move |was: Option<&bool>| was.copied().unwrap_or(false) || (found.with(Option::is_some) && !going.is_some_and(|going| going.typing())));
     view! {
-        {move || found.get().filter(|rows| !rows.is_empty()).map(|rows| {
+        {move || due.get().then(|| found.get()).flatten().filter(|rows| !rows.is_empty()).map(|rows| {
             let base = current.clone();
             view! {
                 <section class="similar">
@@ -813,8 +872,6 @@ fn List(
     phone: RwSignal<bool>,
     /// The row to scroll to once the list is there.
     reveal: Option<String>,
-    /// The first list of the visit (`true`), or one that replaces the list of the filter before.
-    fresh: bool,
     /// A list that replaces one of the same filter: the row the list before had at the top.
     stay: Option<Anchor>,
     /// Where the row at the top of the screen is kept for the list that may replace this one.
@@ -945,7 +1002,7 @@ fn List(
     // The browser app renders only what is on screen of the whole list; the server renders the
     // page the URL names, with pager links (no JavaScript, search engines).
     let rows = if APP {
-        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal fresh stay top_row head states foot/> }.into_any()
+        view! { <VirtualRows current=current.clone() query=data.effective.clone() first=data.page.rows.clone() total open marked page phone with_program reveal stay top_row head states foot/> }.into_any()
     } else {
         view! { <PlainRows current=current.clone() rows=data.page.rows.clone() start_page pages_total open phone with_program head states foot/> }.into_any()
     };
@@ -1135,6 +1192,9 @@ const KEEP_PAGES: usize = 4;
 /// What a row is taken to be as tall as until it has been measured (the stylesheet's rows).
 const ROW_DESKTOP: f32 = 58.0;
 const ROW_PHONE: f32 = 88.0;
+/// Skeleton cards a fill has on a phone next to the rendered rows (`skeleton::cards`), before its
+/// one row of the columns goes on (`skeleton::fill`).
+const FILL_CARDS: usize = 24;
 
 /// Where the visitor is in the list: the place of the row at the top of the screen, and the
 /// modules on screen from the top down (where their page is loaded), each with how far the list
@@ -1169,8 +1229,6 @@ fn VirtualRows(
     with_program: bool,
     /// The row to scroll to once the list is there: the module the visitor comes back from.
     reveal: Option<String>,
-    /// The first list of the visit (`true`), or one that replaces the list of the filter before.
-    fresh: bool,
     /// A list that replaces one of the same filter: the row to keep at the top of the screen.
     stay: Option<Anchor>,
     /// Where the row at the top of the screen is kept, for the list that may replace this one.
@@ -1196,8 +1254,15 @@ fn VirtualRows(
     let heights: StoredValue<Vec<Option<f32>>> = StoredValue::new(vec![None; total]);
     let measured = StoredValue::new((0.0f32, 0usize));
     let layout = RwSignal::new(0u32);
-    // The rows that are rendered: `first..end`.
-    let window = RwSignal::new((0usize, (BUFFER * 3).min(total)));
+    // The rows that are rendered: `first..end`. At first those a screen holds: the list is built in
+    // the task a click or the search of the top bar waits for (while typing, at every pause), and
+    // the rows around them follow a frame later, once `follow` knows where the list is.
+    let row_guess = if phone.get_untracked() { ROW_PHONE } else { ROW_DESKTOP };
+    let on_screen = nav::screen_height().map_or(BUFFER * 3, |height| (height / row_guess).ceil() as usize + 1);
+    let window = RwSignal::new((0usize, on_screen.min(total)));
+    // Skeleton rows around the rendered ones are for a list longer than it renders at once: a list
+    // as short as most searches find is rendered whole after its first frame.
+    let fills = total > on_screen + BUFFER;
     // Frames, timeouts and the size watcher outlive the list when a filter replaces it: what
     // they call must not touch the list's values after that (R2).
     let alive = Arc::new(AtomicBool::new(true));
@@ -1389,14 +1454,10 @@ fn VirtualRows(
     let (at_start, alive_start) = (follow.clone(), alive.clone());
     let start_source = use_source().ok();
     Effect::new(move |_| {
-        // A list that replaces another (a filter changed) starts at the top: the panel is the
-        // element the list before scrolled, and where that stood would be taken for this list's
-        // page. Before anything measures: the frame after the render already follows the scroll.
-        // One of the same filter (the plan or the marks changed what it holds) keeps the first row
-        // on screen that is still in it where it stood, so the visitor stays where they were.
-        if !fresh && stay.is_none() {
-            nav::scroll_list_to_start(SCROLL_ID);
-        }
+        // A list that replaces another (a filter changed) starts at the top, scrolled there before
+        // it was built (`CatalogPage`). One of the same filter (the plan or the marks changed what
+        // it holds) keeps the first row on screen that is still in it where it stood, so the
+        // visitor stays where they were.
         let position = |id: &str| {
             let source = start_source.clone()?;
             let index = source.run(|db| catalog::queries::catalog_position(db, &start_query, id)).ok().flatten()?;
@@ -1447,22 +1508,50 @@ fn VirtualRows(
             {head}
             {move || going.is_some_and(|p| p.waits(Change::List)).then(|| view! { <RowsSkeleton/> })}
             {states}
-            <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--h:{:.0}px", offset_of(total)) }>
+            <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--list-h:{:.0}px", offset_of(total)) }>
                 <For each=move || { let (first, end) = window.get(); first..end } key=|index| *index children=move |index: usize| {
                     let base = base_rows.clone();
                     let top = move || {
                         layout.track();
                         format!("--top:{:.0}px", offset_of(index))
                     };
+                    // A skeleton row is as tall as a row is taken to be (`--rh`).
+                    let skeleton_top = move || {
+                        layout.track();
+                        format!("--top:{:.0}px;--rh:{:.0}px", offset_of(index), estimate())
+                    };
+                    // A row whose page could not be loaded stands there as a skeleton, which is
+                    // not measured (no `data-i`): it keeps the place the row is taken to have.
                     view! {
-                        {move || row_at(index).map(|row| {
-                            let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
-                            let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
-                            let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
-                            view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/></div> }
-                        })}
+                        {move || match row_at(index) {
+                            Some(row) => {
+                                let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
+                                let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
+                                let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
+                                view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/></div> }.into_any()
+                            }
+                            None => view! { <div class="vrow vfill-row" class:odd=index % 2 == 1 style=skeleton_top aria-hidden="true">{skeleton::fill()}</div> }.into_any(),
+                        }}
                     }
                 }/>
+                // What lies above and below the rendered rows, as skeleton rows: a fast scroll
+                // passes the rendered rows in the compositor's frames before the list follows it.
+                // After the rows in the order of the page, so that the first `.row` of the list is
+                // a module's; static, only their places change. Each is one row of the columns
+                // painted again every row (`skeleton::fill`), and on a phone the cards nearest the
+                // rows first, an element each: 24 skeleton rows of sixteen elements a side, built
+                // anew with every list, made half the elements of the page, and a filter took half
+                // as long again (2026-10-02). None for a list as short as most searches find.
+                {fills.then(|| view! {
+                    <div class="vfill above" class:odd=move || window.get().0 % 2 == 1 style=move || { layout.track(); format!("height:{:.0}px;--rh:{:.0}px", offset_of(window.get().0), estimate()) } aria-hidden="true">
+                        {skeleton::fill()}
+                        {move || phone.get().then(|| skeleton::cards(FILL_CARDS))}
+                    </div>
+                    <div class="vfill below" class:odd=move || window.get().1 % 2 == 1 style=move || { layout.track(); format!("top:{:.0}px;--rh:{:.0}px", offset_of(window.get().1), estimate()) } aria-hidden="true">
+                        {move || phone.get().then(|| skeleton::cards(FILL_CARDS))}
+                        {skeleton::fill()}
+                    </div>
+                })}
             </div>
             {(total > per_page).then(|| view! { <p class="list-end">{(t.catalog.list_end)(&format::count(total as u64, t.locale))}</p> })}
             {foot}

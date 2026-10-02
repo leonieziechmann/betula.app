@@ -9,7 +9,9 @@
 //   2. with the network the app starts only on the server's copy, which is downloaded first, as
 //      on a first visit ("Daten werden geladen …"), and kept;
 //   3. a copy of the build's own schema under an older ETag still starts the app at once, and the
-//      server's copy replaces it in the background for the next start, as before.
+//      server's copy replaces it in the background for the next start, as before;
+//   4. a copy the browser cannot read any more (its file gone, 2026-10-02: the app then never
+//      started again) is replaced as an older one is, and the app starts on the server's copy.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node schema.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // The server must serve a snapshot of the build's schema.
 import { chromium } from "playwright-core";
@@ -53,18 +55,21 @@ try {
         tx.onerror = () => reject(tx.error);
       };
     });
-    // The copy: its ETag and the schema its header names.
+    // The copy (a Blob under `catalog`, boot.js): its ETag and the schema its header names.
     window.__copy = async () => {
-      const copy = await store("readonly", (snapshots) => snapshots.get("current"));
-      return copy ? { etag: copy.etag, schema: new DataView(copy.bytes.buffer, copy.bytes.byteOffset).getInt32(60) } : null;
+      const copy = await store("readonly", (snapshots) => snapshots.get("catalog"));
+      return copy ? { etag: copy.etag, schema: new DataView(await copy.blob.slice(0, 100).arrayBuffer()).getInt32(60) } : null;
     };
     // The copy there is, kept again under `etag` with `schema` in its header.
     window.__plant = async ([etag, schema]) => {
-      const { bytes } = await store("readonly", (snapshots) => snapshots.get("current"));
-      const planted = bytes.slice();
-      new DataView(planted.buffer).setInt32(60, schema);
-      await store("readwrite", (snapshots) => snapshots.put({ etag, bytes: planted }, "current"));
+      const { blob } = await store("readonly", (snapshots) => snapshots.get("catalog"));
+      const head = await blob.slice(0, 100).arrayBuffer();
+      new DataView(head).setInt32(60, schema);
+      await store("readwrite", (snapshots) => snapshots.put({ etag, blob: new Blob([head, blob.slice(100)]) }, "catalog"));
     };
+    // A copy that cannot be read: what IndexedDB hands back once the file of its Blob is gone
+    // (NotFoundError) is beyond a check to bring about, so here the record has no Blob.
+    window.__break = (etag) => store("readwrite", (snapshots) => snapshots.put({ etag, blob: null }, "catalog"));
   });
   const page = await context.newPage();
   page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
@@ -130,6 +135,14 @@ try {
   check(!loading(await statuses()), "the build's schema, an older ETag: the app waited for a download");
   const followed = await until((etag) => window.__copy().then((copy) => copy?.etag === etag), server.etag, 60000);
   check(followed, "the build's schema, an older ETag: the server's copy did not replace it in the background");
+
+  // 4. A copy that cannot be read: replaced before the app starts.
+  await page.evaluate((etag) => window.__break(etag), '"unreadable"');
+  await page.reload({ waitUntil: "domcontentloaded" });
+  check(await started(120000), "an unreadable copy: the app did not start");
+  check((await page.evaluate(() => window.betulaDb?.etag)) === server.etag, "an unreadable copy: the app did not start on the server's copy");
+  const mended = await page.evaluate(() => window.__copy());
+  check(mended?.etag === server.etag && mended?.schema === server.schema_version, `an unreadable copy: kept ${JSON.stringify(mended)}`);
 } catch (error) {
   problems.push(String(error).slice(0, 300));
 } finally {

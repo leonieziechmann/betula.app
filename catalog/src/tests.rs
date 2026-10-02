@@ -1337,6 +1337,31 @@ fn the_similar_modules_are_the_hits_the_filters_hold_besides_the_results() {
     let outside = offered.iter().find(|id| !curriculum.iter().any(|row| &row.id == *id)).expect("a module outside the program");
     let hits = vec![outside.clone(), inside[1].id.clone(), inside[0].id.clone()];
     assert_eq!(pages::similar(&db, &program.effective, &hits, 10).unwrap(), [inside[1].clone(), inside[0].clone()]);
+
+    // A title borne by several offered modules (a module per program, an old and a new number):
+    // the search for one by its number finds that one, and the others are not „Ähnliche Module"
+    // (owner, 2026-10-02: what the search finds is not shown again); among the similar ones a
+    // title stands once, the closest of its modules.
+    let shared = column(
+        &db,
+        "SELECT m.title FROM v_module m JOIN v_module_facets f ON f.module_id = m.id WHERE f.offer_status IN ('active', 'phase_out') \
+         GROUP BY m.title HAVING COUNT(*) > 1 ORDER BY m.title",
+    );
+    let bearing = |title: &str| -> Vec<String> {
+        let ids = column(&db, &format!("SELECT f.module_id FROM v_module_facets f JOIN v_module m ON m.id = f.module_id WHERE f.offer_status IN ('active', 'phase_out') AND m.title = '{}' ORDER BY f.module_id", title.replace('\'', "''")));
+        assert!(ids.len() > 1, "{title} is borne by several offered modules");
+        ids
+    };
+    let (twins, more) = (bearing(&shared[0]), bearing(&shared[1]));
+    let by_number = pages::catalog(&db, &CatalogUrl::parse(&format!("q={}", twins[0])), crate::Locale::De).unwrap();
+    let found = ids(by_number.page.rows.clone());
+    assert!(found.contains(&twins[0]) && !found.contains(&twins[1]), "{} finds itself, not {} of the same title", twins[0], twins[1]);
+    let hits = vec![twins[1].clone(), more[0].clone(), more[1].clone(), offered[0].clone()];
+    assert!(!found.contains(&more[0]) && !found.contains(&offered[0]));
+    assert_eq!(ids(pages::similar(&db, &by_number.effective, &hits, 10).unwrap()), [more[0].clone(), offered[0].clone()]);
+    // Without that title among the results, the closest module of it stands there.
+    let other = pages::catalog(&db, &CatalogUrl::parse("q=python"), crate::Locale::De).unwrap();
+    assert_eq!(ids(pages::similar(&db, &other.effective, &[twins[1].clone(), twins[0].clone()], 10).unwrap()), [twins[1].clone()]);
 }
 
 #[test]

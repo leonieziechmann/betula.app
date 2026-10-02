@@ -404,6 +404,10 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
     let dir = RwSignal::new(1i32);
     let staged = RwSignal::new(None::<i32>);
     let map_open = RwSignal::new(false);
+    // The map in the dialog is built in the browser once the dialog first opens: some 2,200
+    // elements nobody sees until then, which the start page built at every visit, and so at every
+    // start of the app on a phone, which opens on this page. The server's page has it as before.
+    let map_built = RwSignal::new(cfg!(feature = "ssr"));
     // Turning by itself, until the pause button stops it. The browser remembers a stop (only
     // that: playing is the default and leaves nothing behind).
     let playing = RwSignal::new(nav::local_get(PAUSED_KEY).as_deref() != Some("paused"));
@@ -442,6 +446,8 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
     };
     let open_map = move || {
         if let Some(dialog) = dialog.get_untracked() {
+            // There before the dialog shows: the view follows in this task's microtasks.
+            map_built.set(true);
             if dialog.show_modal().is_ok() {
                 map_open.set(true);
             }
@@ -612,7 +618,7 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                         </div>
                         <button type="button" class="icon-btn map-dialog-close" aria-label=home.close_map on:click=move |_| close_map()><Icon name="x"/></button>
                     </header>
-                    <MapStage map/>
+                    {move || map_built.get().then(|| view! { <MapStage map=map.clone()/> })}
                 </dialog>
             })}
         </section>

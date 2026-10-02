@@ -323,7 +323,8 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await step("into the catalog with the row's areas", () => page.click('#sidebar a[data-walk="catalog"]'), () => location.pathname === "/catalog" && document.querySelectorAll('.tag:has(em)').length >= 5 && document.querySelector("#pick-area")?.textContent.includes("5 Bereiche"));
   const tags = await page.evaluate(() => [...document.querySelectorAll(".tag")].filter((tag) => tag.querySelector("em")?.textContent === "Bereich").map((tag) => tag.textContent.replace("Bereich", "").trim()).sort());
   check(tags.join(" | ").includes("Physik") && tags.length === 5, `catalog: the areas of the row are ${tags.join(" | ")}`);
-  await step("back to the program", () => page.goBack(), () => location.pathname.startsWith("/programs/bachelor-informatik-2008") && location.search.includes("req="));
+  // The address changes at once, the page a moment later (the catalog stays up until it is drawn).
+  await step("back to the program", () => page.goBack(), () => location.pathname.startsWith("/programs/bachelor-informatik-2008") && location.search.includes("req=") && document.querySelector('table.matrix tbody a[data-walk="plan-row"]'));
   // The FÜS by its name: its list, no area.
   const fues = await row("Fachübergreifendes Studium");
   check(/Fachübergreifenden Studium/.test(fues.note) && !fues.shown.startsWith("Vermutlich") && fues.beside.length === 0, `plan row: the FÜS row reads „${fues.note.slice(0, 80)}" and points at ${fues.shown}`);

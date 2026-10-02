@@ -32,7 +32,7 @@ TARGET_DIR=$(cargo metadata --format-version 1 --no-deps 2>/dev/null \
 [ -n "$TARGET_DIR" ] || TARGET_DIR="${CARGO_TARGET_DIR:-target}"
 
 # The Rust code of the browser app, and of the server besides. What app/assets holds is live.
-CLIENT_SOURCES=(app/src catalog/src client/src pack/src Cargo.toml Cargo.lock app/Cargo.toml catalog/Cargo.toml client/Cargo.toml pack/Cargo.toml)
+CLIENT_SOURCES=(app/src catalog/src client/src client/js pack/src Cargo.toml Cargo.lock app/Cargo.toml catalog/Cargo.toml client/Cargo.toml pack/Cargo.toml)
 SOURCES=("${CLIENT_SOURCES[@]}" server/src server/build server/Cargo.toml)
 
 build_client() {

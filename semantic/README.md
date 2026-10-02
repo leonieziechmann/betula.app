@@ -203,7 +203,12 @@ The catalog shows what it finds under the results of a search, as „Ähnliche M
 (`app::pages::catalog::SimilarModules`, `catalog::pages::similar`; docs/frontend.md, „The search of
 the catalog“): with every search of three letters or digits, the 500 modules closest to its text,
 of which those the filters hold and the search itself does not find, at most 10, the closest
-first, as rows of the list. Nothing waits for it: the rows come once the search answers.
+first, as rows of the list. Nothing waits for it: the rows come once the search answers, and once
+the visitor stops typing. A module that bears the title of one of the results is none of them (the
+same module under another number has the same text, so the same vector, and was the closest of
+all), and a title stands there once. Which of the 500 stand there the catalog's search worker works
+out (`app::data::Worker`, beside the page's thread like the list of the search), the page's own
+copy of the catalog where it has none.
 
 - **Folia** serves the model given by `FOLIA_SEMANTIC_MODEL` (`server/src/semantic.rs`) at
   `/models/e5-de-en-<the first 16 hex digits of its SHA-256>.bin`, kept for good (`immutable`):
