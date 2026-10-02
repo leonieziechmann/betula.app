@@ -72,6 +72,7 @@ func (s *Service) semanticStage(ctx context.Context, result *CycleResult) {
 		s.summaryFailed = map[string]time.Time{}
 	}
 	stats, err := runSemantic(ctx, s.db, cfg, start.Add(cfg.Budget), s.now, s.summaryFailed)
+	s.semanticLast = stats
 	stage := StageResult{Name: "semantic", DurationMS: s.now().Sub(start).Milliseconds()}
 	switch {
 	case err != nil && ctx.Err() == nil:
@@ -101,15 +102,19 @@ func runSemantic(ctx context.Context, db *catalogdb.DB, cfg Semantic, deadline t
 	if err != nil {
 		return stats, err
 	}
-	// Modules that say the same thing share a summary and a vector.
-	var texts []semanticText
+	// Modules that say the same thing share a summary (texts). The passages are each module's
+	// own, made from the text as the build makes them (catalogbuild, „module vectors“), not from
+	// a cleaned one: Plain needs the lines of a description to drop the markers of its lists, and
+	// a passage made otherwise has a hash the build never looks up. Equal passages share a vector.
+	var texts, all []semanticText
 	seen := map[string]bool{}
 	for _, m := range modules {
-		t := semantic.Text{TitleDE: m.TitleDE, TitleEN: m.TitleEN, Contents: m.Contents, Outcomes: m.Outcomes}.Clean()
-		h := t.Hash()
-		if !seen[h] {
-			seen[h] = true
-			texts = append(texts, semanticText{text: t, hash: h, department: m.Department})
+		t := semantic.Text{TitleDE: m.TitleDE, TitleEN: m.TitleEN, Contents: m.Contents, Outcomes: m.Outcomes}
+		text := semanticText{text: t, hash: t.Hash(), department: m.Department}
+		all = append(all, text)
+		if !seen[text.hash] {
+			seen[text.hash] = true
+			texts = append(texts, text)
 		}
 	}
 	stats.Texts = len(texts)
@@ -119,7 +124,7 @@ func runSemantic(ctx context.Context, db *catalogdb.DB, cfg Semantic, deadline t
 			return stats, err
 		}
 	}
-	return stats, embedPassages(ctx, db, cfg, texts, deadline, now, &stats)
+	return stats, embedPassages(ctx, db, cfg, all, deadline, now, &stats)
 }
 
 // summaryRetry is how long a text Gemini did not summarise waits before it is asked again: an

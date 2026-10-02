@@ -634,6 +634,10 @@ workstation models/  ──ship-models.sh: only what the store lacks, checked on
   names both, and they change together. The browser checks it once more against the snapshot
   (`docs/schema-v2.md`, „Semantic search"): while Radix computes the vectors of a new passage
   model (about a day), the semantic search simply is not offered.
+- **Offline too.** A Radix with `RADIX_CRAWL=off` computes the vectors its database lacks as well,
+  with the encoder alone (no Gemini: nothing goes out), and publishes them part by part. Canary,
+  seeded with the public site's database at every deploy, so has the semantic search a few hours
+  after a deploy (its one CPU), and right away once the public site's Radix has the vectors.
 
 Once per server (a fresh one gets it from `vps/10-base.sh`):
 

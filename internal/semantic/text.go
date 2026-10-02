@@ -27,7 +27,8 @@ type Summary struct {
 	Keywords []string
 }
 
-// Clean collapses the white space of every field, as Hash and Passage see them.
+// Clean collapses the white space of every field, as Hash and Passage see them. Passage and
+// Plain want the text as it is: a cleaned description has lost the lines that mark its lists.
 func (t Text) Clean() Text {
 	return Text{TitleDE: collapse(t.TitleDE), TitleEN: collapse(t.TitleEN), Contents: collapse(t.Contents), Outcomes: collapse(t.Outcomes)}
 }
