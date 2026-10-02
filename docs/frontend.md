@@ -659,13 +659,16 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   `404`/`5xx` are `no-store`. Without a snapshot everything answers `503` + `Retry-After`.
 - **The browser app (owner decision: all queries run in the browser).** `assets/boot.js` opens
   the local copy of the snapshot (`/api/db`: 44 MB, 4.4 MB in brotli, 7.6 MB in gzip, 2026-09-30;
-  kept in IndexedDB with its ETag; sql.js) and loads the WASM bundle (34 MB, 1.7 MB in brotli, 2.8 MB
+  kept in IndexedDB with its ETag, as a Blob that the browser reads away from the page, „A phone
+  that froze" below; sql.js) and loads the WASM bundle (34 MB, 1.7 MB in brotli, 2.8 MB
   in gzip) in parallel; then `client::start()` replaces the
   server-rendered body by the app. Not hydration: the local copy may be older than the server's
   page, so the app renders fresh with the same components. From then on links, filters and the
   search are client-side navigation on the local database (measured: takeover 1.2 s on a first
   visit, preview 130 ms, filter 150 ms including the test driver). Until the takeover, and if
-  anything fails, the site stays a classic website served from the HTML cache. A newer snapshot is
+  anything fails, the site stays a classic website served from the HTML cache; a link followed
+  while the app is starting waits for it (2026-10-02), and loads its page only where the app does
+  not start. A newer snapshot is
   downloaded in the background and used from the next start, unless the copy is of an older
   schema than the build reads (2026-09-23): such a copy is never opened. `boot.js` reads a copy's
   schema from its SQLite header (`user_version`) and compares it with the build's
@@ -815,6 +818,81 @@ Asked by the owner and not done, measured:
 
 `node e2e/snappy.mjs` checks all of it (§4).
 
+### A phone that froze (2026-10-02)
+
+Owner, on an Android phone with the app installed: „Wenn man das auf dem handy verwendet friert
+das häufig ein und reagiert nicht mehr", shortly after opening it and when switching tabs; „das
+sind bestimmt nur symptome von einem größeren problem". It was the main thread. A phone has one
+for everything (the touches, the page, sql.js, the app), and the start and every tab switch held
+it for seconds: whatever was tapped meanwhile waited, and a tab tapped while the app was starting
+loaded the next page and began the start anew. Measured in Chromium with the CPU slowed down four
+times, a phone's window (412 × 915), the real catalog (45 MB), a warm start (the catalog in
+IndexedDB, the bundle in the cache), the build before and after side by side: the long tasks (over
+50 ms) from the navigation until 8 s after the app runs, and those of a tab switch until 1.2 s
+after its page is there.
+
+- **`enhance.js` measured and restyled every page on a phone, for what only a wide screen has.**
+  The cover over the ground, the heads of the list's columns, the scrollbar's gap and the wood that
+  rises at the end of the scroll area (`--bar`, `--cover`, `--list-head-h`, `.short`) were worked
+  out with every change of the page, so as each page was built, a layout in each of its frames, and
+  written even where nothing had changed: a custom property written on an element restyles all of
+  it. „Nach oben" asked where the page was as each page was built (at the start of the app the
+  whole page was laid out twice for it). Now that part is off on a phone (a window that becomes
+  narrow gives back what it was given), writes only what changed, and the button looks once the
+  page scrolls or has loaded. About a quarter of a tab switch.
+- **The catalog was kept in IndexedDB as bytes** (an ArrayBuffer of 45 MB under `current`): every
+  start copied it into the page in one piece, half a second of the main thread, and an update
+  twice more. It is kept as a Blob under `catalog` now: IndexedDB keeps it as a file of its own and
+  hands it back unread, and `arrayBuffer()` reads it away from the page while sql.js loads. A copy
+  under the old name is taken over once and deleted, so that a build of before (a release rolled
+  back) finds none and fetches the catalog anew rather than failing on a Blob; old → new → old →
+  new each started. A copy the browser cannot read any more (the file of its Blob gone; Chromium
+  keeps a large value as a file of its own either way) is replaced as an older one is: before, the
+  app never started again (`NotFoundError`, at every start).
+- **The semantic search was loaded at every start** once the browser was idle: its vectors read
+  out of the catalog and handed to its worker, and its model's 15 MB, on a phone at a moment nobody
+  could see coming, for those who never search too. It is loaded when it is first wanted now
+  („Ähnliche Module" below).
+- **The start page built what nobody sees:** 2,200 elements of the large map in its closed
+  `<dialog>`, built now as it first opens (the server's page has it as before); and the start page
+  and the program overview are 17 and 10 screens of a phone, whose panels are drawn only near the
+  screen now (`content-visibility: auto`, with the height they were drawn with; a jump to a section
+  draws them on its way, `.jumping`, or the glide ended beside it). A phone's closed sheet of
+  filters, a third of the catalog's page, is not drawn until it opens (`content-visibility:
+  hidden`, until it has slid down again).
+- **A link followed while the app was starting loaded the next page**, the classic website's way:
+  a blank screen, and the start from the beginning, the catalog read anew. `boot.js` says that the
+  app is on its way (`__betulaStarting`), and `enhance.js` waits for it meanwhile: a tab is current
+  at once, and the app goes where the last link leads as soon as it runs (`betulaStarted`); where
+  it does not start (an error, or nothing for 6 s), the page loads as before.
+
+After: a warm start keeps the main thread busy for 1.8–2.3 s instead of 4.6–5.6 s, and the app
+runs after 2.2–2.5 s instead of 3.7–3.9 s (three starts each). Six tab switches (catalog, programs,
+start page, twice) take 3.8–4.3 s instead of 7.7–8.4 s, the start page 0.6–0.7 s instead of
+1.6–1.9 s. A tab tapped as soon as the page shows: its page after 4.1–5.0 s instead of 6.2–7.7 s,
+and the page is never loaded again; before, it was in 9 of 14 runs, and the start began anew.
+
+Not done, measured:
+
+- **The takeover** is the longest task left, 1.0–1.3 s of a phone at every start (1.2–1.8 s before):
+  `client::start()` builds the whole page anew in place of the server's. Hydration would take the
+  server's page over as it is; it needs the local copy to be the server's snapshot, which it need
+  not be („Data flow" above), so a start on another copy would still build anew.
+- **Areas that stay built:** a tab left could be kept, hidden and not drawn, instead of being built
+  again when the visitor comes back. The router and the pages assume one page at a time (its ids,
+  its effects, what it reads of the address).
+- **The start page's numbers** could come computed with the snapshot, from Radix:
+  `queries::program_department_counts` alone takes 250 ms of a phone, at the first visit of the
+  page in a start (its answers are kept, „A click answers first" above).
+- **sql.js copies the catalog once more**, into its own memory (`new SQL.Database`, 300 ms of a
+  phone).
+- **A panel the browser skips paints only its own background:** a fling down the start page that
+  comes to a panel before it is drawn shows it empty for a moment. The catalog's lists paint a
+  skeleton there (`.vfill`, the plain lists' `.row-wrap`, „Termine"'s weeks); the panels of the
+  start page and the program overview have none yet.
+
+`node e2e/tabbar.mjs` checks the start (§4).
+
 ### The search of the catalog (`catalog/src/search.rs`, 2026-09-30)
 
 Owner: the search should improve, first with the names of the modules („erstmal eine neue Zeile in
@@ -875,6 +953,9 @@ description. The list stays the list it was („ich mag das UI da und würde das
   `window.betulaSemantic`; none without a model on the server, without vectors in the snapshot, with
   data saving): until then, and on the server's page, nothing stands there, and the rows come when
   it answers (`SimilarModules`, a `LocalResource`), under the results, so nothing above them moves.
+  It is loaded when it is first wanted (2026-10-02, before at every start): as a search field takes
+  the focus, in the browser's idle time, or when a search asks it; with a mouse once the browser is
+  idle („A phone that froze" above).
 
 ### From the program's page into the catalog (2026-09-21)
 
@@ -1018,7 +1099,8 @@ passed through) so that shadows, the lift under the pointer and the overshoot ar
 tabs, arrow keys, a swipe and a click on a neighbour turn it; a click on the current screenshot
 opens its page, a click on the map opens it large in a `<dialog>` (the interactive map: hover,
 pick, faculty outline, link; the first Escape puts a pick away, the next closes; the page behind
-it does not scroll, `:root:has(.map-dialog[open])`). On a wide screen (≥ 1100 px and wider than
+it does not scroll, `:root:has(.map-dialog[open])`; the app builds it as the dialog first opens,
+2026-10-02: some 2,200 elements nobody sees until then). On a wide screen (≥ 1100 px and wider than
 7:5) the dialog is the 4:3 map as high as the screen allows with a column on its left: the head,
 the legend (with the line for shared modules) and what is shown — the program, its faculty, its
 five closest relatives with the number of shared modules, the link. Owner: the carousel and the dialog only have
@@ -1573,7 +1655,7 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   worker kept, and the status says „Offline – die Daten werden neu geladen, sobald du online
   bist" (the only case in which a failed start says anything). Once the app runs it says
   nothing: the „Offline bereit" notice is gone (owner, 2026-09-21: „wenn es einfach
-  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh; `e2e/schema.mjs` plants a copy of an older schema and starts with and without a network.
+  funktioniert, dann passt das"); only the loading of the data on a first visit is announced. `e2e/pwa.mjs` cuts the network and loads pages afresh; `e2e/schema.mjs` plants a copy of an older schema and starts with and without a network, and one that cannot be read.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), English
 pages.
@@ -2487,8 +2569,9 @@ and once the tab is current its own mark is back and nothing of the swipe is lef
 long pull goes one tab and no further, a short slow one glides back, a short flick goes on, at
 either end the tab stays; a finger catches the glide with the lens where it is and goes on from
 there, two swipes in a row go two tabs, a tap right after a quick swipe is a tap, and a finger up
-the bar scrolls the page; before the app takes over (its bundle kept away) a swipe loads the tab's
-page.
+the bar scrolls the page; while the app is starting (its bundle held back for 3 s) a tab tapped
+and a swipe are current at once, the page is not loaded again, and the app shows the last one's
+page once it runs; where the app does not start (its bundle fails) a swipe loads the tab's page.
 
 ```bash
 cd e2e && node swipe.mjs
